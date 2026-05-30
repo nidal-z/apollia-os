@@ -6,7 +6,10 @@
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, RawRequest},
+};
 
 const GRAPH: &str = "https://graph.microsoft.com/v1.0/me/drive";
 
@@ -123,7 +126,16 @@ impl OneDriveClient {
         let url = format!("{GRAPH}/items/{item_id}/content");
         let response = self
             .http
-            .send_with_retries(Method::GET, &url, None, bearer, refresh)
+            .send(
+                RawRequest {
+                    method: Method::GET,
+                    url: &url,
+                    body: None,
+                    content_type: None,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         let bytes = response
             .bytes()

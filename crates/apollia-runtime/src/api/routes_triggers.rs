@@ -1,23 +1,23 @@
 //! Routes REST pour la gestion des triggers.
 //!
 //! Expose les opérations CRUD sur les triggers via l'API REST du runtime :
-//! - `GET    /api/v1/triggers`              — liste de tous les triggers
-//! - `GET    /api/v1/triggers/:id`          — définition complète + statut runtime
-//! - `POST   /api/v1/triggers`              — créer un trigger
-//! - `PUT    /api/v1/triggers/:id`          — modifier un trigger
-//! - `DELETE /api/v1/triggers/:id`          — supprimer un trigger
-//! - `POST   /api/v1/triggers/:id/fire`     — déclenchement immédiat
-//! - `POST   /api/v1/triggers/:id/enable`   — activation
-//! - `POST   /api/v1/triggers/:id/disable`  — désactivation
-//! - `GET    /api/v1/triggers/:id/logs`     — historique SQLite
-//! - `POST   /api/v1/triggers/reload`       — hot reload depuis SQLite
+//! - `GET    /api/v1/triggers`             , liste de tous les triggers
+//! - `GET    /api/v1/triggers/:id`         , définition complète + statut runtime
+//! - `POST   /api/v1/triggers`             , créer un trigger
+//! - `PUT    /api/v1/triggers/:id`         , modifier un trigger
+//! - `DELETE /api/v1/triggers/:id`         , supprimer un trigger
+//! - `POST   /api/v1/triggers/:id/fire`    , déclenchement immédiat
+//! - `POST   /api/v1/triggers/:id/enable`  , activation
+//! - `POST   /api/v1/triggers/:id/disable` , désactivation
+//! - `GET    /api/v1/triggers/:id/logs`    , historique SQLite
+//! - `POST   /api/v1/triggers/reload`      , hot reload depuis SQLite
 //!
 //! **Codes de retour partagés :**
-//! - `503` — `TriggerEngine` ou repository non disponible.
-//! - `404` — trigger inconnu.
-//! - `409` — identifiant déjà existant.
-//! - `422` — erreur de validation.
-//! - `200` / `201` — succès.
+//! - `503`, `TriggerEngine` ou repository non disponible.
+//! - `404`, trigger inconnu.
+//! - `409`, identifiant déjà existant.
+//! - `422`, erreur de validation.
+//! - `200` / `201`, succès.
 
 use axum::{
     extract::{Path, Query, State},
@@ -37,7 +37,7 @@ use crate::coordinator::ExecutionBackend;
 
 // ─── Request types ───────────────────────────────────────────────────────
 
-/// Corps de requête pour `POST /api/v1/triggers` — création d'un trigger.
+/// Corps de requête pour `POST /api/v1/triggers`, création d'un trigger.
 #[derive(Debug, Deserialize)]
 pub struct CreateTriggerRequest {
     /// Identifiant unique du trigger.
@@ -64,7 +64,7 @@ pub struct TriggerSourceInput {
     pub config: serde_json::Value,
 }
 
-/// Corps de requête pour `PUT /api/v1/triggers/:id` — modification d'un trigger.
+/// Corps de requête pour `PUT /api/v1/triggers/:id`, modification d'un trigger.
 #[derive(Debug, Deserialize)]
 pub struct UpdateTriggerRequest {
     /// Agent cible.
@@ -125,7 +125,7 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
-/// Réponse pour `GET /api/v1/triggers/:id` — statut détaillé (legacy).
+/// Réponse pour `GET /api/v1/triggers/:id`, statut détaillé (legacy).
 #[derive(Serialize)]
 pub struct TriggerDetailResponse {
     /// Identifiant du trigger.
@@ -307,7 +307,7 @@ fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (St
 
 // ─── CRUD Handlers ───────────────────────────────────────────────────────
 
-/// `POST /api/v1/triggers` — créer une nouvelle définition de trigger.
+/// `POST /api/v1/triggers`, créer une nouvelle définition de trigger.
 ///
 /// Valide la définition, l'insère dans `triggers.db`, recharge le moteur,
 /// et retourne `201` avec la définition complète (y compris `created_at`).
@@ -361,7 +361,7 @@ pub async fn create_trigger<B: ExecutionBackend + Clone>(
     Ok((StatusCode::CREATED, Json(row_to_response(created))))
 }
 
-/// `PUT /api/v1/triggers/:id` — modifier une définition de trigger existante.
+/// `PUT /api/v1/triggers/:id`, modifier une définition de trigger existante.
 ///
 /// Valide la nouvelle définition, la met à jour dans `triggers.db`,
 /// recharge le moteur, et retourne `200` avec la définition mise à jour.
@@ -413,7 +413,7 @@ pub async fn update_trigger<B: ExecutionBackend + Clone>(
     Ok(Json(row_to_response(updated)))
 }
 
-/// `DELETE /api/v1/triggers/:id` — supprimer une définition de trigger.
+/// `DELETE /api/v1/triggers/:id`, supprimer une définition de trigger.
 ///
 /// Supprime de `triggers.db`, recharge le moteur, et retourne `200`.
 pub async fn delete_trigger<B: ExecutionBackend + Clone>(
@@ -439,7 +439,7 @@ pub async fn delete_trigger<B: ExecutionBackend + Clone>(
     Ok(Json(DeleteResponse { deleted: id }))
 }
 
-/// `GET /api/v1/triggers/:id` — définition complète + statut runtime.
+/// `GET /api/v1/triggers/:id`, définition complète + statut runtime.
 pub async fn get_trigger_by_id<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -472,7 +472,7 @@ pub async fn get_trigger_by_id<B: ExecutionBackend + Clone>(
 
 // ─── Trigger Action Handlers ──────────────────────────────────────────────
 
-/// `GET /api/v1/triggers` — liste de tous les triggers avec leur statut.
+/// `GET /api/v1/triggers`, liste de tous les triggers avec leur statut.
 pub async fn list_triggers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> impl IntoResponse {
@@ -491,7 +491,7 @@ pub async fn list_triggers<B: ExecutionBackend + Clone>(
     Json(serde_json::json!({ "triggers": statuses })).into_response()
 }
 
-/// `GET /api/v1/triggers/:id` — statut détaillé d'un trigger (legacy, via TriggerEngine).
+/// `GET /api/v1/triggers/:id`, statut détaillé d'un trigger (legacy, via TriggerEngine).
 pub async fn get_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -560,7 +560,7 @@ pub async fn get_trigger<B: ExecutionBackend + Clone>(
     Json(detail).into_response()
 }
 
-/// `POST /api/v1/triggers/:id/fire` — déclenchement immédiat.
+/// `POST /api/v1/triggers/:id/fire`, déclenchement immédiat.
 pub async fn fire_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -600,7 +600,7 @@ pub async fn fire_trigger<B: ExecutionBackend + Clone>(
     }
 }
 
-/// `POST /api/v1/triggers/:id/enable` — active un trigger désactivé.
+/// `POST /api/v1/triggers/:id/enable`, active un trigger désactivé.
 pub async fn enable_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -637,7 +637,7 @@ pub async fn enable_trigger<B: ExecutionBackend + Clone>(
     }
 }
 
-/// `POST /api/v1/triggers/:id/disable` — désactive un trigger actif.
+/// `POST /api/v1/triggers/:id/disable`, désactive un trigger actif.
 pub async fn disable_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -674,7 +674,7 @@ pub async fn disable_trigger<B: ExecutionBackend + Clone>(
     }
 }
 
-/// `GET /api/v1/triggers/:id/logs` — historique des déclenchements depuis SQLite.
+/// `GET /api/v1/triggers/:id/logs`, historique des déclenchements depuis SQLite.
 ///
 /// Le paramètre de query `?last=N` contrôle le nombre d'entrées (défaut : 20).
 pub async fn get_trigger_logs<B: ExecutionBackend + Clone>(
@@ -872,6 +872,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         }
     }
 
@@ -1204,7 +1205,7 @@ mod tests {
         );
     }
 
-    // ── Ancien test — 503 si TriggerEngine absent ───────────────────────
+    // ── Ancien test, 503 si TriggerEngine absent ───────────────────────
 
     #[tokio::test]
     async fn test_reload_503_when_no_trigger_engine() {
@@ -1246,6 +1247,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
 
         let router = Router::new()

@@ -1,7 +1,7 @@
 //! Bridge layer that turns connector operations (Gmail, Calendar, Drive, …)
 //! into [`ToolDescriptor`]s the agent runtime can register at boot.
 //!
-//! Descriptors are STATIC metadata — they make the LLM aware that the tool
+//! Descriptors are STATIC metadata, they make the LLM aware that the tool
 //! exists and what it accepts. The actual EXECUTION is plugged in by
 //! `apollia-desktop` (which owns the `AuthManager` singleton and the live
 //! `GoogleConnector` instance) at dispatcher-build time, via a parallel
@@ -19,9 +19,13 @@ use std::sync::Arc;
 use apollia_auth::{AccountId, AuthManager, ConnectorProvider, GoogleScope};
 use apollia_connectors::error::ConnectorError;
 use apollia_connectors::google::{
-    calendar::{Attendee, EventDraft, EventTime, ListEventsFilter},
+    calendar::{Attendee, EventDraft, EventTime, EventUpdate, ListEventsFilter},
+    drive_workspace::{FolderWrite, NameSearch, WorkspaceWrite},
     gmail::ComposeMail,
-    operations as google_operations, GoogleConnector,
+    operations as google_operations,
+    sheets::ValueWrite,
+    tasks::NewTask,
+    GoogleConnector,
 };
 use apollia_connectors::operation::{ApprovalPolicy, OperationSpec};
 use apollia_core::SandboxProfile;
@@ -34,7 +38,7 @@ use tokio::sync::OnceCell;
 /// Build the full set of [`ToolDescriptor`]s for the Google Workspace
 /// connector. Mirrors `apollia_connectors::google::OPERATIONS` 1:1 with the
 /// per-op input schema attached (the `OperationSpec` constant stores Null for
-/// `input_schema` because it's a build-time const — JSON schemas are filled
+/// `input_schema` because it's a build-time const, JSON schemas are filled
 /// in here, where `serde_json::json!` is available).
 pub fn google_tool_descriptors() -> Vec<ToolDescriptor> {
     google_operations()
@@ -62,7 +66,7 @@ fn op_to_descriptor(_connector_id: &str, op: &OperationSpec) -> ToolDescriptor {
         kind: ToolKind::Native,
         input_schema: input_schema_for(op.id),
         output_schema: None,
-        // Connector tools make outbound HTTPS calls — they don't touch the
+        // Connector tools make outbound HTTPS calls, they don't touch the
         // sandbox filesystem. `ReadOnly` is the closest existing profile;
         // network access is governed by the connector's own scope policy,
         // not the sandbox.
@@ -131,7 +135,7 @@ fn short_impact(op: &OperationSpec) -> String {
 //
 // Hand-authored JSON Schema fragments matching the parameters each connector
 // method consumes. The shape mirrors the desktop-side executors that
-// deserialise these payloads — keep both in sync when adding ops.
+// deserialise these payloads, keep both in sync when adding ops.
 
 fn input_schema_for(op_id: &str) -> serde_json::Value {
     match op_id {
@@ -431,7 +435,7 @@ fn input_schema_for(op_id: &str) -> serde_json::Value {
 // ─── Chat Libre invoker (Google) ────────────────────────────────────────────
 //
 // `NativeChatToolInvoker` uses a hardcoded match on tool names. Connector
-// tools are not in that match — so we surface an injected [`ToolInvoker`]
+// tools are not in that match, so we surface an injected [`ToolInvoker`]
 // implementation it can delegate to when the LLM calls `gmail.send`,
 // `gcal.list_events`, `gdrive.workspace_write`, etc.
 //
@@ -477,7 +481,7 @@ async fn get_auth() -> Result<Arc<AuthManager>, String> {
 /// Tool invoker that routes connector operation names (`gmail.send`,
 /// `gcal.list_events`, `gdrive.workspace_*`, …) to the in-process Google
 /// Workspace connector. Returns the connector response as a stringified
-/// JSON blob — same convention as the other Chat Libre tool invokers.
+/// JSON blob, same convention as the other Chat Libre tool invokers.
 pub struct GoogleChatToolInvoker;
 
 impl GoogleChatToolInvoker {
@@ -553,7 +557,7 @@ async fn dispatch_google_tool(tool_name: &str, input: &Value) -> Result<Value, S
     }
 }
 
-// ─── Per-op handlers — these mirror the desktop bridge but return `Value` ──
+// ─── Per-op handlers, these mirror the desktop bridge but return `Value` ──
 
 async fn resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String> {
     let accounts = auth
@@ -830,7 +834,15 @@ async fn gcal_update_event(
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let event = connector
         .calendar()
-        .update_event(&cal, &event_id, &draft, &token, refresh)
+        .update_event(
+            EventUpdate {
+                calendar_id: &cal,
+                event_id: &event_id,
+                draft: &draft,
+            },
+            &token,
+            refresh,
+        )
         .await
         .map_err(|e| e.to_string())?;
     serde_json::to_value(&event).map_err(|e| e.to_string())
@@ -947,7 +959,15 @@ async fn gdrive_find_by_name(
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let files = connector
         .drive()
-        .find_by_name(&name, mime_filter.as_deref(), exact, &token, refresh)
+        .find_by_name(
+            NameSearch {
+                name: &name,
+                mime_type_filter: mime_filter.as_deref(),
+                exact,
+            },
+            &token,
+            refresh,
+        )
         .await
         .map_err(|e| e.to_string())?;
     Ok(json!({
@@ -1014,11 +1034,13 @@ async fn gdrive_workspace_write(
     let file = connector
         .drive()
         .workspace_write(
-            &root_path,
-            &agent_slug,
-            &name,
-            content.as_bytes(),
-            mime_type.as_deref(),
+            WorkspaceWrite {
+                root_path: &root_path,
+                agent_slug: &agent_slug,
+                name: &name,
+                content: content.as_bytes(),
+                mime_type: mime_type.as_deref(),
+            },
             &token,
             refresh,
         )
@@ -1081,7 +1103,7 @@ async fn gdrive_read_file(
     input: &Value,
 ) -> Result<Value, String> {
     // Same as gdrive.workspace_read but accessible outside the Apollia
-    // root — Apollia has `drive.file` access to the file because it lives
+    // root, Apollia has `drive.file` access to the file because it lives
     // in a picked folder.
     let file_id = get_str(input, "file_id")?;
     let scopes = [GoogleScope::DriveWorkspace];
@@ -1140,10 +1162,12 @@ async fn gdrive_write_to_folder(
     let file = connector
         .drive()
         .write_file_in_folder(
-            target_folder.as_deref(),
-            &name,
-            content.as_bytes(),
-            mime_type.as_deref(),
+            FolderWrite {
+                folder_id: target_folder.as_deref(),
+                name: &name,
+                content: content.as_bytes(),
+                mime_type: mime_type.as_deref(),
+            },
             &token,
             refresh,
         )
@@ -1276,7 +1300,15 @@ async fn gsheets_append_values(
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .sheets()
-        .append_values(&id, &range, &values, &token, refresh)
+        .append_values(
+            ValueWrite {
+                spreadsheet_id: &id,
+                range: &range,
+                values: &values,
+            },
+            &token,
+            refresh,
+        )
         .await
         .map_err(|e| e.to_string())
 }
@@ -1294,7 +1326,15 @@ async fn gsheets_update_values(
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .sheets()
-        .update_values(&id, &range, &values, &token, refresh)
+        .update_values(
+            ValueWrite {
+                spreadsheet_id: &id,
+                range: &range,
+                values: &values,
+            },
+            &token,
+            refresh,
+        )
         .await
         .map_err(|e| e.to_string())
 }
@@ -1431,10 +1471,12 @@ async fn gtasks_create(
     let task = connector
         .tasks()
         .create_task(
-            &list_id,
-            &title,
-            notes.as_deref(),
-            due.as_deref(),
+            NewTask {
+                task_list_id: &list_id,
+                title: &title,
+                notes: notes.as_deref(),
+                due_rfc3339: due.as_deref(),
+            },
             &token,
             refresh,
         )
@@ -1531,7 +1573,7 @@ async fn youtube_video_details(
     serde_json::to_value(&details).map_err(|e| e.to_string())
 }
 
-// ─── ToolExecutor wrappers (Phase 2 — ADR-096) ──────────────────────────────
+// ToolExecutor wrappers (Phase 2)
 //
 // `GoogleChatToolInvoker` implements `ToolInvoker` (string-typed). To plug
 // the connector ops into a unified `ToolDispatcher` alongside MCP + native

@@ -65,7 +65,7 @@ impl HotkeyListener {
     /// Registers the global hotkey on the given Tauri application.
     ///
     /// `on_start` is called when recording begins, `on_stop` when it ends.
-    /// Both callbacks execute on the global-shortcut handler thread — keep them
+    /// Both callbacks execute on the global-shortcut handler thread; keep them
     /// lightweight (e.g. send a message to a channel).
     ///
     /// Returns `Ok(())` on success, or an error description if the hotkey is
@@ -86,29 +86,8 @@ impl HotkeyListener {
 
         let gs = app.global_shortcut();
 
-        gs.on_shortcut(hotkey.as_str(), move |_app, _shortcut, event| match mode {
-            TriggerMode::Toggle => {
-                if event.state == ShortcutState::Pressed {
-                    let was_recording = recording.fetch_xor(true, Ordering::SeqCst);
-                    if was_recording {
-                        on_stop();
-                    } else {
-                        on_start();
-                    }
-                }
-            }
-            TriggerMode::PushToTalk => match event.state {
-                ShortcutState::Pressed => {
-                    if !recording.swap(true, Ordering::SeqCst) {
-                        on_start();
-                    }
-                }
-                ShortcutState::Released => {
-                    if recording.swap(false, Ordering::SeqCst) {
-                        on_stop();
-                    }
-                }
-            },
+        gs.on_shortcut(hotkey.as_str(), move |_app, _shortcut, event| {
+            dispatch_shortcut(mode, &recording, event.state, &on_start, &on_stop);
         })
         .map_err(|e| {
             tracing::warn!(hotkey = %self.hotkey, error = %e, "failed to register global hotkey");
@@ -122,6 +101,41 @@ impl HotkeyListener {
         );
 
         Ok(())
+    }
+}
+
+/// Routes a single global-shortcut event to the start/stop callbacks per mode.
+///
+/// Extracted from `HotkeyListener::register` so the closure body stays flat.
+fn dispatch_shortcut(
+    mode: TriggerMode,
+    recording: &AtomicBool,
+    state: ShortcutState,
+    on_start: &(dyn Fn() + Send + Sync),
+    on_stop: &(dyn Fn() + Send + Sync),
+) {
+    match mode {
+        TriggerMode::Toggle => {
+            if state == ShortcutState::Pressed {
+                if recording.fetch_xor(true, Ordering::SeqCst) {
+                    on_stop();
+                } else {
+                    on_start();
+                }
+            }
+        }
+        TriggerMode::PushToTalk => match state {
+            ShortcutState::Pressed => {
+                if !recording.swap(true, Ordering::SeqCst) {
+                    on_start();
+                }
+            }
+            ShortcutState::Released => {
+                if recording.swap(false, Ordering::SeqCst) {
+                    on_stop();
+                }
+            }
+        },
     }
 }
 

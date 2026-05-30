@@ -1,29 +1,28 @@
-//! `FileWatchTrigger` — source de surveillance du système de fichiers.
+//! `FileWatchTrigger`: filesystem watch source.
 //!
-//! Spawne une tâche Tokio qui surveille un répertoire via la crate `notify` v6
-//! (inotify sur Linux, kqueue sur macOS, ReadDirectoryChanges sur Windows)
-//! et forwarde les événements filtrés vers le channel async du `TriggerEngine`.
+//! Spawns a Tokio task that watches a directory via the `notify` crate v6
+//! (inotify on Linux, kqueue on macOS, ReadDirectoryChanges on Windows) and
+//! forwards filtered events to the `TriggerEngine`'s async channel.
 //!
-//! ## Filtrage des événements
+//! ## Event filtering
 //!
-//! Avant propagation, chaque événement est soumis à deux filtres :
-//! - **Exclusion de chemin** : tout segment ou pattern correspondant à `exclude_patterns`
-//!   est ignoré silencieusement (ex : `.git/`, `node_modules/`, `*.log`).
-//! - **Liens symboliques** : si `follow_symlinks = false` (défaut), les chemins
-//!   identifiés comme symlinks via `fs::symlink_metadata` sont ignorés.
+//! Before propagation, each event passes through two filters:
+//! - **Path exclusion**: any segment or pattern matching `exclude_patterns` is
+//!   silently ignored (e.g. `.git/`, `node_modules/`, `*.log`).
+//! - **Symbolic links**: if `follow_symlinks = false` (default), paths
+//!   identified as symlinks via `fs::symlink_metadata` are ignored.
 //!
-//! ## Déduplication
+//! ## Deduplication
 //!
-//! Les événements répétés sur le même chemin dans une fenêtre de 1 seconde sont
-//! dédupliqués : un seul événement est propagé, les doublons sont loggés en
-//! `tracing::debug!`.
+//! Repeated events on the same path within a 1-second window are deduplicated:
+//! a single event is propagated and duplicates are logged at `tracing::debug!`.
 //!
-//! ## Pont sync→async
+//! ## Sync-to-async bridge
 //!
-//! `notify` utilise une API synchrone (`std::sync::mpsc::Sender`). Le pont est
-//! réalisé par `recv_timeout(50ms)` dans la boucle de la tâche Tokio : si le
-//! channel async est fermé (`tx.is_closed()`), la boucle se termine proprement
-//! et le `Watcher` est droppé, ce qui libère les ressources inotify/kqueue.
+//! `notify` uses a synchronous API (`std::sync::mpsc::Sender`). The bridge is
+//! done via `recv_timeout(50ms)` in the Tokio task loop: if the async channel
+//! is closed (`tx.is_closed()`), the loop terminates cleanly and the `Watcher`
+//! is dropped, freeing the inotify/kqueue resources.
 
 use notify::{EventKind, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
@@ -34,22 +33,22 @@ use crate::types::{
     FileEventKind, TriggerDefinition, TriggerEvent, TriggerPayload, TriggerSourceConfig,
 };
 
-/// Source de déclenchement basée sur la surveillance du système de fichiers.
+/// Trigger source based on filesystem watching.
 ///
-/// Utilise la crate `notify` v6 (cross-platform : inotify/kqueue/FSEvents)
-/// avec un pont sync→async via `recv_timeout` pour garantir l'arrêt propre.
+/// Uses the `notify` crate v6 (cross-platform: inotify/kqueue/FSEvents) with a
+/// sync-to-async bridge via `recv_timeout` to guarantee a clean shutdown.
 pub struct FileWatchTrigger;
 
 impl FileWatchTrigger {
-    /// Spawne une tâche Tokio qui surveille le répertoire configuré et forwarde
-    /// les événements fichier filtrés vers le channel async du `TriggerEngine`.
+    /// Spawns a Tokio task that watches the configured directory and forwards
+    /// filtered file events to the `TriggerEngine`'s async channel.
     ///
-    /// La tâche se termine proprement dès que le channel est fermé (`tx.is_closed()`).
-    /// Le `Watcher` est droppé automatiquement, libérant les ressources OS (inotify/kqueue).
-    /// Retourne un `JoinHandle<()>` pour abort lors du hot reload.
+    /// The task terminates cleanly as soon as the channel is closed (`tx.is_closed()`).
+    /// The `Watcher` is dropped automatically, freeing OS resources (inotify/kqueue).
+    /// Returns a `JoinHandle<()>` for abort during hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
-            // Guard : extraire path et recursive depuis la source
+            // Extract path and recursive from the source.
             let (raw_path, recursive) = match &def.source {
                 TriggerSourceConfig::FileWatch {
                     path, recursive, ..
@@ -65,9 +64,9 @@ impl FileWatchTrigger {
 
             let path = expand_tilde(&raw_path);
 
-            // Mode récursif uniquement pertinent pour les dossiers. Pour un chemin
-            // de fichier, `notify` ignore silencieusement le mode mais on garde
-            // NonRecursive par défaut pour rester explicite.
+            // Recursive mode only matters for directories. For a file path,
+            // `notify` silently ignores the mode, but we keep NonRecursive by
+            // default to stay explicit.
             let path_is_dir = std::fs::metadata(&path)
                 .map(|m| m.is_dir())
                 .unwrap_or(false);
@@ -77,7 +76,7 @@ impl FileWatchTrigger {
                 RecursiveMode::NonRecursive
             };
 
-            // Canal sync notify → thread bloquant
+            // Sync notify channel to the blocking thread.
             let (notify_tx, notify_rx) = std::sync::mpsc::channel();
 
             let mut watcher = match notify::recommended_watcher(notify_tx) {
@@ -102,74 +101,21 @@ impl FileWatchTrigger {
                 return;
             }
 
-            // Pont sync → async : spawn_blocking pour ne pas bloquer les workers Tokio.
-            // `blocking_send` est utilisé depuis le contexte bloquant.
-            // Le watcher est maintenu en vie dans la closure bloquante.
+            // Sync-to-async bridge: spawn_blocking so we do not block the Tokio
+            // workers. `blocking_send` is used from the blocking context, and
+            // the watcher is kept alive inside the blocking closure.
             let source = def.source.clone();
             let trigger_id = def.id.clone();
             let agent = def.agent.clone();
 
             tokio::task::spawn_blocking(move || {
-                let _watcher = watcher; // maintenu en vie jusqu'à la fin de la closure
-                                        // Deduplication: macOS FSEvents emits multiple Create events per `cp`
-                                        // (fd allocation + data flush). Suppress repeated fires for the same
-                                        // path within a 1-second window.
-                let mut dedup: std::collections::HashMap<std::path::PathBuf, std::time::Instant> =
-                    std::collections::HashMap::new();
-                loop {
-                    match notify_rx.recv_timeout(std::time::Duration::from_millis(50)) {
-                        Ok(Ok(event)) => {
-                            if let Some(payload) = map_notify_event(event, &source) {
-                                // Dedup check for File payloads
-                                if let TriggerPayload::File {
-                                    path: ref file_path,
-                                    ..
-                                } = payload
-                                {
-                                    let now = std::time::Instant::now();
-                                    if dedup.get(file_path).is_some_and(|last| {
-                                        last.elapsed() < std::time::Duration::from_secs(1)
-                                    }) {
-                                        tracing::debug!(
-                                            path = %file_path.display(),
-                                            "deduplicated file event"
-                                        );
-                                        continue;
-                                    }
-                                    dedup.insert(file_path.clone(), now);
-                                    // Keep map bounded — prune entries older than 10s
-                                    dedup.retain(|_, t| {
-                                        t.elapsed() < std::time::Duration::from_secs(10)
-                                    });
-                                }
-                                let trigger_event = TriggerEvent {
-                                    trigger_id: trigger_id.clone(),
-                                    agent: agent.clone(),
-                                    payload,
-                                    fired_at: chrono::Utc::now(),
-                                };
-                                if tx.blocking_send(trigger_event).is_err() {
-                                    // Engine dropped — arrêt propre
-                                    break;
-                                }
-                            }
-                        }
-                        Ok(Err(e)) => {
-                            tracing::warn!(
-                                trigger = %trigger_id,
-                                error = %e,
-                                "notify error"
-                            );
-                        }
-                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                            // Vérifier si le channel async est fermé (engine arrêté)
-                            if tx.is_closed() {
-                                break;
-                            }
-                        }
-                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
-                    }
-                }
+                let _watcher = watcher; // kept alive until the closure ends
+                let ctx = WatchContext {
+                    source: &source,
+                    trigger_id: &trigger_id,
+                    agent: &agent,
+                };
+                run_watch_loop(&notify_rx, &tx, &ctx);
             })
             .await
             .ok();
@@ -177,17 +123,123 @@ impl FileWatchTrigger {
     }
 }
 
-/// Mappe un événement `notify` vers un [`TriggerPayload::File`] selon les filtres déclarés.
+/// Immutable context of a FileWatch trigger, shared by the watch loop and event
+/// forwarding (source configuration + trigger identity).
+struct WatchContext<'a> {
+    source: &'a TriggerSourceConfig,
+    trigger_id: &'a str,
+    agent: &'a str,
+}
+
+/// Blocking loop: pumps the sync `notify` channel and forwards filtered,
+/// deduplicated events to the `TriggerEngine`'s async channel.
 ///
-/// Retourne `None` si :
-/// - L'événement ne correspond pas aux filtres configurés (`events`).
-/// - Le type d'événement est inconnu (`Access`, `Other`, …).
-/// - Le chemin du fichier est absent de l'événement.
-/// - Le chemin correspond à un pattern d'exclusion (`exclude_patterns`).
-/// - `follow_symlinks = false` et le chemin est un lien symbolique.
+/// Terminates when the async channel is closed (`tx.is_closed()`) or the sync
+/// channel is disconnected.
+fn run_watch_loop(
+    notify_rx: &std::sync::mpsc::Receiver<notify::Result<notify::Event>>,
+    tx: &mpsc::Sender<TriggerEvent>,
+    ctx: &WatchContext,
+) {
+    // Deduplication: macOS FSEvents emits multiple Create events per `cp`
+    // (fd allocation + data flush). Suppress repeated fires for the same
+    // path within a 1-second window.
+    let mut dedup: std::collections::HashMap<std::path::PathBuf, std::time::Instant> =
+        std::collections::HashMap::new();
+    loop {
+        match notify_rx.recv_timeout(std::time::Duration::from_millis(50)) {
+            Ok(Ok(event)) => {
+                if forward_event(event, tx, ctx, &mut dedup) {
+                    break;
+                }
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(
+                    trigger = %ctx.trigger_id,
+                    error = %e,
+                    "notify error"
+                );
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Check whether the async channel is closed (engine stopped).
+                if tx.is_closed() {
+                    break;
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+    }
+}
+
+/// Maps, deduplicates, and forwards a `notify` event.
 ///
-/// Cette fonction est pure et testable sans filesystem réel (sauf les vérifications
-/// de métadonnées et de symlinks qui requièrent un vrai chemin).
+/// Returns `true` if the async channel is closed (engine dropped) and the loop
+/// must stop.
+fn forward_event(
+    event: notify::Event,
+    tx: &mpsc::Sender<TriggerEvent>,
+    ctx: &WatchContext,
+    dedup: &mut std::collections::HashMap<std::path::PathBuf, std::time::Instant>,
+) -> bool {
+    let Some(payload) = map_notify_event(event, ctx.source) else {
+        return false;
+    };
+    if is_duplicate_file_event(&payload, dedup) {
+        return false;
+    }
+    let trigger_event = TriggerEvent {
+        trigger_id: ctx.trigger_id.to_owned(),
+        agent: ctx.agent.to_owned(),
+        payload,
+        fired_at: chrono::Utc::now(),
+    };
+    // Engine dropped: clean shutdown.
+    tx.blocking_send(trigger_event).is_err()
+}
+
+/// Applies deduplication to `File` payloads within a 1-second window.
+///
+/// Returns `true` if the payload is a recent duplicate (to be ignored). Updates
+/// the deduplication map and bounds it to 10s for the `File` payloads kept.
+fn is_duplicate_file_event(
+    payload: &TriggerPayload,
+    dedup: &mut std::collections::HashMap<std::path::PathBuf, std::time::Instant>,
+) -> bool {
+    let TriggerPayload::File {
+        path: ref file_path,
+        ..
+    } = *payload
+    else {
+        return false;
+    };
+    let now = std::time::Instant::now();
+    if dedup
+        .get(file_path)
+        .is_some_and(|last| last.elapsed() < std::time::Duration::from_secs(1))
+    {
+        tracing::debug!(
+            path = %file_path.display(),
+            "deduplicated file event"
+        );
+        return true;
+    }
+    dedup.insert(file_path.clone(), now);
+    // Keep the map bounded: prune entries older than 10s.
+    dedup.retain(|_, t| t.elapsed() < std::time::Duration::from_secs(10));
+    false
+}
+
+/// Maps a `notify` event to a [`TriggerPayload::File`] according to the declared filters.
+///
+/// Returns `None` when:
+/// - The event does not match the configured filters (`events`).
+/// - The event kind is unknown (`Access`, `Other`, etc.).
+/// - The file path is missing from the event.
+/// - The path matches an exclusion pattern (`exclude_patterns`).
+/// - `follow_symlinks = false` and the path is a symbolic link.
+///
+/// This function is pure and testable without a real filesystem (except the
+/// metadata and symlink checks, which need a real path).
 pub fn map_notify_event(
     event: notify::Event,
     source: &TriggerSourceConfig,
@@ -220,12 +272,12 @@ pub fn map_notify_event(
 
     let path = event.paths.into_iter().next()?;
 
-    // Exclusion check — avant tout accès filesystem pour minimiser les allocations
+    // Exclusion check before any filesystem access, to minimize allocations.
     if is_excluded(&path, exclude_patterns) {
         return None;
     }
 
-    // Symlink guard — symlink_metadata ne suit PAS les liens, contrairement à metadata
+    // Symlink guard: symlink_metadata does NOT follow links, unlike metadata.
     if !follow_symlinks {
         if let Ok(meta) = std::fs::symlink_metadata(&path) {
             if meta.file_type().is_symlink() {
@@ -240,7 +292,7 @@ pub fn map_notify_event(
     // This filters spurious Create events emitted by kqueue on macOS when a file is
     // deleted (the backend rescans the directory and may fire a Create for the parent
     // directory or a stale entry). Semantically, a FileWatch Create must point to a
-    // real file — if the path is gone or is a directory, skip the event.
+    // real file: if the path is gone or is a directory, skip the event.
     // std::fs::metadata follows symlinks intentionally (size of the target, not the link).
     let size_bytes = if file_kind == FileEventKind::Create {
         match std::fs::metadata(&path) {
@@ -259,20 +311,20 @@ pub fn map_notify_event(
     })
 }
 
-/// Retourne `true` si le chemin correspond à au moins un pattern d'exclusion.
+/// Returns `true` if the path matches at least one exclusion pattern.
 ///
-/// Patterns supportés :
-/// - `"nom"` ou `"nom/"` — correspond si un segment du chemin égale `nom`
-/// - `"*.ext"` — correspond si le nom de fichier se termine par `.ext`
+/// Supported patterns:
+/// - `"name"` or `"name/"`: matches if a path segment equals `name`
+/// - `"*.ext"`: matches if the file name ends with `.ext`
 fn is_excluded(path: &Path, patterns: &[String]) -> bool {
     patterns.iter().any(|p| matches_exclude_pattern(path, p))
 }
 
-/// Teste si le chemin correspond au pattern d'exclusion donné.
+/// Tests whether the path matches the given exclusion pattern.
 fn matches_exclude_pattern(path: &Path, pattern: &str) -> bool {
     let pattern = pattern.trim_end_matches('/');
     if let Some(ext_suffix) = pattern.strip_prefix("*.") {
-        // Extension pattern : *.log, *.tmp
+        // Extension pattern: *.log, *.tmp
         return path
             .file_name()
             .map(|n| {
@@ -281,15 +333,15 @@ fn matches_exclude_pattern(path: &Path, pattern: &str) -> bool {
             })
             .unwrap_or(false);
     }
-    // Segment match : .git, node_modules, __pycache__, .apollia
+    // Segment match: .git, node_modules, __pycache__, .apollia
     path.components()
         .any(|c| c.as_os_str().to_string_lossy() == pattern)
 }
 
-/// Résout le tilde `~` vers le répertoire HOME de l'utilisateur.
+/// Resolves the `~` tilde to the user's HOME directory.
 ///
-/// Seul `~` en préfixe absolu est résolu (pas `~user`). Si `$HOME` n'est pas
-/// défini ou si le path ne commence pas par `~`, il est retourné tel quel.
+/// Only a leading `~` is resolved (not `~user`). If `$HOME` is unset or the path
+/// does not start with `~`, it is returned unchanged.
 fn expand_tilde(path: &Path) -> PathBuf {
     if let Ok(stripped) = path.strip_prefix("~") {
         if let Some(home) = dirs_next::home_dir() {
@@ -322,7 +374,7 @@ mod tests {
         }
     }
 
-    // ── détection d'un fichier créé ────────────────────────────────
+    // --- detection of a created file -------------------------------------
 
     #[tokio::test]
     async fn test_ac1_detects_file_creation() {
@@ -331,7 +383,7 @@ mod tests {
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = make_file_watch_def(dir.path(), vec![FileEventKind::Create]);
         let _handle = FileWatchTrigger::spawn(def, tx);
-        // Attendre que le watcher soit prêt
+        // Wait for the watcher to be ready.
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
         // WHEN
@@ -354,46 +406,46 @@ mod tests {
         );
     }
 
-    // ── événement Delete ignoré si events = ["create"] ─────────────
+    // --- Delete event ignored when events = ["create"] -------------------
 
     #[tokio::test]
     async fn test_ac2_delete_ignored_when_filter_is_create() {
-        // GIVEN — watcher démarré sur un répertoire vide
+        // GIVEN watcher started on an empty directory
         let dir = TempDir::new().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = make_file_watch_def(dir.path(), vec![FileEventKind::Create]);
         let _handle = FileWatchTrigger::spawn(def, tx);
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
-        // Créer un fichier pour s'assurer que le watcher est actif.
-        // Puis drainer tous les événements générés par l'écriture (le backend kqueue
-        // peut produire plusieurs events : Create + Modify + watch registration).
-        // On attend jusqu'à 300ms de silence pour garantir que le channel est vide.
+        // Create a file to ensure the watcher is active. Then drain every event
+        // generated by the write (the kqueue backend may emit several events:
+        // Create + Modify + watch registration). We wait up to 300ms of silence
+        // to guarantee the channel is empty.
         let file = dir.path().join("existing.txt");
         std::fs::write(&file, b"data").unwrap();
         loop {
             match tokio::time::timeout(std::time::Duration::from_millis(300), rx.recv()).await {
-                Ok(Some(_)) => {} // drainer les événements du write
-                _ => break,       // 300ms sans événement = channel stable
+                Ok(Some(_)) => {} // drain the write events
+                _ => break,       // 300ms without an event means the channel is stable
             }
         }
 
-        // WHEN — supprimer le fichier (doit être ignoré car filter = ["create"])
+        // WHEN deleting the file (must be ignored since filter = ["create"])
         std::fs::remove_file(&file).unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-        // THEN — aucun événement ne doit passer le filtre create-only après un Delete
+        // THEN no event must pass the create-only filter after a Delete
         assert!(
             rx.try_recv().is_err(),
             "should not receive any event after delete when filter is create-only"
         );
     }
 
-    // ── map_notify_event — Create matche avec events = ["create"] ──
+    // --- map_notify_event: Create matches with events = ["create"] -------
 
     #[test]
     fn test_map_notify_event_create_matches() {
-        // GIVEN — fichier temporaire réel (le check metadata requiert que le path existe)
+        // GIVEN a real temporary file (the metadata check requires the path to exist)
         use notify::{
             event::{CreateKind, EventAttributes},
             Event, EventKind,
@@ -429,7 +481,7 @@ mod tests {
         );
     }
 
-    // ── map_notify_event — Delete filtré si events = ["create"] ────
+    // --- map_notify_event: Delete filtered when events = ["create"] ------
 
     #[test]
     fn test_map_notify_event_delete_filtered_out() {
@@ -458,7 +510,7 @@ mod tests {
         assert!(payload.is_none(), "delete should be filtered out");
     }
 
-    // ── map_notify_event — Any matche tous les types ───────────────
+    // --- map_notify_event: Any matches all kinds -------------------------
 
     #[test]
     fn test_map_notify_event_any_matches_all() {
@@ -487,17 +539,17 @@ mod tests {
         assert!(payload.is_some(), "Any filter should match Modify events");
     }
 
-    // ── expand_tilde ───────────────────────────────────────────────────────
+    // --- expand_tilde ----------------------------------------------------
 
     #[test]
     fn test_expand_tilde_resolves_home() {
-        // GIVEN — path commençant par ~
+        // GIVEN a path starting with ~
         let path: PathBuf = "~/Documents/factures".into();
 
         // WHEN
         let expanded = expand_tilde(&path);
 
-        // THEN — ne commence plus par ~
+        // THEN no longer starts with ~
         assert!(
             !expanded.starts_with("~"),
             "tilde should have been expanded: {:?}",
@@ -507,24 +559,24 @@ mod tests {
 
     #[test]
     fn test_expand_tilde_passthrough_no_tilde() {
-        // GIVEN — path absolu sans tilde
+        // GIVEN an absolute path without a tilde
         let path: PathBuf = "/tmp/factures".into();
 
         // WHEN
         let expanded = expand_tilde(&path);
 
-        // THEN — path inchangé
+        // THEN path unchanged
         assert_eq!(expanded, path);
     }
 
-    // ── patterns d'exclusion ──────────────────────────────────
+    // --- exclusion patterns ----------------------------------------------
 
     #[test]
     fn test_default_exclude_patterns_applied() {
         // GIVEN / WHEN
         let patterns = crate::config::default_exclude_patterns();
 
-        // THEN — les 4 patterns attendus sont présents
+        // THEN the 4 expected patterns are present
         assert!(patterns.contains(&".git".to_string()));
         assert!(patterns.contains(&"node_modules".to_string()));
         assert!(patterns.contains(&"__pycache__".to_string()));
@@ -534,7 +586,7 @@ mod tests {
 
     #[test]
     fn test_git_dir_excluded_by_default() {
-        // GIVEN — chemin contenant un segment .git/
+        // GIVEN a path containing a .git/ segment
         use notify::{
             event::{DataChange, EventAttributes, ModifyKind},
             Event, EventKind,
@@ -555,7 +607,7 @@ mod tests {
         // WHEN
         let payload = map_notify_event(event, &source);
 
-        // THEN — .git/ est filtré par les patterns par défaut
+        // THEN .git/ is filtered by the default patterns
         assert!(
             payload.is_none(),
             "events from .git/ must be excluded by default"
@@ -564,7 +616,7 @@ mod tests {
 
     #[test]
     fn test_custom_exclude_pattern_respected() {
-        // GIVEN — patterns *.log et tmp/
+        // GIVEN patterns *.log and tmp/
         use notify::{
             event::{DataChange, EventAttributes, ModifyKind},
             Event, EventKind,
@@ -577,7 +629,7 @@ mod tests {
             exclude_patterns: vec!["*.log".into(), "tmp".into()],
         };
 
-        // WHEN — fichier .log
+        // WHEN .log file
         let log_event = Event {
             kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
             paths: vec!["/app/app.log".into()],
@@ -585,7 +637,7 @@ mod tests {
         };
         let payload_log = map_notify_event(log_event, &source);
 
-        // WHEN — fichier dans tmp/
+        // WHEN file inside tmp/
         let tmp_event = Event {
             kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
             paths: vec!["/app/tmp/data.txt".into()],
@@ -603,7 +655,7 @@ mod tests {
 
     #[test]
     fn test_empty_exclude_patterns_allows_all() {
-        // GIVEN — exclude_patterns vide, chemin .git/
+        // GIVEN empty exclude_patterns, .git/ path
         use notify::{
             event::{DataChange, EventAttributes, ModifyKind},
             Event, EventKind,
@@ -624,19 +676,19 @@ mod tests {
         // WHEN
         let payload = map_notify_event(event, &source);
 
-        // THEN — rien n'est filtré si la liste est vide
+        // THEN nothing is filtered when the list is empty
         assert!(
             payload.is_some(),
             "empty exclude_patterns must not filter any path"
         );
     }
 
-    // ── symlinks ───────────────────────────────────────────────
+    // --- symlinks --------------------------------------------------------
 
     #[cfg(unix)]
     #[test]
     fn test_symlink_metadata_used_not_metadata() {
-        // GIVEN — un vrai lien symbolique
+        // GIVEN a real symbolic link
         use notify::{
             event::{DataChange, EventAttributes, ModifyKind},
             Event, EventKind,
@@ -663,7 +715,7 @@ mod tests {
         // WHEN
         let payload = map_notify_event(event, &source);
 
-        // THEN — symlink_metadata détecte le lien → filtré quand follow_symlinks = false
+        // THEN symlink_metadata detects the link, so it is filtered when follow_symlinks = false
         assert!(
             payload.is_none(),
             "symlink must be filtered when follow_symlinks = false"
@@ -673,7 +725,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_symlink_outside_watch_dir_no_event() {
-        // GIVEN — symlink dans le répertoire surveillé pointant vers un fichier extérieur
+        // GIVEN a symlink in the watched directory pointing to an external file
         use notify::{
             event::{DataChange, EventAttributes, ModifyKind},
             Event, EventKind,
@@ -701,7 +753,7 @@ mod tests {
         // WHEN
         let payload = map_notify_event(event, &source);
 
-        // THEN — symlink pointant hors périmètre filtré quand follow_symlinks = false
+        // THEN a symlink pointing outside the perimeter is filtered when follow_symlinks = false
         assert!(
             payload.is_none(),
             "symlink pointing outside watch dir must be excluded when follow_symlinks = false"
@@ -711,7 +763,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_follow_symlinks_true_generates_events() {
-        // GIVEN — lien symbolique avec follow_symlinks = true
+        // GIVEN a symbolic link with follow_symlinks = true
         use notify::{
             event::{DataChange, EventAttributes, ModifyKind},
             Event, EventKind,
@@ -738,18 +790,18 @@ mod tests {
         // WHEN
         let payload = map_notify_event(event, &source);
 
-        // THEN — événement propagé quand follow_symlinks = true
+        // THEN the event is propagated when follow_symlinks = true
         assert!(
             payload.is_some(),
             "symlink event must pass through when follow_symlinks = true"
         );
     }
 
-    // ── déduplication loggée en debug ──────────────────────────
+    // --- deduplication logged at debug -----------------------------------
 
     #[tokio::test]
     async fn test_deduplicated_events_logged_debug() {
-        // GIVEN — watcher actif sur un répertoire
+        // GIVEN an active watcher on a directory
         let dir = TempDir::new().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = TriggerDefinition {
@@ -769,16 +821,16 @@ mod tests {
         let _handle = FileWatchTrigger::spawn(def, tx);
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
-        // WHEN — créer puis réécrire rapidement le même fichier (< 1s entre les deux)
+        // WHEN creating then quickly rewriting the same file (< 1s apart)
         let file = dir.path().join("report.pdf");
         std::fs::write(&file, b"first write").unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         std::fs::write(&file, b"second write").unwrap();
 
-        // Attendre la fenêtre de déduplication (1s) + marge
+        // Wait for the deduplication window (1s) plus margin.
         tokio::time::sleep(std::time::Duration::from_millis(1300)).await;
 
-        // THEN — au plus 1 événement propagé dans la fenêtre de déduplication
+        // THEN at most 1 event propagated within the deduplication window
         let mut count = 0;
         while rx.try_recv().is_ok() {
             count += 1;

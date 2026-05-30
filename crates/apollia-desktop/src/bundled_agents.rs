@@ -1,7 +1,7 @@
 //! Provisioning of the built-in system agent (onboarding-agent).
 //!
-//! Only **system-level** agents are shipped inside the desktop binary
-//! (see ADR-074). Assistants and workers are distributed separately via
+//! Only **system-level** agents are shipped inside the desktop binary.
+//! Assistants and workers are distributed separately via
 //! `agents-distributable/` and installed by the user through the UI or the
 //! CLI (`apollia-os agent install <bundle>`).
 //!
@@ -18,11 +18,11 @@ use apollia_tools::AgentRepository;
 /// Source code of the onboarding agent, embedded at compile time.
 const ONBOARDING_AGENT_PY: &str = include_str!("../../../agents/system/onboarding-agent/agent.py");
 
-/// Static metadata (ADR-074 `manifest.toml`), embedded at compile time.
+/// Static metadata (`manifest.toml`), embedded at compile time.
 const ONBOARDING_AGENT_TOML: &str =
     include_str!("../../../agents/system/onboarding-agent/manifest.toml");
 
-/// Bundled version — must match the `manifest()["version"]` in the Python file
+/// Bundled version, must match the `manifest()["version"]` in the Python file
 /// and the `[agent].version` in `manifest.toml`.
 ///
 /// **Bump this** every time you change `agent.py` or `manifest.toml`.
@@ -38,16 +38,16 @@ const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guid
 /// Manifest metadata for the Apollia Guide agent.
 const APOLLIA_GUIDE_TOML: &str = include_str!("../../../agents/system/apollia-guide/manifest.toml");
 
-/// Knowledge base — capabilities sheet. Bundled so the agent works offline
+/// Knowledge base: capabilities sheet. Bundled so the agent works offline
 /// on the very first launch without any post-install download step.
 const APOLLIA_GUIDE_CAPABILITIES_MD: &str =
     include_str!("../../../agents/system/apollia-guide/knowledge/capabilities.md");
 
-/// Knowledge base — tutorials with suggested action buttons per intent.
+/// Knowledge base: tutorials with suggested action buttons per intent.
 const APOLLIA_GUIDE_TUTORIALS_MD: &str =
     include_str!("../../../agents/system/apollia-guide/knowledge/tutorials.md");
 
-/// Bundled version — must match `manifest()["version"]` in `agent.py` and
+/// Bundled version, must match `manifest()["version"]` in `agent.py` and
 /// `[agent].version` in `manifest.toml`.
 const APOLLIA_GUIDE_VERSION: &str = "0.2.0";
 
@@ -66,7 +66,7 @@ pub fn ensure_bundled_agents(repo: &AgentRepository, data_dir: &Path) {
 
 /// Extracts the onboarding agent bundle to disk and registers it in the repository.
 ///
-/// Layout produced (per ADR-074):
+/// Layout produced:
 /// ```text
 /// <data_dir>/agents/onboarding-agent/
 ///   ├── agent.py
@@ -157,7 +157,7 @@ fn onboarding_manifest() -> AgentManifest {
         limitations: vec![],
         setup_notes: None,
         agent_class: None,
-        // Onboarding agent owns the user profile — only it may write
+        // Onboarding agent owns the user profile, only it may write
         // into the global `__user__` namespace.
         user_memory_write: true,
         datasources: vec![],
@@ -278,7 +278,7 @@ fn now_rfc3339() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     let secs = since_epoch.as_secs();
-    // Approximate — good enough for an installation timestamp.
+    // Approximate, good enough for an installation timestamp.
     let days = secs / 86400;
     let years = 1970 + days / 365;
     let remainder_days = days % 365;

@@ -1,7 +1,7 @@
-//! `apollia-os start` — start the runtime in foreground.
+//! `apollia-os start`: start the runtime in foreground.
 //!
-//! Uses the Supervisor for ordered startup (EventBus → AgentRegistry → TaskRouter
-//! → APIServer) with timeout and rollback on failure. Shutdown is handled by the
+//! Uses the Supervisor for ordered startup (EventBus, AgentRegistry, TaskRouter,
+//! APIServer) with timeout and rollback on failure. Shutdown is handled by the
 //! ShutdownController with graceful drain.
 
 use std::path::{Path, PathBuf};
@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use apollia_aip::bridge::AIPBridge;
 use apollia_aip::context::{
-    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy,
+    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
 };
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{AIPResult, AIPTask, AgentManifest, PendingApprovals, RuntimeEvent, TaskStatus};
@@ -29,7 +29,7 @@ use apollia_runtime::coordinator::{DynBackend, ExecutionBackend, ExecutionCoordi
 use apollia_runtime::eventbus::EventBusSender;
 use apollia_runtime::registry::AgentRegistryHandle;
 use apollia_runtime::router::TaskRouterHandle;
-use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController};
+use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController, ShutdownControllerDeps};
 use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
 use apollia_runtime::A2AToolsProvider;
 use apollia_tools::tools::ask_user::PendingUserInputs;
@@ -62,7 +62,7 @@ pub enum StartError {
     ApiToken(#[from] apollia_runtime::api::TokenFileError),
 }
 
-/// Real agent loader using AIPLoader + validate_agent (ADR-019).
+/// Real agent loader using AIPLoader + validate_agent.
 ///
 /// Loads a Python module via PyO3, validates AIP duck typing, and returns
 /// the deserialized [`AgentManifest`].
@@ -101,12 +101,12 @@ fn venv_site_packages_for_name(agent_name: &str) -> Vec<PathBuf> {
     apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
 }
 
-/// Ouvre le [`ToolCredentialStore`] partagé pour `ctx.secrets` (ADR-104, LOT 6).
+/// Open the shared [`ToolCredentialStore`] used for `ctx.secrets`.
 ///
-/// Retourne `None` si la base de gouvernance n'existe pas encore (premier
-/// démarrage avant `apollia-os tools secret set ...`) ou si l'ouverture échoue.
-/// L'agent obtiendra alors `None` à chaque `ctx.secrets.get(key)` — cohérent
-/// avec la sémantique non-fatale d'ADR-104.
+/// Returns `None` when the governance database does not exist yet (first
+/// start before `apollia-os tools secret set ...`) or when opening it fails.
+/// The agent then gets `None` for every `ctx.secrets.get(key)`, consistent
+/// with the non-fatal secrets semantics.
 fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredentialStore>>> {
     let db_path = data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME);
     if !db_path.exists() {
@@ -127,7 +127,7 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
 }
 
 // ─────────────────────────────────────────────────────────────
-// AIPChatAgentRunner — concrete ChatAgentRunner for Chat Agent mode.
+// AIPChatAgentRunner: concrete ChatAgentRunner for Chat Agent mode.
 // ─────────────────────────────────────────────────────────────
 
 /// Concrete [`ChatAgentRunner`] implementation using PyO3 + AIPBridge.
@@ -138,28 +138,28 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
 /// Uses the same `OnceLock` pattern as [`ProductionBackendFactory`] to access
 /// runtime handles created inside `supervisor.start()`.
 struct AIPChatAgentRunner {
-    /// EventBus sender — populated after supervisor.start().
+    /// EventBus sender, populated after supervisor.start().
     event_bus: Arc<std::sync::OnceLock<EventBusSender>>,
-    /// LLM router — populated after supervisor.start().
+    /// LLM router, populated after supervisor.start().
     llm_router: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>>,
-    /// Tool registry — populated after supervisor.start().
+    /// Tool registry, populated after supervisor.start().
     tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
-    /// Audit trail — populated after supervisor.start().
+    /// Audit trail, populated after supervisor.start().
     audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
-    /// Global user memory repository — populated after supervisor.start().
+    /// Global user memory repository, populated after supervisor.start().
     user_memory: Arc<
         std::sync::OnceLock<
             Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
         >,
     >,
-    /// Chat manager's `ask_user` pending-input registry — populated after
+    /// Chat manager's `ask_user` pending-input registry, populated after
     /// `supervisor.start()` so the native dispatcher can wire
     /// `AskUserExecutor` to the chat HITL loop.
     pending_user_inputs: Arc<std::sync::OnceLock<PendingUserInputs>>,
-    /// Agent registry — required to build A2A delegate + invoker so chat-agent
+    /// Agent registry, required to build the A2A delegate + invoker so chat-agent
     /// Python agents get the same A2A capabilities as task-mode agents.
     agent_registry: Arc<std::sync::OnceLock<apollia_runtime::registry::AgentRegistryHandle>>,
-    /// Task router — required to build the A2A delegate.
+    /// Task router, required to build the A2A delegate.
     task_router: Arc<
         std::sync::OnceLock<
             apollia_runtime::router::TaskRouterHandle<apollia_runtime::coordinator::DynBackend>,
@@ -238,7 +238,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
 
         // Build A2A delegate + invoker so chat-agent Python agents can call
         // `ctx.a2a_invoke(...)` and `ctx.tools.invoke("a2a:<skill>")` on parity
-        // with task-mode (triggers/API) — fixes the previous "not available in
+        // with task-mode (triggers/API). Fixes the previous "not available in
         // chat mode" gap.
         let (a2a_delegate, a2a_invoker) = match (
             self.agent_registry.get().cloned(),
@@ -284,15 +284,15 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
 
         let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
             (Some(registry), Some(audit)) => {
-                let proxy = ToolProxy::new(
-                    registry.clone(),
-                    audit.clone(),
-                    Arc::new(DispatcherExecutor::new(dispatcher)),
+                let proxy = ToolProxy::new(ToolProxyConfig {
+                    registry: registry.clone(),
+                    audit: audit.clone(),
+                    executor: Arc::new(DispatcherExecutor::new(dispatcher)),
                     allowed_tools,
-                    agent_name.to_string(),
-                    task.task_id.clone(),
-                )
-                // ADR-088 — instrumentation tool_call_* (Lot 2).
+                    agent_id: agent_name.to_string(),
+                    task_id: task.task_id.clone(),
+                })
+                // tool_call_* instrumentation.
                 .with_event_bus(event_bus.clone());
                 let proxy = if let Some(ref invoker) = a2a_invoker {
                     proxy.with_a2a(Arc::clone(invoker), 0, None)
@@ -336,12 +336,12 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             )
         };
 
-        // ADR-103 (LOT 5) — directory containing the agent .py, used to
-        // resolve datasources/ and templates/ files relative to the agent.
+        // Directory containing the agent .py, used to resolve datasources/
+        // and templates/ files relative to the agent.
         let agent_dir = agent_path.parent().map(Path::to_path_buf);
         let datasources_declared = manifest.datasources.clone();
         let templates_declared = manifest.templates.clone();
-        // ADR-104 (LOT 6) — secrets allowlist + shared credential store.
+        // Secrets allowlist + shared credential store.
         let secrets_declared = manifest.secrets.clone();
         let secret_store = open_secret_store(&self.data_dir);
 
@@ -355,25 +355,25 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 agent_name.to_string().into(),
                 tool_proxy,
                 memory_interface,
-                None, // mailbox — not available in chat runner context
+                None, // mailbox: not available in chat runner context
                 agent_name.to_string(),
                 supports_a2a,
                 user_context,
                 a2a_delegate,
                 a2a_invoker,
-                manifest.user_memory_write, // user_memory_writable — manifest-controlled
+                manifest.user_memory_write, // user_memory_writable: manifest-controlled
             )
             .with_profile(profile_interface)
-            // ADR-103 (LOT 5) — datasources YAML + templates Jinja2.
+            // Datasources YAML + templates Jinja2.
             .with_datasources(datasources_declared, agent_dir.as_deref())
             .with_templates(templates_declared, agent_dir.as_deref())
-            // ADR-104 (LOT 6) — ctx.secrets read-only gated par le manifest.
+            // ctx.secrets read-only, gated by the manifest.
             .with_secrets(apollia_aip::secrets::SecretsInterface::new(
                 secret_store,
                 secrets_declared,
             ))
-            // ADR-088 — relier le contexte à la task pour que ctx.log()
-            // étiquette les RuntimeEvent::AgentLog persistés.
+            // Bind the context to the task so ctx.log() labels the persisted
+            // RuntimeEvent::AgentLog entries.
             .with_task_id(task.task_id.clone());
             Py::new(py, ctx)
                 .map(|p| p.into_any())
@@ -404,7 +404,7 @@ fn build_user_context_from_repo(
     Some(map)
 }
 
-/// Fallback backend — only used when agent loading fails at start time.
+/// Fallback backend, only used when agent loading fails at start time.
 ///
 /// Returns a `Failed` result immediately without calling Python.
 #[derive(Clone)]
@@ -484,8 +484,8 @@ impl ToolInvoker for NoopToolInvoker {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Filesystem sandbox root for native tools (ADR-012 dev mode).
-// `FileIo` and friends sandbox all paths under this root — we keep
+// Filesystem sandbox root for native tools (dev mode).
+// `FileIo` and friends sandbox all paths under this root: we keep
 // `$HOME` for parity with the previous embedded `NativeToolExecutor`
 // so workspaces located anywhere under the user's home remain usable.
 // ─────────────────────────────────────────────────────────────
@@ -500,7 +500,7 @@ fn sandbox_root_for_agent() -> PathBuf {
 }
 
 /// Union of statically-disabled tools (from `apollia.toml`) with the runtime
-/// disabled set (from `governance.db`). Either source disables a tool — the
+/// disabled set (from `governance.db`). Either source disables a tool: the
 /// dispatcher only registers tools absent from both lists.
 fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>) -> Vec<String> {
     for name in static_disabled {
@@ -516,9 +516,9 @@ fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>)
 
 /// Wires an [`ORIAEngine`] with the LLM router and Reasoner needed for
 /// orchestrated execution. Extracted from
-/// [`AIPProductionBackend::execute`] so the BUG-004 regression
-/// (orchestrated agents falling through to `[NO_LLM]` because the
-/// Reasoner was never plugged in) has a unit-test guard.
+/// [`AIPProductionBackend::execute`] so the regression where orchestrated
+/// agents fell through to `[NO_LLM]` (because the Reasoner was never plugged
+/// in) has a unit-test guard.
 ///
 /// Behaviour:
 /// - `llm_router == None` → engine returned unchanged, warning logged.
@@ -571,7 +571,7 @@ fn wire_engine_with_llm(
 /// Per-agent backend that calls Python via `AIPBridge`.
 ///
 /// Created once per agent at start time by `ProductionBackendFactory`.
-/// All fields are `Arc`-wrapped — cloning is cheap.
+/// All fields are `Arc`-wrapped, so cloning is cheap.
 struct AIPProductionBackend {
     bridge: Arc<AIPBridge>,
     agent_id: String,
@@ -586,36 +586,35 @@ struct AIPProductionBackend {
     task_repository: Option<Arc<TaskRepository>>,
     tool_registry: Option<ToolRegistryHandle>,
     audit_trail: Option<AuditTrailHandle>,
-    /// Namespace mémoire déclaré dans le manifest (ex: "apollia-reviewer").
+    /// Memory namespace declared in the manifest (e.g. "apollia-reviewer").
     memory_namespace: Option<String>,
-    /// Répertoire racine des fichiers mémoire (ex: `~/.apollia/memory/`).
+    /// Root directory of the memory files (e.g. `~/.apollia/memory/`).
     memory_base_dir: PathBuf,
-    /// Indique si l'agent supporte le protocole A2A (depuis le manifest).
+    /// Whether the agent supports the A2A protocol (from the manifest).
     supports_a2a: bool,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     user_memory_write: bool,
-    /// Fonction de délégation A2A type-erasée — `None` si non disponible.
+    /// Type-erased A2A delegation function, `None` when not available.
     a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
-    /// Orchestrateur A2A de haut niveau — `None` si registry ou router non initialisés.
+    /// High-level A2A orchestrator, `None` when registry or router are not initialized.
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     tools_config: apollia_core::ToolsConfig,
-    /// Datasources déclarées au manifest (`manifest.datasources`). Vide quand
-    /// l'agent n'en déclare pas (ADR-103, LOT 5).
+    /// Datasources declared in the manifest (`manifest.datasources`). Empty
+    /// when the agent declares none.
     datasources_declared: Vec<String>,
-    /// Templates Jinja2 déclarés au manifest (`manifest.templates`). Vide
-    /// quand l'agent n'en déclare pas (ADR-103, LOT 5).
+    /// Jinja2 templates declared in the manifest (`manifest.templates`). Empty
+    /// when the agent declares none.
     templates_declared: Vec<String>,
-    /// Répertoire racine de l'agent — utilisé pour résoudre
-    /// `datasources/<name>.yaml` et `templates/<name>.j2` (ADR-103, LOT 5).
+    /// Root directory of the agent, used to resolve
+    /// `datasources/<name>.yaml` and `templates/<name>.j2`.
     agent_dir: Option<PathBuf>,
-    /// Secrets déclarés au manifest (`manifest.secrets`). Allowlist stricte
-    /// pour `ctx.secrets.get()` (ADR-104, LOT 6). Vide quand l'agent n'en
-    /// déclare pas.
+    /// Secrets declared in the manifest (`manifest.secrets`). Strict allowlist
+    /// for `ctx.secrets.get()`. Empty when the agent declares none.
     secrets_declared: Vec<String>,
-    /// Base de données apollia (`~/.apollia/` par défaut) — utilisée pour
-    /// ouvrir le [`ToolCredentialStore`] partagé qui alimente `ctx.secrets`
-    /// (ADR-104, LOT 6). `None` accepté en mode dégradé.
+    /// Apollia data directory (`~/.apollia/` by default), used to open the
+    /// shared [`ToolCredentialStore`] that backs `ctx.secrets`. `None` is
+    /// accepted in degraded mode.
     secrets_data_dir: Option<PathBuf>,
 }
 
@@ -649,7 +648,7 @@ impl Clone for AIPProductionBackend {
 }
 
 // ─────────────────────────────────────────────────────────────
-// BridgeRunner — implements AgentRunner for ORIAEngine::execute_direct
+// BridgeRunner: implements AgentRunner for ORIAEngine::execute_direct
 // ─────────────────────────────────────────────────────────────
 
 /// Wraps `AIPBridge` + context-building components as an `AgentRunner`.
@@ -662,7 +661,7 @@ struct BridgeRunner {
     llm_router: Option<Arc<LlmRouter>>,
     event_bus: EventBusSender,
     agent_id: String,
-    /// Manifest snapshot — exposed via [`AIPAgent::manifest`] so ORIA
+    /// Manifest snapshot, exposed via [`AIPAgent::manifest`] so ORIA
     /// can drive the orchestrated path.
     manifest: AgentManifest,
     allowed_tools: Vec<String>,
@@ -672,26 +671,26 @@ struct BridgeRunner {
     memory_base_dir: PathBuf,
     /// Whether the agent declared A2A support in its manifest.
     supports_a2a: bool,
-    /// Type-erased delegation function — `None` if not available at runner level.
+    /// Type-erased delegation function, `None` if not available at runner level.
     a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
-    /// High-level A2A invoker — `None` if not available.
+    /// High-level A2A invoker, `None` if not available.
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     tools_config: apollia_core::ToolsConfig,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     user_memory_write: bool,
-    /// Datasources déclarées au manifest (ADR-103, LOT 5).
+    /// Datasources declared in the manifest.
     datasources_declared: Vec<String>,
-    /// Templates Jinja2 déclarés au manifest (ADR-103, LOT 5).
+    /// Jinja2 templates declared in the manifest.
     templates_declared: Vec<String>,
-    /// Répertoire racine de l'agent — résolution `datasources/` et
-    /// `templates/` (ADR-103, LOT 5).
+    /// Root directory of the agent, used to resolve `datasources/` and
+    /// `templates/`.
     agent_dir: Option<PathBuf>,
-    /// Secrets déclarés au manifest (`manifest.secrets`) — allowlist
-    /// `ctx.secrets.get()` (ADR-104, LOT 6).
+    /// Secrets declared in the manifest (`manifest.secrets`), the allowlist
+    /// for `ctx.secrets.get()`.
     secrets_declared: Vec<String>,
-    /// Base de données apollia (`~/.apollia/`) — ouverture lazy du
-    /// [`ToolCredentialStore`] partagé pour `ctx.secrets` (ADR-104, LOT 6).
+    /// Apollia data directory (`~/.apollia/`), used for lazy opening of the
+    /// shared [`ToolCredentialStore`] that backs `ctx.secrets`.
     secrets_data_dir: Option<PathBuf>,
 }
 
@@ -773,15 +772,15 @@ impl AgentRunner for BridgeRunner {
             let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())
             {
                 (Some(registry), Some(audit)) => {
-                    let proxy = ToolProxy::new(
-                        registry.clone(),
-                        audit.clone(),
-                        Arc::new(DispatcherExecutor::new(dispatcher)),
+                    let proxy = ToolProxy::new(ToolProxyConfig {
+                        registry: registry.clone(),
+                        audit: audit.clone(),
+                        executor: Arc::new(DispatcherExecutor::new(dispatcher)),
                         allowed_tools,
-                        agent_id.clone(),
-                        task.task_id.clone(),
-                    )
-                    // ADR-088 — instrumentation tool_call_* (Lot 2).
+                        agent_id: agent_id.clone(),
+                        task_id: task.task_id.clone(),
+                    })
+                    // tool_call_* instrumentation.
                     .with_event_bus(event_bus.clone());
                     let proxy = if let Some(invoker) = a2a_invoker.clone() {
                         proxy.with_a2a(invoker, 0, None)
@@ -831,24 +830,24 @@ impl AgentRunner for BridgeRunner {
                     agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
-                    None, // mailbox — not wired in task mode
+                    None, // mailbox: not wired in task mode
                     agent_id,
                     supports_a2a,
-                    None, // user_context — task mode, not chat
+                    None, // user_context: task mode, not chat
                     a2a_delegate,
                     a2a_invoker,
-                    user_memory_write, // user_memory_writable — manifest-controlled
+                    user_memory_write, // user_memory_writable: manifest-controlled
                 )
                 .with_profile(profile_interface)
-                // ADR-103 (LOT 5) — datasources YAML + templates Jinja2.
+                // Datasources YAML + templates Jinja2.
                 .with_datasources(datasources_declared, agent_dir.as_deref())
                 .with_templates(templates_declared, agent_dir.as_deref())
-                // ADR-104 (LOT 6) — ctx.secrets read-only gated par le manifest.
+                // ctx.secrets read-only, gated by the manifest.
                 .with_secrets(apollia_aip::secrets::SecretsInterface::new(
                     secrets_data_dir.as_deref().and_then(open_secret_store),
                     secrets_declared,
                 ))
-                // ADR-088 — task_id pour étiqueter ctx.log() côté trace.
+                // task_id used to label ctx.log() in the trace.
                 .with_task_id(task.task_id.clone());
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
@@ -874,7 +873,7 @@ impl apollia_oria::engine::AIPAgent for BridgeRunner {
         step_results: std::collections::HashMap<String, String>,
     ) -> Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + '_>> {
         // ORIA always calls this hook with an already-built ctx through the
-        // bridge. Here we build a minimal ctx — the orchestrated plan step
+        // bridge. Here we build a minimal ctx: the orchestrated plan step
         // outputs are formatted by the agent on its own, no `ctx.tools`
         // need to be wired for the post-processing hook.
         let bridge = Arc::clone(&self.bridge);
@@ -962,9 +961,8 @@ impl ExecutionBackend for AIPProductionBackend {
             .unwrap_or(20);
 
         // Wire the Reasoner + LlmRouter so ORIA's orchestrated path can plan.
-        // Extracted into `wire_engine_with_llm` for unit testing — see the
-        // BUG-004 regression guard in the test module at the bottom of this
-        // file.
+        // Extracted into `wire_engine_with_llm` for unit testing, see the
+        // regression guard in the test module at the bottom of this file.
         engine = wire_engine_with_llm(
             engine,
             self.llm_router.clone(),
@@ -990,12 +988,12 @@ impl ExecutionBackend for AIPProductionBackend {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Factory — creates one AIPProductionBackend per agent at `agent start`
+// Factory: creates one AIPProductionBackend per agent at `agent start`
 // ─────────────────────────────────────────────────────────────
 
-/// Creates a real `AIPProductionBackend` per agent (ADR-019 extension).
+/// Creates a real `AIPProductionBackend` per agent.
 ///
-/// Called once from `POST /api/v1/agents` — loads Python, validates AIP duck typing,
+/// Called once from `POST /api/v1/agents`: loads Python, validates AIP duck typing,
 /// and bakes an `AIPBridge` into a backend registered with the `TaskRouter`.
 ///
 /// Uses `OnceLock` for `event_bus` and `llm_router` because they are created
@@ -1008,15 +1006,14 @@ struct ProductionBackendFactory {
     audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
     task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
-    /// Agent registry handle — populated after supervisor.start().
+    /// Agent registry handle, populated after supervisor.start().
     registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
-    /// Task router handle — populated after supervisor.start().
+    /// Task router handle, populated after supervisor.start().
     router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     tools_config: apollia_core::ToolsConfig,
-    /// Base data directory (`~/.apollia/`) — utilisée pour ouvrir le
-    /// [`ToolCredentialStore`] partagé à chaque exécution d'agent (ADR-104,
-    /// LOT 6 — `ctx.secrets`).
+    /// Base data directory (`~/.apollia/`), used to open the shared
+    /// [`ToolCredentialStore`] on each agent execution (`ctx.secrets`).
     data_dir: PathBuf,
 }
 
@@ -1090,13 +1087,13 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let memory_namespace = validated.manifest.memory_namespace.clone();
             let supports_a2a = validated.manifest.supports_a2a;
             let user_memory_write = validated.manifest.user_memory_write;
-            // ADR-103 (LOT 5) — capture datasources/templates declarations +
-            // the agent's package directory so the BridgeRunner can build
-            // ctx.datasources / ctx.templates on every call_run.
+            // Capture datasources/templates declarations + the agent's package
+            // directory so the BridgeRunner can build ctx.datasources /
+            // ctx.templates on every call_run.
             let datasources_declared = validated.manifest.datasources.clone();
             let templates_declared = validated.manifest.templates.clone();
             let agent_dir = agent_path.parent().map(Path::to_path_buf);
-            // ADR-104 (LOT 6) — capture la liste des secrets déclarés.
+            // Capture the list of declared secrets.
             let secrets_declared = validated.manifest.secrets.clone();
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
@@ -1205,8 +1202,8 @@ async fn socket_is_in_use(path: &std::path::Path) -> bool {
     }
 }
 
-/// Sur Windows : pas de Unix socket, on regarde si le port TCP par défaut est
-/// déjà bindé par un autre daemon.
+/// On Windows there is no Unix socket, so we check whether the default TCP
+/// port is already bound by another daemon.
 #[cfg(windows)]
 async fn socket_is_in_use(_path: &std::path::Path) -> bool {
     use crate::client::DEFAULT_TCP_PORT;
@@ -1280,42 +1277,14 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         .map(PathBuf::from)
         .unwrap_or_else(|_| std::env::temp_dir());
 
-    // Load apollia.toml if found — agents, triggers, pipelines, notifications, and stt
+    // Load apollia.toml if found. Agents, triggers, pipelines, notifications, and stt
     // are loaded from SQLite by the Supervisor; only static sections are parsed here.
-    let (
-        llm_config,
-        api_file_config,
-        runtime_file_config,
-        hitl_file_config,
-        tools_file_config,
-        config_path,
-    ) = match find_config_file() {
-        Some(path) => {
-            tracing::info!(config = %path.display(), "loading config");
-            let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
-                path: path.clone(),
-                reason: e.to_string(),
-            })?;
-            if let Some(tools) = cfg.tools.as_ref() {
-                tools.validate().map_err(|e| StartError::Config {
-                    path: path.clone(),
-                    reason: e.to_string(),
-                })?;
-            }
-            (
-                cfg.llm,
-                cfg.api,
-                cfg.runtime,
-                cfg.hitl,
-                cfg.tools,
-                Some(path),
-            )
-        }
-        None => {
-            tracing::info!("no apollia.toml found — starting with defaults");
-            (None, None, None, None, None, None)
-        }
-    };
+    let (loaded_config, config_path) = load_start_config()?;
+    let (llm_config, api_file_config, runtime_file_config, hitl_file_config, tools_file_config) =
+        match loaded_config {
+            Some(cfg) => (cfg.llm, cfg.api, cfg.runtime, cfg.hitl, cfg.tools),
+            None => (None, None, None, None, None),
+        };
 
     let llm_label = llm_config
         .as_ref()
@@ -1413,7 +1382,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     // constructed before start() returns, then initialized lazily before first use.
     //
     // Safety: create_for_agent() is called only from POST /api/v1/agents, which
-    // happens after the runtime is fully up — well after start() returns and the
+    // happens after the runtime is fully up, well after start() returns and the
     // OnceLock is populated.
     let event_bus_lock: Arc<std::sync::OnceLock<EventBusSender>> =
         Arc::new(std::sync::OnceLock::new());
@@ -1484,19 +1453,14 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let _ = tool_registry_lock.set(handles.tool_registry_handle.clone());
     let _ = registry_lock.set(handles.registry_handle.clone());
     let _ = router_lock.set(handles.router_handle.clone());
-    if let Some(audit) = handles.audit_trail.clone() {
-        let _ = audit_trail_lock.set(audit);
-    }
-    if let Some(pa) = handles.pending_approvals.clone() {
-        let _ = pending_approvals_lock.set(pa);
-    }
-    if let Some(repo) = handles.task_repository.clone() {
-        let _ = task_repository_lock.set(repo);
-    }
+    set_lock_if_some(&audit_trail_lock, handles.audit_trail.clone());
+    set_lock_if_some(&pending_approvals_lock, handles.pending_approvals.clone());
+    set_lock_if_some(&task_repository_lock, handles.task_repository.clone());
     let _ = user_memory_lock.set(handles.user_memory.clone());
-    if let Some(chat) = handles.chat_manager.as_ref() {
-        let _ = pending_user_inputs_lock.set(chat.pending_user_inputs());
-    }
+    set_lock_if_some(
+        &pending_user_inputs_lock,
+        handles.chat_manager.as_ref().map(|c| c.pending_user_inputs()),
+    );
 
     // Rewire auto-loaded agents now that the factory's OnceLocks are populated.
     //
@@ -1553,15 +1517,15 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Graceful shutdown via ShutdownController (drain + ordered teardown)
     let tool_registry_handle = handles.tool_registry_handle;
-    let shutdown = ShutdownController::new(
-        ShutdownConfig::default(),
-        handles.event_sender,
-        handles.api_handle,
-        handles.router_handle,
-        handles.registry_handle,
-        handles.notification_engine,
-        handles.mcp_handle,
-    );
+    let shutdown = ShutdownController::new(ShutdownControllerDeps {
+        config: ShutdownConfig::default(),
+        event_sender: handles.event_sender,
+        api_handle: handles.api_handle,
+        router_handle: handles.router_handle,
+        registry_handle: handles.registry_handle,
+        notification_engine: handles.notification_engine,
+        mcp_handle: handles.mcp_handle,
+    });
 
     match shutdown.shutdown().await {
         Ok(()) => println!("  * Runtime stopped."),
@@ -1579,6 +1543,37 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     Ok(interrupted)
 }
 
+/// Locates and parses `apollia.toml` if present, validating the `[tools]`
+/// section. Returns the parsed config and its path, or `(None, None)` when no
+/// config file is found (defaults are then used by the caller).
+fn load_start_config(
+) -> Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError> {
+    let Some(path) = find_config_file() else {
+        tracing::info!("no apollia.toml found — starting with defaults");
+        return Ok((None, None));
+    };
+    tracing::info!(config = %path.display(), "loading config");
+    let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
+        path: path.clone(),
+        reason: e.to_string(),
+    })?;
+    if let Some(tools) = cfg.tools.as_ref() {
+        tools.validate().map_err(|e| StartError::Config {
+            path: path.clone(),
+            reason: e.to_string(),
+        })?;
+    }
+    Ok((Some(cfg), Some(path)))
+}
+
+/// Populates a shared `OnceLock` from an optional value, ignoring the result
+/// (the lock is set at most once; a second attempt is a harmless no-op).
+fn set_lock_if_some<T>(lock: &std::sync::OnceLock<T>, value: Option<T>) {
+    if let Some(v) = value {
+        let _ = lock.set(v);
+    }
+}
+
 /// Rewire every auto-loaded enabled agent so its TaskRouter coordinator uses
 /// a real `AIPProductionBackend` instead of the `NoopBackend` fallback that
 /// Supervisor Phase 11 installs when the factory OnceLocks are still empty.
@@ -1586,7 +1581,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 /// This compensates for the construction order: the factory is built before
 /// the Supervisor runs, but the Supervisor populates the runtime handles
 /// only as part of its startup. Calling `register_coordinator` here is
-/// idempotent — the router replaces the existing entry in its `HashMap`.
+/// idempotent: the router replaces the existing entry in its `HashMap`.
 async fn rewire_auto_loaded_agents(
     repo: &apollia_tools::AgentRepository,
     factory: &Arc<dyn AgentBackendFactory>,
@@ -1705,14 +1700,14 @@ mod tests {
         assert!(err.to_string().contains("bad config"));
     }
 
-    // ── BUG-004 regression guards ───────────────────────────────────────
+    // ── Orchestrated-routing regression guards ──────────────────────────
     //
     // Two failure modes were reported by manual testing of orchestrated
-    // agents on the 0.5 runtime:
+    // agents on an earlier runtime:
     //
     //  1. `apollia-os run <orchestrated>` returning
-    //     `[NO_HANDLER] agent has neither @skill nor @on_message handler`
-    //     — caused by AIPProductionBackend always dispatching to
+    //     `[NO_HANDLER] agent has neither @skill nor @on_message handler`,
+    //     caused by AIPProductionBackend always dispatching to
     //     `execute_direct` (which goes through __apollia_dispatch__) even
     //     for orchestrated manifests. Fix: branch on
     //     `manifest.execution_mode == "orchestrated"` and call
@@ -1720,7 +1715,7 @@ mod tests {
     //
     //  2. `apollia-os run <orchestrated>` returning
     //     `[NO_LLM] Orchestrated mode requires a configured LLM
-    //     (use with_reasoner())` — caused by the same fix routing to
+    //     (use with_reasoner())`, caused by the same fix routing to
     //     `engine.execute` without wiring a Reasoner. Fix:
     //     `wire_engine_with_llm` chains `.with_llm_router(...).
     //     with_reasoner(model, ...)` whenever the LlmRouter exposes
@@ -1728,9 +1723,9 @@ mod tests {
     //
     // The tests below cover the second mode at the engine boundary; the
     // first mode is enforced by the explicit branch in
-    // `AIPProductionBackend::execute` (visible in the diff) and surfaces
-    // here as NO_LLM (engine-level error) rather than NO_HANDLER
-    // (SDK-level error) when no Reasoner is wired.
+    // `AIPProductionBackend::execute` and surfaces here as NO_LLM
+    // (engine-level error) rather than NO_HANDLER (SDK-level error) when no
+    // Reasoner is wired.
 
     /// Without an LlmRouter, the engine returned by `wire_engine_with_llm`
     /// has no Reasoner. Sanity check on the fast path.
@@ -1751,7 +1746,7 @@ mod tests {
     /// step LLM calls would surface a descriptive error rather than
     /// silently noop), but no Reasoner is configured. Orchestrated
     /// execution will fail with NO_LLM at engine.execute() time, which
-    /// is exactly what BUG-004's second mode reported.
+    /// is exactly what the second failure mode reported.
     #[test]
     fn wire_engine_with_empty_router_attaches_router_but_no_reasoner() {
         let engine = ORIAEngine::new();
@@ -1769,8 +1764,8 @@ mod tests {
     /// End-to-end behaviour: an orchestrated agent submitted to an
     /// engine with no Reasoner must surface NO_LLM (not NO_HANDLER).
     ///
-    /// Before the BUG-004 fix, `AIPProductionBackend::execute` routed
-    /// every task through `execute_direct`, which goes through the SDK
+    /// Before the fix, `AIPProductionBackend::execute` routed every task
+    /// through `execute_direct`, which goes through the SDK
     /// `__apollia_dispatch__`. An orchestrated manifest fell into the
     /// `failed("NO_HANDLER", ...)` branch of `dispatch_task`. After the
     /// fix, orchestrated tasks hit `engine.execute` directly; missing
@@ -1782,13 +1777,13 @@ mod tests {
     /// The forged Python agent's `__apollia_dispatch__` returns a unique
     /// sentinel code (`SDK_DISPATCH_REACHED`) when invoked. If
     /// `AIPProductionBackend::execute` regresses to routing orchestrated
-    /// tasks through `execute_direct` (the original BUG-004 mode 1),
-    /// the result will carry that sentinel. If the routing stays correct
-    /// but the Reasoner is missing (BUG-004 mode 2 wiring), the result
-    /// will be ORIA's `NO_LLM`. Anything else means a regression.
+    /// tasks through `execute_direct` (the original mode 1), the result
+    /// will carry that sentinel. If the routing stays correct but the
+    /// Reasoner is missing (mode 2 wiring), the result will be ORIA's
+    /// `NO_LLM`. Anything else means a regression.
     ///
     /// This is the test that, had it existed pre-patch, would have
-    /// surfaced both BUG-004 modes immediately.
+    /// surfaced both modes immediately.
     #[tokio::test]
     async fn aip_production_backend_routes_orchestrated_to_oria_full_stack() {
         use apollia_aip::validator::validate_agent;
@@ -1850,7 +1845,7 @@ agent = A()
                 .into()
         });
 
-        // 2. Validate via apollia_aip — confirms the manifest shape is
+        // 2. Validate via apollia_aip: confirms the manifest shape is
         //    well-formed and produces a ValidatedAgent with `execution_mode`
         //    correctly set.
         let validated = validate_agent(&py_agent).expect("validation must succeed");

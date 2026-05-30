@@ -1,7 +1,7 @@
-//! `apollia-os trace` — fetch the event-sourced trace for a task.
+//! `apollia-os trace`: fetch the event-sourced trace for a task.
 //!
-//! Wraps `GET /api/v1/tasks/{id}/trace` (ADR-088). Renders either the raw
-//! JSON or a compact human-readable timeline.
+//! Wraps `GET /api/v1/tasks/{id}/trace`. Renders either the raw JSON or a
+//! compact human-readable timeline.
 
 use std::path::PathBuf;
 
@@ -48,7 +48,7 @@ pub async fn run(task_id: &str, format_json: bool, socket: Option<PathBuf>, json
 
 /// Render the trace as a chronological timeline.
 ///
-/// The runtime event schema (ADR-088, `runtime_events.db`) exposes:
+/// The runtime event schema (`runtime_events.db`) exposes:
 ///   `ts` (RFC3339 timestamp), `kind`, `agent_id`, `step_num`,
 ///   `payload_json` (kind-specific stringified JSON).
 ///

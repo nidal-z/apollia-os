@@ -1,4 +1,4 @@
-//! SttEngine — Tokio actor orchestrating Speech-to-Text transcriptions.
+//! SttEngine, Tokio actor orchestrating Speech-to-Text transcriptions.
 //!
 //! The actor processes [`SttCommand`] messages received via a bounded `mpsc`
 //! channel. Callers interact exclusively through [`SttEngineHandle`], which is
@@ -70,7 +70,7 @@ pub enum SttEngineError {
     #[error("STT backend error: {0}")]
     Backend(#[from] SttError),
 
-    /// The actor channel is closed — the engine has been shut down.
+    /// The actor channel is closed, the engine has been shut down.
     #[error("STT engine channel closed")]
     ChannelClosed,
 }
@@ -190,7 +190,7 @@ impl SttEngineHandle {
 
 // ── Private actor ───────────────────────────────────────────────────
 
-/// Private actor struct — owns the mutable state.
+/// Private actor struct, owns the mutable state.
 ///
 /// Spawned as a Tokio task by [`SttEngineHandle::start`]. Processes one
 /// command at a time from the bounded `mpsc` receiver.
@@ -207,7 +207,7 @@ struct SttEngine {
 }
 
 impl SttEngine {
-    /// Main actor loop — processes commands until `Shutdown` or channel close.
+    /// Main actor loop, processes commands until `Shutdown` or channel close.
     async fn run(self, mut rx: mpsc::Receiver<SttCommand>) {
         info!("SttEngine started");
         while let Some(cmd) = rx.recv().await {
@@ -298,7 +298,7 @@ mod tests {
     use apollia_stt::TranscriptSegment;
     use tokio::sync::broadcast;
 
-    /// Fake backend for unit tests — returns a fixed transcript.
+    /// Fake backend for unit tests, returns a fixed transcript.
     struct FakeBackend {
         should_fail: bool,
     }
@@ -426,7 +426,7 @@ mod tests {
         // WHEN
         handle.shutdown().await;
 
-        // THEN — subsequent calls fail with ChannelClosed
+        // THEN, subsequent calls fail with ChannelClosed
         let result = handle.status().await;
         assert!(result.is_none());
     }

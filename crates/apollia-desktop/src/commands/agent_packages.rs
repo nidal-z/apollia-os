@@ -1,8 +1,8 @@
-//! Tauri IPC commands pour la gestion des agent packages.
+//! Tauri IPC commands for managing agent packages.
 //!
-//! Commandes : list, detail, preview (dry-run), install, uninstall.
-//! Les opérations lourdes (copie de fichiers, duck-typing Python) sont exécutées
-//! via `spawn_blocking` pour ne pas bloquer le thread async de Tauri.
+//! Commands: list, detail, preview (dry-run), install, uninstall.
+//! Heavy operations (file copies, Python duck-typing) run via `spawn_blocking`
+//! so they do not block Tauri's async thread.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -20,10 +20,10 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de réponse
+// Response types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Résumé d'un agent dans un package.
+/// Summary of an agent within a package.
 #[derive(Debug, Serialize)]
 pub struct PackageAgentSummary {
     pub name: String,
@@ -31,32 +31,32 @@ pub struct PackageAgentSummary {
     pub entry: String,
 }
 
-/// Preview d'un trigger (dry-run, sans validation stricte).
+/// Preview of a trigger (dry-run, no strict validation).
 #[derive(Debug, Serialize)]
 pub struct TriggerPreview {
     pub id: String,
     pub source_type: String,
     pub agent: String,
-    /// Expression cron (cron triggers).
+    /// Cron expression (cron triggers).
     pub schedule: Option<String>,
-    /// Intervalle (interval triggers).
+    /// Interval (interval triggers).
     pub every: Option<String>,
-    /// Chemin surveillé (file_watch triggers).
+    /// Watched path (file_watch triggers).
     pub path: Option<String>,
-    /// Ce trigger nécessite une configuration supplémentaire (ex : secret webhook).
+    /// Whether this trigger needs extra configuration (e.g. webhook secret).
     pub needs_config: bool,
     pub enabled: bool,
 }
 
-/// Override de configuration à appliquer lors de l'installation (ex : secret webhook).
+/// Configuration override applied at install time (e.g. webhook secret).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TriggerConfigOverride {
     pub id: String,
-    /// Secret HMAC pour les webhooks.
+    /// HMAC secret for webhooks.
     pub secret: Option<String>,
 }
 
-/// Élément de la liste des packages installés.
+/// Item in the list of installed packages.
 #[derive(Debug, Serialize)]
 pub struct AgentPackageListItem {
     pub name: String,
@@ -69,7 +69,7 @@ pub struct AgentPackageListItem {
     pub root_missing: bool,
 }
 
-/// Détail complet d'un package.
+/// Full detail of a package.
 #[derive(Debug, Serialize)]
 pub struct AgentPackageDetailView {
     pub name: String,
@@ -84,7 +84,7 @@ pub struct AgentPackageDetailView {
     pub manifest: serde_json::Value,
 }
 
-/// Résultat d'un preview (dry-run sans écriture).
+/// Result of a preview (dry-run with no writes).
 #[derive(Debug, Serialize)]
 pub struct PackagePreview {
     pub name: String,
@@ -99,7 +99,7 @@ pub struct PackagePreview {
     pub error: Option<String>,
 }
 
-/// Résultat d'une installation.
+/// Result of an installation.
 #[derive(Debug, Serialize)]
 pub struct InstallPackageResponse {
     pub name: String,
@@ -110,7 +110,7 @@ pub struct InstallPackageResponse {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Raw TOML helpers (lenient, no semantic validation — for preview)
+// Raw TOML helpers (lenient, no semantic validation, for preview)
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -175,7 +175,7 @@ fn parse_trigger_previews(toml_str: &str) -> Vec<TriggerPreview> {
 // Commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Dry-run : parse `agent.toml` + valide les manifestes sans écrire en DB.
+/// Dry-run: parses `agent.toml` and validates the manifests without writing to the DB.
 #[tauri::command]
 pub async fn preview_agent_package(path: String) -> Result<PackagePreview, String> {
     let root = PathBuf::from(&path);
@@ -233,20 +233,20 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
     })
 }
 
-/// Installe un package depuis un chemin local.
+/// Installs a package from a local path.
 ///
-/// Flow (ordre strict) :
-/// 1. Parse `agent.toml` (sync, sans PyO3)
-/// 2. Si packages pip déclarés ET `deps_confirmed = false` → renvoie l'erreur
-///    `DEPS_CONFIRMATION_REQUIRED:<n>:<list>` que le frontend parse pour
-///    afficher un dialog de confirmation explicite.
-/// 3. Copie le dossier vers `~/.apollia/agents/packages/<name>/`
-/// 4. Pour chaque agent : crée son venv (`~/.apollia/venvs/<agent>/venv/`),
-///    `pip install` ses packages, puis duck-type le `.py` avec le
-///    `site-packages` du venv injecté dans `sys.path`.
-/// 5. Sur la moindre erreur en étape 3-4 : **rollback** complet (suppression
-///    `install_root` + tous les venvs créés).
-/// 6. Sauvegarde DB + injection des triggers (inchangé).
+/// Flow (strict order):
+/// 1. Parse `agent.toml` (sync, without PyO3)
+/// 2. If pip packages are declared AND `deps_confirmed = false`, return the
+///    error `DEPS_CONFIRMATION_REQUIRED:<n>:<list>` that the frontend parses to
+///    show an explicit confirmation dialog.
+/// 3. Copy the folder to `~/.apollia/agents/packages/<name>/`
+/// 4. For each agent: create its venv (`~/.apollia/venvs/<agent>/venv/`),
+///    `pip install` its packages, then duck-type the `.py` with the venv's
+///    `site-packages` injected into `sys.path`.
+/// 5. On any error in steps 3-4: full **rollback** (remove `install_root` and
+///    every created venv).
+/// 6. Save to DB + inject triggers (unchanged).
 #[tauri::command]
 pub async fn install_agent_package(
     path: String,
@@ -441,7 +441,7 @@ pub async fn install_agent_package(
     })
 }
 
-/// Liste tous les packages installés.
+/// Lists all installed packages.
 #[tauri::command]
 pub async fn list_agent_packages(
     pkg_repo_state: State<'_, Arc<Mutex<PackageRepository>>>,
@@ -505,7 +505,7 @@ pub async fn list_agent_packages(
     Ok(items)
 }
 
-/// Retourne le détail complet d'un package.
+/// Returns the full detail of a package.
 #[tauri::command]
 pub async fn get_agent_package_detail(
     name: String,
@@ -571,22 +571,21 @@ pub async fn get_agent_package_detail(
     })
 }
 
-/// Désinstalle un package, ses agents et ses triggers.
+/// Uninstalls a package, its agents and its triggers.
 ///
-/// Best-effort par design : si une étape échoue (DB désynchro, filesystem
-/// déjà supprimé, registry runtime sans entrée), on continue à purger le
-/// reste plutôt que d'avorter. Un uninstall qui échoue partiellement laisse
-/// l'utilisateur dans un état non-réinstallable. Le rapport d'erreurs est
-/// agrégé en fin de fonction pour journalisation.
+/// Best-effort by design: if a step fails (DB out of sync, filesystem already
+/// removed, no runtime registry entry), we keep purging the rest rather than
+/// aborting. A partially failing uninstall leaves the user in a non-reinstallable
+/// state. The error report is aggregated at the end of the function for logging.
 ///
-/// Cleanup ordre :
-/// 1. Snapshot des metadata DB (lookup tolérant : best-effort).
-/// 2. Suppression `installed_agents` (cascade).
-/// 3. Suppression `installed_packages` (cascade sur `package_agents`).
-/// 4. Désenregistrement runtime in-memory + émission `AgentUninstalled`.
-/// 5. Suppression filesystem : `install_root` + venv worker par agent.
-/// 6. Si aucune trace trouvée nulle part → retourne erreur pour informer le
-///    frontend qu'il n'y avait rien à désinstaller.
+/// Cleanup order:
+/// 1. Snapshot of DB metadata (tolerant lookup: best-effort).
+/// 2. Delete `installed_agents` (cascade).
+/// 3. Delete `installed_packages` (cascade on `package_agents`).
+/// 4. In-memory runtime deregistration + emit `AgentUninstalled`.
+/// 5. Filesystem removal: `install_root` + per-agent worker venv.
+/// 6. If no trace is found anywhere, return an error to tell the frontend there
+///    was nothing to uninstall.
 #[tauri::command]
 pub async fn uninstall_agent_package(
     name: String,
@@ -611,9 +610,9 @@ pub async fn uninstall_agent_package(
         }
     };
 
-    // Filesystem fallback : si la DB n'a pas d'agents listés mais le
-    // dossier d'install existe, on peut quand même y aller (à minima
-    // purger l'install_root et tout venv qui pourrait y correspondre).
+    // Filesystem fallback: if the DB lists no agents but the install folder
+    // exists, we can still proceed (at minimum purge install_root and any venv
+    // that might correspond to it).
     let mut errors: Vec<String> = Vec::new();
 
     // ── Step 2: delete installed_agents rows (idempotent) ────────────────────
@@ -624,8 +623,8 @@ pub async fn uninstall_agent_package(
                 errors.push(format!("agent_repo.delete({agent_name}): {e}"));
             }
         }
-        // Tente aussi par le nom du package — couvre le cas où un seul
-        // agent porte le nom du package (workers standalone).
+        // Also try by package name; covers the case where a single agent
+        // carries the package name (standalone workers).
         let _ = agent_repo.delete(&name);
     }
 
@@ -645,7 +644,49 @@ pub async fn uninstall_agent_package(
     } else {
         agent_names.clone()
     };
-    for agent_name in &names_to_unregister {
+    unregister_runtime_agents(&runtime, &event_bus, &names_to_unregister).await;
+
+    // ── Step 5: filesystem purge ─────────────────────────────────────────────
+    purge_uninstall_filesystem(
+        &root_path,
+        &install_root_default,
+        &venvs_root,
+        &name,
+        &names_to_unregister,
+        &mut errors,
+    );
+
+    // ── Step 6: report ───────────────────────────────────────────────────────
+    if !errors.is_empty() {
+        tracing::warn!(
+            package = %name,
+            errors = ?errors,
+            "uninstall completed with non-fatal errors"
+        );
+    }
+
+    // If nothing was purged at all (neither DB, nor filesystem, nor venv), warn
+    // the frontend. Otherwise the operation is treated as a success even when
+    // partial; the user must be able to reinstall afterwards.
+    let anything_purged = !agent_names.is_empty()
+        || root_path.exists() == false  // a remove_dir_all succeeded
+        || install_root_default.exists() == false;
+    if !anything_purged && errors.iter().any(|e| e.contains("pkg_repo.delete")) {
+        return Err(format!("Package '{name}' not found in any registry"));
+    }
+
+    Ok(())
+}
+
+/// Step 4: unregister each agent from the runtime registry/router and emit an
+/// `AgentUninstalled` event. Best-effort: failures are ignored (the agent may
+/// already be gone from the in-memory registry).
+async fn unregister_runtime_agents(
+    runtime: &RuntimeHandle,
+    event_bus: &EventBusSender,
+    names_to_unregister: &[String],
+) {
+    for agent_name in names_to_unregister {
         if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(agent_name).await {
             let _ = runtime
                 .router_handle
@@ -657,22 +698,32 @@ pub async fn uninstall_agent_package(
             name: agent_name.clone(),
         });
     }
+}
 
-    // ── Step 5: filesystem purge ─────────────────────────────────────────────
-    // 5a — install_root du package (resolved depuis la DB, fallback chemin par défaut).
+/// Step 5: purge the package install root and per-agent / package venvs from
+/// disk. Non-fatal `remove_dir_all` failures are aggregated into `errors`.
+fn purge_uninstall_filesystem(
+    root_path: &Path,
+    install_root_default: &Path,
+    venvs_root: &Path,
+    name: &str,
+    names_to_unregister: &[String],
+    errors: &mut Vec<String>,
+) {
+    // 5a: package install_root (resolved from the DB, falling back to the default path).
     if root_path.exists() {
-        if let Err(e) = std::fs::remove_dir_all(&root_path) {
+        if let Err(e) = std::fs::remove_dir_all(root_path) {
             errors.push(format!("remove_dir_all({}): {e}", root_path.display()));
         }
     }
     if install_root_default != root_path && install_root_default.exists() {
-        let _ = std::fs::remove_dir_all(&install_root_default);
+        let _ = std::fs::remove_dir_all(install_root_default);
     }
 
-    // 5b — venvs par agent : ~/.apollia/venvs/<agent_name>/
-    // Critique : sans ça, un pip install partiellement réussi laissait des
-    // packages installés qui pouvaient shadow la nouvelle install.
-    for agent_name in &names_to_unregister {
+    // 5b: per-agent venvs at ~/.apollia/venvs/<agent_name>/
+    // Critical: without this, a partially successful pip install would leave
+    // installed packages that could shadow the new install.
+    for agent_name in names_to_unregister {
         let agent_venv = venvs_root.join(agent_name);
         if agent_venv.exists() {
             if let Err(e) = std::fs::remove_dir_all(&agent_venv) {
@@ -681,32 +732,11 @@ pub async fn uninstall_agent_package(
         }
     }
 
-    // 5c — venv du package lui-même (cas worker standalone où agent name = pkg name)
-    let pkg_venv = venvs_root.join(&name);
-    if pkg_venv.exists() && !names_to_unregister.contains(&name) {
+    // 5c: the package's own venv (standalone worker case where agent name = pkg name)
+    let pkg_venv = venvs_root.join(name);
+    if pkg_venv.exists() && !names_to_unregister.iter().any(|n| n == name) {
         let _ = std::fs::remove_dir_all(&pkg_venv);
     }
-
-    // ── Step 6: report ───────────────────────────────────────────────────────
-    if !errors.is_empty() {
-        tracing::warn!(
-            package = %name,
-            errors = ?errors,
-            "uninstall completed with non-fatal errors"
-        );
-    }
-
-    // Si on n'a rien purgé du tout (ni DB, ni filesystem, ni venv), prévenir
-    // le frontend. Sinon, l'opération est considérée comme un succès même
-    // partiel — l'utilisateur doit pouvoir re-installer ensuite.
-    let anything_purged = !agent_names.is_empty()
-        || root_path.exists() == false  // un remove_dir_all a réussi
-        || install_root_default.exists() == false;
-    if !anything_purged && errors.iter().any(|e| e.contains("pkg_repo.delete")) {
-        return Err(format!("Package '{name}' not found in any registry"));
-    }
-
-    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -772,8 +802,8 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Injecte les triggers du package dans `triggers_def.db` en appliquant les overrides utilisateur.
-/// Retourne `(nombre de triggers créés, liste d'erreurs par trigger)`.
+/// Injects the package's triggers into `triggers_def.db`, applying user overrides.
+/// Returns `(number of triggers created, list of per-trigger errors)`.
 fn inject_package_triggers(
     data_dir: &Path,
     toml_str: &str,

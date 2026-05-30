@@ -64,6 +64,17 @@ pub enum ShutdownError {
     },
 }
 
+/// Handles to all runtime actors needed to build a [`ShutdownController`].
+pub struct ShutdownControllerDeps<B: ExecutionBackend> {
+    pub config: ShutdownConfig,
+    pub event_sender: EventBusSender,
+    pub api_handle: APIServerHandle,
+    pub router_handle: TaskRouterHandle<B>,
+    pub registry_handle: AgentRegistryHandle,
+    pub notification_engine: Option<apollia_notifications::NotificationEngineHandle>,
+    pub mcp_handle: Option<McpClientManagerHandle>,
+}
+
 /// Graceful shutdown controller for the Apollia runtime.
 ///
 /// Orchestrates the shutdown sequence: signal handling, task draining,
@@ -88,23 +99,15 @@ pub struct ShutdownController<B: ExecutionBackend> {
 
 impl<B: ExecutionBackend> ShutdownController<B> {
     /// Create a new ShutdownController with handles to all runtime actors.
-    pub fn new(
-        config: ShutdownConfig,
-        event_sender: EventBusSender,
-        api_handle: APIServerHandle,
-        router_handle: TaskRouterHandle<B>,
-        registry_handle: AgentRegistryHandle,
-        notification_engine: Option<apollia_notifications::NotificationEngineHandle>,
-        mcp_handle: Option<McpClientManagerHandle>,
-    ) -> Self {
+    pub fn new(deps: ShutdownControllerDeps<B>) -> Self {
         Self {
-            config,
-            event_sender,
-            api_handle,
-            router_handle,
-            registry_handle,
-            notification_engine,
-            mcp_handle,
+            config: deps.config,
+            event_sender: deps.event_sender,
+            api_handle: deps.api_handle,
+            router_handle: deps.router_handle,
+            registry_handle: deps.registry_handle,
+            notification_engine: deps.notification_engine,
+            mcp_handle: deps.mcp_handle,
         }
     }
 
@@ -160,7 +163,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         // AgentRegistry
         self.registry_handle.shutdown();
         info!("AgentRegistry stopped");
-        // EventBus is a broadcast channel — it stops when all senders are dropped
+        // EventBus is a broadcast channel, it stops when all senders are dropped
 
         info!("Shutdown sequence completed");
         drain_result
@@ -224,7 +227,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             }
         }
 
-        // Timeout expired or bus closed — cancel remaining tasks
+        // Timeout expired or bus closed, cancel remaining tasks
         let active: Vec<TaskId> = remaining.into_iter().collect();
         let count = active.len() as u32;
         warn!(
@@ -517,6 +520,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -533,15 +537,15 @@ mod tests {
         let shutdown_config = ShutdownConfig {
             drain_timeout_secs: 1,
         };
-        let controller = ShutdownController::new(
-            shutdown_config,
-            event_sender.clone(),
+        let controller = ShutdownController::new(ShutdownControllerDeps {
+            config: shutdown_config,
+            event_sender: event_sender.clone(),
             api_handle,
             router_handle,
             registry_handle,
-            None,
-            None,
-        );
+            notification_engine: None,
+            mcp_handle: None,
+        });
 
         (controller, event_sender, socket_path)
     }
@@ -666,6 +670,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -680,15 +685,15 @@ mod tests {
         let config = ShutdownConfig {
             drain_timeout_secs: 5,
         };
-        let controller = ShutdownController::new(
+        let controller = ShutdownController::new(ShutdownControllerDeps {
             config,
             event_sender,
             api_handle,
             router_handle,
             registry_handle,
-            None,
-            None,
-        );
+            notification_engine: None,
+            mcp_handle: None,
+        });
 
         // WHEN shutdown() est appele
         let result = controller.shutdown().await;
@@ -768,6 +773,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -785,15 +791,15 @@ mod tests {
         let config = ShutdownConfig {
             drain_timeout_secs: 1,
         };
-        let controller = ShutdownController::new(
+        let controller = ShutdownController::new(ShutdownControllerDeps {
             config,
             event_sender,
             api_handle,
             router_handle,
             registry_handle,
-            None,
-            None,
-        );
+            notification_engine: None,
+            mcp_handle: None,
+        });
 
         let result = controller.shutdown().await;
 
@@ -976,6 +982,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -992,15 +999,15 @@ mod tests {
         let config = ShutdownConfig {
             drain_timeout_secs: 1,
         };
-        let controller = ShutdownController::new(
+        let controller = ShutdownController::new(ShutdownControllerDeps {
             config,
-            event_sender.clone(),
+            event_sender: event_sender.clone(),
             api_handle,
-            router_handle.clone(),
-            registry_handle.clone(),
-            None,
-            None,
-        );
+            router_handle: router_handle.clone(),
+            registry_handle: registry_handle.clone(),
+            notification_engine: None,
+            mcp_handle: None,
+        });
 
         // WHEN shutdown
         let _ = controller.shutdown().await;

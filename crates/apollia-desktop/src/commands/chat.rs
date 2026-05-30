@@ -1,8 +1,8 @@
-//! Commandes IPC Tauri pour le chat hybride.
+//! Tauri IPC commands for the hybrid chat.
 //!
-//! Chaque commande délègue intégralement au `ChatSessionManagerHandle` —
-//! zéro logique métier dans cette couche. Si le chat n'est pas disponible
-//! (runtime sans LLM, erreur SQLite), une erreur explicite est retournée.
+//! Each command delegates entirely to the `ChatSessionManagerHandle`; no
+//! business logic in this layer. If the chat is unavailable (runtime without an
+//! LLM, SQLite error), an explicit error is returned.
 
 use apollia_runtime::chat::{
     ChatMode, SessionDetail, SessionInfo, SessionMetrics, SessionStatus, ToolDecision,
@@ -97,13 +97,13 @@ pub async fn create_chat_session(
     let mode = parse_chat_mode(&request.mode)?;
 
     let info = manager
-        .create_session(
+        .create_session(apollia_runtime::chat::manager::CreateSessionParams {
             mode,
-            request.agent_name,
-            request.system_prompt,
-            request.tools,
-            request.project_id,
-        )
+            agent_name: request.agent_name,
+            system_prompt: request.system_prompt,
+            tools: request.tools,
+            project_id: request.project_id,
+        })
         .await
         .map_err(|e| e.to_string())?;
 

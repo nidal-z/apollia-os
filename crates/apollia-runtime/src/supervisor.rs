@@ -1,4 +1,4 @@
-//! Supervisor — ordered startup, shutdown rollback, and watchdog for runtime actors.
+//! Supervisor, ordered startup, shutdown rollback, and watchdog for runtime actors.
 //!
 //! The Supervisor starts all runtime actors in a strict sequence:
 //! `EventBus → AgentRegistry → ToolRegistry (+ native tools) → TaskRouter → APIServer`.
@@ -70,10 +70,10 @@ pub struct SupervisorConfig {
     pub startup_timeout_secs: u64,
     /// Optional LLM configuration parsed from the `[llm]` section of `apollia.toml`.
     ///
-    /// `None` disables the LLM layer entirely — the runtime starts normally and
+    /// `None` disables the LLM layer entirely, the runtime starts normally and
     /// agents receive `ctx.llm = None`. No error is raised.
     pub llm_config: Option<LlmConfig>,
-    /// Path to `apollia.toml` — injected into [`AppState`] for hot reload.
+    /// Path to `apollia.toml`, injected into [`AppState`] for hot reload.
     ///
     /// `None` when the runtime starts without a config file (e.g. tests, `apollia-os start`
     /// without a config file). The `POST /api/v1/triggers/reload` route returns 503 when absent.
@@ -178,7 +178,7 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     pub llm_router: Option<Arc<LlmRouter>>,
     /// Handle to the TriggerEngine actor at position 6 of the startup sequence.
     ///
-    /// Always `Some` after successful startup — even when `config.triggers` is empty.
+    /// Always `Some` after successful startup, even when `config.triggers` is empty.
     /// Injected into `AppState` so webhook routes and CLI commands can reach it.
     pub trigger_engine: TriggerEngineHandle,
     /// Handle to the AuditTrail actor.
@@ -186,12 +186,12 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `None` when the data directory is unavailable or the SQLite open fails
     /// (warning logged, runtime continues without audit). `Some` in production.
     pub audit_trail: Option<AuditTrailHandle>,
-    /// HITL task repository — persists `input_required` prompts/contexts.
+    /// HITL task repository, persists `input_required` prompts/contexts.
     ///
     /// Shared between `AppState` (resume handler) and `TimeoutWatcher`.
     /// `None` when the SQLite open fails (warning logged, HITL disabled).
     pub task_repository: Option<Arc<TaskRepository>>,
-    /// HITL pending approvals registry — oneshot channels for Mode Direct suspension.
+    /// HITL pending approvals registry, oneshot channels for Mode Direct suspension.
     ///
     /// `None` when `task_repository` is `None` (HITL disabled).
     pub pending_approvals: Option<Arc<apollia_core::PendingApprovals>>,
@@ -201,7 +201,7 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Used by [`ShutdownController`] to stop the engine before the EventBus closes,
     /// preventing late notifications from being delivered after `apollia-os stop`.
     pub notification_engine: Option<NotificationEngineHandle>,
-    /// Repository des appels LLM — agrégation coûts/tokens.
+    /// Repository des appels LLM, agrégation coûts/tokens.
     ///
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     /// Partagé entre `AppState` (route REST costs) et le subscriber EventBus.
@@ -211,14 +211,14 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` after Phase 13 of the Supervisor startup sequence.
     /// `None` when the chat subsystem failed to start (warning logged).
     pub chat_manager: Option<crate::chat::ChatSessionManagerHandle>,
-    /// ORIA plan cache repository — stores cached execution plans.
+    /// ORIA plan cache repository, stores cached execution plans.
     ///
     /// `Some` when `plan_cache.db` opened successfully.
     /// `None` when the open failed (warning logged, caching disabled).
     pub plan_cache: Option<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>>,
     /// Handle to the agent-to-agent mailbox actor.
     ///
-    /// Always `Some` after startup — the mailbox is lightweight and always spawned.
+    /// Always `Some` after startup, the mailbox is lightweight and always spawned.
     pub mailbox_handle: Option<crate::mailbox::AgentMailboxHandle>,
     /// Repository for global user memory (preferences, habits, context).
     ///
@@ -246,6 +246,13 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` quand `projects.db` est ouvert avec succès.
     /// `None` quand l'ouverture a échoué (warning loggé).
     pub project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>>,
+    /// Supervisor of the local sidecar runner.
+    ///
+    /// `Some` when a runner started successfully (GPU detected, binary present,
+    /// handshake completed), `None` otherwise. Kept here to hold the runner
+    /// process alive: the supervisor owns the child `Child` with
+    /// `kill_on_drop(true)`. Propagated to `RuntimeHandle` on the embedded path.
+    pub runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
 }
 
 /// Supervisor errors.
@@ -334,10 +341,10 @@ impl RestartTracker {
     }
 }
 
-/// The Apollia Supervisor — orchestrates actor lifecycle.
+/// The Apollia Supervisor, orchestrates actor lifecycle.
 ///
 /// Created with [`Supervisor::new`], started with [`Supervisor::start`].
-/// The Supervisor holds no business state — it only manages actor lifecycles.
+/// The Supervisor holds no business state, it only manages actor lifecycles.
 pub struct Supervisor {
     config: SupervisorConfig,
 }
@@ -441,6 +448,462 @@ impl Supervisor {
         Self { config }
     }
 
+    /// Phase 3b: open `mcp.db`, run the one-shot `mcp.toml` migration when
+    /// empty, and start the MCP client manager (always, even with no servers).
+    async fn start_mcp(
+        &self,
+        tool_registry_handle: &ToolRegistryHandle,
+        event_sender: &EventBusSender,
+    ) -> (
+        Option<McpClientManagerHandle>,
+        Option<Arc<std::sync::Mutex<McpServerRepository>>>,
+    ) {
+        let mcp_db_path = self.config.data_dir.join("mcp.db");
+        let mcp_config_path = self.config.data_dir.join("mcp.toml");
+
+        let repo = match McpServerRepository::open(&mcp_db_path) {
+            Ok(repo) => repo,
+            Err(e) => {
+                warn!(error = %e, "failed to open mcp.db — continuing without MCP");
+                return (None, None);
+            }
+        };
+
+        // One-shot migration from mcp.toml when the database is empty.
+        migrate_mcp_from_toml(&repo, &mcp_config_path);
+
+        // Load server list and start the manager.
+        let server_configs = match repo.list() {
+            Ok(v) => v,
+            Err(e) => {
+                warn!(error = %e, "failed to list MCP servers from mcp.db");
+                Vec::new()
+            }
+        };
+
+        let handle =
+            start_mcp_manager(server_configs, tool_registry_handle, event_sender, &mcp_config_path)
+                .await;
+
+        let repo = Arc::new(std::sync::Mutex::new(repo));
+        (handle, Some(repo))
+    }
+
+    /// Spawn the NotificationEngine from the persisted config, or skip it when
+    /// no channels/events are configured.
+    fn spawn_notification_engine(
+        &self,
+        notif_config: Option<&NotificationConfig>,
+        event_sender: &EventBusSender,
+    ) -> Result<Option<NotificationEngineHandle>, SupervisorError> {
+        let Some(notif_config) = notif_config else {
+            tracing::info!(
+                "Supervisor: aucun canal de notification en base — NotificationEngine désactivé"
+            );
+            return Ok(None);
+        };
+        let channels = build_channels(&notif_config.channels)
+            .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
+        let active = notif_config.channels.iter().filter(|c| c.enabled).count();
+        let notif_log_db_path = Some(self.config.data_dir.join("hitl.db"));
+        // Use 127.0.0.1 as connect address even when bind_addr is 0.0.0.0
+        // (wildcard bind address is not a valid remote address for connect).
+        let connect_addr = if self.config.api_config.bind_addr == "0.0.0.0" {
+            "127.0.0.1".to_string()
+        } else {
+            self.config.api_config.bind_addr.clone()
+        };
+        let api_base_url = format!("http://{}:{}", connect_addr, self.config.api_config.tcp_port);
+        let engine = NotificationEngine::new(
+            notif_config.clone(),
+            channels,
+            event_sender.clone(),
+            api_base_url,
+            notif_log_db_path,
+        );
+        let handle = engine.spawn();
+        tracing::info!(channels = active, "NotificationEngine démarré");
+        Ok(Some(handle))
+    }
+
+    /// Phase 4c: open `runtime_events.db` and spawn the runtime-events
+    /// subscriber (ADR-088). Best-effort: failures are logged, never fatal.
+    async fn spawn_event_persistor(&self, event_sender: &EventBusSender) {
+        let db_path = self.config.data_dir.join("runtime_events.db");
+        match crate::observability::EventPersistorHandle::open(&db_path).await {
+            Ok(handle) => {
+                crate::observability::spawn_runtime_events_subscriber(handle, event_sender);
+                info!(
+                    path = %db_path.display(),
+                    "Supervisor: EventPersistor ready (runtime_events subscriber spawned)"
+                );
+            }
+            Err(e) => {
+                warn!(
+                    error = %e,
+                    path = %db_path.display(),
+                    "EventPersistor failed to open — runtime_events persistence disabled"
+                );
+            }
+        }
+    }
+
+    /// Phase 4b: open `llm_calls.db` and spawn the EventBus subscriber that
+    /// persists LLM calls. Returns `None` (logged) when the DB can't open.
+    fn spawn_llm_call_repository(
+        &self,
+        event_sender: &EventBusSender,
+    ) -> Option<Arc<std::sync::Mutex<LlmCallRepository>>> {
+        let db_path = self.config.data_dir.join("llm_calls.db");
+        match LlmCallRepository::open(&db_path) {
+            Ok(repo) => {
+                let repo = Arc::new(std::sync::Mutex::new(repo));
+                let mut obs = self.config.obs_config.clone();
+                if let Some(c) = self.config.llm_config.as_ref() {
+                    obs.debug_log_prompt = c.observability.debug_log_prompt;
+                }
+                apollia_llm::spawn_llm_subscriber(repo.clone(), event_sender, obs);
+                info!("Supervisor: LlmCallRepository ready (subscriber spawned)");
+                Some(repo)
+            }
+            Err(e) => {
+                warn!(error = %e, "LlmCallRepository failed to open — LLM call persistence disabled");
+                None
+            }
+        }
+    }
+
+    /// Phase 15: start the SttEngine when the persisted config is enabled and
+    /// the model file exists. STT always routes through the runner sidecar;
+    /// without a runner it stays disabled. Returns the engine handle and a
+    /// separate API-side repository handle (both `None` when disabled).
+    #[allow(clippy::type_complexity)]
+    async fn start_stt_engine(
+        &self,
+        stt_cfg: Option<&SttConfigRow>,
+        runner_supervisor: &Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
+        event_sender: &EventBusSender,
+    ) -> (
+        Option<crate::stt::SttEngineHandle>,
+        Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+    ) {
+        let Some(cfg) = stt_cfg.filter(|c| c.enabled) else {
+            info!("Supervisor: STT disabled in config — Phase 15 skipped");
+            return (None, None);
+        };
+        info!("Supervisor: starting SttEngine");
+
+        let model_path = resolve_home(std::path::Path::new(&cfg.model_path));
+        if !model_path.exists() {
+            error!(
+                path = %model_path.display(),
+                "STT model file not found — SttEngine disabled"
+            );
+            return (None, None);
+        }
+
+        let repo_path = self.config.data_dir.join("stt_transcriptions.db");
+        let repository = match apollia_stt::SttRepository::open(&repo_path) {
+            Ok(repository) => repository,
+            Err(e) => {
+                error!(error = %e, "SttRepository failed to open — SttEngine disabled");
+                return (None, None);
+            }
+        };
+
+        let model_id = model_path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "whisper".to_string());
+
+        // STT routes through the sidecar runner via `RunnerSttBackend`. If the
+        // runner failed to spawn at boot, STT is disabled.
+        let Some(supervisor) = runner_supervisor.as_ref() else {
+            warn!("STT engine disabled (runner sidecar unavailable)");
+            return (None, None);
+        };
+        let proxy = supervisor.proxy();
+        let backend: Box<dyn apollia_stt::SttBackend> =
+            Box::new(crate::runner_supervisor::RunnerSttBackend::new(proxy, model_id));
+
+        let handle = crate::stt::SttEngineHandle::start(
+            backend,
+            repository,
+            cfg.clone(),
+            event_sender.clone(),
+        );
+        info!("Supervisor: SttEngine ready");
+        let api_repo = apollia_stt::SttRepository::open(&repo_path)
+            .map(|r| std::sync::Arc::new(std::sync::Mutex::new(r)))
+            .ok();
+        (Some(handle), api_repo)
+    }
+
+    /// Phase 4: open `system.db`, migrate TOML backends on first boot, and
+    /// build the [`LlmRouter`] (LlamaCpp backends routed through the runner
+    /// sidecar). Returns `(router, backend_repo)`, either may be `None`.
+    #[allow(clippy::type_complexity)]
+    async fn start_llm_router(
+        &self,
+        system_db_path: &std::path::Path,
+        runner_supervisor: &Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
+    ) -> (
+        Option<Arc<LlmRouter>>,
+        Option<Arc<std::sync::Mutex<LlmBackendRepository>>>,
+    ) {
+        let repo = match LlmBackendRepository::open(system_db_path) {
+            Ok(repo) => repo,
+            Err(e) => {
+                warn!(error = %e, "failed to open system.db — LLM disabled");
+                return (None, None);
+            }
+        };
+        info!("Supervisor: starting LlmRouter from system.db");
+
+        // Migration: if system.db has no backends and apollia.toml has backends,
+        // import them. Handles first-boot and the onboarding case where
+        // setup_local_llm writes only to TOML, not to system.db.
+        self.migrate_llm_backends_from_toml(&repo);
+
+        // Override instantiation of `LlamaCpp` backends so they route through
+        // the RunnerProxy. Cloud backends keep their standard
+        // `instantiate_from_config` path. The factory is shared with the
+        // reload paths (see `runner_supervisor::runner_llm_override`).
+        let router_result = {
+            let runner_proxy = runner_supervisor.as_ref().map(|s| s.proxy());
+            let factory = crate::runner_supervisor::runner_llm_override(runner_proxy);
+            LlmRouter::from_repository_with_override(&repo, factory).await
+        };
+
+        let repo = Arc::new(std::sync::Mutex::new(repo));
+        match router_result {
+            Ok(router) => {
+                let router = self.finalize_llm_router(router);
+                info!("Supervisor: LlmRouter ready");
+                (Some(Arc::new(router)), Some(repo))
+            }
+            Err(e) => {
+                warn!(error = %e, "LlmRouter failed to initialize — continuing without LLM");
+                (None, Some(repo))
+            }
+        }
+    }
+
+    /// Import LLM backends declared in `apollia.toml` into `system.db` when the
+    /// database has no backends yet. No-op otherwise. Errors are logged.
+    fn migrate_llm_backends_from_toml(&self, repo: &LlmBackendRepository) {
+        let Some(llm_cfg) = &self.config.llm_config else {
+            return;
+        };
+        let Ok(existing) = repo.list() else {
+            return;
+        };
+        if !existing.is_empty() {
+            return;
+        }
+        info!("Supervisor: no LLM backends in system.db — migrating from apollia.toml");
+        for db_cfg in llm_cfg.to_db_configs() {
+            let backend_name = db_cfg.name.clone();
+            let is_default = db_cfg.is_default;
+            match repo.save(&db_cfg) {
+                Ok(()) => info!(
+                    backend = %backend_name,
+                    is_default,
+                    "LLM backend migrated from TOML to system.db"
+                ),
+                Err(e) => warn!(
+                    backend = %backend_name,
+                    error = %e,
+                    "failed to migrate LLM backend from TOML to system.db"
+                ),
+            }
+        }
+    }
+
+    /// Propagate the `[llm.routing]` TOML section onto the freshly built router
+    /// and log the ready backends. `system.db` does not store routing.
+    fn finalize_llm_router(&self, mut router: LlmRouter) -> LlmRouter {
+        if let Some(llm_cfg) = self.config.llm_config.as_ref() {
+            if let Some(routing) = llm_cfg.routing.as_ref() {
+                router = router.with_routing(routing.clone());
+                tracing::info!(
+                    precise = %routing.precise,
+                    fast = %routing.fast,
+                    "Supervisor: [llm.routing] propagated to LlmRouter"
+                );
+            }
+        }
+        for info in router.list() {
+            tracing::info!(
+                backend = %info.name,
+                model = %info.model_id,
+                "LLM backend ready"
+            );
+        }
+        router
+    }
+
+    /// Phase 11: load every enabled installed agent, register it, install its
+    /// venv packages, and wire an [`ExecutionCoordinator`] into the router.
+    /// Errors are logged, never fatal.
+    async fn auto_load_installed_agents<
+        B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>,
+    >(
+        ctx: AutoLoadCtx<'_, B>,
+    ) {
+        let Some(repo) = ctx.agent_repository else {
+            return;
+        };
+        let agents = match repo.list_enabled() {
+            Ok(agents) => agents,
+            Err(e) => {
+                warn!(error = %e, "Failed to list installed agents — skipping auto-load");
+                return;
+            }
+        };
+        if agents.is_empty() {
+            info!("No installed agents to load");
+        }
+        for agent in &agents {
+            Self::load_one_installed_agent(agent, &ctx).await;
+        }
+    }
+
+    /// Load and wire a single installed agent. Skips disabled agents and logs
+    /// (never propagates) any per-agent failure.
+    async fn load_one_installed_agent<
+        B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>,
+    >(
+        agent: &apollia_tools::InstalledAgent,
+        ctx: &AutoLoadCtx<'_, B>,
+    ) {
+        if !agent.enabled {
+            warn!(name = %agent.name, "Skipping disabled installed agent");
+            return;
+        }
+        let manifest = match ctx.agent_loader.load_and_validate(&agent.install_path) {
+            Ok(m) => m,
+            Err(e) => {
+                warn!(name = %agent.name, error = %e, "Failed to load installed agent");
+                let _ = ctx.event_sender.send(RuntimeEvent::AgentLoadFailed {
+                    name: agent.name.clone(),
+                    error: e.to_string(),
+                });
+                return;
+            }
+        };
+
+        let max_concurrent = manifest.max_concurrent_tasks;
+        let agent_name = manifest.name.clone();
+
+        // Install pip packages into the agent's venv before registration.
+        // On failure the agent continues in Degraded state, boot is never blocked.
+        let degraded_reason = Self::setup_agent_venv(ctx.data_dir, &manifest).await;
+
+        // Register in AgentRegistry (state = Initializing).
+        let agent_id = match ctx.registry_handle.register(manifest).await {
+            Ok(id) => id,
+            Err(e) => {
+                warn!(name = %agent_name, error = %e, "Failed to register installed agent");
+                return;
+            }
+        };
+
+        // Transition: Initializing → Active (required by state machine).
+        if let Err(e) = ctx
+            .registry_handle
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+        {
+            warn!(name = %agent_name, error = %e, "Failed to activate agent");
+            return;
+        }
+
+        // If package installation failed: Active → Degraded.
+        if degraded_reason.is_some() {
+            ctx.registry_handle
+                .update_state(agent_id.as_str(), ProcessState::Degraded)
+                .await
+                .unwrap_or_else(|e| {
+                    warn!(name = %agent_name, error = %e, "failed to set Degraded state")
+                });
+        }
+
+        // Create ExecutionCoordinator with backend factory.
+        let agent_backend: B = match ctx.backend_factory {
+            Some(factory) => {
+                let dyn_backend =
+                    factory.create_for_agent(&agent.install_path, &agent.manifest);
+                B::from(dyn_backend)
+            }
+            None => ctx.base_backend.clone(),
+        };
+        let mut coordinator = ExecutionCoordinator::new(
+            agent_id.clone(),
+            max_concurrent,
+            ctx.event_sender.clone(),
+            agent_backend,
+        )
+        .with_agent_name(agent_name.clone());
+        if let Some(repo) = ctx.task_repository {
+            coordinator =
+                coordinator.with_task_repository(Arc::clone(repo), ctx.obs_config.clone());
+        }
+
+        // Register coordinator in TaskRouter.
+        let _ = ctx
+            .router_handle
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await;
+
+        info!(name = %agent_name, id = %agent_id, "Auto-loaded installed agent");
+    }
+
+    /// Install an agent's pip packages into its venv. Returns `Some(reason)`
+    /// when the agent should start in a Degraded state, `None` on success or
+    /// when there are no packages to install.
+    async fn setup_agent_venv(
+        data_dir: &std::path::Path,
+        manifest: &apollia_core::AgentManifest,
+    ) -> Option<String> {
+        if manifest.packages.is_empty() {
+            return None;
+        }
+        let venv_base = data_dir.join("venvs");
+        let executor = match apollia_tools::tools::python_executor::PythonExecutor::new(
+            &manifest.name,
+            &venv_base,
+        ) {
+            Ok(executor) => executor,
+            Err(e) => {
+                warn!(
+                    agent = %manifest.name,
+                    error = %e,
+                    "failed to create PythonExecutor for venv — agent will start in DEGRADED state"
+                );
+                return Some(e.to_string());
+            }
+        };
+        match executor.setup_venv(&manifest.packages).await {
+            Ok(()) => {
+                info!(
+                    agent = %manifest.name,
+                    packages = ?manifest.packages,
+                    "agent packages installed"
+                );
+                None
+            }
+            Err(e) => {
+                warn!(
+                    agent = %manifest.name,
+                    error = %e,
+                    "package installation failed — agent will start in DEGRADED state"
+                );
+                Some(e.to_string())
+            }
+        }
+    }
+
     /// Start all runtime actors in order and return their handles.
     ///
     /// Sequence: EventBus → AgentRegistry → ToolRegistry → TaskRouter → APIServer.
@@ -472,296 +935,45 @@ impl Supervisor {
         // Phase 3: ToolRegistry + native tool registration
         info!("Supervisor: starting ToolRegistry");
         let tool_registry_handle = ToolRegistryHandle::start();
-        for descriptor in native_tool_descriptors() {
-            if let Err(e) = tool_registry_handle.register(descriptor).await {
-                warn!(error = %e, "failed to register native tool");
-            }
-        }
-        // Phase 3b: register connector tool descriptors (Google Workspace,
-        // future Microsoft 365). Descriptors are static — they make the LLM
-        // aware of the tools regardless of whether a Google account is
-        // actually connected. The matching executors are wired in by the
-        // desktop dispatcher builder, which has access to the AuthManager.
-        let connector_descriptor_count =
-            crate::connectors_bridge::all_connector_descriptors().len();
-        for descriptor in crate::connectors_bridge::all_connector_descriptors() {
-            let tool_name = descriptor.name.clone();
-            if let Err(e) = tool_registry_handle.register(descriptor).await {
-                warn!(
-                    error = %e,
-                    tool = %tool_name,
-                    "failed to register connector tool descriptor"
-                );
-            }
-        }
-        info!(
-            connector_tools = connector_descriptor_count,
-            "Supervisor: ToolRegistry ready (native + connector tools registered)"
-        );
+        register_builtin_tools(&tool_registry_handle).await;
 
-        // Phase 3b: MCP Client Manager — reads server list from mcp.db (SQLite).
+        // Phase 3b: MCP Client Manager, reads server list from mcp.db (SQLite).
         //
         // On first boot, if `mcp.db` is empty and `mcp.toml` exists, performs a
         // one-shot migration and logs the count. After migration, `mcp.toml` is no
         // longer consulted. Errors are never fatal: the runtime continues and MCP
         // tools are simply unavailable.
-        let mcp_db_path = self.config.data_dir.join("mcp.db");
-        let mcp_config_path = self.config.data_dir.join("mcp.toml");
+        let (mcp_handle, mcp_server_repo) =
+            self.start_mcp(&tool_registry_handle, &event_sender).await;
 
-        let (mcp_handle, mcp_server_repo) = match McpServerRepository::open(&mcp_db_path) {
-            Err(e) => {
-                warn!(error = %e, "failed to open mcp.db — continuing without MCP");
-                (None, None)
-            }
-            Ok(repo) => {
-                // One-shot migration from mcp.toml when the database is empty.
-                match repo.list() {
-                    Ok(existing) if existing.is_empty() => {
-                        match McpConfig::load(&mcp_config_path) {
-                            Ok(toml_config) if !toml_config.servers.is_empty() => {
-                                match repo.import_from_toml(toml_config.servers) {
-                                    Ok(n) => info!(
-                                        count = n,
-                                        "imported MCP servers from mcp.toml (one-time migration)"
-                                    ),
-                                    Err(e) => {
-                                        warn!(error = %e, "MCP migration from mcp.toml failed — skipping")
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    Ok(_) => {}
-                    Err(e) => warn!(error = %e, "failed to check mcp.db for migration — skipping"),
-                }
+        // Spawn the sidecar runner for the local LLM and STT backends. Cloud
+        // backends are still served directly by the daemon via `LlmRouter`.
+        //
+        // Wrapped in an `Arc` and kept inside `SupervisorHandles` (then
+        // `RuntimeHandle`): the supervisor owns the child runner process with
+        // `kill_on_drop(true)`. If it were dropped at the end of boot, the
+        // runner would be killed and any later inference call would fail with
+        // a connection-refused error.
+        let runner_supervisor = spawn_runner_supervisor().await.map(Arc::new);
 
-                // Load server list and start the manager.
-                let server_configs = match repo.list() {
-                    Ok(v) => v,
-                    Err(e) => {
-                        warn!(error = %e, "failed to list MCP servers from mcp.db");
-                        Vec::new()
-                    }
-                };
-
-                // Always start the McpClientManager actor, even when the
-                // server list is empty. Without this, the desktop "Add MCP
-                // server" flow cannot register a first server: every write
-                // route (POST /api/v1/mcp/servers, …) checks
-                // require_mcp_handle and returns 503 "MCP is not configured"
-                // until at least one server exists in mcp.db at boot — a
-                // chicken-and-egg trap for first-time users.
-                let server_count = server_configs.len();
-                let handle = match McpClientManagerHandle::start(
-                    server_configs,
-                    &tool_registry_handle,
-                    Some(event_sender.clone()),
-                    None,
-                )
-                .await
-                {
-                    Ok(handle) => {
-                        let status = handle.status().await;
-                        let total_tools: usize = status.iter().map(|s| s.tools_count).sum();
-                        info!(
-                            servers = server_count,
-                            connected = status.len(),
-                            tools = total_tools,
-                            "MCP Phase 3b complete"
-                        );
-                        // Start MCP config watcher only when the legacy mcp.toml exists.
-                        // Config is now stored in mcp.db (SQLite) — mcp.toml is a
-                        // deprecated migration path kept for back-compat.
-                        if mcp_config_path.exists() {
-                            apollia_triggers::handlers::config_watch::McpConfigWatcher::spawn(
-                                mcp_config_path.clone(),
-                                handle.clone(),
-                            );
-                        }
-                        Some(handle)
-                    }
-                    Err(e) => {
-                        warn!(error = %e, "MCP Phase 3b failed — continuing without MCP");
-                        None
-                    }
-                };
-
-                let repo = Arc::new(std::sync::Mutex::new(repo));
-                (handle, Some(repo))
-            }
-        };
-
-        // Phase 4.5 (ADR-113) : spawn du sidecar runner pour les backends LLM
-        // et STT locaux. Les backends cloud restent gérés directement par le
-        // daemon via `LlmRouter`.
-        let runner_supervisor: Option<crate::runner_supervisor::RunnerSupervisor> = {
-            use crate::runner_supervisor::{gpu_detection, RunnerSupervisor};
-
-            let detected = gpu_detection::detect_gpu();
-            tracing::info!(
-                vendor = ?detected.vendor,
-                model = %detected.model,
-                backend = ?detected.recommended_backend,
-                "Supervisor Phase 4.5: GPU detected, spawning runner"
-            );
-
-            match RunnerSupervisor::start(detected.clone(), detected.recommended_backend).await {
-                Ok(sup) => {
-                    info!("Supervisor: runner spawned successfully");
-                    Some(sup)
-                }
-                Err(e) => {
-                    warn!(error = %e, "Supervisor: runner spawn failed, continuing without runner (LLM/STT local disabled)");
-                    None
-                }
-            }
-        };
-
-        // Phase 4 (pos 5): LlmRouter + LlmBackendRepository — loads backends from system.db
+        // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let system_db_path = self.config.data_dir.join("system.db");
-        let (llm_router, llm_backend_repo) = match LlmBackendRepository::open(&system_db_path) {
-            Ok(repo) => {
-                info!("Supervisor: starting LlmRouter from system.db");
+        let (llm_router, llm_backend_repo) = self
+            .start_llm_router(&system_db_path, &runner_supervisor)
+            .await;
 
-                // Migration: if system.db has no backends and apollia.toml has backends,
-                // import them. Handles first-boot and the onboarding case where
-                // setup_local_llm writes only to TOML, not to system.db.
-                if let Some(llm_cfg) = &self.config.llm_config {
-                    if let Ok(existing) = repo.list() {
-                        if existing.is_empty() {
-                            info!("Supervisor: no LLM backends in system.db — migrating from apollia.toml");
-                            for db_cfg in llm_cfg.to_db_configs() {
-                                let backend_name = db_cfg.name.clone();
-                                let is_default = db_cfg.is_default;
-                                match repo.save(&db_cfg) {
-                                    Ok(()) => info!(
-                                        backend = %backend_name,
-                                        is_default,
-                                        "LLM backend migrated from TOML to system.db"
-                                    ),
-                                    Err(e) => warn!(
-                                        backend = %backend_name,
-                                        error = %e,
-                                        "failed to migrate LLM backend from TOML to system.db"
-                                    ),
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ADR-113 : override l'instanciation des backends `LlamaCpp`
-                // pour les router via le RunnerProxy. Les backends cloud
-                // restent gérés par `instantiate_from_config` standard.
-                let router_result = {
-                    let runner_proxy = runner_supervisor.as_ref().map(|s| s.proxy());
-                    let factory = move |cfg: &apollia_core::LlmBackendConfig| {
-                        use apollia_core::LlmProvider;
-                        if !matches!(cfg.provider, LlmProvider::LlamaCpp) {
-                            return None;
-                        }
-                        let proxy = runner_proxy.clone()?;
-                        // Pour llama-cpp, le champ `model` du LlmBackendConfig
-                        // est le chemin absolu vers le fichier .gguf.
-                        let model_path = cfg.model.clone();
-                        let backend: std::sync::Arc<dyn apollia_llm::types::CompletionModel> =
-                            crate::runner_supervisor::RunnerLlmBackend::new(
-                                proxy,
-                                cfg.name.clone(),
-                                cfg.name.clone(),
-                                model_path,
-                            );
-                        Some(backend)
-                    };
-                    LlmRouter::from_repository_with_override(&repo, factory).await
-                };
-
-                let repo = Arc::new(std::sync::Mutex::new(repo));
-                match router_result {
-                    Ok(mut router) => {
-                        // `from_repository` lit `system.db` qui ne stocke pas
-                        // `[llm.routing]`. Si le TOML déclare une section
-                        // routing, on la propage ici pour que les rôles
-                        // `precise`/`fast` soient résolus correctement
-                        // (sinon `route_precise/fast` retombent sur `default`,
-                        // cf. `LlmRouter::route_precise`).
-                        if let Some(llm_cfg) = self.config.llm_config.as_ref() {
-                            if let Some(routing) = llm_cfg.routing.as_ref() {
-                                router = router.with_routing(routing.clone());
-                                tracing::info!(
-                                    precise = %routing.precise,
-                                    fast = %routing.fast,
-                                    "Supervisor: [llm.routing] propagated to LlmRouter"
-                                );
-                            }
-                        }
-                        for info in router.list() {
-                            tracing::info!(
-                                backend = %info.name,
-                                model = %info.model_id,
-                                "LLM backend ready"
-                            );
-                        }
-                        info!("Supervisor: LlmRouter ready");
-                        (Some(Arc::new(router)), Some(repo))
-                    }
-                    Err(e) => {
-                        warn!(error = %e, "LlmRouter failed to initialize — continuing without LLM");
-                        (None, Some(repo))
-                    }
-                }
-            }
-            Err(e) => {
-                warn!(error = %e, "failed to open system.db — LLM disabled");
-                (None, None)
-            }
+        // Phase 4b: LlmCallRepository, subscriber EventBus pour persister les appels LLM
+        let llm_call_repository = if llm_router.is_some() {
+            self.spawn_llm_call_repository(&event_sender)
+        } else {
+            None
         };
 
-        // Phase 4b: LlmCallRepository — subscriber EventBus pour persister les appels LLM
-        let mut llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>> = None;
-        if llm_router.is_some() {
-            let db_path = self.config.data_dir.join("llm_calls.db");
-            match LlmCallRepository::open(&db_path) {
-                Ok(repo) => {
-                    let repo = Arc::new(std::sync::Mutex::new(repo));
-                    let mut obs = self.config.obs_config.clone();
-                    if let Some(c) = self.config.llm_config.as_ref() {
-                        obs.debug_log_prompt = c.observability.debug_log_prompt;
-                    }
-                    apollia_llm::spawn_llm_subscriber(repo.clone(), &event_sender, obs);
-                    llm_call_repository = Some(repo);
-                    info!("Supervisor: LlmCallRepository ready (subscriber spawned)");
-                }
-                Err(e) => {
-                    warn!(error = %e, "LlmCallRepository failed to open — LLM call persistence disabled");
-                }
-            }
-        }
-
-        // Phase 4c: EventPersistor (ADR-088) — log append-only de la trace
+        // Phase 4c: EventPersistor (ADR-088), log append-only de la trace
         // d'exécution agent (Lot 1 : AgentLog ; Lots 2+ ajoutent thoughts,
         // tool_call_*, llm_call_*, etc.). Si l'ouverture échoue, le runtime
         // continue sans persistance (logs partent toujours dans `tracing`).
-        {
-            let db_path = self.config.data_dir.join("runtime_events.db");
-            match crate::observability::EventPersistorHandle::open(&db_path).await {
-                Ok(handle) => {
-                    crate::observability::spawn_runtime_events_subscriber(handle, &event_sender);
-                    info!(
-                        path = %db_path.display(),
-                        "Supervisor: EventPersistor ready (runtime_events subscriber spawned)"
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        error = %e,
-                        path = %db_path.display(),
-                        "EventPersistor failed to open — runtime_events persistence disabled"
-                    );
-                }
-            }
-        }
+        self.spawn_event_persistor(&event_sender).await;
 
         // Phase 4d: shared ResilienceLayer + event subscriber.
         //
@@ -785,7 +997,7 @@ impl Supervisor {
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
         info!("Supervisor: TaskRouter ready");
 
-        // Phase 6 (pos 7): TriggerEngine — démarré après TaskRouter (besoin du submitter)
+        // Phase 6 (pos 7): TriggerEngine, démarré après TaskRouter (besoin du submitter)
         info!("Supervisor: starting TriggerEngine");
         // Ouvre le repository de définitions de triggers depuis SQLite.
         let trigger_def_db_path = self.config.data_dir.join("triggers_def.db");
@@ -796,42 +1008,10 @@ impl Supervisor {
                     reason: format!("failed to open triggers_def.db: {e}"),
                 }
             })?;
-        let trigger_definitions: Vec<apollia_triggers::TriggerDefinition> = {
-            let rows = trigger_def_repo
-                .list()
-                .map_err(|e| SupervisorError::ActorStartFailed {
-                    actor: "trigger_engine".to_string(),
-                    reason: format!("failed to list trigger definitions: {e}"),
-                })?;
-            let mut defs = Vec::with_capacity(rows.len());
-            for row in rows {
-                match apollia_triggers::TriggerDefinition::try_from(row) {
-                    Ok(def) => defs.push(def),
-                    Err(e) => {
-                        warn!(error = %e, "Skipping invalid trigger definition");
-                    }
-                }
-            }
-            defs
-        };
+        let trigger_definitions = load_trigger_definitions(&trigger_def_repo)?;
         let trigger_def_repo = Arc::new(std::sync::Mutex::new(trigger_def_repo));
         // Ouvre la persistance SQLite des triggers (historique des fires/skips).
-        let trigger_persistence: Option<TriggerPersistence> = {
-            let db_path = self.config.data_dir.join("triggers.db");
-            match TriggerPersistence::open(&db_path) {
-                Ok(p) => {
-                    info!("Supervisor: TriggerPersistence ready");
-                    Some(p)
-                }
-                Err(e) => {
-                    warn!(
-                        error = %e,
-                        "TriggerPersistence failed to open — trigger history disabled"
-                    );
-                    None
-                }
-            }
-        };
+        let trigger_persistence = open_trigger_persistence(&self.config.data_dir);
         let enabled_count = trigger_definitions.iter().filter(|t| t.enabled).count();
         let trigger_engine = TriggerEngineHandle::spawn(
             trigger_definitions,
@@ -850,62 +1030,24 @@ impl Supervisor {
             count: enabled_count,
         });
 
-        // Phase 8 (pos 9): AuditTrail — opened before APIServer so it's injectable into AppState.
+        // Phase 8 (pos 9): AuditTrail, opened before APIServer so it's injectable into AppState.
         info!("Supervisor: opening AuditTrail");
-        let audit_trail_handle: Option<AuditTrailHandle> = {
-            let db_path = self.config.data_dir.join("audit.db");
-            match AuditTrailHandle::open(&db_path).await {
-                Ok(handle) => {
-                    info!("Supervisor: AuditTrail ready");
-                    Some(handle)
-                }
-                Err(e) => {
-                    warn!(error = %e, "AuditTrail failed to open — audit disabled");
-                    None
-                }
-            }
-        };
+        let audit_trail_handle = open_audit_trail(&self.config.data_dir).await;
 
         // Phase 9 (pos 10): APIServer
         info!("Supervisor: starting APIServer");
         // Open TaskRepository (HITL persistence).
         // Shared between AppState (resume handler) and TimeoutWatcher.
-        let task_repository: Option<Arc<TaskRepository>> = {
-            let db_path = self.config.data_dir.join("hitl.db");
-            match TaskRepository::open(&db_path).await {
-                Ok(repo) => {
-                    info!("Supervisor: TaskRepository ready (HITL enabled)");
-                    Some(Arc::new(repo))
-                }
-                Err(e) => {
-                    warn!(error = %e, "TaskRepository failed to open — HITL disabled");
-                    None
-                }
-            }
-        };
-        // PendingApprovals — oneshot channel registry for HITL suspension.
+        let task_repository = open_task_repository(&self.config.data_dir).await;
+        // PendingApprovals, oneshot channel registry for HITL suspension.
         let pending_approvals: Option<Arc<PendingApprovals>> = task_repository
             .as_ref()
             .map(|_| Arc::new(PendingApprovals::new()));
 
-        // Phase 13 (early): UserMemoryRepository — promoted before notifications
+        // Phase 13 (early): UserMemoryRepository, promoted before notifications
         // so we can consult the seed marker + profile name when bootstrapping
         // the default desktop channel (Item 5 of Notifications v2).
-        let user_memory: Option<
-            std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
-        > = {
-            let db_path = self.config.data_dir.join("user_memory.db");
-            match apollia_memory::user_memory::UserMemoryRepository::new(&db_path) {
-                Ok(repo) => {
-                    info!("Supervisor: UserMemoryRepository ready");
-                    Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
-                }
-                Err(e) => {
-                    warn!(error = %e, "UserMemoryRepository failed to open — user memory disabled");
-                    None
-                }
-            }
-        };
+        let user_memory = open_user_memory(&self.config.data_dir);
 
         // open NotificationConfigRepository from SQLite.
         let notif_db_path = self.config.data_dir.join("notifications.db");
@@ -918,7 +1060,7 @@ impl Supervisor {
             })?;
 
         // Item 5: bootstrap a desktop-default channel on first launch.
-        // Idempotent — guarded by a marker in __user__ namespace.
+        // Idempotent, guarded by a marker in __user__ namespace.
         seed_default_desktop_channel_if_needed(&notification_repo, user_memory.as_ref());
 
         // Read channels and global events from SQLite to build NotificationConfig.
@@ -953,59 +1095,14 @@ impl Supervisor {
         let notification_config_for_engine = notification_config_from_db.clone();
         let notification_repo = Arc::new(std::sync::Mutex::new(notification_repo));
 
-        // NotificationEngine — spawné avant AppState pour passer le handle.
-        let notification_engine: Option<NotificationEngineHandle> =
-            if let Some(ref notif_config) = notification_config_for_engine {
-                let channels = build_channels(&notif_config.channels)
-                    .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
-                let active = notif_config.channels.iter().filter(|c| c.enabled).count();
-                let notif_log_db_path = Some(self.config.data_dir.join("hitl.db"));
-                // Use 127.0.0.1 as connect address even when bind_addr is 0.0.0.0
-                // (wildcard bind address is not a valid remote address for connect).
-                let connect_addr = if self.config.api_config.bind_addr == "0.0.0.0" {
-                    "127.0.0.1".to_string()
-                } else {
-                    self.config.api_config.bind_addr.clone()
-                };
-                let api_base_url = format!(
-                    "http://{}:{}",
-                    connect_addr, self.config.api_config.tcp_port
-                );
-                let engine = NotificationEngine::new(
-                    notif_config.clone(),
-                    channels,
-                    event_sender.clone(),
-                    api_base_url,
-                    notif_log_db_path,
-                );
-                let handle = engine.spawn();
-                tracing::info!(channels = active, "NotificationEngine démarré");
-                Some(handle)
-            } else {
-                tracing::info!(
-                    "Supervisor: aucun canal de notification en base — NotificationEngine désactivé"
-                );
-                None
-            };
+        // NotificationEngine, spawné avant AppState pour passer le handle.
+        let notification_engine =
+            self.spawn_notification_engine(notification_config_for_engine.as_ref(), &event_sender)?;
 
-        // Phase 12b: PlanCacheRepository — opened before APIServer for REST stats/clear.
-        let plan_cache: Option<
-            Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>,
-        > = {
-            let db_path = self.config.data_dir.join("plan_cache.db");
-            match apollia_oria::plan_cache::PlanCacheRepository::open(&db_path) {
-                Ok(repo) => {
-                    info!("Supervisor: PlanCacheRepository ready");
-                    Some(Arc::new(std::sync::Mutex::new(repo)))
-                }
-                Err(e) => {
-                    warn!(error = %e, "PlanCacheRepository failed to open — plan caching disabled");
-                    None
-                }
-            }
-        };
+        // Phase 12b: PlanCacheRepository, opened before APIServer for REST stats/clear.
+        let plan_cache = open_plan_cache(&self.config.data_dir);
 
-        // Phase 12c: AgentMailbox — lightweight actor, always spawned.
+        // Phase 12c: AgentMailbox, lightweight actor, always spawned.
         let mailbox_handle = crate::mailbox::AgentMailboxHandle::spawn(
             event_sender.clone(),
             self.config.runtime_config.mailbox_capacity,
@@ -1016,44 +1113,15 @@ impl Supervisor {
         // support the Item 5 seed bootstrap of the default desktop channel. Variable
         // `user_memory` is already bound by that earlier block.
 
-        // Phase 13b: ProjectRepository — SQLite projects.db.
-        let project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>> = {
-            let db_path = self.config.data_dir.join("projects.db");
-            match apollia_tools::ProjectRepository::open(&db_path) {
-                Ok(repo) => {
-                    if let Err(e) = repo.seed_builtin_templates() {
-                        warn!(error = %e, "ProjectRepository: seed_builtin_templates failed");
-                    }
-                    info!("Supervisor: ProjectRepository ready");
-                    Some(std::sync::Arc::new(repo))
-                }
-                Err(e) => {
-                    warn!(error = %e, "ProjectRepository failed to open — projects disabled");
-                    None
-                }
-            }
-        };
+        // Phase 13b: ProjectRepository, SQLite projects.db.
+        let project_repository = open_project_repository(&self.config.data_dir);
 
-        // Phase 14: ChatSessionManager — spawned before APIServer to inject handle into AppState.
+        // Phase 14: ChatSessionManager, spawned before APIServer to inject handle into AppState.
         info!("Supervisor: starting ChatSessionManager");
         let chat_db_path = self.config.data_dir.join("chat.db");
 
-        // SidechainRepository — opened before A2AInvoker so the logger can be injected.
-        let sidechain_logger: Option<crate::a2a::SidechainLogger> = {
-            let db_path = self.config.data_dir.join("sidechains.db");
-            match crate::a2a::SidechainRepository::open(&db_path) {
-                Ok(repo) => {
-                    info!("Supervisor: SidechainRepository ready");
-                    Some(crate::a2a::SidechainLogger::new(std::sync::Arc::new(
-                        std::sync::Mutex::new(repo),
-                    )))
-                }
-                Err(e) => {
-                    warn!(error = %e, "SidechainRepository failed to open — sidechain logging disabled");
-                    None
-                }
-            }
-        };
+        // SidechainRepository, opened before A2AInvoker so the logger can be injected.
+        let sidechain_logger = open_sidechain_logger(&self.config.data_dir);
 
         let a2a_invoker_builder = crate::a2a::A2AInvoker::new(
             registry_handle.clone(),
@@ -1085,7 +1153,7 @@ impl Supervisor {
                 }),
                 project_repository.clone(),
                 mcp_handle.clone(),
-                // ADR-096 Phase 3 — feed the chat dispatcher the same global
+                // ADR-096 Phase 3, feed the chat dispatcher the same global
                 // config the Agent-mode dispatcher uses. Native tools needing
                 // app-level config (web_search Brave key, web_read SSRF
                 // settings, http_fetch allowlist, memory_search base dir,
@@ -1107,7 +1175,7 @@ impl Supervisor {
                 }
             };
 
-        // Phase 15: SttEngine — reads config from system.db, then conditionally starts
+        // Phase 15: SttEngine, reads config from system.db, then conditionally starts
         // the engine when `stt_config.enabled = true`.
         //
         // Opens `SttConfigRepository` against the same `system.db` used by the
@@ -1131,79 +1199,11 @@ impl Supervisor {
                 .and_then(|guard| guard.get_or_default().ok())
         });
 
-        let (stt_engine, stt_repository): (
-            Option<crate::stt::SttEngineHandle>,
-            Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
-        ) = if stt_cfg.as_ref().is_some_and(|c| c.enabled) {
-            let cfg = stt_cfg.as_ref().expect("checked above");
-            info!("Supervisor: starting SttEngine");
+        let (stt_engine, stt_repository) = self
+            .start_stt_engine(stt_cfg.as_ref(), &runner_supervisor, &event_sender)
+            .await;
 
-            let model_path = resolve_home(std::path::Path::new(&cfg.model_path));
-
-            if !model_path.exists() {
-                error!(
-                    path = %model_path.display(),
-                    "STT model file not found — SttEngine disabled"
-                );
-                (None, None)
-            } else {
-                let repo_path = self.config.data_dir.join("stt_transcriptions.db");
-                match apollia_stt::SttRepository::open(&repo_path) {
-                    Ok(repository) => {
-                        let mp = model_path.display().to_string();
-                        let model_id = model_path
-                            .file_stem()
-                            .map(|s| s.to_string_lossy().to_string())
-                            .unwrap_or_else(|| "whisper".to_string());
-
-                        // ADR-113 : la STT passe systématiquement par le runner
-                        // sidecar via `RunnerSttBackend`. Si le runner n'a pas
-                        // pu être spawné au Phase 4.5, STT est désactivée.
-                        let _ = mp; // silence unused-var warning post-cleanup
-                        let backend_result = if let Some(supervisor) = runner_supervisor.as_ref() {
-                            let proxy = supervisor.proxy();
-                            let backend: Box<dyn apollia_stt::SttBackend> = Box::new(
-                                crate::runner_supervisor::RunnerSttBackend::new(proxy, model_id),
-                            );
-                            Ok::<_, apollia_stt::SttError>(backend)
-                        } else {
-                            Err(apollia_stt::SttError::BackendUnavailable {
-                                backend: "runner sidecar not available (Phase 4.5 spawn failed)".into(),
-                            })
-                        };
-
-                        match backend_result {
-                            Ok(backend) => {
-                                let handle = crate::stt::SttEngineHandle::start(
-                                    backend,
-                                    repository,
-                                    cfg.clone(),
-                                    event_sender.clone(),
-                                );
-                                info!("Supervisor: SttEngine ready");
-                                let api_repo = apollia_stt::SttRepository::open(&repo_path)
-                                    .map(|r| std::sync::Arc::new(std::sync::Mutex::new(r)))
-                                    .ok();
-                                (Some(handle), api_repo)
-                            }
-                            Err(e) => {
-                                warn!(error = %e, "STT engine disabled (runner sidecar unavailable)");
-                                (None, None)
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!(error = %e, "SttRepository failed to open — SttEngine disabled");
-                        (None, None)
-                    }
-                }
-            }
-        } else {
-            info!("Supervisor: STT disabled in config — Phase 15 skipped");
-            (None, None)
-        };
-
-        // Clone handles before moving into AppState — needed for auto-load.
+        // Clone handles before moving into AppState, needed for auto-load.
         let agent_loader_for_autoload = agent_loader.clone();
         let backend_factory_for_autoload = backend_factory.clone();
         let backend_for_autoload = backend.clone();
@@ -1245,33 +1245,28 @@ impl Supervisor {
             llm_backend_repo: llm_backend_repo.clone(),
             a2a_invoker: Some(a2a_invoker),
             resilience_layer: Some(shared_resilience_layer.clone()),
+            runner_proxy: runner_supervisor.as_ref().map(|s| s.proxy()),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
-        let api_handle = match tokio::time::timeout(timeout, api_server.start()).await {
-            Ok(Ok(handle)) => handle,
-            Ok(Err(api_err)) => {
-                // Rollback: stop actors in reverse order (TriggerEngine → TaskRouter → …)
-                trigger_engine.shutdown().await;
-                router_handle.shutdown();
-                tool_registry_handle.shutdown().await;
-                registry_handle.shutdown();
-                return Err(SupervisorError::from(api_err));
-            }
-            Err(_elapsed) => {
-                trigger_engine.shutdown().await;
-                router_handle.shutdown();
-                tool_registry_handle.shutdown().await;
-                registry_handle.shutdown();
-                return Err(SupervisorError::StartupTimeout {
-                    actor: "api_server".to_string(),
-                    timeout_secs: self.config.startup_timeout_secs,
-                });
+        let api_start = tokio::time::timeout(timeout, api_server.start()).await;
+        let api_handle = match flatten_api_start(api_start, self.config.startup_timeout_secs) {
+            Ok(handle) => handle,
+            Err(e) => {
+                // Rollback: stop actors in reverse order (TriggerEngine → … ).
+                rollback_startup_actors(
+                    &trigger_engine,
+                    &router_handle,
+                    &tool_registry_handle,
+                    &registry_handle,
+                )
+                .await;
+                return Err(e);
             }
         };
         info!("Supervisor: APIServer ready");
 
-        // Phase 8 (pos 9): TimeoutWatcher — démarré si task_repository est configuré
+        // Phase 8 (pos 9): TimeoutWatcher, démarré si task_repository est configuré
         if let Some(ref repo) = task_repository {
             info!("Supervisor: starting TimeoutWatcher");
             let watcher = TimeoutWatcher::new(
@@ -1298,26 +1293,8 @@ impl Supervisor {
         drain_until_all_ready(&mut startup_rx, timeout).await;
 
         // Onboarding detection: emit OnboardingRequired if UserMemory is empty.
-        // Non-blocking — the runtime is fully operational regardless of the result.
-        if let Some(ref um) = user_memory {
-            match um.lock() {
-                Ok(repo) => match repo.is_empty() {
-                    Ok(true) => {
-                        let _ = event_sender.send(RuntimeEvent::OnboardingRequired);
-                        info!("first launch detected — onboarding required");
-                    }
-                    Ok(false) => {
-                        info!("user memory populated — skipping onboarding");
-                    }
-                    Err(e) => {
-                        warn!(error = %e, "failed to check user memory for onboarding — skipping");
-                    }
-                },
-                Err(e) => {
-                    warn!(error = %e, "user memory lock poisoned — skipping onboarding check");
-                }
-            }
-        }
+        // Non-blocking, the runtime is fully operational regardless of the result.
+        emit_onboarding_if_needed(user_memory.as_ref(), &event_sender);
 
         // Phase 10.5: Auto-install bundled agents
         //
@@ -1351,151 +1328,19 @@ impl Supervisor {
         // Active, create an ExecutionCoordinator, and register in TaskRouter.
         // This mirrors the full start_agent flow from routes_agents.rs.
         // Errors are logged but never block the boot (graceful degradation).
-        if let Some(ref repo) = self.config.agent_repository {
-            match repo.list_enabled() {
-                Ok(agents) => {
-                    if agents.is_empty() {
-                        info!("No installed agents to load");
-                    }
-                    for agent in &agents {
-                        if !agent.enabled {
-                            warn!(name = %agent.name, "Skipping disabled installed agent");
-                            continue;
-                        }
-                        let manifest = match agent_loader_for_autoload
-                            .load_and_validate(&agent.install_path)
-                        {
-                            Ok(m) => m,
-                            Err(e) => {
-                                warn!(
-                                    name = %agent.name,
-                                    error = %e,
-                                    "Failed to load installed agent"
-                                );
-                                let _ = event_sender.send(RuntimeEvent::AgentLoadFailed {
-                                    name: agent.name.clone(),
-                                    error: e.to_string(),
-                                });
-                                continue;
-                            }
-                        };
-
-                        let max_concurrent = manifest.max_concurrent_tasks;
-                        let agent_name = manifest.name.clone();
-
-                        // Install pip packages into the agent's venv before registration.
-                        // On failure the agent continues in Degraded state — boot is never blocked.
-                        let degraded_reason: Option<String> = if manifest.packages.is_empty() {
-                            None
-                        } else {
-                            let venv_base = self.config.data_dir.join("venvs");
-                            match apollia_tools::tools::python_executor::PythonExecutor::new(
-                                &manifest.name,
-                                &venv_base,
-                            ) {
-                                Ok(executor) => {
-                                    match executor.setup_venv(&manifest.packages).await {
-                                        Ok(()) => {
-                                            info!(
-                                                agent = %manifest.name,
-                                                packages = ?manifest.packages,
-                                                "agent packages installed"
-                                            );
-                                            None
-                                        }
-                                        Err(e) => {
-                                            warn!(
-                                                agent = %manifest.name,
-                                                error = %e,
-                                                "package installation failed — agent will start in DEGRADED state"
-                                            );
-                                            Some(e.to_string())
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        agent = %manifest.name,
-                                        error = %e,
-                                        "failed to create PythonExecutor for venv — agent will start in DEGRADED state"
-                                    );
-                                    Some(e.to_string())
-                                }
-                            }
-                        };
-
-                        // Register in AgentRegistry (state = Initializing).
-                        let agent_id = match registry_handle.register(manifest).await {
-                            Ok(id) => id,
-                            Err(e) => {
-                                warn!(
-                                    name = %agent_name,
-                                    error = %e,
-                                    "Failed to register installed agent"
-                                );
-                                continue;
-                            }
-                        };
-
-                        // Transition: Initializing → Active (required by state machine).
-                        if let Err(e) = registry_handle
-                            .update_state(agent_id.as_str(), ProcessState::Active)
-                            .await
-                        {
-                            warn!(name = %agent_name, error = %e, "Failed to activate agent");
-                            continue;
-                        }
-
-                        // If package installation failed: Active → Degraded.
-                        if degraded_reason.is_some() {
-                            registry_handle
-                                .update_state(agent_id.as_str(), ProcessState::Degraded)
-                                .await
-                                .unwrap_or_else(|e| {
-                                    warn!(name = %agent_name, error = %e, "failed to set Degraded state")
-                                });
-                        }
-
-                        // Create ExecutionCoordinator with backend factory.
-                        let agent_backend: B = match &backend_factory_for_autoload {
-                            Some(factory) => {
-                                let dyn_backend =
-                                    factory.create_for_agent(&agent.install_path, &agent.manifest);
-                                B::from(dyn_backend)
-                            }
-                            None => backend_for_autoload.clone(),
-                        };
-                        let mut coordinator = ExecutionCoordinator::new(
-                            agent_id.clone(),
-                            max_concurrent,
-                            event_sender.clone(),
-                            agent_backend,
-                        )
-                        .with_agent_name(agent_name.clone());
-                        if let Some(ref repo) = task_repository {
-                            coordinator = coordinator.with_task_repository(
-                                Arc::clone(repo),
-                                self.config.obs_config.clone(),
-                            );
-                        }
-
-                        // Register coordinator in TaskRouter.
-                        let _ = router_handle
-                            .register_coordinator(agent_id.clone(), coordinator)
-                            .await;
-
-                        info!(
-                            name = %agent_name,
-                            id = %agent_id,
-                            "Auto-loaded installed agent"
-                        );
-                    }
-                }
-                Err(e) => {
-                    warn!(error = %e, "Failed to list installed agents — skipping auto-load");
-                }
-            }
-        }
+        Self::auto_load_installed_agents(AutoLoadCtx {
+            agent_loader: &agent_loader_for_autoload,
+            backend_factory: &backend_factory_for_autoload,
+            base_backend: &backend_for_autoload,
+            registry_handle: &registry_handle,
+            router_handle: &router_handle,
+            event_sender: &event_sender,
+            task_repository: task_repository.as_ref(),
+            agent_repository: self.config.agent_repository.as_ref(),
+            data_dir: &self.config.data_dir,
+            obs_config: &self.config.obs_config,
+        })
+        .await;
 
         Ok(SupervisorHandles {
             event_sender,
@@ -1518,7 +1363,352 @@ impl Supervisor {
             stt_repository,
             mcp_handle,
             project_repository,
+            runner_supervisor,
         })
+    }
+}
+
+/// Borrowed dependencies threaded through Phase 11 auto-load helpers.
+///
+/// The auto-load helpers borrow the config pieces they need through this ctx
+/// rather than `&self`. Building `APIServer` partially moves `self.config`
+/// (`api_config` is consumed by value), which would forbid a later `&self`
+/// borrow; threading the needed config fields here keeps the helpers callable.
+struct AutoLoadCtx<'a, B: ExecutionBackend> {
+    agent_loader: &'a Arc<dyn AgentLoader>,
+    backend_factory: &'a Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
+    base_backend: &'a B,
+    registry_handle: &'a AgentRegistryHandle,
+    router_handle: &'a TaskRouterHandle<B>,
+    event_sender: &'a EventBusSender,
+    task_repository: Option<&'a Arc<TaskRepository>>,
+    /// Repository of installed agents (`None` disables auto-load).
+    agent_repository: Option<&'a AgentRepository>,
+    /// Data directory, used to locate per-agent venvs.
+    data_dir: &'a std::path::Path,
+    /// Observability config wired into each agent's coordinator.
+    obs_config: &'a apollia_core::ObservabilityConfig,
+}
+
+/// Phase 3: register the native tool descriptors and the static connector
+/// descriptors (Google Workspace, future Microsoft 365). Connector descriptors
+/// make the LLM aware of the tools regardless of whether an account is
+/// connected; the matching executors are wired in by the desktop dispatcher.
+async fn register_builtin_tools(tool_registry_handle: &ToolRegistryHandle) {
+    for descriptor in native_tool_descriptors() {
+        if let Err(e) = tool_registry_handle.register(descriptor).await {
+            warn!(error = %e, "failed to register native tool");
+        }
+    }
+    let connector_descriptor_count = crate::connectors_bridge::all_connector_descriptors().len();
+    for descriptor in crate::connectors_bridge::all_connector_descriptors() {
+        let tool_name = descriptor.name.clone();
+        if let Err(e) = tool_registry_handle.register(descriptor).await {
+            warn!(
+                error = %e,
+                tool = %tool_name,
+                "failed to register connector tool descriptor"
+            );
+        }
+    }
+    info!(
+        connector_tools = connector_descriptor_count,
+        "Supervisor: ToolRegistry ready (native + connector tools registered)"
+    );
+}
+
+/// Open the trigger history persistence (`triggers.db`). `None` (logged) on failure.
+fn open_trigger_persistence(data_dir: &std::path::Path) -> Option<TriggerPersistence> {
+    match TriggerPersistence::open(&data_dir.join("triggers.db")) {
+        Ok(p) => {
+            info!("Supervisor: TriggerPersistence ready");
+            Some(p)
+        }
+        Err(e) => {
+            warn!(error = %e, "TriggerPersistence failed to open — trigger history disabled");
+            None
+        }
+    }
+}
+
+/// Open the audit trail (`audit.db`). Returns `None` (logged) on failure.
+async fn open_audit_trail(data_dir: &std::path::Path) -> Option<AuditTrailHandle> {
+    match AuditTrailHandle::open(&data_dir.join("audit.db")).await {
+        Ok(handle) => {
+            info!("Supervisor: AuditTrail ready");
+            Some(handle)
+        }
+        Err(e) => {
+            warn!(error = %e, "AuditTrail failed to open — audit disabled");
+            None
+        }
+    }
+}
+
+/// Open the HITL task repository (`hitl.db`). Returns `None` (logged) on failure.
+async fn open_task_repository(data_dir: &std::path::Path) -> Option<Arc<TaskRepository>> {
+    match TaskRepository::open(&data_dir.join("hitl.db")).await {
+        Ok(repo) => {
+            info!("Supervisor: TaskRepository ready (HITL enabled)");
+            Some(Arc::new(repo))
+        }
+        Err(e) => {
+            warn!(error = %e, "TaskRepository failed to open — HITL disabled");
+            None
+        }
+    }
+}
+
+/// Open the user memory repository (`user_memory.db`). `None` (logged) on failure.
+fn open_user_memory(
+    data_dir: &std::path::Path,
+) -> Option<std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>> {
+    match apollia_memory::user_memory::UserMemoryRepository::new(&data_dir.join("user_memory.db")) {
+        Ok(repo) => {
+            info!("Supervisor: UserMemoryRepository ready");
+            Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
+        }
+        Err(e) => {
+            warn!(error = %e, "UserMemoryRepository failed to open — user memory disabled");
+            None
+        }
+    }
+}
+
+/// Open the plan cache repository (`plan_cache.db`). `None` (logged) on failure.
+fn open_plan_cache(
+    data_dir: &std::path::Path,
+) -> Option<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>> {
+    match apollia_oria::plan_cache::PlanCacheRepository::open(&data_dir.join("plan_cache.db")) {
+        Ok(repo) => {
+            info!("Supervisor: PlanCacheRepository ready");
+            Some(Arc::new(std::sync::Mutex::new(repo)))
+        }
+        Err(e) => {
+            warn!(error = %e, "PlanCacheRepository failed to open — plan caching disabled");
+            None
+        }
+    }
+}
+
+/// Open the sidechain repository (`sidechains.db`) and wrap it in a logger.
+/// Returns `None` (logged) on failure.
+fn open_sidechain_logger(data_dir: &std::path::Path) -> Option<crate::a2a::SidechainLogger> {
+    match crate::a2a::SidechainRepository::open(&data_dir.join("sidechains.db")) {
+        Ok(repo) => {
+            info!("Supervisor: SidechainRepository ready");
+            Some(crate::a2a::SidechainLogger::new(std::sync::Arc::new(
+                std::sync::Mutex::new(repo),
+            )))
+        }
+        Err(e) => {
+            warn!(error = %e, "SidechainRepository failed to open — sidechain logging disabled");
+            None
+        }
+    }
+}
+
+/// Phase 13b: open `projects.db` and seed the built-in project templates.
+/// Returns `None` (logged) when the database cannot be opened.
+fn open_project_repository(
+    data_dir: &std::path::Path,
+) -> Option<std::sync::Arc<apollia_tools::ProjectRepository>> {
+    let db_path = data_dir.join("projects.db");
+    match apollia_tools::ProjectRepository::open(&db_path) {
+        Ok(repo) => {
+            if let Err(e) = repo.seed_builtin_templates() {
+                warn!(error = %e, "ProjectRepository: seed_builtin_templates failed");
+            }
+            info!("Supervisor: ProjectRepository ready");
+            Some(std::sync::Arc::new(repo))
+        }
+        Err(e) => {
+            warn!(error = %e, "ProjectRepository failed to open — projects disabled");
+            None
+        }
+    }
+}
+
+/// Detect the GPU and spawn the sidecar runner for the local LLM and STT
+/// backends. Returns `None` (logged) when the runner cannot start; cloud
+/// backends keep working without it.
+async fn spawn_runner_supervisor() -> Option<crate::runner_supervisor::RunnerSupervisor> {
+    use crate::runner_supervisor::{gpu_detection, RunnerSupervisor};
+
+    let detected = gpu_detection::detect_gpu();
+    tracing::info!(
+        vendor = ?detected.vendor,
+        model = %detected.model,
+        backend = ?detected.recommended_backend,
+        "Supervisor Phase 4.5: GPU detected, spawning runner"
+    );
+
+    match RunnerSupervisor::start(detected.clone(), detected.recommended_backend).await {
+        Ok(sup) => {
+            info!("Supervisor: runner spawned successfully");
+            Some(sup)
+        }
+        Err(e) => {
+            warn!(error = %e, "Supervisor: runner spawn failed, continuing without runner (LLM/STT local disabled)");
+            None
+        }
+    }
+}
+
+/// Flatten the nested `timeout(api_server.start())` result into a single
+/// `Result<APIServerHandle, SupervisorError>`, mapping a timeout to
+/// [`SupervisorError::StartupTimeout`].
+fn flatten_api_start(
+    api_start: Result<Result<APIServerHandle, APIServerError>, tokio::time::error::Elapsed>,
+    startup_timeout_secs: u64,
+) -> Result<APIServerHandle, SupervisorError> {
+    match api_start {
+        Ok(Ok(handle)) => Ok(handle),
+        Ok(Err(api_err)) => Err(SupervisorError::from(api_err)),
+        Err(_elapsed) => Err(SupervisorError::StartupTimeout {
+            actor: "api_server".to_string(),
+            timeout_secs: startup_timeout_secs,
+        }),
+    }
+}
+
+/// Stop the already-started actors in reverse order when APIServer startup
+/// fails (TriggerEngine → TaskRouter → ToolRegistry → AgentRegistry).
+async fn rollback_startup_actors<B: ExecutionBackend>(
+    trigger_engine: &TriggerEngineHandle,
+    router_handle: &TaskRouterHandle<B>,
+    tool_registry_handle: &ToolRegistryHandle,
+    registry_handle: &AgentRegistryHandle,
+) {
+    trigger_engine.shutdown().await;
+    router_handle.shutdown();
+    // `ToolRegistryHandle::shutdown` consumes `self`; the handle is only a
+    // cheap `Clone` over an mpsc sender, so cloning to send the Shutdown
+    // message is semantically equivalent to the original owned-move path.
+    tool_registry_handle.clone().shutdown().await;
+    registry_handle.shutdown();
+}
+
+/// Emit [`RuntimeEvent::OnboardingRequired`] when user memory is empty (first
+/// launch). Non-blocking and best-effort: lock/read failures are logged.
+fn emit_onboarding_if_needed(
+    user_memory: Option<
+        &std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
+    >,
+    event_sender: &EventBusSender,
+) {
+    let Some(um) = user_memory else {
+        return;
+    };
+    let repo = match um.lock() {
+        Ok(repo) => repo,
+        Err(e) => {
+            warn!(error = %e, "user memory lock poisoned — skipping onboarding check");
+            return;
+        }
+    };
+    match repo.is_empty() {
+        Ok(true) => {
+            let _ = event_sender.send(RuntimeEvent::OnboardingRequired);
+            info!("first launch detected — onboarding required");
+        }
+        Ok(false) => info!("user memory populated — skipping onboarding"),
+        Err(e) => warn!(error = %e, "failed to check user memory for onboarding — skipping"),
+    }
+}
+
+/// Load and parse trigger definitions from the repository, skipping (with a
+/// warning) any row that fails to convert. Propagates only the list failure.
+fn load_trigger_definitions(
+    repo: &TriggerDefinitionRepository,
+) -> Result<Vec<apollia_triggers::TriggerDefinition>, SupervisorError> {
+    let rows = repo.list().map_err(|e| SupervisorError::ActorStartFailed {
+        actor: "trigger_engine".to_string(),
+        reason: format!("failed to list trigger definitions: {e}"),
+    })?;
+    let mut defs = Vec::with_capacity(rows.len());
+    for row in rows {
+        match apollia_triggers::TriggerDefinition::try_from(row) {
+            Ok(def) => defs.push(def),
+            Err(e) => warn!(error = %e, "Skipping invalid trigger definition"),
+        }
+    }
+    Ok(defs)
+}
+
+/// One-shot migration of MCP servers from `mcp.toml` into `mcp.db` when the
+/// database is empty. No-op when the DB already has servers or the TOML is
+/// absent/empty. Errors are logged, never fatal.
+fn migrate_mcp_from_toml(repo: &McpServerRepository, mcp_config_path: &std::path::Path) {
+    let existing = match repo.list() {
+        Ok(v) => v,
+        Err(e) => {
+            warn!(error = %e, "failed to check mcp.db for migration — skipping");
+            return;
+        }
+    };
+    if !existing.is_empty() {
+        return;
+    }
+    let toml_config = match McpConfig::load(mcp_config_path) {
+        Ok(c) if !c.servers.is_empty() => c,
+        _ => return,
+    };
+    match repo.import_from_toml(toml_config.servers) {
+        Ok(n) => info!(
+            count = n,
+            "imported MCP servers from mcp.toml (one-time migration)"
+        ),
+        Err(e) => warn!(error = %e, "MCP migration from mcp.toml failed — skipping"),
+    }
+}
+
+/// Start the MCP client manager (always, even when the server list is empty)
+/// and spawn the legacy `mcp.toml` config watcher when that file still exists.
+async fn start_mcp_manager(
+    server_configs: Vec<apollia_mcp::config::McpServerConfig>,
+    tool_registry_handle: &ToolRegistryHandle,
+    event_sender: &EventBusSender,
+    mcp_config_path: &std::path::Path,
+) -> Option<McpClientManagerHandle> {
+    // Always start the McpClientManager actor, even when the server list is
+    // empty. Without this, the desktop "Add MCP server" flow cannot register a
+    // first server: every write route checks require_mcp_handle and returns
+    // 503 "MCP is not configured" until at least one server exists in mcp.db at
+    // boot, a chicken-and-egg trap for first-time users.
+    let server_count = server_configs.len();
+    match McpClientManagerHandle::start(
+        server_configs,
+        tool_registry_handle,
+        Some(event_sender.clone()),
+        None,
+    )
+    .await
+    {
+        Ok(handle) => {
+            let status = handle.status().await;
+            let total_tools: usize = status.iter().map(|s| s.tools_count).sum();
+            info!(
+                servers = server_count,
+                connected = status.len(),
+                tools = total_tools,
+                "MCP Phase 3b complete"
+            );
+            // Start MCP config watcher only when the legacy mcp.toml exists.
+            // Config is now stored in mcp.db (SQLite), mcp.toml is a
+            // deprecated migration path kept for back-compat.
+            if mcp_config_path.exists() {
+                apollia_triggers::handlers::config_watch::McpConfigWatcher::spawn(
+                    mcp_config_path.to_path_buf(),
+                    handle.clone(),
+                );
+            }
+            Some(handle)
+        }
+        Err(e) => {
+            warn!(error = %e, "MCP Phase 3b failed — continuing without MCP");
+            None
+        }
     }
 }
 
@@ -1589,7 +1779,7 @@ fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
-        // ADR-086 — gouvernance agent-driven des permissions.
+        // ADR-086, gouvernance agent-driven des permissions.
         apollia_tools::tools::permission_rules::PermissionRuleAdd::descriptor(),
         apollia_tools::tools::permission_rules::PermissionRuleRemove::descriptor(),
         apollia_tools::tools::permission_rules::PermissionRuleList::descriptor(),
@@ -1635,7 +1825,7 @@ pub async fn watch(
                 });
             }
             Ok(_) => {
-                // Other events — ignore in MVP
+                // Other events, ignore in MVP
             }
             Err(broadcast::error::RecvError::Lagged(n)) => {
                 warn!(skipped = n, "Supervisor watch: lagged, skipped events");
@@ -1670,7 +1860,7 @@ async fn drain_until_all_ready(rx: &mut broadcast::Receiver<RuntimeEvent>, timeo
 /// `__` internal prefix added by `user_memory::set_internal`).
 ///
 /// Once set, prevents a subsequent boot from re-seeding the default desktop
-/// channel — even if the operator deletes the seeded channel manually.
+/// channel, even if the operator deletes the seeded channel manually.
 const SEEDED_DESKTOP_CHANNEL_MARKER: &str = "notifications_seeded_desktop";
 
 /// On first boot with a usable [`UserMemoryRepository`] and an empty
@@ -1683,7 +1873,7 @@ const SEEDED_DESKTOP_CHANNEL_MARKER: &str = "notifications_seeded_desktop";
 ///   marker anyway (so further deletions never trigger a re-seed) and return;
 /// - otherwise, insert the channel, then set the marker.
 ///
-/// All failures are best-effort and logged at `warn!` — they must never block
+/// All failures are best-effort and logged at `warn!`, they must never block
 /// supervisor startup.
 fn seed_default_desktop_channel_if_needed(
     notif_repo: &NotificationConfigRepository,
@@ -1692,14 +1882,14 @@ fn seed_default_desktop_channel_if_needed(
     >,
 ) {
     let Some(um_arc) = user_memory else {
-        // No user memory available — can't track the marker safely. Skip.
+        // No user memory available, can't track the marker safely. Skip.
         return;
     };
     let um = um_arc.lock().unwrap_or_else(|e| e.into_inner());
 
     // 1. Check marker.
     match um.get_internal(SEEDED_DESKTOP_CHANNEL_MARKER) {
-        Ok(Some(_)) => return, // already seeded — leave the user's setup alone
+        Ok(Some(_)) => return, // already seeded, leave the user's setup alone
         Ok(None) => {}
         Err(e) => {
             warn!(error = %e, "seed default desktop channel: marker read failed — skipping");
@@ -1708,7 +1898,7 @@ fn seed_default_desktop_channel_if_needed(
     }
 
     // 2. If the repository is not empty, just set the marker (legacy user with
-    //    existing channels — record that we've considered seeding once).
+    //    existing channels, record that we've considered seeding once).
     let channels = match notif_repo.list_channels() {
         Ok(rows) => rows,
         Err(e) => {
@@ -1946,7 +2136,7 @@ mod tests {
         PathBuf::from(format!("/tmp/ap-{}.sock", id))
     }
 
-    /// Returns `(SupervisorConfig, TempDir)` — the caller must hold `TempDir`
+    /// Returns `(SupervisorConfig, TempDir)`, the caller must hold `TempDir`
     /// alive until the test completes so the data_dir path remains valid.
     fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::TempDir) {
         let temp_dir = tempfile::tempdir().expect("tempdir");
@@ -2074,10 +2264,10 @@ mod tests {
         assert!(agents.unwrap().is_empty());
 
         // ToolRegistryHandle: can list (native tools should be registered).
-        // Count mirrors native_tool_descriptors() — 16 baseline (13 historical
+        // Count mirrors native_tool_descriptors(), 16 baseline (13 historical
         // + 3 permission_rule_* added by ADR-086) + web-search + web-read
         // when those features are compiled in (ADR-072), plus the connector
-        // tool descriptors registered at Phase 3b (ADR-096 convergence —
+        // tool descriptors registered at Phase 3b (ADR-096 convergence -
         // Google ops today, Microsoft to come).
         let connector_count = crate::connectors_bridge::all_connector_descriptors().len();
         let expected = 16
@@ -2115,7 +2305,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_startup_timeout_rollback() {
-        // GIVEN a port already in use (bind will fail, not timeout — but tests the error path)
+        // GIVEN a port already in use (bind will fail, not timeout, but tests the error path)
         let port = free_port().await;
         let socket_path = temp_socket_path();
 
@@ -2370,6 +2560,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
 
         // WHEN on clone l'AppState
@@ -2487,7 +2678,7 @@ mod tests {
             )
             .await;
 
-        // THEN pas d'erreur — NotificationEngine non démarré silencieusement
+        // THEN pas d'erreur, NotificationEngine non démarré silencieusement
         assert!(
             result.is_ok(),
             "démarrage sans [notifications] doit réussir, erreur: {:?}",
@@ -2622,7 +2813,7 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // ── Item 5 — seed_default_desktop_channel_if_needed (unit) ──────────────
+    // ── Item 5, seed_default_desktop_channel_if_needed (unit) ──────────────
 
     /// Helper : (notif_repo, user_memory) initialisés sur tempdirs vierges.
     fn make_seed_inputs() -> (
@@ -2746,12 +2937,12 @@ mod tests {
 
     #[test]
     fn test_seed_idempotent_across_multiple_calls() {
-        // GIVEN — call seed twice
+        // GIVEN, call seed twice
         let (notif, um, _tmp) = make_seed_inputs();
         seed_default_desktop_channel_if_needed(&notif, Some(&um));
         seed_default_desktop_channel_if_needed(&notif, Some(&um));
 
-        // THEN — still only one channel, no duplicate insert
+        // THEN, still only one channel, no duplicate insert
         let chans = notif.list_channels().expect("list");
         assert_eq!(chans.len(), 1);
     }
@@ -3244,7 +3435,7 @@ mod tests {
         let (config, _tmp_dir) = test_config(port, socket_path.clone());
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() completes — user_memory.db is created empty
+        // WHEN start() completes, user_memory.db is created empty
         let handles = supervisor
             .start(
                 MockBackend,
@@ -3359,7 +3550,7 @@ mod tests {
         .expect("write manifest.json");
 
         for (name, file) in agents {
-            // Stub Python files — named so StubAgentLoader derives the agent name from stem.
+            // Stub Python files, named so StubAgentLoader derives the agent name from stem.
             std::fs::write(bundled_dir.join(file), format!("# {name}\n"))
                 .expect("write stub agent");
         }

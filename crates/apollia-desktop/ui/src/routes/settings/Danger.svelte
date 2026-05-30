@@ -14,7 +14,6 @@
   import { AlertTriangle, RefreshCcw, Brain, FileText, Trash2 } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast";
-  import { navigateTo } from "$lib/stores/navigation";
   import { onboardingStore, onboardingModalOpen } from "$lib/stores/onboarding";
   import DestructiveActionDialog from "../../components/settings/DestructiveActionDialog.svelte";
 

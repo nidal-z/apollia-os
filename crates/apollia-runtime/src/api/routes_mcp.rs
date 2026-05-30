@@ -85,7 +85,7 @@ fn require_mcp_repo<B: ExecutionBackend + Clone>(
 
 // ─── read routes ─────────────────────────────────────────────────────────────
 
-/// `GET /api/v1/mcp/servers` — List all connected MCP servers with their status.
+/// `GET /api/v1/mcp/servers`, List all connected MCP servers with their status.
 ///
 /// Returns an empty array when no MCP configuration is active.
 async fn list_servers<B: ExecutionBackend + Clone>(
@@ -98,7 +98,7 @@ async fn list_servers<B: ExecutionBackend + Clone>(
     Json(statuses)
 }
 
-/// `GET /api/v1/mcp/servers/:name` — Get detailed info for a specific MCP server.
+/// `GET /api/v1/mcp/servers/:name`, Get detailed info for a specific MCP server.
 ///
 /// Returns `404 Not Found` when no server with the given name is connected.
 /// Returns `503 Service Unavailable` when MCP is not configured.
@@ -115,12 +115,12 @@ async fn get_server_detail<B: ExecutionBackend + Clone>(
     })
 }
 
-/// `GET /api/v1/mcp/servers/:name/raw_config` — Return the persisted launch
+/// `GET /api/v1/mcp/servers/:name/raw_config`, Return the persisted launch
 /// configuration of a server (command, args, env, transport, …) as stored in
 /// `mcp.db`.
 ///
 /// The `env` map contains either literal values for non-secret variables or
-/// `${APOLLIA_SECRET:NAME}` placeholders for secret ones — actual secret
+/// `${APOLLIA_SECRET:NAME}` placeholders for secret ones, actual secret
 /// material is never returned. Used by the desktop "Modifier les arguments"
 /// flow to fetch the current config, patch `args`, and PUT the result back
 /// without losing the rest of the configuration.
@@ -150,7 +150,7 @@ async fn get_server_raw_config<B: ExecutionBackend + Clone>(
     Ok(Json(config))
 }
 
-/// `POST /api/v1/mcp/servers/:name/restart` — Restart a specific MCP server session.
+/// `POST /api/v1/mcp/servers/:name/restart`, Restart a specific MCP server session.
 ///
 /// Restarts an existing session or first-time-connects one declared in `mcp.db`.
 ///
@@ -158,7 +158,7 @@ async fn get_server_raw_config<B: ExecutionBackend + Clone>(
 /// configuration. When the server was declared in `mcp.db` but never
 /// connected (e.g. the previous start was blocked by a missing OAuth token,
 /// later supplied via `apollia-os mcp oauth login`), we fall back to a
-/// fresh `add_server` call using the persisted config — making this route
+/// fresh `add_server` call using the persisted config, making this route
 /// the single "(re)connect this server now" endpoint operators need.
 /// Returns `404 Not Found` when the name is unknown to both the manager
 /// and the repository.
@@ -203,7 +203,7 @@ async fn restart_server<B: ExecutionBackend + Clone>(
 
 // ─── mutation routes ──────────────────────────────────────────────────────────
 
-/// `POST /api/v1/mcp/servers` — Add a new MCP server and persist it to `mcp.db`.
+/// `POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
 ///
 /// Spawns the server process and registers its tools, then saves the configuration.
 /// Returns `201 Created` with the server status on success.
@@ -241,7 +241,7 @@ async fn add_server<B: ExecutionBackend + Clone>(
     Ok((StatusCode::CREATED, Json(status)))
 }
 
-/// `DELETE /api/v1/mcp/servers/:name` — Remove an MCP server and delete it from `mcp.db`.
+/// `DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
 ///
 /// Shuts down the session, unregisters the server, then removes its database entry.
 /// Returns `200 OK` with `{"removed": "<name>"}` on success.
@@ -279,8 +279,8 @@ async fn remove_server<B: ExecutionBackend + Clone>(
 /// Tagged response envelope for `POST /api/v1/mcp/servers/test`.
 ///
 /// `Success` is the legacy success shape (kept JSON-compatible via flattening
-/// the existing fields). `OauthRequired` is the new branch (ADR-095 Phase 4)
-/// emitted when the server returns 401 with a `WWW-Authenticate` challenge —
+/// the existing fields). `OauthRequired` is the new branch
+/// emitted when the server returns 401 with a `WWW-Authenticate` challenge -
 /// the desktop wizard uses this to switch from "paste a token" to
 /// "Sign in with <provider>" mode.
 #[derive(serde::Serialize)]
@@ -298,17 +298,17 @@ pub(crate) enum McpConnectionTestResponse {
     },
 }
 
-/// `POST /api/v1/mcp/servers/test` — Test a server configuration without persisting a session.
+/// `POST /api/v1/mcp/servers/test`, Test a server configuration without persisting a session.
 ///
 /// Spawns an ephemeral process, performs the MCP initialize handshake and `tools/list`,
 /// captures the result, then immediately terminates the process. No session is stored
 /// and the tool registry is not modified.
 ///
 /// Response shape:
-/// - `200 {"kind":"success", …}` — handshake succeeded, tools listed.
-/// - `200 {"kind":"oauth_required", "www_authenticate":"…"}` — server returned
+/// - `200 {"kind":"success", …}`, handshake succeeded, tools listed.
+/// - `200 {"kind":"oauth_required", "www_authenticate":"…"}`, server returned
 ///   401, the desktop should drive the MCP HTTP OAuth flow before retrying.
-/// - `400 Bad Request` — other handshake failures (transport, JSON-RPC error,
+/// - `400 Bad Request`, other handshake failures (transport, JSON-RPC error,
 ///   timeout, etc.).
 async fn test_connection(
     Json(config): Json<McpServerConfig>,
@@ -348,7 +348,7 @@ async fn test_connection(
     }
 }
 
-/// `PUT /api/v1/mcp/servers/:name/config` — Replace a server configuration and restart the session.
+/// `PUT /api/v1/mcp/servers/:name/config`, Replace a server configuration and restart the session.
 ///
 /// Removes the current session, starts a new one with the updated configuration, then
 /// upserts the entry in `mcp.db`.
@@ -397,7 +397,7 @@ struct SetApprovalBody {
     requires_approval: bool,
 }
 
-/// `PATCH /api/v1/mcp/servers/:name/approval` — Update the approval flag without restarting.
+/// `PATCH /api/v1/mcp/servers/:name/approval`, Update the approval flag without restarting.
 ///
 /// Updates the `requires_approval` flag in-memory and persists the change to `mcp.db`.
 /// The running session is **not** restarted; the new flag takes effect for the next

@@ -1,10 +1,9 @@
-//! Backends d'inférence locale.
+//! Local inference backends.
 //!
-//! Phase 1 : module placeholder. Phase 2 (STORY-004/005) ajoutera :
-//! - `llama_cpp.rs` : wrap llama-cpp-2
-//! - `whisper.rs` : wrap whisper-rs
+//! - `llama_cpp.rs`: wraps llama-cpp-2 for LLM inference.
+//! - `whisper.rs`: wraps whisper-rs for speech-to-text.
 //!
-//! Compilé uniquement avec une feature `local-*` active.
+//! Compiled only when one of the `local-*` features is active.
 
 #[cfg(feature = "local-cpu")]
 pub mod llama_cpp;

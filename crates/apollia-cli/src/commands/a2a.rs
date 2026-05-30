@@ -1,4 +1,4 @@
-//! `apollia-os a2a <verb>` — Agent-to-Agent skill discovery and direct invocation.
+//! `apollia-os a2a <verb>`: Agent-to-Agent skill discovery and direct invocation.
 //!
 //! Worker agents do not consume free-text prompts; they expose typed skills
 //! (e.g. `pdf.read_text`, `email.summarize`) routed through the A2A invoker.
@@ -82,11 +82,13 @@ pub async fn run(cmd: &A2aCommand, socket: Option<PathBuf>, json: bool) -> i32 {
         } => {
             run_invoke(
                 &client,
-                skill_id,
-                args.as_deref(),
-                args_file.as_deref(),
-                *timeout,
-                caller.as_deref(),
+                InvokeArgs {
+                    skill_id,
+                    args_inline: args.as_deref(),
+                    args_file: args_file.as_deref(),
+                    timeout: *timeout,
+                    caller: caller.as_deref(),
+                },
                 json,
             )
             .await
@@ -147,37 +149,100 @@ async fn run_skills(client: &RuntimeClient, json: bool) -> i32 {
     }
 }
 
-async fn run_invoke(
-    client: &RuntimeClient,
-    skill_id: &str,
+/// Parameters for `apollia-os a2a invoke`.
+struct InvokeArgs<'a> {
+    skill_id: &'a str,
+    args_inline: Option<&'a str>,
+    args_file: Option<&'a std::path::Path>,
+    timeout: Option<u64>,
+    caller: Option<&'a str>,
+}
+
+/// Resolves the raw payload text from `--args`, `--args-file` (or `-` for
+/// stdin), defaulting to `{}`. Returns the error exit code on read failure.
+fn resolve_payload_text(
     args_inline: Option<&str>,
     args_file: Option<&std::path::Path>,
-    timeout: Option<u64>,
-    caller: Option<&str>,
-    json: bool,
-) -> i32 {
-    // Resolve the payload from --args, --args-file (or "-" for stdin),
-    // defaulting to {} when neither is supplied. We parse it as JSON so a
-    // malformed payload fails fast at the CLI boundary, not on the worker.
-    let payload_text = match (args_inline, args_file) {
-        (Some(s), _) => s.to_string(),
+) -> Result<String, i32> {
+    match (args_inline, args_file) {
+        (Some(s), _) => Ok(s.to_string()),
         (None, Some(path)) if path.as_os_str() == "-" => {
             use std::io::Read;
             let mut buf = String::new();
             if let Err(e) = std::io::stdin().read_to_string(&mut buf) {
                 eprintln!("Error: failed to read --args-file from stdin: {e}");
-                return exit_codes::GENERAL_ERROR;
+                return Err(exit_codes::GENERAL_ERROR);
             }
-            buf
+            Ok(buf)
         }
-        (None, Some(path)) => match fs::read_to_string(path) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("Error: failed to read {}: {e}", path.display());
-                return exit_codes::GENERAL_ERROR;
-            }
-        },
-        (None, None) => "{}".to_string(),
+        (None, Some(path)) => fs::read_to_string(path).map_err(|e| {
+            eprintln!("Error: failed to read {}: {e}", path.display());
+            exit_codes::GENERAL_ERROR
+        }),
+        (None, None) => Ok("{}".to_string()),
+    }
+}
+
+/// Renders the human-readable result of a successful invocation.
+fn render_invoke_success(resp: &Value, skill_id: &str) -> i32 {
+    let agent = resp
+        .get("agent_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
+    let duration = resp
+        .get("duration_ms")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let result = resp.get("result");
+    let status = result
+        .and_then(|r| r.get("status"))
+        .and_then(|s| s.as_str())
+        .unwrap_or("?");
+    println!("  Skill     : {skill_id}");
+    println!("  Worker    : {agent}");
+    println!("  Status    : {status}");
+    println!("  Duration  : {duration} ms");
+    if status.eq_ignore_ascii_case("failed") {
+        render_invoke_error(result);
+        return exit_codes::GENERAL_ERROR;
+    }
+    if let Some(output) = result.and_then(|r| r.get("output")) {
+        println!("  Output    :");
+        let rendered = serde_json::to_string_pretty(output).unwrap_or_default();
+        for line in rendered.lines() {
+            println!("    {line}");
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+/// Prints the error block for a failed invocation result.
+fn render_invoke_error(result: Option<&Value>) {
+    let Some(err) = result.and_then(|r| r.get("error")) else {
+        return;
+    };
+    let code = err.get("code").and_then(|v| v.as_str()).unwrap_or("?");
+    let message = err.get("message").and_then(|v| v.as_str()).unwrap_or("");
+    println!("  Error     : [{code}] {message}");
+    if let Some(details) = err.get("details") {
+        println!("  Details   : {details}");
+    }
+}
+
+async fn run_invoke(client: &RuntimeClient, args: InvokeArgs<'_>, json: bool) -> i32 {
+    let InvokeArgs {
+        skill_id,
+        args_inline,
+        args_file,
+        timeout,
+        caller,
+    } = args;
+    // Resolve the payload from --args, --args-file (or "-" for stdin),
+    // defaulting to {} when neither is supplied. We parse it as JSON so a
+    // malformed payload fails fast at the CLI boundary, not on the worker.
+    let payload_text = match resolve_payload_text(args_inline, args_file) {
+        Ok(t) => t,
+        Err(code) => return code,
     };
 
     let input: Value = match serde_json::from_str(&payload_text) {
@@ -204,42 +269,7 @@ async fn run_invoke(
                 );
                 return exit_codes::SUCCESS;
             }
-            let agent = resp
-                .get("agent_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("?");
-            let duration = resp
-                .get("duration_ms")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
-            let result = resp.get("result");
-            let status = result
-                .and_then(|r| r.get("status"))
-                .and_then(|s| s.as_str())
-                .unwrap_or("?");
-            println!("  Skill     : {skill_id}");
-            println!("  Worker    : {agent}");
-            println!("  Status    : {status}");
-            println!("  Duration  : {duration} ms");
-            if status.eq_ignore_ascii_case("failed") {
-                if let Some(err) = result.and_then(|r| r.get("error")) {
-                    let code = err.get("code").and_then(|v| v.as_str()).unwrap_or("?");
-                    let message = err.get("message").and_then(|v| v.as_str()).unwrap_or("");
-                    println!("  Error     : [{code}] {message}");
-                    if let Some(details) = err.get("details") {
-                        println!("  Details   : {details}");
-                    }
-                }
-                return exit_codes::GENERAL_ERROR;
-            }
-            if let Some(output) = result.and_then(|r| r.get("output")) {
-                println!("  Output    :");
-                let rendered = serde_json::to_string_pretty(output).unwrap_or_default();
-                for line in rendered.lines() {
-                    println!("    {line}");
-                }
-            }
-            exit_codes::SUCCESS
+            render_invoke_success(&resp, skill_id)
         }
         Err(ClientError::ConnectionRefused) => {
             eprintln!("Error: runtime not started (connection refused)");

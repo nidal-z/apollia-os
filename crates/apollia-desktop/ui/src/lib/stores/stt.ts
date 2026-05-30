@@ -67,26 +67,18 @@ export async function transcribeFile(filePath: string): Promise<TranscriptRow> {
  * from the SSE connection setup.
  */
 export function listenSttEvents(): () => void {
-  const unlisteners: Promise<UnlistenFn>[] = [];
-
-  unlisteners.push(
+  const unlisteners: Promise<UnlistenFn>[] = [
     listen("stt-transcribed", () => {
       void refreshTranscriptions();
       void refreshSttStatus();
     }),
-  );
-
-  unlisteners.push(
     listen("stt-recording-started", () => {
       isRecording.set(true);
     }),
-  );
-
-  unlisteners.push(
     listen("stt-recording-stopped", () => {
       isRecording.set(false);
     }),
-  );
+  ];
 
   return () => {
     for (const p of unlisteners) {

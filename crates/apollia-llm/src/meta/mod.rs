@@ -1,8 +1,8 @@
-//! Utilitaires `meta/*` — routines pures (sans LLM) exposées par la crate.
+//! `meta/*` utilities: pure routines (no LLM) exposed by the crate.
 //!
-//! Les routines LLM-backed vivent dans `meta_orchestrator.rs`. Ce module
-//! regroupe les parseurs et heuristiques déterministes appelés par les
-//! commandes Tauri côté desktop.
+//! LLM-backed routines live in `meta_orchestrator.rs`. This module groups the
+//! deterministic parsers and heuristics called by the desktop-side Tauri
+//! commands.
 
 pub mod apollia_coach;
 pub mod next_steps;

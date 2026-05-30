@@ -1,10 +1,18 @@
-# Apollia OS — Build & Dev tasks
-# Usage: just <recette>
-# Installer just: cargo install just
+# Apollia OS - Build & Dev tasks
+# Usage: just <recipe>
+# Install just: cargo install just
 
-# ─── Documentation ───────────────────────────────────────────────────────────
+set shell := ["bash", "-euo", "pipefail", "-c"]
 
-# Générer tous les SVGs depuis les fichiers .puml
+# Defaults (override per command: `just <recipe> var=value`)
+desktop_runners := "cpu metal"
+macos_target := "aarch64-apple-darwin"
+
+# -----------------------------------------------------------------------------
+# Documentation
+# -----------------------------------------------------------------------------
+
+# Generate all SVGs from .puml files
 diagrams:
     @echo "→ Génération des diagrammes PlantUML..."
     @mkdir -p book/src/appendix-a-diagrams
@@ -19,13 +27,13 @@ diagrams:
         echo "   Les SVGs existants sont conservés."; \
     fi
 
-# Générer la documentation API Rust (rustdoc)
+# Generate Rust API docs (rustdoc)
 rustdoc:
     @echo "→ Génération rustdoc..."
     cargo doc --no-deps --workspace --document-private-items
     @echo "✅ rustdoc → target/doc/"
 
-# Générer l'index des ADRs automatiquement
+# Generate ADR index automatically
 adr-index:
     @echo "→ Génération de l'index ADR..."
     @{ \
@@ -44,70 +52,144 @@ adr-index:
     } > book/src/decisions/index.md
     @echo "✅ Index ADR → book/src/decisions/index.md"
 
-# Builder le book mdBook
+# Build mdBook
 book:
     @echo "→ Build mdBook..."
     @command -v mdbook > /dev/null 2>&1 || (echo "❌ mdbook non installé: cargo install mdbook" && exit 1)
     mdbook build book/
     @echo "✅ Book → target/book/"
 
-# Build complet de la documentation (ordre: diagrams → adr-index → book)
+# Full docs build (order: diagrams -> adr-index -> book)
 docs: diagrams adr-index book
     @echo ""
     @echo "✅ Documentation complète générée"
     @echo "   Book : target/book/index.html"
     @echo "   API  : target/doc/apollia_core/index.html"
 
-# Serveur de développement avec hot-reload
+# Hot-reload docs server
 dev:
     @echo "→ Démarrage du serveur de dev..."
     @command -v mdbook > /dev/null 2>&1 || (echo "❌ mdbook non installé: cargo install mdbook" && exit 1)
     mdbook serve book/ --open
 
-# Vérifier les includes cassés dans book/src/
+# Check broken includes in book/src/
 check-includes:
     @python3 scripts/check-includes.py
 
-# ─── Rust ────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Rust workspace
+# -----------------------------------------------------------------------------
 
-# Build complet du workspace
+# Full workspace build
 build:
     cargo build --workspace
 
-# Tests complets
+# Release workspace build
+build-release:
+    cargo build --workspace --release
+
+# Full tests
 test:
     cargo test --workspace
 
-# Tests avec features Python
+# Tests with Python features
 test-python:
     PYO3_PYTHON=/opt/homebrew/bin/python3.13 cargo test --workspace --features python-tests
 
-# Lint complet
+# Full lint
 lint:
     cargo fmt --check
     cargo clippy --workspace -- -D warnings
 
-# Formater le code
+# Format code
 fmt:
     cargo fmt --all
 
-# Build Desktop app with bundled CLI (production .dmg)
-build-desktop:
-    cd crates/apollia-desktop && cargo tauri build
+# -----------------------------------------------------------------------------
+# Runner sidecar (ADR-113)
+# -----------------------------------------------------------------------------
 
-# ─── Tâches combinées ────────────────────────────────────────────────────────
+# Build debug runner for one backend and keep unsuffixed binary
+runner-debug backend:
+    cargo build -p apollia-runner --features local-{{backend}}
 
-# CI locale : lint + tests + doc
+# Build release runner for one backend and keep unsuffixed binary
+runner-release backend target="":
+    if [ -n "{{target}}" ]; then cargo build -p apollia-runner --release --target "{{target}}" --features local-{{backend}}; else cargo build -p apollia-runner --release --features local-{{backend}}; fi
+
+# Build + suffix debug runner binary so daemon can auto-detect it
+runner-debug-suffixed backend:
+    cargo build -p apollia-runner --features local-{{backend}}
+    cp "target/debug/apollia-runner" "target/debug/apollia-runner-{{backend}}"
+    chmod +x "target/debug/apollia-runner-{{backend}}" || true
+
+# macOS dev defaults: Metal + CPU fallback
+runners-dev-macos:
+    just runner-debug-suffixed metal
+    just runner-debug-suffixed cpu
+
+# -----------------------------------------------------------------------------
+# Desktop (Tauri)
+# -----------------------------------------------------------------------------
+
+# Install desktop frontend dependencies
+desktop-ui-install:
+    cd crates/apollia-desktop/ui && npm ci
+
+# Run desktop in dev mode (expects runners in target/debug/)
+desktop-dev:
+    cd crates/apollia-desktop && cargo tauri dev
+
+# macOS dev shortcut: ensure metal+cpu runners then start desktop
+desktop-dev-macos: runners-dev-macos
+    cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
+
+# Build desktop bundle (uses bundle-cli.sh + APOLLIA_DESKTOP_RUNNERS)
+desktop-build target="{{macos_target}}" runners="{{desktop_runners}}":
+    cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" cargo tauri build --target "{{target}}"
+
+# Build desktop bundle for current host target
+desktop-build-host runners="{{desktop_runners}}":
+    cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" cargo tauri build
+
+# -----------------------------------------------------------------------------
+# CLI / release helpers
+# -----------------------------------------------------------------------------
+
+cli-build:
+    cargo build -p apollia-cli
+
+cli-release target="":
+    if [ -n "{{target}}" ]; then cargo build -p apollia-cli --release --target "{{target}}"; else cargo build -p apollia-cli --release; fi
+
+# Common release presets
+release-macos:
+    just cli-release target={{macos_target}}
+    just desktop-build target={{macos_target}} runners="cpu metal"
+
+release-linux:
+    just cli-release target=x86_64-unknown-linux-gnu
+    just desktop-build target=x86_64-unknown-linux-gnu runners="cpu"
+
+release-windows:
+    just cli-release target=x86_64-pc-windows-msvc
+    just desktop-build target=x86_64-pc-windows-msvc runners="cpu"
+
+# -----------------------------------------------------------------------------
+# Combined tasks
+# -----------------------------------------------------------------------------
+
+# Local CI: lint + tests + docs
 ci: lint test docs check-includes
     @echo "✅ CI locale passée"
 
-# Nettoyage des artefacts générés (SVGs préservés)
+# Clean generated artifacts (keep SVGs)
 clean:
     cargo clean
     rm -rf target/book/
     @echo "✅ Artefacts nettoyés"
 
-# Nettoyage complet incluant les SVGs générés
+# Full clean including generated SVGs
 clean-all: clean
     rm -f book/src/appendix-a-diagrams/*.svg
     @echo "✅ Nettoyage complet"

@@ -1,7 +1,7 @@
-//! `apollia-os mcp` subcommands — MCP server management, discovery, and HITL approvals.
+//! `apollia-os mcp` subcommands: MCP server management, discovery, and HITL approvals.
 //!
-//! Les sous-commandes `add`, `remove`, `get`, `test`, `restart` communiquent avec
-//! le runtime via socket Unix. Les autres opèrent sur la config locale.
+//! The `add`, `remove`, `get`, `test`, and `restart` sub-commands talk to the
+//! runtime over the Unix socket. The others operate on the local config.
 
 use std::io::IsTerminal as _;
 use std::path::PathBuf;
@@ -310,10 +310,12 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             let client = make_runtime_client(socket);
             run_add(
                 &client,
-                name,
-                command.as_deref(),
-                url.as_deref(),
-                *require_approval,
+                ServerSpec {
+                    name,
+                    command: command.as_deref(),
+                    url: url.as_deref(),
+                    require_approval: *require_approval,
+                },
                 json,
             )
             .await
@@ -348,10 +350,12 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             let client = make_runtime_client(socket);
             run_update_server(
                 &client,
-                name,
-                command.as_deref(),
-                url.as_deref(),
-                *require_approval,
+                ServerPatch {
+                    name,
+                    command: command.as_deref(),
+                    url: url.as_deref(),
+                    require_approval: *require_approval,
+                },
                 json,
             )
             .await
@@ -471,7 +475,7 @@ fn make_runtime_client(socket: Option<PathBuf>) -> RuntimeClient {
     RuntimeClient::new(path)
 }
 
-/// Gestion uniforme des erreurs client MCP (socket Unix).
+/// Uniform handling of MCP client errors (Unix socket).
 fn handle_client_error(err: ClientError, json: bool) -> i32 {
     match err {
         ClientError::ConnectionRefused => {
@@ -504,15 +508,22 @@ fn handle_client_error(err: ClientError, json: bool) -> i32 {
 
 // ─── Runtime-based CRUD handlers ──────────────────────────────────────────────
 
-/// `apollia-os mcp add <name>` — ajouter un serveur MCP au runtime.
-async fn run_add(
-    client: &RuntimeClient,
-    name: &str,
-    command: Option<&str>,
-    url: Option<&str>,
+/// Server definition fields shared by the `add` and `update` runtime handlers.
+struct ServerSpec<'a> {
+    name: &'a str,
+    command: Option<&'a str>,
+    url: Option<&'a str>,
     require_approval: bool,
-    json: bool,
-) -> i32 {
+}
+
+/// `apollia-os mcp add <name>`: add an MCP server to the runtime.
+async fn run_add(client: &RuntimeClient, spec: ServerSpec<'_>, json: bool) -> i32 {
+    let ServerSpec {
+        name,
+        command,
+        url,
+        require_approval,
+    } = spec;
     let mut body = serde_json::json!({
         "name": name,
         "require_approval": require_approval,
@@ -540,7 +551,7 @@ async fn run_add(
     }
 }
 
-/// `apollia-os mcp remove <name>` — retirer un serveur MCP du runtime.
+/// `apollia-os mcp remove <name>`: remove an MCP server from the runtime.
 async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
         if json {
@@ -580,7 +591,7 @@ async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: boo
     }
 }
 
-/// `apollia-os mcp get <name>` — afficher les détails d'un serveur MCP.
+/// `apollia-os mcp get <name>`: show the details of an MCP server.
 async fn run_get_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     match client.get_mcp_server_detail(name).await {
         Ok(resp) => {
@@ -614,7 +625,7 @@ async fn run_get_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os mcp test <target>` — tester la connexion à un serveur MCP.
+/// `apollia-os mcp test <target>`: test the connection to an MCP server.
 async fn run_test_connection(client: &RuntimeClient, target: &str, json: bool) -> i32 {
     let body = serde_json::json!({ "target": target });
     match client.test_mcp_connection(&body).await {
@@ -643,7 +654,7 @@ async fn run_test_connection(client: &RuntimeClient, target: &str, json: bool) -
     }
 }
 
-/// `apollia-os mcp restart <name>` — redémarrer un serveur MCP.
+/// `apollia-os mcp restart <name>`: restart an MCP server.
 async fn run_restart_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     match client.restart_mcp_server(name).await {
         Ok(resp) => {
@@ -670,19 +681,26 @@ async fn run_restart_server(client: &RuntimeClient, name: &str, json: bool) -> i
     }
 }
 
-/// `apollia-os mcp update <name>` — patch a server configuration.
+/// Patch fields forwarded to the `update` runtime handler.
+struct ServerPatch<'a> {
+    name: &'a str,
+    command: Option<&'a str>,
+    url: Option<&'a str>,
+    require_approval: Option<bool>,
+}
+
+/// `apollia-os mcp update <name>`: patch a server configuration.
 ///
 /// Fails when no patch field is supplied; otherwise forwards a partial body to
 /// `PUT /api/v1/mcp/servers/{name}/config`. The runtime merges with the
 /// existing stored definition.
-async fn run_update_server(
-    client: &RuntimeClient,
-    name: &str,
-    command: Option<&str>,
-    url: Option<&str>,
-    require_approval: Option<bool>,
-    json: bool,
-) -> i32 {
+async fn run_update_server(client: &RuntimeClient, patch: ServerPatch<'_>, json: bool) -> i32 {
+    let ServerPatch {
+        name,
+        command,
+        url,
+        require_approval,
+    } = patch;
     if command.is_none() && url.is_none() && require_approval.is_none() {
         if json {
             let out = serde_json::json!({
@@ -738,40 +756,40 @@ async fn run_update_server(
     }
 }
 
-/// `apollia-os mcp raw-config <name>` — read the persisted launch definition.
+/// Prints the body of a non-error raw-config response (pretty JSON or raw).
+fn print_raw_config_body(body: String, json: bool) {
+    // Body is JSON already: pretty-print when --json, raw otherwise.
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        println!("{body}");
+        return;
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+    } else {
+        println!("{}", serde_json::to_string_pretty(&v).unwrap_or(body));
+    }
+}
+
+/// `apollia-os mcp raw-config <name>`: read the persisted launch definition.
 async fn run_get_raw_config(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     let uri = format!("/api/v1/mcp/servers/{name}/raw_config");
-    match client.get(&uri).await {
-        Ok(resp) => {
-            if resp.status >= 400 {
-                if json {
-                    let out = serde_json::json!({"error": resp.body});
-                    println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-                } else {
-                    eprintln!("Error: {}", resp.body);
-                }
-                if resp.status == 404 {
-                    return exit_codes::GENERAL_ERROR;
-                }
-                return exit_codes::GENERAL_ERROR;
-            }
-            // Body is JSON already — pretty-print when --json, raw otherwise.
-            match serde_json::from_str::<serde_json::Value>(&resp.body) {
-                Ok(v) => {
-                    if json {
-                        println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
-                    } else {
-                        println!("{}", serde_json::to_string_pretty(&v).unwrap_or(resp.body));
-                    }
-                }
-                Err(_) => {
-                    println!("{}", resp.body);
-                }
-            }
-            exit_codes::SUCCESS
+    let resp = match client.get(&uri).await {
+        Ok(resp) => resp,
+        Err(e) => return handle_client_error(e, json),
+    };
+
+    if resp.status >= 400 {
+        if json {
+            let out = serde_json::json!({"error": resp.body});
+            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+        } else {
+            eprintln!("Error: {}", resp.body);
         }
-        Err(e) => handle_client_error(e, json),
+        return exit_codes::GENERAL_ERROR;
     }
+
+    print_raw_config_body(resp.body, json);
+    exit_codes::SUCCESS
 }
 
 // ─── list ────────────────────────────────────────────────────────────────────
@@ -807,7 +825,7 @@ async fn run_list(
                 )));
             }
             Err(ClientError::ConnectionRefused) => {
-                // Runtime offline — fall through to the local mcp.toml fallback below.
+                // Runtime offline: fall through to the local mcp.toml fallback below.
             }
             Err(e) => {
                 return Err(McpCommandError::ConfigLoad(e.to_string()));
@@ -847,7 +865,7 @@ async fn format_runtime_list_json(
 ///
 /// The runtime endpoint only returns *connected* servers. We supplement with
 /// `~/.apollia/mcp.db` so disconnected ones (e.g. failed OAuth, missing
-/// command) still appear with a clear status — matching the Desktop view.
+/// command) still appear with a clear status, matching the Desktop view.
 async fn format_runtime_list_human(
     servers: &serde_json::Value,
     discover: bool,
@@ -908,7 +926,7 @@ fn parse_runtime_servers(servers: &serde_json::Value) -> Vec<serde_json::Value> 
 }
 
 /// Open `~/.apollia/mcp.db` and list every persisted server config (enabled or not).
-/// Returns an empty vec on any error — the live runtime list still wins.
+/// Returns an empty vec on any error; the live runtime list still wins.
 fn read_configured_servers() -> Vec<apollia_mcp::config::McpServerConfig> {
     let home = match dirs::home_dir() {
         Some(h) => h,
@@ -1022,40 +1040,70 @@ async fn format_list_json(config: &McpConfig, discover: bool) -> Result<String, 
     Ok(serde_json::to_string_pretty(&output).unwrap_or_else(|_| "{}".to_string()))
 }
 
+/// Renders the configured-servers section of the human list output.
+fn push_configured_servers(out: &mut String, config: &McpConfig, tty: bool) {
+    if config.servers.is_empty() {
+        out.push_str("No MCP servers configured in mcp.toml.\n");
+        return;
+    }
+    out.push_str("Configured MCP servers:\n");
+    for s in &config.servers {
+        let approval = if s.requires_approval {
+            " [approval]"
+        } else {
+            ""
+        };
+        let cmd = if s.command.is_empty() {
+            s.url.as_deref().unwrap_or("").to_string()
+        } else {
+            format!("{} {}", s.command, s.args.join(" "))
+        };
+        if tty {
+            out.push_str(&format!(
+                "  \x1b[1m{}\x1b[0m    {}    {}{}\n",
+                s.name, s.transport, cmd, approval
+            ));
+        } else {
+            out.push_str(&format!(
+                "  {}    {}    {}{}\n",
+                s.name, s.transport, cmd, approval
+            ));
+        }
+    }
+}
+
+/// Renders the discovered-servers section of the human list output.
+fn push_discovered_servers(out: &mut String, discovered: &[discovery::DiscoveredServer], tty: bool) {
+    if discovered.is_empty() {
+        out.push_str("No MCP server discovered on the local network.\n");
+        return;
+    }
+    out.push_str("\nDiscovered MCP servers:\n");
+    for s in discovered {
+        let addrs = s.addresses.join(", ");
+        let tools = if s.tools.is_empty() {
+            String::new()
+        } else {
+            format!("    tools: {}", s.tools.join(", "))
+        };
+        if tty {
+            out.push_str(&format!(
+                "  \x1b[1m{}\x1b[0m    {}:{}{}  \n",
+                s.name, addrs, s.port, tools
+            ));
+        } else {
+            out.push_str(&format!("  {}    {}:{}{}\n", s.name, addrs, s.port, tools));
+        }
+    }
+}
+
 /// Formats the list output for human-readable terminal display.
 async fn format_list_human(config: &McpConfig, discover: bool) -> Result<String, McpCommandError> {
     let mut out = String::new();
     let tty = std::io::stdout().is_terminal();
 
     // ── Configured servers ────────────────────────────────────────────────
-    if config.servers.is_empty() {
-        out.push_str("No MCP servers configured in mcp.toml.\n");
-    } else {
-        out.push_str("Configured MCP servers:\n");
-        for s in &config.servers {
-            let approval = if s.requires_approval {
-                " [approval]"
-            } else {
-                ""
-            };
-            let cmd = if s.command.is_empty() {
-                s.url.as_deref().unwrap_or("").to_string()
-            } else {
-                format!("{} {}", s.command, s.args.join(" "))
-            };
-            if tty {
-                out.push_str(&format!(
-                    "  \x1b[1m{}\x1b[0m    {}    {}{}\n",
-                    s.name, s.transport, cmd, approval
-                ));
-            } else {
-                out.push_str(&format!(
-                    "  {}    {}    {}{}\n",
-                    s.name, s.transport, cmd, approval
-                ));
-            }
-        }
-    }
+    push_configured_servers(&mut out, config, tty);
 
     if !discover {
         return Ok(out);
@@ -1066,28 +1114,7 @@ async fn format_list_human(config: &McpConfig, discover: bool) -> Result<String,
     out.push_str("Scanning local network for MCP servers (3s)...\n");
 
     let discovered = discovery::discover_mcp_servers().await?;
-
-    if discovered.is_empty() {
-        out.push_str("No MCP server discovered on the local network.\n");
-    } else {
-        out.push_str("\nDiscovered MCP servers:\n");
-        for s in &discovered {
-            let addrs = s.addresses.join(", ");
-            let tools = if s.tools.is_empty() {
-                String::new()
-            } else {
-                format!("    tools: {}", s.tools.join(", "))
-            };
-            if tty {
-                out.push_str(&format!(
-                    "  \x1b[1m{}\x1b[0m    {}:{}{}  \n",
-                    s.name, addrs, s.port, tools
-                ));
-            } else {
-                out.push_str(&format!("  {}    {}:{}{}\n", s.name, addrs, s.port, tools));
-            }
-        }
-    }
+    push_discovered_servers(&mut out, &discovered, tty);
 
     Ok(out)
 }
@@ -1250,7 +1277,7 @@ mod tests {
             "--command",
             "npx @modelcontextprotocol/server-filesystem",
         ]);
-        // THEN McpCommand::Add avec les bons champs
+        // THEN McpCommand::Add with the expected fields
         match &cli.command {
             McpCommand::Add {
                 name,

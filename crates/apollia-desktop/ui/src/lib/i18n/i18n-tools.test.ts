@@ -194,20 +194,20 @@ describe("i18n tools — FR completeness", () => {
 
 // ─── EN / FR parity ───────────────────────────────────────────────────────────
 
-describe("i18n tools — EN/FR key parity", () => {
-  function collectLeaves(obj: JsonObject, prefix = ""): string[] {
-    const keys: string[] = [];
-    for (const [k, v] of Object.entries(obj)) {
-      const full = prefix ? `${prefix}.${k}` : k;
-      if (typeof v === "object" && v !== null && !Array.isArray(v)) {
-        keys.push(...collectLeaves(v as JsonObject, full));
-      } else {
-        keys.push(full);
-      }
+function collectLeaves(obj: JsonObject, prefix = ""): string[] {
+  const keys: string[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const full = prefix ? `${prefix}.${k}` : k;
+    if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+      keys.push(...collectLeaves(v as JsonObject, full));
+    } else {
+      keys.push(full);
     }
-    return keys;
   }
+  return keys;
+}
 
+describe("i18n tools — EN/FR key parity", () => {
   test("every tools.* key in EN has an equivalent in FR", () => {
     // GIVEN en.json and fr.json loaded
     // WHEN comparing all tools.* leaf keys

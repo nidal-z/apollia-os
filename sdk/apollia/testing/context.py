@@ -15,12 +15,16 @@ from __future__ import annotations
 
 from typing import Any
 
+# NOTE on `# NOSONAR S7503` / `# NOSONAR S1172` markers below:
+# Every mock here implements an async Protocol defined in
+# `apollia.context.*`. The runtime call sites use `await`, so the
+# `async` keyword must be preserved even when the body has no `await`.
+# Likewise, parameters such as `timeout_secs` are part of the Protocol
+# signature (callers pass them by keyword) and cannot be renamed or
+# removed.
 
-# ──────────────────────────────────────────────────────────────────────
+
 # ctx.a2a
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockA2A:
     """In-memory mock of the ``A2AProxy`` Protocol.
 
@@ -42,7 +46,7 @@ class MockA2A:
         self.skill_cards: dict[str, dict[str, Any]] = {}
         self.skills_list: list[dict[str, Any]] = []
 
-    async def invoke(
+    async def invoke(  # NOSONAR S7503,S1172 — Protocol contract
         self,
         skill_id: str,
         input: dict[str, Any] | None = None,
@@ -61,13 +65,13 @@ class MockA2A:
         self.invoke_calls.append((skill_id, merged))
         return self.invoke_responses.get(skill_id, {"status": "completed"})
 
-    async def discover(self, skill_id: str) -> dict[str, Any] | None:
+    async def discover(self, skill_id: str) -> dict[str, Any] | None:  # NOSONAR S7503
         return self.skill_cards.get(skill_id)
 
-    async def list_skills(self) -> list[dict[str, Any]]:
+    async def list_skills(self) -> list[dict[str, Any]]:  # NOSONAR S7503
         return list(self.skills_list)
 
-    async def skill_as_tool(self, skill_id: str) -> dict[str, Any]:
+    async def skill_as_tool(self, skill_id: str) -> dict[str, Any]:  # NOSONAR S7503
         card = self.skill_cards.get(skill_id, {})
         return {
             "name": f"a2a__{skill_id.replace('.', '__')}",
@@ -76,11 +80,7 @@ class MockA2A:
         }
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.datasources
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockDatasources:
     """In-memory mock of the ``Datasources`` Protocol.
 
@@ -103,11 +103,7 @@ class MockDatasources:
         return list(self.values.keys())
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.templates
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockTemplates:
     """In-memory mock of the ``Templates`` Protocol.
 
@@ -139,11 +135,7 @@ class MockTemplates:
         return list(self.templates.keys())
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.secrets
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockSecrets:
     """In-memory mock of the ``Secrets`` Protocol.
 
@@ -160,11 +152,7 @@ class MockSecrets:
         return key in self.values
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.events
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockEvents:
     """In-memory mock of the ``Events`` Protocol.
 
@@ -192,11 +180,7 @@ class MockEvents:
         self.action_parse_errors.append((step, raw, fatal))
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.profile
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockProfile:
     """In-memory mock of the ``Profile`` Protocol.
 
@@ -216,34 +200,30 @@ class MockProfile:
     def writable(self) -> bool:
         return self._writable
 
-    async def get(self, key: str) -> str | None:
+    async def get(self, key: str) -> str | None:  # NOSONAR S7503
         return self._values.get(key)
 
-    async def has(self, key: str) -> bool:
+    async def has(self, key: str) -> bool:  # NOSONAR S7503
         return key in self._values
 
-    async def all(self) -> dict[str, str]:
+    async def all(self) -> dict[str, str]:  # NOSONAR S7503
         return dict(self._values)
 
     def schema_keys(self) -> list[str]:
         return list(self._values.keys())
 
-    async def set(self, key: str, value: str) -> None:
+    async def set(self, key: str, value: str) -> None:  # NOSONAR S7503
         if not self._writable:
             raise RuntimeError("MockProfile is read-only (writable=False)")
         self._values[key] = value
 
-    async def update(self, entries: dict[str, str]) -> None:
+    async def update(self, entries: dict[str, str]) -> None:  # NOSONAR S7503
         if not self._writable:
             raise RuntimeError("MockProfile is read-only (writable=False)")
         self._values.update(entries)
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.workspace
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockWorkspace:
     """In-memory mock of the ``Workspace`` Protocol.
 
@@ -275,11 +255,7 @@ class MockWorkspace:
         ]
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.stt
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockStt:
     """In-memory mock of the ``Stt`` Protocol.
 
@@ -291,7 +267,7 @@ class MockStt:
         self.transcribe_calls: list[tuple[str, str | None, str | None]] = []
         self.transcribe_responses: list[str] = []
 
-    async def transcribe(
+    async def transcribe(  # NOSONAR S7503 — Protocol contract
         self,
         path: str,
         *,
@@ -303,15 +279,11 @@ class MockStt:
             return self.transcribe_responses.pop(0)
         return ""
 
-    async def status(self) -> dict[str, Any]:
+    async def status(self) -> dict[str, Any]:  # NOSONAR S7503
         return {"enabled": True, "model": "mock", "language": None}
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.notify
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockNotify:
     """In-memory mock of the ``Notify`` Protocol.
 
@@ -321,7 +293,7 @@ class MockNotify:
     def __init__(self) -> None:
         self.published: list[dict[str, Any]] = []
 
-    async def publish(
+    async def publish(  # NOSONAR S7503 — Protocol contract
         self,
         message: str,
         *,
@@ -339,11 +311,7 @@ class MockNotify:
         )
 
 
-# ──────────────────────────────────────────────────────────────────────
 # ctx.budget
-# ──────────────────────────────────────────────────────────────────────
-
-
 class MockBudget:
     """In-memory mock of the ``Budget`` Protocol.
 

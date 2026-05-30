@@ -1,6 +1,6 @@
 import { derived, writable, get } from "svelte/store";
 
-export type ToastVariant = "success" | "error" | "info" | "loading" | "urgent";
+export type ToastVariant = "success" | "error" | "info" | "loading" | "urgent" | "warning";
 
 export interface ToastItem {
   id: string;

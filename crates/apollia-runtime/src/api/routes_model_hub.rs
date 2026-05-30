@@ -1,8 +1,8 @@
-//! Model Hub routes — hardware detection, HF registry search.
+//! Model Hub routes, hardware detection, HF registry search.
 //!
-//! - `GET /api/v1/llm/hardware`                  — hardware profile (RAM, CPU, GPU)
-//! - `GET /api/v1/llm/registry/search`           — search HuggingFace GGUF models
-//! - `GET /api/v1/llm/registry/model/:org/:repo` — model metadata + file list
+//! - `GET /api/v1/llm/hardware`                 , hardware profile (RAM, CPU, GPU)
+//! - `GET /api/v1/llm/registry/search`          , search HuggingFace GGUF models
+//! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -61,7 +61,7 @@ pub struct ErrorResponse {
 // Handlers
 // ─────────────────────────────────────────────
 
-/// `GET /api/v1/llm/hardware` — detect and return the hardware profile.
+/// `GET /api/v1/llm/hardware`, detect and return the hardware profile.
 pub async fn get_hardware<B: ExecutionBackend + Clone>(
     State(_state): State<AppState<B>>,
 ) -> Json<HardwareResponse> {

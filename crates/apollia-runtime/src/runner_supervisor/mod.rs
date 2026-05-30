@@ -1,10 +1,7 @@
-//! `runner_supervisor` : supervision des sidecar runners LLM/STT locaux.
+//! `runner_supervisor`: supervises the local LLM/STT sidecar runners.
 //!
-//! Spawn et supervise le process enfant `apollia-runner-{backend}` au boot
-//! du daemon, après détection automatique du GPU via [`gpu_detection`].
-//!
-//! Architecture détaillée : voir [ADR-113](../../../docs/adr/ADR-113-multi-runner-sidecar-architecture.md)
-//! et [IPC-PROTOCOL](../../../docs/internal/architecture/IPC-PROTOCOL.md).
+//! Spawns and supervises the `apollia-runner-{backend}` child process at daemon
+//! boot, after automatic GPU detection via [`gpu_detection`].
 
 pub mod client;
 pub mod error;
@@ -20,3 +17,37 @@ pub use lifecycle::RunnerSupervisor;
 pub use llm_backend::RunnerLlmBackend;
 pub use proxy::RunnerProxy;
 pub use stt_backend::RunnerSttBackend;
+
+use std::sync::Arc;
+
+use apollia_core::LlmBackendConfig;
+use apollia_llm::types::CompletionModel;
+
+/// `LlamaCpp -> runner` override factory shared by the supervisor boot and the
+/// `LlmRouter` reload paths.
+///
+/// Each `LlamaCpp` provider backend is routed to a [`RunnerLlmBackend`] wired to
+/// the provided runner `proxy`. Other (cloud) providers return `None` to keep
+/// their standard instantiation; all backends return `None` if no runner proxy
+/// is available.
+///
+/// Centralizing this logic prevents reloads from rebuilding a router without the
+/// local backend (which would make the runner unreachable from agents/chat).
+pub fn runner_llm_override(
+    proxy: Option<RunnerProxy>,
+) -> impl Fn(&LlmBackendConfig) -> Option<Arc<dyn CompletionModel>> {
+    move |cfg: &LlmBackendConfig| {
+        use apollia_core::LlmProvider;
+        if !matches!(cfg.provider, LlmProvider::LlamaCpp) {
+            return None;
+        }
+        let proxy = proxy.clone()?;
+        // For llama-cpp, `LlmBackendConfig::model` is the absolute path to the .gguf.
+        Some(RunnerLlmBackend::new(
+            proxy,
+            cfg.name.clone(),
+            cfg.name.clone(),
+            cfg.model.clone(),
+        ) as Arc<dyn CompletionModel>)
+    }
+}

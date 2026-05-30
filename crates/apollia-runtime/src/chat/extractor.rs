@@ -103,7 +103,7 @@ pub enum ExtractionError {
 }
 
 // ---------------------------------------------------------------------------
-// UserMemoryExtractor — stateful enrichment with rate limiting
+// UserMemoryExtractor, stateful enrichment with rate limiting
 // ---------------------------------------------------------------------------
 
 /// Stateful extractor that enriches user memory from chat conversations.
@@ -208,7 +208,7 @@ impl UserMemoryExtractor {
 
     /// Filters out entries that already exist with the same value.  Entries
     /// previously written by [`WrittenBy::Onboarding`] or [`WrittenBy::User`]
-    /// always win — chat extraction never overwrites a higher-trust source.
+    /// always win, chat extraction never overwrites a higher-trust source.
     fn deduplicate(
         &self,
         entries: &[&ExtractedEntry],
@@ -384,7 +384,7 @@ fn parse_extraction_response(content: &str) -> Result<ExtractionResult, Extracti
 
 /// Flattens an [`ExtractionResult`] into a flat list of entries.  The
 /// preferences/habits/context buckets are a hint to the LLM about what kind
-/// of information to look for; storage is flat (ADR-087).
+/// of information to look for; storage is flat.
 fn flatten_extraction(extraction: &ExtractionResult) -> Vec<&ExtractedEntry> {
     extraction
         .preferences
@@ -717,7 +717,7 @@ mod tests {
             .await
             .expect("extraction should succeed");
 
-        // No new entries — existing has same value.
+        // No new entries, existing has same value.
         assert_eq!(count, 0);
 
         // Verify the original entry is untouched.

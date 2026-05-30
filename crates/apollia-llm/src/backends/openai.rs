@@ -1,10 +1,10 @@
-//! Client HTTP OpenAI-compatible via `async-openai`.
+//! OpenAI-compatible HTTP client via `async-openai`.
 //!
-//! Ce module est compilé uniquement avec `feature = "cloud"`.
+//! This module compiles only with `feature = "cloud"`.
 //!
-//! Supporte tout fournisseur compatible OpenAI (OpenAI, Mistral, Groq, etc.)
-//! via une base URL configurable. La clé API est lue depuis une variable
-//! d'environnement au moment de la construction — jamais stockée en clair.
+//! Supports any OpenAI-compatible provider (OpenAI, Mistral, Groq, etc.) via a
+//! configurable base URL. The API key is read from an environment variable at
+//! construction time, never stored in clear text.
 
 use std::pin::Pin;
 use std::time::Instant;
@@ -33,34 +33,28 @@ use crate::types::{
     Role, StreamChunk, TokenUsage, ToolCall,
 };
 
-// ─────────────────────────────────────────────
-// Table de prix (par token, en USD)
-// ─────────────────────────────────────────────
+// ── Price table (per token, in USD) ──────────────────────────────────────
 
-/// Prix d'entrée gpt-4o-mini par token (tarifs OpenAI 2024).
+/// gpt-4o-mini input price per token (OpenAI 2024 rates).
 const GPT_4O_MINI_PROMPT_RATE: f64 = 0.15e-6;
-/// Prix de sortie gpt-4o-mini par token.
+/// gpt-4o-mini output price per token.
 const GPT_4O_MINI_COMPLETION_RATE: f64 = 0.60e-6;
-/// Prix d'entrée gpt-4o par token.
+/// gpt-4o input price per token.
 const GPT_4O_PROMPT_RATE: f64 = 2.50e-6;
-/// Prix de sortie gpt-4o par token.
+/// gpt-4o output price per token.
 const GPT_4O_COMPLETION_RATE: f64 = 10.00e-6;
-/// Prix d'entrée gpt-3.5-turbo par token.
+/// gpt-3.5-turbo input price per token.
 const GPT_35_TURBO_PROMPT_RATE: f64 = 0.50e-6;
-/// Prix de sortie gpt-3.5-turbo par token.
+/// gpt-3.5-turbo output price per token.
 const GPT_35_TURBO_COMPLETION_RATE: f64 = 1.50e-6;
 
-// ─────────────────────────────────────────────
-// Configuration
-// ─────────────────────────────────────────────
-
-/// Configuration pour un backend API compatible OpenAI.
+/// Configuration for an OpenAI-compatible API backend.
 ///
-/// Désérialisable depuis TOML via `[[llm.backends]]` dans `apollia.toml`
-/// pour les entrées de type `"api"`. La clé API n'est jamais stockée ici —
-/// elle est lue depuis la variable d'environnement `api_key_env` (Principe #1).
+/// Deserializable from TOML via `[[llm.backends]]` in `apollia.toml` for
+/// entries of type `"api"`. The API key is never stored here; it is read from
+/// the `api_key_env` environment variable.
 ///
-/// # Exemple TOML
+/// # TOML example
 ///
 /// ```toml
 /// [[llm.backends]]
@@ -71,21 +65,21 @@ const GPT_35_TURBO_COMPLETION_RATE: f64 = 1.50e-6;
 /// ```
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ApiBackendConfig {
-    /// Nom logique du backend (clé utilisée dans `LlmRouter`).
+    /// Logical backend name (the key used in `LlmRouter`).
     pub name: String,
-    /// URL de base de l'API (ex. `https://api.openai.com/v1`).
+    /// API base URL (e.g. `https://api.openai.com/v1`).
     pub api_url: String,
-    /// Nom de la variable d'environnement contenant la clé API.
+    /// Name of the environment variable holding the API key.
     pub api_key_env: String,
-    /// Identifiant du modèle par défaut pour ce backend.
+    /// Default model identifier for this backend.
     pub model: String,
 }
 
 impl ApiBackendConfig {
-    /// Lit la clé API depuis la variable d'environnement `api_key_env`.
+    /// Read the API key from the `api_key_env` environment variable.
     ///
-    /// Retourne `Err(LlmError::ApiKeyMissing)` si la variable n'est pas définie.
-    /// La clé n'est jamais loggée ni stockée au-delà de l'appel (Principe #1).
+    /// Returns `Err(LlmError::ApiKeyMissing)` if the variable is not set.
+    /// The key is never logged or stored beyond the call.
     pub fn resolve_api_key(&self) -> Result<String, LlmError> {
         std::env::var(&self.api_key_env).map_err(|_| LlmError::ApiKeyMissing {
             var: self.api_key_env.clone(),
@@ -93,39 +87,35 @@ impl ApiBackendConfig {
     }
 }
 
-// ─────────────────────────────────────────────
-// Client
-// ─────────────────────────────────────────────
-
-/// Client HTTP pour tout backend compatible OpenAI.
+/// HTTP client for any OpenAI-compatible backend.
 ///
-/// Construit via [`OpenAICompatibleClient::new`] avec une [`ApiBackendConfig`]
-/// et une clé API résolue. Supporte [`complete`](Self::complete) (réponse
-/// complète) et [`stream`](Self::stream) (streaming SSE chunk par chunk).
+/// Built via [`OpenAICompatibleClient::new`] with an [`ApiBackendConfig`] and a
+/// resolved API key. Supports [`complete`](Self::complete) (full response) and
+/// [`stream`](Self::stream) (SSE streaming chunk by chunk).
 ///
-/// Un seul client peut être partagé via `Arc<OpenAICompatibleClient>` —
-/// `async_openai::Client` est `Clone + Send + Sync`.
+/// A single client can be shared via `Arc<OpenAICompatibleClient>`:
+/// `async_openai::Client` is `Clone + Send + Sync`.
 pub struct OpenAICompatibleClient {
-    /// Client HTTP async-openai configuré avec la base URL et la clé API.
+    /// async-openai HTTP client configured with the base URL and API key.
     client: Client<OpenAIConfig>,
-    /// Configuration du backend (nom, URL, modèle par défaut).
+    /// Backend configuration (name, URL, default model).
     config: ApiBackendConfig,
-    /// Politique de retry exponentiel partagée avec les autres backends.
+    /// Exponential retry policy shared with the other backends.
     retry_policy: RetryPolicy,
-    /// Token d'annulation de session — `cancel()` interrompt les appels et délais en cours.
+    /// Session cancellation token: `cancel()` interrupts in-flight calls and delays.
     cancel: CancellationToken,
 }
 
 impl OpenAICompatibleClient {
-    /// Construit un client OpenAI-compatible prêt à envoyer des requêtes.
+    /// Build an OpenAI-compatible client ready to send requests.
     ///
-    /// La `api_key` doit être obtenue au préalable via
-    /// [`ApiBackendConfig::resolve_api_key`] — elle est transmise ici
-    /// et non re-lue depuis l'environnement pour éviter les TOCTOU.
+    /// `api_key` must be obtained beforehand via
+    /// [`ApiBackendConfig::resolve_api_key`]; it is passed in here and not
+    /// re-read from the environment to avoid TOCTOU.
     ///
-    /// Le `cancel` est le `CancellationToken` de la session LLM — partagé par
-    /// le `LlmRouter`. Un appel à `cancel.cancel()` interrompt les appels en cours
-    /// et les délais de retry.
+    /// `cancel` is the LLM session's `CancellationToken`, shared by the
+    /// `LlmRouter`. A call to `cancel.cancel()` interrupts in-flight calls and
+    /// retry delays.
     pub fn new(config: &ApiBackendConfig, api_key: String, cancel: CancellationToken) -> Self {
         let openai_config = OpenAIConfig::new()
             .with_api_key(api_key)
@@ -137,13 +127,13 @@ impl OpenAICompatibleClient {
             cancel,
         }
     }
-    /// Effectue un unique appel vers l'API OpenAI-compatible sans retry.
+    /// Make a single call to the OpenAI-compatible API without retry.
     ///
-    /// Mappe les status HTTP transitoires vers les variantes retryables de [`LlmError`] :
-    /// - 429 → [`LlmError::RateLimit`]
-    /// - 503 → [`LlmError::ServiceUnavailable`]
-    /// - 529 → [`LlmError::Overload`]
-    /// - 401 → [`LlmError::Unauthorized`]
+    /// Maps transient HTTP statuses to retryable [`LlmError`] variants:
+    /// - 429 to [`LlmError::RateLimit`]
+    /// - 503 to [`LlmError::ServiceUnavailable`]
+    /// - 529 to [`LlmError::Overload`]
+    /// - 401 to [`LlmError::Unauthorized`]
     async fn do_complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
         let model = req
@@ -240,11 +230,12 @@ impl OpenAICompatibleClient {
 
 #[async_trait::async_trait]
 impl CompletionModel for OpenAICompatibleClient {
-    /// Envoie une requête d'inférence et retourne la réponse complète.
+    /// Send an inference request and return the full response.
     ///
-    /// Délègue à [`do_complete`](Self::do_complete) via [`RetryPolicy::execute`] :
-    /// les erreurs transitoires (429, 503, 529) sont retentées avec backoff exponentiel.
-    /// Une annulation via le `CancellationToken` interrompt immédiatement l'attente.
+    /// Delegates to [`do_complete`](Self::do_complete) via
+    /// [`RetryPolicy::execute`]: transient errors (429, 503, 529) are retried
+    /// with exponential backoff. Cancellation via the `CancellationToken`
+    /// immediately interrupts the wait.
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         self.retry_policy
             .execute(self.cancel.clone(), || {
@@ -254,11 +245,11 @@ impl CompletionModel for OpenAICompatibleClient {
             .await
     }
 
-    /// Retourne un stream de chunks texte via SSE.
+    /// Return a stream of text chunks via SSE.
     ///
-    /// Chaque item est `Ok(String)` non vide. Les chunks vides (heartbeat SSE)
-    /// sont silencieusement ignorés. Le stream se termine normalement à la fin
-    /// de la génération (`finish_reason = Stop` ou `Length`).
+    /// Each item is a non-empty `Ok(String)`. Empty chunks (SSE heartbeats) are
+    /// silently ignored. The stream ends normally at the end of generation
+    /// (`finish_reason = Stop` or `Length`).
     async fn stream(
         &self,
         req: CompletionRequest,
@@ -306,128 +297,30 @@ impl CompletionModel for OpenAICompatibleClient {
             pending: HashMap::new(),
         };
 
-        let mapped = futures::stream::unfold(state, |state| async move {
-            match state {
-                OpenAIStreamState::Done => None,
-                OpenAIStreamState::Flushing { mut remaining } => remaining.pop().map(|call| {
-                    (
-                        Ok(StreamChunk::ToolCall(call)),
-                        OpenAIStreamState::Flushing { remaining },
-                    )
-                }),
-                OpenAIStreamState::Streaming {
-                    mut inner,
-                    mut pending,
-                } => {
-                    loop {
-                        match inner.next().await {
-                            Some(Ok(response)) => {
-                                let choice = match response.choices.into_iter().next() {
-                                    Some(c) => c,
-                                    None => continue,
-                                };
-
-                                // Accumulate tool call fragments
-                                if let Some(tc_chunks) = choice.delta.tool_calls {
-                                    for tc in tc_chunks {
-                                        let entry = pending
-                                            .entry(tc.index)
-                                            .or_insert_with(PartialToolCall::default);
-                                        if let Some(id) = tc.id {
-                                            entry.id = id;
-                                        }
-                                        if let Some(func) = tc.function {
-                                            if let Some(name) = func.name {
-                                                entry.name = name;
-                                            }
-                                            if let Some(args) = func.arguments {
-                                                entry.arguments.push_str(&args);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Emit text tokens immediately
-                                let text = choice.delta.content.unwrap_or_default();
-                                if !text.is_empty() {
-                                    return Some((
-                                        Ok(StreamChunk::Text(text)),
-                                        OpenAIStreamState::Streaming { inner, pending },
-                                    ));
-                                }
-
-                                continue;
-                            }
-                            Some(Err(e)) => {
-                                return Some((Err(map_openai_error(e)), OpenAIStreamState::Done));
-                            }
-                            None => {
-                                // SSE stream ended — flush accumulated tool calls
-                                if pending.is_empty() {
-                                    return None;
-                                }
-                                let mut calls: Vec<(u32, PartialToolCall)> =
-                                    pending.into_iter().collect();
-                                calls.sort_by_key(|(idx, _)| *idx);
-
-                                let mut tool_calls: Vec<ToolCall> = calls
-                                    .into_iter()
-                                    .map(|(_, partial)| {
-                                        let arguments = serde_json::from_str(&partial.arguments)
-                                            .unwrap_or(serde_json::Value::Null);
-                                        ToolCall {
-                                            id: partial.id,
-                                            name: partial.name,
-                                            arguments,
-                                        }
-                                    })
-                                    .collect();
-
-                                // Reverse so we can pop from the end in order
-                                tool_calls.reverse();
-                                let first = tool_calls.pop();
-                                match first {
-                                    Some(call) => {
-                                        return Some((
-                                            Ok(StreamChunk::ToolCall(call)),
-                                            OpenAIStreamState::Flushing {
-                                                remaining: tool_calls,
-                                            },
-                                        ));
-                                    }
-                                    None => return None,
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        let mapped = futures::stream::unfold(state, next_openai_stream_item);
 
         Ok(Box::pin(mapped))
     }
 
-    /// Retourne `true` : le client est configuré et prêt à envoyer des requêtes.
+    /// Return `true`: the client is configured and ready to send requests.
     fn is_available(&self) -> bool {
         true
     }
 
-    /// Nom logique du backend tel que configuré dans `apollia.toml`.
+    /// Logical backend name as configured in `apollia.toml`.
     fn backend_name(&self) -> &str {
         &self.config.name
     }
 
-    /// Identifiant du modèle par défaut de ce backend.
+    /// Default model identifier for this backend.
     fn model_id(&self) -> &str {
         &self.config.model
     }
 }
 
-// ─────────────────────────────────────────────
-// Helpers privés
-// ─────────────────────────────────────────────
+// ── Private helpers ──────────────────────────────────────────────────────
 
-/// Convertit les messages Apollia en messages `async-openai`.
+/// Convert Apollia messages into `async-openai` messages.
 fn build_messages(
     messages: &[crate::types::ChatMessage],
 ) -> Result<Vec<ChatCompletionRequestMessage>, LlmError> {
@@ -500,7 +393,7 @@ fn build_messages(
         .collect()
 }
 
-/// Convertit les spécifications d'outils Apollia en tools `async-openai`.
+/// Convert Apollia tool specs into `async-openai` tools.
 fn build_tools(tools: &[crate::types::ToolSpec]) -> Vec<ChatCompletionTool> {
     tools
         .iter()
@@ -516,7 +409,7 @@ fn build_tools(tools: &[crate::types::ToolSpec]) -> Vec<ChatCompletionTool> {
         .collect()
 }
 
-/// Mappe le `FinishReason` d'`async-openai` vers [`FinishReason`] Apollia.
+/// Map the `async-openai` `FinishReason` to the Apollia [`FinishReason`].
 fn map_finish_reason(reason: Option<&async_openai::types::FinishReason>) -> FinishReason {
     match reason {
         Some(async_openai::types::FinishReason::Stop) => FinishReason::Stop,
@@ -528,10 +421,10 @@ fn map_finish_reason(reason: Option<&async_openai::types::FinishReason>) -> Fini
     }
 }
 
-/// Mappe une erreur `async-openai` vers [`LlmError`].
+/// Map an `async-openai` error to [`LlmError`].
 ///
-/// Les status HTTP transitoires (429, 503, 529) sont mappés vers les variantes
-/// retryables de [`LlmError`] pour que [`RetryPolicy`] puisse les détecter.
+/// Transient HTTP statuses (429, 503, 529) are mapped to retryable [`LlmError`]
+/// variants so [`RetryPolicy`] can detect them.
 fn map_openai_error(err: async_openai::error::OpenAIError) -> LlmError {
     use async_openai::error::OpenAIError;
     match err {
@@ -566,7 +459,7 @@ enum OpenAIStreamState {
         inner: ChatCompletionResponseStream,
         pending: HashMap<u32, PartialToolCall>,
     },
-    /// SSE stream ended — emitting accumulated tool calls one by one.
+    /// SSE stream ended; emitting accumulated tool calls one by one.
     Flushing { remaining: Vec<ToolCall> },
     /// Fully consumed.
     Done,
@@ -580,11 +473,134 @@ struct PartialToolCall {
     arguments: String,
 }
 
-/// Estime le coût en USD à partir du nombre de tokens consommés.
+/// Single step of the OpenAI stream `unfold`: read the next SSE chunk, emit
+/// text immediately, accumulate tool call fragments, then flush them when the
+/// stream ends.
+async fn next_openai_stream_item(
+    state: OpenAIStreamState,
+) -> Option<(Result<StreamChunk, LlmError>, OpenAIStreamState)> {
+    match state {
+        OpenAIStreamState::Done => None,
+        OpenAIStreamState::Flushing { mut remaining } => remaining.pop().map(|call| {
+            (
+                Ok(StreamChunk::ToolCall(call)),
+                OpenAIStreamState::Flushing { remaining },
+            )
+        }),
+        OpenAIStreamState::Streaming {
+            mut inner,
+            mut pending,
+        } => {
+            loop {
+                match inner.next().await {
+                    Some(Ok(response)) => {
+                        if let Some(text) = next_emittable_text(&mut pending, response) {
+                            return Some((
+                                Ok(StreamChunk::Text(text)),
+                                OpenAIStreamState::Streaming { inner, pending },
+                            ));
+                        }
+                        continue;
+                    }
+                    Some(Err(e)) => {
+                        return Some((Err(map_openai_error(e)), OpenAIStreamState::Done));
+                    }
+                    None => {
+                        // SSE stream ended, flush accumulated tool calls
+                        return flush_pending_tool_calls(pending);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Process an SSE chunk: accumulate tool call fragments into `pending` and
+/// return the delta text if it is non-empty (to emit immediately), otherwise
+/// `None` (chunk consumed, keep reading).
+fn next_emittable_text(
+    pending: &mut HashMap<u32, PartialToolCall>,
+    response: async_openai::types::CreateChatCompletionStreamResponse,
+) -> Option<String> {
+    let choice = response.choices.into_iter().next()?;
+
+    if let Some(tc_chunks) = choice.delta.tool_calls {
+        accumulate_tool_calls(pending, tc_chunks);
+    }
+
+    let text = choice.delta.content.unwrap_or_default();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
+
+/// Accumulate the tool call fragments received in an SSE chunk, indexed by
+/// `index`.
+fn accumulate_tool_calls(
+    pending: &mut HashMap<u32, PartialToolCall>,
+    tc_chunks: Vec<async_openai::types::ChatCompletionMessageToolCallChunk>,
+) {
+    for tc in tc_chunks {
+        let entry = pending
+            .entry(tc.index)
+            .or_insert_with(PartialToolCall::default);
+        if let Some(id) = tc.id {
+            entry.id = id;
+        }
+        if let Some(func) = tc.function {
+            if let Some(name) = func.name {
+                entry.name = name;
+            }
+            if let Some(args) = func.arguments {
+                entry.arguments.push_str(&args);
+            }
+        }
+    }
+}
+
+/// At the end of the stream: sort the accumulated calls by index and switch to
+/// `Flushing` to emit them one by one (or finish if there are none).
+fn flush_pending_tool_calls(
+    pending: HashMap<u32, PartialToolCall>,
+) -> Option<(Result<StreamChunk, LlmError>, OpenAIStreamState)> {
+    if pending.is_empty() {
+        return None;
+    }
+    let mut calls: Vec<(u32, PartialToolCall)> = pending.into_iter().collect();
+    calls.sort_by_key(|(idx, _)| *idx);
+
+    let mut tool_calls: Vec<ToolCall> = calls
+        .into_iter()
+        .map(|(_, partial)| {
+            let arguments =
+                serde_json::from_str(&partial.arguments).unwrap_or(serde_json::Value::Null);
+            ToolCall {
+                id: partial.id,
+                name: partial.name,
+                arguments,
+            }
+        })
+        .collect();
+
+    // Reverse so we can pop from the end in order
+    tool_calls.reverse();
+    tool_calls.pop().map(|call| {
+        (
+            Ok(StreamChunk::ToolCall(call)),
+            OpenAIStreamState::Flushing {
+                remaining: tool_calls,
+            },
+        )
+    })
+}
+
+/// Estimate the cost in USD from the number of tokens consumed.
 ///
-/// Retourne `None` pour les modèles non référencés dans la table de prix.
-/// Les tarifs sont basés sur les prix OpenAI publiés en 2024 (mai).
-/// Cette estimation est indicative — les prix peuvent varier.
+/// Returns `None` for models not listed in the price table. Rates are based on
+/// the OpenAI prices published in May 2024. This estimate is indicative;
+/// prices may vary.
 fn estimate_cost_usd(model: &str, prompt_tokens: u32, completion_tokens: u32) -> Option<f64> {
     let (prompt_rate, completion_rate) = if model.contains("gpt-4o-mini") {
         (GPT_4O_MINI_PROMPT_RATE, GPT_4O_MINI_COMPLETION_RATE)
@@ -599,17 +615,13 @@ fn estimate_cost_usd(model: &str, prompt_tokens: u32, completion_tokens: u32) ->
     Some(prompt_tokens as f64 * prompt_rate + completion_tokens as f64 * completion_rate)
 }
 
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // GIVEN une ApiBackendConfig avec api_key_env non définie dans l'environnement
-    // WHEN on appelle resolve_api_key()
-    // THEN Err(LlmError::ApiKeyMissing { var: "APOLLIA_TEST_KEY_ABSENT_XYZ" }) est retourné
+    // GIVEN an ApiBackendConfig whose api_key_env is not set in the environment
+    // WHEN resolve_api_key() is called
+    // THEN Err(LlmError::ApiKeyMissing { var: "APOLLIA_TEST_KEY_ABSENT_XYZ" }) is returned
     #[test]
     fn test_ac2_resolve_api_key_missing() {
         let config = ApiBackendConfig {
@@ -627,12 +639,12 @@ mod tests {
         );
     }
 
-    // GIVEN une ApiBackendConfig avec api_key_env définie dans l'environnement
-    // WHEN on appelle resolve_api_key()
-    // THEN Ok("sk-test-key") est retourné
+    // GIVEN an ApiBackendConfig whose api_key_env is set in the environment
+    // WHEN resolve_api_key() is called
+    // THEN Ok("sk-test-key") is returned
     #[test]
     fn test_ac2_resolve_api_key_present() {
-        // GIVEN — set env var for this test only
+        // GIVEN: set env var for this test only
         // Safety: test isolation via unique key name
         std::env::set_var("APOLLIA_TEST_KEY_PRESENT_XYZ", "sk-test-key");
         let config = ApiBackendConfig {
@@ -651,9 +663,9 @@ mod tests {
         );
     }
 
-    // GIVEN une chaîne TOML représentant un ApiBackendConfig
-    // WHEN on désérialise avec toml::from_str
-    // THEN les champs name et model sont corrects
+    // GIVEN a TOML string representing an ApiBackendConfig
+    // WHEN deserializing with toml::from_str
+    // THEN the name and model fields are correct
     #[test]
     fn test_ac1_api_backend_config_serde_toml() {
         let toml_str = r#"
@@ -672,9 +684,9 @@ mod tests {
         assert_eq!(config.api_key_env, "OPENAI_API_KEY");
     }
 
-    // GIVEN un modèle connu "gpt-4o-mini" avec des tokens non nuls
-    // WHEN on appelle estimate_cost_usd
-    // THEN Some(valeur > 0.0) est retourné
+    // GIVEN a known model "gpt-4o-mini" with non-zero token counts
+    // WHEN estimate_cost_usd is called
+    // THEN Some(value > 0.0) is returned
     #[test]
     fn test_ac4_estimate_cost_usd_nonzero_for_known_model() {
         let cost = estimate_cost_usd("gpt-4o-mini", 1000, 500);
@@ -686,9 +698,9 @@ mod tests {
         );
     }
 
-    // GIVEN le modèle "gpt-4o-mini" avec 100 prompt + 50 completion tokens
-    // WHEN on calcule le coût
-    // THEN il correspond aux tarifs attendus (0.15$/1M prompt, 0.60$/1M completion)
+    // GIVEN the model "gpt-4o-mini" with 100 prompt + 50 completion tokens
+    // WHEN computing the cost
+    // THEN it matches the expected rates (0.15$/1M prompt, 0.60$/1M completion)
     #[test]
     fn test_estimate_cost_usd_exact_value_gpt4o_mini() {
         let cost = estimate_cost_usd("gpt-4o-mini", 100, 50);
@@ -697,9 +709,9 @@ mod tests {
         assert_eq!(cost, Some(expected));
     }
 
-    // GIVEN un modèle inconnu
-    // WHEN on appelle estimate_cost_usd
-    // THEN None est retourné
+    // GIVEN an unknown model
+    // WHEN estimate_cost_usd is called
+    // THEN None is returned
     #[test]
     fn test_estimate_cost_usd_none_for_unknown_model() {
         let cost = estimate_cost_usd("mistral-7b-instruct", 1000, 500);
@@ -710,9 +722,9 @@ mod tests {
         );
     }
 
-    // GIVEN un OpenAICompatibleClient construit avec une config valide et une clé fictive
-    // WHEN on lit is_available(), backend_name(), model_id()
-    // THEN les valeurs attendues sont retournées
+    // GIVEN an OpenAICompatibleClient built with a valid config and a fake key
+    // WHEN reading is_available(), backend_name(), model_id()
+    // THEN the expected values are returned
     #[test]
     fn test_ac1_client_new_is_available() {
         let config = ApiBackendConfig {
@@ -732,9 +744,9 @@ mod tests {
         assert_eq!(client.model_id(), "gpt-4o-mini");
     }
 
-    // GIVEN le FinishReason::Stop d'async-openai
-    // WHEN on appelle map_finish_reason
-    // THEN FinishReason::Stop Apollia est retourné
+    // GIVEN the async-openai FinishReason::Stop
+    // WHEN map_finish_reason is called
+    // THEN the Apollia FinishReason::Stop is returned
     #[test]
     fn test_map_finish_reason_stop() {
         assert_eq!(
@@ -743,9 +755,9 @@ mod tests {
         );
     }
 
-    // GIVEN FinishReason::ToolCalls d'async-openai
-    // WHEN on appelle map_finish_reason
-    // THEN FinishReason::ToolCalls Apollia est retourné
+    // GIVEN the async-openai FinishReason::ToolCalls
+    // WHEN map_finish_reason is called
+    // THEN the Apollia FinishReason::ToolCalls is returned
     #[test]
     fn test_map_finish_reason_tool_calls() {
         assert_eq!(
@@ -754,9 +766,9 @@ mod tests {
         );
     }
 
-    // GIVEN None (FinishReason absent du chunk SSE)
-    // WHEN on appelle map_finish_reason
-    // THEN FinishReason::Stop est retourné par défaut
+    // GIVEN None (FinishReason absent from the SSE chunk)
+    // WHEN map_finish_reason is called
+    // THEN FinishReason::Stop is returned by default
     #[test]
     fn test_map_finish_reason_none_defaults_to_stop() {
         assert_eq!(map_finish_reason(None), FinishReason::Stop);

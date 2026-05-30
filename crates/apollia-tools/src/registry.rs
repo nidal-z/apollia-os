@@ -28,7 +28,7 @@ enum ToolRegistryMessage {
 
 /// Internal actor that owns the tool catalogue.
 ///
-/// Never exposed directly — callers interact through [`ToolRegistryHandle`].
+/// Never exposed directly; callers interact through [`ToolRegistryHandle`].
 struct ToolRegistry {
     catalogue: HashMap<String, ToolDescriptor>,
     receiver: mpsc::Receiver<ToolRegistryMessage>,
@@ -111,9 +111,9 @@ impl ToolRegistryHandle {
     ///
     /// # Errors
     ///
-    /// - [`ToolRegistryError::InvalidDescriptor`] — descriptor fails validation.
-    /// - [`ToolRegistryError::AlreadyRegistered`] — a tool with the same name exists.
-    /// - [`ToolRegistryError::ActorGone`] — the actor task has terminated.
+    /// - [`ToolRegistryError::InvalidDescriptor`]: descriptor fails validation.
+    /// - [`ToolRegistryError::AlreadyRegistered`]: a tool with the same name exists.
+    /// - [`ToolRegistryError::ActorGone`]: the actor task has terminated.
     #[instrument(skip(self, descriptor), fields(tool = %descriptor.name))]
     pub async fn register(&self, descriptor: ToolDescriptor) -> Result<(), ToolRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -131,7 +131,7 @@ impl ToolRegistryHandle {
     ///
     /// # Errors
     ///
-    /// - [`ToolRegistryError::ActorGone`] — the actor task has terminated.
+    /// - [`ToolRegistryError::ActorGone`]: the actor task has terminated.
     pub async fn get(&self, name: &str) -> Result<Option<ToolDescriptor>, ToolRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.sender
@@ -150,7 +150,7 @@ impl ToolRegistryHandle {
     ///
     /// # Errors
     ///
-    /// - [`ToolRegistryError::ActorGone`] — the actor task has terminated.
+    /// - [`ToolRegistryError::ActorGone`]: the actor task has terminated.
     pub async fn list(&self) -> Result<Vec<ToolDescriptor>, ToolRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.sender
@@ -163,7 +163,7 @@ impl ToolRegistryHandle {
     /// Returns the descriptor for the named tool, or `None` if not registered
     /// or the actor has stopped.
     ///
-    /// Unlike [`get`](Self::get), this method never returns an error — it is
+    /// Unlike [`get`](Self::get), this method never returns an error. It is
     /// designed for agent-facing introspection where a missing tool and a
     /// stopped registry are both represented as `None`.
     pub async fn describe(&self, name: &str) -> Option<ToolDescriptor> {
@@ -181,7 +181,7 @@ impl ToolRegistryHandle {
     /// Sends the shutdown signal and waits for the actor to stop.
     pub async fn shutdown(self) {
         let _ = self.sender.send(ToolRegistryMessage::Shutdown).await;
-        // Drop sender — actor loop exits when the channel drains and closes.
+        // Drop sender: actor loop exits when the channel drains and closes.
     }
 }
 

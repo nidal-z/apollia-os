@@ -5,7 +5,6 @@
   import { t } from "svelte-i18n";
   import {
     Cpu,
-    HardDrive,
     Search,
     Download,
     X,
@@ -249,7 +248,7 @@
       return;
     }
     try {
-      const id = await invoke<string>("start_model_download", {
+      const _id = await invoke<string>("start_model_download", {
         request: {
           url: file.download_url,
           filename: file.filename,

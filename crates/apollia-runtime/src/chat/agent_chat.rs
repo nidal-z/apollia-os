@@ -1,9 +1,9 @@
-//! AgentChatExecutor — executes Python agents in Chat Agent mode.
+//! AgentChatExecutor, executes Python agents in Chat Agent mode.
 //!
 //! Orchestrates the flow: validate agent → convert session to [`AIPTask`] →
 //! run agent via [`ChatAgentRunner`] → process [`AIPResult`] → emit events.
 //!
-//! The [`ChatAgentRunner`] trait follows the ADR-019 pattern: it decouples
+//! The [`ChatAgentRunner`] trait decouples
 //! `apollia-runtime` from PyO3 so that the concrete implementation using
 //! `AIPBridge` + `RuntimeContext` lives in `apollia-cli`.
 
@@ -19,7 +19,8 @@ use apollia_core::RuntimeEvent;
 
 use super::builtin_agent::ChatAgentResponse;
 use super::types::{
-    ChatError, ChatMode, ChatRole, ChatSession, PendingChatApprovals, ToolDecision,
+    ApprovalTimeoutParams, ChatError, ChatMode, ChatRole, ChatSession, PendingChatApprovals,
+    ToolDecision,
 };
 use crate::eventbus::EventBusSender;
 
@@ -27,12 +28,12 @@ use crate::eventbus::EventBusSender;
 const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
 // ─────────────────────────────────────────────
-// ChatAgentRunner — trait for Python agent execution
+// ChatAgentRunner, trait for Python agent execution
 // ─────────────────────────────────────────────
 
 /// Trait abstracting Python agent execution for chat sessions.
 ///
-/// Follows the ADR-019 pattern: decouples `apollia-runtime` from PyO3
+/// Decouples `apollia-runtime` from PyO3
 /// by defining the execution contract as a trait. The concrete implementation
 /// using `AIPBridge` + `RuntimeContext` lives in `apollia-cli`.
 #[async_trait::async_trait]
@@ -48,7 +49,7 @@ pub trait ChatAgentRunner: Send + Sync {
 }
 
 // ─────────────────────────────────────────────
-// AgentChatExecutor — orchestrates chat agent exchanges
+// AgentChatExecutor, orchestrates chat agent exchanges
 // ─────────────────────────────────────────────
 
 /// Executor for Chat Agent mode sessions.
@@ -61,6 +62,29 @@ pub struct AgentChatExecutor {
     agent_runner: Arc<dyn ChatAgentRunner>,
     /// Event bus for emitting chat lifecycle events.
     event_bus: EventBusSender,
+}
+
+/// Borrowed inputs for a single [`AgentChatExecutor::execute`] exchange.
+pub struct AgentChatRequest<'a> {
+    pub session: &'a ChatSession,
+    pub user_message: &'a str,
+    pub message_id: &'a str,
+    pub authorized_tools: &'a HashSet<String>,
+    pub pending_approvals: &'a PendingChatApprovals,
+}
+
+/// Borrowed context shared by the HITL resume helpers.
+///
+/// Groups the per-exchange references threaded through
+/// [`AgentChatExecutor::handle_input_required`] and
+/// [`AgentChatExecutor::resume_agent`].
+#[derive(Clone, Copy)]
+struct ResumeCtx<'a> {
+    result: &'a AIPResult,
+    session: &'a ChatSession,
+    user_message: &'a str,
+    message_id: &'a str,
+    agent_name: &'a str,
 }
 
 impl AgentChatExecutor {
@@ -85,12 +109,15 @@ impl AgentChatExecutor {
     /// Returns [`ChatError::InternalError`] if the agent returns `Failed` status.
     pub async fn execute(
         &self,
-        session: &ChatSession,
-        user_message: &str,
-        message_id: &str,
-        authorized_tools: &HashSet<String>,
-        pending_approvals: &PendingChatApprovals,
+        request: AgentChatRequest<'_>,
     ) -> Result<ChatAgentResponse, ChatError> {
+        let AgentChatRequest {
+            session,
+            user_message,
+            message_id,
+            authorized_tools,
+            pending_approvals,
+        } = request;
         let agent_name = session
             .agent_name
             .as_deref()
@@ -155,11 +182,13 @@ impl AgentChatExecutor {
 
             TaskStatus::InputRequired => {
                 self.handle_input_required(
-                    result,
-                    session,
-                    user_message,
-                    message_id,
-                    agent_name,
+                    ResumeCtx {
+                        result,
+                        session,
+                        user_message,
+                        message_id,
+                        agent_name,
+                    },
                     pending_approvals,
                 )
                 .await
@@ -189,13 +218,15 @@ impl AgentChatExecutor {
     /// Handle the HITL flow when the agent returns InputRequired.
     async fn handle_input_required(
         &self,
-        result: &AIPResult,
-        session: &ChatSession,
-        user_message: &str,
-        message_id: &str,
-        agent_name: &str,
+        ctx: ResumeCtx<'_>,
         pending_approvals: &PendingChatApprovals,
     ) -> Result<ChatAgentResponse, ChatError> {
+        let ResumeCtx {
+            result,
+            session,
+            message_id,
+            ..
+        } = ctx;
         let prompt = result
             .input_required_data
             .as_ref()
@@ -211,14 +242,14 @@ impl AgentChatExecutor {
 
         let key = format!("{}::{}::agent_action", session.id, message_id);
         let rx = pending_approvals.register(key.clone());
-        pending_approvals.start_timeout(
+        pending_approvals.start_timeout(ApprovalTimeoutParams {
             key,
-            CHAT_APPROVAL_TIMEOUT,
-            self.event_bus.clone(),
-            session.id.clone(),
-            message_id.to_string(),
-            "agent_action".to_string(),
-        );
+            duration: CHAT_APPROVAL_TIMEOUT,
+            event_bus: self.event_bus.clone(),
+            session_id: session.id.clone(),
+            message_id: message_id.to_string(),
+            tool_name: "agent_action".to_string(),
+        });
 
         let decision = rx.await.unwrap_or(ToolDecision::refuse());
 
@@ -239,9 +270,7 @@ impl AgentChatExecutor {
                     vec![]
                 };
 
-                let resume_result = self
-                    .resume_agent(result, session, user_message, message_id, agent_name)
-                    .await?;
+                let resume_result = self.resume_agent(ctx).await?;
 
                 let content = extract_text_output(&resume_result);
                 self.emit_completed(&session.id, message_id, &content);
@@ -251,14 +280,14 @@ impl AgentChatExecutor {
     }
 
     /// Resume an agent after HITL approval (is_resumed=true + input_response).
-    async fn resume_agent(
-        &self,
-        original_result: &AIPResult,
-        session: &ChatSession,
-        user_message: &str,
-        message_id: &str,
-        agent_name: &str,
-    ) -> Result<AIPResult, ChatError> {
+    async fn resume_agent(&self, ctx: ResumeCtx<'_>) -> Result<AIPResult, ChatError> {
+        let ResumeCtx {
+            result: original_result,
+            session,
+            user_message,
+            message_id,
+            agent_name,
+        } = ctx;
         let context = original_result
             .input_required_data
             .as_ref()
@@ -307,8 +336,8 @@ fn session_to_task(session: &ChatSession, user_message: &str) -> AIPTask {
     AIPTask {
         task_id: uuid::Uuid::new_v4().to_string(),
         context_id: session.id.clone(),
-        // Pas de skill_id : invocation en mode chat conversationnel, pas une
-        // délégation A2A vers un skill ciblé.
+        // No skill_id: conversational chat-mode invocation, not an A2A
+        // delegation to a targeted skill.
         skill_id: None,
         project_id: session.project_id.clone(),
         input: AIPInput {
@@ -710,13 +739,13 @@ mod tests {
 
         // WHEN execute is called
         let response = executor
-            .execute(
-                &session,
-                "Génère un devis",
-                "msg-1",
-                &HashSet::new(),
-                &approvals,
-            )
+            .execute(AgentChatRequest {
+                session: &session,
+                user_message: "Génère un devis",
+                message_id: "msg-1",
+                authorized_tools: &HashSet::new(),
+                pending_approvals: &approvals,
+            })
             .await
             .expect("should succeed");
 
@@ -740,7 +769,13 @@ mod tests {
 
         // WHEN execute is called
         let result = executor
-            .execute(&session, "hello", "msg-1", &HashSet::new(), &approvals)
+            .execute(AgentChatRequest {
+                session: &session,
+                user_message: "hello",
+                message_id: "msg-1",
+                authorized_tools: &HashSet::new(),
+                pending_approvals: &approvals,
+            })
             .await;
 
         // THEN Err(AgentNotFound)
@@ -758,7 +793,13 @@ mod tests {
 
         // WHEN execute is called
         let result = executor
-            .execute(&session, "hello", "msg-1", &HashSet::new(), &approvals)
+            .execute(AgentChatRequest {
+                session: &session,
+                user_message: "hello",
+                message_id: "msg-1",
+                authorized_tools: &HashSet::new(),
+                pending_approvals: &approvals,
+            })
             .await;
 
         // THEN Err(AgentLoadFailed)
@@ -778,10 +819,16 @@ mod tests {
 
         // WHEN execute is called
         let result = executor
-            .execute(&session, "hello", "msg-1", &HashSet::new(), &approvals)
+            .execute(AgentChatRequest {
+                session: &session,
+                user_message: "hello",
+                message_id: "msg-1",
+                authorized_tools: &HashSet::new(),
+                pending_approvals: &approvals,
+            })
             .await;
 
-        // THEN Err(InternalError) — session stays Active (handled by manager)
+        // THEN Err(InternalError), session stays Active (handled by manager)
         assert!(matches!(result, Err(ChatError::InternalError(_))));
         if let Err(ChatError::InternalError(msg)) = result {
             assert!(msg.contains("Python exception"));
@@ -808,13 +855,13 @@ mod tests {
 
         // WHEN execute is called
         let response = executor
-            .execute(
-                &session,
-                "do something dangerous",
-                "msg-hitl",
-                &HashSet::new(),
-                &approvals,
-            )
+            .execute(AgentChatRequest {
+                session: &session,
+                user_message: "do something dangerous",
+                message_id: "msg-hitl",
+                authorized_tools: &HashSet::new(),
+                pending_approvals: &approvals,
+            })
             .await
             .expect("should succeed with refusal message");
 
@@ -842,13 +889,13 @@ mod tests {
 
         // WHEN execute is called
         let response = executor
-            .execute(
-                &session,
-                "do something",
-                "msg-hitl2",
-                &HashSet::new(),
-                &approvals,
-            )
+            .execute(AgentChatRequest {
+                session: &session,
+                user_message: "do something",
+                message_id: "msg-hitl2",
+                authorized_tools: &HashSet::new(),
+                pending_approvals: &approvals,
+            })
             .await
             .expect("should succeed after approval");
 
@@ -877,13 +924,13 @@ mod tests {
 
         // WHEN execute is called
         let response = executor
-            .execute(
-                &session,
-                "do something",
-                "msg-hitl3",
-                &HashSet::new(),
-                &approvals,
-            )
+            .execute(AgentChatRequest {
+                session: &session,
+                user_message: "do something",
+                message_id: "msg-hitl3",
+                authorized_tools: &HashSet::new(),
+                pending_approvals: &approvals,
+            })
             .await
             .expect("should succeed after always-accept");
 

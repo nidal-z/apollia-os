@@ -1,4 +1,4 @@
-//! `apollia-os llm` subcommands — diagnose and test LLM backends via the runtime API.
+//! `apollia-os llm` subcommands: diagnose and test LLM backends via the runtime API.
 //!
 //! Provides `status`, `ping`, `chat`, `costs` and `backends` (CRUD) operations
 //! for LLM backend management.
@@ -24,7 +24,7 @@ pub enum LlmCommand {
     Chat {
         /// The prompt text to send to the LLM.
         prompt: String,
-        /// Backend to use (optional — uses the configured default if omitted).
+        /// Backend to use (optional, uses the configured default if omitted).
         #[arg(long)]
         backend: Option<String>,
     },
@@ -238,20 +238,20 @@ pub async fn run(cmd: &LlmCommand, socket: Option<PathBuf>, json: bool) -> i32 {
             system_db,
             models_dir,
         } => {
-            run_setup(
-                *local,
+            run_setup(SetupArgs {
+                local: *local,
                 model,
-                name,
-                device.as_deref(),
-                system_db.as_deref(),
-                models_dir.as_deref(),
+                backend_name: name,
+                device_override: device.as_deref(),
+                system_db_override: system_db.as_deref(),
+                models_dir_override: models_dir.as_deref(),
                 json,
-            )
+            })
         }
     }
 }
 
-/// `apollia-os llm reload` — rebuild the in-memory router from `system.db`.
+/// `apollia-os llm reload`: rebuild the in-memory router from `system.db`.
 ///
 /// The mutating sub-commands (`create`, `update`, `delete`, `set-default`)
 /// invoke this automatically. The standalone command is useful when the
@@ -307,7 +307,7 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os llm status` — display all LLM backends with their current state.
+/// `apollia-os llm status`: display all LLM backends with their current state.
 async fn run_status(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.get("/api/v1/llm/status").await {
         Ok(r) => r,
@@ -337,7 +337,7 @@ async fn run_status(client: &RuntimeClient, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os llm ping [backend]` — measure the latency of a backend.
+/// `apollia-os llm ping [backend]`: measure the latency of a backend.
 ///
 /// Returns exit code `0` if the backend is available, `1` otherwise.
 async fn run_ping(client: &RuntimeClient, backend: Option<&str>, json: bool) -> i32 {
@@ -375,7 +375,7 @@ async fn run_ping(client: &RuntimeClient, backend: Option<&str>, json: bool) -> 
     }
 }
 
-/// `apollia-os llm chat "prompt"` — send a prompt to an LLM backend.
+/// `apollia-os llm chat "prompt"`: send a prompt to an LLM backend.
 async fn run_chat(client: &RuntimeClient, prompt: &str, backend: Option<&str>, json: bool) -> i32 {
     let body = serde_json::json!({ "prompt": prompt, "backend": backend });
     let resp = match client.post("/api/v1/llm/chat", Some(&body)).await {
@@ -513,7 +513,7 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
 // Costs handler
 // ─────────────────────────────────────────────
 
-/// `apollia-os llm costs` — afficher l'utilisation et les coûts agrégés par backend.
+/// `apollia-os llm costs`: display aggregated usage and costs per backend.
 async fn run_costs(
     client: &RuntimeClient,
     get_threshold: bool,
@@ -657,45 +657,39 @@ fn run_set_cost_threshold(
     exit_codes::SUCCESS
 }
 
-fn run_setup(
+/// Arguments for [`run_setup`], grouped to keep the signature small.
+struct SetupArgs<'a> {
     local: bool,
-    model: &std::path::Path,
-    backend_name: &str,
-    device_override: Option<&str>,
-    system_db_override: Option<&std::path::Path>,
-    models_dir_override: Option<&std::path::Path>,
+    model: &'a std::path::Path,
+    backend_name: &'a str,
+    device_override: Option<&'a str>,
+    system_db_override: Option<&'a std::path::Path>,
+    models_dir_override: Option<&'a std::path::Path>,
     json: bool,
-) -> i32 {
-    if !local {
-        return emit_llm_error(
-            "only --local is supported in v0.1.0 (cloud providers go through `auth login` + `llm backends create`)".into(),
-            json,
-        );
-    }
-    if !model.exists() {
-        return emit_llm_error(format!("model file not found: {}", model.display()), json);
-    }
-    let extension_ok = model
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("gguf"))
-        .unwrap_or(false);
-    if !extension_ok {
-        return emit_llm_error(
-            format!("expected a .gguf file, got {}", model.display()),
-            json,
-        );
+}
+
+fn run_setup(args: SetupArgs<'_>) -> i32 {
+    let SetupArgs {
+        local,
+        model,
+        backend_name,
+        device_override,
+        system_db_override,
+        models_dir_override,
+        json,
+    } = args;
+
+    if let Err(code) = validate_setup_model(local, model, json) {
+        return code;
     }
 
-    let device = device_override
-        .map(str::to_string)
-        .unwrap_or_else(|| {
-            if cfg!(target_os = "macos") {
-                "metal".to_string()
-            } else {
-                "cpu".to_string()
-            }
-        });
+    let device = device_override.map(str::to_string).unwrap_or_else(|| {
+        if cfg!(target_os = "macos") {
+            "metal".to_string()
+        } else {
+            "cpu".to_string()
+        }
+    });
 
     let apollia_home = dirs::home_dir()
         .map(|h| h.join(".apollia"))
@@ -782,6 +776,36 @@ fn run_setup(
         );
     }
     exit_codes::SUCCESS
+}
+
+/// Validate the `--local` flag and the supplied model file.
+///
+/// Returns `Err(exit_code)` when the caller should bail out early.
+fn validate_setup_model(local: bool, model: &std::path::Path, json: bool) -> Result<(), i32> {
+    if !local {
+        return Err(emit_llm_error(
+            "only --local is supported in v0.1.0 (cloud providers go through `auth login` + `llm backends create`)".into(),
+            json,
+        ));
+    }
+    if !model.exists() {
+        return Err(emit_llm_error(
+            format!("model file not found: {}", model.display()),
+            json,
+        ));
+    }
+    let extension_ok = model
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("gguf"))
+        .unwrap_or(false);
+    if !extension_ok {
+        return Err(emit_llm_error(
+            format!("expected a .gguf file, got {}", model.display()),
+            json,
+        ));
+    }
+    Ok(())
 }
 
 /// Infer the GGUF quantization tag from a filename (best-effort).
@@ -947,15 +971,28 @@ fn canonicalize_provider(p: &str) -> &str {
 /// - `llama-cpp`: `{model_path, device, quantization?, timeout_sec}`
 /// - `anthropic` / `openai` / `mistral`: `{api_key?, api_key_env?, base_url?, timeout_sec}`
 /// - `ollama`: `{base_url, timeout_sec}`
-fn build_config_json(
-    provider: &str,
-    model: &str,
-    api_key: Option<&str>,
-    api_key_env: Option<&str>,
-    base_url: Option<&str>,
-    device: &str,
+/// Inputs for [`build_config_json`], grouped to keep the signature small.
+struct BuildConfigArgs<'a> {
+    provider: &'a str,
+    model: &'a str,
+    api_key: Option<&'a str>,
+    api_key_env: Option<&'a str>,
+    base_url: Option<&'a str>,
+    device: &'a str,
     timeout_sec: u64,
-) -> serde_json::Value {
+}
+
+fn build_config_json(args: BuildConfigArgs<'_>) -> serde_json::Value {
+    let BuildConfigArgs {
+        provider,
+        model,
+        api_key,
+        api_key_env,
+        base_url,
+        device,
+        timeout_sec,
+    } = args;
+
     let mut cfg = serde_json::Map::new();
     cfg.insert("timeout_sec".into(), serde_json::Value::from(timeout_sec));
 
@@ -1032,7 +1069,7 @@ async fn auto_reload_after_mutation(client: &RuntimeClient, json: bool) {
     }
 }
 
-/// `apollia-os llm backends list` — lister tous les backends configurés.
+/// `apollia-os llm backends list`: list all configured backends.
 async fn run_backends_list(client: &RuntimeClient, json: bool) -> i32 {
     match client.list_llm_backends().await {
         Ok(resp) => {
@@ -1050,7 +1087,7 @@ async fn run_backends_list(client: &RuntimeClient, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os llm backends show <name>` — display the full configuration
+/// `apollia-os llm backends show <name>`: display the full configuration
 /// of a backend, including the provider-specific `config_json` blob.
 async fn run_backends_show(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     match client.get_llm_backend(name).await {
@@ -1103,11 +1140,11 @@ async fn run_backends_show(client: &RuntimeClient, name: &str, json: bool) -> i3
     }
 }
 
-/// `apollia-os llm backends create` — créer un nouveau backend LLM.
+/// `apollia-os llm backends create`: create a new LLM backend.
 ///
-/// Construit la payload complète attendue par `POST /api/v1/llm/backends`
-/// (provider canonique + config_json provider-specific) au lieu d'envoyer
-/// les seuls champs `kind/model` que le runtime rejette en 400.
+/// Builds the full payload expected by `POST /api/v1/llm/backends`
+/// (canonical provider + provider-specific config_json) instead of sending
+/// only the `kind/model` fields, which the runtime rejects with a 400.
 #[allow(clippy::too_many_arguments)]
 async fn run_backends_create(
     client: &RuntimeClient,
@@ -1124,15 +1161,15 @@ async fn run_backends_create(
     json: bool,
 ) -> i32 {
     let canonical = canonicalize_provider(provider);
-    let config_json = build_config_json(
-        canonical,
+    let config_json = build_config_json(BuildConfigArgs {
+        provider: canonical,
         model,
         api_key,
         api_key_env,
         base_url,
         device,
         timeout_sec,
-    );
+    });
 
     let body = serde_json::json!({
         "name": name,
@@ -1163,31 +1200,34 @@ async fn run_backends_create(
             exit_codes::SUCCESS
         }
         Err(ClientError::ServerError { status, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body, "status": status});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error ({status}): {body}");
-                if status == 422 {
-                    eprintln!();
-                    eprintln!(
-                        "Hint: accepted providers: llama-cpp, anthropic, openai, mistral, ollama"
-                    );
-                    eprintln!("      (the --kind alias is still accepted for backward compatibility)");
-                }
-            }
-            exit_codes::GENERAL_ERROR
+            emit_backend_create_server_error(status, &body, json)
         }
         Err(e) => handle_error(e, json),
     }
 }
 
-/// `apollia-os llm backends update` — mettre à jour un backend existant.
+/// Render a server-side error from `POST /api/v1/llm/backends`.
+fn emit_backend_create_server_error(status: u16, body: &str, json: bool) -> i32 {
+    if json {
+        let out = serde_json::json!({"error": body, "status": status});
+        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+    } else {
+        eprintln!("Error ({status}): {body}");
+        if status == 422 {
+            eprintln!();
+            eprintln!("Hint: accepted providers: llama-cpp, anthropic, openai, mistral, ollama");
+            eprintln!("      (the --kind alias is still accepted for backward compatibility)");
+        }
+    }
+    exit_codes::GENERAL_ERROR
+}
+
+/// `apollia-os llm backends update`: update an existing backend.
 ///
-/// Le runtime expose `PUT` en mode replace (tous les champs requis). Le CLI
-/// lit d'abord l'état courant via `GET /api/v1/llm/backends/:name`, applique
-/// les flags fournis en mode merge, puis renvoie la payload complète. Permet
-/// `--model X` sans avoir à respécifier provider/config_json/enabled.
+/// The runtime exposes `PUT` in replace mode (all fields required). The CLI
+/// first reads the current state via `GET /api/v1/llm/backends/:name`, applies
+/// the provided flags in merge mode, then sends the full payload. This allows
+/// `--model X` without having to re-specify provider/config_json/enabled.
 #[allow(clippy::too_many_arguments)]
 async fn run_backends_update(
     client: &RuntimeClient,
@@ -1245,41 +1285,19 @@ async fn run_backends_update(
     let new_enabled = enabled.unwrap_or(cur_enabled);
     let new_default = is_default.unwrap_or(cur_default);
 
-    // Step 4: merge config_json — start from the existing object, overlay
+    // Step 4: merge config_json, start from the existing object, overlay
     // any field that the user explicitly changed.
-    let mut cfg_map = match cur_cfg {
-        serde_json::Value::Object(m) => m,
-        _ => serde_json::Map::new(),
+    let merge = ConfigMerge {
+        new_provider,
+        new_model,
+        model,
+        api_key,
+        api_key_env,
+        base_url,
+        device,
+        timeout_sec,
     };
-    if let Some(secs) = timeout_sec {
-        cfg_map.insert("timeout_sec".into(), serde_json::Value::from(secs));
-    }
-    if new_provider == "llama-cpp" {
-        // For local backends, the model PATH lives in config_json.model_path
-        // and must stay in sync with the top-level `model` column.
-        if model.is_some() {
-            cfg_map.insert(
-                "model_path".into(),
-                serde_json::Value::String(new_model.to_string()),
-            );
-        }
-        if let Some(d) = device {
-            cfg_map.insert("device".into(), serde_json::Value::String(d.to_string()));
-        }
-    } else {
-        if let Some(k) = api_key {
-            cfg_map.insert("api_key".into(), serde_json::Value::String(k.to_string()));
-        }
-        if let Some(v) = api_key_env {
-            cfg_map.insert(
-                "api_key_env".into(),
-                serde_json::Value::String(v.to_string()),
-            );
-        }
-        if let Some(u) = base_url {
-            cfg_map.insert("base_url".into(), serde_json::Value::String(u.to_string()));
-        }
-    }
+    let cfg_map = merge_backend_config(cur_cfg, &merge);
 
     let body = serde_json::json!({
         "provider": new_provider,
@@ -1318,7 +1336,61 @@ async fn run_backends_update(
     }
 }
 
-/// `apollia-os llm backends delete` — supprimer un backend.
+/// Resolved-then-overlaid values used by [`merge_backend_config`].
+struct ConfigMerge<'a> {
+    new_provider: &'a str,
+    new_model: &'a str,
+    model: Option<&'a str>,
+    api_key: Option<&'a str>,
+    api_key_env: Option<&'a str>,
+    base_url: Option<&'a str>,
+    device: Option<&'a str>,
+    timeout_sec: Option<u64>,
+}
+
+/// Merge the existing `config_json` object with the user-supplied overrides,
+/// applying only the fields that were explicitly changed.
+fn merge_backend_config(
+    cur_cfg: serde_json::Value,
+    m: &ConfigMerge<'_>,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut cfg_map = match cur_cfg {
+        serde_json::Value::Object(map) => map,
+        _ => serde_json::Map::new(),
+    };
+    if let Some(secs) = m.timeout_sec {
+        cfg_map.insert("timeout_sec".into(), serde_json::Value::from(secs));
+    }
+    if m.new_provider == "llama-cpp" {
+        // For local backends, the model PATH lives in config_json.model_path
+        // and must stay in sync with the top-level `model` column.
+        if m.model.is_some() {
+            cfg_map.insert(
+                "model_path".into(),
+                serde_json::Value::String(m.new_model.to_string()),
+            );
+        }
+        if let Some(d) = m.device {
+            cfg_map.insert("device".into(), serde_json::Value::String(d.to_string()));
+        }
+    } else {
+        if let Some(k) = m.api_key {
+            cfg_map.insert("api_key".into(), serde_json::Value::String(k.to_string()));
+        }
+        if let Some(v) = m.api_key_env {
+            cfg_map.insert(
+                "api_key_env".into(),
+                serde_json::Value::String(v.to_string()),
+            );
+        }
+        if let Some(u) = m.base_url {
+            cfg_map.insert("base_url".into(), serde_json::Value::String(u.to_string()));
+        }
+    }
+    cfg_map
+}
+
+/// `apollia-os llm backends delete`: delete a backend.
 async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
         if json {
@@ -1359,7 +1431,7 @@ async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, 
     }
 }
 
-/// `apollia-os llm backends set-default` — set the default backend.
+/// `apollia-os llm backends set-default`: set the default backend.
 async fn run_backends_set_default(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     match client.set_default_llm_backend(name).await {
         Ok(resp) => {
@@ -1414,7 +1486,7 @@ mod tests {
 
     #[test]
     fn test_llm_ping_no_backend_parses() {
-        // GIVEN "ping" sans argument
+        // GIVEN "ping" without an argument
         // WHEN
         let cli = TestCli::parse_from(["apollia-os", "ping"]);
         // THEN LlmCommand::Ping { backend: None }
@@ -1553,29 +1625,29 @@ mod tests {
         // Pretend file exists by referencing the binary itself (any extant file
         // with a non-.gguf extension would still pass the existence check, but
         // we exit before that on --local missing).
-        let code = run_setup(
-            false,
-            std::path::Path::new("/tmp/never.gguf"),
-            "local",
-            None,
-            None,
-            None,
-            true,
-        );
+        let code = run_setup(SetupArgs {
+            local: false,
+            model: std::path::Path::new("/tmp/never.gguf"),
+            backend_name: "local",
+            device_override: None,
+            system_db_override: None,
+            models_dir_override: None,
+            json: true,
+        });
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn test_setup_rejects_missing_model_file() {
-        let code = run_setup(
-            true,
-            std::path::Path::new("/definitely/missing/model.gguf"),
-            "local",
-            None,
-            None,
-            None,
-            true,
-        );
+        let code = run_setup(SetupArgs {
+            local: true,
+            model: std::path::Path::new("/definitely/missing/model.gguf"),
+            backend_name: "local",
+            device_override: None,
+            system_db_override: None,
+            models_dir_override: None,
+            json: true,
+        });
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
@@ -1585,7 +1657,15 @@ mod tests {
         // Write to a path with a non-gguf extension.
         let path = tmp.path().with_extension("bin");
         std::fs::copy(tmp.path(), &path).unwrap();
-        let code = run_setup(true, &path, "local", None, None, None, true);
+        let code = run_setup(SetupArgs {
+            local: true,
+            model: &path,
+            backend_name: "local",
+            device_override: None,
+            system_db_override: None,
+            models_dir_override: None,
+            json: true,
+        });
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
@@ -1624,7 +1704,7 @@ mod tests {
             "--model",
             "claude-3-5-sonnet-20241022",
         ]);
-        // THEN Create avec les bons champs
+        // THEN Create with the right fields
         match &cli.command {
             LlmCommand::Backends { command } => match command {
                 LlmBackendsCommand::Create {

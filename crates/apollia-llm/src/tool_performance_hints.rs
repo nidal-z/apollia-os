@@ -1,35 +1,35 @@
-//! Hints statiques de performance par outil.
+//! Static per-tool performance hints.
 //!
-//! Table embarquée depuis `tool_performance_hints.toml` : durée attendue en ms
-//! et éventuelle suggestion d'alternative plus rapide. Consultée avant l'exec
-//! pour enrichir la `ToolCallRationale` sans attendre de télémétrie runtime.
+//! Table embedded from `tool_performance_hints.toml`: expected duration in ms
+//! and an optional faster-alternative suggestion. Consulted before execution
+//! to enrich the `ToolCallRationale` without waiting for runtime telemetry.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-/// Fichier TOML embarqué au build.
+/// TOML file embedded at build time.
 const HINTS_TOML: &str = include_str!("../tool_performance_hints.toml");
 
-/// Entrée de hint pour un outil donné.
+/// Hint entry for a given tool.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ToolPerformanceHint {
-    /// Durée typique de l'outil en millisecondes (p50 estimé).
+    /// Typical tool duration in milliseconds (estimated p50).
     pub expected_duration_ms: u64,
-    /// Optionnel : alternative plus rapide à suggérer selon le contexte.
+    /// Optional faster alternative to suggest depending on context.
     #[serde(default)]
     pub faster_alternative: Option<String>,
 }
 
-/// Racine du document TOML — map `tool_name -> hint`.
+/// Root of the TOML document: a `tool_name -> hint` map.
 #[derive(Debug, Deserialize)]
 struct HintsDocument {
     #[serde(default)]
     tools: HashMap<String, ToolPerformanceHint>,
 }
 
-/// Table parsée une seule fois au premier accès.
+/// Table parsed once on first access.
 fn table() -> &'static HashMap<String, ToolPerformanceHint> {
     static CELL: OnceLock<HashMap<String, ToolPerformanceHint>> = OnceLock::new();
     CELL.get_or_init(|| {
@@ -39,15 +39,16 @@ fn table() -> &'static HashMap<String, ToolPerformanceHint> {
     })
 }
 
-/// Lookup d'un hint pour un outil ; retourne `None` si absent.
+/// Look up a hint for a tool; returns `None` if absent.
 pub fn lookup(tool_name: &str) -> Option<&'static ToolPerformanceHint> {
     table().get(tool_name)
 }
 
-/// Construit la phrase de hint formatée pour un outil, ou `None` si absent.
+/// Build the formatted hint phrase for a tool, or `None` if absent.
 ///
-/// Format : `"Durée attendue: {ms}ms"` ou, si alternative présente,
-/// `"Durée attendue: {ms}ms — alternative: {alt}"`.
+/// Format: `"Durée attendue: {ms}ms"` or, when an alternative is present,
+/// `"Durée attendue: {ms}ms — alternative: {alt}"` (the phrase shown to the
+/// user is French).
 pub fn format_hint(tool_name: &str) -> Option<String> {
     lookup(tool_name).map(|h| match &h.faster_alternative {
         Some(alt) => format!(
@@ -62,16 +63,16 @@ pub fn format_hint(tool_name: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    // GIVEN un outil présent dans le TOML
+    // GIVEN a tool present in the TOML
     // WHEN format_hint()
-    // THEN la phrase est non vide et contient la durée
+    // THEN the phrase is non-empty and contains the duration
     #[test]
     fn format_hint_returns_phrase_for_known_tool() {
         let hint = format_hint("file_read").expect("file_read hint exists");
         assert!(hint.contains("ms"));
     }
 
-    // GIVEN un outil absent du TOML
+    // GIVEN a tool absent from the TOML
     // WHEN lookup()
     // THEN None
     #[test]

@@ -1,10 +1,10 @@
-//! `LlmCallRepository` — persistance SQLite des appels LLM.
+//! `LlmCallRepository`, SQLite persistence of LLM calls.
 //!
-//! Chaque [`RuntimeEvent::LlmCallCompleted`] reçu sur
-//! l'EventBus est persisté dans la table `llm_calls` via [`spawn_subscriber`].
+//! Each [`RuntimeEvent::LlmCallCompleted`] received on the EventBus is
+//! persisted into the `llm_calls` table via [`spawn_subscriber`].
 //!
-//! Le `prompt_text` n'est persisté que si `debug_log_prompt = true` dans la
-//! configuration d'observabilité (respect vie privée — ADR-026 décision 4).
+//! `prompt_text` is persisted only if `debug_log_prompt = true` in the
+//! observability config (privacy by default).
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -14,10 +14,6 @@ use tracing::{error, info};
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::ObservabilityConfig;
-
-// ─────────────────────────────────────────────
-// Schema
-// ─────────────────────────────────────────────
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS llm_calls (
@@ -39,92 +35,84 @@ CREATE INDEX IF NOT EXISTS idx_llm_calls_task    ON llm_calls(task_id);
 CREATE INDEX IF NOT EXISTS idx_llm_calls_created ON llm_calls(created_at);
 "#;
 
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
-
-/// Enregistrement d'un appel LLM persisté en SQLite.
+/// A persisted LLM call record in SQLite.
 #[derive(Debug, Clone)]
 pub struct LlmCallRecord {
-    /// Identifiant unique (UUID v4).
+    /// Unique identifier (UUID v4).
     pub id: String,
-    /// Identifiant de la tâche ayant déclenché l'appel.
+    /// Identifier of the task that triggered the call.
     pub task_id: Option<String>,
-    /// Identifiant du step ORIA (mode orchestré uniquement).
+    /// ORIA step identifier (orchestrated mode only).
     pub step_id: Option<String>,
-    /// Nom logique du backend (e.g. `"anthropic"`, `"local"`).
+    /// Logical backend name (e.g. `"anthropic"`, `"local"`).
     pub backend: String,
-    /// Identifiant du modèle (e.g. `"claude-sonnet-4-20250514"`).
+    /// Model identifier (e.g. `"claude-sonnet-4-20250514"`).
     pub model: String,
-    /// Nombre de tokens dans le prompt.
+    /// Number of tokens in the prompt.
     pub prompt_tokens: Option<u32>,
-    /// Nombre de tokens générés.
+    /// Number of generated tokens.
     pub completion_tokens: Option<u32>,
-    /// Coût estimé en USD.
+    /// Estimated cost in USD.
     pub cost_usd: Option<f64>,
-    /// Latence totale de l'appel en millisecondes.
+    /// Total call latency in milliseconds.
     pub latency_ms: Option<u64>,
-    /// Prompt envoyé au LLM (persisté uniquement si `debug_log_prompt = true`).
+    /// Prompt sent to the LLM (persisted only if `debug_log_prompt = true`).
     pub prompt_text: Option<String>,
-    /// Texte de la complétion retournée par le LLM.
+    /// Text of the completion returned by the LLM.
     pub completion_text: Option<String>,
 }
 
-/// Résumé coût/tokens agrégé par backend+modèle (dashboard LLM Costs).
+/// Cost/token summary aggregated by backend+model (LLM Costs dashboard).
 #[derive(Debug, Clone)]
 pub struct LlmCostSummary {
-    /// Nom logique du backend.
+    /// Logical backend name.
     pub backend: String,
-    /// Identifiant du modèle.
+    /// Model identifier.
     pub model: String,
-    /// Nombre d'appels.
+    /// Number of calls.
     pub call_count: u64,
-    /// Total de tokens (prompt + completion).
+    /// Total tokens (prompt + completion).
     pub total_tokens: u64,
-    /// Coût total estimé en USD.
+    /// Total estimated cost in USD.
     pub total_cost_usd: f64,
 }
 
-/// Résumé coût journalier agrégé par backend (dashboard LLM Costs daily chart).
+/// Daily cost summary aggregated by backend (LLM Costs daily chart).
 #[derive(Debug, Clone)]
 pub struct LlmDailyCostSummary {
-    /// Date au format `YYYY-MM-DD`.
+    /// Date in `YYYY-MM-DD` format.
     pub date: String,
-    /// Nom logique du backend.
+    /// Logical backend name.
     pub backend: String,
-    /// Coût total estimé en USD pour ce jour et ce backend.
+    /// Total estimated cost in USD for this day and backend.
     pub cost_usd: f64,
 }
 
-/// Erreurs du repository LLM.
+/// Errors of the LLM repository.
 #[derive(Debug, thiserror::Error)]
 pub enum LlmRepositoryError {
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 }
 
-// ─────────────────────────────────────────────
-// Repository
-// ─────────────────────────────────────────────
-
-/// Repository SQLite pour persister les appels LLM.
+/// SQLite repository to persist LLM calls.
 ///
-/// Créé au démarrage du Supervisor via [`LlmCallRepository::open`].
-/// Le subscriber EventBus est lancé via [`spawn_subscriber`].
+/// Created at Supervisor startup via [`LlmCallRepository::open`]. The EventBus
+/// subscriber is started via [`spawn_subscriber`].
 pub struct LlmCallRepository {
     conn: Connection,
 }
 
 impl LlmCallRepository {
-    /// Ouvre la base SQLite et applique le schéma (CREATE TABLE IF NOT EXISTS).
+    /// Open the SQLite database and apply the schema (CREATE TABLE IF NOT EXISTS).
     ///
-    /// Le fichier est créé s'il n'existe pas. WAL est activé pour les
-    /// performances en écriture concurrente.
+    /// The file is created if it does not exist. WAL is enabled for concurrent
+    /// write performance.
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// Retourne [`LlmRepositoryError::Sqlite`] si l'ouverture ou la migration échoue.
+    /// Returns [`LlmRepositoryError::Sqlite`] if opening or migrating fails.
     pub fn open(path: &Path) -> Result<Self, LlmRepositoryError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
@@ -132,7 +120,7 @@ impl LlmCallRepository {
         Ok(Self { conn })
     }
 
-    /// Ouvre une base in-memory pour les tests.
+    /// Open an in-memory database for tests.
     #[cfg(test)]
     fn open_in_memory() -> Result<Self, LlmRepositoryError> {
         let conn = Connection::open_in_memory()?;
@@ -140,7 +128,7 @@ impl LlmCallRepository {
         Ok(Self { conn })
     }
 
-    /// Persiste un enregistrement d'appel LLM.
+    /// Persist an LLM call record.
     pub fn save(&self, record: &LlmCallRecord) -> Result<(), LlmRepositoryError> {
         self.conn.execute(
             "INSERT INTO llm_calls (
@@ -165,7 +153,7 @@ impl LlmCallRepository {
         Ok(())
     }
 
-    /// Retourne tous les appels LLM pour une tâche, triés par date.
+    /// Return all LLM calls for a task, sorted by date.
     pub fn query_by_task(&self, task_id: &str) -> Result<Vec<LlmCallRecord>, LlmRepositoryError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, task_id, step_id, backend, model,
@@ -197,9 +185,9 @@ impl LlmCallRepository {
         Ok(result)
     }
 
-    /// Agrégation coût/tokens par backend+modèle depuis `since` (format ISO 8601).
+    /// Cost/token aggregation by backend+model since `since` (ISO 8601 format).
     ///
-    /// Utilisé par le dashboard LLM Costs.
+    /// Used by the LLM Costs dashboard.
     pub fn costs_by_backend_model_since(
         &self,
         since: &str,
@@ -230,10 +218,10 @@ impl LlmCallRepository {
         Ok(result)
     }
 
-    /// Agrégation coût journalier par backend depuis `since` (format ISO 8601).
+    /// Daily cost aggregation by backend since `since` (ISO 8601 format).
     ///
-    /// Retourne un vecteur de `LlmDailyCostSummary` trié par date ASC puis backend.
-    /// Utilisé par le dashboard Observability.
+    /// Returns a vector of `LlmDailyCostSummary` sorted by date ASC then backend.
+    /// Used by the Observability dashboard.
     pub fn costs_by_day_backend_since(
         &self,
         since: &str,
@@ -261,18 +249,16 @@ impl LlmCallRepository {
     }
 }
 
-// ─────────────────────────────────────────────
-// EventBus subscriber
-// ─────────────────────────────────────────────
+// ── EventBus subscriber ──────────────────────────────────────────────────
 
-/// Lance un subscriber EventBus qui persiste chaque `LlmCallCompleted`.
+/// Start an EventBus subscriber that persists each `LlmCallCompleted`.
 ///
-/// Le subscriber tourne dans un `tokio::spawn` dédié. Chaque persistance
-/// passe par `spawn_blocking` (rusqlite est sync). Le prompt n'est persisté
-/// que si `obs_config.debug_log_prompt` est `true`.
+/// The subscriber runs in a dedicated `tokio::spawn`. Each persistence goes
+/// through `spawn_blocking` (rusqlite is sync). The prompt is persisted only
+/// if `obs_config.debug_log_prompt` is `true`.
 ///
-/// Le `JoinHandle` retourné peut être utilisé pour attendre l'arrêt
-/// (le subscriber s'arrête quand l'EventBus est fermé — `RecvError`).
+/// The returned `JoinHandle` can be used to await shutdown (the subscriber
+/// stops when the EventBus is closed, a `RecvError`).
 pub fn spawn_subscriber(
     repo: Arc<Mutex<LlmCallRepository>>,
     event_bus: &EventBusSender,
@@ -302,12 +288,13 @@ pub fn spawn_subscriber(
                         completion_tokens: Some(completion_tokens),
                         cost_usd,
                         latency_ms: Some(latency_ms),
-                        // prompt_text omis ici car l'event ne le transporte pas ;
-                        // seul le flag debug_log_prompt contrôle la persistance future.
+                        // prompt_text is omitted here because the event does not
+                        // carry it; only the debug_log_prompt flag controls future
+                        // persistence.
                         prompt_text: None,
                         completion_text: None,
                     };
-                    let _ = obs_config; // config conservée pour extensions futures
+                    let _ = obs_config; // kept for future extensions
                     let repo = Arc::clone(&repo);
                     tokio::task::spawn_blocking(move || {
                         if let Ok(guard) = repo.lock() {
@@ -318,7 +305,7 @@ pub fn spawn_subscriber(
                     });
                 }
                 Ok(_) => {
-                    // Ignorer les autres événements.
+                    // Ignore other events.
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                     tracing::warn!(lagged = n, "LlmCallRepository subscriber lagged");
@@ -332,20 +319,16 @@ pub fn spawn_subscriber(
     })
 }
 
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_llm_call_persisted_on_save() {
-        // GIVEN un LlmCallRepository in-memory
+        // GIVEN an in-memory LlmCallRepository
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
 
-        // WHEN save(record avec backend="anthropic", tokens=150/50)
+        // WHEN save(record with backend="anthropic", tokens=150/50)
         let record = LlmCallRecord {
             id: "call-001".into(),
             task_id: Some("task-42".into()),
@@ -361,7 +344,7 @@ mod tests {
         };
         repo.save(&record).expect("save should succeed");
 
-        // THEN SELECT * FROM llm_calls → 1 row avec les bonnes valeurs
+        // THEN SELECT * FROM llm_calls returns 1 row with the right values
         let rows = repo.query_by_task("task-42").expect("query should succeed");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].id, "call-001");
@@ -377,7 +360,7 @@ mod tests {
         // GIVEN debug_log_prompt = false → prompt_text not passed
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
 
-        // WHEN save(record avec prompt_text = None)
+        // WHEN save(record with prompt_text = None)
         let record = LlmCallRecord {
             id: "call-002".into(),
             task_id: Some("task-43".into()),
@@ -401,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_llm_call_cost_and_tokens_stored_correctly() {
-        // GIVEN un record avec prompt_tokens=1000, completion_tokens=500, cost_usd=0.0125
+        // GIVEN a record with prompt_tokens=1000, completion_tokens=500, cost_usd=0.0125
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
 
         let record = LlmCallRecord {
@@ -419,7 +402,7 @@ mod tests {
         };
         repo.save(&record).expect("save should succeed");
 
-        // THEN SELECT prompt_tokens, completion_tokens, cost_usd → (1000, 500, 0.0125)
+        // THEN SELECT prompt_tokens, completion_tokens, cost_usd returns (1000, 500, 0.0125)
         let rows = repo.query_by_task("task-44").expect("query should succeed");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].prompt_tokens, Some(1000));
@@ -430,7 +413,7 @@ mod tests {
 
     #[test]
     fn test_costs_by_backend_model_aggregation() {
-        // GIVEN plusieurs appels sur 2 backends
+        // GIVEN several calls across 2 backends
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
 
         for i in 0..3 {
@@ -464,12 +447,12 @@ mod tests {
         };
         repo.save(&record).expect("save should succeed");
 
-        // WHEN agrégation depuis epoch
+        // WHEN aggregating since epoch
         let summaries = repo
             .costs_by_backend_model_since("2000-01-01T00:00:00Z")
             .expect("query should succeed");
 
-        // THEN 2 groupes
+        // THEN 2 groups
         assert_eq!(summaries.len(), 2);
 
         let anthropic = summaries
@@ -491,19 +474,19 @@ mod tests {
 
     #[test]
     fn test_query_by_task_returns_empty_for_unknown() {
-        // GIVEN un repo vide
+        // GIVEN an empty repo
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
 
-        // WHEN query pour un task_id inconnu
+        // WHEN querying for an unknown task_id
         let rows = repo.query_by_task("unknown").expect("query should succeed");
 
-        // THEN vide
+        // THEN empty
         assert!(rows.is_empty());
     }
 
     #[test]
     fn test_llm_call_with_no_task_id() {
-        // GIVEN un appel sans task_id (e.g. depuis /llm/chat API)
+        // GIVEN a call with no task_id (e.g. from the /llm/chat API)
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
 
         let record = LlmCallRecord {
@@ -521,7 +504,7 @@ mod tests {
         };
         repo.save(&record).expect("save should succeed");
 
-        // THEN l'enregistrement existe (query directe SQL)
+        // THEN the record exists (direct SQL query)
         let count: i64 = repo
             .conn
             .query_row(
@@ -535,7 +518,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_subscriber_persists_llm_call_completed() {
-        // GIVEN un repo in-memory + EventBus + subscriber
+        // GIVEN an in-memory repo + EventBus + subscriber
         let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
         let repo = Arc::new(Mutex::new(repo));
         let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
@@ -543,7 +526,7 @@ mod tests {
 
         let _handle = spawn_subscriber(Arc::clone(&repo), &tx, obs);
 
-        // WHEN un LlmCallCompleted est émis
+        // WHEN an LlmCallCompleted is emitted
         let _ = tx.send(RuntimeEvent::LlmCallCompleted {
             backend: "anthropic".into(),
             model: "sonnet".into(),
@@ -555,10 +538,10 @@ mod tests {
             cost_usd: Some(0.003),
         });
 
-        // Attendre que le spawn_blocking ait le temps de s'exécuter
+        // Wait for the spawn_blocking to have time to run
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        // THEN l'enregistrement est persisté
+        // THEN the record is persisted
         let guard = repo.lock().expect("lock");
         let rows = guard.query_by_task("task-99").expect("query");
         assert_eq!(rows.len(), 1);

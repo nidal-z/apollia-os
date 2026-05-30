@@ -47,7 +47,7 @@ def test_skill_marker_with_all_args() -> None:
 
 
 def test_skill_returns_method_unchanged() -> None:
-    async def original(self: object) -> dict[str, str]:
+    async def original(self: object) -> dict[str, str]:  # NOSONAR
         return {"ok": "true"}
 
     decorated = skill("x.y")(original)
@@ -141,7 +141,7 @@ def test_skill_id_with_digits_and_underscore_valid() -> None:
 
 def test_skill_id_none_raises() -> None:
     with pytest.raises(AgentConfigError):
-        skill(None)  # type: ignore[arg-type]
+        skill(None)  # type: ignore[arg-type]  # NOSONAR
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ def test_skill_on_async_method_ok() -> None:
 
 
 def test_skill_applied_twice_raises() -> None:
-    async def fn(self: object) -> dict[str, str]:
+    async def fn(self: object) -> dict[str, str]:  # NOSONAR
         return {}
 
     skill("a.b")(fn)
@@ -182,12 +182,12 @@ def test_skill_applied_twice_raises() -> None:
 def test_skill_description_must_be_string() -> None:
     with pytest.raises(AgentConfigError, match="description"):
 
-        @skill("x.y", description=123)  # type: ignore[arg-type]
+        @skill("x.y", description=123)  # type: ignore[arg-type]  # NOSONAR
         async def fn(self: object) -> dict[str, str]:
             return {}
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────  # NOSONAR
 # examples= keyword
 # ──────────────────────────────────────────────────────────────────────
 

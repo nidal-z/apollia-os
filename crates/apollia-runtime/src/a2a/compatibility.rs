@@ -1,33 +1,33 @@
-//! Vérification de compatibilité semver entre versions requise et advertised d'un skill A2A.
+//! Semver compatibility check between the required and advertised versions of an A2A skill.
 //!
-//! Applique une politique simple alignée sur semver.org :
-//! - **MAJOR mismatch** : breaking change ; le Worker n'est pas compatible.
-//! - **MINOR mismatch** : potentielles API additions ; compatible mais émet un warning
-//!   si `advertised.minor < required.minor` (le Worker est plus vieux que ce que
-//!   le Director réclame).
-//! - **PATCH mismatch** : purement fixes ; aucun warning.
+//! Applies a simple policy aligned with semver.org:
+//! - **MAJOR mismatch**: breaking change; the Worker is not compatible.
+//! - **MINOR mismatch**: potential API additions; compatible but emits a warning
+//!   if `advertised.minor < required.minor` (the Worker is older than what
+//!   the Director requires).
+//! - **PATCH mismatch**: pure fixes; no warning.
 //!
-//! précise que l'on émet un warning pour les mismatch MINOR (semver
-//! minor). Les mismatch MAJOR sont considérés comme incompatibles.
+//! A warning is emitted for MINOR mismatches (semver minor). MAJOR mismatches
+//! are treated as incompatible.
 
 use serde::{Deserialize, Serialize};
 
-/// Version semver triée en trois composantes.
+/// Semver version split into three components.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SemVer {
-    /// Composante majeure.
+    /// Major component.
     pub major: u32,
-    /// Composante mineure.
+    /// Minor component.
     pub minor: u32,
-    /// Composante patch.
+    /// Patch component.
     pub patch: u32,
 }
 
 impl SemVer {
-    /// Parse une chaîne semver `"MAJOR.MINOR.PATCH"`. Tolère un préfixe `v`
-    /// et un suffixe `-pre` / `+meta` (ignorés).
+    /// Parses a semver string `"MAJOR.MINOR.PATCH"`. Tolerates a `v` prefix
+    /// and a `-pre` / `+meta` suffix (ignored).
     ///
-    /// Retourne `None` si le format n'est pas exploitable.
+    /// Returns `None` if the format is not usable.
     pub fn parse(raw: &str) -> Option<Self> {
         let trimmed = raw.trim().trim_start_matches('v');
         let core = trimmed.split(['-', '+']).next().unwrap_or(trimmed);
@@ -43,41 +43,41 @@ impl SemVer {
     }
 }
 
-/// Niveau de gravité d'une incompatibilité.
+/// Severity level of an incompatibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CompatSeverity {
-    /// Aucune alternative n'est utilisable — le Director devrait éviter ce Worker.
+    /// No usable alternative: the Director should avoid this Worker.
     Incompatible,
-    /// Le Worker fonctionne mais certaines capacités peuvent manquer.
+    /// The Worker works but some capabilities may be missing.
     Warning,
 }
 
-/// Warning structuré de compatibilité A2A.
+/// Structured A2A compatibility warning.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ACompatibilityWarning {
-    /// Identifiant du skill concerné.
+    /// Identifier of the affected skill.
     pub skill_id: String,
-    /// Nom du Worker Agent advertised.
+    /// Advertised name of the Worker Agent.
     pub agent_name: String,
-    /// Version semver requise par le Director.
+    /// Semver version required by the Director.
     pub required_version: String,
-    /// Version semver advertised par le Worker.
+    /// Semver version advertised by the Worker.
     pub advertised_version: String,
-    /// Gravité du mismatch.
+    /// Severity of the mismatch.
     pub severity: CompatSeverity,
-    /// Message humain décrivant l'écart.
+    /// Human-readable message describing the gap.
     pub message: String,
-    /// Nom d'un Worker alternatif compatible, si disponible.
+    /// Name of a compatible alternative Worker, if available.
     pub alternative_agent: Option<String>,
 }
 
-/// Compare une version requise à une version advertised et retourne un warning
-/// structuré si un mismatch pertinent est détecté.
+/// Compares a required version against an advertised version and returns a
+/// structured warning if a relevant mismatch is detected.
 ///
-/// Retourne `None` si les versions sont parfaitement compatibles ou si le parsing
-/// échoue (dans ce cas, on considère l'ancien comportement — pas de warning pour
-/// ne pas bloquer des Workers mal versionnés).
+/// Returns `None` if the versions are perfectly compatible or if parsing
+/// fails (in which case the lenient behavior applies: no warning, so as not
+/// to block poorly versioned Workers).
 pub fn check_compatibility(
     skill_id: &str,
     agent_name: &str,
@@ -102,7 +102,7 @@ pub fn check_compatibility(
         });
     }
 
-    // Minor mismatch : warn quand le Worker est plus ancien que ce que le Director demande.
+    // Minor mismatch: warn when the Worker is older than what the Director requests.
     if adv.minor < req.minor {
         return Some(A2ACompatibilityWarning {
             skill_id: skill_id.to_string(),
@@ -121,10 +121,10 @@ pub fn check_compatibility(
     None
 }
 
-/// Attache un Worker alternatif compatible au warning, si disponible.
+/// Attaches a compatible alternative Worker to the warning, if available.
 ///
-/// `alternatives` est la liste des paires `(agent_name, advertised_version)` parmi
-/// lesquelles on cherche un candidat qui satisferait `required_version`.
+/// `alternatives` is the list of `(agent_name, advertised_version)` pairs among
+/// which a candidate satisfying `required_version` is sought.
 pub fn with_alternative(
     mut warning: A2ACompatibilityWarning,
     alternatives: &[(String, String)],
@@ -184,29 +184,29 @@ mod tests {
     fn test_identical_versions_no_warning() {
         // GIVEN required == advertised
         let w = check_compatibility("s", "a", "1.2.3", "1.2.3");
-        // THEN pas de warning
+        // THEN no warning
         assert!(w.is_none());
     }
 
     #[test]
     fn test_patch_mismatch_no_warning() {
-        // GIVEN un simple diff patch
+        // GIVEN a simple patch diff
         let w = check_compatibility("s", "a", "1.2.3", "1.2.9");
-        // THEN aucun warning (patch est considéré comme compatible)
+        // THEN no warning (patch is considered compatible)
         assert!(w.is_none());
     }
 
     #[test]
     fn test_advertised_newer_minor_no_warning() {
-        // GIVEN worker plus récent en minor
+        // GIVEN a worker newer on the minor component
         let w = check_compatibility("s", "a", "1.2.0", "1.5.0");
-        // THEN pas de warning — le worker est compatible rétro-actif.
+        // THEN no warning: the worker is backward compatible.
         assert!(w.is_none());
     }
 
     #[test]
     fn test_advertised_older_minor_emits_warning() {
-        // GIVEN director demande 1.5 mais worker advertises 1.2
+        // GIVEN the director requires 1.5 but the worker advertises 1.2
         let w = check_compatibility("read-excel", "worker-a", "1.5.0", "1.2.0")
             .expect("expected a warning");
 
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_major_mismatch_is_incompatible() {
-        // GIVEN major divergent
+        // GIVEN a divergent major
         let w = check_compatibility("s", "a", "2.0.0", "1.9.0").unwrap();
         // THEN severity = Incompatible
         assert_eq!(w.severity, CompatSeverity::Incompatible);
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_with_alternative_finds_compatible_worker() {
-        // GIVEN un warning et un Worker alternatif compatible
+        // GIVEN a warning and a compatible alternative Worker
         let w = check_compatibility("s", "worker-a", "1.5.0", "1.2.0").unwrap();
         let alts = vec![
             ("worker-a".to_string(), "1.2.0".to_string()),
@@ -237,18 +237,18 @@ mod tests {
         ];
         let enriched = with_alternative(w, &alts);
 
-        // THEN worker-b est proposé
+        // THEN worker-b is proposed
         assert_eq!(enriched.alternative_agent.as_deref(), Some("worker-b"));
     }
 
     #[test]
     fn test_with_alternative_none_when_no_match() {
-        // GIVEN aucun alternatif compatible
+        // GIVEN no compatible alternative
         let w = check_compatibility("s", "worker-a", "1.5.0", "1.2.0").unwrap();
         let alts = vec![("worker-c".to_string(), "0.9.0".to_string())];
         let enriched = with_alternative(w, &alts);
 
-        // THEN pas d'alternative
+        // THEN no alternative
         assert!(enriched.alternative_agent.is_none());
     }
 }

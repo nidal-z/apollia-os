@@ -1,20 +1,20 @@
-//! Erreurs du moteur de permissions.
+//! Permission engine errors.
 
-/// Erreur du moteur de permissions 3 couches.
+/// Three-layer permission engine error.
 #[derive(Debug, thiserror::Error)]
 pub enum PermissionError {
-    /// Erreur SQLite lors d'une opération sur la base de règles ou l'audit log.
+    /// SQLite error during a rule database or audit log operation.
     #[error("SQLite error: {0}")]
     Database(#[from] rusqlite::Error),
 
-    /// Décision de refus explicite (AutoDenied*).
+    /// Explicit denial decision (AutoDenied*).
     #[error("permission denied: {reason}")]
     Denied {
-        /// Raison lisible du refus.
+        /// Human-readable reason for the denial.
         reason: String,
     },
 
-    /// Format de règle invalide (ex : préfixe vide, nom d'outil vide).
+    /// Invalid rule format (e.g. empty prefix, empty tool name).
     #[error("invalid rule format: {0}")]
     InvalidRule(String),
 }

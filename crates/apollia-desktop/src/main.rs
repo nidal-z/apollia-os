@@ -1,4 +1,4 @@
-//! Apollia OS — Desktop application (Tauri v2).
+//! Apollia OS desktop application (Tauri v2).
 //!
 //! Single-process architecture: the Apollia runtime runs embedded inside the
 //! Tauri process via [`apollia_runtime::init_embedded()`]. The Unix socket
@@ -34,7 +34,7 @@ use mcp::McpRegistryClient;
 use mcp::SecretStore;
 use tauri::Manager;
 
-/// Shared mutable LLM router — updated by `reload_llm`, read by
+/// Shared mutable LLM router: updated by `reload_llm`, read by
 /// `ProductionChatAgentRunner` and `ProductionBackendFactory`.
 pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
 
@@ -52,9 +52,9 @@ fn expand_tilde(s: &str) -> std::path::PathBuf {
 /// (llm, triggers, notifications) to the provided `EmbeddedConfig`.
 ///
 /// Search order (first match wins):
-///   1. `~/.apollia/apollia.toml`        — standard user config
-///   2. `./apollia.toml`                 — CWD (useful when running from workspace root)
-///   3. `~/.config/apollia/apollia.toml` — XDG fallback
+///   1. `~/.apollia/apollia.toml`        : standard user config
+///   2. `./apollia.toml`                 : CWD (useful when running from workspace root)
+///   3. `~/.config/apollia/apollia.toml` : XDG fallback
 ///
 /// Returns the config unchanged if no file is found.
 fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
@@ -88,7 +88,7 @@ fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
 ///   `Contents/Resources/python/`, Linux `../lib/apollia-os/python/` relative to
 ///   `/usr/bin/`, or `../python/` relative to a dev `target/release/` layout),
 ///   the interpreter is reconfigured against it.
-/// - If not found, logs a warning and leaves env vars alone (dev mode — the
+/// - If not found, logs a warning and leaves env vars alone (dev mode: the
 ///   developer's Homebrew/pyenv Python takes over, same as before).
 fn setup_bundled_python() {
     let exe = match std::env::current_exe() {
@@ -103,13 +103,13 @@ fn setup_bundled_python() {
         None => return,
     };
 
-    // Candidate search order — first match wins.
+    // Candidate search order: first match wins.
     let candidates: [std::path::PathBuf; 3] = [
-        // macOS: Contents/MacOS/apollia-desktop → Contents/Resources/python/
+        // macOS: Contents/MacOS/apollia-desktop -> Contents/Resources/python/
         exe_dir.join("../Resources/python"),
-        // Linux AppImage / .deb: usr/bin/apollia-desktop → usr/lib/apollia-os/python/
+        // Linux AppImage / .deb: usr/bin/apollia-desktop -> usr/lib/apollia-os/python/
         exe_dir.join("../lib/apollia-os/python"),
-        // Dev build fallback: target/release/apollia-desktop → target/python-bundle/<triple>/python/
+        // Dev build fallback: target/release/apollia-desktop -> target/python-bundle/<triple>/python/
         // (populated by packaging/build-python-bundle.sh during dev)
         exe_dir.join("../../resources/python"),
     ];
@@ -151,6 +151,251 @@ fn setup_bundled_python() {
     );
 }
 
+/// Load the STT config from `system.db` for the desktop hotkey listener.
+///
+/// Returns `None` (and logs a warning) when the DB cannot be opened or read,
+/// disabling the hotkey gracefully.
+fn load_stt_config(apollia_data_dir: &std::path::Path) -> Option<apollia_core::SttConfigRow> {
+    let system_db = apollia_data_dir.join("system.db");
+    let repo = match SttConfigRepository::open(&system_db) {
+        Ok(repo) => repo,
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to open system.db for STT config — hotkey disabled");
+            return None;
+        }
+    };
+    match repo.get_or_default() {
+        Ok(cfg) => Some(cfg),
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to read STT config from SQLite — hotkey disabled");
+            None
+        }
+    }
+}
+
+/// Borrowed references to the shared `OnceLock`s / `RwLock` populated from the
+/// `RuntimeHandle` once the supervisor is running.
+struct RuntimeLocks<'a> {
+    event_bus: &'a std::sync::OnceLock<EventBusSender>,
+    llm_router: &'a std::sync::RwLock<Option<Arc<LlmRouter>>>,
+    tool_registry: &'a std::sync::OnceLock<ToolRegistryHandle>,
+    audit_trail: &'a std::sync::OnceLock<AuditTrailHandle>,
+    pending_approvals: &'a std::sync::OnceLock<Arc<PendingApprovals>>,
+    task_repository: &'a std::sync::OnceLock<Arc<TaskRepository>>,
+    pending_user_inputs: &'a std::sync::OnceLock<PendingUserInputs>,
+    mcp_handle: &'a std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>,
+    agent_registry: &'a std::sync::OnceLock<AgentRegistryHandle>,
+    task_router: &'a std::sync::OnceLock<TaskRouterHandle<DynBackend>>,
+    mailbox_handle: &'a std::sync::OnceLock<AgentMailboxHandle>,
+    user_memory: &'a std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    tools_config: &'a std::sync::OnceLock<ToolsConfig>,
+}
+
+/// Populate the shared locks from the running `RuntimeHandle`.
+///
+/// Required for parity between Chat Libre, Chat Agent, and task-mode flows.
+/// Without these, Python agents in non-chat-libre flows lose `ctx.a2a_invoke`,
+/// `ctx.mailbox`, `ctx.user_context`, and apollia.toml's `[tools]` overrides.
+fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: RuntimeLocks<'_>) {
+    let _ = locks.event_bus.set(runtime_handle.event_sender.clone());
+    *locks.llm_router.write().expect("llm_router_lock poisoned") =
+        runtime_handle.llm_router.clone();
+    let _ = locks
+        .tool_registry
+        .set(runtime_handle.tool_registry_handle.clone());
+    if let Some(audit) = runtime_handle.audit_trail.clone() {
+        let _ = locks.audit_trail.set(audit);
+    }
+    if let Some(pa) = runtime_handle.pending_approvals.clone() {
+        let _ = locks.pending_approvals.set(pa);
+    }
+    if let Some(repo) = runtime_handle.task_repository.clone() {
+        let _ = locks.task_repository.set(repo);
+    }
+    if let Some(chat) = runtime_handle.chat_manager.as_ref() {
+        let _ = locks.pending_user_inputs.set(chat.pending_user_inputs());
+    }
+    if let Some(mcp) = runtime_handle.mcp_handle.clone() {
+        let _ = locks.mcp_handle.set(mcp);
+    }
+    let _ = locks
+        .agent_registry
+        .set(runtime_handle.registry_handle.clone());
+    let _ = locks.task_router.set(runtime_handle.router_handle.clone());
+    if let Some(mailbox) = runtime_handle.mailbox_handle.clone() {
+        let _ = locks.mailbox_handle.set(mailbox);
+    }
+    if let Some(um) = runtime_handle.user_memory.clone() {
+        let _ = locks.user_memory.set(um);
+    }
+    let _ = locks.tools_config.set(runtime_handle.tools_config.clone());
+}
+
+/// Auto-load every enabled installed agent into the running supervisor.
+///
+/// Runs after the `OnceLock`s are populated so the `ProductionBackendFactory`
+/// can build real backends. Failures per agent are logged and skipped: one
+/// broken agent must not abort boot of the others.
+fn auto_load_installed_agents(
+    repo: AgentRepository,
+    factory: &Arc<dyn AgentBackendFactory>,
+    runtime_handle: &RuntimeHandle,
+) {
+    let agent_loader_for_boot: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
+    let agents = match repo.list_enabled() {
+        Ok(agents) => agents,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to list installed agents — skipping auto-load");
+            return;
+        }
+    };
+
+    for agent in &agents {
+        if !agent.enabled {
+            continue;
+        }
+        let manifest = match agent_loader_for_boot.load_and_validate(&agent.install_path) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::warn!(name = %agent.name, error = %e, "Failed to load installed agent at boot");
+                let _ = runtime_handle.event_sender.send(
+                    apollia_core::events::RuntimeEvent::AgentLoadFailed {
+                        name: agent.name.clone(),
+                        error: e.to_string(),
+                    },
+                );
+                continue;
+            }
+        };
+
+        // Register in AgentRegistry. We're on the main thread (not inside
+        // Tokio); reuse the current handle or build a small current-thread
+        // runtime to drive the async registration to completion.
+        let rt = tokio::runtime::Handle::try_current()
+            .or_else(|_| {
+                Ok::<_, std::io::Error>(
+                    tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()?
+                        .handle()
+                        .clone(),
+                )
+            })
+            .expect("failed to get tokio handle for agent auto-load");
+
+        let registry_handle = runtime_handle.registry_handle.clone();
+        let router_handle = runtime_handle.router_handle.clone();
+        let event_sender = runtime_handle.event_sender.clone();
+        let task_repository = runtime_handle.task_repository.clone();
+        let factory_ref = factory.clone();
+        let install_path = agent.install_path.clone();
+        let agent_manifest = agent.manifest.clone();
+        let max_concurrent = manifest.max_concurrent_tasks;
+        let agent_name = manifest.name.clone();
+
+        rt.block_on(async move {
+            let agent_id = match registry_handle.register(manifest).await {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::warn!(name = %agent_name, error = %e, "Failed to register agent at boot");
+                    return;
+                }
+            };
+
+            if let Err(e) = registry_handle
+                .update_state(agent_id.as_str(), apollia_core::process::ProcessState::Active)
+                .await
+            {
+                tracing::warn!(name = %agent_name, error = %e, "Failed to activate agent at boot");
+                return;
+            }
+
+            let agent_backend = factory_ref.create_for_agent(&install_path, &agent_manifest);
+            let mut coordinator = apollia_runtime::coordinator::ExecutionCoordinator::new(
+                agent_id.clone(),
+                max_concurrent,
+                event_sender,
+                agent_backend,
+            )
+            .with_agent_name(agent_name.clone());
+            if let Some(ref repo) = task_repository {
+                coordinator = coordinator.with_task_repository(
+                    Arc::clone(repo),
+                    apollia_core::observability::ObservabilityConfig::default(),
+                );
+            }
+
+            let _ = router_handle
+                .register_coordinator(agent_id.clone(), coordinator)
+                .await;
+            tracing::info!(name = %agent_name, id = %agent_id, "Auto-loaded installed agent (post-init)");
+        });
+    }
+}
+
+/// Wire the global STT hotkey + recording overlay to the full `SttFlow`
+/// pipeline. Best-effort: each failure degrades gracefully with a warning.
+fn setup_stt_hotkey(
+    app: &tauri::App,
+    stt_cfg: &apollia_core::SttConfigRow,
+    runtime_handle: &RuntimeHandle,
+    stt_flow_state: &commands::stt::SttFlowState,
+) {
+    let Some(stt_engine) = runtime_handle.stt_engine.as_ref() else {
+        tracing::warn!("STT enabled in config but engine not loaded — hotkey disabled");
+        return;
+    };
+
+    let flow = Arc::new(stt::flow::SttFlow::new(
+        stt_cfg.clone(),
+        stt_engine.clone(),
+        runtime_handle.event_sender.clone(),
+        app.handle().clone(),
+    ));
+
+    let mode = stt::hotkey::TriggerMode::from_config(&stt_cfg.trigger_mode);
+    let listener = stt::hotkey::HotkeyListener::new(stt_cfg.hotkey.clone(), mode);
+
+    // Make the flow accessible to push-to-talk IPC commands.
+    if let Ok(mut guard) = stt_flow_state.lock() {
+        *guard = Some(Arc::clone(&flow));
+    }
+
+    let flow_start = Arc::clone(&flow);
+    let flow_stop = Arc::clone(&flow);
+
+    if let Err(e) = listener.register(
+        app.handle(),
+        move || {
+            flow_start.start_recording();
+        },
+        move || {
+            let flow = Arc::clone(&flow_stop);
+            tauri::async_runtime::spawn(async move {
+                flow.stop_and_transcribe().await;
+            });
+        },
+    ) {
+        tracing::warn!(error = %e, "STT hotkey registration failed — recording via hotkey disabled");
+    }
+
+    // Recording overlay: secondary always-on-top window that shows a visual
+    // indicator while audio capture is active. Escape cancels the recording.
+    let flow_cancel = Arc::clone(&flow);
+    let on_cancel = Arc::new(move || {
+        flow_cancel.cancel_recording();
+    });
+    match stt::overlay::RecordingOverlay::create(app.handle(), stt_cfg.hotkey.clone(), on_cancel) {
+        Ok(overlay) => {
+            stt::overlay::spawn_overlay_listener(overlay, &runtime_handle.event_sender);
+            tracing::info!("recording overlay window created");
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to create recording overlay — visual indicator disabled");
+        }
+    }
+}
+
 fn main() {
     // Initialize tracing so Rust logs appear in the terminal during development.
     // RUST_LOG controls verbosity (e.g. RUST_LOG=apollia=debug); defaults to info.
@@ -184,20 +429,20 @@ fn main() {
     // McpToolExecutor per registered MCP tool into the agent's dispatcher.
     let mcp_handle_lock: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>> =
         Arc::new(std::sync::OnceLock::new());
-    // Agent registry + task router — required to build A2A delegate/invoker so
+    // Agent registry + task router, required to build A2A delegate/invoker so
     // task-mode (triggers) and chat-agent flows can call `ctx.a2a_invoke(...)`
     // and discover virtual `a2a:*` tools, on parity with Chat Libre.
     let agent_registry_lock: Arc<std::sync::OnceLock<AgentRegistryHandle>> =
         Arc::new(std::sync::OnceLock::new());
     let task_router_lock: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>> =
         Arc::new(std::sync::OnceLock::new());
-    // Inter-agent mailbox — exposed as `ctx.mailbox` in Python agents.
+    // Inter-agent mailbox, exposed as `ctx.mailbox` in Python agents.
     let mailbox_handle_lock: Arc<std::sync::OnceLock<AgentMailboxHandle>> =
         Arc::new(std::sync::OnceLock::new());
-    // Global user memory — used by Chat Agent runner to build `ctx.user_context`.
+    // Global user memory, used by Chat Agent runner to build `ctx.user_context`.
     let user_memory_lock: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>> =
         Arc::new(std::sync::OnceLock::new());
-    // Tools config (`[tools]` from apollia.toml) — drives web_search/web_read
+    // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
     let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =
         Arc::new(std::sync::OnceLock::new());
@@ -276,7 +521,7 @@ fn main() {
         }
     };
 
-    // Do NOT pass agent_repository here — auto-load inside the Supervisor
+    // Do NOT pass agent_repository here: auto-load inside the Supervisor
     // happens before OnceLocks are populated, causing "event bus not initialized"
     // errors. Instead, we auto-load manually after OnceLocks are set below.
     let config = load_toml_config(EmbeddedConfig {
@@ -291,151 +536,32 @@ fn main() {
         apollia_runtime::init_embedded(config).expect("failed to start embedded runtime");
 
     // Load the STT config from SQLite for the desktop hotkey listener.
-    let stt_config_for_hotkey = {
-        let system_db = apollia_data_dir.join("system.db");
-        match SttConfigRepository::open(&system_db) {
-            Ok(repo) => match repo.get_or_default() {
-                Ok(cfg) => Some(cfg),
-                Err(e) => {
-                    tracing::warn!(error = %e, "failed to read STT config from SQLite — hotkey disabled");
-                    None
-                }
-            },
-            Err(e) => {
-                tracing::warn!(error = %e, "failed to open system.db for STT config — hotkey disabled");
-                None
-            }
-        }
-    };
+    let stt_config_for_hotkey = load_stt_config(&apollia_data_dir);
 
     // Populate OnceLocks now that the supervisor is fully running.
-    let _ = event_bus_lock.set(runtime_handle.event_sender.clone());
-    *llm_router_lock.write().expect("llm_router_lock poisoned") = runtime_handle.llm_router.clone();
-    let _ = tool_registry_lock.set(runtime_handle.tool_registry_handle.clone());
-    if let Some(audit) = runtime_handle.audit_trail.clone() {
-        let _ = audit_trail_lock.set(audit);
-    }
-    if let Some(pa) = runtime_handle.pending_approvals.clone() {
-        let _ = pending_approvals_lock.set(pa);
-    }
-    if let Some(repo) = runtime_handle.task_repository.clone() {
-        let _ = task_repository_lock.set(repo);
-    }
-    if let Some(chat) = runtime_handle.chat_manager.as_ref() {
-        let _ = pending_user_inputs_lock.set(chat.pending_user_inputs());
-    }
-    if let Some(mcp) = runtime_handle.mcp_handle.clone() {
-        let _ = mcp_handle_lock.set(mcp);
-    }
-    // A2A, mailbox, user_memory, tools_config — required for parity between
-    // Chat Libre, Chat Agent, and task-mode (triggers/manual fires/API tasks).
-    // Without these, Python agents in non-chat-libre flows lose `ctx.a2a_invoke`,
-    // `ctx.mailbox`, `ctx.user_context`, and apollia.toml's `[tools]` overrides.
-    let _ = agent_registry_lock.set(runtime_handle.registry_handle.clone());
-    let _ = task_router_lock.set(runtime_handle.router_handle.clone());
-    if let Some(mailbox) = runtime_handle.mailbox_handle.clone() {
-        let _ = mailbox_handle_lock.set(mailbox);
-    }
-    if let Some(um) = runtime_handle.user_memory.clone() {
-        let _ = user_memory_lock.set(um);
-    }
-    let _ = tools_config_lock.set(runtime_handle.tools_config.clone());
+    populate_runtime_locks(
+        &runtime_handle,
+        RuntimeLocks {
+            event_bus: &event_bus_lock,
+            llm_router: &llm_router_lock,
+            tool_registry: &tool_registry_lock,
+            audit_trail: &audit_trail_lock,
+            pending_approvals: &pending_approvals_lock,
+            task_repository: &task_repository_lock,
+            pending_user_inputs: &pending_user_inputs_lock,
+            mcp_handle: &mcp_handle_lock,
+            agent_registry: &agent_registry_lock,
+            task_router: &task_router_lock,
+            mailbox_handle: &mailbox_handle_lock,
+            user_memory: &user_memory_lock,
+            tools_config: &tools_config_lock,
+        },
+    );
 
-    // Auto-load installed agents NOW — OnceLocks are populated so the
+    // Auto-load installed agents now that the OnceLocks are populated so the
     // ProductionBackendFactory can create real backends.
     if let Some(repo) = boot_agent_repo {
-        let agent_loader_for_boot: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
-        match repo.list_enabled() {
-            Ok(agents) => {
-                for agent in &agents {
-                    if !agent.enabled {
-                        continue;
-                    }
-                    let manifest = match agent_loader_for_boot
-                        .load_and_validate(&agent.install_path)
-                    {
-                        Ok(m) => m,
-                        Err(e) => {
-                            tracing::warn!(name = %agent.name, error = %e, "Failed to load installed agent at boot");
-                            let _ = runtime_handle.event_sender.send(
-                                apollia_core::events::RuntimeEvent::AgentLoadFailed {
-                                    name: agent.name.clone(),
-                                    error: e.to_string(),
-                                },
-                            );
-                            continue;
-                        }
-                    };
-
-                    let max_concurrent = manifest.max_concurrent_tasks;
-                    let agent_name = manifest.name.clone();
-
-                    // Register in AgentRegistry.
-                    let rt = tokio::runtime::Handle::try_current()
-                        .or_else(|_| {
-                            // We're on the main thread (not inside Tokio) — use the
-                            // runtime handle from the embedded runtime thread.
-                            // Since init_embedded() is blocking, we need a small
-                            // runtime to send async messages.
-                            Ok::<_, std::io::Error>(
-                                tokio::runtime::Builder::new_current_thread()
-                                    .enable_all()
-                                    .build()?
-                                    .handle()
-                                    .clone(),
-                            )
-                        })
-                        .expect("failed to get tokio handle for agent auto-load");
-
-                    let registry_handle = runtime_handle.registry_handle.clone();
-                    let router_handle = runtime_handle.router_handle.clone();
-                    let event_sender = runtime_handle.event_sender.clone();
-                    let task_repository = runtime_handle.task_repository.clone();
-                    let factory_ref = factory.clone();
-                    let install_path = agent.install_path.clone();
-                    let agent_manifest = agent.manifest.clone();
-
-                    rt.block_on(async {
-                        let agent_id = match registry_handle.register(manifest).await {
-                            Ok(id) => id,
-                            Err(e) => {
-                                tracing::warn!(name = %agent_name, error = %e, "Failed to register agent at boot");
-                                return;
-                            }
-                        };
-
-                        if let Err(e) = registry_handle
-                            .update_state(agent_id.as_str(), apollia_core::process::ProcessState::Active)
-                            .await
-                        {
-                            tracing::warn!(name = %agent_name, error = %e, "Failed to activate agent at boot");
-                            return;
-                        }
-
-                        let agent_backend = factory_ref.create_for_agent(&install_path, &agent_manifest);
-                        let mut coordinator = apollia_runtime::coordinator::ExecutionCoordinator::new(
-                            agent_id.clone(),
-                            max_concurrent,
-                            event_sender,
-                            agent_backend,
-                        )
-                        .with_agent_name(agent_name.clone());
-                        if let Some(ref repo) = task_repository {
-                            coordinator = coordinator.with_task_repository(
-                                Arc::clone(repo),
-                                apollia_core::observability::ObservabilityConfig::default(),
-                            );
-                        }
-
-                        let _ = router_handle.register_coordinator(agent_id.clone(), coordinator).await;
-                        tracing::info!(name = %agent_name, id = %agent_id, "Auto-loaded installed agent (post-init)");
-                    });
-                }
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to list installed agents — skipping auto-load");
-            }
-        }
+        auto_load_installed_agents(repo, &factory, &runtime_handle);
     }
 
     // Open a second AgentRepository instance for Tauri IPC commands.
@@ -472,10 +598,10 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        // External URL opener — bridges the webview to the system browser for
-        // OAuth flows and outbound help/docs links (ADR-095 Phase 4 + 5).
+        // External URL opener: bridges the webview to the system browser for
+        // OAuth flows and outbound help/docs links.
         // Tauri 2 disabled `window.open()` and `<a target="_blank">` by
-        // default; this plugin (+ the `opener:default` capability permission)
+        // default; this plugin (plus the `opener:default` capability permission)
         // is the canonical replacement.
         .plugin(tauri_plugin_opener::init())
         .manage(runtime_handle.clone())
@@ -526,75 +652,14 @@ fn main() {
             // when STT is enabled and the engine loaded successfully.
             if let Some(ref stt_cfg) = stt_config_for_hotkey {
                 if stt_cfg.enabled {
-                    if let Some(ref stt_engine) = runtime_handle.stt_engine {
-                        let flow = Arc::new(stt::flow::SttFlow::new(
-                            stt_cfg.clone(),
-                            stt_engine.clone(),
-                            runtime_handle.event_sender.clone(),
-                            app.handle().clone(),
-                        ));
-
-                        let mode =
-                            stt::hotkey::TriggerMode::from_config(&stt_cfg.trigger_mode);
-                        let listener =
-                            stt::hotkey::HotkeyListener::new(stt_cfg.hotkey.clone(), mode);
-
-                        // Make the flow accessible to push-to-talk IPC commands.
-                        if let Ok(mut guard) = stt_flow_state.lock() {
-                            *guard = Some(Arc::clone(&flow));
-                        }
-
-                        let flow_start = Arc::clone(&flow);
-                        let flow_stop = Arc::clone(&flow);
-
-                        if let Err(e) = listener.register(
-                            app.handle(),
-                            move || {
-                                flow_start.start_recording();
-                            },
-                            move || {
-                                let flow = Arc::clone(&flow_stop);
-                                tauri::async_runtime::spawn(async move {
-                                    flow.stop_and_transcribe().await;
-                                });
-                            },
-                        ) {
-                            tracing::warn!(error = %e, "STT hotkey registration failed — recording via hotkey disabled");
-                        }
-
-                        // Recording overlay: secondary always-on-top window that
-                        // shows a visual indicator while audio capture is active.
-                        // Escape cancels (discards) the current recording.
-                        let flow_cancel = Arc::clone(&flow);
-                        let on_cancel = Arc::new(move || {
-                            flow_cancel.cancel_recording();
-                        });
-                        match stt::overlay::RecordingOverlay::create(
-                            app.handle(),
-                            stt_cfg.hotkey.clone(),
-                            on_cancel,
-                        ) {
-                            Ok(overlay) => {
-                                stt::overlay::spawn_overlay_listener(
-                                    overlay,
-                                    &runtime_handle.event_sender,
-                                );
-                                tracing::info!("recording overlay window created");
-                            }
-                            Err(e) => {
-                                tracing::warn!(error = %e, "failed to create recording overlay — visual indicator disabled");
-                            }
-                        }
-                    } else {
-                        tracing::warn!("STT enabled in config but engine not loaded — hotkey disabled");
-                    }
+                    setup_stt_hotkey(app, stt_cfg, &runtime_handle, &stt_flow_state);
                 }
             }
 
             // Closing the window hides it instead of quitting.
             // The runtime keeps running in the background and the tray icon
-            // remains visible. The user re-opens via tray menu "Ouvrir Apollia OS"
-            // or quits via "Quitter" which triggers graceful shutdown.
+            // remains visible. The user re-opens via the tray "open" menu item
+            // or quits via "quit" which triggers graceful shutdown.
             let main_window = app
                 .get_webview_window("main")
                 .expect("main window not found in tauri.conf.json");

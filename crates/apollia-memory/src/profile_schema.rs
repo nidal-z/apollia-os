@@ -1,8 +1,8 @@
-//! Canonical user profile schema (ADR-087).
+//! Canonical user profile schema.
 //!
 //! Declares the known profile fields shared across all agents: keys, display
 //! sections, sensitivity flag, field type, and i18n labels (FR/EN).  The schema
-//! is the single source of truth — consumed by the Rust repository for
+//! is the single source of truth, consumed by the Rust repository for
 //! schema/extras partitioning, by the Tauri IPC layer for UI rendering, and by
 //! the Python SDK to expose typed `ctx.profile.<field>` accessors.
 //!
@@ -76,12 +76,12 @@ pub struct ProfileField {
     /// Input control to render.
     pub field_type: ProfileFieldType,
     /// Allowed values when [`Self::field_type`] is
-    /// [`ProfileFieldType::Select`] — empty otherwise.
+    /// [`ProfileFieldType::Select`], empty otherwise.
     pub options: &'static [&'static str],
 }
 
 // ---------------------------------------------------------------------------
-// Canonical schema (~15 fields, ADR-087 Tier 1 + Tier 2)
+// Canonical schema (~15 fields, Tier 1 + Tier 2)
 // ---------------------------------------------------------------------------
 
 /// The canonical set of profile fields, ordered for stable UI rendering.

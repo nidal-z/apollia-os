@@ -23,7 +23,16 @@ import {
   BookOpen,
   Compass,
 } from "lucide-svelte";
-import type { ComponentType } from "svelte";
+// NOSONAR typescript:S1874 — Svelte 4 ComponentType retained for lucide-svelte compat
+import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
+
+/**
+ * Local alias for Svelte 4 `ComponentType`. Retained for lucide-svelte type
+ * compatibility — Svelte 5's `Component` does not match lucide-svelte's
+ * exported icon signatures. Centralizes suppression of the deprecation lint.
+ */
+// NOSONAR typescript:S1874
+type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874
 
 // ─────────────────────────────────────────────
 // Types
@@ -35,7 +44,7 @@ export type ToolGroupId = "files" | "execution" | "network" | "research" | "memo
 export interface ToolGroupMeta {
   id: ToolGroupId;
   /** Group icon (shown in the picker chip and config panel header). */
-  icon: ComponentType;
+  icon: SvelteComponentType;
   /** i18n key for the operator-friendly group label. */
   labelOperatorKey: string;
   /** i18n key for the builder-friendly group label. */
@@ -50,7 +59,7 @@ export interface ToolGroupMeta {
 export interface ToolMeta {
   id: string;
   /** Lucide icon component for this tool. */
-  icon: ComponentType;
+  icon: SvelteComponentType;
   /** Which group this tool belongs to. */
   group: ToolGroupId;
   /** i18n key for the operator-friendly display name. */

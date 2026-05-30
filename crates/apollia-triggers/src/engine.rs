@@ -1,15 +1,15 @@
-//! `TriggerEngine` — acteur Tokio central du système de déclenchement.
+//! `TriggerEngine`: central Tokio actor of the trigger system.
 //!
-//! Le `TriggerEngine` est un acteur Tokio standard : struct interne, handle
-//! clonable exposé via [`TriggerEngineHandle`], boucle `run_loop` dans un
-//! `tokio::spawn`. Les sources envoient des [`crate::TriggerEvent`] sur le
-//! channel interne ; le moteur évalue l'[`crate::OnBusyPolicy`], rend le
-//! template d'entrée et soumet une tâche au [`TaskSubmitter`].
+//! The `TriggerEngine` is a standard Tokio actor: an internal struct, a
+//! clonable handle exposed via [`TriggerEngineHandle`], and a `run_loop` in a
+//! `tokio::spawn`. Sources send [`crate::TriggerEvent`]s on the internal
+//! channel; the engine evaluates the [`crate::OnBusyPolicy`], renders the input
+//! template, and submits a task to the [`TaskSubmitter`].
 //!
-//! **Ce module N'implémente PAS** :
-//! - Les sources concrètes (`CronTrigger`, `FileWatchTrigger`)
-//! - La route webhook
-//! - La persistance SQLite réelle
+//! This module does NOT implement:
+//! - The concrete sources (`CronTrigger`, `FileWatchTrigger`)
+//! - The webhook route
+//! - The real SQLite persistence
 
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
@@ -31,56 +31,56 @@ use crate::types::{
     OnBusyPolicy, TriggerDefinition, TriggerEvent, TriggerPayload, TriggerSourceConfig,
 };
 
-// ─── TaskSubmitter trait ───────────────────────────────────────────────────
+// --- TaskSubmitter trait -----------------------------------------------------
 
-/// Abstraction sur `TaskRouterHandle` pour la soumission de tâches depuis le `TriggerEngine`.
+/// Abstraction over `TaskRouterHandle` for submitting tasks from the `TriggerEngine`.
 ///
-/// Pattern cohérent avec ADR-015 (`ToolExecutor`) et ADR-016 (`AgentRunner`) :
-/// le crate `apollia-triggers` ne dépend pas de `apollia-runtime`, ce qui évite
-/// les dépendances circulaires. Le concret `TaskRouterHandle<B>` implémentera
-/// ce trait lors de l'intégration au Supervisor.
+/// Keeps the `apollia-triggers` crate independent of `apollia-runtime`, which
+/// avoids circular dependencies (the same pattern as `ToolExecutor` and
+/// `AgentRunner`). The concrete `TaskRouterHandle<B>` implements this trait when
+/// integrated with the Supervisor.
 pub trait TaskSubmitter: Send + Sync + 'static {
-    /// Soumet une tâche pour l'agent désigné.
+    /// Submits a task for the given agent.
     ///
-    /// Retourne le `TaskId` généré si la soumission réussit, ou un message
-    /// d'erreur sous forme de `String` en cas d'échec.
+    /// Returns the generated `TaskId` if submission succeeds, or an error
+    /// message as a `String` on failure.
     fn submit<'a>(
         &'a self,
         agent: &'a str,
         input: AIPInput,
     ) -> Pin<Box<dyn Future<Output = Result<TaskId, String>> + Send + 'a>>;
 
-    /// Retourne le nombre de tâches en attente ou actives pour l'agent désigné.
+    /// Returns the number of pending or active tasks for the given agent.
     ///
-    /// Utilisé par [`OnBusyPolicy::Skip`] et [`OnBusyPolicy::Queue`] pour décider
-    /// du comportement quand l'agent est occupé.
+    /// Used by [`OnBusyPolicy::Skip`] and [`OnBusyPolicy::Queue`] to decide the
+    /// behavior when the agent is busy.
     fn pending_count<'a>(
         &'a self,
         agent: &'a str,
     ) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>>;
 }
 
-// ─── Queue types ──────────────────────────────────────────────────────────
+// --- Queue types -------------------------------------------------------------
 
-/// Trigger en attente dans la file bornée FIFO d'un agent.
+/// Trigger queued in an agent's bounded FIFO queue.
 struct QueuedTriggerEvent {
     trigger_id: String,
     payload: TriggerPayload,
-    /// Horodatage d'entrée en file — distinct du `fired_at` de la source.
+    /// Timestamp of entry into the queue, distinct from the source's `fired_at`.
     queued_at: DateTime<Utc>,
 }
 
-/// File d'attente bornée FIFO par agent pour `OnBusyPolicy::Queue`.
+/// Bounded FIFO queue per agent for `OnBusyPolicy::Queue`.
 ///
-/// La taille maximale est configurée via `[triggers] queue_max_depth` dans
-/// `apollia.toml`. Quand `max_depth == 0`, la file est illimitée.
+/// The maximum size is configured via `[triggers] queue_max_depth` in
+/// `apollia.toml`. When `max_depth == 0`, the queue is unbounded.
 struct AgentQueue {
     inner: VecDeque<QueuedTriggerEvent>,
     max_depth: usize,
 }
 
 impl AgentQueue {
-    /// Crée une nouvelle file avec la capacité maximale donnée.
+    /// Creates a new queue with the given maximum capacity.
     fn new(max_depth: usize) -> Self {
         Self {
             inner: VecDeque::new(),
@@ -88,10 +88,10 @@ impl AgentQueue {
         }
     }
 
-    /// Tente d'ajouter un événement en fin de file.
+    /// Attempts to push an event onto the back of the queue.
     ///
-    /// Retourne `true` si l'ajout a réussi, `false` si la file est pleine
-    /// (`max_depth > 0` et `len >= max_depth`).
+    /// Returns `true` if the push succeeded, `false` if the queue is full
+    /// (`max_depth > 0` and `len >= max_depth`).
     fn try_push(&mut self, event: QueuedTriggerEvent) -> bool {
         if self.max_depth > 0 && self.inner.len() >= self.max_depth {
             return false;
@@ -100,168 +100,168 @@ impl AgentQueue {
         true
     }
 
-    /// Retire et retourne l'événement le plus ancien (FIFO).
+    /// Removes and returns the oldest event (FIFO).
     fn pop(&mut self) -> Option<QueuedTriggerEvent> {
         self.inner.pop_front()
     }
 
-    /// Retourne le nombre d'éléments actuellement en file.
+    /// Returns the number of elements currently queued.
     fn len(&self) -> usize {
         self.inner.len()
     }
 }
 
-// ─── TriggerCommand ───────────────────────────────────────────────────────
+// --- TriggerCommand ----------------------------------------------------------
 
-/// Commandes envoyées au `TriggerEngine` via son handle.
+/// Commands sent to the `TriggerEngine` via its handle.
 enum TriggerCommand {
-    /// Trouve un trigger webhook par ID.
+    /// Finds a webhook trigger by ID.
     FindWebhook {
         id: String,
         reply: oneshot::Sender<Option<TriggerDefinition>>,
     },
-    /// Envoie un événement webhook au moteur (fire-and-forget).
+    /// Sends a webhook event to the engine (fire-and-forget).
     SendWebhookEvent {
         trigger_id: String,
         body: String,
         headers: HashMap<String, String>,
     },
-    /// Force le déclenchement immédiat d'un trigger.
+    /// Forces a trigger to fire immediately.
     FireNow {
         id: String,
         reply: oneshot::Sender<Result<TaskId, TriggerEngineError>>,
     },
-    /// Active un trigger.
+    /// Enables a trigger.
     Enable {
         id: String,
         reply: oneshot::Sender<Result<(), TriggerEngineError>>,
     },
-    /// Désactive un trigger.
+    /// Disables a trigger.
     Disable {
         id: String,
         reply: oneshot::Sender<Result<(), TriggerEngineError>>,
     },
-    /// Liste tous les triggers avec leur statut courant.
+    /// Lists all triggers with their current status.
     List {
         reply: oneshot::Sender<Vec<TriggerStatus>>,
     },
-    /// Retourne la définition complète d'un trigger par ID.
+    /// Returns the full definition of a trigger by ID.
     GetDefinition {
         id: String,
         reply: oneshot::Sender<Option<TriggerDefinition>>,
     },
-    /// Retourne l'historique SQLite d'un trigger.
+    /// Returns the SQLite history of a trigger.
     QueryHistory {
         trigger_id: String,
         limit: usize,
         reply: oneshot::Sender<Vec<crate::persistence::TriggerHistoryEntry>>,
     },
-    /// Recharge les définitions de triggers (hot reload).
+    /// Reloads the trigger definitions (hot reload).
     Reload {
         definitions: Vec<TriggerDefinition>,
         reply: oneshot::Sender<()>,
     },
-    /// Notifie le moteur qu'un agent est passé à l'état idle.
+    /// Notifies the engine that an agent has become idle.
     ///
-    /// Déclenche le drain FIFO de la file d'attente de cet agent si elle
-    /// contient des triggers en attente.
+    /// Triggers the FIFO drain of that agent's queue if it holds pending
+    /// triggers.
     NotifyAgentFree {
-        /// Identifiant de l'agent devenu disponible.
+        /// Identifier of the agent that became available.
         agent_id: String,
     },
-    /// Arrête l'acteur proprement.
+    /// Stops the actor cleanly.
     Shutdown,
 }
 
-// ─── Public types ─────────────────────────────────────────────────────────
+// --- Public types ------------------------------------------------------------
 
-/// État observé d'un trigger, retourné par [`TriggerEngineHandle::list`].
+/// Observed state of a trigger, returned by [`TriggerEngineHandle::list`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TriggerStatus {
-    /// Identifiant du trigger.
+    /// Trigger identifier.
     pub id: String,
-    /// Nom de l'agent cible.
+    /// Target agent name.
     pub agent: String,
-    /// Type de source (`"cron"` | `"interval"` | `"file_watch"` | `"webhook"` | `"oneshot"`).
+    /// Source type (`"cron"` | `"interval"` | `"file_watch"` | `"webhook"` | `"oneshot"`).
     pub source_kind: String,
-    /// Détail de la configuration source (ex : expression cron, intervalle, chemin).
+    /// Source configuration detail (e.g. cron expression, interval, path).
     pub source_config: String,
-    /// Indique si le trigger est actif.
+    /// Whether the trigger is active.
     pub enabled: bool,
-    /// Nombre total de fires réussis depuis le démarrage.
+    /// Total number of successful fires since startup.
     pub fire_count: u64,
-    /// Nombre total de skips depuis le démarrage.
+    /// Total number of skips since startup.
     pub skip_count: u64,
-    /// Horodatage du dernier fire (None si jamais déclenché).
+    /// Timestamp of the last fire (None if never fired).
     pub last_fired: Option<DateTime<Utc>>,
 }
 
-/// Erreurs du `TriggerEngine`.
+/// Errors from the `TriggerEngine`.
 #[derive(thiserror::Error, Debug)]
 pub enum TriggerEngineError {
-    /// Aucun trigger trouvé pour l'identifiant fourni.
+    /// No trigger found for the given identifier.
     #[error("trigger '{id}' not found")]
     NotFound {
-        /// Identifiant introuvable.
+        /// Identifier not found.
         id: String,
     },
 
-    /// Le trigger est déjà désactivé.
+    /// The trigger is already disabled.
     #[error("trigger '{id}' already disabled")]
     AlreadyDisabled {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
     },
 
-    /// Le trigger est déjà activé.
+    /// The trigger is already enabled.
     #[error("trigger '{id}' already enabled")]
     AlreadyEnabled {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
     },
 
-    /// La soumission de tâche a échoué (erreur TaskRouter ou policy Drop).
+    /// Task submission failed (TaskRouter error or Drop policy).
     #[error("submit failed: {0}")]
     SubmitFailed(String),
 }
 
-// ─── TriggerEngine (internal actor) ───────────────────────────────────────
+// --- TriggerEngine (internal actor) ------------------------------------------
 
-/// Acteur central `TriggerEngine`.
+/// Central `TriggerEngine` actor.
 ///
-/// Reçoit les [`TriggerEvent`] des sources, évalue l'[`OnBusyPolicy`],
-/// rend le template d'entrée et soumet les tâches au [`TaskSubmitter`].
-/// Jamais exposé directement — accessible uniquement via [`TriggerEngineHandle`].
+/// Receives [`TriggerEvent`]s from the sources, evaluates the [`OnBusyPolicy`],
+/// renders the input template, and submits tasks to the [`TaskSubmitter`].
+/// Never exposed directly; only reachable via [`TriggerEngineHandle`].
 struct TriggerEngine {
     definitions: Vec<TriggerDefinition>,
-    /// Canal interne sources → moteur.
+    /// Internal sources-to-engine channel.
     ///
-    /// Conservé pour être cloné et transmis aux nouvelles sources lors du hot reload
+    /// Kept so it can be cloned and handed to new sources during hot reload
     /// ([`TriggerCommand::Reload`]).
     event_tx: mpsc::Sender<TriggerEvent>,
     task_router: Arc<dyn TaskSubmitter>,
     event_bus: EventBusSender,
-    /// JoinHandles des sources actives — abortés lors du hot reload.
+    /// JoinHandles of the active sources, aborted on hot reload.
     handles: Vec<tokio::task::JoinHandle<()>>,
     fire_counts: HashMap<String, u64>,
     skip_counts: HashMap<String, u64>,
     last_fired: HashMap<String, DateTime<Utc>>,
-    /// Files d'attente bornées FIFO par agent — peuplées par `OnBusyPolicy::Queue`.
+    /// Bounded FIFO queues per agent, populated by `OnBusyPolicy::Queue`.
     ///
-    /// Drainées quand l'agent devient disponible via [`TriggerCommand::NotifyAgentFree`].
+    /// Drained when the agent becomes available via [`TriggerCommand::NotifyAgentFree`].
     agent_queues: HashMap<String, AgentQueue>,
-    /// Persistance SQLite — `None` si non configurée (ex : tests unitaires).
+    /// SQLite persistence; `None` when not configured (e.g. unit tests).
     persistence: Option<TriggerPersistence>,
-    /// Configuration d'observabilité pour la troncature des payloads.
+    /// Observability configuration for payload truncation.
     obs_config: ObservabilityConfig,
 }
 
 impl TriggerEngine {
-    /// Démarre le moteur et retourne son handle clonable.
+    /// Starts the engine and returns its clonable handle.
     ///
-    /// `persistence` : `None` désactive la persistance SQLite (utile pour les tests unitaires).
-    /// `obs_config` : configuration d'observabilité pour la troncature des payloads.
-    /// Les sources dans `definitions` sont des implémentations concrètes.
+    /// `persistence`: `None` disables SQLite persistence (useful for unit tests).
+    /// `obs_config`: observability configuration for payload truncation.
+    /// The sources in `definitions` are concrete implementations.
     pub async fn start<S: TaskSubmitter>(
         definitions: Vec<TriggerDefinition>,
         task_router: S,
@@ -272,7 +272,7 @@ impl TriggerEngine {
         let (event_tx, event_rx) = mpsc::channel::<TriggerEvent>(256);
         let (cmd_tx, cmd_rx) = mpsc::channel::<TriggerCommand>(64);
 
-        // Spawner les sources pour chaque définition active
+        // Spawn the sources for each active definition.
         let handles: Vec<tokio::task::JoinHandle<()>> = definitions
             .iter()
             .filter(|d| d.enabled)
@@ -280,35 +280,7 @@ impl TriggerEngine {
             .collect();
 
         // Restore counters from history so they survive runtime restarts.
-        let (fire_counts, skip_counts, last_fired) = match &persistence {
-            Some(p) => match p.load_counters() {
-                Ok(counters) => {
-                    let mut fc: HashMap<String, u64> = HashMap::new();
-                    let mut sc: HashMap<String, u64> = HashMap::new();
-                    let mut lf: HashMap<String, DateTime<Utc>> = HashMap::new();
-                    for (id, stats) in counters {
-                        if stats.fire_count > 0 {
-                            fc.insert(id.clone(), stats.fire_count);
-                        }
-                        if stats.skip_count > 0 {
-                            sc.insert(id.clone(), stats.skip_count);
-                        }
-                        if let Some(ts) = stats.last_fired {
-                            lf.insert(id, ts);
-                        }
-                    }
-                    (fc, sc, lf)
-                }
-                Err(e) => {
-                    tracing::error!(
-                        error = %e,
-                        "failed to restore trigger counters from history — starting with zeros"
-                    );
-                    (HashMap::new(), HashMap::new(), HashMap::new())
-                }
-            },
-            None => (HashMap::new(), HashMap::new(), HashMap::new()),
-        };
+        let (fire_counts, skip_counts, last_fired) = restore_counters(persistence.as_ref());
 
         let engine = TriggerEngine {
             definitions,
@@ -329,7 +301,7 @@ impl TriggerEngine {
         TriggerEngineHandle { tx: cmd_tx }
     }
 
-    /// Boucle principale de l'acteur — sélectionne sur events ET commandes.
+    /// Main actor loop: selects over both events and commands.
     async fn run_loop(
         mut self,
         mut event_rx: mpsc::Receiver<TriggerEvent>,
@@ -347,21 +319,21 @@ impl TriggerEngine {
                 }
             }
         }
-        // Annuler les JoinHandles des sources actives
+        // Abort the JoinHandles of the active sources.
         for handle in self.handles {
             handle.abort();
         }
         tracing::info!("TriggerEngine arrêté");
     }
 
-    /// Traite un `TriggerEvent` — délègue à `process_event` et ignore le résultat.
+    /// Handles a `TriggerEvent`: delegates to `process_event` and ignores the result.
     async fn handle_event(&mut self, event: TriggerEvent) {
         let _ = self.process_event(event).await;
     }
 
-    /// Traite une commande du handle.
+    /// Handles a command from the handle.
     ///
-    /// Retourne `true` pour signaler l'arrêt de la boucle.
+    /// Returns `true` to signal that the loop should stop.
     async fn handle_command(&mut self, cmd: TriggerCommand) -> bool {
         match cmd {
             TriggerCommand::FindWebhook { id, reply } => {
@@ -379,120 +351,30 @@ impl TriggerEngine {
                 body,
                 headers,
             } => {
-                // Récupère le nom de l'agent avant tout emprunt mutable
-                let agent = self
-                    .definitions
-                    .iter()
-                    .find(|d| d.id == trigger_id)
-                    .map(|d| d.agent.clone());
-
-                if let Some(agent) = agent {
-                    let now = Utc::now();
-                    let event = TriggerEvent {
-                        trigger_id,
-                        agent,
-                        payload: TriggerPayload::Webhook { body, headers },
-                        fired_at: now,
-                    };
-                    self.handle_event(event).await;
-                } else {
-                    tracing::warn!(
-                        trigger_id = %trigger_id,
-                        "SendWebhookEvent reçu pour un trigger inconnu"
-                    );
-                }
+                self.cmd_send_webhook(trigger_id, body, headers).await;
                 false
             }
 
             TriggerCommand::FireNow { id, reply } => {
-                let result = match self.definitions.iter().find(|d| d.id == id).cloned() {
-                    None => Err(TriggerEngineError::NotFound { id }),
-                    Some(def) => {
-                        let now = Utc::now();
-                        let event = TriggerEvent {
-                            trigger_id: def.id.clone(),
-                            agent: def.agent.clone(),
-                            payload: TriggerPayload::Timer {
-                                scheduled_at: now,
-                                fired_at: now,
-                            },
-                            fired_at: now,
-                        };
-                        self.process_event(event).await
-                    }
-                };
+                let result = self.cmd_fire_now(id).await;
                 let _ = reply.send(result);
                 false
             }
 
             TriggerCommand::Enable { id, reply } => {
-                // Phase 1 : mutation de la définition (emprunt mutable borné)
-                let outcome = {
-                    match self.definitions.iter_mut().find(|d| d.id == id) {
-                        None => Err(TriggerEngineError::NotFound { id }),
-                        Some(def) => {
-                            if def.enabled {
-                                Err(TriggerEngineError::AlreadyEnabled { id: def.id.clone() })
-                            } else {
-                                def.enabled = true;
-                                Ok(def.id.clone())
-                            }
-                        }
-                    }
-                }; // emprunt mutable libéré ici
-
-                // Phase 2 : émission d'événement (après libération de l'emprunt)
-                if let Ok(ref trigger_id) = outcome {
-                    let _ = self.event_bus.send(RuntimeEvent::TriggerEnabled {
-                        trigger_id: trigger_id.clone(),
-                    });
-                }
+                let outcome = self.cmd_enable(id);
                 let _ = reply.send(outcome.map(|_| ()));
                 false
             }
 
             TriggerCommand::Disable { id, reply } => {
-                // Phase 1 : mutation de la définition (emprunt mutable borné)
-                let outcome = {
-                    match self.definitions.iter_mut().find(|d| d.id == id) {
-                        None => Err(TriggerEngineError::NotFound { id }),
-                        Some(def) => {
-                            if !def.enabled {
-                                Err(TriggerEngineError::AlreadyDisabled { id: def.id.clone() })
-                            } else {
-                                def.enabled = false;
-                                Ok(def.id.clone())
-                            }
-                        }
-                    }
-                }; // emprunt mutable libéré ici
-
-                // Phase 2 : émission d'événement
-                if let Ok(ref trigger_id) = outcome {
-                    let _ = self.event_bus.send(RuntimeEvent::TriggerDisabled {
-                        trigger_id: trigger_id.clone(),
-                    });
-                }
+                let outcome = self.cmd_disable(id);
                 let _ = reply.send(outcome.map(|_| ()));
                 false
             }
 
             TriggerCommand::List { reply } => {
-                let statuses = self
-                    .definitions
-                    .iter()
-                    .map(|d| TriggerStatus {
-                        id: d.id.clone(),
-                        agent: d.agent.clone(),
-                        source_kind: source_kind_str(&d.source),
-                        source_config: source_config_str(&d.source),
-                        enabled: d.enabled,
-                        fire_count: self.fire_counts.get(&d.id).copied().unwrap_or(0),
-                        skip_count: self.skip_counts.get(&d.id).copied().unwrap_or(0),
-                        last_fired: self.last_fired.get(&d.id).copied(),
-                    })
-                    .collect();
-                let _ = reply.send(statuses);
+                let _ = reply.send(self.build_statuses());
                 false
             }
 
@@ -530,12 +412,138 @@ impl TriggerEngine {
         }
     }
 
-    /// Traitement complet d'un événement : évaluation de la policy, soumission,
-    /// émission des `RuntimeEvent` et persistance (stub).
+    /// Handles a [`TriggerCommand::SendWebhookEvent`]: resolves the agent then
+    /// delegates to [`Self::handle_event`].
+    async fn cmd_send_webhook(
+        &mut self,
+        trigger_id: String,
+        body: String,
+        headers: HashMap<String, String>,
+    ) {
+        // Read the agent name before any mutable borrow.
+        let agent = self
+            .definitions
+            .iter()
+            .find(|d| d.id == trigger_id)
+            .map(|d| d.agent.clone());
+
+        if let Some(agent) = agent {
+            let now = Utc::now();
+            let event = TriggerEvent {
+                trigger_id,
+                agent,
+                payload: TriggerPayload::Webhook { body, headers },
+                fired_at: now,
+            };
+            self.handle_event(event).await;
+        } else {
+            tracing::warn!(
+                trigger_id = %trigger_id,
+                "SendWebhookEvent reçu pour un trigger inconnu"
+            );
+        }
+    }
+
+    /// Handles a [`TriggerCommand::FireNow`]: builds a Timer payload and submits
+    /// the event.
+    async fn cmd_fire_now(&mut self, id: String) -> Result<TaskId, TriggerEngineError> {
+        match self.definitions.iter().find(|d| d.id == id).cloned() {
+            None => Err(TriggerEngineError::NotFound { id }),
+            Some(def) => {
+                let now = Utc::now();
+                let event = TriggerEvent {
+                    trigger_id: def.id.clone(),
+                    agent: def.agent.clone(),
+                    payload: TriggerPayload::Timer {
+                        scheduled_at: now,
+                        fired_at: now,
+                    },
+                    fired_at: now,
+                };
+                self.process_event(event).await
+            }
+        }
+    }
+
+    /// Enables a trigger and emits [`RuntimeEvent::TriggerEnabled`] when applicable.
     ///
-    /// Retourne `Ok(task_id)` si une tâche a été soumise, `Err` sinon.
+    /// Returns the identifier of the enabled trigger on success.
+    fn cmd_enable(&mut self, id: String) -> Result<String, TriggerEngineError> {
+        // Phase 1: mutate the definition (scoped mutable borrow).
+        let outcome = {
+            match self.definitions.iter_mut().find(|d| d.id == id) {
+                None => Err(TriggerEngineError::NotFound { id }),
+                Some(def) => {
+                    if def.enabled {
+                        Err(TriggerEngineError::AlreadyEnabled { id: def.id.clone() })
+                    } else {
+                        def.enabled = true;
+                        Ok(def.id.clone())
+                    }
+                }
+            }
+        }; // mutable borrow released here
+
+        // Phase 2: emit the event (after releasing the borrow).
+        if let Ok(ref trigger_id) = outcome {
+            let _ = self.event_bus.send(RuntimeEvent::TriggerEnabled {
+                trigger_id: trigger_id.clone(),
+            });
+        }
+        outcome
+    }
+
+    /// Disables a trigger and emits [`RuntimeEvent::TriggerDisabled`] when applicable.
+    ///
+    /// Returns the identifier of the disabled trigger on success.
+    fn cmd_disable(&mut self, id: String) -> Result<String, TriggerEngineError> {
+        // Phase 1: mutate the definition (scoped mutable borrow).
+        let outcome = {
+            match self.definitions.iter_mut().find(|d| d.id == id) {
+                None => Err(TriggerEngineError::NotFound { id }),
+                Some(def) => {
+                    if !def.enabled {
+                        Err(TriggerEngineError::AlreadyDisabled { id: def.id.clone() })
+                    } else {
+                        def.enabled = false;
+                        Ok(def.id.clone())
+                    }
+                }
+            }
+        }; // mutable borrow released here
+
+        // Phase 2: emit the event.
+        if let Ok(ref trigger_id) = outcome {
+            let _ = self.event_bus.send(RuntimeEvent::TriggerDisabled {
+                trigger_id: trigger_id.clone(),
+            });
+        }
+        outcome
+    }
+
+    /// Builds the list of current [`TriggerStatus`] for [`TriggerCommand::List`].
+    fn build_statuses(&self) -> Vec<TriggerStatus> {
+        self.definitions
+            .iter()
+            .map(|d| TriggerStatus {
+                id: d.id.clone(),
+                agent: d.agent.clone(),
+                source_kind: source_kind_str(&d.source),
+                source_config: source_config_str(&d.source),
+                enabled: d.enabled,
+                fire_count: self.fire_counts.get(&d.id).copied().unwrap_or(0),
+                skip_count: self.skip_counts.get(&d.id).copied().unwrap_or(0),
+                last_fired: self.last_fired.get(&d.id).copied(),
+            })
+            .collect()
+    }
+
+    /// Full event processing: policy evaluation, submission, `RuntimeEvent`
+    /// emission, and persistence.
+    ///
+    /// Returns `Ok(task_id)` if a task was submitted, `Err` otherwise.
     async fn process_event(&mut self, event: TriggerEvent) -> Result<TaskId, TriggerEngineError> {
-        // 1. Trouver la définition
+        // 1. Find the definition.
         let def = match self
             .definitions
             .iter()
@@ -554,7 +562,7 @@ impl TriggerEngine {
             }
         };
 
-        // Ignore si désactivé
+        // Skip if disabled.
         if !def.enabled {
             let reason = "trigger disabled".to_string();
             tracing::debug!(trigger_id = %event.trigger_id, "trigger désactivé, skip");
@@ -566,7 +574,7 @@ impl TriggerEngine {
             return Err(TriggerEngineError::SubmitFailed(reason));
         }
 
-        // Évaluer l'OnBusyPolicy avant de soumettre la tâche.
+        // Evaluate the OnBusyPolicy before submitting the task.
         match &def.on_busy {
             OnBusyPolicy::Skip => {
                 let pending = self.task_router.pending_count(&def.agent).await;
@@ -622,21 +630,21 @@ impl TriggerEngine {
                         ));
                     }
                 }
-                // Agent libre — vider d'abord la file existante (FIFO) avant de soumettre.
+                // Agent free: drain the existing queue (FIFO) before submitting.
                 self.drain_agent_queue(&def.agent).await;
             }
             OnBusyPolicy::Block => {
-                // Soumet directement — blocage asynchrone non implémenté.
+                // Submit directly; async blocking is not implemented.
             }
         }
 
-        // Rendre le template d'entrée
+        // Render the input template.
         let text = def.input_template.render(&event.payload);
         let input = AIPInput {
             parts: vec![AIPPart::Text(TextPart { text })],
         };
 
-        // 4. Soumettre la tâche — mesure du dispatch_ms
+        // 4. Submit the task and measure dispatch_ms.
         let dispatch_start = Instant::now();
         match self.task_router.submit(&def.agent, input).await {
             Ok(task_id) => {
@@ -670,29 +678,31 @@ impl TriggerEngine {
         }
     }
 
-    /// Sérialise le payload du trigger en JSON et tronque si nécessaire.
+    /// Serializes the trigger payload to JSON and truncates if needed.
     ///
-    /// Retourne `None` si la sérialisation échoue (ne devrait pas arriver,
-    /// `TriggerPayload` implémente `Serialize`).
+    /// Returns `None` if serialization fails (should not happen, since
+    /// `TriggerPayload` implements `Serialize`).
     fn serialize_payload(&self, payload: &TriggerPayload) -> Option<String> {
         let json = serde_json::to_string(payload).ok()?;
         let (truncated, _) = truncate_with_marker(&json, self.obs_config.max_input_bytes);
         Some(truncated)
     }
 
-    /// Persiste un fire réussi dans `trigger_history` via [`TriggerPersistence`].
+    /// Persists a successful fire in `trigger_history` via [`TriggerPersistence`].
     ///
-    /// Si la persistance n'est pas configurée ou échoue, un avertissement est loggué
-    /// sans interrompre le traitement (fire-and-forget).
+    /// If persistence is not configured or fails, a warning is logged without
+    /// interrupting processing (fire-and-forget).
     async fn persist_fired(&mut self, event: &TriggerEvent, task_id: &TaskId, dispatch_ms: i64) {
         let payload_json = self.serialize_payload(&event.payload);
         if let Some(p) = self.persistence.as_mut() {
             if let Err(e) = p.record_fired(
-                &event.trigger_id,
-                &event.agent,
+                crate::persistence::TriggerRecord {
+                    trigger_id: &event.trigger_id,
+                    agent_name: &event.agent,
+                    fired_at: event.fired_at,
+                    payload_json: payload_json.as_deref(),
+                },
                 task_id.as_ref(),
-                event.fired_at,
-                payload_json.as_deref(),
                 Some(dispatch_ms),
             ) {
                 tracing::warn!(
@@ -706,16 +716,18 @@ impl TriggerEngine {
         }
     }
 
-    /// Persiste un skip dans `trigger_history` via [`TriggerPersistence`].
+    /// Persists a skip in `trigger_history` via [`TriggerPersistence`].
     async fn persist_skipped(&mut self, event: &TriggerEvent, reason: &str) {
         let payload_json = self.serialize_payload(&event.payload);
         if let Some(p) = self.persistence.as_mut() {
             if let Err(e) = p.record_skipped(
-                &event.trigger_id,
-                &event.agent,
+                crate::persistence::TriggerRecord {
+                    trigger_id: &event.trigger_id,
+                    agent_name: &event.agent,
+                    fired_at: event.fired_at,
+                    payload_json: payload_json.as_deref(),
+                },
                 reason,
-                event.fired_at,
-                payload_json.as_deref(),
             ) {
                 tracing::warn!(
                     trigger = %event.trigger_id,
@@ -728,11 +740,11 @@ impl TriggerEngine {
         }
     }
 
-    /// Vide la file d'attente d'un agent et soumet chaque trigger en ordre FIFO.
+    /// Drains an agent's queue and submits each trigger in FIFO order.
     ///
-    /// Appelé soit quand l'agent est détecté libre lors d'un nouveau trigger,
-    /// soit explicitement via [`TriggerCommand::NotifyAgentFree`].
-    /// Les soumissions échouées sont loguées sans interrompre le drain.
+    /// Called either when the agent is detected free on a new trigger, or
+    /// explicitly via [`TriggerCommand::NotifyAgentFree`].
+    /// Failed submissions are logged without interrupting the drain.
     async fn drain_agent_queue(&mut self, agent_id: &str) {
         let mut items = Vec::new();
         if let Some(queue) = self.agent_queues.get_mut(agent_id) {
@@ -803,36 +815,36 @@ impl TriggerEngine {
         }
     }
 
-    /// Recharge les définitions de triggers (hot reload).
+    /// Reloads the trigger definitions (hot reload).
     ///
-    /// Donne à chaque source active 2 secondes pour se terminer proprement avant
-    /// d'utiliser [`tokio::task::AbortHandle`] pour forcer l'arrêt. Cette fenêtre
-    /// permet à `notify::Watcher` de se drop correctement (ADR-021).
+    /// Gives each active source 2 seconds to terminate cleanly before using
+    /// [`tokio::task::AbortHandle`] to force the stop. This window lets
+    /// `notify::Watcher` drop correctly.
     ///
-    /// Les compteurs en mémoire (`fire_counts`, `skip_counts`, `last_fired`)
-    /// et les données SQLite sont **préservés** — seules les définitions et les
-    /// JoinHandles sont remplacés.
+    /// The in-memory counters (`fire_counts`, `skip_counts`, `last_fired`) and
+    /// the SQLite data are preserved; only the definitions and JoinHandles are
+    /// replaced.
     async fn do_reload(&mut self, new_definitions: Vec<TriggerDefinition>) {
-        // 1. Arrêter toutes les sources actives avec timeout 2s.
+        // 1. Stop all active sources with a 2s timeout.
         let handles = std::mem::take(&mut self.handles);
         for handle in handles {
-            // Sauvegarder l'AbortHandle avant que timeout consomme le JoinHandle.
+            // Save the AbortHandle before timeout consumes the JoinHandle.
             let abort_handle = handle.abort_handle();
             match tokio::time::timeout(std::time::Duration::from_secs(2), handle).await {
                 Ok(_) => {}
                 Err(_) => {
-                    // Timeout dépassé — forcer l'abort via l'AbortHandle.
+                    // Timeout exceeded: force the abort via the AbortHandle.
                     abort_handle.abort();
                 }
             }
         }
 
-        // 2. Remplacer les définitions (les compteurs en mémoire sont préservés).
-        //    Les files d'attente sont vidées — les triggers en queue sont perdus.
+        // 2. Replace the definitions (in-memory counters are preserved).
+        //    The queues are cleared, so queued triggers are lost.
         self.definitions = new_definitions;
         self.agent_queues.clear();
 
-        // 3. Respawn les sources activées.
+        // 3. Respawn the enabled sources.
         self.handles = self
             .definitions
             .iter()
@@ -840,7 +852,7 @@ impl TriggerEngine {
             .map(|d| spawn_source(d.clone(), self.event_tx.clone()))
             .collect();
 
-        // 4. Émettre l'événement TriggersReloaded.
+        // 4. Emit the TriggersReloaded event.
         let count = self.definitions.iter().filter(|d| d.enabled).count();
         let _ = self
             .event_bus
@@ -848,16 +860,18 @@ impl TriggerEngine {
         tracing::info!(count, "triggers reloaded");
     }
 
-    /// Persiste une erreur de soumission dans `trigger_history` via [`TriggerPersistence`].
+    /// Persists a submission error in `trigger_history` via [`TriggerPersistence`].
     async fn persist_error(&mut self, event: &TriggerEvent, error: &str) {
         let payload_json = self.serialize_payload(&event.payload);
         if let Some(p) = self.persistence.as_mut() {
             if let Err(e) = p.record_error(
-                &event.trigger_id,
-                &event.agent,
+                crate::persistence::TriggerRecord {
+                    trigger_id: &event.trigger_id,
+                    agent_name: &event.agent,
+                    fired_at: event.fired_at,
+                    payload_json: payload_json.as_deref(),
+                },
                 error,
-                event.fired_at,
-                payload_json.as_deref(),
             ) {
                 tracing::warn!(
                     trigger = %event.trigger_id,
@@ -871,9 +885,54 @@ impl TriggerEngine {
     }
 }
 
-// ─── source_kind_str ──────────────────────────────────────────────────────
+// --- Counter restoration -----------------------------------------------------
 
-/// Retourne la chaîne représentant le type de source d'un trigger.
+/// In-memory counters restored from the SQLite history.
+type RestoredCounters = (
+    HashMap<String, u64>,
+    HashMap<String, u64>,
+    HashMap<String, DateTime<Utc>>,
+);
+
+/// Restores the counters (`fire`, `skip`, `last_fired`) from persistence so they
+/// survive runtime restarts.
+///
+/// Returns empty maps if persistence is absent or loading fails (the error is
+/// logged).
+fn restore_counters(persistence: Option<&TriggerPersistence>) -> RestoredCounters {
+    let Some(p) = persistence else {
+        return (HashMap::new(), HashMap::new(), HashMap::new());
+    };
+    let counters = match p.load_counters() {
+        Ok(counters) => counters,
+        Err(e) => {
+            tracing::error!(
+                error = %e,
+                "failed to restore trigger counters from history — starting with zeros"
+            );
+            return (HashMap::new(), HashMap::new(), HashMap::new());
+        }
+    };
+    let mut fc: HashMap<String, u64> = HashMap::new();
+    let mut sc: HashMap<String, u64> = HashMap::new();
+    let mut lf: HashMap<String, DateTime<Utc>> = HashMap::new();
+    for (id, stats) in counters {
+        if stats.fire_count > 0 {
+            fc.insert(id.clone(), stats.fire_count);
+        }
+        if stats.skip_count > 0 {
+            sc.insert(id.clone(), stats.skip_count);
+        }
+        if let Some(ts) = stats.last_fired {
+            lf.insert(id, ts);
+        }
+    }
+    (fc, sc, lf)
+}
+
+// --- source_kind_str ---------------------------------------------------------
+
+/// Returns the string representing a trigger's source type.
 fn source_kind_str(source: &TriggerSourceConfig) -> String {
     match source {
         TriggerSourceConfig::Cron { .. } => "cron",
@@ -885,7 +944,7 @@ fn source_kind_str(source: &TriggerSourceConfig) -> String {
     .to_string()
 }
 
-/// Retourne le détail de configuration d'une source (expression cron, intervalle, chemin, etc.).
+/// Returns the configuration detail of a source (cron expression, interval, path, etc.).
 fn source_config_str(source: &TriggerSourceConfig) -> String {
     match source {
         TriggerSourceConfig::Cron { schedule } => schedule.clone(),
@@ -896,24 +955,24 @@ fn source_config_str(source: &TriggerSourceConfig) -> String {
     }
 }
 
-// ─── TriggerEngineHandle ──────────────────────────────────────────────────
+// --- TriggerEngineHandle -----------------------------------------------------
 
-/// Handle clonable du `TriggerEngine` — injectable dans `AppState<B>`.
+/// Clonable handle for the `TriggerEngine`, injectable into `AppState<B>`.
 ///
-/// `Clone + Send + Sync` : même pattern que `AgentRegistryHandle` et
-/// `TaskRouterHandle`. Toutes les méthodes sont `async` et communiquent
-/// avec l'acteur via `mpsc::Sender<TriggerCommand>`.
+/// `Clone + Send + Sync`, the same pattern as `AgentRegistryHandle` and
+/// `TaskRouterHandle`. All methods are `async` and communicate with the actor
+/// via `mpsc::Sender<TriggerCommand>`.
 #[derive(Clone)]
 pub struct TriggerEngineHandle {
     tx: mpsc::Sender<TriggerCommand>,
 }
 
 impl TriggerEngineHandle {
-    /// Démarre un `TriggerEngine` et retourne son handle.
+    /// Starts a `TriggerEngine` and returns its handle.
     ///
-    /// `persistence` : `None` désactive la persistance SQLite (ex : tests, démonstrations).
-    /// `obs_config` : configuration d'observabilité pour la troncature des payloads.
-    /// Équivalent à `TriggerEngine::start` — exposé ici pour une API publique cohérente.
+    /// `persistence`: `None` disables SQLite persistence (e.g. tests, demos).
+    /// `obs_config`: observability configuration for payload truncation.
+    /// Equivalent to `TriggerEngine::start`, exposed here for a consistent public API.
     pub async fn spawn<S: TaskSubmitter>(
         definitions: Vec<TriggerDefinition>,
         task_router: S,
@@ -924,9 +983,9 @@ impl TriggerEngineHandle {
         TriggerEngine::start(definitions, task_router, event_bus, persistence, obs_config).await
     }
 
-    /// Trouve un trigger webhook par ID.
+    /// Finds a webhook trigger by ID.
     ///
-    /// Retourne `None` si aucun trigger webhook n'existe avec cet identifiant.
+    /// Returns `None` if no webhook trigger exists with this identifier.
     pub async fn find_webhook(&self, id: &str) -> Option<TriggerDefinition> {
         let (reply_tx, reply_rx) = oneshot::channel();
         let _ = self
@@ -939,7 +998,7 @@ impl TriggerEngineHandle {
         reply_rx.await.unwrap_or(None)
     }
 
-    /// Envoie un événement webhook au moteur (fire-and-forget).
+    /// Sends a webhook event to the engine (fire-and-forget).
     pub async fn send_webhook_event(
         &self,
         trigger_id: String,
@@ -956,10 +1015,10 @@ impl TriggerEngineHandle {
             .await;
     }
 
-    /// Force le déclenchement immédiat d'un trigger, sans attendre son schedule.
+    /// Forces a trigger to fire immediately, without waiting for its schedule.
     ///
-    /// Retourne `Ok(task_id)` si la tâche a été soumise avec succès,
-    /// ou `Err(TriggerEngineError::NotFound)` si le trigger est inconnu.
+    /// Returns `Ok(task_id)` if the task was submitted successfully, or
+    /// `Err(TriggerEngineError::NotFound)` if the trigger is unknown.
     pub async fn fire_now(&self, id: &str) -> Result<TaskId, TriggerEngineError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -974,9 +1033,9 @@ impl TriggerEngineHandle {
             .map_err(|_| TriggerEngineError::SubmitFailed("actor dead".into()))?
     }
 
-    /// Active un trigger désactivé.
+    /// Enables a disabled trigger.
     ///
-    /// Émet [`RuntimeEvent::TriggerEnabled`] sur l'EventBus si la transition réussit.
+    /// Emits [`RuntimeEvent::TriggerEnabled`] on the EventBus if the transition succeeds.
     pub async fn enable(&self, id: &str) -> Result<(), TriggerEngineError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -991,9 +1050,9 @@ impl TriggerEngineHandle {
             .map_err(|_| TriggerEngineError::SubmitFailed("actor dead".into()))?
     }
 
-    /// Désactive un trigger actif.
+    /// Disables an active trigger.
     ///
-    /// Émet [`RuntimeEvent::TriggerDisabled`] sur l'EventBus si la transition réussit.
+    /// Emits [`RuntimeEvent::TriggerDisabled`] on the EventBus if the transition succeeds.
     pub async fn disable(&self, id: &str) -> Result<(), TriggerEngineError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -1008,16 +1067,16 @@ impl TriggerEngineHandle {
             .map_err(|_| TriggerEngineError::SubmitFailed("actor dead".into()))?
     }
 
-    /// Retourne la liste de tous les triggers avec leur statut courant.
+    /// Returns the list of all triggers with their current status.
     pub async fn list(&self) -> Vec<TriggerStatus> {
         let (reply_tx, reply_rx) = oneshot::channel();
         let _ = self.tx.send(TriggerCommand::List { reply: reply_tx }).await;
         reply_rx.await.unwrap_or_default()
     }
 
-    /// Retourne la définition complète d'un trigger par ID.
+    /// Returns the full definition of a trigger by ID.
     ///
-    /// Retourne `None` si aucun trigger ne correspond à `id`.
+    /// Returns `None` if no trigger matches `id`.
     pub async fn get_definition(&self, id: &str) -> Option<TriggerDefinition> {
         let (reply_tx, reply_rx) = oneshot::channel();
         let _ = self
@@ -1030,10 +1089,10 @@ impl TriggerEngineHandle {
         reply_rx.await.unwrap_or(None)
     }
 
-    /// Retourne les `limit` dernières entrées d'historique pour un trigger.
+    /// Returns the last `limit` history entries for a trigger.
     ///
-    /// Retourne un vec vide si la persistance n'est pas configurée ou si le trigger
-    /// n'a pas encore été déclenché.
+    /// Returns an empty vec if persistence is not configured or the trigger has
+    /// not fired yet.
     pub async fn query_history(
         &self,
         trigger_id: &str,
@@ -1051,7 +1110,7 @@ impl TriggerEngineHandle {
         reply_rx.await.unwrap_or_default()
     }
 
-    /// Recharge les définitions de triggers (hot reload).
+    /// Reloads the trigger definitions (hot reload).
     pub async fn reload(&self, definitions: Vec<TriggerDefinition>) {
         let (reply_tx, reply_rx) = oneshot::channel();
         let _ = self
@@ -1064,11 +1123,11 @@ impl TriggerEngineHandle {
         let _ = reply_rx.await;
     }
 
-    /// Notifie le moteur qu'un agent est passé à l'état idle.
+    /// Notifies the engine that an agent has become idle.
     ///
-    /// Déclenche le drain FIFO de la file d'attente de cet agent. À appeler
-    /// depuis le Supervisor lors de la réception de [`RuntimeEvent::TaskCompleted`]
-    /// pour l'agent concerné. Fire-and-forget — pas de réponse attendue.
+    /// Triggers the FIFO drain of that agent's queue. To be called from the
+    /// Supervisor on receipt of [`RuntimeEvent::TaskCompleted`] for the relevant
+    /// agent. Fire-and-forget: no response expected.
     pub async fn notify_agent_free(&self, agent_id: String) {
         let _ = self
             .tx
@@ -1076,13 +1135,13 @@ impl TriggerEngineHandle {
             .await;
     }
 
-    /// Arrête l'acteur `TriggerEngine` proprement.
+    /// Stops the `TriggerEngine` actor cleanly.
     pub async fn shutdown(&self) {
         let _ = self.tx.send(TriggerCommand::Shutdown).await;
     }
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────
+// --- Tests -------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -1095,12 +1154,12 @@ mod tests {
     };
     use tokio::sync::broadcast;
 
-    /// Construit un `EventBusSender` de test.
+    /// Builds a test `EventBusSender`.
     fn make_bus() -> EventBusSender {
         broadcast::channel(64).0
     }
 
-    /// Construit une `TriggerDefinition` minimale pour les tests (trigger agent).
+    /// Builds a minimal `TriggerDefinition` for tests (agent trigger).
     fn make_definition(id: &str, on_busy: OnBusyPolicy) -> TriggerDefinition {
         TriggerDefinition {
             id: id.into(),
@@ -1114,9 +1173,9 @@ mod tests {
         }
     }
 
-    // ── Mock TaskSubmitter ─────────────────────────────────────────────────
+    // --- Mock TaskSubmitter ----------------------------------------------
 
-    /// Mock du `TaskSubmitter` pour les tests.
+    /// Mock `TaskSubmitter` for tests.
     struct MockTaskRouterHandle {
         calls: Arc<AtomicUsize>,
         should_fail: bool,
@@ -1124,7 +1183,7 @@ mod tests {
     }
 
     impl MockTaskRouterHandle {
-        /// Crée un mock qui réussit toujours.
+        /// Creates a mock that always succeeds.
         fn new() -> (Self, Arc<AtomicUsize>) {
             let calls = Arc::new(AtomicUsize::new(0));
             (
@@ -1137,12 +1196,12 @@ mod tests {
             )
         }
 
-        /// Même comportement que `new()` — explicite pour les tests de comptage.
+        /// Same behavior as `new()`, named explicitly for counting tests.
         fn new_with_tracking() -> (Self, Arc<AtomicUsize>) {
             Self::new()
         }
 
-        /// Crée un mock qui échoue toujours à la soumission.
+        /// Creates a mock that always fails submission.
         fn new_always_fail() -> (Self, Arc<AtomicUsize>) {
             let calls = Arc::new(AtomicUsize::new(0));
             (
@@ -1155,7 +1214,7 @@ mod tests {
             )
         }
 
-        /// Crée un mock qui simule un agent occupé (pending_count > 0).
+        /// Creates a mock that simulates a busy agent (pending_count > 0).
         fn new_with_pending(pending: usize) -> (Self, Arc<AtomicUsize>) {
             let calls = Arc::new(AtomicUsize::new(0));
             (
@@ -1198,7 +1257,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac1_start_empty_definitions() {
-        // GIVEN une liste vide de TriggerDefinition
+        // GIVEN an empty list of TriggerDefinition
         let (router, _) = MockTaskRouterHandle::new();
         // WHEN
         let handle = TriggerEngine::start(
@@ -1209,14 +1268,14 @@ mod tests {
             ObservabilityConfig::default(),
         )
         .await;
-        // THEN list() retourne un vec vide
+        // THEN list() returns an empty vec
         let list = handle.list().await;
         assert!(list.is_empty(), "liste attendue vide, got {:?}", list);
     }
 
     #[tokio::test]
     async fn test_ac2_handle_event_queue_submits_task() {
-        // GIVEN un trigger avec OnBusyPolicy::Queue { max_depth: 10 } et un mock en succès
+        // GIVEN a trigger with OnBusyPolicy::Queue { max_depth: 10 } and a succeeding mock
         let def = make_definition("test-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
         let handle = TriggerEngine::start(
@@ -1233,15 +1292,15 @@ mod tests {
             .await
             .expect("fire_now failed");
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        // THEN submit a été appelé exactement une fois
+        // THEN submit was called exactly once
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
-    // ── (OnBusyPolicy::Skip) ──────────────────────────────────────────
+    // --- (OnBusyPolicy::Skip) --------------------------------------------
 
     #[tokio::test]
     async fn test_ac3_drop_policy_skips_when_agent_busy() {
-        // GIVEN un trigger Drop et un agent occupé (pending_count = 1)
+        // GIVEN a Drop trigger and a busy agent (pending_count = 1)
         let def = make_definition("busy-trigger", OnBusyPolicy::Skip);
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
         let handle = TriggerEngine::start(
@@ -1255,13 +1314,13 @@ mod tests {
         // WHEN
         let result = handle.fire_now("busy-trigger").await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        // THEN submit N'a PAS été appelé
+        // THEN submit was NOT called
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
             "submit ne doit pas être appelé"
         );
-        // ET fire_now retourne une erreur (SubmitFailed)
+        // AND fire_now returns an error (SubmitFailed)
         assert!(
             matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
             "expected SubmitFailed, got {:?}",
@@ -1271,7 +1330,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac4_fire_now_returns_task_id() {
-        // GIVEN un trigger enregistré
+        // GIVEN a registered trigger
         let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
@@ -1290,7 +1349,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac4_fire_now_unknown_id_returns_error() {
-        // GIVEN aucun trigger enregistré
+        // GIVEN no registered trigger
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
             vec![],
@@ -1312,7 +1371,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac5_enable_disable_toggle() {
-        // GIVEN un trigger actif
+        // GIVEN an active trigger
         let def = make_definition("factures", OnBusyPolicy::Skip);
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
@@ -1339,7 +1398,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac6_submit_error_does_not_panic() {
-        // GIVEN un trigger qui échoue toujours à la soumission
+        // GIVEN a trigger that always fails submission
         let def = make_definition("failing-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new_always_fail();
         let handle = TriggerEngine::start(
@@ -1351,14 +1410,14 @@ mod tests {
         )
         .await;
 
-        // WHEN — ne doit pas paniquer
+        // WHEN must not panic
         let result = handle.fire_now("failing-trigger").await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // THEN l'acteur est toujours en vie
+        // THEN the actor is still alive
         let list = handle.list().await;
         assert_eq!(list.len(), 1, "l'acteur doit encore répondre");
-        // fire_now retourne Err(SubmitFailed) car la soumission a échoué
+        // fire_now returns Err(SubmitFailed) because submission failed
         assert!(
             matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
             "expected SubmitFailed, got {:?}",
@@ -1366,11 +1425,11 @@ mod tests {
         );
     }
 
-    // ── Extra ──────────────────────────────────────────────────────────────
+    // --- Extra -----------------------------------------------------------
 
     #[tokio::test]
     async fn test_fire_count_increments_on_success() {
-        // GIVEN un trigger
+        // GIVEN a trigger
         let def = make_definition("compteur", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
@@ -1382,7 +1441,7 @@ mod tests {
         )
         .await;
 
-        // WHEN fire × 2
+        // WHEN fire x 2
         handle
             .fire_now("compteur")
             .await
@@ -1399,17 +1458,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_is_clone_send_sync() {
-        // THEN TriggerEngineHandle est Clone + Send + Sync (vérifié à la compilation)
+        // THEN TriggerEngineHandle is Clone + Send + Sync (checked at compile time)
         fn assert_send_sync<T: Clone + Send + Sync>() {}
         assert_send_sync::<TriggerEngineHandle>();
     }
 
-    // ── Hot reload ─────────────────────────────────────────────────────────
+    // --- Hot reload ------------------------------------------------------
 
-    /// reload() remplace toutes les définitions existantes.
+    /// reload() replaces all existing definitions.
     #[tokio::test]
     async fn test_ac1_reload_replaces_all_triggers() {
-        // GIVEN un moteur avec 1 trigger
+        // GIVEN an engine with 1 trigger
         let def1 = make_definition("trigger-1", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
@@ -1422,7 +1481,7 @@ mod tests {
         .await;
         assert_eq!(handle.list().await.len(), 1);
 
-        // WHEN reload avec 2 nouveaux triggers
+        // WHEN reload with 2 new triggers
         let def2 = make_definition("trigger-2", OnBusyPolicy::Skip);
         let def3 = make_definition("trigger-3", OnBusyPolicy::Queue { max_depth: 10 });
         handle.reload(vec![def2, def3]).await;
@@ -1439,21 +1498,21 @@ mod tests {
         assert!(list.iter().any(|t| t.id == "trigger-3"));
     }
 
-    /// reload() émet RuntimeEvent::TriggersReloaded { count }.
+    /// reload() emits RuntimeEvent::TriggersReloaded { count }.
     #[tokio::test]
     async fn test_ac1_triggers_reloaded_event_emitted() {
-        // GIVEN un bus avec subscriber actif
+        // GIVEN a bus with an active subscriber
         let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
         let (router, _) = MockTaskRouterHandle::new();
         let handle =
             TriggerEngine::start(vec![], router, bus_tx, None, ObservabilityConfig::default())
                 .await;
 
-        // WHEN reload avec 1 trigger activé
+        // WHEN reload with 1 enabled trigger
         let def = make_definition("new-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         handle.reload(vec![def]).await;
 
-        // THEN TriggersReloaded { count: 1 } reçu dans les 500ms
+        // THEN TriggersReloaded { count: 1 } received within 500ms
         let received = tokio::time::timeout(std::time::Duration::from_millis(500), async {
             loop {
                 match bus_rx.recv().await {
@@ -1473,10 +1532,10 @@ mod tests {
         );
     }
 
-    /// Trigger avec `agent` non affecté.
+    /// Trigger with `agent` unaffected.
     #[tokio::test]
     async fn test_ac5_agent_trigger_unaffected() {
-        // GIVEN trigger existant avec agent="hello-agent"
+        // GIVEN an existing trigger with agent="hello-agent"
         let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
         let handle = TriggerEngine::start(
@@ -1492,7 +1551,7 @@ mod tests {
         let result = handle.fire_now("rapport-hebdo").await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // THEN TaskRouter.submit() appelé exactement une fois — comportement inchangé
+        // THEN TaskRouter.submit() called exactly once; behavior unchanged
         assert!(result.is_ok(), "fire_now doit réussir, got {result:?}");
         assert_eq!(
             calls.load(Ordering::SeqCst),
@@ -1501,11 +1560,11 @@ mod tests {
         );
     }
 
-    // ── Compteurs persistés ────────────────────────────────────────────────
+    // --- Persisted counters ----------------------------------------------
 
     #[tokio::test]
     async fn test_engine_start_restores_counters() {
-        // GIVEN une base avec 3 fires et 2 skips pour "my-trigger"
+        // GIVEN a database with 3 fires and 2 skips for "my-trigger"
         let dir = tempfile::TempDir::new().unwrap();
         let db_path = dir.path().join("test.db");
         let base = chrono::Utc::now();
@@ -1513,22 +1572,32 @@ mod tests {
             let mut p = TriggerPersistence::open(&db_path).unwrap();
             for i in 0..3u64 {
                 p.record_fired(
-                    "my-trigger",
-                    "test-agent",
+                    crate::persistence::TriggerRecord {
+                        trigger_id: "my-trigger",
+                        agent_name: "test-agent",
+                        fired_at: base + chrono::Duration::seconds(i as i64),
+                        payload_json: None,
+                    },
                     &format!("task-{i}"),
-                    base + chrono::Duration::seconds(i as i64),
-                    None,
                     None,
                 )
                 .unwrap();
             }
             for _ in 0..2 {
-                p.record_skipped("my-trigger", "test-agent", "busy", base, None)
-                    .unwrap();
+                p.record_skipped(
+                    crate::persistence::TriggerRecord {
+                        trigger_id: "my-trigger",
+                        agent_name: "test-agent",
+                        fired_at: base,
+                        payload_json: None,
+                    },
+                    "busy",
+                )
+                .unwrap();
             }
         }
 
-        // WHEN TriggerEngine démarre avec cette base
+        // WHEN TriggerEngine starts with this database
         let def = make_definition("my-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
         let persistence = TriggerPersistence::open(&db_path).unwrap();
@@ -1541,7 +1610,7 @@ mod tests {
         )
         .await;
 
-        // THEN les compteurs historiques sont restaurés
+        // THEN the historical counters are restored
         let list = handle.list().await;
         assert_eq!(list.len(), 1);
         assert_eq!(
@@ -1555,11 +1624,11 @@ mod tests {
         assert!(list[0].last_fired.is_some(), "last_fired doit être Some");
     }
 
-    // ── OnBusyPolicy::Queue ────────────────────────────────────────────────
+    // --- OnBusyPolicy::Queue ---------------------------------------------
 
     #[tokio::test]
     async fn test_queue_accepts_up_to_max_depth() {
-        // GIVEN policy Queue { max_depth: 3 }, agent occupé (pending = 1)
+        // GIVEN policy Queue { max_depth: 3 }, busy agent (pending = 1)
         let def = make_definition("q-trigger", OnBusyPolicy::Queue { max_depth: 3 });
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
         let handle = TriggerEngine::start(
@@ -1571,13 +1640,13 @@ mod tests {
         )
         .await;
 
-        // WHEN 3 triggers se déclenchent
+        // WHEN 3 triggers fire
         for _ in 0..3 {
             let _ = handle.fire_now("q-trigger").await;
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // THEN aucune soumission (tous en queue)
+        // THEN no submission (all queued)
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
@@ -1587,7 +1656,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_full_drops_and_emits_event() {
-        // GIVEN policy Queue { max_depth: 3 }, agent occupé, queue déjà pleine
+        // GIVEN policy Queue { max_depth: 3 }, busy agent, queue already full
         let def = make_definition("full-trigger", OnBusyPolicy::Queue { max_depth: 3 });
         let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
@@ -1600,23 +1669,23 @@ mod tests {
         )
         .await;
 
-        // Remplir la queue (3 éléments)
+        // Fill the queue (3 elements).
         for _ in 0..3 {
             let _ = handle.fire_now("full-trigger").await;
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // WHEN un 4ème trigger arrive
+        // WHEN a 4th trigger arrives
         let result = handle.fire_now("full-trigger").await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // THEN soumission toujours à 0 (le 4ème est droppé)
+        // THEN submission still at 0 (the 4th is dropped)
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
             "le 4ème trigger doit être droppé, pas soumis"
         );
-        // ET TriggerQueueFull émis sur le bus
+        // AND TriggerQueueFull emitted on the bus
         let queue_full = tokio::time::timeout(std::time::Duration::from_millis(200), async {
             loop {
                 match bus_rx.recv().await {
@@ -1634,7 +1703,7 @@ mod tests {
             queue_full, "full-trigger",
             "TriggerQueueFull doit indiquer le bon trigger"
         );
-        // ET fire_now retourne SubmitFailed
+        // AND fire_now returns SubmitFailed
         assert!(
             matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
             "expected SubmitFailed pour queue pleine, got {:?}",
@@ -1644,7 +1713,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_skip_policy_does_not_queue() {
-        // GIVEN policy Skip, agent occupé
+        // GIVEN policy Skip, busy agent
         let def = make_definition("skip-trigger", OnBusyPolicy::Skip);
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
         let handle = TriggerEngine::start(
@@ -1656,11 +1725,11 @@ mod tests {
         )
         .await;
 
-        // WHEN trigger se déclenche
+        // WHEN the trigger fires
         let _ = handle.fire_now("skip-trigger").await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // THEN aucune soumission, pas de mise en queue
+        // THEN no submission, no queuing
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
@@ -1670,7 +1739,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_drains_when_agent_free() {
-        // GIVEN 2 triggers en queue (agent occupé, pending = 1)
+        // GIVEN 2 queued triggers (busy agent, pending = 1)
         let def = make_definition("drain-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
         let handle = TriggerEngine::start(
@@ -1682,7 +1751,7 @@ mod tests {
         )
         .await;
 
-        // Mettre 2 triggers en queue
+        // Queue 2 triggers.
         let _ = handle.fire_now("drain-trigger").await;
         let _ = handle.fire_now("drain-trigger").await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -1692,11 +1761,11 @@ mod tests {
             "aucune soumission tant que l'agent est occupé"
         );
 
-        // WHEN l'agent se libère
+        // WHEN the agent becomes free
         handle.notify_agent_free("test-agent".into()).await;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        // THEN les 2 triggers sont dispatachés dans l'ordre FIFO
+        // THEN the 2 triggers are dispatched in FIFO order
         assert_eq!(
             calls.load(Ordering::SeqCst),
             2,

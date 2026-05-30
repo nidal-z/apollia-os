@@ -2,7 +2,7 @@
 //!
 //! The CLI / HTTP `/api/v1/resilience/*` surfaces operate on a single shared
 //! [`Arc<Mutex<ResilienceLayer>>`] stored in [`crate::api::server::AppState`].
-//! Per-task ORIA engines do not (yet) update that layer directly — they keep
+//! Per-task ORIA engines do not (yet) update that layer directly, they keep
 //! their own short-lived breakers for local logic. To keep the operator
 //! snapshot meaningful we subscribe to the `EventBus` and mirror every
 //! `ToolCallCompleted` / `ToolCallDenied` into the shared layer:

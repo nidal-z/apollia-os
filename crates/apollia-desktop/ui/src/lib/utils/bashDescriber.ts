@@ -13,10 +13,9 @@
 export function shellFilename(arg: string): string {
   return (
     arg
-      .replace(/^['"]|['"]$/g, "")
+      .replaceAll(/^['"]|['"]$/g, "")
       .split(/[/\\]/)
-      .filter(Boolean)
-      .pop() ?? arg
+      .findLast((part) => part.length > 0) ?? arg
   );
 }
 
@@ -24,6 +23,286 @@ export function shellFilename(arg: string): string {
 export function firstPath(tokens: string[]): string | null {
   const p = tokens.find((t) => !t.startsWith("-") && t.length > 0);
   return p ? shellFilename(p) : null;
+}
+
+// Constant verbs that ignore arguments — kept as a lookup map to keep
+// `describeBashCommand` flat (S1479 / S3776).
+const CONSTANT_VERBS: Record<string, string> = {
+  pwd: "Checking current directory",
+  chmod: "Changing file permissions",
+  chown: "Changing file permissions",
+  echo: "Writing text output",
+  printf: "Writing text output",
+  print: "Writing text output",
+  ping: "Testing network connection",
+  nc: "Testing network connection",
+  telnet: "Testing network connection",
+  ssh: "Connecting via SSH",
+  scp: "Transferring files via SSH",
+  rsync: "Synchronizing files",
+  which: "Locating a program",
+  type: "Locating a program",
+  wc: "Counting lines or words",
+  sort: "Sorting data",
+  uniq: "Deduplicating data",
+  cut: "Processing text",
+  awk: "Processing text",
+  sed: "Processing text",
+  jq: "Processing JSON data",
+  xargs: "Running batch commands",
+  env: "Checking environment variables",
+  printenv: "Checking environment variables",
+  export: "Setting environment variable",
+  source: "Loading script",
+  ".": "Loading script",
+  aws: "Cloud operation",
+  gcloud: "Cloud operation",
+  az: "Cloud operation",
+  test: "Checking condition",
+  "[[": "Checking condition",
+  sleep: "Waiting",
+  kill: "Stopping process",
+  pkill: "Stopping process",
+  ps: "Listing processes",
+  df: "Checking system resources",
+  du: "Checking system resources",
+  free: "Checking system resources",
+  date: "Checking date and time",
+};
+
+const GIT_ACTIONS: Record<string, string> = {
+  diff: "Checking code changes",
+  "diff-index": "Checking code changes",
+  show: "Viewing commit details",
+  log: "Checking commit history",
+  status: "Checking repository status",
+  add: "Staging changes",
+  commit: "Saving a commit",
+  push: "Publishing changes",
+  pull: "Downloading latest changes",
+  fetch: "Fetching remote changes",
+  clone: "Cloning repository",
+  checkout: "Switching branch",
+  switch: "Switching branch",
+  branch: "Managing branches",
+  merge: "Merging changes",
+  rebase: "Rebasing commits",
+  reset: "Resetting changes",
+  stash: "Stashing changes",
+  tag: "Managing tags",
+  remote: "Managing remotes",
+  blame: "Checking file history",
+  grep: "Searching in code history",
+  apply: "Applying patch",
+  cherry: "Cherry-picking commit",
+  "cherry-pick": "Cherry-picking commit",
+  format: "Formatting patch",
+  bisect: "Bisecting history",
+};
+
+const CARGO_ACTIONS: Record<string, string> = {
+  build: "Building Rust project",
+  check: "Checking Rust code",
+  test: "Running Rust tests",
+  run: "Running Rust program",
+  fmt: "Formatting Rust code",
+  clippy: "Linting Rust code",
+  doc: "Generating documentation",
+  clean: "Cleaning build artifacts",
+  add: "Adding Rust dependency",
+  update: "Updating Rust dependencies",
+  publish: "Publishing crate",
+  bench: "Running benchmarks",
+};
+
+type Handler = (rest: string[], base: string) => string;
+
+function describeReadFamily(rest: string[]): string {
+  const f = firstPath(rest);
+  return f ? `Reading ${f}` : "Reading a file";
+}
+
+function describeExploreFamily(rest: string[]): string {
+  const f = firstPath(rest);
+  return f ? `Exploring ${f}` : "Exploring a directory";
+}
+
+function describeCd(rest: string[]): string {
+  return rest[0] ? `Navigating to ${shellFilename(rest[0])}` : "Navigating";
+}
+
+function describeNonFlagFirstPath(
+  rest: string[],
+  withPathLabel: (path: string) => string,
+  fallback: string,
+): string {
+  const f = firstPath(rest.filter((t) => !t.startsWith("-")));
+  return f ? withPathLabel(f) : fallback;
+}
+
+function describeTouch(rest: string[]): string {
+  const f = firstPath(rest);
+  return f ? `Creating file ${f}` : "Creating a file";
+}
+
+function describeGrep(rest: string[]): string {
+  const pattern = rest.find((t) => !t.startsWith("-"));
+  return pattern
+    ? `Searching for "${pattern.replaceAll(/^['"]|['"]$/g, "").slice(0, 40)}"`
+    : "Searching in files";
+}
+
+function describeFind(rest: string[]): string {
+  const idx = rest.indexOf("-name");
+  const name = idx >= 0 ? rest[idx + 1] : null;
+  return name
+    ? `Finding ${name.replaceAll(/^['"]|['"]$/g, "")} files`
+    : "Finding files";
+}
+
+function describeGit(rest: string[]): string {
+  const sub = rest.find((t) => !t.startsWith("-")) ?? "";
+  return GIT_ACTIONS[sub] ?? "Git operation";
+}
+
+function describeNodePkg(rest: string[], base: string): string {
+  const sub = rest[0] ?? "";
+  const pkgActions: Record<string, string> = {
+    install: "Installing dependencies",
+    i: "Installing dependencies",
+    ci: "Installing dependencies",
+    add: "Adding a dependency",
+    remove: "Removing a dependency",
+    run: `Running script ${rest[1] ?? ""}`.trim(),
+    build: "Building the project",
+    test: "Running tests",
+    start: "Starting the application",
+    dev: "Starting development server",
+    lint: "Linting code",
+    format: "Formatting code",
+    publish: "Publishing package",
+    update: "Updating dependencies",
+    upgrade: "Upgrading dependencies",
+    outdated: "Checking for updates",
+    audit: "Auditing dependencies",
+  };
+  return pkgActions[sub] ?? `Running ${base} command`;
+}
+
+function describeCargo(rest: string[]): string {
+  const sub = rest[0] ?? "";
+  return CARGO_ACTIONS[sub] ?? "Cargo command";
+}
+
+function describePython(rest: string[]): string {
+  const script = firstPath(rest.filter((t) => !t.startsWith("-")));
+  return script ? `Running ${script}` : "Running Python script";
+}
+
+function describePip(rest: string[]): string {
+  const sub = rest[0] ?? "";
+  if (sub === "install") return "Installing Python packages";
+  if (sub === "uninstall") return "Removing Python packages";
+  return "Managing Python packages";
+}
+
+function describeNode(rest: string[]): string {
+  const script = firstPath(rest.filter((t) => !t.startsWith("-")));
+  return script ? `Running ${script}` : "Running Node.js script";
+}
+
+function describeHttp(rest: string[]): string {
+  const url = rest.find((t) => t.startsWith("http") || t.includes("."));
+  if (url) {
+    try {
+      return `Fetching ${new URL(url).hostname}`;
+    } catch {
+      /* fallthrough */
+    }
+  }
+  return "Fetching from web";
+}
+
+function describeMake(rest: string[]): string {
+  const target = firstPath(rest.filter((t) => !t.startsWith("-")));
+  return target ? `Building ${target}` : "Building project";
+}
+
+function describeDocker(rest: string[]): string {
+  const sub = rest[0] ?? "";
+  const dockerActions: Record<string, string> = {
+    build: "Building Docker image",
+    run: "Starting container",
+    stop: "Stopping container",
+    pull: "Downloading Docker image",
+    push: "Pushing Docker image",
+    ps: "Listing containers",
+    images: "Listing images",
+    exec: "Running command in container",
+    logs: "Reading container logs",
+    compose: `Docker Compose: ${rest[1] ?? ""}`.trim(),
+  };
+  return dockerActions[sub] ?? "Docker operation";
+}
+
+function describeKubectl(rest: string[]): string {
+  const sub = rest[0] ?? "";
+  return sub ? `Kubernetes: ${sub}` : "Kubernetes operation";
+}
+
+const HANDLERS: Record<string, Handler> = {
+  cat: describeReadFamily,
+  head: describeReadFamily,
+  tail: describeReadFamily,
+  less: describeReadFamily,
+  more: describeReadFamily,
+  ls: describeExploreFamily,
+  dir: describeExploreFamily,
+  tree: describeExploreFamily,
+  cd: describeCd,
+  cp: (rest) => describeNonFlagFirstPath(rest, (f) => `Copying ${f}`, "Copying files"),
+  mv: (rest) => describeNonFlagFirstPath(rest, (f) => `Moving ${f}`, "Moving files"),
+  rm: (rest) => describeNonFlagFirstPath(rest, (f) => `Deleting ${f}`, "Deleting files"),
+  rmdir: (rest) => describeNonFlagFirstPath(rest, (f) => `Deleting ${f}`, "Deleting files"),
+  unlink: (rest) => describeNonFlagFirstPath(rest, (f) => `Deleting ${f}`, "Deleting files"),
+  mkdir: (rest) => describeNonFlagFirstPath(rest, (f) => `Creating directory ${f}`, "Creating directory"),
+  mkdirp: (rest) => describeNonFlagFirstPath(rest, (f) => `Creating directory ${f}`, "Creating directory"),
+  touch: describeTouch,
+  grep: describeGrep,
+  rg: describeGrep,
+  ag: describeGrep,
+  ack: describeGrep,
+  find: describeFind,
+  tee: (rest) => describeNonFlagFirstPath(rest, (f) => `Writing to ${f}`, "Writing to file"),
+  write: (rest) => describeNonFlagFirstPath(rest, (f) => `Writing to ${f}`, "Writing to file"),
+  git: describeGit,
+  npm: describeNodePkg,
+  yarn: describeNodePkg,
+  pnpm: describeNodePkg,
+  bun: describeNodePkg,
+  cargo: describeCargo,
+  python: describePython,
+  python3: describePython,
+  pip: describePip,
+  pip3: describePip,
+  node: describeNode,
+  "ts-node": describeNode,
+  tsx: describeNode,
+  curl: describeHttp,
+  wget: describeHttp,
+  http: describeHttp,
+  httpie: describeHttp,
+  make: describeMake,
+  cmake: describeMake,
+  ninja: describeMake,
+  docker: describeDocker,
+  kubectl: describeKubectl,
+};
+
+function describeByExtension(base: string): string {
+  if (base.endsWith(".sh") || base.endsWith(".bash")) return `Running script ${base}`;
+  if (base.endsWith(".py")) return `Running ${base}`;
+  return "Running a command";
 }
 
 /**
@@ -50,274 +329,13 @@ export function describeBashCommand(raw: string): string {
   const base = tokens[0].split("/").pop() ?? tokens[0];
   const rest = tokens.slice(1);
 
-  switch (base) {
-    case "cat":
-    case "head":
-    case "tail":
-    case "less":
-    case "more": {
-      const f = firstPath(rest);
-      return f ? `Reading ${f}` : "Reading a file";
-    }
-    case "ls":
-    case "dir":
-    case "tree": {
-      const f = firstPath(rest);
-      return f ? `Exploring ${f}` : "Exploring a directory";
-    }
-    case "pwd":
-      return "Checking current directory";
-    case "cd":
-      return rest[0] ? `Navigating to ${shellFilename(rest[0])}` : "Navigating";
-    case "cp": {
-      const f = firstPath(rest.filter((t) => !t.startsWith("-")));
-      return f ? `Copying ${f}` : "Copying files";
-    }
-    case "mv": {
-      const f = firstPath(rest.filter((t) => !t.startsWith("-")));
-      return f ? `Moving ${f}` : "Moving files";
-    }
-    case "rm":
-    case "rmdir":
-    case "unlink": {
-      const f = firstPath(rest.filter((t) => !t.startsWith("-")));
-      return f ? `Deleting ${f}` : "Deleting files";
-    }
-    case "mkdir":
-    case "mkdirp": {
-      const f = firstPath(rest.filter((t) => !t.startsWith("-")));
-      return f ? `Creating directory ${f}` : "Creating directory";
-    }
-    case "touch": {
-      const f = firstPath(rest);
-      return f ? `Creating file ${f}` : "Creating a file";
-    }
-    case "chmod":
-    case "chown":
-      return "Changing file permissions";
-    case "grep":
-    case "rg":
-    case "ag":
-    case "ack": {
-      const pattern = rest.find((t) => !t.startsWith("-"));
-      return pattern
-        ? `Searching for "${pattern.replace(/^['"]|['"]$/g, "").slice(0, 40)}"`
-        : "Searching in files";
-    }
-    case "find": {
-      const idx = rest.findIndex((t) => t === "-name");
-      const name = idx >= 0 ? rest[idx + 1] : null;
-      return name
-        ? `Finding ${name.replace(/^['"]|['"]$/g, "")} files`
-        : "Finding files";
-    }
-    case "echo":
-    case "printf":
-    case "print":
-      return "Writing text output";
-    case "tee":
-    case "write": {
-      const f = firstPath(rest.filter((t) => !t.startsWith("-")));
-      return f ? `Writing to ${f}` : "Writing to file";
-    }
-    case "git": {
-      const sub = rest.find((t) => !t.startsWith("-")) ?? "";
-      const gitActions: Record<string, string> = {
-        diff: "Checking code changes",
-        "diff-index": "Checking code changes",
-        show: "Viewing commit details",
-        log: "Checking commit history",
-        status: "Checking repository status",
-        add: "Staging changes",
-        commit: "Saving a commit",
-        push: "Publishing changes",
-        pull: "Downloading latest changes",
-        fetch: "Fetching remote changes",
-        clone: "Cloning repository",
-        checkout: "Switching branch",
-        switch: "Switching branch",
-        branch: "Managing branches",
-        merge: "Merging changes",
-        rebase: "Rebasing commits",
-        reset: "Resetting changes",
-        stash: "Stashing changes",
-        tag: "Managing tags",
-        remote: "Managing remotes",
-        blame: "Checking file history",
-        grep: "Searching in code history",
-        apply: "Applying patch",
-        cherry: "Cherry-picking commit",
-        "cherry-pick": "Cherry-picking commit",
-        format: "Formatting patch",
-        bisect: "Bisecting history",
-      };
-      return gitActions[sub] ?? "Git operation";
-    }
-    case "npm":
-    case "yarn":
-    case "pnpm":
-    case "bun": {
-      const sub = rest[0] ?? "";
-      const pkgActions: Record<string, string> = {
-        install: "Installing dependencies",
-        i: "Installing dependencies",
-        ci: "Installing dependencies",
-        add: "Adding a dependency",
-        remove: "Removing a dependency",
-        run: `Running script ${rest[1] ?? ""}`.trim(),
-        build: "Building the project",
-        test: "Running tests",
-        start: "Starting the application",
-        dev: "Starting development server",
-        lint: "Linting code",
-        format: "Formatting code",
-        publish: "Publishing package",
-        update: "Updating dependencies",
-        upgrade: "Upgrading dependencies",
-        outdated: "Checking for updates",
-        audit: "Auditing dependencies",
-      };
-      return pkgActions[sub] ?? `Running ${base} command`;
-    }
-    case "cargo": {
-      const sub = rest[0] ?? "";
-      const cargoActions: Record<string, string> = {
-        build: "Building Rust project",
-        check: "Checking Rust code",
-        test: "Running Rust tests",
-        run: "Running Rust program",
-        fmt: "Formatting Rust code",
-        clippy: "Linting Rust code",
-        doc: "Generating documentation",
-        clean: "Cleaning build artifacts",
-        add: "Adding Rust dependency",
-        update: "Updating Rust dependencies",
-        publish: "Publishing crate",
-        bench: "Running benchmarks",
-      };
-      return cargoActions[sub] ?? "Cargo command";
-    }
-    case "python":
-    case "python3": {
-      const script = firstPath(rest.filter((t) => !t.startsWith("-")));
-      return script ? `Running ${script}` : "Running Python script";
-    }
-    case "pip":
-    case "pip3": {
-      const sub = rest[0] ?? "";
-      return sub === "install"
-        ? "Installing Python packages"
-        : sub === "uninstall"
-          ? "Removing Python packages"
-          : "Managing Python packages";
-    }
-    case "node":
-    case "ts-node":
-    case "tsx": {
-      const script = firstPath(rest.filter((t) => !t.startsWith("-")));
-      return script ? `Running ${script}` : "Running Node.js script";
-    }
-    case "curl":
-    case "wget":
-    case "http":
-    case "httpie": {
-      const url = rest.find((t) => t.startsWith("http") || t.includes("."));
-      if (url) {
-        try {
-          return `Fetching ${new URL(url).hostname}`;
-        } catch {
-          /* fallthrough */
-        }
-      }
-      return "Fetching from web";
-    }
-    case "ping":
-    case "nc":
-    case "telnet":
-      return "Testing network connection";
-    case "ssh":
-      return "Connecting via SSH";
-    case "scp":
-      return "Transferring files via SSH";
-    case "rsync":
-      return "Synchronizing files";
-    case "which":
-    case "type":
-      return "Locating a program";
-    case "wc":
-      return "Counting lines or words";
-    case "sort":
-      return "Sorting data";
-    case "uniq":
-      return "Deduplicating data";
-    case "cut":
-    case "awk":
-    case "sed":
-      return "Processing text";
-    case "jq":
-      return "Processing JSON data";
-    case "xargs":
-      return "Running batch commands";
-    case "env":
-    case "printenv":
-      return "Checking environment variables";
-    case "export":
-      return "Setting environment variable";
-    case "source":
-    case ".":
-      return "Loading script";
-    case "make":
-    case "cmake":
-    case "ninja": {
-      const target = firstPath(rest.filter((t) => !t.startsWith("-")));
-      return target ? `Building ${target}` : "Building project";
-    }
-    case "docker": {
-      const sub = rest[0] ?? "";
-      const dockerActions: Record<string, string> = {
-        build: "Building Docker image",
-        run: "Starting container",
-        stop: "Stopping container",
-        pull: "Downloading Docker image",
-        push: "Pushing Docker image",
-        ps: "Listing containers",
-        images: "Listing images",
-        exec: "Running command in container",
-        logs: "Reading container logs",
-        compose: `Docker Compose: ${rest[1] ?? ""}`.trim(),
-      };
-      return dockerActions[sub] ?? "Docker operation";
-    }
-    case "kubectl": {
-      const sub = rest[0] ?? "";
-      return sub ? `Kubernetes: ${sub}` : "Kubernetes operation";
-    }
-    case "aws":
-    case "gcloud":
-    case "az":
-      return "Cloud operation";
-    case "test":
-    case "[[":
-      return "Checking condition";
-    case "sleep":
-      return "Waiting";
-    case "kill":
-    case "pkill":
-      return "Stopping process";
-    case "ps":
-      return "Listing processes";
-    case "df":
-    case "du":
-    case "free":
-      return "Checking system resources";
-    case "date":
-      return "Checking date and time";
-    default:
-      if (base.endsWith(".sh") || base.endsWith(".bash"))
-        return `Running script ${base}`;
-      if (base.endsWith(".py")) return `Running ${base}`;
-      return "Running a command";
-  }
+  const constant = CONSTANT_VERBS[base];
+  if (constant !== undefined) return constant;
+
+  const handler = HANDLERS[base];
+  if (handler !== undefined) return handler(rest, base);
+
+  return describeByExtension(base);
 }
 
 /**
@@ -348,73 +366,71 @@ export function describeToolCall(
   }
   const str = (key: string, max = 50): string | null => {
     const v = input[key];
-    return typeof v === "string" && v.length > 0
-      ? v.length > max
-        ? "…" + v.slice(-(max - 1))
-        : v
-      : null;
+    if (typeof v !== "string" || v.length === 0) return null;
+    return v.length > max ? "…" + v.slice(-(max - 1)) : v;
   };
 
-  switch (toolName) {
-    case "file_read": {
+  type ToolCallDescriber = () => string;
+  const describeUrl = (max: number): string => {
+    const url = str("url", max);
+    if (!url) return fallback;
+    try {
+      return `Fetching ${new URL(url).hostname}`;
+    } catch {
+      return `Fetching ${url}`;
+    }
+  };
+
+  const describers: Record<string, ToolCallDescriber> = {
+    file_read: () => {
       const p = str("path", 55);
       return p ? `Reading ${p}` : fallback;
-    }
-    case "file_write": {
+    },
+    file_write: () => {
       const p = str("path", 55);
       return p ? `Writing to ${p}` : fallback;
-    }
-    case "file_edit": {
+    },
+    file_edit: () => {
       const p = str("path", 55);
       return p ? `Editing ${p}` : fallback;
-    }
-    case "file_list":
-    case "file_glob": {
+    },
+    file_list: () => {
       const p = str("dir", 55) ?? str("pattern", 55) ?? str("path", 55);
       return p ? `Listing ${p}` : fallback;
-    }
-    case "file_grep": {
+    },
+    file_glob: () => {
+      const p = str("dir", 55) ?? str("pattern", 55) ?? str("path", 55);
+      return p ? `Listing ${p}` : fallback;
+    },
+    file_grep: () => {
       const p = str("pattern", 40);
       return p ? `Searching for "${p}"` : fallback;
-    }
-    case "bash_executor": {
+    },
+    bash_executor: () => {
       const cmd = str("command", 200);
       return cmd ? describeBashCommand(cmd) : fallback;
-    }
-    case "python_executor": {
+    },
+    python_executor: () => {
       const code = str("code", 60);
       return code ? `Running Python: ${code}` : fallback;
-    }
-    case "http_fetch":
-    case "web_read": {
-      const url = str("url", 200);
-      if (url) {
-        try {
-          return `Fetching ${new URL(url).hostname}`;
-        } catch {
-          return `Fetching ${url}`;
-        }
-      }
-      return fallback;
-    }
-    case "web_search": {
+    },
+    http_fetch: () => describeUrl(200),
+    web_read: () => describeUrl(200),
+    web_search: () => {
       const q = str("query", 60);
       return q ? `Searching the web for "${q}"` : fallback;
-    }
-    case "memory_search": {
+    },
+    memory_search: () => {
       const q = str("query", 60);
       return q ? `Searching memory for "${q}"` : fallback;
-    }
-    case "ask_user":
-      return "Asking the user a question";
-    default:
-      if (toolName.startsWith("a2a:")) {
-        const skill = toolName.slice(4);
-        return `Delegating to ${skill}`;
-      }
-      if (toolName.startsWith("mcp:")) {
-        return `Calling external tool ${toolName.slice(4)}`;
-      }
-      return fallback;
-  }
+    },
+    ask_user: () => "Asking the user a question",
+  };
+
+  const describer = describers[toolName];
+  if (describer) return describer();
+
+  if (toolName.startsWith("a2a:")) return `Delegating to ${toolName.slice(4)}`;
+  if (toolName.startsWith("mcp:")) return `Calling external tool ${toolName.slice(4)}`;
+  return fallback;
 }

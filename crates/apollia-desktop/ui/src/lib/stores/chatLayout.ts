@@ -23,9 +23,9 @@ const MD_QUERY = "(min-width: 768px)";
 const LG_QUERY = "(min-width: 1024px)";
 
 function computeViewport(): Viewport {
-  if (typeof window === "undefined") return "lg";
-  if (window.matchMedia(LG_QUERY).matches) return "lg";
-  if (window.matchMedia(MD_QUERY).matches) return "md";
+  if (globalThis.window === undefined) return "lg";
+  if (globalThis.matchMedia(LG_QUERY).matches) return "lg";
+  if (globalThis.matchMedia(MD_QUERY).matches) return "md";
   return "sm";
 }
 
@@ -47,9 +47,9 @@ function loadWidth(): number {
 }
 
 export const chatViewport: Readable<Viewport> = readable<Viewport>(computeViewport(), (set) => {
-  if (typeof window === "undefined") return;
-  const mdMql = window.matchMedia(MD_QUERY);
-  const lgMql = window.matchMedia(LG_QUERY);
+  if (globalThis.window === undefined) return;
+  const mdMql = globalThis.matchMedia(MD_QUERY);
+  const lgMql = globalThis.matchMedia(LG_QUERY);
   const update = () => set(computeViewport());
   mdMql.addEventListener("change", update);
   lgMql.addEventListener("change", update);
@@ -91,9 +91,15 @@ export const contextDrawerMode: Readable<ContextDrawerMode> = derived(
   ($v) => ($v === "lg" ? "inline" : "overlay"),
 );
 
+function deriveSessionsPaneMode(v: Viewport): SessionsPaneMode {
+  if (v === "sm") return "drawer";
+  if (v === "md") return "sticky";
+  return "column";
+}
+
 export const sessionsPaneMode: Readable<SessionsPaneMode> = derived(
   chatViewport,
-  ($v) => ($v === "sm" ? "drawer" : $v === "md" ? "sticky" : "column"),
+  ($v) => deriveSessionsPaneMode($v),
 );
 
 export function setContextDrawerWidth(px: number): void {

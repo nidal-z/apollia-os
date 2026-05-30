@@ -1,8 +1,8 @@
-//! `apollia-os run <agent> <input>` — submit a task and wait for the result.
+//! `apollia-os run <agent> <input>`: submit a task and wait for the result.
 //!
 //! Supports `--stream` for real-time SSE streaming of task progress.
 //! In orchestrated mode, the stream displays the execution plan, step-by-step
-//! progression, and replanning events. In direct mode, the pre-Sprint 10
+//! progression, and replanning events. In direct mode, the legacy
 //! behaviour is preserved.
 //!
 //! With `--alternatives`, displays two plan alternatives (conservative vs. exploratory)
@@ -46,7 +46,7 @@ pub struct RunDisplayState {
     pub current_num: usize,
     /// Whether `--json` raw mode is active.
     pub json_mode: bool,
-    /// When `true`, suppress all intermediate events — only terminal events produce output.
+    /// When `true`, suppress all intermediate events: only terminal events produce output.
     ///
     /// Used by the default (non-`--stream`) `run` invocation to display only the final
     /// result while still using SSE internally to receive the agent output.
@@ -88,7 +88,7 @@ impl RunDisplayState {
 /// Reads the choice from stdin (expecting `"1"` for Plan A or `"2"` for Plan B).
 /// Returns an error string if stdin is unavailable or the input is invalid.
 ///
-/// This function is intentionally synchronous — it blocks until the operator
+/// This function is intentionally synchronous: it blocks until the operator
 /// has made a choice, which is the correct behaviour for an interactive terminal.
 pub fn handle_alternatives(
     alternatives: &PlanAlternatives,
@@ -156,70 +156,16 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
         );
     }
 
-    // In quiet mode only terminal events produce output — intermediate plan/step
+    // In quiet mode only terminal events produce output; intermediate plan/step
     // events are silently consumed.  This is used by the default (non-`--stream`)
     // invocation so that the final agent output is still surfaced cleanly.
     if state.quiet {
-        return match event.event_type.as_str() {
-            "completed" => {
-                if let Some(result) = event.data["result"].as_str() {
-                    println!("{result}");
-                }
-                true
-            }
-            "failed" => {
-                let error = event.data["error"].as_str().unwrap_or("unknown error");
-                eprintln!("  x Failed: {error}");
-                true
-            }
-            "plan_failed" => {
-                let reason = event.data["reason"].as_str().unwrap_or("Unknown error");
-                eprintln!("  ✗ Plan failed: {reason}");
-                true
-            }
-            "canceled" => {
-                eprintln!("  Task cancelled.");
-                true
-            }
-            _ => false,
-        };
+        return handle_quiet_event(event);
     }
 
     match event.event_type.as_str() {
         // ── Orchestrated: plan generated ──────────────────────────────────
-        "plan_generated" => {
-            let step_count = event.data["step_count"].as_u64().unwrap_or(0) as usize;
-            state.step_count = step_count;
-            state.plan_id = event.data["plan_id"].as_str().map(String::from);
-            eprintln!();
-            println!("  Plan generated ({step_count} steps):");
-            if let Some(steps) = event.data["steps"].as_array() {
-                let last = steps.len().saturating_sub(1);
-                for (i, step) in steps.iter().enumerate() {
-                    let id = step["step_id"].as_str().unwrap_or("?");
-                    let desc = step["description"].as_str().unwrap_or("?");
-                    let tool = step["tool_hint"].as_str().unwrap_or("llm");
-                    let deps = step["depends_on"]
-                        .as_array()
-                        .map(|a| {
-                            a.iter()
-                                .filter_map(|v| v.as_str())
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        })
-                        .unwrap_or_default();
-                    let deps_str = if deps.is_empty() {
-                        String::new()
-                    } else {
-                        format!("  (attend {deps})")
-                    };
-                    let branch = if i == last { "└──" } else { "├──" };
-                    println!("  {branch} [{id}] {desc}  → {tool}{deps_str}");
-                }
-            }
-            eprintln!();
-            false
-        }
+        "plan_generated" => handle_plan_generated(event, state),
 
         // ── Orchestrated: individual step started ─────────────────────────
         "step_started" => {
@@ -279,7 +225,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             false
         }
 
-        // ── Orchestrated: plan failed (unrecoverable) — terminal ──────────
+        // ── Orchestrated: plan failed (unrecoverable), terminal ──────────
         "plan_failed" => {
             let reason = event.data["reason"].as_str().unwrap_or("unknown error");
             eprintln!();
@@ -287,7 +233,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             true
         }
 
-        // ── Common: task completed (direct or orchestrated) — terminal ────
+        // ── Common: task completed (direct or orchestrated), terminal ────
         "completed" => {
             if let Some(result) = event.data["result"].as_str() {
                 println!();
@@ -297,20 +243,20 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             true
         }
 
-        // ── Common: task failed (direct mode) — terminal ──────────────────
+        // ── Common: task failed (direct mode), terminal ──────────────────
         "failed" => {
             let error = event.data["error"].as_str().unwrap_or("unknown error");
             eprintln!("  x Failed: {error}");
             true
         }
 
-        // ── Common: task canceled — terminal ──────────────────────────────
+        // ── Common: task canceled, terminal ──────────────────────────────
         "canceled" => {
             eprintln!("  Task cancelled.");
             true
         }
 
-        // ── Common: task picked up by executor — shows the stream is live ──
+        // ── Common: task picked up by executor, shows the stream is live ──
         "started" => {
             let agent = event.data["agent_id"].as_str().unwrap_or("?");
             println!("  ~ Running on {agent}...");
@@ -330,30 +276,97 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 
         // ── Plan alternatives: display plans, read choice ─────────────────
         "plan_alternatives_generated" => {
-            if state.alternatives_mode {
-                if let Ok(alternatives) =
-                    serde_json::from_value::<PlanAlternatives>(event.data.clone())
-                {
-                    let config = ORIAConfig::default();
-                    match handle_alternatives(&alternatives, &config) {
-                        Ok(chosen) => {
-                            let label = match &chosen {
-                                ChosenPlan::PlanA => "Plan A (conservateur)",
-                                ChosenPlan::PlanB => "Plan B (exploratoire)",
-                            };
-                            println!("  -> {label} selected.");
-                            state.chosen_plan = Some(chosen);
-                        }
-                        Err(e) => {
-                            eprintln!("  x Error during plan choice: {e}");
-                        }
-                    }
-                }
-            }
+            handle_plan_alternatives(event, state);
             false
         }
 
         _ => false,
+    }
+}
+
+/// Quiet-mode dispatch: only terminal events produce output.
+fn handle_quiet_event(event: &SseEvent) -> bool {
+    match event.event_type.as_str() {
+        "completed" => {
+            if let Some(result) = event.data["result"].as_str() {
+                println!("{result}");
+            }
+            true
+        }
+        "failed" => {
+            let error = event.data["error"].as_str().unwrap_or("unknown error");
+            eprintln!("  x Failed: {error}");
+            true
+        }
+        "plan_failed" => {
+            let reason = event.data["reason"].as_str().unwrap_or("Unknown error");
+            eprintln!("  ✗ Plan failed: {reason}");
+            true
+        }
+        "canceled" => {
+            eprintln!("  Task cancelled.");
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Render the generated plan tree and record its id / step count.
+fn handle_plan_generated(event: &SseEvent, state: &mut RunDisplayState) -> bool {
+    let step_count = event.data["step_count"].as_u64().unwrap_or(0) as usize;
+    state.step_count = step_count;
+    state.plan_id = event.data["plan_id"].as_str().map(String::from);
+    eprintln!();
+    println!("  Plan generated ({step_count} steps):");
+    if let Some(steps) = event.data["steps"].as_array() {
+        let last = steps.len().saturating_sub(1);
+        for (i, step) in steps.iter().enumerate() {
+            let id = step["step_id"].as_str().unwrap_or("?");
+            let desc = step["description"].as_str().unwrap_or("?");
+            let tool = step["tool_hint"].as_str().unwrap_or("llm");
+            let deps = step["depends_on"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+            let deps_str = if deps.is_empty() {
+                String::new()
+            } else {
+                format!("  (attend {deps})")
+            };
+            let branch = if i == last { "└──" } else { "├──" };
+            println!("  {branch} [{id}] {desc}  → {tool}{deps_str}");
+        }
+    }
+    eprintln!();
+    false
+}
+
+/// Display plan alternatives and read the operator's choice into `state`.
+fn handle_plan_alternatives(event: &SseEvent, state: &mut RunDisplayState) {
+    if !state.alternatives_mode {
+        return;
+    }
+    let Ok(alternatives) = serde_json::from_value::<PlanAlternatives>(event.data.clone()) else {
+        return;
+    };
+    let config = ORIAConfig::default();
+    match handle_alternatives(&alternatives, &config) {
+        Ok(chosen) => {
+            let label = match &chosen {
+                ChosenPlan::PlanA => "Plan A (conservateur)",
+                ChosenPlan::PlanB => "Plan B (exploratoire)",
+            };
+            println!("  -> {label} selected.");
+            state.chosen_plan = Some(chosen);
+        }
+        Err(e) => {
+            eprintln!("  x Error during plan choice: {e}");
+        }
     }
 }
 
@@ -415,54 +428,13 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
 
     // Build the session tool filter fragment if any restrictions are specified.
     // The runtime applies them when constructing the ToolDispatcher for this task.
-    let session_filter = if allowed_tools.is_empty() && disallowed_tools.is_empty() {
-        serde_json::Value::Null
-    } else {
-        let allowed = if allowed_tools.is_empty() {
-            serde_json::Value::Null
-        } else {
-            serde_json::Value::Array(
-                allowed_tools
-                    .iter()
-                    .map(|t| serde_json::Value::String(t.clone()))
-                    .collect(),
-            )
-        };
-        let disallowed = serde_json::Value::Array(
-            disallowed_tools
-                .iter()
-                .map(|t| serde_json::Value::String(t.clone()))
-                .collect(),
-        );
-        serde_json::json!({
-            "allowed_tools": allowed,
-            "disallowed_tools": disallowed,
-        })
-    };
+    let session_filter = build_session_filter(&allowed_tools, &disallowed_tools);
 
-    // Build the AIPInput payload.
-    //
-    // - Default path: wrap the free-text input as a single AIPPart::Text so
-    //   Python agents can read `parts[0]["text"]` directly (see
-    //   AIPPart::Text serialisation in apollia-core).
-    // - `--input-json` escape hatch: parse the raw JSON and forward it
-    //   verbatim, so the operator can target any AIPInput shape (data
-    //   parts, worker skill envelopes, etc.) without the CLI second-guessing
-    //   the structure.
-    let mut input_value = match input_json {
-        Some(raw) => match serde_json::from_str::<serde_json::Value>(raw) {
-            Ok(v) => v,
-            Err(e) => {
-                return output_error(
-                    &format!("--input-json is not valid JSON: {e}"),
-                    json,
-                    exit_codes::GENERAL_ERROR,
-                );
-            }
-        },
-        None => serde_json::json!({
-            "parts": [{"type": "text", "text": input}]
-        }),
+    // Build the AIPInput payload (see [`build_input_payload`]), merging in the
+    // session tool filter when present.
+    let mut input_value = match build_input_payload(input, input_json, json) {
+        Ok(v) => v,
+        Err(code) => return code,
     };
 
     if !session_filter.is_null() {
@@ -475,29 +447,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
 
     let task_json = match submit_result {
         Ok(j) => j,
-        Err(ClientError::ConnectionRefused) => {
-            return output_error(
-                "runtime not started (connection refused)",
-                json,
-                exit_codes::RUNTIME_ERROR,
-            );
-        }
-        // 404 typically means the agent is installed-but-disabled (or never
-        // loaded into the runtime registry). Give the operator a precise
-        // recovery command instead of a bare "not found".
-        Err(ClientError::ServerError { status: 404, body }) => {
-            let hint = format!(
-                "{body}\n\
-                 Hint: install + enable + load the agent first:\n\
-                 \t apollia-os agent install <path>   # if it's not yet installed\n\
-                 \t apollia-os agent enable {agent_id} # if it's disabled\n\
-                 \t apollia-os agent list             # to see current state"
-            );
-            return output_error(&hint, json, exit_codes::GENERAL_ERROR);
-        }
-        Err(e) => {
-            return output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR);
-        }
+        Err(e) => return handle_submit_error(e, agent_id, json),
     };
 
     let task_id = match task_json.get("task_id").and_then(|v| v.as_str()) {
@@ -511,21 +461,9 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         }
     };
 
-    // --detach: fire-and-forget — print task_id and return immediately.
+    // --detach: fire-and-forget, print task_id and return immediately.
     if detach {
-        if json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(
-                    &serde_json::json!({"task_id": task_id, "agent_id": agent_id, "status": "submitted"})
-                )
-                .unwrap_or_default()
-            );
-        } else {
-            println!("  -> Task {task_id} submitted to {agent_id}");
-            println!("     Track with: apollia-os task status {task_id}");
-        }
-        return exit_codes::SUCCESS;
+        return report_detached_submission(&task_id, agent_id, json);
     }
 
     if !json {
@@ -538,7 +476,15 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     //
     // With `--stream` or `--alternatives`: SSE streaming shows plan/step events in real time.
     if stream || alternatives {
-        stream_task(&client, &task_id, json, start, false, alternatives).await
+        stream_task(StreamTaskArgs {
+            client: &client,
+            task_id: &task_id,
+            json,
+            start,
+            quiet: false,
+            alternatives,
+        })
+        .await
     } else {
         poll_task(&client, &task_id, json, start).await
     }
@@ -546,80 +492,205 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
+/// Build the AIPInput payload for the task submission.
+///
+/// - Default path: wrap the free-text input as a single AIPPart::Text so
+///   Python agents can read `parts[0]["text"]` directly (see
+///   AIPPart::Text serialisation in apollia-core).
+/// - `--input-json` escape hatch: parse the raw JSON and forward it
+///   verbatim, so the operator can target any AIPInput shape (data
+///   parts, worker skill envelopes, etc.) without the CLI second-guessing
+///   the structure.
+///
+/// Returns `Err(exit_code)` when `--input-json` is supplied but invalid.
+fn build_input_payload(
+    input: &str,
+    input_json: Option<&str>,
+    json: bool,
+) -> Result<serde_json::Value, i32> {
+    match input_json {
+        Some(raw) => serde_json::from_str::<serde_json::Value>(raw).map_err(|e| {
+            output_error(
+                &format!("--input-json is not valid JSON: {e}"),
+                json,
+                exit_codes::GENERAL_ERROR,
+            )
+        }),
+        None => Ok(serde_json::json!({
+            "parts": [{"type": "text", "text": input}]
+        })),
+    }
+}
+
+/// Print the `--detach` submission acknowledgement and return success.
+fn report_detached_submission(task_id: &str, agent_id: &str, json: bool) -> i32 {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &serde_json::json!({"task_id": task_id, "agent_id": agent_id, "status": "submitted"})
+            )
+            .unwrap_or_default()
+        );
+    } else {
+        println!("  -> Task {task_id} submitted to {agent_id}");
+        println!("     Track with: apollia-os task status {task_id}");
+    }
+    exit_codes::SUCCESS
+}
+
+/// Build the `session_config` fragment from the tool allow/deny lists.
+///
+/// Returns `Value::Null` when no restrictions are specified.
+fn build_session_filter(
+    allowed_tools: &[String],
+    disallowed_tools: &[String],
+) -> serde_json::Value {
+    if allowed_tools.is_empty() && disallowed_tools.is_empty() {
+        return serde_json::Value::Null;
+    }
+    let allowed = if allowed_tools.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::Value::Array(
+            allowed_tools
+                .iter()
+                .map(|t| serde_json::Value::String(t.clone()))
+                .collect(),
+        )
+    };
+    let disallowed = serde_json::Value::Array(
+        disallowed_tools
+            .iter()
+            .map(|t| serde_json::Value::String(t.clone()))
+            .collect(),
+    );
+    serde_json::json!({
+        "allowed_tools": allowed,
+        "disallowed_tools": disallowed,
+    })
+}
+
+/// Map a `submit_task` failure to a user-facing error and exit code.
+fn handle_submit_error(err: ClientError, agent_id: &str, json: bool) -> i32 {
+    match err {
+        ClientError::ConnectionRefused => output_error(
+            "runtime not started (connection refused)",
+            json,
+            exit_codes::RUNTIME_ERROR,
+        ),
+        // 404 typically means the agent is installed-but-disabled (or never
+        // loaded into the runtime registry). Give the operator a precise
+        // recovery command instead of a bare "not found".
+        ClientError::ServerError { status: 404, body } => {
+            let hint = format!(
+                "{body}\n\
+                 Hint: install + enable + load the agent first:\n\
+                 \t apollia-os agent install <path>   # if it's not yet installed\n\
+                 \t apollia-os agent enable {agent_id} # if it's disabled\n\
+                 \t apollia-os agent list             # to see current state"
+            );
+            output_error(&hint, json, exit_codes::GENERAL_ERROR)
+        }
+        e => output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR),
+    }
+}
+
 /// Poll task status until completion.
 async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Instant) -> i32 {
     loop {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
-        let result = client.get_task(task_id).await;
-        match result {
-            Ok(task_json) => {
-                let status = task_json
-                    .get("status")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
+        let task_json = match client.get_task(task_id).await {
+            Ok(j) => j,
+            Err(e) => return output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR),
+        };
 
-                match status {
-                    "completed" => {
-                        let elapsed = start.elapsed();
-                        if json {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&task_json).unwrap_or_default()
-                            );
-                        } else {
-                            if let Some(text) = task_json.get("result").and_then(|v| v.as_str()) {
-                                println!("{text}");
-                            }
-                            println!("  * Completed in {:.1}s", elapsed.as_secs_f64());
-                            if let Some(budget) = extract_budget(&task_json) {
-                                println!("  * {}", budget.format_summary());
-                                persist_budget(&budget, task_id);
-                            }
-                        }
-                        return exit_codes::SUCCESS;
-                    }
-                    "failed" => {
-                        let elapsed = start.elapsed();
-                        let error_msg = task_json
-                            .get("error")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("unknown error");
-                        if json {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&task_json).unwrap_or_default()
-                            );
-                        } else {
-                            eprintln!("  x Failed in {:.1}s: {error_msg}", elapsed.as_secs_f64());
-                        }
-                        return exit_codes::TASK_FAILED;
-                    }
-                    "canceled" => {
-                        if json {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&task_json).unwrap_or_default()
-                            );
-                        } else {
-                            println!("  Task {task_id} was canceled");
-                        }
-                        return exit_codes::GENERAL_ERROR;
-                    }
-                    _ => continue,
-                }
-            }
-            Err(e) => {
-                return output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR);
-            }
+        if let Some(code) = poll_terminal_outcome(&task_json, task_id, json, start) {
+            return code;
         }
+    }
+}
+
+/// Inspect a polled task body. Returns `Some(exit_code)` once the task has
+/// reached a terminal state, or `None` to keep polling.
+fn poll_terminal_outcome(
+    task_json: &serde_json::Value,
+    task_id: &str,
+    json: bool,
+    start: Instant,
+) -> Option<i32> {
+    let status = task_json
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+
+    match status {
+        "completed" => {
+            report_completed_task(task_json, task_id, json, start);
+            Some(exit_codes::SUCCESS)
+        }
+        "failed" => {
+            let elapsed = start.elapsed();
+            let error_msg = task_json
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(task_json).unwrap_or_default()
+                );
+            } else {
+                eprintln!("  x Failed in {:.1}s: {error_msg}", elapsed.as_secs_f64());
+            }
+            Some(exit_codes::TASK_FAILED)
+        }
+        "canceled" => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(task_json).unwrap_or_default()
+                );
+            } else {
+                println!("  Task {task_id} was canceled");
+            }
+            Some(exit_codes::GENERAL_ERROR)
+        }
+        _ => None,
+    }
+}
+
+/// Render a completed task: its result (or full JSON), elapsed time, and token
+/// budget summary, persisting the budget for the non-`--json` path.
+fn report_completed_task(
+    task_json: &serde_json::Value,
+    task_id: &str,
+    json: bool,
+    start: Instant,
+) {
+    let elapsed = start.elapsed();
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(task_json).unwrap_or_default()
+        );
+        return;
+    }
+    if let Some(text) = task_json.get("result").and_then(|v| v.as_str()) {
+        println!("{text}");
+    }
+    println!("  * Completed in {:.1}s", elapsed.as_secs_f64());
+    if let Some(budget) = extract_budget(task_json) {
+        println!("  * {}", budget.format_summary());
+        persist_budget(&budget, task_id);
     }
 }
 
 /// Stream task events via SSE and display them using [`handle_sse_event`].
 ///
 /// Connects to `GET /api/v1/tasks/{id}/stream` using [`RuntimeClient::stream_sse_lines`],
-/// which reads the HTTP body incrementally — one line at a time as the server flushes it.
+/// which reads the HTTP body incrementally, one line at a time as the server flushes it.
 /// Each SSE frame is parsed and dispatched to `handle_sse_event` immediately, producing
 /// real-time output instead of waiting for the full response to buffer.
 ///
@@ -631,14 +702,32 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
 ///
 /// When `alternatives` is `true`, the stream pauses on `plan_alternatives_generated`
 /// and prompts the operator for a plan choice before continuing.
-async fn stream_task(
-    client: &RuntimeClient,
-    task_id: &str,
+/// Parameters for [`stream_task`].
+struct StreamTaskArgs<'a> {
+    /// Connected runtime client.
+    client: &'a RuntimeClient,
+    /// Identifier of the task to stream.
+    task_id: &'a str,
+    /// Emit machine-readable JSON.
     json: bool,
+    /// Wall-clock start used to report elapsed time on fallback polling.
     start: Instant,
+    /// Suppress intermediate events, surfacing only the final output.
     quiet: bool,
+    /// Pause on `plan_alternatives_generated` and prompt for a choice.
     alternatives: bool,
-) -> i32 {
+}
+
+async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
+    let StreamTaskArgs {
+        client,
+        task_id,
+        json,
+        start,
+        quiet,
+        alternatives,
+    } = args;
+
     let uri = format!("/api/v1/tasks/{task_id}/stream");
     let mut line_stream = match client.stream_sse_lines(&uri).await {
         Ok(s) => s,
@@ -661,7 +750,7 @@ async fn stream_task(
     };
     let mut terminal_event_type = String::new();
 
-    // Each line arrives as soon as the server flushes it — true streaming.
+    // Each line arrives as soon as the server flushes it: true streaming.
     while let Some(line_result) = line_stream.next().await {
         let line = match line_result {
             Ok(l) => l,
@@ -671,46 +760,78 @@ async fn stream_task(
             }
         };
 
-        if let Some(data) = line.strip_prefix("data: ") {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                let event_type = parsed
-                    .get("event")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-
-                let sse_event = SseEvent {
-                    event_type: event_type.clone(),
-                    data: parsed,
-                    raw_json: data.to_string(),
-                };
-
-                if handle_sse_event(&sse_event, &mut state) {
-                    terminal_event_type = event_type;
-                    break;
-                }
-            }
+        if let Some(event_type) = process_sse_line(&line, &mut state) {
+            terminal_event_type = event_type;
+            break;
         }
     }
 
     // Map terminal event type to exit code
-    match terminal_event_type.as_str() {
+    stream_terminal_exit_code(&terminal_event_type, client, task_id, json, start).await
+}
+
+/// Map the terminal SSE event type to a process exit code.
+///
+/// On `completed` (non-`--json`), fetches the final task state to surface and
+/// persist the token budget, which is absent from the SSE payload. When no
+/// terminal event was seen the stream closed early, so fall back to polling.
+async fn stream_terminal_exit_code(
+    terminal_event_type: &str,
+    client: &RuntimeClient,
+    task_id: &str,
+    json: bool,
+    start: Instant,
+) -> i32 {
+    match terminal_event_type {
         "completed" => {
-            // Fetch final task state to retrieve the token budget (not in SSE payload).
-            if !json {
-                if let Ok(task_json) = client.get_task(task_id).await {
-                    if let Some(budget) = extract_budget(&task_json) {
-                        println!("  * {}", budget.format_summary());
-                        persist_budget(&budget, task_id);
-                    }
-                }
-            }
+            persist_stream_budget(client, task_id, json).await;
             exit_codes::SUCCESS
         }
         "failed" => exit_codes::TASK_FAILED,
         "plan_failed" | "canceled" => exit_codes::GENERAL_ERROR,
-        // No terminal event — stream closed early (task already done) → fall back to polling
+        // No terminal event: stream closed early (task already done), fall back to polling
         _ => poll_task(client, task_id, json, start).await,
+    }
+}
+
+/// Fetch the final task state and surface + persist its token budget.
+///
+/// No-op in `--json` mode (the budget is reported via the full JSON payload).
+async fn persist_stream_budget(client: &RuntimeClient, task_id: &str, json: bool) {
+    if json {
+        return;
+    }
+    if let Ok(task_json) = client.get_task(task_id).await {
+        if let Some(budget) = extract_budget(&task_json) {
+            println!("  * {}", budget.format_summary());
+            persist_budget(&budget, task_id);
+        }
+    }
+}
+
+/// Parse a single SSE `data:` line and dispatch it to [`handle_sse_event`].
+///
+/// Returns `Some(event_type)` when the event is terminal (the caller should
+/// stop reading), or `None` otherwise (including non-data / unparseable lines).
+fn process_sse_line(line: &str, state: &mut RunDisplayState) -> Option<String> {
+    let data = line.strip_prefix("data: ")?;
+    let parsed = serde_json::from_str::<serde_json::Value>(data).ok()?;
+    let event_type = parsed
+        .get("event")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    let sse_event = SseEvent {
+        event_type: event_type.clone(),
+        data: parsed,
+        raw_json: data.to_string(),
+    };
+
+    if handle_sse_event(&sse_event, state) {
+        Some(event_type)
+    } else {
+        None
     }
 }
 
@@ -812,7 +933,7 @@ mod tests {
     // plan tree rendered with dependencies
     #[test]
     fn test_ac1_plan_generated_with_steps() {
-        // GIVEN — 2 steps, second depends on first
+        // GIVEN 2 steps, second depends on first
         let event = make_event(
             "plan_generated",
             serde_json::json!({
@@ -865,7 +986,7 @@ mod tests {
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
 
-        // THEN — replanning is informational, not terminal
+        // THEN replanning is informational, not terminal
         assert!(!terminal);
     }
 
@@ -900,14 +1021,14 @@ mod tests {
     // direct-mode events (no plan_* events) still work
     #[test]
     fn test_ac5_direct_mode_step_not_terminal() {
-        // GIVEN — legacy direct-mode step event
+        // GIVEN legacy direct-mode step event
         let event = make_event("step", serde_json::json!({"step": 1, "tool": "file_io"}));
         let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
 
-        // THEN — not terminal, state untouched (step_count stays 0)
+        // THEN not terminal, state untouched (step_count stays 0)
         assert!(!terminal);
         assert_eq!(state.step_count, 0);
     }
@@ -923,7 +1044,7 @@ mod tests {
         };
         let mut state = RunDisplayState::new(true, false); // json_mode = true
 
-        // WHEN — just verify it doesn't panic and returns non-terminal
+        // WHEN just verify it doesn't panic and returns non-terminal
         let terminal = handle_sse_event(&event, &mut state);
 
         // THEN
@@ -944,7 +1065,7 @@ mod tests {
         assert!(terminal);
     }
 
-    // "started" is NOT terminal — the task is now running
+    // "started" is NOT terminal, the task is now running
     #[test]
     fn test_started_event_not_terminal() {
         // GIVEN
@@ -957,7 +1078,7 @@ mod tests {
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
 
-        // THEN — stream stays open
+        // THEN stream stays open
         assert!(!terminal);
     }
 

@@ -12,7 +12,10 @@
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest, RawRequest},
+};
 
 const GRAPH: &str = "https://graph.microsoft.com/v1.0/me";
 
@@ -228,16 +231,19 @@ impl OutlookMailClient {
             message,
             save_to_sent_items,
         };
-        // sendMail returns 202 Accepted with empty body — we route through the
+        // sendMail returns 202 Accepted with empty body, so we route through the
         // raw response path to avoid trying to decode JSON from nothing.
         self.http
-            .send_with_retries(
-                Method::POST,
-                &url,
-                Some(
-                    serde_json::to_vec(&body)
-                        .map_err(|e| ConnectorError::Decoding(e.to_string()))?,
-                ),
+            .send(
+                RawRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: Some(
+                        serde_json::to_vec(&body)
+                            .map_err(|e| ConnectorError::Decoding(e.to_string()))?,
+                    ),
+                    content_type: None,
+                },
                 bearer,
                 refresh,
             )
@@ -263,13 +269,16 @@ impl OutlookMailClient {
             comment: comment.to_owned(),
         };
         self.http
-            .send_with_retries(
-                Method::POST,
-                &url,
-                Some(
-                    serde_json::to_vec(&body)
-                        .map_err(|e| ConnectorError::Decoding(e.to_string()))?,
-                ),
+            .send(
+                RawRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: Some(
+                        serde_json::to_vec(&body)
+                            .map_err(|e| ConnectorError::Decoding(e.to_string()))?,
+                    ),
+                    content_type: None,
+                },
                 bearer,
                 refresh,
             )
@@ -309,7 +318,15 @@ impl OutlookMailClient {
             destination_id: destination_folder_id,
         };
         self.http
-            .json_request(Method::POST, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 }

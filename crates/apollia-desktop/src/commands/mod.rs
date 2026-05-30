@@ -1,10 +1,10 @@
-//! Tauri IPC commands — couche de traduction entre le frontend Svelte et les
-//! handles du runtime Apollia.
+//! Tauri IPC commands: translation layer between the Svelte frontend and the
+//! Apollia runtime handles.
 //!
-//! Zéro logique métier : chaque commande délègue intégralement aux handles
-//! existants (`AgentRegistryHandle`, `TaskRouterHandle`, `PendingApprovals`)
-//! ou à l'API REST interne pour les opérations complexes (timeline, start agent,
-//! resume task).
+//! No business logic: each command delegates entirely to the existing handles
+//! (`AgentRegistryHandle`, `TaskRouterHandle`, `PendingApprovals`) or to the
+//! internal REST API for complex operations (timeline, start agent, resume
+//! task).
 
 pub mod agent_packages;
 pub mod agents;
@@ -51,11 +51,11 @@ use hyper::client::conn::http1;
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpStream;
 
-/// Envoie une requête GET à l'API REST interne sur `localhost:{port}` et retourne
-/// le corps JSON parsé.
+/// Sends a GET request to the internal REST API on `localhost:{port}` and
+/// returns the parsed JSON body.
 ///
-/// Utilisé pour `get_task_timeline` et `list_pending_approvals` (enrichissement
-/// via la timeline API Sprint 13).
+/// Used for `get_task_timeline` and `list_pending_approvals` (enrichment via
+/// the timeline API).
 pub(crate) async fn http_get_json(port: u16, path: &str) -> Result<serde_json::Value, String> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
@@ -98,10 +98,10 @@ pub(crate) async fn http_get_json(port: u16, path: &str) -> Result<serde_json::V
     serde_json::from_str(&body_str).map_err(|e| format!("invalid JSON response: {e}"))
 }
 
-/// Envoie une requête POST avec un corps JSON à l'API REST interne.
+/// Sends a POST request with a JSON body to the internal REST API.
 ///
-/// Utilisé pour `start_agent`, `resume_task`, et le graceful shutdown via tray
-/// qui nécessitent des opérations complexes gérées par les handlers REST.
+/// Used for `start_agent`, `resume_task`, and the graceful shutdown via the
+/// tray, which need complex operations handled by the REST handlers.
 pub(crate) async fn http_post_json(
     port: u16,
     path: &str,
@@ -110,10 +110,9 @@ pub(crate) async fn http_post_json(
     http_request_json(port, "POST", path, Some(body)).await
 }
 
-/// Envoie une requête PUT avec un corps JSON à l'API REST interne.
+/// Sends a PUT request with a JSON body to the internal REST API.
 ///
-/// Utilisé pour les opérations de mise à jour CRUD (triggers, pipelines,
-/// notifications).
+/// Used for CRUD update operations (triggers, pipelines, notifications).
 pub(crate) async fn http_put_json(
     port: u16,
     path: &str,
@@ -122,10 +121,10 @@ pub(crate) async fn http_put_json(
     http_request_json(port, "PUT", path, Some(body)).await
 }
 
-/// Envoie une requête PATCH avec un corps JSON à l'API REST interne.
+/// Sends a PATCH request with a JSON body to the internal REST API.
 ///
-/// Utilisé pour les mises à jour partielles (ex. : `requires_approval` d'un
-/// serveur MCP sans le redémarrer).
+/// Used for partial updates (e.g. an MCP server's `requires_approval` without
+/// restarting it).
 pub(crate) async fn http_patch_json(
     port: u16,
     path: &str,
@@ -134,21 +133,20 @@ pub(crate) async fn http_patch_json(
     http_request_json(port, "PATCH", path, Some(body)).await
 }
 
-/// Envoie une requête DELETE à l'API REST interne et retourne le corps JSON
-/// parsé.
+/// Sends a DELETE request to the internal REST API and returns the parsed JSON
+/// body.
 ///
-/// Utilisé pour les opérations de suppression CRUD (triggers, pipelines,
-/// notifications).
+/// Used for CRUD delete operations (triggers, pipelines, notifications).
 pub(crate) async fn http_delete_json(port: u16, path: &str) -> Result<serde_json::Value, String> {
     http_request_json(port, "DELETE", path, None).await
 }
 
-/// Fonction interne partagée par `http_post_json`, `http_put_json` et
+/// Internal function shared by `http_post_json`, `http_put_json` and
 /// `http_delete_json`.
 ///
-/// Ouvre une connexion HTTP/1.1 vers `localhost:{port}`, envoie la requête avec
-/// la méthode et le corps optionnel, et retourne le JSON de réponse ou une
-/// erreur descriptive.
+/// Opens an HTTP/1.1 connection to `localhost:{port}`, sends the request with
+/// the method and optional body, and returns the response JSON or a descriptive
+/// error.
 async fn http_request_json(
     port: u16,
     method: &str,

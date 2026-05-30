@@ -1,4 +1,4 @@
-//! ResilienceLayer — per-tool circuit breaker and retry policy for production reliability.
+//! ResilienceLayer: per-tool circuit breaker and retry policy for production reliability.
 //!
 //! Each registered tool has its own [`CircuitBreaker`] with three states:
 //! `Closed` (normal), `Open` (rejecting), `HalfOpen` (probing).
@@ -29,24 +29,24 @@ fn now_ms() -> u64 {
 /// Classification of errors to determine circuit breaker behavior.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorClass {
-    /// Timeout, rate limit — retryable, increments circuit breaker counter.
+    /// Timeout, rate limit: retryable, increments circuit breaker counter.
     Transient,
-    /// Invalid input, file not found — never retry, does not affect circuit.
+    /// Invalid input, file not found: never retry, does not affect circuit.
     Permanent,
-    /// StepBudget exhausted — do not retry, does not affect circuit.
+    /// StepBudget exhausted: do not retry, does not affect circuit.
     BudgetExceeded,
-    /// Path traversal attempt, unauthorized network access — does not affect circuit.
+    /// Path traversal attempt, unauthorized network access: does not affect circuit.
     SandboxViolation,
 }
 
 /// State of a circuit breaker.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CircuitState {
-    /// Normal — requests pass through.
+    /// Normal: requests pass through.
     Closed,
-    /// Circuit open — requests rejected immediately.
+    /// Circuit open: requests rejected immediately.
     Open,
-    /// Probe — one request allowed to test recovery.
+    /// Probe: one request allowed to test recovery.
     HalfOpen,
 }
 
@@ -101,7 +101,7 @@ impl CircuitBreaker {
 /// Errors from the resilience layer.
 #[derive(Debug, thiserror::Error)]
 pub enum ResilienceError {
-    /// Circuit is open for the given tool — call rejected without execution.
+    /// Circuit is open for the given tool: call rejected without execution.
     #[error("circuit open for tool '{tool_name}': {failure_count} consecutive failures, retry after cooldown")]
     CircuitOpen {
         /// Name of the tool whose circuit is open.
@@ -152,9 +152,25 @@ pub struct ResilienceLayer {
     default_cooldown: Duration,
 }
 
+/// Observability context for [`ResilienceLayer::execute_with_observability`].
+///
+/// Groups the tool identity, the call identifier, the retry policy and the
+/// optional event bus. The error classifier and the operation are passed
+/// separately because they are generic closures.
+pub struct RetryContext<'a> {
+    /// Name of the executed tool (circuit breaker key).
+    pub tool_name: &'a str,
+    /// Tool call identifier, propagated into events.
+    pub tool_call_id: &'a str,
+    /// Retry policy (number of attempts, backoff).
+    pub retry_policy: &'a RetryPolicy,
+    /// Optional event bus to emit [`RuntimeEvent::ToolCallRetrying`].
+    pub bus: Option<&'a EventBusSender>,
+}
+
 impl Default for ResilienceLayer {
-    /// Crée une `ResilienceLayer` avec les paramètres par défaut :
-    /// seuil de 3 échecs consécutifs, cooldown de 30 secondes.
+    /// Create a `ResilienceLayer` with default parameters:
+    /// threshold of 3 consecutive failures, 30-second cooldown.
     fn default() -> Self {
         Self::new(3, Duration::from_secs(30))
     }
@@ -219,7 +235,7 @@ impl ResilienceLayer {
         }
     }
 
-    /// Records a successful call — resets failure count and closes the circuit.
+    /// Records a successful call: resets failure count and closes the circuit.
     ///
     /// Returns `true` if the circuit was restored from HalfOpen to Closed
     /// (useful for emitting `ToolCircuitRestored` events).
@@ -263,7 +279,7 @@ impl ResilienceLayer {
             return Ok(false);
         }
 
-        // HalfOpen probe failed — reopen immediately
+        // HalfOpen probe failed, reopen immediately
         if cb.state == CircuitState::HalfOpen {
             cb.state = CircuitState::Open;
             cb.last_failure_at = Some(Instant::now());
@@ -443,17 +459,20 @@ impl ResilienceLayer {
     /// an implicit truncation.
     pub async fn execute_with_observability<F, Fut, T>(
         &mut self,
-        tool_name: &str,
-        tool_call_id: &str,
-        retry_policy: &RetryPolicy,
+        ctx: RetryContext<'_>,
         error_classifier: impl Fn(&str) -> ErrorClass,
-        bus: Option<&EventBusSender>,
         operation: F,
     ) -> (Result<T, ResilienceError>, Vec<RetryAttempt>)
     where
         F: Fn() -> Fut,
         Fut: Future<Output = Result<T, String>>,
     {
+        let RetryContext {
+            tool_name,
+            tool_call_id,
+            retry_policy,
+            bus,
+        } = ctx;
         let mut attempts: Vec<RetryAttempt> = Vec::new();
 
         if let Err(e) = self.pre_check(tool_name) {
@@ -464,17 +483,7 @@ impl ResilienceLayer {
             let started_at = now_ms();
             let start_instant = Instant::now();
 
-            if attempt > 1 {
-                if let Some(b) = bus {
-                    let last_reason = attempts.last().and_then(|a| a.reason.clone());
-                    let _ = b.send(RuntimeEvent::ToolCallRetrying {
-                        tool_call_id: tool_call_id.to_string(),
-                        tool_name: tool_name.to_string(),
-                        attempt,
-                        reason: last_reason,
-                    });
-                }
-            }
+            emit_retry_event(bus, tool_call_id, tool_name, attempt, &attempts);
 
             match operation().await {
                 Ok(value) => {
@@ -489,20 +498,7 @@ impl ResilienceLayer {
                 }
                 Err(err_msg) => {
                     let error_class = error_classifier(&err_msg);
-                    let outcome = if err_msg.to_lowercase().contains("timeout") {
-                        AttemptOutcome::TimedOut
-                    } else {
-                        AttemptOutcome::Failed
-                    };
-                    let analysis = ErrorAnalysis::new(
-                        map_error_class_to_category(&error_class, &outcome),
-                        err_msg.clone(),
-                        err_msg.clone(),
-                    );
-                    attempts.push(
-                        RetryAttempt::new(attempt, started_at, now_ms(), outcome)
-                            .with_reason(analysis),
-                    );
+                    attempts.push(build_failed_attempt(attempt, started_at, &err_msg, &error_class));
 
                     if error_class != ErrorClass::Transient {
                         return (Err(ResilienceError::ExecutionFailed(err_msg)), attempts);
@@ -529,6 +525,52 @@ impl ResilienceLayer {
 
         unreachable!("loop always returns")
     }
+}
+
+/// Emits [`RuntimeEvent::ToolCallRetrying`] before a non-first attempt.
+///
+/// No-op for the first attempt (`attempt == 1`) or when no bus is provided.
+/// The reason carried by the event is the failure reason of the previous
+/// recorded attempt, if any.
+fn emit_retry_event(
+    bus: Option<&EventBusSender>,
+    tool_call_id: &str,
+    tool_name: &str,
+    attempt: u32,
+    attempts: &[RetryAttempt],
+) {
+    if attempt <= 1 {
+        return;
+    }
+    let Some(b) = bus else { return };
+    let last_reason = attempts.last().and_then(|a| a.reason.clone());
+    let _ = b.send(RuntimeEvent::ToolCallRetrying {
+        tool_call_id: tool_call_id.to_string(),
+        tool_name: tool_name.to_string(),
+        attempt,
+        reason: last_reason,
+    });
+}
+
+/// Builds the [`RetryAttempt`] for a failed operation, classifying the outcome
+/// (timeout vs generic failure) and attaching the derived [`ErrorAnalysis`].
+fn build_failed_attempt(
+    attempt: u32,
+    started_at: u64,
+    err_msg: &str,
+    error_class: &ErrorClass,
+) -> RetryAttempt {
+    let outcome = if err_msg.to_lowercase().contains("timeout") {
+        AttemptOutcome::TimedOut
+    } else {
+        AttemptOutcome::Failed
+    };
+    let analysis = ErrorAnalysis::new(
+        map_error_class_to_category(error_class, &outcome),
+        err_msg.to_string(),
+        err_msg.to_string(),
+    );
+    RetryAttempt::new(attempt, started_at, now_ms(), outcome).with_reason(analysis)
 }
 
 fn map_error_class_to_category(class: &ErrorClass, outcome: &AttemptOutcome) -> ErrorCategory {
@@ -640,7 +682,7 @@ mod tests {
         assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Open);
     }
 
-    // continued — Open rejects immediately
+    // continued: Open rejects immediately
     #[test]
     fn test_open_rejects_immediately() {
         // GIVEN circuit in Open (cooldown not elapsed)
@@ -971,7 +1013,7 @@ mod tests {
         }
     }
 
-    // (partial) — Success on first try, no retry needed
+    // (partial) Success on first try, no retry needed
     #[tokio::test]
     async fn test_execute_success_no_retry() {
         // GIVEN an operation that succeeds
@@ -1069,13 +1111,16 @@ mod tests {
         let cc = call_count.clone();
 
         // WHEN execute_with_observability with max_attempts=3
+        let policy = fast_retry_policy(3);
         let (result, attempts) = layer
             .execute_with_observability(
-                "t",
-                "call-42",
-                &fast_retry_policy(3),
+                RetryContext {
+                    tool_name: "t",
+                    tool_call_id: "call-42",
+                    retry_policy: &policy,
+                    bus: Some(&tx),
+                },
                 transient_classifier,
-                Some(&tx),
                 || {
                     let cc = cc.clone();
                     async move {

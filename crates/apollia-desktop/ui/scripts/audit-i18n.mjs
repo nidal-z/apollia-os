@@ -61,9 +61,9 @@ async function* walk(dir) {
 /** Strip `<!-- ... -->` blocks and `<style>…</style>` / `<script>…</script>`. */
 function stripNonMarkup(src) {
   return src
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "");
+    .replaceAll(/<!--[\s\S]*?-->/g, "")
+    .replaceAll(/<style[\s\S]*?<\/style>/gi, "")
+    .replaceAll(/<script[\s\S]*?<\/script>/gi, "");
 }
 
 /** Return the list of hardcoded-string findings in a file body. */
@@ -72,7 +72,7 @@ function scanMarkup(markup) {
 
   // 1) Static text between tags: `>Some Text<`
   //    Capitalized word of 4+ letters (matches Workspace, Thinking, etc.)
-  const textRe = />\s*([A-ZÀ-Ÿ][a-zA-ZéèêàçùÀ-ÿ ,'.?!—–-]{3,})\s*</g;
+  const textRe = />\s*([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ ,'.?!—–-]{3,})\s*</g;
   // 2) Attribute values that contain copy: title / aria-label / placeholder /
   //    alt / subtitle / confirmLabel / cancelLabel / message
   const attrRe =
@@ -124,7 +124,9 @@ async function main() {
   process.exit(1);
 }
 
-main().catch((err) => {
+try {
+  await main();
+} catch (err) {
   console.error(err);
   process.exit(2);
-});
+}

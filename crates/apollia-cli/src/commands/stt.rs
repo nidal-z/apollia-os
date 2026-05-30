@@ -1,9 +1,9 @@
-//! `apollia-os stt` subcommands — Speech-to-Text management.
+//! `apollia-os stt` subcommands: Speech-to-Text management.
 //!
 //! Provides `status`, `transcribe`, `transcriptions`, and `model` subcommands
 //! for interacting with the STT engine from the terminal.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
 
@@ -142,7 +142,7 @@ pub async fn run(cmd: &SttCommand, socket: Option<PathBuf>, json: bool) -> i32 {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
 
-/// `apollia-os stt status` — display STT engine status.
+/// `apollia-os stt status`: display STT engine status.
 async fn run_status(socket: Option<PathBuf>, json: bool) -> i32 {
     let client = make_client(socket);
 
@@ -189,7 +189,7 @@ async fn run_status(socket: Option<PathBuf>, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os stt transcribe <file>` — transcribe an audio file via the runtime API.
+/// `apollia-os stt transcribe <file>`: transcribe an audio file via the runtime API.
 ///
 /// Pre-checks that STT is enabled in the runtime config before attempting
 /// the transcription. Returns a clear error if `stt.enabled = false`.
@@ -200,33 +200,13 @@ async fn run_transcribe(
     json: bool,
 ) -> i32 {
     if !file.exists() {
-        let msg = format!("file not found: {}", file.display());
-        if json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                    .unwrap_or_default()
-            );
-        } else {
-            eprintln!("Error: {msg}");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return emit_stt_error(&format!("file not found: {}", file.display()), json);
     }
 
     let audio_bytes = match std::fs::read(file) {
         Ok(b) => b,
         Err(e) => {
-            let msg = format!("failed to read {}: {e}", file.display());
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            return exit_codes::GENERAL_ERROR;
+            return emit_stt_error(&format!("failed to read {}: {e}", file.display()), json);
         }
     };
 
@@ -235,18 +215,10 @@ async fn run_transcribe(
     // Pre-check: bail early with a clear message if STT is disabled.
     if let Ok(status) = client.stt_status().await {
         if status["enabled"].as_bool() == Some(false) {
-            let msg =
-                "STT is disabled in apollia.toml — set stt.enabled = true to use transcription";
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            return exit_codes::GENERAL_ERROR;
+            return emit_stt_error(
+                "STT is disabled in apollia.toml — set stt.enabled = true to use transcription",
+                json,
+            );
         }
     }
 
@@ -268,48 +240,38 @@ async fn run_transcribe(
         )
         .await
     {
-        Ok(resp) => {
-            if let Some(out_path) = output {
-                match std::fs::write(out_path, &resp.body) {
-                    Ok(()) => {
-                        if !json {
-                            println!("Transcription saved to {}", out_path.display());
-                        }
-                    }
-                    Err(e) => {
-                        let msg = format!("failed to write {}: {e}", out_path.display());
-                        if json {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                                    .unwrap_or_default()
-                            );
-                        } else {
-                            eprintln!("Error: {msg}");
-                        }
-                        return exit_codes::GENERAL_ERROR;
-                    }
-                }
-            } else if json {
-                let parsed: serde_json::Value =
-                    serde_json::from_str(&resp.body).unwrap_or(serde_json::Value::Null);
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&parsed).unwrap_or_default()
-                );
-            } else {
-                let parsed: serde_json::Value =
-                    serde_json::from_str(&resp.body).unwrap_or(serde_json::Value::Null);
-                let text = parsed["full_text"].as_str().unwrap_or("(no text)");
-                println!("{text}");
-            }
-            exit_codes::SUCCESS
-        }
+        Ok(resp) => emit_transcribe_result(&resp.body, output, json),
         Err(e) => handle_error(e, json),
     }
 }
 
-/// `apollia-os stt transcriptions list` — list transcription history.
+/// Render a successful transcription response: write to `output` if given,
+/// otherwise print the JSON envelope or the plain `full_text`.
+fn emit_transcribe_result(body: &str, output: Option<&std::path::Path>, json: bool) -> i32 {
+    if let Some(out_path) = output {
+        if let Err(e) = std::fs::write(out_path, body) {
+            return emit_stt_error(&format!("failed to write {}: {e}", out_path.display()), json);
+        }
+        if !json {
+            println!("Transcription saved to {}", out_path.display());
+        }
+        return exit_codes::SUCCESS;
+    }
+
+    let parsed: serde_json::Value = serde_json::from_str(body).unwrap_or(serde_json::Value::Null);
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&parsed).unwrap_or_default()
+        );
+    } else {
+        let text = parsed["full_text"].as_str().unwrap_or("(no text)");
+        println!("{text}");
+    }
+    exit_codes::SUCCESS
+}
+
+/// `apollia-os stt transcriptions list`: list transcription history.
 async fn run_transcriptions_list(limit: u32, socket: Option<PathBuf>, json: bool) -> i32 {
     let client = make_client(socket);
 
@@ -321,30 +283,7 @@ async fn run_transcriptions_list(limit: u32, socket: Option<PathBuf>, json: bool
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                let transcriptions = resp["transcriptions"].as_array();
-                match transcriptions {
-                    Some(items) if items.is_empty() => {
-                        println!("  (no transcriptions)");
-                    }
-                    Some(items) => {
-                        println!("  {:<34} {:<8} {:<6} TEXT", "ID", "SOURCE", "LANG");
-                        for item in items {
-                            let id = item["id"].as_str().unwrap_or("?");
-                            let source = item["source"].as_str().unwrap_or("?");
-                            let lang = item["language"].as_str().unwrap_or("-");
-                            let text = item["full_text"].as_str().unwrap_or("");
-                            let truncated = if text.len() > 60 {
-                                format!("{}...", &text[..57])
-                            } else {
-                                text.to_string()
-                            };
-                            println!("  {:<34} {:<8} {:<6} {}", id, source, lang, truncated);
-                        }
-                    }
-                    None => {
-                        println!("  (unexpected response format)");
-                    }
-                }
+                print_transcriptions_human(&resp);
             }
             exit_codes::SUCCESS
         }
@@ -352,7 +291,32 @@ async fn run_transcriptions_list(limit: u32, socket: Option<PathBuf>, json: bool
     }
 }
 
-/// `apollia-os stt model list` — list `.bin` model files via the runtime API.
+/// Print the transcription history table in human-readable form.
+fn print_transcriptions_human(resp: &serde_json::Value) {
+    let Some(items) = resp["transcriptions"].as_array() else {
+        println!("  (unexpected response format)");
+        return;
+    };
+    if items.is_empty() {
+        println!("  (no transcriptions)");
+        return;
+    }
+    println!("  {:<34} {:<8} {:<6} TEXT", "ID", "SOURCE", "LANG");
+    for item in items {
+        let id = item["id"].as_str().unwrap_or("?");
+        let source = item["source"].as_str().unwrap_or("?");
+        let lang = item["language"].as_str().unwrap_or("-");
+        let text = item["full_text"].as_str().unwrap_or("");
+        let truncated = if text.len() > 60 {
+            format!("{}...", &text[..57])
+        } else {
+            text.to_string()
+        };
+        println!("  {:<34} {:<8} {:<6} {}", id, source, lang, truncated);
+    }
+}
+
+/// `apollia-os stt model list`: list `.bin` model files via the runtime API.
 async fn run_model_list(socket: Option<PathBuf>, json: bool) -> i32 {
     let client = make_client(socket);
 
@@ -389,7 +353,7 @@ async fn run_model_list(socket: Option<PathBuf>, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os stt model download <name>` — download a model from HuggingFace.
+/// `apollia-os stt model download <name>`: download a model from HuggingFace.
 ///
 /// Uses the `hf-hub` crate directly (no runtime connection required).
 /// Default repository: `bofenghuang/whisper-large-v3-french`.
@@ -398,36 +362,12 @@ fn run_model_download(name: &str, json: bool) -> i32 {
 
     let dest_dir = default_models_dir();
     if let Err(e) = std::fs::create_dir_all(&dest_dir) {
-        let msg = format!("failed to create {}: {e}", dest_dir.display());
-        if json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                    .unwrap_or_default()
-            );
-        } else {
-            eprintln!("Error: {msg}");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return emit_stt_error(&format!("failed to create {}: {e}", dest_dir.display()), json);
     }
 
     let dest_path = dest_dir.join(&filename);
     if dest_path.exists() {
-        if json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&serde_json::json!({
-                    "status": "already_exists",
-                    "path": dest_path.display().to_string(),
-                }))
-                .unwrap_or_default()
-            );
-        } else {
-            println!(
-                "Model already exists: {}\nDelete it first to re-download.",
-                dest_path.display()
-            );
-        }
+        report_model_already_exists(&dest_path, json);
         return exit_codes::SUCCESS;
     }
 
@@ -435,56 +375,15 @@ fn run_model_download(name: &str, json: bool) -> i32 {
         println!("Downloading {filename} from {repo_id}...");
     }
 
-    let api = hf_hub::api::sync::Api::new();
-    let api = match api {
-        Ok(a) => a,
-        Err(e) => {
-            let msg = format!("failed to initialize HuggingFace API: {e}");
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            return exit_codes::GENERAL_ERROR;
-        }
-    };
+    let pb = build_download_progress(&filename, json);
 
-    let repo = api.model(repo_id.to_string());
-
-    let pb = if json {
-        None
-    } else {
-        let bar = indicatif::ProgressBar::new_spinner();
-        bar.set_style(
-            indicatif::ProgressStyle::with_template("{spinner:.green} {msg} [{elapsed_precise}]")
-                .unwrap_or_else(|_| indicatif::ProgressStyle::default_spinner()),
-        );
-        bar.set_message(format!("Downloading {filename}..."));
-        bar.enable_steady_tick(std::time::Duration::from_millis(120));
-        Some(bar)
-    };
-
-    let cached_path = match repo.get(&filename) {
+    let cached_path = match fetch_model(repo_id, &filename) {
         Ok(p) => p,
-        Err(e) => {
+        Err(msg) => {
             if let Some(ref bar) = pb {
                 bar.finish_and_clear();
             }
-            let msg = format!("download failed: {e}");
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            return exit_codes::GENERAL_ERROR;
+            return emit_stt_error(&msg, json);
         }
     };
 
@@ -496,21 +395,14 @@ fn run_model_download(name: &str, json: bool) -> i32 {
         if let Some(ref bar) = pb {
             bar.finish_and_clear();
         }
-        let msg = format!(
-            "failed to copy {} to {}: {e}",
-            cached_path.display(),
-            dest_path.display()
+        return emit_stt_error(
+            &format!(
+                "failed to copy {} to {}: {e}",
+                cached_path.display(),
+                dest_path.display()
+            ),
+            json,
         );
-        if json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                    .unwrap_or_default()
-            );
-        } else {
-            eprintln!("Error: {msg}");
-        }
-        return exit_codes::GENERAL_ERROR;
     }
 
     if let Some(ref bar) = pb {
@@ -518,8 +410,33 @@ fn run_model_download(name: &str, json: bool) -> i32 {
     }
 
     let size_bytes = std::fs::metadata(&dest_path).map(|m| m.len()).unwrap_or(0);
-    let size_mb = size_bytes as f64 / (1024.0 * 1024.0);
+    report_model_downloaded(&dest_path, size_bytes, json);
 
+    exit_codes::SUCCESS
+}
+
+/// Report that the target model file is already present on disk.
+fn report_model_already_exists(dest_path: &Path, json: bool) {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "status": "already_exists",
+                "path": dest_path.display().to_string(),
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!(
+            "Model already exists: {}\nDelete it first to re-download.",
+            dest_path.display()
+        );
+    }
+}
+
+/// Report a successful model download (size + restart hint).
+fn report_model_downloaded(dest_path: &Path, size_bytes: u64, json: bool) {
+    let size_mb = size_bytes as f64 / (1024.0 * 1024.0);
     if json {
         println!(
             "{}",
@@ -535,11 +452,35 @@ fn run_model_download(name: &str, json: bool) -> i32 {
         println!("Downloaded: {} ({size_mb:.1} MB)", dest_path.display());
         println!("Restart Apollia OS to load the new model.");
     }
-
-    exit_codes::SUCCESS
 }
 
-/// `apollia-os stt transcriptions delete <id>` — supprimer une transcription.
+/// Build the spinner shown during a model download (none in JSON mode).
+fn build_download_progress(filename: &str, json: bool) -> Option<indicatif::ProgressBar> {
+    if json {
+        return None;
+    }
+    let bar = indicatif::ProgressBar::new_spinner();
+    bar.set_style(
+        indicatif::ProgressStyle::with_template("{spinner:.green} {msg} [{elapsed_precise}]")
+            .unwrap_or_else(|_| indicatif::ProgressStyle::default_spinner()),
+    );
+    bar.set_message(format!("Downloading {filename}..."));
+    bar.enable_steady_tick(std::time::Duration::from_millis(120));
+    Some(bar)
+}
+
+/// Fetch `filename` from the HuggingFace `repo_id`, returning the cached path.
+///
+/// Returns a human-readable error message on failure.
+fn fetch_model(repo_id: &str, filename: &str) -> Result<PathBuf, String> {
+    let api = hf_hub::api::sync::Api::new()
+        .map_err(|e| format!("failed to initialize HuggingFace API: {e}"))?;
+    let repo = api.model(repo_id.to_string());
+    repo.get(filename)
+        .map_err(|e| format!("download failed: {e}"))
+}
+
+/// `apollia-os stt transcriptions delete <id>`: delete a transcription.
 async fn run_transcription_delete(id: &str, socket: Option<PathBuf>, json: bool) -> i32 {
     let client = make_client(socket);
 
@@ -568,7 +509,7 @@ async fn run_transcription_delete(id: &str, socket: Option<PathBuf>, json: bool)
     }
 }
 
-/// `apollia-os stt config get` — afficher la configuration STT courante.
+/// `apollia-os stt config get`: show the current STT configuration.
 async fn run_config_get(socket: Option<PathBuf>, json: bool) -> i32 {
     let client = make_client(socket);
 
@@ -599,7 +540,7 @@ async fn run_config_get(socket: Option<PathBuf>, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os stt config update` — modifier la configuration STT.
+/// `apollia-os stt config update`: change the STT configuration.
 async fn run_config_update(
     backend: Option<&str>,
     model_path: Option<&str>,
@@ -642,6 +583,20 @@ async fn run_config_update(
 fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     RuntimeClient::new(socket_path)
+}
+
+/// Emit an error message (JSON or human form) and return [`GENERAL_ERROR`].
+fn emit_stt_error(msg: &str, json: bool) -> i32 {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
+                .unwrap_or_default()
+        );
+    } else {
+        eprintln!("Error: {msg}");
+    }
+    exit_codes::GENERAL_ERROR
 }
 
 /// Handle a [`ClientError`] with consistent output formatting.
@@ -767,7 +722,7 @@ mod tests {
         );
     }
 
-    // ─── Nouveau: Config et TranscriptionsDelete ──────────────────────────
+    // ─── Config and TranscriptionsDelete ──────────────────────────
 
     use clap::Parser;
 
@@ -804,7 +759,7 @@ mod tests {
             "--language",
             "fr",
         ]);
-        // THEN SttConfigCommand::Update avec les bons champs
+        // THEN SttConfigCommand::Update with the expected fields
         match &cli.command {
             SttCommand::Config { command } => match command {
                 SttConfigCommand::Update {

@@ -1,13 +1,13 @@
-//! Outils natifs `permission_rule_{add,remove,list}` — exposent l'API d'écriture
-//! et de lecture de `governance.db` aux agents (ADR-086).
+//! Native `permission_rule_{add,remove,list}` tools: they expose the read/write
+//! API of `governance.db` to agents.
 //!
-//! Les écritures (`add` / `remove`) sont systématiquement HITL-gated par le
-//! `PermissionEngine` (cf. ADR-082). La lecture (`list`) est read-only.
+//! Writes (`add` / `remove`) are always HITL-gated by the `PermissionEngine`.
+//! The read (`list`) is read-only.
 //!
-//! Chaque tool ouvre une connexion fraîche au fichier `governance.db` à
-//! l'invocation : SQLite WAL gère la concurrence avec la connexion détenue par
-//! le `PermissionEngine` du dispatcher. Les écritures sont immédiatement
-//! visibles pour les `decide()` ultérieurs.
+//! Each tool opens a fresh connection to the `governance.db` file at invocation
+//! time: SQLite WAL handles concurrency with the connection owned by the
+//! dispatcher's `PermissionEngine`. Writes are immediately visible to later
+//! `decide()` calls.
 
 use std::path::PathBuf;
 
@@ -24,37 +24,37 @@ use crate::executor::{ToolExecutionError, ToolExecutor};
 use apollia_core::SandboxProfile;
 
 // ─────────────────────────────────────────────
-// Erreurs
+// Errors
 // ─────────────────────────────────────────────
 
-/// Erreurs domaine propres aux outils `permission_rule_*`.
+/// Domain errors specific to the `permission_rule_*` tools.
 #[derive(Debug, Error)]
 pub enum PermissionRuleToolError {
-    /// L'action fournie n'est ni `"allow"` ni `"deny"`.
+    /// The provided action is neither `"allow"` nor `"deny"`.
     #[error("invalid action '{action}': expected 'allow' or 'deny'")]
     InvalidAction {
-        /// Valeur reçue.
+        /// Received value.
         action: String,
     },
 
-    /// Le scope fourni n'est pas reconnu.
+    /// The provided scope is not recognized.
     #[error(
         "invalid scope '{scope}': expected 'project' | 'agent' | 'global' (session non persisté)"
     )]
     InvalidScope {
-        /// Valeur reçue.
+        /// Received value.
         scope: String,
     },
 
-    /// Le scope `project` exige `project_path`.
+    /// The `project` scope requires `project_path`.
     #[error("scope 'project' requires 'project_path'")]
     MissingProjectPath,
 
-    /// Le scope `agent` exige `agent_id`.
+    /// The `agent` scope requires `agent_id`.
     #[error("scope 'agent' requires 'agent_id'")]
     MissingAgentId,
 
-    /// Erreur SQLite ou validation côté `PrefixRuleEngine`.
+    /// SQLite error or validation on the `PrefixRuleEngine` side.
     #[error("permission engine error: {0}")]
     Engine(#[from] PermissionError),
 }
@@ -79,32 +79,32 @@ impl From<PermissionRuleToolError> for ToolExecutionError {
 // DTO
 // ─────────────────────────────────────────────
 
-/// Représentation JSON d'une `PrefixRule` retournée à l'agent.
+/// JSON representation of a `PrefixRule` returned to the agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRuleDto {
-    /// Identifiant SQLite.
+    /// SQLite identifier.
     pub id: i64,
-    /// Outil ciblé.
+    /// Targeted tool.
     pub tool_name: String,
-    /// Préfixe d'argument (None = tout argument).
+    /// Argument prefix (None = any argument).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arg_prefix: Option<String>,
-    /// `"allow"` ou `"deny"`.
+    /// `"allow"` or `"deny"`.
     pub action: String,
     /// `"global"` | `"project"` | `"agent"`.
     pub scope: String,
-    /// Chemin canonique du projet pour scope `project`.
+    /// Canonical project path for the `project` scope.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_path: Option<String>,
-    /// Identifiant agent pour scope `agent`.
+    /// Agent identifier for the `agent` scope.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
-    /// Auteur de la règle (ADR-086).
+    /// Author of the rule.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
-    /// Timestamp Unix de création.
+    /// Unix creation timestamp.
     pub created_at: i64,
-    /// Expiration Unix optionnelle.
+    /// Optional Unix expiration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
 }
@@ -161,27 +161,27 @@ fn now_unix_secs() -> i64 {
 // permission_rule_add
 // ─────────────────────────────────────────────
 
-/// Input du tool `permission_rule_add`.
+/// Input of the `permission_rule_add` tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRuleAddInput {
-    /// Nom de l'outil ciblé.
+    /// Name of the targeted tool.
     pub tool_name: String,
-    /// `"allow"` ou `"deny"`.
+    /// `"allow"` or `"deny"`.
     pub action: String,
-    /// Préfixe d'argument optionnel (None = tout argument).
+    /// Optional argument prefix (None = any argument).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arg_prefix: Option<String>,
-    /// `"global"` (défaut), `"project"` ou `"agent"`. Session non supporté
-    /// (toujours en RAM via le bouton HITL "session" du desktop).
+    /// `"global"` (default), `"project"` or `"agent"`. Session not supported
+    /// (always in RAM via the desktop "session" HITL button).
     #[serde(default = "default_scope")]
     pub scope: String,
-    /// Requis lorsque `scope = "project"`.
+    /// Required when `scope = "project"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_path: Option<String>,
-    /// Requis lorsque `scope = "agent"`.
+    /// Required when `scope = "agent"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
-    /// Timestamp Unix d'expiration (None = règle permanente).
+    /// Unix expiration timestamp (None = permanent rule).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
 }
@@ -190,19 +190,18 @@ fn default_scope() -> String {
     "global".to_string()
 }
 
-/// Output du tool `permission_rule_add`.
+/// Output of the `permission_rule_add` tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRuleAddOutput {
-    /// Identifiant SQLite de la règle créée.
+    /// SQLite identifier of the created rule.
     pub rule_id: i64,
 }
 
-/// Tool natif `permission_rule_add` — propose l'ajout d'une règle de
-/// permission persistée dans `governance.db`.
+/// Native `permission_rule_add` tool: proposes adding a permission rule
+/// persisted in `governance.db`.
 ///
-/// L'invocation est gatée par le `PermissionEngine` (HITL ADR-082). Le champ
-/// `created_by` est automatiquement renseigné avec le nom de l'agent appelant
-/// (ADR-086).
+/// The invocation is gated by the `PermissionEngine` (HITL). The `created_by`
+/// field is automatically populated with the name of the calling agent.
 #[derive(Debug, Clone)]
 pub struct PermissionRuleAdd {
     db_path: PathBuf,
@@ -210,13 +209,13 @@ pub struct PermissionRuleAdd {
 }
 
 impl PermissionRuleAdd {
-    /// Construit le tool en mémorisant le chemin de `governance.db` et l'`agent_id`
-    /// de l'agent propriétaire du dispatcher.
+    /// Builds the tool, remembering the `governance.db` path and the `agent_id`
+    /// of the agent that owns the dispatcher.
     pub fn new(db_path: PathBuf, agent_id: String) -> Self {
         Self { db_path, agent_id }
     }
 
-    /// Exécute l'ajout typé.
+    /// Executes the typed add.
     pub fn run(
         &self,
         input: PermissionRuleAddInput,
@@ -335,22 +334,22 @@ impl ToolExecutor for PermissionRuleAdd {
 // permission_rule_remove
 // ─────────────────────────────────────────────
 
-/// Input du tool `permission_rule_remove`.
+/// Input of the `permission_rule_remove` tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRuleRemoveInput {
-    /// Identifiant de la règle à supprimer.
+    /// Identifier of the rule to remove.
     pub rule_id: i64,
 }
 
-/// Output du tool `permission_rule_remove`.
+/// Output of the `permission_rule_remove` tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRuleRemoveOutput {
-    /// `true` si une ligne a été supprimée, `false` si l'identifiant n'existait pas.
+    /// `true` if a row was removed, `false` if the identifier did not exist.
     pub removed: bool,
 }
 
-/// Tool natif `permission_rule_remove` — supprime une règle de `governance.db`
-/// par identifiant. Gaté par HITL ADR-082.
+/// Native `permission_rule_remove` tool: removes a rule from `governance.db` by
+/// identifier. HITL-gated.
 #[derive(Debug, Clone)]
 pub struct PermissionRuleRemove {
     db_path: PathBuf,
@@ -430,28 +429,28 @@ impl ToolExecutor for PermissionRuleRemove {
 // permission_rule_list
 // ─────────────────────────────────────────────
 
-/// Input du tool `permission_rule_list`.
+/// Input of the `permission_rule_list` tool.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PermissionRuleListInput {
-    /// Filtre par nom d'outil exact.
+    /// Filter by exact tool name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_name: Option<String>,
-    /// Filtre par auteur (`created_by`).
+    /// Filter by author (`created_by`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
-    /// Filtre par scope (`global` | `project` | `agent`).
+    /// Filter by scope (`global` | `project` | `agent`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
 }
 
-/// Output du tool `permission_rule_list`.
+/// Output of the `permission_rule_list` tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRuleListOutput {
-    /// Règles correspondant aux filtres, triées par identifiant croissant.
+    /// Rules matching the filters, sorted by ascending identifier.
     pub rules: Vec<PermissionRuleDto>,
 }
 
-/// Tool natif `permission_rule_list` — read-only.
+/// Native `permission_rule_list` tool, read-only.
 #[derive(Debug, Clone)]
 pub struct PermissionRuleList {
     db_path: PathBuf,
@@ -468,9 +467,9 @@ impl PermissionRuleList {
     ) -> Result<PermissionRuleListOutput, PermissionRuleToolError> {
         let engine = PrefixRuleEngine::new(&self.db_path)?;
 
-        // Stratégie : si created_by est fourni, on commence par ce filtre (le
-        // plus sélectif), puis on affine en mémoire. Sinon on liste tout (hors
-        // session) et on filtre.
+        // Strategy: if created_by is provided, start with that filter (the most
+        // selective), then refine in memory. Otherwise list everything (except
+        // session) and filter.
         let candidates = if let Some(creator) = input.created_by.as_deref() {
             engine.list_rules_by_creator(creator)?
         } else {
@@ -544,7 +543,7 @@ impl ToolExecutor for PermissionRuleList {
     }
 
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        // Input vide accepté (filtres optionnels).
+        // Empty input accepted (filters are optional).
         let typed: PermissionRuleListInput = if input.is_null() {
             PermissionRuleListInput::default()
         } else {
@@ -575,11 +574,11 @@ mod tests {
 
     #[test]
     fn add_persists_rule_with_creator() {
-        // GIVEN un PermissionRuleAdd configuré pour l'agent "onboarding-agent"
+        // GIVEN a PermissionRuleAdd configured for the "onboarding-agent" agent
         let db = tmp_db();
         let tool = PermissionRuleAdd::new(db.path().to_path_buf(), "onboarding-agent".into());
 
-        // WHEN on appelle run() avec une règle deny http_fetch https://
+        // WHEN run() is called with a deny http_fetch https:// rule
         let out = tool
             .run(PermissionRuleAddInput {
                 tool_name: "http_fetch".into(),
@@ -592,7 +591,7 @@ mod tests {
             })
             .expect("run");
 
-        // THEN la règle existe en DB avec created_by="onboarding-agent"
+        // THEN the rule exists in the DB with created_by="onboarding-agent"
         let engine = PrefixRuleEngine::new(db.path()).expect("engine");
         let rules = engine
             .list_rules_by_creator("onboarding-agent")
@@ -642,7 +641,7 @@ mod tests {
 
     #[test]
     fn remove_deletes_rule() {
-        // GIVEN une règle existante
+        // GIVEN an existing rule
         let db = tmp_db();
         let add = PermissionRuleAdd::new(db.path().to_path_buf(), "agent".into());
         let added = add
@@ -677,7 +676,7 @@ mod tests {
 
     #[test]
     fn list_filters_by_creator() {
-        // GIVEN deux règles d'auteurs différents
+        // GIVEN two rules from different authors
         let db = tmp_db();
         PermissionRuleAdd::new(db.path().to_path_buf(), "onboarding-agent".into())
             .run(PermissionRuleAddInput {
@@ -711,7 +710,7 @@ mod tests {
             })
             .expect("list");
 
-        // THEN une seule règle, celle de onboarding-agent
+        // THEN a single rule, the one from onboarding-agent
         assert_eq!(out.rules.len(), 1);
         assert_eq!(out.rules[0].tool_name, "tool_a");
         assert_eq!(out.rules[0].created_by.as_deref(), Some("onboarding-agent"));

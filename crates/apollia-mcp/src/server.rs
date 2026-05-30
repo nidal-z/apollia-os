@@ -1,12 +1,12 @@
-//! MCP stdio server — exposes native Apollia tools to external MCP clients.
+//! MCP stdio server: exposes native Apollia tools to external MCP clients.
 //!
 //! [`McpStdioServer`] reads newline-delimited JSON-RPC 2.0 messages from stdin,
 //! dispatches them to the appropriate handler, and writes responses to stdout.
 //!
 //! Supported methods:
-//! - `initialize` — handshake, returns server capabilities
-//! - `tools/list` — enumerate the 9 native tools (+ `submit_task` when runtime present)
-//! - `tools/call` — invoke a tool via [`ToolDispatcher`]
+//! - `initialize`: handshake, returns server capabilities
+//! - `tools/list`: enumerate the 9 native tools (+ `submit_task` when runtime present)
+//! - `tools/call`: invoke a tool via [`ToolDispatcher`]
 //!
 //! The server handles malformed JSON gracefully: a parse error produces a
 //! JSON-RPC error response with code `-32700` instead of crashing.
@@ -101,7 +101,7 @@ impl McpStdioServer {
     ///
     /// Returns [`McpServerError::Io`] only on unrecoverable I/O errors on stdin
     /// or stdout. JSON parsing and method routing errors are returned to the
-    /// client as JSON-RPC error responses — they never terminate the loop.
+    /// client as JSON-RPC error responses; they never terminate the loop.
     pub async fn run(self) -> Result<(), McpServerError> {
         let stdin = tokio::io::stdin();
         let mut lines = BufReader::new(stdin).lines();
@@ -295,7 +295,7 @@ fn jsonrpc_error(id: serde_json::Value, code: i64, message: &str) -> serde_json:
 
 /// Inject MCP-layer defaults into tool arguments before dispatching.
 ///
-/// `bash_executor` requires `timeout_secs` — the MCP schema marks it as optional
+/// `bash_executor` requires `timeout_secs`; the MCP schema marks it as optional
 /// with a default of 30. This function fills in the field when absent so MCP
 /// clients that follow the schema do not receive a spurious `InvalidInput` error.
 fn enrich_arguments(tool_name: &str, mut args: serde_json::Value) -> serde_json::Value {
@@ -334,7 +334,7 @@ mod tests {
         McpStdioServer::new(make_dispatcher())
     }
 
-    // ── AC-1 — initialize ────────────────────────────────────────────────────
+    // initialize
 
     #[tokio::test]
     async fn mcp_server_handles_initialize() {
@@ -354,7 +354,7 @@ mod tests {
         assert_eq!(response["result"]["serverInfo"]["name"], "apollia-os");
     }
 
-    // ── AC-2 — 9 tools without runtime ──────────────────────────────────────
+    // 9 tools without runtime
 
     #[tokio::test]
     async fn mcp_server_lists_9_native_tools() {
@@ -374,11 +374,11 @@ mod tests {
         assert!(!has_submit, "submit_task must not appear without runtime");
     }
 
-    // ── AC-3 — 10 tools with runtime ────────────────────────────────────────
+    // 10 tools with runtime
 
     #[tokio::test]
     async fn mcp_server_lists_submit_task_with_runtime() {
-        // GIVEN — inject a stub SubmitTaskHandler to simulate the runtime path
+        // GIVEN: inject a stub SubmitTaskHandler to simulate the runtime path
         struct StubSubmit;
 
         #[async_trait::async_trait]
@@ -404,7 +404,7 @@ mod tests {
         assert!(has_submit, "submit_task must appear with runtime");
     }
 
-    // ── AC-4 — bash_executor call ────────────────────────────────────────────
+    // bash_executor call
 
     #[tokio::test]
     async fn mcp_server_calls_bash_executor() {
@@ -419,7 +419,7 @@ mod tests {
         };
         // WHEN
         let response = server.handle_request(req).await;
-        // THEN — result contains content[0].text with "hello"
+        // THEN: result contains content[0].text with "hello"
         let text = response["result"]["content"][0]["text"]
             .as_str()
             .expect("content[0].text must be a string");
@@ -429,7 +429,7 @@ mod tests {
         );
     }
 
-    // ── AC-5 — unknown tool → -32000 ─────────────────────────────────────────
+    // unknown tool yields -32000
 
     #[tokio::test]
     async fn mcp_server_returns_error_on_unknown_tool() {
@@ -449,7 +449,7 @@ mod tests {
         assert_eq!(response["error"]["code"], -32000);
     }
 
-    // ── AC-6 — parse error → -32700 ──────────────────────────────────────────
+    // parse error yields -32700
 
     #[test]
     fn mcp_server_handles_parse_error() {

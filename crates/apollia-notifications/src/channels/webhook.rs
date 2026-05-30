@@ -12,49 +12,49 @@ use crate::{
 
 type HmacSha256 = Hmac<Sha256>;
 
-/// Configuration d'un canal webhook.
+/// Configuration of a webhook channel.
 ///
-/// Correspond à une entrée `[[notifications.channels]]` de type `webhook`
-/// dans `apollia.toml`. Le champ `url` est obligatoire (contrairement au
-/// type générique [`crate::config::ChannelConfig`] qui l'a en `Option`).
+/// Maps to a `[[notifications.channels]]` entry of type `webhook` in
+/// `apollia.toml`. The `url` field is mandatory (unlike the generic
+/// [`crate::config::ChannelConfig`], which has it as `Option`).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct WebhookChannelConfig {
-    /// Identifiant unique du canal (ex: `"slack"`, `"monitoring"`).
+    /// Unique channel identifier (e.g. `"slack"`, `"monitoring"`).
     pub id: String,
-    /// URL du endpoint webhook (ex: `"https://hooks.slack.com/services/..."`).
+    /// Webhook endpoint URL (e.g. `"https://hooks.slack.com/services/..."`).
     pub url: String,
-    /// Si `false`, le canal est ignoré même s'il est présent dans la config.
+    /// If `false`, the channel is ignored even if present in the config.
     pub enabled: bool,
-    /// Sous-ensemble d'événements à recevoir sur ce canal.
+    /// Subset of events to receive on this channel.
     ///
-    /// - `None` → utilise la liste globale (`[notifications].events`)
-    /// - `Some(["*"])` → tous les événements de la liste globale
-    /// - `Some(liste)` → sous-ensemble d'événements explicites
+    /// - `None` -> uses the global list (`[notifications].events`)
+    /// - `Some(["*"])` -> all events from the global list
+    /// - `Some(list)` -> an explicit subset of events
     pub events: Option<Vec<String>>,
-    /// Secret partagé pour signer les payloads sortants avec HMAC-SHA256.
+    /// Shared secret to sign outgoing payloads with HMAC-SHA256.
     ///
-    /// Si `Some`, chaque requête reçoit un header `X-Apollia-Signature: sha256=<hex>`.
-    /// Si `None`, le webhook est envoyé sans signature (rétrocompatible).
+    /// If `Some`, each request gets an `X-Apollia-Signature: sha256=<hex>` header.
+    /// If `None`, the webhook is sent without a signature (backward compatible).
     pub signing_secret: Option<String>,
-    /// Sévérité minimale acceptée par ce canal.
+    /// Minimum severity accepted by this channel.
     ///
-    /// Les notifications dont la sévérité est inférieure à ce seuil sont silencieusement
-    /// ignorées. Défaut lors de la désérialisation : [`Severity::Info`] (toutes les
-    /// notifications non-debug sont transmises).
+    /// Notifications whose severity is below this threshold are silently
+    /// ignored. Default on deserialization: [`Severity::Info`] (all non-debug
+    /// notifications are forwarded).
     #[serde(default)]
     pub min_severity: Severity,
 }
 
-/// Canal de notification via HTTP POST — format JSON fixe Apollia.
+/// HTTP POST notification channel: fixed Apollia JSON format.
 ///
-/// Construit un [`reqwest::Client`] avec un timeout de 5 secondes au moment de
-/// la création. Chaque appel à [`send`] effectue un `POST` vers l'URL configurée
-/// avec le payload JSON documenté dans la spec Apollia.
+/// Builds a [`reqwest::Client`] with a 5-second timeout at creation. Each call
+/// to [`send`] performs a `POST` to the configured URL with the JSON payload
+/// documented in the Apollia spec.
 ///
-/// En cas d'erreur réseau, de timeout ou de réponse HTTP non-2xx,
-/// [`NotifError::WebhookFailed`] est retourné. L'appelant
-/// ([`crate::engine::NotificationEngine`]) logge l'erreur en `warn!` et
-/// continue sans interrompre le dispatch vers les autres canaux.
+/// On a network error, timeout, or non-2xx HTTP response,
+/// [`NotifError::WebhookFailed`] is returned. The caller
+/// ([`crate::engine::NotificationEngine`]) logs the error at `warn!` and
+/// continues without interrupting dispatch to the other channels.
 pub struct WebhookChannel {
     config: WebhookChannelConfig,
     client: Client,
@@ -62,13 +62,13 @@ pub struct WebhookChannel {
 }
 
 impl WebhookChannel {
-    /// Crée un canal webhook avec timeout 5 s et User-Agent `apollia-os/<version>`.
+    /// Creates a webhook channel with a 5s timeout and User-Agent `apollia-os/<version>`.
     ///
     /// # Panics
     ///
-    /// Panics si la construction du [`reqwest::Client`] échoue — cela ne peut
-    /// pas arriver sur les systèmes supportés (aucun TLS personnalisé ni proxy
-    /// système incompatible requis).
+    /// Panics if building the [`reqwest::Client`] fails, which cannot happen on
+    /// the supported systems (no custom TLS or incompatible system proxy
+    /// required).
     pub fn new(config: WebhookChannelConfig) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(5))
@@ -78,10 +78,9 @@ impl WebhookChannel {
         Self::with_client(config, client)
     }
 
-    /// Crée un canal avec un client reqwest fourni.
+    /// Creates a channel with a provided reqwest client.
     ///
-    /// Permet d'injecter un client avec un timeout court ou un serveur mock
-    /// dans les tests.
+    /// Lets tests inject a client with a short timeout or a mock server.
     pub(crate) fn with_client(config: WebhookChannelConfig, client: Client) -> Self {
         Self {
             config,
@@ -90,12 +89,11 @@ impl WebhookChannel {
         }
     }
 
-    /// Active ou désactive le SSRF guard sur ce canal.
+    /// Enables or disables the SSRF guard on this channel.
     ///
-    /// Activé par défaut. L'opt-out existe uniquement pour les tests
-    /// d'intégration in-process qui doivent dialoguer avec un serveur mock
-    /// sur `127.0.0.1`. Tout site d'appel en production doit le laisser à
-    /// `true`.
+    /// Enabled by default. The opt-out exists only for in-process integration
+    /// tests that must talk to a mock server on `127.0.0.1`. Every production
+    /// call site must leave it at `true`.
     #[must_use]
     pub fn with_ssrf_guard(mut self, enabled: bool) -> Self {
         self.ssrf_guard = enabled;
@@ -103,13 +101,13 @@ impl WebhookChannel {
     }
 }
 
-/// Calcule la signature HMAC-SHA256 d'un body avec le secret donné.
+/// Computes the HMAC-SHA256 signature of a body with the given secret.
 ///
-/// Retourne la chaîne au format `sha256=<hex>` tel qu'attendu dans le header
-/// `X-Apollia-Signature`. Conforme à la convention GitHub/Stripe.
+/// Returns the string in `sha256=<hex>` format as expected in the
+/// `X-Apollia-Signature` header. Follows the GitHub/Stripe convention.
 ///
-/// HMAC accepte des clés de toute taille, le `expect` interne ne peut donc
-/// jamais se déclencher en pratique.
+/// HMAC accepts keys of any size, so the internal `expect` can never trigger in
+/// practice.
 pub fn compute_signature(secret: &str, body: &[u8]) -> String {
     let mut mac =
         HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts keys of any size");
@@ -118,29 +116,28 @@ pub fn compute_signature(secret: &str, body: &[u8]) -> String {
     format!("sha256={}", hex::encode(result.into_bytes()))
 }
 
-/// Format de payload à envoyer au endpoint webhook.
+/// Payload format to send to the webhook endpoint.
 ///
-/// Détecté automatiquement par hostname dans [`detect_webhook_kind`].
-/// Les utilisateurs de Discord ou Slack obtiennent un payload natif accepté
-/// par leur plateforme ; tout autre endpoint reçoit le format JSON Apollia
-/// historique.
+/// Detected automatically by hostname in [`detect_webhook_kind`].
+/// Discord or Slack users get a native payload accepted by their platform;
+/// every other endpoint receives the historical Apollia JSON format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WebhookKind {
-    /// Format JSON Apollia : champs `event`, `task_id`, `severity`, etc.
-    /// Utilisé pour les endpoints custom (services Apollia-aware).
+    /// Apollia JSON format: fields `event`, `task_id`, `severity`, etc.
+    /// Used for custom endpoints (Apollia-aware services).
     Apollia,
-    /// Discord Incoming Webhook : payload `{ content, embeds, username }`.
-    /// Détection : hostname contient `discord.com` ou `discordapp.com`.
+    /// Discord Incoming Webhook: payload `{ content, embeds, username }`.
+    /// Detection: hostname contains `discord.com` or `discordapp.com`.
     Discord,
-    /// Slack Incoming Webhook : payload `{ text, attachments }`.
-    /// Détection : hostname contient `hooks.slack.com`.
+    /// Slack Incoming Webhook: payload `{ text, attachments }`.
+    /// Detection: hostname contains `hooks.slack.com`.
     Slack,
 }
 
-/// Devine le format attendu à partir du hostname de l'URL.
+/// Guesses the expected format from the URL hostname.
 ///
-/// Tolérant aux erreurs d'URL : retombe sur [`WebhookKind::Apollia`] si
-/// le parsing échoue. La validation SSRF/URL est faite séparément en amont.
+/// Tolerant of URL errors: falls back to [`WebhookKind::Apollia`] if parsing
+/// fails. SSRF/URL validation is done separately upstream.
 pub(crate) fn detect_webhook_kind(url: &str) -> WebhookKind {
     let Ok(parsed) = url::Url::parse(url) else {
         return WebhookKind::Apollia;
@@ -159,17 +156,17 @@ pub(crate) fn detect_webhook_kind(url: &str) -> WebhookKind {
     }
 }
 
-/// Construit le payload selon le format détecté.
+/// Builds the payload according to the detected format.
 ///
-/// Délègue à [`build_apollia_payload`], [`build_discord_payload`] ou
+/// Delegates to [`build_apollia_payload`], [`build_discord_payload`], or
 /// [`build_slack_payload`].
 pub(crate) fn build_payload(notif: &Notification) -> serde_json::Value {
     build_apollia_payload(notif)
 }
 
-/// Construit le payload JSON Apollia à partir d'une [`Notification`].
+/// Builds the Apollia JSON payload from a [`Notification`].
 ///
-/// Le format est fixe et documenté :
+/// The format is fixed and documented:
 /// `event`, `timestamp`, `runtime`, `version`, `task_id`, `agent`, `message`,
 /// `metadata`, `severity`.
 pub(crate) fn build_apollia_payload(notif: &Notification) -> serde_json::Value {
@@ -186,11 +183,11 @@ pub(crate) fn build_apollia_payload(notif: &Notification) -> serde_json::Value {
     })
 }
 
-/// Construit un payload Discord avec un embed riche.
+/// Builds a Discord payload with a rich embed.
 ///
-/// Discord accepte `content` (texte plat) et/ou `embeds` (array d'objets
-/// embed). On choisit l'embed pour conserver les métadonnées : couleur
-/// par sévérité, champs `événement` / `agent` / `tâche`, timestamp.
+/// Discord accepts `content` (plain text) and/or `embeds` (an array of embed
+/// objects). We choose the embed to keep the metadata: per-severity color,
+/// event / agent / task fields, and timestamp.
 pub(crate) fn build_discord_payload(notif: &Notification) -> serde_json::Value {
     let mut fields: Vec<serde_json::Value> = Vec::new();
     fields.push(serde_json::json!({
@@ -213,7 +210,7 @@ pub(crate) fn build_discord_payload(notif: &Notification) -> serde_json::Value {
         }));
     }
 
-    // Couleurs Discord (entier décimal). Voir https://discord.com/developers/docs/resources/channel#embed-object
+    // Discord colors (decimal integer). See https://discord.com/developers/docs/resources/channel#embed-object
     let color: u32 = match notif.severity {
         Severity::Critical => 0xB91C1C, // red-700
         Severity::Error => 0xDC2626,    // red-600
@@ -236,11 +233,10 @@ pub(crate) fn build_discord_payload(notif: &Notification) -> serde_json::Value {
     })
 }
 
-/// Construit un payload Slack Incoming Webhook.
+/// Builds a Slack Incoming Webhook payload.
 ///
-/// Slack accepte `text` (markdown léger) et `attachments` (legacy mais
-/// largement supporté). On utilise les attachments pour la couleur et
-/// les champs de contexte.
+/// Slack accepts `text` (light markdown) and `attachments` (legacy but widely
+/// supported). We use attachments for the color and the context fields.
 pub(crate) fn build_slack_payload(notif: &Notification) -> serde_json::Value {
     let color = match notif.severity {
         Severity::Critical | Severity::Error => "danger",
@@ -279,7 +275,7 @@ pub(crate) fn build_slack_payload(notif: &Notification) -> serde_json::Value {
     })
 }
 
-/// Tronque une chaîne à `max` octets en respectant les frontières char.
+/// Truncates a string to `max` bytes, respecting char boundaries.
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         return s.to_owned();
@@ -293,14 +289,14 @@ fn truncate(s: &str, max: usize) -> String {
 
 #[async_trait]
 impl NotificationChannel for WebhookChannel {
-    /// Retourne l'identifiant du canal tel que configuré dans `apollia.toml`.
+    /// Returns the channel identifier as configured in `apollia.toml`.
     fn id(&self) -> &str {
         &self.config.id
     }
 
-    /// Retourne `true` si ce canal est activé et accepte l'événement donné.
+    /// Returns `true` if this channel is enabled and accepts the given event.
     ///
-    /// Délègue la logique de filtrage à [`channel_accepts_event`].
+    /// Delegates the filtering logic to [`channel_accepts_event`].
     fn accepts(&self, event: &str, config: &NotificationConfig) -> bool {
         channel_accepts_event(
             self.config.enabled,
@@ -310,27 +306,27 @@ impl NotificationChannel for WebhookChannel {
         )
     }
 
-    /// Envoie la notification via HTTP POST vers l'URL configurée.
+    /// Sends the notification via HTTP POST to the configured URL.
     ///
-    /// - **Payload** : format JSON fixe Apollia (voir [`build_payload`])
-    /// - **Headers** : `Content-Type: application/json`, `X-Apollia-Event: <event>`,
-    ///   `User-Agent: apollia-os/<version>` (via le client),
-    ///   `X-Apollia-Signature: sha256=<hex>` si `signing_secret` est configuré
-    /// - **Timeout** : 5 s (configuré sur le client dans [`new`])
+    /// - **Payload**: fixed Apollia JSON format (see [`build_payload`])
+    /// - **Headers**: `Content-Type: application/json`, `X-Apollia-Event: <event>`,
+    ///   `User-Agent: apollia-os/<version>` (via the client),
+    ///   `X-Apollia-Signature: sha256=<hex>` if `signing_secret` is configured
+    /// - **Timeout**: 5s (configured on the client in [`new`])
     ///
-    /// La signature est calculée sur le body JSON sérialisé final avant envoi.
+    /// The signature is computed over the final serialized JSON body before sending.
     ///
-    /// Retourne [`NotifError::WebhookFailed`] pour toute erreur réseau ou
-    /// réponse HTTP non-2xx. L'erreur est non-critique : le runtime la logge en
-    /// `warn!` sans interrompre le dispatch.
+    /// Returns [`NotifError::WebhookFailed`] for any network error or non-2xx
+    /// HTTP response. The error is non-critical: the runtime logs it at `warn!`
+    /// without interrupting dispatch.
     async fn send(&self, notif: &Notification) -> Result<(), NotifError> {
         if notif.severity < self.config.min_severity {
             return Ok(());
         }
 
-        // SSRF guard — must precede the HTTP request. Opérateur peut configurer
-        // une URL pointant sur 127.0.0.1 ou un endpoint metadata cloud ;
-        // refus avant tout octet émis.
+        // SSRF guard: must precede the HTTP request. An operator may configure a
+        // URL pointing to 127.0.0.1 or a cloud metadata endpoint; refuse before
+        // any byte is emitted.
         if self.ssrf_guard {
             let parsed_url = url::Url::parse(&self.config.url)
                 .map_err(|e| NotifError::InvalidUrl(e.to_string()))?;
@@ -370,7 +366,7 @@ impl NotificationChannel for WebhookChannel {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            // Best-effort body extract for diagnostics — many providers (Discord,
+            // Best-effort body extract for diagnostics: many providers (Discord,
             // Slack) return a JSON error body that explains the rejection.
             let body_excerpt = match resp.text().await {
                 Ok(text) if !text.is_empty() => {
@@ -453,11 +449,11 @@ mod tests {
         .with_ssrf_guard(false)
     }
 
-    // ─── canal désactivé ───────────────────────────────────────────────
+    // --- disabled channel ------------------------------------------------
 
     #[test]
     fn test_ac5_disabled_channel_accepts_false() {
-        // GIVEN canal webhook configuré avec enabled=false
+        // GIVEN a webhook channel configured with enabled=false
         let channel = WebhookChannel::new(WebhookChannelConfig {
             id: "slack".into(),
             url: "http://test".into(),
@@ -468,26 +464,26 @@ mod tests {
         });
         let config = make_config(vec!["task.input_required"]);
 
-        // WHEN / THEN — accepts() retourne false sans que send() soit jamais appelé
+        // WHEN / THEN accepts() returns false and send() is never called
         assert!(!channel.accepts("task.input_required", &config));
     }
 
     #[test]
     fn test_ac5_enabled_channel_accepts_matching_event() {
-        // GIVEN canal activé sans liste propre → délègue à la liste globale
+        // GIVEN an enabled channel without its own list, delegating to the global list
         let channel = make_channel_url("http://example.com");
         let config = make_config(vec!["task.input_required", "task.failed"]);
 
         // WHEN / THEN
         assert!(channel.accepts("task.input_required", &config));
         assert!(channel.accepts("task.failed", &config));
-        // Événement absent de la liste globale → refusé
+        // Event absent from the global list is rejected.
         assert!(!channel.accepts("agent.degraded", &config));
     }
 
     #[test]
     fn test_ac5_channel_with_per_channel_events_subset() {
-        // GIVEN canal avec sous-ensemble d'événements explicites
+        // GIVEN a channel with an explicit subset of events
         let channel = WebhookChannel::new(WebhookChannelConfig {
             id: "slack".into(),
             url: "http://example.com".into(),
@@ -498,17 +494,17 @@ mod tests {
         });
         let config = make_config(vec!["task.input_required", "task.failed", "agent.degraded"]);
 
-        // WHEN / THEN — agent.degraded rejeté car absent de la liste du canal
+        // WHEN / THEN agent.degraded rejected because absent from the channel list
         assert!(channel.accepts("task.input_required", &config));
         assert!(channel.accepts("task.failed", &config));
         assert!(!channel.accepts("agent.degraded", &config));
     }
 
-    // ─── filtrage par sévérité ────────────────────────────────────────
+    // --- severity filtering ----------------------------------------------
 
     #[tokio::test]
     async fn test_webhook_filters_below_min_severity() {
-        // GIVEN canal webhook avec min_severity = Warning
+        // GIVEN a webhook channel with min_severity = Warning
         let channel = WebhookChannel::new(WebhookChannelConfig {
             id: "webhook-warn".into(),
             url: "http://127.0.0.1:1".into(),
@@ -518,17 +514,17 @@ mod tests {
             min_severity: Severity::Warning,
         });
 
-        // WHEN notification Info (< Warning) dispatchée
+        // WHEN an Info notification (< Warning) is dispatched
         let notif = make_notif("task.completed", None, Severity::Info);
 
-        // THEN Ok(()) immédiat sans tentative réseau
+        // THEN immediate Ok(()) with no network attempt
         let result = channel.send(&notif).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_webhook_default_min_severity_is_info() {
-        // GIVEN WebhookChannelConfig avec min_severity par défaut (serde default)
+        // GIVEN WebhookChannelConfig with the default min_severity (serde default)
         let json = r#"{
             "id": "webhook",
             "url": "http://example.com",
@@ -536,21 +532,21 @@ mod tests {
         }"#;
         let cfg: WebhookChannelConfig = serde_json::from_str(json).expect("déserialisation");
 
-        // WHEN / THEN — min_severity = Info (Severity::default())
+        // WHEN / THEN min_severity = Info (Severity::default())
         assert_eq!(cfg.min_severity, Severity::Info);
     }
 
-    // ─── structure payload JSON ───────────────────────────────────────
+    // --- JSON payload structure ------------------------------------------
 
     #[test]
     fn test_ac1_payload_json_structure_task_input_required() {
-        // GIVEN une Notification task.input_required
+        // GIVEN a task.input_required Notification
         let notif = make_notif("task.input_required", Some("t-0042"), Severity::Warning);
 
         // WHEN
         let payload = build_payload(&notif);
 
-        // THEN — tous les champs du format JSON fixe Apollia sont présents
+        // THEN all fields of the fixed Apollia JSON format are present
         assert_eq!(payload["event"], "task.input_required");
         assert_eq!(payload["runtime"], "apollia-os");
         assert_eq!(payload["task_id"], "t-0042");
@@ -564,7 +560,7 @@ mod tests {
             payload["version"].as_str().is_some(),
             "version doit être présente"
         );
-        // metadata contient les URLs HITL
+        // metadata contains the HITL URLs
         assert!(
             payload["metadata"]["resume_url"].as_str().is_some(),
             "resume_url absent des metadata"
@@ -577,7 +573,7 @@ mod tests {
 
     #[test]
     fn test_ac1_payload_task_failed_severity_error() {
-        // GIVEN une notification task.failed
+        // GIVEN a task.failed notification
         let notif = make_notif("task.failed", Some("t-001"), Severity::Error);
 
         // WHEN
@@ -591,7 +587,7 @@ mod tests {
 
     #[test]
     fn test_ac1_payload_null_fields_when_no_task_id() {
-        // GIVEN une notification sans task_id (ex: agent.degraded)
+        // GIVEN a notification without task_id (e.g. agent.degraded)
         let notif = Notification {
             event: "agent.degraded".into(),
             timestamp: Utc::now(),
@@ -605,12 +601,12 @@ mod tests {
         // WHEN
         let payload = build_payload(&notif);
 
-        // THEN — task_id est null (JSON null), pas absent
+        // THEN task_id is null (JSON null), not absent
         assert!(payload["task_id"].is_null());
         assert_eq!(payload["event"], "agent.degraded");
     }
 
-    // ─── Détection du format par hostname (Discord / Slack / Apollia) ────
+    // --- Format detection by hostname (Discord / Slack / Apollia) --------
 
     #[test]
     fn test_detect_webhook_kind_discord() {
@@ -653,23 +649,23 @@ mod tests {
         assert_eq!(detect_webhook_kind("not a url"), WebhookKind::Apollia);
     }
 
-    // ─── Discord payload format ──────────────────────────────────────────
+    // --- Discord payload format ------------------------------------------
 
     #[test]
     fn test_build_discord_payload_has_embed_and_username() {
-        // GIVEN une notification task.failed
+        // GIVEN a task.failed notification
         let notif = make_notif("task.failed", Some("t-001"), Severity::Error);
 
         // WHEN
         let payload = build_discord_payload(&notif);
 
-        // THEN — username override + un embed avec titre, couleur, fields
+        // THEN username override + an embed with title, color, fields
         assert_eq!(payload["username"], "Apollia OS");
         let embeds = payload["embeds"].as_array().expect("embeds array");
         assert_eq!(embeds.len(), 1);
         let embed = &embeds[0];
         assert!(embed["title"].as_str().is_some());
-        // Couleur error = 0xDC2626 = 14_427_686
+        // error color = 0xDC2626 = 14_427_686
         assert_eq!(embed["color"], 14_427_686);
         assert!(embed["fields"].as_array().expect("fields").len() >= 2);
         assert!(embed["timestamp"].as_str().is_some());
@@ -685,7 +681,7 @@ mod tests {
 
     #[test]
     fn test_build_discord_payload_no_optional_fields_when_absent() {
-        // GIVEN — pas de task_id ni agent
+        // GIVEN no task_id or agent
         let notif = Notification {
             event: "trigger.error".into(),
             timestamp: Utc::now(),
@@ -699,13 +695,13 @@ mod tests {
         // WHEN
         let payload = build_discord_payload(&notif);
 
-        // THEN — un seul field (l'événement)
+        // THEN a single field (the event)
         let fields = payload["embeds"][0]["fields"].as_array().expect("fields");
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0]["name"], "Événement");
     }
 
-    // ─── Slack payload format ────────────────────────────────────────────
+    // --- Slack payload format --------------------------------------------
 
     #[test]
     fn test_build_slack_payload_has_text_and_attachment() {
@@ -726,24 +722,24 @@ mod tests {
         assert_eq!(payload["attachments"][0]["color"], "danger");
     }
 
-    // ─── timeout → NotifError::WebhookFailed ──────────────────────────
+    // --- timeout -> NotifError::WebhookFailed ----------------------------
 
     #[tokio::test]
     async fn test_ac3_webhook_timeout_returns_error() {
-        // GIVEN un serveur TCP qui accepte la connexion mais ne répond jamais
+        // GIVEN a TCP server that accepts the connection but never responds
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind échoue");
         let addr = listener.local_addr().expect("local_addr");
 
         tokio::spawn(async move {
-            // Accepte et tient la connexion ouverte sans jamais répondre
+            // Accept and hold the connection open without ever responding.
             if let Ok((_stream, _)) = listener.accept().await {
                 tokio::time::sleep(Duration::from_secs(30)).await;
             }
         });
 
-        // Client avec timeout court pour ne pas bloquer le test
+        // Client with a short timeout so the test does not block.
         let config = WebhookChannelConfig {
             id: "timeout-test".into(),
             url: format!("http://127.0.0.1:{}", addr.port()),
@@ -767,7 +763,7 @@ mod tests {
             ))
             .await;
 
-        // THEN — NotifError::WebhookFailed retourné, pas de panic
+        // THEN NotifError::WebhookFailed returned, no panic
         assert!(
             matches!(result, Err(NotifError::WebhookFailed(_))),
             "attendu Err(WebhookFailed), obtenu {:?}",
@@ -775,11 +771,11 @@ mod tests {
         );
     }
 
-    // ─── réponse HTTP 500 → NotifError::WebhookFailed ─────────────────
+    // --- HTTP 500 response -> NotifError::WebhookFailed ------------------
 
     #[tokio::test]
     async fn test_ac4_webhook_500_returns_error() {
-        // GIVEN un serveur HTTP minimal qui répond 500
+        // GIVEN a minimal HTTP server that responds 500
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind échoue");
@@ -787,7 +783,7 @@ mod tests {
 
         tokio::spawn(async move {
             if let Ok((mut stream, _)) = listener.accept().await {
-                // Consomme la requête (lecture partielle suffit)
+                // Consume the request (a partial read is enough).
                 let mut buf = [0u8; 4096];
                 let _ = stream.read(&mut buf).await;
                 let response = b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
@@ -810,7 +806,7 @@ mod tests {
             .send(&make_notif("task.failed", Some("t-001"), Severity::Error))
             .await;
 
-        // THEN — NotifError::WebhookFailed contenant "500"
+        // THEN NotifError::WebhookFailed containing "500"
         match result {
             Err(NotifError::WebhookFailed(msg)) => {
                 assert!(
@@ -822,11 +818,11 @@ mod tests {
         }
     }
 
-    // ─── headers corrects envoyés ─────────────────────────────────────
+    // --- correct headers sent --------------------------------------------
 
     #[tokio::test]
     async fn test_ac2_headers_sent_correctly() {
-        // GIVEN un serveur HTTP qui capture la requête brute
+        // GIVEN an HTTP server that captures the raw request
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind échoue");
@@ -851,33 +847,33 @@ mod tests {
         // WHEN
         let _ = channel.send(&notif).await;
 
-        // THEN — headers X-Apollia-Event, Content-Type et User-Agent présents
+        // THEN headers X-Apollia-Event, Content-Type and User-Agent present
         let request = captured_rx
             .await
             .expect("requête non capturée par le serveur mock");
 
-        // X-Apollia-Event doit contenir le nom de l'événement
+        // X-Apollia-Event must contain the event name.
         assert!(
             request
                 .to_lowercase()
                 .contains("x-apollia-event: task.failed"),
             "header X-Apollia-Event absent ou incorrect\n---\n{request}"
         );
-        // Content-Type application/json (positionné par reqwest via .json())
+        // Content-Type application/json (set by reqwest via .json())
         assert!(
             request
                 .to_lowercase()
                 .contains("content-type: application/json"),
             "header Content-Type absent\n---\n{request}"
         );
-        // User-Agent contient le préfixe apollia-os
+        // User-Agent contains the apollia-os prefix.
         assert!(
             request.to_lowercase().contains("apollia-os/"),
             "header User-Agent absent ou incorrect\n---\n{request}"
         );
     }
 
-    // ─── HMAC-SHA256 : calcul de signature ────────────────────────────
+    // --- HMAC-SHA256: signature computation ------------------------------
 
     #[test]
     fn test_hmac_signature_matches_expected_value() {
@@ -898,7 +894,7 @@ mod tests {
 
     #[test]
     fn test_empty_body_produces_valid_signature() {
-        // GIVEN secret = "secret", body vide
+        // GIVEN secret = "secret", empty body
         let signature = compute_signature("secret", b"");
 
         // WHEN recompute with empty body
@@ -906,7 +902,7 @@ mod tests {
         mac.update(b"");
         let expected = format!("sha256={}", hex::encode(mac.finalize().into_bytes()));
 
-        // THEN signature est valide et correspond (edge case : body vide)
+        // THEN the signature is valid and matches (edge case: empty body)
         assert_eq!(signature, expected);
         assert!(signature.starts_with("sha256="));
         assert_eq!(signature.len(), "sha256=".len() + 64);
@@ -914,12 +910,12 @@ mod tests {
 
     #[test]
     fn test_different_secrets_produce_different_signatures() {
-        // GIVEN même body, secrets différents
+        // GIVEN the same body, different secrets
         let body = b"same payload";
         let sig1 = compute_signature("secret_a", body);
         let sig2 = compute_signature("secret_b", body);
 
-        // THEN signatures distinctes
+        // THEN distinct signatures
         assert_ne!(
             sig1, sig2,
             "des secrets différents doivent produire des signatures différentes"
@@ -928,7 +924,7 @@ mod tests {
 
     #[test]
     fn test_signature_format_is_sha256_prefix_hex() {
-        // GIVEN un secret et un body quelconques
+        // GIVEN an arbitrary secret and body
         let signature = compute_signature("whsec_test123", b"{\"event\":\"agent.started\"}");
 
         // THEN format "sha256=<64 hex chars>"
@@ -948,11 +944,11 @@ mod tests {
         );
     }
 
-    // ─── header X-Apollia-Signature dans les requêtes HTTP ───────────
+    // --- X-Apollia-Signature header in HTTP requests ---------------------
 
     #[tokio::test]
     async fn test_webhook_with_secret_adds_signature_header() {
-        // GIVEN un serveur HTTP qui capture la requête brute
+        // GIVEN an HTTP server that captures the raw request
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind échoue");
@@ -981,7 +977,7 @@ mod tests {
         let _ = channel.send(&notif).await;
         let request = rx.await.expect("requête non capturée");
 
-        // THEN X-Apollia-Signature présent avec le bon format
+        // THEN X-Apollia-Signature present with the correct format
         let request_lower = request.to_lowercase();
         assert!(
             request_lower.contains("x-apollia-signature: sha256="),
@@ -991,7 +987,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_webhook_without_secret_no_signature_header() {
-        // GIVEN un serveur HTTP qui capture la requête brute
+        // GIVEN an HTTP server that captures the raw request
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind échoue");
@@ -1010,7 +1006,7 @@ mod tests {
             }
         });
 
-        // Canal sans signing_secret
+        // Channel without signing_secret.
         let channel = make_channel_url(&format!("http://127.0.0.1:{}", addr.port()));
         let notif = make_notif("agent.started", None, Severity::Info);
 
@@ -1025,13 +1021,13 @@ mod tests {
         );
     }
 
-    // ─── SSRF guard ───────────────────────────────────────────────────
+    // --- SSRF guard ------------------------------------------------------
 
     #[tokio::test]
     async fn test_webhook_channel_blocks_internal_url() {
-        // GIVEN un canal webhook configuré (par erreur de l'opérateur) avec
-        // une URL pointant sur le réseau privé RFC1918. Aucun serveur n'écoute,
-        // mais le SSRF guard doit refuser l'envoi avant tout I/O réseau.
+        // GIVEN a webhook channel configured (by operator error) with a URL
+        // pointing to the RFC1918 private network. No server is listening, but
+        // the SSRF guard must refuse the send before any network I/O.
         let channel = WebhookChannel::new(WebhookChannelConfig {
             id: "exfil-test".into(),
             url: "http://10.0.0.1/exfil".into(),
@@ -1045,7 +1041,7 @@ mod tests {
         // WHEN
         let result = channel.send(&notif).await;
 
-        // THEN — NotifError::Ssrf, jamais de tentative HTTP
+        // THEN NotifError::Ssrf, never an HTTP attempt
         assert!(
             matches!(result, Err(NotifError::Ssrf(_))),
             "attendu Err(Ssrf), obtenu {:?}",
@@ -1055,7 +1051,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_webhook_channel_blocks_metadata_endpoint() {
-        // GIVEN URL pointant sur l'endpoint metadata cloud (link-local).
+        // GIVEN a URL pointing to the cloud metadata endpoint (link-local).
         let channel = WebhookChannel::new(WebhookChannelConfig {
             id: "metadata-test".into(),
             url: "http://169.254.169.254/latest/meta-data/".into(),

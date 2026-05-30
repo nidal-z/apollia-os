@@ -1,7 +1,7 @@
-//! [`PythonProvider`] — provider de contexte basé sur un module Python.
+//! [`PythonProvider`]: context provider backed by a Python module.
 //!
-//! Contrat duck-typing Python : `manifest()` + `async collect(config)`.
-//! Le module est chargé depuis un chemin de fichier configuré dans la base de données.
+//! Python duck-typing contract: `manifest()` + `async collect(config)`.
+//! The module is loaded from a file path configured in the database.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -10,27 +10,27 @@ use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlic
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-/// Provider de contexte qui délègue à un module Python.
+/// Context provider that delegates to a Python module.
 ///
-/// Contrat minimal du module : `manifest() -> dict` + `collect(config: dict) -> list[tuple[str, str]]`.
-/// La méthode `is_applicable(cwd: str) -> bool` est optionnelle (défaut `True`).
+/// Minimal module contract: `manifest() -> dict` + `collect(config: dict) -> list[tuple[str, str]]`.
+/// The `is_applicable(cwd: str) -> bool` method is optional (default `True`).
 pub struct PythonProvider {
-    /// Nom du provider, lu depuis `manifest()["name"]` à la construction.
+    /// Provider name, read from `manifest()["name"]` at construction.
     name: String,
-    /// Description courte, lue depuis `manifest()["description"]`. Stockée pour introspection future.
+    /// Short description, read from `manifest()["description"]`. Stored for future introspection.
     #[allow(dead_code)]
     description: String,
-    /// Priorité d'affichage, lue depuis `manifest()["priority"]` (défaut 50).
+    /// Display priority, read from `manifest()["priority"]` (default 50).
     priority: u8,
-    /// Chemin vers le fichier Python du provider.
+    /// Path to the provider's Python file.
     path: PathBuf,
 }
 
 impl PythonProvider {
-    /// Charge le module Python depuis `path` et lit son `manifest()`.
+    /// Loads the Python module from `path` and reads its `manifest()`.
     ///
-    /// Retourne une erreur si le fichier n'existe pas, si le module ne peut
-    /// pas être importé, ou si `manifest()` est absent ou malformé.
+    /// Returns an error if the file does not exist, if the module cannot be
+    /// imported, or if `manifest()` is missing or malformed.
     pub fn load(path: impl Into<PathBuf>) -> Result<Self, PythonProviderError> {
         let path = path.into();
         let path_str = path
@@ -98,16 +98,16 @@ impl PythonProvider {
     }
 }
 
-/// Erreurs de chargement d'un [`PythonProvider`].
+/// Errors loading a [`PythonProvider`].
 #[derive(Debug, thiserror::Error)]
 pub enum PythonProviderError {
-    /// Le chemin du fichier Python est invalide (caractères non-UTF-8).
+    /// The Python file path is invalid (non-UTF-8 characters).
     #[error("invalid provider path: {0}")]
     InvalidPath(String),
-    /// Le chargement ou l'exécution du module Python a échoué.
+    /// Loading or executing the Python module failed.
     #[error("failed to load Python provider: {0}")]
     LoadFailed(String),
-    /// Le module Python n'expose pas de fonction `manifest()`.
+    /// The Python module does not expose a `manifest()` function.
     #[error("Python provider is missing manifest() function")]
     MissingManifest,
 }
@@ -122,9 +122,9 @@ impl WorkspaceProvider for PythonProvider {
         self.priority
     }
 
-    /// Vérifie si le provider est applicable via `is_applicable(cwd)` Python.
+    /// Checks whether the provider is applicable via Python `is_applicable(cwd)`.
     ///
-    /// Retourne `true` par défaut si le module n'expose pas `is_applicable`.
+    /// Returns `true` by default if the module does not expose `is_applicable`.
     fn is_applicable(&self, cwd: &Path) -> bool {
         let cwd_str = match cwd.to_str() {
             Some(s) => s.to_owned(),
@@ -161,11 +161,11 @@ impl WorkspaceProvider for PythonProvider {
         })
     }
 
-    /// Appelle `collect(config)` sur le module Python et convertit le résultat.
+    /// Calls `collect(config)` on the Python module and converts the result.
     ///
-    /// Le module doit retourner une liste de tuples `(titre, contenu)` ou
-    /// une liste de dicts `{"title": "...", "content": "..."}`.
-    /// Retourne [`WorkspaceSlice::with_error`] si l'appel échoue.
+    /// The module must return a list of `(title, content)` tuples or a list of
+    /// dicts `{"title": "...", "content": "..."}`.
+    /// Returns [`WorkspaceSlice::with_error`] if the call fails.
     async fn collect(&self, cwd: &Path) -> WorkspaceSlice {
         let source = self.name.clone();
         let path = self.path.clone();
@@ -198,7 +198,7 @@ impl WorkspaceProvider for PythonProvider {
                     .set_item("cwd", &cwd_str)
                     .map_err(|e| format!("dict error: {e}"))?;
 
-                // collect() may be a coroutine — run via asyncio.run()
+                // collect() may be a coroutine: run via asyncio.run()
                 let asyncio = py.import("asyncio").map_err(|e| format!("asyncio: {e}"))?;
                 let coro = collect_fn
                     .call1((config_dict,))

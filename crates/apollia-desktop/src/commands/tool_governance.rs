@@ -1,15 +1,15 @@
-//! Commandes IPC Tauri pour la gouvernance des outils natifs et des
-//! permissions du frontend desktop.
+//! Tauri IPC commands for governing native tools and the desktop frontend's
+//! permissions.
 //!
-//! Ces commandes pilotent directement la base consolidée
-//! `~/.apollia/governance.db` via les composants `ToolRegistry`,
-//! `ToolCredentialStore`, `PrefixRuleEngine` et `PermissionAuditLog` exposés
-//! par les crates `apollia-tools` et `apollia-permissions`.
+//! These commands drive the consolidated `~/.apollia/governance.db` database
+//! directly via the `ToolRegistry`, `ToolCredentialStore`, `PrefixRuleEngine`
+//! and `PermissionAuditLog` components exposed by the `apollia-tools` and
+//! `apollia-permissions` crates.
 //!
-//! Les règles de permission *session* ne sont plus supportées côté desktop :
-//! seuls les scopes `project` et `global` (persistés dans `governance.db`)
-//! sont exposés au frontend. Le store mémoire historique a été retiré car il
-//! n'était jamais consulté par le `PermissionEngine` du runtime.
+//! *Session* permission rules are no longer supported on the desktop side:
+//! only the `project` and `global` scopes (persisted in `governance.db`) are
+//! exposed to the frontend. The historical in-memory store was removed because
+//! the runtime's `PermissionEngine` never consulted it.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -32,105 +32,105 @@ const BRAVE_TEST_TIMEOUT: Duration = Duration::from_secs(10);
 // DTOs
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// État d'un outil natif tel qu'affiché par la page `/settings/tools`.
+/// State of a native tool as displayed by the `/settings/tools` page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolStatusDto {
-    /// Nom canonique de l'outil (ex. `bash_executor`).
+    /// Canonical tool name (e.g. `bash_executor`).
     pub name: String,
-    /// `true` lorsque l'outil est actif. Voir [`apollia_tools::NativeToolRegistry`].
+    /// `true` when the tool is active. See [`apollia_tools::NativeToolRegistry`].
     pub enabled: bool,
-    /// Configuration JSON spécifique à l'outil, ou `null`.
+    /// Tool-specific JSON configuration, or `null`.
     pub config: Option<serde_json::Value>,
-    /// Noms des credentials configurées pour cet outil (les valeurs ne sont
-    /// jamais retournées au frontend).
+    /// Names of the credentials configured for this tool (values are never
+    /// returned to the frontend).
     pub credential_keys: Vec<String>,
-    /// Backend effectivement utilisé par l'outil quand applicable
-    /// (ex. `"duckduckgo"` ou `"brave"` pour `web_search`).
+    /// Backend actually used by the tool when applicable
+    /// (e.g. `"duckduckgo"` or `"brave"` for `web_search`).
     pub active_backend: Option<String>,
 }
 
-/// Métadonnées d'une credential stockée pour un outil.
+/// Metadata for a credential stored for a tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CredentialEntryDto {
-    /// Nom de l'outil propriétaire.
+    /// Name of the owning tool.
     pub tool_name: String,
-    /// Nom logique de la clé (ex. `brave.api_key`).
+    /// Logical key name (e.g. `brave.api_key`).
     pub key_name: String,
-    /// Date de création au format ISO 8601 / RFC 3339.
+    /// Creation date in ISO 8601 / RFC 3339 format.
     pub created_at: String,
-    /// Date de la dernière utilisation effective, le cas échéant.
+    /// Date of the last actual use, if any.
     pub last_used_at: Option<String>,
 }
 
-/// Résultat d'une validation live de credential.
+/// Result of a live credential validation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CredentialTestResultDto {
-    /// `true` si l'appel a réussi.
+    /// `true` if the call succeeded.
     pub ok: bool,
-    /// Latence mesurée en millisecondes (round-trip).
+    /// Measured latency in milliseconds (round-trip).
     pub latency_ms: Option<u64>,
-    /// Message d'erreur diagnostique quand `ok` est `false`.
+    /// Diagnostic error message when `ok` is `false`.
     pub error: Option<String>,
 }
 
-/// Filtre passé à [`list_permission_rules`].
+/// Filter passed to [`list_permission_rules`].
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct PermissionRuleFilter {
-    /// Portée à filtrer : `"session"`, `"project"` ou `"global"`.
+    /// Scope to filter on: `"session"`, `"project"` or `"global"`.
     pub scope: Option<String>,
-    /// Nom d'outil à filtrer.
+    /// Tool name to filter on.
     pub tool_name: Option<String>,
 }
 
-/// Représentation frontend d'une règle de permission.
+/// Frontend representation of a permission rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRuleDto {
-    /// Identifiant. Positif pour les règles persistées (DB), négatif pour
-    /// les règles de session (mémoire).
+    /// Identifier. Positive for persisted rules (DB), negative for in-memory
+    /// session rules.
     pub id: i64,
-    /// Nom de l'outil ciblé.
+    /// Name of the targeted tool.
     pub tool_name: String,
-    /// Préfixe d'argument optionnel.
+    /// Optional argument prefix.
     pub arg_prefix: Option<String>,
-    /// Action appliquée (`"allow"` ou `"deny"`).
+    /// Applied action (`"allow"` or `"deny"`).
     pub action: String,
-    /// Portée de la règle (`"session"`, `"project"`, `"global"`).
+    /// Rule scope (`"session"`, `"project"`, `"global"`).
     pub scope: String,
-    /// Chemin canonique du projet, pour les règles `project`.
+    /// Canonical project path, for `project` rules.
     pub project_path: Option<String>,
-    /// Identifiant de l'agent, pour les règles `agent`.
+    /// Agent identifier, for `agent` rules.
     pub agent_id: Option<String>,
-    /// Date d'expiration ISO 8601, le cas échéant.
+    /// ISO 8601 expiration date, if any.
     pub expires_at: Option<String>,
-    /// Date de création ISO 8601.
+    /// ISO 8601 creation date.
     pub created_at: String,
-    /// Auteur de la règle (`None` ⇒ opérateur humain).
+    /// Author of the rule (`None` means a human operator).
     pub created_by: Option<String>,
 }
 
-/// Entrée du log d'audit immuable des décisions de permission.
+/// Entry in the immutable audit log of permission decisions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntryDto {
-    /// Identifiant auto-incrémenté.
+    /// Auto-incremented identifier.
     pub id: i64,
-    /// Nom de l'outil invoqué.
+    /// Name of the invoked tool.
     pub tool_name: String,
-    /// Premier argument extrait de l'invocation, lorsque disponible.
+    /// First argument extracted from the invocation, when available.
     pub first_arg: Option<String>,
-    /// Décision sérialisée (ex. `"AutoAllowedSafeList"`).
+    /// Serialized decision (e.g. `"AutoAllowedSafeList"`).
     pub decision: String,
-    /// Portée de la règle ayant tranché, lorsque pertinent.
+    /// Scope of the rule that decided, when relevant.
     pub scope: Option<String>,
-    /// Identifiant de la règle ayant déclenché la décision, lorsque applicable.
+    /// Identifier of the rule that triggered the decision, when applicable.
     pub rule_id: Option<i64>,
-    /// Nom de l'agent à l'origine de l'invocation, si renseigné.
+    /// Name of the agent behind the invocation, if provided.
     pub agent: Option<String>,
-    /// Date de la décision au format ISO 8601.
+    /// Decision date in ISO 8601 format.
     pub decided_at: String,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers privés
+// Private helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn home_base_dir() -> Result<PathBuf, String> {
@@ -138,8 +138,8 @@ fn home_base_dir() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home).join(".apollia"))
 }
 
-/// Ouvre `governance.db` dans `~/.apollia/`, en effectuant la migration
-/// initiale si nécessaire. Retourne le chemin du fichier.
+/// Opens `governance.db` in `~/.apollia/`, performing the initial migration if
+/// needed. Returns the file path.
 fn ensure_governance_db() -> Result<PathBuf, String> {
     let base = home_base_dir()?;
     let db = GovernanceDb::open(&base)
@@ -205,9 +205,9 @@ fn rule_to_dto(rule: &PrefixRule) -> PermissionRuleDto {
     }
 }
 
-/// Normalise un `project_path` brut reçu du frontend : trim + canonicalisation
-/// quand le chemin existe. Les chemins inexistants sont retournés tels quels
-/// (utiles pour décrire un projet supprimé qu'on souhaite encore filtrer).
+/// Normalizes a raw `project_path` received from the frontend: trim and
+/// canonicalize when the path exists. Non-existent paths are returned as-is
+/// (useful to describe a deleted project we still want to filter on).
 pub(crate) fn canonical_project_path(raw: &str) -> Result<PathBuf, String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -220,7 +220,7 @@ pub(crate) fn canonical_project_path(raw: &str) -> Result<PathBuf, String> {
     }
 }
 
-/// Persiste une règle scope-aware dans `governance.db`.
+/// Persists a scope-aware rule in `governance.db`.
 pub(crate) fn persist_scoped_rule(
     base_dir: &Path,
     tool_name: String,
@@ -254,16 +254,16 @@ pub(crate) fn persist_scoped_rule(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tools — list / enable / config
+// Tools: list / enable / config
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Retourne l'état complet de chaque outil natif (activation, config,
-/// credentials configurées, backend actif).
+/// Returns the full state of each native tool (enabled flag, config,
+/// configured credentials, active backend).
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable pour Tauri si la base de gouvernance ne
-/// peut pas être ouverte ou lue.
+/// Returns a Tauri-serializable error if the governance database cannot be
+/// opened or read.
 #[tauri::command]
 pub async fn governance_list_tools(
     _state: State<'_, RuntimeHandle>,
@@ -315,11 +315,11 @@ fn active_backend_for(tool_name: &str, credential_keys: &[String]) -> Option<Str
     })
 }
 
-/// Active ou désactive un outil natif via `ToolRegistry::set_enabled`.
+/// Enables or disables a native tool via `ToolRegistry::set_enabled`.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si l'écriture en base échoue.
+/// Returns a serializable error if the database write fails.
 #[tauri::command]
 pub async fn governance_set_tool_enabled(
     tool_name: String,
@@ -339,11 +339,11 @@ pub async fn governance_set_tool_enabled(
     Ok(())
 }
 
-/// Lit la configuration JSON associée à un outil, ou `null`.
+/// Reads the JSON configuration associated with a tool, or `null`.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si la lecture échoue.
+/// Returns a serializable error if the read fails.
 #[tauri::command]
 pub async fn governance_get_tool_config(
     tool_name: String,
@@ -360,11 +360,11 @@ pub async fn governance_get_tool_config(
         .map_err(|e| format!("failed to read tool config: {e}"))
 }
 
-/// Stocke la configuration JSON d'un outil.
+/// Stores a tool's JSON configuration.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si l'écriture échoue.
+/// Returns a serializable error if the write fails.
 #[tauri::command]
 pub async fn governance_set_tool_config(
     tool_name: String,
@@ -385,15 +385,15 @@ pub async fn governance_set_tool_config(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Credentials — list / set / delete / test
+// Credentials: list / set / delete / test
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Liste les credentials configurées, optionnellement filtrées par outil.
-/// Les valeurs claires ne sont jamais retournées.
+/// Lists the configured credentials, optionally filtered by tool.
+/// Cleartext values are never returned.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si l'accès à la base échoue.
+/// Returns a serializable error if database access fails.
 #[tauri::command]
 pub async fn governance_list_credentials(
     tool_name: Option<String>,
@@ -417,14 +417,14 @@ pub async fn governance_list_credentials(
         .collect())
 }
 
-/// Stocke (ou met à jour) une credential pour un outil.
+/// Stores (or updates) a credential for a tool.
 ///
-/// La valeur claire est chiffrée AES-256-GCM côté Rust et n'est jamais
-/// renvoyée au frontend.
+/// The cleartext value is encrypted with AES-256-GCM on the Rust side and is
+/// never returned to the frontend.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si le chiffrement ou l'écriture échoue.
+/// Returns a serializable error if encryption or writing fails.
 #[tauri::command]
 pub async fn governance_set_credential(
     tool_name: String,
@@ -449,11 +449,11 @@ pub async fn governance_set_credential(
     Ok(())
 }
 
-/// Supprime une credential identifiée par `(tool_name, key_name)`.
+/// Deletes a credential identified by `(tool_name, key_name)`.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si la suppression échoue.
+/// Returns a serializable error if the deletion fails.
 #[tauri::command]
 pub async fn governance_delete_credential(
     tool_name: String,
@@ -471,17 +471,17 @@ pub async fn governance_delete_credential(
     Ok(())
 }
 
-/// Effectue un appel live pour valider une credential.
+/// Makes a live call to validate a credential.
 ///
-/// Aujourd'hui seul `web_search` (clé Brave) est testé : un GET
-/// `https://api.search.brave.com/res/v1/web/search` est émis avec la clé en
-/// header `X-Subscription-Token`. Toute autre combinaison `tool_name` retourne
-/// une erreur explicite.
+/// Today only `web_search` (Brave key) is tested: a GET to
+/// `https://api.search.brave.com/res/v1/web/search` is issued with the key in
+/// the `X-Subscription-Token` header. Any other `tool_name` combination returns
+/// an explicit error.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si la base ne peut être lue ou si le tool
-/// ciblé ne dispose pas de routine de validation.
+/// Returns a serializable error if the database cannot be read or if the
+/// targeted tool has no validation routine.
 #[tauri::command]
 pub async fn governance_test_credential(
     tool_name: String,
@@ -568,15 +568,15 @@ async fn test_brave_key(key: &str) -> CredentialTestResultDto {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Permission rules — list / revoke
+// Permission rules: list / revoke
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Liste les règles de permission `project` / `global` depuis `governance.db`.
+/// Lists the `project` / `global` permission rules from `governance.db`.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si le scope est inconnu ou si la base ne
-/// peut pas être lue.
+/// Returns a serializable error if the scope is unknown or the database cannot
+/// be read.
 #[tauri::command]
 pub async fn governance_list_permission_rules(
     filter: PermissionRuleFilter,
@@ -612,12 +612,12 @@ fn matches_tool(rule_tool: &str, filter: Option<&str>) -> bool {
     }
 }
 
-/// Supprime la règle identifiée par `rule_id`.
+/// Deletes the rule identified by `rule_id`.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si l'identifiant n'existe pas ou si la
-/// suppression échoue.
+/// Returns a serializable error if the identifier does not exist or the
+/// deletion fails.
 #[tauri::command]
 pub async fn governance_revoke_permission_rule(
     rule_id: i64,
@@ -636,13 +636,13 @@ pub async fn governance_revoke_permission_rule(
     Ok(())
 }
 
-/// Supprime toutes les règles d'une portée donnée — `None` cible `project`
-/// et `global`.
+/// Deletes all rules of a given scope; `None` targets both `project` and
+/// `global`.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si le scope est inconnu ou si la base ne
-/// peut pas être modifiée.
+/// Returns a serializable error if the scope is unknown or the database cannot
+/// be modified.
 #[tauri::command]
 pub async fn governance_revoke_all_rules(
     scope: Option<String>,
@@ -677,12 +677,12 @@ pub async fn governance_revoke_all_rules(
 // Audit log
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Liste les entrées du log d'audit, optionnellement filtrées par outil et
-/// paginées. Les entrées sont triées par date décroissante.
+/// Lists the audit log entries, optionally filtered by tool and paginated.
+/// Entries are sorted by date descending.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable si la lecture échoue.
+/// Returns a serializable error if the read fails.
 #[tauri::command]
 pub async fn governance_list_audit(
     tool_name: Option<String>,
@@ -793,7 +793,7 @@ mod tests {
 
     #[test]
     fn test_remove_rules_by_scope_only_clears_target() {
-        // GIVEN — une règle global et une règle project
+        // GIVEN: one global rule and one project rule
         let dir = TempDir::new().expect("tempdir");
         let project = PathBuf::from("/home/user/projet-bar");
         persist_scoped_rule(
@@ -819,13 +819,13 @@ mod tests {
         let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
         assert_eq!(count_project_rules(&db_path), 1);
 
-        // WHEN — on ne supprime que les règles globales
+        // WHEN: only the global rules are removed
         let mut engine = PrefixRuleEngine::new(&db_path).expect("engine");
         let removed = engine
             .remove_rules_by_scope(PermissionScope::Global, None)
             .expect("remove globals");
 
-        // THEN — il ne reste que la règle project
+        // THEN: only the project rule remains
         assert_eq!(removed, 1);
         let remaining = engine.list_rules().expect("list");
         assert_eq!(remaining.len(), 1);
@@ -848,9 +848,9 @@ mod tests {
     #[test]
     fn test_parse_scope_unknown_value() {
         assert!(parse_scope("user").is_err());
-        // "session" est désormais accepté pour rétrocompat avec les filtres
-        // frontend ; list_rules_filtered renverra simplement une liste vide
-        // car aucune règle n'a scope='session' en base.
+        // "session" is now accepted for backward compatibility with the
+        // frontend filters; list_rules_filtered simply returns an empty list
+        // since no rule has scope='session' in the database.
         assert_eq!(parse_scope("session"), Ok(PermissionScope::Session));
         assert_eq!(parse_scope("project"), Ok(PermissionScope::Project));
         assert_eq!(parse_scope("agent"), Ok(PermissionScope::Agent));
@@ -883,7 +883,7 @@ mod tests {
     fn test_canonical_project_path_rejects_empty() {
         assert!(canonical_project_path("").is_err());
         assert!(canonical_project_path("   ").is_err());
-        // Inexistant → renvoyé tel quel.
+        // Non-existent → returned as-is.
         let res = canonical_project_path("/definitely/not/here").expect("ok");
         assert_eq!(res, PathBuf::from("/definitely/not/here"));
     }

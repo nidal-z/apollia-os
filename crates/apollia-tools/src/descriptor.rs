@@ -88,7 +88,7 @@ impl ApprovalRiskLevel {
 impl ToolDescriptor {
     /// Validates the internal consistency of this descriptor.
     ///
-    /// Called at registration time by `ToolRegistry`. Purely synchronous — no I/O.
+    /// Called at registration time by `ToolRegistry`. Purely synchronous, no I/O.
     ///
     /// # Errors
     ///
@@ -141,11 +141,11 @@ pub enum ToolKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum McpTransport {
-    /// Standard input/output — subprocess spawned by the runtime.
+    /// Standard input/output: subprocess spawned by the runtime.
     Stdio,
-    /// HTTP — server runs independently, contacted via HTTP.
+    /// HTTP: server runs independently, contacted via HTTP.
     Http,
-    /// WebSocket — persistent bidirectional connection.
+    /// WebSocket: persistent bidirectional connection.
     WebSocket,
 }
 
@@ -212,7 +212,7 @@ mod tests {
             McpTransport::Http,
             McpTransport::WebSocket,
         ];
-        // THEN — all variants are constructible and serializable
+        // THEN: all variants are constructible and serializable
         for transport in transports {
             let kind = ToolKind::McpServer {
                 server_url: "http://localhost:3000".to_string(),
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_full_profile_with_dangerous_flag_passes_validation() {
-        // GIVEN — Full profile is allowed when dangerous=true
+        // GIVEN: Full profile is allowed when dangerous=true
         let mut descriptor = make_valid_descriptor();
         descriptor.sandbox_profile = SandboxProfile::Full;
         descriptor.dangerous = true;
@@ -283,9 +283,9 @@ mod tests {
 
     #[test]
     fn test_is_read_only_defaults_to_false() {
-        // GIVEN — descriptor built without specifying is_read_only
+        // GIVEN: descriptor built without specifying is_read_only
         let d = make_valid_descriptor();
-        // THEN — conservative default: never parallelised if flag omitted
+        // THEN: conservative default, never parallelised if flag omitted
         assert!(!d.is_read_only);
     }
 
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_is_read_only_serde_default() {
-        // GIVEN — JSON without is_read_only / risk_score fields
+        // GIVEN: JSON without is_read_only / risk_score fields
         let json = r#"{
             "name": "file_read", "version": "1.0.0", "description": "reads a file",
             "kind": {"type": "native"},
@@ -309,7 +309,7 @@ mod tests {
         }"#;
         // WHEN
         let d: ToolDescriptor = serde_json::from_str(json).expect("deserialisation échouée");
-        // THEN — fields absent in JSON → default values
+        // THEN: fields absent in JSON fall back to default values
         assert!(!d.is_read_only);
         assert_eq!(d.risk_score, 0);
         assert!(d.approval_risk_level.is_none());
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_approval_risk_level_from_score() {
-        // GIVEN / WHEN / THEN — monotonic mapping across the score domain
+        // GIVEN / WHEN / THEN: monotonic mapping across the score domain
         assert_eq!(
             ApprovalRiskLevel::from_risk_score(0),
             ApprovalRiskLevel::Low
@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_approval_fields_serialize_when_set() {
-        // GIVEN — descriptor with explicit approval fields
+        // GIVEN: descriptor with explicit approval fields
         let mut d = make_valid_descriptor();
         d.approval_risk_level = Some(ApprovalRiskLevel::High);
         d.impact_description = Some("Deletes the file permanently".to_string());
@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_is_read_only_serialization_roundtrip() {
-        // GIVEN — read-only tool
+        // GIVEN: read-only tool
         let mut d = make_valid_descriptor();
         d.is_read_only = true;
         d.risk_score = 2;

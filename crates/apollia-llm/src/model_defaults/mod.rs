@@ -1,25 +1,25 @@
-//! Sampling defaults par famille de modèle.
+//! Sampling defaults by model family.
 //!
-//! Trois sources, par précédence décroissante (la première qui répond
-//! gagne sur les suivantes, champ par champ) :
+//! Three sources, in decreasing precedence (the first that answers wins over
+//! the rest, field by field):
 //!
-//! 1. **Override utilisateur** — `~/.apollia/models/sampling-defaults.json`,
-//!    rempli automatiquement quand un modèle est téléchargé via Apollia
-//!    depuis HuggingFace (`generation_config.json` du dépôt source) ou
-//!    édité manuellement par l'opérateur.
-//! 2. **Table curated embarquée** — `embedded.toml` shipped dans le
-//!    binaire, ~10 familles populaires. Source de fallback offline.
-//! 3. **Aucun match** — le caller utilise ses propres défauts globaux
-//!    (typiquement 0.7 / 0.95 / 40).
+//! 1. **User override**: `~/.apollia/models/sampling-defaults.json`, filled
+//!    automatically when a model is downloaded via Apollia from HuggingFace
+//!    (the source repo's `generation_config.json`) or edited by hand by the
+//!    operator.
+//! 2. **Embedded curated table**: `embedded.toml` shipped in the binary,
+//!    ~10 popular families. Offline fallback source.
+//! 3. **No match**: the caller uses its own global defaults (typically
+//!    0.7 / 0.95 / 40).
 //!
-//! Le caller peut toujours surcharger via `CompletionRequest.temperature` ;
-//! ce module ne fait que résoudre les *defaults* — pas de policy.
+//! The caller can always override via `CompletionRequest.temperature`; this
+//! module only resolves the defaults, it sets no policy.
 //!
-//! Légalité : les valeurs publiées dans les `generation_config.json` HF
-//! sont des paramètres numériques recommandés par les éditeurs (faits non
-//! copyrightables au sens de Feist v. Rural). La table embarquée cite la
-//! source pour chaque entrée. Le modèle lui-même reste sous sa licence
-//! (Llama, Qwen, Gemma…) — ce module n'en redistribue rien.
+//! Legal note: the values published in the HF `generation_config.json` files
+//! are numeric parameters recommended by the authors (facts, not
+//! copyrightable in the sense of Feist v. Rural). The embedded table cites the
+//! source for each entry. The model itself stays under its own license
+//! (Llama, Qwen, Gemma, etc.); this module redistributes none of it.
 
 use std::collections::HashMap;
 use std::io;
@@ -27,9 +27,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// Paramètres de sampling par défaut pour un modèle donné. Tous les champs
-/// sont optionnels — un modèle peut n'avoir qu'une recommandation pour
-/// `temperature` et laisser le reste aux défauts globaux.
+/// Default sampling parameters for a given model. All fields are optional: a
+/// model may have a recommendation only for `temperature` and leave the rest
+/// to the global defaults.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ModelDefaults {
     pub temperature: Option<f32>,
@@ -39,8 +39,8 @@ pub struct ModelDefaults {
 }
 
 impl ModelDefaults {
-    /// Fusionne `other` dans `self` SANS écraser les champs déjà présents.
-    /// Utilisé pour superposer les sources (override > embedded).
+    /// Merge `other` into `self` WITHOUT overwriting fields already present.
+    /// Used to layer the sources (override > embedded).
     pub fn fill_missing(mut self, other: &ModelDefaults) -> Self {
         if self.temperature.is_none() {
             self.temperature = other.temperature;
@@ -57,7 +57,7 @@ impl ModelDefaults {
         self
     }
 
-    /// `true` si tous les champs sont None — utile pour court-circuiter.
+    /// `true` if all fields are None, useful to short-circuit.
     pub fn is_empty(&self) -> bool {
         self.temperature.is_none()
             && self.top_p.is_none()
@@ -66,14 +66,14 @@ impl ModelDefaults {
     }
 }
 
-// ── Table embarquée ────────────────────────────────────────────────
+// ── Embedded table ─────────────────────────────────────────────────
 
-/// Une entrée du `embedded.toml`. Le matching teste `arch_pattern`
-/// (exact ou prefix avec `*`) et, optionnellement, `name_pattern`
-/// (substring case-insensitive) contre les métadonnées GGUF.
+/// One entry of `embedded.toml`. Matching tests `arch_pattern` (exact or
+/// prefix with `*`) and, optionally, `name_pattern` (case-insensitive
+/// substring) against the GGUF metadata.
 #[derive(Debug, Clone, Deserialize)]
 struct EmbeddedEntry {
-    /// Étiquette humaine pour les logs — ex. `"Qwen3 (instruct)"`.
+    /// Human label for logs, e.g. `"Qwen3 (instruct)"`.
     #[allow(dead_code)]
     name: String,
     arch_pattern: String,
@@ -94,7 +94,7 @@ struct EmbeddedTable {
     entry: Vec<EmbeddedEntry>,
 }
 
-/// Chargement paresseux de la table embarquée — parsé une fois par process.
+/// Lazy load of the embedded table, parsed once per process.
 fn embedded_table() -> &'static [EmbeddedEntry] {
     use std::sync::OnceLock;
     static TABLE: OnceLock<Vec<EmbeddedEntry>> = OnceLock::new();
@@ -144,9 +144,9 @@ fn embedded_lookup(arch: &str, name_hints: &[&str]) -> ModelDefaults {
     ModelDefaults::default()
 }
 
-// ── User overrides (JSON sur disque) ───────────────────────────────
+// ── User overrides (JSON on disk) ──────────────────────────────────
 
-/// Map persistée sur disque : clé = filename GGUF *ou* repo HF, valeur = defaults.
+/// Map persisted to disk: key = GGUF filename *or* HF repo, value = defaults.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UserOverrides {
     #[serde(flatten)]
@@ -154,7 +154,7 @@ pub struct UserOverrides {
 }
 
 impl UserOverrides {
-    /// Chemin canonique du fichier d'overrides côté utilisateur.
+    /// Canonical path of the user-side overrides file.
     /// `~/.apollia/models/sampling-defaults.json`.
     pub fn default_path() -> PathBuf {
         let home = std::env::var_os("HOME")
@@ -165,9 +165,9 @@ impl UserOverrides {
             .join("sampling-defaults.json")
     }
 
-    /// Charge le fichier ; `Ok(default)` si absent, erreur si présent mais
-    /// illisible ou JSON corrompu (préférable au silence — l'opérateur veut
-    /// savoir si son override est ignoré).
+    /// Load the file; `Ok(default)` if absent, error if present but unreadable
+    /// or corrupt JSON (preferable to silence: the operator wants to know if
+    /// their override is ignored).
     pub fn load(path: &Path) -> io::Result<Self> {
         match std::fs::read_to_string(path) {
             Ok(s) => {
@@ -178,7 +178,7 @@ impl UserOverrides {
         }
     }
 
-    /// Ajoute/remplace une entrée et persiste atomiquement (write-then-rename).
+    /// Add or replace an entry and persist atomically (write-then-rename).
     pub fn upsert(path: &Path, key: &str, defaults: ModelDefaults) -> io::Result<()> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -193,7 +193,7 @@ impl UserOverrides {
         Ok(())
     }
 
-    /// Lookup : essaie `model_id`, puis `file_name`, puis chaque hint.
+    /// Lookup: tries `model_id`, then `file_name`, then each hint.
     pub fn lookup(&self, keys: &[&str]) -> ModelDefaults {
         for k in keys {
             if let Some(d) = self.entries.get(*k) {
@@ -204,13 +204,13 @@ impl UserOverrides {
     }
 }
 
-// ── Resolver public ────────────────────────────────────────────────
+// ── Public resolver ────────────────────────────────────────────────
 
-/// Indices fournis par l'appelant pour matcher un modèle.
+/// Hints provided by the caller to match a model.
 ///
-/// Au moins un de [`ModelHints::arch`] et [`ModelHints::name`] doit être
-/// non-vide pour que la résolution embedded ait une chance d'aboutir.
-/// Les autres champs servent au lookup user override.
+/// At least one of [`ModelHints::arch`] and [`ModelHints::name`] must be
+/// non-empty for the embedded resolution to have a chance of succeeding.
+/// The other fields serve the user override lookup.
 #[derive(Debug, Clone, Default)]
 pub struct ModelHints<'a> {
     pub arch: Option<&'a str>,
@@ -220,11 +220,11 @@ pub struct ModelHints<'a> {
     pub model_id: Option<&'a str>,
 }
 
-/// Résout les defaults pour un modèle en combinant les trois sources.
+/// Resolve the defaults for a model by combining the three sources.
 ///
-/// L'override utilisateur l'emporte champ par champ ; la table embarquée
-/// remplit les champs restés `None`. Si aucune source ne renseigne un
-/// champ, il reste `None` et le caller appliquera son hard-fallback global.
+/// The user override wins field by field; the embedded table fills the fields
+/// left `None`. If no source provides a field, it stays `None` and the caller
+/// applies its global hard fallback.
 pub fn resolve(hints: &ModelHints<'_>, overrides: &UserOverrides) -> ModelDefaults {
     let mut keys: Vec<&str> = Vec::new();
     if let Some(s) = hints.repo_id {

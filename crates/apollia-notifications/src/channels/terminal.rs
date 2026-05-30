@@ -6,43 +6,43 @@ use crate::{
     engine::{NotifError, Notification, NotificationChannel},
 };
 
-/// Émulateur de terminal détecté à la construction du canal.
+/// Terminal emulator detected at channel construction.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TerminalKind {
-    /// iTerm2 — notification via séquence OSC 9.
+    /// iTerm2: notification via OSC 9 sequence.
     ITerm2,
-    /// GNOME Terminal / VTE — notification via séquence OSC 777.
+    /// GNOME Terminal / VTE: notification via OSC 777 sequence.
     GnomeVte,
-    /// Fallback universel — sonnerie terminale (`\x07`).
+    /// Universal fallback: terminal bell (`\x07`).
     BellFallback,
 }
 
-/// Canal de notification terminal — détecte l'émulateur et envoie la séquence OSC appropriée.
+/// Terminal notification channel: detects the emulator and sends the appropriate OSC sequence.
 ///
-/// - **iTerm2** : `ESC ] 9 ; <message> BEL`
-/// - **GNOME/VTE** : `ESC ] 777 ; notify ; Apollia ; <message> BEL`
-/// - **Fallback** : `BEL` (`\x07`)
+/// - **iTerm2**: `ESC ] 9 ; <message> BEL`
+/// - **GNOME/VTE**: `ESC ] 777 ; notify ; Apollia ; <message> BEL`
+/// - **Fallback**: `BEL` (`\x07`)
 ///
-/// Les séquences sont écrites sur `stderr` pour ne pas polluer la sortie standard.
-/// Les notifications dont la sévérité est inférieure à [`TerminalChannel::min_severity`]
-/// sont ignorées silencieusement.
+/// The sequences are written to `stderr` so they do not pollute standard output.
+/// Notifications whose severity is below [`TerminalChannel::min_severity`] are
+/// silently ignored.
 pub struct TerminalChannel {
     id: String,
     enabled: bool,
     events: Option<Vec<String>>,
-    /// Émulateur terminal détecté à la construction.
+    /// Terminal emulator detected at construction.
     pub kind: TerminalKind,
-    /// Seuil de sévérité : les notifications moins critiques sont ignorées.
+    /// Severity threshold: less critical notifications are ignored.
     pub min_severity: Severity,
 }
 
 impl TerminalChannel {
-    /// Construit un `TerminalChannel` en détectant l'émulateur depuis les variables d'environnement.
+    /// Builds a `TerminalChannel` by detecting the emulator from environment variables.
     ///
-    /// La détection se base sur `TERM_PROGRAM` et `VTE_VERSION` :
-    /// - `TERM_PROGRAM=iTerm.app` → [`TerminalKind::ITerm2`]
-    /// - `VTE_VERSION` présent ou `TERM_PROGRAM=vte` → [`TerminalKind::GnomeVte`]
-    /// - Sinon → [`TerminalKind::BellFallback`]
+    /// Detection relies on `TERM_PROGRAM` and `VTE_VERSION`:
+    /// - `TERM_PROGRAM=iTerm.app` -> [`TerminalKind::ITerm2`]
+    /// - `VTE_VERSION` present or `TERM_PROGRAM=vte` -> [`TerminalKind::GnomeVte`]
+    /// - Otherwise -> [`TerminalKind::BellFallback`]
     pub fn detect(
         id: impl Into<String>,
         enabled: bool,
@@ -58,7 +58,7 @@ impl TerminalChannel {
         }
     }
 
-    /// Construit la séquence OSC à écrire sur `stderr` selon le type d'émulateur.
+    /// Builds the OSC sequence to write to `stderr` based on the emulator type.
     fn build_osc_sequence(&self, message: &str) -> String {
         match self.kind {
             TerminalKind::ITerm2 => format!("\x1b]9;{}\x07", message),
@@ -68,7 +68,7 @@ impl TerminalChannel {
     }
 }
 
-/// Détecte le type d'émulateur terminal depuis les variables d'environnement.
+/// Detects the terminal emulator type from environment variables.
 fn detect_terminal_kind() -> TerminalKind {
     match std::env::var("TERM_PROGRAM").as_deref() {
         Ok("iTerm.app") => return TerminalKind::ITerm2,
@@ -83,20 +83,20 @@ fn detect_terminal_kind() -> TerminalKind {
 
 #[async_trait]
 impl NotificationChannel for TerminalChannel {
-    /// Retourne l'identifiant du canal tel que configuré dans `apollia.toml`.
+    /// Returns the channel identifier as configured in `apollia.toml`.
     fn id(&self) -> &str {
         &self.id
     }
 
-    /// Retourne `true` si ce canal est activé et accepte l'événement donné.
+    /// Returns `true` if this channel is enabled and accepts the given event.
     fn accepts(&self, event: &str, config: &NotificationConfig) -> bool {
         channel_accepts_event(self.enabled, &self.events, event, &config.events)
     }
 
-    /// Écrit la séquence OSC sur `stderr`.
+    /// Writes the OSC sequence to `stderr`.
     ///
-    /// Retourne `Ok(())` immédiatement si la sévérité de la notification est inférieure
-    /// à [`TerminalChannel::min_severity`], sans aucune écriture.
+    /// Returns `Ok(())` immediately, without any write, if the notification's
+    /// severity is below [`TerminalChannel::min_severity`].
     async fn send(&self, notif: &Notification) -> Result<(), NotifError> {
         if notif.severity < self.min_severity {
             return Ok(());
@@ -121,10 +121,11 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    /// Mutex pour sérialiser les tests qui manipulent des variables d'environnement globales.
+    /// Mutex to serialize the tests that manipulate global environment variables.
     ///
-    /// Les tests de détection d'émulateur terminal lisent `TERM_PROGRAM` et `VTE_VERSION`.
-    /// Sans sérialisation, les tests concurrents peuvent s'interférer mutuellement.
+    /// The terminal emulator detection tests read `TERM_PROGRAM` and
+    /// `VTE_VERSION`. Without serialization, concurrent tests can interfere with
+    /// each other.
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn make_notif(severity: Severity) -> Notification {
@@ -169,7 +170,7 @@ mod tests {
 
     #[test]
     fn terminal_channel_bell_fallback_on_unknown() {
-        // GIVEN TERM_PROGRAM non défini ou inconnu
+        // GIVEN TERM_PROGRAM unset or unknown
         // WHEN detect()
         // THEN kind = BellFallback
         let _guard = ENV_LOCK.lock().expect("env lock");
@@ -184,7 +185,7 @@ mod tests {
     async fn terminal_channel_filters_by_severity() {
         // GIVEN TerminalChannel { min_severity: Warning }
         // WHEN send(Notification { severity: Info })
-        // THEN Ok(()) sans écriture (sévérité insuffisante)
+        // THEN Ok(()) with no write (severity too low)
         let ch = TerminalChannel {
             id: "terminal".into(),
             enabled: true,
@@ -222,7 +223,7 @@ mod tests {
     fn terminal_channel_osc_iterm2_format() {
         // GIVEN ITerm2 kind
         // WHEN build_osc_sequence("hello")
-        // THEN séquence OSC 9
+        // THEN OSC 9 sequence
         let ch = TerminalChannel {
             id: "terminal".into(),
             enabled: true,
@@ -238,7 +239,7 @@ mod tests {
     fn terminal_channel_osc_gnome_format() {
         // GIVEN GnomeVte kind
         // WHEN build_osc_sequence("hello")
-        // THEN séquence OSC 777
+        // THEN OSC 777 sequence
         let ch = TerminalChannel {
             id: "terminal".into(),
             enabled: true,

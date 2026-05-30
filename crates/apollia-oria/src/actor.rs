@@ -1,32 +1,31 @@
-//! `ActorLoop` — boucle d'exécution topologique d'un [`crate::plan::ExecutionPlan`].
+//! `ActorLoop`: topological execution loop for an [`crate::plan::ExecutionPlan`].
 //!
-//! `ActorLoop` est la pièce centrale du mode Orchestré (Option B) : ORIA exécute
-//! directement les outils et le LLM — `agent.run()` n'est **pas** appelé pendant
-//! les steps. L'agent fournit uniquement son `manifest()` et optionnellement
-//! `on_plan_complete()`.
+//! `ActorLoop` is the centerpiece of Orchestrated mode (Option B): ORIA executes
+//! tools and the LLM directly, `agent.run()` is **not** called during steps.
+//! The agent only provides its `manifest()` and optionally `on_plan_complete()`.
 //!
-//! ## Pipeline d'exécution
+//! ## Execution pipeline
 //!
 //! ```text
 //! ActorLoop::execute()
-//!   ├── topological_sort(plan.steps)         → ordre d'exécution
-//!   ├── Pour chaque step_id dans ordre :
-//!   │   ├── StepBudget::is_exhausted()       → STEP_BUDGET_EXCEEDED si épuisé
-//!   │   ├── db.start_step()                  → SQLite
-//!   │   ├── execute_step()                   → outil via ToolProxyTrait OU LLM via LlmRouter
-//!   │   ├── budget.increment_steps()
-//!   │   ├── db.complete_step() / fail_step()
-//!   │   └── EventBus: StepStarted / StepCompleted / StepFailed
-//!   ├── Si step échoue (retryable) + replan_count < max_replans :
-//!   │   └── reasoner.replan() → nouveau plan → execute_remaining()
-//!   └── Tous steps complétés → db.complete_plan() + AIPResult::completed_with_steps()
+//!   |-- topological_sort(plan.steps)         -> execution order
+//!   |-- For each step_id in order:
+//!   |   |-- StepBudget::is_exhausted()       -> STEP_BUDGET_EXCEEDED if exhausted
+//!   |   |-- db.start_step()                  -> SQLite
+//!   |   |-- execute_step()                   -> tool via ToolProxyTrait OR LLM via LlmRouter
+//!   |   |-- budget.increment_steps()
+//!   |   |-- db.complete_step() / fail_step()
+//!   |   `-- EventBus: StepStarted / StepCompleted / StepFailed
+//!   |-- If a step fails (retryable) and replan_count < max_replans:
+//!   |   `-- reasoner.replan() -> new plan -> execute_remaining()
+//!   `-- All steps completed -> db.complete_plan() + AIPResult::completed_with_steps()
 //! ```
 //!
 //! ## Thread safety
 //!
-//! `ActorLoop` contient un [`crate::plan_repository::PlanRepository`] qui est `!Send`
-//! (connexion SQLite via `RefCell`). Il doit être créé et consommé dans le même thread.
-//! Les futures produites par `execute()` sont donc `!Send`.
+//! `ActorLoop` holds a [`crate::plan_repository::PlanRepository`] which is `!Send`
+//! (SQLite connection via `RefCell`). It must be created and consumed on the same thread.
+//! The futures produced by `execute()` are therefore `!Send`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -50,21 +49,18 @@ use crate::reasoner::Reasoner;
 use crate::resilience::ResilienceLayer;
 use crate::topo::{topological_levels, topological_sort};
 
-// ────────────────────────────────────────────────────────────────────────────
 // ToolProxyTrait
-// ────────────────────────────────────────────────────────────────────────────
 
-/// Abstraction du ToolProxy pour l'`ActorLoop` — permet les tests sans PyO3.
+/// ToolProxy abstraction for the `ActorLoop`, enables testing without PyO3.
 ///
-/// Même pattern d'abstraction que `ToolExecutor` (ADR-015) et `AgentRunner` (ADR-016).
-/// L'implémentation concrète délègue à `ToolProxy::call()` via le bridge AIP.
-/// Les tests utilisent un mock implémentant ce trait.
+/// Same abstraction pattern as `ToolExecutor` and `AgentRunner`.
+/// The concrete implementation delegates to `ToolProxy::call()` via the AIP bridge.
+/// Tests use a mock implementing this trait.
 #[async_trait::async_trait]
 pub trait ToolProxyTrait: Send + Sync {
-    /// Invoque l'outil `tool_name` avec `input` sérialisé en JSON.
+    /// Invoke tool `tool_name` with `input` serialized as JSON.
     ///
-    /// Retourne la sortie textuelle de l'outil en cas de succès,
-    /// ou un message d'erreur en cas d'échec.
+    /// Returns the tool's text output on success, or an error message on failure.
     async fn invoke(&self, tool_name: &str, input: &serde_json::Value) -> Result<String, String>;
 
     /// Returns `true` if `tool_name` does not modify any external state.
@@ -77,48 +73,46 @@ pub trait ToolProxyTrait: Send + Sync {
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // StepError
-// ────────────────────────────────────────────────────────────────────────────
 
-/// Erreur d'un step individuel produite par [`ActorLoop::execute_step`].
+/// Error from a single step produced by [`ActorLoop::execute_step`].
 #[derive(Debug, thiserror::Error)]
 pub enum StepError {
-    /// L'appel à l'outil a échoué.
+    /// The tool call failed.
     #[error("Tool call failed: {0}")]
     ToolCallFailed(String),
-    /// L'appel au LLM a échoué.
+    /// The LLM call failed.
     #[error("LLM call failed: {0}")]
     LlmCallFailed(String),
-    /// Aucun backend LLM n'est configuré dans le `LlmRouter`.
+    /// No LLM backend is configured in the `LlmRouter`.
     #[error("No LLM backend configured")]
     NoLlmBackend,
-    /// L'outil demandé n'est pas enregistré dans le registre.
+    /// The requested tool is not registered in the registry.
     #[error("Tool not found: {0}")]
     ToolNotFound(String),
-    /// Le step a été rejeté par l'utilisateur avant exécution (HITL Mode Orchestré).
+    /// The step was rejected by the user before execution (HITL Orchestrated mode).
     ///
-    /// Retourné par [`ActorLoop::suspend_for_approval`] quand le `ResumeHandler`
-    /// envoie `approved=false`. L'exécution du plan s'arrête immédiatement —
-    /// les steps suivants ne sont pas tentés.
+    /// Returned by [`ActorLoop::suspend_for_approval`] when the `ResumeHandler`
+    /// sends `approved=false`. Plan execution stops immediately, the following
+    /// steps are not attempted.
     #[error("step rejeté par l'utilisateur : {reason}")]
     RejectedByUser {
-        /// Raison transmise par l'opérateur lors du rejet.
+        /// Reason provided by the operator on rejection.
         reason: String,
     },
-    /// Le oneshot channel d'approbation a été fermé avant réponse (shutdown runtime).
+    /// The approval oneshot channel was closed before a response (runtime shutdown).
     ///
-    /// Indique que le runtime est en cours d'arrêt. L'exécution du plan est
-    /// interrompue proprement sans panique.
+    /// Indicates the runtime is shutting down. Plan execution is stopped cleanly
+    /// without panicking.
     #[error("channel d'approbation fermé — runtime en cours d'arrêt")]
     ApprovalChannelClosed,
 }
 
 impl StepError {
-    /// Retourne `true` si cette erreur peut déclencher une replanification.
+    /// Returns `true` if this error can trigger a replan.
     ///
-    /// `ToolCallFailed` et `LlmCallFailed` sont retryables (problèmes transitoires).
-    /// Les autres variantes sont permanentes et ne déclenchent pas de replanification.
+    /// `ToolCallFailed` and `LlmCallFailed` are retryable (transient problems).
+    /// Other variants are permanent and do not trigger a replan.
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
@@ -127,13 +121,11 @@ impl StepError {
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Constants
-// ────────────────────────────────────────────────────────────────────────────
 
 /// Importance level for step-level episodic memory entries.
 ///
-/// Set to 0.6 — above the default recall threshold (0.5) so that step outputs
+/// Set to 0.6, above the default recall threshold (0.5) so that step outputs
 /// appear in standard memory queries, but below critical events (1.0).
 const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
 
@@ -151,9 +143,7 @@ const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 /// this layer.
 const MAX_CONCURRENT_ORIA_TOOLS: usize = 10;
 
-// ────────────────────────────────────────────────────────────────────────────
 // StepContext
-// ────────────────────────────────────────────────────────────────────────────
 
 /// Context accumulated during plan execution, injected into each step.
 ///
@@ -196,23 +186,54 @@ impl StepContext {
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// ActorLoop
-// ────────────────────────────────────────────────────────────────────────────
+// LevelOutcome
 
-/// Boucle d'exécution topologique d'un [`ExecutionPlan`].
+/// Result of executing a single topological level inside [`ActorLoop::execute`].
 ///
-/// Exécute séquentiellement les steps dans l'ordre déterminé par le tri topologique,
-/// en appliquant le [`StepBudget`] et la [`ResilienceLayer`] sur chaque appel outil/LLM.
-/// Persiste chaque transition de statut dans SQLite via [`PlanRepository`].
-/// Émet des [`RuntimeEvent`] sur l'`EventBus` à chaque changement d'état.
+/// `Continue` hands ownership of the accumulated step outputs back to the
+/// driving loop so the next level can run. `Terminal` carries the final
+/// [`AIPResult`] the loop must return immediately (budget exhausted, replan
+/// outcome, or terminal step failure).
+enum LevelOutcome {
+    /// The level completed; resume with the returned accumulated outputs.
+    Continue(HashMap<String, String>),
+    /// Plan execution must stop now with this result.
+    Terminal(AIPResult),
+}
+
+/// Shared execution dependencies threaded through the level executors and the
+/// replan / remaining-step paths.
 ///
-/// En cas d'échec retryable d'un step, déclenche une replanification via le [`Reasoner`]
-/// jusqu'à `max_replans` fois.
+/// Bundles the four borrowed collaborators required to run a step so the
+/// private executor methods keep a small parameter surface. All fields are
+/// shared references, so the bundle is cheap to copy.
+#[derive(Clone, Copy)]
+pub struct StepDeps<'a> {
+    /// Proxy for executing tool calls.
+    pub tool_proxy: &'a dyn ToolProxyTrait,
+    /// Shared LLM router for reasoning calls.
+    pub llm_router: &'a LlmRouter,
+    /// Step budget (tokens / cost) applied to each call.
+    pub budget: &'a StepBudget,
+    /// Reasoner used for replanning.
+    pub reasoner: &'a Reasoner,
+}
+
+// ActorLoop
+
+/// Topological execution loop for an [`ExecutionPlan`].
 ///
-/// Pour activer le support HITL, injecter un [`PendingApprovals`] via
-/// [`with_pending_approvals`]. Sans cela, les steps avec `tools_requiring_approval`
-/// s'exécutent directement sans suspension.
+/// Runs steps sequentially in the order determined by the topological sort,
+/// applying the [`StepBudget`] and the [`ResilienceLayer`] on each tool/LLM call.
+/// Persists each status transition in SQLite via [`PlanRepository`].
+/// Emits [`RuntimeEvent`]s on the `EventBus` at every state change.
+///
+/// On a retryable step failure, triggers a replan via the [`Reasoner`]
+/// up to `max_replans` times.
+///
+/// To enable HITL support, inject a [`PendingApprovals`] via
+/// [`with_pending_approvals`]. Without it, steps with `tools_requiring_approval`
+/// execute directly without suspension.
 ///
 /// [`with_pending_approvals`]: ActorLoop::with_pending_approvals
 pub struct ActorLoop {
@@ -221,50 +242,49 @@ pub struct ActorLoop {
     max_replans: u32,
     db: PlanRepository,
     event_bus: EventBusSender,
-    /// Manifest de l'agent propriétaire de ce plan.
+    /// Manifest of the agent that owns this plan.
     ///
-    /// Stocké en lecture seule pour que `execute_step` puisse accéder à
-    /// `tools_requiring_approval` lors de chaque step.
+    /// Stored read-only so `execute_step` can access `tools_requiring_approval`
+    /// on each step.
     pub manifest: AgentManifest,
-    /// Registre HITL des approbations en attente — partagé avec le `ResumeHandler`.
+    /// HITL registry of pending approvals, shared with the `ResumeHandler`.
     ///
-    /// `Some` → les steps dont l'outil est dans `tools_requiring_approval` suspendent
-    /// l'exécution et attendent la décision humaine via un oneshot channel.
-    /// `None` → pas de suspension HITL (mode dégradé, steps s'exécutent normalement).
+    /// `Some`: steps whose tool is in `tools_requiring_approval` suspend execution
+    /// and wait for the human decision via a oneshot channel.
+    /// `None`: no HITL suspension (degraded mode, steps execute normally).
     pending_approvals: Option<Arc<PendingApprovals>>,
-    /// Configuration d'observabilité pour la troncature des inputs/outputs persistés.
+    /// Observability config for truncating persisted inputs/outputs.
     obs_config: ObservabilityConfig,
     /// Memory manager for episodic recording after each step.
     ///
     /// When `Some`, step outputs are automatically recorded as episodic memories
-    /// in the agent's namespace. `Arc<Mutex<MemoryManager>>` follows the ADR-033
-    /// precedent (rare mutations, operator-level writes).
+    /// in the agent's namespace. `Arc<Mutex<MemoryManager>>` follows the same
+    /// precedent for rare, operator-level writes.
     memory_manager: Option<Arc<Mutex<MemoryManager>>>,
     /// Maximum character length for step output stored in episodic memory.
     ///
     /// Injected from `ORIAConfig::step_memory_max_chars`. Defaults to
     /// [`DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS`] when not configured.
     step_memory_max_chars: usize,
-    /// Gestionnaire de fenêtre de contexte LLM pour les steps de type LLM.
+    /// LLM context-window manager for LLM-type steps.
     ///
-    /// Injecté depuis `ORIAEngine` via [`with_context_manager`].
-    /// Compacte les messages d'un step LLM si leur taille estimée dépasse le seuil
-    /// configuré dans `[oria] context_compact_threshold`.
+    /// Injected from `ORIAEngine` via [`with_context_manager`].
+    /// Compacts an LLM step's messages when their estimated size exceeds the
+    /// threshold configured in `[oria] context_compact_threshold`.
     ///
     /// [`with_context_manager`]: ActorLoop::with_context_manager
     context_manager: ContextManager,
 }
 
 impl ActorLoop {
-    /// Crée un `ActorLoop` pour un plan donné.
+    /// Create an `ActorLoop` for a given plan.
     ///
-    /// Le plan doit déjà être inséré dans SQLite avant la création de l'`ActorLoop`
+    /// The plan must already be inserted in SQLite before creating the `ActorLoop`
     /// (via `PlanRepository::insert_plan` + `insert_steps`).
     ///
-    /// `manifest` est conservé en lecture seule pour que les steps puissent
-    /// accéder à `tools_requiring_approval`.
+    /// `manifest` is kept read-only so steps can access `tools_requiring_approval`.
     ///
-    /// Pour activer le support HITL, chaîner avec [`with_pending_approvals`].
+    /// To enable HITL support, chain with [`with_pending_approvals`].
     ///
     /// [`with_pending_approvals`]: ActorLoop::with_pending_approvals
     pub fn new(
@@ -289,31 +309,31 @@ impl ActorLoop {
         }
     }
 
-    /// Injecte le registre HITL des approbations en attente.
+    /// Inject the HITL registry of pending approvals.
     ///
-    /// Requis pour que les steps dont l'outil est dans `tools_requiring_approval`
-    /// suspendent l'exécution et attendent la décision humaine.
-    /// Partagé entre l'`ActorLoop` et le `ResumeHandler` via `AppState`.
+    /// Required for steps whose tool is in `tools_requiring_approval` to suspend
+    /// execution and wait for the human decision.
+    /// Shared between the `ActorLoop` and the `ResumeHandler` via `AppState`.
     pub fn with_pending_approvals(mut self, pending: Option<Arc<PendingApprovals>>) -> Self {
         self.pending_approvals = pending;
         self
     }
 
-    /// Configure l'observabilité pour la troncature des inputs/outputs persistés.
+    /// Configure observability for truncating persisted inputs/outputs.
     ///
-    /// Par défaut, utilise [`ObservabilityConfig::default()`].
+    /// Defaults to [`ObservabilityConfig::default()`].
     pub fn with_obs_config(mut self, config: ObservabilityConfig) -> Self {
         self.obs_config = config;
         self
     }
 
-    /// Injecte un [`MemoryManager`] pour l'enregistrement épisodique per-step.
+    /// Inject a [`MemoryManager`] for per-step episodic recording.
     ///
-    /// Quand configuré, chaque step complété avec succès enregistre automatiquement
-    /// une entrée épisodique dans le namespace de l'agent. L'écriture est fire-and-forget :
-    /// un échec est loggé en warning mais n'interrompt jamais l'exécution du plan.
+    /// When configured, each successfully completed step automatically records an
+    /// episodic entry in the agent's namespace. The write is fire-and-forget:
+    /// a failure is logged as a warning but never interrupts plan execution.
     ///
-    /// `Arc<Mutex<MemoryManager>>` suit le précédent ADR-033 (mutations rares).
+    /// `Arc<Mutex<MemoryManager>>` follows the same precedent for rare mutations.
     pub fn with_memory_manager(mut self, mm: Option<Arc<Mutex<MemoryManager>>>) -> Self {
         self.memory_manager = mm;
         self
@@ -328,32 +348,30 @@ impl ActorLoop {
         self
     }
 
-    /// Injecte le `ContextManager` pour compacter les messages LLM si nécessaire.
+    /// Inject the `ContextManager` to compact LLM messages when needed.
     ///
-    /// Appelé par `ORIAEngine` avec le `ContextManager` initialisé depuis `ORIAConfig`.
-    /// Sans cet appel, les valeurs par défaut (`threshold = 0.80`, `max_chars = 4000`)
-    /// sont utilisées.
+    /// Called by `ORIAEngine` with the `ContextManager` initialized from `ORIAConfig`.
+    /// Without this call, the defaults (`threshold = 0.80`, `max_chars = 4000`)
+    /// are used.
     pub fn with_context_manager(mut self, cm: ContextManager) -> Self {
         self.context_manager = cm;
         self
     }
 
-    /// Exécute le plan complet dans l'ordre topologique.
+    /// Execute the full plan in topological order.
     ///
-    /// Retourne `AIPResult::completed_with_steps` si tous les steps se complètent.
-    /// Retourne `AIPResult::failed` si le budget est épuisé, si trop de replanifications
-    /// ont été tentées, ou si un step échoue de façon permanente.
+    /// Returns `AIPResult::completed_with_steps` if all steps complete.
+    /// Returns `AIPResult::failed` if the budget is exhausted, too many replans
+    /// were attempted, or a step fails permanently.
     ///
-    /// Toutes les erreurs SQLite sont loggées mais n'interrompent pas l'exécution
+    /// All SQLite errors are logged but do not interrupt execution
     /// (fire-and-forget).
     pub async fn execute(
         &mut self,
-        tool_proxy: &dyn ToolProxyTrait,
-        llm_router: &LlmRouter,
-        budget: &StepBudget,
+        deps: StepDeps<'_>,
         _resilience: &ResilienceLayer,
-        reasoner: &Reasoner,
     ) -> AIPResult {
+        let tool_proxy = deps.tool_proxy;
         let levels = match topological_levels(&self.plan.steps) {
             Ok(l) => l,
             Err(_) => {
@@ -378,558 +396,21 @@ impl ActorLoop {
 
             // A level qualifies for concurrent batch execution when every step is a
             // read-only tool call that does not require human approval.
-            let batch_eligible = level_steps.len() > 1
-                && level_steps.iter().all(|s| {
-                    s.tool_hint.as_deref().is_some_and(|t| {
-                        t != "llm"
-                            && tool_proxy.is_tool_read_only(t)
-                            && !self
-                                .manifest
-                                .tools_requiring_approval
-                                .iter()
-                                .any(|a| a == t)
-                    })
-                });
-
-            if batch_eligible {
-                // ── BATCH PATH ────────────────────────────────────────────────────
-                // Phase 1 (sequential): budget guard, events, DB pre-execution.
-                if budget.is_exhausted() {
-                    if let Err(e) = self
-                        .db
-                        .fail_plan(&self.plan.plan_id, "STEP_BUDGET_EXCEEDED")
-                    {
-                        tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
-                    }
-                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        reason: "STEP_BUDGET_EXCEEDED".to_string(),
-                    });
-                    return AIPResult::failed(
-                        "STEP_BUDGET_EXCEEDED",
-                        &format!("Budget de {} steps atteint", budget.max_steps),
-                    );
-                }
-                for step in &level_steps {
-                    let step_id = &step.step_id;
-                    let step_num = completed_outputs.len() + 1;
-                    let total = self.plan.steps.len();
-                    let _ = self.event_bus.send(RuntimeEvent::StepStarted {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        step_id: step_id.clone(),
-                        step_num,
-                        total,
-                        desc: step.description.clone(),
-                    });
-                    if let Err(e) = self.db.start_step(&self.plan.plan_id, step_id) {
-                        tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
-                    }
-                    let rendered = interpolate_outputs(&step.description, &completed_outputs);
-                    if let Err(e) = self.db.save_step_input(
-                        step_id,
-                        &self.plan.plan_id,
-                        &rendered,
-                        &self.obs_config,
-                    ) {
-                        tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
-                    }
-                    let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
-                    if let Err(e) = self
-                        .db
-                        .save_step_tool(step_id, &self.plan.plan_id, actual_tool)
-                    {
-                        tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
-                    }
-                }
-
-                // Phase 2: Concurrent invocations.
-                let started = Instant::now();
-                let batch_results = self
-                    .execute_tool_steps(&level_steps, &completed_outputs, tool_proxy)
-                    .await;
-                let duration_ms = started.elapsed().as_millis() as u64;
-
-                // Phase 3 (sequential): budget increment, DB post-execution, events, errors.
-                for (step, (step_id, result)) in level_steps.iter().zip(batch_results) {
-                    budget.increment_steps();
-                    if let Err(e) =
-                        self.db
-                            .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
-                    {
-                        tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
-                    }
-                    match result {
-                        Ok(output) => {
-                            if let Err(e) = self.db.save_step_output(
-                                &step_id,
-                                &self.plan.plan_id,
-                                &output,
-                                &self.obs_config,
-                            ) {
-                                tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
-                            }
-                            if let Err(e) =
-                                self.db.complete_step(&self.plan.plan_id, &step_id, &output)
-                            {
-                                tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                step_id: step_id.clone(),
-                                duration_ms,
-                            });
-                            self.record_step_memory(&step_id, &step.description, &output);
-                            completed_outputs.insert(step_id, output);
-                        }
-                        Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
-                            if let Err(db_err) = self.db.save_step_error(
-                                &step_id,
-                                &self.plan.plan_id,
-                                &e.to_string(),
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db
-                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                step_id: step_id.clone(),
-                                error: e.to_string(),
-                                retryable: true,
-                            });
-                            return self
-                                .replan_and_continue(
-                                    step_id,
-                                    e.to_string(),
-                                    completed_outputs,
-                                    tool_proxy,
-                                    llm_router,
-                                    budget,
-                                    reasoner,
-                                )
-                                .await;
-                        }
-                        Err(ref e) if e.is_retryable() => {
-                            if let Err(db_err) = self.db.save_step_error(
-                                &step_id,
-                                &self.plan.plan_id,
-                                &e.to_string(),
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db
-                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db.fail_plan(&self.plan.plan_id, "MAX_REPLAN_EXCEEDED")
-                            {
-                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                step_id: step_id.clone(),
-                                error: e.to_string(),
-                                retryable: true,
-                            });
-                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                reason: "MAX_REPLAN_EXCEEDED".to_string(),
-                            });
-                            return AIPResult::failed(
-                                "MAX_REPLAN_EXCEEDED",
-                                &format!("{} replanifications dépassées", self.max_replans),
-                            );
-                        }
-                        Err(StepError::RejectedByUser { ref reason }) => {
-                            if let Err(db_err) =
-                                self.db
-                                    .save_step_error(&step_id, &self.plan.plan_id, reason)
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db.fail_step(&self.plan.plan_id, &step_id, reason)
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, "REJECTED") {
-                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                reason: "REJECTED".to_string(),
-                            });
-                            return AIPResult::failed("REJECTED", reason);
-                        }
-                        Err(StepError::ApprovalChannelClosed) => {
-                            if let Err(db_err) = self.db.save_step_error(
-                                &step_id,
-                                &self.plan.plan_id,
-                                "approval_channel_closed",
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) = self.db.fail_step(
-                                &self.plan.plan_id,
-                                &step_id,
-                                "approval_channel_closed",
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            if let Err(db_err) = self
-                                .db
-                                .fail_plan(&self.plan.plan_id, "APPROVAL_CHANNEL_CLOSED")
-                            {
-                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                reason: "APPROVAL_CHANNEL_CLOSED".to_string(),
-                            });
-                            return AIPResult::failed(
-                                "APPROVAL_CHANNEL_CLOSED",
-                                "Approval channel closed — runtime shutting down",
-                            );
-                        }
-                        Err(e) => {
-                            if let Err(db_err) = self.db.save_step_error(
-                                &step_id,
-                                &self.plan.plan_id,
-                                &e.to_string(),
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db
-                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db.fail_plan(&self.plan.plan_id, &e.to_string())
-                            {
-                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                step_id: step_id.clone(),
-                                error: e.to_string(),
-                                retryable: false,
-                            });
-                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                reason: e.to_string(),
-                            });
-                            return AIPResult::failed(
-                                "STEP_FAILED",
-                                &format!("Step {} failed: {}", step_id, e),
-                            );
-                        }
-                    }
-                }
+            let outcome = if self.is_batch_eligible(&level_steps, tool_proxy) {
+                self.execute_level_batch(level_steps, completed_outputs, deps)
+                    .await
             } else {
-                // ── SEQUENTIAL PATH ────────────────────────────────────────────────
-                // Each step in the level is processed one at a time (unchanged logic).
-                for step_id in level_ids {
-                    let step = match self.plan.steps.iter().find(|s| s.step_id == step_id) {
-                        Some(s) => s.clone(),
-                        None => continue,
-                    };
+                self.execute_level_sequential(level_ids, completed_outputs, deps)
+                    .await
+            };
 
-                    // : vérifier le budget avant chaque step.
-                    if budget.is_exhausted() {
-                        if let Err(e) = self
-                            .db
-                            .fail_plan(&self.plan.plan_id, "STEP_BUDGET_EXCEEDED")
-                        {
-                            tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
-                        }
-                        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                            task_id: self.plan.task_id.clone().into(),
-                            plan_id: self.plan.plan_id.clone(),
-                            reason: "STEP_BUDGET_EXCEEDED".to_string(),
-                        });
-                        return AIPResult::failed(
-                            "STEP_BUDGET_EXCEEDED",
-                            &format!("Budget de {} steps atteint", budget.max_steps),
-                        );
-                    }
+            completed_outputs = match outcome {
+                LevelOutcome::Continue(co) => co,
+                LevelOutcome::Terminal(result) => return result,
+            };
+        }
 
-                    // Émettre StepStarted.
-                    let step_num = completed_outputs.len() + 1;
-                    let total = self.plan.steps.len();
-                    let _ = self.event_bus.send(RuntimeEvent::StepStarted {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        step_id: step_id.clone(),
-                        step_num,
-                        total,
-                        desc: step.description.clone(),
-                    });
-                    if let Err(e) = self.db.start_step(&self.plan.plan_id, &step_id) {
-                        tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
-                    }
-
-                    // persist rendered input + tool name before execution.
-                    let rendered_input = interpolate_outputs(&step.description, &completed_outputs);
-                    if let Err(e) = self.db.save_step_input(
-                        &step_id,
-                        &self.plan.plan_id,
-                        &rendered_input,
-                        &self.obs_config,
-                    ) {
-                        tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
-                    }
-                    let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
-                    if let Err(e) =
-                        self.db
-                            .save_step_tool(&step_id, &self.plan.plan_id, actual_tool)
-                    {
-                        tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
-                    }
-
-                    // build StepContext with accumulated outputs and budget snapshot.
-                    let step_ctx = StepContext {
-                        previous_outputs: completed_outputs.clone(),
-                        step_index: completed_outputs.len(),
-                        total_steps: self.plan.steps.len(),
-                        remaining_budget: budget.to_budget_view(),
-                    };
-
-                    let started = Instant::now();
-                    let result = self
-                        .execute_step(&step, &step_ctx, tool_proxy, llm_router)
-                        .await;
-                    let duration_ms = started.elapsed().as_millis() as u64;
-                    budget.increment_steps();
-
-                    // persist duration unconditionally.
-                    if let Err(e) =
-                        self.db
-                            .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
-                    {
-                        tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
-                    }
-
-                    match result {
-                        Ok(output) => {
-                            // persist observability output.
-                            if let Err(e) = self.db.save_step_output(
-                                &step_id,
-                                &self.plan.plan_id,
-                                &output,
-                                &self.obs_config,
-                            ) {
-                                tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
-                            }
-                            if let Err(e) =
-                                self.db.complete_step(&self.plan.plan_id, &step_id, &output)
-                            {
-                                tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                step_id: step_id.clone(),
-                                duration_ms,
-                            });
-
-                            // record episodic memory per step (fire-and-forget).
-                            self.record_step_memory(&step_id, &step.description, &output);
-
-                            completed_outputs.insert(step_id, output);
-                        }
-
-                        Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
-                            // persist error detail.
-                            if let Err(db_err) = self.db.save_step_error(
-                                &step_id,
-                                &self.plan.plan_id,
-                                &e.to_string(),
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db
-                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                step_id: step_id.clone(),
-                                error: e.to_string(),
-                                retryable: true,
-                            });
-                            return self
-                                .replan_and_continue(
-                                    step_id,
-                                    e.to_string(),
-                                    completed_outputs,
-                                    tool_proxy,
-                                    llm_router,
-                                    budget,
-                                    reasoner,
-                                )
-                                .await;
-                        }
-
-                        Err(ref e) if e.is_retryable() => {
-                            // replan_count >= max_replans : MAX_REPLAN_EXCEEDED
-                            if let Err(db_err) = self.db.save_step_error(
-                                &step_id,
-                                &self.plan.plan_id,
-                                &e.to_string(),
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db
-                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db.fail_plan(&self.plan.plan_id, "MAX_REPLAN_EXCEEDED")
-                            {
-                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                step_id: step_id.clone(),
-                                error: e.to_string(),
-                                retryable: true,
-                            });
-                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                reason: "MAX_REPLAN_EXCEEDED".to_string(),
-                            });
-                            return AIPResult::failed(
-                                "MAX_REPLAN_EXCEEDED",
-                                &format!("{} replanifications dépassées", self.max_replans),
-                            );
-                        }
-
-                        // : rejet humain → plan stoppé, steps suivants non exécutés.
-                        Err(StepError::RejectedByUser { ref reason }) => {
-                            if let Err(db_err) =
-                                self.db
-                                    .save_step_error(&step_id, &self.plan.plan_id, reason)
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db.fail_step(&self.plan.plan_id, &step_id, reason)
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, "REJECTED") {
-                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                reason: "REJECTED".to_string(),
-                            });
-                            return AIPResult::failed("REJECTED", reason);
-                        }
-
-                        // Fermeture du channel d'approbation → runtime en arrêt.
-                        Err(StepError::ApprovalChannelClosed) => {
-                            if let Err(db_err) = self.db.save_step_error(
-                                &step_id,
-                                &self.plan.plan_id,
-                                "approval_channel_closed",
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) = self.db.fail_step(
-                                &self.plan.plan_id,
-                                &step_id,
-                                "approval_channel_closed",
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            if let Err(db_err) = self
-                                .db
-                                .fail_plan(&self.plan.plan_id, "APPROVAL_CHANNEL_CLOSED")
-                            {
-                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                reason: "APPROVAL_CHANNEL_CLOSED".to_string(),
-                            });
-                            return AIPResult::failed(
-                                "APPROVAL_CHANNEL_CLOSED",
-                                "Approval channel closed — runtime shutting down",
-                            );
-                        }
-
-                        Err(e) => {
-                            // Échec permanent non-retryable.
-                            if let Err(db_err) = self.db.save_step_error(
-                                &step_id,
-                                &self.plan.plan_id,
-                                &e.to_string(),
-                            ) {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db
-                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                            {
-                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                            }
-                            if let Err(db_err) =
-                                self.db.fail_plan(&self.plan.plan_id, &e.to_string())
-                            {
-                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                            }
-                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                step_id: step_id.clone(),
-                                error: e.to_string(),
-                                retryable: false,
-                            });
-                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                                task_id: self.plan.task_id.clone().into(),
-                                plan_id: self.plan.plan_id.clone(),
-                                reason: e.to_string(),
-                            });
-                            return AIPResult::failed(
-                                "STEP_FAILED",
-                                &format!("Step {} failed: {}", step_id, e),
-                            );
-                        }
-                    }
-                } // closes `for step_id in level_ids`
-            } // closes `else { // sequential path`
-        } // closes `for level_ids in levels`
-
-        // Tous les steps complétés.
+        // All steps completed.
         if let Err(e) = self.db.complete_plan(&self.plan.plan_id) {
             tracing::warn!(error = %e, "complete_plan DB call failed (ignored)");
         }
@@ -943,15 +424,164 @@ impl ActorLoop {
         AIPResult::completed_with_steps(completed_outputs)
     }
 
+    /// Executes one topological level whose steps are all read-only tool calls,
+    /// running them concurrently (batch path).
+    ///
+    /// Owns `completed_outputs` for the duration of the level and returns it via
+    /// [`LevelOutcome::Continue`] when the whole level succeeds, or
+    /// [`LevelOutcome::Terminal`] carrying the final [`AIPResult`] when the plan
+    /// must stop (budget exhausted, replan, or terminal step failure).
+    async fn execute_level_batch<'a>(
+        &'a mut self,
+        level_steps: Vec<PlanStep>,
+        mut completed_outputs: HashMap<String, String>,
+        deps: StepDeps<'a>,
+    ) -> LevelOutcome {
+        // Phase 1 (sequential): budget guard, events, DB pre-execution.
+        if deps.budget.is_exhausted() {
+            return LevelOutcome::Terminal(self.fail_plan_budget_exhausted(&format!(
+                "Budget de {} steps atteint",
+                deps.budget.max_steps
+            )));
+        }
+        for step in &level_steps {
+            let step_num = completed_outputs.len() + 1;
+            self.persist_step_pre_execution(step, step_num, &completed_outputs);
+        }
+
+        // Phase 2: Concurrent invocations.
+        let started = Instant::now();
+        let batch_results = self
+            .execute_tool_steps(&level_steps, &completed_outputs, deps.tool_proxy)
+            .await;
+        let duration_ms = started.elapsed().as_millis() as u64;
+
+        // Phase 3 (sequential): budget increment, DB post-execution, events, errors.
+        for (step, (step_id, result)) in level_steps.iter().zip(batch_results) {
+            deps.budget.increment_steps();
+            if let Err(e) =
+                self.db
+                    .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
+            {
+                tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
+            }
+            match result {
+                Ok(output) => {
+                    self.persist_step_success(&step_id, &output, duration_ms);
+                    self.record_step_memory(&step_id, &step.description, &output);
+                    completed_outputs.insert(step_id, output);
+                }
+                Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
+                    self.persist_step_failure(&step_id, &e.to_string());
+                    self.emit_step_failed(&step_id, &e.to_string(), true);
+                    return LevelOutcome::Terminal(
+                        self.replan_and_continue(step_id, e.to_string(), completed_outputs, deps)
+                            .await,
+                    );
+                }
+                Err(e) => {
+                    return LevelOutcome::Terminal(
+                        self.finalize_terminal_failure(&step_id, &e, true),
+                    )
+                }
+            }
+        }
+
+        LevelOutcome::Continue(completed_outputs)
+    }
+
+    /// Executes one topological level sequentially, processing each step one at
+    /// a time (LLM steps, mutating tools, tools requiring approval, single-step
+    /// levels).
+    ///
+    /// Mirrors [`execute_level_batch`](Self::execute_level_batch) for ownership
+    /// of `completed_outputs` and the [`LevelOutcome`] return contract.
+    async fn execute_level_sequential<'a>(
+        &'a mut self,
+        level_ids: Vec<String>,
+        mut completed_outputs: HashMap<String, String>,
+        deps: StepDeps<'a>,
+    ) -> LevelOutcome {
+        for step_id in level_ids {
+            let step = match self.plan.steps.iter().find(|s| s.step_id == step_id) {
+                Some(s) => s.clone(),
+                None => continue,
+            };
+
+            // check the budget before each step.
+            if deps.budget.is_exhausted() {
+                return LevelOutcome::Terminal(self.fail_plan_budget_exhausted(&format!(
+                    "Budget de {} steps atteint",
+                    deps.budget.max_steps
+                )));
+            }
+
+            // Emit StepStarted + persist rendered input + tool name before execution.
+            let step_num = completed_outputs.len() + 1;
+            self.persist_step_pre_execution(&step, step_num, &completed_outputs);
+
+            // build StepContext with accumulated outputs and budget snapshot.
+            let step_ctx = StepContext {
+                previous_outputs: completed_outputs.clone(),
+                step_index: completed_outputs.len(),
+                total_steps: self.plan.steps.len(),
+                remaining_budget: deps.budget.to_budget_view(),
+            };
+
+            let started = Instant::now();
+            let result = self
+                .execute_step(&step, &step_ctx, deps.tool_proxy, deps.llm_router)
+                .await;
+            let duration_ms = started.elapsed().as_millis() as u64;
+            deps.budget.increment_steps();
+
+            // persist duration unconditionally.
+            if let Err(e) =
+                self.db
+                    .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
+            {
+                tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
+            }
+
+            match result {
+                Ok(output) => {
+                    self.persist_step_success(&step_id, &output, duration_ms);
+
+                    // record episodic memory per step (fire-and-forget).
+                    self.record_step_memory(&step_id, &step.description, &output);
+
+                    completed_outputs.insert(step_id, output);
+                }
+
+                Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
+                    self.persist_step_failure(&step_id, &e.to_string());
+                    self.emit_step_failed(&step_id, &e.to_string(), true);
+                    return LevelOutcome::Terminal(
+                        self.replan_and_continue(step_id, e.to_string(), completed_outputs, deps)
+                            .await,
+                    );
+                }
+
+                Err(e) => {
+                    return LevelOutcome::Terminal(
+                        self.finalize_terminal_failure(&step_id, &e, true),
+                    )
+                }
+            }
+        }
+
+        LevelOutcome::Continue(completed_outputs)
+    }
+
     /// Executes a batch of tool-only steps, parallelising when all tools are read-only.
     ///
-    /// **Parallel path** — when every step in `steps` targets a read-only tool
+    /// **Parallel path**: when every step in `steps` targets a read-only tool
     /// (as reported by [`ToolProxyTrait::is_tool_read_only`]) **and** no tool in the
-    /// batch requires human approval: all invocations are driven concurrently via
+    /// batch requires human approval, all invocations are driven concurrently via
     /// `futures::stream::StreamExt::buffered` with a cap of
     /// `MAX_CONCURRENT_READ_TOOLS` simultaneous calls.
     ///
-    /// **Serial path** — in all other cases (LLM steps, mutating tools, tools
+    /// **Serial path**: in all other cases (LLM steps, mutating tools, tools
     /// requiring approval, or a batch of one): invocations run sequentially.
     ///
     /// Output order matches input order in both paths.
@@ -1012,20 +642,20 @@ impl ActorLoop {
             .collect()
     }
 
-    /// Exécute un step individuel — outil ou LLM selon `tool_hint`.
+    /// Execute a single step, tool or LLM depending on `tool_hint`.
     ///
-    /// Avant l'exécution effective, vérifie si l'outil du step est dans
-    /// `manifest.tools_requiring_approval`. Si oui et que `pending_approvals` est
-    /// configuré, appelle [`suspend_for_approval`] et attend la décision humaine.
+    /// Before the actual execution, checks whether the step's tool is in
+    /// `manifest.tools_requiring_approval`. If so and `pending_approvals` is
+    /// configured, calls [`suspend_for_approval`] and waits for the human decision.
     ///
-    /// - `tool_hint = Some("llm")` ou `None` → appel LLM, routé via `model_hint`
-    ///   si présent, sinon backend défaut. Les outputs précédents sont
-    ///   injectés dans le system message.
-    /// - `tool_hint = Some(tool_name)` → appel via `ToolProxyTrait::invoke`
-    ///   (`model_hint` ignoré pour les steps outil).
+    /// - `tool_hint = Some("llm")` or `None`: LLM call, routed via `model_hint`
+    ///   when present, otherwise the default backend. Previous outputs are
+    ///   injected into the system message.
+    /// - `tool_hint = Some(tool_name)`: call via `ToolProxyTrait::invoke`
+    ///   (`model_hint` ignored for tool steps).
     ///
-    /// Les outputs des steps précédents sont interpolés dans la description du step
-    /// via [`interpolate_outputs`] avant d'être transmis à l'outil ou au LLM.
+    /// Previous step outputs are interpolated into the step description via
+    /// [`interpolate_outputs`] before being passed to the tool or the LLM.
     ///
     /// [`suspend_for_approval`]: ActorLoop::suspend_for_approval
     async fn execute_step(
@@ -1035,7 +665,7 @@ impl ActorLoop {
         tool_proxy: &dyn ToolProxyTrait,
         llm_router: &LlmRouter,
     ) -> Result<String, StepError> {
-        // Vérifier si l'outil du step nécessite une approbation humaine.
+        // Check whether the step's tool requires human approval.
         let tool_needs_approval = step
             .tool_hint
             .as_deref()
@@ -1059,17 +689,17 @@ impl ActorLoop {
             }
         }
 
-        // Exécution normale du step après approbation (ou si outil non-sensible).
+        // Normal step execution after approval (or for a non-sensitive tool).
         let input = interpolate_outputs(&step.description, &step_ctx.previous_outputs);
 
         match step.tool_hint.as_deref() {
-            // Step LLM — routé vers le backend spécifié par model_hint.
+            // LLM step: routed to the backend specified by model_hint.
             // previous outputs injected into the system message.
             Some("llm") | None => {
                 self.execute_llm_step(step, input, llm_router, step_ctx)
                     .await
             }
-            // Step outil — model_hint ignoré.
+            // Tool step: model_hint ignored.
             Some(tool_name) => tool_proxy
                 .invoke(tool_name, &serde_json::json!({"input": input}))
                 .await
@@ -1077,15 +707,15 @@ impl ActorLoop {
         }
     }
 
-    /// Exécute un appel LLM pour un step, en tenant compte du `model_hint`.
+    /// Execute an LLM call for a step, honoring `model_hint`.
     ///
-    /// - Si `model_hint = Some(hint)` et que le backend existe dans le `LlmRouter`,
-    ///   l'appel est routé vers ce backend.
-    /// - Si `model_hint = Some(hint)` mais le backend n'existe pas, un `tracing::warn!`
-    ///   est émis et le backend par défaut est utilisé en fallback.
-    /// - Si `model_hint = None`, le backend par défaut est utilisé.
-    /// - si des steps précédents ont complété, leurs outputs sont
-    ///   formatés dans un system message `"Previous step results:\n- s1: …"`.
+    /// - If `model_hint = Some(hint)` and the backend exists in the `LlmRouter`,
+    ///   the call is routed to that backend.
+    /// - If `model_hint = Some(hint)` but the backend does not exist, a `tracing::warn!`
+    ///   is emitted and the default backend is used as fallback.
+    /// - If `model_hint = None`, the default backend is used.
+    /// - if previous steps completed, their outputs are formatted into a system
+    ///   message `"Previous step results:\n- s1: ..."`.
     async fn execute_llm_step(
         &self,
         step: &PlanStep,
@@ -1096,7 +726,7 @@ impl ActorLoop {
         // Build messages: combine manifest system prompt and previous step outputs into a single
         // system message (preserved verbatim by ContextManager during compaction).
         // Omit the system message entirely when neither the manifest nor previous outputs
-        // provide any content — preserving existing behaviour for simple steps.
+        // provide any content, preserving existing behaviour for simple steps.
         let system_text_opt = match (
             self.manifest.system_prompt.as_deref(),
             step_ctx.format_previous_outputs(),
@@ -1163,32 +793,32 @@ impl ActorLoop {
         Ok(response.content)
     }
 
-    /// Suspend l'exécution du step et attend la décision humaine (HITL Mode Orchestré).
+    /// Suspend step execution and wait for the human decision (HITL Orchestrated mode).
     ///
-    /// ## Séquence
+    /// ## Sequence
     ///
-    /// 1. Enregistre un oneshot channel dans `pending_approvals` → récepteur `rx`.
-    /// 2. Émet [`RuntimeEvent::TaskInputRequired`] avec `step_id: Some(step.step_id)`
-    ///    sur l'`EventBus` pour notifier l'utilisateur.
-    /// 3. Attend `rx.await` — le `ResumeHandler` envoie sur le sender.
-    /// 4. Si `approved=true` → `Ok(())` → l'outil du step est exécuté normalement.
-    /// 5. Si `approved=false` → `Err(StepError::RejectedByUser { reason })`.
-    /// 6. Si le channel est fermé (shutdown runtime) → `Err(StepError::ApprovalChannelClosed)`.
+    /// 1. Register a oneshot channel in `pending_approvals`, receiver `rx`.
+    /// 2. Emit [`RuntimeEvent::TaskInputRequired`] with `step_id: Some(step.step_id)`
+    ///    on the `EventBus` to notify the user.
+    /// 3. Await `rx.await`: the `ResumeHandler` sends on the sender.
+    /// 4. If `approved=true`: `Ok(())`, the step's tool runs normally.
+    /// 5. If `approved=false`: `Err(StepError::RejectedByUser { reason })`.
+    /// 6. If the channel is closed (runtime shutdown): `Err(StepError::ApprovalChannelClosed)`.
     ///
-    /// **StepBudget pausé pendant suspension** : l'attente est un `await` pur —
-    /// le compteur de steps ne progresse pas pendant la suspension humaine.
+    /// **StepBudget paused during suspension**: the wait is a pure `await`,
+    /// the step counter does not advance during the human suspension.
     async fn suspend_for_approval(
         &self,
         step: &PlanStep,
         pending_approvals: &PendingApprovals,
     ) -> Result<(), StepError> {
-        // Clé d'enregistrement : task_id + step_id pour identifier précisément la suspension.
+        // Registration key: task_id + step_id to identify the suspension precisely.
         let approval_key = format!("{}::{}", self.plan.task_id, step.step_id);
 
-        // 1. Enregistrer dans PendingApprovals → rx
+        // 1. Register in PendingApprovals, get rx
         let rx = pending_approvals.register(&approval_key);
 
-        // 2. Émettre TaskInputRequired avec step_id renseigné (distingue Mode Direct / Orchestré)
+        // 2. Emit TaskInputRequired with step_id set (distinguishes Direct / Orchestrated mode)
         let prompt = format!(
             "Approbation requise avant d'exécuter '{}' (step: {})",
             step.tool_hint.as_deref().unwrap_or("llm"),
@@ -1207,7 +837,7 @@ impl ActorLoop {
             "step suspended — waiting for human approval"
         );
 
-        // 3. Attendre la décision humaine (await pur — StepBudget ne progresse pas)
+        // 3. Wait for the human decision (pure await: StepBudget does not advance)
         let response = rx.await.map_err(|_| StepError::ApprovalChannelClosed)?;
 
         tracing::info!(
@@ -1217,7 +847,7 @@ impl ActorLoop {
             "human decision received for step"
         );
 
-        // 4/5. Retourner selon la décision
+        // 4/5. Return based on the decision
         if response.approved {
             Ok(())
         } else {
@@ -1302,26 +932,22 @@ impl ActorLoop {
         });
     }
 
-    /// Déclenche une replanification après l'échec retryable d'un step.
+    /// Trigger a replan after the retryable failure of a step.
     ///
-    /// Incrémente `replan_count`, émet [`RuntimeEvent::PlanReplanning`],
-    /// appelle `Reasoner::replan()`, met à jour le plan SQLite et l'état interne,
-    /// puis délègue la suite à [`execute_remaining`](Self::execute_remaining).
+    /// Increments `replan_count`, emits [`RuntimeEvent::PlanReplanning`],
+    /// calls `Reasoner::replan()`, updates the SQLite plan and internal state,
+    /// then delegates the rest to [`execute_remaining`](Self::execute_remaining).
     ///
-    /// Retourne `MAX_REPLAN_EXCEEDED` si le Reasoner échoue.
+    /// Returns `MAX_REPLAN_EXCEEDED` if the Reasoner fails.
     ///
-    /// Cette fonction retourne un `Future` boxé pour permettre la récursion mutuelle
-    /// avec [`execute_remaining`](Self::execute_remaining).
-    #[allow(clippy::too_many_arguments)]
+    /// Returns a boxed `Future` to allow mutual recursion with
+    /// [`execute_remaining`](Self::execute_remaining).
     fn replan_and_continue<'a>(
         &'a mut self,
         failed_step_id: String,
         error_message: String,
         completed_outputs: HashMap<String, String>,
-        tool_proxy: &'a dyn ToolProxyTrait,
-        llm_router: &'a LlmRouter,
-        budget: &'a StepBudget,
-        reasoner: &'a Reasoner,
+        deps: StepDeps<'a>,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + 'a>> {
         Box::pin(async move {
             self.replan_count += 1;
@@ -1335,10 +961,11 @@ impl ActorLoop {
                 reason: error_message.clone(),
             });
 
-            // Construire un contexte minimal pour le Reasoner.
+            // Build a minimal context for the Reasoner.
             let ctx = build_replan_context(&self.plan);
 
-            let new_plan = match reasoner
+            let new_plan = match deps
+                .reasoner
                 .replan(&ctx, &completed_outputs, &failed_step_id, &error_message)
                 .await
             {
@@ -1356,7 +983,7 @@ impl ActorLoop {
                 }
             };
 
-            // Mettre à jour SQLite : begin_replan supprime les steps pending, on réinsère.
+            // Update SQLite: begin_replan removes pending steps, then we reinsert.
             if let Err(e) = self.db.begin_replan(&self.plan.plan_id, self.replan_count) {
                 tracing::warn!(error = %e, "begin_replan DB call failed (ignored)");
             }
@@ -1371,31 +998,27 @@ impl ActorLoop {
                 step_count: new_plan.steps.len(),
             });
 
-            // Mettre à jour l'état interne : conserver uniquement les steps complétés + nouveaux.
+            // Update internal state: keep only completed steps plus the new ones.
             self.plan
                 .steps
                 .retain(|s| completed_outputs.contains_key(&s.step_id));
             self.plan.steps.extend(new_plan.steps);
 
-            self.execute_remaining(completed_outputs, tool_proxy, llm_router, budget, reasoner)
-                .await
+            self.execute_remaining(completed_outputs, deps).await
         }) // end Box::pin
     }
 
-    /// Exécute les steps restants (non encore complétés) après une replanification.
+    /// Execute the remaining (not yet completed) steps after a replan.
     ///
-    /// Détermine les steps restants en filtrant `self.plan.steps` sur ceux absents
-    /// de `completed_outputs`, effectue un tri topologique, puis exécute chacun.
+    /// Determines the remaining steps by filtering `self.plan.steps` to those absent
+    /// from `completed_outputs`, performs a topological sort, then runs each one.
     ///
-    /// Cette fonction retourne un `Future` boxé pour permettre la récursion mutuelle
-    /// avec [`replan_and_continue`](Self::replan_and_continue).
+    /// Returns a boxed `Future` to allow mutual recursion with
+    /// [`replan_and_continue`](Self::replan_and_continue).
     fn execute_remaining<'a>(
         &'a mut self,
         mut completed_outputs: HashMap<String, String>,
-        tool_proxy: &'a dyn ToolProxyTrait,
-        llm_router: &'a LlmRouter,
-        budget: &'a StepBudget,
-        reasoner: &'a Reasoner,
+        deps: StepDeps<'a>,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + 'a>> {
         Box::pin(async move {
             let remaining: Vec<PlanStep> = self
@@ -1422,70 +1045,28 @@ impl ActorLoop {
                     None => continue,
                 };
 
-                if budget.is_exhausted() {
-                    if let Err(e) = self
-                        .db
-                        .fail_plan(&self.plan.plan_id, "STEP_BUDGET_EXCEEDED")
-                    {
-                        tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
-                    }
-                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        reason: "STEP_BUDGET_EXCEEDED".to_string(),
-                    });
-                    return AIPResult::failed(
-                        "STEP_BUDGET_EXCEEDED",
-                        "Budget épuisé lors de la replanification",
-                    );
+                if deps.budget.is_exhausted() {
+                    return self
+                        .fail_plan_budget_exhausted("Budget épuisé lors de la replanification");
                 }
 
                 let step_num = completed_outputs.len() + 1;
-                let total = self.plan.steps.len();
-                let _ = self.event_bus.send(RuntimeEvent::StepStarted {
-                    task_id: self.plan.task_id.clone().into(),
-                    plan_id: self.plan.plan_id.clone(),
-                    step_id: step_id.clone(),
-                    step_num,
-                    total,
-                    desc: step.description.clone(),
-                });
-                if let Err(e) = self.db.start_step(&self.plan.plan_id, &step_id) {
-                    tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
-                }
-
-                // persist rendered input + tool name before execution.
-                let rendered_input = interpolate_outputs(&step.description, &completed_outputs);
-                if let Err(e) = self.db.save_step_input(
-                    &step_id,
-                    &self.plan.plan_id,
-                    &rendered_input,
-                    &self.obs_config,
-                ) {
-                    tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
-                }
-                let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
-                if let Err(e) = self
-                    .db
-                    .save_step_tool(&step_id, &self.plan.plan_id, actual_tool)
-                {
-                    tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
-                }
+                self.persist_step_pre_execution(&step, step_num, &completed_outputs);
 
                 // build StepContext for execute_remaining steps.
                 let step_ctx = StepContext {
                     previous_outputs: completed_outputs.clone(),
                     step_index: completed_outputs.len(),
                     total_steps: self.plan.steps.len(),
-                    remaining_budget: budget.to_budget_view(),
+                    remaining_budget: deps.budget.to_budget_view(),
                 };
 
                 let started = Instant::now();
                 let result = self
-                    .execute_step(&step, &step_ctx, tool_proxy, llm_router)
+                    .execute_step(&step, &step_ctx, deps.tool_proxy, deps.llm_router)
                     .await;
                 let duration_ms = started.elapsed().as_millis() as u64;
-                budget.increment_steps();
+                deps.budget.increment_steps();
 
                 // persist duration unconditionally.
                 if let Err(e) =
@@ -1497,177 +1078,24 @@ impl ActorLoop {
 
                 match result {
                     Ok(output) => {
-                        // persist observability output.
-                        if let Err(e) = self.db.save_step_output(
-                            &step_id,
-                            &self.plan.plan_id,
-                            &output,
-                            &self.obs_config,
-                        ) {
-                            tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
-                        }
-                        if let Err(e) = self.db.complete_step(&self.plan.plan_id, &step_id, &output)
-                        {
-                            tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
-                        }
-                        let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
-                            task_id: self.plan.task_id.clone().into(),
-                            plan_id: self.plan.plan_id.clone(),
-                            step_id: step_id.clone(),
-                            duration_ms,
-                        });
+                        self.persist_step_success(&step_id, &output, duration_ms);
                         completed_outputs.insert(step_id, output);
                     }
 
                     Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
-                        if let Err(db_err) =
-                            self.db
-                                .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
-                        {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                        }
-                        if let Err(db_err) =
-                            self.db
-                                .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                        {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                        }
-                        let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                            task_id: self.plan.task_id.clone().into(),
-                            plan_id: self.plan.plan_id.clone(),
-                            step_id: step_id.clone(),
-                            error: e.to_string(),
-                            retryable: true,
-                        });
+                        self.persist_step_failure(&step_id, &e.to_string());
+                        self.emit_step_failed(&step_id, &e.to_string(), true);
                         return self
                             .replan_and_continue(
                                 step_id,
                                 e.to_string(),
                                 completed_outputs,
-                                tool_proxy,
-                                llm_router,
-                                budget,
-                                reasoner,
+                                deps,
                             )
                             .await;
                     }
 
-                    Err(ref e) if e.is_retryable() => {
-                        // replan_count >= max_replans : MAX_REPLAN_EXCEEDED.
-                        if let Err(db_err) =
-                            self.db
-                                .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
-                        {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                        }
-                        if let Err(db_err) =
-                            self.db
-                                .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                        {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                        }
-                        if let Err(db_err) =
-                            self.db.fail_plan(&self.plan.plan_id, "MAX_REPLAN_EXCEEDED")
-                        {
-                            tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                        }
-                        let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                            task_id: self.plan.task_id.clone().into(),
-                            plan_id: self.plan.plan_id.clone(),
-                            step_id: step_id.clone(),
-                            error: e.to_string(),
-                            retryable: true,
-                        });
-                        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                            task_id: self.plan.task_id.clone().into(),
-                            plan_id: self.plan.plan_id.clone(),
-                            reason: "MAX_REPLAN_EXCEEDED".to_string(),
-                        });
-                        return AIPResult::failed(
-                            "MAX_REPLAN_EXCEEDED",
-                            &format!("{} replanifications dépassées", self.max_replans),
-                        );
-                    }
-
-                    // Rejet humain dans execute_remaining → plan stoppé.
-                    Err(StepError::RejectedByUser { ref reason }) => {
-                        if let Err(db_err) =
-                            self.db
-                                .save_step_error(&step_id, &self.plan.plan_id, reason)
-                        {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                        }
-                        if let Err(db_err) = self.db.fail_step(&self.plan.plan_id, &step_id, reason)
-                        {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                        }
-                        if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, "REJECTED") {
-                            tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                        }
-                        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                            task_id: self.plan.task_id.clone().into(),
-                            plan_id: self.plan.plan_id.clone(),
-                            reason: "REJECTED".to_string(),
-                        });
-                        return AIPResult::failed("REJECTED", reason);
-                    }
-
-                    // Channel fermé dans execute_remaining → runtime en arrêt.
-                    Err(StepError::ApprovalChannelClosed) => {
-                        if let Err(db_err) = self.db.save_step_error(
-                            &step_id,
-                            &self.plan.plan_id,
-                            "approval_channel_closed",
-                        ) {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                        }
-                        if let Err(db_err) = self.db.fail_step(
-                            &self.plan.plan_id,
-                            &step_id,
-                            "approval_channel_closed",
-                        ) {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                        }
-                        if let Err(db_err) = self
-                            .db
-                            .fail_plan(&self.plan.plan_id, "APPROVAL_CHANNEL_CLOSED")
-                        {
-                            tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                        }
-                        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                            task_id: self.plan.task_id.clone().into(),
-                            plan_id: self.plan.plan_id.clone(),
-                            reason: "APPROVAL_CHANNEL_CLOSED".to_string(),
-                        });
-                        return AIPResult::failed(
-                            "APPROVAL_CHANNEL_CLOSED",
-                            "Approval channel closed — runtime shutting down",
-                        );
-                    }
-
-                    Err(e) => {
-                        if let Err(db_err) =
-                            self.db
-                                .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
-                        {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                        }
-                        if let Err(db_err) =
-                            self.db
-                                .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                        {
-                            tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                        }
-                        if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, &e.to_string()) {
-                            tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                        }
-                        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                            task_id: self.plan.task_id.clone().into(),
-                            plan_id: self.plan.plan_id.clone(),
-                            reason: e.to_string(),
-                        });
-                        return AIPResult::failed("STEP_FAILED", &e.to_string());
-                    }
+                    Err(e) => return self.finalize_terminal_failure(&step_id, &e, false),
                 }
             }
 
@@ -1684,22 +1112,202 @@ impl ActorLoop {
             AIPResult::completed_with_steps(completed_outputs)
         }) // end Box::pin
     }
+
+    /// Persists the side effects of a successfully completed step.
+    ///
+    /// Saves the observability output, marks the step complete in SQLite, and
+    /// emits [`RuntimeEvent::StepCompleted`]. DB errors are logged and ignored
+    /// (fire-and-forget), matching the surrounding execution loops.
+    fn persist_step_success(&self, step_id: &str, output: &str, duration_ms: u64) {
+        if let Err(e) =
+            self.db
+                .save_step_output(step_id, &self.plan.plan_id, output, &self.obs_config)
+        {
+            tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
+        }
+        if let Err(e) = self.db.complete_step(&self.plan.plan_id, step_id, output) {
+            tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
+        }
+        let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
+            task_id: self.plan.task_id.clone().into(),
+            plan_id: self.plan.plan_id.clone(),
+            step_id: step_id.to_string(),
+            duration_ms,
+        });
+    }
+
+    /// Persists the common failure prefix for a failed step: saves the error
+    /// detail and marks the step failed in SQLite.
+    ///
+    /// Shared by every error arm before more specific plan-level handling.
+    /// DB errors are logged and ignored (fire-and-forget).
+    fn persist_step_failure(&self, step_id: &str, error_msg: &str) {
+        if let Err(e) = self.db.save_step_error(step_id, &self.plan.plan_id, error_msg) {
+            tracing::warn!(error = %e, step_id = %step_id, "save_step_error DB call failed (ignored)");
+        }
+        if let Err(e) = self.db.fail_step(&self.plan.plan_id, step_id, error_msg) {
+            tracing::warn!(error = %e, step_id = %step_id, "fail_step DB call failed (ignored)");
+        }
+    }
+
+    /// Emits a [`RuntimeEvent::StepFailed`] for `step_id`.
+    fn emit_step_failed(&self, step_id: &str, error: &str, retryable: bool) {
+        let _ = self.event_bus.send(RuntimeEvent::StepFailed {
+            task_id: self.plan.task_id.clone().into(),
+            plan_id: self.plan.plan_id.clone(),
+            step_id: step_id.to_string(),
+            error: error.to_string(),
+            retryable,
+        });
+    }
+
+    /// Marks the plan failed in SQLite with `reason` and emits
+    /// [`RuntimeEvent::PlanFailed`]. DB errors are logged and ignored.
+    fn fail_plan(&self, reason: &str) {
+        if let Err(e) = self.db.fail_plan(&self.plan.plan_id, reason) {
+            tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
+        }
+        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+            task_id: self.plan.task_id.clone().into(),
+            plan_id: self.plan.plan_id.clone(),
+            reason: reason.to_string(),
+        });
+    }
+
+    /// Handles every terminal step failure (all error arms except the one that
+    /// triggers a replan), performing the step- and plan-level persistence and
+    /// events, then returning the matching terminal [`AIPResult`].
+    ///
+    /// Variants handled:
+    /// - retryable error with replans exhausted → `MAX_REPLAN_EXCEEDED`
+    /// - [`StepError::RejectedByUser`] → `REJECTED`
+    /// - [`StepError::ApprovalChannelClosed`] → `APPROVAL_CHANNEL_CLOSED`
+    /// - any other permanent error → `STEP_FAILED`
+    ///
+    /// `prefix_step_in_message` selects the `STEP_FAILED` detail wording: the
+    /// initial-pass loops report `"Step {id} failed: {e}"`, while the
+    /// post-replan loop reports the bare error string (preserving the original
+    /// per-loop messages verbatim).
+    fn finalize_terminal_failure(
+        &self,
+        step_id: &str,
+        err: &StepError,
+        prefix_step_in_message: bool,
+    ) -> AIPResult {
+        match err {
+            e if e.is_retryable() => {
+                // Retryable but replan budget exhausted.
+                self.persist_step_failure(step_id, &e.to_string());
+                self.emit_step_failed(step_id, &e.to_string(), true);
+                self.fail_plan("MAX_REPLAN_EXCEEDED");
+                AIPResult::failed(
+                    "MAX_REPLAN_EXCEEDED",
+                    &format!("{} replanifications dépassées", self.max_replans),
+                )
+            }
+            StepError::RejectedByUser { reason } => {
+                self.persist_step_failure(step_id, reason);
+                self.fail_plan("REJECTED");
+                AIPResult::failed("REJECTED", reason)
+            }
+            StepError::ApprovalChannelClosed => {
+                self.persist_step_failure(step_id, "approval_channel_closed");
+                self.fail_plan("APPROVAL_CHANNEL_CLOSED");
+                AIPResult::failed(
+                    "APPROVAL_CHANNEL_CLOSED",
+                    "Approval channel closed — runtime shutting down",
+                )
+            }
+            e => {
+                self.persist_step_failure(step_id, &e.to_string());
+                self.emit_step_failed(step_id, &e.to_string(), false);
+                self.fail_plan(&e.to_string());
+                let detail = if prefix_step_in_message {
+                    format!("Step {} failed: {}", step_id, e)
+                } else {
+                    e.to_string()
+                };
+                AIPResult::failed("STEP_FAILED", &detail)
+            }
+        }
+    }
+
+    /// Returns `true` when every step in `level_steps` is a read-only tool call
+    /// that does not require human approval, making the level eligible for
+    /// concurrent batch execution. A single-step level is never eligible.
+    fn is_batch_eligible(&self, level_steps: &[PlanStep], tool_proxy: &dyn ToolProxyTrait) -> bool {
+        level_steps.len() > 1
+            && level_steps.iter().all(|s| {
+                s.tool_hint.as_deref().is_some_and(|t| {
+                    t != "llm"
+                        && tool_proxy.is_tool_read_only(t)
+                        && !self
+                            .manifest
+                            .tools_requiring_approval
+                            .iter()
+                            .any(|a| a == t)
+                })
+            })
+    }
+
+    /// Persists the pre-execution bookkeeping for `step`: emits
+    /// [`RuntimeEvent::StepStarted`], marks the step started in SQLite, and
+    /// saves the interpolated input and resolved tool name.
+    ///
+    /// `step_num` is the 1-based ordinal used for the StepStarted event.
+    /// DB errors are logged and ignored (fire-and-forget).
+    fn persist_step_pre_execution(
+        &self,
+        step: &PlanStep,
+        step_num: usize,
+        completed_outputs: &HashMap<String, String>,
+    ) {
+        let step_id = &step.step_id;
+        let total = self.plan.steps.len();
+        let _ = self.event_bus.send(RuntimeEvent::StepStarted {
+            task_id: self.plan.task_id.clone().into(),
+            plan_id: self.plan.plan_id.clone(),
+            step_id: step_id.clone(),
+            step_num,
+            total,
+            desc: step.description.clone(),
+        });
+        if let Err(e) = self.db.start_step(&self.plan.plan_id, step_id) {
+            tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
+        }
+        let rendered = interpolate_outputs(&step.description, completed_outputs);
+        if let Err(e) =
+            self.db
+                .save_step_input(step_id, &self.plan.plan_id, &rendered, &self.obs_config)
+        {
+            tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
+        }
+        let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
+        if let Err(e) = self.db.save_step_tool(step_id, &self.plan.plan_id, actual_tool) {
+            tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
+        }
+    }
+
+    /// Marks the plan failed with `STEP_BUDGET_EXCEEDED` (DB + event) and
+    /// returns the corresponding terminal [`AIPResult`] carrying `detail`.
+    fn fail_plan_budget_exhausted(&self, detail: &str) -> AIPResult {
+        self.fail_plan("STEP_BUDGET_EXCEEDED");
+        AIPResult::failed("STEP_BUDGET_EXCEEDED", detail)
+    }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Helpers
-// ────────────────────────────────────────────────────────────────────────────
 
-/// Interpole les outputs des steps précédents dans la description d'un step.
+/// Interpolate previous step outputs into a step description.
 ///
-/// Remplace chaque occurrence de `{{step_id}}` par le contenu de l'output
-/// du step correspondant. Les placeholders non reconnus sont laissés intacts.
+/// Replaces each occurrence of `{{step_id}}` with the corresponding step's
+/// output content. Unrecognized placeholders are left intact.
 ///
-/// # Exemple
+/// # Example
 ///
 /// ```text
 /// "Analyser {{s1}} et {{s2}}" + {s1: "42 pages", s2: "3 images"}
-/// → "Analyser 42 pages et 3 images"
+/// -> "Analyser 42 pages et 3 images"
 /// ```
 pub fn interpolate_outputs(description: &str, outputs: &HashMap<String, String>) -> String {
     let mut result = description.to_string();
@@ -1885,12 +1493,12 @@ mod tests {
         (actor, bus_rx)
     }
 
-    // ── Exécution séquentielle dans l'ordre topologique ───────────────
+    // Sequential execution in topological order.
 
-    /// GIVEN un plan (s1, s2→s1, s3→s2) et un ToolProxy mock qui retourne "ok"
-    /// WHEN actor.execute() est appelé
-    /// THEN AIPResult::Completed est retourné
-    ///   ET les 3 steps sont dans l'output
+    /// GIVEN a plan (s1, s2->s1, s3->s2) and a mock ToolProxy returning "ok"
+    /// WHEN actor.execute() is called
+    /// THEN AIPResult::Completed is returned
+    ///   AND all 3 steps are in the output
     #[tokio::test]
     async fn test_ac1_execution_sequentielle() {
         // GIVEN
@@ -1906,7 +1514,15 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
         // THEN
@@ -1917,11 +1533,11 @@ mod tests {
         );
     }
 
-    // ── StepBudget épuisé au step 3/5 ─────────────────────────────────
+    // StepBudget exhausted at step 3/5.
 
-    /// GIVEN un plan de 5 steps et un StepBudget avec max_steps = 2
-    /// WHEN actor.execute() est appelé
-    /// THEN AIPResult::failed("STEP_BUDGET_EXCEEDED", _) est retourné
+    /// GIVEN a 5-step plan and a StepBudget with max_steps = 2
+    /// WHEN actor.execute() is called
+    /// THEN AIPResult::failed("STEP_BUDGET_EXCEEDED", _) is returned
     #[tokio::test]
     async fn test_ac2_budget_epuise() {
         // GIVEN
@@ -1943,7 +1559,15 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
         // THEN
@@ -1956,13 +1580,13 @@ mod tests {
         );
     }
 
-    // ── Replanification déclenchée sur step retryable ─────────────────
+    // Replan triggered on a retryable step.
 
-    /// GIVEN un plan (s1 ok, s2 fail retryable, s3 pending) et un Reasoner mock
-    ///        qui retourne un plan alternatif (s2b, s3)
-    /// WHEN actor.execute() est appelé
-    /// THEN PlanReplanning { attempt: 1 } est émis
-    ///   ET l'exécution continue avec le plan alternatif
+    /// GIVEN a plan (s1 ok, s2 fails retryable, s3 pending) and a mock Reasoner
+    ///        returning an alternative plan (s2b, s3)
+    /// WHEN actor.execute() is called
+    /// THEN PlanReplanning { attempt: 1 } is emitted
+    ///   AND execution continues with the alternative plan
     #[tokio::test]
     async fn test_ac3_replanification_declenchee() {
         // GIVEN
@@ -1973,7 +1597,7 @@ mod tests {
         db.insert_steps(&plan.plan_id, &plan.steps)
             .expect("insert_steps");
 
-        // Proxy qui réussit pour s1, échoue pour s2
+        // Proxy that succeeds for s1, fails for s2
         struct SelectiveProxy {
             fail_next: std::sync::atomic::AtomicBool,
         }
@@ -1994,9 +1618,9 @@ mod tests {
         let proxy = SelectiveProxy {
             fail_next: std::sync::atomic::AtomicBool::new(false),
         };
-        // Set fail for s2 — we'll modify by position:
-        // Proxy réussit toujours (default), on utilise FailingToolProxy pour s2 uniquement.
-        // Simplification : proxy qui échoue au 2ème appel.
+        // Set fail for s2, modifying by position.
+        // The default proxy always succeeds; use a failing proxy for s2 only.
+        // Simplification: a proxy that fails on the 2nd call.
         struct NthFailProxy {
             call: std::sync::atomic::AtomicU32,
             fail_at: u32,
@@ -2018,7 +1642,7 @@ mod tests {
             fail_at: 1, // s2 is the 2nd call (0-indexed)
         };
 
-        // Plan alternatif fourni par le Reasoner mock
+        // Alternative plan provided by the mock Reasoner
         let replacement_plan = r#"{"steps":[
             {"step_id":"s2b","description":"Retry step","tool_hint":"mock_tool","depends_on":[]},
             {"step_id":"s3","description":"Final step","tool_hint":"mock_tool","depends_on":["s2b"]}
@@ -2032,10 +1656,18 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy2, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy2,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
-        // THEN — vérifie PlanReplanning dans le bus
+        // THEN: check PlanReplanning on the bus
         let mut found_replanning = false;
         while let Ok(event) = bus_rx.try_recv() {
             if let RuntimeEvent::PlanReplanning { attempt, .. } = event {
@@ -2049,7 +1681,7 @@ mod tests {
             "unexpected status: {:?}",
             result.status
         );
-        // L'exécution s'est replanifiée (pas MAX_REPLAN ni STEP_FAILED permanent)
+        // Execution was replanned (not MAX_REPLAN nor permanent STEP_FAILED)
         if let Some(ref err) = result.error {
             assert_ne!(
                 err.code, "STEP_FAILED",
@@ -2058,11 +1690,11 @@ mod tests {
         }
     }
 
-    // ── MAX_REPLAN_EXCEEDED après 2 replanifications ──────────────────
+    // MAX_REPLAN_EXCEEDED after 2 replans.
 
-    /// GIVEN un plan où chaque step fail (retryable) et max_replans = 2
-    /// WHEN actor.execute() est appelé
-    /// THEN AIPResult::failed("MAX_REPLAN_EXCEEDED", _) est retourné
+    /// GIVEN a plan where every step fails (retryable) and max_replans = 2
+    /// WHEN actor.execute() is called
+    /// THEN AIPResult::failed("MAX_REPLAN_EXCEEDED", _) is returned
     #[tokio::test]
     async fn test_ac4_max_replan_exceeded() {
         // GIVEN
@@ -2073,9 +1705,9 @@ mod tests {
         db.insert_steps(&plan.plan_id, &plan.steps)
             .expect("insert_steps");
 
-        // Le Reasoner retourne toujours un plan avec un step qui va échouer.
-        // On simule en fournissant 3 plans identiques (un par replan attempt).
-        // Chaque plan a un step s1 qui va échouer → replan → échoue encore.
+        // The Reasoner always returns a plan with a step that will fail.
+        // Simulate by providing 3 identical plans (one per replan attempt).
+        // Each plan has a step s1 that fails, triggering a replan that fails again.
         let failing_plan = r#"{"steps":[{"step_id":"s1b","description":"retry","tool_hint":"mock_tool","depends_on":[]}]}"#;
         let model = MockCompletionModel::new(vec![failing_plan, failing_plan]);
         let reasoner = Reasoner::new(model, 10);
@@ -2087,7 +1719,15 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
         // THEN
@@ -2100,11 +1740,11 @@ mod tests {
         );
     }
 
-    // ── interpolate_outputs ───────────────────────────────────────────────────
+    // interpolate_outputs
 
-    /// GIVEN une description avec {{s1}} et {{s2}} et des outputs correspondants
-    /// WHEN interpolate_outputs() est appelé
-    /// THEN les placeholders sont remplacés par les outputs
+    /// GIVEN a description with {{s1}} and {{s2}} and matching outputs
+    /// WHEN interpolate_outputs() is called
+    /// THEN the placeholders are replaced by the outputs
     #[test]
     fn test_interpolate_outputs() {
         // GIVEN
@@ -2120,7 +1760,7 @@ mod tests {
         assert_eq!(result, "Analyser résultat 1 et résultat 2");
     }
 
-    // ── StepError::is_retryable ───────────────────────────────────────────────
+    // StepError::is_retryable
 
     #[test]
     fn test_step_error_is_retryable() {
@@ -2130,11 +1770,11 @@ mod tests {
         assert!(!StepError::ToolNotFound("bash".into()).is_retryable());
     }
 
-    // ── Propagation manifest vers ActorLoop ───────────────────────────
+    // Manifest propagation into ActorLoop.
 
-    /// ÉTANT DONNÉ un AgentManifest avec tools_requiring_approval=["smtp"]
-    /// QUAND un ActorLoop est créé avec ce manifest
-    /// ALORS self.manifest.tools_requiring_approval contient "smtp"
+    /// GIVEN an AgentManifest with tools_requiring_approval=["smtp"]
+    /// WHEN an ActorLoop is created with this manifest
+    /// THEN self.manifest.tools_requiring_approval contains "smtp"
     #[test]
     fn test_ac3_manifest_propagated_to_actor_loop() {
         // GIVEN
@@ -2165,9 +1805,9 @@ mod tests {
         );
     }
 
-    // ── HITL Mode Orchestré ──────────────────────────────────────
+    // HITL Orchestrated mode
 
-    /// Construit un `AgentManifest` avec `tools_requiring_approval` pour les tests HITL.
+    /// Build an `AgentManifest` with `tools_requiring_approval` for HITL tests.
     fn make_manifest_with_approval(tools: &[&str]) -> AgentManifest {
         let tools_json = tools
             .iter()
@@ -2181,7 +1821,7 @@ mod tests {
         .expect("manifest must deserialize")
     }
 
-    /// Construit un plan mono-step avec l'outil donné.
+    /// Build a single-step plan with the given tool.
     fn make_plan_with_tool(step_id: &str, tool_name: &str, task_id: &str) -> ExecutionPlan {
         ExecutionPlan {
             plan_id: format!("plan-{step_id}"),
@@ -2196,12 +1836,12 @@ mod tests {
         }
     }
 
-    // Step avec outil sensible → suspension avant exécution
+    // Step with a sensitive tool: suspends before execution.
     //
-    // ÉTANT DONNÉ un manifest avec tools_requiring_approval=["smtp"] et un step "s3" avec tool_hint="smtp"
-    // QUAND execute() est appelé SANS résoudre le oneshot
-    // ALORS l'outil "smtp" n'est PAS appelé avant l'approbation,
-    //       RuntimeEvent::TaskInputRequired{step_id: Some("s3")} est émis
+    // GIVEN a manifest with tools_requiring_approval=["smtp"] and a step "s3" with tool_hint="smtp"
+    // WHEN execute() is called WITHOUT resolving the oneshot
+    // THEN the "smtp" tool is NOT called before approval,
+    //      RuntimeEvent::TaskInputRequired{step_id: Some("s3")} is emitted
     #[tokio::test]
     async fn test_ac1_step_sensitive_tool_suspends_before_execution() {
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -2243,7 +1883,7 @@ mod tests {
         let resilience = ResilienceLayer::default();
         let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
 
-        // ActorLoop is !Send (PlanRepository wraps RefCell<Connection>) — use tokio::join!
+        // ActorLoop is !Send (PlanRepository wraps RefCell<Connection>), so use tokio::join!
         // so both futures run on the same task without spawning.
         //
         // The observer future: waits for TaskInputRequired, asserts tool not called yet,
@@ -2265,7 +1905,7 @@ mod tests {
                 }
             }
 
-            // THEN — l'outil smtp n'a pas encore été appelé
+            // THEN: the smtp tool has not been called yet
             assert_eq!(
                 call_count_for_bus.load(Ordering::SeqCst),
                 0,
@@ -2274,7 +1914,7 @@ mod tests {
             assert!(found_input_required, "TaskInputRequired event not emitted");
             assert!(found_step_id, "step_id should be Some(\"s3\")");
 
-            // Résoudre pour débloquer actor.execute()
+            // Resolve to unblock actor.execute()
             let _ = pending_clone.resolve(
                 "task-ac1::s3",
                 apollia_core::result::InputResponseData {
@@ -2287,16 +1927,24 @@ mod tests {
         };
 
         tokio::join!(
-            actor.execute(&proxy, &llm, &budget, &resilience, &reasoner),
+            actor.execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            ),
             observer_fut
         );
     }
 
-    // Approbation → step exécuté normalement
+    // Approval: step executed normally.
     //
-    // ÉTANT DONNÉ un step "s3" avec tool_hint="smtp" suspendu
-    // QUAND PendingApprovals.resolve(approved=true)
-    // ALORS l'outil "smtp" est appelé, le plan se complète
+    // GIVEN a step "s3" with tool_hint="smtp" suspended
+    // WHEN PendingApprovals.resolve(approved=true)
+    // THEN the "smtp" tool is called and the plan completes
     #[tokio::test]
     async fn test_ac2_approve_executes_step() {
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -2337,7 +1985,7 @@ mod tests {
         let resilience = ResilienceLayer::default();
         let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
 
-        // ActorLoop is !Send — use tokio::join! instead of tokio::spawn.
+        // ActorLoop is !Send, so use tokio::join! instead of tokio::spawn.
         // The resolver future sleeps briefly then approves, unblocking actor.execute().
         let resolve_fut = async move {
             tokio::time::sleep(std::time::Duration::from_millis(20)).await;
@@ -2356,12 +2004,20 @@ mod tests {
 
         // WHEN
         let (result, _) = tokio::join!(
-            actor.execute(&proxy, &llm, &budget, &resilience, &reasoner),
+            actor.execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            ),
             resolve_fut
         );
         let result = result;
 
-        // THEN — le plan se complète avec succès
+        // THEN: the plan completes successfully
         assert_eq!(
             result.status,
             TaskStatus::Completed,
@@ -2374,12 +2030,12 @@ mod tests {
         );
     }
 
-    // Rejet → plan stoppé, AIPResult::failed("REJECTED") retourné,
-    //         steps suivants non exécutés
+    // Rejection: plan stopped, AIPResult::failed("REJECTED") returned,
+    //           following steps not executed.
     //
-    // ÉTANT DONNÉ un plan [s1:file_io (non-sensible), s2:smtp (sensible)]
-    // QUAND l'opérateur rejette s2
-    // ALORS s2 n'est pas exécuté, plan retourne failed("REJECTED", reason)
+    // GIVEN a plan [s1:file_io (non-sensitive), s2:smtp (sensitive)]
+    // WHEN the operator rejects s2
+    // THEN s2 is not executed, plan returns failed("REJECTED", reason)
     #[tokio::test]
     async fn test_ac3_reject_stops_plan() {
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -2439,7 +2095,7 @@ mod tests {
         let resilience = ResilienceLayer::default();
         let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
 
-        // ActorLoop is !Send — use tokio::join! instead of tokio::spawn.
+        // ActorLoop is !Send, so use tokio::join! instead of tokio::spawn.
         // The resolver future sleeps briefly then rejects s2, causing the plan to fail.
         let resolve_fut = async move {
             tokio::time::sleep(std::time::Duration::from_millis(20)).await;
@@ -2458,12 +2114,20 @@ mod tests {
 
         // WHEN
         let (result, _) = tokio::join!(
-            actor.execute(&proxy, &llm, &budget, &resilience, &reasoner),
+            actor.execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            ),
             resolve_fut
         );
         let result = result;
 
-        // THEN — plan retourne Failed avec code REJECTED
+        // THEN: plan returns Failed with code REJECTED
         assert_eq!(result.status, TaskStatus::Failed);
         let err = result.error.expect("error must be set");
         assert_eq!(err.code, "REJECTED");
@@ -2472,7 +2136,7 @@ mod tests {
             "reason must be propagated: {}",
             err.message
         );
-        // s1 (file_io, non-sensible) a été exécuté mais s2 (smtp) a été rejeté avant appel
+        // s1 (file_io, non-sensitive) ran but s2 (smtp) was rejected before the call
         assert_eq!(
             call_count.load(Ordering::SeqCst),
             1,
@@ -2480,11 +2144,11 @@ mod tests {
         );
     }
 
-    // Step avec outil NON sensible → aucune suspension
+    // Step with a NON-sensitive tool: no suspension.
     //
-    // ÉTANT DONNÉ un step utilisant "file_io" absent de tools_requiring_approval
-    // QUAND execute() est appelé avec PendingApprovals configuré
-    // ALORS aucun TaskInputRequired émis, step s'exécute directement
+    // GIVEN a step using "file_io" absent from tools_requiring_approval
+    // WHEN execute() is called with PendingApprovals configured
+    // THEN no TaskInputRequired is emitted, the step executes directly
     #[tokio::test]
     async fn test_ac5_non_sensitive_tool_no_suspension() {
         // GIVEN
@@ -2508,19 +2172,27 @@ mod tests {
         let resilience = ResilienceLayer::default();
         let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
 
-        // WHEN — exécuter sans aucun resolve (aucune suspension attendue)
+        // WHEN: execute without any resolve (no suspension expected)
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
-        // THEN — le plan se complète directement sans suspension
+        // THEN: the plan completes directly without suspension
         assert_eq!(
             result.status,
             TaskStatus::Completed,
             "non-sensitive tool must execute without suspension: {result:?}"
         );
 
-        // THEN — aucun TaskInputRequired n'a été émis
+        // THEN: no TaskInputRequired was emitted
         let mut found = false;
         while let Ok(event) = bus_rx.try_recv() {
             if matches!(event, RuntimeEvent::TaskInputRequired { .. }) {
@@ -2533,7 +2205,7 @@ mod tests {
         );
     }
 
-    // StepError — les nouvelles variantes ne sont pas retryables
+    // StepError: the new variants are not retryable.
     #[test]
     fn test_step_error_rejected_and_closed_not_retryable() {
         assert!(!StepError::RejectedByUser {
@@ -2543,9 +2215,9 @@ mod tests {
         assert!(!StepError::ApprovalChannelClosed.is_retryable());
     }
 
-    // ── Multi-model dispatch via model_hint ─────────────────────
+    // Multi-model dispatch via model_hint
 
-    /// Construit un plan avec un step LLM et un `model_hint` optionnel.
+    /// Build a plan with an LLM step and an optional `model_hint`.
     fn make_llm_plan(step_id: &str, model_hint: Option<&str>) -> ExecutionPlan {
         ExecutionPlan {
             plan_id: "plan-llm".into(),
@@ -2607,12 +2279,12 @@ mod tests {
         }
     }
 
-    /// Step avec model_hint dispatche vers le backend nommé.
+    /// Step with model_hint dispatches to the named backend.
     ///
-    /// GIVEN un LlmRouter avec backends "default" et "fast"
-    ///   ET un PlanStep LLM avec model_hint = Some("fast")
-    /// WHEN actor.execute() est appelé
-    /// THEN la réponse provient du backend "fast"
+    /// GIVEN an LlmRouter with backends "default" and "fast"
+    ///   AND an LLM PlanStep with model_hint = Some("fast")
+    /// WHEN actor.execute() is called
+    /// THEN the response comes from the "fast" backend
     #[tokio::test]
     async fn test_story227_ac1_model_hint_dispatches_to_named_backend() {
         // GIVEN
@@ -2647,7 +2319,15 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
         // THEN
@@ -2659,12 +2339,12 @@ mod tests {
         );
     }
 
-    /// Step avec model_hint inconnu fallback vers le défaut avec warning.
+    /// Step with an unknown model_hint falls back to the default with a warning.
     ///
-    /// GIVEN un LlmRouter avec uniquement un backend "default"
-    ///   ET un PlanStep LLM avec model_hint = Some("unknown-backend")
-    /// WHEN actor.execute() est appelé
-    /// THEN la réponse provient du backend "default" (fallback)
+    /// GIVEN an LlmRouter with only a "default" backend
+    ///   AND an LLM PlanStep with model_hint = Some("unknown-backend")
+    /// WHEN actor.execute() is called
+    /// THEN the response comes from the "default" backend (fallback)
     #[tokio::test]
     async fn test_story227_ac2_unknown_model_hint_falls_back_to_default() {
         // GIVEN
@@ -2694,10 +2374,18 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
-        // THEN — fallback vers default, pas d'erreur
+        // THEN: fallback to default, no error
         assert_eq!(result.status, TaskStatus::Completed);
         let output_debug = format!("{:?}", result.output);
         assert!(
@@ -2706,12 +2394,12 @@ mod tests {
         );
     }
 
-    /// Step sans model_hint utilise le défaut (rétrocompatible).
+    /// Step without model_hint uses the default (backward compatible).
     ///
-    /// GIVEN un LlmRouter avec backends "default" et "fast"
-    ///   ET un PlanStep LLM avec model_hint = None
-    /// WHEN actor.execute() est appelé
-    /// THEN la réponse provient du backend "default"
+    /// GIVEN an LlmRouter with backends "default" and "fast"
+    ///   AND an LLM PlanStep with model_hint = None
+    /// WHEN actor.execute() is called
+    /// THEN the response comes from the "default" backend
     #[tokio::test]
     async fn test_story227_ac3_no_model_hint_uses_default() {
         // GIVEN
@@ -2746,7 +2434,15 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
         // THEN
@@ -2758,14 +2454,14 @@ mod tests {
         );
     }
 
-    /// Steps de type outil ignorent model_hint.
+    /// Tool-type steps ignore model_hint.
     ///
-    /// GIVEN un PlanStep avec tool_hint = Some("bash_executor") et model_hint = Some("fast")
-    /// WHEN actor.execute() est appelé
-    /// THEN l'outil est exécuté normalement (model_hint ignoré)
+    /// GIVEN a PlanStep with tool_hint = Some("bash_executor") and model_hint = Some("fast")
+    /// WHEN actor.execute() is called
+    /// THEN the tool runs normally (model_hint ignored)
     #[tokio::test]
     async fn test_story227_ac4_tool_step_ignores_model_hint() {
-        // GIVEN — step outil avec model_hint défini
+        // GIVEN: tool step with model_hint set
         let plan = ExecutionPlan {
             plan_id: "plan-tool".into(),
             task_id: "task-tool".into(),
@@ -2786,7 +2482,7 @@ mod tests {
         let proxy = MockToolProxy {
             response: "tool-output".into(),
         };
-        // LlmRouter vide — si model_hint était utilisé, ça échouerait
+        // Empty LlmRouter: if model_hint were used, this would fail
         let llm = LlmRouter::empty();
         let budget = StepBudget::unlimited();
         let resilience = ResilienceLayer::default();
@@ -2795,10 +2491,18 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
-        // THEN — l'outil est exécuté normalement, model_hint ignoré
+        // THEN: the tool runs normally, model_hint ignored
         assert_eq!(result.status, TaskStatus::Completed);
         let output_debug = format!("{:?}", result.output);
         assert!(
@@ -2816,7 +2520,7 @@ mod tests {
     // THEN s2 receives a StepContext with previous_outputs = {"s1": "result_A"}
     #[tokio::test]
     async fn test_story229_ac1_step_with_dependency_receives_previous_output() {
-        // GIVEN — plan: s1 → s2 (s2 depends on s1).
+        // GIVEN: plan: s1 -> s2 (s2 depends on s1).
         // A capturing proxy records the input it receives.
         struct CapturingProxy {
             calls: Mutex<Vec<(String, String)>>,
@@ -2875,10 +2579,18 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
-        // THEN — completed, and s2 received the interpolated output from s1.
+        // THEN: completed, and s2 received the interpolated output from s1.
         assert_eq!(result.status, TaskStatus::Completed);
         let calls = proxy.calls.lock().expect("lock");
         assert_eq!(calls.len(), 2);
@@ -2995,10 +2707,18 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
-        // THEN — completed, and the LLM received only a user message (no system context).
+        // THEN: completed, and the LLM received only a user message (no system context).
         assert_eq!(result.status, TaskStatus::Completed);
         let received = model_for_check.received.lock().expect("lock");
         assert_eq!(received.len(), 1, "expected 1 LLM call");
@@ -3027,7 +2747,7 @@ mod tests {
         // WHEN
         let view = budget.to_budget_view();
 
-        // THEN — the view should NOT be exhausted (7 steps remain).
+        // THEN: the view should NOT be exhausted (7 steps remain).
         assert!(
             !view.is_exhausted(),
             "budget should not be exhausted with 7 steps remaining"
@@ -3089,10 +2809,18 @@ mod tests {
 
         // WHEN
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
-        // THEN — plan completed
+        // THEN: plan completed
         assert_eq!(result.status, TaskStatus::Completed);
 
         // Wait briefly for spawn_blocking tasks to complete.
@@ -3129,7 +2857,7 @@ mod tests {
     // THEN no memory write is attempted (no crash, no error)
     #[tokio::test]
     async fn test_story230_ac2_no_write_without_namespace() {
-        // GIVEN — default manifest has no memory_namespace
+        // GIVEN: default manifest has no memory_namespace
         let plan = make_plan(vec![("s1", &[]), ("s2", &["s1"])]);
         let (mut actor, _rx) = make_actor(plan);
         let proxy = MockToolProxy {
@@ -3140,9 +2868,17 @@ mod tests {
         let resilience = ResilienceLayer::default();
         let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
 
-        // WHEN — execute completes without memory_manager, no crash.
+        // WHEN: execute completes without memory_manager, no crash.
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
         // THEN
@@ -3160,7 +2896,7 @@ mod tests {
     // THEN the plan still completes successfully (warning logged)
     #[tokio::test]
     async fn test_story230_ac3_memory_failure_does_not_block() {
-        // GIVEN — use a non-existent directory that will cause SQLite to fail
+        // GIVEN: use a non-existent directory that will cause SQLite to fail
         let manifest = make_manifest_with_memory("test-ns");
         let bad_path = std::path::PathBuf::from("/nonexistent/path/that/cannot/exist");
         let mm = apollia_memory::manager::MemoryManager::new(
@@ -3186,12 +2922,20 @@ mod tests {
         let resilience = ResilienceLayer::default();
         let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
 
-        // WHEN — memory write will fail but execution should continue
+        // WHEN: memory write will fail but execution should continue
         let result = actor
-            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
             .await;
 
-        // THEN — plan completed despite memory failure
+        // THEN: plan completed despite memory failure
         assert_eq!(
             result.status,
             TaskStatus::Completed,

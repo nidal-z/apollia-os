@@ -1,4 +1,4 @@
-//! Native tool dispatcher factory — single source of truth for "which native
+//! Native tool dispatcher factory, the single source of truth for "which native
 //! tools exist" and how they're wired to per-agent context.
 //!
 //! The resulting [`ToolDispatcher`] is consumed by:
@@ -46,13 +46,13 @@ use crate::tools::web_read::WebRead;
 
 /// Configuration for [`build_native_dispatcher`].
 ///
-/// One instance per agent invocation — executors are instantiated eagerly so
+/// One instance per agent invocation. Executors are instantiated eagerly so
 /// the dispatcher can be reused across tool calls within a single `run()`.
 #[derive(Clone)]
 pub struct NativeDispatcherConfig {
     /// Filesystem sandbox root for file and notebook tools.
     pub sandbox_root: PathBuf,
-    /// Agent identifier — namespaces the per-agent Python venv.
+    /// Agent identifier, namespaces the per-agent Python venv.
     pub agent_id: String,
     /// Root directory under which per-agent venvs are created for `python_executor`.
     pub venv_base_dir: PathBuf,
@@ -68,7 +68,7 @@ pub struct NativeDispatcherConfig {
     /// (task-mode agents rely on AIP `input_required` instead).
     pub pending_user_inputs: Option<PendingUserInputs>,
     /// Tool names disabled at runtime via [`crate::tool_registry::ToolRegistry`]
-    /// or by static config — these are excluded from the dispatcher entirely
+    /// or by static config. These are excluded from the dispatcher entirely
     /// so any agent invocation surfaces `UnknownTool`.
     pub disabled_tools: Vec<String>,
     /// Brave Search API key resolved from the credential store, used to
@@ -82,9 +82,9 @@ pub struct NativeDispatcherConfig {
     /// Operator-supplied configuration for the `web_read` tool. Drives the
     /// HTTP timeout, the maximum response size, and the SSRF guard toggle.
     pub web_read_config: WebReadConfig,
-    /// Chemin vers `governance.db` pour les outils `permission_rule_*` (ADR-086).
-    /// Quand `None`, ces outils ne sont pas enregistrés — l'agent recevra
-    /// `UnknownTool` s'il tente de les invoquer.
+    /// Path to `governance.db` for the `permission_rule_*` tools. When `None`,
+    /// those tools are not registered and the agent receives `UnknownTool` if it
+    /// tries to invoke them.
     pub governance_db_path: Option<PathBuf>,
 }
 
@@ -100,7 +100,7 @@ pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
 }
 
 /// Build a [`ToolDispatcher`] like [`build_native_dispatcher`] but with extra
-/// executors appended after the native ones — typically MCP tools.
+/// executors appended after the native ones, typically MCP tools.
 ///
 /// MCP executors are constructed by the runtime once it has resolved the
 /// [`McpClientManagerHandle`](apollia_mcp::manager::McpClientManagerHandle)
@@ -125,62 +125,7 @@ pub fn build_dispatcher_with(
         }
     }
 
-    if is_active("file_read") {
-        push_sandbox_tool(
-            &mut executors,
-            "file_read",
-            FileRead::new(cfg.sandbox_root.clone()),
-        );
-    }
-    if is_active("file_write") {
-        push_sandbox_tool(
-            &mut executors,
-            "file_write",
-            FileWrite::new(cfg.sandbox_root.clone()),
-        );
-    }
-    if is_active("file_list") {
-        push_sandbox_tool(
-            &mut executors,
-            "file_list",
-            FileList::new(cfg.sandbox_root.clone()),
-        );
-    }
-    if is_active("file_edit") {
-        push_sandbox_tool(
-            &mut executors,
-            "file_edit",
-            FileEdit::new(cfg.sandbox_root.clone()),
-        );
-    }
-    if is_active("file_glob") {
-        push_sandbox_tool(
-            &mut executors,
-            "file_glob",
-            FileGlob::new(cfg.sandbox_root.clone()),
-        );
-    }
-    if is_active("file_grep") {
-        push_sandbox_tool(
-            &mut executors,
-            "file_grep",
-            FileGrep::new(cfg.sandbox_root.clone()),
-        );
-    }
-    if is_active("notebook_read") {
-        push_sandbox_tool(
-            &mut executors,
-            "notebook_read",
-            NotebookRead::new(cfg.sandbox_root.clone()),
-        );
-    }
-    if is_active("notebook_edit") {
-        push_sandbox_tool(
-            &mut executors,
-            "notebook_edit",
-            NotebookEdit::new(cfg.sandbox_root.clone()),
-        );
-    }
+    register_sandbox_tools(&mut executors, cfg, &is_active);
 
     #[cfg(feature = "http")]
     {
@@ -231,24 +176,81 @@ pub fn build_dispatcher_with(
         }
     }
 
-    // ADR-086 — gouvernance des permissions : outils agent-driven gated par HITL.
-    if let Some(db_path) = cfg.governance_db_path.as_ref() {
-        if is_active("permission_rule_add") {
-            executors.push(Box::new(PermissionRuleAdd::new(
-                db_path.clone(),
-                cfg.agent_id.clone(),
-            )));
-        }
-        if is_active("permission_rule_remove") {
-            executors.push(Box::new(PermissionRuleRemove::new(db_path.clone())));
-        }
-        if is_active("permission_rule_list") {
-            executors.push(Box::new(PermissionRuleList::new(db_path.clone())));
-        }
-    }
+    register_governance_tools(&mut executors, cfg, &is_active);
 
     executors.extend(extra);
     ToolDispatcher::new(executors)
+}
+
+/// Register the sandbox-bound file and notebook tools that are not explicitly
+/// disabled. Each is constructed against `cfg.sandbox_root`; construction
+/// failures are logged and skipped by [`push_sandbox_tool`].
+fn register_sandbox_tools(
+    executors: &mut Vec<Box<dyn ToolExecutor>>,
+    cfg: &NativeDispatcherConfig,
+    is_active: &impl Fn(&str) -> bool,
+) {
+    if is_active("file_read") {
+        push_sandbox_tool(executors, "file_read", FileRead::new(cfg.sandbox_root.clone()));
+    }
+    if is_active("file_write") {
+        push_sandbox_tool(
+            executors,
+            "file_write",
+            FileWrite::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("file_list") {
+        push_sandbox_tool(executors, "file_list", FileList::new(cfg.sandbox_root.clone()));
+    }
+    if is_active("file_edit") {
+        push_sandbox_tool(executors, "file_edit", FileEdit::new(cfg.sandbox_root.clone()));
+    }
+    if is_active("file_glob") {
+        push_sandbox_tool(executors, "file_glob", FileGlob::new(cfg.sandbox_root.clone()));
+    }
+    if is_active("file_grep") {
+        push_sandbox_tool(executors, "file_grep", FileGrep::new(cfg.sandbox_root.clone()));
+    }
+    if is_active("notebook_read") {
+        push_sandbox_tool(
+            executors,
+            "notebook_read",
+            NotebookRead::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("notebook_edit") {
+        push_sandbox_tool(
+            executors,
+            "notebook_edit",
+            NotebookEdit::new(cfg.sandbox_root.clone()),
+        );
+    }
+}
+
+/// Register the permission-governance tools when a governance database
+/// path is configured and the individual tools are not disabled.
+fn register_governance_tools(
+    executors: &mut Vec<Box<dyn ToolExecutor>>,
+    cfg: &NativeDispatcherConfig,
+    is_active: &impl Fn(&str) -> bool,
+) {
+    // Permission governance: agent-driven tools gated by human-in-the-loop.
+    let Some(db_path) = cfg.governance_db_path.as_ref() else {
+        return;
+    };
+    if is_active("permission_rule_add") {
+        executors.push(Box::new(PermissionRuleAdd::new(
+            db_path.clone(),
+            cfg.agent_id.clone(),
+        )));
+    }
+    if is_active("permission_rule_remove") {
+        executors.push(Box::new(PermissionRuleRemove::new(db_path.clone())));
+    }
+    if is_active("permission_rule_list") {
+        executors.push(Box::new(PermissionRuleList::new(db_path.clone())));
+    }
 }
 
 /// Push a sandbox-bound tool onto *executors*, logging a warning if

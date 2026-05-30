@@ -96,8 +96,7 @@ pub async fn unload_model(
     Json(req): Json<Request<UnloadModelParams>>,
 ) -> AxumResponse {
     let removed = state.llama.unload(&req.params.model_id);
-    // Garde le legacy ModelCache à jour (utilisé par /health en attendant
-    // STORY-007/008).
+    // Keep the legacy ModelCache in sync (still consumed by /health).
     state.model_cache.unregister(&req.params.model_id);
     if removed {
         Json(Response::success(

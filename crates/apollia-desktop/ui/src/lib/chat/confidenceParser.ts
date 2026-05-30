@@ -86,59 +86,77 @@ function readToken(input: string, from: number): { token: Token; consumed: numbe
  * Returns the cleaned text (markers stripped) plus the list of assertions
  * referencing character ranges in the cleaned text.
  */
+interface ParserState {
+  out: string;
+  assertions: Assertion[];
+  stack: OpenSpan[];
+}
+
+function applyOpen(state: ParserState, level: ConfidenceLevel): void {
+  state.stack.push({ level, start: state.out.length, citationIds: [] });
+}
+
+/** Pop one span. Returns `true` when a span was actually closed. */
+function applyClose(state: ParserState): boolean {
+  const open = state.stack.pop();
+  if (!open) return false;
+  const endIdx = state.out.length;
+  if (endIdx > open.start) {
+    state.assertions.push({
+      text_range: { start: open.start, end: endIdx },
+      confidence: open.level,
+      citation_ids: open.citationIds,
+    });
+  }
+  return true;
+}
+
+/** Push citation ids onto the innermost open span. Returns `true` on success. */
+function applyCite(state: ParserState, ids: string[]): boolean {
+  const top = state.stack.at(-1);
+  if (!top) return false;
+  for (const id of ids) {
+    if (!top.citationIds.includes(id)) {
+      top.citationIds.push(id);
+    }
+  }
+  return true;
+}
+
+/**
+ * Apply a parsed token to the parser state. Returns `true` when the token
+ * was consumed; `false` means the bracketed text must fall through as a
+ * literal character (orphan close / orphan cite).
+ */
+function applyToken(state: ParserState, token: Token): boolean {
+  if (token.kind === "open") {
+    applyOpen(state, token.level);
+    return true;
+  }
+  if (token.kind === "close") {
+    return applyClose(state);
+  }
+  return applyCite(state, token.ids);
+}
+
 export function parseConfidence(raw: string): ParsedMessage {
-  let out = "";
-  const assertions: Assertion[] = [];
-  const stack: OpenSpan[] = [];
+  const state: ParserState = { out: "", assertions: [], stack: [] };
   let i = 0;
 
   while (i < raw.length) {
     const ch = raw[i];
     if (ch === "[") {
       const parsed = readToken(raw, i);
-      if (parsed) {
-        const { token, consumed } = parsed;
-        if (token.kind === "open") {
-          stack.push({ level: token.level, start: out.length, citationIds: [] });
-          i += consumed;
-          continue;
-        }
-        if (token.kind === "close") {
-          const open = stack.pop();
-          if (open) {
-            const endIdx = out.length;
-            if (endIdx > open.start) {
-              assertions.push({
-                text_range: { start: open.start, end: endIdx },
-                confidence: open.level,
-                citation_ids: open.citationIds,
-              });
-            }
-            i += consumed;
-            continue;
-          }
-          // Orphan close → fall through as literal
-        }
-        if (token.kind === "cite") {
-          const top = stack[stack.length - 1];
-          if (top) {
-            for (const id of token.ids) {
-              if (!top.citationIds.includes(id)) {
-                top.citationIds.push(id);
-              }
-            }
-            i += consumed;
-            continue;
-          }
-          // Orphan cite → literal
-        }
+      if (parsed && applyToken(state, parsed.token)) {
+        i += parsed.consumed;
+        continue;
       }
     }
-    out += ch;
+    state.out += ch;
     i += 1;
   }
 
-  return { text: out, assertions };
+  return { text: state.out, assertions: state.assertions };
 }
 
 /**

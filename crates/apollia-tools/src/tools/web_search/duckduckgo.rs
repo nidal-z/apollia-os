@@ -1,6 +1,6 @@
 //! DuckDuckGo HTML-endpoint backend.
 //!
-//! Posts to `https://html.duckduckgo.com/html/` — DDG's no-JS endpoint — and
+//! Posts to `https://html.duckduckgo.com/html/` (DDG's no-JS endpoint) and
 //! parses the response with CSS selectors. The endpoint is undocumented; expect
 //! to revisit selectors every 6–12 months. The failure taxonomy below
 //! (blocked vs rate-limited vs parse-error) is designed to let agents decide
@@ -38,7 +38,7 @@ const MAX_RESPONSE_BYTES: usize = 1_048_576;
 /// w3m too, the next stable target is `lynx/2.9.0 libwww-FM/2.14`.
 const USER_AGENT: &str = "w3m/0.5.3";
 
-/// DuckDuckGo HTML-endpoint backend — the zero-config default.
+/// DuckDuckGo HTML-endpoint backend, the zero-config default.
 pub struct DuckDuckGoBackend {
     endpoint: String,
     client: reqwest::Client,
@@ -63,7 +63,7 @@ impl DuckDuckGoBackend {
         Self::build(DEFAULT_ENDPOINT, cfg.timeout_secs, max_response_bytes)
     }
 
-    /// Build a backend that targets an arbitrary URL — intended for integration
+    /// Build a backend that targets an arbitrary URL, intended for integration
     /// tests hitting an in-process mock server.
     pub fn with_endpoint(endpoint: impl Into<String>) -> Self {
         Self::build(endpoint, REQUEST_TIMEOUT_SECS, MAX_RESPONSE_BYTES)
@@ -276,7 +276,7 @@ pub(crate) fn parse_ddg_html(
         return Ok(results);
     }
 
-    // Zero rows — disambiguate between "legitimate empty page" and "selector drift".
+    // Zero rows: disambiguate between "legitimate empty page" and "selector drift".
     if document.select(&no_results_sel).next().is_some() {
         return Ok(Vec::new());
     }
@@ -478,7 +478,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Network layer tests — in-process mock server (pattern from http_fetch)
+    // Network layer tests: in-process mock server (pattern from http_fetch)
     // -----------------------------------------------------------------------
 
     use tokio::io::{AsyncReadExt, AsyncWriteExt};

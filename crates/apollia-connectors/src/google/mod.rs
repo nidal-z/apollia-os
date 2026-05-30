@@ -1,4 +1,4 @@
-//! Google Workspace connector — implements [`Connector`](crate::trait_def::Connector).
+//! Google Workspace connector, implements [`Connector`](crate::trait_def::Connector).
 //!
 //! Composes the Gmail / Calendar / Drive Workspace clients into a single
 //! connector instance registered with the runtime [`ConnectorRegistry`](crate::registry::ConnectorRegistry).
@@ -201,7 +201,7 @@ struct UserInfo {
 
 // ─── Operations catalog ──────────────────────────────────────────────────────
 
-/// Public accessor for the static [`OPERATIONS`] catalog — used by
+/// Public accessor for the static [`OPERATIONS`] catalog, used by
 /// `apollia-runtime::connectors_bridge` to derive [`ToolDescriptor`]s
 /// without holding a live `GoogleConnector` instance.
 pub fn operations() -> &'static [OperationSpec] {
@@ -667,7 +667,7 @@ mod tests {
     fn test_no_restricted_scopes_in_v0_1_0_catalog() {
         // GIVEN the Google operations catalog
         // WHEN we collect every scope required
-        // THEN none of the restricted scopes appear (per ADR-088 free-tier policy).
+        // THEN none of the restricted scopes appear (free-tier policy).
         let restricted = [
             "mail.read_inbox",
             "mail.full",

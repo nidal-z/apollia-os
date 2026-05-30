@@ -111,7 +111,7 @@ impl FileGlob {
         let sandbox_root = self.sandbox.path().to_path_buf();
         let pattern = input.pattern.clone();
 
-        // Glob traversal is blocking filesystem I/O — run off the async executor.
+        // Glob traversal is blocking filesystem I/O: run off the async executor.
         let matches =
             tokio::task::spawn_blocking(move || glob_files(&base, &sandbox_root, &pattern))
                 .await
@@ -399,7 +399,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_glob_within_limit_returns_results() {
-        // GIVEN a sandbox with 5 files — well below MAX_GLOB_RESULTS
+        // GIVEN a sandbox with 5 files, well below MAX_GLOB_RESULTS
         let tmp = TempDir::new().expect("temp dir");
         for i in 0..5 {
             create_file(tmp.path(), &format!("file{i}.txt"), b"content");

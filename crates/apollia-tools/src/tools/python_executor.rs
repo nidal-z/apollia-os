@@ -1,8 +1,8 @@
 //! Native Python executor tool with per-agent virtualenv isolation.
 //!
 //! Each agent owns a dedicated virtualenv under `<venv_base_dir>/<agent_id>/venv/`.
-//! Packages are installed at `INITIALIZING` via `setup_venv()` — never at execution time
-//! (Principle #4: Fail fast, Principle #1: Local-first).
+//! Packages are installed at `INITIALIZING` via `setup_venv()`, never at execution time
+//! (fail fast, local-first).
 //!
 //! Code is written to a temporary file (never passed via `-c`) to avoid quoting issues
 //! and support multi-line scripts. The temp file is always cleaned up after execution.
@@ -22,7 +22,7 @@ use crate::descriptor::{ToolDescriptor, ToolKind};
 ///
 /// The virtualenv lives at `<venv_base_dir>/<agent_id>/venv/`. Packages declared
 /// in the agent manifest must be installed via [`PythonExecutor::setup_venv`] at
-/// agent `INITIALIZING` — not at execution time.
+/// agent `INITIALIZING`, not at execution time.
 pub struct PythonExecutor {
     /// Identifier of the agent owning this virtualenv.
     agent_id: String,
@@ -55,10 +55,10 @@ pub struct PythonOutput {
 /// Errors produced by [`PythonExecutor`].
 #[derive(Debug, Error)]
 pub enum PythonExecutorError {
-    /// `code` is empty — rejected before any I/O (Principle #4).
+    /// `code` is empty, rejected before any I/O (fail fast).
     #[error("code must not be empty")]
     EmptyCode,
-    /// `python3` is not available in PATH — detected at construction time (Principle #4).
+    /// `python3` is not available in PATH, detected at construction time (fail fast).
     #[error("python3 is not available in PATH")]
     PythonUnavailable,
     /// `python3 -m venv` failed to create the virtualenv.
@@ -95,7 +95,7 @@ pub enum PythonExecutorError {
 /// On Unix : `lib/python<X.Y>/site-packages` (we glob `lib/*/site-packages`).
 /// On Windows : `Lib/site-packages`.
 ///
-/// Returns an empty vec if the venv does not exist — the caller should
+/// Returns an empty vec if the venv does not exist; the caller should
 /// treat that as "no extra sys.path needed" (agent declares no pip packages).
 ///
 /// This helper is canonical and shared by all callers that need to inject
@@ -135,7 +135,7 @@ impl PythonExecutor {
     ///
     /// Returns [`PythonExecutorError::PythonUnavailable`] if `python3` is not in PATH.
     pub fn new(agent_id: &str, venv_base_dir: &Path) -> Result<Self, PythonExecutorError> {
-        // Principle #4 — Fail fast: verify python3 availability at construction time.
+        // Fail fast: verify python3 availability at construction time.
         let python3_check = std::process::Command::new("python3")
             .arg("--version")
             .stdout(std::process::Stdio::null())
@@ -168,11 +168,11 @@ impl PythonExecutor {
     ///
     /// # Errors
     ///
-    /// - [`PythonExecutorError::VenvCreationFailed`] — `python3 -m venv` failed
-    /// - [`PythonExecutorError::PackageInstallFailed`] — `pip install <package>` failed
+    /// - [`PythonExecutorError::VenvCreationFailed`]: `python3 -m venv` failed
+    /// - [`PythonExecutorError::PackageInstallFailed`]: `pip install <package>` failed
     pub async fn setup_venv(&self, packages: &[String]) -> Result<(), PythonExecutorError> {
         // Idempotent: skip creation if the venv interpreter already resolves to a live binary.
-        // `Path::exists()` follows symlinks — returns false for broken symlinks.
+        // `Path::exists()` follows symlinks: returns false for broken symlinks.
         // This handles INITIALIZING restarts without blowing away installed packages.
         if self.python_bin.exists() {
             tracing::info!(
@@ -248,13 +248,13 @@ impl PythonExecutor {
     ///
     /// # Errors
     ///
-    /// - [`PythonExecutorError::EmptyCode`] — `code` is empty (checked before any I/O)
-    /// - [`PythonExecutorError::Timeout`] — process exceeded `timeout_secs`; killed, no zombie
-    /// - [`PythonExecutorError::SpawnFailed`] — OS refused to spawn the process
-    /// - [`PythonExecutorError::OutputCaptureFailed`] — I/O error reading stdout/stderr
-    /// - [`PythonExecutorError::TempFileFailed`] — could not write the temporary script file
+    /// - [`PythonExecutorError::EmptyCode`]: `code` is empty (checked before any I/O)
+    /// - [`PythonExecutorError::Timeout`]: process exceeded `timeout_secs`; killed, no zombie
+    /// - [`PythonExecutorError::SpawnFailed`]: OS refused to spawn the process
+    /// - [`PythonExecutorError::OutputCaptureFailed`]: I/O error reading stdout/stderr
+    /// - [`PythonExecutorError::TempFileFailed`]: could not write the temporary script file
     pub async fn run(&self, input: PythonInput) -> Result<PythonOutput, PythonExecutorError> {
-        // Principle #4 — Fail fast: validate before any I/O.
+        // Fail fast: validate before any I/O.
         if input.code.trim().is_empty() {
             return Err(PythonExecutorError::EmptyCode);
         }
@@ -268,7 +268,7 @@ impl PythonExecutor {
 
         let result = self.execute_script(&script_path, input.timeout_secs).await;
 
-        // Always remove the temp file — success or error (no file leak).
+        // Always remove the temp file, success or error (no file leak).
         let _ = tokio::fs::remove_file(&script_path).await;
 
         result
@@ -432,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_ac2_python_unavailable_detected_at_construction() {
-        // GIVEN — we test the happy path: if python3 is present, new() succeeds.
+        // GIVEN: we test the happy path: if python3 is present, new() succeeds.
         // The error case (PythonUnavailable) is covered implicitly by make_executor! in other tests.
         let result = PythonExecutor::new("test-agent-ac2", &test_venv_dir());
         match result {
@@ -444,7 +444,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac3_import_missing_package_returns_nonzero_exit() {
-        // GIVEN — venv with no extra packages
+        // GIVEN: venv with no extra packages
         let executor = make_executor!("test-agent-ac3");
         executor.setup_venv(&[]).await.expect("venv setup failed");
         let input = PythonInput {
@@ -456,7 +456,7 @@ mod tests {
             .run(input)
             .await
             .expect("should not be a Rust error");
-        // THEN — Python process exits non-zero, stderr contains ModuleNotFoundError
+        // THEN: Python process exits non-zero, stderr contains ModuleNotFoundError
         assert_ne!(output.exit_code, 0);
         assert!(
             output.stderr.contains("ModuleNotFoundError")
@@ -503,7 +503,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac5_whitespace_only_code_rejected() {
-        // GIVEN — whitespace-only is also empty
+        // GIVEN: whitespace-only is also empty
         let executor = make_executor!("test-agent-ac5-ws");
         executor.setup_venv(&[]).await.expect("venv setup failed");
         let input = PythonInput {
@@ -519,7 +519,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac6_isolation_between_agents() {
-        // GIVEN — two executors for different agents, both with empty venvs
+        // GIVEN: two executors for different agents, both with empty venvs
         let executor_a = make_executor!("test-agent-isolation-a");
         let executor_b = make_executor!("test-agent-isolation-b");
         executor_a
@@ -531,7 +531,7 @@ mod tests {
             .await
             .expect("venv B setup failed");
 
-        // WHEN — import something that does exist in stdlib (venv-independent)
+        // WHEN: import something that does exist in stdlib (venv-independent)
         let input_a = PythonInput {
             code: "import os; print(os.name)".to_string(),
             timeout_secs: 10,
@@ -544,7 +544,7 @@ mod tests {
         };
         let output_b = executor_b.run(input_b).await.expect("agent B failed");
 
-        // THEN — both agents run in their own venv, both succeed independently
+        // THEN: both agents run in their own venv, both succeed independently
         assert_eq!(output_a.exit_code, 0);
         assert_eq!(output_b.exit_code, 0);
         // Both venvs are separate directories

@@ -2,7 +2,7 @@
 //!
 //! Tokio mpsc actor per session. Writes a JSONL entry before each native
 //! filesystem mutation; the mutation only proceeds once the entry is durably
-//! persisted (fsync). Guarantees Principle #7 (non-bypassable guardrails).
+//! persisted (fsync). Enforces non-bypassable guardrails.
 //!
 //! One [`JournalWriter`] actor is spawned per chat session. Its clonable
 //! [`JournalWriterHandle`] is injected into [`FileWrite`](crate::tools::file_write::FileWrite)
@@ -144,7 +144,7 @@ impl JournalWriterHandle {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// JournalWriter — actor
+// JournalWriter actor
 // ────────────────────────────────────────────────────────────────────────────
 
 /// Tokio actor that serializes journal entries for one session.
@@ -220,8 +220,8 @@ impl JournalWriter {
         file.write_all(line.as_bytes()).await?;
         file.write_all(b"\n").await?;
         file.flush().await?;
-        // fsync — entry must be durable before the actor replies and the
-        // caller proceeds with the mutation (Principle #7).
+        // fsync: the entry must be durable before the actor replies and the
+        // caller proceeds with the mutation.
         file.sync_all().await?;
 
         Ok(())
@@ -442,7 +442,7 @@ async fn apply_inverse(entry: &JournalEntry) -> Result<(), JournalError> {
             ..
         } => match previous_content {
             Some(content) => {
-                // File existed before — restore previous content
+                // File existed before, restore previous content
                 if let Some(parent) = path.parent() {
                     tokio::fs::create_dir_all(parent).await?;
                 }
@@ -450,7 +450,7 @@ async fn apply_inverse(entry: &JournalEntry) -> Result<(), JournalError> {
                 restore_mode(path, *previous_mode).await?;
             }
             None => {
-                // File did not exist before — remove it
+                // File did not exist before, remove it
                 if path.exists() {
                     tokio::fs::remove_file(path).await?;
                 }
@@ -477,14 +477,14 @@ async fn apply_inverse(entry: &JournalEntry) -> Result<(), JournalError> {
         }
 
         JournalEntry::Mkdir { path } => {
-            // Inverse of mkdir — remove the directory (only if empty)
+            // Inverse of mkdir: remove the directory (only if empty)
             if path.exists() {
                 tokio::fs::remove_dir(path).await?;
             }
         }
 
         JournalEntry::Rmdir { path } => {
-            // Inverse of rmdir — recreate the directory
+            // Inverse of rmdir: recreate the directory
             tokio::fs::create_dir_all(path).await?;
         }
 
@@ -586,7 +586,7 @@ mod tests {
         assert_eq!(s, "2024-01-15");
     }
 
-    // ── AC-1 — record_write creates a JSONL entry ────────────────────────────
+    // record_write creates a JSONL entry ─────────────────────────────────────
 
     #[tokio::test]
     async fn test_record_write_creates_entry() {
@@ -620,7 +620,7 @@ mod tests {
         }
     }
 
-    // ── AC-2 — rollback restores previous content ────────────────────────────
+    // rollback restores previous content ──────────────────────────────────────
 
     #[tokio::test]
     async fn test_rollback_restores_previous_content() {
@@ -655,7 +655,7 @@ mod tests {
         assert!(journal_root.join("sess-ac2.rolled_back").exists());
     }
 
-    // ── AC-3 — dry-run does not mutate filesystem or archive session ─────────
+    // dry-run does not mutate filesystem or archive session ────────────────────
 
     #[tokio::test]
     async fn test_rollback_dry_run_no_mutation() {
@@ -691,11 +691,11 @@ mod tests {
         assert_eq!(ops.len(), 1);
     }
 
-    // ── AC-4 — journal I/O failure aborts mutation ───────────────────────────
+    // journal I/O failure aborts mutation ──────────────────────────────────────
     // Tested in file_write.rs integration tests (requires chmod which is
     // platform-specific; a unit-level test would be environment-dependent).
 
-    // ── AC-5 — retention purges oldest session ───────────────────────────────
+    // retention purges oldest session ──────────────────────────────────────────
 
     #[tokio::test]
     async fn test_retention_purges_oldest_session() {
@@ -743,7 +743,7 @@ mod tests {
         assert!(count <= 50, "expected ≤ 50 sessions, found {count}");
     }
 
-    // ── AC-6 — delete entry roundtrip preserves mode ─────────────────────────
+    // delete entry roundtrip preserves mode ────────────────────────────────────
 
     #[tokio::test]
     async fn test_delete_entry_roundtrip_preserves_mode() {

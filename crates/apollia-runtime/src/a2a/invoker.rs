@@ -1,4 +1,4 @@
-//! A2AInvoker — orchestrateur de haut niveau pour les invocations inter-agents par skill ID.
+//! A2AInvoker, orchestrateur de haut niveau pour les invocations inter-agents par skill ID.
 //!
 //! Gère le cycle complet d'une invocation A2A :
 //! résolution du skill (état `Active` requis), émission des événements runtime,
@@ -54,12 +54,12 @@ fn build_aip_result_from_flattened_output(flattened: &str) -> AIPResult {
 ///
 /// La lecture du namespace global `__user__` est désormais inconditionnelle
 /// (toujours active dès qu'un `user_manager` est fourni au `MemoryInterface`).
-/// Cette config ne contrôle plus que les *écritures* dans `__user__` —
+/// Cette config ne contrôle plus que les *écritures* dans `__user__` -
 /// réservées aux agents dont le manifest déclare `user_memory_write = true`.
 #[derive(Debug, Clone)]
 pub struct RuntimeContextConfig {
     /// Si `true`, l'agent peut écrire dans le namespace `__user__` via
-    /// `ctx.memory.remember_user()`. Par défaut `false` — les invocations A2A
+    /// `ctx.memory.remember_user()`. Par défaut `false`, les invocations A2A
     /// n'octroient jamais ce droit, c'est le manifest qui décide.
     pub user_memory_writable: bool,
     /// Limite de hops de la chaîne de délégation A2A (ADR-D7).
@@ -193,7 +193,7 @@ pub struct A2ASkillInfo {
     /// Schéma Apollia des champs de payload (cf. `AgentSkill::input_schema`).
     #[serde(default)]
     pub input_schema: Option<serde_json::Value>,
-    /// Exemples de payloads valides — propagés au tool descriptor LLM-facing
+    /// Exemples de payloads valides, propagés au tool descriptor LLM-facing
     /// (cf. `AgentSkill::examples`). Vide par défaut.
     #[serde(default)]
     pub examples: Vec<serde_json::Value>,
@@ -236,6 +236,17 @@ pub struct SkillListing {
     pub input_schema: Option<serde_json::Value>,
 }
 
+/// Paramètres d'une invocation A2A via [`A2AInvoker::invoke`] : skill ciblé,
+/// payload, appelant, et garde-fous de profondeur / timeout de chaîne.
+pub struct A2AInvokeRequest<'a> {
+    pub skill_id: &'a str,
+    pub input: serde_json::Value,
+    pub caller: &'a str,
+    pub a2a_depth: u32,
+    pub timeout: Option<Duration>,
+    pub chain_deadline: Option<Instant>,
+}
+
 /// Orchestrateur de haut niveau pour les invocations inter-agents par skill ID.
 ///
 /// Orchestre le cycle complet d'une invocation A2A :
@@ -246,7 +257,7 @@ pub struct SkillListing {
 /// 5. Émission de [`RuntimeEvent::A2AInvocationCompleted`]
 /// 6. Construction du [`A2AInvocationResult`]
 ///
-/// N'est pas un acteur Tokio — struct clonable avec des handles internes.
+/// N'est pas un acteur Tokio, struct clonable avec des handles internes.
 #[derive(Clone)]
 pub struct A2AInvoker {
     registry: AgentRegistryHandle,
@@ -254,16 +265,16 @@ pub struct A2AInvoker {
     event_bus: EventBusSender,
     /// Configuration des garde-fous appliqués à chaque invocation.
     config: A2AConfig,
-    /// Logger de sidechains — `None` si la base SQLite n'est pas disponible.
+    /// Logger de sidechains, `None` si la base SQLite n'est pas disponible.
     sidechain_logger: Option<crate::a2a::sidechain::SidechainLogger>,
-    /// Store de télémétrie A2A — `None` si l'observabilité par skill est désactivée.
+    /// Store de télémétrie A2A, `None` si l'observabilité par skill est désactivée.
     telemetry: Option<TelemetryHandle>,
 }
 
 impl A2AInvoker {
     /// Construit un `A2AInvoker` depuis les handles runtime et la configuration A2A.
     ///
-    /// Générique sur `B: ExecutionBackend` — le résultat est non-générique grâce
+    /// Générique sur `B: ExecutionBackend`, le résultat est non-générique grâce
     /// à l'erasure de type opérée par [`make_delegate_fn`].
     pub fn new<B>(
         registry: AgentRegistryHandle,
@@ -319,7 +330,7 @@ impl A2AInvoker {
     /// Enregistre le début de la délégation dans `task_sidechains` avant l'invocation,
     /// puis met à jour le statut (`"completed"` ou `"failed"`) après.
     /// Si le [`SidechainLogger`] est absent ou si le logging échoue, la délégation
-    /// se poursuit normalement — le logging est toujours best-effort.
+    /// se poursuit normalement, le logging est toujours best-effort.
     ///
     /// # Arguments
     ///
@@ -343,7 +354,14 @@ impl A2AInvoker {
         };
 
         let result = self
-            .invoke(skill_id, input, caller, a2a_depth, timeout, chain_deadline)
+            .invoke(A2AInvokeRequest {
+                skill_id,
+                input,
+                caller,
+                a2a_depth,
+                timeout,
+                chain_deadline,
+            })
             .await;
 
         if let Some(logger) = &self.sidechain_logger {
@@ -391,13 +409,16 @@ impl A2AInvoker {
     /// - [`A2AError::RegistryError`] en cas d'erreur de communication avec le registry.
     pub async fn invoke(
         &self,
-        skill_id: &str,
-        input: serde_json::Value,
-        caller: &str,
-        a2a_depth: u32,
-        timeout: Option<Duration>,
-        chain_deadline: Option<Instant>,
+        request: A2AInvokeRequest<'_>,
     ) -> Result<A2AInvocationResult, A2AError> {
+        let A2AInvokeRequest {
+            skill_id,
+            input,
+            caller,
+            a2a_depth,
+            timeout,
+            chain_deadline,
+        } = request;
         // ── Garde-fou 1 : profondeur de récursivité ────────────────────────────
         if a2a_depth >= self.config.max_depth {
             let detail = format!(
@@ -811,7 +832,7 @@ impl A2AInvoker {
     /// La lecture du namespace `__user__` est gérée directement par le
     /// `MemoryInterface` (toujours active dès qu'un `user_manager` est fourni)
     /// et n'a plus besoin d'être encodée dans cette config. Les écritures
-    /// restent interdites par défaut — elles sont autorisées uniquement
+    /// restent interdites par défaut, elles sont autorisées uniquement
     /// quand le manifest déclare `user_memory_write = true`.
     pub fn build_a2a_context(&self) -> RuntimeContextConfig {
         RuntimeContextConfig {
@@ -820,7 +841,7 @@ impl A2AInvoker {
         }
     }
 
-    /// Constructeur de test — injecte une `A2aDelegateFn` personnalisée et une config.
+    /// Constructeur de test, injecte une `A2aDelegateFn` personnalisée et une config.
     #[doc(hidden)]
     pub fn new_for_test(
         registry: AgentRegistryHandle,
@@ -1192,14 +1213,14 @@ mod tests {
 
         // WHEN
         let result = invoker
-            .invoke(
-                "unknown-skill",
-                serde_json::json!({}),
-                "director",
-                0,
-                None,
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "unknown-skill",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: None,
+            })
             .await;
 
         // THEN Err(SkillNotFound) avec available contenant "read-excel" et "edit-excel"
@@ -1249,14 +1270,14 @@ mod tests {
 
         // WHEN
         let result = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({}),
-                "director",
-                0,
-                None,
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: None,
+            })
             .await;
 
         // THEN Err(AgentNotActive) avec state == "Degraded"
@@ -1292,14 +1313,14 @@ mod tests {
 
         // WHEN
         let result = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({"text": "Lis ventes.xlsx"}),
-                "director",
-                0,
-                None,
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({"text": "Lis ventes.xlsx"}),
+                caller: "director",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: None,
+            })
             .await
             .expect("invoke failed");
 
@@ -1360,14 +1381,14 @@ mod tests {
 
         // WHEN
         let result = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({}),
-                "director",
-                0,
-                Some(Duration::from_secs(1)),
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 0,
+                timeout: Some(Duration::from_secs(1)),
+                chain_deadline: None,
+            })
             .await;
 
         // THEN Err(Timeout)
@@ -1621,14 +1642,14 @@ mod a2a_guard_tests {
 
         // WHEN invoke avec a2a_depth = 2 (= max_depth)
         let result = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({}),
-                "director",
-                2,
-                None,
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 2,
+                timeout: None,
+                chain_deadline: None,
+            })
             .await;
 
         // THEN MaxDepthExceeded avec les champs corrects
@@ -1660,17 +1681,17 @@ mod a2a_guard_tests {
 
         // WHEN invoke avec a2a_depth = 1 (< max_depth)
         let result = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({}),
-                "director",
-                1,
-                None,
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 1,
+                timeout: None,
+                chain_deadline: None,
+            })
             .await;
 
-        // THEN pas d'erreur de profondeur — invocation réussit
+        // THEN pas d'erreur de profondeur, invocation réussit
         assert!(
             result.is_ok(),
             "depth 1 < max_depth 3 should succeed, got: {result:?}"
@@ -1686,14 +1707,14 @@ mod a2a_guard_tests {
 
         // WHEN excel-worker s'invoque lui-même via le skill "read-excel"
         let result = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({}),
-                "excel-worker",
-                0,
-                None,
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "excel-worker",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: None,
+            })
             .await;
 
         // THEN SelfInvocation avec les champs corrects
@@ -1718,17 +1739,17 @@ mod a2a_guard_tests {
 
         // WHEN invoke avec chain_deadline = None
         let result = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({}),
-                "director",
-                0,
-                None,
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: None,
+            })
             .await;
 
-        // THEN le deadline est initialisé à l'avenir — pas de ChainTimeoutExceeded
+        // THEN le deadline est initialisé à l'avenir, pas de ChainTimeoutExceeded
         assert!(
             result.is_ok(),
             "first call with chain_deadline=None must succeed (deadline initialized to future), got: {result:?}"
@@ -1745,14 +1766,14 @@ mod a2a_guard_tests {
 
         // WHEN invoke avec chain_deadline expiré
         let result = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({}),
-                "director",
-                0,
-                None,
-                Some(past_deadline),
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: Some(past_deadline),
+            })
             .await;
 
         // THEN ChainTimeoutExceeded immédiat
@@ -1777,14 +1798,14 @@ mod a2a_guard_tests {
 
         // WHEN invoke avec a2a_depth = max_depth
         let _ = invoker
-            .invoke(
-                "read-excel",
-                serde_json::json!({}),
-                "director",
-                1,
-                None,
-                None,
-            )
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 1,
+                timeout: None,
+                chain_deadline: None,
+            })
             .await;
 
         // THEN A2AGuardTriggered { guard_type: "max_depth" } émis

@@ -1,14 +1,14 @@
-//! Handle interne partagé entre `lifecycle` et `proxy`.
+//! Internal handle shared between `lifecycle` and `proxy`.
 //!
-//! Évite le couplage circulaire : `proxy` a besoin d'un accès au
-//! `RunnerInner` (process + client HTTP) géré par `lifecycle`, mais on ne
-//! peut pas rendre `lifecycle::RunnerInner` `pub` sans casser
-//! l'encapsulation (le `Child` n'est pas `Clone`).
+//! Avoids circular coupling: `proxy` needs access to the `RunnerInner`
+//! (process + HTTP client) managed by `lifecycle`, but we cannot make
+//! `lifecycle::RunnerInner` `pub` without breaking encapsulation (the `Child`
+//! is not `Clone`).
 
 use super::client::RunnerClient;
 
-/// Handle séparé du `RunnerInner` privé de `lifecycle.rs`. Réexpose juste
-/// ce dont le proxy a besoin : le client HTTP cloneable et le port.
+/// Handle separate from the private `RunnerInner` of `lifecycle.rs`. Re-exposes
+/// only what the proxy needs: the cloneable HTTP client and the port.
 pub(super) struct RunnerInnerHandle {
     pub(super) client: RunnerClient,
     #[allow(dead_code)]

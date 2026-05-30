@@ -1,10 +1,10 @@
-//! Google Drive — Agent Workspace pattern.
+//! Google Drive: Agent Workspace pattern.
 //!
 //! With the non-restricted `drive.file` scope, an app sees only the files it
 //! has created OR that the user has explicitly opened with it. Apollia
 //! exploits this to back a scoped workspace at `Drive/Apollia/<agent-slug>/`
 //! that each agent uses to read, write, and share files without ever needing
-//! restricted scopes (cf. ADR-088 §9bis).
+//! restricted scopes.
 //!
 //! ## Layout
 //!
@@ -12,16 +12,16 @@
 //! Drive root. For each agent, a subfolder `Apollia/<agent-slug>/` is created
 //! lazily on the first write. The runtime caches the root folder id locally
 //! (`~/.apollia/state.json`) but [`DriveWorkspaceClient`] re-resolves it
-//! through `files.list` queries — defensive in case the user moves or
+//! through `files.list` queries, defensive in case the user moves or
 //! recreates the folder out-of-band.
 //!
 //! ## Operations
 //!
-//! - `workspace_list(agent_slug)` — list files in the agent folder.
-//! - `workspace_read(file_id)` — download a text file.
-//! - `workspace_write(agent_slug, name, content)` — create / replace a file.
-//! - `workspace_delete(file_id)` — trash a file.
-//! - `workspace_share(file_id, email)` — share with an email (HITL approval).
+//! - `workspace_list(agent_slug)`: list files in the agent folder.
+//! - `workspace_read(file_id)`: download a text file.
+//! - `workspace_write(agent_slug, name, content)`: create / replace a file.
+//! - `workspace_delete(file_id)`: trash a file.
+//! - `workspace_share(file_id, email)`: share with an email (HITL approval).
 
 // The `|| refresh()` closures wrap a `FnMut` reference into the `FnOnce` shape
 // expected by the HTTP helper. Clippy's redundant_closure lint cannot tell that
@@ -31,14 +31,17 @@
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest, RawRequest},
+};
 
 const DRIVE_BASE: &str = "https://www.googleapis.com/drive/v3";
 const UPLOAD_BASE: &str = "https://www.googleapis.com/upload/drive/v3";
 /// Fallback root folder name used when callers don't pass an explicit
 /// `root_path` (legacy + default-on-empty behaviour). End-user installs
 /// resolve their preferred path via [`apollia_auth::drive_prefs`] and
-/// pass it down explicitly — this constant is the safety net.
+/// pass it down explicitly; this constant is the safety net.
 pub const DEFAULT_ROOT_FOLDER_NAME: &str = "Apollia";
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
 
@@ -97,6 +100,45 @@ struct PermissionRequest<'a> {
     email_address: &'a str,
 }
 
+/// Search parameters for [`DriveWorkspaceClient::find_by_name`].
+pub struct NameSearch<'a> {
+    /// Name (or substring when `exact` is false) to match.
+    pub name: &'a str,
+    /// Optional MIME-type filter. Accepts Google shortcuts (`spreadsheet`,
+    /// `document`, `presentation`, `folder`) or a raw mime type string.
+    pub mime_type_filter: Option<&'a str>,
+    /// When true, query `name = 'X'`; otherwise `name contains 'X'`.
+    pub exact: bool,
+}
+
+/// Content to write into the agent's workspace, for
+/// [`DriveWorkspaceClient::workspace_write`].
+pub struct WorkspaceWrite<'a> {
+    /// User-configured root path (slash-separated, e.g. `"Documents/Apollia"`).
+    pub root_path: &'a str,
+    /// Agent slug subfolder under the root.
+    pub agent_slug: &'a str,
+    /// File name.
+    pub name: &'a str,
+    /// File content bytes.
+    pub content: &'a [u8],
+    /// MIME type; `None` defaults to `text/plain`.
+    pub mime_type: Option<&'a str>,
+}
+
+/// Content to write into an arbitrary folder, for
+/// [`DriveWorkspaceClient::write_file_in_folder`].
+pub struct FolderWrite<'a> {
+    /// Target folder id; `None` writes at My Drive root (no parents).
+    pub folder_id: Option<&'a str>,
+    /// File name.
+    pub name: &'a str,
+    /// File content bytes.
+    pub content: &'a [u8],
+    /// MIME type; `None` defaults to `text/plain`.
+    pub mime_type: Option<&'a str>,
+}
+
 // ─── Client ──────────────────────────────────────────────────────────────────
 
 /// Drive Workspace client.
@@ -104,7 +146,7 @@ struct PermissionRequest<'a> {
 /// All operations are scoped to `<root_path>/<agent_slug>/` inside the
 /// user's Drive. `root_path` is user-configurable (per Google account,
 /// stored in `apollia_auth::drive_prefs`); it defaults to `Apollia`. The
-/// folder hierarchy is resolved lazily — segments missing on the user's
+/// folder hierarchy is resolved lazily; segments missing on the user's
 /// Drive are created on first use (free-tier `drive.file` scope allows
 /// this because Apollia owns each folder it touches).
 #[derive(Clone)]
@@ -257,7 +299,7 @@ impl DriveWorkspaceClient {
     /// user granted via the Drive Picker. Optional `folder_id` filters
     /// to one parent; otherwise the query is unscoped and returns
     /// top-level visibility (Drive applies the `drive.file` ACL
-    /// implicitly — Apollia never sees files it didn't create or get
+    /// implicitly; Apollia never sees files it didn't create or get
     /// granted to).
     ///
     /// `page_size` is capped at 100 to keep responses small; pagination
@@ -292,18 +334,16 @@ impl DriveWorkspaceClient {
     /// Search Drive for files whose name matches `name`. When `exact` is
     /// true, queries `name = 'X'`; otherwise `name contains 'X'` (Drive's
     /// substring match is case-insensitive). Optional `mime_type_filter`
-    /// narrows by file type — pass a Google shortcut (`spreadsheet`,
+    /// narrows by file type. Pass a Google shortcut (`spreadsheet`,
     /// `document`, `presentation`, `folder`) or a raw mime type string.
     ///
     /// Returns at most 50 matches (sorted by Drive's relevance default).
-    /// Use this as the answer to "find <title>" requests — `drive.file`
+    /// Use this as the answer to "find <title>" requests; `drive.file`
     /// scope guarantees Apollia only ever sees its own files + Picker
     /// grants, so no privacy footgun.
     pub async fn find_by_name<F, Fut>(
         &self,
-        name: &str,
-        mime_type_filter: Option<&str>,
-        exact: bool,
+        search: NameSearch<'_>,
         bearer: &str,
         refresh: F,
     ) -> Result<Vec<DriveFile>, ConnectorError>
@@ -313,14 +353,14 @@ impl DriveWorkspaceClient {
     {
         // Drive's `q` parameter requires escaping single quotes in name
         // values: we double them per the Drive search syntax.
-        let escaped = name.replace('\'', "\\'");
-        let name_clause = if exact {
+        let escaped = search.name.replace('\'', "\\'");
+        let name_clause = if search.exact {
             format!("name = '{escaped}'")
         } else {
             format!("name contains '{escaped}'")
         };
         let mut clauses: Vec<String> = vec![name_clause, "trashed = false".to_string()];
-        if let Some(raw) = mime_type_filter {
+        if let Some(raw) = search.mime_type_filter {
             let mime = match raw {
                 "spreadsheet" => "application/vnd.google-apps.spreadsheet",
                 "document" => "application/vnd.google-apps.document",
@@ -356,7 +396,16 @@ impl DriveWorkspaceClient {
         let url = format!("{DRIVE_BASE}/files/{file_id}?alt=media");
         let response = self
             .http
-            .send_with_retries(Method::GET, &url, None, bearer, refresh)
+            .send(
+                RawRequest {
+                    method: Method::GET,
+                    url: &url,
+                    body: None,
+                    content_type: None,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         let bytes = response
             .bytes()
@@ -369,16 +418,12 @@ impl DriveWorkspaceClient {
     ///
     /// Uses Drive's two-step upload (create metadata, then PATCH `uploadType=media`).
     /// `mime_type` controls both the metadata field AND the upload's
-    /// Content-Type header — both must agree, otherwise Drive auto-detects from
+    /// Content-Type header; both must agree, otherwise Drive auto-detects from
     /// the content bytes (producing surprises like "application/json" for short
     /// strings). Pass `None` to default to `text/plain`.
     pub async fn workspace_write<F, Fut>(
         &self,
-        root_path: &str,
-        agent_slug: &str,
-        name: &str,
-        content: &[u8],
-        mime_type: Option<&str>,
+        write: WorkspaceWrite<'_>,
         bearer: &str,
         mut refresh: F,
     ) -> Result<DriveFile, ConnectorError>
@@ -387,21 +432,29 @@ impl DriveWorkspaceClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let folder = self
-            .ensure_agent_folder(root_path, agent_slug, bearer, &mut refresh)
+            .ensure_agent_folder(write.root_path, write.agent_slug, bearer, &mut refresh)
             .await?;
 
-        let mime = mime_type.unwrap_or("text/plain");
+        let mime = write.mime_type.unwrap_or("text/plain");
         // Step 1: create the file metadata (resumable session would be needed
         // for >5MB payloads; v0.1.0 uses simple two-step uploads).
         let metadata = FileCreatePayload {
-            name,
+            name: write.name,
             parents: vec![folder],
             mime_type: Some(mime),
         };
         let metadata_url = format!("{DRIVE_BASE}/files");
         let file: DriveFile = self
             .http
-            .json_request(Method::POST, &metadata_url, &metadata, bearer, || refresh())
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &metadata_url,
+                    body: &metadata,
+                },
+                bearer,
+                || refresh(),
+            )
             .await?;
 
         // Step 2: upload the content with PATCH on /upload endpoint.
@@ -411,11 +464,13 @@ impl DriveWorkspaceClient {
         );
         let response = self
             .http
-            .send_with_retries_typed(
-                Method::PATCH,
-                &upload_url,
-                Some(content.to_vec()),
-                Some(mime),
+            .send(
+                RawRequest {
+                    method: Method::PATCH,
+                    url: &upload_url,
+                    body: Some(write.content.to_vec()),
+                    content_type: Some(mime),
+                },
                 bearer,
                 || refresh(),
             )
@@ -447,7 +502,15 @@ impl DriveWorkspaceClient {
         let body = serde_json::json!({ "trashed": true });
         let _: serde_json::Value = self
             .http
-            .json_request(Method::PATCH, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::PATCH,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         Ok(())
     }
@@ -455,7 +518,7 @@ impl DriveWorkspaceClient {
     // ─── Picker-friendly methods (direct folder_id, no path walking) ─────
 
     /// List files inside a folder identified directly by its Drive `folder_id`.
-    /// Skips the path-walking of [`workspace_list`] — used by agents acting
+    /// Skips the path-walking of [`workspace_list`]; used by agents acting
     /// on folders the user designated via Google Picker.
     pub async fn list_files_in_folder<F, Fut>(
         &self,
@@ -483,10 +546,7 @@ impl DriveWorkspaceClient {
     /// avoid Drive's content-sniffing surprises.
     pub async fn write_file_in_folder<F, Fut>(
         &self,
-        folder_id: Option<&str>,
-        name: &str,
-        content: &[u8],
-        mime_type: Option<&str>,
+        write: FolderWrite<'_>,
         bearer: &str,
         mut refresh: F,
     ) -> Result<DriveFile, ConnectorError>
@@ -494,20 +554,28 @@ impl DriveWorkspaceClient {
         F: FnMut() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let mime = mime_type.unwrap_or("text/plain");
-        let parents = match folder_id {
+        let mime = write.mime_type.unwrap_or("text/plain");
+        let parents = match write.folder_id {
             Some(id) => vec![id.to_string()],
             None => Vec::new(),
         };
         let metadata = FileCreatePayload {
-            name,
+            name: write.name,
             parents,
             mime_type: Some(mime),
         };
         let metadata_url = format!("{DRIVE_BASE}/files");
         let file: DriveFile = self
             .http
-            .json_request(Method::POST, &metadata_url, &metadata, bearer, || refresh())
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &metadata_url,
+                    body: &metadata,
+                },
+                bearer,
+                || refresh(),
+            )
             .await?;
 
         let upload_url = format!(
@@ -516,11 +584,13 @@ impl DriveWorkspaceClient {
         );
         let response = self
             .http
-            .send_with_retries_typed(
-                Method::PATCH,
-                &upload_url,
-                Some(content.to_vec()),
-                Some(mime),
+            .send(
+                RawRequest {
+                    method: Method::PATCH,
+                    url: &upload_url,
+                    body: Some(write.content.to_vec()),
+                    content_type: Some(mime),
+                },
                 bearer,
                 || refresh(),
             )
@@ -536,8 +606,8 @@ impl DriveWorkspaceClient {
 
     /// Share a file with a specific email address (reader role).
     ///
-    /// **HITL-approved operation** — the caller must surface this to the user
-    /// before invocation (see ADR-082).
+    /// **HITL-approved operation**: the caller must surface this to the user
+    /// before invocation.
     pub async fn workspace_share<F, Fut>(
         &self,
         file_id: &str,
@@ -557,7 +627,15 @@ impl DriveWorkspaceClient {
         };
         let resp: PermissionResponse = self
             .http
-            .json_request(Method::POST, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         Ok(resp.id)
     }
@@ -604,7 +682,15 @@ impl DriveWorkspaceClient {
         let create_url = format!("{DRIVE_BASE}/files");
         let created: DriveFile = self
             .http
-            .json_request(Method::POST, &create_url, &payload, bearer, || refresh())
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &create_url,
+                    body: &payload,
+                },
+                bearer,
+                || refresh(),
+            )
             .await?;
         Ok(created.id)
     }

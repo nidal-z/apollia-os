@@ -1,12 +1,11 @@
-//! Repository CRUD SQLite pour les définitions de triggers.
+//! SQLite CRUD repository for trigger definitions.
 //!
-//! Ce module fournit [`TriggerDefinitionRepository`], une interface de persistance
-//! synchrone pour les définitions de triggers dans `triggers.db`. La validation
-//! métier est déléguée au module [`crate::validation`] et exécutée automatiquement
-//! avant chaque écriture (insert/update).
+//! This module provides [`TriggerDefinitionRepository`], a synchronous
+//! persistence interface for trigger definitions in `triggers.db`. Business
+//! validation is delegated to the [`crate::validation`] module and runs
+//! automatically before each write (insert/update).
 //!
-//! Ce repository est utilisé par le boot Supervisor et les routes
-//! REST CRUD.
+//! This repository is used by Supervisor boot and the REST CRUD routes.
 
 use std::path::Path;
 
@@ -18,9 +17,9 @@ use crate::types::{
 };
 use crate::validation;
 
-// ─── Migration ───────────────────────────────────────────────────────────────
+// --- Migration ---------------------------------------------------------------
 
-/// Migration idempotente pour la table `trigger_definitions`.
+/// Idempotent migration for the `trigger_definitions` table.
 const MIGRATION_008: &str = "\
 CREATE TABLE IF NOT EXISTS trigger_definitions (
     id              TEXT PRIMARY KEY,
@@ -36,48 +35,48 @@ CREATE TABLE IF NOT EXISTS trigger_definitions (
     CHECK (source_type IN ('cron', 'interval', 'oneshot', 'file_watch', 'webhook'))
 );";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// --- Types -------------------------------------------------------------------
 
-/// Définition persistée d'un trigger (représentation SQLite à plat).
+/// Persisted trigger definition (flat SQLite representation).
 ///
-/// Contrairement à [`crate::types::TriggerDefinition`] qui utilise des types
-/// riches (`TriggerSourceConfig`, `OnBusyPolicy`), cette struct utilise des
-/// types plats (`source_type` + `source_config` JSON) adaptés au stockage SQLite
-/// et à la sérialisation REST.
+/// Unlike [`crate::types::TriggerDefinition`], which uses rich types
+/// (`TriggerSourceConfig`, `OnBusyPolicy`), this struct uses flat types
+/// (`source_type` + `source_config` JSON) suited to SQLite storage and REST
+/// serialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TriggerDefinitionRow {
-    /// Identifiant unique du trigger (clé primaire).
+    /// Unique trigger identifier (primary key).
     pub id: String,
-    /// Agent cible.
+    /// Target agent.
     pub agent: Option<String>,
-    /// Indique si le trigger est actif.
+    /// Whether the trigger is active.
     pub enabled: bool,
-    /// Comportement quand l'agent cible est occupé.
+    /// Behavior when the target agent is busy.
     pub on_busy: OnBusy,
-    /// Type de source : `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
+    /// Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
     pub source_type: String,
-    /// Configuration JSON de la source (structure dépend du `source_type`).
+    /// Source JSON configuration (structure depends on `source_type`).
     pub source_config: serde_json::Value,
-    /// Template du message d'entrée (substitution `{{variables}}`).
+    /// Input message template (`{{variables}}` substitution).
     pub input_template: Option<String>,
-    /// Horodatage de création (ISO 8601, renseigné automatiquement).
+    /// Creation timestamp (ISO 8601, filled automatically).
     pub created_at: String,
-    /// Horodatage de dernière modification (ISO 8601, rafraîchi à chaque update).
+    /// Last-modified timestamp (ISO 8601, refreshed on each update).
     pub updated_at: String,
 }
 
-/// Comportement quand l'agent cible est occupé au moment du fire.
+/// Behavior when the target agent is busy at fire time.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OnBusy {
-    /// Soumet quand même — `TaskRouter` gère la file d'attente.
+    /// Submit anyway; `TaskRouter` handles the queue.
     Queue,
-    /// Ignore le fire et trace "skipped" dans l'audit.
+    /// Drop the fire and record "skipped" in the audit log.
     Drop,
 }
 
 impl OnBusy {
-    /// Retourne la représentation SQLite du comportement on_busy.
+    /// Returns the SQLite representation of the on_busy behavior.
     fn as_sql(&self) -> &'static str {
         match self {
             OnBusy::Queue => "queue",
@@ -85,7 +84,7 @@ impl OnBusy {
         }
     }
 
-    /// Parse une valeur SQLite en [`OnBusy`], défaut `Queue` si non reconnu.
+    /// Parses a SQLite value into [`OnBusy`], defaulting to `Queue` if unrecognized.
     fn from_sql(s: &str) -> Self {
         match s {
             "drop" => OnBusy::Drop,
@@ -94,15 +93,15 @@ impl OnBusy {
     }
 }
 
-// ─── Conversion Row → TriggerDefinition ─────────────────────────────────────
+// --- Conversion Row -> TriggerDefinition -------------------------------------
 
 impl TryFrom<TriggerDefinitionRow> for TriggerDefinition {
     type Error = TriggerDefinitionError;
 
-    /// Convertit une [`TriggerDefinitionRow`] persistée en [`TriggerDefinition`] riche.
+    /// Converts a persisted [`TriggerDefinitionRow`] into a rich [`TriggerDefinition`].
     ///
-    /// Parse `source_type` + `source_config` JSON en [`TriggerSourceConfig`] typé.
-    /// Retourne [`TriggerDefinitionError::ValidationError`] si la conversion échoue.
+    /// Parses `source_type` + `source_config` JSON into a typed [`TriggerSourceConfig`].
+    /// Returns [`TriggerDefinitionError::ValidationError`] if the conversion fails.
     fn try_from(row: TriggerDefinitionRow) -> Result<Self, Self::Error> {
         let source = parse_source_config(&row.source_type, &row.source_config)?;
         let on_busy = match row.on_busy {
@@ -122,7 +121,7 @@ impl TryFrom<TriggerDefinitionRow> for TriggerDefinition {
     }
 }
 
-/// Parse `source_type` et `source_config` JSON en [`TriggerSourceConfig`].
+/// Parses `source_type` and `source_config` JSON into a [`TriggerSourceConfig`].
 fn parse_source_config(
     source_type: &str,
     source_config: &serde_json::Value,
@@ -201,40 +200,40 @@ fn parse_source_config(
     }
 }
 
-// ─── Erreurs ─────────────────────────────────────────────────────────────────
+// --- Errors ------------------------------------------------------------------
 
-/// Erreurs du repository de définitions de triggers.
+/// Errors from the trigger definition repository.
 #[derive(Debug, thiserror::Error)]
 pub enum TriggerDefinitionError {
-    /// Le trigger demandé n'existe pas.
+    /// The requested trigger does not exist.
     #[error("trigger not found: {0}")]
     NotFound(String),
-    /// Un trigger avec cet identifiant existe déjà.
+    /// A trigger with this identifier already exists.
     #[error("duplicate trigger id: {0}")]
     DuplicateId(String),
-    /// La définition ne satisfait pas les règles de validation métier.
+    /// The definition does not satisfy the business validation rules.
     #[error("validation error: {0}")]
     ValidationError(String),
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
 }
 
-// ─── Repository ──────────────────────────────────────────────────────────────
+// --- Repository --------------------------------------------------------------
 
-/// Repository CRUD pour les définitions de triggers dans SQLite.
+/// CRUD repository for trigger definitions in SQLite.
 ///
-/// Struct synchrone (pas d'acteur Tokio). La connexion SQLite est `Send`,
-/// compatible avec `spawn_blocking` si nécessaire.
+/// Synchronous struct (no Tokio actor). The SQLite connection is `Send`,
+/// compatible with `spawn_blocking` if needed.
 pub struct TriggerDefinitionRepository {
     conn: Connection,
 }
 
 impl TriggerDefinitionRepository {
-    /// Ouvre (ou crée) la base SQLite et applique la migration idempotente.
+    /// Opens (or creates) the SQLite database and applies the idempotent migration.
     ///
-    /// Active WAL pour de meilleures performances en écriture concurrente.
-    /// Crée la table `trigger_definitions` si elle n'existe pas (idempotent).
+    /// Enables WAL for better concurrent write performance. Creates the
+    /// `trigger_definitions` table if it does not exist (idempotent).
     pub fn open(path: &Path) -> Result<Self, TriggerDefinitionError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
@@ -242,11 +241,11 @@ impl TriggerDefinitionRepository {
         Ok(Self { conn })
     }
 
-    /// Insère une nouvelle définition de trigger après validation.
+    /// Inserts a new trigger definition after validation.
     ///
-    /// Les champs `created_at` et `updated_at` sont renseignés automatiquement
-    /// par les DEFAULT SQLite. Retourne [`TriggerDefinitionError::DuplicateId`]
-    /// si l'identifiant existe déjà.
+    /// The `created_at` and `updated_at` fields are filled automatically by the
+    /// SQLite DEFAULTs. Returns [`TriggerDefinitionError::DuplicateId`] if the
+    /// identifier already exists.
     pub fn insert(&self, def: &TriggerDefinitionRow) -> Result<(), TriggerDefinitionError> {
         validation::validate_trigger(def)?;
 
@@ -281,10 +280,10 @@ impl TriggerDefinitionRepository {
         Ok(())
     }
 
-    /// Met à jour une définition existante après validation.
+    /// Updates an existing definition after validation.
     ///
-    /// Rafraîchit `updated_at` automatiquement. Retourne
-    /// [`TriggerDefinitionError::NotFound`] si l'identifiant n'existe pas.
+    /// Refreshes `updated_at` automatically. Returns
+    /// [`TriggerDefinitionError::NotFound`] if the identifier does not exist.
     pub fn update(
         &self,
         id: &str,
@@ -320,9 +319,9 @@ impl TriggerDefinitionRepository {
         Ok(())
     }
 
-    /// Supprime une définition de trigger.
+    /// Deletes a trigger definition.
     ///
-    /// Retourne [`TriggerDefinitionError::NotFound`] si l'identifiant n'existe pas.
+    /// Returns [`TriggerDefinitionError::NotFound`] if the identifier does not exist.
     pub fn delete(&self, id: &str) -> Result<(), TriggerDefinitionError> {
         let rows = self
             .conn
@@ -335,9 +334,9 @@ impl TriggerDefinitionRepository {
         Ok(())
     }
 
-    /// Retourne la définition d'un trigger par son identifiant.
+    /// Returns the definition of a trigger by its identifier.
     ///
-    /// Retourne `None` si aucun trigger ne correspond.
+    /// Returns `None` if no trigger matches.
     pub fn get(&self, id: &str) -> Result<Option<TriggerDefinitionRow>, TriggerDefinitionError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, agent, enabled, on_busy, source_type, \
@@ -352,7 +351,7 @@ impl TriggerDefinitionRepository {
         }
     }
 
-    /// Liste toutes les définitions de triggers, triées par identifiant.
+    /// Lists all trigger definitions, sorted by identifier.
     pub fn list(&self) -> Result<Vec<TriggerDefinitionRow>, TriggerDefinitionError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, agent, enabled, on_busy, source_type, \
@@ -369,7 +368,7 @@ impl TriggerDefinitionRepository {
     }
 }
 
-/// Convertit une ligne SQLite en [`TriggerDefinitionRow`].
+/// Converts a SQLite row into a [`TriggerDefinitionRow`].
 fn row_to_definition(row: &rusqlite::Row) -> rusqlite::Result<TriggerDefinitionRow> {
     let on_busy_str: String = row.get(3)?;
     let source_config_str: String = row.get(5)?;
@@ -392,14 +391,14 @@ fn row_to_definition(row: &rusqlite::Row) -> rusqlite::Result<TriggerDefinitionR
     })
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+// --- Tests -------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    /// Ouvre un repository de test dans un répertoire temporaire.
+    /// Opens a test repository in a temporary directory.
     fn open_test_repo() -> (TempDir, TriggerDefinitionRepository) {
         let dir = TempDir::new().expect("tempdir creation");
         let repo =
@@ -407,7 +406,7 @@ mod tests {
         (dir, repo)
     }
 
-    /// Crée une définition cron valide pour les tests.
+    /// Creates a valid cron definition for tests.
     fn make_cron_def(id: &str, agent: &str, schedule: &str) -> TriggerDefinitionRow {
         TriggerDefinitionRow {
             id: id.to_string(),
@@ -422,19 +421,19 @@ mod tests {
         }
     }
 
-    // ── Insert + Get ─────────────────────────────────────────────────
+    // --- Insert + Get ----------------------------------------------------
 
     #[test]
     fn test_insert_and_get() {
-        // GIVEN un repository ouvert
+        // GIVEN an open repository
         let (_dir, repo) = open_test_repo();
         let def = make_cron_def("rapport-hebdo", "rapport-agent", "0 0 8 * * MON *");
 
-        // WHEN insert puis get
+        // WHEN insert then get
         repo.insert(&def).expect("insert");
         let got = repo.get("rapport-hebdo").expect("get");
 
-        // THEN la définition est retrouvée avec les mêmes champs
+        // THEN the definition is found with the same fields
         let got = got.expect("should exist");
         assert_eq!(got.id, "rapport-hebdo");
         assert_eq!(got.agent.as_deref(), Some("rapport-agent"));
@@ -449,30 +448,30 @@ mod tests {
         assert!(!got.updated_at.is_empty(), "updated_at doit être renseigné");
     }
 
-    // ── Insert duplicate ID ──────────────────────────────────────────
+    // --- Insert duplicate ID ---------------------------------------------
 
     #[test]
     fn test_insert_duplicate_id() {
-        // GIVEN un repository contenant "rapport-hebdo"
+        // GIVEN a repository containing "rapport-hebdo"
         let (_dir, repo) = open_test_repo();
         let def = make_cron_def("rapport-hebdo", "agent", "0 0 8 * * MON *");
         repo.insert(&def).expect("first insert");
 
-        // WHEN insert avec le même ID
+        // WHEN insert with the same ID
         let result = repo.insert(&def);
 
-        // THEN erreur DuplicateId
+        // THEN DuplicateId error
         assert!(
             matches!(result, Err(TriggerDefinitionError::DuplicateId(ref id)) if id == "rapport-hebdo"),
             "expected DuplicateId, got: {result:?}"
         );
     }
 
-    // ── Update existant ──────────────────────────────────────────────
+    // --- Update existing -------------------------------------------------
 
     #[test]
     fn test_update_existing() {
-        // GIVEN un trigger avec schedule "0 0 8 * * MON *"
+        // GIVEN a trigger with schedule "0 0 8 * * MON *"
         let (_dir, repo) = open_test_repo();
         let def = make_cron_def("rapport-hebdo", "agent", "0 0 8 * * MON *");
         repo.insert(&def).expect("insert");
@@ -480,13 +479,13 @@ mod tests {
         let original = repo.get("rapport-hebdo").expect("get").expect("exists");
         let original_updated_at = original.updated_at.clone();
 
-        // WHEN update avec schedule "0 0 9 * * MON *"
-        // (petit délai pour que updated_at change — SQLite subsecond precision)
+        // WHEN update with schedule "0 0 9 * * MON *"
+        // (small delay so updated_at changes; SQLite subsecond precision)
         std::thread::sleep(std::time::Duration::from_millis(10));
         let updated_def = make_cron_def("rapport-hebdo", "agent", "0 0 9 * * MON *");
         repo.update("rapport-hebdo", &updated_def).expect("update");
 
-        // THEN la source_config est mise à jour et updated_at rafraîchi
+        // THEN source_config is updated and updated_at refreshed
         let got = repo.get("rapport-hebdo").expect("get").expect("exists");
         assert_eq!(
             got.source_config.get("schedule").and_then(|v| v.as_str()),
@@ -498,29 +497,29 @@ mod tests {
         );
     }
 
-    // ── Update ID inexistant ─────────────────────────────────────────
+    // --- Update non-existent ID ------------------------------------------
 
     #[test]
     fn test_update_not_found() {
-        // GIVEN un repository vide
+        // GIVEN an empty repository
         let (_dir, repo) = open_test_repo();
         let def = make_cron_def("inconnu", "agent", "0 0 8 * * MON *");
 
         // WHEN update("inconnu")
         let result = repo.update("inconnu", &def);
 
-        // THEN erreur NotFound
+        // THEN NotFound error
         assert!(
             matches!(result, Err(TriggerDefinitionError::NotFound(ref id)) if id == "inconnu"),
             "expected NotFound, got: {result:?}"
         );
     }
 
-    // ── Delete + Get + List ──────────────────────────────────────────
+    // --- Delete + Get + List ---------------------------------------------
 
     #[test]
     fn test_delete_and_list() {
-        // GIVEN un repository contenant 3 triggers
+        // GIVEN a repository containing 3 triggers
         let (_dir, repo) = open_test_repo();
         for i in 1..=3 {
             let def = make_cron_def(
@@ -535,12 +534,12 @@ mod tests {
         // WHEN delete("trigger-2")
         repo.delete("trigger-2").expect("delete");
 
-        // THEN list() retourne 2, get("trigger-2") retourne None
+        // THEN list() returns 2, get("trigger-2") returns None
         let all = repo.list().expect("list");
         assert_eq!(all.len(), 2);
         assert!(repo.get("trigger-2").expect("get").is_none());
 
-        // ET delete("trigger-2") à nouveau retourne NotFound
+        // AND delete("trigger-2") again returns NotFound
         let result = repo.delete("trigger-2");
         assert!(
             matches!(result, Err(TriggerDefinitionError::NotFound(ref id)) if id == "trigger-2"),
@@ -548,31 +547,30 @@ mod tests {
         );
     }
 
-    // ── Validation cron invalide ─────────────────────────────────────
+    // --- Invalid cron validation -----------------------------------------
 
     #[test]
     fn test_validation_invalid_cron() {
-        // GIVEN un repository ouvert
+        // GIVEN an open repository
         let (_dir, repo) = open_test_repo();
         let def = make_cron_def("bad-cron", "agent", "not-a-cron");
 
-        // WHEN insert avec cron invalide
+        // WHEN insert with an invalid cron
         let result = repo.insert(&def);
 
-        // THEN erreur ValidationError contenant "invalid cron expression"
+        // THEN ValidationError containing "invalid cron expression"
         assert!(
             matches!(result, Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("invalid cron expression")),
             "expected ValidationError with cron message, got: {result:?}"
         );
     }
 
-    // ── Validation : agent obligatoire ─────────────────────────────────
+    // --- Validation: agent is mandatory ----------------------------------
     //
-    // Historiquement, un trigger pouvait cibler soit un agent soit un
-    // pipeline (validation XOR). Les pipelines ont été absorbés dans
-    // les agents A2A (cf. ADR-049 et A2AInvoker) ; le champ `pipeline`
-    // a été retiré de `TriggerDefinitionRow`. Seul `agent` reste, et
-    // il est obligatoire.
+    // A trigger once could target either an agent or a pipeline (XOR
+    // validation). Pipelines were absorbed into A2A agents, and the
+    // `pipeline` field was removed from `TriggerDefinitionRow`. Only `agent`
+    // remains, and it is mandatory.
 
     #[test]
     fn test_validation_agent_required() {
@@ -591,14 +589,14 @@ mod tests {
             updated_at: String::new(),
         };
 
-        // WHEN insert → THEN erreur "agent must be set"
+        // WHEN insert, THEN error "agent must be set"
         let result = repo.insert(&def_no_agent);
         assert!(
             matches!(result, Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("agent must be set")),
             "expected 'agent must be set', got: {result:?}"
         );
 
-        // GIVEN agent=Some("") (chaîne vide) — même rejet attendu.
+        // GIVEN agent=Some("") (empty string); same rejection expected.
         let def_empty_agent = TriggerDefinitionRow {
             id: "test-empty-agent".to_string(),
             agent: Some(String::new()),
@@ -618,7 +616,7 @@ mod tests {
         );
     }
 
-    // ── Validation webhook secret < 32 chars ─────────────────────────
+    // --- Validation webhook secret < 32 chars ----------------------------
 
     #[test]
     fn test_validation_webhook_short_secret() {
@@ -635,7 +633,7 @@ mod tests {
             updated_at: String::new(),
         };
 
-        // WHEN insert → THEN erreur "webhook secret must be at least 32 characters"
+        // WHEN insert, THEN error "webhook secret must be at least 32 characters"
         let result = repo.insert(&def);
         assert!(
             matches!(result, Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("webhook secret must be at least 32 characters")),
@@ -643,39 +641,39 @@ mod tests {
         );
     }
 
-    // ── Extra — List vide ───────────────────────────────────────────────────
+    // --- Extra: empty list -----------------------------------------------
 
     #[test]
     fn test_list_empty() {
-        // GIVEN un repository vide
+        // GIVEN an empty repository
         let (_dir, repo) = open_test_repo();
 
         // WHEN list
         let all = repo.list().expect("list");
 
-        // THEN Vec vide
+        // THEN empty Vec
         assert!(all.is_empty());
     }
 
-    // ── Extra — Open idempotent ─────────────────────────────────────────────
+    // --- Extra: idempotent open ------------------------------------------
 
     #[test]
     fn test_open_idempotent() {
-        // GIVEN une base déjà migrée
+        // GIVEN an already-migrated database
         let dir = TempDir::new().expect("tempdir");
         let path = dir.path().join("triggers.db");
         {
             let _repo = TriggerDefinitionRepository::open(&path).expect("first open");
         }
 
-        // WHEN on ouvre une seconde fois
+        // WHEN opening a second time
         let result = TriggerDefinitionRepository::open(&path);
 
-        // THEN pas d'erreur
+        // THEN no error
         assert!(result.is_ok(), "second open should succeed");
     }
 
-    // ── Extra — Webhook avec secret valide (>= 32 chars) ───────────────────
+    // --- Extra: webhook with a valid secret (>= 32 chars) ----------------
 
     #[test]
     fn test_webhook_valid_secret() {

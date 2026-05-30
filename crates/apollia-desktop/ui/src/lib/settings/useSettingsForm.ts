@@ -1,4 +1,4 @@
-import { onDestroy, tick } from "svelte";
+import { onDestroy } from "svelte";
 import type { SettingsSubRoute } from "$lib/stores/settings";
 import { setRouteState, getRouteState, clearRoute } from "$lib/stores/settingsDirty";
 
@@ -43,7 +43,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 }
 
 function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+  return structuredClone(value);
 }
 
 /**
@@ -121,7 +121,7 @@ export function useSettingsForm<T extends object>(
   }
 
   function setField<K extends keyof T>(key: K, value: T[K]): void {
-    (live.value as T)[key] = value;
+    live.value[key] = value;
     refreshDirty();
     if (autoSave === "debounced") scheduleDebounced();
   }
@@ -182,7 +182,7 @@ export function useSettingsForm<T extends object>(
 }
 
 /** Re-export for consumers that want to tick before restoring scroll. */
-export { tick };
+export { tick } from "svelte";
 
 /**
  * Register an active settings form with the parent `<Settings />` page so that
@@ -201,8 +201,8 @@ export function registerSettingsForm<T>(
   route: SettingsSubRoute,
   form: SettingsForm<T>,
 ): () => void {
-  if (typeof window === "undefined") return () => {};
-  const register = (window as unknown as { __apolliaRegisterSettingsForm?: RegisterFn })
+  if (globalThis.window === undefined) return () => {};
+  const register = (globalThis as unknown as { __apolliaRegisterSettingsForm?: RegisterFn })
     .__apolliaRegisterSettingsForm;
   if (!register) return () => {};
   return register(route, { save: form.save, reset: form.reset });

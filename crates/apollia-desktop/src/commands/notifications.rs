@@ -1,9 +1,9 @@
-//! Commandes IPC Tauri pour la gestion des notifications.
+//! Tauri IPC commands for managing notifications.
 //!
-//! Chaque commande délègue à l'API REST interne (`/api/v1/notifications/*`)
-//! via les helpers `http_get_json` / `http_post_json`. Les données transitent
-//! en JSON brut (`serde_json::Value`) pour éviter de dupliquer les types
-//! Rust déjà définis dans `apollia-notifications`.
+//! Each command delegates to the internal REST API (`/api/v1/notifications/*`)
+//! via the `http_get_json` / `http_post_json` helpers. Data travels as raw JSON
+//! (`serde_json::Value`) to avoid duplicating the Rust types already defined in
+//! `apollia-notifications`.
 
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -11,57 +11,57 @@ use tauri::State;
 
 use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 
-/// Description publique d'un canal de notification pour l'UI.
+/// Public description of a notification channel for the UI.
 #[derive(Debug, Serialize)]
 pub struct NotificationChannel {
-    /// Identifiant unique du canal (ex: `"desktop"`, `"slack"`).
+    /// Unique channel identifier (e.g. `"desktop"`, `"slack"`).
     pub channel_id: String,
-    /// Nom affiché dans l'interface. `None` = la UI retombera sur `channel_id`.
+    /// Name displayed in the UI. `None` = the UI falls back to `channel_id`.
     pub label: Option<String>,
-    /// Type de canal : `"desktop"` ou `"webhook"`.
+    /// Channel type: `"desktop"` or `"webhook"`.
     #[serde(rename = "type")]
     pub kind: String,
-    /// `true` si le canal est activé dans la configuration.
+    /// `true` if the channel is enabled in the configuration.
     pub enabled: bool,
-    /// Liste des événements que ce canal accepte.
+    /// List of events this channel accepts.
     pub events: Vec<String>,
-    /// Intervalle minimal de throttling, en secondes (`0` = aucun).
+    /// Minimum throttling interval, in seconds (`0` = none).
     pub min_interval_seconds: u32,
 }
 
-/// Résultat du test d'un canal individuel.
+/// Result of testing an individual channel.
 #[derive(Debug, Serialize)]
 pub struct ChannelTestResult {
-    /// Identifiant unique du canal.
+    /// Unique channel identifier.
     pub channel_id: String,
-    /// Statut du test : `"ok"`, `"error"`, ou `"disabled"`.
+    /// Test status: `"ok"`, `"error"`, or `"disabled"`.
     pub status: String,
-    /// Message d'erreur si `status == "error"`.
+    /// Error message if `status == "error"`.
     pub error: Option<String>,
-    /// Latence mesurée en millisecondes.
+    /// Measured latency in milliseconds.
     pub latency_ms: Option<u64>,
 }
 
-/// Entrée de l'historique des notifications pour l'UI.
+/// Notification history entry for the UI.
 #[derive(Debug, Serialize)]
 pub struct NotificationLogEntry {
-    /// Identifiant unique de l'entrée.
+    /// Unique entry identifier.
     pub id: String,
-    /// Nom de l'événement déclencheur (ex: `"task.completed"`).
+    /// Name of the triggering event (e.g. `"task.completed"`).
     pub event_name: String,
-    /// Identifiant de la tâche concernée, si applicable.
+    /// Identifier of the related task, if applicable.
     pub task_id: Option<String>,
-    /// Horodatage d'envoi (ISO 8601).
+    /// Send timestamp (ISO 8601).
     pub sent_at: String,
-    /// Résultats par canal : `{"canal_id": "ok" | "error"}`.
+    /// Per-channel results: `{"channel_id": "ok" | "error"}`.
     pub channels: serde_json::Value,
-    /// Erreur globale si la notification n'a pas pu être dispatchée.
+    /// Global error if the notification could not be dispatched.
     pub error: Option<String>,
 }
 
-/// Liste tous les canaux de notification configurés.
+/// Lists all configured notification channels.
 ///
-/// Délègue à `GET /api/v1/notifications/channels` sur l'API REST interne.
+/// Delegates to `GET /api/v1/notifications/channels` on the internal REST API.
 #[tauri::command]
 pub async fn list_notification_channels(
     state: State<'_, RuntimeHandle>,
@@ -119,10 +119,10 @@ pub async fn list_notification_channels(
     Ok(result)
 }
 
-/// Teste un canal de notification spécifique.
+/// Tests a specific notification channel.
 ///
-/// Délègue à `POST /api/v1/notifications/test` et filtre le résultat
-/// pour ne retourner que le canal demandé.
+/// Delegates to `POST /api/v1/notifications/test` and filters the result to
+/// return only the requested channel.
 #[tauri::command]
 pub async fn test_notification_channel(
     state: State<'_, RuntimeHandle>,
@@ -162,9 +162,9 @@ pub async fn test_notification_channel(
     }
 }
 
-/// Récupère l'historique des notifications.
+/// Fetches the notification history.
 ///
-/// Délègue à `GET /api/v1/notifications/logs?last=N`.
+/// Delegates to `GET /api/v1/notifications/logs?last=N`.
 #[tauri::command]
 pub async fn get_notification_logs(
     state: State<'_, RuntimeHandle>,
@@ -210,14 +210,14 @@ pub async fn get_notification_logs(
     Ok(result)
 }
 
-/// Liste les événements runtime informatifs (échecs/dégradations/LLM)
-/// extraits de `notification_logs` sur les `days` derniers jours.
+/// Lists informational runtime events (failures/degradations/LLM) extracted
+/// from `notification_logs` over the last `days` days.
 ///
-/// Filtre Rust-side sur `event_name ∈ { "task.failed", "agent.degraded",
-/// "trigger.error", "llm.backend_down" }`. Les succès (`task.completed`)
-/// ne sont volontairement pas inclus — ils vont dans Mes assistants → Logs.
+/// Filters Rust-side on `event_name` in `{ "task.failed", "agent.degraded",
+/// "trigger.error", "llm.backend_down" }`. Successes (`task.completed`) are
+/// deliberately excluded; they go to My assistants → Logs.
 ///
-/// Délègue à `GET /api/v1/notifications/logs?last=500` puis filtre.
+/// Delegates to `GET /api/v1/notifications/logs?last=500`, then filters.
 #[tauri::command]
 pub async fn list_runtime_activity(
     state: State<'_, RuntimeHandle>,
@@ -278,47 +278,46 @@ pub async fn list_runtime_activity(
 
 // ─── CRUD types & commands ──────────────────────────────────────────────────
 
-/// Définition complète d'un canal de notification retournée par les opérations
-/// CRUD.
+/// Full definition of a notification channel returned by the CRUD operations.
 #[derive(Debug, Serialize)]
 pub struct NotificationChannelView {
-    /// Identifiant unique du canal.
+    /// Unique channel identifier.
     pub id: String,
-    /// Nom affiché dans l'interface. `null` = retombe sur `id` côté UI.
+    /// Name displayed in the UI. `null` = falls back to `id` on the UI side.
     pub label: Option<String>,
-    /// Type de canal : `"desktop"` ou `"webhook"`.
+    /// Channel type: `"desktop"` or `"webhook"`.
     pub channel_type: String,
-    /// `true` si le canal est activé.
+    /// `true` if the channel is enabled.
     pub enabled: bool,
-    /// Configuration spécifique au type.
+    /// Type-specific configuration.
     pub config: serde_json::Value,
-    /// Événements spécifiques au canal. `null` = utilise les événements globaux.
+    /// Channel-specific events. `null` = uses the global events.
     pub events: Option<Vec<String>>,
-    /// Intervalle minimal de throttling, en secondes (`0` = aucun).
+    /// Minimum throttling interval, in seconds (`0` = none).
     pub min_interval_seconds: u32,
-    /// Horodatage de création (ISO 8601).
+    /// Creation timestamp (ISO 8601).
     pub created_at: String,
-    /// Horodatage de dernière modification (ISO 8601).
+    /// Last-modification timestamp (ISO 8601).
     pub updated_at: String,
 }
 
-/// Corps de requête pour la création d'un canal via `create_notification_channel`.
+/// Request body for creating a channel via `create_notification_channel`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateChannelRequest {
-    /// Identifiant unique du canal.
+    /// Unique channel identifier.
     pub id: String,
-    /// Nom affiché dans l'interface (libre, max 80 chars). `null` = aucun label.
+    /// Name displayed in the UI (free-form, max 80 chars). `null` = no label.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
-    /// Type de canal : `"desktop"` ou `"webhook"`.
+    /// Channel type: `"desktop"` or `"webhook"`.
     pub channel_type: String,
-    /// Indique si le canal est actif (défaut : `true`).
+    /// Whether the channel is active (default: `true`).
     pub enabled: Option<bool>,
-    /// Configuration spécifique au type (ex: `{"url": "..."}` pour webhook).
+    /// Type-specific configuration (e.g. `{"url": "..."}` for webhook).
     pub config: serde_json::Value,
-    /// Liste d'événements spécifiques. `null` = utilise les événements globaux.
+    /// List of specific events. `null` = uses the global events.
     pub events: Option<Vec<String>>,
-    /// Intervalle minimal de throttling, en secondes. Défaut : `0` (aucun).
+    /// Minimum throttling interval, in seconds. Default: `0` (none).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub min_interval_seconds: u32,
 }
@@ -327,32 +326,31 @@ fn is_zero(v: &u32) -> bool {
     *v == 0
 }
 
-/// Corps de requête pour la mise à jour d'un canal via
-/// `update_notification_channel`.
+/// Request body for updating a channel via `update_notification_channel`.
 ///
-/// `label` utilise une `Option<Option<String>>` :
-/// - absent du JSON → conserver ;
-/// - `null` → effacer ;
-/// - `"texte"` → remplacer.
+/// `label` uses an `Option<Option<String>>`:
+/// - absent from JSON → keep;
+/// - `null` → clear;
+/// - `"text"` → replace.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateChannelRequest {
-    /// Nouveau label. Voir doc du struct pour la sémantique.
+    /// New label. See the struct doc for the semantics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<Option<String>>,
-    /// Type de canal (optionnel — conserve l'existant si absent).
+    /// Channel type (optional, keeps the existing one if absent).
     pub channel_type: Option<String>,
-    /// Indique si le canal est actif.
+    /// Whether the channel is active.
     pub enabled: Option<bool>,
-    /// Configuration spécifique au type.
+    /// Type-specific configuration.
     pub config: Option<serde_json::Value>,
-    /// Liste d'événements spécifiques.
+    /// List of specific events.
     pub events: Option<Vec<String>>,
-    /// Nouvel intervalle minimal de throttling (s). Absent = conserver.
+    /// New minimum throttling interval (s). Absent = keep.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_interval_seconds: Option<u32>,
 }
 
-/// Parse un JSON de réponse API en `NotificationChannelView`.
+/// Parses an API response JSON into a `NotificationChannelView`.
 fn parse_channel_view(json: &serde_json::Value) -> NotificationChannelView {
     NotificationChannelView {
         id: json
@@ -399,9 +397,9 @@ fn parse_channel_view(json: &serde_json::Value) -> NotificationChannelView {
     }
 }
 
-/// Crée un nouveau canal de notification.
+/// Creates a new notification channel.
 ///
-/// Délègue à `POST /api/v1/notifications/channels`.
+/// Delegates to `POST /api/v1/notifications/channels`.
 #[tauri::command]
 pub async fn create_notification_channel(
     state: State<'_, RuntimeHandle>,
@@ -413,9 +411,9 @@ pub async fn create_notification_channel(
     Ok(parse_channel_view(&json))
 }
 
-/// Met à jour un canal de notification existant.
+/// Updates an existing notification channel.
 ///
-/// Délègue à `PUT /api/v1/notifications/channels/:id`.
+/// Delegates to `PUT /api/v1/notifications/channels/:id`.
 #[tauri::command]
 pub async fn update_notification_channel(
     state: State<'_, RuntimeHandle>,
@@ -429,9 +427,9 @@ pub async fn update_notification_channel(
     Ok(parse_channel_view(&json))
 }
 
-/// Supprime un canal de notification.
+/// Deletes a notification channel.
 ///
-/// Délègue à `DELETE /api/v1/notifications/channels/:id`.
+/// Delegates to `DELETE /api/v1/notifications/channels/:id`.
 #[tauri::command]
 pub async fn delete_notification_channel(
     state: State<'_, RuntimeHandle>,
@@ -442,9 +440,9 @@ pub async fn delete_notification_channel(
     Ok(())
 }
 
-/// Récupère la liste des événements globaux de notification.
+/// Fetches the list of global notification events.
 ///
-/// Délègue à `GET /api/v1/notifications/events`.
+/// Delegates to `GET /api/v1/notifications/events`.
 #[tauri::command]
 pub async fn get_notification_events(
     state: State<'_, RuntimeHandle>,
@@ -464,9 +462,9 @@ pub async fn get_notification_events(
     Ok(events)
 }
 
-/// Remplace la liste des événements globaux de notification.
+/// Replaces the list of global notification events.
 ///
-/// Délègue à `PUT /api/v1/notifications/events`.
+/// Delegates to `PUT /api/v1/notifications/events`.
 #[tauri::command]
 pub async fn set_notification_events(
     state: State<'_, RuntimeHandle>,

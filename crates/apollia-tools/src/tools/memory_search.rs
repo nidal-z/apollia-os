@@ -18,9 +18,9 @@ const MAX_LIMIT: u32 = 50;
 /// Search the agent's local memory using FTS5 full-text search with BM25 ranking.
 ///
 /// Wraps `apollia-memory`'s `MemorySearch` engine. Only the agent's own namespace
-/// and explicitly declared `shared_namespaces` are reachable — namespace isolation
-/// is enforced before any I/O is attempted. Respects Principle #6:
-/// memory retrieval is always agent-initiated, never automatic.
+/// and explicitly declared `shared_namespaces` are reachable; namespace isolation
+/// is enforced before any I/O is attempted. Memory retrieval is always
+/// agent-initiated, never automatic.
 pub struct MemorySearchTool {
     /// The agent's primary namespace (read-write access).
     namespace: String,
@@ -121,7 +121,7 @@ impl MemorySearchTool {
         &self,
         input: MemorySearchInput,
     ) -> Result<MemorySearchOutput, MemorySearchToolError> {
-        // Validate query first — fast, no I/O.
+        // Validate query first: fast, no I/O.
         if input.query.trim().is_empty() {
             return Err(MemorySearchToolError::EmptyQuery);
         }
@@ -132,7 +132,7 @@ impl MemorySearchTool {
             .clone()
             .unwrap_or_else(|| self.namespace.clone());
 
-        // Validate namespace access before any I/O (Principle #4 — fail fast).
+        // Validate namespace access before any I/O (fail fast).
         if !self.is_namespace_allowed(&target_ns) {
             return Err(MemorySearchToolError::NamespaceNotAllowed(target_ns));
         }
@@ -151,13 +151,13 @@ impl MemorySearchTool {
                 .map_err(|e| MemorySearchToolError::SearchFailed(e.to_string()))?;
             let search = apollia_memory::search::MemorySearch::new(&store);
             search
-                .query(
-                    &target_ns,
-                    &query,
+                .query(apollia_memory::search::SearchQuery {
+                    namespace: &target_ns,
+                    query: &query,
                     limit,
-                    source_filter.as_deref(),
-                    min_relevance,
-                )
+                    sources: source_filter.as_deref(),
+                    min_importance: min_relevance,
+                })
                 .map_err(|e| MemorySearchToolError::SearchFailed(e.to_string()))
         })
         .await
@@ -326,16 +326,16 @@ mod tests {
         .expect("episodic record");
 
         let sem = SemanticMemory::new(&store);
-        sem.remember(
+        sem.remember(apollia_memory::semantic::RememberInput {
             namespace,
-            "client.dupont.budget",
-            &json!(5000),
-            0.85,
-            Some("crm"),
-            None,
-        )
+            key: "client.dupont.budget",
+            value: &json!(5000),
+            confidence: 0.85,
+            source: Some("crm"),
+            expires_at: None,
+        })
         .expect("semantic remember");
-        // store dropped here — connection closed before tool opens its own
+        // store dropped here: connection closed before tool opens its own
     }
 
     #[tokio::test]

@@ -33,12 +33,12 @@ pub enum AgentRegistryError {
         from: ProcessState,
         to: ProcessState,
     },
-    /// Le canal vers l'acteur est fermé — l'acteur s'est arrêté.
+    /// Le canal vers l'acteur est fermé, l'acteur s'est arrêté.
     #[error("L'acteur AgentRegistry est mort (canal fermé)")]
     ActorDead,
 }
 
-// Messages internes — enum privé, jamais exposé publiquement.
+// Messages internes, enum privé, jamais exposé publiquement.
 // AgentManifest est boxé dans Register pour éviter une variante de taille disproportionnée.
 enum RegistryMessage {
     Register {
@@ -71,7 +71,7 @@ enum RegistryMessage {
     Shutdown,
 }
 
-/// Acteur interne du registry — état privé, jamais exposé directement.
+/// Acteur interne du registry, état privé, jamais exposé directement.
 ///
 /// Toute interaction passe par [`AgentRegistryHandle`].
 /// La construction se fait uniquement via [`AgentRegistry::spawn`].
@@ -214,7 +214,7 @@ impl AgentRegistry {
     }
 }
 
-/// Handle public vers l'acteur `AgentRegistry` — clonable, thread-safe.
+/// Handle public vers l'acteur `AgentRegistry`, clonable, thread-safe.
 ///
 /// Obtenu via [`AgentRegistry::spawn`]. Chaque clone partage le même acteur
 /// sous-jacent. Toutes les méthodes sont async et retournent
@@ -478,7 +478,7 @@ mod tests {
             .await
             .unwrap();
 
-        // WHEN — Stopped → Active est invalide
+        // WHEN, Stopped → Active est invalide
         let result = handle.update_state(id.as_str(), ProcessState::Active).await;
 
         // THEN
@@ -525,7 +525,7 @@ mod tests {
         let handle = AgentRegistry::spawn(bus_tx);
         let handle2 = handle.clone();
 
-        // WHEN — deux appels concurrent via deux handles distincts
+        // WHEN, deux appels concurrent via deux handles distincts
         let (r1, r2) = tokio::join!(
             handle.register(test_manifest("agent-a")),
             handle2.register(test_manifest("agent-b")),

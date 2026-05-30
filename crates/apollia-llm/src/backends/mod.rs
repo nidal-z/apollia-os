@@ -1,12 +1,12 @@
-//! Backends d'inférence LLM pour `apollia-llm`.
+//! LLM inference backends for `apollia-llm`.
 //!
-//! Depuis ADR-113 (multi-runner sidecar), les backends locaux (llama.cpp,
-//! whisper) sont hébergés par le crate `apollia-runner`. Ce module ne
-//! contient plus que les clients HTTP cloud :
+//! Local backends (llama.cpp, whisper) are hosted by the `apollia-runner`
+//! crate (multi-runner sidecar). This module now holds only the cloud HTTP
+//! clients:
 //!
-//! - `openai`   : client HTTP OpenAI-compatible `[feature = "cloud"]`
-//! - `anthropic`: client HTTP Anthropic `[feature = "cloud"]`
-//! - `vertex`   : client Google Vertex AI `[feature = "cloud"]`
+//! - `openai`   : OpenAI-compatible HTTP client `[feature = "cloud"]`
+//! - `anthropic`: Anthropic HTTP client `[feature = "cloud"]`
+//! - `vertex`   : Google Vertex AI client `[feature = "cloud"]`
 
 #[cfg(feature = "cloud")]
 pub mod anthropic;

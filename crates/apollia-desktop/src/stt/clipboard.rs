@@ -85,7 +85,7 @@ pub fn prepare_paste(text: &str, restore: bool) -> Result<Option<String>, Clipbo
 ///     Tokio runtime is active.
 ///  2. Using `enigo::text()`: the HID-level CGEvents pass through Tauri's
 ///     global-shortcut event tap, which re-dispatches them as a new hotkey
-///     invocation each time a chunk containing a matching key is seen —
+///     invocation each time a chunk containing a matching key is seen,
 ///     resulting in the transcription text being typed repeatedly as
 ///     progressively shorter suffixes.
 ///

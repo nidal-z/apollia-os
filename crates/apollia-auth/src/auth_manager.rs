@@ -1,15 +1,15 @@
-//! Auth manager — high-level token lifecycle for SaaS connectors.
+//! Auth manager: high-level token lifecycle for SaaS connectors.
 //!
 //! Wraps [`MultiAccountStorage`] with:
 //! - Automatic refresh when the access token has expired (or will within a leeway).
 //! - **Singleflight** semantics so concurrent calls for the same
-//!   `(provider, account_id)` share a single refresh request — without this,
+//!   `(provider, account_id)` share a single refresh request. Without this,
 //!   a burst of N parallel tool calls would emit N refresh requests against
 //!   the OAuth Authorization Server, exhausting rate limits.
 //! - A small in-memory cache for the active access token so subsequent calls
 //!   skip the keyring round-trip until the token expires.
 //!
-//! The refresh-once-on-401 retry pattern lives in `apollia-connectors::http` —
+//! The refresh-once-on-401 retry pattern lives in `apollia-connectors::http`;
 //! this module only ensures the **token** is current; the HTTP layer decides
 //! when to re-attempt against a 401.
 
@@ -27,7 +27,7 @@ use crate::{
     token::{refresh_token, StoredToken},
 };
 
-/// Refresh leeway — refresh proactively this duration before expiry to avoid
+/// Refresh leeway: refresh proactively this duration before expiry to avoid
 /// returning a token that would expire mid-request.
 const REFRESH_LEEWAY: Duration = Duration::seconds(60);
 
@@ -125,7 +125,7 @@ impl AuthManager {
             .clone();
         let _guard = lock.lock().await;
 
-        // Re-check cache after acquiring the lock — another task may have
+        // Re-check cache after acquiring the lock; another task may have
         // refreshed while we were waiting.
         if let Some(token) = self.cache.get(&key) {
             if !is_near_expiry(&token) {
@@ -158,7 +158,7 @@ impl AuthManager {
     /// Revoke (forget) a stored token for `(provider, account_id)`.
     ///
     /// The token is removed from both the cache and the keyring. The OAuth
-    /// Authorization Server is **not** notified — call the provider revocation
+    /// Authorization Server is **not** notified; call the provider revocation
     /// endpoint separately if a server-side revocation is required.
     pub async fn revoke(
         &self,
@@ -248,7 +248,7 @@ mod tests {
 
     /// Generate a unique account id per test so concurrent / repeated runs
     /// don't collide on the same OS keychain entry (the keyring backend now
-    /// writes through to the real macOS keychain — ADR-todo).
+    /// writes through to the real macOS keychain).
     fn unique_account(label: &str) -> AccountId {
         AccountId::new(format!(
             "apollia-test-{label}-{}@example.invalid",
@@ -268,7 +268,7 @@ mod tests {
             .expect("put");
 
         // WHEN we request a valid token
-        // (build a minimal ProviderConfig — never actually used since we hit cache)
+        // (build a minimal ProviderConfig, never actually used since we hit cache)
         let cfg = crate::connector_providers::build_google_provider(&[]);
         let got = manager
             .get_valid_token(ConnectorProvider::Google, &account, &cfg)

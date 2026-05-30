@@ -1,4 +1,4 @@
-//! PySttInterface — Python-facing proxy for agent speech-to-text operations.
+//! PySttInterface: Python-facing proxy for agent speech-to-text operations.
 //!
 //! Exposes `ctx.stt.transcribe(path)` and `ctx.stt.status()` to Python agents.
 //! When the STT backend is not configured, all transcription calls raise an error.
@@ -43,14 +43,14 @@ impl PySttInterface {
 
 #[pymethods]
 impl PySttInterface {
-    /// Transcrit un fichier audio et retourne le texte.
+    /// Transcribes an audio file and returns the text.
     ///
-    /// path: chemin vers un fichier WAV (16-bit PCM ou float32, mono ou stéréo).
-    /// language: code langue ISO 639-1 optionnel (ex: "fr", "en"). `None` = langue du contexte.
-    /// backend: override de backend (réservé, ignoré pour l'instant).
+    /// path: path to a WAV file (16-bit PCM or float32, mono or stereo).
+    /// language: optional ISO 639-1 language code (e.g. "fr", "en"). `None` = context language.
+    /// backend: backend override (reserved, ignored for now).
     ///
-    /// Retourne le texte transcrit en String.
-    /// Lève RuntimeError si le backend STT n'est pas configuré ou si le fichier n'existe pas.
+    /// Returns the transcribed text as a String.
+    /// Raises RuntimeError if the STT backend is not configured or the file does not exist.
     #[pyo3(signature = (path, language = None, backend = None))]
     fn transcribe<'py>(
         &self,
@@ -97,9 +97,9 @@ impl PySttInterface {
         })
     }
 
-    /// Retourne l'état du moteur STT.
+    /// Returns the state of the STT engine.
     ///
-    /// Retourne un dict `{"enabled": bool, "model": str | None, "language": str}`.
+    /// Returns a dict `{"enabled": bool, "model": str | None, "language": str}`.
     fn status<'py>(&self, _py: Python<'py>) -> PyResult<PyObject> {
         let enabled = self.backend.is_some();
         let model = self.model_name.clone();
@@ -224,7 +224,7 @@ mod tests {
         }
     }
 
-    // PySttInterface::new with no backend — backend is None
+    // PySttInterface::new with no backend: backend is None
     #[test]
     fn test_status_disabled_when_no_backend() {
         // GIVEN no backend
@@ -232,7 +232,7 @@ mod tests {
         assert!(iface.backend.is_none());
     }
 
-    // PySttInterface::new with backend — fields are set correctly
+    // PySttInterface::new with backend: fields are set correctly
     #[test]
     fn test_new_with_mock_backend() {
         // GIVEN a mock backend

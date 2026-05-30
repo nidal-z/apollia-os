@@ -1,19 +1,19 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// ─── Figma — remote MCP awaiting Catalog approval (2026-05-18) ──────────────
+// ─── Figma: remote MCP awaiting Catalog approval ───────────────────────────
 //
 // Figma's `https://mcp.figma.com/mcp` endpoint is gated to a private MCP
 // Catalog whitelist (Claude.ai, Cursor, Windsurf, ...). Apollia has applied
 // for inclusion via the waitlist at https://figma.com/mcp-catalog. Until
 // approval, the curated `com.figma/mcp` entry points to the LOCAL Dev Mode
-// MCP server (127.0.0.1:3845/mcp, no auth — identity provided by the
+// MCP server (127.0.0.1:3845/mcp, no auth; identity provided by the
 // running Figma Desktop session).
 //
 // Once Figma whitelists Apollia, restore the remote enrichment by replacing
 // the local block in `enrichments.json` with the snippet below (and re-add
 // `oauth_pre_registered_client_id_env` in `ConnectorEnrichment` consumers
-// — already present in the struct, no schema change needed):
+// (already present in the struct, no schema change needed):
 //
 // ```json
 // {
@@ -37,7 +37,7 @@ use std::collections::HashMap;
 /// UI-friendly metadata for a popular MCP server.
 ///
 /// Complements the MCP Registry response with translated labels, category,
-/// icon, trust level and auth guidance — all embedded at compile time.
+/// icon, trust level and auth guidance, all embedded at compile time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectorEnrichment {
     /// Package identifier matching the registry (e.g. `@notionhq/notion-mcp-server`).
@@ -87,13 +87,13 @@ pub struct ConnectorEnrichment {
     #[serde(default)]
     pub package_runtime_hint: Option<String>,
     /// Name of the env var that holds a pre-registered OAuth client id for
-    /// this connector — e.g. `"APOLLIA_FIGMA_CLIENT_ID"`.
+    /// this connector, e.g. `"APOLLIA_FIGMA_CLIENT_ID"`.
     ///
     /// Required only for AS that support neither RFC 7591 DCR nor CIMD
     /// (Apollia must be manually registered at the provider's dev portal).
     /// When set, the wizard resolves the env var via the
     /// `mcp_oauth_resolve_client_id` IPC and injects the value into
-    /// `mcp_oauth_login` — bypassing CIMD/DCR discovery for this provider.
+    /// `mcp_oauth_login`, bypassing CIMD/DCR discovery for this provider.
     #[serde(default)]
     pub oauth_pre_registered_client_id_env: Option<String>,
     /// Environment variable names required by this package (for synthetic entries).
@@ -130,7 +130,7 @@ pub struct CostModel {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CostKind {
-    /// No charge expected — only the SaaS account itself is needed.
+    /// No charge expected; only the SaaS account itself is needed.
     Free,
     /// Free tier exists but heavy usage may incur charges.
     Freemium,
@@ -294,7 +294,7 @@ mod tests {
             .collect();
         // THEN the 5 baseline connectors are present under the current
         // canonical package identifiers (the @modelcontextprotocol namespace
-        // is the real one published on npm — earlier builds referenced an
+        // is the real one published on npm; earlier builds referenced an
         // @anthropic prefix that never existed).
         assert!(ids.contains(&"@notionhq/notion-mcp-server"));
         assert!(ids.contains(&"@modelcontextprotocol/server-brave-search"));
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn v1_catalog_has_18_entries_with_cost_model() {
         // GIVEN the v0.1.0 catalog. The Figma cloud OAuth variant was
-        // removed pending automatic OAuth handshake (v0.1.1) — Figma
+        // removed pending automatic OAuth handshake (v0.1.1); Figma
         // remains accessible via the local Dev Mode entry.
         let enrichments = load_builtin_enrichments();
         assert_eq!(

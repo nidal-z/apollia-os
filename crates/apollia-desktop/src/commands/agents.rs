@@ -1,8 +1,8 @@
-//! Commandes IPC Tauri pour la gestion des agents.
+//! Tauri IPC commands for agent management.
 //!
-//! Chaque commande délègue aux handles du runtime embarqué pour les agents
-//! runtime (list/start/stop) et à l'[`AgentRepository`] + [`AgentLoader`]
-//! pour les opérations de persistance (install/uninstall/enable/disable/update).
+//! Each command delegates to the embedded runtime handles for runtime agents
+//! (list/start/stop) and to the [`AgentRepository`] + [`AgentLoader`]
+//! for persistence operations (install/uninstall/enable/disable/update).
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -17,88 +17,88 @@ use tauri::State;
 use super::http_post_json;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types réponse
+// Response types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Réponse d'une installation ou mise à jour d'agent.
+/// Response to an agent install or update.
 #[derive(Debug, Serialize)]
 pub struct InstallAgentResponse {
-    /// Nom unique de l'agent installé.
+    /// Unique name of the installed agent.
     pub name: String,
-    /// Version semver de l'agent.
+    /// Semver version of the agent.
     pub version: String,
-    /// Chemin d'installation sur le disque.
+    /// Install path on disk.
     pub install_path: String,
 }
 
-/// Skill déclaré par un agent worker dans son manifest.
+/// Skill declared by a worker agent in its manifest.
 #[derive(Debug, Serialize)]
 pub struct AgentSkillView {
-    /// Identifiant unique du skill (e.g. `"read-excel"`).
+    /// Unique skill identifier (e.g. `"read-excel"`).
     pub id: String,
-    /// Nom lisible du skill.
+    /// Human-readable skill name.
     pub name: String,
-    /// Description courte du skill.
+    /// Short skill description.
     pub description: String,
 }
 
-/// Élément de la liste enrichie des agents.
+/// Item in the enriched agent list.
 ///
-/// Fusionne les agents installés (persistés dans `agents.db`) avec les agents
-/// actifs dans le runtime, offrant une vue unifiée au frontend.
+/// Merges installed agents (persisted in `agents.db`) with agents active in
+/// the runtime, giving the frontend a unified view.
 #[derive(Debug, Serialize)]
 pub struct AgentListItem {
-    /// UUID runtime de l'agent (`None` si l'agent est installé mais pas chargé).
+    /// Runtime UUID of the agent (`None` if installed but not loaded).
     pub id: Option<String>,
-    /// Nom unique de l'agent.
+    /// Unique agent name.
     pub name: String,
-    /// Version semver.
+    /// Semver version.
     pub version: String,
-    /// Indique si l'agent est activé pour le chargement au boot.
+    /// Whether the agent is enabled for loading at boot.
     pub enabled: bool,
-    /// État runtime (`"active"`, `"degraded"`, `"stopped"`, ou `None` si non chargé).
+    /// Runtime state (`"active"`, `"degraded"`, `"stopped"`, or `None` if not loaded).
     pub runtime_status: Option<String>,
-    /// Horodatage d'installation (RFC 3339, `None` pour les agents runtime-only).
+    /// Install timestamp (RFC 3339, `None` for runtime-only agents).
     pub installed_at: Option<String>,
-    /// Description humaine de l'agent (du manifest).
+    /// Human-readable agent description (from the manifest).
     pub description: Option<String>,
-    /// Tags libres pour le routing/découverte.
+    /// Free-form tags for routing/discovery.
     pub tags: Vec<String>,
-    /// Outils requis par l'agent.
+    /// Tools required by the agent.
     pub tools_required: Vec<String>,
-    /// Outils optionnels de l'agent.
+    /// Optional tools for the agent.
     pub tools_optional: Vec<String>,
-    /// Mode d'exécution (`"auto"`, `"direct"`, `"orchestrated"`).
+    /// Execution mode (`"auto"`, `"direct"`, `"orchestrated"`).
     pub execution_mode: Option<String>,
-    /// Chemin d'installation sur disque (`None` pour les agents runtime-only).
+    /// Install path on disk (`None` for runtime-only agents).
     pub install_path: Option<String>,
-    /// Indique si l'agent supporte la communication inter-agents (A2A).
+    /// Whether the agent supports inter-agent communication (A2A).
     pub supports_a2a: bool,
-    /// Skills A2A déclarés (vide si `supports_a2a` est `false`).
+    /// Declared A2A skills (empty if `supports_a2a` is `false`).
     pub skills: Vec<AgentSkillView>,
-    /// Rôle sémantique de l'agent : `"worker"` | `"assistant"` | `"system"` | `None`.
-    /// Utilisé par l'UI pour catégoriser les agents indépendamment de `supports_a2a`.
+    /// Semantic role of the agent: `"worker"` | `"assistant"` | `"system"` | `None`.
+    /// Used by the UI to categorize agents independently of `supports_a2a`.
     pub agent_type: Option<String>,
-    /// Exemples de prompts illustrant les usages typiques (vide = non renseigné).
+    /// Prompt examples illustrating typical uses (empty = not provided).
     pub examples: Vec<String>,
-    /// Limitations explicites : ce que l'agent ne fait pas (vide = non renseigné).
+    /// Explicit limitations: what the agent does not do (empty = not provided).
     pub limitations: Vec<String>,
-    /// Note de configuration requise avant la première utilisation (`None` = aucun prérequis).
+    /// Configuration note required before first use (`None` = no prerequisite).
     pub setup_notes: Option<String>,
-    /// Nom de la classe Python source de l'agent (ex: `"VeilleIaAgent"`,
+    /// Name of the agent's source Python class (e.g. `"VeilleIaAgent"`,
     /// `"ApolliaGuide"`, `"DocxWorker"`).
-    /// Renseigné par le validateur AIP. `None` pour les agents construits
-    /// hors pipeline PyO3.
+    /// Filled in by the AIP validator. `None` for agents built outside the
+    /// PyO3 pipeline.
     pub agent_class: Option<String>,
-    /// Namespace mémoire primaire déclaré dans le manifest. `None` = l'agent
-    /// n'a pas accès à la mémoire persistante.
+    /// Primary memory namespace declared in the manifest. `None` = the agent
+    /// has no access to persistent memory.
     ///
-    /// Plusieurs agents d'un même package partagent souvent le même namespace
-    /// (convention : tous déclarent `memory_namespace = "<package-slug>"`),
-    /// donc cette valeur n'est jamais dérivée de `name` côté UI — elle doit
-    /// venir du manifest pour matcher la clé SQLite.
+    /// Several agents from the same package often share the same namespace
+    /// (convention: all declare `memory_namespace = "<package-slug>"`), so this
+    /// value is never derived from `name` on the UI side; it must come from the
+    /// manifest to match the SQLite key.
     pub memory_namespace: Option<String>,
-    /// Namespaces mémoire partagés accessibles en lecture par l'agent.
+    /// Shared memory namespaces the agent can read from.
     pub shared_memory_namespaces: Vec<String>,
 }
 
@@ -106,7 +106,7 @@ pub struct AgentListItem {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Convertit un `ProcessState` en chaîne pour le frontend.
+/// Converts a `ProcessState` into a string for the frontend.
 fn state_to_string(state: &ProcessState) -> String {
     match state {
         ProcessState::Initializing => "initializing".to_string(),
@@ -117,13 +117,13 @@ fn state_to_string(state: &ProcessState) -> String {
     }
 }
 
-/// Résout le répertoire `~/.apollia/`.
+/// Resolves the `~/.apollia/` directory.
 fn apollia_data_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home).join(".apollia")
 }
 
-/// Horodatage courant en RFC 3339.
+/// Current timestamp in RFC 3339.
 fn now_rfc3339() -> String {
     chrono::Utc::now().to_rfc3339()
 }
@@ -150,7 +150,7 @@ fn copy_python_tree(
                 let _ = std::fs::copy(&path, dst_dir.join(name));
             }
         } else if path.is_dir() && path.join("__init__.py").exists() {
-            // Python package — copy recursively.
+            // Python package: copy recursively.
             if let Some(dir_name) = path.file_name() {
                 let sub_dst = dst_dir.join(dir_name);
                 let _ = std::fs::create_dir_all(&sub_dst);
@@ -161,14 +161,14 @@ fn copy_python_tree(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Commandes existantes
+// Existing commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Liste tous les agents — fusionne agents installés et agents runtime.
+/// Lists all agents, merging installed agents and runtime agents.
 ///
-/// Les agents installés (persistés dans `agents.db`) sont enrichis avec leur
-/// état runtime s'ils sont actuellement chargés. Les agents runtime-only
-/// (démarrés manuellement via `start_agent`) apparaissent aussi dans la liste.
+/// Installed agents (persisted in `agents.db`) are enriched with their runtime
+/// state when currently loaded. Runtime-only agents (started manually via
+/// `start_agent`) also appear in the list.
 #[tauri::command]
 pub async fn list_agents(
     runtime: State<'_, RuntimeHandle>,
@@ -200,7 +200,7 @@ pub async fn list_agents(
             .iter()
             .find(|e| e.manifest.name == agent.name);
 
-        // Prefer the runtime manifest when the agent is loaded — package
+        // Prefer the runtime manifest when the agent is loaded. Package
         // installation (`install_agent_package`) stores a stub manifest with
         // hardcoded defaults (memory_namespace=None, tools_required=[], ...)
         // because it never reads the per-agent Python file. The runtime, on
@@ -293,23 +293,22 @@ pub async fn list_agents(
     Ok(items)
 }
 
-/// Snapshot léger du statut live de tous les agents.
+/// Lightweight snapshot of the live status of all agents.
 ///
-/// Projette l'état runtime (`ProcessState`) vers les 4 statuts exposés au
-/// QuickPicker (`online` / `busy` / `offline` / `error`). Utilisé pour un
-/// polling rapide par le frontend sans charger le payload complet de
-/// [`list_agents`].
+/// Projects the runtime state (`ProcessState`) onto the 4 statuses exposed to
+/// the QuickPicker (`online` / `busy` / `offline` / `error`). Used for fast
+/// frontend polling without loading the full [`list_agents`] payload.
 ///
-/// Mapping :
+/// Mapping:
 /// - `Active`   → `"online"`
-/// - `Degraded` → `"error"` (dernier run a échoué)
-/// - `Stopping` | `Stopped` | non chargé → `"offline"`
+/// - `Degraded` → `"error"` (last run failed)
+/// - `Stopping` | `Stopped` | not loaded → `"offline"`
 /// - `Initializing` → `"busy"`
 #[derive(Debug, Serialize)]
 pub struct AgentStatusSnapshot {
-    /// Nom unique de l'agent.
+    /// Unique agent name.
     pub name: String,
-    /// Statut normalisé pour l'UI : `online` | `busy` | `offline` | `error`.
+    /// Status normalized for the UI: `online` | `busy` | `offline` | `error`.
     pub status: String,
 }
 
@@ -370,11 +369,11 @@ fn process_state_to_ui_status(state: &ProcessState) -> String {
     .to_string()
 }
 
-/// Démarre un agent depuis un fichier Python.
+/// Starts an agent from a Python file.
 ///
-/// Délègue à `POST /api/v1/agents` car le chargement Python nécessite
-/// `AgentLoader` et `BackendFactory` qui ne sont pas sur `RuntimeHandle`.
-/// Retourne l'`AgentId` (UUID) du nouvel agent.
+/// Delegates to `POST /api/v1/agents` because loading Python requires
+/// `AgentLoader` and `BackendFactory`, which are not on `RuntimeHandle`.
+/// Returns the new agent's `AgentId` (UUID).
 #[tauri::command]
 pub async fn start_agent(
     runtime: State<'_, RuntimeHandle>,
@@ -389,11 +388,11 @@ pub async fn start_agent(
         .ok_or_else(|| "missing agent_id in response".to_string())
 }
 
-/// Arrête un agent (transition Stopping → Stopped).
+/// Stops an agent (transition Stopping → Stopped).
 ///
-/// Délègue directement aux handles du registry et du TaskRouter, sans passer
-/// par l'API REST — le cycle complet est répliqué pour garantir l'ordre des
-/// événements sur l'EventBus.
+/// Delegates directly to the registry and TaskRouter handles, bypassing the
+/// REST API; the full cycle is replicated to guarantee event ordering on the
+/// EventBus.
 #[tauri::command]
 pub async fn stop_agent(runtime: State<'_, RuntimeHandle>, agent_id: String) -> Result<(), String> {
     let entry = runtime
@@ -436,11 +435,11 @@ pub async fn stop_agent(runtime: State<'_, RuntimeHandle>, agent_id: String) -> 
 // Commandes de persistance
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Installe un agent de façon permanente depuis un fichier Python.
+/// Installs an agent permanently from a Python file.
 ///
-/// Valide le module Python via `AgentLoader`, copie le fichier dans
-/// `~/.apollia/agents/<name>/agent.py`, et persiste l'entrée dans `agents.db`.
-/// Émet un `RuntimeEvent::AgentInstalled` sur l'EventBus.
+/// Validates the Python module via `AgentLoader`, copies the file to
+/// `~/.apollia/agents/<name>/agent.py`, and persists the entry in `agents.db`.
+/// Emits a `RuntimeEvent::AgentInstalled` on the EventBus.
 #[tauri::command]
 pub async fn install_agent(
     path: String,
@@ -516,11 +515,11 @@ pub async fn install_agent(
     })
 }
 
-/// Désinstalle un agent installé.
+/// Uninstalls an installed agent.
 ///
-/// 1. Supprime l'entrée de `agents.db` et le répertoire d'installation.
-/// 2. Retire l'agent du registry runtime (évite le ghost dans `list_agents`).
-/// 3. Émet un `RuntimeEvent::AgentUninstalled` sur l'EventBus.
+/// 1. Removes the entry from `agents.db` and the install directory.
+/// 2. Removes the agent from the runtime registry (avoids a ghost in `list_agents`).
+/// 3. Emits a `RuntimeEvent::AgentUninstalled` on the EventBus.
 #[tauri::command]
 pub async fn uninstall_agent(
     name: String,
@@ -555,7 +554,7 @@ pub async fn uninstall_agent(
     }
 
     // Remove from in-memory registry so list_agents no longer returns it.
-    // find_by_name returns None if the agent was never started — that is fine.
+    // find_by_name returns None if the agent was never started; that is fine.
     if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(&name).await {
         let _ = runtime
             .router_handle
@@ -569,10 +568,10 @@ pub async fn uninstall_agent(
     Ok(())
 }
 
-/// Active un agent installé pour l'auto-start au boot.
+/// Enables an installed agent for auto-start at boot.
 ///
-/// Met `enabled = true` dans `agents.db`.
-/// Émet un `RuntimeEvent::AgentEnabled` sur l'EventBus.
+/// Sets `enabled = true` in `agents.db`.
+/// Emits a `RuntimeEvent::AgentEnabled` on the EventBus.
 #[tauri::command]
 pub async fn enable_agent(
     name: String,
@@ -600,10 +599,10 @@ pub async fn enable_agent(
     Ok(())
 }
 
-/// Désactive un agent installé (ne sera plus chargé au boot).
+/// Disables an installed agent (it will no longer load at boot).
 ///
-/// Met `enabled = false` dans `agents.db`.
-/// Émet un `RuntimeEvent::AgentDisabled` sur l'EventBus.
+/// Sets `enabled = false` in `agents.db`.
+/// Emits a `RuntimeEvent::AgentDisabled` on the EventBus.
 #[tauri::command]
 pub async fn disable_agent(
     name: String,
@@ -632,10 +631,10 @@ pub async fn disable_agent(
     Ok(())
 }
 
-/// Met à jour un agent installé avec un nouveau fichier Python.
+/// Updates an installed agent with a new Python file.
 ///
-/// Valide le nouveau module via `AgentLoader`, remplace le fichier, et met à
-/// jour l'entrée dans `agents.db`. Émet `RuntimeEvent::AgentInstalled`.
+/// Validates the new module via `AgentLoader`, replaces the file, and updates
+/// the entry in `agents.db`. Emits `RuntimeEvent::AgentInstalled`.
 #[tauri::command]
 pub async fn update_agent(
     name: String,
@@ -727,28 +726,28 @@ pub async fn update_agent(
 // Agent messages
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Message échangé entre deux agents.
+/// Message exchanged between two agents.
 #[derive(Debug, Serialize)]
 pub struct AgentMessageView {
-    /// Nom de l'agent émetteur.
+    /// Name of the sending agent.
     pub from_agent: String,
-    /// Nom de l'agent destinataire.
+    /// Name of the receiving agent.
     pub to_agent: String,
-    /// Contenu JSON du message.
+    /// JSON content of the message.
     pub payload: serde_json::Value,
-    /// Horodatage d'envoi (RFC 3339).
+    /// Send timestamp (RFC 3339).
     pub sent_at: String,
 }
 
-/// Plafond maximal de messages retournés.
+/// Maximum cap on returned messages.
 const MAX_MESSAGE_LIMIT: u32 = 200;
-/// Limite par défaut si non spécifiée ou invalide.
+/// Default limit when unspecified or invalid.
 const DEFAULT_MESSAGE_LIMIT: u32 = 50;
 
-/// Retourne les messages reçus par un agent, triés par `sent_at` descendant.
+/// Returns the messages received by an agent, sorted by `sent_at` descending.
 ///
-/// Le `limit` est plafonné à 200 ; si `<= 0` ou non fourni, la valeur par
-/// défaut (50) s'applique. Délègue à `GET /api/v1/agents/{name}/messages`.
+/// `limit` is capped at 200; if `<= 0` or not provided, the default (50)
+/// applies. Delegates to `GET /api/v1/agents/{name}/messages`.
 #[tauri::command]
 pub async fn list_agent_messages(
     runtime: State<'_, RuntimeHandle>,
@@ -758,7 +757,7 @@ pub async fn list_agent_messages(
     list_agent_messages_inner(runtime.api_port, &agent_name, limit).await
 }
 
-/// Logique interne pour `list_agent_messages`, testable sans Tauri State.
+/// Inner logic for `list_agent_messages`, testable without Tauri State.
 async fn list_agent_messages_inner(
     port: u16,
     agent_name: &str,
@@ -814,11 +813,11 @@ async fn list_agent_messages_inner(
 // Scaffolding from template
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Types de template supportés pour le scaffolding d'agent.
+/// Template types supported for agent scaffolding.
 const VALID_TEMPLATE_TYPES: &[&str] = &["react", "conversational", "orchestrated"];
 
-/// Regex de validation du nom d'agent : lettres minuscules, chiffres, tirets.
-/// Commence par une lettre, finit par une lettre ou un chiffre, minimum 2 caractères.
+/// Validates the agent name: lowercase letters, digits, hyphens. Starts with a
+/// letter, ends with a letter or digit, minimum 2 characters.
 fn is_valid_agent_name(name: &str) -> bool {
     if name.len() < 2 {
         return false;
@@ -835,21 +834,21 @@ fn is_valid_agent_name(name: &str) -> bool {
         .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
-/// Résultat de la création d'un agent depuis un template SDK.
+/// Result of creating an agent from an SDK template.
 #[derive(Debug, Serialize)]
 pub struct CreateAgentResult {
-    /// Nom de l'agent créé.
+    /// Name of the created agent.
     pub name: String,
-    /// Type de template utilisé.
+    /// Template type used.
     pub template_type: String,
-    /// Chemin du dossier créé sur le disque.
+    /// Path of the directory created on disk.
     pub path: String,
 }
 
-/// Crée un nouvel agent depuis un template SDK.
+/// Creates a new agent from an SDK template.
 ///
-/// Délègue à `python3 -m apollia new` pour la génération effective.
-/// Retourne le chemin du dossier créé en cas de succès.
+/// Delegates to `python3 -m apollia new` for the actual generation.
+/// Returns the path of the created directory on success.
 #[tauri::command]
 pub async fn create_agent_from_template(
     name: String,
@@ -902,10 +901,10 @@ pub async fn create_agent_from_template(
     })
 }
 
-/// Vérifie si le SDK Python apollia est installé.
+/// Checks whether the apollia Python SDK is installed.
 ///
-/// Tente d'importer le module `apollia` via Python et retourne `true` si
-/// l'import réussit.
+/// Attempts to import the `apollia` module via Python and returns `true` if
+/// the import succeeds.
 #[tauri::command]
 pub async fn check_sdk_available() -> Result<bool, String> {
     let output = tokio::process::Command::new("python3")
@@ -917,9 +916,9 @@ pub async fn check_sdk_available() -> Result<bool, String> {
     Ok(output.status.success())
 }
 
-/// Vérifie si un nom d'agent est disponible (pas déjà utilisé).
+/// Checks whether an agent name is available (not already in use).
 ///
-/// Retourne `true` si le répertoire `~/.apollia/agents/<name>` n'existe pas.
+/// Returns `true` if the `~/.apollia/agents/<name>` directory does not exist.
 #[tauri::command]
 pub async fn check_agent_name_available(name: String) -> Result<bool, String> {
     let target = apollia_data_dir().join("agents").join(&name);
@@ -927,13 +926,13 @@ pub async fn check_agent_name_available(name: String) -> Result<bool, String> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Détail agent
+// Agent detail
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Récupère les détails complets d'un agent par son ID.
+/// Fetches the full details of an agent by its ID.
 ///
-/// Appelle `GET /api/v1/agents/{agent_id}` et retourne les données enrichies
-/// en JSON brut pour éviter de dupliquer la structure de données côté Tauri.
+/// Calls `GET /api/v1/agents/{agent_id}` and returns the enriched data as raw
+/// JSON to avoid duplicating the data structure on the Tauri side.
 #[tauri::command]
 pub async fn get_agent_detail(
     runtime: State<'_, RuntimeHandle>,
@@ -1008,6 +1007,8 @@ mod tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
         };
 
         // WHEN serialized to JSON
@@ -1050,6 +1051,8 @@ mod tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
         };
 
         // WHEN serialized to JSON
@@ -1087,6 +1090,8 @@ mod tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
         };
 
         // WHEN serialized to JSON

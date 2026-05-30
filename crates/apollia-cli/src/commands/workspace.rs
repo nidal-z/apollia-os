@@ -1,8 +1,8 @@
-//! `apollia workspace` — inspecte et initialise le workspace courant.
+//! `apollia workspace`: inspect and initialise the current workspace.
 //!
-//! Deux sous-commandes :
-//! - `status` : affiche branche git, fichiers modifiés, présence de APOLLIA.md et comptage de fichiers.
-//! - `init`   : crée APOLLIA.md avec le template standard (échoue si le fichier existe, sauf `--force`).
+//! Two subcommands:
+//! - `status`: shows the git branch, modified files, presence of APOLLIA.md, and a file count.
+//! - `init`:   creates APOLLIA.md from the standard template (fails if the file exists, unless `--force`).
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -53,7 +53,7 @@ pub enum WorkspaceCliError {
     Io(#[from] std::io::Error),
 }
 
-/// Données de statut du workspace, sérialisables en JSON.
+/// Workspace status data, serialisable to JSON.
 #[derive(Debug, Serialize)]
 struct WorkspaceStatusOutput {
     workspace_root: String,
@@ -63,7 +63,7 @@ struct WorkspaceStatusOutput {
     file_count: usize,
 }
 
-/// Point d'entrée de la sous-commande `apollia workspace`.
+/// Entry point of the `apollia workspace` subcommand.
 pub async fn run(cmd: &WorkspaceCommand, json: bool) -> i32 {
     match cmd {
         WorkspaceCommand::Status => run_workspace_status(json).await,
@@ -71,7 +71,7 @@ pub async fn run(cmd: &WorkspaceCommand, json: bool) -> i32 {
     }
 }
 
-/// Affiche le statut du workspace courant (branche git, fichiers modifiés, APOLLIA.md, comptage).
+/// Displays the status of the current workspace (git branch, modified files, APOLLIA.md, count).
 async fn run_workspace_status(json: bool) -> i32 {
     let cwd = match std::env::current_dir() {
         Ok(p) => p,
@@ -98,7 +98,7 @@ async fn run_workspace_status(json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// Initialise APOLLIA.md dans le répertoire courant.
+/// Initialises APOLLIA.md in the current directory.
 async fn run_workspace_init(force: bool, json: bool) -> i32 {
     let cwd = match std::env::current_dir() {
         Ok(p) => p,
@@ -131,9 +131,9 @@ async fn run_workspace_init(force: bool, json: bool) -> i32 {
     }
 }
 
-/// Collecte les données de statut du workspace pour `cwd`.
+/// Collects the workspace status data for `cwd`.
 ///
-/// Orchestre la collecte git, le comptage de fichiers et la détection de APOLLIA.md.
+/// Orchestrates the git collection, file count, and APOLLIA.md detection.
 async fn collect_workspace_status(cwd: &Path) -> WorkspaceStatusOutput {
     let git_result = GitContextCollector::collect(cwd, 200).await;
     let modified_files = parse_modified_files(git_result.status.as_deref());
@@ -149,9 +149,9 @@ async fn collect_workspace_status(cwd: &Path) -> WorkspaceStatusOutput {
     }
 }
 
-/// Écrit le template APOLLIA.md dans `cwd`.
+/// Writes the APOLLIA.md template into `cwd`.
 ///
-/// Retourne `Err(WorkspaceCliError::FileExists)` si le fichier existe déjà et `force` est `false`.
+/// Returns `Err(WorkspaceCliError::FileExists)` if the file already exists and `force` is `false`.
 async fn init_apollia_md(cwd: &Path, force: bool) -> Result<PathBuf, WorkspaceCliError> {
     let target = cwd.join("APOLLIA.md");
     if target.exists() && !force {
@@ -161,7 +161,7 @@ async fn init_apollia_md(cwd: &Path, force: bool) -> Result<PathBuf, WorkspaceCl
     Ok(target)
 }
 
-/// Affiche le statut du workspace en format humain.
+/// Displays the workspace status in human-readable form.
 fn print_workspace_status(s: &WorkspaceStatusOutput) {
     println!("Workspace : {}", s.workspace_root);
     match &s.git_branch {
@@ -187,9 +187,9 @@ fn print_workspace_status(s: &WorkspaceStatusOutput) {
     println!("Files: {}", s.file_count);
 }
 
-/// Extrait la liste des chemins modifiés depuis la sortie de `git status --short`.
+/// Extracts the list of modified paths from `git status --short` output.
 ///
-/// Format attendu par ligne : `XY PATH` (X = statut index, Y = statut working tree, PATH = chemin).
+/// Expected per-line format: `XY PATH` (X = index status, Y = working tree status, PATH = path).
 fn parse_modified_files(status_output: Option<&str>) -> Vec<String> {
     let Some(output) = status_output else {
         return Vec::new();
@@ -210,9 +210,9 @@ fn parse_modified_files(status_output: Option<&str>) -> Vec<String> {
         .collect()
 }
 
-/// Compte les fichiers récursivement dans `root` en ignorant les répertoires non pertinents.
+/// Counts files recursively under `root`, ignoring irrelevant directories.
 ///
-/// Ignore : `.git`, `target`, `node_modules`, `__pycache__`, `dist`, `.next`, `.DS_Store`.
+/// Ignores: `.git`, `target`, `node_modules`, `__pycache__`, `dist`, `.next`, `.DS_Store`.
 async fn count_files(root: &Path) -> usize {
     let mut count: usize = 0;
     let mut queue: VecDeque<PathBuf> = VecDeque::new();
@@ -243,7 +243,7 @@ async fn count_files(root: &Path) -> usize {
     count
 }
 
-/// Retourne `true` si le nom d'entrée doit être ignoré dans le comptage de fichiers.
+/// Returns `true` if the entry name should be ignored in the file count.
 fn should_ignore_for_count(name: &str) -> bool {
     matches!(
         name,
@@ -257,11 +257,11 @@ mod tests {
 
     #[tokio::test]
     async fn workspace_status_shows_git_branch() {
-        // GIVEN le dépôt apollia courant (un dépôt git valide)
+        // GIVEN the current apollia repository (a valid git repo)
         let cwd = std::env::current_dir().expect("current_dir");
-        // WHEN on collecte le statut
+        // WHEN we collect the status
         let status = collect_workspace_status(&cwd).await;
-        // THEN la branche git est détectée
+        // THEN the git branch is detected
         assert!(
             status.git_branch.is_some(),
             "doit détecter la branche dans un dépôt git"
@@ -270,12 +270,12 @@ mod tests {
 
     #[tokio::test]
     async fn workspace_init_creates_apollia_md() {
-        // GIVEN répertoire temporaire sans APOLLIA.md
+        // GIVEN a temporary directory without APOLLIA.md
         let dir = tempfile::tempdir().expect("tempdir");
         assert!(!dir.path().join("APOLLIA.md").exists());
-        // WHEN init sans --force dans un répertoire vide
+        // WHEN init without --force in an empty directory
         let result = init_apollia_md(dir.path(), false).await;
-        // THEN fichier créé avec succès
+        // THEN the file is created successfully
         assert!(
             result.is_ok(),
             "init doit réussir si le fichier n'existe pas"
@@ -288,12 +288,12 @@ mod tests {
 
     #[tokio::test]
     async fn workspace_init_fails_if_exists_without_force() {
-        // GIVEN APOLLIA.md existant
+        // GIVEN an existing APOLLIA.md
         let dir = tempfile::tempdir().expect("tempdir");
         tokio::fs::write(dir.path().join("APOLLIA.md"), "existing")
             .await
             .expect("write");
-        // WHEN init sans --force
+        // WHEN init without --force
         let result = init_apollia_md(dir.path(), false).await;
         // THEN Err(FileExists)
         assert!(
@@ -304,14 +304,14 @@ mod tests {
 
     #[tokio::test]
     async fn workspace_init_force_overwrites() {
-        // GIVEN APOLLIA.md existant avec un contenu arbitraire
+        // GIVEN an existing APOLLIA.md with arbitrary content
         let dir = tempfile::tempdir().expect("tempdir");
         tokio::fs::write(dir.path().join("APOLLIA.md"), "ancien contenu")
             .await
             .expect("write");
         // WHEN init --force
         let result = init_apollia_md(dir.path(), true).await;
-        // THEN succès et contenu du template standard
+        // THEN success, with the standard template content
         assert!(result.is_ok(), "init --force doit réussir");
         let content = tokio::fs::read_to_string(dir.path().join("APOLLIA.md"))
             .await
@@ -328,12 +328,12 @@ mod tests {
 
     #[tokio::test]
     async fn workspace_status_json_output() {
-        // GIVEN le dépôt apollia courant
+        // GIVEN the current apollia repository
         let cwd = std::env::current_dir().expect("current_dir");
-        // WHEN on sérialise le statut en JSON
+        // WHEN we serialise the status to JSON
         let status = collect_workspace_status(&cwd).await;
         let json_str = serde_json::to_string_pretty(&status).expect("serialize");
-        // THEN le JSON est valide et contient tous les champs requis
+        // THEN the JSON is valid and contains all the required fields
         let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("parse");
         assert!(
             parsed["workspace_root"].is_string(),
@@ -359,11 +359,11 @@ mod tests {
 
     #[test]
     fn parse_modified_files_extracts_paths() {
-        // GIVEN sortie git status --short avec trois entrées
+        // GIVEN git status --short output with three entries
         let status = " M src/main.rs\n?? Cargo.toml\n M crates/foo/bar.rs";
         // WHEN
         let files = parse_modified_files(Some(status));
-        // THEN trois chemins extraits
+        // THEN three paths are extracted
         assert_eq!(files.len(), 3, "doit extraire 3 fichiers");
         assert!(files.contains(&"src/main.rs".to_owned()));
         assert!(files.contains(&"Cargo.toml".to_owned()));
@@ -372,7 +372,7 @@ mod tests {
 
     #[test]
     fn parse_modified_files_returns_empty_for_none() {
-        // GIVEN pas de statut git (hors dépôt)
+        // GIVEN no git status (outside a repository)
         // WHEN / THEN
         assert!(
             parse_modified_files(None).is_empty(),
@@ -382,7 +382,7 @@ mod tests {
 
     #[tokio::test]
     async fn count_files_ignores_git_and_target() {
-        // GIVEN répertoire avec .git/, target/, et src/main.rs
+        // GIVEN a directory with .git/, target/, and src/main.rs
         let dir = tempfile::tempdir().expect("tempdir");
         tokio::fs::create_dir(dir.path().join(".git"))
             .await
@@ -404,7 +404,7 @@ mod tests {
             .expect("write target out");
         // WHEN
         let count = count_files(dir.path()).await;
-        // THEN seul src/main.rs est compté
+        // THEN only src/main.rs is counted
         assert_eq!(
             count, 1,
             ".git et target doivent être ignorés : got {count}"

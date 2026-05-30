@@ -7,32 +7,32 @@ use crate::{
     engine::{NotifError, Notification, NotificationChannel},
 };
 
-/// Canal de notification desktop OS (macOS NSUserNotification, Linux D-Bus/libnotify).
+/// Desktop OS notification channel (macOS NSUserNotification, Linux D-Bus/libnotify).
 ///
-/// Envoie des notifications natives via `notify-rust` v4. Pour les événements
-/// `task.input_required` sur Linux (XDG), trois actions inline sont proposées :
-/// - **✔ Approuver** → `POST /api/v1/tasks/{id}/resume { approved: true }`
-/// - **✗ Rejeter**   → `POST /api/v1/tasks/{id}/resume { approved: false }`
-/// - **Inspecter**   → ouvre le dashboard dans le navigateur par défaut
+/// Sends native notifications via `notify-rust` v4. For `task.input_required`
+/// events on Linux (XDG), three inline actions are offered:
+/// - **Approve** -> `POST /api/v1/tasks/{id}/resume { approved: true }`
+/// - **Reject**  -> `POST /api/v1/tasks/{id}/resume { approved: false }`
+/// - **Inspect** -> opens the dashboard in the default browser
 ///
-/// Pour tous les autres événements, une notification simple est affichée ;
-/// un clic ouvre le dashboard local (Linux uniquement — `wait_for_action`).
+/// For all other events, a plain notification is shown; a click opens the local
+/// dashboard (Linux only, via `wait_for_action`).
 ///
-/// La méthode [`send`] retourne `Ok(())` immédiatement : l'attente de l'action
-/// utilisateur s'exécute dans un [`tokio::task::spawn_blocking`] non-bloquant.
+/// The [`send`] method returns `Ok(())` immediately: waiting for the user action
+/// runs in a non-blocking [`tokio::task::spawn_blocking`].
 ///
-/// En CI headless (Linux sans `DISPLAY` ni `DBUS_SESSION_BUS_ADDRESS`), les
-/// notifications sont ignorées silencieusement pour éviter tout panic.
+/// In headless CI (Linux without `DISPLAY` or `DBUS_SESSION_BUS_ADDRESS`),
+/// notifications are silently ignored to avoid any panic.
 pub struct DesktopChannel {
     id: String,
     enabled: bool,
     events: Option<Vec<String>>,
-    /// Seuil de sévérité : les notifications moins critiques sont ignorées silencieusement.
+    /// Severity threshold: less critical notifications are silently ignored.
     min_severity: Severity,
 }
 
 impl DesktopChannel {
-    /// Crée un canal desktop avec l'identifiant, la configuration et le seuil de sévérité donnés.
+    /// Creates a desktop channel with the given identifier, configuration, and severity threshold.
     pub fn new(
         id: impl Into<String>,
         enabled: bool,
@@ -56,31 +56,31 @@ impl Default for DesktopChannel {
 
 #[async_trait]
 impl NotificationChannel for DesktopChannel {
-    /// Retourne l'identifiant du canal tel que configuré dans `apollia.toml`.
+    /// Returns the channel identifier as configured in `apollia.toml`.
     fn id(&self) -> &str {
         &self.id
     }
 
-    /// Retourne `true` si ce canal est activé et accepte l'événement donné.
+    /// Returns `true` if this channel is enabled and accepts the given event.
     fn accepts(&self, event: &str, config: &NotificationConfig) -> bool {
         channel_accepts_event(self.enabled, &self.events, event, &config.events)
     }
 
-    /// Affiche une notification OS native.
+    /// Shows a native OS notification.
     ///
-    /// Pour `task.input_required` : ajoute les actions Approuver / Rejeter / Inspecter
-    /// (Linux/XDG uniquement via `wait_for_action`).
-    /// Pour les autres événements : notification simple, clic → dashboard.
+    /// For `task.input_required`: adds the Approve / Reject / Inspect actions
+    /// (Linux/XDG only, via `wait_for_action`).
+    /// For other events: a plain notification, click opens the dashboard.
     ///
-    /// Retourne `Ok(())` immédiatement. L'attente d'une action utilisateur tourne
-    /// dans un `spawn_blocking` en arrière-plan. Les erreurs OS sont loggées en
-    /// `warn!` sans propagation.
+    /// Returns `Ok(())` immediately. Waiting for a user action runs in a
+    /// background `spawn_blocking`. OS errors are logged at `warn!` without
+    /// propagation.
     async fn send(&self, notif: &Notification) -> Result<(), NotifError> {
         if notif.severity < self.min_severity {
             return Ok(());
         }
 
-        // Dégradation gracieuse en CI headless (Linux sans display)
+        // Graceful degradation in headless CI (Linux without a display).
         #[cfg(target_os = "linux")]
         if std::env::var("DISPLAY").is_err() && std::env::var("DBUS_SESSION_BUS_ADDRESS").is_err() {
             tracing::debug!(
@@ -111,26 +111,27 @@ impl NotificationChannel for DesktopChannel {
             .unwrap_or_default();
         let severity = notif.severity;
 
+        let params = OsNotifParams {
+            summary,
+            body,
+            severity,
+            is_hitl,
+            resume_url,
+            inspect_url,
+            dashboard_url,
+        };
+
         tokio::task::spawn_blocking(move || {
-            show_os_notification(
-                summary,
-                body,
-                severity,
-                is_hitl,
-                resume_url,
-                inspect_url,
-                dashboard_url,
-            );
+            show_os_notification(params);
         });
 
         Ok(())
     }
 }
 
-/// Affiche la notification OS et gère les actions (appelé dans `spawn_blocking`).
-///
-/// Séparé de `send()` pour être testable et pour isoler le code bloquant.
-fn show_os_notification(
+/// Owned parameters of an OS notification, grouped into a single bundle to cross
+/// the `spawn_blocking` boundary and the platform-specific implementations.
+struct OsNotifParams {
     summary: String,
     body: String,
     severity: Severity,
@@ -138,146 +139,158 @@ fn show_os_notification(
     resume_url: String,
     inspect_url: String,
     dashboard_url: String,
-) {
+}
+
+/// Shows the OS notification and handles the actions (called inside `spawn_blocking`).
+///
+/// Separated from `send()` to be testable and to isolate the blocking code.
+fn show_os_notification(params: OsNotifParams) {
     #[cfg(all(unix, not(target_os = "macos")))]
-    show_os_notification_xdg(
-        summary,
-        body,
-        severity,
-        is_hitl,
-        resume_url,
-        inspect_url,
-        dashboard_url,
-    );
+    show_os_notification_xdg(params);
 
-    // macOS : osascript est la seule API fiable pour les binaires CLI sans bundle ID.
-    // mac-notification-sys (défaut notify-rust) nécessite un bundle identifier
-    // qui n'existe pas pour un binaire compilé directement.
+    // macOS: osascript is the only reliable API for CLI binaries without a bundle ID.
+    // mac-notification-sys (notify-rust's default) requires a bundle identifier,
+    // which does not exist for a directly compiled binary.
     #[cfg(target_os = "macos")]
-    show_os_notification_macos(summary, body);
+    show_os_notification_macos(params.summary, params.body);
 
-    // Windows et autres plateformes non-Unix : fallback notify-rust simple.
+    // Windows and other non-Unix platforms: plain notify-rust fallback.
     #[cfg(not(any(all(unix, not(target_os = "macos")), target_os = "macos")))]
-    show_os_notification_fallback(summary, body);
+    show_os_notification_fallback(params.summary, params.body);
 
-    // Paramètres non utilisés sur macOS/Windows — silence les warnings.
+    // Parameters unused on macOS/Windows: silence the warnings.
     #[cfg(not(all(unix, not(target_os = "macos"))))]
     {
-        let _ = (severity, is_hitl, resume_url, inspect_url, dashboard_url);
+        let _ = (
+            params.severity,
+            params.is_hitl,
+            params.resume_url,
+            params.inspect_url,
+            params.dashboard_url,
+        );
     }
 }
 
-/// Implémentation XDG (Linux) avec urgency, actions inline et `wait_for_action`.
+/// XDG (Linux) implementation with urgency, inline actions, and `wait_for_action`.
 #[cfg(all(unix, not(target_os = "macos")))]
-fn show_os_notification_xdg(
-    summary: String,
-    body: String,
-    severity: Severity,
-    is_hitl: bool,
-    resume_url: String,
-    inspect_url: String,
-    dashboard_url: String,
-) {
-    let urgency = severity_to_urgency(severity);
+fn show_os_notification_xdg(params: OsNotifParams) {
+    let urgency = severity_to_urgency(params.severity);
 
-    if is_hitl {
-        let mut os_notif = OsNotif::new();
-        os_notif
-            .summary(&summary)
-            .body(&body)
-            .urgency(urgency)
-            .icon("dialog-warning")
-            .action("approve", "✔ Approuver")
-            .action("reject", "✗ Rejeter")
-            .action("inspect", "Inspecter");
-
-        let handle = match os_notif.show() {
-            Ok(h) => h,
-            Err(err) => {
-                tracing::warn!(
-                    error = %err,
-                    "DesktopChannel : affichage de notification OS impossible"
-                );
-                return;
-            }
-        };
-
-        handle.wait_for_action(|action| match action {
-            "approve" => {
-                let payload = serde_json::json!({ "approved": true });
-                if let Err(err) = ureq::post(&resume_url).send_json(payload) {
-                    tracing::warn!(
-                        error = %err,
-                        resume_url = %resume_url,
-                        "DesktopChannel : POST resume (approve) échoué"
-                    );
-                }
-            }
-            "reject" => {
-                let payload = serde_json::json!({
-                    "approved": false,
-                    "reason": "Refusé depuis la notification"
-                });
-                if let Err(err) = ureq::post(&resume_url).send_json(payload) {
-                    tracing::warn!(
-                        error = %err,
-                        resume_url = %resume_url,
-                        "DesktopChannel : POST resume (reject) échoué"
-                    );
-                }
-            }
-            "inspect" => {
-                if let Err(err) = open::that(&inspect_url) {
-                    tracing::warn!(
-                        error = %err,
-                        inspect_url = %inspect_url,
-                        "DesktopChannel : ouverture du browser impossible"
-                    );
-                }
-            }
-            _ => {}
-        });
+    if params.is_hitl {
+        show_os_notification_xdg_hitl(&params, urgency);
     } else {
-        let mut os_notif = OsNotif::new();
-        os_notif
-            .summary(&summary)
-            .body(&body)
-            .urgency(urgency)
-            .icon("dialog-information");
-
-        let handle = match os_notif.show() {
-            Ok(h) => h,
-            Err(err) => {
-                tracing::warn!(
-                    error = %err,
-                    "DesktopChannel : affichage de notification OS impossible"
-                );
-                return;
-            }
-        };
-
-        handle.wait_for_action(|action| {
-            if action != "__closed" {
-                if let Err(err) = open::that(&dashboard_url) {
-                    tracing::warn!(
-                        error = %err,
-                        "DesktopChannel : ouverture du dashboard impossible"
-                    );
-                }
-            }
-        });
+        show_os_notification_xdg_plain(&params, urgency);
     }
 }
 
-/// Implémentation macOS via `osascript` — fiable pour les binaires CLI sans bundle ID.
+/// Shows a notification `handle` or logs the failure, returning `None` when the
+/// display failed.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn show_or_warn(os_notif: &OsNotif) -> Option<notify_rust::NotificationHandle> {
+    match os_notif.show() {
+        Ok(h) => Some(h),
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "DesktopChannel : affichage de notification OS impossible"
+            );
+            None
+        }
+    }
+}
+
+/// HITL variant: approve / reject / inspect actions.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn show_os_notification_xdg_hitl(params: &OsNotifParams, urgency: notify_rust::Urgency) {
+    let mut os_notif = OsNotif::new();
+    os_notif
+        .summary(&params.summary)
+        .body(&params.body)
+        .urgency(urgency)
+        .icon("dialog-warning")
+        .action("approve", "✔ Approuver")
+        .action("reject", "✗ Rejeter")
+        .action("inspect", "Inspecter");
+
+    let Some(handle) = show_or_warn(&os_notif) else {
+        return;
+    };
+
+    let resume_url = params.resume_url.clone();
+    let inspect_url = params.inspect_url.clone();
+    handle.wait_for_action(|action| match action {
+        "approve" => post_resume_decision(&resume_url, true),
+        "reject" => post_resume_decision(&resume_url, false),
+        "inspect" => {
+            if let Err(err) = open::that(&inspect_url) {
+                tracing::warn!(
+                    error = %err,
+                    inspect_url = %inspect_url,
+                    "DesktopChannel : ouverture du browser impossible"
+                );
+            }
+        }
+        _ => {}
+    });
+}
+
+/// POSTs the HITL approval decision to `resume_url`.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn post_resume_decision(resume_url: &str, approved: bool) {
+    let payload = if approved {
+        serde_json::json!({ "approved": true })
+    } else {
+        serde_json::json!({
+            "approved": false,
+            "reason": "Refusé depuis la notification"
+        })
+    };
+    let label = if approved { "approve" } else { "reject" };
+    if let Err(err) = ureq::post(resume_url).send_json(payload) {
+        tracing::warn!(
+            error = %err,
+            resume_url = %resume_url,
+            "DesktopChannel : POST resume ({label}) échoué"
+        );
+    }
+}
+
+/// Plain variant: a click opens the dashboard.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn show_os_notification_xdg_plain(params: &OsNotifParams, urgency: notify_rust::Urgency) {
+    let mut os_notif = OsNotif::new();
+    os_notif
+        .summary(&params.summary)
+        .body(&params.body)
+        .urgency(urgency)
+        .icon("dialog-information");
+
+    let Some(handle) = show_or_warn(&os_notif) else {
+        return;
+    };
+
+    let dashboard_url = params.dashboard_url.clone();
+    handle.wait_for_action(move |action| {
+        if action != "__closed" {
+            if let Err(err) = open::that(&dashboard_url) {
+                tracing::warn!(
+                    error = %err,
+                    "DesktopChannel : ouverture du dashboard impossible"
+                );
+            }
+        }
+    });
+}
+
+/// macOS implementation via `osascript`: reliable for CLI binaries without a bundle ID.
 ///
-/// `mac-notification-sys` (utilisé par `notify-rust` 4 par défaut sur macOS) exige un
-/// bundle identifier CFBundleIdentifier présent dans Info.plist. Les binaires compilés
-/// directement ne l'ont pas, ce qui provoque un échec silencieux. `osascript` contourne
-/// cette contrainte et fonctionne depuis n'importe quel processus Terminal.
+/// `mac-notification-sys` (used by `notify-rust` 4 by default on macOS) requires
+/// a CFBundleIdentifier present in Info.plist. Directly compiled binaries do not
+/// have one, which causes a silent failure. `osascript` works around this
+/// constraint and works from any Terminal process.
 #[cfg(target_os = "macos")]
 fn show_os_notification_macos(summary: String, body: String) {
-    // Échappe les guillemets internes pour l'AppleScript.
+    // Escape inner quotes for the AppleScript.
     let body_esc = body.replace('\\', "\\\\").replace('"', "\\\"");
     let summary_esc = summary.replace('\\', "\\\\").replace('"', "\\\"");
     let script = format!("display notification \"{body_esc}\" with title \"{summary_esc}\"");
@@ -304,7 +317,7 @@ fn show_os_notification_macos(summary: String, body: String) {
     }
 }
 
-/// Implémentation de repli pour Windows et autres plateformes non-Unix.
+/// Fallback implementation for Windows and other non-Unix platforms.
 #[cfg(not(any(all(unix, not(target_os = "macos")), target_os = "macos")))]
 fn show_os_notification_fallback(summary: String, body: String) {
     let mut os_notif = OsNotif::new();
@@ -318,7 +331,7 @@ fn show_os_notification_fallback(summary: String, body: String) {
     }
 }
 
-/// Convertit une [`Severity`] en niveau d'urgence `notify-rust` (Linux/XDG uniquement).
+/// Converts a [`Severity`] into a `notify-rust` urgency level (Linux/XDG only).
 #[cfg(all(unix, not(target_os = "macos")))]
 fn severity_to_urgency(s: Severity) -> notify_rust::Urgency {
     use notify_rust::Urgency;
@@ -329,9 +342,9 @@ fn severity_to_urgency(s: Severity) -> notify_rust::Urgency {
     }
 }
 
-/// Version cross-platform de `severity_to_urgency` pour les tests.
+/// Cross-platform version of `severity_to_urgency` for tests.
 ///
-/// Retourne une représentation textuelle de la sévérité utilisable sur toutes les plateformes.
+/// Returns a textual representation of the severity usable on all platforms.
 pub fn severity_as_urgency_str(s: Severity) -> &'static str {
     match s {
         Severity::Critical | Severity::Error => "critical",
@@ -364,7 +377,7 @@ mod tests {
 
     #[test]
     fn test_severity_to_urgency_mapping() {
-        // GIVEN / WHEN / THEN — vérification du mapping textuel cross-platform
+        // GIVEN / WHEN / THEN check the cross-platform textual mapping
         assert_eq!(severity_as_urgency_str(Severity::Critical), "critical");
         assert_eq!(severity_as_urgency_str(Severity::Error), "critical");
         assert_eq!(severity_as_urgency_str(Severity::Warning), "normal");
@@ -382,7 +395,7 @@ mod tests {
 
     #[test]
     fn test_desktop_default_min_severity_is_error() {
-        // GIVEN canal desktop par défaut
+        // GIVEN the default desktop channel
         // WHEN / THEN
         let channel = DesktopChannel::default();
         assert_eq!(channel.min_severity, Severity::Error);
@@ -390,36 +403,36 @@ mod tests {
 
     #[test]
     fn test_desktop_channel_accepts_global_events() {
-        // GIVEN canal activé sans liste propre → délègue à la liste globale
+        // GIVEN an enabled channel without its own list, delegating to the global list
         let channel = DesktopChannel::new("desktop", true, None, Severity::Error);
         let config = NotificationConfig {
             events: vec!["task.input_required".into(), "task.failed".into()],
             channels: vec![],
             inactivity_timeout_secs: 30,
         };
-        // WHEN / THEN — événements de la liste globale acceptés
+        // WHEN / THEN events from the global list are accepted
         assert!(channel.accepts("task.input_required", &config));
         assert!(channel.accepts("task.failed", &config));
-        // Événement absent de la liste globale → refusé
+        // Event absent from the global list is rejected.
         assert!(!channel.accepts("task.completed", &config));
     }
 
     #[test]
     fn test_desktop_channel_accepts_disabled() {
-        // GIVEN canal désactivé
+        // GIVEN a disabled channel
         let channel = DesktopChannel::new("desktop", false, None, Severity::Error);
         let config = NotificationConfig {
             events: vec!["task.input_required".into()],
             channels: vec![],
             inactivity_timeout_secs: 30,
         };
-        // WHEN / THEN — aucun événement accepté si canal désactivé
+        // WHEN / THEN no event accepted when the channel is disabled
         assert!(!channel.accepts("task.input_required", &config));
     }
 
     #[test]
     fn test_desktop_channel_accepts_per_channel_events() {
-        // GIVEN canal avec liste propre restreinte à un sous-ensemble
+        // GIVEN a channel with its own list restricted to a subset
         let channel = DesktopChannel::new(
             "desktop",
             true,
@@ -438,10 +451,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_desktop_filters_info_when_min_severity_is_error() {
-        // GIVEN canal desktop avec min_severity = Error
+        // GIVEN a desktop channel with min_severity = Error
         let channel = DesktopChannel::new("desktop", true, None, Severity::Error);
         let notif = make_notif("task.completed", None, HashMap::new());
-        // notif.severity = Severity::Warning (voir make_notif) < Error → filtré
+        // notif.severity = Severity::Warning (see make_notif) < Error, so filtered.
 
         // WHEN
         let notif_info = Notification {
@@ -450,13 +463,13 @@ mod tests {
         };
         let result = channel.send(&notif_info).await;
 
-        // THEN — Ok(()) immédiat, rien envoyé
+        // THEN immediate Ok(()), nothing sent
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_desktop_sends_when_severity_meets_threshold() {
-        // GIVEN canal desktop avec min_severity = Error, notification Error
+        // GIVEN a desktop channel with min_severity = Error, an Error notification
         let channel = DesktopChannel::new("desktop", true, None, Severity::Error);
         let notif = Notification {
             event: "task.failed".into(),
@@ -471,28 +484,28 @@ mod tests {
         // WHEN
         let result = channel.send(&notif).await;
 
-        // THEN — Ok(()) (envoi lancé, retour non-bloquant)
+        // THEN Ok(()) (send launched, non-blocking return)
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_ac6_send_is_nonblocking() {
-        // GIVEN un canal desktop avec min_severity = Info et une notification task.failed
+        // GIVEN a desktop channel with min_severity = Info and a task.failed notification
         let channel = DesktopChannel::new("desktop", true, None, Severity::Info);
         let notif = make_notif("task.failed", Some("t-test"), HashMap::new());
 
-        // WHEN — send() appelé depuis un contexte async
+        // WHEN send() called from an async context
         let result = channel.send(&notif).await;
 
-        // THEN — retourne immédiatement Ok(()) sans bloquer
-        // Sur CI headless Linux : return anticipé avant spawn_blocking
-        // Sur macOS : spawn_blocking lancé en arrière-plan, send() retourne
+        // THEN returns Ok(()) immediately without blocking.
+        // On headless Linux CI: early return before spawn_blocking.
+        // On macOS: spawn_blocking launched in the background, send() returns.
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_ac6_send_hitl_is_nonblocking() {
-        // GIVEN une notification task.input_required (HITL)
+        // GIVEN a task.input_required notification (HITL)
         let channel = DesktopChannel::new("desktop", true, None, Severity::Info);
         let mut metadata = HashMap::new();
         metadata.insert(
@@ -508,7 +521,7 @@ mod tests {
         // WHEN
         let result = channel.send(&notif).await;
 
-        // THEN — retourne Ok(()) immédiatement même pour les notifications HITL
+        // THEN returns Ok(()) immediately even for HITL notifications
         assert!(result.is_ok());
     }
 }

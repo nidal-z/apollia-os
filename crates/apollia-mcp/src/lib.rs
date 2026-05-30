@@ -1,4 +1,4 @@
-//! `apollia-mcp` — MCP client and server for Apollia OS.
+//! `apollia-mcp`: MCP client and server for Apollia OS.
 //!
 //! Provides configuration parsing, JSON-RPC transport, session lifecycle,
 //! server management, tool execution for the Model Context Protocol, and

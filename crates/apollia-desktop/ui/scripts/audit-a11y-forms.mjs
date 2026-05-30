@@ -31,6 +31,36 @@ async function* walk(dir) {
 }
 
 /**
+ * Walk `src` from index `start`, balancing `{…}` expressions and quoted
+ * attribute values, and return the index of the top-level `>` that closes
+ * the opening tag. Used by {@link primitiveTags}.
+ */
+function findTagEnd(src, start) {
+  let i = start;
+  let depth = 0;
+  let inString = null;
+  while (i < src.length) {
+    const ch = src[i];
+    if (inString) {
+      if (ch === inString) inString = null;
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inString = ch;
+    } else if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+    } else if (depth === 0 && ch === ">") {
+      return i;
+    }
+    i++;
+  }
+  return i;
+}
+
+/**
  * Return each `<Input|Select|Textarea …>` opening-tag attribute
  * block in `src`, balanced against Svelte `{…}` expressions.
  */
@@ -39,40 +69,20 @@ function* primitiveTags(src) {
   let match;
   while ((match = nameRe.exec(src)) !== null) {
     if (!PRIMITIVES.has(match[1])) continue;
-    // Walk forward from after the name; balance braces; stop at
-    // top-level `>` or `/>`.
-    let i = nameRe.lastIndex;
-    let depth = 0;
-    let inString = null; // track quote char so a stray `{` in an
-                         // attribute value doesn't break balance.
-    while (i < src.length) {
-      const ch = src[i];
-      if (inString) {
-        if (ch === inString) inString = null;
-        i++;
-        continue;
-      }
-      if (ch === '"' || ch === "'") { inString = ch; i++; continue; }
-      if (ch === "{") { depth++; i++; continue; }
-      if (ch === "}") { depth--; i++; continue; }
-      if (depth === 0 && ch === ">") {
-        break;
-      }
-      i++;
-    }
+    const tagEnd = findTagEnd(src, nameRe.lastIndex);
     yield {
       name: match[1],
-      attrs: src.slice(nameRe.lastIndex, i),
+      attrs: src.slice(nameRe.lastIndex, tagEnd),
       index: match.index,
     };
   }
 }
 
 function extractAttr(attrs, name) {
-  const re = new RegExp(`\\b${name}=(?:"([^"]+)"|'([^']+)'|\\{([^}]+)\\})`);
+  const re = new RegExp(String.raw`\b${name}=(?:"([^"]+)"|'([^']+)'|\{([^}]+)\})`);
   const m = attrs.match(re);
   if (!m) return null;
-  return (m[1] ?? m[2] ?? m[3] ?? "").replace(/[{}]/g, "").trim();
+  return (m[1] ?? m[2] ?? m[3] ?? "").replaceAll(/[{}]/g, "").trim();
 }
 
 const violations = [];
@@ -86,7 +96,7 @@ for await (const file of walk(ROOT)) {
   for (const match of source.matchAll(
     /<label\b[^>]*\bfor=(?:"([^"]+)"|'([^']+)'|\{([^}]+)\})/g,
   )) {
-    forIds.add((match[1] ?? match[2] ?? match[3] ?? "").replace(/[{}]/g, "").trim());
+    forIds.add((match[1] ?? match[2] ?? match[3] ?? "").replaceAll(/[{}]/g, "").trim());
   }
 
   for (const { name, attrs, index } of primitiveTags(source)) {

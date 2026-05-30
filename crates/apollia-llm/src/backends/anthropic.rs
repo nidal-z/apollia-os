@@ -1,32 +1,32 @@
-//! Client HTTP Anthropic via `reqwest` direct.
+//! Anthropic HTTP client via direct `reqwest`.
 //!
-//! Ce module est compilé uniquement avec `feature = "cloud"`.
+//! This module compiles only with `feature = "cloud"`.
 //!
-//! Utilise l'API Anthropic Messages (`/v1/messages`) avec les headers natifs
-//! `x-api-key`, `anthropic-version: 2023-06-01` et le header beta
-//! `prompt-caching-2024-07-31` pour le prompt caching.
+//! Uses the Anthropic Messages API (`/v1/messages`) with the native headers
+//! `x-api-key`, `anthropic-version: 2023-06-01` and the beta header
+//! `prompt-caching-2024-07-31` for prompt caching.
 //!
 //! # Architecture
 //!
 //! ```text
 //! apollia-llm [feature = "cloud"]
 //!   └── AnthropicClient : CompletionModel
-//!         ├── new()                    — construit reqwest::Client avec clé API
-//!         ├── parse_response()         — fonction pure testable sans HTTP
-//!         ├── complete()               — POST /v1/messages → CompletionResponse
-//!         └── stream()                 — POST /v1/messages (stream=true) → SSE chunks
+//!         ├── new()                    builds reqwest::Client with API key
+//!         ├── parse_response()         pure function testable without HTTP
+//!         ├── complete()               POST /v1/messages -> CompletionResponse
+//!         └── stream()                 POST /v1/messages (stream=true) -> SSE chunks
 //! ```
 //!
 //! # Prompt caching
 //!
-//! Chaque requête inclut le header beta `prompt-caching-2024-07-31`.
-//! `build_request()` applique trois breakpoints automatiques :
-//! - system prompt (breakpoint stable)
-//! - dernier outil (breakpoint stable)
-//! - 3ème message depuis la fin (breakpoint glissant)
+//! Each request includes the beta header `prompt-caching-2024-07-31`.
+//! `build_request()` applies three automatic breakpoints:
+//! - system prompt (stable breakpoint)
+//! - last tool (stable breakpoint)
+//! - 3rd message from the end (sliding breakpoint)
 //!
-//! Les messages avec `ChatMessage.cache_control = Some(CacheControl::Ephemeral)`
-//! sont également marqués lors de la conversion.
+//! Messages with `ChatMessage.cache_control = Some(CacheControl::Ephemeral)`
+//! are also marked during conversion.
 
 use std::pin::Pin;
 use std::time::Instant;
@@ -44,38 +44,34 @@ use crate::types::{
 
 use super::openai::ApiBackendConfig;
 
-// ─────────────────────────────────────────────
-// Constantes
-// ─────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────
 
-/// Version de l'API Anthropic transmise dans le header `anthropic-version`.
+/// Anthropic API version sent in the `anthropic-version` header.
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 
-/// Nom du header portant la clé API Anthropic.
+/// Name of the header carrying the Anthropic API key.
 const ANTHROPIC_API_KEY_HEADER: &str = "x-api-key";
 
-/// Nom du header de version de l'API Anthropic.
+/// Name of the Anthropic API version header.
 const ANTHROPIC_VERSION_HEADER: &str = "anthropic-version";
 
-/// Header beta Anthropic activant le prompt caching.
+/// Anthropic beta header enabling prompt caching.
 const PROMPT_CACHING_BETA_HEADER: &str = "anthropic-beta";
 
-/// Valeur du header beta pour le prompt caching.
+/// Beta header value for prompt caching.
 const PROMPT_CACHING_BETA: &str = "prompt-caching-2024-07-31";
 
-/// Multiplicateur de coût pour l'écriture dans le cache (25% plus cher que l'input normal).
+/// Cost multiplier for cache writes (25% more expensive than normal input).
 const CACHE_WRITE_COST_MULTIPLIER: f64 = 1.25;
 
-/// Multiplicateur de coût pour la lecture depuis le cache (90% moins cher que l'input normal).
+/// Cost multiplier for cache reads (90% cheaper than normal input).
 const CACHE_READ_COST_MULTIPLIER: f64 = 0.1;
 
-// ─────────────────────────────────────────────
-// Types internes — cache_control
-// ─────────────────────────────────────────────
+// ── Internal types: cache_control ─────────────────────────────────────────
 
-/// Représentation du `cache_control` dans le format API Anthropic.
+/// Representation of `cache_control` in the Anthropic API format.
 ///
-/// Sérialisé en `{"type": "ephemeral"}`.
+/// Serialized as `{"type": "ephemeral"}`.
 #[derive(serde::Serialize, Clone)]
 struct AnthropicCacheControl {
     #[serde(rename = "type")]
@@ -83,7 +79,7 @@ struct AnthropicCacheControl {
 }
 
 impl AnthropicCacheControl {
-    /// Construit un `cache_control` de type `ephemeral`.
+    /// Build a `cache_control` of type `ephemeral`.
     fn ephemeral() -> Self {
         Self {
             cache_type: "ephemeral",
@@ -91,11 +87,9 @@ impl AnthropicCacheControl {
     }
 }
 
-// ─────────────────────────────────────────────
-// Types internes — sérialisation requête
-// ─────────────────────────────────────────────
+// ── Internal types: request serialization ─────────────────────────────────
 
-/// Format de la requête Anthropic Messages API.
+/// Anthropic Messages API request format.
 #[derive(serde::Serialize)]
 struct AnthropicRequest {
     model: String,
@@ -111,20 +105,21 @@ struct AnthropicRequest {
     temperature: Option<f32>,
 }
 
-/// Contenu du system prompt — soit une chaîne simple, soit un tableau de blocs avec cache_control.
+/// System prompt content: either a plain string or an array of blocks with
+/// cache_control.
 ///
-/// L'API Anthropic accepte les deux formes. Le tableau est utilisé quand le prompt caching
-/// est activé pour permettre d'inclure `cache_control` sur le dernier bloc.
+/// The Anthropic API accepts both forms. The array is used when prompt caching
+/// is enabled to allow including `cache_control` on the last block.
 #[derive(serde::Serialize, Clone)]
 #[serde(untagged)]
 enum AnthropicSystem {
-    /// System prompt sans caching — sérialisé comme une chaîne JSON.
+    /// System prompt without caching, serialized as a JSON string.
     Plain(String),
-    /// System prompt avec caching — sérialisé comme un tableau de blocs.
+    /// System prompt with caching, serialized as an array of blocks.
     Blocks(Vec<AnthropicSystemBlock>),
 }
 
-/// Bloc de contenu dans le champ `system` de la requête Anthropic.
+/// Content block in the `system` field of the Anthropic request.
 #[derive(serde::Serialize, Clone)]
 struct AnthropicSystemBlock {
     #[serde(rename = "type")]
@@ -134,40 +129,40 @@ struct AnthropicSystemBlock {
     cache_control: Option<AnthropicCacheControl>,
 }
 
-/// Message dans le format Anthropic (`role` + `content`).
+/// Message in the Anthropic format (`role` + `content`).
 #[derive(serde::Serialize, Clone)]
 struct AnthropicMessage {
     role: &'static str,
     content: AnthropicContent,
 }
 
-/// Contenu d'un message Anthropic — texte simple ou tableau de blocs.
+/// Content of an Anthropic message: plain text or an array of blocks.
 #[derive(serde::Serialize, Clone)]
 #[serde(untagged)]
 enum AnthropicContent {
-    /// Contenu textuel simple.
+    /// Plain text content.
     Text(String),
-    /// Tableau de blocs de contenu (outil, résultat d'outil, ou texte structuré).
+    /// Array of content blocks (tool, tool result, or structured text).
     Blocks(Vec<AnthropicBlock>),
 }
 
-/// Bloc de contenu dans le format Anthropic.
+/// Content block in the Anthropic format.
 #[derive(serde::Serialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum AnthropicBlock {
-    /// Bloc de texte avec support optionnel du cache.
+    /// Text block with optional cache support.
     Text {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<AnthropicCacheControl>,
     },
-    /// Appel d'outil demandé par le modèle.
+    /// Tool call requested by the model.
     ToolUse {
         id: String,
         name: String,
         input: serde_json::Value,
     },
-    /// Résultat d'un appel d'outil retourné au modèle, avec support optionnel du cache.
+    /// Result of a tool call returned to the model, with optional cache support.
     ToolResult {
         tool_use_id: String,
         content: String,
@@ -176,22 +171,20 @@ enum AnthropicBlock {
     },
 }
 
-/// Spécification d'un outil au format Anthropic.
+/// Tool specification in the Anthropic format.
 #[derive(serde::Serialize, Clone)]
 struct AnthropicTool {
     name: String,
     description: String,
-    /// Schéma JSON des paramètres (équivalent de `parameters` en format OpenAI).
+    /// JSON schema of the parameters (equivalent to `parameters` in the OpenAI format).
     input_schema: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     cache_control: Option<AnthropicCacheControl>,
 }
 
-// ─────────────────────────────────────────────
-// Types internes — désérialisation réponse
-// ─────────────────────────────────────────────
+// ── Internal types: response deserialization ──────────────────────────────
 
-/// Réponse Anthropic parsée depuis le JSON.
+/// Anthropic response parsed from JSON.
 #[derive(serde::Deserialize)]
 struct AnthropicResponse {
     content: Vec<AnthropicResponseContent>,
@@ -199,13 +192,13 @@ struct AnthropicResponse {
     usage: AnthropicUsage,
 }
 
-/// Item de contenu dans la réponse Anthropic.
+/// Content item in the Anthropic response.
 #[derive(serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum AnthropicResponseContent {
-    /// Texte généré par le modèle.
+    /// Text generated by the model.
     Text { text: String },
-    /// Appel d'outil demandé par le modèle.
+    /// Tool call requested by the model.
     ToolUse {
         id: String,
         name: String,
@@ -213,71 +206,67 @@ enum AnthropicResponseContent {
     },
 }
 
-/// Statistiques de tokens dans la réponse Anthropic, incluant les champs de cache.
+/// Token statistics in the Anthropic response, including the cache fields.
 #[derive(serde::Deserialize)]
 struct AnthropicUsage {
     input_tokens: u32,
     output_tokens: u32,
-    /// Tokens lus depuis le cache — présents uniquement si le prompt caching est actif.
+    /// Tokens read from the cache, present only if prompt caching is active.
     #[serde(default)]
     cache_read_input_tokens: u32,
-    /// Tokens écrits dans le cache — présents uniquement si le prompt caching est actif.
+    /// Tokens written to the cache, present only if prompt caching is active.
     #[serde(default)]
     cache_write_input_tokens: u32,
 }
 
-// ─────────────────────────────────────────────
-// Client
-// ─────────────────────────────────────────────
-
-/// Client HTTP natif pour l'API Anthropic Messages (`/v1/messages`).
+/// Native HTTP client for the Anthropic Messages API (`/v1/messages`).
 ///
-/// Construit via [`AnthropicClient::new`] avec une [`ApiBackendConfig`]
-/// et une clé API résolue depuis la variable d'environnement.
-/// Supporte [`complete`](Self::complete) (réponse complète) et
-/// [`stream`](Self::stream) (streaming SSE chunk par chunk).
+/// Built via [`AnthropicClient::new`] with an [`ApiBackendConfig`] and an API
+/// key resolved from the environment variable. Supports
+/// [`complete`](Self::complete) (full response) and [`stream`](Self::stream)
+/// (SSE streaming chunk by chunk).
 ///
-/// Un seul client peut être partagé via `Arc<AnthropicClient>` —
-/// `reqwest::Client` est `Clone + Send + Sync`.
+/// A single client can be shared via `Arc<AnthropicClient>`:
+/// `reqwest::Client` is `Clone + Send + Sync`.
 ///
-/// # Headers Anthropic obligatoires
+/// # Mandatory Anthropic headers
 ///
-/// Chaque requête inclut :
+/// Each request includes:
 /// - `x-api-key: {api_key}`
 /// - `anthropic-version: 2023-06-01`
 /// - `anthropic-beta: prompt-caching-2024-07-31`
 /// - `content-type: application/json`
 pub struct AnthropicClient {
-    /// Client HTTP reqwest de base.
+    /// Base reqwest HTTP client.
     client: reqwest::Client,
-    /// Configuration du backend (nom, URL de base, modèle par défaut).
+    /// Backend configuration (name, base URL, default model).
     config: ApiBackendConfig,
-    /// Clé API Anthropic — incluse dans chaque requête via `x-api-key`.
-    /// Jamais loggée ni sérialisée (Principe #1).
+    /// Anthropic API key, included in each request via `x-api-key`.
+    /// Never logged or serialized.
     api_key: String,
-    /// Table de pricing par défaut construite au démarrage via [`pricing::default_pricing`].
+    /// Default pricing table built at startup via [`pricing::default_pricing`].
     pricing_table: std::collections::HashMap<&'static str, PricingTier>,
-    /// Surcharges opérateur chargées depuis `[llm.pricing_overrides]` dans `apollia.toml`.
+    /// Operator overrides loaded from `[llm.pricing_overrides]` in `apollia.toml`.
     pricing_overrides: std::collections::HashMap<String, PricingTier>,
-    /// Politique de retry exponentiel partagée avec les autres backends.
+    /// Exponential retry policy shared with the other backends.
     retry_policy: RetryPolicy,
-    /// Token d'annulation de session — `cancel()` interrompt les appels et délais en cours.
+    /// Session cancellation token: `cancel()` interrupts in-flight calls and delays.
     cancel: CancellationToken,
 }
 
 impl AnthropicClient {
-    /// Construit un client Anthropic prêt à envoyer des requêtes.
+    /// Build an Anthropic client ready to send requests.
     ///
-    /// La `api_key` doit être obtenue au préalable via
-    /// [`ApiBackendConfig::resolve_api_key`] — elle est transmise ici
-    /// et non re-lue depuis l'environnement pour éviter les TOCTOU (Principe #1).
+    /// `api_key` must be obtained beforehand via
+    /// [`ApiBackendConfig::resolve_api_key`]; it is passed in here and not
+    /// re-read from the environment to avoid TOCTOU.
     ///
-    /// Les `pricing_overrides` sont chargés depuis `[llm.pricing_overrides]` dans
-    /// `apollia.toml` et ont priorité sur la table par défaut lors du calcul du coût.
+    /// `pricing_overrides` are loaded from `[llm.pricing_overrides]` in
+    /// `apollia.toml` and take priority over the default table when computing cost.
     ///
-    /// Le `cancel` est le `CancellationToken` de la session LLM — partagé par
-    /// le `LlmRouter`. Un appel à `cancel.cancel()` interrompt les appels en cours
-    /// et les délais de retry.
+    /// `cancel` is the LLM session's `CancellationToken`, shared by the
+    /// `LlmRouter`. A call to `cancel.cancel()` interrupts in-flight calls and
+    /// retry delays.
     pub fn new(
         config: &ApiBackendConfig,
         api_key: String,
@@ -295,17 +284,17 @@ impl AnthropicClient {
         }
     }
 
-    /// Parse une réponse JSON Anthropic en [`CompletionResponse`].
+    /// Parse an Anthropic JSON response into a [`CompletionResponse`].
     ///
-    /// Fonction pure et testable sans HTTP. Mappe :
-    /// - `stop_reason = "end_turn"` → [`FinishReason::Stop`]
-    /// - `stop_reason = "tool_use"` → [`FinishReason::ToolCalls`]
-    /// - `content[].type = "text"` → `response.content`
-    /// - `content[].type = "tool_use"` → `response.tool_calls`
-    /// - `usage.cache_read_input_tokens` / `cache_write_input_tokens` → `TokenUsage`
+    /// Pure function, testable without HTTP. Maps:
+    /// - `stop_reason = "end_turn"` to [`FinishReason::Stop`]
+    /// - `stop_reason = "tool_use"` to [`FinishReason::ToolCalls`]
+    /// - `content[].type = "text"` to `response.content`
+    /// - `content[].type = "tool_use"` to `response.tool_calls`
+    /// - `usage.cache_read_input_tokens` / `cache_write_input_tokens` to `TokenUsage`
     ///
-    /// Retourne `LlmError::ParseError` si le JSON ne respecte pas le format
-    /// attendu de l'API Anthropic Messages.
+    /// Returns `LlmError::ParseError` if the JSON does not match the expected
+    /// Anthropic Messages API format.
     pub fn parse_response(json: &serde_json::Value) -> Result<CompletionResponse, LlmError> {
         let response: AnthropicResponse = serde_json::from_value(json.clone())
             .map_err(|e| LlmError::ParseError(format!("invalid Anthropic response: {e}")))?;
@@ -337,23 +326,23 @@ impl AnthropicClient {
             usage: TokenUsage {
                 prompt_tokens: response.usage.input_tokens,
                 completion_tokens: response.usage.output_tokens,
-                cost_usd: None, // rempli par complete() avec l'id du modèle
+                cost_usd: None, // filled by complete() with the model id
                 cache_read_input_tokens: response.usage.cache_read_input_tokens,
                 cache_write_input_tokens: response.usage.cache_write_input_tokens,
             },
             finish_reason,
-            latency_ms: 0, // rempli par complete() après l'appel HTTP
+            latency_ms: 0, // filled by complete() after the HTTP call
             ttft_ms: None,
         })
     }
 
-    /// Construit un [`reqwest::RequestBuilder`] avec les headers Anthropic obligatoires.
+    /// Build a [`reqwest::RequestBuilder`] with the mandatory Anthropic headers.
     ///
-    /// Inclut le header beta `prompt-caching-2024-07-31` sur toutes les requêtes
-    /// pour activer le prompt caching.
+    /// Includes the beta header `prompt-caching-2024-07-31` on every request to
+    /// enable prompt caching.
     ///
-    /// Retourne `LlmError::InferenceError` si la clé API contient des caractères
-    /// non-ASCII (ne peut pas arriver avec une clé Anthropic valide).
+    /// Returns `LlmError::InferenceError` if the API key contains non-ASCII
+    /// characters (cannot happen with a valid Anthropic key).
     fn request_builder(&self, url: &str) -> Result<reqwest::RequestBuilder, LlmError> {
         let api_key_val = HeaderValue::try_from(self.api_key.as_str())
             .map_err(|e| LlmError::InferenceError(format!("invalid api_key header value: {e}")))?;
@@ -376,15 +365,15 @@ impl AnthropicClient {
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json")))
     }
 
-    /// Effectue un unique appel HTTP POST `/v1/messages` sans retry.
+    /// Make a single HTTP POST `/v1/messages` call without retry.
     ///
-    /// Mappe les status HTTP transitoires vers les variantes retryables de [`LlmError`] :
-    /// - 429 → [`LlmError::RateLimit`]
-    /// - 503 → [`LlmError::ServiceUnavailable`]
-    /// - 529 → [`LlmError::Overload`]
-    /// - 401 → [`LlmError::Unauthorized`]
-    /// - 400 → [`LlmError::BadRequest`]
-    /// - autre ≥ 400 → [`LlmError::HttpError`]
+    /// Maps transient HTTP statuses to retryable [`LlmError`] variants:
+    /// - 429 to [`LlmError::RateLimit`]
+    /// - 503 to [`LlmError::ServiceUnavailable`]
+    /// - 529 to [`LlmError::Overload`]
+    /// - 401 to [`LlmError::Unauthorized`]
+    /// - 400 to [`LlmError::BadRequest`]
+    /// - other >= 400 to [`LlmError::HttpError`]
     async fn do_complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
         let body = self.build_request(&req, false);
@@ -460,17 +449,17 @@ impl AnthropicClient {
         Ok(result)
     }
 
-    /// Convertit une [`CompletionRequest`] en [`AnthropicRequest`] avec breakpoints de cache.
+    /// Convert a [`CompletionRequest`] into an [`AnthropicRequest`] with cache breakpoints.
     ///
-    /// Extrait le message de rôle `System` (premier trouvé) vers le champ `system`
-    /// de la requête Anthropic. Les autres messages sont convertis via
+    /// Extracts the `System` role message (first found) into the Anthropic
+    /// request's `system` field. Other messages are converted via
     /// [`convert_message`].
     ///
-    /// Applique ensuite trois breakpoints de cache automatiques via
-    /// [`apply_cache_breakpoints`] :
+    /// Then applies three automatic cache breakpoints via
+    /// [`apply_cache_breakpoints`]:
     /// 1. System prompt
-    /// 2. Dernier outil
-    /// 3. 3ème message depuis la fin de l'historique (breakpoint glissant)
+    /// 2. Last tool
+    /// 3. 3rd message from the end of the history (sliding breakpoint)
     fn build_request(&self, req: &CompletionRequest, stream: bool) -> AnthropicRequest {
         let model = req
             .model
@@ -478,7 +467,7 @@ impl AnthropicClient {
             .unwrap_or(&self.config.model)
             .to_owned();
 
-        // Premier message System → champ `system` séparé (format Anthropic)
+        // First System message goes into the separate `system` field (Anthropic format)
         let mut system: Option<AnthropicSystem> = req.messages.iter().find_map(|msg| {
             if msg.role == Role::System {
                 if let MessageContent::Text(text) = &msg.content {
@@ -488,7 +477,7 @@ impl AnthropicClient {
             None
         });
 
-        // Messages non-System convertis au format Anthropic
+        // Non-System messages converted to the Anthropic format
         let mut messages: Vec<AnthropicMessage> = req
             .messages
             .iter()
@@ -496,7 +485,7 @@ impl AnthropicClient {
             .filter_map(convert_message)
             .collect();
 
-        // Outils Apollia → format Anthropic (input_schema au lieu de parameters)
+        // Apollia tools to Anthropic format (input_schema instead of parameters)
         let mut tools: Option<Vec<AnthropicTool>> = if req.tools.is_empty() {
             None
         } else {
@@ -513,7 +502,7 @@ impl AnthropicClient {
             )
         };
 
-        // Applique les breakpoints de cache automatiques
+        // Apply the automatic cache breakpoints
         apply_cache_breakpoints(&mut messages, &mut system, &mut tools);
 
         AnthropicRequest {
@@ -530,11 +519,12 @@ impl AnthropicClient {
 
 #[async_trait::async_trait]
 impl CompletionModel for AnthropicClient {
-    /// Envoie une requête d'inférence et retourne la réponse complète.
+    /// Send an inference request and return the full response.
     ///
-    /// Délègue à [`do_complete`](Self::do_complete) via [`RetryPolicy::execute`] :
-    /// les erreurs transitoires (429, 503, 529) sont retentées avec backoff exponentiel.
-    /// Une annulation via le `CancellationToken` interrompt immédiatement l'attente.
+    /// Delegates to [`do_complete`](Self::do_complete) via
+    /// [`RetryPolicy::execute`]: transient errors (429, 503, 529) are retried
+    /// with exponential backoff. Cancellation via the `CancellationToken`
+    /// immediately interrupts the wait.
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         self.retry_policy
             .execute(self.cancel.clone(), || {
@@ -544,14 +534,15 @@ impl CompletionModel for AnthropicClient {
             .await
     }
 
-    /// Retourne un stream de chunks texte via SSE Anthropic.
+    /// Return a stream of text chunks via Anthropic SSE.
     ///
-    /// Envoie POST `/v1/messages` avec `stream: true`, consomme les événements SSE
-    /// ligne par ligne, extrait les `content_block_delta.delta.text` et les émet.
-    /// Le stream se termine à `message_stop`.
+    /// Sends POST `/v1/messages` with `stream: true`, consumes the SSE events
+    /// line by line, extracts the `content_block_delta.delta.text` and emits
+    /// them. The stream ends at `message_stop`.
     ///
-    /// Retourne `LlmError::HttpError` pour tout status HTTP ≥ 400 avant le début
-    /// du stream. Les erreurs réseau pendant le stream sont propagées dans les items.
+    /// Returns `LlmError::HttpError` for any HTTP status >= 400 before the
+    /// stream starts. Network errors during the stream are propagated in the
+    /// items.
     async fn stream(
         &self,
         req: CompletionRequest,
@@ -581,7 +572,7 @@ impl CompletionModel for AnthropicClient {
             });
         }
 
-        // Convertit le bytes_stream en Vec<u8> pour éviter de nommer bytes::Bytes
+        // Convert the bytes_stream to Vec<u8> to avoid naming bytes::Bytes
         let byte_stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>> =
             Box::pin(http_response.bytes_stream().map(|result| {
                 result.map(|b| b.to_vec()).map_err(|e| LlmError::HttpError {
@@ -593,40 +584,39 @@ impl CompletionModel for AnthropicClient {
         Ok(Box::pin(parse_sse_stream(byte_stream)))
     }
 
-    /// Retourne `true` : le client est configuré et prêt à envoyer des requêtes.
+    /// Return `true`: the client is configured and ready to send requests.
     fn is_available(&self) -> bool {
         true
     }
 
-    /// Nom logique du backend tel que configuré dans `apollia.toml`.
+    /// Logical backend name as configured in `apollia.toml`.
     fn backend_name(&self) -> &str {
         &self.config.name
     }
 
-    /// Identifiant du modèle par défaut de ce backend.
+    /// Default model identifier for this backend.
     fn model_id(&self) -> &str {
         &self.config.model
     }
 }
 
-// ─────────────────────────────────────────────
-// Helpers privés — prompt caching
-// ─────────────────────────────────────────────
+// ── Private helpers: prompt caching ───────────────────────────────────────
 
-/// Applique les trois breakpoints de cache automatiques sur la requête Anthropic.
+/// Apply the three automatic cache breakpoints on the Anthropic request.
 ///
-/// Breakpoint 1 — system prompt : converti en tableau de blocs avec `cache_control: ephemeral`.
-/// Breakpoint 2 — dernier outil : marqué avec `cache_control: ephemeral`.
-/// Breakpoint 3 — 3ème message depuis la fin : dernier bloc de contenu marqué.
+/// Breakpoint 1, system prompt: converted to an array of blocks with
+/// `cache_control: ephemeral`.
+/// Breakpoint 2, last tool: marked with `cache_control: ephemeral`.
+/// Breakpoint 3, 3rd message from the end: its last content block marked.
 ///
-/// Les breakpoints sont cumulatifs avec les marques individuelles issues de
-/// `ChatMessage.cache_control` (déjà appliquées par [`convert_message`]).
+/// The breakpoints are cumulative with the individual marks from
+/// `ChatMessage.cache_control` (already applied by [`convert_message`]).
 fn apply_cache_breakpoints(
     messages: &mut [AnthropicMessage],
     system: &mut Option<AnthropicSystem>,
     tools: &mut Option<Vec<AnthropicTool>>,
 ) {
-    // Breakpoint 1 : system prompt → bloc avec cache_control
+    // Breakpoint 1: system prompt to a block with cache_control
     if let Some(sys) = system.as_mut() {
         *sys = match sys.clone() {
             AnthropicSystem::Plain(text) => AnthropicSystem::Blocks(vec![AnthropicSystemBlock {
@@ -643,24 +633,24 @@ fn apply_cache_breakpoints(
         };
     }
 
-    // Breakpoint 2 : dernier outil
+    // Breakpoint 2: last tool
     if let Some(tools_vec) = tools.as_mut() {
         if let Some(last_tool) = tools_vec.last_mut() {
             last_tool.cache_control = Some(AnthropicCacheControl::ephemeral());
         }
     }
 
-    // Breakpoint 3 : 3ème message depuis la fin (breakpoint glissant)
+    // Breakpoint 3: 3rd message from the end (sliding breakpoint)
     let len = messages.len();
     if len >= 3 {
         mark_message_cache_control(&mut messages[len - 3]);
     }
 }
 
-/// Marque le dernier bloc de contenu d'un message avec `cache_control: ephemeral`.
+/// Mark the last content block of a message with `cache_control: ephemeral`.
 ///
-/// Si le contenu est `Text(String)`, le convertit en `Blocks([Text { cache_control }])`.
-/// Si le contenu est `Blocks(...)`, applique `cache_control` au dernier bloc `Text` ou `ToolResult`.
+/// If the content is `Text(String)`, converts it to `Blocks([Text { cache_control }])`.
+/// If the content is `Blocks(...)`, applies `cache_control` to the last `Text` or `ToolResult` block.
 fn mark_message_cache_control(msg: &mut AnthropicMessage) {
     let new_content = match msg.content.clone() {
         AnthropicContent::Text(text) => AnthropicContent::Blocks(vec![AnthropicBlock::Text {
@@ -677,7 +667,7 @@ fn mark_message_cache_control(msg: &mut AnthropicMessage) {
                         *cache_control = Some(AnthropicCacheControl::ephemeral());
                     }
                     AnthropicBlock::ToolUse { .. } => {
-                        // ToolUse ne supporte pas cache_control — breakpoint ignoré
+                        // ToolUse does not support cache_control, breakpoint ignored
                         tracing::debug!(
                             "cache breakpoint on message ending with tool_use block — ignored"
                         );
@@ -690,18 +680,62 @@ fn mark_message_cache_control(msg: &mut AnthropicMessage) {
     msg.content = new_content;
 }
 
-// ─────────────────────────────────────────────
-// Helpers privés — conversion messages
-// ─────────────────────────────────────────────
+// ── Private helpers: message conversion ───────────────────────────────────
 
-/// Convertit un [`ChatMessage`](crate::types::ChatMessage) Apollia en
-/// [`AnthropicMessage`].
-///
-/// Retourne `None` pour les messages `System` (gérés séparément dans le champ
-/// `system` de la requête) et pour les combinaisons rôle/contenu non supportées.
-///
-/// Quand `ChatMessage.cache_control` est `Some(CacheControl::Ephemeral)`, le contenu
-/// texte est converti en bloc avec `cache_control: ephemeral`.
+/// Build a text [`AnthropicContent`], as a block with `cache_control` if
+/// `cache` is `Some`, otherwise as plain text.
+fn text_content(text: &str, cache: Option<AnthropicCacheControl>) -> AnthropicContent {
+    if let Some(cc) = cache {
+        AnthropicContent::Blocks(vec![AnthropicBlock::Text {
+            text: text.to_owned(),
+            cache_control: Some(cc),
+        }])
+    } else {
+        AnthropicContent::Text(text.to_owned())
+    }
+}
+
+/// Build the blocks of a `WithToolCalls` assistant message (optional text plus
+/// one `tool_use` block per call), with `cache_control` set on the last
+/// compatible block if `cache` is `Some`.
+fn tool_call_blocks(
+    text: &str,
+    tool_calls: &[crate::types::ToolCall],
+    cache: Option<AnthropicCacheControl>,
+) -> Vec<AnthropicBlock> {
+    let mut blocks: Vec<AnthropicBlock> = Vec::new();
+    if !text.is_empty() {
+        blocks.push(AnthropicBlock::Text {
+            text: text.to_owned(),
+            cache_control: None,
+        });
+    }
+    for tc in tool_calls {
+        blocks.push(AnthropicBlock::ToolUse {
+            id: tc.id.clone(),
+            name: tc.name.clone(),
+            input: tc.arguments.clone(),
+        });
+    }
+    // cache_control on the last block if marked
+    if let Some(cc) = cache {
+        if let Some(last) = blocks.last_mut() {
+            match last {
+                AnthropicBlock::Text { cache_control, .. } => {
+                    *cache_control = Some(cc);
+                }
+                AnthropicBlock::ToolUse { .. } => {
+                    // ToolUse does not support cache_control, ignored
+                }
+                AnthropicBlock::ToolResult { cache_control, .. } => {
+                    *cache_control = Some(cc);
+                }
+            }
+        }
+    }
+    blocks
+}
+
 fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> {
     let cache = msg
         .cache_control
@@ -710,68 +744,18 @@ fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> 
         .map(|_| AnthropicCacheControl::ephemeral());
 
     match (&msg.role, &msg.content) {
-        (Role::User, MessageContent::Text(text)) => {
-            let content = if let Some(cc) = cache {
-                AnthropicContent::Blocks(vec![AnthropicBlock::Text {
-                    text: text.clone(),
-                    cache_control: Some(cc),
-                }])
-            } else {
-                AnthropicContent::Text(text.clone())
-            };
-            Some(AnthropicMessage {
-                role: "user",
-                content,
-            })
-        }
-        (Role::Assistant, MessageContent::Text(text)) => {
-            let content = if let Some(cc) = cache {
-                AnthropicContent::Blocks(vec![AnthropicBlock::Text {
-                    text: text.clone(),
-                    cache_control: Some(cc),
-                }])
-            } else {
-                AnthropicContent::Text(text.clone())
-            };
-            Some(AnthropicMessage {
-                role: "assistant",
-                content,
-            })
-        }
+        (Role::User, MessageContent::Text(text)) => Some(AnthropicMessage {
+            role: "user",
+            content: text_content(text, cache),
+        }),
+        (Role::Assistant, MessageContent::Text(text)) => Some(AnthropicMessage {
+            role: "assistant",
+            content: text_content(text, cache),
+        }),
         (Role::Assistant, MessageContent::WithToolCalls { text, tool_calls }) => {
-            let mut blocks: Vec<AnthropicBlock> = Vec::new();
-            if !text.is_empty() {
-                blocks.push(AnthropicBlock::Text {
-                    text: text.clone(),
-                    cache_control: None,
-                });
-            }
-            for tc in tool_calls {
-                blocks.push(AnthropicBlock::ToolUse {
-                    id: tc.id.clone(),
-                    name: tc.name.clone(),
-                    input: tc.arguments.clone(),
-                });
-            }
-            // cache_control sur le dernier bloc si marqué
-            if let Some(cc) = cache {
-                if let Some(last) = blocks.last_mut() {
-                    match last {
-                        AnthropicBlock::Text { cache_control, .. } => {
-                            *cache_control = Some(cc);
-                        }
-                        AnthropicBlock::ToolUse { .. } => {
-                            // ToolUse ne supporte pas cache_control — ignoré
-                        }
-                        AnthropicBlock::ToolResult { cache_control, .. } => {
-                            *cache_control = Some(cc);
-                        }
-                    }
-                }
-            }
             Some(AnthropicMessage {
                 role: "assistant",
-                content: AnthropicContent::Blocks(blocks),
+                content: AnthropicContent::Blocks(tool_call_blocks(text, tool_calls, cache)),
             })
         }
         (
@@ -781,7 +765,7 @@ fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> 
                 content,
             },
         ) => {
-            // Les résultats d'outils sont des messages user avec un bloc tool_result
+            // Tool results are user messages with a tool_result block
             Some(AnthropicMessage {
                 role: "user",
                 content: AnthropicContent::Blocks(vec![AnthropicBlock::ToolResult {
@@ -791,9 +775,9 @@ fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> 
                 }]),
             })
         }
-        // System géré séparément — ignoré ici
+        // System handled separately, ignored here
         (Role::System, _) => None,
-        // Combinaisons non supportées — ignorées avec warning
+        // Unsupported combinations, ignored with a warning
         (role, content) => {
             tracing::warn!(
                 role = ?role,
@@ -805,7 +789,7 @@ fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> 
     }
 }
 
-/// Mappe le `stop_reason` Anthropic vers [`FinishReason`] Apollia.
+/// Map the Anthropic `stop_reason` to the Apollia [`FinishReason`].
 fn map_stop_reason(stop_reason: &str) -> FinishReason {
     match stop_reason {
         "end_turn" => FinishReason::Stop,
@@ -815,31 +799,17 @@ fn map_stop_reason(stop_reason: &str) -> FinishReason {
     }
 }
 
-/// Convertit un stream de bytes en stream de chunks SSE Anthropic.
+/// Convert a byte stream into a stream of Anthropic SSE chunks.
 ///
-/// Parse les événements SSE ligne par ligne :
-/// - `content_block_delta` avec `delta.type = "text_delta"` → émet `StreamChunk::Text`
-/// - `content_block_start` avec `type = "tool_use"` → enregistre id + name
-/// - `content_block_delta` avec `delta.type = "input_json_delta"` → accumule les arguments JSON
-/// - `content_block_stop` → émet `StreamChunk::ToolCall` si un outil était en cours
-/// - `message_stop` → termine le stream
+/// Parses the SSE events line by line:
+/// - `content_block_delta` with `delta.type = "text_delta"` emits `StreamChunk::Text`
+/// - `content_block_start` with `type = "tool_use"` records id + name
+/// - `content_block_delta` with `delta.type = "input_json_delta"` accumulates the JSON arguments
+/// - `content_block_stop` emits `StreamChunk::ToolCall` if a tool was in progress
+/// - `message_stop` ends the stream
 fn parse_sse_stream(
     byte_stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>>,
 ) -> impl Stream<Item = Result<StreamChunk, LlmError>> + Send {
-    /// In-progress tool call being assembled from SSE fragments.
-    struct PendingToolCall {
-        id: String,
-        name: String,
-        arguments_json: String,
-    }
-
-    struct SseState {
-        stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>>,
-        buffer: Vec<u8>,
-        /// Tool call currently being accumulated (one at a time).
-        pending_tool: Option<PendingToolCall>,
-    }
-
     futures::stream::unfold(
         SseState {
             stream: byte_stream,
@@ -848,105 +818,16 @@ fn parse_sse_stream(
         },
         |mut state| async move {
             loop {
-                // Cherche le prochain saut de ligne dans le buffer
+                // Look for the next newline in the buffer
                 if let Some(nl) = state.buffer.iter().position(|&b| b == b'\n') {
-                    let raw: Vec<u8> = state.buffer.drain(..=nl).collect();
-                    // Supprime \n et \r finaux
-                    let end = raw
-                        .iter()
-                        .rposition(|&b| b != b'\n' && b != b'\r')
-                        .map(|i| i + 1)
-                        .unwrap_or(0);
-                    let line = std::str::from_utf8(&raw[..end]).unwrap_or("");
-
-                    if let Some(data) = line.strip_prefix("data: ") {
-                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
-                            match json.get("type").and_then(|t| t.as_str()) {
-                                Some("message_stop") => return None,
-
-                                // Text token — emit immediately
-                                Some("content_block_delta") => {
-                                    let delta_type =
-                                        json.pointer("/delta/type").and_then(|t| t.as_str());
-
-                                    match delta_type {
-                                        Some("text_delta") => {
-                                            if let Some(text) =
-                                                json.pointer("/delta/text").and_then(|t| t.as_str())
-                                            {
-                                                if !text.is_empty() {
-                                                    return Some((
-                                                        Ok(StreamChunk::Text(text.to_owned())),
-                                                        state,
-                                                    ));
-                                                }
-                                            }
-                                        }
-                                        // Tool call arguments arrive as JSON fragments
-                                        Some("input_json_delta") => {
-                                            if let Some(partial) = json
-                                                .pointer("/delta/partial_json")
-                                                .and_then(|t| t.as_str())
-                                            {
-                                                if let Some(ref mut pending) = state.pending_tool {
-                                                    pending.arguments_json.push_str(partial);
-                                                }
-                                            }
-                                        }
-                                        _ => {}
-                                    }
-                                }
-
-                                // Tool call starts — record id and name
-                                Some("content_block_start") => {
-                                    let block_type = json
-                                        .pointer("/content_block/type")
-                                        .and_then(|t| t.as_str());
-                                    if block_type == Some("tool_use") {
-                                        let id = json
-                                            .pointer("/content_block/id")
-                                            .and_then(|t| t.as_str())
-                                            .unwrap_or("")
-                                            .to_owned();
-                                        let name = json
-                                            .pointer("/content_block/name")
-                                            .and_then(|t| t.as_str())
-                                            .unwrap_or("")
-                                            .to_owned();
-                                        state.pending_tool = Some(PendingToolCall {
-                                            id,
-                                            name,
-                                            arguments_json: String::new(),
-                                        });
-                                    }
-                                }
-
-                                // Content block ends — emit tool call if one was pending
-                                Some("content_block_stop") => {
-                                    if let Some(pending) = state.pending_tool.take() {
-                                        let arguments =
-                                            serde_json::from_str(&pending.arguments_json)
-                                                .unwrap_or(serde_json::Value::Null);
-                                        return Some((
-                                            Ok(StreamChunk::ToolCall(ToolCall {
-                                                id: pending.id,
-                                                name: pending.name,
-                                                arguments,
-                                            })),
-                                            state,
-                                        ));
-                                    }
-                                }
-
-                                _ => {}
-                            }
-                        }
+                    match handle_sse_line(&mut state, nl) {
+                        SseAction::Continue => continue,
+                        SseAction::Stop => return None,
+                        SseAction::Emit(chunk) => return Some((Ok(chunk), state)),
                     }
-                    // Ligne non-pertinente, continue la boucle
-                    continue;
                 }
 
-                // Besoin de plus de bytes depuis le stream HTTP
+                // Need more bytes from the HTTP stream
                 match state.stream.next().await {
                     Some(Ok(chunk)) => {
                         state.buffer.extend_from_slice(&chunk);
@@ -955,7 +836,7 @@ fn parse_sse_stream(
                         return Some((Err(e), state));
                     }
                     None => {
-                        // Stream HTTP terminé (normalement via message_stop)
+                        // HTTP stream ended (normally via message_stop)
                         return None;
                     }
                 }
@@ -964,18 +845,140 @@ fn parse_sse_stream(
     )
 }
 
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
+/// In-progress tool call being assembled from SSE fragments.
+struct PendingToolCall {
+    id: String,
+    name: String,
+    arguments_json: String,
+}
+
+struct SseState {
+    stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>>,
+    buffer: Vec<u8>,
+    /// Tool call currently being accumulated (one at a time).
+    pending_tool: Option<PendingToolCall>,
+}
+
+/// Decision after processing an SSE line.
+enum SseAction {
+    /// Irrelevant line, keep reading the buffer.
+    Continue,
+    /// `message_stop` received, end the stream.
+    Stop,
+    /// Emit a chunk to the caller.
+    Emit(StreamChunk),
+}
+
+/// Extract the next line from the buffer (up to and including `nl`) and process it.
+fn handle_sse_line(state: &mut SseState, nl: usize) -> SseAction {
+    let raw: Vec<u8> = state.buffer.drain(..=nl).collect();
+    // Strip trailing \n and \r
+    let end = raw
+        .iter()
+        .rposition(|&b| b != b'\n' && b != b'\r')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let line = std::str::from_utf8(&raw[..end]).unwrap_or("");
+
+    let Some(data) = line.strip_prefix("data: ") else {
+        return SseAction::Continue;
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(data) else {
+        return SseAction::Continue;
+    };
+    handle_sse_event(&json, &mut state.pending_tool)
+}
+
+/// Process an already-parsed SSE event and update the in-progress tool state.
+fn handle_sse_event(
+    json: &serde_json::Value,
+    pending_tool: &mut Option<PendingToolCall>,
+) -> SseAction {
+    match json.get("type").and_then(|t| t.as_str()) {
+        Some("message_stop") => SseAction::Stop,
+        Some("content_block_delta") => handle_content_block_delta(json, pending_tool),
+        Some("content_block_start") => {
+            record_tool_use_start(json, pending_tool);
+            SseAction::Continue
+        }
+        Some("content_block_stop") => emit_pending_tool(pending_tool),
+        _ => SseAction::Continue,
+    }
+}
+
+/// `content_block_delta`: emit text, or accumulate tool JSON fragments.
+fn handle_content_block_delta(
+    json: &serde_json::Value,
+    pending_tool: &mut Option<PendingToolCall>,
+) -> SseAction {
+    match json.pointer("/delta/type").and_then(|t| t.as_str()) {
+        Some("text_delta") => {
+            let text = json.pointer("/delta/text").and_then(|t| t.as_str());
+            match text {
+                Some(text) if !text.is_empty() => SseAction::Emit(StreamChunk::Text(text.to_owned())),
+                _ => SseAction::Continue,
+            }
+        }
+        // Tool call arguments arrive as JSON fragments
+        Some("input_json_delta") => {
+            if let Some(partial) = json.pointer("/delta/partial_json").and_then(|t| t.as_str()) {
+                if let Some(pending) = pending_tool {
+                    pending.arguments_json.push_str(partial);
+                }
+            }
+            SseAction::Continue
+        }
+        _ => SseAction::Continue,
+    }
+}
+
+/// `content_block_start`: record id + name if a `tool_use` begins.
+fn record_tool_use_start(json: &serde_json::Value, pending_tool: &mut Option<PendingToolCall>) {
+    let block_type = json.pointer("/content_block/type").and_then(|t| t.as_str());
+    if block_type != Some("tool_use") {
+        return;
+    }
+    let id = json
+        .pointer("/content_block/id")
+        .and_then(|t| t.as_str())
+        .unwrap_or("")
+        .to_owned();
+    let name = json
+        .pointer("/content_block/name")
+        .and_then(|t| t.as_str())
+        .unwrap_or("")
+        .to_owned();
+    *pending_tool = Some(PendingToolCall {
+        id,
+        name,
+        arguments_json: String::new(),
+    });
+}
+
+/// `content_block_stop`: emit the accumulated `ToolCall` if one is in progress.
+fn emit_pending_tool(pending_tool: &mut Option<PendingToolCall>) -> SseAction {
+    match pending_tool.take() {
+        Some(pending) => {
+            let arguments =
+                serde_json::from_str(&pending.arguments_json).unwrap_or(serde_json::Value::Null);
+            SseAction::Emit(StreamChunk::ToolCall(ToolCall {
+                id: pending.id,
+                name: pending.name,
+                arguments,
+            }))
+        }
+        None => SseAction::Continue,
+    }
+}
 
 #[cfg(all(test, feature = "cloud"))]
 mod tests {
     use super::*;
     use serde_json::json;
 
-    // GIVEN une réponse Anthropic avec stop_reason = "end_turn" et content[].text
-    // WHEN on appelle parse_response()
-    // THEN finish_reason == Stop, content == texte extrait, tokens corrects
+    // GIVEN an Anthropic response with stop_reason = "end_turn" and content[].text
+    // WHEN parse_response() is called
+    // THEN finish_reason == Stop, content == extracted text, correct tokens
     #[test]
     fn test_ac2_parse_end_turn_response() {
         let json = json!({
@@ -994,9 +997,9 @@ mod tests {
         assert_eq!(response.usage.cache_write_input_tokens, 0);
     }
 
-    // GIVEN une réponse Anthropic avec stop_reason = "tool_use" et content[].type = "tool_use"
-    // WHEN on appelle parse_response()
-    // THEN finish_reason == ToolCalls, tool_calls[0] contient id et name corrects
+    // GIVEN an Anthropic response with stop_reason = "tool_use" and content[].type = "tool_use"
+    // WHEN parse_response() is called
+    // THEN finish_reason == ToolCalls, tool_calls[0] has correct id and name
     #[test]
     fn test_ac3_parse_tool_use_response() {
         let json = json!({
@@ -1016,9 +1019,9 @@ mod tests {
         assert_eq!(response.tool_calls[0].name, "file_io");
     }
 
-    // GIVEN un JSON Anthropic malformé (champs attendus absents)
-    // WHEN on appelle parse_response()
-    // THEN Err(LlmError::ParseError) est retourné
+    // GIVEN a malformed Anthropic JSON (expected fields absent)
+    // WHEN parse_response() is called
+    // THEN Err(LlmError::ParseError) is returned
     #[test]
     fn test_parse_error_on_malformed_json() {
         let json = json!({"unexpected": "format"});
@@ -1031,9 +1034,9 @@ mod tests {
         );
     }
 
-    // GIVEN un ApiBackendConfig pour Anthropic avec une clé fictive
-    // WHEN on appelle AnthropicClient::new()
-    // THEN le client est construit sans panique et backend_name() retourne config.name
+    // GIVEN an ApiBackendConfig for Anthropic with a fake key
+    // WHEN AnthropicClient::new() is called
+    // THEN the client is built without panicking and backend_name() returns config.name
     #[test]
     fn test_ac1_new_does_not_panic() {
         std::env::set_var("APOLLIA_ANT_TEST_KEY", "sk-ant-test");
@@ -1057,8 +1060,8 @@ mod tests {
         assert_eq!(client.model_id(), "claude-haiku-4-5-20251001");
     }
 
-    // GIVEN une réponse avec stop_reason = "max_tokens"
-    // WHEN on appelle parse_response()
+    // GIVEN a response with stop_reason = "max_tokens"
+    // WHEN parse_response() is called
     // THEN finish_reason == Length
     #[test]
     fn test_parse_max_tokens_finish_reason() {
@@ -1073,9 +1076,9 @@ mod tests {
         assert_eq!(response.finish_reason, FinishReason::Length);
     }
 
-    // GIVEN une réponse avec text + tool_use dans le contenu
-    // WHEN on appelle parse_response()
-    // THEN content contient le texte ET tool_calls contient l'outil
+    // GIVEN a response with text + tool_use in the content
+    // WHEN parse_response() is called
+    // THEN content holds the text AND tool_calls holds the tool
     #[test]
     fn test_parse_mixed_content_text_and_tool_use() {
         let json = json!({
@@ -1097,9 +1100,9 @@ mod tests {
         assert_eq!(response.tool_calls[0].name, "bash_executor");
     }
 
-    // GIVEN une réponse avec cache_read_input_tokens et cache_write_input_tokens
-    // WHEN on appelle parse_response()
-    // THEN les champs cache sont correctement extraits dans TokenUsage
+    // GIVEN a response with cache_read_input_tokens and cache_write_input_tokens
+    // WHEN parse_response() is called
+    // THEN the cache fields are correctly extracted into TokenUsage
     #[test]
     fn test_parse_response_extracts_cache_tokens() {
         let json = json!({
@@ -1121,10 +1124,10 @@ mod tests {
         assert_eq!(response.usage.completion_tokens, 5);
     }
 
-    // GIVEN un system prompt + liste de messages (>= 3)
-    // WHEN apply_cache_breakpoints() est appelé
-    // THEN le system est en forme Blocks avec cache_control
-    //   ET le 3ème message depuis la fin a cache_control
+    // GIVEN a system prompt + a list of messages (>= 3)
+    // WHEN apply_cache_breakpoints() is called
+    // THEN the system is in Blocks form with cache_control
+    //   AND the 3rd message from the end has cache_control
     #[test]
     fn test_apply_cache_breakpoints_system_and_sliding() {
         let mut system = Some(AnthropicSystem::Plain("Be helpful".to_string()));
@@ -1154,7 +1157,7 @@ mod tests {
 
         apply_cache_breakpoints(&mut messages, &mut system, &mut tools);
 
-        // System doit être en Blocks avec cache_control
+        // System must be in Blocks form with cache_control
         match &system {
             Some(AnthropicSystem::Blocks(blocks)) => {
                 assert_eq!(blocks.len(), 1);
@@ -1163,7 +1166,7 @@ mod tests {
             _ => panic!("system must be Blocks after apply_cache_breakpoints"),
         }
 
-        // messages[2] = 3ème depuis la fin (index len-3 = 5-3 = 2) doit avoir cache_control
+        // messages[2] = 3rd from the end (index len-3 = 5-3 = 2) must have cache_control
         match &messages[2].content {
             AnthropicContent::Blocks(blocks) => {
                 assert!(
@@ -1180,16 +1183,16 @@ mod tests {
             _ => panic!("messages[2] must be Blocks after breakpoint"),
         }
 
-        // messages[4] (dernier) ne doit PAS avoir cache_control auto
+        // messages[4] (last) must NOT have an automatic cache_control
         match &messages[4].content {
             AnthropicContent::Text(_) => {}
             _ => panic!("messages[4] must remain Text (no auto breakpoint)"),
         }
     }
 
-    // GIVEN une liste d'outils
-    // WHEN apply_cache_breakpoints() est appelé
-    // THEN le dernier outil a cache_control: ephemeral
+    // GIVEN a list of tools
+    // WHEN apply_cache_breakpoints() is called
+    // THEN the last tool has cache_control: ephemeral
     #[test]
     fn test_apply_cache_breakpoints_last_tool() {
         let mut system: Option<AnthropicSystem> = None;
@@ -1222,9 +1225,9 @@ mod tests {
         );
     }
 
-    // GIVEN un message avec ChatMessage.cache_control = Some(Ephemeral)
-    // WHEN convert_message() est appelé
-    // THEN le contenu texte est converti en bloc avec cache_control: ephemeral
+    // GIVEN a message with ChatMessage.cache_control = Some(Ephemeral)
+    // WHEN convert_message() is called
+    // THEN the text content is converted to a block with cache_control: ephemeral
     #[test]
     fn test_convert_message_respects_cache_control() {
         use crate::types::ChatMessage;
@@ -1252,9 +1255,9 @@ mod tests {
         }
     }
 
-    // GIVEN un message sans cache_control
-    // WHEN convert_message() est appelé
-    // THEN le contenu est Text simple (pas de blocs)
+    // GIVEN a message without cache_control
+    // WHEN convert_message() is called
+    // THEN the content is plain Text (no blocks)
     #[test]
     fn test_convert_message_no_cache_control_stays_text() {
         use crate::types::ChatMessage;
@@ -1269,8 +1272,8 @@ mod tests {
     }
 
     // GIVEN AnthropicCacheControl::ephemeral()
-    // WHEN sérialisé
-    // THEN produit {"type": "ephemeral"}
+    // WHEN serialized
+    // THEN produces {"type": "ephemeral"}
     #[test]
     fn test_anthropic_cache_control_serialization() {
         let cc = AnthropicCacheControl::ephemeral();

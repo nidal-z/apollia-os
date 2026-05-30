@@ -5,10 +5,10 @@
 //! re-jeu chronologique dans le frontend (`SessionReplayControls.svelte`).
 //!
 //! Ce module expose :
-//! - [`SessionEvent`] — une entrée horodatée catégorisée (tool/memory/hitl/a2a/error).
-//! - [`SessionEventKind`] — l'enum des catégories affichées par le scrubber.
-//! - [`ReplayState`] — l'état partagé avec le frontend (index, vitesse, lecture).
-//! - [`SessionEventLog`] — un log append-only en mémoire, cloné par session.
+//! - [`SessionEvent`], une entrée horodatée catégorisée (tool/memory/hitl/a2a/error).
+//! - [`SessionEventKind`], l'enum des catégories affichées par le scrubber.
+//! - [`ReplayState`], l'état partagé avec le frontend (index, vitesse, lecture).
+//! - [`SessionEventLog`], un log append-only en mémoire, cloné par session.
 //!
 //! Le câblage complet (EventBus → SessionEventLog → SQLite) est suivi dans une
 //! story ultérieure. Le contrat sérialisable ici est suffisant pour exercer
@@ -82,7 +82,7 @@ impl ReplayState {
 /// Log append-only thread-safe des événements d'une session.
 ///
 /// Cloner le log partage le même stockage interne (Arc+Mutex). Les événements
-/// sont triés par horodatage à l'insertion — un `push` hors-ordre coûte un
+/// sont triés par horodatage à l'insertion, un `push` hors-ordre coûte un
 /// re-tri O(n log n), acceptable pour un flux ≤ quelques centaines d'events.
 #[derive(Debug, Clone, Default)]
 pub struct SessionEventLog {

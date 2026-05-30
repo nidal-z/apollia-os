@@ -1,11 +1,11 @@
-//! REST routes for Speech-to-Text — `/api/v1/stt/*`.
+//! REST routes for Speech-to-Text, `/api/v1/stt/*`.
 //!
 //! Provides 5 endpoints:
-//! - `GET  /api/v1/stt/status`              — engine status
-//! - `POST /api/v1/stt/transcribe`          — transcribe uploaded audio (multipart)
-//! - `GET  /api/v1/stt/transcriptions`      — list transcription history
-//! - `DELETE /api/v1/stt/transcriptions/:id` — delete a transcription
-//! - `GET  /api/v1/stt/models`              — list available model files
+//! - `GET  /api/v1/stt/status`             , engine status
+//! - `POST /api/v1/stt/transcribe`         , transcribe uploaded audio (multipart)
+//! - `GET  /api/v1/stt/transcriptions`     , list transcription history
+//! - `DELETE /api/v1/stt/transcriptions/:id`, delete a transcription
+//! - `GET  /api/v1/stt/models`             , list available model files
 //!
 //! All routes return `503 Service Unavailable` when the STT engine is not
 //! running (i.e. `stt_engine = None` in [`AppState`]).
@@ -110,7 +110,7 @@ fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
 
 // ── Handlers ────────────────────────────────────────────────────────
 
-/// `GET /api/v1/stt/status` — return current STT engine status.
+/// `GET /api/v1/stt/status`, return current STT engine status.
 ///
 /// Returns `200 OK` with the status when the engine is running.
 /// Returns `503 Service Unavailable` when the engine is absent.
@@ -142,7 +142,7 @@ pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
     ))
 }
 
-/// `POST /api/v1/stt/transcribe` — transcribe an uploaded audio file.
+/// `POST /api/v1/stt/transcribe`, transcribe an uploaded audio file.
 ///
 /// Accepts `multipart/form-data` with:
 /// - `audio` (required): WAV audio file
@@ -291,7 +291,7 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
     Ok((StatusCode::OK, Json(transcript_row)))
 }
 
-/// `GET /api/v1/stt/transcriptions` — list transcription history.
+/// `GET /api/v1/stt/transcriptions`, list transcription history.
 ///
 /// Supports `?limit=N&offset=N` query parameters for pagination.
 /// Returns `200 OK` with the list, even when empty.
@@ -332,7 +332,7 @@ pub async fn list_transcriptions<B: ExecutionBackend + Clone + From<DynBackend>>
     ))
 }
 
-/// `DELETE /api/v1/stt/transcriptions/:id` — delete a transcription by ID.
+/// `DELETE /api/v1/stt/transcriptions/:id`, delete a transcription by ID.
 ///
 /// Returns `204 No Content` on success (even if the ID did not exist).
 /// Returns `503 Service Unavailable` when the STT subsystem is absent.
@@ -365,7 +365,7 @@ pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `GET /api/v1/stt/models` — list available `.bin` model files.
+/// `GET /api/v1/stt/models`, list available `.bin` model files.
 ///
 /// Scans `~/.apollia/models/` for `.bin` files and returns their name,
 /// path, and size. Returns an empty list if the directory does not exist.
@@ -411,7 +411,7 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
     Ok((StatusCode::OK, Json(ModelsListResponse { models })))
 }
 
-/// `GET /api/v1/stt/config` — return the persisted STT configuration.
+/// `GET /api/v1/stt/config`, return the persisted STT configuration.
 ///
 /// Returns `200 OK` with the current [`SttConfigRow`] from `system.db`.
 /// If the table is empty (first boot), the defaults are inserted and returned.
@@ -452,10 +452,10 @@ pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
     Ok((StatusCode::OK, Json(config)))
 }
 
-/// `PUT /api/v1/stt/config` — update the persisted STT configuration.
+/// `PUT /api/v1/stt/config`, update the persisted STT configuration.
 ///
 /// Accepts a JSON body of [`SttConfigRow`] (fields with `#[serde(default)]` may
-/// be omitted — missing fields receive their default values). Replaces the
+/// be omitted, missing fields receive their default values). Replaces the
 /// singleton row in `system.db` via an upsert.
 ///
 /// Returns `200 OK` with the updated configuration.
@@ -615,6 +615,7 @@ mod tests {
             llm_backend_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         }
     }
 

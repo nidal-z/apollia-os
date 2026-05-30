@@ -1,26 +1,26 @@
-//! Validation métier des définitions de triggers.
+//! Business validation of trigger definitions.
 //!
-//! Ce module centralise la validation exécutée avant chaque écriture
-//! (insert/update) dans le [`crate::definition_repository::TriggerDefinitionRepository`].
-//! Les règles de validation sont fail-fast (Principe #4 d'Apollia OS).
+//! This module centralizes the validation run before each write (insert/update)
+//! in [`crate::definition_repository::TriggerDefinitionRepository`]. The
+//! validation rules are fail-fast.
 
 use std::str::FromStr;
 
 use crate::definition_repository::{TriggerDefinitionError, TriggerDefinitionRow};
 
-/// Types de sources reconnus par le système de triggers.
+/// Source types recognized by the trigger system.
 const VALID_SOURCE_TYPES: &[&str] = &["cron", "interval", "oneshot", "file_watch", "webhook"];
 
-/// Longueur minimale du secret HMAC-SHA256 pour les webhooks.
+/// Minimum length of the HMAC-SHA256 secret for webhooks.
 const MIN_WEBHOOK_SECRET_LENGTH: usize = 32;
 
-/// Valide une [`TriggerDefinitionRow`] avant insert ou update.
+/// Validates a [`TriggerDefinitionRow`] before insert or update.
 ///
-/// Vérifie :
-/// - Agent défini (non-None et non-vide)
-/// - Identifiant non vide
-/// - `source_type` reconnu
-/// - `source_config` valide pour le `source_type` donné
+/// Checks:
+/// - Agent set (non-None and non-empty)
+/// - Non-empty identifier
+/// - Recognized `source_type`
+/// - `source_config` valid for the given `source_type`
 pub fn validate_trigger(def: &TriggerDefinitionRow) -> Result<(), TriggerDefinitionError> {
     match def.agent.as_deref() {
         None | Some("") => {
@@ -47,14 +47,14 @@ pub fn validate_trigger(def: &TriggerDefinitionRow) -> Result<(), TriggerDefinit
     validate_trigger_source(&def.source_type, &def.source_config)
 }
 
-/// Valide la `source_config` JSON selon le `source_type`.
+/// Validates the `source_config` JSON according to the `source_type`.
 ///
-/// Règles par type :
-/// - `cron` : expression cron parsable (5 ou 6 champs, normalisation auto)
-/// - `interval` : champ `every` au format `"30m"`, `"1h"`, etc.
-/// - `oneshot` : champ `fire_at` ISO 8601
-/// - `file_watch` : champ `path` non vide
-/// - `webhook` : champ `secret` >= 32 caractères
+/// Rules per type:
+/// - `cron`: parsable cron expression (5 or 6 fields, auto normalization)
+/// - `interval`: `every` field in the format `"30m"`, `"1h"`, etc.
+/// - `oneshot`: ISO 8601 `fire_at` field
+/// - `file_watch`: non-empty `path` field
+/// - `webhook`: `secret` field >= 32 characters
 pub fn validate_trigger_source(
     source_type: &str,
     config: &serde_json::Value,
@@ -71,7 +71,7 @@ pub fn validate_trigger_source(
     }
 }
 
-/// Valide une expression cron (5 ou 6 champs, normalisation 5→6 auto).
+/// Validates a cron expression (5 or 6 fields, auto 5-to-6 normalization).
 fn validate_cron(config: &serde_json::Value) -> Result<(), TriggerDefinitionError> {
     let schedule = config
         .get("schedule")
@@ -88,7 +88,7 @@ fn validate_cron(config: &serde_json::Value) -> Result<(), TriggerDefinitionErro
         return Ok(());
     }
 
-    // Normalisation 5→6 champs (ajout du champ secondes)
+    // Normalize 5 to 6 fields (prepend the seconds field).
     let field_count = schedule.split_whitespace().count();
     if field_count == 5 {
         let normalized = format!("0 {schedule}");
@@ -107,7 +107,7 @@ fn validate_cron(config: &serde_json::Value) -> Result<(), TriggerDefinitionErro
     )))
 }
 
-/// Valide un intervalle périodique (champ `every`).
+/// Validates a periodic interval (`every` field).
 fn validate_interval(config: &serde_json::Value) -> Result<(), TriggerDefinitionError> {
     let every = config.get("every").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -123,7 +123,7 @@ fn validate_interval(config: &serde_json::Value) -> Result<(), TriggerDefinition
     Ok(())
 }
 
-/// Valide un déclenchement oneshot (champ `fire_at` ISO 8601).
+/// Validates a oneshot trigger (ISO 8601 `fire_at` field).
 fn validate_oneshot(config: &serde_json::Value) -> Result<(), TriggerDefinitionError> {
     let fire_at = config.get("fire_at").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -142,7 +142,7 @@ fn validate_oneshot(config: &serde_json::Value) -> Result<(), TriggerDefinitionE
     Ok(())
 }
 
-/// Valide une source file_watch (champ `path` non vide).
+/// Validates a file_watch source (non-empty `path` field).
 fn validate_file_watch(config: &serde_json::Value) -> Result<(), TriggerDefinitionError> {
     let path = config.get("path").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -155,7 +155,7 @@ fn validate_file_watch(config: &serde_json::Value) -> Result<(), TriggerDefiniti
     Ok(())
 }
 
-/// Valide un webhook (champ `secret` >= 32 caractères).
+/// Validates a webhook (`secret` field >= 32 characters).
 fn validate_webhook(config: &serde_json::Value) -> Result<(), TriggerDefinitionError> {
     let secret = config.get("secret").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -173,7 +173,7 @@ mod tests {
     use super::*;
     use crate::definition_repository::OnBusy;
 
-    /// Crée une définition valide pour les tests de validation pure.
+    /// Creates a valid definition for pure validation tests.
     fn make_valid_def() -> TriggerDefinitionRow {
         TriggerDefinitionRow {
             id: "test".to_string(),

@@ -42,7 +42,7 @@ pub struct RetryAttempt {
     pub started_at: u64,
     /// End of the attempt, ms since Unix epoch.
     pub ended_at: u64,
-    /// Outcome category — success / failure / timeout / fallback.
+    /// Outcome category: success / failure / timeout / fallback.
     pub outcome: AttemptOutcome,
     /// Classified error for non-success outcomes.
     #[serde(default, skip_serializing_if = "Option::is_none")]

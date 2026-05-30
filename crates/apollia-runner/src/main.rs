@@ -1,7 +1,7 @@
-//! Apollia OS — sidecar runner binary.
+//! Apollia OS sidecar runner binary.
 //!
-//! Spawné par le daemon `apollia-os` au boot. Bind sur `127.0.0.1:0`, annonce
-//! le port retenu via stdout, sert l'API HTTP IPC.
+//! Spawned by the `apollia-os` daemon at boot. Binds on `127.0.0.1:0`,
+//! announces the chosen port over stdout, serves the IPC HTTP API.
 
 use std::error::Error;
 

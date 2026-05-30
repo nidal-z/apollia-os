@@ -1,4 +1,4 @@
-//! `apollia-os logs` — display runtime log lines.
+//! `apollia-os logs`: display runtime log lines.
 //!
 //! The Apollia runtime writes its log stream to stderr by default. When the
 //! daemon is started with stderr redirected to a file (e.g.
@@ -88,7 +88,7 @@ fn default_log_path() -> PathBuf {
 
 /// Print the last `n` lines of `path` to stdout.
 ///
-/// Reads the entire file into memory — fine for tracing logs which rotate
+/// Reads the entire file into memory, fine for tracing logs which rotate
 /// well below the 100 MB range. For huge files, prefer `--file` with an
 /// already-rotated path.
 async fn print_tail(path: &std::path::Path, n: usize) -> std::io::Result<()> {

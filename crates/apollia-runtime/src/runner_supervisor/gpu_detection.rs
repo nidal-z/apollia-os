@@ -1,26 +1,23 @@
-//! Détection cross-platform du GPU au boot du daemon.
+//! Cross-platform GPU detection at daemon boot.
 //!
-//! Au démarrage, le `RunnerSupervisor` interroge [`detect_gpu`] pour obtenir
-//! les caractéristiques de la GPU locale, puis applique [`resolve_backend`]
-//! pour produire le `RunnerBackend` final (en tenant compte d'un éventuel
-//! override utilisateur via `[llm.runner].backend` dans `apollia.toml`).
+//! At startup, the `RunnerSupervisor` queries [`detect_gpu`] to get the local
+//! GPU's characteristics, then applies [`resolve_backend`] to produce the final
+//! `RunnerBackend` (accounting for an optional user override via
+//! `[llm.runner].backend` in `apollia.toml`).
 //!
-//! Cf. `docs/internal/architecture/GPU-DETECTION.md` pour la spec complète
-//! et la hiérarchie de décision (Apple Silicon, NVIDIA + CUDA ≥ 12.0, AMD +
-//! ROCm, fallback Vulkan, fallback CPU).
+//! The decision hierarchy is: Apple Silicon, NVIDIA + CUDA >= 12.0, AMD + ROCm,
+//! Vulkan fallback, CPU fallback.
 //!
-//! Le module est strictement local-first (Principe #1) : aucune télémetrie,
-//! aucun appel réseau. Toutes les sondes sont des sous-processus (`nvidia-smi`,
-//! `rocm-smi`, `system_profiler`, `vulkaninfo`) ou des lectures `/sys`.
+//! The module is strictly local-first: no telemetry, no network calls. All
+//! probes are subprocesses (`nvidia-smi`, `rocm-smi`, `system_profiler`,
+//! `vulkaninfo`) or `/sys` reads.
 
 use apollia_core::LlmRunnerConfig;
 use serde::{Deserialize, Serialize};
 
-// ─────────────────────────────────────────────
-// Types publics
-// ─────────────────────────────────────────────
+// Public types
 
-/// Identité du fabricant GPU détecté.
+/// Identity of the detected GPU vendor.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Vendor {
@@ -32,17 +29,17 @@ pub enum Vendor {
     Intel,
     /// Apple Silicon (M1/M2/M3/M4+).
     Apple,
-    /// Vendor non identifié ou aucune GPU détectée.
+    /// Unidentified vendor or no GPU detected.
     Unknown,
 }
 
-/// Backend d'inférence retenu pour spawner le sidecar runner.
+/// Inference backend chosen to spawn the sidecar runner.
 ///
-/// Le `binary_name()` correspondant est dans le même répertoire que `apollia-os`.
+/// The matching `binary_name()` lives in the same directory as `apollia-os`.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum RunnerBackend {
-    /// NVIDIA CUDA (driver ≥ 12.0).
+    /// NVIDIA CUDA (driver >= 12.0).
     Cuda,
     /// AMD ROCm (Linux + Windows Radeon Pro / Instinct).
     Rocm,
@@ -50,15 +47,15 @@ pub enum RunnerBackend {
     Vulkan,
     /// Apple Metal (macOS arm64).
     Metal,
-    /// CPU pur (fallback ultime, toujours disponible).
+    /// Pure CPU (ultimate fallback, always available).
     Cpu,
 }
 
 impl RunnerBackend {
-    /// Nom du binaire runner correspondant.
+    /// Name of the matching runner binary.
     ///
-    /// Utilisé par `RunnerSupervisor::spawn` pour résoudre le chemin du sidecar
-    /// dans le même répertoire que `apollia-os`.
+    /// Used by `RunnerSupervisor::spawn` to resolve the sidecar path in the
+    /// same directory as `apollia-os`.
     pub fn binary_name(&self) -> &'static str {
         match self {
             Self::Cuda => "apollia-runner-cuda",
@@ -69,8 +66,8 @@ impl RunnerBackend {
         }
     }
 
-    /// Parse une valeur textuelle (issue de `apollia.toml` ou d'un test) vers
-    /// le variant correspondant. Retourne `Err(())` si la chaîne n'est pas reconnue.
+    /// Parse a text value (from `apollia.toml` or a test) into the matching
+    /// variant. Returns `Err(())` if the string is not recognized.
     fn from_str(s: &str) -> Result<Self, ()> {
         match s {
             "cuda" => Ok(Self::Cuda),
@@ -83,25 +80,25 @@ impl RunnerBackend {
     }
 }
 
-/// Informations GPU collectées par [`detect_gpu`].
+/// GPU information collected by [`detect_gpu`].
 ///
-/// Le champ `recommended_backend` reflète la décision de la détection auto :
-/// il peut être surchargé par [`resolve_backend`] si l'opérateur a fixé
-/// `[llm.runner].backend` à autre chose que `"auto"`.
+/// The `recommended_backend` field reflects the auto-detection decision:
+/// it can be overridden by [`resolve_backend`] if the operator set
+/// `[llm.runner].backend` to something other than `"auto"`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GpuInfo {
-    /// Fabricant identifié.
+    /// Identified vendor.
     pub vendor: Vendor,
-    /// Nom modèle lisible (ex: `"GeForce RTX 4070"`, `"Apple M3"`).
+    /// Human-readable model name (e.g. `"GeForce RTX 4070"`, `"Apple M3"`).
     pub model: String,
-    /// Mémoire totale en mégaoctets. `0` si non disponible.
+    /// Total memory in megabytes. `0` if unavailable.
     pub memory_total_mb: u32,
-    /// Backend recommandé d'après la détection auto.
+    /// Backend recommended by auto-detection.
     pub recommended_backend: RunnerBackend,
 }
 
 impl GpuInfo {
-    /// Constructeur fallback CPU lorsque la détection a échoué ou qu'aucune GPU n'est présente.
+    /// CPU fallback constructor when detection failed or no GPU is present.
     pub fn cpu_fallback() -> Self {
         Self {
             vendor: Vendor::Unknown,
@@ -112,14 +109,12 @@ impl GpuInfo {
     }
 }
 
-// ─────────────────────────────────────────────
-// detect_gpu : point d'entrée cross-platform
-// ─────────────────────────────────────────────
+// detect_gpu: cross-platform entry point
 
-/// Détecte le GPU disponible et retourne ses caractéristiques.
+/// Detect the available GPU and return its characteristics.
 ///
-/// Détection cfg-gated par OS. Toujours best-effort : retourne
-/// [`GpuInfo::cpu_fallback`] plutôt que de paniquer si aucune sonde n'aboutit.
+/// Detection is cfg-gated per OS. Always best-effort: returns
+/// [`GpuInfo::cpu_fallback`] rather than panicking if no probe succeeds.
 #[cfg(target_os = "macos")]
 pub fn detect_gpu() -> GpuInfo {
     #[cfg(target_arch = "aarch64")]
@@ -148,8 +143,8 @@ pub fn detect_gpu() -> GpuInfo {
     }
 }
 
-/// Détecte le GPU sur Linux : NVIDIA via `nvidia-smi`, AMD via `rocm-smi`,
-/// puis scan `/sys/class/drm` pour les autres vendors.
+/// Detect the GPU on Linux: NVIDIA via `nvidia-smi`, AMD via `rocm-smi`,
+/// then scan `/sys/class/drm` for other vendors.
 #[cfg(target_os = "linux")]
 pub fn detect_gpu() -> GpuInfo {
     if let Some(info) = probe_nvidia_linux() {
@@ -169,27 +164,14 @@ pub fn detect_gpu() -> GpuInfo {
     info
 }
 
-/// Détecte le GPU sur Windows : WMI `Win32_VideoController` + sondes
+/// Detect the GPU on Windows: WMI `Win32_VideoController` + probes
 /// `nvidia-smi.exe`, HIP SDK, `vulkan-1.dll`.
 #[cfg(target_os = "windows")]
 pub fn detect_gpu() -> GpuInfo {
     let controllers = wmi_list_video_controllers().unwrap_or_default();
 
     if let Some(ctrl) = controllers.iter().find(|c| c.name.contains("NVIDIA")) {
-        let cuda_version = probe_cuda_version_windows().unwrap_or((0, 0));
-        let backend = if cuda_version.0 >= 12 {
-            RunnerBackend::Cuda
-        } else if vulkan_loader_present_windows() {
-            RunnerBackend::Vulkan
-        } else {
-            RunnerBackend::Cpu
-        };
-        let info = GpuInfo {
-            vendor: Vendor::Nvidia,
-            model: ctrl.name.clone(),
-            memory_total_mb: ctrl.adapter_ram_mb(),
-            recommended_backend: backend,
-        };
+        let info = build_video_controller_info(ctrl, Vendor::Nvidia, nvidia_backend_windows());
         log_detected(&info);
         return info;
     }
@@ -198,19 +180,7 @@ pub fn detect_gpu() -> GpuInfo {
         .iter()
         .find(|c| c.name.contains("AMD") || c.name.contains("Radeon"))
     {
-        let backend = if hip_sdk_present_windows() && rocm_supports_card(&ctrl.name) {
-            RunnerBackend::Rocm
-        } else if vulkan_loader_present_windows() {
-            RunnerBackend::Vulkan
-        } else {
-            RunnerBackend::Cpu
-        };
-        let info = GpuInfo {
-            vendor: Vendor::Amd,
-            model: ctrl.name.clone(),
-            memory_total_mb: ctrl.adapter_ram_mb(),
-            recommended_backend: backend,
-        };
+        let info = build_video_controller_info(ctrl, Vendor::Amd, amd_backend_windows(&ctrl.name));
         log_detected(&info);
         return info;
     }
@@ -219,17 +189,7 @@ pub fn detect_gpu() -> GpuInfo {
         .iter()
         .find(|c| c.name.contains("Intel") && c.name.contains("Arc"))
     {
-        let backend = if vulkan_loader_present_windows() {
-            RunnerBackend::Vulkan
-        } else {
-            RunnerBackend::Cpu
-        };
-        let info = GpuInfo {
-            vendor: Vendor::Intel,
-            model: ctrl.name.clone(),
-            memory_total_mb: ctrl.adapter_ram_mb(),
-            recommended_backend: backend,
-        };
+        let info = build_video_controller_info(ctrl, Vendor::Intel, intel_backend_windows());
         log_detected(&info);
         return info;
     }
@@ -237,6 +197,56 @@ pub fn detect_gpu() -> GpuInfo {
     let info = GpuInfo::cpu_fallback();
     log_detected(&info);
     info
+}
+
+/// Select the recommended backend for an NVIDIA GPU on Windows.
+#[cfg(target_os = "windows")]
+fn nvidia_backend_windows() -> RunnerBackend {
+    let cuda_version = probe_cuda_version_windows().unwrap_or((0, 0));
+    if cuda_version.0 >= 12 {
+        RunnerBackend::Cuda
+    } else if vulkan_loader_present_windows() {
+        RunnerBackend::Vulkan
+    } else {
+        RunnerBackend::Cpu
+    }
+}
+
+/// Select the recommended backend for an AMD GPU on Windows.
+#[cfg(target_os = "windows")]
+fn amd_backend_windows(name: &str) -> RunnerBackend {
+    if hip_sdk_present_windows() && rocm_supports_card(name) {
+        RunnerBackend::Rocm
+    } else if vulkan_loader_present_windows() {
+        RunnerBackend::Vulkan
+    } else {
+        RunnerBackend::Cpu
+    }
+}
+
+/// Select the recommended backend for an Intel Arc GPU on Windows.
+#[cfg(target_os = "windows")]
+fn intel_backend_windows() -> RunnerBackend {
+    if vulkan_loader_present_windows() {
+        RunnerBackend::Vulkan
+    } else {
+        RunnerBackend::Cpu
+    }
+}
+
+/// Build a [`GpuInfo`] from a WMI controller and the chosen backend.
+#[cfg(target_os = "windows")]
+fn build_video_controller_info(
+    ctrl: &VideoController,
+    vendor: Vendor,
+    backend: RunnerBackend,
+) -> GpuInfo {
+    GpuInfo {
+        vendor,
+        model: ctrl.name.clone(),
+        memory_total_mb: ctrl.adapter_ram_mb(),
+        recommended_backend: backend,
+    }
 }
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -250,17 +260,15 @@ fn log_detected(info: &GpuInfo) {
     );
 }
 
-// ─────────────────────────────────────────────
-// Override utilisateur
-// ─────────────────────────────────────────────
+// User override
 
-/// Résout le `RunnerBackend` final en croisant la détection auto et l'override
-/// utilisateur `[llm.runner].backend`.
+/// Resolve the final `RunnerBackend` by combining auto-detection and the user
+/// override `[llm.runner].backend`.
 ///
-/// Hiérarchie de décision :
-/// 1. `"auto"` : utilise `detected.recommended_backend`.
-/// 2. Valeur explicite valide ET binaire correspondant présent : utilise cette valeur.
-/// 3. Valeur invalide ou binaire absent : log warning et fallback sur la détection.
+/// Decision hierarchy:
+/// 1. `"auto"`: use `detected.recommended_backend`.
+/// 2. Valid explicit value AND matching binary present: use that value.
+/// 3. Invalid value or missing binary: log a warning and fall back to detection.
 pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBackend {
     let raw = config.backend.trim();
     if raw.is_empty() || raw.eq_ignore_ascii_case("auto") {
@@ -298,12 +306,12 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
     parsed
 }
 
-/// Vérifie qu'un binaire runner est présent à côté de l'exécutable courant.
+/// Check that a runner binary is present next to the current executable.
 ///
-/// Le bundle Apollia livre les 5 binaires runner sur Linux/Windows, et
-/// `metal`+`cpu` sur macOS. On accepte aussi `CARGO_MANIFEST_DIR` en environnement
-/// de test ou de dev : si on ne peut pas résoudre l'exécutable courant, on
-/// renvoie `true` pour ne pas casser les tests qui appellent `resolve_backend`.
+/// The Apollia bundle ships the 5 runner binaries on Linux/Windows, and
+/// `metal`+`cpu` on macOS. We also accept `CARGO_MANIFEST_DIR` in a test or dev
+/// environment: if we cannot resolve the current executable, we return `true`
+/// so as not to break tests that call `resolve_backend`.
 fn is_backend_available(backend: RunnerBackend) -> bool {
     let exe_name = backend.binary_name();
     let exe_path = match std::env::current_exe()
@@ -358,7 +366,7 @@ fn query_system_profiler_unified_memory_mb() -> Option<u32> {
 // Sondes Linux
 // ─────────────────────────────────────────────
 
-/// Représentation parsée d'une ligne `nvidia-smi --query-gpu=name,memory.total,driver_version`.
+/// Parsed representation of a `nvidia-smi --query-gpu=name,memory.total,driver_version` line.
 #[cfg(any(target_os = "linux", target_os = "windows", test))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NvidiaSmiLine {
@@ -483,9 +491,9 @@ fn probe_pci_drm() -> Option<GpuInfo> {
         };
         let vendor_id = vendor_id.trim();
         let (vendor, fallback_backend) = match vendor_id {
-            // Si on est tombé ici, pas de nvidia-smi : on tente Vulkan.
+            // If we got here, no nvidia-smi: try Vulkan.
             "0x10de" => (Vendor::Nvidia, RunnerBackend::Vulkan),
-            // Pas de ROCm, Vulkan fallback.
+            // No ROCm, Vulkan fallback.
             "0x1002" => (Vendor::Amd, RunnerBackend::Vulkan),
             "0x8086" => (Vendor::Intel, RunnerBackend::Vulkan),
             _ => continue,
@@ -531,7 +539,7 @@ fn vulkan_loader_present_linux() -> bool {
 // Sondes Windows
 // ─────────────────────────────────────────────
 
-/// Controller GPU tel qu'exposé par WMI `Win32_VideoController`.
+/// GPU controller as exposed by WMI `Win32_VideoController`.
 #[cfg(target_os = "windows")]
 #[derive(Debug, Clone, serde::Deserialize)]
 struct VideoController {
@@ -574,7 +582,7 @@ fn probe_cuda_version_windows() -> Option<(u32, u32)> {
 
 #[cfg(target_os = "windows")]
 fn vulkan_loader_present_windows() -> bool {
-    // `vulkan-1.dll` est livrée par le driver GPU sur Windows.
+    // `vulkan-1.dll` is shipped by the GPU driver on Windows.
     std::process::Command::new("where")
         .arg("vulkan-1.dll")
         .output()
@@ -588,15 +596,13 @@ fn hip_sdk_present_windows() -> bool {
         || std::path::Path::new("C:/Program Files/AMD/ROCm").exists()
 }
 
-/// Whitelist AMD ROCm Windows : officiellement limité aux Radeon Pro et Instinct MI.
+/// AMD ROCm Windows allowlist: officially limited to Radeon Pro and Instinct MI.
 #[cfg(any(target_os = "windows", test))]
 fn rocm_supports_card(name: &str) -> bool {
     name.contains("Radeon Pro") || name.contains("Instinct")
 }
 
-// ─────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -619,10 +625,10 @@ mod tests {
 
     #[test]
     fn cpu_fallback_when_no_gpu() {
-        // GIVEN aucune sonde réussit
-        // WHEN on construit le fallback CPU
+        // GIVEN no probe succeeds
+        // WHEN building the CPU fallback
         let info = GpuInfo::cpu_fallback();
-        // THEN vendor=Unknown et backend=Cpu
+        // THEN vendor=Unknown and backend=Cpu
         assert_eq!(info.vendor, Vendor::Unknown);
         assert_eq!(info.recommended_backend, RunnerBackend::Cpu);
         assert_eq!(info.memory_total_mb, 0);
@@ -630,38 +636,38 @@ mod tests {
 
     #[test]
     fn override_auto_uses_detection() {
-        // GIVEN une NVIDIA détectée et override = "auto"
+        // GIVEN an NVIDIA detected and override = "auto"
         let detected = nvidia_detected();
         let cfg = make_runner_config("auto");
-        // WHEN on résout le backend
+        // WHEN resolving the backend
         let backend = resolve_backend(&cfg, &detected);
-        // THEN on utilise la détection auto
+        // THEN auto-detection is used
         assert_eq!(backend, RunnerBackend::Cuda);
     }
 
     #[test]
     fn override_auto_case_insensitive() {
-        // GIVEN override = "Auto" (casse mixte)
+        // GIVEN override = "Auto" (mixed case)
         let detected = nvidia_detected();
         let cfg = make_runner_config("Auto");
-        // THEN traité comme auto
+        // THEN treated as auto
         assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
     }
 
     #[test]
     fn override_empty_uses_detection() {
-        // GIVEN override = "" (config absente du toml)
+        // GIVEN override = "" (config absent from the toml)
         let detected = nvidia_detected();
         let cfg = make_runner_config("");
-        // THEN fallback sur la détection
+        // THEN fall back to detection
         assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
     }
 
     #[test]
     fn override_explicit_used_if_available() {
-        // GIVEN une NVIDIA détectée et override = "vulkan".
-        // Le test crée un binaire factice `apollia-runner-vulkan` à côté de
-        // l'exécutable de test pour simuler un bundle complet.
+        // GIVEN an NVIDIA detected and override = "vulkan".
+        // The test creates a dummy `apollia-runner-vulkan` binary next to the
+        // test executable to simulate a complete bundle.
         let exe_dir = std::env::current_exe()
             .expect("current_exe must succeed in test")
             .parent()
@@ -670,7 +676,7 @@ mod tests {
         let suffix = if cfg!(windows) { ".exe" } else { "" };
         let dummy = exe_dir.join(format!("apollia-runner-vulkan{}", suffix));
         let _ = std::fs::write(&dummy, b"#!/bin/sh\n");
-        // Cleanup guard pour ne pas polluer les autres tests.
+        // Cleanup guard to avoid polluting other tests.
         struct Cleanup(std::path::PathBuf);
         impl Drop for Cleanup {
             fn drop(&mut self) {
@@ -682,24 +688,24 @@ mod tests {
         let detected = nvidia_detected();
         let cfg = make_runner_config("vulkan");
 
-        // WHEN on résout
+        // WHEN resolving
         let backend = resolve_backend(&cfg, &detected);
-        // THEN l'override est appliqué (binaire présent)
+        // THEN the override is applied (binary present)
         assert_eq!(backend, RunnerBackend::Vulkan);
     }
 
     #[test]
     fn override_falls_back_if_binary_missing() {
-        // GIVEN une NVIDIA détectée et override = "rocm".
-        // Le binaire `apollia-runner-rocm` n'est PAS à côté de l'exécutable de test.
-        // (current_exe pointe sur target/debug/deps/<test-binary>, on cherche
-        //  target/debug/deps/apollia-runner-rocm qui n'existe pas).
+        // GIVEN an NVIDIA detected and override = "rocm".
+        // The `apollia-runner-rocm` binary is NOT next to the test executable.
+        // (current_exe points to target/debug/deps/<test-binary>, we look for
+        //  target/debug/deps/apollia-runner-rocm which does not exist).
         let detected = nvidia_detected();
         let cfg = make_runner_config("rocm");
         let backend = resolve_backend(&cfg, &detected);
 
-        // On accepte les deux cas : binaire absent → fallback, binaire présent → Rocm.
-        // Ce test reflète l'invariant : si absent, on retombe sur detected.
+        // Accept both cases: binary absent -> fallback, binary present -> Rocm.
+        // This test reflects the invariant: if absent, fall back to detected.
         if !is_backend_available(RunnerBackend::Rocm) {
             assert_eq!(backend, RunnerBackend::Cuda);
         } else {
@@ -709,20 +715,20 @@ mod tests {
 
     #[test]
     fn override_invalid_value_falls_back() {
-        // GIVEN override = "potato" (valeur inconnue)
+        // GIVEN override = "potato" (unknown value)
         let detected = nvidia_detected();
         let cfg = make_runner_config("potato");
-        // THEN warning + fallback détection
+        // THEN warning + fallback to detection
         assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
     }
 
     #[test]
     fn parse_nvidia_smi_line_rtx_4070() {
-        // GIVEN une sortie typique de `nvidia-smi --query-gpu=...`
+        // GIVEN a typical output of `nvidia-smi --query-gpu=...`
         let line = "GeForce RTX 4070, 12288, 550.78";
-        // WHEN on parse
+        // WHEN parsing
         let parsed = parse_nvidia_smi_line(line).expect("parsing should succeed");
-        // THEN les 3 champs sont extraits
+        // THEN the 3 fields are extracted
         assert_eq!(parsed.model, "GeForce RTX 4070");
         assert_eq!(parsed.memory_total_mb, 12_288);
         assert_eq!(parsed.driver_version, "550.78");
@@ -730,23 +736,23 @@ mod tests {
 
     #[test]
     fn parse_nvidia_smi_line_rejects_garbage() {
-        // GIVEN une sortie malformée (manque la mémoire et la version)
+        // GIVEN a malformed output (missing memory and version)
         let line = "only-model";
-        // THEN on retourne None
+        // THEN None is returned
         assert!(parse_nvidia_smi_line(line).is_none());
     }
 
     #[test]
     fn parse_nvidia_smi_line_rejects_non_numeric_memory() {
-        // GIVEN une sortie avec mémoire non numérique
+        // GIVEN an output with non-numeric memory
         let line = "Some GPU, notanumber, 1.0";
-        // THEN on retourne None (parse::<u32> échoue)
+        // THEN None is returned (parse::<u32> fails)
         assert!(parse_nvidia_smi_line(line).is_none());
     }
 
     #[test]
     fn parse_cuda_version_from_smi_q_typical() {
-        // GIVEN un extrait de `nvidia-smi -q`
+        // GIVEN an excerpt of `nvidia-smi -q`
         let s = "Driver Version : 550.78\nCUDA Version : 12.4\nGPU 00000000:01:00.0";
         // WHEN
         let v = parse_cuda_version_from_smi_q(s);
@@ -756,7 +762,7 @@ mod tests {
 
     #[test]
     fn parse_cuda_version_from_smi_q_missing() {
-        // GIVEN un texte sans la ligne CUDA Version
+        // GIVEN a text without the CUDA Version line
         let s = "Driver Version : 550.78\nGPU info...";
         // THEN None
         assert!(parse_cuda_version_from_smi_q(s).is_none());
@@ -792,7 +798,7 @@ mod tests {
 
     #[test]
     fn rocm_only_for_radeon_pro_or_instinct() {
-        // Whitelist statique ROCm : Radeon Pro et Instinct uniquement.
+        // Static ROCm allowlist: Radeon Pro and Instinct only.
         assert!(rocm_supports_card("AMD Radeon Pro W7900"));
         assert!(rocm_supports_card("AMD Instinct MI300"));
         assert!(!rocm_supports_card("AMD Radeon RX 7800 XT"));

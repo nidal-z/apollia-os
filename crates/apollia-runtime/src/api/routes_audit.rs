@@ -1,7 +1,7 @@
 //! REST routes for the audit trail.
 //!
-//! - `GET /api/v1/audit?limit=N` — last N tool invocations (default 20)
-//! - `GET /api/v1/audit/stats`   — aggregate counts (total, unique tools, agents)
+//! - `GET /api/v1/audit?limit=N`, last N tool invocations (default 20)
+//! - `GET /api/v1/audit/stats`  , aggregate counts (total, unique tools, agents)
 //!
 //! Both routes return 503 when no `AuditTrailHandle` is configured in `AppState`
 //! (e.g. unit tests or a runtime started without a data directory).
@@ -53,10 +53,10 @@ pub struct AuditEventResponse {
     /// Arguments JSON complets de l'invocation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args_json: Option<String>,
-    /// Sortie standard de l'outil, potentiellement tronquée.
+    /// Standard output of the tool, possibly truncated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stdout: Option<String>,
-    /// Sortie d'erreur de l'outil, potentiellement tronquée.
+    /// Error output of the tool, possibly truncated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stderr: Option<String>,
 }
@@ -107,7 +107,7 @@ pub struct ErrorResponse {
 // Handlers
 // ---------------------------------------------------------------------------
 
-/// `GET /api/v1/audit?limit=N` — list the most recent tool invocations.
+/// `GET /api/v1/audit?limit=N`, list the most recent tool invocations.
 pub async fn list_audit<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(params): Query<AuditListQuery>,
@@ -131,7 +131,7 @@ pub async fn list_audit<B: ExecutionBackend + Clone>(
     Ok(Json(AuditListResponse { events, count }))
 }
 
-/// `GET /api/v1/audit/stats` — aggregate counts for the audit trail.
+/// `GET /api/v1/audit/stats`, aggregate counts for the audit trail.
 pub async fn get_audit_stats<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<AuditStatsResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -246,6 +246,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         }
     }
 
@@ -361,7 +362,7 @@ mod tests {
             .unwrap();
         let resp = router.oneshot(req).await.unwrap();
 
-        // THEN 200 (capped — no panic, no error)
+        // THEN 200 (capped, no panic, no error)
         assert_eq!(resp.status(), StatusCode::OK);
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();

@@ -1,4 +1,4 @@
-//! Apollia OS — OAuth2 PKCE authentication crate.
+//! Apollia OS: OAuth2 PKCE authentication crate.
 //!
 //! Provides an interactive OAuth2 PKCE login flow (RFC 7636) with:
 //! - A local callback HTTP server for the authorization redirect

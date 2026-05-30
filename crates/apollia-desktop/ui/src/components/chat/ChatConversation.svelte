@@ -1019,7 +1019,7 @@
 
               {#if a2aSteps.length > 0}
                 <div class="mt-1.5 space-y-0.5">
-                  {#each a2aSteps as step, i (step.step_id)}
+                  {#each a2aSteps as step, _i (step.step_id)}
                     <div class="flex items-center gap-1.5">
                       <div class="flex-shrink-0">
                         {#if step.status === "running"}

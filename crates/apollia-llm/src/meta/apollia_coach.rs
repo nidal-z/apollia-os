@@ -1,4 +1,4 @@
-//! `ApolliaCoach` — meta-chat routine for the product guide (/ ADR-073).
+//! `ApolliaCoach`: meta-chat routine for the product guide.
 //!
 //! Always-on, local-first coach invoked by:
 //!   - the dedicated sidebar agent "Apollia Guide" (`/chat?agent=apollia-guide`)
@@ -6,9 +6,9 @@
 //!
 //! # Principles
 //!
-//! - **Never allocates a second LLM.** Reuses [`LlmRouter::get(None)`] — the
-//!   user's configured default backend. Local (`llama.cpp` / Ollama) → 100 %
-//!   local ; cloud → same API key the user already consented to.
+//! - **Never allocates a second LLM.** Reuses [`LlmRouter::get(None)`], the
+//!   user's configured default backend. Local (`llama.cpp` / Ollama) means 100%
+//!   local; cloud means the same API key the user already consented to.
 //! - **Never calls the cloud without consent.** The backend selection is the
 //!   user's responsibility; this routine never routes around it.
 //! - **Bounded blast radius.** Structured output `{ text, action_buttons }`
@@ -63,19 +63,17 @@ const KNOWLEDGE_CAPABILITIES: &str =
 const KNOWLEDGE_TUTORIALS: &str =
     include_str!("../../../../agents/system/apollia-guide/knowledge/tutorials.md");
 
-/// Hard cap on the knowledge base we inject — prevents OOM with 7B-class models.
+/// Hard cap on the knowledge base we inject; prevents OOM with 7B-class models.
 const MAX_KB_CHARS: usize = 12_000;
 
 /// Hard cap on user history we forward to the LLM (last N turns).
 const MAX_HISTORY_TURNS: usize = 12;
 
-// ─────────────────────────────────────────────
 // Public types
-// ─────────────────────────────────────────────
 
 /// Conversation surface the coach is serving.
 ///
-/// The prompt changes subtly — operator receives pragmatic next-steps, builder
+/// The prompt changes subtly: operator receives pragmatic next-steps, builder
 /// receives technical vocabulary (manifest, tool, pipeline, trigger).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -84,7 +82,7 @@ pub enum CoachMode {
     Operator,
     /// Developer / builder (sidebar "Apollia" entry in builder mode).
     Builder,
-    /// Contextual onboarding widget — short replies, stage-aware.
+    /// Contextual onboarding widget: short replies, stage-aware.
     Onboarding,
 }
 
@@ -97,7 +95,7 @@ impl Default for CoachMode {
 /// Optional extra context passed to the coach (onboarding stage, current route…).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CoachContext {
-    /// Onboarding stage when [`CoachMode::Onboarding`] — e.g. `"ai_setup"`.
+    /// Onboarding stage when [`CoachMode::Onboarding`], e.g. `"ai_setup"`.
     #[serde(default)]
     pub onboarding_stage: Option<String>,
     /// Route the user is currently viewing (`/automations`, `/inbox`, …).
@@ -106,7 +104,7 @@ pub struct CoachContext {
     /// Declared role from onboarding memory (operator / builder / …).
     #[serde(default)]
     pub user_role: Option<String>,
-    /// Identifiers of agents the user has already installed — enables
+    /// Identifiers of agents the user has already installed; enables
     /// "You already have Linear installed, you can…" guidance.
     #[serde(default)]
     pub installed_agents: Vec<String>,
@@ -130,7 +128,7 @@ pub enum CoachAction {
 pub struct ActionButton {
     /// User-visible label (translated by the frontend when needed).
     pub label: String,
-    /// Action kind — restricted to safe, read-only UI actions.
+    /// Action kind, restricted to safe, read-only UI actions.
     pub action: CoachAction,
     /// Action-specific payload (`route` for `navigate`, `command` for `invoke`).
     pub payload: serde_json::Value,
@@ -139,7 +137,7 @@ pub struct ActionButton {
 /// Structured output returned to the frontend.
 ///
 /// `text` is rendered as a plain chat bubble; `action_buttons` as inline
-/// buttons below the bubble. Always populate `text` — `action_buttons` may
+/// buttons below the bubble. Always populate `text`; `action_buttons` may
 /// be empty when the LLM has nothing concrete to offer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoachResponse {
@@ -375,7 +373,7 @@ pub async fn invoke_apollia_coach(
     let action_buttons = parse_action_buttons(raw);
     let text = strip_action_block(raw);
     let text = if text.is_empty() {
-        // LLM emitted only the action block — fall back to a short stock message.
+        // LLM emitted only the action block; fall back to a short stock message.
         "Voici ce que je vous propose :".to_string()
     } else {
         text

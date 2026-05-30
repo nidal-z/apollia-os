@@ -18,6 +18,12 @@ from __future__ import annotations
 
 from typing import Any
 
+# NOTE on `# NOSONAR S7503` markers below:
+# Every mock here implements an async Protocol defined in
+# `apollia.context.*` (ToolProxy, LlmProxy, MemoryInterface). Call sites
+# `await` these methods, so `async` must be preserved even when no
+# `await` appears in the mock body.
+
 
 class MockToolProxy:
     """In-memory mock of ``ToolProxy`` for agent unit tests.
@@ -32,7 +38,7 @@ class MockToolProxy:
         self.responses: dict[str, Any] = responses or {}
         self.calls: list[tuple[str, dict[str, object]]] = []
 
-    async def call(
+    async def call(  # NOSONAR S7503 — Protocol contract
         self,
         tool_name: str,
         input: dict[str, object] | None = None,
@@ -60,7 +66,7 @@ class MockToolProxy:
         """Return the total number of tool calls recorded so far."""
         return len(self.calls)
 
-    async def describe(self, name: str) -> dict[str, object] | None:
+    async def describe(self, name: str) -> dict[str, object] | None:  # NOSONAR S7503
         """Return a minimal tool descriptor, or ``None`` if not configured."""
         if name not in self.responses:
             return None
@@ -146,7 +152,7 @@ class MockLlmProxy:
         self.run_tools_calls: list[dict[str, Any]] = []
         self.run_tools_responses: list[str] = []
 
-    async def complete(
+    async def complete(  # NOSONAR S7503 — Protocol contract
         self,
         messages: list[dict[str, object]] | str,
         **kwargs: Any,
@@ -185,7 +191,7 @@ class MockLlmProxy:
             backend=backend,
         )
 
-    async def run_tools(
+    async def run_tools(  # NOSONAR S7503 — Protocol contract
         self,
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
@@ -255,7 +261,7 @@ class MockMemory:
         self.episodes: list[dict[str, Any]] = []
         self.operations: list[dict[str, Any]] = []
 
-    async def record(
+    async def record(  # NOSONAR S7503 — Protocol contract
         self,
         content: str,
         importance: float | None = None,
@@ -270,7 +276,7 @@ class MockMemory:
         self.episodes.append(entry)
         self.operations.append({"op": "record", **entry})
 
-    async def remember(
+    async def remember(  # NOSONAR S7503 — Protocol contract
         self,
         key: str,
         value: str,
@@ -307,13 +313,13 @@ class MockMemory:
             "skipped": False,
         })
 
-    async def recall(self, key: str) -> str | None:
+    async def recall(self, key: str) -> str | None:  # NOSONAR S7503
         """Retrieve a value by key from semantic memory."""
         result = self.store.get(key)
         self.operations.append({"op": "recall", "key": key, "found": result is not None})
         return result
 
-    async def search(
+    async def search(  # NOSONAR S7503 — Protocol contract
         self,
         query: str,
         limit: int | None = None,
@@ -331,7 +337,7 @@ class MockMemory:
         self.operations.append({"op": "search", "query": query, "results": len(results)})
         return results
 
-    async def forget(self, key: str) -> None:
+    async def forget(self, key: str) -> None:  # NOSONAR S7503
         """Remove a key/value pair from semantic memory."""
         existed = key in self.store
         self.store.pop(key, None)

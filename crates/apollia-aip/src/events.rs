@@ -1,48 +1,47 @@
-//! ctx.events — typed event emission for agents.
+//! ctx.events: typed event emission for agents.
 //!
-//! Encapsule l'`EventBus` runtime dans un `#[pyclass]` consommable depuis
-//! Python via `ctx.events.<verb>(...)`. Chaque méthode est un no-op
-//! silencieux lorsque le contexte ne dispose pas du bus (mode test/CLI
-//! dry-run sans persistor) — l'agent reste portable sans test conditionnel.
+//! Wraps the runtime `EventBus` in a `#[pyclass]` consumable from Python via
+//! `ctx.events.<verb>(...)`. Each method is a silent no-op when the context
+//! has no bus (test / CLI dry-run mode without a persistor), so the agent
+//! stays portable without conditional checks.
 //!
-//! Successeur additif des méthodes flat existantes sur `RuntimeContext`
+//! Additive successor of the existing flat methods on `RuntimeContext`
 //! (`emit_token`, `emit_thought`, `emit_retry`, `emit_action_parse_error`).
-//! Les anciennes restent fonctionnelles mais marquées `#[deprecated]` —
-//! suppression effective après migration des agents.
+//! The old ones remain functional but are marked `#[deprecated]`, to be
+//! removed once agents have migrated.
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 use pyo3::prelude::*;
 
-/// Interface typée d'émission d'événements runtime exposée via `ctx.events`.
+/// Typed runtime event-emission interface exposed via `ctx.events`.
 ///
-/// Le pyclass capture une vue immuable de la chaîne d'émission au moment de
-/// la construction du `RuntimeContext` : bus, task_id, agent_id, et l'éventuel
-/// `message_id` du tour de chat en cours. Si l'un de ces champs manque, les
-/// méthodes deviennent des no-op silencieux — l'agent n'a jamais besoin de
-/// vérifier la présence du bus avant d'émettre.
+/// The pyclass captures an immutable view of the emission chain at
+/// `RuntimeContext` construction time: bus, task_id, agent_id, and the
+/// optional `message_id` of the current chat turn. If any of these fields is
+/// missing the methods become silent no-ops, so the agent never has to check
+/// for the bus before emitting.
 #[pyclass(name = "EventsInterface", module = "apollia._native")]
 pub struct EventsInterface {
-    /// Bus broadcast cible (`apollia_core::events`). `None` désactive
-    /// l'émission sans casser la sémantique no-op.
+    /// Target broadcast bus (`apollia_core::events`). `None` disables emission
+    /// without breaking the no-op semantics.
     event_bus: Option<EventBusSender>,
-    /// Identifiant de tâche pour les événements typés (Thought, Retry,
-    /// ActionParseError).
+    /// Task id for typed events (Thought, Retry, ActionParseError).
     task_id: Option<TaskId>,
-    /// Identifiant d'agent émetteur.
+    /// Emitting agent id.
     agent_id: AgentId,
-    /// Session de chat en cours (pour `emit_token`). `None` en mode task.
+    /// Current chat session (for `emit_token`). `None` in task mode.
     chat_session_id: Option<String>,
-    /// Message courant à taguer sur les tokens streamés. `None` en mode task.
+    /// Current message to tag on streamed tokens. `None` in task mode.
     chat_message_id: Option<String>,
 }
 
 #[pymethods]
 impl EventsInterface {
-    /// Émet un token streamé vers le frontend en mode chat (`ChatToken`).
+    /// Emits a streamed token to the frontend in chat mode (`ChatToken`).
     ///
-    /// No-op silencieux en mode task ou si la session/message manque.
-    /// Forme un sandwich avec `ChatTokenStreamed` côté SSE — le filtrage par
-    /// `session_id` se fait dans `routes_chat.rs`.
+    /// Silent no-op in task mode or if the session/message is missing.
+    /// Pairs with `ChatTokenStreamed` on the SSE side; filtering by
+    /// `session_id` happens in `routes_chat.rs`.
     fn emit_token(&self, token: String) -> PyResult<()> {
         let (Some(session_id), Some(message_id), Some(bus)) = (
             self.chat_session_id.as_ref(),
@@ -51,7 +50,7 @@ impl EventsInterface {
         ) else {
             return Ok(());
         };
-        // fire-and-forget : on ignore l'erreur si le bus est saturé.
+        // Fire-and-forget: ignore the error if the bus is saturated.
         let _ = bus.send(RuntimeEvent::ChatToken {
             session_id: session_id.clone(),
             message_id: message_id.clone(),
@@ -60,18 +59,18 @@ impl EventsInterface {
         Ok(())
     }
 
-    /// Émet une `Thought` ReAct (chaîne de raisonnement).
+    /// Emits a ReAct `Thought` (reasoning chain).
     ///
-    /// Capturée par le SDK Python (`react.py`) à chaque tour. Affiché en
-    /// mode builder, masqué en mode operator par défaut.
+    /// Captured by the Python SDK (`react.py`) on each turn. Shown in builder
+    /// mode, hidden in operator mode by default.
     ///
-    /// Signature alignée sur le Protocol Python :
-    /// `emit_thought(text: str, *, step: int)`. Le paramètre `step` est
-    /// keyword-only côté Python, ce qui empêche les confusions positionnelles.
+    /// Signature aligned with the Python Protocol:
+    /// `emit_thought(text: str, *, step: int)`. The `step` parameter is
+    /// keyword-only on the Python side, preventing positional confusion.
     #[pyo3(signature = (text, *, step))]
     fn emit_thought(&self, text: String, step: u32) -> PyResult<()> {
         let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) else {
-            // Fallback structuré pour les tests sans bus.
+            // Structured fallback for tests without a bus.
             tracing::info!(target: "apollia.agent.thought", step = step, "{}", text);
             return Ok(());
         };
@@ -84,14 +83,14 @@ impl EventsInterface {
         Ok(())
     }
 
-    /// Émet un événement `Retry` (parse error, tool error, llm error).
+    /// Emits a `Retry` event (parse error, tool error, llm error).
     ///
-    /// Signature alignée sur le Protocol Python :
-    /// `emit_retry(*, step: int, reason: str, count: int)`. Mapping
-    /// vers `RuntimeEvent::Retry { step_num, cause, attempt }` :
-    /// `reason → cause`, `count → attempt`.
+    /// Signature aligned with the Python Protocol:
+    /// `emit_retry(*, step: int, reason: str, count: int)`. Maps to
+    /// `RuntimeEvent::Retry { step_num, cause, attempt }`:
+    /// `reason -> cause`, `count -> attempt`.
     ///
-    /// `reason` doit être l'une des chaînes normalisées :
+    /// `reason` must be one of the normalized strings:
     /// `"action_parse_error" | "tool_error" | "llm_error" | "other"`.
     #[pyo3(signature = (*, step, reason, count))]
     fn emit_retry(&self, step: u32, reason: String, count: u32) -> PyResult<()> {
@@ -115,12 +114,12 @@ impl EventsInterface {
         Ok(())
     }
 
-    /// Émet un `ActionParseError` (JSON action invalide, non-réparable).
+    /// Emits an `ActionParseError` (invalid action JSON, unrepairable).
     ///
-    /// Signature alignée sur le Protocol Python :
+    /// Signature aligned with the Python Protocol:
     /// `emit_action_parse_error(*, step: int, raw: str, fatal: bool = False)`.
-    /// Mapping vers `RuntimeEvent::ActionParseError` :
-    /// `raw → raw_content`, `fatal → repair_attempted`.
+    /// Maps to `RuntimeEvent::ActionParseError`:
+    /// `raw -> raw_content`, `fatal -> repair_attempted`.
     #[pyo3(signature = (*, step, raw, fatal = false))]
     fn emit_action_parse_error(&self, step: u32, raw: String, fatal: bool) -> PyResult<()> {
         let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) else {
@@ -145,11 +144,11 @@ impl EventsInterface {
 }
 
 impl EventsInterface {
-    /// Construit une nouvelle interface évènements typée.
+    /// Builds a new typed events interface.
     ///
-    /// `event_bus = None` ⇒ toutes les méthodes deviennent no-op silencieux.
-    /// `task_id = None` est toléré : les variants typés non-token retombent
-    /// sur `tracing::*`.
+    /// `event_bus = None` makes all methods silent no-ops.
+    /// `task_id = None` is tolerated: the non-token typed variants fall back
+    /// to `tracing::*`.
     pub fn new(
         event_bus: Option<EventBusSender>,
         task_id: Option<TaskId>,
@@ -182,8 +181,8 @@ mod tests {
         broadcast::channel::<RuntimeEvent>(cap)
     }
 
-    /// `emit_thought` propage bien sur le bus avec le
-    /// shape attendu et la signature `(text, *, step)` du Protocol Python.
+    /// `emit_thought` propagates on the bus with the expected shape and the
+    /// `(text, *, step)` signature from the Python Protocol.
     #[test]
     fn test_emit_thought_publishes_to_bus() {
         // GIVEN an EventsInterface attached to a bus + task_id + agent_id
@@ -222,7 +221,7 @@ mod tests {
         }
     }
 
-    /// `emit_retry` mappe correctement `reason → cause`, `count → attempt`.
+    /// `emit_retry` correctly maps `reason -> cause`, `count -> attempt`.
     #[test]
     fn test_emit_retry_maps_python_names_to_runtime_event() {
         // GIVEN an EventsInterface with bus + task_id
@@ -261,8 +260,8 @@ mod tests {
         }
     }
 
-    /// `emit_action_parse_error` mappe `raw → raw_content`,
-    /// `fatal → repair_attempted` (interop ADR-088).
+    /// `emit_action_parse_error` maps `raw -> raw_content`,
+    /// `fatal -> repair_attempted`.
     #[test]
     fn test_emit_action_parse_error_maps_fields() {
         pyo3::prepare_freethreaded_python();
@@ -290,12 +289,12 @@ mod tests {
         }
     }
 
-    /// Sans bus, `emit_thought` reste un no-op silencieux (fallback tracing).
+    /// Without a bus, `emit_thought` stays a silent no-op (tracing fallback).
     #[test]
     fn test_emit_thought_noop_without_bus() {
         pyo3::prepare_freethreaded_python();
         let iface = EventsInterface::new(None, None, AgentId::new_v4(), None, None);
-        // Just verify it doesn't error — tracing fallback covers stderr.
+        // Just verify it doesn't error; tracing fallback covers stderr.
         iface
             .emit_thought("anything".to_string(), 1)
             .expect("noop should succeed");

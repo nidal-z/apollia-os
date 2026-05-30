@@ -1,9 +1,9 @@
-//! Routing A2A (Agent-to-Agent) par skill ID.
+//! A2A (Agent-to-Agent) routing by skill ID.
 //!
-//! Ce module implémente la résolution d'un `skill_id` vers un [`AgentEntry`] actif,
-//! les types d'erreur structurés retournés au Director Agent, la fonction de délégation
-//! type-erasée [`A2aDelegateFn`], la factory [`make_delegate_fn`], et l'orchestrateur
-//! de haut niveau [`invoker::A2AInvoker`].
+//! This module implements resolution of a `skill_id` to an active [`AgentEntry`],
+//! the structured error types returned to the Director Agent, the type-erased
+//! delegation function [`A2aDelegateFn`], the [`make_delegate_fn`] factory, and
+//! the high-level orchestrator [`invoker::A2AInvoker`].
 
 pub mod compatibility;
 pub mod invoker;
@@ -17,8 +17,8 @@ pub use telemetry::{
 };
 
 pub use invoker::{
-    A2AAgentCard, A2AError, A2AInvocationResult, A2AInvoker, A2ASkillInfo, RuntimeContextConfig,
-    SkillListing,
+    A2AAgentCard, A2AError, A2AInvocationResult, A2AInvokeRequest, A2AInvoker, A2ASkillInfo,
+    RuntimeContextConfig, SkillListing,
 };
 pub use sidechain::{SidechainLogger, SidechainRepository, SidechainRow};
 pub use tools_provider::A2AToolsProvider;
@@ -39,88 +39,88 @@ use crate::eventbus::EventBusSender;
 use crate::registry::{AgentEntry, AgentRegistryError, AgentRegistryHandle};
 use crate::router::{SubmitError, TaskRouterHandle};
 
-/// Erreurs de résolution et de délégation A2A.
+/// A2A resolution and delegation errors.
 #[derive(Debug, thiserror::Error)]
 pub enum A2aError {
-    /// Aucun agent actif ne déclare le skill demandé.
+    /// No active agent declares the requested skill.
     #[error("no active agent declares skill '{skill_id}' (available: {available})")]
     SkillNotFound {
-        /// Identifiant du skill demandé.
+        /// Identifier of the requested skill.
         skill_id: String,
-        /// Skills A2A disponibles, séparés par des virgules.
+        /// Available A2A skills, comma-separated.
         available: String,
     },
-    /// Plusieurs agents déclarent le même skill — résolution ambiguë.
+    /// Several agents declare the same skill: ambiguous resolution.
     #[error("skill '{skill_id}' is declared by multiple agents: {agents}")]
     AmbiguousSkill {
-        /// Identifiant du skill en conflit.
+        /// Identifier of the conflicting skill.
         skill_id: String,
-        /// Noms des agents en conflit, séparés par des virgules.
+        /// Names of the conflicting agents, comma-separated.
         agents: String,
     },
-    /// Erreur du registry sous-jacent.
+    /// Error from the underlying registry.
     #[error("registry error: {0}")]
     Registry(#[from] AgentRegistryError),
-    /// Le TaskRouter est mort ou indisponible.
+    /// The TaskRouter is dead or unavailable.
     #[error("task router unavailable")]
     RouterDead,
-    /// La délégation a expiré avant la fin du Worker Agent.
+    /// The delegation timed out before the Worker Agent finished.
     #[error("delegation timed out after {timeout_secs}s")]
     Timeout {
-        /// Nombre de secondes avant expiration.
+        /// Number of seconds before expiry.
         timeout_secs: u64,
     },
-    /// Le Worker Agent a retourné un échec.
+    /// The Worker Agent returned a failure.
     #[error("worker agent failed: {reason}")]
     WorkerFailed {
-        /// Raison de l'échec.
+        /// Reason for the failure.
         reason: String,
     },
-    /// L'agent cible figure déjà dans la chaîne de délégation — cycle détecté.
+    /// The target agent is already in the delegation chain: cycle detected.
     #[error("A2A cycle: agent {agent_id} already in delegation chain")]
     CycleDetected {
-        /// ID de l'agent cible déjà présent dans la chaîne.
+        /// ID of the target agent already present in the chain.
         agent_id: AgentId,
     },
-    /// La profondeur maximale de la chaîne de délégation est atteinte (ADR-D7).
+    /// The maximum delegation chain depth has been reached.
     #[error("A2A max hops exceeded: limit is {limit}")]
     MaxHopsExceeded {
-        /// Limite de hops configurée (défaut 5).
+        /// Configured hop limit (default 5).
         limit: usize,
     },
 }
 
-/// Résultat d'une délégation A2A réussie.
+/// Result of a successful A2A delegation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct A2aDelegateResult {
-    /// Identifiant de la tâche exécutée par le Worker Agent.
+    /// Identifier of the task executed by the Worker Agent.
     pub task_id: String,
-    /// Nom du Worker Agent qui a traité la délégation.
+    /// Name of the Worker Agent that handled the delegation.
     pub agent_name: String,
-    /// Sortie textuelle produite par le Worker Agent.
+    /// Text output produced by the Worker Agent.
     pub output: String,
 }
 
-/// Corps de réponse HTTP structuré pour les erreurs A2A.
+/// Structured HTTP response body for A2A errors.
 ///
-/// Serialisé en JSON dans les réponses 4xx/5xx des routes A2A.
+/// Serialized as JSON in the 4xx/5xx responses of the A2A routes.
 #[derive(Debug, Serialize)]
 pub struct A2aErrorResponse {
-    /// Message d'erreur humain.
+    /// Human-readable error message.
     pub error: String,
-    /// Skill demandé (présent pour SkillNotFound et AmbiguousSkill).
+    /// Requested skill (present for SkillNotFound and AmbiguousSkill).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_id: Option<String>,
-    /// Skills disponibles (présent pour SkillNotFound).
+    /// Available skills (present for SkillNotFound).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_skills: Option<Vec<String>>,
-    /// Agents en conflit (présent pour AmbiguousSkill).
+    /// Conflicting agents (present for AmbiguousSkill).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conflicting_agents: Option<Vec<String>>,
 }
 
 impl A2aErrorResponse {
-    /// Construit depuis une [`A2aError`].
+    /// Builds one from an [`A2aError`].
     pub fn from_error(err: &A2aError) -> Self {
         match err {
             A2aError::SkillNotFound {
@@ -154,20 +154,20 @@ impl A2aErrorResponse {
     }
 }
 
-/// Valide une délégation A2A avant soumission au router.
+/// Validates an A2A delegation before submission to the router.
 ///
-/// Applique deux garde-fous non-contournables côté agent (Principe #7) :
-/// - **Limite de hops** : la chaîne courante ne peut dépasser `max_hops` niveaux.
-/// - **Détection de cycle** : l'agent cible ne peut figurer dans la chaîne parente.
+/// Applies two guardrails that agents cannot bypass:
+/// - **Hop limit**: the current chain cannot exceed `max_hops` levels.
+/// - **Cycle detection**: the target agent cannot already appear in the parent chain.
 ///
-/// Retourne la chaîne enfant (`parent_chain` + `current_agent`) à propager dans
-/// la tâche déléguée si la validation réussit.
+/// Returns the child chain (`parent_chain` + `current_agent`) to propagate into
+/// the delegated task if validation succeeds.
 ///
 /// # Arguments
-/// - `parent_chain` — chaîne de délégation de la tâche en cours (`AIPTask::delegation_chain`).
-/// - `current_agent` — ID de l'agent qui initie la délégation.
-/// - `target_agent` — ID de l'agent cible de la délégation.
-/// - `max_hops` — limite paramétrable (défaut runtime : 5, ADR-D7).
+/// - `parent_chain`: delegation chain of the current task (`AIPTask::delegation_chain`).
+/// - `current_agent`: ID of the agent initiating the delegation.
+/// - `target_agent`: ID of the delegation's target agent.
+/// - `max_hops`: configurable limit (runtime default: 5).
 pub fn validate_chain(
     parent_chain: &[AgentId],
     current_agent: &AgentId,
@@ -187,12 +187,12 @@ pub fn validate_chain(
     Ok(child_chain)
 }
 
-/// Résout un `skill_id` dans une liste d'entrées de registry.
+/// Resolves a `skill_id` within a list of registry entries.
 ///
-/// Sélectionne uniquement les agents avec `supports_a2a = true` en état
-/// [`ProcessState::Active`] ou [`ProcessState::Degraded`].
+/// Selects only agents with `supports_a2a = true` in state
+/// [`ProcessState::Active`] or [`ProcessState::Degraded`].
 ///
-/// Retourne une référence vers l'entrée cible, ou une [`A2aError`] structurée.
+/// Returns a reference to the target entry, or a structured [`A2aError`].
 pub fn resolve_skill<'a>(
     entries: &'a [AgentEntry],
     skill_id: &str,
@@ -243,18 +243,17 @@ pub fn resolve_skill<'a>(
     }
 }
 
-/// Fonction de délégation A2A type-erasée.
+/// Type-erased A2A delegation function.
 ///
-/// Accepte `(skill_id, input_payload, timeout_secs, parent_chain, current_agent)`
-/// et retourne une `Future` résolvant en `Result<A2aDelegateResult, A2aError>`.
+/// Accepts `(skill_id, input_payload, timeout_secs, parent_chain, current_agent)`
+/// and returns a `Future` resolving to `Result<A2aDelegateResult, A2aError>`.
 ///
-/// `parent_chain` est la chaîne de délégation courante de la tâche appelante
-/// (`AIPTask::delegation_chain`). `current_agent` est l'ID de l'agent qui initie
-/// la délégation. La validation (cycle + max_hops, ADR-D7) est appliquée par
-/// [`delegate_inner`].
+/// `parent_chain` is the current delegation chain of the calling task
+/// (`AIPTask::delegation_chain`). `current_agent` is the ID of the agent initiating
+/// the delegation. Validation (cycle + max_hops) is applied by [`delegate_inner`].
 ///
-/// Construit via [`make_delegate_fn`]. Permet d'injecter la logique de délégation
-/// dans `RuntimeContext` sans générique sur le backend d'exécution.
+/// Built via [`make_delegate_fn`]. Allows injecting the delegation logic into
+/// `RuntimeContext` without a generic over the execution backend.
 pub type A2aDelegateFn = Arc<
     dyn Fn(
             String,
@@ -267,13 +266,13 @@ pub type A2aDelegateFn = Arc<
         + Sync,
 >;
 
-/// Construit une [`A2aDelegateFn`] concrète à partir des handles runtime.
+/// Builds a concrete [`A2aDelegateFn`] from runtime handles.
 ///
-/// La fonction résout le `skill_id` vers un agent, valide la chaîne de délégation,
-/// soumet la tâche via le router, attend la complétion sur l'EventBus, et retourne
-/// le résultat structuré.
+/// The function resolves the `skill_id` to an agent, validates the delegation
+/// chain, submits the task via the router, waits for completion on the EventBus,
+/// and returns the structured result.
 ///
-/// `max_hops` borne la profondeur de chaîne (ADR-D7, défaut runtime : 5).
+/// `max_hops` bounds the chain depth (runtime default: 5).
 pub fn make_delegate_fn<B>(
     registry: AgentRegistryHandle,
     router: TaskRouterHandle<B>,
@@ -293,17 +292,17 @@ where
             let router = router.clone();
             let event_bus = event_bus.clone();
             Box::pin(async move {
-                delegate_inner(
-                    &registry,
-                    &router,
-                    &event_bus,
-                    &skill_id,
+                delegate_inner(DelegateInner {
+                    registry: &registry,
+                    router: &router,
+                    event_bus: &event_bus,
+                    skill_id: &skill_id,
                     input_payload,
                     timeout_secs,
-                    &parent_chain,
-                    &current_agent,
+                    parent_chain: &parent_chain,
+                    current_agent: &current_agent,
                     max_hops,
-                )
+                })
                 .await
             })
         },
@@ -313,19 +312,36 @@ where
 /// Limite par défaut de hops dans la chaîne de délégation A2A (ADR-D7).
 pub const DEFAULT_A2A_MAX_HOPS: usize = 5;
 
-/// Logique de délégation A2A — appelable depuis le REST handler et depuis
+/// Arguments de [`delegate_inner`] : handles runtime + paramètres de la
+/// délégation A2A (skill ciblé, payload, chaîne courante, garde-fous).
+pub(crate) struct DelegateInner<'a, B: ExecutionBackend + Clone> {
+    pub registry: &'a AgentRegistryHandle,
+    pub router: &'a TaskRouterHandle<B>,
+    pub event_bus: &'a EventBusSender,
+    pub skill_id: &'a str,
+    pub input_payload: serde_json::Value,
+    pub timeout_secs: u64,
+    pub parent_chain: &'a [AgentId],
+    pub current_agent: &'a AgentId,
+    pub max_hops: usize,
+}
+
+/// Logique de délégation A2A, appelable depuis le REST handler et depuis
 /// la [`A2aDelegateFn`] type-erasée.
 pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
-    registry: &AgentRegistryHandle,
-    router: &TaskRouterHandle<B>,
-    event_bus: &EventBusSender,
-    skill_id: &str,
-    input_payload: serde_json::Value,
-    timeout_secs: u64,
-    parent_chain: &[AgentId],
-    current_agent: &AgentId,
-    max_hops: usize,
+    args: DelegateInner<'_, B>,
 ) -> Result<A2aDelegateResult, A2aError> {
+    let DelegateInner {
+        registry,
+        router,
+        event_bus,
+        skill_id,
+        input_payload,
+        timeout_secs,
+        parent_chain,
+        current_agent,
+        max_hops,
+    } = args;
     // 1. Résoudre skill_id → agent depuis le registry.
     let entries = registry.list_agents().await?;
     let target = resolve_skill(&entries, skill_id)?;
@@ -343,7 +359,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
 
     // 4. Construire l'input AIP depuis le payload JSON. Le `skill_id` est
     //    propagé séparément via `AIPTask.skill_id` (cf. submit_with_chain
-    //    plus bas) — les workers multi-skills le lisent via le décorateur
+    //    plus bas), les workers multi-skills le lisent via le décorateur
     //    `@skill` qui se charge du dispatch automatique.
     let input = AIPInput {
         parts: vec![AIPPart::Data(DataPart {
@@ -352,7 +368,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
     };
 
     // 5. Soumettre la tâche via le TaskRouter avec la chaîne étendue et le
-    //    skill_id ciblé — propagé jusqu'à `AIPTask.skill_id` côté Python.
+    //    skill_id ciblé, propagé jusqu'à `AIPTask.skill_id` côté Python.
     let task_id = router
         .submit_with_chain(&agent_id, input, Some(skill_id.to_string()), child_chain)
         .await
@@ -411,7 +427,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                     return Err(A2aError::RouterDead);
                 }
                 _ => {
-                    // Pas notre événement — continuer d'attendre.
+                    // Pas notre événement, continuer d'attendre.
                 }
             }
         }

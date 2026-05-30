@@ -1,4 +1,4 @@
-//! Sidechain logging — traçabilité structurée des délégations A2A dans SQLite.
+//! Sidechain logging, traçabilité structurée des délégations A2A dans SQLite.
 //!
 //! [`SidechainRepository`] persiste chaque délégation dans la table `task_sidechains`.
 //! [`SidechainLogger`] en est le wrapper async best-effort : toute erreur de log
@@ -156,7 +156,7 @@ impl SidechainRepository {
 /// Wrapper async best-effort autour de [`SidechainRepository`].
 ///
 /// Toutes les opérations utilisent `spawn_blocking`. Les erreurs sont loguées
-/// via `tracing::warn` et ne sont jamais propagées — la délégation A2A continue
+/// via `tracing::warn` et ne sont jamais propagées, la délégation A2A continue
 /// même si le logging échoue.
 #[derive(Clone)]
 pub struct SidechainLogger {
@@ -211,7 +211,7 @@ impl SidechainLogger {
         }
     }
 
-    /// Met à jour une délégation terminée. Best-effort — les erreurs sont loguées sans propagation.
+    /// Met à jour une délégation terminée. Best-effort, les erreurs sont loguées sans propagation.
     ///
     /// `sidechain_n == 0` indique que [`start`] a échoué ; l'appel est ignoré silencieusement.
     pub async fn complete(

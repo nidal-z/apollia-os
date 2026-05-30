@@ -204,35 +204,131 @@ def _is_namedtuple(tp: Any) -> bool:
     )
 
 
+def _schema_for_empty_annotation(annotation: Any) -> dict[str, Any] | None:
+    """Schema for ``empty``, ``Any``, or literal ``None`` annotations."""
+    if annotation is inspect.Parameter.empty or annotation is Any:
+        return {}
+    if annotation is None:
+        return {"type": "null"}
+    return None
+
+
+def _schema_for_annotated(annotation: Any) -> dict[str, Any] | None:
+    """Unwrap ``Annotated[T, "desc", ...]`` into the schema of ``T`` plus desc."""
+    if get_origin(annotation) is not Annotated:
+        return None
+    annotated_args = get_args(annotation)
+    if not annotated_args:
+        return None
+    inner_ann = annotated_args[0]
+    descriptions = [m for m in annotated_args[1:] if isinstance(m, str) and m]
+    inner_schema = annotation_to_schema(inner_ann)
+    if not descriptions:
+        return inner_schema
+    merged = dict(inner_schema)
+    existing = merged.get("description")
+    if isinstance(existing, str) and existing:
+        merged["description"] = " ".join([existing, *descriptions])
+    else:
+        merged["description"] = " ".join(descriptions)
+    return merged
+
+
+def _schema_for_literal(args: tuple[Any, ...]) -> dict[str, Any]:
+    enum_values = list(args)
+    types_in_enum = {type(v) for v in enum_values}
+    schema: dict[str, Any] = {"enum": enum_values}
+    if types_in_enum == {str}:
+        schema["type"] = "string"
+    elif types_in_enum == {bool}:
+        schema["type"] = "boolean"
+    elif types_in_enum == {int}:
+        schema["type"] = "integer"
+    elif types_in_enum <= {int, float} and float in types_in_enum:
+        schema["type"] = "number"
+    return schema
+
+
+def _schema_for_tuple(args: tuple[Any, ...]) -> dict[str, Any]:
+    if not args:
+        return {"type": "array"}
+    # Homogeneous tuple: Tuple[T, ...].
+    if len(args) == 2 and args[1] is Ellipsis:
+        return {"type": "array", "items": annotation_to_schema(args[0])}
+    # Heterogeneous fixed-length tuple.
+    return {
+        "type": "array",
+        "prefixItems": [annotation_to_schema(a) for a in args],
+        "minItems": len(args),
+        "maxItems": len(args),
+    }
+
+
+def _schema_for_dict(args: tuple[Any, ...]) -> dict[str, Any]:
+    if len(args) != 2:
+        return {"type": "object"}
+    key_ann, value_ann = args
+    if key_ann is not str and key_ann is not Any:
+        raise SchemaError(
+            f"Unsupported dict key type {key_ann!r}; only str keys are supported."
+        )
+    return {
+        "type": "object",
+        "additionalProperties": annotation_to_schema(value_ann),
+    }
+
+
+def _schema_for_generic_origin(
+    origin: Any, args: tuple[Any, ...]
+) -> dict[str, Any] | None:
+    """Schema for parameterised generics: Literal, Union, list/tuple/dict."""
+    if origin is Literal:
+        return _schema_for_literal(args)
+    if _is_union(origin):
+        return {"anyOf": [annotation_to_schema(a) for a in args]}
+    if origin in (list, typing.List):  # noqa: UP006
+        item_ann = args[0] if args else Any
+        return {"type": "array", "items": annotation_to_schema(item_ann)}
+    if origin in (tuple, typing.Tuple):  # noqa: UP006
+        return _schema_for_tuple(args)
+    if origin in (dict, typing.Dict):  # noqa: UP006
+        return _schema_for_dict(args)
+    return None
+
+
+def _schema_for_bare_builtin(annotation: Any) -> dict[str, Any] | None:
+    if annotation is list or annotation is tuple:
+        return {"type": "array"}
+    if annotation is dict:
+        return {"type": "object"}
+    return None
+
+
+def _schema_for_plain_type(annotation: type) -> dict[str, Any] | None:
+    scalar = _scalar_schema(annotation)
+    if scalar is not None:
+        return scalar
+    if dataclasses.is_dataclass(annotation):
+        return _dataclass_schema(annotation)
+    if typing.is_typeddict(annotation):
+        return _typeddict_schema(annotation)
+    if _is_namedtuple(annotation):
+        return _namedtuple_schema(annotation)
+    return None
+
+
 def annotation_to_schema(annotation: Any) -> dict[str, Any]:
     """Convert a single type annotation to a JSON Schema fragment.
 
     Raises :class:`SchemaError` if the annotation is unsupported.
     """
-    # Missing annotation or Any → any-type.
-    if annotation is inspect.Parameter.empty or annotation is Any or annotation is None:
-        if annotation is None:
-            return {"type": "null"}
-        return {}
+    empty_schema = _schema_for_empty_annotation(annotation)
+    if empty_schema is not None:
+        return empty_schema
 
-    # Annotated[T, "description", ...]: unwrap T, collect string metadata as
-    # description. Multiple string metadata entries are concatenated with a
-    # space separator (most common use case: chained context strings).
-    if get_origin(annotation) is Annotated:
-        annotated_args = get_args(annotation)
-        if annotated_args:
-            inner_ann = annotated_args[0]
-            descriptions = [m for m in annotated_args[1:] if isinstance(m, str) and m]
-            inner_schema = annotation_to_schema(inner_ann)
-            if descriptions:
-                merged = dict(inner_schema)
-                existing = merged.get("description")
-                if isinstance(existing, str) and existing:
-                    merged["description"] = " ".join([existing, *descriptions])
-                else:
-                    merged["description"] = " ".join(descriptions)
-                return merged
-            return inner_schema
+    annotated_schema = _schema_for_annotated(annotation)
+    if annotated_schema is not None:
+        return annotated_schema
 
     # Optional[T] / T | None.
     is_opt, inner = _is_optional(annotation)
@@ -248,78 +344,18 @@ def annotation_to_schema(annotation: Any) -> dict[str, Any]:
     origin = get_origin(annotation)
     args = get_args(annotation)
 
-    # Literal[...].
-    if origin is Literal:
-        enum_values = list(args)
-        types_in_enum = {type(v) for v in enum_values}
-        schema: dict[str, Any] = {"enum": enum_values}
-        if types_in_enum == {str}:
-            schema["type"] = "string"
-        elif types_in_enum == {bool}:
-            schema["type"] = "boolean"
-        elif types_in_enum == {int}:
-            schema["type"] = "integer"
-        elif types_in_enum <= {int, float} and float in types_in_enum:
-            schema["type"] = "number"
-        return schema
+    generic_schema = _schema_for_generic_origin(origin, args)
+    if generic_schema is not None:
+        return generic_schema
 
-    # Union (non-Optional).
-    if _is_union(origin):
-        return {"anyOf": [annotation_to_schema(a) for a in args]}
+    bare_schema = _schema_for_bare_builtin(annotation)
+    if bare_schema is not None:
+        return bare_schema
 
-    # list[T] / List[T].
-    if origin in (list, typing.List):  # noqa: UP006
-        item_ann = args[0] if args else Any
-        return {"type": "array", "items": annotation_to_schema(item_ann)}
-
-    # tuple[T, ...] / Tuple[T, ...].
-    if origin in (tuple, typing.Tuple):  # noqa: UP006
-        if not args:
-            return {"type": "array"}
-        # Homogeneous tuple: Tuple[T, ...].
-        if len(args) == 2 and args[1] is Ellipsis:
-            return {"type": "array", "items": annotation_to_schema(args[0])}
-        # Heterogeneous fixed-length tuple.
-        return {
-            "type": "array",
-            "prefixItems": [annotation_to_schema(a) for a in args],
-            "minItems": len(args),
-            "maxItems": len(args),
-        }
-
-    # dict[str, T] / Dict[str, T].
-    if origin in (dict, typing.Dict):  # noqa: UP006
-        if len(args) == 2:
-            key_ann, value_ann = args
-            if key_ann is not str and key_ann is not Any:
-                raise SchemaError(
-                    f"Unsupported dict key type {key_ann!r}; only str keys are supported."
-                )
-            return {
-                "type": "object",
-                "additionalProperties": annotation_to_schema(value_ann),
-            }
-        return {"type": "object"}
-
-    # Bare unparameterised generic builtins.
-    if annotation is list:
-        return {"type": "array"}
-    if annotation is tuple:
-        return {"type": "array"}
-    if annotation is dict:
-        return {"type": "object"}
-
-    # Plain types from here on.
     if isinstance(annotation, type):
-        scalar = _scalar_schema(annotation)
-        if scalar is not None:
-            return scalar
-        if dataclasses.is_dataclass(annotation):
-            return _dataclass_schema(annotation)
-        if typing.is_typeddict(annotation):
-            return _typeddict_schema(annotation)
-        if _is_namedtuple(annotation):
-            return _namedtuple_schema(annotation)
+        plain_schema = _schema_for_plain_type(annotation)
+        if plain_schema is not None:
+            return plain_schema
 
     raise SchemaError(f"Unsupported type annotation: {annotation!r}")
 
@@ -469,6 +505,65 @@ def _matches_type(value: Any, type_decl: Any) -> bool:
     return True
 
 
+def _validate_anyof(value: Any, schema: dict[str, Any], path: str) -> None:
+    last_err: PayloadError | None = None
+    for sub in schema["anyOf"]:
+        try:
+            _validate_value(value, sub, path)
+            return
+        except PayloadError as exc:
+            last_err = exc
+    if last_err is not None:
+        raise PayloadError(
+            f"{path or '<root>'}: no anyOf branch matched ({last_err.message})",
+            field=path or None,
+        )
+
+
+def _validate_type_decl(value: Any, type_decl: Any, path: str) -> None:
+    actual_type = _python_type_name(value)
+    raise PayloadError(
+        f"{path or '<root>'}: expected type {_format_type_decl(type_decl)}, "
+        f"got {actual_type}",
+        field=path or None,
+        details={
+            "field": path or None,
+            "expected_type": type_decl,
+            "actual_type": actual_type,
+        },
+    )
+
+
+def _validate_array_value(value: list[Any], schema: dict[str, Any], path: str) -> None:
+    items_schema = schema.get("items")
+    if isinstance(items_schema, dict):
+        for idx, item in enumerate(value):
+            _validate_value(item, items_schema, f"{path}[{idx}]" if path else f"[{idx}]")
+    prefix_items = schema.get("prefixItems")
+    if isinstance(prefix_items, list):
+        for idx, sub_schema in enumerate(prefix_items):
+            if idx < len(value):
+                _validate_value(
+                    value[idx], sub_schema, f"{path}[{idx}]" if path else f"[{idx}]"
+                )
+
+
+def _is_array_type(type_decl: Any, value: Any) -> bool:
+    if type_decl == "array":
+        return True
+    return (
+        isinstance(type_decl, list)
+        and "array" in type_decl
+        and isinstance(value, list)
+    )
+
+
+def _is_object_type(type_decl: Any) -> bool:
+    if type_decl == "object":
+        return True
+    return isinstance(type_decl, list) and "object" in type_decl
+
+
 def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
     """Validate ``value`` against ``schema``; raise PayloadError on mismatch."""
     if not schema:
@@ -480,18 +575,7 @@ def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
 
     # anyOf.
     if "anyOf" in schema:
-        last_err: PayloadError | None = None
-        for sub in schema["anyOf"]:
-            try:
-                _validate_value(value, sub, path)
-                return
-            except PayloadError as exc:
-                last_err = exc
-        if last_err is not None:
-            raise PayloadError(
-                f"{path or '<root>'}: no anyOf branch matched ({last_err.message})",
-                field=path or None,
-            )
+        _validate_anyof(value, schema, path)
         return
 
     # enum.
@@ -503,72 +587,62 @@ def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
 
     type_decl = schema.get("type")
     if type_decl is not None and not _matches_type(value, type_decl):
-        actual_type = _python_type_name(value)
-        raise PayloadError(
-            f"{path or '<root>'}: expected type {_format_type_decl(type_decl)}, "
-            f"got {actual_type}",
-            field=path or None,
-            details={
-                "field": path or None,
-                "expected_type": type_decl,
-                "actual_type": actual_type,
-            },
-        )
+        _validate_type_decl(value, type_decl, path)
 
-    if type_decl == "array" or (
-        isinstance(type_decl, list) and "array" in type_decl and isinstance(value, list)
-    ):
-        items_schema = schema.get("items")
-        if isinstance(items_schema, dict) and isinstance(value, list):
-            for idx, item in enumerate(value):
-                _validate_value(item, items_schema, f"{path}[{idx}]" if path else f"[{idx}]")
-        prefix_items = schema.get("prefixItems")
-        if isinstance(prefix_items, list) and isinstance(value, list):
-            for idx, sub_schema in enumerate(prefix_items):
-                if idx < len(value):
-                    _validate_value(
-                        value[idx], sub_schema, f"{path}[{idx}]" if path else f"[{idx}]"
-                    )
+    if _is_array_type(type_decl, value) and isinstance(value, list):
+        _validate_array_value(value, schema, path)
 
-    if type_decl == "object" or (
-        isinstance(type_decl, list) and "object" in type_decl and isinstance(value, dict)
-    ):
-        if isinstance(value, dict):
-            properties = schema.get("properties", {})
-            required = schema.get("required", [])
-            additional = schema.get("additionalProperties", True)
-            expected = list(properties.keys())
-            for req in required:
-                if req not in value:
-                    req_path = f"{path}.{req}" if path else req
-                    raise PayloadError(
-                        f"Missing required field '{req_path}'. Required: {required}.",
-                        field=req_path,
-                        details={"missing": req, "required": list(required)},
-                    )
-            for key, sub_value in value.items():
-                if key in properties:
-                    sub_path = f"{path}.{key}" if path else key
-                    _validate_value(sub_value, properties[key], sub_path)
-                else:
-                    if additional is False:
-                        key_path = f"{path}.{key}" if path else key
-                        suggestion = _suggest(key, expected)
-                        msg = (
-                            f"Unexpected field '{key_path}'. "
-                            f"Expected fields: {expected}."
-                        )
-                        details: dict[str, Any] = {
-                            "unexpected": key,
-                            "expected": expected,
-                        }
-                        if suggestion is not None:
-                            msg += f" Did you mean '{suggestion}'?"
-                            details["did_you_mean"] = suggestion
-                        raise PayloadError(msg, field=key_path, details=details)
-                    if isinstance(additional, dict):
-                        sub_path = f"{path}.{key}" if path else key
-                        _validate_value(sub_value, additional, sub_path)
+    if isinstance(value, dict) and _is_object_type(type_decl):
+        _validate_object_value(value, schema, path)
+
+
+def _raise_missing_field(req: str, required: Any, field_path: str) -> None:
+    raise PayloadError(
+        f"Missing required field '{field_path}'. Required: {required}.",
+        field=field_path,
+        details={"missing": req, "required": list(required)},
+    )
+
+
+def _raise_unexpected_field(
+    key: str, expected: list[str], field_path: str
+) -> None:
+    suggestion = _suggest(key, expected)
+    msg = f"Unexpected field '{field_path}'. Expected fields: {expected}."
+    details: dict[str, Any] = {"unexpected": key, "expected": expected}
+    if suggestion is not None:
+        msg += f" Did you mean '{suggestion}'?"
+        details["did_you_mean"] = suggestion
+    raise PayloadError(msg, field=field_path, details=details)
+
+
+def _check_required_fields(
+    value: dict[str, Any], required: Any, path: str
+) -> None:
+    for req in required:
+        if req not in value:
+            req_path = f"{path}.{req}" if path else req
+            _raise_missing_field(req, required, req_path)
+
+
+def _validate_object_value(
+    value: dict[str, Any], schema: dict[str, Any], path: str
+) -> None:
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+    additional = schema.get("additionalProperties", True)
+    expected = list(properties.keys())
+
+    _check_required_fields(value, required, path)
+
+    for key, sub_value in value.items():
+        sub_path = f"{path}.{key}" if path else key
+        if key in properties:
+            _validate_value(sub_value, properties[key], sub_path)
+        elif additional is False:
+            _raise_unexpected_field(key, expected, sub_path)
+        elif isinstance(additional, dict):
+            _validate_value(sub_value, additional, sub_path)
 
 
 def validate_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
@@ -597,30 +671,13 @@ def validate_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[st
     expected = list(properties.keys())
 
     # Check required fields first so the error is deterministic.
-    for req in required:
-        if req not in payload:
-            raise PayloadError(
-                f"Missing required field '{req}'. Required: {required}.",
-                field=req,
-                details={"missing": req, "required": list(required)},
-            )
+    _check_required_fields(payload, required, "")
 
     # Reject extra fields up-front if strict.
     if additional is False:
         for key in payload:
             if key not in properties:
-                suggestion = _suggest(key, expected)
-                msg = (
-                    f"Unexpected field '{key}'. Expected fields: {expected}."
-                )
-                details: dict[str, Any] = {
-                    "unexpected": key,
-                    "expected": expected,
-                }
-                if suggestion is not None:
-                    msg += f" Did you mean '{suggestion}'?"
-                    details["did_you_mean"] = suggestion
-                raise PayloadError(msg, field=key, details=details)
+                _raise_unexpected_field(key, expected, key)
 
     # Validate each known field against its property schema.
     coerced: dict[str, Any] = {}

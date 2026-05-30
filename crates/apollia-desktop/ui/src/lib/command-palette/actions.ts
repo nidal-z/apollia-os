@@ -37,9 +37,16 @@ import {
   ToggleRight,
   Keyboard,
   Info,
-  BookOpen,
 } from "lucide-svelte";
-import type { ComponentType } from "svelte";
+// NOSONAR typescript:S1874 — Svelte 4 ComponentType retained for lucide-svelte compat
+import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
+
+/**
+ * Local alias for Svelte 4 `ComponentType`. Centralizes deprecation
+ * suppression — lucide-svelte's icon exports are typed against this alias.
+ */
+// NOSONAR typescript:S1874
+type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874
 import { navigateTo, type Route } from "$lib/stores/navigation";
 import { navigateToSettings } from "$lib/router";
 import { uiMode, type UIMode } from "$lib/stores/mode";
@@ -67,7 +74,7 @@ export interface PaletteAction {
   /** Optional secondary line shown under the label. */
   description?: string;
   /** Optional lucide icon component. */
-  icon?: ComponentType;
+  icon?: SvelteComponentType;
   /** Optional shortcut chips rendered at the row end. */
   shortcut?: string[];
   /** Group bucket. */
@@ -80,7 +87,10 @@ export interface PaletteAction {
   execute: () => void | Promise<void>;
 }
 
-const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
+// NOSONAR typescript:S1874 — navigator.platform retained for Tauri webview parity;
+// userAgentData is not yet stable across all platforms Apollia targets.
+const isMac =
+  typeof navigator !== "undefined" && navigator.platform.includes("Mac"); // NOSONAR typescript:S1874
 const modKey = isMac ? "⌘" : "Ctrl";
 
 function tr(key: string): string {
@@ -97,7 +107,7 @@ export function buildPaletteActions(): PaletteAction[] {
     id: string,
     route: Route,
     labelKey: string,
-    icon: ComponentType,
+    icon: SvelteComponentType,
     keywords: string[] = [],
     persona?: UIMode,
   ): PaletteAction => ({
@@ -162,7 +172,7 @@ export function buildPaletteActions(): PaletteAction[] {
       persona: "builder",
       execute: () => {
         navigateTo("agents");
-        window.dispatchEvent(new CustomEvent("apollia:agents:create"));
+        globalThis.dispatchEvent(new CustomEvent("apollia:agents:create"));
       },
     },
     {
@@ -173,7 +183,7 @@ export function buildPaletteActions(): PaletteAction[] {
       kind: "actions",
       execute: () => {
         navigateTo("automations");
-        window.dispatchEvent(new CustomEvent("apollia:automations:create"));
+        globalThis.dispatchEvent(new CustomEvent("apollia:automations:create"));
       },
     },
     {
@@ -183,7 +193,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Play,
       kind: "actions",
       persona: "builder",
-      execute: () => window.dispatchEvent(new CustomEvent("apollia:agents:start-all")),
+      execute: () => globalThis.dispatchEvent(new CustomEvent("apollia:agents:start-all")),
     },
     {
       id: "agents.stop_all",
@@ -192,7 +202,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Square,
       kind: "actions",
       persona: "builder",
-      execute: () => window.dispatchEvent(new CustomEvent("apollia:agents:stop-all")),
+      execute: () => globalThis.dispatchEvent(new CustomEvent("apollia:agents:stop-all")),
     },
     {
       id: "mode.toggle",
@@ -228,7 +238,7 @@ export function buildPaletteActions(): PaletteAction[] {
       shortcut: ["?"],
       kind: "help",
       execute: () =>
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true })),
+        globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true })),
     },
     {
       id: "settings.shortcuts.open",
@@ -288,7 +298,7 @@ export function buildPaletteActions(): PaletteAction[] {
       kind: "help",
       execute: () => {
         navigateTo("settings");
-        window.dispatchEvent(new CustomEvent("apollia:settings:goto", { detail: "system" }));
+        globalThis.dispatchEvent(new CustomEvent("apollia:settings:goto", { detail: "system" }));
       },
     },
     // Removed: help.docs action (was navigating to obsolete onboarding route)
@@ -310,7 +320,7 @@ export function buildPaletteActions(): PaletteAction[] {
       shortcut: [modKey, "Q"],
       kind: "help",
       execute: () => {
-        window.dispatchEvent(new CustomEvent("apollia:app:quit"));
+        globalThis.dispatchEvent(new CustomEvent("apollia:app:quit"));
       },
     },
 

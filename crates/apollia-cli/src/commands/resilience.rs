@@ -1,4 +1,4 @@
-//! `apollia-os resilience` subcommands — circuit breaker inspection and management.
+//! `apollia-os resilience` subcommands: circuit breaker inspection and management.
 //!
 //! Connects to the runtime via Unix socket and queries the shared
 //! `ResilienceLayer` snapshot. The layer is hydrated by a `ToolCallCompleted`
@@ -43,7 +43,7 @@ pub async fn run(cmd: &ResilienceCommand, socket: Option<PathBuf>, json: bool) -
     }
 }
 
-/// `apollia-os resilience list` — display all circuit breakers.
+/// `apollia-os resilience list`: display all circuit breakers.
 async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.resilience_list().await {
         Ok(r) => r,
@@ -88,7 +88,7 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os resilience show <tool>` — display a single circuit breaker.
+/// `apollia-os resilience show <tool>`: display a single circuit breaker.
 async fn run_show(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
     match client.resilience_show(tool_name).await {
         Ok(resp) => {
@@ -123,7 +123,7 @@ async fn run_show(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os resilience reset <tool>` — reset a circuit breaker to CLOSED.
+/// `apollia-os resilience reset <tool>`: reset a circuit breaker to CLOSED.
 async fn run_reset(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
     match client.resilience_reset(tool_name).await {
         Ok(resp) => {
@@ -168,7 +168,7 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
             exit_codes::RUNTIME_ERROR
         }
         // A 404 here means the tool name was never seen by the shared layer
-        // (no call attempted yet) — distinguish it from the runtime being off.
+        // (no call attempted yet), distinguish it from the runtime being off.
         ClientError::ServerError { status: 404, body } => {
             let msg = if body.is_empty() {
                 "tool not registered with a circuit breaker yet".to_string()

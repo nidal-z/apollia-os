@@ -47,7 +47,7 @@ def test_pure_skill_agent_dispatches_skill() -> None:
             return {"path": path, "ok": True}
 
     TestPdf.__module__ = mod_name
-    TestPdf = agent(name="test-pdf", version="0.1.0", description="pdf tool")(
+    TestPdf = agent(name="test-pdf", version="0.1.0", description="pdf tool")(  # NOSONAR
         TestPdf
     )
 
@@ -102,7 +102,7 @@ def test_pure_conversational_agent_dispatches_message() -> None:
             return f"echo:{message}"
 
     Chat.__module__ = mod_name
-    Chat = agent(name="chat", version="0.1.0", description="echo")(Chat)
+    Chat = agent(name="chat", version="0.1.0", description="echo")(Chat)  # NOSONAR
 
     result = asyncio.run(
         Chat().__apollia_dispatch__(  # type: ignore[attr-defined]
@@ -128,7 +128,7 @@ def test_pure_orchestrated_agent_has_no_dispatch_route() -> None:
         pass
 
     Researcher.__module__ = mod_name
-    Researcher = agent(
+    Researcher = agent(  # NOSONAR
         name="researcher", version="0.1.0", description="research"
     )(Researcher)
 
@@ -209,7 +209,7 @@ def test_multi_skill_agent_routes_correctly() -> None:
             return {"r": a * b}
 
     Calc.__module__ = mod_name
-    Calc = agent(name="calc", version="0.1.0", description="d")(Calc)
+    Calc = agent(name="calc", version="0.1.0", description="d")(Calc)  # NOSONAR
 
     inst = Calc()
     ctx = SimpleNamespace(logger=None)

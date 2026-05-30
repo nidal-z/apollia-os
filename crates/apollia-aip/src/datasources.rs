@@ -1,19 +1,19 @@
-//! ctx.datasources — runtime YAML datasources access.
+//! ctx.datasources: runtime YAML datasources access.
 //!
-//! Charge les fichiers YAML déclarés dans `@agent(datasources=...)` depuis
-//! `<agent_dir>/datasources/<name>.yaml` au démarrage de l'agent, met en
-//! cache les valeurs parsées en `serde_json::Value`, et les expose à Python
-//! via `ctx.datasources.get("name")` qui retourne directement un
-//! `dict`/`list`/scalaire Python.
+//! Loads the YAML files declared in `@agent(datasources=...)` from
+//! `<agent_dir>/datasources/<name>.yaml` at agent startup, caches the parsed
+//! values as `serde_json::Value`, and exposes them to Python via
+//! `ctx.datasources.get("name")`, which returns a Python `dict`/`list`/scalar
+//! directly.
 //!
-//! Le gating se fait sur la liste `declared` propagée depuis le manifest :
-//! une datasource non déclarée déclenche `FileNotFoundError` même si le
-//! fichier existe sur disque (principe least-privilege).
+//! Gating uses the `declared` list propagated from the manifest: an undeclared
+//! datasource triggers `FileNotFoundError` even if the file exists on disk
+//! (least-privilege principle).
 //!
-//! Le passage de structures Python utilise `json.loads()` pour éviter une
-//! dépendance externe `pythonize` (ADR : on reste sur stdlib Python pour la
-//! conversion). C'est suffisant car les datasources sont chargées une seule
-//! fois au boot et lues rarement.
+//! Passing Python structures uses `json.loads()` to avoid an external
+//! `pythonize` dependency (we stay on the Python stdlib for the conversion).
+//! This is sufficient because datasources are loaded once at boot and read
+//! rarely.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -21,61 +21,58 @@ use std::path::Path;
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::prelude::*;
 
-/// Erreurs internes de la couche datasources.
+/// Internal errors of the datasources layer.
 #[derive(Debug, thiserror::Error)]
 pub enum DatasourcesError {
-    /// Le fichier YAML est introuvable malgré sa déclaration au manifest.
+    /// The YAML file is missing despite being declared in the manifest.
     #[error("datasource file not found: {0}")]
     FileNotFound(String),
-    /// Le contenu YAML n'a pas pu être parsé.
+    /// The YAML content could not be parsed.
     #[error("invalid YAML in datasource '{name}': {reason}")]
     InvalidYaml {
-        /// Nom logique de la datasource (clé manifest).
+        /// Logical datasource name (manifest key).
         name: String,
-        /// Message d'erreur du parser YAML.
+        /// Error message from the YAML parser.
         reason: String,
     },
-    /// La conversion JSON ↔ Python a échoué côté `json.loads`.
+    /// The JSON to Python conversion failed on the `json.loads` side.
     #[error("python conversion failed for '{name}': {reason}")]
     PythonConversion {
-        /// Nom de la datasource concernée.
+        /// Name of the datasource involved.
         name: String,
-        /// Détail Python.
+        /// Python detail.
         reason: String,
     },
 }
 
-/// Interface lecture-seule exposée à l'agent via `ctx.datasources`.
+/// Read-only interface exposed to the agent via `ctx.datasources`.
 ///
-/// Pendant le bootstrap, le runtime appelle [`Self::load_from_dir`] pour
-/// remplir le cache `values`. L'agent ne voit que les datasources déclarées
-/// — `declared` agit comme garde-fou même si le filesystem contient d'autres
-/// fichiers.
+/// During bootstrap, the runtime calls [`Self::load_from_dir`] to fill the
+/// `values` cache. The agent only sees the declared datasources; `declared`
+/// acts as a guard rail even if the filesystem contains other files.
 #[pyclass(name = "DatasourcesInterface", module = "apollia._native")]
 pub struct DatasourcesInterface {
-    /// Valeurs YAML parsées, indexées par nom logique (clé manifest).
+    /// Parsed YAML values, keyed by logical name (manifest key).
     ///
-    /// `serde_json::Value` est utilisé comme représentation pivot pour
-    /// permettre la conversion vers Python via `json.loads` sans dépendance
-    /// supplémentaire.
+    /// `serde_json::Value` is used as the pivot representation to allow
+    /// conversion to Python via `json.loads` without an extra dependency.
     values: HashMap<String, serde_json::Value>,
-    /// Liste des datasources autorisées — copie du manifest. Toute clé non
-    /// présente ici déclenche `FileNotFoundError`, peu importe le disque.
+    /// List of allowed datasources, a copy of the manifest. Any key not
+    /// present here triggers `FileNotFoundError`, regardless of the disk.
     declared: Vec<String>,
 }
 
 #[pymethods]
 impl DatasourcesInterface {
-    /// Retourne le contenu parsé de la datasource `name` sous forme d'objet
-    /// Python natif (dict, list, scalaire selon le YAML).
+    /// Returns the parsed content of datasource `name` as a native Python
+    /// object (dict, list, scalar depending on the YAML).
     ///
-    /// # Erreurs Python
-    /// - `FileNotFoundError` si `name` n'est pas dans la liste déclarée au
-    ///   manifest.
-    /// - `FileNotFoundError` si `name` est déclaré mais le fichier YAML est
-    ///   absent ou n'a pas été chargé (parse error).
-    /// - `RuntimeError` si la conversion JSON → Python via `json.loads`
-    ///   échoue (ne devrait jamais arriver pour un YAML bien formé).
+    /// # Python errors
+    /// - `FileNotFoundError` if `name` is not in the manifest's declared list.
+    /// - `FileNotFoundError` if `name` is declared but the YAML file is absent
+    ///   or was not loaded (parse error).
+    /// - `RuntimeError` if the JSON to Python conversion via `json.loads`
+    ///   fails (should never happen for well-formed YAML).
     fn get(&self, py: Python<'_>, name: &str) -> PyResult<PyObject> {
         if !self.declared.iter().any(|d| d == name) {
             return Err(PyFileNotFoundError::new_err(format!(
@@ -89,8 +86,8 @@ impl DatasourcesInterface {
             ))
         })?;
 
-        // Conversion serde_json::Value → PyObject via json.loads (évite la
-        // dépendance pythonize).
+        // Convert serde_json::Value to PyObject via json.loads (avoids the
+        // pythonize dependency).
         let json_str = serde_json::to_string(value).map_err(|e| {
             pyo3::exceptions::PyRuntimeError::new_err(format!(
                 "JSON serialization failed for '{name}': {e}"
@@ -101,28 +98,27 @@ impl DatasourcesInterface {
         Ok(py_obj)
     }
 
-    /// Liste les noms logiques des datasources déclarées au manifest.
+    /// Lists the logical names of the datasources declared in the manifest.
     ///
-    /// Toujours retourné dans l'ordre du manifest. Permet à l'agent de
-    /// vérifier sa propre configuration au démarrage sans hardcoder les noms.
+    /// Always returned in manifest order. Lets the agent check its own
+    /// configuration at startup without hardcoding names.
     fn list_names(&self) -> Vec<String> {
         self.declared.clone()
     }
 
-    /// `True` si la datasource est déclarée ET chargée avec succès.
+    /// `True` if the datasource is declared AND loaded successfully.
     ///
-    /// Utile pour les agents qui veulent dégrader gracieusement quand un
-    /// fichier YAML est absent (`ctx.datasources.has("foo")` est plus
-    /// idiomatique qu'un try/except `get`).
+    /// Useful for agents that want to degrade gracefully when a YAML file is
+    /// absent (`ctx.datasources.has("foo")` is more idiomatic than a
+    /// try/except around `get`).
     fn has(&self, name: &str) -> bool {
         self.declared.iter().any(|d| d == name) && self.values.contains_key(name)
     }
 }
 
 impl DatasourcesInterface {
-    /// Construit l'interface avec la liste déclarée du manifest. Le cache
-    /// `values` reste vide tant que [`Self::load_from_dir`] n'a pas été
-    /// appelé.
+    /// Builds the interface with the manifest's declared list. The `values`
+    /// cache stays empty until [`Self::load_from_dir`] has been called.
     pub fn new(declared: Vec<String>) -> Self {
         Self {
             values: HashMap::new(),
@@ -130,16 +126,15 @@ impl DatasourcesInterface {
         }
     }
 
-    /// Charge toutes les datasources déclarées depuis
+    /// Loads all declared datasources from
     /// `<agent_dir>/datasources/<name>.yaml`.
     ///
-    /// Erreurs de parsing → trace `warn!` mais pas d'échec global : un
-    /// fichier corrompu rend la datasource invisible à Python
-    /// (`FileNotFoundError` à l'appel `get()`). C'est conforme à Principe #4
-    /// (fail-fast) car l'agent reçoit une erreur claire au premier accès,
-    /// pas une donnée silencieusement vide.
+    /// Parse errors are logged (`warn!`) but not globally fatal: a corrupt
+    /// file makes the datasource invisible to Python (`FileNotFoundError` on
+    /// the `get()` call). This is consistent with fail-fast because the agent
+    /// gets a clear error on first access, not a silently empty value.
     ///
-    /// Retourne le nombre de datasources chargées avec succès.
+    /// Returns the number of datasources loaded successfully.
     pub fn load_from_dir(&mut self, agent_dir: &Path) -> usize {
         let dir = agent_dir.join("datasources");
         let mut loaded = 0usize;
@@ -148,7 +143,7 @@ impl DatasourcesInterface {
             let content = match std::fs::read_to_string(&path) {
                 Ok(c) => c,
                 Err(e) => {
-                    // .yml fallback ?
+                    // .yml fallback?
                     let alt = dir.join(format!("{name}.yml"));
                     match std::fs::read_to_string(&alt) {
                         Ok(c) => c,
@@ -179,8 +174,8 @@ impl DatasourcesInterface {
         loaded
     }
 
-    /// Injecte directement une valeur en cache (utile pour les tests
-    /// unitaires sans filesystem).
+    /// Injects a value directly into the cache (useful for unit tests without
+    /// a filesystem).
     #[cfg(test)]
     pub(crate) fn inject(&mut self, name: &str, value: serde_json::Value) {
         if !self.declared.iter().any(|d| d == name) {
@@ -252,9 +247,9 @@ mod tests {
         assert!(!ds.has("unknown"));
     }
 
-    /// Vérifie le chemin de production : `load_from_dir` lit un vrai
-    /// fichier YAML depuis `<agent_dir>/datasources/<name>.yaml` et l'expose
-    /// au runtime Python via `get()`.
+    /// Checks the production path: `load_from_dir` reads a real YAML file from
+    /// `<agent_dir>/datasources/<name>.yaml` and exposes it to the Python
+    /// runtime via `get()`.
     #[test]
     fn test_load_from_dir_parses_real_yaml() {
         // GIVEN a temp agent_dir containing datasources/competitors.yaml
@@ -290,7 +285,7 @@ mod tests {
         });
     }
 
-    /// Vérifie le fallback `.yml` quand `.yaml` est absent.
+    /// Checks the `.yml` fallback when `.yaml` is absent.
     #[test]
     fn test_load_from_dir_yml_fallback() {
         // GIVEN datasources/config.yml (not .yaml)
@@ -308,9 +303,9 @@ mod tests {
         assert!(iface.has("config"));
     }
 
-    /// Vérifie qu'une datasource manquante n'empêche pas le chargement
-    /// des autres (logging warn! mais pas d'échec global, conforme au
-    /// commentaire de `load_from_dir`).
+    /// Checks that a missing datasource does not prevent the others from
+    /// loading (logs warn! but no global failure, matching the `load_from_dir`
+    /// comment).
     #[test]
     fn test_load_from_dir_missing_file_is_non_fatal() {
         // GIVEN datasources/present.yaml exists, declared also includes "missing"
@@ -324,19 +319,19 @@ mod tests {
             DatasourcesInterface::new(vec!["present".to_string(), "missing".to_string()]);
         let loaded = iface.load_from_dir(tmp.path());
 
-        // THEN only present was loaded — no panic on missing
+        // THEN only present was loaded, no panic on missing
         assert_eq!(loaded, 1);
         assert!(iface.has("present"));
         assert!(!iface.has("missing"));
     }
 
-    /// Un YAML malformé est ignoré (warn!), pas un crash de boot.
+    /// A malformed YAML is skipped (warn!), not a boot crash.
     #[test]
     fn test_load_from_dir_invalid_yaml_is_non_fatal() {
         let tmp = tempfile::tempdir().expect("temp dir");
         let ds_dir = tmp.path().join("datasources");
         std::fs::create_dir_all(&ds_dir).expect("mkdir");
-        // Tabulation au début d'un mapping = YAML invalide.
+        // A tab at the start of a mapping = invalid YAML.
         std::fs::write(ds_dir.join("broken.yaml"), "\t- not\n  valid").expect("write");
 
         let mut iface = DatasourcesInterface::new(vec!["broken".to_string()]);

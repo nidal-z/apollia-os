@@ -1,12 +1,12 @@
 //! Pluggable backend abstraction for the `web_search` tool.
 //!
 //! Two concrete backends live alongside this module:
-//! * [`super::duckduckgo::DuckDuckGoBackend`] — default, zero-config HTML scrape
-//! * [`super::brave::BraveBackend`] — feature-gated, API-key driven
+//! * [`super::duckduckgo::DuckDuckGoBackend`]: default, zero-config HTML scrape
+//! * [`super::brave::BraveBackend`]: feature-gated, API-key driven
 //!
 //! The trait is `pub(crate)` because no external crate should implement custom
 //! search backends today. Shrinking the public surface keeps refactors cheap
-//! (Apollia Principe #3 — contrat minimal).
+//! (minimal contract).
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ pub enum TimeRange {
 ///
 /// Backends map the fields to their own wire formats (e.g. DDG's `kl=fr-fr`
 /// vs Brave's `country=FR`). Invalid or unknown hints are silently ignored
-/// by the backend rather than raising — agents should not be blocked by
+/// by the backend rather than raising; agents should not be blocked by
 /// cosmetic mismatch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchQuery {
@@ -61,7 +61,7 @@ pub struct SearchQuery {
 
 /// One result row returned by a backend.
 ///
-/// Shared across backends — richer backend-specific fields (Brave thumbnails,
+/// Shared across backends; richer backend-specific fields (Brave thumbnails,
 /// profile metadata, …) are deliberately dropped at the trait boundary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
@@ -123,7 +123,7 @@ pub enum SearchBackendError {
     },
 
     /// Backend looks alive but returned a captcha or WAF challenge.
-    /// Distinct from [`SearchBackendError::RateLimited`] — the right reaction is to
+    /// Distinct from [`SearchBackendError::RateLimited`]; the right reaction is to
     /// switch backend, not to back off.
     #[error("backend '{backend}' blocked (captcha or WAF)")]
     Blocked {
@@ -152,9 +152,9 @@ pub enum SearchBackendError {
 
 /// A pluggable search engine backend.
 ///
-/// Implementations are stateless HTTP clients — one instance is created per
+/// Implementations are stateless HTTP clients; one instance is created per
 /// agent invocation by the dispatcher factory. Do not store mutable state here;
-/// per-invocation rebuild makes it wasted work (see ADR-072).
+/// per-invocation rebuild makes it wasted work.
 #[async_trait]
 pub(crate) trait SearchBackend: Send + Sync {
     /// Stable identifier for this backend. Echoed in

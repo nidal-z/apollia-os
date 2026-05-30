@@ -1,11 +1,11 @@
-//! ChatSessionManager — Tokio actor managing chat session lifecycle.
+//! ChatSessionManager, Tokio actor managing chat session lifecycle.
 //!
 //! Central entry point for the Sprint 18 chat subsystem. Handles session
 //! creation, message routing, tool approval resolution, and lifecycle events.
 //! Persists in SQLite via [`ChatSessionRepository`] and emits
 //! [`RuntimeEvent`] on the EventBus.
 //!
-//! The chat path does NOT go through the `TaskRouter` — it has its own
+//! The chat path does NOT go through the `TaskRouter`, it has its own
 //! execution path (ADR-034).
 
 use std::collections::HashMap;
@@ -38,11 +38,11 @@ pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
 /// [`resolve_workspace_for_session`].
 ///
 /// Supervisor populates this once at boot from `apollia.toml` + `data_dir`.
-/// Phase 3 of ADR-096 — convergence of Chat Libre's native tool execution
+/// Phase 3 of ADR-096, convergence of Chat Libre's native tool execution
 /// with Agent mode + Triggers.
 #[derive(Clone)]
 pub struct ChatToolsConfig {
-    /// Root data directory (`~/.apollia` typical) — used to derive
+    /// Root data directory (`~/.apollia` typical), used to derive
     /// `governance_db_path`, `memory_base_dir`, and `venv_base_dir`.
     pub data_dir: std::path::PathBuf,
     /// Resolved Brave Search API key (read from `governance.db` credentials
@@ -73,8 +73,25 @@ pub struct SessionAuthorizationView {
 /// Charge depuis `governance.db` la configuration "chat libre" et la liste des
 /// outils auto-autorisés (règles `scope = 'agent'` + action `allow` pour
 /// `apollia:chat`). Fallback silencieux sur les valeurs par défaut si la base
-/// est absente, vide, ou en erreur — aucune régression sur les sessions Libre
+/// est absente, vide, ou en erreur, aucune régression sur les sessions Libre
 /// existantes.
+/// Merge the session's authorized tools with the live Chat-Libre overrides
+/// (additive: never removes an in-session authorization). Overrides are only
+/// applied for [`ChatMode::Libre`]; other modes return the base set as-is.
+fn merge_live_authorized_tools(
+    base: &std::collections::HashSet<String>,
+    mode: &ChatMode,
+) -> std::collections::HashSet<String> {
+    let mut authorized_tools = base.clone();
+    if *mode == ChatMode::Libre {
+        let live = load_chat_libre_overrides();
+        for tool in live.pre_authorized_tools {
+            authorized_tools.insert(tool);
+        }
+    }
+    authorized_tools
+}
+
 fn load_chat_libre_overrides() -> ChatLibreOverrides {
     let mut out = ChatLibreOverrides::default();
     let home = match std::env::var("HOME") {
@@ -87,38 +104,53 @@ fn load_chat_libre_overrides() -> ChatLibreOverrides {
         return out;
     }
 
-    if let Ok(repo) = ChatLibreConfigRepository::open(&db_path) {
-        if let Ok(cfg) = repo.load() {
-            if !cfg.system_prompt.trim().is_empty() {
-                out.system_prompt = Some(cfg.system_prompt);
-            }
-            // chat_libre_config.allowed_tools = outils auto-autorisés (skip HITL)
-            // selon la copie UX "Outils autorisés sans confirmation".
-            // On les ajoute à pre_authorized_tools, pas à available_tools : le
-            // LLM voit toujours l'ensemble du registre, mais ces outils-ci ne
-            // déclenchent plus de popup.
-            for tool in cfg.allowed_tools {
-                out.pre_authorized_tools.insert(tool);
-            }
-            if let Some(b) = cfg.llm_backend {
-                if !b.trim().is_empty() {
-                    out.llm_backend = Some(b);
-                }
-            }
-        }
-    }
-
-    if let Ok(engine) = PrefixRuleEngine::new(&db_path) {
-        if let Ok(rules) = engine.list_rules_for_agent(APOLLIA_CHAT_AGENT_ID) {
-            for r in rules {
-                if matches!(r.action, RuleAction::Allow) {
-                    out.pre_authorized_tools.insert(r.tool_name);
-                }
-            }
-        }
-    }
+    apply_chat_libre_config(&mut out, &db_path);
+    apply_chat_prefix_allow_rules(&mut out, &db_path);
 
     out
+}
+
+/// Applique la config "chat libre" (`chat_libre_config`) aux overrides.
+/// Fallback silencieux si la base est absente/illisible.
+fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Path) {
+    let Ok(repo) = ChatLibreConfigRepository::open(db_path) else {
+        return;
+    };
+    let Ok(cfg) = repo.load() else {
+        return;
+    };
+    if !cfg.system_prompt.trim().is_empty() {
+        out.system_prompt = Some(cfg.system_prompt);
+    }
+    // chat_libre_config.allowed_tools = outils auto-autorisés (skip HITL)
+    // selon la copie UX "Outils autorisés sans confirmation".
+    // On les ajoute à pre_authorized_tools, pas à available_tools : le
+    // LLM voit toujours l'ensemble du registre, mais ces outils-ci ne
+    // déclenchent plus de popup.
+    for tool in cfg.allowed_tools {
+        out.pre_authorized_tools.insert(tool);
+    }
+    if let Some(b) = cfg.llm_backend {
+        if !b.trim().is_empty() {
+            out.llm_backend = Some(b);
+        }
+    }
+}
+
+/// Ajoute aux overrides les outils auto-autorisés via les règles `allow`
+/// scopées sur l'agent `apollia:chat`. Fallback silencieux en cas d'erreur.
+fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::path::Path) {
+    let Ok(engine) = PrefixRuleEngine::new(db_path) else {
+        return;
+    };
+    let Ok(rules) = engine.list_rules_for_agent(APOLLIA_CHAT_AGENT_ID) else {
+        return;
+    };
+    for r in rules {
+        if matches!(r.action, RuleAction::Allow) {
+            out.pre_authorized_tools.insert(r.tool_name);
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -128,10 +160,398 @@ struct ChatLibreOverrides {
     pre_authorized_tools: std::collections::HashSet<String>,
 }
 
+/// Per-session defaults derived from the Libre-mode governance overrides.
+#[derive(Debug, Default)]
+struct LibreSessionDefaults {
+    llm_backend: Option<String>,
+    pre_authorized: std::collections::HashSet<String>,
+}
+
+/// Apply Libre-mode governance overrides to the session prompt and return the
+/// derived session defaults.
+///
+/// When `is_libre` is `false`, leaves `prompt` untouched and returns the empty
+/// defaults (legacy behavior).
+///
+/// - `system_prompt` : prepended to the caller's prompt when set.
+/// - `llm_backend`   : recorded on the session for downstream routing.
+/// - `pre_authorized`: agent-scoped allow rules → seed authorized_tools so the
+///   chat ReAct loop skips HITL for them.
+fn apply_libre_overrides(is_libre: bool, prompt: &mut String) -> LibreSessionDefaults {
+    if !is_libre {
+        return LibreSessionDefaults::default();
+    }
+    let overrides = load_chat_libre_overrides();
+    if let Some(sp) = overrides.system_prompt {
+        if prompt.trim().is_empty() {
+            *prompt = sp;
+        } else {
+            *prompt = format!("{sp}\n\n{prompt}");
+        }
+    }
+    LibreSessionDefaults {
+        llm_backend: overrides.llm_backend,
+        pre_authorized: overrides.pre_authorized_tools,
+    }
+}
+
+/// Accumulate the metrics of one completed exchange into `entry`.
+fn accumulate_exchange_metrics(
+    entry: &mut SessionMetrics,
+    tokens_used: &apollia_llm::types::TokenUsage,
+    session: &ChatSession,
+    max_steps: u32,
+) {
+    let now_ts = now_rfc3339();
+    if entry.started_at.is_none() {
+        entry.started_at = Some(now_ts.clone());
+    }
+    entry.updated_at = Some(now_ts);
+    entry.prompt_tokens = entry.prompt_tokens.saturating_add(tokens_used.prompt_tokens);
+    entry.completion_tokens = entry
+        .completion_tokens
+        .saturating_add(tokens_used.completion_tokens);
+    entry.cache_read_input_tokens = entry
+        .cache_read_input_tokens
+        .saturating_add(tokens_used.cache_read_input_tokens);
+    entry.cache_write_input_tokens = entry
+        .cache_write_input_tokens
+        .saturating_add(tokens_used.cache_write_input_tokens);
+    entry.cost_usd = match (entry.cost_usd, tokens_used.cost_usd) {
+        (Some(a), Some(b)) => Some(a + b),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    };
+    entry.budget_max_steps = max_steps;
+    entry.steps_used = entry.steps_used.saturating_add(1);
+    entry.context_window_size = super::builtin_agent::DEFAULT_CONTEXT_WINDOW_SIZE as u32;
+    entry.messages_in_history = session.history.len() as u32;
+    entry.exchanges_count = entry.exchanges_count.saturating_add(1);
+    entry.record_tool_calls(
+        &session
+            .history
+            .last()
+            .and_then(|m| m.tool_calls.clone())
+            .unwrap_or_default(),
+    );
+    if entry.llm_backend.is_none() {
+        entry.llm_backend = session.llm_backend.clone();
+    }
+}
+
+/// Enrich `system_prompt` with the project context block when injection is
+/// enabled and both a project id and a provider are available.
+async fn maybe_inject_project_context(
+    system_prompt: String,
+    should_inject: bool,
+    session_project_id: &Option<String>,
+    project_ctx: &Option<Arc<dyn ProjectContextProvider>>,
+) -> String {
+    if !should_inject {
+        return system_prompt;
+    }
+    let (Some(pid), Some(provider)) = (session_project_id, project_ctx) else {
+        return system_prompt;
+    };
+    match provider.build_context(pid).await {
+        Some(ctx) => {
+            let mut enriched = system_prompt;
+            enriched.push_str("\n\n");
+            enriched.push_str(&ctx);
+            enriched
+        }
+        None => system_prompt,
+    }
+}
+
+/// Inputs for [`resolve_exchange_summary`].
+struct ExchangeSummaryParams<'a> {
+    history: &'a [ChatMessage],
+    context_window_size: usize,
+    stored_summary: Option<String>,
+    llm_for_summarize: &'a Option<Arc<LlmRouter>>,
+    tx: &'a mpsc::Sender<ChatCommand>,
+    sid: &'a str,
+}
+
+/// Scope-resolution inputs for `persist_always_accept_scope`, captured before
+/// the session borrow is released so governance persistence can use a disjoint
+/// `&self`.
+struct AlwaysAcceptScopeCtx<'a> {
+    scope: &'a super::types::AlwaysAcceptScope,
+    session_mode: ChatMode,
+    session_agent_name: Option<String>,
+    session_project_id: Option<&'a str>,
+    session_id: &'a str,
+    tool_name: &'a str,
+}
+
+/// Resolve the conversation summary for the exchange.
+///
+/// Reuses `stored_summary` when present or the history fits the context
+/// window. Otherwise summarizes the overflow via the LLM and persists the
+/// result (best-effort) through `tx`.
+async fn resolve_exchange_summary(params: ExchangeSummaryParams<'_>) -> Option<String> {
+    let ExchangeSummaryParams {
+        history,
+        context_window_size,
+        stored_summary,
+        llm_for_summarize,
+        tx,
+        sid,
+    } = params;
+    if history.len() <= context_window_size || stored_summary.is_some() {
+        return stored_summary;
+    }
+    let Some(llm) = llm_for_summarize else {
+        return None;
+    };
+    let older = &history[..history.len() - context_window_size];
+    match super::summarizer::summarize(older, llm).await {
+        Ok(s) => {
+            let _ = tx
+                .send(ChatCommand::PersistSummary {
+                    session_id: sid.to_string(),
+                    summary: s.clone(),
+                })
+                .await;
+            Some(s)
+        }
+        Err(e) => {
+            warn!(error = %e, "Context window summarization failed, proceeding without summary");
+            None
+        }
+    }
+}
+
+/// Owned, `Send` inputs for a spawned Libre/Companion exchange.
+///
+/// All values are cloned out of [`ChatSessionManager`] before the task is
+/// spawned so the spawned future never captures the non-`Send` `&self`
+/// (the manager owns a `RefCell` via rusqlite).
+struct LibreExchangeParams {
+    llm_router: Arc<LlmRouter>,
+    tool_registry: ToolRegistryHandle,
+    event_bus: EventBusSender,
+    a2a_for_agent: Option<Arc<A2AInvoker>>,
+    session_user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    pending_approvals: PendingChatApprovals,
+    budget: StepBudget,
+    history: Vec<ChatMessage>,
+    available_tools: Vec<String>,
+    authorized_tools: std::collections::HashSet<String>,
+    system_prompt: String,
+    inject_project_context: bool,
+    is_companion: bool,
+    context_window_size: usize,
+    stored_summary: Option<String>,
+    llm_for_summarize: Option<Arc<LlmRouter>>,
+    project_ctx: Option<Arc<dyn ProjectContextProvider>>,
+    session_project_id: Option<String>,
+    project_repo_for_session: Option<Arc<ProjectRepository>>,
+    pending_user_inputs_for_session: apollia_tools::tools::ask_user::PendingUserInputs,
+    mcp_handle_for_session: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    chat_tools_config_for_session: Option<Arc<ChatToolsConfig>>,
+    session_id_str: String,
+    hitl_params: HitlInvokerParams,
+    sid: String,
+    mid: String,
+    user_msg: String,
+    tx: mpsc::Sender<ChatCommand>,
+}
+
+/// Run a spawned Libre/Companion exchange end-to-end and report the result back
+/// to the actor via `tx`.
+///
+/// Extracted as a free `async fn` (rather than an inline `async move` block) so
+/// it captures only owned `Send` data and keeps `dispatch_libre_exchange`
+/// linear.
+async fn run_libre_exchange(params: LibreExchangeParams) {
+    let LibreExchangeParams {
+        llm_router,
+        tool_registry,
+        event_bus,
+        a2a_for_agent,
+        session_user_memory,
+        pending_approvals,
+        budget,
+        history,
+        available_tools,
+        authorized_tools,
+        system_prompt,
+        inject_project_context,
+        is_companion,
+        context_window_size,
+        stored_summary,
+        llm_for_summarize,
+        project_ctx,
+        session_project_id,
+        project_repo_for_session,
+        pending_user_inputs_for_session,
+        mcp_handle_for_session,
+        chat_tools_config_for_session,
+        session_id_str,
+        hitl_params,
+        sid,
+        mid,
+        user_msg,
+        tx,
+    } = params;
+
+    // Resolve per-session sandbox root from project workspace_path.
+    // On error (project not found) surface as ExchangeError, no panic.
+    let session_invoker = match build_session_invoker(
+        WorkspaceResolutionParams {
+            project_id: session_project_id.clone(),
+            project_repo: project_repo_for_session,
+            hitl: Some(hitl_params),
+            pending_user_inputs: Some(pending_user_inputs_for_session),
+            mcp_handle: mcp_handle_for_session,
+            chat_tools_config: chat_tools_config_for_session,
+            session_id: session_id_str,
+        },
+        &a2a_for_agent,
+    )
+    .await
+    {
+        Ok(inv) => inv,
+        Err(e) => {
+            let _ = tx
+                .send(ChatCommand::ExchangeError {
+                    session_id: sid,
+                    message_id: mid,
+                    error: e.to_string(),
+                })
+                .await;
+            return;
+        }
+    };
+
+    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+        llm_router,
+        tool_registry,
+        tool_invoker: session_invoker.invoker,
+        event_bus,
+        user_memory: session_user_memory,
+        a2a_invoker: a2a_for_agent,
+    })
+    .with_workspace_path(session_invoker.workspace);
+
+    // Inject project context on first message OR right after the
+    // session was linked to a project (consumed flag).
+    tracing::info!(
+        session_id = %sid,
+        inject_project_context,
+        has_project = session_project_id.is_some(),
+        has_provider = project_ctx.is_some(),
+        "Chat send: project-context gate"
+    );
+    let system_prompt = maybe_inject_project_context(
+        system_prompt,
+        inject_project_context && !is_companion,
+        &session_project_id,
+        &project_ctx,
+    )
+    .await;
+    let summary = resolve_exchange_summary(ExchangeSummaryParams {
+        history: &history,
+        context_window_size,
+        stored_summary,
+        llm_for_summarize: &llm_for_summarize,
+        tx: &tx,
+        sid: &sid,
+    })
+    .await;
+
+    let result = agent
+        .execute(
+            &sid,
+            &mid,
+            &user_msg,
+            &history,
+            &system_prompt,
+            &available_tools,
+            &authorized_tools,
+            &pending_approvals,
+            &budget,
+            summary.as_deref(),
+            context_window_size,
+        )
+        .await;
+
+    let cmd = match result {
+        Ok(response) => ChatCommand::ExchangeComplete {
+            session_id: sid,
+            message_id: mid,
+            response,
+        },
+        Err(err) => ChatCommand::ExchangeError {
+            session_id: sid,
+            message_id: mid,
+            error: err.to_string(),
+        },
+    };
+    let _ = tx.send(cmd).await;
+}
+
+/// Resolved tool invoker plus the agent workspace path for a session.
+struct ResolvedSessionInvoker {
+    invoker: Arc<dyn ToolInvoker>,
+    workspace: Option<std::path::PathBuf>,
+}
+
+/// Resolve the native invoker for a session and wrap it in a composite invoker
+/// when an A2A invoker is configured.
+async fn build_session_invoker(
+    workspace_params: WorkspaceResolutionParams,
+    a2a_for_agent: &Option<Arc<A2AInvoker>>,
+) -> Result<ResolvedSessionInvoker, ChatError> {
+    let native_invoker = resolve_workspace_for_session(workspace_params).await?;
+    let workspace = native_invoker.workspace_path().map(|p| p.to_path_buf());
+    let invoker: Arc<dyn ToolInvoker> = if let Some(a2a) = a2a_for_agent {
+        Arc::new(CompositeToolInvoker::new(native_invoker, a2a.clone()))
+    } else {
+        Arc::new(native_invoker)
+    };
+    Ok(ResolvedSessionInvoker { invoker, workspace })
+}
+
 /// Persiste une règle `allow` scopée dans `governance.db` pour `tool_name`.
 /// Utilisé par le bouton "Toujours autoriser" du chat selon le scope choisi
 /// par l'opérateur. Best-effort : log et continue en cas d'échec (l'autorisation
 /// in-memory dans `session.authorized_tools` reste en place).
+/// Trace-log the enriched approval metadata (reject reason / always-accept
+/// scope) without touching the `log_tool_approval` SQL schema.
+fn log_resolution_metadata(
+    decision: &ToolDecision,
+    session_id: &str,
+    message_id: &str,
+    tool_name: &str,
+) {
+    match decision {
+        ToolDecision::Refuse { reason: Some(r) } => {
+            tracing::info!(
+                session_id,
+                message_id,
+                tool_name,
+                reject_reason = %r,
+                "chat tool rejected with reason"
+            );
+        }
+        ToolDecision::AlwaysAccept { scope } => {
+            tracing::info!(
+                session_id,
+                message_id,
+                tool_name,
+                always_accept_scope = ?scope,
+                "chat tool always-accept rule installed"
+            );
+        }
+        _ => {}
+    }
+}
+
 fn persist_chat_allow_rule(
     scope: apollia_permissions::PermissionScope,
     project_path: Option<std::path::PathBuf>,
@@ -187,12 +607,13 @@ fn persist_chat_allow_rule(
 }
 
 use super::a2a_tools::CompositeToolInvoker;
-use super::agent_chat::{AgentChatExecutor, ChatAgentRunner};
+use super::agent_chat::{AgentChatExecutor, AgentChatRequest, ChatAgentRunner};
 use super::builtin_agent::{
-    BuiltInChatAgent, ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
+    BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, HitlInvokerParams,
+    NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
 };
 use super::extractor::UserMemoryExtractor;
-use super::repository::{AppendMessageParams, ChatSessionRepository};
+use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApprovalLogEntry};
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
     PendingChatApprovals, PendingFilesystemApprovals, ProjectContextProvider, RecentSessionSummary,
@@ -281,7 +702,7 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// New available tools (if Some).
         available_tools: Option<Vec<String>>,
-        /// New LLM backend (if Some — inner None means "use default").
+        /// New LLM backend (if Some, inner None means "use default").
         llm_backend: Option<Option<String>>,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
@@ -397,7 +818,7 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Tool name to remove from `authorized_tools`.
         tool_name: String,
-        /// Response channel — `true` if the entry existed and was removed.
+        /// Response channel, `true` if the entry existed and was removed.
         reply: oneshot::Sender<Result<bool, ChatError>>,
     },
     /// List all A2A skills available from active worker agents.
@@ -494,6 +915,24 @@ pub enum ChatCommand {
     Shutdown,
 }
 
+/// Parameters for [`ChatSessionManager::handle_create_session`].
+pub struct CreateSessionParams {
+    pub mode: ChatMode,
+    pub agent_name: Option<String>,
+    pub system_prompt: Option<String>,
+    pub tools: Vec<String>,
+    pub project_id: Option<String>,
+}
+
+/// Parameters for [`ChatSessionManager::handle_register_user_input_reply`].
+struct RegisterUserInputReplyParams {
+    request_id: String,
+    session_id: String,
+    questions_json: String,
+    context: Option<String>,
+    reply_tx: tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>,
+}
+
 /// Snapshot of a pending `ask_user` request, safe to send across the IPC boundary.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PendingUserInputView {
@@ -545,7 +984,7 @@ struct ChatSessionManager {
     enrichment_extractor: Option<Arc<tokio::sync::Mutex<UserMemoryExtractor>>>,
     /// Sender clone for spawned tasks to send commands back to the actor.
     tx: mpsc::Sender<ChatCommand>,
-    /// Optional A2A invoker — when present, worker agent skills are exposed as virtual tools.
+    /// Optional A2A invoker, when present, worker agent skills are exposed as virtual tools.
     a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Optional project context provider for injecting project context into system prompts.
     project_context: Option<Arc<dyn ProjectContextProvider>>,
@@ -560,7 +999,7 @@ struct ChatSessionManager {
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
     /// Operator config bundled at supervisor boot (data dir, brave key,
     /// tools_config) for the chat dispatcher. `None` in tests / minimal
-    /// runtimes — falls back to the Phase 2 minimal dispatcher.
+    /// runtimes, falls back to the Phase 2 minimal dispatcher.
     chat_tools_config: Option<Arc<ChatToolsConfig>>,
     /// Map of pending `ask_user` entries, keyed by request_id.
     /// Populated by the background drain task, resolved by `ResolveUserInput`.
@@ -573,7 +1012,7 @@ struct ChatSessionManager {
     >,
     /// Per-session aggregated metrics.
     ///
-    /// In-memory only — rebuilt from history on session resume. Not persisted.
+    /// In-memory only, rebuilt from history on session resume. Not persisted.
     metrics: HashMap<SessionId, SessionMetrics>,
 }
 
@@ -591,7 +1030,13 @@ impl ChatSessionManager {
                     reply,
                 } => {
                     let result = self
-                        .handle_create_session(mode, agent_name, system_prompt, tools, project_id)
+                        .handle_create_session(CreateSessionParams {
+                            mode,
+                            agent_name,
+                            system_prompt,
+                            tools,
+                            project_id,
+                        })
                         .await;
                     let _ = reply.send(result);
                 }
@@ -712,113 +1157,33 @@ impl ChatSessionManager {
                     let _ = reply.send(result);
                 }
                 ChatCommand::OrphanProjectSessions { project_id } => {
-                    match self.repository.orphan_project_sessions(&project_id) {
-                        Ok(count) => {
-                            if count > 0 {
-                                info!(project_id = %project_id, count, "Orphaned chat sessions after project deletion");
-                                // Also update in-memory cache
-                                for session in self.sessions.values_mut() {
-                                    if session.project_id.as_deref() == Some(&project_id) {
-                                        session.project_id = None;
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            warn!(project_id = %project_id, error = %e, "Failed to orphan sessions");
-                        }
-                    }
+                    self.handle_orphan_project_sessions(&project_id);
                 }
                 ChatCommand::ListSessionAuthorizations { reply } => {
-                    let mut out: Vec<SessionAuthorizationView> = Vec::new();
-                    for s in self.sessions.values() {
-                        if matches!(s.status, SessionStatus::Closed) {
-                            continue;
-                        }
-                        for tool in &s.authorized_tools {
-                            out.push(SessionAuthorizationView {
-                                session_id: s.id.clone(),
-                                session_title: s.title.clone(),
-                                mode: s.mode.as_sql().to_string(),
-                                tool_name: tool.clone(),
-                            });
-                        }
-                    }
-                    out.sort_by(|a, b| {
-                        a.session_id
-                            .cmp(&b.session_id)
-                            .then_with(|| a.tool_name.cmp(&b.tool_name))
-                    });
-                    let _ = reply.send(out);
+                    let _ = reply.send(self.handle_list_session_authorizations());
                 }
                 ChatCommand::RevokeSessionAuthorization {
                     session_id,
                     tool_name,
                     reply,
                 } => {
-                    let result = match self.sessions.get_mut(&session_id) {
-                        Some(s) => Ok(s.authorized_tools.remove(&tool_name)),
-                        None => Err(ChatError::SessionNotFound(session_id.clone())),
-                    };
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_revoke_session_authorization(&session_id, &tool_name));
                 }
                 ChatCommand::ListA2ASkills { reply } => {
-                    if let Some(ref a2a) = self.a2a_invoker {
-                        let a2a = a2a.clone();
-                        tokio::spawn(async move {
-                            let skills = a2a.list_skills().await.unwrap_or_default();
-                            let _ = reply.send(skills);
-                        });
-                    } else {
-                        let _ = reply.send(Vec::new());
-                    }
+                    self.handle_list_a2a_skills(reply);
                 }
                 ChatCommand::ListA2ASkillTelemetry { reply } => {
-                    if let Some(ref a2a) = self.a2a_invoker {
-                        let a2a = a2a.clone();
-                        tokio::spawn(async move {
-                            let out = match a2a.telemetry() {
-                                Some(t) => t.all_telemetry().await,
-                                None => Vec::new(),
-                            };
-                            let _ = reply.send(out);
-                        });
-                    } else {
-                        let _ = reply.send(Vec::new());
-                    }
+                    self.handle_list_a2a_skill_telemetry(reply);
                 }
                 ChatCommand::ListA2AStepProvenance { skill_id, reply } => {
-                    if let Some(ref a2a) = self.a2a_invoker {
-                        let a2a = a2a.clone();
-                        tokio::spawn(async move {
-                            let out = match a2a.telemetry() {
-                                Some(t) => t.steps_for(skill_id.as_deref()).await,
-                                None => Vec::new(),
-                            };
-                            let _ = reply.send(out);
-                        });
-                    } else {
-                        let _ = reply.send(Vec::new());
-                    }
+                    self.handle_list_a2a_step_provenance(skill_id, reply);
                 }
                 ChatCommand::CheckA2ACompatibility {
                     skill_id,
                     required_version,
                     reply,
                 } => {
-                    if let Some(ref a2a) = self.a2a_invoker {
-                        let a2a = a2a.clone();
-                        tokio::spawn(async move {
-                            let out = a2a
-                                .check_skill_compatibility(&skill_id, &required_version)
-                                .await
-                                .ok()
-                                .flatten();
-                            let _ = reply.send(out);
-                        });
-                    } else {
-                        let _ = reply.send(None);
-                    }
+                    self.handle_check_a2a_compatibility(skill_id, required_version, reply);
                 }
                 ChatCommand::ReloadLlm { router } => {
                     info!("ChatSessionManager: LLM router reloaded");
@@ -829,15 +1194,7 @@ impl ChatSessionManager {
                     decision,
                     reply,
                 } => {
-                    let resolved = self.pending_fs_approvals.resolve(&request_id, decision);
-                    let result = if resolved {
-                        Ok(())
-                    } else {
-                        Err(ChatError::InternalError(format!(
-                            "no pending fs HITL request for id '{request_id}'"
-                        )))
-                    };
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_resolve_fs_hitl(&request_id, decision));
                 }
                 ChatCommand::ListApprovalHistory { limit, days, reply } => {
                     let result = self.repository.list_tool_approval_history(limit, days);
@@ -850,24 +1207,13 @@ impl ChatSessionManager {
                     context,
                     reply_tx,
                 } => {
-                    let created_at = chrono::Utc::now().to_rfc3339();
-                    let meta = PendingUserInputMeta {
-                        session_id: session_id.clone(),
-                        questions_json: questions_json.clone(),
-                        context: context.clone(),
-                        created_at,
-                    };
-                    self.pending_user_replies
-                        .insert(request_id.clone(), (meta, reply_tx));
-                    let _ =
-                        self.event_bus
-                            .send(apollia_core::RuntimeEvent::ChatUserInputRequired {
-                                request_id,
-                                session_id,
-                                message_id: String::new(),
-                                questions_json,
-                                context,
-                            });
+                    self.handle_register_user_input_reply(RegisterUserInputReplyParams {
+                        request_id,
+                        session_id,
+                        questions_json,
+                        context,
+                        reply_tx,
+                    });
                 }
                 ChatCommand::ResolveUserInput {
                     request_id,
@@ -912,6 +1258,180 @@ impl ChatSessionManager {
         info!("ChatSessionManager: actor stopped");
     }
 
+    /// Clear the `project_id` of cached sessions after their project is deleted.
+    fn handle_orphan_project_sessions(&mut self, project_id: &str) {
+        match self.repository.orphan_project_sessions(project_id) {
+            Ok(count) => {
+                if count > 0 {
+                    info!(project_id = %project_id, count, "Orphaned chat sessions after project deletion");
+                    // Also update in-memory cache
+                    for session in self.sessions.values_mut() {
+                        if session.project_id.as_deref() == Some(project_id) {
+                            session.project_id = None;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(project_id = %project_id, error = %e, "Failed to orphan sessions");
+            }
+        }
+    }
+
+    /// Collect the per-session tool authorizations for all open sessions.
+    fn handle_list_session_authorizations(&self) -> Vec<SessionAuthorizationView> {
+        let mut out: Vec<SessionAuthorizationView> = Vec::new();
+        for s in self.sessions.values() {
+            if matches!(s.status, SessionStatus::Closed) {
+                continue;
+            }
+            for tool in &s.authorized_tools {
+                out.push(SessionAuthorizationView {
+                    session_id: s.id.clone(),
+                    session_title: s.title.clone(),
+                    mode: s.mode.as_sql().to_string(),
+                    tool_name: tool.clone(),
+                });
+            }
+        }
+        out.sort_by(|a, b| {
+            a.session_id
+                .cmp(&b.session_id)
+                .then_with(|| a.tool_name.cmp(&b.tool_name))
+        });
+        out
+    }
+
+    /// Revoke a session-scoped tool authorization. Returns whether it existed.
+    fn handle_revoke_session_authorization(
+        &mut self,
+        session_id: &str,
+        tool_name: &str,
+    ) -> Result<bool, ChatError> {
+        match self.sessions.get_mut(session_id) {
+            Some(s) => Ok(s.authorized_tools.remove(tool_name)),
+            None => Err(ChatError::SessionNotFound(session_id.to_string())),
+        }
+    }
+
+    /// List A2A skills available from active worker agents (async, off-actor).
+    fn handle_list_a2a_skills(&self, reply: oneshot::Sender<Vec<crate::a2a::SkillListing>>) {
+        if let Some(ref a2a) = self.a2a_invoker {
+            let a2a = a2a.clone();
+            tokio::spawn(async move {
+                let skills = a2a.list_skills().await.unwrap_or_default();
+                let _ = reply.send(skills);
+            });
+        } else {
+            let _ = reply.send(Vec::new());
+        }
+    }
+
+    /// Snapshot A2A skill telemetry (async, off-actor).
+    fn handle_list_a2a_skill_telemetry(
+        &self,
+        reply: oneshot::Sender<Vec<crate::a2a::A2ASkillTelemetry>>,
+    ) {
+        if let Some(ref a2a) = self.a2a_invoker {
+            let a2a = a2a.clone();
+            tokio::spawn(async move {
+                let out = match a2a.telemetry() {
+                    Some(t) => t.all_telemetry().await,
+                    None => Vec::new(),
+                };
+                let _ = reply.send(out);
+            });
+        } else {
+            let _ = reply.send(Vec::new());
+        }
+    }
+
+    /// Retrieve A2A step provenance entries, optionally filtered by skill id.
+    fn handle_list_a2a_step_provenance(
+        &self,
+        skill_id: Option<String>,
+        reply: oneshot::Sender<Vec<crate::a2a::A2AStepProvenance>>,
+    ) {
+        if let Some(ref a2a) = self.a2a_invoker {
+            let a2a = a2a.clone();
+            tokio::spawn(async move {
+                let out = match a2a.telemetry() {
+                    Some(t) => t.steps_for(skill_id.as_deref()).await,
+                    None => Vec::new(),
+                };
+                let _ = reply.send(out);
+            });
+        } else {
+            let _ = reply.send(Vec::new());
+        }
+    }
+
+    /// Check compatibility of a skill against a required semver version.
+    fn handle_check_a2a_compatibility(
+        &self,
+        skill_id: String,
+        required_version: String,
+        reply: oneshot::Sender<Option<crate::a2a::A2ACompatibilityWarning>>,
+    ) {
+        if let Some(ref a2a) = self.a2a_invoker {
+            let a2a = a2a.clone();
+            tokio::spawn(async move {
+                let out = a2a
+                    .check_skill_compatibility(&skill_id, &required_version)
+                    .await
+                    .ok()
+                    .flatten();
+                let _ = reply.send(out);
+            });
+        } else {
+            let _ = reply.send(None);
+        }
+    }
+
+    /// Resolve a pending filesystem HITL request.
+    fn handle_resolve_fs_hitl(
+        &self,
+        request_id: &str,
+        decision: super::types::FsHitlDecision,
+    ) -> Result<(), ChatError> {
+        if self.pending_fs_approvals.resolve(request_id, decision) {
+            Ok(())
+        } else {
+            Err(ChatError::InternalError(format!(
+                "no pending fs HITL request for id '{request_id}'"
+            )))
+        }
+    }
+
+    /// Register a pending `ask_user` reply channel and emit the input-required event.
+    fn handle_register_user_input_reply(&mut self, params: RegisterUserInputReplyParams) {
+        let RegisterUserInputReplyParams {
+            request_id,
+            session_id,
+            questions_json,
+            context,
+            reply_tx,
+        } = params;
+        let created_at = chrono::Utc::now().to_rfc3339();
+        let meta = PendingUserInputMeta {
+            session_id: session_id.clone(),
+            questions_json: questions_json.clone(),
+            context: context.clone(),
+            created_at,
+        };
+        self.pending_user_replies
+            .insert(request_id.clone(), (meta, reply_tx));
+        let _ = self
+            .event_bus
+            .send(apollia_core::RuntimeEvent::ChatUserInputRequired {
+                request_id,
+                session_id,
+                message_id: String::new(),
+                questions_json,
+                context,
+            });
+    }
+
     /// Build a cross-session context block from past session summaries.
     ///
     /// Returns `None` if the first message is too short (trivial greeting)
@@ -938,15 +1458,18 @@ impl ChatSessionManager {
         Some(block)
     }
 
-    /// Create a new chat session.
-    async fn handle_create_session(
-        &mut self,
+    /// Validate a session-creation request against the registry and LLM config.
+    ///
+    /// Takes the borrowed dependencies explicitly rather than `&self`: holding a
+    /// `&ChatSessionManager` (which owns a `RefCell` via rusqlite) across the
+    /// `find_by_name` await would make `run`'s future non-`Send`. Borrowing only
+    /// the `Send + Sync` registry handle keeps the future spawnable.
+    async fn validate_create_request(
+        registry_handle: &AgentRegistryHandle,
+        llm_configured: bool,
         mode: ChatMode,
-        agent_name: Option<String>,
-        system_prompt: Option<String>,
-        tools: Vec<String>,
-        project_id: Option<String>,
-    ) -> Result<SessionInfo, ChatError> {
+        agent_name: Option<&str>,
+    ) -> Result<(), ChatError> {
         // Agent mode requires an agent name
         if mode == ChatMode::Agent && agent_name.is_none() {
             return Err(ChatError::AgentNotFound(
@@ -956,20 +1479,43 @@ impl ChatSessionManager {
 
         // Validate agent exists in the registry if agent mode
         if mode == ChatMode::Agent {
-            if let Some(ref name) = agent_name {
-                let found = self.registry_handle.find_by_name(name).await.map_err(|e| {
+            if let Some(name) = agent_name {
+                let found = registry_handle.find_by_name(name).await.map_err(|e| {
                     ChatError::InternalError(format!("registry lookup failed: {e}"))
                 })?;
                 if found.is_none() {
-                    return Err(ChatError::AgentNotFound(name.clone()));
+                    return Err(ChatError::AgentNotFound(name.to_string()));
                 }
             }
         }
 
         // Libre mode requires an LLM
-        if mode == ChatMode::Libre && self.llm_router.is_none() {
+        if mode == ChatMode::Libre && !llm_configured {
             return Err(ChatError::NoLlmConfigured);
         }
+
+        Ok(())
+    }
+
+    /// Create a new chat session.
+    async fn handle_create_session(
+        &mut self,
+        params: CreateSessionParams,
+    ) -> Result<SessionInfo, ChatError> {
+        let CreateSessionParams {
+            mode,
+            agent_name,
+            system_prompt,
+            tools,
+            project_id,
+        } = params;
+        Self::validate_create_request(
+            &self.registry_handle,
+            self.llm_router.is_some(),
+            mode.clone(),
+            agent_name.as_deref(),
+        )
+        .await?;
 
         // When no tools are explicitly specified, default to all tools in the registry.
         // Users can override by passing an explicit tools list when creating the session.
@@ -988,27 +1534,11 @@ impl ChatSessionManager {
         let mut prompt = system_prompt.unwrap_or_default();
 
         // ── Libre mode: pull persisted overrides from governance.db ──────────
-        // - system_prompt   : prepended to the caller's prompt when set.
-        // - allowed_tools   : narrows the available_tools list when set non-empty.
-        // - llm_backend     : recorded on the session for downstream routing.
-        // - pre_authorized  : agent-scoped allow rules → seed authorized_tools
-        //                     so the chat ReAct loop skips HITL for them.
         // Silent fallback when the DB is absent / empty / unreadable: legacy behavior.
-        let mut libre_llm_backend: Option<String> = None;
-        let mut pre_authorized: std::collections::HashSet<String> =
-            std::collections::HashSet::new();
-        if mode == ChatMode::Libre {
-            let overrides = load_chat_libre_overrides();
-            if let Some(sp) = overrides.system_prompt {
-                if prompt.trim().is_empty() {
-                    prompt = sp;
-                } else {
-                    prompt = format!("{sp}\n\n{prompt}");
-                }
-            }
-            libre_llm_backend = overrides.llm_backend;
-            pre_authorized = overrides.pre_authorized_tools;
-        }
+        let LibreSessionDefaults {
+            llm_backend: libre_llm_backend,
+            pre_authorized,
+        } = apply_libre_overrides(mode == ChatMode::Libre, &mut prompt);
 
         // Persist to SQLite
         self.repository.create_session(
@@ -1176,8 +1706,43 @@ impl ChatSessionManager {
             .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
 
         if session.mode == ChatMode::Libre || session.mode == ChatMode::Companion {
+            self.dispatch_libre_exchange(session_id, &message_id, content)?;
+        } else {
+            self.dispatch_agent_exchange(session_id, &message_id, content)?;
+        }
+
+        Ok(message_id)
+    }
+
+    /// Build the system prompt for a Libre/Companion exchange, optionally
+    /// enriched with cross-session context on the first message.
+    fn build_libre_system_prompt(
+        &self,
+        base_prompt: &str,
+        content: &str,
+        enrich: bool,
+    ) -> String {
+        let mut prompt = base_prompt.to_string();
+        if enrich {
+            if let Some(block) = self.build_cross_session_context(content) {
+                prompt.push_str("\n\n");
+                prompt.push_str(&block);
+            }
+        }
+        prompt
+    }
+
+    /// Spawn the BuiltInChatAgent background task for a Libre/Companion exchange.
+    fn dispatch_libre_exchange(
+        &mut self,
+        session_id: &str,
+        message_id: &str,
+        content: &str,
+    ) -> Result<(), ChatError> {
+        let message_id = message_id.to_string();
+        {
             let llm_router = self.llm_router.clone().ok_or(ChatError::NoLlmConfigured)?;
-            // Read and consume the late-link injection flag — it triggers a
+            // Read and consume the late-link injection flag, it triggers a
             // single re-injection of the project context on the next message
             // after a session was linked to a project mid-conversation.
             let force_inject_project_context = {
@@ -1195,7 +1760,7 @@ impl ChatSessionManager {
                 .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
 
             // Companion sessions are intentionally isolated from user memory and
-            // cross-session history (Principle #6 — memory at agent initiative).
+            // cross-session history (Principle #6, memory at agent initiative).
             // The companion helps with the platform, not the user's personal context.
             let session_user_memory = if session.mode == ChatMode::Companion {
                 None
@@ -1208,17 +1773,12 @@ impl ChatSessionManager {
             let is_companion = session.mode == ChatMode::Companion;
             let inject_project_context = is_first_message || force_inject_project_context;
             // On the first message, enrich the system prompt with cross-session context.
-            // Companion sessions are excluded — they must not inherit personal history.
-            let system_prompt = if is_first_message && !is_companion {
-                let mut prompt = session.system_prompt.clone();
-                if let Some(block) = self.build_cross_session_context(content) {
-                    prompt.push_str("\n\n");
-                    prompt.push_str(&block);
-                }
-                prompt
-            } else {
-                session.system_prompt.clone()
-            };
+            // Companion sessions are excluded, they must not inherit personal history.
+            let system_prompt = self.build_libre_system_prompt(
+                &session.system_prompt,
+                content,
+                is_first_message && !is_companion,
+            );
             let available_tools = session.available_tools.clone();
             // Live merge : on relit governance.db à chaque message pour que les
             // changements de configuration Apollia Chat (outils auto-autorisés,
@@ -1226,13 +1786,8 @@ impl ChatSessionManager {
             // sans avoir à fermer/rouvrir la conversation. La fusion est purement
             // additive : on n'enlève jamais d'autorisation accordée pendant la
             // session, on en ajoute si la config a été enrichie depuis.
-            let mut authorized_tools = session.authorized_tools.clone();
-            if session.mode == ChatMode::Libre {
-                let live = load_chat_libre_overrides();
-                for tool in live.pre_authorized_tools {
-                    authorized_tools.insert(tool);
-                }
-            }
+            let authorized_tools =
+                merge_live_authorized_tools(&session.authorized_tools, &session.mode);
             let pending_approvals = self.pending_chat_approvals.clone();
             let budget = StepBudget::new(&self.runtime_budget);
             let sid = session_id.to_string();
@@ -1267,184 +1822,110 @@ impl ChatSessionManager {
                 risk_config: apollia_core::FilesystemRiskConfig::default(),
             };
 
-            tokio::spawn(async move {
-                // Resolve per-session sandbox root from project workspace_path.
-                // On error (project not found) surface as ExchangeError — no panic.
-                let native_invoker = match resolve_workspace_for_session(
-                    &session_project_id,
-                    &project_repo_for_session,
-                    Some(hitl_params),
-                    Some(pending_user_inputs_for_session),
-                    mcp_handle_for_session,
-                    chat_tools_config_for_session,
-                    &session_id_str,
-                )
-                .await
-                {
-                    Ok(inv) => inv,
-                    Err(e) => {
-                        let _ = tx
-                            .send(ChatCommand::ExchangeError {
-                                session_id: sid,
-                                message_id: mid,
-                                error: e.to_string(),
-                            })
-                            .await;
-                        return;
-                    }
-                };
-                let agent_workspace = native_invoker.workspace_path().map(|p| p.to_path_buf());
-                let session_invoker: Arc<dyn ToolInvoker> = if let Some(ref a2a) = a2a_for_agent {
-                    Arc::new(CompositeToolInvoker::new(native_invoker, a2a.clone()))
-                } else {
-                    Arc::new(native_invoker)
-                };
-
-                let agent = BuiltInChatAgent::new(
-                    llm_router,
-                    tool_registry,
-                    session_invoker,
-                    event_bus,
-                    session_user_memory,
-                    a2a_for_agent,
-                )
-                .with_workspace_path(agent_workspace);
-
-                // Inject project context on first message OR right after the
-                // session was linked to a project (consumed flag).
-                tracing::info!(
-                    session_id = %sid,
-                    inject_project_context,
-                    has_project = session_project_id.is_some(),
-                    has_provider = project_ctx.is_some(),
-                    "Chat send: project-context gate"
-                );
-                let system_prompt = if inject_project_context && !is_companion {
-                    if let (Some(ref pid), Some(ref provider)) = (&session_project_id, &project_ctx)
-                    {
-                        match provider.build_context(pid).await {
-                            Some(ctx) => {
-                                let mut enriched = system_prompt;
-                                enriched.push_str("\n\n");
-                                enriched.push_str(&ctx);
-                                enriched
-                            }
-                            None => system_prompt,
-                        }
-                    } else {
-                        system_prompt
-                    }
-                } else {
-                    system_prompt
-                };
-                let summary = if history.len() > context_window_size && stored_summary.is_none() {
-                    if let Some(ref llm) = llm_for_summarize {
-                        let older = &history[..history.len() - context_window_size];
-                        match super::summarizer::summarize(older, llm).await {
-                            Ok(s) => {
-                                let _ = tx
-                                    .send(ChatCommand::PersistSummary {
-                                        session_id: sid.clone(),
-                                        summary: s.clone(),
-                                    })
-                                    .await;
-                                Some(s)
-                            }
-                            Err(e) => {
-                                warn!(error = %e, "Context window summarization failed, proceeding without summary");
-                                None
-                            }
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    stored_summary
-                };
-
-                let result = agent
-                    .execute(
-                        &sid,
-                        &mid,
-                        &user_msg,
-                        &history,
-                        &system_prompt,
-                        &available_tools,
-                        &authorized_tools,
-                        &pending_approvals,
-                        &budget,
-                        summary.as_deref(),
-                        context_window_size,
-                    )
-                    .await;
-
-                let cmd = match result {
-                    Ok(response) => ChatCommand::ExchangeComplete {
-                        session_id: sid,
-                        message_id: mid,
-                        response,
-                    },
-                    Err(err) => ChatCommand::ExchangeError {
-                        session_id: sid,
-                        message_id: mid,
-                        error: err.to_string(),
-                    },
-                };
-                let _ = tx.send(cmd).await;
-            });
-        } else {
-            // Agent mode: dispatch to AgentChatExecutor.
-            let agent_runner = match self.agent_runner.clone() {
-                Some(r) => r,
-                None => {
-                    warn!(session_id = %session_id, "Agent mode requested but no ChatAgentRunner configured");
-                    if let Some(s) = self.sessions.get_mut(session_id) {
-                        s.status = SessionStatus::Active;
-                        s.active_exchange = None;
-                    }
-                    if let Err(e) = self
-                        .repository
-                        .update_status(session_id, &SessionStatus::Active)
-                    {
-                        warn!(error = %e, "Failed to reset session status to Active in SQLite");
-                    }
-                    return Err(ChatError::AgentLoadFailed(
-                        "no ChatAgentRunner configured — Agent mode unavailable".into(),
-                    ));
-                }
-            };
-
-            let executor = AgentChatExecutor::new(agent_runner, self.event_bus.clone());
-            let session_clone = session.clone();
-            let authorized = session.authorized_tools.clone();
-            let pending = self.pending_chat_approvals.clone();
-            let sid = session_id.to_string();
-            let mid = message_id.clone();
-            let user_msg = content.to_string();
-            let tx = self.tx.clone();
-
-            tokio::spawn(async move {
-                let result = executor
-                    .execute(&session_clone, &user_msg, &mid, &authorized, &pending)
-                    .await;
-
-                let cmd = match result {
-                    Ok(response) => ChatCommand::ExchangeComplete {
-                        session_id: sid,
-                        message_id: mid,
-                        response,
-                    },
-                    Err(err) => ChatCommand::ExchangeError {
-                        session_id: sid,
-                        message_id: mid,
-                        error: err.to_string(),
-                    },
-                };
-                let _ = tx.send(cmd).await;
-            });
+            tokio::spawn(run_libre_exchange(LibreExchangeParams {
+                llm_router,
+                tool_registry,
+                event_bus,
+                a2a_for_agent,
+                session_user_memory,
+                pending_approvals,
+                budget,
+                history,
+                available_tools,
+                authorized_tools,
+                system_prompt,
+                inject_project_context,
+                is_companion,
+                context_window_size,
+                stored_summary,
+                llm_for_summarize,
+                project_ctx,
+                session_project_id,
+                project_repo_for_session,
+                pending_user_inputs_for_session,
+                mcp_handle_for_session,
+                chat_tools_config_for_session,
+                session_id_str,
+                hitl_params,
+                sid,
+                mid,
+                user_msg,
+                tx,
+            }));
         }
 
-        Ok(message_id)
+        Ok(())
+    }
+
+    /// Dispatch an Agent-mode exchange to the [`AgentChatExecutor`].
+    fn dispatch_agent_exchange(
+        &mut self,
+        session_id: &str,
+        message_id: &str,
+        content: &str,
+    ) -> Result<(), ChatError> {
+        let session = self
+            .sessions
+            .get(session_id)
+            .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
+
+        // Agent mode: dispatch to AgentChatExecutor.
+        let agent_runner = match self.agent_runner.clone() {
+            Some(r) => r,
+            None => {
+                warn!(session_id = %session_id, "Agent mode requested but no ChatAgentRunner configured");
+                if let Some(s) = self.sessions.get_mut(session_id) {
+                    s.status = SessionStatus::Active;
+                    s.active_exchange = None;
+                }
+                if let Err(e) = self
+                    .repository
+                    .update_status(session_id, &SessionStatus::Active)
+                {
+                    warn!(error = %e, "Failed to reset session status to Active in SQLite");
+                }
+                return Err(ChatError::AgentLoadFailed(
+                    "no ChatAgentRunner configured — Agent mode unavailable".into(),
+                ));
+            }
+        };
+
+        let executor = AgentChatExecutor::new(agent_runner, self.event_bus.clone());
+        let session_clone = session.clone();
+        let authorized = session.authorized_tools.clone();
+        let pending = self.pending_chat_approvals.clone();
+        let sid = session_id.to_string();
+        let mid = message_id.to_string();
+        let user_msg = content.to_string();
+        let tx = self.tx.clone();
+
+        tokio::spawn(async move {
+            let result = executor
+                .execute(AgentChatRequest {
+                    session: &session_clone,
+                    user_message: &user_msg,
+                    message_id: &mid,
+                    authorized_tools: &authorized,
+                    pending_approvals: &pending,
+                })
+                .await;
+
+            let cmd = match result {
+                Ok(response) => ChatCommand::ExchangeComplete {
+                    session_id: sid,
+                    message_id: mid,
+                    response,
+                },
+                Err(err) => ChatCommand::ExchangeError {
+                    session_id: sid,
+                    message_id: mid,
+                    error: err.to_string(),
+                },
+            };
+            let _ = tx.send(cmd).await;
+        });
+
+        Ok(())
     }
 
     /// Handle successful completion of a ReAct exchange.
@@ -1464,6 +1945,8 @@ impl ChatSessionManager {
 
         let now = now_rfc3339();
         let assistant_msg_id = uuid::Uuid::new_v4().to_string();
+        let tokens_used = response.tokens_used.clone();
+        let max_steps = self.runtime_budget.max_steps;
 
         // Serialize tool calls for SQLite
         let tool_calls_json = if response.tool_calls.is_empty() {
@@ -1537,7 +2020,7 @@ impl ChatSessionManager {
 
         info!(
             session_id = %session_id,
-            tokens = response.tokens_used.prompt_tokens + response.tokens_used.completion_tokens,
+            tokens = tokens_used.prompt_tokens + tokens_used.completion_tokens,
             "Chat exchange complete"
         );
 
@@ -1546,44 +2029,7 @@ impl ChatSessionManager {
             .metrics
             .entry(session_id.to_string())
             .or_insert_with(|| SessionMetrics::new(session_id.to_string()));
-        let now_ts = now_rfc3339();
-        if entry.started_at.is_none() {
-            entry.started_at = Some(now_ts.clone());
-        }
-        entry.updated_at = Some(now_ts);
-        entry.prompt_tokens = entry
-            .prompt_tokens
-            .saturating_add(response.tokens_used.prompt_tokens);
-        entry.completion_tokens = entry
-            .completion_tokens
-            .saturating_add(response.tokens_used.completion_tokens);
-        entry.cache_read_input_tokens = entry
-            .cache_read_input_tokens
-            .saturating_add(response.tokens_used.cache_read_input_tokens);
-        entry.cache_write_input_tokens = entry
-            .cache_write_input_tokens
-            .saturating_add(response.tokens_used.cache_write_input_tokens);
-        entry.cost_usd = match (entry.cost_usd, response.tokens_used.cost_usd) {
-            (Some(a), Some(b)) => Some(a + b),
-            (Some(a), None) => Some(a),
-            (None, Some(b)) => Some(b),
-            (None, None) => None,
-        };
-        entry.budget_max_steps = self.runtime_budget.max_steps as u32;
-        entry.steps_used = entry.steps_used.saturating_add(1);
-        entry.context_window_size = super::builtin_agent::DEFAULT_CONTEXT_WINDOW_SIZE as u32;
-        entry.messages_in_history = session.history.len() as u32;
-        entry.exchanges_count = entry.exchanges_count.saturating_add(1);
-        entry.record_tool_calls(
-            &session
-                .history
-                .last()
-                .and_then(|m| m.tool_calls.clone())
-                .unwrap_or_default(),
-        );
-        if entry.llm_backend.is_none() {
-            entry.llm_backend = session.llm_backend.clone();
-        }
+        accumulate_exchange_metrics(entry, &tokens_used, session, max_steps);
 
         // Emit a lightweight runtime event so the UI can trigger a refetch.
         // The event bridge forwards it as a generic `runtime-event` with
@@ -1660,96 +2106,35 @@ impl ChatSessionManager {
             // Toujours mettre à jour la session courante (autorisation immédiate).
             session.authorized_tools.insert(tool_name.to_string());
 
+            // Capture the scope-resolution inputs before releasing the session
+            // borrow, so governance.db persistence can use a disjoint &self.
+            let session_mode = session.mode.clone();
+            let session_agent_name = session.agent_name.clone();
+            let session_project_id = session.project_id.clone();
+
             // chat.db.authorized_tools : écrit pour préserver l'autorisation si
             // le runtime crash en cours de session. Conservé pour les scopes
             // ThisTool/ThisSession (sinon ils seraient perdus à un restart). Pour
             // les scopes persistants, c'est redondant avec governance.db mais
-            // sans effet de bord — sera nettoyé dans une étape ultérieure.
+            // sans effet de bord, sera nettoyé dans une étape ultérieure.
             let now = now_rfc3339();
             if let Err(e) = self.repository.authorize_tool(session_id, tool_name, &now) {
                 warn!(error = %e, "Failed to persist tool authorization");
             }
 
-            use super::types::AlwaysAcceptScope;
-            match scope {
-                AlwaysAcceptScope::ThisTool | AlwaysAcceptScope::ThisSession => {
-                    // Pas de persistance dans governance.db — purement in-session.
-                }
-                AlwaysAcceptScope::ThisAgent => {
-                    let agent_id = match session.mode {
-                        ChatMode::Libre | ChatMode::Companion => {
-                            Some(APOLLIA_CHAT_AGENT_ID.to_string())
-                        }
-                        ChatMode::Agent => session.agent_name.clone(),
-                    };
-                    if let Some(aid) = agent_id {
-                        persist_chat_allow_rule(
-                            apollia_permissions::PermissionScope::Agent,
-                            None,
-                            Some(aid),
-                            tool_name,
-                        );
-                    }
-                }
-                AlwaysAcceptScope::ThisProject => {
-                    let workspace = session
-                        .project_id
-                        .as_ref()
-                        .and_then(|pid| self.project_repo.as_ref().map(|r| (r, pid)))
-                        .and_then(|(repo, pid)| repo.get_project(pid).ok())
-                        .and_then(|d| d.workspace_path.map(std::path::PathBuf::from));
-                    match workspace {
-                        Some(ws) => {
-                            persist_chat_allow_rule(
-                                apollia_permissions::PermissionScope::Project,
-                                Some(ws),
-                                None,
-                                tool_name,
-                            );
-                        }
-                        None => {
-                            warn!(
-                                session_id,
-                                tool_name,
-                                "ThisProject scope requested but session has no resolvable workspace_path; falling back to session-only authorization"
-                            );
-                        }
-                    }
-                }
-                AlwaysAcceptScope::Global => {
-                    persist_chat_allow_rule(
-                        apollia_permissions::PermissionScope::Global,
-                        None,
-                        None,
-                        tool_name,
-                    );
-                }
-            }
+            self.persist_always_accept_scope(AlwaysAcceptScopeCtx {
+                scope,
+                session_mode,
+                session_agent_name,
+                session_project_id: session_project_id.as_deref(),
+                session_id,
+                tool_name,
+            });
         }
 
         // Trace-log the enriched metadata (reason / scope) without breaking
         // the existing `log_tool_approval` SQL schema.
-        match &decision {
-            ToolDecision::Refuse { reason: Some(r) } => {
-                tracing::info!(
-                    session_id,
-                    message_id,
-                    tool_name,
-                    reject_reason = %r,
-                    "chat tool rejected with reason"
-                );
-            }
-            ToolDecision::AlwaysAccept { scope } => {
-                tracing::info!(
-                    session_id,
-                    message_id,
-                    tool_name,
-                    always_accept_scope = ?scope,
-                    "chat tool always-accept rule installed"
-                );
-            }
-            _ => {}
-        }
+        log_resolution_metadata(&decision, session_id, message_id, tool_name);
 
         let decision_str = decision.as_str();
         let reason: Option<&str> = match &decision {
@@ -1760,14 +2145,14 @@ impl ChatSessionManager {
         let resolved_at = now_rfc3339();
 
         // Persist decision in approval log for history view.
-        if let Err(e) = self.repository.log_tool_approval(
+        if let Err(e) = self.repository.log_tool_approval(ToolApprovalLogEntry {
             session_id,
             message_id,
             tool_name,
-            decision_str,
-            &resolved_at,
+            decision: decision_str,
+            resolved_at: &resolved_at,
             reason,
-        ) {
+        }) {
             warn!(error = %e, "Failed to persist chat approval log");
         }
 
@@ -1779,6 +2164,83 @@ impl ChatSessionManager {
         });
 
         Ok(())
+    }
+
+    /// Persist an `AlwaysAccept` rule in governance.db according to its scope.
+    ///
+    /// `ThisTool` / `ThisSession` are in-session only (no governance write).
+    /// `ThisAgent` derives the agent id from the session mode; `ThisProject`
+    /// resolves the workspace path from the project repository.
+    fn persist_always_accept_scope(&self, ctx: AlwaysAcceptScopeCtx<'_>) {
+        let AlwaysAcceptScopeCtx {
+            scope,
+            session_mode,
+            session_agent_name,
+            session_project_id,
+            session_id,
+            tool_name,
+        } = ctx;
+        use super::types::AlwaysAcceptScope;
+        match scope {
+            AlwaysAcceptScope::ThisTool | AlwaysAcceptScope::ThisSession => {
+                // Pas de persistance dans governance.db, purement in-session.
+            }
+            AlwaysAcceptScope::ThisAgent => {
+                let agent_id = match session_mode {
+                    ChatMode::Libre | ChatMode::Companion => {
+                        Some(APOLLIA_CHAT_AGENT_ID.to_string())
+                    }
+                    ChatMode::Agent => session_agent_name,
+                };
+                if let Some(aid) = agent_id {
+                    persist_chat_allow_rule(
+                        apollia_permissions::PermissionScope::Agent,
+                        None,
+                        Some(aid),
+                        tool_name,
+                    );
+                }
+            }
+            AlwaysAcceptScope::ThisProject => {
+                match self.resolve_project_workspace(session_project_id) {
+                    Some(ws) => {
+                        persist_chat_allow_rule(
+                            apollia_permissions::PermissionScope::Project,
+                            Some(ws),
+                            None,
+                            tool_name,
+                        );
+                    }
+                    None => {
+                        warn!(
+                            session_id,
+                            tool_name,
+                            "ThisProject scope requested but session has no resolvable workspace_path; falling back to session-only authorization"
+                        );
+                    }
+                }
+            }
+            AlwaysAcceptScope::Global => {
+                persist_chat_allow_rule(
+                    apollia_permissions::PermissionScope::Global,
+                    None,
+                    None,
+                    tool_name,
+                );
+            }
+        }
+    }
+
+    /// Resolve a session's project id to its workspace path, if any.
+    fn resolve_project_workspace(
+        &self,
+        project_id: Option<&str>,
+    ) -> Option<std::path::PathBuf> {
+        let pid = project_id?;
+        let repo = self.project_repo.as_ref()?;
+        repo.get_project(pid)
+            .ok()
+            .and_then(|d| d.workspace_path.map(std::path::PathBuf::from))
     }
 
     /// List sessions with optional status filter.
@@ -2016,7 +2478,7 @@ impl ChatSessionManager {
         Ok(detail)
     }
 
-    /// Fork a session — create a child with a copy of the parent's history.
+    /// Fork a session, create a child with a copy of the parent's history.
     ///
     /// The parent may be in any non-Closed state; a Closed parent can also be
     /// forked (useful for branching from an archived conversation). The child
@@ -2033,7 +2495,7 @@ impl ChatSessionManager {
             let parent_len = if let Some(s) = self.sessions.get(parent_id) {
                 s.history.len()
             } else {
-                // Fall back to repository count — session may not be in memory.
+                // Fall back to repository count, session may not be in memory.
                 self.repository
                     .get_messages(parent_id, None)
                     .unwrap_or_default()
@@ -2178,7 +2640,7 @@ impl ChatSessionManager {
         })
     }
 
-    /// Reject a pending `ask_user` request — sends skipped answers to unblock the agent.
+    /// Reject a pending `ask_user` request, sends skipped answers to unblock the agent.
     fn reject_user_input_internal(
         &mut self,
         request_id: &str,
@@ -2313,21 +2775,86 @@ impl ChatSessionManager {
 ///
 /// When `hitl` is provided, HITL filesystem support is enabled on the returned invoker.
 async fn resolve_workspace_for_session(
+    params: WorkspaceResolutionParams,
+) -> Result<NativeChatToolInvoker, ChatError> {
+    let WorkspaceResolutionParams {
+        project_id,
+        project_repo,
+        hitl,
+        pending_user_inputs,
+        mcp_handle,
+        chat_tools_config,
+        session_id,
+    } = params;
+    let session_id = session_id.as_str();
+    let workspace_path = resolve_workspace_path(&project_id, &project_repo).await?;
+    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone());
+    if let Some(pending) = pending_user_inputs.clone() {
+        invoker = invoker.with_ask_user_support(pending);
+    }
+
+    // Convergence point (ADR-096 Phase 2): every tool outside the native
+    // hardcoded fast path, MCP, Google connectors, read-only natives,
+    // future providers, is resolved through a single `ToolDispatcher`.
+    // The dispatcher applies the same permission engine + audit trail as
+    // the Agent-mode pipeline. HITL-sensitive natives (file_write/edit,
+    // bash, python_executor, notebook_edit) stay in the fast path because
+    // their inline approval flow is not yet ported to events.
+    let mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
+
+    // MCP executors, one per tool currently exposed by a connected server.
+    collect_mcp_executors(mcp_handle, &mut extra_executors).await;
+
+    // SaaS connectors, Google today, Microsoft next.
+    extra_executors.extend(crate::connectors_bridge::build_google_executors());
+
+    let sandbox_root = workspace_path.clone().unwrap_or_else(std::env::temp_dir);
+
+    // Phase 3, when the supervisor handed us a `ChatToolsConfig`, build the
+    // full native dispatcher (same factory the Agent-mode + Triggers pipeline
+    // uses). This pulls in web_search, web_read, http_fetch, memory_search,
+    // permission_rule_* and ask_user with the operator's `apollia.toml` cfg.
+    // HITL-sensitive natives (bash, python_executor, file_write/edit,
+    // notebook_edit) stay disabled from the dispatcher so the fast path
+    // continues to drive their inline approval flow, that migration is
+    // tracked as Phase 4 (HITL → EventBus events).
+    let dispatcher = if let Some(cfg) = chat_tools_config.as_ref() {
+        build_full_chat_dispatcher(FullDispatcherParams {
+            cfg,
+            session_id,
+            sandbox_root: &sandbox_root,
+            workspace_path: &workspace_path,
+            pending_user_inputs: &pending_user_inputs,
+            hitl: hitl.as_ref(),
+            extra_executors,
+        })
+    } else {
+        build_fallback_chat_dispatcher(&sandbox_root, extra_executors)
+    };
+    invoker = invoker.with_fallback_dispatcher(std::sync::Arc::new(
+        apollia_tools::dispatcher_invoker::DispatcherToolInvoker::new(std::sync::Arc::new(
+            dispatcher,
+        )),
+    ));
+    if let Some(p) = hitl {
+        Ok(invoker.with_hitl_support(p))
+    } else {
+        Ok(invoker)
+    }
+}
+
+/// Resolve the sandbox root path for a chat session.
+async fn resolve_workspace_path(
     project_id: &Option<String>,
     project_repo: &Option<Arc<ProjectRepository>>,
-    hitl: Option<HitlInvokerParams>,
-    pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
-    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
-    chat_tools_config: Option<Arc<ChatToolsConfig>>,
-    session_id: &str,
-) -> Result<NativeChatToolInvoker, ChatError> {
-    let workspace_path = match project_id {
+) -> Result<Option<std::path::PathBuf>, ChatError> {
+    match project_id {
         None => {
             // Free chat: default to ~/.apollia/ so bash commands don't inherit the Tauri process CWD.
-            std::env::var("HOME")
+            Ok(std::env::var("HOME")
                 .ok()
                 .map(|h| std::path::PathBuf::from(h).join(".apollia"))
-                .filter(|p| p.is_dir())
+                .filter(|p| p.is_dir()))
         }
         Some(pid) => {
             let repo = project_repo
@@ -2343,226 +2870,203 @@ async fn resolve_workspace_for_session(
                     "project has no workspace_path configured — falling back to current_dir()"
                 );
             }
-            detail.workspace_path.map(std::path::PathBuf::from)
+            Ok(detail.workspace_path.map(std::path::PathBuf::from))
         }
-    };
-    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone());
-    if let Some(pending) = pending_user_inputs.clone() {
-        invoker = invoker.with_ask_user_support(pending);
-    }
-
-    // Convergence point (ADR-096 Phase 2): every tool outside the native
-    // hardcoded fast path — MCP, Google connectors, read-only natives,
-    // future providers — is resolved through a single `ToolDispatcher`.
-    // The dispatcher applies the same permission engine + audit trail as
-    // the Agent-mode pipeline. HITL-sensitive natives (file_write/edit,
-    // bash, python_executor, notebook_edit) stay in the fast path because
-    // their inline approval flow is not yet ported to events.
-    let mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
-
-    // MCP executors — one per tool currently exposed by a connected server.
-    if let Some(handle) = mcp_handle {
-        for status in handle.status().await {
-            if !status.connected {
-                continue;
-            }
-            let Some(detail) = handle.server_detail(&status.name).await else {
-                continue;
-            };
-            for tool in detail.tools {
-                extra_executors.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
-                    handle.clone(),
-                    status.name.clone(),
-                    tool.local_name.clone(),
-                )));
-            }
-        }
-    }
-
-    // SaaS connectors — Google today, Microsoft next.
-    extra_executors.extend(crate::connectors_bridge::build_google_executors());
-
-    let sandbox_root = workspace_path.clone().unwrap_or_else(std::env::temp_dir);
-
-    // Phase 3 — when the supervisor handed us a `ChatToolsConfig`, build the
-    // full native dispatcher (same factory the Agent-mode + Triggers pipeline
-    // uses). This pulls in web_search, web_read, http_fetch, memory_search,
-    // permission_rule_* and ask_user with the operator's `apollia.toml` cfg.
-    // HITL-sensitive natives (bash, python_executor, file_write/edit,
-    // notebook_edit) stay disabled from the dispatcher so the fast path
-    // continues to drive their inline approval flow — that migration is
-    // tracked as Phase 4 (HITL → EventBus events).
-    let dispatcher = if let Some(cfg) = chat_tools_config.as_ref() {
-        // ADR-096 Phase 4 — full convergence. Every native flows through
-        // the dispatcher, including HITL-sensitive ones and `http_fetch`
-        // (dynamic allowlist). The fast path in `NativeChatToolInvoker`
-        // collapses to a single delegate-everything-to-fallback line.
-        //
-        // We disable the dispatcher's default versions of:
-        //   - file_write / file_edit / notebook_edit / bash / python →
-        //     re-added below wrapped in `HitlFilesystemGuard`.
-        //   - http_fetch → re-added as `DynamicAllowlistHttpFetch`.
-        //
-        // The remaining natives (file_read/list/glob/grep, notebook_read,
-        // web_search, web_read, memory_search, ask_user, permission_rule_*)
-        // are built untouched by `build_dispatcher_with`.
-        const WRAPPED_NATIVES: &[&str] = &[
-            "bash_executor",
-            "python_executor",
-            "file_write",
-            "file_edit",
-            "notebook_edit",
-            "http_fetch",
-        ];
-        let mut disabled = cfg.tools_config.disabled.clone();
-        for name in WRAPPED_NATIVES {
-            if !disabled.iter().any(|d| d == name) {
-                disabled.push((*name).to_string());
-            }
-        }
-
-        let native_cfg = apollia_tools::NativeDispatcherConfig {
-            sandbox_root: sandbox_root.clone(),
-            agent_id: format!("apollia:chat:{session_id}"),
-            venv_base_dir: cfg.data_dir.join("venvs"),
-            // Per-session memory namespace so `memory_search` reads/writes
-            // the chat session's own slice. Other namespaces could be added
-            // here as shared read-only later.
-            memory_namespace: Some(format!("apollia:chat:{session_id}")),
-            memory_shared_namespaces: Vec::new(),
-            memory_base_dir: cfg.data_dir.join("memory"),
-            // Native http_fetch uses None — the wrapper below provides
-            // dynamic allowlist behaviour preserving Chat Libre UX.
-            http_allowlist: None,
-            pending_user_inputs: pending_user_inputs.clone(),
-            disabled_tools: disabled,
-            brave_api_key: cfg.brave_api_key.clone(),
-            web_search_config: cfg.tools_config.web_search.clone(),
-            web_read_config: cfg.tools_config.web_read.clone(),
-            governance_db_path: Some(cfg.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
-        };
-
-        // Wrap the HITL-sensitive natives with the approval-flow guard.
-        if let Some(p) = hitl.as_ref() {
-            let hitl_ctx = crate::chat::native_wrappers::HitlFilesystemContext {
-                event_bus: p.event_bus.clone(),
-                pending_fs: p.pending_fs.clone(),
-                fs_allow_rules: p.fs_allow_rules.clone(),
-                session_id: p.session_id.clone(),
-                workspace_path: workspace_path.clone(),
-                sandbox_root: sandbox_root.clone(),
-                risk_config: p.risk_config.clone(),
-            };
-
-            let push_hitl = |execs: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
-                             inner: Box<dyn apollia_tools::executor::ToolExecutor>,
-                             op: apollia_tools::FilesystemOp| {
-                execs.push(Box::new(
-                    crate::chat::native_wrappers::HitlFilesystemGuard::new(
-                        inner,
-                        op,
-                        hitl_ctx.clone(),
-                    ),
-                ));
-            };
-
-            if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.clone()) {
-                push_hitl(
-                    &mut extra_executors,
-                    Box::new(t),
-                    apollia_tools::FilesystemOp::Write,
-                );
-            }
-            if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.clone()) {
-                push_hitl(
-                    &mut extra_executors,
-                    Box::new(t),
-                    apollia_tools::FilesystemOp::Write,
-                );
-            }
-            if let Ok(t) =
-                apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.clone())
-            {
-                push_hitl(
-                    &mut extra_executors,
-                    Box::new(t),
-                    apollia_tools::FilesystemOp::Write,
-                );
-            }
-            push_hitl(
-                &mut extra_executors,
-                Box::new(apollia_tools::tools::bash_executor::BashExecutor::new()),
-                apollia_tools::FilesystemOp::Write,
-            );
-            if let Ok(t) = apollia_tools::tools::python_executor::PythonExecutor::new(
-                &native_cfg.agent_id,
-                &native_cfg.venv_base_dir,
-            ) {
-                push_hitl(
-                    &mut extra_executors,
-                    Box::new(t),
-                    apollia_tools::FilesystemOp::Write,
-                );
-            }
-        }
-
-        // Dynamic-allowlist http_fetch (preserves the per-call host
-        // injection that the legacy fast path did).
-        extra_executors.push(Box::new(
-            crate::chat::native_wrappers::DynamicAllowlistHttpFetch::new(),
-        ));
-
-        std::sync::Arc::new(apollia_tools::build_dispatcher_with(
-            &native_cfg,
-            extra_executors,
-        ))
-    } else {
-        // Fallback (supervisor didn't pass cfg, e.g. tests): minimal
-        // dispatcher with just connector + MCP + read-only file natives —
-        // the Phase 2 behaviour.
-        if let Ok(t) = apollia_tools::tools::file_read::FileRead::new(sandbox_root.clone()) {
-            extra_executors.push(Box::new(t));
-        }
-        if let Ok(t) = apollia_tools::tools::file_list::FileList::new(sandbox_root.clone()) {
-            extra_executors.push(Box::new(t));
-        }
-        if let Ok(t) = apollia_tools::tools::file_glob::FileGlob::new(sandbox_root.clone()) {
-            extra_executors.push(Box::new(t));
-        }
-        if let Ok(t) = apollia_tools::tools::file_grep::FileGrep::new(sandbox_root.clone()) {
-            extra_executors.push(Box::new(t));
-        }
-        if let Ok(t) = apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_root.clone())
-        {
-            extra_executors.push(Box::new(t));
-        }
-        std::sync::Arc::new(apollia_tools::executor::ToolDispatcher::new(
-            extra_executors,
-        ))
-    };
-    invoker = invoker.with_fallback_dispatcher(std::sync::Arc::new(
-        apollia_tools::dispatcher_invoker::DispatcherToolInvoker::new(dispatcher),
-    ));
-    if let Some(p) = hitl {
-        Ok(invoker.with_hitl_support(
-            p.session_id,
-            p.event_bus,
-            p.pending_fs,
-            p.fs_allow_rules,
-            p.risk_config,
-        ))
-    } else {
-        Ok(invoker)
     }
 }
 
-/// Parameters for attaching HITL filesystem support to a `NativeChatToolInvoker`.
-struct HitlInvokerParams {
+/// Push one MCP executor per tool currently exposed by a connected server.
+async fn collect_mcp_executors(
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    extra_executors: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+) {
+    let Some(handle) = mcp_handle else {
+        return;
+    };
+    for status in handle.status().await {
+        if !status.connected {
+            continue;
+        }
+        let Some(detail) = handle.server_detail(&status.name).await else {
+            continue;
+        };
+        for tool in detail.tools {
+            extra_executors.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
+                handle.clone(),
+                status.name.clone(),
+                tool.local_name.clone(),
+            )));
+        }
+    }
+}
+
+/// Parameters for [`build_full_chat_dispatcher`].
+struct FullDispatcherParams<'a> {
+    cfg: &'a Arc<ChatToolsConfig>,
+    session_id: &'a str,
+    sandbox_root: &'a std::path::Path,
+    workspace_path: &'a Option<std::path::PathBuf>,
+    pending_user_inputs: &'a Option<apollia_tools::tools::ask_user::PendingUserInputs>,
+    hitl: Option<&'a HitlInvokerParams>,
+    extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+}
+
+/// Build the full ADR-096 Phase 4 chat dispatcher (every native flows through
+/// the dispatcher, HITL-sensitive natives wrapped, dynamic http_fetch).
+fn build_full_chat_dispatcher(
+    params: FullDispatcherParams<'_>,
+) -> apollia_tools::executor::ToolDispatcher {
+    let FullDispatcherParams {
+        cfg,
+        session_id,
+        sandbox_root,
+        workspace_path,
+        pending_user_inputs,
+        hitl,
+        mut extra_executors,
+    } = params;
+    // We disable the dispatcher's default versions of:
+    //   - file_write / file_edit / notebook_edit / bash / python →
+    //     re-added below wrapped in `HitlFilesystemGuard`.
+    //   - http_fetch → re-added as `DynamicAllowlistHttpFetch`.
+    //
+    // The remaining natives (file_read/list/glob/grep, notebook_read,
+    // web_search, web_read, memory_search, ask_user, permission_rule_*)
+    // are built untouched by `build_dispatcher_with`.
+    const WRAPPED_NATIVES: &[&str] = &[
+        "bash_executor",
+        "python_executor",
+        "file_write",
+        "file_edit",
+        "notebook_edit",
+        "http_fetch",
+    ];
+    let mut disabled = cfg.tools_config.disabled.clone();
+    for name in WRAPPED_NATIVES {
+        if !disabled.iter().any(|d| d == name) {
+            disabled.push((*name).to_string());
+        }
+    }
+
+    let native_cfg = apollia_tools::NativeDispatcherConfig {
+        sandbox_root: sandbox_root.to_path_buf(),
+        agent_id: format!("apollia:chat:{session_id}"),
+        venv_base_dir: cfg.data_dir.join("venvs"),
+        // Per-session memory namespace so `memory_search` reads/writes
+        // the chat session's own slice. Other namespaces could be added
+        // here as shared read-only later.
+        memory_namespace: Some(format!("apollia:chat:{session_id}")),
+        memory_shared_namespaces: Vec::new(),
+        memory_base_dir: cfg.data_dir.join("memory"),
+        // Native http_fetch uses None, the wrapper below provides
+        // dynamic allowlist behaviour preserving Chat Libre UX.
+        http_allowlist: None,
+        pending_user_inputs: pending_user_inputs.clone(),
+        disabled_tools: disabled,
+        brave_api_key: cfg.brave_api_key.clone(),
+        web_search_config: cfg.tools_config.web_search.clone(),
+        web_read_config: cfg.tools_config.web_read.clone(),
+        governance_db_path: Some(cfg.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
+    };
+
+    // Wrap the HITL-sensitive natives with the approval-flow guard.
+    if let Some(p) = hitl {
+        push_hitl_natives(&mut extra_executors, p, workspace_path, sandbox_root, &native_cfg);
+    }
+
+    // Dynamic-allowlist http_fetch (preserves the per-call host
+    // injection that the legacy fast path did).
+    extra_executors.push(Box::new(
+        crate::chat::native_wrappers::DynamicAllowlistHttpFetch::new(),
+    ));
+
+    apollia_tools::build_dispatcher_with(&native_cfg, extra_executors)
+}
+
+/// Wrap and append the HITL-sensitive native executors (file write/edit,
+/// notebook edit, bash, python) behind the filesystem approval guard.
+fn push_hitl_natives(
+    extra_executors: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    p: &HitlInvokerParams,
+    workspace_path: &Option<std::path::PathBuf>,
+    sandbox_root: &std::path::Path,
+    native_cfg: &apollia_tools::NativeDispatcherConfig,
+) {
+    let hitl_ctx = crate::chat::native_wrappers::HitlFilesystemContext {
+        event_bus: p.event_bus.clone(),
+        pending_fs: p.pending_fs.clone(),
+        fs_allow_rules: p.fs_allow_rules.clone(),
+        session_id: p.session_id.clone(),
+        workspace_path: workspace_path.clone(),
+        sandbox_root: sandbox_root.to_path_buf(),
+        risk_config: p.risk_config.clone(),
+    };
+
+    let push_hitl = |execs: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+                     inner: Box<dyn apollia_tools::executor::ToolExecutor>,
+                     op: apollia_tools::FilesystemOp| {
+        execs.push(Box::new(
+            crate::chat::native_wrappers::HitlFilesystemGuard::new(inner, op, hitl_ctx.clone()),
+        ));
+    };
+
+    if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.to_path_buf()) {
+        push_hitl(extra_executors, Box::new(t), apollia_tools::FilesystemOp::Write);
+    }
+    if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.to_path_buf()) {
+        push_hitl(extra_executors, Box::new(t), apollia_tools::FilesystemOp::Write);
+    }
+    if let Ok(t) = apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.to_path_buf())
+    {
+        push_hitl(extra_executors, Box::new(t), apollia_tools::FilesystemOp::Write);
+    }
+    push_hitl(
+        extra_executors,
+        Box::new(apollia_tools::tools::bash_executor::BashExecutor::new()),
+        apollia_tools::FilesystemOp::Write,
+    );
+    if let Ok(t) = apollia_tools::tools::python_executor::PythonExecutor::new(
+        &native_cfg.agent_id,
+        &native_cfg.venv_base_dir,
+    ) {
+        push_hitl(extra_executors, Box::new(t), apollia_tools::FilesystemOp::Write);
+    }
+}
+
+/// Build the fallback dispatcher used when no `ChatToolsConfig` was provided
+/// (e.g. tests): connector + MCP + read-only file natives only.
+fn build_fallback_chat_dispatcher(
+    sandbox_root: &std::path::Path,
+    mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+) -> apollia_tools::executor::ToolDispatcher {
+    if let Ok(t) = apollia_tools::tools::file_read::FileRead::new(sandbox_root.to_path_buf()) {
+        extra_executors.push(Box::new(t));
+    }
+    if let Ok(t) = apollia_tools::tools::file_list::FileList::new(sandbox_root.to_path_buf()) {
+        extra_executors.push(Box::new(t));
+    }
+    if let Ok(t) = apollia_tools::tools::file_glob::FileGlob::new(sandbox_root.to_path_buf()) {
+        extra_executors.push(Box::new(t));
+    }
+    if let Ok(t) = apollia_tools::tools::file_grep::FileGrep::new(sandbox_root.to_path_buf()) {
+        extra_executors.push(Box::new(t));
+    }
+    if let Ok(t) = apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_root.to_path_buf())
+    {
+        extra_executors.push(Box::new(t));
+    }
+    apollia_tools::executor::ToolDispatcher::new(extra_executors)
+}
+
+/// Parameters for [`resolve_workspace_for_session`].
+struct WorkspaceResolutionParams {
+    project_id: Option<String>,
+    project_repo: Option<Arc<ProjectRepository>>,
+    hitl: Option<HitlInvokerParams>,
+    pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    chat_tools_config: Option<Arc<ChatToolsConfig>>,
     session_id: String,
-    event_bus: EventBusSender,
-    pending_fs: super::types::PendingFilesystemApprovals,
-    fs_allow_rules: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
-    risk_config: apollia_core::FilesystemRiskConfig,
 }
 
 /// Clonable handle for communicating with the [`ChatSessionManager`] actor.
@@ -2572,7 +3076,7 @@ struct HitlInvokerParams {
 #[derive(Clone)]
 pub struct ChatSessionManagerHandle {
     tx: mpsc::Sender<ChatCommand>,
-    /// Shared `ask_user` request registry — cloned by chat agent runners so
+    /// Shared `ask_user` request registry, cloned by chat agent runners so
     /// their tool dispatcher can register an `AskUserExecutor` whose replies
     /// are routed to this manager's background drainer task.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
@@ -2613,7 +3117,7 @@ impl ChatSessionManagerHandle {
         project_context: Option<Arc<dyn ProjectContextProvider>>,
         project_repo: Option<Arc<ProjectRepository>>,
         mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
-        // ADR-096 Phase 3 — supervisor-built config so the chat dispatcher
+        // ADR-096 Phase 3, supervisor-built config so the chat dispatcher
         // can include config-dependent natives (web_search, web_read,
         // http_fetch, memory_search, permission_rule_*) alongside MCP +
         // connectors. `None` keeps the Phase 2 behaviour (only read-only
@@ -2686,7 +3190,7 @@ impl ChatSessionManagerHandle {
                                 })
                                 .await;
                         }
-                        None => break, // Channel closed — manager shutting down.
+                        None => break, // Channel closed, manager shutting down.
                     }
                 }
             });
@@ -2701,12 +3205,15 @@ impl ChatSessionManagerHandle {
     /// Create a new chat session.
     pub async fn create_session(
         &self,
-        mode: ChatMode,
-        agent_name: Option<String>,
-        system_prompt: Option<String>,
-        tools: Vec<String>,
-        project_id: Option<String>,
+        params: CreateSessionParams,
     ) -> Result<SessionInfo, ChatError> {
+        let CreateSessionParams {
+            mode,
+            agent_name,
+            system_prompt,
+            tools,
+            project_id,
+        } = params;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ChatCommand::CreateSession {
@@ -3233,7 +3740,7 @@ impl ChatSessionManagerHandle {
     /// Fetch aggregated metrics for a session.
     ///
     /// Returns `None` when the session is unknown or no exchange has completed
-    /// yet. Accumulated in-memory from each [`ChatAgentResponse`] — cleared on
+    /// yet. Accumulated in-memory from each [`ChatAgentResponse`], cleared on
     /// actor restart.
     pub async fn get_session_metrics(&self, session_id: SessionId) -> Option<SessionMetrics> {
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -3359,6 +3866,17 @@ mod tests {
         Some(Arc::new(LlmRouter::empty()))
     }
 
+    /// Minimal Libre-mode session params used by most manager tests.
+    fn libre_session_params() -> CreateSessionParams {
+        CreateSessionParams {
+            mode: ChatMode::Libre,
+            agent_name: None,
+            system_prompt: None,
+            tools: vec![],
+            project_id: None,
+        }
+    }
+
     #[tokio::test]
     async fn test_create_session_libre() {
         // GIVEN a ChatSessionManager with LLM configured
@@ -3367,13 +3885,13 @@ mod tests {
 
         // WHEN create_session mode=Libre
         let info = handle
-            .create_session(
-                ChatMode::Libre,
-                None,
-                None,
-                vec!["bash_executor".into()],
-                None,
-            )
+            .create_session(CreateSessionParams {
+                mode: ChatMode::Libre,
+                agent_name: None,
+                system_prompt: None,
+                tools: vec!["bash_executor".into()],
+                project_id: None,
+            })
             .await
             .expect("create_session");
 
@@ -3393,7 +3911,13 @@ mod tests {
 
         // WHEN create_session mode=Agent, agent_name=None
         let result = handle
-            .create_session(ChatMode::Agent, None, None, vec![], None)
+            .create_session(CreateSessionParams {
+                mode: ChatMode::Agent,
+                agent_name: None,
+                system_prompt: None,
+                tools: vec![],
+                project_id: None,
+            })
             .await;
 
         // THEN Err(ChatError::AgentNotFound)
@@ -3410,7 +3934,7 @@ mod tests {
 
         // WHEN create_session mode=Libre
         let result = handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await;
 
         // THEN Err(ChatError::NoLlmConfigured)
@@ -3426,11 +3950,11 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await
             .expect("create 1");
         handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await
             .expect("create 2");
 
@@ -3450,7 +3974,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await
             .expect("create");
 
@@ -3499,7 +4023,7 @@ mod tests {
         .expect("spawn");
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await
             .expect("create");
 
@@ -3527,7 +4051,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await
             .expect("create");
         handle.close_session(info.id.clone()).await.expect("close");
@@ -3548,7 +4072,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await
             .expect("create");
 
@@ -3645,10 +4169,10 @@ mod tests {
         // WHEN shutdown
         handle.shutdown().await;
 
-        // THEN the actor stops — subsequent sends fail gracefully
+        // THEN the actor stops, subsequent sends fail gracefully
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let result = handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await;
         assert!(result.is_err());
     }
@@ -3660,7 +4184,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![], None)
+            .create_session(libre_session_params())
             .await
             .expect("create");
         handle.close_session(info.id.clone()).await.expect("close");
@@ -3856,13 +4380,13 @@ mod tests {
 
         // WHEN create_session mode=Agent with an agent name
         let result = handle
-            .create_session(
-                ChatMode::Agent,
-                Some("nonexistent".into()),
-                None,
-                vec![],
-                None,
-            )
+            .create_session(CreateSessionParams {
+                mode: ChatMode::Agent,
+                agent_name: Some("nonexistent".into()),
+                system_prompt: None,
+                tools: vec![],
+                project_id: None,
+            })
             .await;
 
         // THEN Err(ChatError::AgentNotFound)

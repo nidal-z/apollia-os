@@ -1,15 +1,15 @@
-//! Sources de déclenchement du `TriggerEngine`.
+//! Trigger sources for the `TriggerEngine`.
 //!
-//! Chaque source spawne une tâche Tokio indépendante (pas d'état partagé)
-//! et envoie des [`crate::TriggerEvent`] sur le channel interne du moteur.
+//! Each source spawns an independent Tokio task (no shared state) and sends
+//! [`crate::TriggerEvent`]s on the engine's internal channel.
 //!
-//! | Source       | Implémentée    |
+//! | Source       | Implemented    |
 //! |--------------|----------------|
-//! | `Cron`       | ✅             |
-//! | `Interval`   | ✅             |
-//! | `Oneshot`    | ✅             |
-//! | `FileWatch`  | ✅             |
-//! | `Webhook`    | route axum     |
+//! | `Cron`       | yes            |
+//! | `Interval`   | yes            |
+//! | `Oneshot`    | yes            |
+//! | `FileWatch`  | yes            |
+//! | `Webhook`    | axum route     |
 
 pub mod cron;
 pub mod file_watch;
@@ -26,16 +26,16 @@ use tokio::task::JoinHandle;
 
 use crate::types::{TriggerDefinition, TriggerEvent, TriggerSourceConfig};
 
-/// Spawne la source appropriée selon le [`TriggerSourceConfig`] de la définition.
+/// Spawns the appropriate source based on the definition's [`TriggerSourceConfig`].
 ///
-/// - [`TriggerSourceConfig::Cron`]      → [`CronTrigger::spawn`]
-/// - [`TriggerSourceConfig::Interval`]  → [`IntervalTrigger::spawn`]
-/// - [`TriggerSourceConfig::Oneshot`]   → [`OneshotTrigger::spawn`]
-/// - [`TriggerSourceConfig::FileWatch`] → [`FileWatchTrigger::spawn`]
-/// - [`TriggerSourceConfig::Webhook`]   → pas de spawn autonome (route axum)
+/// - [`TriggerSourceConfig::Cron`]      -> [`CronTrigger::spawn`]
+/// - [`TriggerSourceConfig::Interval`]  -> [`IntervalTrigger::spawn`]
+/// - [`TriggerSourceConfig::Oneshot`]   -> [`OneshotTrigger::spawn`]
+/// - [`TriggerSourceConfig::FileWatch`] -> [`FileWatchTrigger::spawn`]
+/// - [`TriggerSourceConfig::Webhook`]   -> no autonomous spawn (axum route)
 ///
-/// Retourne un `JoinHandle<()>` dans tous les cas, permettant un abort uniforme
-/// lors du hot reload.
+/// Returns a `JoinHandle<()>` in every case, allowing uniform abort during hot
+/// reload.
 pub fn spawn_source(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
     match &def.source {
         TriggerSourceConfig::Cron { .. } => CronTrigger::spawn(def, tx),
@@ -43,7 +43,7 @@ pub fn spawn_source(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> J
         TriggerSourceConfig::Oneshot { .. } => OneshotTrigger::spawn(def, tx),
         TriggerSourceConfig::FileWatch { .. } => FileWatchTrigger::spawn(def, tx),
         TriggerSourceConfig::Webhook { .. } => {
-            // Pas de spawn autonome — la route axum gère l'événement
+            // No autonomous spawn; the axum route handles the event.
             tracing::debug!(trigger = %def.id, "Webhook source: no autonomous task");
             tokio::spawn(async {})
         }
@@ -56,7 +56,7 @@ mod tests {
     use crate::types::{parse_interval, InputTemplate, OnBusyPolicy, TriggerDefinitionError};
     use std::time::Duration;
 
-    // ── parse_interval ──────────────────────────────────────────────
+    // --- parse_interval --------------------------------------------------
 
     #[test]
     fn test_ac5_parse_interval_valid_formats() {
@@ -84,11 +84,11 @@ mod tests {
         ));
     }
 
-    // ── spawn_source dispatch ──────────────────────────────────────────────
+    // --- spawn_source dispatch -------------------------------------------
 
     #[tokio::test]
     async fn test_spawn_source_webhook_no_panic() {
-        // GIVEN — source Webhook (pas de spawn autonome)
+        // GIVEN a Webhook source (no autonomous spawn)
         let (tx, _rx) = mpsc::channel(4);
         let def = TriggerDefinition {
             id: "wh".into(),
@@ -100,7 +100,7 @@ mod tests {
             },
             input_template: InputTemplate("{{body}}".into()),
         };
-        // WHEN / THEN — ne panique pas, retourne un handle terminé rapidement
+        // WHEN / THEN does not panic, returns a handle that finishes quickly
         let handle = spawn_source(def, tx);
         tokio::time::sleep(Duration::from_millis(20)).await;
         assert!(handle.is_finished());

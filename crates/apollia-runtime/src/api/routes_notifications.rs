@@ -1,15 +1,15 @@
 //! Routes REST pour les notifications.
 //!
 //! Expose les endpoints de gestion des notifications :
-//! - `GET    /api/v1/notifications/channels`         — liste des canaux (depuis SQLite)
-//! - `POST   /api/v1/notifications/channels`         — créer un canal
-//! - `PUT    /api/v1/notifications/channels/:id`     — modifier un canal
-//! - `DELETE /api/v1/notifications/channels/:id`     — supprimer un canal
-//! - `GET    /api/v1/notifications/events`           — événements globaux
-//! - `PUT    /api/v1/notifications/events`           — remplacer événements globaux
-//! - `POST   /api/v1/notifications/channels/:id/test` — test d'un canal
-//! - `POST   /api/v1/notifications/test`             — test de tous les canaux
-//! - `GET    /api/v1/notifications/logs`             — historique depuis notifications.db
+//! - `GET    /api/v1/notifications/channels`        , liste des canaux (depuis SQLite)
+//! - `POST   /api/v1/notifications/channels`        , créer un canal
+//! - `PUT    /api/v1/notifications/channels/:id`    , modifier un canal
+//! - `DELETE /api/v1/notifications/channels/:id`    , supprimer un canal
+//! - `GET    /api/v1/notifications/events`          , événements globaux
+//! - `PUT    /api/v1/notifications/events`          , remplacer événements globaux
+//! - `POST   /api/v1/notifications/channels/:id/test`, test d'un canal
+//! - `POST   /api/v1/notifications/test`            , test de tous les canaux
+//! - `GET    /api/v1/notifications/logs`            , historique depuis notifications.db
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -64,7 +64,7 @@ pub struct UpdateChannelRequest {
     /// Nouveau label. Voir le doc du struct pour la sémantique du double-Option.
     #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub label: Option<Option<String>>,
-    /// Type de canal (optionnel — conserve l'existant si absent).
+    /// Type de canal (optionnel, conserve l'existant si absent).
     pub channel_type: Option<String>,
     /// Indique si le canal est actif.
     pub enabled: Option<bool>,
@@ -188,7 +188,7 @@ fn default_last() -> usize {
 
 // ─── CRUD Handlers ──────────────────────────────────────────────────────────
 
-/// `POST /api/v1/notifications/channels` — créer un canal de notification.
+/// `POST /api/v1/notifications/channels`, créer un canal de notification.
 ///
 /// Valide le canal, l'insère dans `notifications.db`, puis recharge le
 /// [`NotificationEngine`] via son handle.
@@ -243,7 +243,7 @@ pub async fn create_channel<B: ExecutionBackend + Clone>(
     )
 }
 
-/// `PUT /api/v1/notifications/channels/:id` — modifier un canal existant.
+/// `PUT /api/v1/notifications/channels/:id`, modifier un canal existant.
 ///
 /// Met à jour le canal dans `notifications.db`, puis recharge le
 /// [`NotificationEngine`].
@@ -316,7 +316,7 @@ pub async fn update_channel<B: ExecutionBackend + Clone>(
     )
 }
 
-/// `DELETE /api/v1/notifications/channels/:id` — supprimer un canal.
+/// `DELETE /api/v1/notifications/channels/:id`, supprimer un canal.
 ///
 /// Supprime le canal dans `notifications.db`, puis recharge le
 /// [`NotificationEngine`].
@@ -349,7 +349,7 @@ pub async fn delete_channel<B: ExecutionBackend + Clone>(
     )
 }
 
-/// `GET /api/v1/notifications/events` — liste des événements globaux.
+/// `GET /api/v1/notifications/events`, liste des événements globaux.
 pub async fn get_events<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -377,7 +377,7 @@ pub async fn get_events<B: ExecutionBackend + Clone>(
     )
 }
 
-/// `PUT /api/v1/notifications/events` — remplacer les événements globaux.
+/// `PUT /api/v1/notifications/events`, remplacer les événements globaux.
 ///
 /// Valide chaque événement contre [`KNOWN_EVENTS`](apollia_notifications::KNOWN_EVENTS),
 /// puis remplace la liste dans `notifications.db` et recharge le
@@ -414,7 +414,7 @@ pub async fn set_events<B: ExecutionBackend + Clone>(
 
 // ─── Existing Handlers ──────────────────────────────────────────────────────
 
-/// `GET /api/v1/notifications/channels` — liste des canaux configurés.
+/// `GET /api/v1/notifications/channels`, liste des canaux configurés.
 ///
 /// Lit depuis le repository SQLite. Fallback sur `notification_config`
 /// si le repo n'est pas disponible.
@@ -452,7 +452,7 @@ pub async fn list_channels<B: ExecutionBackend + Clone>(
     Json(serde_json::json!({ "channels": channels }))
 }
 
-/// `POST /api/v1/notifications/test` — envoi d'une notification de test.
+/// `POST /api/v1/notifications/test`, envoi d'une notification de test.
 ///
 /// Pour chaque canal activé dans la config :
 /// - Instancie le canal via [`build_channels`]
@@ -462,7 +462,7 @@ pub async fn list_channels<B: ExecutionBackend + Clone>(
 /// **Source de vérité** : on lit la liste des canaux depuis le repository SQLite,
 /// pas depuis le snapshot `state.notification_config` (qui est figé au boot et
 /// ne reflète pas les CRUD opérés via l'API). Fallback sur le snapshot si le
-/// repo n'est pas disponible — préserve le comportement legacy pour la config
+/// repo n'est pas disponible, préserve le comportement legacy pour la config
 /// `apollia.toml` only.
 pub async fn test_channels<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
@@ -498,7 +498,7 @@ pub async fn test_channels<B: ExecutionBackend + Clone>(
 
     let test_notif = make_test_notification();
 
-    // Per-channel send results — kept alongside the typed `results` so we can
+    // Per-channel send results, kept alongside the typed `results` so we can
     // persist a `notification_logs` row mirroring what the engine writes when
     // it dispatches real events.
     let mut channel_results: HashMap<String, Option<String>> = HashMap::new();
@@ -540,7 +540,7 @@ pub async fn test_channels<B: ExecutionBackend + Clone>(
 ///
 /// Mirrors the shape that the engine writes when it processes a real
 /// `RuntimeEvent`. Silently no-ops if `notification_repo` is unset
-/// (e.g. in unit tests) or if the write fails — the test endpoint must
+/// (e.g. in unit tests) or if the write fails, the test endpoint must
 /// not error out on best-effort logging.
 fn write_test_log<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
@@ -600,7 +600,7 @@ fn resolve_live_config<B: ExecutionBackend + Clone>(
         let rows = guard.list_channels().unwrap_or_default();
         let events = guard.get_global_events().unwrap_or_default();
         if rows.is_empty() && events.is_empty() {
-            // Empty repo — fall back so tests that only set `notification_config`
+            // Empty repo, fall back so tests that only set `notification_config`
             // (no repo) keep working.
             return state.notification_config.clone();
         }
@@ -618,7 +618,7 @@ fn resolve_live_config<B: ExecutionBackend + Clone>(
     state.notification_config.clone()
 }
 
-/// `GET /api/v1/notifications/logs?last=N` — historique des notifications.
+/// `GET /api/v1/notifications/logs?last=N`, historique des notifications.
 ///
 /// Lit depuis `notifications.db` via le repository.
 /// Fallback sur `hitl.db` si le repo n'est pas disponible (backward compat).
@@ -964,6 +964,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         }
     }
 
@@ -1276,7 +1277,7 @@ mod tests {
         state.notification_repo = Some(Arc::new(std::sync::Mutex::new(
             NotificationConfigRepository::open(&dir.path().join("notifications.db")).expect("open"),
         )));
-        // notification_config (snapshot) volontairement absent — c'est le cas
+        // notification_config (snapshot) volontairement absent, c'est le cas
         // que reproduit le bug : le canal n'est connu que du repo.
         state.notification_config = None;
 

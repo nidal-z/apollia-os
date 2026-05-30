@@ -1,13 +1,12 @@
-//! Commandes IPC Tauri pour la gouvernance du chat libre Apollia.
+//! Tauri IPC commands for governing the Apollia free chat.
 //!
-//! Couvre :
-//! - lecture/écriture de la config persistée du chat libre
-//!   (`chat_libre_config` dans `governance.db`) ;
-//! - liste/suppression des règles `scope = 'agent'` créées par le bouton
-//!   "Toujours autoriser" du chat (`agent_id = "apollia:chat"`).
+//! Covers:
+//! - read/write of the free chat's persisted config
+//!   (`chat_libre_config` in `governance.db`);
+//! - list/delete of the `scope = 'agent'` rules created by the chat's
+//!   "Always allow" button (`agent_id = "apollia:chat"`).
 //!
-//! L'agent système Apollia Chat est identifié par
-//! [`APOLLIA_CHAT_AGENT_ID`].
+//! The Apollia Chat system agent is identified by [`APOLLIA_CHAT_AGENT_ID`].
 
 use std::path::PathBuf;
 
@@ -21,22 +20,21 @@ use tauri::State;
 
 use super::tool_governance::PermissionRuleDto;
 
-/// Identifiant logique de l'agent système Apollia Chat.
+/// Logical identifier of the Apollia Chat system agent.
 ///
-/// Doit rester aligné avec
-/// `apollia_runtime::chat::APOLLIA_CHAT_AGENT_ID`.
+/// Must stay aligned with `apollia_runtime::chat::APOLLIA_CHAT_AGENT_ID`.
 pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
 
-/// DTO frontend pour [`ChatLibreConfig`].
+/// Frontend DTO for [`ChatLibreConfig`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatLibreConfigDto {
-    /// System prompt par défaut. Vide ⇒ pas d'override.
+    /// Default system prompt. Empty means no override.
     #[serde(default)]
     pub system_prompt: String,
-    /// Outils auto-autorisés par défaut. Vide ⇒ pas d'override.
+    /// Tools auto-allowed by default. Empty means no override.
     #[serde(default)]
     pub allowed_tools: Vec<String>,
-    /// Backend LLM préféré. `None` ⇒ défaut runtime.
+    /// Preferred LLM backend. `None` means runtime default.
     #[serde(default)]
     pub llm_backend: Option<String>,
 }
@@ -61,7 +59,7 @@ impl From<ChatLibreConfigDto> for ChatLibreConfig {
     }
 }
 
-/// Ouvre (et migre si besoin) `governance.db` puis retourne son chemin.
+/// Opens (and migrates if needed) `governance.db`, then returns its path.
 fn ensure_governance_db() -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
     let base = PathBuf::from(home).join(".apollia");
@@ -70,12 +68,12 @@ fn ensure_governance_db() -> Result<PathBuf, String> {
     Ok(db.path().to_path_buf())
 }
 
-/// Lit la configuration persistée du chat libre.
+/// Reads the free chat's persisted configuration.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable Tauri si `governance.db` ne peut pas
-/// être ouvert ou lu.
+/// Returns a Tauri-serializable error if `governance.db` cannot be opened or
+/// read.
 #[tauri::command]
 pub async fn get_chat_libre_config(
     _state: State<'_, RuntimeHandle>,
@@ -89,12 +87,12 @@ pub async fn get_chat_libre_config(
     Ok(cfg.into())
 }
 
-/// Persiste la configuration du chat libre (UPSERT sur la ligne unique id=1).
+/// Persists the free chat's configuration (UPSERT on the single id=1 row).
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable Tauri si `governance.db` ne peut pas
-/// être ouvert ou si l'écriture échoue.
+/// Returns a Tauri-serializable error if `governance.db` cannot be opened or
+/// if the write fails.
 #[tauri::command]
 pub async fn update_chat_libre_config(
     _state: State<'_, RuntimeHandle>,
@@ -115,12 +113,12 @@ pub async fn update_chat_libre_config(
     Ok(())
 }
 
-/// Liste les règles `scope = 'agent'` ciblant l'agent système Apollia Chat.
+/// Lists the `scope = 'agent'` rules targeting the Apollia Chat system agent.
 ///
 /// # Errors
 ///
-/// Retourne une erreur sérialisable Tauri si `governance.db` ne peut pas
-/// être ouvert ou requêté.
+/// Returns a Tauri-serializable error if `governance.db` cannot be opened or
+/// queried.
 #[tauri::command]
 pub async fn list_chat_permission_rules(
     _state: State<'_, RuntimeHandle>,
@@ -137,20 +135,19 @@ pub async fn list_chat_permission_rules(
         .collect())
 }
 
-/// DTO frontend pour une autorisation in-memory `scope = 'session'`.
+/// Frontend DTO for an in-memory `scope = 'session'` authorization.
 ///
-/// Ces autorisations vivent dans `ChatSessionManager.sessions[].authorized_tools`
-/// — jamais persistées dans `governance.db`. Elles disparaissent à la fermeture
-/// de la session.
+/// These authorizations live in `ChatSessionManager.sessions[].authorized_tools`,
+/// never persisted in `governance.db`. They disappear when the session closes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionAuthorizationDto {
-    /// Identifiant unique de la session.
+    /// Unique session identifier.
     pub session_id: String,
-    /// Titre de la session (vide pour les sessions sans titre).
+    /// Session title (empty for untitled sessions).
     pub session_title: Option<String>,
-    /// Mode de la session (`"libre"` | `"agent"` | `"companion"`).
+    /// Session mode (`"libre"` | `"agent"` | `"companion"`).
     pub mode: String,
-    /// Nom de l'outil auto-autorisé.
+    /// Name of the auto-allowed tool.
     pub tool_name: String,
 }
 
@@ -165,15 +162,14 @@ impl From<SessionAuthorizationView> for SessionAuthorizationDto {
     }
 }
 
-/// Liste les autorisations in-memory de toutes les sessions actives.
+/// Lists the in-memory authorizations of all active sessions.
 ///
-/// Permet à `Settings > Permissions` d'afficher les autorisations
-/// `scope = 'session'` qui ne vivent pas dans `governance.db`.
+/// Lets `Settings > Permissions` display the `scope = 'session'`
+/// authorizations that do not live in `governance.db`.
 ///
 /// # Errors
 ///
-/// Renvoie une erreur sérialisable si le sous-système chat n'est pas
-/// disponible.
+/// Returns a serializable error if the chat subsystem is unavailable.
 #[tauri::command]
 pub async fn list_active_chat_session_authorizations(
     state: State<'_, RuntimeHandle>,
@@ -189,12 +185,12 @@ pub async fn list_active_chat_session_authorizations(
         .collect())
 }
 
-/// Retire une autorisation `scope = 'session'` d'une session active.
+/// Removes a `scope = 'session'` authorization from an active session.
 ///
 /// # Errors
 ///
-/// - Erreur si la session est inconnue.
-/// - Erreur si le sous-système chat n'est pas disponible.
+/// - Error if the session is unknown.
+/// - Error if the chat subsystem is unavailable.
 #[tauri::command]
 pub async fn revoke_chat_session_authorization(
     state: State<'_, RuntimeHandle>,
@@ -222,16 +218,15 @@ pub async fn revoke_chat_session_authorization(
     Ok(())
 }
 
-/// Supprime une règle `scope = 'agent'` (réutilise le delete de
-/// `PrefixRuleEngine`). L'identifiant doit appartenir à une règle d'agent —
-/// la sécurité est assurée par le filtre frontend, mais la suppression est
-/// exécutée sans contrôle supplémentaire côté Rust : c'est cohérent avec
-/// `governance_revoke_permission_rule` (mêmes garanties).
+/// Deletes a `scope = 'agent'` rule (reuses `PrefixRuleEngine`'s delete). The
+/// identifier must belong to an agent rule; safety is enforced by the frontend
+/// filter, but the deletion runs without extra checks on the Rust side, which
+/// is consistent with `governance_revoke_permission_rule` (same guarantees).
 ///
 /// # Errors
 ///
-/// - `governance.db` introuvable / illisible ;
-/// - identifiant inconnu (retourne une erreur descriptive).
+/// - `governance.db` missing / unreadable;
+/// - unknown identifier (returns a descriptive error).
 #[tauri::command]
 pub async fn delete_chat_permission_rule(
     _state: State<'_, RuntimeHandle>,

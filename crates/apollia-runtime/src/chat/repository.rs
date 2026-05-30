@@ -1,6 +1,6 @@
 //! SQLite-backed repository for chat sessions and messages.
 //!
-//! Operates on `~/.apollia/chat.db` — one database per runtime instance.
+//! Operates on `~/.apollia/chat.db`, one database per runtime instance.
 //! All writes are synchronous (rusqlite); callers should wrap in
 //! `spawn_blocking` for async contexts.
 
@@ -36,11 +36,11 @@ pub struct SessionRow {
     pub created_at: String,
     /// ISO-8601 close timestamp (nullable).
     pub closed_at: Option<String>,
-    /// Preferred LLM backend name (nullable — uses runtime default when None).
+    /// Preferred LLM backend name (nullable, uses runtime default when None).
     pub llm_backend: Option<String>,
     /// Conversation summary produced by the summarizer (nullable).
     pub summary: Option<String>,
-    /// User-defined display title (nullable — falls back to agent_name or mode).
+    /// User-defined display title (nullable, falls back to agent_name or mode).
     pub title: Option<String>,
     /// Parent session identifier when this session is a fork (nullable).
     pub parent_session_id: Option<String>,
@@ -109,6 +109,22 @@ pub struct AppendMessageParams<'a> {
     pub metadata: Option<&'a str>,
 }
 
+/// Parameters for persisting a resolved tool approval decision.
+pub struct ToolApprovalLogEntry<'a> {
+    /// Owning session identifier.
+    pub session_id: &'a str,
+    /// Message that triggered the approval.
+    pub message_id: &'a str,
+    /// Name of the tool whose call was decided.
+    pub tool_name: &'a str,
+    /// Decision string (`accept` / `always_accept` / `refuse`).
+    pub decision: &'a str,
+    /// ISO-8601 resolution timestamp.
+    pub resolved_at: &'a str,
+    /// Operator-provided refusal explanation, if any.
+    pub reason: Option<&'a str>,
+}
+
 /// CRUD repository for chat sessions, messages, and tool authorizations.
 ///
 /// Wraps a single SQLite connection to `chat.db`.
@@ -159,7 +175,7 @@ impl ChatSessionRepository {
             "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id)",
         );
 
-        // v7 migration: project linkage (application-level, no FK — separate databases).
+        // v7 migration: project linkage (application-level, no FK, separate databases).
         let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN project_id TEXT");
         let _ = conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id)",
@@ -497,7 +513,7 @@ impl ChatSessionRepository {
         Ok(())
     }
 
-    /// Close a session — sets `status='closed'` and records `closed_at`.
+    /// Close a session, sets `status='closed'` and records `closed_at`.
     ///
     /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
     pub fn close_session(&self, id: &str, closed_at: &str) -> Result<(), ChatError> {
@@ -612,7 +628,7 @@ impl ChatSessionRepository {
         Ok(rows)
     }
 
-    /// Authorize a tool for a session (idempotent — `INSERT OR IGNORE`).
+    /// Authorize a tool for a session (idempotent, `INSERT OR IGNORE`).
     pub fn authorize_tool(
         &self,
         session_id: &str,
@@ -1018,27 +1034,19 @@ impl ChatSessionRepository {
     /// `reason` carries the operator-provided refusal explanation (or `None`
     /// for accept / always_accept). Stored verbatim so the inbox history view
     /// can surface it.
-    pub fn log_tool_approval(
-        &self,
-        session_id: &str,
-        message_id: &str,
-        tool_name: &str,
-        decision: &str,
-        resolved_at: &str,
-        reason: Option<&str>,
-    ) -> Result<(), ChatError> {
+    pub fn log_tool_approval(&self, entry: ToolApprovalLogEntry<'_>) -> Result<(), ChatError> {
         self.conn
             .execute(
                 "INSERT INTO chat_approval_log
                     (session_id, message_id, tool_name, decision, resolved_at, reason)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
-                    session_id,
-                    message_id,
-                    tool_name,
-                    decision,
-                    resolved_at,
-                    reason
+                    entry.session_id,
+                    entry.message_id,
+                    entry.tool_name,
+                    entry.decision,
+                    entry.resolved_at,
+                    entry.reason
                 ],
             )
             .map_err(|e| ChatError::InternalError(format!("log_tool_approval: {e}")))?;

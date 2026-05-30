@@ -1,13 +1,13 @@
-//! Commandes IPC Tauri pour la gestion des mises à jour automatiques.
+//! Tauri IPC commands for managing automatic updates.
 //!
-//! Vérifie les nouvelles versions sur GitHub Releases et déclenche
-//! la mise à jour de l'application Tauri via `tauri-plugin-updater`.
+//! Checks for new versions on GitHub Releases and triggers the Tauri
+//! application update via `tauri-plugin-updater`.
 
 use serde::Serialize;
 use tauri_plugin_updater::UpdaterExt;
 use thiserror::Error;
 
-/// Erreurs possibles lors de l'interrogation du plugin updater.
+/// Possible errors when querying the updater plugin.
 #[derive(Debug, Error)]
 pub enum UpdateError {
     #[error("updater plugin unavailable: {0}")]
@@ -20,24 +20,24 @@ pub enum UpdateError {
     Install(String),
 }
 
-/// Résultat de la vérification de mise à jour.
+/// Result of the update check.
 #[derive(Debug, Serialize)]
 pub struct UpdateCheckResult {
-    /// Indique si une mise à jour est disponible.
+    /// Whether an update is available.
     pub available: bool,
-    /// Version actuelle de l'application.
+    /// Current application version.
     pub current_version: String,
-    /// Version disponible (si `available` est `true`).
+    /// Available version (if `available` is `true`).
     pub new_version: Option<String>,
-    /// Notes de version (si `available` est `true`).
+    /// Release notes (if `available` is `true`).
     pub release_notes: Option<String>,
 }
 
-/// Vérifie si une mise à jour est disponible sur GitHub Releases.
+/// Checks whether an update is available on GitHub Releases.
 ///
-/// Utilise `tauri-plugin-updater` pour interroger l'endpoint configuré dans
-/// `tauri.conf.json` (section `plugins.updater.endpoints`). Renvoie une
-/// description sérialisable décrivant l'état courant.
+/// Uses `tauri-plugin-updater` to query the endpoint configured in
+/// `tauri.conf.json` (`plugins.updater.endpoints` section). Returns a
+/// serializable description of the current state.
 #[tauri::command]
 pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult, String> {
     let current_version = app.package_info().version.to_string();
@@ -63,10 +63,10 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult
     }
 }
 
-/// Télécharge et installe la mise à jour disponible, puis redémarre.
+/// Downloads and installs the available update, then restarts.
 ///
-/// Doit être appelé après `check_for_update`. Retourne `NoUpdate` si plus
-/// rien n'est disponible (autre instance en concurrence, ou release retirée).
+/// Must be called after `check_for_update`. Returns `NoUpdate` if nothing is
+/// available anymore (a concurrent instance, or a pulled release).
 #[tauri::command]
 pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     let updater = app

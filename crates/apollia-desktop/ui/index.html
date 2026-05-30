@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- NOSONAR Web:S5725 — Google Fonts CSS payload is dynamic (charset / unicode-range fan-out), SRI hashes cannot be pinned. -->
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <title>Apollia OS</title>
   <script>
     (function() {
       var mode = localStorage.getItem("apollia-theme") || "system";
       var isDark = mode === "dark" ||
-        (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        (mode === "system" && globalThis.matchMedia("(prefers-color-scheme: dark)").matches);
       if (isDark) document.documentElement.classList.add("dark");
     })();
   </script>

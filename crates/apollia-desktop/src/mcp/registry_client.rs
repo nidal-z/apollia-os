@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// Client for the MCP Registry API (`registry.modelcontextprotocol.io`).
 ///
-/// The client is `Clone` and `Send + Sync` — suitable for storage in Tauri
+/// The client is `Clone` and `Send + Sync`, suitable for storage in Tauri
 /// managed state. The internal `reqwest::Client` connection pool is shared
 /// across clones.
 #[derive(Clone)]
@@ -218,6 +218,28 @@ pub enum RegistryClientError {
     Offline,
 }
 
+/// Outcome of fetching one registry page over HTTP.
+enum PageFetch {
+    /// Raw response body, ready to parse.
+    Body(String),
+    /// Request, status, or body read failed (description string).
+    Fatal(String),
+}
+
+/// Outcome of parsing a single registry page body.
+enum PageParse {
+    /// Page parsed: append `servers`, follow `next` cursor if present.
+    Servers {
+        servers: Vec<RegistryServer>,
+        next: Option<String>,
+    },
+    /// Page failed to parse but a cursor was recovered; skip to `cursor`
+    /// with the page counter advanced to `page`.
+    SkipTo { cursor: String, page: usize },
+    /// Stop pagination (parse failed with no recoverable cursor).
+    Stop,
+}
+
 /// Try to extract the `nextCursor` from a JSON body that failed full parsing.
 ///
 /// This allows pagination to continue past pages with invalid characters
@@ -279,7 +301,7 @@ impl McpRegistryClient {
     /// [`RegistryClientError::Offline`] is returned.
     ///
     /// `search` is an optional keyword filter forwarded to the registry API.
-    /// Cache TTL — skip network fetch if cache is younger than this.
+    /// Cache TTL: skip network fetch if cache is younger than this.
     const CACHE_TTL: Duration = Duration::from_secs(15 * 60); // 15 minutes
 
     /// Fetch a single server by its exact registry name.
@@ -378,10 +400,46 @@ impl McpRegistryClient {
     /// Safety limit to avoid infinite pagination loops.
     const MAX_PAGES: usize = 200;
 
+    /// Fetch one registry page body, collapsing the HTTP/read error layers.
+    ///
+    /// Returns the raw response body on success, or [`PageFetch::Fatal`] with a
+    /// description string when the request, status, or body read fails. The
+    /// caller decides whether a fatal outcome aborts (no servers yet) or simply
+    /// stops pagination (some servers already collected).
+    async fn fetch_page_body(&self, search: Option<&str>, cursor: Option<&str>) -> PageFetch {
+        let mut query: Vec<(&str, String)> = vec![("limit", "100".to_string())];
+        if let Some(q) = search {
+            query.push(("search", q.to_string()));
+        }
+        if let Some(c) = cursor {
+            query.push(("cursor", c.to_string()));
+        }
+
+        let resp = match self
+            .http
+            .get(format!("{}/v0.1/servers", self.base_url))
+            .query(&query)
+            .header("Accept", "application/json")
+            .send()
+            .await
+        {
+            Ok(resp) => resp,
+            Err(e) => return PageFetch::Fatal(e.to_string()),
+        };
+        let resp = match resp.error_for_status() {
+            Ok(resp) => resp,
+            Err(e) => return PageFetch::Fatal(e.to_string()),
+        };
+        match resp.text().await {
+            Ok(body) => PageFetch::Body(body),
+            Err(e) => PageFetch::Fatal(e.to_string()),
+        }
+    }
+
     /// Fetch all pages from the network, following `nextCursor` until exhausted.
     ///
     /// Pages that fail to parse (e.g. invalid control characters in JSON) are
-    /// skipped — the servers fetched so far are still returned.
+    /// skipped; the servers fetched so far are still returned.
     async fn fetch_from_network(
         &self,
         search: Option<&str>,
@@ -391,77 +449,34 @@ impl McpRegistryClient {
         let mut page = 0usize;
 
         loop {
-            let mut query: Vec<(&str, String)> = vec![("limit", "100".to_string())];
-            if let Some(q) = search {
-                query.push(("search", q.to_string()));
-            }
-            if let Some(ref c) = cursor {
-                query.push(("cursor", c.clone()));
-            }
-
-            let body = match self
-                .http
-                .get(format!("{}/v0.1/servers", self.base_url))
-                .query(&query)
-                .header("Accept", "application/json")
-                .send()
-                .await
-            {
-                Ok(resp) => match resp.error_for_status() {
-                    Ok(resp) => match resp.text().await {
-                        Ok(body) => body,
-                        Err(e) if all_servers.is_empty() => {
-                            return Err(RegistryClientError::HttpError(e.to_string()));
-                        }
-                        Err(e) => {
-                            tracing::warn!(page, error = %e, "registry page read failed — stopping");
-                            break;
-                        }
-                    },
-                    Err(e) if all_servers.is_empty() => {
-                        return Err(RegistryClientError::HttpError(e.to_string()));
-                    }
-                    Err(e) => {
-                        tracing::warn!(page, error = %e, "registry page HTTP error — stopping");
-                        break;
-                    }
-                },
-                Err(e) if all_servers.is_empty() => {
-                    return Err(RegistryClientError::HttpError(e.to_string()));
+            let body = match self.fetch_page_body(search, cursor.as_deref()).await {
+                PageFetch::Body(body) => body,
+                PageFetch::Fatal(e) if all_servers.is_empty() => {
+                    return Err(RegistryClientError::HttpError(e));
                 }
-                Err(e) => {
+                PageFetch::Fatal(e) => {
                     tracing::warn!(page, error = %e, "registry page fetch failed — stopping");
                     break;
                 }
             };
 
-            let response: RegistryListResponse = match serde_json::from_str(&body) {
-                Ok(r) => r,
-                Err(e) => {
-                    tracing::warn!(
-                        page,
-                        serde_error = %e,
-                        "registry page JSON parse failed — skipping to next page"
-                    );
-                    // Try to extract the cursor from raw JSON to continue pagination
-                    if let Some(next) = extract_cursor_raw(&body) {
-                        cursor = Some(next);
-                        page += 1;
-                        if page >= Self::MAX_PAGES {
-                            break;
-                        }
-                        continue;
+            match Self::parse_page(&body, page) {
+                PageParse::Servers { servers, next } => {
+                    all_servers.extend(servers);
+                    page += 1;
+                    match next {
+                        Some(c) if page < Self::MAX_PAGES => cursor = Some(c),
+                        _ => break,
                     }
-                    break;
                 }
-            };
-
-            all_servers.extend(response.servers);
-            page += 1;
-
-            match response.metadata.next_cursor {
-                Some(c) if !c.is_empty() && page < Self::MAX_PAGES => cursor = Some(c),
-                _ => break,
+                PageParse::SkipTo { cursor: next, page: next_page } => {
+                    cursor = Some(next);
+                    page = next_page;
+                    if page >= Self::MAX_PAGES {
+                        break;
+                    }
+                }
+                PageParse::Stop => break,
             }
         }
 
@@ -478,6 +493,40 @@ impl McpRegistryClient {
         );
 
         Ok(all_servers)
+    }
+
+    /// Parse one registry page body into a [`PageParse`] outcome.
+    ///
+    /// On a serde failure, attempts to recover the `nextCursor` from raw JSON so
+    /// pagination can skip past pages with invalid characters; if none is found,
+    /// pagination stops.
+    fn parse_page(body: &str, page: usize) -> PageParse {
+        match serde_json::from_str::<RegistryListResponse>(body) {
+            Ok(response) => {
+                let next = response
+                    .metadata
+                    .next_cursor
+                    .filter(|c| !c.is_empty());
+                PageParse::Servers {
+                    servers: response.servers,
+                    next,
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    page,
+                    serde_error = %e,
+                    "registry page JSON parse failed — skipping to next page"
+                );
+                match extract_cursor_raw(body) {
+                    Some(next) => PageParse::SkipTo {
+                        cursor: next,
+                        page: page + 1,
+                    },
+                    None => PageParse::Stop,
+                }
+            }
+        }
     }
 
     /// Serialize `servers` to JSON and write to the cache file.

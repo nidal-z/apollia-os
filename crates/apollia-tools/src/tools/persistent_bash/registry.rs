@@ -1,4 +1,4 @@
-//! Registry of shell sessions — one session per agent (identified by [`SessionId`]).
+//! Registry of shell sessions: one session per agent (identified by [`SessionId`]).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -166,7 +166,7 @@ mod tests {
         // GIVEN: empty registry
         let registry = ShellSessionRegistry::new();
 
-        // WHEN: close unknown id — must not panic
+        // WHEN: close unknown id, must not panic
         registry.close(Uuid::new_v4()).await;
 
         // THEN

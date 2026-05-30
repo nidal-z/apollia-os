@@ -1,6 +1,6 @@
-//! Route `POST /webhooks/:id` — réception de webhooks avec vérification HMAC-SHA256.
+//! Route `POST /webhooks/:id`, réception de webhooks avec vérification HMAC-SHA256.
 //!
-//! **Ordre des vérifications (Principe #4 — Fail fast) :**
+//! **Ordre des vérifications (Principe #4, Fail fast) :**
 //! 1. TriggerEngine disponible ? → 503
 //! 2. Trigger connu et de type webhook ? → 404
 //! 3. Header `X-Apollia-Signature` présent ? → 401
@@ -107,7 +107,7 @@ pub fn verify_hmac(secret: &str, body: &[u8], signature: &str) -> bool {
     mac.update(body);
     let computed = hex::encode(mac.finalize().into_bytes());
 
-    // Comparaison constante-time — évite les timing attacks
+    // Comparaison constante-time, évite les timing attacks
     constant_time_eq::constant_time_eq(computed.as_bytes(), expected.as_bytes())
 }
 
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_ac5_verify_hmac_wrong_signature() {
-        // GIVEN — signature de même longueur mais incorrecte
+        // GIVEN, signature de même longueur mais incorrecte
         let sig = "sha256=0000000000000000000000000000000000000000000000000000000000000000";
         // WHEN / THEN
         assert!(!verify_hmac("secret", b"body", sig));
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_ac5_verify_hmac_missing_prefix() {
-        // GIVEN — signature sans le préfixe "sha256="
+        // GIVEN, signature sans le préfixe "sha256="
         let sig = "deadbeef";
         // WHEN / THEN
         assert!(!verify_hmac("secret", b"body", sig));
@@ -152,10 +152,10 @@ mod tests {
 
     #[test]
     fn test_ac5_verify_hmac_wrong_body() {
-        // GIVEN — signature calculée sur un body différent
+        // GIVEN, signature calculée sur un body différent
         let secret = "mon-secret";
         let sig = compute_hmac(secret, b"payload");
-        // WHEN / THEN — body différent
+        // WHEN / THEN, body différent
         assert!(!verify_hmac(secret, b"other-payload", &sig));
     }
 }

@@ -1,4 +1,4 @@
-//! REST routes for the ORIA plan cache — `GET /api/v1/plan-cache/stats` and
+//! REST routes for the ORIA plan cache, `GET /api/v1/plan-cache/stats` and
 //! `POST /api/v1/plan-cache/clear`.
 //!
 //! Exposes cache statistics and management operations for the desktop frontend
@@ -41,7 +41,7 @@ pub struct ErrorResponse {
     error: String,
 }
 
-/// `GET /api/v1/plan-cache/stats` — return aggregate cache statistics.
+/// `GET /api/v1/plan-cache/stats`, return aggregate cache statistics.
 ///
 /// Returns zeroed counters when the cache is empty. Returns `503` when
 /// the plan cache repository is not configured.
@@ -99,7 +99,7 @@ pub async fn get_plan_cache_stats<B: ExecutionBackend + Clone + From<DynBackend>
     ))
 }
 
-/// `POST /api/v1/plan-cache/clear` — remove all cached plans.
+/// `POST /api/v1/plan-cache/clear`, remove all cached plans.
 ///
 /// Returns the number of entries that were removed. Returns `503` when
 /// the plan cache repository is not configured.

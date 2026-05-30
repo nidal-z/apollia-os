@@ -1,85 +1,81 @@
-//! Détection hardware pour les recommandations de modèles LLM.
+//! Hardware detection for LLM model recommendations.
 //!
-//! Expose [`HardwareProfile`] avec RAM, CPU, et accélérateur (Metal / CUDA / None).
-//! Utilisé par le Model Hub pour afficher les badges de compatibilité GGUF.
+//! Exposes [`HardwareProfile`] with RAM, CPU, and accelerator (Metal / CUDA / None).
+//! Used by the Model Hub to display GGUF compatibility badges.
 
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
-
-/// Profil matériel détecté de la machine locale.
+/// Detected hardware profile of the local machine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HardwareProfile {
-    /// RAM totale en GB.
+    /// Total RAM in GB.
     pub total_ram_gb: f64,
-    /// RAM disponible en GB.
+    /// Available RAM in GB.
     pub available_ram_gb: f64,
-    /// Nom/modèle du CPU (ex. `"Apple M4 Max"`, `"Intel Core i9-13900K"`).
+    /// CPU name/model (e.g. `"Apple M4 Max"`, `"Intel Core i9-13900K"`).
     pub cpu_model: String,
-    /// Nombre de cœurs logiques.
+    /// Number of logical cores.
     pub cpu_cores: u32,
-    /// Accélérateur graphique détecté.
+    /// Detected graphics accelerator.
     pub accelerator: AcceleratorProfile,
-    /// Budget mémoire recommandé pour l'inférence en GB.
+    /// Recommended memory budget for inference, in GB.
     ///
-    /// - Apple Silicon : RAM unifiée × 0.75 (partagée CPU/GPU)
-    /// - CUDA : VRAM dédiée
-    /// - CPU seul : RAM × 0.60 (conserver de la RAM pour l'OS et les processus)
+    /// - Apple Silicon: unified RAM x 0.75 (shared CPU/GPU)
+    /// - CUDA: dedicated VRAM
+    /// - CPU only: RAM x 0.60 (keep RAM for the OS and other processes)
     pub memory_budget_gb: f64,
 }
 
-/// Accélérateur graphique disponible pour l'inférence.
+/// Graphics accelerator available for inference.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AcceleratorProfile {
-    /// Aucun GPU utilisable — inférence CPU uniquement.
+    /// No usable GPU, CPU-only inference.
     None,
-    /// Apple Silicon avec mémoire unifiée (Metal).
+    /// Apple Silicon with unified memory (Metal).
     AppleSilicon {
-        /// Nom du chip (ex. `"M4 Max"`, `"M3 Pro"`).
+        /// Chip name (e.g. `"M4 Max"`, `"M3 Pro"`).
         chip: String,
-        /// Génération (1 = M1, 2 = M2, 3 = M3, 4 = M4).
+        /// Generation (1 = M1, 2 = M2, 3 = M3, 4 = M4).
         generation: u8,
-        /// VRAM effectif = RAM unifiée totale (en GB).
+        /// Effective VRAM = total unified RAM (in GB).
         vram_gb: f64,
     },
-    /// GPU NVIDIA (CUDA).
+    /// NVIDIA GPU (CUDA).
     Cuda {
-        /// Nom du GPU (ex. `"NVIDIA GeForce RTX 4090"`).
+        /// GPU name (e.g. `"NVIDIA GeForce RTX 4090"`).
         device_name: String,
-        /// VRAM dédiée en GB.
+        /// Dedicated VRAM in GB.
         vram_gb: f64,
-        /// Compute capability sous forme `(major, minor)`.
+        /// Compute capability as `(major, minor)`.
         compute_capability: (u8, u8),
     },
-    /// GPU autre (AMD, Intel Arc, etc.) via accélération générique.
+    /// Other GPU (AMD, Intel Arc, etc.) via generic acceleration.
     Generic {
-        /// Nom du GPU.
+        /// GPU name.
         device_name: String,
-        /// VRAM en GB (si détectable).
+        /// VRAM in GB (if detectable).
         vram_gb: f64,
     },
 }
 
-/// Badge de compatibilité d'un fichier GGUF avec le hardware local.
+/// Compatibility badge for a GGUF file against the local hardware.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CompatibilityBadge {
-    /// Le modèle tient confortablement en mémoire (≤ 70 % du budget).
+    /// The model fits comfortably in memory (<= 70% of the budget).
     Fits,
-    /// Le modèle pourrait tenir mais sera serré (70 – 100 % du budget).
+    /// The model might fit but will be tight (70 to 100% of the budget).
     MightFit,
-    /// Le modèle dépasse le budget mémoire disponible.
+    /// The model exceeds the available memory budget.
     TooLarge,
 }
 
 impl CompatibilityBadge {
-    /// Calcule le badge depuis la taille du fichier (en GB) et le profil hardware.
+    /// Compute the badge from the file size (in GB) and the hardware profile.
     pub fn compute(file_size_gb: f64, profile: &HardwareProfile) -> Self {
-        let required = file_size_gb * 1.1; // overhead llama.cpp ~10 %
+        let required = file_size_gb * 1.1; // ~10% llama.cpp overhead
         let budget = profile.memory_budget_gb;
         if required < budget * 0.70 {
             CompatibilityBadge::Fits
@@ -91,13 +87,9 @@ impl CompatibilityBadge {
     }
 }
 
-// ─────────────────────────────────────────────
-// Detection
-// ─────────────────────────────────────────────
-
-/// Détecte le profil hardware de la machine locale.
+/// Detect the hardware profile of the local machine.
 ///
-/// Bloquant — appeler depuis `tokio::task::spawn_blocking` si nécessaire.
+/// Blocking: call from `tokio::task::spawn_blocking` if needed.
 pub fn detect() -> HardwareProfile {
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -143,9 +135,7 @@ fn compute_budget(accel: &AcceleratorProfile, total_ram_gb: f64) -> f64 {
     }
 }
 
-// ─────────────────────────────────────────────
-// macOS — Apple Silicon detection
-// ─────────────────────────────────────────────
+// ── macOS Apple Silicon detection ────────────────────────────────────────
 
 #[cfg(target_os = "macos")]
 fn detect_apple_silicon(total_ram_gb: f64) -> AcceleratorProfile {
@@ -202,9 +192,7 @@ fn parse_apple_silicon_generation(chip: &str) -> u8 {
     }
 }
 
-// ─────────────────────────────────────────────
-// Linux / Windows — NVIDIA CUDA detection
-// ─────────────────────────────────────────────
+// ── Linux / Windows NVIDIA CUDA detection ────────────────────────────────
 
 #[cfg(not(target_os = "macos"))]
 fn detect_gpu_non_macos() -> AcceleratorProfile {
@@ -248,16 +236,12 @@ fn detect_nvidia_cuda() -> Option<AcceleratorProfile> {
     })
 }
 
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // GIVEN un profil avec 24 GB de budget
-    // WHEN  CompatibilityBadge::compute avec fichier de 10 GB
+    // GIVEN a profile with a 24 GB budget
+    // WHEN  CompatibilityBadge::compute with a 10 GB file
     // THEN  badge Fits (10*1.1=11 < 24*0.7=16.8)
     #[test]
     fn test_badge_fits() {
@@ -279,9 +263,9 @@ mod tests {
         );
     }
 
-    // GIVEN un profil avec 24 GB de budget
-    // WHEN  CompatibilityBadge::compute avec fichier de 19 GB
-    // THEN  badge MightFit (19*1.1=20.9 entre 16.8 et 24)
+    // GIVEN a profile with a 24 GB budget
+    // WHEN  CompatibilityBadge::compute with a 19 GB file
+    // THEN  badge MightFit (19*1.1=20.9 between 16.8 and 24)
     #[test]
     fn test_badge_might_fit() {
         let profile = HardwareProfile {
@@ -302,8 +286,8 @@ mod tests {
         );
     }
 
-    // GIVEN un profil avec 24 GB de budget
-    // WHEN  CompatibilityBadge::compute avec fichier de 25 GB
+    // GIVEN a profile with a 24 GB budget
+    // WHEN  CompatibilityBadge::compute with a 25 GB file
     // THEN  badge TooLarge (25*1.1=27.5 > 24)
     #[test]
     fn test_badge_too_large() {
@@ -325,9 +309,9 @@ mod tests {
         );
     }
 
-    // GIVEN detect() appelé sur la machine de test
-    // WHEN  on vérifie les champs basiques
-    // THEN  RAM > 0 et cpu_cores > 0
+    // GIVEN detect() called on the test machine
+    // WHEN  the basic fields are checked
+    // THEN  RAM > 0 and cpu_cores > 0
     #[test]
     fn test_detect_returns_valid_profile() {
         let profile = detect();
@@ -338,7 +322,7 @@ mod tests {
 
     // GIVEN chip "M4 Max"
     // WHEN  parse_apple_silicon_generation()
-    // THEN  retourne 4
+    // THEN  returns 4
     #[cfg(target_os = "macos")]
     #[test]
     fn test_parse_generation_m4() {

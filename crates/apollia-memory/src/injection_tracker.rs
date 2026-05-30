@@ -1,4 +1,4 @@
-//! Injection tracker — tracks memory entries injected into agent turns.
+//! Injection tracker: tracks memory entries injected into agent turns.
 //!
 //! Supports memory injection visibility. Each time an
 //! agent calls `recall_entry()` / `recall_all()` and surfaces the result into a
@@ -10,7 +10,7 @@
 //! The tracker is process-local (runtime in-memory) and purges turns beyond a
 //! fixed window (default 50) to keep memory bounded.
 //!
-//! Principle 6 — memory is never injected automatically. This module records
+//! Memory is never injected automatically: this module records
 //! *agent-initiated* injections so that the user can audit what the agent
 //! pulled into context.
 
@@ -132,7 +132,7 @@ pub fn global_entries_for(turn_id: &str) -> Vec<InjectedEntry> {
         .unwrap_or_default()
 }
 
-/// Clears the global tracker — test-only helper.
+/// Clears the global tracker, test-only helper.
 #[doc(hidden)]
 pub fn global_tracker_clear() {
     if let Ok(mut guard) = global_tracker().lock() {

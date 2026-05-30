@@ -80,7 +80,19 @@ def _check_init_takes_no_required_args(cls: type) -> None:
             )
 
 
-def agent(
+def _check_optional_str(name: str, value: Any) -> None:
+    if value is not None and (not isinstance(value, str) or not value):
+        raise AgentConfigError(
+            f"@agent: {name!r} must be a non-empty string or None"
+        )
+
+
+def _check_optional_dict(name: str, value: Any) -> None:
+    if value is not None and not isinstance(value, dict):
+        raise AgentConfigError(f"@agent: {name!r} must be a dict or None")
+
+
+def agent(  # noqa: PLR0913  # NOSONAR(python:S107)
     *,
     name: str,
     version: str,
@@ -150,22 +162,9 @@ def agent(
     shared_memory_v = _check_string_tuple(
         "shared_memory_namespaces", shared_memory_namespaces
     )
-    if memory_namespace is not None and (
-        not isinstance(memory_namespace, str) or not memory_namespace
-    ):
-        raise AgentConfigError(
-            "@agent: 'memory_namespace' must be a non-empty string or None"
-        )
-    if step_budget is not None and not isinstance(step_budget, dict):
-        raise AgentConfigError(
-            "@agent: 'step_budget' must be a dict or None"
-        )
-    if agent_type is not None and (
-        not isinstance(agent_type, str) or not agent_type
-    ):
-        raise AgentConfigError(
-            "@agent: 'agent_type' must be a non-empty string or None"
-        )
+    _check_optional_str("memory_namespace", memory_namespace)
+    _check_optional_dict("step_budget", step_budget)
+    _check_optional_str("agent_type", agent_type)
 
     def decorator(cls: C) -> C:
         if not isinstance(cls, type):

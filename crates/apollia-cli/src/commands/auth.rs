@@ -1,4 +1,4 @@
-//! `apollia-os auth` subcommands — OAuth2 PKCE authentication management.
+//! `apollia-os auth` subcommands: OAuth2 PKCE authentication management.
 //!
 //! Manages authentication tokens for LLM cloud providers (Anthropic, OpenAI, Vertex AI)
 //! via an interactive PKCE flow. Tokens are stored in the OS-native keyring.
@@ -145,31 +145,33 @@ async fn run_login(provider_name: &str, json: bool) -> i32 {
 
 // ─── Status ───────────────────────────────────────────────────────────────────
 
+/// Resolves the auth status string for a single provider against the store.
+fn provider_status(
+    store_result: &Result<Box<dyn apollia_auth::SecretStore>, apollia_auth::AuthError>,
+    name: &str,
+) -> &'static str {
+    let Ok(store) = store_result else {
+        return "not configured";
+    };
+    let payload = match store.get(AUTH_SERVICE, name) {
+        Ok(Some(payload)) => payload,
+        Ok(None) | Err(_) => return "not configured",
+    };
+    let Ok(token) = serde_json::from_str::<apollia_auth::StoredToken>(&payload) else {
+        return "corrupted";
+    };
+    if token.is_expired() {
+        "expired"
+    } else {
+        "valid"
+    }
+}
+
 fn run_status(json: bool) -> i32 {
     let store_result = apollia_auth::select_secret_store();
     let rows: Vec<(&str, &str)> = apollia_auth::SUPPORTED_PROVIDERS
         .iter()
-        .map(|name| {
-            let status = match &store_result {
-                Ok(store) => match store.get(AUTH_SERVICE, name) {
-                    Ok(Some(payload)) => {
-                        match serde_json::from_str::<apollia_auth::StoredToken>(&payload) {
-                            Ok(token) => {
-                                if token.is_expired() {
-                                    "expired"
-                                } else {
-                                    "valid"
-                                }
-                            }
-                            Err(_) => "corrupted",
-                        }
-                    }
-                    Ok(None) | Err(_) => "not configured",
-                },
-                Err(_) => "not configured",
-            };
-            (*name, status)
-        })
+        .map(|name| (*name, provider_status(&store_result, name)))
         .collect();
 
     if json {

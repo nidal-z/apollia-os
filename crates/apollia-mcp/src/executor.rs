@@ -33,7 +33,7 @@ use crate::protocol::ToolCallContent;
 /// [`ToolExecutor`] implementation that routes calls to an MCP server.
 ///
 /// Each instance is bound to a single `(server, tool)` pair. The full tool name
-/// — in the `"mcp:{server}/{tool}"` format — is stored at construction time and
+/// (in the `"mcp:{server}/{tool}"` format) is stored at construction time and
 /// returned by [`ToolExecutor::name`], enabling exact-match routing in the
 /// [`ToolDispatcher`].
 ///
@@ -99,7 +99,7 @@ impl McpToolExecutor {
     /// tool requires human approval.
     ///
     /// `tools_requiring_approval` should be taken from `AgentManifest::tools_requiring_approval`
-    /// and passed verbatim — the gate checks whether `self.full_name` appears in the list.
+    /// and passed verbatim; the gate checks whether `self.full_name` appears in the list.
     ///
     /// [`execute`]: ToolExecutor::execute
     pub fn with_hitl(

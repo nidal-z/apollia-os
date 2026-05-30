@@ -1,4 +1,4 @@
-//! MCP HTTP OAuth orchestrator (ADR-095 Phase 2).
+//! MCP HTTP OAuth orchestrator.
 //!
 //! Wires the primitives from [`mcp_oauth`](crate::mcp_oauth) +
 //! [`pkce`](crate::pkce) + [`callback`](crate::callback) +
@@ -9,15 +9,15 @@
 //!
 //! Two entry points:
 //!
-//! - [`negotiate_token`] — interactive: opens a browser, drives the full
+//! - [`negotiate_token`]: interactive, opens a browser, drives the full
 //!   discovery + PKCE flow, persists the resulting [`StoredMcpToken`].
-//! - [`ensure_fresh_token`] — non-interactive: returns the current access
+//! - [`ensure_fresh_token`]: non-interactive, returns the current access
 //!   token, refreshing it via OAuth `refresh_token` grant when within the
 //!   expiry leeway. Singleflight by `server_name` so concurrent tool calls
 //!   from a hot agent don't burst N parallel refreshes.
 //!
 //! The orchestrator does not depend on `tauri`, `webbrowser`, or any UI
-//! crate — the caller injects an `open_browser` closure. This keeps the
+//! crate; the caller injects an `open_browser` closure. This keeps the
 //! module testable in isolation and reusable from the CLI (e.g. print the
 //! URL instead of opening a browser).
 
@@ -58,7 +58,7 @@ pub enum McpOAuthError {
     #[error("MCP server '{server}' protected resource metadata declares no authorization servers")]
     NoAuthorizationServer { server: String },
 
-    /// The AS does not advertise PKCE S256 support — Apollia refuses to start
+    /// The AS does not advertise PKCE S256 support; Apollia refuses to start
     /// the flow rather than silently downgrade (spec MUST per RFC 9700).
     #[error(
         "authorization server at {as_url} does not advertise PKCE S256 \
@@ -66,7 +66,7 @@ pub enum McpOAuthError {
     )]
     PkceS256NotSupported { as_url: String },
 
-    /// The AS supports neither CIMD nor RFC 7591 DCR — Apollia cannot identify
+    /// The AS supports neither CIMD nor RFC 7591 DCR; Apollia cannot identify
     /// itself.
     #[error(
         "authorization server at {as_url} supports neither CIMD nor RFC 7591 \
@@ -74,7 +74,7 @@ pub enum McpOAuthError {
     )]
     NoClientRegistrationMethod { as_url: String },
 
-    /// No persisted token exists for the requested server — caller must run
+    /// No persisted token exists for the requested server; caller must run
     /// `negotiate_token` interactively first.
     #[error("no MCP OAuth token persisted for server '{0}'; run negotiate_token first")]
     NoStoredToken(String),
@@ -96,7 +96,7 @@ pub enum McpOAuthError {
 /// the server URL just to drive a flow.
 #[derive(Debug)]
 pub struct NegotiateRequest<'a> {
-    /// Persisted MCP server name — used as the token store key.
+    /// Persisted MCP server name, used as the token store key.
     pub server_name: &'a str,
     /// MCP server URL (e.g. `https://mcp.linear.app/sse`).
     pub server_url: &'a str,
@@ -104,7 +104,7 @@ pub struct NegotiateRequest<'a> {
     /// Used to short-circuit PRM discovery onto the URL the server points to.
     pub www_authenticate: Option<&'a str>,
     /// Scopes the caller wants. `None` defers to the AS's `scopes_supported`
-    /// list. Empty `Vec` means "no scope" — explicit zero rather than default.
+    /// list. Empty `Vec` means "no scope"; explicit zero rather than default.
     pub scopes: Option<Vec<String>>,
     /// Pre-registered OAuth client identifier issued by the AS dev portal.
     /// When provided, bypasses CIMD/DCR resolution entirely. Required for
@@ -136,7 +136,7 @@ fn lock_for(server_name: &str) -> Arc<Mutex<()>> {
 
 // ─── Token endpoint response ────────────────────────────────────────────────
 
-/// RFC 6749 §5.1 token endpoint response. Tolerant `scope` parsing — some AS
+/// RFC 6749 §5.1 token endpoint response. Tolerant `scope` parsing: some AS
 /// return a string, others an array; we accept both.
 #[derive(Debug, Deserialize)]
 struct TokenResponse {
@@ -159,7 +159,7 @@ fn default_bearer() -> String {
 
 /// Drive a full MCP HTTP OAuth flow and persist the resulting token.
 ///
-/// Sequence (ADR-095 §2):
+/// Sequence:
 /// 1. Resolve PRM URL (prefer `WWW-Authenticate: resource_metadata=…`, else
 ///    fall back to `<server_url>/.well-known/oauth-protected-resource`).
 /// 2. Fetch PRM → pick first `authorization_servers[]` entry.
@@ -171,7 +171,7 @@ fn default_bearer() -> String {
 /// 8. Await callback, exchange code for tokens with `resource=` repeated.
 /// 9. Persist via [`save_mcp_token`].
 ///
-/// The `open_browser` callback receives the authorize URL — typically wired
+/// The `open_browser` callback receives the authorize URL, typically wired
 /// to the `open` crate by Tauri, or to a CLI prompt in headless contexts.
 pub async fn negotiate_token(
     req: NegotiateRequest<'_>,
@@ -218,7 +218,7 @@ pub async fn negotiate_token(
     let code_challenge = generate_code_challenge(&code_verifier);
     let state = generate_code_verifier(); // 43-char random suffices for state too
 
-    // 7. Compose authorize URL — RFC 8707 `resource=` is MUST.
+    // 7. Compose authorize URL; RFC 8707 `resource=` is MUST.
     let resource = canonical_resource_uri(req.server_url);
     let scopes = pick_scopes(
         &req.scopes,
@@ -251,12 +251,14 @@ pub async fn negotiate_token(
 
     let token_response = exchange_code(
         &discovery,
-        &as_metadata.token_endpoint,
-        &client_id,
-        &code,
-        &code_verifier,
-        &redirect_uri,
-        &resource,
+        ExchangeCodeParts {
+            token_endpoint: &as_metadata.token_endpoint,
+            client_id: &client_id,
+            code: &code,
+            code_verifier: &code_verifier,
+            redirect_uri: &redirect_uri,
+            resource: &resource,
+        },
     )
     .await?;
 
@@ -284,7 +286,7 @@ pub async fn negotiate_token(
 
 /// Return a fresh access token for `server_name`, refreshing it if necessary.
 ///
-/// Refresh leeway: 60 seconds — we proactively renew the token if it will
+/// Refresh leeway: 60 seconds, we proactively renew the token if it will
 /// expire within the next minute, so in-flight tool calls don't observe a
 /// 401 mid-flight.
 ///
@@ -294,7 +296,7 @@ pub async fn negotiate_token(
 ///
 /// Returns [`McpOAuthError::NoStoredToken`] when no token has been persisted
 /// (caller must run [`negotiate_token`] interactively). Returns
-/// [`McpOAuthError::ReauthRequired`] when the AS rejects the refresh — the
+/// [`McpOAuthError::ReauthRequired`] when the AS rejects the refresh; the
 /// stored token is **deleted** in this case so the next install attempt
 /// starts from a clean slate.
 pub async fn ensure_fresh_token(
@@ -306,7 +308,7 @@ pub async fn ensure_fresh_token(
     // Fast path: load + return without locking when the token has plenty of
     // life left. The singleflight lock is only needed to coordinate refresh.
     //
-    // load_mcp_token may fail when the OS keychain refuses access — e.g.
+    // load_mcp_token may fail when the OS keychain refuses access, e.g.
     // the user clicked "Deny" on the macOS keychain prompt or the dev-mode
     // binary signature changed since the entry's ACL was set up. We map
     // these errors to ReauthRequired so the UI surfaces the right CTA
@@ -341,7 +343,7 @@ pub async fn ensure_fresh_token(
 
     let Some(refresh_token) = current.refresh_token.as_deref() else {
         // Token has no refresh token (some AS issue access-only tokens) and is
-        // about to expire — re-auth required.
+        // about to expire, so re-auth required.
         return Err(McpOAuthError::ReauthRequired {
             server: server_name.to_string(),
             reason: "no refresh_token stored".into(),
@@ -354,7 +356,7 @@ pub async fn ensure_fresh_token(
             Ok(rotated.access_token)
         }
         Err(e) => {
-            // Hard refresh failure (`invalid_grant`, revoked token, etc.) —
+            // Hard refresh failure (`invalid_grant`, revoked token, etc.):
             // wipe the stale token so the wizard surfaces re-auth instead of
             // a confusing "token expired" loop.
             let _ = delete_mcp_token(store, server_name);
@@ -385,24 +387,23 @@ async fn fetch_prm(
     discovery.fetch_prm(server_url).await
 }
 
-/// Resolve the `client_id` per ADR-095 ordering, augmented with a manual
-/// pre-registration override (added 2026-05-17 after Figma testing).
+/// Resolve the `client_id`, augmented with a manual pre-registration override.
 ///
 /// Priority:
-/// 1. **Caller override** (`client_id_override`) — used verbatim. Bypasses
+/// 1. **Caller override** (`client_id_override`): used verbatim. Bypasses
 ///    discovery. The wizard injects this when the catalog enrichment declares
 ///    `oauth_pre_registered_client_id_env` and the corresponding env var is
 ///    populated. Required for AS that support neither CIMD nor anonymous DCR
 ///    (Figma today: dev-portal app registration only).
 /// 2. **CIMD** when the AS advertises `client_id_metadata_document_supported`
-///    (modern MCP-compliant servers — Linear, Sentry, Notion).
+///    (modern MCP-compliant servers: Linear, Sentry, Notion).
 /// 3. **DCR (RFC 7591)** when a registration endpoint is published.
 /// 4. **CIMD as last resort** when no registration endpoint is available and
-///    no CIMD flag — Apollia tries it on the off chance the AS accepts it.
-/// 5. Otherwise → guidance-bearing error pointing at the AS dev portal.
+///    no CIMD flag: Apollia tries it on the off chance the AS accepts it.
+/// 5. Otherwise, a guidance-bearing error pointing at the AS dev portal.
 ///
-/// Earlier versions of this function (2026-05-16 — 2026-05-17 morning) did an
-/// implicit DCR→CIMD fallback on 401/403. That made debugging harder because
+/// An earlier version of this function did an implicit DCR-then-CIMD fallback
+/// on 401/403. That made debugging harder because
 /// CIMD failures surface in the **browser** (post-redirect) while DCR errors
 /// surface in Apollia directly. The current version fails fast on DCR errors
 /// so the operator sees the right diagnostic.
@@ -421,7 +422,7 @@ async fn resolve_client_id(
         return Ok(APOLLIA_CIMD_URL.to_string());
     }
     let Some(dcr_endpoint) = as_metadata.registration_endpoint.as_deref() else {
-        // No DCR endpoint, no explicit CIMD flag — try CIMD anyway (some AS
+        // No DCR endpoint, no explicit CIMD flag: try CIMD anyway (some AS
         // accept it without advertising). If the AS rejects, the user will
         // see a clear error from the AS itself.
         return Ok(APOLLIA_CIMD_URL.to_string());
@@ -451,7 +452,7 @@ async fn resolve_client_id(
 /// the provider's dev portal), we fall back to an empty list rather than the
 /// PRM defaults. Pre-registered OAuth apps have their scopes baked at
 /// registration time, and many AS reject the MCP-spec placeholder
-/// `mcp:connect` advertised in PRMs — Figma as of 2026-05. An empty list
+/// `mcp:connect` advertised in PRMs (Figma, for instance). An empty list
 /// makes `build_authorize_url` omit `scope=` entirely so the AS applies the
 /// scopes configured at the dev portal.
 fn pick_scopes(
@@ -478,7 +479,7 @@ fn parse_scope_string(reported: &Option<String>, requested: &[String]) -> Vec<St
     }
 }
 
-/// Fields needed to compose the authorize URL — grouped to keep the signature
+/// Fields needed to compose the authorize URL, grouped to keep the signature
 /// of [`build_authorize_url`] readable.
 struct AuthorizeUrlParts<'a> {
     authorization_endpoint: &'a str,
@@ -508,28 +509,34 @@ fn build_authorize_url(p: AuthorizeUrlParts<'_>) -> String {
     url
 }
 
+/// Fields needed to exchange an authorization code for tokens, grouped to keep
+/// the signature of [`exchange_code`] readable.
+struct ExchangeCodeParts<'a> {
+    token_endpoint: &'a str,
+    client_id: &'a str,
+    code: &'a str,
+    code_verifier: &'a str,
+    redirect_uri: &'a str,
+    resource: &'a str,
+}
+
 /// POST the authorization code to the token endpoint, including `resource=`
 /// per RFC 8707 (MUST be repeated at the token endpoint).
 async fn exchange_code(
     _discovery: &McpDiscoveryClient,
-    token_endpoint: &str,
-    client_id: &str,
-    code: &str,
-    code_verifier: &str,
-    redirect_uri: &str,
-    resource: &str,
+    p: ExchangeCodeParts<'_>,
 ) -> Result<TokenResponse, AuthError> {
     let http = reqwest::Client::new();
     let mut form: HashMap<&str, &str> = HashMap::new();
     form.insert("grant_type", "authorization_code");
-    form.insert("code", code);
-    form.insert("code_verifier", code_verifier);
-    form.insert("redirect_uri", redirect_uri);
-    form.insert("client_id", client_id);
-    form.insert("resource", resource);
+    form.insert("code", p.code);
+    form.insert("code_verifier", p.code_verifier);
+    form.insert("redirect_uri", p.redirect_uri);
+    form.insert("client_id", p.client_id);
+    form.insert("resource", p.resource);
 
     let response = http
-        .post(token_endpoint)
+        .post(p.token_endpoint)
         .form(&form)
         .send()
         .await
@@ -551,7 +558,7 @@ async fn exchange_code(
 
 /// Refresh an access token using the OAuth `refresh_token` grant.
 ///
-/// `resource=` is repeated per RFC 8707 — the refresh response is rebound to
+/// `resource=` is repeated per RFC 8707; the refresh response is rebound to
 /// the same MCP server URI.
 async fn refresh_grant(
     current: &StoredMcpToken,
@@ -566,7 +573,7 @@ async fn refresh_grant(
     form.insert("refresh_token", refresh_token);
     form.insert("client_id", &current.client_id);
     form.insert("resource", &current.resource_uri);
-    // Include scope to keep the refreshed token bound to the same grant —
+    // Include scope to keep the refreshed token bound to the same grant;
     // optional per RFC 6749 §6 but helps when the AS narrows scopes by default.
     let scope_param = current.scope.join(" ");
     if !scope_param.is_empty() {
@@ -719,7 +726,7 @@ mod tests {
         assert!(url.contains("state=state-abc"));
         assert!(url.contains("resource=https%3A%2F%2Fmcp.example.com"));
         assert!(url.contains("scope=read%20write"));
-        // PKCE S256 + RFC 8707 are both present — this is the MCP spec MUST.
+        // PKCE S256 + RFC 8707 are both present; this is the MCP spec MUST.
     }
 
     #[test]
@@ -742,7 +749,7 @@ mod tests {
 
     // ── parse_scope_string ───────────────────────────────────────────────────
 
-    // ── pick_scopes (override defensive guard — 2026-05-18 Figma fix) ────────
+    // ── pick_scopes (override defensive guard, Figma fix) ────────
 
     fn dummy_prm_with_scopes(scopes: &[&str]) -> ProtectedResourceMetadata {
         ProtectedResourceMetadata {
@@ -764,7 +771,7 @@ mod tests {
         // WHEN pick_scopes resolves the effective scope list
         let scopes = pick_scopes(&None, &prm, &meta, true);
 
-        // THEN the PRM scope is dropped — empty list ⇒ build_authorize_url
+        // THEN the PRM scope is dropped; empty list means build_authorize_url
         // omits `scope=`, so the AS applies the scopes from the dev portal.
         assert!(scopes.is_empty(), "expected [], got {scopes:?}");
     }
@@ -772,7 +779,7 @@ mod tests {
     #[test]
     fn test_pick_scopes_caller_selection_wins_even_with_override() {
         // GIVEN a pre-registered client_id override but a caller-supplied list
-        // (operator explicitly chose scopes — we honour their intent).
+        // (operator explicitly chose scopes; we honour their intent).
         let prm = dummy_prm_with_scopes(&["mcp:connect"]);
         let meta = dummy_as_metadata();
         let caller = Some(vec!["files:read".to_string()]);
@@ -810,7 +817,7 @@ mod tests {
         assert_eq!(scopes, requested);
     }
 
-    // ── resolve_client_id (CIMD vs DCR priority — ADR-095 §2 item 5) ────────
+    // ── resolve_client_id (CIMD vs DCR priority) ────────
 
     fn dummy_as_metadata() -> AuthorizationServerMetadata {
         AuthorizationServerMetadata {
@@ -837,7 +844,7 @@ mod tests {
             .await
             .unwrap();
 
-        // THEN CIMD wins — DCR is not called even though the endpoint exists.
+        // THEN CIMD wins; DCR is not called even though the endpoint exists.
         assert_eq!(cid, APOLLIA_CIMD_URL);
     }
 
@@ -845,7 +852,7 @@ mod tests {
     async fn test_resolve_client_id_honours_override_above_everything() {
         // GIVEN an AS that supports CIMD AND has a DCR endpoint, but the
         // caller supplies a pre-registered client_id (typical of Figma where
-        // neither CIMD nor anonymous DCR are accepted — the operator
+        // neither CIMD nor anonymous DCR are accepted; the operator
         // pre-registered Apollia at figma.com/developers).
         let mut meta = dummy_as_metadata();
         meta.client_id_metadata_document_supported = Some(true);
@@ -862,7 +869,7 @@ mod tests {
         .await
         .unwrap();
 
-        // THEN the override wins — CIMD/DCR are bypassed entirely.
+        // THEN the override wins; CIMD/DCR are bypassed entirely.
         assert_eq!(cid, "figma-issued-client-id-xyz");
     }
 
@@ -997,7 +1004,7 @@ mod tests {
             let url = url.to_string();
             let mock_state = mock_state_clone.clone();
             tokio::spawn(async move {
-                // Best-effort URL parsing — sufficient for tests.
+                // Best-effort URL parsing, sufficient for tests.
                 let state = parse_param(&url, "state").unwrap_or_default();
                 let redirect = parse_param(&url, "redirect_uri").unwrap_or_default();
                 let redirect_decoded = urlencoding::decode(&redirect).unwrap().to_string();
@@ -1042,7 +1049,7 @@ mod tests {
         );
     }
 
-    /// Best-effort `?key=value` extraction from a URL — tests only.
+    /// Best-effort `?key=value` extraction from a URL, tests only.
     fn parse_param(url: &str, key: &str) -> Option<String> {
         let qs_start = url.find('?')?;
         for pair in url[qs_start + 1..].split('&') {

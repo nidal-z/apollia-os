@@ -202,50 +202,50 @@ pub enum MemoryCommand {
     },
 }
 
-/// Erreurs de la commande memory.
+/// Errors raised by the `memory` command.
 #[derive(Debug, thiserror::Error)]
 pub enum MemoryCommandError {
-    /// Le namespace demande n'existe pas.
+    /// The requested namespace does not exist.
     #[error("namespace '{namespace}' not found ({path} does not exist)")]
     NamespaceNotFound {
-        /// Nom du namespace.
+        /// Namespace name.
         namespace: String,
-        /// Chemin attendu du fichier .db.
+        /// Expected path of the .db file.
         path: String,
     },
 
-    /// Erreur du MemoryStore.
+    /// MemoryStore error.
     #[error("memory store error: {0}")]
     Store(#[from] apollia_memory::store::MemoryStoreError),
 
-    /// Erreur du MemoryManager.
+    /// MemoryManager error.
     #[error("memory manager error: {0}")]
     Manager(#[from] apollia_memory::manager::MemoryManagerError),
 
-    /// Erreur de serialisation JSON.
+    /// JSON serialization error.
     #[error("JSON serialization error: {0}")]
     Json(#[from] serde_json::Error),
 
-    /// Erreur d'entree/sortie filesystem ou stdin.
+    /// Filesystem or stdin I/O error.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// Contexte non-interactif sans --confirm.
+    /// Non-interactive context without --confirm.
     #[error("use --confirm for non-interactive clear")]
     NonInteractive,
 
-    /// Erreur d'export/import mémoire.
+    /// Memory export/import error.
     #[error("export/import error: {0}")]
     Export(#[from] apollia_memory::export::ExportError),
 }
 
-/// Resout le repertoire memoire par defaut (`~/.apollia/memory/`).
+/// Resolve the default memory directory (`~/.apollia/memory/`).
 fn default_data_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home).join(".apollia").join("memory")
 }
 
-/// Formate une taille en octets en unite lisible (B, KB, MB, GB).
+/// Format a byte size into a human-readable unit (B, KB, MB, GB).
 fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = 1024 * KB;
@@ -262,9 +262,9 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
-/// Execute la logique d'inspection d'un namespace memoire.
+/// Inspect a memory namespace.
 ///
-/// Retourne la sortie formatee (texte humain ou JSON) en cas de succes.
+/// Returns the formatted output (human text or JSON) on success.
 pub fn execute_inspect(
     namespace: &str,
     data_dir: &Path,
@@ -305,10 +305,10 @@ pub fn execute_inspect(
     Ok(output)
 }
 
-/// Execute la commande `memory list`.
+/// Execute the `memory list` command.
 ///
-/// Scanne `data_dir/*.db`, ouvre chaque base et collecte les statistiques.
-/// Si `agent` est fourni, seul le namespace correspondant est retourne.
+/// Scans `data_dir/*.db`, opens each database, and collects its statistics.
+/// When `agent` is supplied, only the matching namespace is returned.
 pub fn execute_list(
     agent: Option<&str>,
     data_dir: &Path,
@@ -357,7 +357,7 @@ pub fn execute_list(
     Ok(lines.join("\n"))
 }
 
-/// Scanne `data_dir` et retourne les statistiques de chaque namespace.
+/// Scan `data_dir` and return the statistics of each namespace.
 fn collect_namespace_stats(
     data_dir: &Path,
     filter: Option<&str>,
@@ -396,10 +396,10 @@ fn collect_namespace_stats(
     Ok(results)
 }
 
-/// Execute la commande `memory clear`.
+/// Execute the `memory clear` command.
 ///
-/// Demande confirmation interactive si `--confirm` est absent et que stdin est un TTY.
-/// Retourne une description du nombre de lignes supprimees.
+/// Prompts for interactive confirmation when `--confirm` is absent and stdin is a TTY.
+/// Returns a description of the number of rows deleted.
 pub fn execute_clear(
     agent: &str,
     memory_type: &MemoryType,
@@ -476,10 +476,10 @@ pub fn execute_clear(
     Ok(format!("{deleted} entree(s) supprimee(s) ({type_label})."))
 }
 
-/// Execute la commande `memory purge`.
+/// Execute the `memory purge` command.
 ///
-/// Purge les entrees plus anciennes que `older_than` jours.
-/// Si `memory_type` est `None`, les trois types sont cibles.
+/// Purges entries older than `older_than` days.
+/// When `memory_type` is `None`, all three types are targeted.
 pub fn execute_purge(
     namespace: &str,
     older_than: u32,
@@ -537,10 +537,10 @@ pub fn execute_purge(
     ))
 }
 
-/// Execute la commande `memory learn-procedure`.
+/// Execute the `memory learn-procedure` command.
 ///
-/// Enregistre une procédure dans la mémoire procédurale d'un namespace.
-/// Si le trigger existe déjà, incrémente success_count et met à jour les étapes.
+/// Records a procedure in a namespace's procedural memory.
+/// When the trigger already exists, increments success_count and updates the steps.
 pub fn execute_learn_procedure(
     namespace: &str,
     trigger: &str,
@@ -591,7 +591,7 @@ pub fn execute_learn_procedure(
     Ok(format!("Procedure recorded (id: {id})."))
 }
 
-/// Execute la commande `memory export`.
+/// Execute the `memory export` command.
 pub fn execute_export(
     namespace: &str,
     output: Option<&Path>,
@@ -644,7 +644,7 @@ pub fn execute_export(
     ))
 }
 
-/// Execute la commande `memory import`.
+/// Execute the `memory import` command.
 pub fn execute_import(
     namespace: &str,
     input: &Path,
@@ -685,7 +685,7 @@ pub fn execute_import(
     ))
 }
 
-/// Execute une sous-commande `memory`.
+/// Execute a `memory` sub-command.
 pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError> {
     match cmd {
         MemoryCommand::Inspect {
@@ -788,7 +788,14 @@ pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError
             data_dir,
         } => {
             let dir = data_dir.clone().unwrap_or_else(default_data_dir);
-            execute_search(namespace, query, *limit, source.as_deref(), &dir, json)
+            execute_search(SearchArgs {
+                namespace,
+                query,
+                limit: *limit,
+                source: source.as_deref(),
+                data_dir: &dir,
+                json,
+            })
         }
     }
 }
@@ -827,15 +834,32 @@ pub fn execute_forget(
     }
 }
 
+/// Parameters for [`execute_search`].
+pub struct SearchArgs<'a> {
+    /// Memory namespace (maps to a `<namespace>.db` file).
+    pub namespace: &'a str,
+    /// Full-text query string.
+    pub query: &'a str,
+    /// Maximum number of hits to return.
+    pub limit: u32,
+    /// Optional source filter (`episodic` / `semantic`).
+    pub source: Option<&'a str>,
+    /// Directory containing the namespace database.
+    pub data_dir: &'a Path,
+    /// Emit machine-readable JSON.
+    pub json: bool,
+}
+
 /// Full-text search across episodic + semantic memory.
-pub fn execute_search(
-    namespace: &str,
-    query: &str,
-    limit: u32,
-    source: Option<&str>,
-    data_dir: &Path,
-    json: bool,
-) -> Result<String, MemoryCommandError> {
+pub fn execute_search(args: SearchArgs<'_>) -> Result<String, MemoryCommandError> {
+    let SearchArgs {
+        namespace,
+        query,
+        limit,
+        source,
+        data_dir,
+        json,
+    } = args;
     let db_path = data_dir.join(format!("{namespace}.db"));
     if !db_path.exists() {
         return Err(MemoryCommandError::NamespaceNotFound {
@@ -854,7 +878,13 @@ pub fn execute_search(
     let sources_slice = sources_vec.as_deref();
 
     let results = search_engine
-        .query(namespace, query, limit, sources_slice, None)
+        .query(apollia_memory::search::SearchQuery {
+            namespace,
+            query,
+            limit,
+            sources: sources_slice,
+            min_importance: None,
+        })
         .map_err(|e| MemoryCommandError::Io(std::io::Error::other(e.to_string())))?;
 
     if json {
@@ -1435,7 +1465,14 @@ mod tests {
     fn test_search_missing_namespace_errors() {
         let dir = temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
-        let result = execute_search("ghost", "needle", 10, None, &dir, false);
+        let result = execute_search(SearchArgs {
+            namespace: "ghost",
+            query: "needle",
+            limit: 10,
+            source: None,
+            data_dir: &dir,
+            json: false,
+        });
         assert!(matches!(
             result,
             Err(MemoryCommandError::NamespaceNotFound { .. })
@@ -1446,7 +1483,14 @@ mod tests {
     fn test_search_empty_namespace_returns_no_matches() {
         let dir = temp_dir();
         setup_test_db(&dir, "ns");
-        let result = execute_search("ns", "needle", 10, None, &dir, false);
+        let result = execute_search(SearchArgs {
+            namespace: "ns",
+            query: "needle",
+            limit: 10,
+            source: None,
+            data_dir: &dir,
+            json: false,
+        });
         assert!(result.is_ok());
         assert!(result.unwrap().contains("No matches"));
     }
@@ -1457,7 +1501,14 @@ mod tests {
         // an empty result list (no episodic OR semantic flag set).
         let dir = temp_dir();
         setup_test_db(&dir, "ns");
-        let result = execute_search("ns", "needle", 10, Some("episodic"), &dir, false);
+        let result = execute_search(SearchArgs {
+            namespace: "ns",
+            query: "needle",
+            limit: 10,
+            source: Some("episodic"),
+            data_dir: &dir,
+            json: false,
+        });
         assert!(result.is_ok());
     }
 

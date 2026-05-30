@@ -984,16 +984,8 @@ impl TaskRepository {
 /// retourne le statut. Retourne `"completed"` si la durée est renseignée et
 /// qu'aucune transition n'est disponible (cas des anciennes tâches).
 fn derive_status(transitions_json: &Option<String>, duration_ms: Option<i64>) -> String {
-    if let Some(ref json) = transitions_json {
-        if !json.is_empty() {
-            if let Ok(transitions) = serde_json::from_str::<Vec<serde_json::Value>>(json) {
-                if let Some(last) = transitions.last() {
-                    if let Some(status) = last.get("status").and_then(|s| s.as_str()) {
-                        return status.to_string();
-                    }
-                }
-            }
-        }
+    if let Some(status) = last_transition_status(transitions_json) {
+        return status;
     }
     // Fallback: if we have duration, it was completed; otherwise unknown
     if duration_ms.is_some() {
@@ -1001,6 +993,19 @@ fn derive_status(transitions_json: &Option<String>, duration_ms: Option<i64>) ->
     } else {
         "unknown".to_string()
     }
+}
+
+/// Extrait le statut de la dernière transition de `transitions_json`, ou `None`
+/// si le JSON est absent, vide, invalide, ou sans champ `status` exploitable.
+fn last_transition_status(transitions_json: &Option<String>) -> Option<String> {
+    let json = transitions_json.as_ref()?;
+    if json.is_empty() {
+        return None;
+    }
+    let transitions = serde_json::from_str::<Vec<serde_json::Value>>(json).ok()?;
+    let last = transitions.last()?;
+    let status = last.get("status").and_then(|s| s.as_str())?;
+    Some(status.to_string())
 }
 
 /// Résumé d'une tâche persistée, lue depuis SQLite.

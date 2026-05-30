@@ -1,15 +1,15 @@
 //! Tauri IPC commands for STT (Speech-to-Text) functionality.
 //!
 //! Exposes 9 commands to the Svelte frontend:
-//! - `get_stt_config`         — read STT config from system.db
-//! - `update_stt_config`      — write STT config to system.db
-//! - `get_stt_status`         — query runtime engine status
-//! - `list_transcriptions`    — list transcription history
-//! - `delete_transcription`   — delete a transcription by ID
-//! - `transcribe_file`        — transcribe a WAV file
-//! - `list_stt_models`        — list available .bin model files
-//! - `start_tour_recording`   — begin push-to-talk recording for the guided tour
-//! - `stop_tour_recording`    — stop recording and trigger transcription
+//! - `get_stt_config`         : read STT config from system.db
+//! - `update_stt_config`      : write STT config to system.db
+//! - `get_stt_status`         : query runtime engine status
+//! - `list_transcriptions`    : list transcription history
+//! - `delete_transcription`   : delete a transcription by ID
+//! - `transcribe_file`        : transcribe a WAV file
+//! - `list_stt_models`        : list available .bin model files
+//! - `start_tour_recording`   : begin push-to-talk recording for the guided tour
+//! - `stop_tour_recording`    : stop recording and trigger transcription
 
 use std::io::Cursor;
 use std::sync::Arc;

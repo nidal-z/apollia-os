@@ -1,4 +1,4 @@
-//! BuiltInChatAgent — Rust-native ReAct loop for Chat Libre mode.
+//! BuiltInChatAgent, Rust-native ReAct loop for Chat Libre mode.
 //!
 //! Implements the core reasoning loop: LLM → tool call → approval → result → LLM.
 //! Protected by [`StepBudget`] (Principle #7) and integrated with the HITL
@@ -26,8 +26,8 @@ use apollia_oria::context_manager::ContextManager;
 use apollia_tools::ToolRegistryHandle;
 
 use super::types::{
-    ChatError, ChatMessage, ChatRole, PendingChatApprovals, ToolCallRecord, ToolCallStatus,
-    ToolDecision,
+    ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, PendingChatApprovals, ToolCallRecord,
+    ToolCallStatus, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::chat::a2a_tools::generate_a2a_tool_specs;
@@ -40,8 +40,17 @@ const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 
 // ─────────────────────────────────────────────
-// NativeChatToolInvoker — production tool execution
+// NativeChatToolInvoker, production tool execution
 // ─────────────────────────────────────────────
+
+/// Parameters for attaching HITL filesystem support to a `NativeChatToolInvoker`.
+pub(crate) struct HitlInvokerParams {
+    pub session_id: String,
+    pub event_bus: crate::eventbus::EventBusSender,
+    pub pending_fs: super::types::PendingFilesystemApprovals,
+    pub fs_allow_rules: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    pub risk_config: apollia_core::FilesystemRiskConfig,
+}
 
 /// Production [`ToolInvoker`] that dispatches to native Apollia tools.
 ///
@@ -56,7 +65,7 @@ pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 /// `RiskLevel::Medium` or higher suspend the tool call and wait for user approval
 /// via `HitlFilesystemModal` in the desktop UI.
 pub struct NativeChatToolInvoker {
-    // ADR-096 Phase 4 — the fields below used to back the hardcoded
+    // ADR-096 Phase 4, the fields below used to back the hardcoded
     // `invoke_*` fast path. With the convergence, all tools (including
     // HITL-sensitive ones) flow through `fallback_dispatcher` and the
     // executors carry their own per-session context. The fields are
@@ -148,7 +157,7 @@ impl NativeChatToolInvoker {
     /// covered by the hardcoded native fast path. The fast path stays in
     /// place (Chat Libre keeps inline HITL filesystem semantics for
     /// `file_write` / `file_edit` etc.); the fallback is consulted only
-    /// for unknown names — so MCP, connector, and future-provider tools
+    /// for unknown names, so MCP, connector, and future-provider tools
     /// flow through it uniformly without per-family special cases.
     pub fn with_fallback_dispatcher(mut self, invoker: Arc<dyn ToolInvoker>) -> Self {
         self.fallback_dispatcher = Some(invoker);
@@ -177,19 +186,12 @@ impl NativeChatToolInvoker {
     /// When enabled, write and edit operations are classified by risk level before
     /// execution. Operations at `RiskLevel::Medium` or above are suspended pending
     /// user approval via `HitlFilesystemModal`.
-    pub fn with_hitl_support(
-        mut self,
-        session_id: String,
-        event_bus: crate::eventbus::EventBusSender,
-        pending_fs: super::types::PendingFilesystemApprovals,
-        fs_allow_rules: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
-        risk_config: apollia_core::FilesystemRiskConfig,
-    ) -> Self {
-        self.session_id = Some(session_id);
-        self.event_bus = Some(event_bus);
-        self.pending_fs = Some(pending_fs);
-        self.fs_allow_rules = Some(fs_allow_rules);
-        self.risk_config = risk_config;
+    pub fn with_hitl_support(mut self, params: HitlInvokerParams) -> Self {
+        self.session_id = Some(params.session_id);
+        self.event_bus = Some(params.event_bus);
+        self.pending_fs = Some(params.pending_fs);
+        self.fs_allow_rules = Some(params.fs_allow_rules);
+        self.risk_config = params.risk_config;
         self
     }
 
@@ -199,7 +201,7 @@ impl NativeChatToolInvoker {
     /// Returns `Err(String)` with a human-readable reason if denied.
     /// Awaits user decision if the operation is Medium or above and not in allow rules.
     ///
-    /// ADR-096 Phase 4 — superseded by [`crate::chat::native_wrappers::HitlFilesystemGuard`].
+    /// ADR-096 Phase 4, superseded by [`crate::chat::native_wrappers::HitlFilesystemGuard`].
     #[allow(dead_code)]
     async fn check_fs_hitl(
         &self,
@@ -272,7 +274,7 @@ impl NativeChatToolInvoker {
                 level: rule_level,
             } => {
                 // The current session always stores a local rule regardless of
-                // the requested scope — broader scopes (project, global) are
+                // the requested scope, broader scopes (project, global) are
                 // persisted by the desktop layer before this point is reached.
                 if let Some(ref rules) = self.fs_allow_rules {
                     let mut guard = rules.lock().expect("fs_allow_rules lock poisoned");
@@ -284,7 +286,7 @@ impl NativeChatToolInvoker {
     }
 
     /// Execute `bash_executor` with the given JSON arguments.
-    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(BashExecutor)
+    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(BashExecutor)
     async fn invoke_bash(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::bash_executor::{BashExecutor, BashInput};
 
@@ -317,13 +319,13 @@ impl NativeChatToolInvoker {
         .to_string())
     }
 
-    // `file_read` migrated to the shared ToolDispatcher (ADR-096 Phase 2) —
+    // `file_read` migrated to the shared ToolDispatcher (ADR-096 Phase 2) -
     // the executor is registered by `chat::manager::resolve_workspace_for_session`
     // and reached via `fallback_dispatcher`. No HITL inline → safe to leave
     // the dispatcher's permission engine in charge.
 
     /// Execute `file_write` with the given JSON arguments.
-    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(FileWrite)
+    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(FileWrite)
     async fn invoke_file_write(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
         use apollia_tools::FilesystemOp;
@@ -369,10 +371,10 @@ impl NativeChatToolInvoker {
         Ok(serde_json::json!({"written": true}).to_string())
     }
 
-    // `file_list` migrated — see Phase 2 ADR-096. Reached via fallback dispatcher.
+    // `file_list` migrated, see Phase 2 ADR-096. Reached via fallback dispatcher.
 
     /// Execute `file_edit` with the given JSON arguments.
-    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(FileEdit)
+    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(FileEdit)
     async fn invoke_file_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
         use apollia_tools::FilesystemOp;
@@ -408,14 +410,14 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 
-    // `file_glob` + `file_grep` migrated — see Phase 2 ADR-096.
+    // `file_glob` + `file_grep` migrated, see Phase 2 ADR-096.
     // Both reached via fallback dispatcher.
 
     /// Execute `http_fetch` with the given JSON arguments.
     ///
     /// In libre chat mode, the URL's hostname is dynamically added to the allowlist
     /// since the user explicitly enabled this tool and tool calls are HITL-approved.
-    #[allow(dead_code)] // ADR-096 P4 — replaced by DynamicAllowlistHttpFetch
+    #[allow(dead_code)] // ADR-096 P4, replaced by DynamicAllowlistHttpFetch
     async fn invoke_http_fetch(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::http_fetch::{HttpFetch, HttpFetchInput};
 
@@ -434,8 +436,8 @@ impl NativeChatToolInvoker {
     ///
     /// Runs Python code in a dedicated `chat-libre` virtualenv at
     /// `~/.apollia/venvs/chat-libre/venv/`. The venv is lazily created on first
-    /// invocation — no packages are pre-installed (the LLM can only use stdlib).
-    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(PythonExecutor)
+    /// invocation, no packages are pre-installed (the LLM can only use stdlib).
+    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(PythonExecutor)
     async fn invoke_python(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::python_executor::{PythonExecutor, PythonInput};
 
@@ -446,7 +448,7 @@ impl NativeChatToolInvoker {
             .join("venvs");
         let executor = PythonExecutor::new("chat-libre", &venv_base).map_err(|e| e.to_string())?;
 
-        // Lazily set up the venv on first call (idempotent — skips if already exists).
+        // Lazily set up the venv on first call (idempotent, skips if already exists).
         executor
             .setup_venv(&[])
             .await
@@ -480,8 +482,8 @@ impl NativeChatToolInvoker {
     ///
     /// Searches the user's local memory store (`~/.apollia/memory/user.db`) using
     /// FTS5 full-text search. The namespace is fixed to `"user"` in chat libre mode
-    /// — agents have their own namespaced databases.
-    #[allow(dead_code)] // ADR-096 P4 — dispatcher MemorySearchTool with per-session namespace
+    ///, agents have their own namespaced databases.
+    #[allow(dead_code)] // ADR-096 P4, dispatcher MemorySearchTool with per-session namespace
     async fn invoke_memory_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::memory_search::{MemorySearchInput, MemorySearchTool};
 
@@ -497,13 +499,13 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 
-    // `notebook_read` migrated — see Phase 2 ADR-096.
+    // `notebook_read` migrated, see Phase 2 ADR-096.
 
     /// Execute `notebook_edit` with the given JSON arguments.
     ///
     /// Applies a sequence of atomic cell operations to a Jupyter `.ipynb` notebook,
     /// writing the modified notebook back to disk. Only nbformat v4 is supported.
-    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(NotebookEdit)
+    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(NotebookEdit)
     async fn invoke_notebook_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::notebook_edit::{NotebookEdit, NotebookEditInput};
 
@@ -518,7 +520,7 @@ impl NativeChatToolInvoker {
     ///
     /// Posts the questions to the [`PendingUserInputs`] registry and blocks until
     /// the UI delivers the answers through the oneshot channel.
-    #[allow(dead_code)] // ADR-096 P4 — AskUserExecutor in dispatcher with session_id
+    #[allow(dead_code)] // ADR-096 P4, AskUserExecutor in dispatcher with session_id
     async fn invoke_ask_user(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::ask_user::AskUserExecutor;
 
@@ -539,7 +541,7 @@ impl NativeChatToolInvoker {
     }
 
     // `web_search` + `web_read` migrated to the shared ToolDispatcher in
-    // ADR-096 Phase 3 — see `chat::manager::resolve_workspace_for_session`
+    // ADR-096 Phase 3, see `chat::manager::resolve_workspace_for_session`
     // for the executor wiring. The dispatcher reads the operator's Brave
     // key + `apollia.toml` web cfg, so Chat Libre, Agent mode and Triggers
     // now share the same backend priority and SSRF settings.
@@ -552,7 +554,7 @@ impl ToolInvoker for NativeChatToolInvoker {
         tool_name: &str,
         arguments: &serde_json::Value,
     ) -> Result<String, String> {
-        // ADR-096 Phase 4 — full convergence. Every native goes through
+        // ADR-096 Phase 4, full convergence. Every native goes through
         // the `fallback_dispatcher`: HITL-sensitive ones wrapped in
         // `HitlFilesystemGuard`, `http_fetch` via `DynamicAllowlistHttpFetch`,
         // everything else as stock executors. No fast path, no special
@@ -659,9 +661,19 @@ pub struct ChatAgentResponse {
     pub thinking_trace: Option<String>,
 }
 
+/// Dependencies required to construct a [`BuiltInChatAgent`].
+pub struct BuiltInChatAgentDeps {
+    pub llm_router: Arc<LlmRouter>,
+    pub tool_registry: ToolRegistryHandle,
+    pub tool_invoker: Arc<dyn ToolInvoker>,
+    pub event_bus: EventBusSender,
+    pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    pub a2a_invoker: Option<Arc<A2AInvoker>>,
+}
+
 /// Rust-native chat agent implementing a ReAct loop for Chat Libre mode.
 ///
-/// Stateless — all mutable state is passed as parameters to [`execute`](Self::execute).
+/// Stateless, all mutable state is passed as parameters to [`execute`](Self::execute).
 /// Tool execution is delegated to a [`ToolInvoker`] (ADR-015 pattern).
 pub struct BuiltInChatAgent {
     /// LLM router for completion calls.
@@ -676,10 +688,10 @@ pub struct BuiltInChatAgent {
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Optional A2A invoker for discovering worker agent skills as virtual tools.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Gestionnaire de fenêtre de contexte — compacte `llm_messages` dans la boucle ReAct
+    /// Gestionnaire de fenêtre de contexte, compacte `llm_messages` dans la boucle ReAct
     /// quand les messages accumulés dépassent le seuil de la fenêtre du modèle.
     context_manager: ContextManager,
-    /// Handle optionnel vers le `MetaLlmOrchestrator` — utilisé pour produire la
+    /// Handle optionnel vers le `MetaLlmOrchestrator`, utilisé pour produire la
     /// `ToolCallRationale` narrée avant chaque exécution d'outil.
     /// Absent par défaut pour compatibilité descendante ; injecté par le manager
     /// lorsque le master-toggle "Explain tool calls" est actif.
@@ -689,23 +701,66 @@ pub struct BuiltInChatAgent {
     workspace_path: Option<std::path::PathBuf>,
 }
 
+/// Mutable accumulators threaded through one ReAct turn's tool-call handling.
+struct ReactAccumulators {
+    all_tool_calls: Vec<ToolCallRecord>,
+    newly_authorized: Vec<String>,
+    authorized: HashSet<String>,
+}
+
+/// Owned/borrowed state needed to build the terminal [`ChatAgentResponse`]
+/// (final text or stream-error path).
+struct ResponseContext<'a> {
+    acc: ReactAccumulators,
+    total_usage: TokenUsage,
+    session_id: &'a str,
+    message_id: &'a str,
+}
+
+/// Borrowed context for processing a single tool call inside the ReAct loop.
+struct ToolCallContext<'a> {
+    session_id: &'a str,
+    message_id: &'a str,
+    call: &'a ToolCall,
+    pending_approvals: &'a PendingChatApprovals,
+}
+
+/// Borrowed identifiers shared by every tool call in a single ReAct turn
+/// (the per-call [`ToolCall`] is supplied separately while iterating).
+struct ToolCallContextIds<'a> {
+    session_id: &'a str,
+    message_id: &'a str,
+    pending_approvals: &'a PendingChatApprovals,
+}
+
+/// Borrowed read-only inputs for [`BuiltInChatAgent::record_tool_turn`]:
+/// the raw LLM output, the parsed tool calls, the step budget, and the
+/// per-turn identifiers. The mutable accumulators are passed separately.
+struct RecordTurnInput<'a> {
+    accumulated_text: &'a str,
+    tool_calls: &'a [ToolCall],
+    budget: &'a StepBudget,
+    ids: ToolCallContextIds<'a>,
+}
+
+/// Borrowed identifiers locating a single tool call being executed
+/// (session + message scope plus the call itself).
+struct ToolExecTarget<'a> {
+    session_id: &'a str,
+    message_id: &'a str,
+    call: &'a ToolCall,
+}
+
 impl BuiltInChatAgent {
     /// Create a new agent with the given dependencies.
-    pub fn new(
-        llm_router: Arc<LlmRouter>,
-        tool_registry: ToolRegistryHandle,
-        tool_invoker: Arc<dyn ToolInvoker>,
-        event_bus: EventBusSender,
-        user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
-        a2a_invoker: Option<Arc<A2AInvoker>>,
-    ) -> Self {
+    pub fn new(deps: BuiltInChatAgentDeps) -> Self {
         Self {
-            llm_router,
-            tool_registry,
-            tool_invoker,
-            event_bus,
-            user_memory,
-            a2a_invoker,
+            llm_router: deps.llm_router,
+            tool_registry: deps.tool_registry,
+            tool_invoker: deps.tool_invoker,
+            event_bus: deps.event_bus,
+            user_memory: deps.user_memory,
+            a2a_invoker: deps.a2a_invoker,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
             meta_handle: None,
             workspace_path: None,
@@ -746,7 +801,7 @@ impl BuiltInChatAgent {
                         );
                         prompt.push_str(&block);
                     }
-                    Ok(_) => {} // empty — nothing to inject
+                    Ok(_) => {} // empty, nothing to inject
                     Err(e) => {
                         warn!(error = %e, "Failed to read user memory for injection, skipping");
                     }
@@ -811,20 +866,22 @@ impl BuiltInChatAgent {
             summary,
             context_window_size,
         );
-        let mut all_tool_calls: Vec<ToolCallRecord> = Vec::new();
-        let mut newly_authorized: Vec<String> = Vec::new();
         let total_usage = TokenUsage {
             prompt_tokens: 0,
             completion_tokens: 0,
             cost_usd: None,
             ..Default::default()
         };
-        let mut authorized = authorized_tools.clone();
+        let mut acc = ReactAccumulators {
+            all_tool_calls: Vec::new(),
+            newly_authorized: Vec::new(),
+            authorized: authorized_tools.clone(),
+        };
         let obs = ObservabilityConfig::default();
         let mut reasoning_fragments: Vec<String> = Vec::new();
 
         loop {
-            // Principle #7 — budget check before every LLM call
+            // Principle #7, budget check before every LLM call
             if budget.is_exhausted() {
                 let reason = budget
                     .exhaustion_reason()
@@ -839,30 +896,7 @@ impl BuiltInChatAgent {
             budget.increment_steps();
 
             // Compact context if messages approach the model's context limit.
-            let (compacted, was_compacted) = self
-                .context_manager
-                .maybe_compact(&llm_messages, &self.llm_router)
-                .await;
-            if was_compacted {
-                let summary_chars = compacted
-                    .get(1)
-                    .map(apollia_oria::context_manager::message_char_len)
-                    .unwrap_or(0);
-                let original_messages = llm_messages.len();
-                llm_messages = compacted;
-                tracing::info!(
-                    summary_chars,
-                    original_messages,
-                    session_id = %session_id,
-                    "ReAct context compacted before LLM call"
-                );
-                let _ = self
-                    .event_bus
-                    .send(apollia_core::RuntimeEvent::ContextCompacted {
-                        summary_chars,
-                        original_messages,
-                    });
-            }
+            self.maybe_compact_context(&mut llm_messages, session_id).await;
 
             let request = CompletionRequest {
                 messages: llm_messages.clone(),
@@ -890,178 +924,229 @@ impl BuiltInChatAgent {
                 .await;
 
             match stream_result {
-                Ok(tool_calls) => {
-                    if tool_calls.is_empty() {
-                        // Extract thinking trace before stripping.
-                        let final_thinking = Self::extract_think_blocks(&accumulated_text);
-                        let clean = Self::strip_think_blocks(&accumulated_text);
-                        let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
-                            session_id: session_id.to_string(),
-                            message_id: message_id.to_string(),
-                            content: clean.clone(),
-                        });
-
-                        // Combine accumulated reasoning fragments with final thinking.
-                        if let Some(ft) = &final_thinking {
-                            reasoning_fragments.push(ft.clone());
-                        }
-                        let thinking_trace = if reasoning_fragments.is_empty() {
-                            None
-                        } else {
-                            Some(reasoning_fragments.join("\n\n---\n\n"))
-                        };
-
-                        tracing::info!(
-                            fragment_count = reasoning_fragments.len(),
-                            has_trace = thinking_trace.is_some(),
-                            trace_len = thinking_trace.as_ref().map(|t| t.len()).unwrap_or(0),
-                            session_id = %session_id,
-                            "ReAct complete: thinking_trace summary"
-                        );
-
-                        return Ok(ChatAgentResponse {
-                            content: clean,
-                            tool_calls: all_tool_calls,
-                            newly_authorized,
-                            tokens_used: total_usage,
-                            thinking_trace,
-                        });
-                    }
-
-                    // Capture reasoning text emitted before tool calls.
-                    let clean_reasoning = Self::strip_think_blocks(&accumulated_text);
-                    let reasoning_with_think = Self::extract_think_blocks(&accumulated_text);
-                    let reasoning_text =
-                        reasoning_with_think.unwrap_or_else(|| clean_reasoning.clone());
-                    tracing::info!(
-                        accumulated_len = accumulated_text.len(),
-                        reasoning_len = reasoning_text.trim().len(),
-                        tool_count = tool_calls.len(),
-                        session_id = %session_id,
-                        "ReAct turn: captured reasoning before tool calls"
-                    );
-                    if !reasoning_text.trim().is_empty() {
-                        reasoning_fragments.push(reasoning_text.trim().to_string());
-                    }
-
-                    // Strip think blocks before re-injecting into the LLM context
-                    // so reasoning tokens don't pollute future turns.
-                    let clean_for_context = clean_reasoning;
-                    llm_messages.push(LlmChatMessage::assistant_with_calls(
-                        &clean_for_context,
-                        &tool_calls,
+                Ok(tool_calls) if tool_calls.is_empty() => {
+                    return Ok(self.finalize_text_response(
+                        &accumulated_text,
+                        &mut reasoning_fragments,
+                        ResponseContext {
+                            acc,
+                            total_usage,
+                            session_id,
+                            message_id,
+                        },
                     ));
-
-                    for call in &tool_calls {
-                        budget.increment_tool_calls();
-
-                        if authorized.contains(&call.name) {
-                            let (record, tool_result) =
-                                self.execute_tool_call(session_id, message_id, call).await;
-                            llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
-                            all_tool_calls.push(record);
-                        } else {
-                            // HITL approval
-                            let key = format!("{session_id}::{message_id}::{}", call.name);
-                            let input_preview = truncate_preview(
-                                &serde_json::to_string(&call.arguments).unwrap_or_default(),
-                            );
-
-                            let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
-                                session_id: session_id.to_string(),
-                                message_id: message_id.to_string(),
-                                tool_name: call.name.clone(),
-                                prompt: format!(
-                                    "L'outil '{}' demande à être exécuté avec: {}",
-                                    call.name, input_preview
-                                ),
-                            });
-
-                            let rx = pending_approvals.register(key.clone());
-                            pending_approvals.start_timeout(
-                                key,
-                                CHAT_APPROVAL_TIMEOUT,
-                                self.event_bus.clone(),
-                                session_id.to_string(),
-                                message_id.to_string(),
-                                call.name.clone(),
-                            );
-                            let decision = rx.await.unwrap_or(ToolDecision::refuse());
-
-                            match decision {
-                                ToolDecision::Accept => {
-                                    let (record, tool_result) =
-                                        self.execute_tool_call(session_id, message_id, call).await;
-                                    llm_messages
-                                        .push(LlmChatMessage::tool_result(&call.id, &tool_result));
-                                    all_tool_calls.push(record);
-                                }
-                                ToolDecision::AlwaysAccept { .. } => {
-                                    authorized.insert(call.name.clone());
-                                    newly_authorized.push(call.name.clone());
-                                    let (record, tool_result) =
-                                        self.execute_tool_call(session_id, message_id, call).await;
-                                    llm_messages
-                                        .push(LlmChatMessage::tool_result(&call.id, &tool_result));
-                                    all_tool_calls.push(record);
-                                }
-                                ToolDecision::Refuse { reason } => {
-                                    // The reason carries the operator's intent
-                                    // (e.g. "wrong directory") — surface it to
-                                    // the LLM so it can correct course on the
-                                    // next iteration instead of retrying blind.
-                                    let refusal = match &reason {
-                                        Some(r) => {
-                                            format!("Outil refusé par l'utilisateur. Raison : {r}")
-                                        }
-                                        None => "Outil refusé par l'utilisateur".to_string(),
-                                    };
-                                    llm_messages
-                                        .push(LlmChatMessage::tool_result(&call.id, &refusal));
-                                    all_tool_calls.push(ToolCallRecord {
-                                        tool_name: call.name.clone(),
-                                        input: call.arguments.clone(),
-                                        output: Some(refusal),
-                                        status: ToolCallStatus::Refused,
-                                        rationale: None,
-                                        retry_attempts: Vec::new(),
-                                    });
-                                }
-                            }
-                        }
-                    }
+                }
+                Ok(tool_calls) => {
+                    self.record_tool_turn(
+                        RecordTurnInput {
+                            accumulated_text: &accumulated_text,
+                            tool_calls: &tool_calls,
+                            budget,
+                            ids: ToolCallContextIds {
+                                session_id,
+                                message_id,
+                                pending_approvals,
+                            },
+                        },
+                        &mut reasoning_fragments,
+                        &mut llm_messages,
+                        &mut acc,
+                    )
+                    .await;
                 }
                 Err(err) => {
-                    // Stream interrupted: emit ChatError, return partial content
-                    let _ = self.event_bus.send(RuntimeEvent::ChatError {
-                        session_id: session_id.to_string(),
-                        message_id: Some(message_id.to_string()),
-                        error: err.clone(),
-                    });
-
-                    // Return partial content so the caller can save what was received
-                    let content = if accumulated_text.is_empty() {
-                        format!("[erreur streaming : {err}]")
-                    } else {
-                        accumulated_text
-                    };
-
-                    let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
-                        session_id: session_id.to_string(),
-                        message_id: message_id.to_string(),
-                        content: content.clone(),
-                    });
-
-                    return Ok(ChatAgentResponse {
-                        content,
-                        tool_calls: all_tool_calls,
-                        newly_authorized,
-                        tokens_used: total_usage,
-                        thinking_trace: None,
-                    });
+                    return Ok(self.stream_error_response(
+                        err,
+                        accumulated_text,
+                        ResponseContext {
+                            acc,
+                            total_usage,
+                            session_id,
+                            message_id,
+                        },
+                    ));
                 }
             }
         }
+    }
+
+    /// Build the final [`ChatAgentResponse`] when the LLM produced no tool calls.
+    ///
+    /// Combines the accumulated reasoning fragments with the final thinking
+    /// trace and emits [`RuntimeEvent::ChatResponseCompleted`].
+    fn finalize_text_response(
+        &self,
+        accumulated_text: &str,
+        reasoning_fragments: &mut Vec<String>,
+        ctx: ResponseContext<'_>,
+    ) -> ChatAgentResponse {
+        let ResponseContext {
+            acc,
+            total_usage,
+            session_id,
+            message_id,
+        } = ctx;
+        // Extract thinking trace before stripping.
+        let final_thinking = Self::extract_think_blocks(accumulated_text);
+        let clean = Self::strip_think_blocks(accumulated_text);
+        let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            content: clean.clone(),
+        });
+
+        // Combine accumulated reasoning fragments with final thinking.
+        if let Some(ft) = &final_thinking {
+            reasoning_fragments.push(ft.clone());
+        }
+        let thinking_trace = if reasoning_fragments.is_empty() {
+            None
+        } else {
+            Some(reasoning_fragments.join("\n\n---\n\n"))
+        };
+
+        tracing::info!(
+            fragment_count = reasoning_fragments.len(),
+            has_trace = thinking_trace.is_some(),
+            trace_len = thinking_trace.as_ref().map(|t| t.len()).unwrap_or(0),
+            session_id = %session_id,
+            "ReAct complete: thinking_trace summary"
+        );
+
+        ChatAgentResponse {
+            content: clean,
+            tool_calls: acc.all_tool_calls,
+            newly_authorized: acc.newly_authorized,
+            tokens_used: total_usage,
+            thinking_trace,
+        }
+    }
+
+    /// Record one ReAct turn that produced tool calls: capture reasoning,
+    /// append the assistant message, and dispatch each tool call.
+    async fn record_tool_turn(
+        &self,
+        input: RecordTurnInput<'_>,
+        reasoning_fragments: &mut Vec<String>,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+    ) {
+        let RecordTurnInput {
+            accumulated_text,
+            tool_calls,
+            budget,
+            ids,
+        } = input;
+        // Capture reasoning text emitted before tool calls.
+        let clean_reasoning = Self::strip_think_blocks(accumulated_text);
+        let reasoning_with_think = Self::extract_think_blocks(accumulated_text);
+        let reasoning_text = reasoning_with_think.unwrap_or_else(|| clean_reasoning.clone());
+        tracing::info!(
+            accumulated_len = accumulated_text.len(),
+            reasoning_len = reasoning_text.trim().len(),
+            tool_count = tool_calls.len(),
+            session_id = %ids.session_id,
+            "ReAct turn: captured reasoning before tool calls"
+        );
+        if !reasoning_text.trim().is_empty() {
+            reasoning_fragments.push(reasoning_text.trim().to_string());
+        }
+
+        // Strip think blocks before re-injecting into the LLM context
+        // so reasoning tokens don't pollute future turns.
+        let clean_for_context = clean_reasoning;
+        llm_messages.push(LlmChatMessage::assistant_with_calls(
+            &clean_for_context,
+            tool_calls,
+        ));
+
+        for call in tool_calls {
+            budget.increment_tool_calls();
+            self.process_tool_call(
+                ToolCallContext {
+                    session_id: ids.session_id,
+                    message_id: ids.message_id,
+                    call,
+                    pending_approvals: ids.pending_approvals,
+                },
+                llm_messages,
+                acc,
+            )
+            .await;
+        }
+    }
+
+    /// Build the partial [`ChatAgentResponse`] returned when the stream was
+    /// interrupted, emitting [`RuntimeEvent::ChatError`] and the completion event.
+    fn stream_error_response(
+        &self,
+        err: String,
+        accumulated_text: String,
+        ctx: ResponseContext<'_>,
+    ) -> ChatAgentResponse {
+        let ResponseContext {
+            acc,
+            total_usage,
+            session_id,
+            message_id,
+        } = ctx;
+        // Stream interrupted: emit ChatError, return partial content
+        let _ = self.event_bus.send(RuntimeEvent::ChatError {
+            session_id: session_id.to_string(),
+            message_id: Some(message_id.to_string()),
+            error: err.clone(),
+        });
+
+        // Return partial content so the caller can save what was received
+        let content = if accumulated_text.is_empty() {
+            format!("[erreur streaming : {err}]")
+        } else {
+            accumulated_text
+        };
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            content: content.clone(),
+        });
+
+        ChatAgentResponse {
+            content,
+            tool_calls: acc.all_tool_calls,
+            newly_authorized: acc.newly_authorized,
+            tokens_used: total_usage,
+            thinking_trace: None,
+        }
+    }
+
+    /// Compact the LLM message buffer in place when it approaches the context
+    /// limit, emitting [`RuntimeEvent::ContextCompacted`] on success.
+    async fn maybe_compact_context(&self, llm_messages: &mut Vec<LlmChatMessage>, session_id: &str) {
+        let (compacted, was_compacted) = self
+            .context_manager
+            .maybe_compact(llm_messages, &self.llm_router)
+            .await;
+        if !was_compacted {
+            return;
+        }
+        let summary_chars = compacted
+            .get(1)
+            .map(apollia_oria::context_manager::message_char_len)
+            .unwrap_or(0);
+        let original_messages = llm_messages.len();
+        *llm_messages = compacted;
+        tracing::info!(
+            summary_chars,
+            original_messages,
+            session_id = %session_id,
+            "ReAct context compacted before LLM call"
+        );
+        let _ = self
+            .event_bus
+            .send(apollia_core::RuntimeEvent::ContextCompacted {
+                summary_chars,
+                original_messages,
+            });
     }
 
     /// Consume a token stream, emitting [`RuntimeEvent::ChatToken`] for each token
@@ -1199,7 +1284,7 @@ impl BuiltInChatAgent {
                 }
                 cursor = after_open + end + tag_close.len();
             } else {
-                // Unclosed <think> tag — capture remaining as partial thinking.
+                // Unclosed <think> tag, capture remaining as partial thinking.
                 let block = text[after_open..].trim();
                 if !block.is_empty() {
                     blocks.push(block.to_string());
@@ -1232,7 +1317,7 @@ impl BuiltInChatAgent {
             if let Some(end) = text[after_open..].find(tag_close) {
                 cursor = after_open + end + tag_close.len();
             } else {
-                // Unclosed <think> tag — discard everything after it.
+                // Unclosed <think> tag, discard everything after it.
                 break;
             }
         }
@@ -1253,7 +1338,7 @@ impl BuiltInChatAgent {
             if let Some(end) = text[after_open..].find(tag_close) {
                 cursor = after_open + end + tag_close.len();
             } else {
-                // No closing tag — keep the rest as-is
+                // No closing tag, keep the rest as-is
                 cursor += start;
                 break;
             }
@@ -1290,7 +1375,7 @@ impl BuiltInChatAgent {
         }
 
         // Success path: only flag if heuristic fires (no schema validators
-        // wired up yet — that comes with / per-tool registry).
+        // wired up yet, that comes with / per-tool registry).
         let report = detect_hallucination(output, None);
         if report.is_suspect() {
             Some(analysis_from_report(&report, output))
@@ -1300,6 +1385,117 @@ impl BuiltInChatAgent {
     }
 
     /// Execute a single tool call via the [`ToolInvoker`], emitting events.
+    /// Process one tool call: run it directly when authorized, otherwise go
+    /// through the HITL approval flow. Mutates `llm_messages` and `acc`.
+    async fn process_tool_call(
+        &self,
+        ctx: ToolCallContext<'_>,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+    ) {
+        let ToolCallContext {
+            session_id,
+            message_id,
+            call,
+            pending_approvals,
+        } = ctx;
+
+        if acc.authorized.contains(&call.name) {
+            let (record, tool_result) =
+                self.execute_tool_call(session_id, message_id, call).await;
+            llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+            acc.all_tool_calls.push(record);
+            return;
+        }
+
+        // HITL approval
+        let key = format!("{session_id}::{message_id}::{}", call.name);
+        let input_preview =
+            truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            tool_name: call.name.clone(),
+            prompt: format!(
+                "L'outil '{}' demande à être exécuté avec: {}",
+                call.name, input_preview
+            ),
+        });
+
+        let rx = pending_approvals.register(key.clone());
+        pending_approvals.start_timeout(ApprovalTimeoutParams {
+            key,
+            duration: CHAT_APPROVAL_TIMEOUT,
+            event_bus: self.event_bus.clone(),
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            tool_name: call.name.clone(),
+        });
+        let decision = rx.await.unwrap_or(ToolDecision::refuse());
+
+        self.apply_tool_decision(
+            ToolExecTarget {
+                session_id,
+                message_id,
+                call,
+            },
+            decision,
+            llm_messages,
+            acc,
+        )
+        .await;
+    }
+
+    /// Apply the operator's HITL decision for an unauthorized tool call.
+    async fn apply_tool_decision(
+        &self,
+        target: ToolExecTarget<'_>,
+        decision: ToolDecision,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+    ) {
+        let ToolExecTarget {
+            session_id,
+            message_id,
+            call,
+        } = target;
+        match decision {
+            ToolDecision::Accept => {
+                let (record, tool_result) =
+                    self.execute_tool_call(session_id, message_id, call).await;
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                acc.all_tool_calls.push(record);
+            }
+            ToolDecision::AlwaysAccept { .. } => {
+                acc.authorized.insert(call.name.clone());
+                acc.newly_authorized.push(call.name.clone());
+                let (record, tool_result) =
+                    self.execute_tool_call(session_id, message_id, call).await;
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                acc.all_tool_calls.push(record);
+            }
+            ToolDecision::Refuse { reason } => {
+                // The reason carries the operator's intent (e.g. "wrong
+                // directory"), surface it to the LLM so it can correct course
+                // on the next iteration instead of retrying blind.
+                let refusal = match &reason {
+                    Some(r) => format!("Outil refusé par l'utilisateur. Raison : {r}"),
+                    None => "Outil refusé par l'utilisateur".to_string(),
+                };
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &refusal));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(refusal),
+                    status: ToolCallStatus::Refused,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+            }
+        }
+    }
+
     async fn execute_tool_call(
         &self,
         session_id: &str,
@@ -1435,7 +1631,7 @@ fn build_llm_messages(
                 messages.push(LlmChatMessage::tool_result(call_id, &msg.content));
             }
             ChatRole::System => {
-                // System messages from history are skipped — we already have the prompt
+                // System messages from history are skipped, we already have the prompt
             }
         }
     }
@@ -1519,44 +1715,8 @@ fn truncate_tool_output(s: &str) -> String {
     }
 
     // Try to parse as the JSON shape returned by bash_executor / file_io
-    if let Ok(mut val) = serde_json::from_str::<serde_json::Value>(s) {
-        if let Some(stdout) = val.get("stdout").and_then(|v| v.as_str()).map(String::from) {
-            let lines: Vec<&str> = stdout.lines().collect();
-            let total_lines = lines.len();
-
-            // Partition: user-space lines first, then the rest
-            let home = std::env::var("HOME").unwrap_or_default();
-            let (user_lines, system_lines): (Vec<&str>, Vec<&str>) = if home.is_empty() {
-                (lines.clone(), Vec::new())
-            } else {
-                lines.iter().partition(|l| l.starts_with(&home))
-            };
-
-            // Build compact output: user lines have priority, fill remaining budget
-            let mut kept = Vec::new();
-            let mut budget = TOOL_OUTPUT_MAX_LEN / 2; // reserve half for JSON overhead + notice
-            for line in user_lines.iter().chain(system_lines.iter()) {
-                if line.len() + 1 > budget {
-                    break;
-                }
-                budget -= line.len() + 1;
-                kept.push(*line);
-            }
-
-            let compact_stdout = kept.join("\n");
-            val["stdout"] = serde_json::Value::String(compact_stdout);
-
-            let result = val.to_string();
-            if kept.len() < total_lines {
-                return format!(
-                    "{result}\n\n[Output filtered — showing {kept}/{total} lines, \
-                     user paths prioritized. Refine the command for more precise results.]",
-                    kept = kept.len(),
-                    total = total_lines,
-                );
-            }
-            return result;
-        }
+    if let Some(compacted) = compact_json_stdout(s) {
+        return compacted;
     }
 
     // Fallback: raw truncation
@@ -1566,6 +1726,49 @@ fn truncate_tool_output(s: &str) -> String {
          Refine the command to produce less output.]",
         total = s.len()
     )
+}
+
+/// Compact the `stdout` field of a JSON tool result, prioritizing user-space
+/// lines. Returns `None` when `s` is not the expected JSON shape.
+fn compact_json_stdout(s: &str) -> Option<String> {
+    let mut val = serde_json::from_str::<serde_json::Value>(s).ok()?;
+    let stdout = val.get("stdout").and_then(|v| v.as_str()).map(String::from)?;
+
+    let lines: Vec<&str> = stdout.lines().collect();
+    let total_lines = lines.len();
+
+    // Partition: user-space lines first, then the rest
+    let home = std::env::var("HOME").unwrap_or_default();
+    let (user_lines, system_lines): (Vec<&str>, Vec<&str>) = if home.is_empty() {
+        (lines.clone(), Vec::new())
+    } else {
+        lines.iter().partition(|l| l.starts_with(&home))
+    };
+
+    // Build compact output: user lines have priority, fill remaining budget
+    let mut kept = Vec::new();
+    let mut budget = TOOL_OUTPUT_MAX_LEN / 2; // reserve half for JSON overhead + notice
+    for line in user_lines.iter().chain(system_lines.iter()) {
+        if line.len() + 1 > budget {
+            break;
+        }
+        budget -= line.len() + 1;
+        kept.push(*line);
+    }
+
+    let compact_stdout = kept.join("\n");
+    val["stdout"] = serde_json::Value::String(compact_stdout);
+
+    let result = val.to_string();
+    if kept.len() < total_lines {
+        return Some(format!(
+            "{result}\n\n[Output filtered — showing {kept}/{total} lines, \
+             user paths prioritized. Refine the command for more precise results.]",
+            kept = kept.len(),
+            total = total_lines,
+        ));
+    }
+    Some(result)
 }
 
 /// Truncate a string to `max_len` characters at a valid UTF-8 boundary.
@@ -1882,14 +2085,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(
-            router,
-            tool_registry.clone(),
-            invoker,
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
             event_bus,
-            None,
-            None,
-        );
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1937,14 +2140,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("hello\n"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(
-            router,
-            tool_registry.clone(),
-            invoker,
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
             event_bus,
-            None,
-            None,
-        );
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1996,14 +2199,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(
-            router,
-            tool_registry.clone(),
-            invoker,
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
             event_bus,
-            None,
-            None,
-        );
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2062,14 +2265,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("unused"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(
-            router,
-            tool_registry.clone(),
-            invoker,
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
             event_bus,
-            None,
-            None,
-        );
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2130,14 +2333,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(
-            router,
-            tool_registry.clone(),
-            invoker,
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
             event_bus,
-            None,
-            None,
-        );
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2186,21 +2389,21 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(
-            router,
-            tool_registry.clone(),
-            invoker,
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
             event_bus,
-            None,
-            None,
-        );
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(1);
         let mut authorized = HashSet::new();
         authorized.insert("bash_executor".to_string());
         let approvals = PendingChatApprovals::new();
 
-        // WHEN execute — first iteration uses the budget, second checks and fails
+        // WHEN execute, first iteration uses the budget, second checks and fails
         let result = agent
             .execute(
                 "sess-1",
@@ -2299,7 +2502,14 @@ mod tests {
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("output"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
         let agent =
-            BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None, None);
+            BuiltInChatAgent::new(BuiltInChatAgentDeps {
+                llm_router: router,
+                tool_registry: tool_registry.clone(),
+                tool_invoker: invoker,
+                event_bus: event_tx,
+                user_memory: None,
+                a2a_invoker: None,
+            });
 
         let budget = make_budget(10);
         let mut authorized = HashSet::new();
@@ -2400,7 +2610,14 @@ mod tests {
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
         let agent =
-            BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None, None);
+            BuiltInChatAgent::new(BuiltInChatAgentDeps {
+                llm_router: router,
+                tool_registry: tool_registry.clone(),
+                tool_invoker: invoker,
+                event_bus: event_tx,
+                user_memory: None,
+                a2a_invoker: None,
+            });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2448,14 +2665,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(
-            router,
-            tool_registry.clone(),
-            invoker,
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
             event_bus,
-            None,
-            None,
-        );
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2539,7 +2756,14 @@ mod tests {
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
         let agent =
-            BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None, None);
+            BuiltInChatAgent::new(BuiltInChatAgentDeps {
+                llm_router: router,
+                tool_registry: tool_registry.clone(),
+                tool_invoker: invoker,
+                event_bus: event_tx,
+                user_memory: None,
+                a2a_invoker: None,
+            });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2650,7 +2874,14 @@ mod tests {
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
         let agent =
-            BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None, None);
+            BuiltInChatAgent::new(BuiltInChatAgentDeps {
+                llm_router: router,
+                tool_registry: tool_registry.clone(),
+                tool_invoker: invoker,
+                event_bus: event_tx,
+                user_memory: None,
+                a2a_invoker: None,
+            });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2707,7 +2938,7 @@ mod tests {
         let repo = UserMemoryRepository::new(&db_path).expect("open user memory db");
 
         // Categories from the legacy `(category, key, value)` test fixtures
-        // are ignored — storage is flat under ADR-087.
+        // are ignored, storage is flat under ADR-087.
         for (_category, key, value) in entries {
             repo.set(key, value, WrittenBy::User).expect("set entry");
         }
@@ -2728,13 +2959,20 @@ mod tests {
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
         let agent =
-            BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, Some(repo), None);
+            BuiltInChatAgent::new(BuiltInChatAgentDeps {
+                llm_router: router,
+                tool_registry,
+                tool_invoker: invoker,
+                event_bus,
+                user_memory: Some(repo),
+                a2a_invoker: None,
+            });
 
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
 
         // THEN the prompt opens with the authoritative environment block
-        // (ADR-096 Step 0 — temporal context now leads the prompt) and
+        // (ADR-096 Step 0, temporal context now leads the prompt) and
         // still carries the base prompt + user persona section.
         assert!(prompt.starts_with("## CURRENT ENVIRONMENT"));
         assert!(prompt.contains("Base prompt."));
@@ -2753,7 +2991,14 @@ mod tests {
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
         let agent =
-            BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, Some(repo), None);
+            BuiltInChatAgent::new(BuiltInChatAgentDeps {
+                llm_router: router,
+                tool_registry,
+                tool_invoker: invoker,
+                event_bus,
+                user_memory: Some(repo),
+                a2a_invoker: None,
+            });
 
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
@@ -2769,7 +3014,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, None, None);
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry,
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");

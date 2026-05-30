@@ -1,38 +1,38 @@
-//! Types fondamentaux du système de triggers d'Apollia OS.
+//! Core types for the Apollia OS trigger system.
 //!
-//! Ce module définit le contrat stable utilisé par `TriggerEngine` et toutes les
-//! sources de déclenchement. Aucune logique d'acteur ici — uniquement les types,
-//! erreurs de validation, et la substitution de template.
+//! This module defines the stable contract used by `TriggerEngine` and every
+//! trigger source. No actor logic here: only the types, validation errors, and
+//! template substitution.
 
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Identifiant unique d'un trigger (chaîne non vide).
+/// Unique identifier for a trigger (non-empty string).
 pub type TriggerId = String;
 
-/// Définition complète d'un trigger telle que parsée depuis `apollia.toml`.
+/// Full trigger definition as parsed from `apollia.toml`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TriggerDefinition {
-    /// Identifiant unique du trigger (non vide).
+    /// Unique trigger identifier (non-empty).
     pub id: TriggerId,
-    /// Nom de l'agent cible.
+    /// Target agent name.
     pub agent: String,
-    /// Indique si le trigger est actif.
+    /// Whether the trigger is active.
     pub enabled: bool,
-    /// Comportement quand l'agent cible est occupé.
+    /// Behavior when the target agent is busy.
     pub on_busy: OnBusyPolicy,
-    /// Configuration de la source de déclenchement.
+    /// Trigger source configuration.
     pub source: TriggerSourceConfig,
-    /// Template du message d'entrée envoyé à l'agent.
+    /// Template for the input message sent to the agent.
     pub input_template: InputTemplate,
 }
 
 impl TriggerDefinition {
-    /// Valide que l'identifiant du trigger est non vide.
+    /// Validates that the trigger identifier is non-empty.
     ///
-    /// Retourne [`TriggerDefinitionError::EmptyId`] si `id` est une chaîne vide.
+    /// Returns [`TriggerDefinitionError::EmptyId`] if `id` is an empty string.
     pub fn validate_id(id: &str) -> Result<(), TriggerDefinitionError> {
         if id.is_empty() {
             Err(TriggerDefinitionError::EmptyId)
@@ -41,9 +41,9 @@ impl TriggerDefinition {
         }
     }
 
-    /// Valide que le nom d'agent est non vide.
+    /// Validates that the agent name is non-empty.
     ///
-    /// Retourne [`TriggerDefinitionError::EmptyAgent`] si `agent` est une chaîne vide.
+    /// Returns [`TriggerDefinitionError::EmptyAgent`] if `agent` is an empty string.
     pub fn validate_agent(agent: &str) -> Result<(), TriggerDefinitionError> {
         if agent.is_empty() {
             Err(TriggerDefinitionError::EmptyAgent)
@@ -53,90 +53,90 @@ impl TriggerDefinition {
     }
 }
 
-/// Comportement quand l'agent cible est déjà occupé au moment du fire.
+/// Behavior when the target agent is already busy at fire time.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OnBusyPolicy {
-    /// Ignorer le trigger — comportement historique.
+    /// Drop the trigger.
     Skip,
-    /// Mettre en file d'attente bornée FIFO par agent.
+    /// Bounded FIFO queue per agent.
     ///
-    /// Quand l'agent est occupé, le trigger est mis en attente jusqu'à
-    /// `max_depth` éléments. Au-delà, le trigger est droppé et
-    /// `RuntimeEvent::TriggerQueueFull` est émis.
+    /// When the agent is busy, the trigger is queued up to `max_depth`
+    /// elements. Beyond that, the trigger is dropped and
+    /// `RuntimeEvent::TriggerQueueFull` is emitted.
     Queue {
-        /// Nombre maximum d'éléments dans la file par agent.
+        /// Maximum number of queued elements per agent.
         max_depth: usize,
     },
-    /// Bloquer jusqu'à disponibilité de l'agent (non implémenté).
+    /// Block until the agent is available (not implemented).
     Block,
 }
 
-/// Configuration de la source de déclenchement d'un trigger.
+/// Trigger source configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TriggerSourceConfig {
-    /// Expression cron standard (ex : `"0 8 * * MON"`).
+    /// Standard cron expression (e.g. `"0 8 * * MON"`).
     Cron {
-        /// Expression cron (ex : `"0 8 * * MON"`).
+        /// Cron expression (e.g. `"0 8 * * MON"`).
         schedule: String,
     },
-    /// Intervalle périodique (ex : `"30m"`, `"1h"`, `"6h"`, `"1d"`).
+    /// Periodic interval (e.g. `"30m"`, `"1h"`, `"6h"`, `"1d"`).
     Interval {
-        /// Durée sous forme de chaîne (ex : `"30m"`).
+        /// Duration as a string (e.g. `"30m"`).
         every: String,
     },
-    /// Déclenchement unique à une date/heure précise.
+    /// Single fire at a precise date/time.
     Oneshot {
-        /// Horodatage du déclenchement unique.
+        /// Timestamp of the single fire.
         fire_at: DateTime<Utc>,
     },
-    /// Surveillance d'un chemin (fichier ou dossier) pour des événements système de fichiers.
+    /// Watch a path (file or directory) for filesystem events.
     FileWatch {
-        /// Chemin surveillé (fichier précis ou dossier).
+        /// Watched path (specific file or directory).
         path: PathBuf,
-        /// Types d'événements déclencheurs.
+        /// Event kinds that trigger a fire.
         events: Vec<FileEventKind>,
-        /// Surveillance récursive des sous-dossiers (défaut : `false`).
+        /// Recursive watch of subdirectories (default: `false`).
         ///
-        /// Pertinent uniquement lorsque `path` pointe sur un dossier :
-        /// - `false` : seul le contenu direct du dossier est surveillé.
-        /// - `true` : tous les sous-dossiers (à tout niveau) sont également surveillés.
+        /// Only relevant when `path` points to a directory:
+        /// - `false`: only the direct contents of the directory are watched.
+        /// - `true`: all subdirectories (at any depth) are watched too.
         ///
-        /// Ignoré si `path` pointe sur un fichier précis.
+        /// Ignored when `path` points to a specific file.
         #[serde(default)]
         recursive: bool,
-        /// Suivre les liens symboliques (défaut : `false`).
+        /// Follow symbolic links (default: `false`).
         ///
-        /// Lorsque `false`, les événements dont le chemin est un lien symbolique
-        /// sont ignorés avant propagation. Détecté via `fs::symlink_metadata`.
+        /// When `false`, events whose path is a symlink are filtered out before
+        /// propagation. Detected via `fs::symlink_metadata`.
         #[serde(default)]
         follow_symlinks: bool,
-        /// Segments de chemin et patterns fichiers à exclure des événements.
+        /// Path segments and file patterns to exclude from events.
         ///
-        /// Défaut : `[".git", "node_modules", "__pycache__", ".apollia"]`.
-        /// Pattern `"*.ext"` pour les extensions, `"nom"` ou `"nom/"` pour les segments.
+        /// Default: `[".git", "node_modules", "__pycache__", ".apollia"]`.
+        /// Use `"*.ext"` for extensions, `"name"` or `"name/"` for segments.
         #[serde(default = "crate::config::default_exclude_patterns")]
         exclude_patterns: Vec<String>,
     },
-    /// Webhook HTTP avec vérification HMAC-SHA256.
+    /// HTTP webhook with HMAC-SHA256 verification.
     Webhook {
-        /// Secret partagé utilisé pour vérifier la signature HMAC-SHA256.
+        /// Shared secret used to verify the HMAC-SHA256 signature.
         secret: String,
     },
 }
 
-/// Type d'événement fichier filtré par `FileWatchTrigger`.
+/// File event kind filtered by `FileWatchTrigger`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FileEventKind {
-    /// Création d'un fichier.
+    /// File creation.
     Create,
-    /// Modification d'un fichier.
+    /// File modification.
     Modify,
-    /// Suppression d'un fichier.
+    /// File deletion.
     Delete,
-    /// Tout type d'événement.
+    /// Any event kind.
     Any,
 }
 
@@ -151,65 +151,65 @@ impl std::fmt::Display for FileEventKind {
     }
 }
 
-/// Payload brut attaché à un [`TriggerEvent`].
+/// Raw payload attached to a [`TriggerEvent`].
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum TriggerPayload {
-    /// Payload d'un déclencheur temporel (cron, interval, oneshot).
+    /// Payload of a time-based trigger (cron, interval, oneshot).
     Timer {
-        /// Heure planifiée du déclenchement.
+        /// Scheduled fire time.
         scheduled_at: DateTime<Utc>,
-        /// Heure effective du déclenchement.
+        /// Actual fire time.
         fired_at: DateTime<Utc>,
     },
-    /// Payload d'un événement système de fichiers.
+    /// Payload of a filesystem event.
     File {
-        /// Chemin complet du fichier concerné.
+        /// Full path of the affected file.
         path: PathBuf,
-        /// Nom du fichier uniquement (sans répertoire parent).
+        /// File name only (without parent directory).
         filename: String,
-        /// Taille en octets au moment de l'événement.
+        /// Size in bytes at the time of the event.
         size_bytes: u64,
-        /// Type d'événement fichier.
+        /// File event kind.
         event_kind: FileEventKind,
     },
-    /// Payload d'une requête webhook entrante.
+    /// Payload of an incoming webhook request.
     Webhook {
-        /// Corps brut de la requête HTTP.
+        /// Raw HTTP request body.
         body: String,
-        /// En-têtes HTTP de la requête.
+        /// HTTP request headers.
         headers: HashMap<String, String>,
     },
 }
 
-/// Événement produit par une source de déclenchement et consommé par `TriggerEngine`.
+/// Event produced by a trigger source and consumed by `TriggerEngine`.
 #[derive(Debug, Clone)]
 pub struct TriggerEvent {
-    /// Identifiant du trigger qui a produit cet événement.
+    /// Identifier of the trigger that produced this event.
     pub trigger_id: TriggerId,
-    /// Nom de l'agent cible.
+    /// Target agent name.
     pub agent: String,
-    /// Payload brut de l'événement.
+    /// Raw event payload.
     pub payload: TriggerPayload,
-    /// Heure effective du fire.
+    /// Actual fire time.
     pub fired_at: DateTime<Utc>,
 }
 
-/// Template de message d'entrée avec substitution de `{{variables}}`.
+/// Input message template with `{{variables}}` substitution.
 ///
-/// Variables disponibles selon le type de payload :
+/// Variables available per payload kind:
 /// - `Timer`   : `{{scheduled_at}}`, `{{fired_at}}`
 /// - `File`    : `{{path}}`, `{{filename}}`, `{{size_bytes}}`, `{{event_kind}}`
 /// - `Webhook` : `{{body}}`, `{{header.<name>}}`
 ///
-/// Les variables absentes du payload sont remplacées par une chaîne vide (pas de panique).
+/// Variables absent from the payload are replaced by an empty string (never panics).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct InputTemplate(pub String);
 
 impl InputTemplate {
-    /// Substitue les `{{variables}}` présentes dans le template avec les valeurs du payload.
+    /// Substitutes the `{{variables}}` in the template with values from the payload.
     ///
-    /// Les variables inconnues (absentes de la map construite depuis le payload) sont
-    /// remplacées par une chaîne vide. Cette méthode ne peut jamais paniquer.
+    /// Unknown variables (absent from the map built from the payload) are
+    /// replaced by an empty string. This method can never panic.
     pub fn render(&self, payload: &TriggerPayload) -> String {
         let vars = build_payload_vars(payload);
         let mut result = self.0.clone();
@@ -220,7 +220,7 @@ impl InputTemplate {
     }
 }
 
-/// Construit la map `variable → valeur` depuis un [`TriggerPayload`].
+/// Builds the `variable -> value` map from a [`TriggerPayload`].
 fn build_payload_vars(payload: &TriggerPayload) -> HashMap<String, String> {
     let mut map = HashMap::new();
     match payload {
@@ -252,9 +252,9 @@ fn build_payload_vars(payload: &TriggerPayload) -> HashMap<String, String> {
     map
 }
 
-/// Remplace les motifs `{{...}}` restants (variables inconnues) par une chaîne vide.
+/// Replaces the remaining `{{...}}` patterns (unknown variables) with an empty string.
 ///
-/// Utilise une recherche séquentielle pour préserver les caractères UTF-8.
+/// Uses a sequential scan to preserve UTF-8 characters.
 fn replace_unknown_vars(mut s: String) -> String {
     while let Some(start) = s.find("{{") {
         match s[start..].find("}}") {
@@ -268,10 +268,10 @@ fn replace_unknown_vars(mut s: String) -> String {
     s
 }
 
-/// Parse une chaîne d'intervalle au format `"30m"`, `"1h"`, `"6h"` ou `"1d"`.
+/// Parses an interval string in the format `"30m"`, `"1h"`, `"6h"` or `"1d"`.
 ///
-/// Retourne [`TriggerDefinitionError::InvalidInterval`] si le format est invalide.
-/// Les unités reconnues sont : `m` (minutes), `h` (heures), `d` (jours).
+/// Returns [`TriggerDefinitionError::InvalidInterval`] when the format is invalid.
+/// Recognized units are: `m` (minutes), `h` (hours), `d` (days).
 pub fn parse_interval(value: &str) -> Result<Duration, TriggerDefinitionError> {
     // Handle "ms" (milliseconds) before single-char suffixes to avoid ambiguity
     if let Some(s) = value.strip_suffix("ms") {
@@ -304,38 +304,38 @@ pub fn parse_interval(value: &str) -> Result<Duration, TriggerDefinitionError> {
     Ok(Duration::from_secs(n * multiplier))
 }
 
-/// Erreurs de validation d'une [`TriggerDefinition`].
+/// Validation errors for a [`TriggerDefinition`].
 #[derive(thiserror::Error, Debug)]
 pub enum TriggerDefinitionError {
-    /// L'identifiant du trigger est vide.
+    /// The trigger identifier is empty.
     #[error("trigger id cannot be empty")]
     EmptyId,
 
-    /// Le nom de l'agent cible est vide.
+    /// The target agent name is empty.
     #[error("agent name cannot be empty")]
     EmptyAgent,
 
-    /// L'expression cron est invalide.
+    /// The cron expression is invalid.
     #[error("invalid cron schedule '{schedule}': {reason}")]
     InvalidCronSchedule {
-        /// Expression cron invalide.
+        /// Invalid cron expression.
         schedule: String,
-        /// Raison de l'invalidité.
+        /// Reason it is invalid.
         reason: String,
     },
 
-    /// L'intervalle ne respecte pas le format attendu.
+    /// The interval does not match the expected format.
     #[error("invalid interval '{value}': expected format '30m', '1h', '6h' or '1d'")]
     InvalidInterval {
-        /// Valeur reçue.
+        /// Received value.
         value: String,
     },
 
-    /// Le secret webhook est vide.
+    /// The webhook secret is empty.
     #[error("webhook secret cannot be empty")]
     EmptyWebhookSecret,
 
-    /// Le chemin de surveillance FileWatch est vide.
+    /// The FileWatch path is empty.
     #[error("file_watch path is empty")]
     EmptyFileWatchPath,
 }

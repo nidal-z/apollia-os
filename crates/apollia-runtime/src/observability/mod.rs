@@ -1,18 +1,16 @@
-//! Event-sourced observability — `runtime_events` log (ADR-088).
+//! Event-sourced observability, `runtime_events` log.
 //!
-//! Cette brique transforme le bus broadcast `RuntimeEvent` en source de
-//! vérité persistante de la trajectoire d'exécution d'un agent. Là où la
-//! `Timeline API` agrégeait 5 sources SQLite hétérogènes, le persistor ici
-//! écrit chaque événement significatif dans une table append-only unique
-//! (`runtime_events.db`), indexée par `task_id`/`parent_event_id`/
-//! `correlation_id`, qui devient la base de la nouvelle vue conversation
-//! `ExecutionTrace` côté UI.
+//! This component turns the `RuntimeEvent` broadcast bus into a persistent
+//! source of truth for an agent's execution trajectory. Where the
+//! `Timeline API` aggregated 5 heterogeneous SQLite sources, the persistor here
+//! writes each significant event into a single append-only table
+//! (`runtime_events.db`), indexed by `task_id`/`parent_event_id`/
+//! `correlation_id`, which becomes the basis for the new `ExecutionTrace`
+//! conversation view on the UI.
 //!
-//! Les variants existants (`AuditTrail`, `LlmCallRepository`, etc.) sont
-//! conservés intacts pour leur usage métier (audit immuable, agrégations
-//! coûts) — la duplication est volontaire et bornée à un seul nouveau log.
-//!
-//! Voir le plan complet dans `docs/adr/ADR-088-event-sourced-observability.md`.
+//! The existing variants (`AuditTrail`, `LlmCallRepository`, etc.) are kept
+//! intact for their business use (immutable audit, cost aggregations); the
+//! duplication is deliberate and limited to this one new log.
 
 pub mod persistor;
 pub mod repository;

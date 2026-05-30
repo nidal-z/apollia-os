@@ -1,15 +1,18 @@
-//! Google Calendar client — list, get, create, update, delete events.
+//! Google Calendar client: list, get, create, update, delete events.
 //!
 //! Uses non-restricted scopes `calendar.readonly` (read) and `calendar.events`
 //! (write). Both are free-tier eligible (no CASA audit required).
-//! Calendar id defaults to `primary` — explicit calendars can be addressed
+//! Calendar id defaults to `primary`; explicit calendars can be addressed
 //! by passing their id.
 
 use chrono::{DateTime, Utc};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest, RawRequest},
+};
 
 const BASE: &str = "https://www.googleapis.com/calendar/v3/calendars";
 
@@ -47,7 +50,7 @@ pub struct Event {
 /// Time wrapper used by the Google Calendar API.
 ///
 /// Either `date` (all-day) or `date_time` (timed) is populated. Apollia tools
-/// surface both — agents pass whichever is appropriate when creating events.
+/// surface both; agents pass whichever is appropriate when creating events.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventTime {
@@ -94,13 +97,24 @@ pub struct ListEventsFilter {
     pub query: Option<String>,
 }
 
+/// Identifies the event to update plus the new content, for
+/// [`CalendarClient::update_event`].
+pub struct EventUpdate<'a> {
+    /// Calendar id (`"primary"` for the user's primary calendar).
+    pub calendar_id: &'a str,
+    /// Server-assigned id of the event to replace.
+    pub event_id: &'a str,
+    /// New event content (full PUT semantics).
+    pub draft: &'a EventDraft,
+}
+
 /// Body of [`CalendarClient::create_event`].
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventDraft {
     /// Title.
     pub summary: String,
-    /// Optional description (markdown not supported by Google — plain text).
+    /// Optional description (markdown not supported by Google, plain text).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Optional location.
@@ -190,16 +204,22 @@ impl CalendarClient {
         let cal = urlencode(calendar_id);
         let url = format!("{BASE}/{cal}/events");
         self.http
-            .json_request(Method::POST, &url, draft, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: draft,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
     /// Update an existing event (full PUT semantics).
     pub async fn update_event<F, Fut>(
         &self,
-        calendar_id: &str,
-        event_id: &str,
-        draft: &EventDraft,
+        update: EventUpdate<'_>,
         bearer: &str,
         refresh: F,
     ) -> Result<Event, ConnectorError>
@@ -207,10 +227,19 @@ impl CalendarClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let cal = urlencode(calendar_id);
+        let cal = urlencode(update.calendar_id);
+        let event_id = update.event_id;
         let url = format!("{BASE}/{cal}/events/{event_id}");
         self.http
-            .json_request(Method::PUT, &url, draft, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::PUT,
+                    url: &url,
+                    body: update.draft,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
@@ -229,7 +258,16 @@ impl CalendarClient {
         let cal = urlencode(calendar_id);
         let url = format!("{BASE}/{cal}/events/{event_id}");
         self.http
-            .send_with_retries(Method::DELETE, &url, None, bearer, refresh)
+            .send(
+                RawRequest {
+                    method: Method::DELETE,
+                    url: &url,
+                    body: None,
+                    content_type: None,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         Ok(())
     }
@@ -238,8 +276,8 @@ impl CalendarClient {
 // ─── URL helpers ─────────────────────────────────────────────────────────────
 
 fn urlencode(s: &str) -> String {
-    // The encoding rules for Google's calendar id are mild — `/` and `:` need
-    // escaping for ids that look like emails (e.g. `nidal@example.com`).
+    // The encoding rules for Google's calendar id are mild: `/` and `:` need
+    // escaping for ids that look like emails (e.g. `user@example.com`).
     let mut out = String::with_capacity(s.len() + 8);
     for c in s.chars() {
         if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '~' | '@') {

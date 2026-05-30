@@ -1,6 +1,6 @@
-//! `apollia-os model` subcommands — manage local .gguf model files.
+//! `apollia-os model` subcommands: manage local .gguf model files.
 //!
-//! `model list` reads `~/.apollia/models/` directly — no runtime connection required.
+//! `model list` reads `~/.apollia/models/` directly, no runtime connection required.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -39,40 +39,40 @@ pub enum ModelCommand {
     },
 }
 
-/// Résultat d'un scan du dossier `~/.apollia/models/`.
+/// Result of a scan of the `~/.apollia/models/` directory.
 ///
-/// Représente soit un modèle GGUF mono-fichier, soit une série de shards
-/// regroupés par préfixe commun (format standard llama.cpp :
+/// Represents either a single-file GGUF model or a series of shards grouped
+/// by a common prefix (standard llama.cpp format:
 /// `<prefix>-NNNNN-of-NNNNN.gguf`).
 #[derive(Debug)]
 pub enum ModelListing {
-    /// Modèle mono-fichier — comportement historique.
+    /// Single-file model.
     Single {
-        /// Nom de fichier complet (avec extension `.gguf`).
+        /// Full file name (with the `.gguf` extension).
         name: String,
-        /// Taille du fichier en octets.
+        /// File size in bytes.
         size_bytes: u64,
     },
-    /// Modèle GGUF split en plusieurs shards avec pattern standard.
+    /// GGUF model split into several shards following the standard pattern.
     Split {
-        /// Préfixe commun des shards (sans le suffixe `-NNNNN-of-NNNNN`).
+        /// Common shard prefix (without the `-NNNNN-of-NNNNN` suffix).
         prefix: String,
-        /// Nombre de shards effectivement présents dans le dossier.
+        /// Number of shards actually present in the directory.
         shard_count: usize,
-        /// Nombre total de shards attendus (valeur du `-of-NNNNN`).
+        /// Total number of expected shards (the `-of-NNNNN` value).
         total: usize,
-        /// Taille cumulée de tous les shards présents, en octets.
+        /// Cumulative size of all present shards, in bytes.
         size_bytes: u64,
-        /// Liste des noms de fichiers des shards présents, triée par index croissant.
+        /// File names of the present shards, sorted by ascending index.
         shards: Vec<String>,
-        /// `true` si `shard_count < total` (série incomplète).
+        /// `true` when `shard_count < total` (incomplete series).
         incomplete: bool,
     },
 }
 
 impl ModelListing {
-    /// Clé de tri pour l'affichage (prefix pour [`ModelListing::Split`],
-    /// nom de fichier pour [`ModelListing::Single`]).
+    /// Display sort key (prefix for [`ModelListing::Split`], file name for
+    /// [`ModelListing::Single`]).
     fn sort_key(&self) -> &str {
         match self {
             ModelListing::Single { name, .. } => name,
@@ -80,7 +80,7 @@ impl ModelListing {
         }
     }
 
-    /// Taille cumulée en octets (fichier unique ou somme des shards).
+    /// Cumulative size in bytes (single file or sum of shards).
     fn size_bytes(&self) -> u64 {
         match self {
             ModelListing::Single { size_bytes, .. } => *size_bytes,
@@ -89,29 +89,29 @@ impl ModelListing {
     }
 }
 
-/// Longueur (en octets ASCII) du suffixe `NNNNN-of-NNNNN` — sans le `-` de
-/// séparation avec le préfixe.
+/// Length (in ASCII bytes) of the `NNNNN-of-NNNNN` suffix, excluding the `-`
+/// that separates it from the prefix.
 const SHARD_SUFFIX_LEN: usize = 14;
 
-/// Métadonnées d'un shard détecté dans le scan initial.
+/// Metadata for a shard detected during the initial scan.
 ///
-/// Intermédiaire entre `fs::read_dir` et [`ModelListing::Split`] : permet
-/// d'agréger les entrées par préfixe commun avant de produire la liste finale.
+/// Intermediate between `fs::read_dir` and [`ModelListing::Split`]: lets us
+/// aggregate entries by common prefix before producing the final list.
 struct ShardEntry {
     index: u32,
     file_name: String,
     size_bytes: u64,
 }
 
-/// Parse un nom de fichier GGUF pour en extraire `(prefix, index, total)`
-/// s'il suit le pattern standard `<prefix>-NNNNN-of-NNNNN.gguf`.
+/// Parse a GGUF file name to extract `(prefix, index, total)` when it follows
+/// the standard `<prefix>-NNNNN-of-NNNNN.gguf` pattern.
 ///
-/// Retourne `None` pour tout autre format — fichier mono, indices non
-/// zero-padded, extension absente, etc. Ne touche pas le filesystem.
+/// Returns `None` for any other format: single file, non zero-padded indices,
+/// missing extension, etc. Does not touch the filesystem.
 ///
-/// Ce parseur duplique volontairement la logique équivalente du runner
-/// (apollia-runner) : la CLI ne dépend pas du runner et la règle du format
-/// shard est un invariant public du format GGUF.
+/// This parser intentionally duplicates the equivalent runner logic: the CLI
+/// does not depend on the runner, and the shard format rule is a public
+/// invariant of the GGUF format.
 fn parse_shard_name(file_name: &str) -> Option<(String, u32, u32)> {
     let stem = file_name.strip_suffix(".gguf")?;
     if stem.len() < SHARD_SUFFIX_LEN + 2 {
@@ -135,8 +135,8 @@ fn parse_shard_name(file_name: &str) -> Option<(String, u32, u32)> {
 
 /// Execute a `model` subcommand.
 ///
-/// This command does **not** require a running runtime — it reads the local
-/// filesystem directly (Principle #4 — fail fast; Principle #2 — zero deps).
+/// This command does **not** require a running runtime: it reads the local
+/// filesystem directly (fail fast, zero deps).
 ///
 /// Returns the process exit code: `0` = success, non-zero = error.
 pub async fn run(cmd: &ModelCommand, socket: Option<PathBuf>, json: bool) -> i32 {
@@ -209,21 +209,7 @@ async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
             if json {
                 println!("{}", resp.body);
             } else {
-                // Pretty-print summary if JSON value parses.
-                match serde_json::from_str::<serde_json::Value>(&resp.body) {
-                    Ok(v) => {
-                        if let Some(ram) = v.get("ram_gb").and_then(|x| x.as_f64()) {
-                            println!("  RAM       {ram:.1} GB");
-                        }
-                        if let Some(cpu) = v.get("cpu_threads").and_then(|x| x.as_i64()) {
-                            println!("  CPU       {cpu} threads");
-                        }
-                        if let Some(acc) = v.get("accelerator").and_then(|x| x.as_str()) {
-                            println!("  Accelerator {acc}");
-                        }
-                    }
-                    Err(_) => println!("{}", resp.body),
-                }
+                render_hardware_text(&resp.body);
             }
             exit_codes::SUCCESS
         }
@@ -232,9 +218,9 @@ async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
             exit_codes::GENERAL_ERROR
         }
         Err(crate::client::ClientError::ConnectionRefused) => {
-            // ADR-008: daemon-off is exit 2 (RUNTIME_ERROR), distinct from
-            // generic CLI errors (exit 1). Aligns with tools describe / llm
-            // status / audit list / etc.
+            // Daemon-off is exit 2 (RUNTIME_ERROR), distinct from generic CLI
+            // errors (exit 1). Aligns with tools describe / llm status /
+            // audit list / etc.
             eprintln!("Error: runtime not started (connection refused)");
             exit_codes::RUNTIME_ERROR
         }
@@ -242,6 +228,24 @@ async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
             eprintln!("Error: {e}");
             exit_codes::GENERAL_ERROR
         }
+    }
+}
+
+/// Pretty-prints a hardware summary, falling back to the raw body if it does
+/// not parse as JSON.
+fn render_hardware_text(body: &str) {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(body) else {
+        println!("{body}");
+        return;
+    };
+    if let Some(ram) = v.get("ram_gb").and_then(|x| x.as_f64()) {
+        println!("  RAM       {ram:.1} GB");
+    }
+    if let Some(cpu) = v.get("cpu_threads").and_then(|x| x.as_i64()) {
+        println!("  CPU       {cpu} threads");
+    }
+    if let Some(acc) = v.get("accelerator").and_then(|x| x.as_str()) {
+        println!("  Accelerator {acc}");
     }
 }
 
@@ -299,7 +303,7 @@ fn urlencode(s: &str) -> String {
         .collect()
 }
 
-/// `apollia-os model list` — list `.gguf` model files in `~/.apollia/models/`.
+/// `apollia-os model list`: list `.gguf` model files in `~/.apollia/models/`.
 fn run_list(json: bool) -> i32 {
     let models_dir = default_models_dir();
 
@@ -421,13 +425,13 @@ fn home_dir() -> Option<PathBuf> {
 /// Scan `dir` for `*.gguf` files, group shards by prefix and return a sorted
 /// list of [`ModelListing`].
 ///
-/// - A file that does **not** match the shard pattern → [`ModelListing::Single`].
-/// - Files sharing the same `(prefix, total)` → aggregated [`ModelListing::Split`].
+/// - A file that does **not** match the shard pattern becomes a [`ModelListing::Single`].
+/// - Files sharing the same `(prefix, total)` are aggregated into a [`ModelListing::Split`].
 /// - A series with fewer files than `total` (including an orphan shard without
-///   index `00001`) is flagged `incomplete = true` without raising an error —
+///   index `00001`) is flagged `incomplete = true` without raising an error;
 ///   the CLI is resilient to partial downloads.
 ///
-/// Returns an empty `Vec` — not an error — when `dir` does not exist. Any I/O
+/// Returns an empty `Vec` (not an error) when `dir` does not exist. Any I/O
 /// failure on an individual entry (permissions, broken symlink, missing
 /// metadata) is propagated immediately.
 pub fn list_gguf_files(dir: &Path) -> Result<Vec<ModelListing>, std::io::Error> {

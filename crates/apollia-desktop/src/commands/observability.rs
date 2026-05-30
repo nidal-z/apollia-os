@@ -1,9 +1,9 @@
-//! Commandes IPC Tauri pour la vue Observabilité.
+//! Tauri IPC commands for the Observability view.
 //!
-//! Trois commandes couvrant les 3 tabs de la vue :
-//! - `get_global_timeline` — événements runtime agrégés multi-tâches
-//! - `get_tool_audit_trail` — invocations d'outils avec détails
-//! - `get_llm_daily_costs` — coûts LLM ventilés par jour et backend
+//! Three commands covering the view's three tabs:
+//! - `get_global_timeline`: runtime events aggregated across tasks
+//! - `get_tool_audit_trail`: tool invocations with details
+//! - `get_llm_daily_costs`: LLM costs broken down by day and backend
 
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -15,49 +15,49 @@ use super::{http_get_json, http_post_json};
 // Global Timeline
 // ---------------------------------------------------------------------------
 
-/// Événement de la timeline globale pour l'affichage.
+/// Global timeline event for display.
 #[derive(Debug, Serialize)]
 pub struct GlobalTimelineEvent {
-    /// Type d'événement : task, tool, llm, trigger, hitl.
+    /// Event type: task, tool, llm, trigger, hitl.
     pub event_type: String,
-    /// Horodatage ISO 8601.
+    /// ISO 8601 timestamp.
     pub timestamp: String,
-    /// Résumé de l'événement.
+    /// Event summary.
     pub summary: String,
-    /// Détails JSON expandables.
+    /// Expandable JSON details.
     pub detail: serde_json::Value,
 }
 
-/// Paramètres pour `get_global_timeline`.
+/// Parameters for `get_global_timeline`.
 #[derive(Debug, Deserialize)]
 pub struct TimelineParams {
-    /// Fenêtre temporelle en minutes (30, 60, 360, 720, 1440).
+    /// Time window in minutes (30, 60, 360, 720, 1440).
     pub window_minutes: u32,
 }
 
-/// Récupère une timeline globale exhaustive en scannant les bases SQLite par
-/// fenêtre temporelle, **indépendamment du task_id** d'origine.
+/// Fetches an exhaustive global timeline by scanning the SQLite databases by
+/// time window, **regardless of the originating task_id**.
 ///
-/// Le scan task-centric précédent ratait toute opération non rattachée à une
-/// tâche persistée : chat, déclencheur, événements runtime hors task. Cette
-/// version interroge directement chaque source par horodatage, ce qui surface
-/// 100 % de l'activité visible dans la fenêtre.
+/// The previous task-centric scan missed any operation not attached to a
+/// persisted task: chat, triggers, runtime events outside a task. This version
+/// queries each source directly by timestamp, surfacing 100% of the activity
+/// visible in the window.
 ///
-/// Sources scannées :
+/// Scanned sources:
 /// - `audit.db tool_invocations` → tool
 /// - `llm_calls.db llm_calls` → llm
 /// - `hitl.db tasks` (transitions_json) → task
 /// - `hitl.db task_approvals` → hitl
 /// - `chat.db chat_sessions` + `chat_approval_log` → task / hitl
-/// - `triggers.db trigger_history` → task (déclenchement)
-/// - `runtime_events.db runtime_events` (kinds : thought, agent_log, action_parse_error) → memory / task / error
+/// - `triggers.db trigger_history` → task (trigger fire)
+/// - `runtime_events.db runtime_events` (kinds: thought, agent_log, action_parse_error) → memory / task / error
 #[tauri::command]
 pub async fn get_global_timeline(
     state: State<'_, RuntimeHandle>,
     params: TimelineParams,
 ) -> Result<Vec<GlobalTimelineEvent>, String> {
     let cutoff = chrono::Utc::now() - chrono::Duration::minutes(i64::from(params.window_minutes));
-    // ISO 8601 (UTC, no fractional secs) — compatible with the canonical format
+    // ISO 8601 (UTC, no fractional secs), compatible with the canonical format
     // stored across all our SQLite tables and lexicographically comparable.
     let cutoff_str = cutoff.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
@@ -81,7 +81,7 @@ pub async fn get_global_timeline(
         }
     }
 
-    // SQLite is sync — push the entire scan onto a blocking thread.
+    // SQLite is sync, so push the entire scan onto a blocking thread.
     let result = tokio::task::spawn_blocking(move || {
         let mut events = Vec::<GlobalTimelineEvent>::new();
         scan_audit_db(&data_dir, &cutoff_str, &agent_labels, &mut events);
@@ -103,7 +103,7 @@ pub async fn get_global_timeline(
     Ok(sorted)
 }
 
-/// Récupère un libellé lisible pour un identifiant brut (agent_id, name, …).
+/// Resolves a human-readable label for a raw identifier (agent_id, name, ...).
 fn label_for(agent_key: &str, labels: &std::collections::HashMap<String, String>) -> String {
     labels
         .get(agent_key)
@@ -111,7 +111,7 @@ fn label_for(agent_key: &str, labels: &std::collections::HashMap<String, String>
         .unwrap_or_else(|| agent_key.to_string())
 }
 
-/// Tronque proprement une chaîne pour les résumés (max `max` chars + "…").
+/// Cleanly truncates a string for summaries (max `max` chars plus an ellipsis).
 fn trim_for_summary(text: &str, max: usize) -> String {
     if text.chars().count() <= max {
         return text.to_string();
@@ -289,43 +289,63 @@ fn scan_hitl_tasks(
     let Ok(iter) = rows else { return };
     for r in iter.flatten() {
         let (task_id, agent_name, transitions, _created, _updated, duration_ms) = r;
-        let label = agent_name.clone();
 
-        // Parse transitions_json — each entry { status, ts } emits one task event.
-        if let Some(json) = transitions {
-            if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&json) {
-                for tr in arr {
-                    let status = tr
-                        .get("status")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown");
-                    let ts = tr.get("ts").and_then(|v| v.as_str()).unwrap_or("");
-                    if ts < cutoff_str {
-                        continue;
-                    }
-                    let dur = if status == "completed" {
-                        duration_ms
-                            .map(|ms| format!(" · {ms}ms"))
-                            .unwrap_or_default()
-                    } else {
-                        String::new()
-                    };
-                    events.push(GlobalTimelineEvent {
-                        event_type: "task".to_string(),
-                        timestamp: ts.to_string(),
-                        summary: format!("[{label}] Tâche → {status}{dur}"),
-                        detail: serde_json::json!({
-                            "source": "hitl.db/tasks",
-                            "task_id": task_id,
-                            "agent_name": agent_name,
-                            "status": status,
-                            "duration_ms": duration_ms,
-                        }),
-                    });
-                }
-            }
+        // Parse transitions_json: each entry { status, ts } emits one task event.
+        let Some(json) = transitions else { continue };
+        let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&json) else {
+            continue;
+        };
+        for tr in arr {
+            push_transition_event(
+                &tr,
+                cutoff_str,
+                &task_id,
+                &agent_name,
+                duration_ms,
+                events,
+            );
         }
     }
+}
+
+/// Emit one task-timeline event for a single `{ status, ts }` transition entry.
+///
+/// Entries older than `cutoff_str` are skipped.
+fn push_transition_event(
+    tr: &serde_json::Value,
+    cutoff_str: &str,
+    task_id: &str,
+    agent_name: &str,
+    duration_ms: Option<i64>,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let status = tr
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let ts = tr.get("ts").and_then(|v| v.as_str()).unwrap_or("");
+    if ts < cutoff_str {
+        return;
+    }
+    let dur = if status == "completed" {
+        duration_ms
+            .map(|ms| format!(" · {ms}ms"))
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    events.push(GlobalTimelineEvent {
+        event_type: "task".to_string(),
+        timestamp: ts.to_string(),
+        summary: format!("[{agent_name}] Tâche → {status}{dur}"),
+        detail: serde_json::json!({
+            "source": "hitl.db/tasks",
+            "task_id": task_id,
+            "agent_name": agent_name,
+            "status": status,
+            "duration_ms": duration_ms,
+        }),
+    });
 }
 
 fn scan_hitl_approvals(
@@ -345,7 +365,7 @@ fn scan_hitl_approvals(
          ORDER BY suspended_at DESC",
     ) {
         Ok(s) => s,
-        // Table may not exist on older installs — silently skip.
+        // Table may not exist on older installs, so silently skip.
         Err(_) => return,
     };
     let rows = stmt.query_map([cutoff_str], |row| {
@@ -632,7 +652,7 @@ fn scan_runtime_events(
     }
 }
 
-/// (Conservé pour rétro-compatibilité éventuelle — n'est plus utilisé.)
+/// Kept for potential backward compatibility; no longer used.
 #[allow(dead_code)]
 fn classify_event_type(raw: &str) -> String {
     match raw {
@@ -645,7 +665,7 @@ fn classify_event_type(raw: &str) -> String {
     }
 }
 
-/// Construit un résumé lisible à partir d'un événement timeline brut.
+/// Builds a human-readable summary from a raw timeline event.
 #[allow(dead_code)]
 fn build_event_summary(event_type: &str, event: &serde_json::Value, agent_id: &str) -> String {
     match event_type {
@@ -731,36 +751,36 @@ fn build_event_summary(event_type: &str, event: &serde_json::Value, agent_id: &s
 // Audit Trail
 // ---------------------------------------------------------------------------
 
-/// Entrée de l'audit trail pour l'affichage dans l'UI.
+/// Audit trail entry for display in the UI.
 #[derive(Debug, Serialize)]
 pub struct AuditTrailEntry {
-    /// Identifiant unique de l'invocation.
+    /// Unique invocation identifier.
     pub id: String,
-    /// Nom de l'outil invoqué.
+    /// Name of the invoked tool.
     pub tool_name: String,
-    /// Identifiant UUID de l'agent (utilisé pour le filtrage).
+    /// Agent UUID (used for filtering).
     pub agent_id: String,
-    /// Nom lisible de l'agent, résolu depuis le registre (ex: "standup-scribe").
-    /// Retombe sur agent_id si l'agent n'est plus enregistré.
+    /// Human-readable agent name, resolved from the registry (e.g. "standup-scribe").
+    /// Falls back to agent_id if the agent is no longer registered.
     pub agent_name: String,
-    /// Horodatage ISO 8601.
+    /// ISO 8601 timestamp.
     pub timestamp: String,
-    /// Durée d'exécution en millisecondes.
+    /// Execution duration in milliseconds.
     pub duration_ms: Option<u64>,
-    /// Code de sortie du processus.
+    /// Process exit code.
     pub exit_code: Option<i32>,
-    /// Arguments JSON complets de l'invocation.
+    /// Full JSON arguments of the invocation.
     pub args_json: Option<String>,
-    /// Sortie standard de l'outil.
+    /// Tool standard output.
     pub stdout: Option<String>,
-    /// Sortie d'erreur de l'outil.
+    /// Tool error output.
     pub stderr: Option<String>,
 }
 
-/// Récupère les dernières invocations d'outils via l'API REST audit.
+/// Fetches the latest tool invocations via the audit REST API.
 ///
-/// Délègue à `GET /api/v1/audit?limit=N` et retourne les entrées parsées
-/// pour l'affichage dans la table AuditTrail.
+/// Delegates to `GET /api/v1/audit?limit=N` and returns the parsed entries for
+/// display in the AuditTrail table.
 #[tauri::command]
 pub async fn get_tool_audit_trail(
     state: State<'_, RuntimeHandle>,
@@ -835,29 +855,29 @@ pub async fn get_tool_audit_trail(
 // LLM Daily Costs
 // ---------------------------------------------------------------------------
 
-/// Entrée coût journalier par backend pour le graphique SVG.
+/// Daily per-backend cost entry for the SVG chart.
 #[derive(Debug, Serialize)]
 pub struct LlmDailyCostEntry {
-    /// Date au format `YYYY-MM-DD`.
+    /// Date in `YYYY-MM-DD` format.
     pub date: String,
-    /// Nom du backend.
+    /// Backend name.
     pub backend: String,
-    /// Coût total estimé en USD pour ce jour.
+    /// Estimated total cost in USD for that day.
     pub cost_usd: f64,
 }
 
-/// Réponse des coûts journaliers LLM.
+/// Daily LLM costs response.
 #[derive(Debug, Serialize)]
 pub struct LlmDailyCostsResponse {
-    /// Entrées par jour et backend.
+    /// Entries per day and backend.
     pub entries: Vec<LlmDailyCostEntry>,
-    /// Nombre de jours demandés.
+    /// Number of requested days.
     pub days: u32,
 }
 
-/// Récupère les coûts LLM ventilés par jour et backend.
+/// Fetches LLM costs broken down by day and backend.
 ///
-/// Délègue à `GET /api/v1/llm/costs/daily?days=N`.
+/// Delegates to `GET /api/v1/llm/costs/daily?days=N`.
 #[tauri::command]
 pub async fn get_llm_daily_costs(
     state: State<'_, RuntimeHandle>,
@@ -903,10 +923,10 @@ pub async fn get_llm_daily_costs(
 // Audit Stats
 // ---------------------------------------------------------------------------
 
-/// Récupère les statistiques agrégées de l'audit trail.
+/// Fetches the aggregated audit trail statistics.
 ///
-/// Appelle `GET /api/v1/audit/stats` et retourne le JSON brut pour éviter
-/// de dupliquer la structure de données côté Tauri.
+/// Calls `GET /api/v1/audit/stats` and returns the raw JSON to avoid
+/// duplicating the data structure on the Tauri side.
 #[tauri::command]
 pub async fn get_audit_stats(state: State<'_, RuntimeHandle>) -> Result<serde_json::Value, String> {
     http_get_json(state.api_port, "/api/v1/audit/stats").await
@@ -916,34 +936,34 @@ pub async fn get_audit_stats(state: State<'_, RuntimeHandle>) -> Result<serde_js
 // Plan Cache Stats
 // ---------------------------------------------------------------------------
 
-/// Statistiques du cache de plans ORIA.
+/// ORIA plan cache statistics.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlanCacheStatsView {
-    /// Nombre total d'entrées en cache.
+    /// Total number of cached entries.
     pub total_entries: u32,
-    /// Nombre total de cache hits.
+    /// Total number of cache hits.
     pub cache_hits: u64,
-    /// Nombre total de cache misses.
+    /// Total number of cache misses.
     pub cache_misses: u64,
-    /// Taux de hit en pourcentage (0.0–100.0).
+    /// Hit rate as a percentage (0.0 to 100.0).
     pub hit_rate_pct: f64,
-    /// Horodatage de l'entrée la plus ancienne, ou `null`.
+    /// Timestamp of the oldest entry, or `null`.
     pub oldest_entry_at: Option<String>,
-    /// Horodatage de l'entrée la plus récente, ou `null`.
+    /// Timestamp of the newest entry, or `null`.
     pub newest_entry_at: Option<String>,
 }
 
-/// Résultat de l'opération de vidage du cache.
+/// Result of the cache clearing operation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClearCacheResult {
-    /// Nombre d'entrées supprimées.
+    /// Number of removed entries.
     pub cleared_count: u32,
 }
 
-/// Retourne les statistiques du cache de plans ORIA.
+/// Returns the ORIA plan cache statistics.
 ///
-/// Retourne des compteurs à zéro si le cache est vide ou désactivé.
-/// Délègue à `GET /api/v1/plan-cache/stats`.
+/// Returns zeroed counters if the cache is empty or disabled.
+/// Delegates to `GET /api/v1/plan-cache/stats`.
 #[tauri::command]
 pub async fn get_plan_cache_stats(
     state: State<'_, RuntimeHandle>,
@@ -951,7 +971,7 @@ pub async fn get_plan_cache_stats(
     get_plan_cache_stats_inner(state.api_port).await
 }
 
-/// Logique interne pour `get_plan_cache_stats`, testable sans Tauri State.
+/// Inner logic for `get_plan_cache_stats`, testable without Tauri State.
 async fn get_plan_cache_stats_inner(port: u16) -> Result<PlanCacheStatsView, String> {
     let json = http_get_json(port, "/api/v1/plan-cache/stats")
         .await
@@ -979,15 +999,15 @@ async fn get_plan_cache_stats_inner(port: u16) -> Result<PlanCacheStatsView, Str
     })
 }
 
-/// Vide le cache de plans et retourne le nombre d'entrées supprimées.
+/// Clears the plan cache and returns the number of removed entries.
 ///
-/// Délègue à `POST /api/v1/plan-cache/clear`.
+/// Delegates to `POST /api/v1/plan-cache/clear`.
 #[tauri::command]
 pub async fn clear_plan_cache(state: State<'_, RuntimeHandle>) -> Result<ClearCacheResult, String> {
     clear_plan_cache_inner(state.api_port).await
 }
 
-/// Logique interne pour `clear_plan_cache`, testable sans Tauri State.
+/// Inner logic for `clear_plan_cache`, testable without Tauri State.
 async fn clear_plan_cache_inner(port: u16) -> Result<ClearCacheResult, String> {
     let json = http_post_json(port, "/api/v1/plan-cache/clear", &serde_json::json!({}))
         .await

@@ -1,12 +1,11 @@
-//! Commandes IPC Tauri pour la vue Settings.
+//! Tauri IPC commands for the Settings view.
 //!
-//! La vue Settings est **lecture seule** (ADR-029) : le round-trip
-//! TOML parse -> modifier -> sérialiser détruirait les commentaires
-//! utilisateur. L'édition est déléguée à l'éditeur natif du système.
+//! The Settings view is **read-only**: a TOML parse -> modify -> serialize
+//! round-trip would destroy the user's comments. Editing is delegated to the
+//! system's native editor.
 //!
-//! Le fichier `apollia.toml` est lu depuis `~/.apollia/apollia.toml`
-//! (emplacement standard). Si le fichier n'existe pas, des valeurs
-//! par défaut sont retournées.
+//! The `apollia.toml` file is read from `~/.apollia/apollia.toml` (standard
+//! location). If the file does not exist, default values are returned.
 
 use std::path::PathBuf;
 
@@ -14,40 +13,40 @@ use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
 
 use serde::Serialize;
 
-/// Entrée clé/valeur d'une section de configuration.
+/// Key/value entry of a configuration section.
 #[derive(Debug, Serialize)]
 pub struct ConfigEntry {
-    /// Nom de la clé.
+    /// Key name.
     pub key: String,
-    /// Valeur sous forme de chaîne lisible.
+    /// Value as a human-readable string.
     pub value: String,
 }
 
-/// Section de configuration regroupée par thème.
+/// Configuration section grouped by theme.
 #[derive(Debug, Serialize)]
 pub struct ConfigSection {
-    /// Nom de la section (ex: `"runtime"`, `"oria"`).
+    /// Section name (e.g. `"runtime"`, `"oria"`).
     pub name: String,
-    /// Description courte de la section.
+    /// Short section description.
     pub description: String,
-    /// Entrées clé/valeur.
+    /// Key/value entries.
     pub entries: Vec<ConfigEntry>,
-    /// Si la section redirige vers une vue dédiée au lieu d'afficher inline.
+    /// Whether the section redirects to a dedicated view instead of displaying inline.
     pub redirect_route: Option<String>,
 }
 
-/// Vue plate de la configuration Apollia OS pour l'UI.
+/// Flat view of the Apollia OS configuration for the UI.
 #[derive(Debug, Serialize)]
 pub struct ApollaConfigView {
-    /// Chemin absolu vers le fichier `apollia.toml`.
+    /// Absolute path to the `apollia.toml` file.
     pub config_path: String,
-    /// Indique si le fichier existe sur le disque.
+    /// Whether the file exists on disk.
     pub config_exists: bool,
-    /// Sections de configuration.
+    /// Configuration sections.
     pub sections: Vec<ConfigSection>,
 }
 
-/// Résout le chemin standard `~/.apollia/apollia.toml`.
+/// Resolves the standard path `~/.apollia/apollia.toml`.
 fn default_config_path() -> PathBuf {
     let home = std::env::var("HOME")
         .map(PathBuf::from)
@@ -55,7 +54,7 @@ fn default_config_path() -> PathBuf {
     home.join(".apollia").join("apollia.toml")
 }
 
-/// Extrait une valeur string d'une table TOML, ou retourne un défaut.
+/// Extracts a string value from a TOML table, or returns a default.
 fn toml_string(table: &toml::Value, section: &str, key: &str, default: &str) -> String {
     table
         .get(section)
@@ -70,7 +69,7 @@ fn toml_string(table: &toml::Value, section: &str, key: &str, default: &str) -> 
         .unwrap_or_else(|| default.to_string())
 }
 
-/// Construit la vue de configuration à partir du TOML parsé (ou des défauts).
+/// Builds the configuration view from the parsed TOML (or defaults).
 fn build_config_view(
     toml_value: Option<&toml::Value>,
     config_path: &str,
@@ -177,10 +176,10 @@ fn build_config_view(
     }
 }
 
-/// Retourne la configuration actuelle sous forme de vue plate pour l'UI.
+/// Returns the current configuration as a flat view for the UI.
 ///
-/// Lit le fichier `~/.apollia/apollia.toml` et extrait les valeurs par section.
-/// Si le fichier n'existe pas, retourne les valeurs par défaut.
+/// Reads `~/.apollia/apollia.toml` and extracts the values by section.
+/// If the file does not exist, returns the default values.
 #[tauri::command]
 pub async fn get_config() -> Result<ApollaConfigView, String> {
     let path = default_config_path();
@@ -201,9 +200,9 @@ pub async fn get_config() -> Result<ApollaConfigView, String> {
     Ok(build_config_view(Some(&toml_value), &path_str, true))
 }
 
-/// Ouvre le fichier `apollia.toml` dans l'éditeur par défaut du système.
+/// Opens the `apollia.toml` file in the system's default editor.
 ///
-/// Utilise `open::that()` pour la compatibilité cross-platform
+/// Uses `open::that()` for cross-platform compatibility
 /// (macOS: `open`, Linux: `xdg-open`, Windows: `start`).
 #[tauri::command]
 pub async fn open_config_in_editor() -> Result<(), String> {
@@ -227,7 +226,7 @@ pub async fn open_config_in_editor() -> Result<(), String> {
     open::that(&path).map_err(|e| format!("failed to open editor: {e}"))
 }
 
-/// Résout le chemin du flag d'onboarding `~/.apollia/.onboarded`.
+/// Resolves the onboarding flag path `~/.apollia/.onboarded`.
 fn onboarded_flag_path() -> PathBuf {
     let home = std::env::var("HOME")
         .map(PathBuf::from)
@@ -235,17 +234,17 @@ fn onboarded_flag_path() -> PathBuf {
     home.join(".apollia").join(".onboarded")
 }
 
-/// Vérifie si l'onboarding a déjà été effectué.
+/// Checks whether onboarding has already been completed.
 ///
-/// Retourne `true` si le fichier `~/.apollia/.onboarded` existe.
+/// Returns `true` if the `~/.apollia/.onboarded` file exists.
 #[tauri::command]
 pub async fn check_onboarded() -> Result<bool, String> {
     Ok(onboarded_flag_path().exists())
 }
 
-/// Marque l'onboarding comme terminé en créant le fichier flag.
+/// Marks onboarding as complete by creating the flag file.
 ///
-/// Crée `~/.apollia/.onboarded` (et le répertoire parent si nécessaire).
+/// Creates `~/.apollia/.onboarded` (and the parent directory if needed).
 #[tauri::command]
 pub async fn mark_onboarded() -> Result<(), String> {
     let flag_path = onboarded_flag_path();
@@ -261,17 +260,17 @@ pub async fn mark_onboarded() -> Result<(), String> {
         .map_err(|e| format!("failed to write onboarding flag: {e}"))
 }
 
-/// Réinitialise complètement l'onboarding : supprime le flag de complétion,
-/// purge les marqueurs internes d'état du flow desktop, et purge le profil
-/// utilisateur visible (Tier 1 + extras) pour que le parcours reparte de zéro.
+/// Fully resets onboarding: removes the completion flag, purges the desktop
+/// flow's internal state markers, and purges the visible user profile (Tier 1
+/// + extras) so the journey starts from scratch.
 ///
-/// Après ADR-087 :
-/// - Les marqueurs UI (`onboarding_phase`, `onboarding_completed_at`, etc.)
-///   sont stockés sous préfixe `__` dans `__user__` → on les efface via
+/// Details:
+/// - UI markers (`onboarding_phase`, `onboarding_completed_at`, etc.) are
+///   stored under the `__` prefix in `__user__`, so they are wiped via
 ///   `forget_internal`.
-/// - Les faits Tier 1 du profil sont des clés plates (`name`, `role`,
-///   `agents.hitl`, `constraints.sovereignty`) → un simple `repo.reset()`
-///   les supprime tous, y compris les extras éventuels.
+/// - The profile's Tier 1 facts are flat keys (`name`, `role`,
+///   `agents.hitl`, `constraints.sovereignty`), so a plain `repo.reset()`
+///   removes them all, including any extras.
 #[tauri::command]
 pub async fn reset_onboarding(
     state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
@@ -293,7 +292,7 @@ pub async fn reset_onboarding(
     tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
 
-        // 1. Marqueurs internes du flow onboarding (préfixe `__`).
+        // 1. Internal onboarding-flow markers (`__` prefix).
         let internal_keys = [
             "onboarding_phase",
             "onboarding_profile",
@@ -325,8 +324,8 @@ pub async fn reset_onboarding(
             }
         }
 
-        // 2. Purge complète du profil utilisateur visible (Tier 1 + extras).
-        //    Le parcours d'onboarding repeuplera les Tier 1 dès relance.
+        // 2. Full purge of the visible user profile (Tier 1 + extras).
+        //    The onboarding journey will repopulate Tier 1 on next launch.
         let removed = repo
             .reset()
             .map_err(|e| format!("failed to reset user profile during reset_onboarding: {e}"))?;
@@ -340,9 +339,9 @@ pub async fn reset_onboarding(
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
-    // 3. Purge la base mémoire propre à l'onboarding-agent (`onboarding.db`).
-    //    Elle contient les épisodes du dialogue + clés `onboarding.completed_at`
-    //    qui empêchent autrement le parcours de redémarrer proprement.
+    // 3. Purge the memory database owned by the onboarding-agent (`onboarding.db`).
+    //    It holds the dialogue episodes and `onboarding.completed_at` keys that
+    //    otherwise prevent the journey from restarting cleanly.
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     let onboarding_db = std::path::PathBuf::from(home)
         .join(".apollia")
@@ -356,7 +355,7 @@ pub async fn reset_onboarding(
                 "could not remove onboarding.db during reset_onboarding"
             );
         }
-        // Side-files créés par WAL ; ignorer les erreurs.
+        // WAL side-files; ignore errors.
         for ext in ["onboarding.db-wal", "onboarding.db-shm"] {
             let side = onboarding_db.with_file_name(ext);
             if side.exists() {
@@ -368,13 +367,13 @@ pub async fn reset_onboarding(
     Ok(())
 }
 
-/// Supprime **toutes** les bases de données mémoire d'Apollia.
+/// Removes **all** of Apollia's memory databases.
 ///
-/// Wipe brutal : retire chaque fichier `*.db` (et leurs side-files WAL/SHM)
-/// du dossier `~/.apollia/memory/`, indépendamment du namespace (profil
-/// utilisateur, mémoires d'agents, projets, etc.). Action irréversible.
+/// Hard wipe: removes every `*.db` file (and their WAL/SHM side-files) from the
+/// `~/.apollia/memory/` directory, regardless of namespace (user profile, agent
+/// memories, projects, etc.). Irreversible action.
 ///
-/// Retourne le nombre de fichiers `.db` supprimés.
+/// Returns the number of `.db` files removed.
 #[tauri::command]
 pub async fn clear_all_memories() -> Result<usize, String> {
     let memory_dir = apollia_home().join("memory");
@@ -396,9 +395,8 @@ pub async fn clear_all_memories() -> Result<usize, String> {
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        // Suppression élargie : on retire chaque fichier (db, wal, shm,
-        // backups éventuels) du dossier mémoire. Les sous-dossiers ne sont
-        // pas touchés.
+        // Broad removal: every file (db, wal, shm, possible backups) in the
+        // memory directory is removed. Subdirectories are left untouched.
         if !path.is_file() {
             continue;
         }
@@ -418,7 +416,7 @@ pub async fn clear_all_memories() -> Result<usize, String> {
     Ok(removed_db_count)
 }
 
-/// Résout `~/.apollia/`.
+/// Resolves `~/.apollia/`.
 fn apollia_home() -> PathBuf {
     let home = std::env::var("HOME")
         .map(PathBuf::from)
@@ -426,9 +424,9 @@ fn apollia_home() -> PathBuf {
     home.join(".apollia")
 }
 
-/// Supprime le dossier des logs (`~/.apollia/logs/`).
+/// Removes the logs directory (`~/.apollia/logs/`).
 ///
-/// Si le dossier n'existe pas, la commande est un no-op et retourne `Ok(())`.
+/// If the directory does not exist, the command is a no-op and returns `Ok(())`.
 #[tauri::command]
 pub async fn clear_logs() -> Result<(), String> {
     let logs = apollia_home().join("logs");
@@ -440,11 +438,10 @@ pub async fn clear_logs() -> Result<(), String> {
     Ok(())
 }
 
-/// Réinitialisation usine : supprime **tout** le contenu de `~/.apollia/`.
+/// Factory reset: removes **all** of `~/.apollia/`'s content.
 ///
-/// Action destructive irréversible : supprime config, mémoire, sessions,
-/// logs, modèles et identifiants. L'utilisateur est invité à redémarrer
-/// après l'appel.
+/// Irreversible destructive action: removes config, memory, sessions, logs,
+/// models and credentials. The user is prompted to restart after the call.
 #[tauri::command]
 pub async fn factory_reset() -> Result<(), String> {
     let home = apollia_home();
@@ -456,35 +453,35 @@ pub async fn factory_reset() -> Result<(), String> {
     Ok(())
 }
 
-/// Redémarre l'application. Appelée après une action destructive
-/// nécessitant un cold-start (reset onboarding, factory reset).
+/// Restarts the application. Called after a destructive action that needs a
+/// cold-start (onboarding reset, factory reset).
 ///
-/// **Important :** Cette fonction ne retourne jamais en cas de succès car
-/// elle tue le process actuel et en lance un nouveau. En mode dev, le restart
-/// peut échouer — dans ce cas, l'utilisateur doit relancer manuellement.
+/// **Important:** this function never returns on success because it kills the
+/// current process and spawns a new one. In dev mode the restart may fail, in
+/// which case the user must relaunch manually.
 #[tauri::command]
 pub async fn app_restart(app: tauri::AppHandle) -> Result<(), String> {
     // app.restart() kills the current process and spawns a new one, so this
     // function never returns on success. In dev mode, restart may fail silently
-    // (no packaged bundle to relaunch) — the frontend should handle this by
+    // (no packaged bundle to relaunch); the frontend should handle this by
     // showing a manual reload prompt if the app doesn't actually restart.
     app.restart();
 }
 
-/// Informations système affichées dans la section Avancé de Settings.
+/// System information shown in the Advanced section of Settings.
 #[derive(Debug, Serialize)]
 pub struct SystemInfo {
-    /// Version d'Apollia OS (ex: `"0.1.0"`).
+    /// Apollia OS version (e.g. `"0.1.0"`).
     pub version: String,
-    /// Système d'exploitation et architecture (ex: `"macos aarch64"`).
+    /// Operating system and architecture (e.g. `"macos aarch64"`).
     pub os: String,
-    /// Chemin absolu vers l'interpréteur Python 3, si détecté.
+    /// Absolute path to the Python 3 interpreter, if detected.
     pub python_path: Option<String>,
 }
 
-/// Retourne les informations système pour la section Avancé de Settings.
+/// Returns the system information for the Advanced section of Settings.
 ///
-/// Détecte la version d'Apollia, l'OS, et le chemin Python 3 via
+/// Detects the Apollia version, the OS, and the Python 3 path via
 /// `python3 -c "import sys; print(sys.executable)"`.
 #[tauri::command]
 pub async fn get_system_info() -> Result<SystemInfo, String> {
@@ -516,9 +513,9 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
     })
 }
 
-/// Vérifie si Python 3 est disponible sur le système.
+/// Checks whether Python 3 is available on the system.
 ///
-/// Exécute `python3 --version` et retourne `true` si la commande réussit.
+/// Runs `python3 --version` and returns `true` if the command succeeds.
 #[tauri::command]
 pub async fn check_python() -> Result<bool, String> {
     let result = tokio::process::Command::new("python3")
@@ -534,10 +531,10 @@ pub async fn check_python() -> Result<bool, String> {
     }
 }
 
-/// Vérifie si au moins un backend LLM est configuré.
+/// Checks whether at least one LLM backend is configured.
 ///
-/// Délègue à `GET /api/v1/llm/status` sur l'API REST interne et
-/// retourne `true` si au moins un backend est disponible.
+/// Delegates to `GET /api/v1/llm/status` on the internal REST API and returns
+/// `true` if at least one backend is available.
 #[tauri::command]
 pub async fn check_llm_configured(
     state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
@@ -557,10 +554,10 @@ pub async fn check_llm_configured(
     }
 }
 
-/// Vérifie si `hello_agent.py` existe dans le répertoire `agents/`.
+/// Checks whether `hello_agent.py` exists in the `agents/` directory.
 ///
-/// Cherche dans le répertoire de travail courant.
-/// Retourne le chemin absolu si trouvé, sinon `None`.
+/// Searches the current working directory.
+/// Returns the absolute path if found, otherwise `None`.
 #[tauri::command]
 pub async fn check_hello_agent_exists() -> Result<Option<String>, String> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -698,7 +695,7 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
 
     let model_path_str = format!("~/.apollia/models/{file_name}");
 
-    // Insert backend into system.db — idempotent (skips if "local" already exists).
+    // Insert backend into system.db; idempotent (skips if "local" already exists).
     // LlmBackendRepository is !Send, so DB work runs in spawn_blocking.
     let db_path = default_config_path()
         .parent()
@@ -835,7 +832,7 @@ mod tests {
         assert_eq!(runtime.entries[1].value, "9999");
         assert_eq!(runtime.entries[2].value, "10"); // default
 
-        // Locate `logging` by name — tools was inserted between memory and logging (ADR-072).
+        // Locate `logging` by name; tools was inserted between memory and logging.
         let logging = view
             .sections
             .iter()

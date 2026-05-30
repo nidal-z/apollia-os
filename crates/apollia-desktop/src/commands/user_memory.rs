@@ -1,12 +1,12 @@
-//! Tauri IPC commands for the user profile and conversation statistics (ADR-087).
+//! Tauri IPC commands for the user profile and conversation statistics.
 //!
 //! Surface:
-//! - [`get_profile_schema`] — the canonical `PROFILE_SCHEMA` for UI rendering.
-//! - [`get_profile`] — schema entries + extras for the Settings → Profile page.
-//! - [`set_profile_entry`] — upsert (always `WrittenBy::User`).
-//! - [`delete_profile_entry`] — remove a single entry by key.
-//! - [`reset_user_profile`] — purge every user-visible entry.
-//! - [`get_conversation_stats`] — per-session chat statistics.
+//! - [`get_profile_schema`]: the canonical `PROFILE_SCHEMA` for UI rendering.
+//! - [`get_profile`]: schema entries + extras for the Settings → Profile page.
+//! - [`set_profile_entry`]: upsert (always `WrittenBy::User`).
+//! - [`delete_profile_entry`]: remove a single entry by key.
+//! - [`reset_user_profile`]: purge every user-visible entry.
+//! - [`get_conversation_stats`]: per-session chat statistics.
 
 use std::sync::Arc;
 
@@ -196,7 +196,7 @@ pub async fn get_profile(state: State<'_, RuntimeHandle>) -> Result<UserProfileV
 
 /// Creates or updates a single profile entry.
 ///
-/// Always written with [`WrittenBy::User`] — the source represents the
+/// Always written with [`WrittenBy::User`]; the source represents the
 /// frontend operator action.
 #[tauri::command]
 pub async fn set_profile_entry(

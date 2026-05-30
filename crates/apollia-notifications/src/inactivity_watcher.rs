@@ -7,14 +7,14 @@ use crate::{
     engine::{Notification, NotificationEngineHandle},
 };
 
-/// Surveille l'inactivité du runtime et envoie une notification si le seuil est dépassé.
+/// Watches runtime inactivity and sends a notification if the threshold is exceeded.
 ///
-/// L'acteur est démarré via [`InactivityWatcher::start`] qui lance un `tokio::spawn`.
-/// Le timer est réarmé par [`InactivityWatcher::reset_timer`] à chaque événement significatif
-/// du runtime (à appeler depuis l'EventBus). Après chaque notification envoyée, le timer est
-/// réarmé automatiquement pour éviter le spam.
+/// The actor is started via [`InactivityWatcher::start`], which launches a
+/// `tokio::spawn`. The timer is rearmed by [`InactivityWatcher::reset_timer`] on
+/// every significant runtime event (to be called from the EventBus). After each
+/// notification is sent, the timer rearms automatically to avoid spam.
 ///
-/// # Exemple
+/// # Example
 ///
 /// ```no_run
 /// use std::sync::Arc;
@@ -25,7 +25,7 @@ use crate::{
 ///     let watcher = Arc::new(InactivityWatcher::new(30, handle));
 ///     let (_active_tx, active_rx) = watch::channel(true);
 ///     watcher.clone().start(active_rx);
-///     // reset_timer() est appelé depuis l'EventBus à chaque RuntimeEvent significatif
+///     // reset_timer() is called from the EventBus on each significant RuntimeEvent
 ///     watcher.reset_timer();
 /// }
 /// ```
@@ -36,9 +36,9 @@ pub struct InactivityWatcher {
 }
 
 impl InactivityWatcher {
-    /// Crée un nouveau watcher avec le timeout et le handle du moteur de notification.
+    /// Creates a new watcher with the timeout and the notification engine handle.
     ///
-    /// Le timer est initialisé à `Instant::now()` à la construction.
+    /// The timer is initialized to `Instant::now()` at construction.
     pub fn new(timeout_secs: u64, engine_handle: NotificationEngineHandle) -> Self {
         let (tx, _) = watch::channel(Instant::now());
         Self {
@@ -48,44 +48,44 @@ impl InactivityWatcher {
         }
     }
 
-    /// Réarme le timer d'inactivité à l'instant courant.
+    /// Rearms the inactivity timer to the current instant.
     ///
-    /// À appeler depuis le consommateur de l'EventBus à chaque
+    /// To be called from the EventBus consumer on each
     /// `RuntimeEvent::is_significant_for_inactivity()`.
     pub fn reset_timer(&self) {
         let _ = self.last_activity_tx.send(Instant::now());
     }
 
-    /// Lance la boucle de surveillance dans un `tokio::spawn` isolé.
+    /// Runs the watch loop in an isolated `tokio::spawn`.
     ///
-    /// - Quand `task_active_rx` est `false`, la boucle attend sans envoyer de notification.
-    /// - Quand `task_active_rx` passe à `true`, le timer démarre.
-    /// - Après [`Self::timeout`] sans activité, une notification est publiée et le timer
-    ///   se réarme automatiquement (anti-spam).
+    /// - When `task_active_rx` is `false`, the loop waits without sending a notification.
+    /// - When `task_active_rx` becomes `true`, the timer starts.
+    /// - After [`Self::timeout`] with no activity, a notification is published and
+    ///   the timer rearms automatically (anti-spam).
     pub fn start(self: Arc<Self>, mut task_active_rx: watch::Receiver<bool>) {
         tokio::spawn(async move {
             let mut activity_rx = self.last_activity_tx.subscribe();
 
             loop {
-                // Attendre que la tâche soit active
+                // Wait for the task to be active.
                 while !*task_active_rx.borrow() {
                     if task_active_rx.changed().await.is_err() {
                         return;
                     }
                 }
 
-                // Calculer le temps restant avant timeout
+                // Compute the time remaining before timeout.
                 let last = *activity_rx.borrow();
                 let remaining = self.timeout.saturating_sub(last.elapsed());
 
                 tokio::select! {
                     _ = tokio::time::sleep(remaining) => {
-                        // Vérifier que la tâche est toujours active avant de notifier
+                        // Check the task is still active before notifying.
                         if *task_active_rx.borrow() {
                             self.engine_handle
                                 .publish(build_inactivity_notification())
                                 .await;
-                            // Réarmer le timer après notification (anti-spam)
+                            // Rearm the timer after notification (anti-spam).
                             let _ = self.last_activity_tx.send(Instant::now());
                         }
                     }
@@ -93,13 +93,13 @@ impl InactivityWatcher {
                         if result.is_err() {
                             return;
                         }
-                        // Activité détectée — reboucler pour recalculer le temps restant
+                        // Activity detected: loop back to recompute the remaining time.
                     }
                     result = task_active_rx.changed() => {
                         if result.is_err() {
                             return;
                         }
-                        // task_active a changé — reboucler pour réévaluer le statut
+                        // task_active changed: loop back to re-evaluate the status.
                     }
                 }
             }
@@ -107,7 +107,7 @@ impl InactivityWatcher {
     }
 }
 
-/// Construit la notification d'inactivité standard.
+/// Builds the standard inactivity notification.
 fn build_inactivity_notification() -> Notification {
     Notification {
         event: "agent.inactivity".into(),
@@ -130,7 +130,7 @@ mod tests {
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    /// Canal mock qui compte les notifications reçues.
+    /// Mock channel that counts received notifications.
     struct CountingChannel {
         call_count: Arc<AtomicU32>,
     }
@@ -151,11 +151,12 @@ mod tests {
         }
     }
 
-    /// Retourne `(handle, call_count, _bus_keep_alive)`.
+    /// Returns `(handle, call_count, _bus_keep_alive)`.
     ///
-    /// Le `_bus_keep_alive` DOIT être conservé dans la variable locale du test pour que
-    /// le broadcast channel reste ouvert le temps du test. Sans lui, `run_engine_loop`
-    /// reçoit `RecvError::Closed` dès son premier poll et s'arrête immédiatement.
+    /// The `_bus_keep_alive` MUST be kept in the test's local variable so the
+    /// broadcast channel stays open for the duration of the test. Without it,
+    /// `run_engine_loop` gets `RecvError::Closed` on its first poll and stops
+    /// immediately.
     fn make_engine_with_counter() -> (
         NotificationEngineHandle,
         Arc<AtomicU32>,
@@ -170,7 +171,7 @@ mod tests {
         let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(CountingChannel {
             call_count: call_count.clone(),
         })];
-        // On passe un clone pour que `run_engine_loop` puisse drop sa copie sans fermer le canal.
+        // Pass a clone so `run_engine_loop` can drop its copy without closing the channel.
         let (tx, _rx) = tokio::sync::broadcast::channel(16);
         let engine = NotificationEngine::new(
             config,
@@ -185,50 +186,50 @@ mod tests {
 
     #[tokio::test]
     async fn inactivity_watcher_triggers_after_timeout() {
-        // GIVEN InactivityWatcher avec timeout 1s, tâche active
+        // GIVEN InactivityWatcher with a 1s timeout, active task
         let (handle, call_count, _bus) = make_engine_with_counter();
         let watcher = Arc::new(InactivityWatcher::new(1, handle));
         let (_active_tx, active_rx) = watch::channel(true);
         watcher.clone().start(active_rx);
 
-        // WHEN aucun reset_timer() pendant 1.1s
+        // WHEN no reset_timer() for 1.1s
         tokio::time::sleep(Duration::from_millis(1100)).await;
-        // Laisser l'engine consommer la commande Publish depuis son cmd_rx
+        // Let the engine consume the Publish command from its cmd_rx.
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // THEN notification publiée
+        // THEN notification published
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
     async fn inactivity_watcher_resets_on_event() {
-        // GIVEN InactivityWatcher avec timeout 1s
+        // GIVEN InactivityWatcher with a 1s timeout
         let (handle, call_count, _bus) = make_engine_with_counter();
         let watcher = Arc::new(InactivityWatcher::new(1, handle));
         let (_active_tx, active_rx) = watch::channel(true);
         watcher.clone().start(active_rx);
 
-        // WHEN reset_timer() à 800ms → attente 1.5s total
+        // WHEN reset_timer() at 800ms, waiting 1.5s total
         tokio::time::sleep(Duration::from_millis(800)).await;
         watcher.reset_timer();
         tokio::time::sleep(Duration::from_millis(700)).await;
 
-        // THEN aucune notification (timer réarmé à 800ms, nouveau timeout à 1800ms total)
+        // THEN no notification (timer rearmed at 800ms, new timeout at 1800ms total)
         assert_eq!(call_count.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
     async fn inactivity_watcher_no_notification_when_task_inactive() {
-        // GIVEN InactivityWatcher avec tâche inactive
+        // GIVEN InactivityWatcher with an inactive task
         let (handle, call_count, _bus) = make_engine_with_counter();
         let watcher = Arc::new(InactivityWatcher::new(1, handle));
         let (_active_tx, active_rx) = watch::channel(false);
         watcher.clone().start(active_rx);
 
-        // WHEN attente 1.5s sans que la tâche soit active
+        // WHEN waiting 1.5s without the task being active
         tokio::time::sleep(Duration::from_millis(1500)).await;
 
-        // THEN aucune notification
+        // THEN no notification
         assert_eq!(call_count.load(Ordering::SeqCst), 0);
     }
 

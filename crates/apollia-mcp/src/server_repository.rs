@@ -184,7 +184,7 @@ impl McpServerRepository {
     /// Imports a list of [`McpServerConfig`] in a single pass.
     ///
     /// This operation is a no-op if the `mcp_servers` table already contains
-    /// at least one row — it returns `Ok(0)` without modifying the database.
+    /// at least one row; it returns `Ok(0)` without modifying the database.
     /// When the table is empty every entry in `configs` is saved via [`save`].
     ///
     /// [`save`]: McpServerRepository::save

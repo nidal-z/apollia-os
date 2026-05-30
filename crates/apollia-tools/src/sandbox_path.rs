@@ -59,10 +59,10 @@ impl SandboxRoot {
     ///
     /// Validates that the path remains within the sandbox boundary after normalization.
     ///
-    /// Les chemins absolus sont acceptés s'ils pointent sous le canonical root
-    /// (ex. `/Users/alice/docs` avec root `/Users/alice`). Les chemins absolus
-    /// hors du root (ex. `/etc/passwd`) sont rejetés par la vérification
-    /// `starts_with(canonical)` en fin de méthode.
+    /// Absolute paths are accepted if they point under the canonical root
+    /// (e.g. `/Users/alice/docs` with root `/Users/alice`). Absolute paths
+    /// outside the root (e.g. `/etc/passwd`) are rejected by the
+    /// `starts_with(canonical)` check at the end of the method.
     ///
     /// # Rejections
     ///
@@ -76,7 +76,7 @@ impl SandboxRoot {
     pub fn resolve(&self, relative_path: &str) -> Result<PathBuf, SandboxPathError> {
         // Expand a leading `~` (or `~/`) to $HOME. Without this, `Path::new("~")`
         // treats `~` as a literal directory name and the file ends up under
-        // `<sandbox>/~/...` — agents looking for `~/Documents/foo.md` find nothing.
+        // `<sandbox>/~/...`, so agents looking for `~/Documents/foo.md` find nothing.
         // The shell expands tilde, but file_write/file_read receive the raw
         // string. Any tilde elsewhere in the path is left alone (only the
         // leading shorthand is shell-portable).
@@ -114,10 +114,10 @@ impl SandboxRoot {
 /// Normalize a path by resolving `.` and `..` components without touching the filesystem.
 ///
 /// This function processes path components:
-/// - `Component::Normal` — added to result
-/// - `Component::CurDir` (`.`) — skipped
-/// - `Component::ParentDir` (`..`) — removes last normal component if present, or adds `..` if none
-/// - `Component::RootDir`, `Component::Prefix` — preserved as-is
+/// - `Component::Normal`: added to result
+/// - `Component::CurDir` (`.`): skipped
+/// - `Component::ParentDir` (`..`): removes last normal component if present, or adds `..` if none
+/// - `Component::RootDir`, `Component::Prefix`: preserved as-is
 ///
 /// The normalized path may still contain `..` components at the start if there are more
 /// parent directory references than can be resolved against normal components.
@@ -150,7 +150,7 @@ fn normalize_path(path: &Path) -> PathBuf {
 
 /// Expand a leading `~` shorthand to `$HOME`.
 ///
-/// Only the *leading* tilde is expanded — `~/x` and `~` map to `$HOME/x` and
+/// Only the *leading* tilde is expanded: `~/x` and `~` map to `$HOME/x` and
 /// `$HOME` respectively. A bare `~user` form is *not* supported (no passwd
 /// lookup) and is left unchanged so the sandbox check rejects it cleanly.
 /// If `$HOME` is unset the input is returned untouched, which makes the
@@ -166,7 +166,7 @@ fn expand_leading_tilde(input: &str) -> std::borrow::Cow<'_, str> {
     if input == "~" {
         return std::borrow::Cow::Owned(home_str.into_owned());
     }
-    // input.starts_with("~/") — strip the `~` and join with HOME.
+    // input.starts_with("~/"): strip the `~` and join with HOME.
     let rest = &input[2..];
     let mut buf = String::with_capacity(home_str.len() + 1 + rest.len());
     buf.push_str(&home_str);
@@ -246,7 +246,7 @@ mod tests {
             .resolve("~/Documents/foo.md")
             .expect("tilde path should resolve under sandbox");
 
-        // THEN: it lands under HOME directly — no literal `~` directory
+        // THEN: it lands under HOME directly, no literal `~` directory
         assert!(resolved.starts_with(sandbox.path()));
         assert!(resolved.ends_with("Documents/foo.md"));
         assert!(

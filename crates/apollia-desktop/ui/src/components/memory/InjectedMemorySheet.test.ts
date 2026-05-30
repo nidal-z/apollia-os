@@ -39,7 +39,7 @@ describe("InjectedEntry — contract", () => {
       relevance_score: 0.82,
     };
 
-    const keys = Object.keys(entry).sort();
+    const keys = Object.keys(entry).sort((a, b) => a.localeCompare(b));
     expect(keys).toEqual([
       "content_preview",
       "id",

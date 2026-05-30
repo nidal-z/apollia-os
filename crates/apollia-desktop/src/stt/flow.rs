@@ -175,7 +175,7 @@ impl SttFlow {
         }
 
         // Drain the buffer BEFORE stopping the audio thread. The cpal callback
-        // may still push a few samples between drain and stop — that is fine.
+        // may still push a few samples between drain and stop; that is fine.
         let (raw_samples, sample_rate, channels) = match self.drain_buffer() {
             Some(data) => data,
             None => {
@@ -279,7 +279,7 @@ impl SttFlow {
     /// | mode          | action                                                          |
     /// |---------------|-----------------------------------------------------------------|
     /// | `"paste"`     | clipboard → osascript Cmd+V (macOS) / enigo Ctrl+V (Linux)     |
-    /// | `"clipboard"` | clipboard only — user pastes manually                           |
+    /// | `"clipboard"` | clipboard only, user pastes manually                            |
     /// | `"memo"`      | desktop notification only                                       |
     /// | `"both"`      | clipboard → paste + notification                                |
     async fn dispatch_result(&self, text: &str) {
@@ -307,7 +307,7 @@ impl SttFlow {
     /// Injects transcribed text via clipboard + paste from a subprocess.
     ///
     /// Step 1: write text to clipboard (arboard, fast).
-    /// Step 2: async sleep — lets the WindowServer propagate the clipboard.
+    /// Step 2: async sleep, lets the WindowServer propagate the clipboard.
     /// Step 3: osascript subprocess sends Cmd+V (macOS) / enigo Ctrl+V (Linux).
     ///
     /// Using a subprocess for the paste keystroke avoids two bugs specific to

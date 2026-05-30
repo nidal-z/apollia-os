@@ -27,13 +27,13 @@ pub struct RuntimeEventRecord {
     pub correlation_id: Option<String>,
     /// Tour ReAct (NULL hors loop).
     pub step_num: Option<i64>,
-    /// Discriminant — voir `EventKind` côté UI.
+    /// Discriminant, voir `EventKind` côté UI.
     pub kind: String,
     /// Payload typé par kind, JSON brut.
     pub payload_json: String,
     /// ISO 8601 RFC 3339, millisecondes incluses.
     pub ts: String,
-    /// Unix seconds — utilisé par la purge.
+    /// Unix seconds, utilisé par la purge.
     pub created_at_unix: i64,
 }
 

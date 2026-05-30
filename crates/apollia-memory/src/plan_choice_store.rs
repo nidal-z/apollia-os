@@ -1,8 +1,8 @@
-//! PlanChoiceStore — persistance des choix de plans RLHF en SQLite.
+//! PlanChoiceStore: SQLite persistence of RLHF plan choices.
 //!
-//! Chaque fois qu'un opérateur choisit entre deux plans alternatifs (binary feedback),
-//! son choix est logué dans la table `plan_choices`. Ces données restent locales
-//! (Principe #1 — Local-first) et servent de signal RLHF pour améliorer les plans futurs.
+//! Each time an operator chooses between two alternative plans (binary feedback),
+//! the choice is logged in the `plan_choices` table. This data stays local
+//! (local-first) and serves as an RLHF signal to improve future plans.
 
 use apollia_core::plan_alternatives::{PlanAlternatives, PlanChoice};
 
@@ -12,18 +12,18 @@ use crate::store::MemoryStore;
 // Errors
 // ─────────────────────────────────────────────
 
-/// Erreurs du [`PlanChoiceStore`].
+/// Errors of the [`PlanChoiceStore`].
 #[derive(Debug, thiserror::Error)]
 pub enum PlanChoiceStoreError {
-    /// Échec de l'écriture d'un choix dans la base de données.
+    /// Writing a choice to the database failed.
     #[error("failed to log plan choice: {0}")]
     LogFailed(String),
 
-    /// Échec de la lecture d'un choix depuis la base de données.
+    /// Reading a choice from the database failed.
     #[error("failed to query plan choice: {0}")]
     QueryFailed(String),
 
-    /// Erreur SQLite brute propagée depuis rusqlite.
+    /// Raw SQLite error propagated from rusqlite.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 }
@@ -32,40 +32,40 @@ pub enum PlanChoiceStoreError {
 // PlanChoiceStore
 // ─────────────────────────────────────────────
 
-/// Backend de persistance pour les choix de plans binaires (RLHF).
+/// Persistence backend for binary plan choices (RLHF).
 ///
-/// Persiste chaque choix opérateur dans la table `plan_choices` du [`MemoryStore`].
-/// Les données ne quittent jamais la machine locale (Principe #1).
+/// Persists each operator choice in the `plan_choices` table of the [`MemoryStore`].
+/// The data never leaves the local machine.
 pub struct PlanChoiceStore<'a> {
     store: &'a MemoryStore,
 }
 
-/// Entrée retournée par [`PlanChoiceStore::get_choice`].
+/// Entry returned by [`PlanChoiceStore::get_choice`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PlanChoiceEntry {
-    /// Identifiant auto-incrémenté.
+    /// Auto-incremented identifier.
     pub id: i64,
-    /// Identifiant de session corrélant avec [`PlanAlternatives::session_id`].
+    /// Session identifier correlating with [`PlanAlternatives::session_id`].
     pub session_id: String,
-    /// Plan choisi (`"plan_a"` ou `"plan_b"`).
+    /// Chosen plan (`"plan_a"` or `"plan_b"`).
     pub chosen: String,
-    /// Timestamp Unix du choix (secondes).
+    /// Unix timestamp of the choice (seconds).
     pub chosen_at: i64,
 }
 
 impl<'a> PlanChoiceStore<'a> {
-    /// Crée un store lié à un [`MemoryStore`] existant.
+    /// Creates a store bound to an existing [`MemoryStore`].
     pub fn new(store: &'a MemoryStore) -> Self {
         Self { store }
     }
 
-    /// Persiste un choix de plan en SQLite.
+    /// Persists a plan choice in SQLite.
     ///
-    /// Enregistre le `session_id`, le plan choisi (`"plan_a"` / `"plan_b"`),
-    /// les deux plans complets en JSON et le timestamp Unix du choix.
+    /// Records the `session_id`, the chosen plan (`"plan_a"` / `"plan_b"`),
+    /// both full plans as JSON, and the Unix timestamp of the choice.
     ///
-    /// La contrainte `UNIQUE` sur `session_id` garantit qu'un seul choix
-    /// peut être enregistré par session (idempotence).
+    /// The `UNIQUE` constraint on `session_id` guarantees that only one choice
+    /// can be recorded per session (idempotence).
     pub fn log_plan_choice(
         &self,
         choice: &PlanChoice,
@@ -104,7 +104,7 @@ impl<'a> PlanChoiceStore<'a> {
         Ok(row_id)
     }
 
-    /// Retourne le choix enregistré pour une session donnée, ou `None` si absent.
+    /// Returns the choice recorded for a given session, or `None` if absent.
     pub fn get_choice(
         &self,
         session_id: &str,
@@ -138,7 +138,7 @@ impl<'a> PlanChoiceStore<'a> {
         }
     }
 
-    /// Retourne le nombre total de choix enregistrés.
+    /// Returns the total number of recorded choices.
     pub fn count(&self) -> Result<i64, PlanChoiceStoreError> {
         let conn = self.store.conn();
         conn.query_row("SELECT COUNT(*) FROM plan_choices", [], |row| row.get(0))
@@ -178,9 +178,9 @@ mod tests {
         }
     }
 
-    // GIVEN un PlanChoiceStore avec table plan_choices
+    // GIVEN a PlanChoiceStore with a plan_choices table
     // WHEN log_plan_choice(PlanChoice { chosen: PlanA, session_id: "test-123" })
-    // THEN table contient entrée chosen = "plan_a"
+    // THEN the table contains an entry with chosen = "plan_a"
     #[test]
     fn test_log_plan_choice_plan_a() {
         // GIVEN
@@ -251,7 +251,7 @@ mod tests {
             .unwrap();
         let result = choice_store.log_plan_choice(&choice, &alternatives);
 
-        // THEN — second insert should fail (UNIQUE constraint)
+        // THEN: second insert should fail (UNIQUE constraint)
         assert!(result.is_err(), "duplicate session_id should be rejected");
     }
 
@@ -276,7 +276,7 @@ mod tests {
         let (store, _) = setup();
         let choice_store = PlanChoiceStore::new(&store);
 
-        // WHEN — log 3 choices
+        // WHEN: log 3 choices
         for i in 0..3 {
             let session_id = format!("session-{i}");
             let alternatives = make_alternatives(&session_id);

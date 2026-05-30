@@ -23,8 +23,109 @@ const CRON_EXACT: Record<string, Record<Locale, string>> = {
 const DOW_LABEL_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const DOW_LABEL_FR = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
+const INTERVAL_RE = /^(\d+)\s*([smhd])?$/;
+const STEP_RE = /^\*\/\d+$/;
+const ONE_OR_TWO_DIGITS = /^\d{1,2}$/;
+const DOW_SINGLE = /^[0-6]$/;
+
 function pad(n: string | number): string {
   return String(n).padStart(2, "0");
+}
+
+/**
+ * Formats a hour/minute pair in French operator vocabulary (`8h`, `8h30`).
+ * Drops the minutes when they are zero, matching the operator's mental model.
+ */
+function frenchClock(hour: number, minute: number): string {
+  return minute === 0 ? `${hour}h` : `${hour}h${pad(minute)}`;
+}
+
+/**
+ * Recognises `*\/N * * * *` (every N minutes) and returns the localised
+ * label, or null when the expression doesn't match.
+ */
+function matchEveryNMinutes(
+  parts: readonly string[],
+  loc: Locale,
+): string | null {
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  if (!STEP_RE.test(minute) || hour !== "*" || dayOfMonth !== "*" || month !== "*" || dayOfWeek !== "*") {
+    return null;
+  }
+  const n = Number.parseInt(minute.slice(2), 10);
+  if (n <= 0) return null;
+  return loc === "fr" ? `Toutes les ${n} minutes` : `Every ${n} minutes`;
+}
+
+/**
+ * Recognises `0 *\/N * * *` (every N hours) and returns the localised label,
+ * or null when the expression doesn't match.
+ */
+function matchEveryNHours(parts: readonly string[], loc: Locale): string | null {
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  if (minute !== "0" || !STEP_RE.test(hour) || dayOfMonth !== "*" || month !== "*" || dayOfWeek !== "*") {
+    return null;
+  }
+  const n = Number.parseInt(hour.slice(2), 10);
+  if (n <= 0) return null;
+  return loc === "fr" ? `Toutes les ${n} heures` : `Every ${n} hours`;
+}
+
+/**
+ * Recognises `M H * * <dow-spec>` patterns: weekdays (`1-5`), weekends
+ * (`0,6` / `6,0`), single day-of-week (`0..6`), or all days (`*`).
+ */
+function matchDailyWithDow(parts: readonly string[], loc: Locale): string | null {
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  if (!ONE_OR_TWO_DIGITS.test(minute) || !ONE_OR_TWO_DIGITS.test(hour)) return null;
+  if (dayOfMonth !== "*" || month !== "*") return null;
+
+  const hRaw = Number.parseInt(hour, 10);
+  const mRaw = Number.parseInt(minute, 10);
+
+  if (dayOfWeek === "1-5") {
+    return loc === "fr"
+      ? `Tous les matins à ${frenchClock(hRaw, mRaw)} en semaine`
+      : `Every weekday at ${pad(hRaw)}:${pad(mRaw)}`;
+  }
+  if (dayOfWeek === "0,6" || dayOfWeek === "6,0") {
+    return loc === "fr"
+      ? `Le week-end à ${frenchClock(hRaw, mRaw)}`
+      : `On weekends at ${pad(hRaw)}:${pad(mRaw)}`;
+  }
+  if (DOW_SINGLE.test(dayOfWeek)) {
+    const d = Number.parseInt(dayOfWeek, 10);
+    return loc === "fr"
+      ? `Chaque ${DOW_LABEL_FR[d]} à ${frenchClock(hRaw, mRaw)}`
+      : `Every ${DOW_LABEL_EN[d]} at ${pad(hRaw)}:${pad(mRaw)}`;
+  }
+  if (dayOfWeek === "*") {
+    return loc === "fr"
+      ? `Tous les jours à ${frenchClock(hRaw, mRaw)}`
+      : `Every day at ${pad(hRaw)}:${pad(mRaw)}`;
+  }
+  return null;
+}
+
+/**
+ * Recognises `0 H D * *` (monthly on the Dth at H:00).
+ */
+function matchMonthly(parts: readonly string[], loc: Locale): string | null {
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  if (
+    minute !== "0" ||
+    !ONE_OR_TWO_DIGITS.test(hour) ||
+    !ONE_OR_TWO_DIGITS.test(dayOfMonth) ||
+    month !== "*" ||
+    dayOfWeek !== "*"
+  ) {
+    return null;
+  }
+  const hRaw = Number.parseInt(hour, 10);
+  const d = Number.parseInt(dayOfMonth, 10);
+  return loc === "fr"
+    ? `Le ${d} de chaque mois à ${hRaw}h`
+    : `Monthly on the ${d}${ordinalSuffix(d)} at ${pad(hRaw)}:00`;
 }
 
 function humanizeCron(expr: string, loc: Locale): string | null {
@@ -34,71 +135,13 @@ function humanizeCron(expr: string, loc: Locale): string | null {
 
   const parts = trimmed.split(/\s+/);
   if (parts.length < 5) return null;
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
 
-  // */N * * * *  →  Every N minutes
-  if (/^\*\/\d+$/.test(minute) && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
-    const n = parseInt(minute.slice(2), 10);
-    if (n > 0) {
-      return loc === "fr" ? `Toutes les ${n} minutes` : `Every ${n} minutes`;
-    }
-  }
-
-  // 0 */N * * *  →  Every N hours
-  if (minute === "0" && /^\*\/\d+$/.test(hour) && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
-    const n = parseInt(hour.slice(2), 10);
-    if (n > 0) {
-      return loc === "fr" ? `Toutes les ${n} heures` : `Every ${n} hours`;
-    }
-  }
-
-  // M H * * 1-5  →  weekdays at H:MM
-  if (/^\d{1,2}$/.test(minute) && /^\d{1,2}$/.test(hour) && dayOfMonth === "*" && month === "*" && dayOfWeek === "1-5") {
-    const hRaw = parseInt(hour, 10);
-    const mRaw = parseInt(minute, 10);
-    return loc === "fr"
-      ? `Tous les matins à ${hRaw}h${mRaw === 0 ? "" : pad(mRaw)} en semaine`
-      : `Every weekday at ${pad(hRaw)}:${pad(mRaw)}`;
-  }
-
-  // M H * * 0,6  →  weekends
-  if (/^\d{1,2}$/.test(minute) && /^\d{1,2}$/.test(hour) && dayOfMonth === "*" && month === "*" && (dayOfWeek === "0,6" || dayOfWeek === "6,0")) {
-    const hRaw = parseInt(hour, 10);
-    const mRaw = parseInt(minute, 10);
-    return loc === "fr"
-      ? `Le week-end à ${hRaw}h${mRaw === 0 ? "" : pad(mRaw)}`
-      : `On weekends at ${pad(hRaw)}:${pad(mRaw)}`;
-  }
-
-  // M H * * D  →  every <day> at H:MM
-  if (/^\d{1,2}$/.test(minute) && /^\d{1,2}$/.test(hour) && dayOfMonth === "*" && month === "*" && /^[0-6]$/.test(dayOfWeek)) {
-    const hRaw = parseInt(hour, 10);
-    const mRaw = parseInt(minute, 10);
-    const d = parseInt(dayOfWeek, 10);
-    return loc === "fr"
-      ? `Chaque ${DOW_LABEL_FR[d]} à ${hRaw}h${mRaw === 0 ? "" : pad(mRaw)}`
-      : `Every ${DOW_LABEL_EN[d]} at ${pad(hRaw)}:${pad(mRaw)}`;
-  }
-
-  // M H * * *  →  daily at H:MM
-  if (/^\d{1,2}$/.test(minute) && /^\d{1,2}$/.test(hour) && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
-    const hRaw = parseInt(hour, 10);
-    const mRaw = parseInt(minute, 10);
-    return loc === "fr"
-      ? `Tous les jours à ${hRaw}h${mRaw === 0 ? "" : pad(mRaw)}`
-      : `Every day at ${pad(hRaw)}:${pad(mRaw)}`;
-  }
-
-  // 0 H D * *  →  monthly on the Dth at H:00
-  if (minute === "0" && /^\d{1,2}$/.test(hour) && /^\d{1,2}$/.test(dayOfMonth) && month === "*" && dayOfWeek === "*") {
-    const hRaw = parseInt(hour, 10);
-    const d = parseInt(dayOfMonth, 10);
-    return loc === "fr"
-      ? `Le ${d} de chaque mois à ${hRaw}h`
-      : `Monthly on the ${d}${ordinalSuffix(d)} at ${pad(hRaw)}:00`;
-  }
-
-  return null;
+  return (
+    matchEveryNMinutes(parts, loc) ??
+    matchEveryNHours(parts, loc) ??
+    matchDailyWithDow(parts, loc) ??
+    matchMonthly(parts, loc)
+  );
 }
 
 function ordinalSuffix(n: number): string {
@@ -107,34 +150,44 @@ function ordinalSuffix(n: number): string {
   return s[(v - 20) % 10] ?? s[v] ?? s[0];
 }
 
-function humanizeInterval(config: string, loc: Locale): string | null {
-  const trimmed = config.trim().toLowerCase();
-  const match = trimmed.match(/^(\d+)\s*([smhd])?$/);
+/**
+ * Converts an interval expression (`30s`, `5m`, `2h`, `1d`) to seconds.
+ * Returns null when the expression is malformed.
+ */
+function intervalToSeconds(config: string): number | null {
+  const match = INTERVAL_RE.exec(config.trim().toLowerCase());
   if (!match) return null;
-  const value = parseInt(match[1], 10);
+  const value = Number.parseInt(match[1], 10);
   if (!Number.isFinite(value) || value <= 0) return null;
   const unit = match[2] ?? "s";
-  const seconds =
-    unit === "s" ? value :
-    unit === "m" ? value * 60 :
-    unit === "h" ? value * 3600 :
-    value * 86400;
+  if (unit === "m") return value * 60;
+  if (unit === "h") return value * 3600;
+  if (unit === "d") return value * 86_400;
+  return value;
+}
 
-  if (seconds >= 86400 && seconds % 86400 === 0) {
-    const d = seconds / 86400;
-    return loc === "fr" ? `Tous les ${d} jour${d > 1 ? "s" : ""}` : `Every ${d} day${d > 1 ? "s" : ""}`;
+function humanizeInterval(config: string, loc: Locale): string | null {
+  const seconds = intervalToSeconds(config);
+  if (seconds === null) return null;
+
+  if (seconds >= 86_400 && seconds % 86_400 === 0) {
+    const d = seconds / 86_400;
+    const plural = d > 1 ? "s" : "";
+    return loc === "fr" ? `Tous les ${d} jour${plural}` : `Every ${d} day${plural}`;
   }
   if (seconds >= 3600 && seconds % 3600 === 0) {
     const h = seconds / 3600;
-    return loc === "fr" ? `Toutes les ${h} heure${h > 1 ? "s" : ""}` : `Every ${h} hour${h > 1 ? "s" : ""}`;
+    const plural = h > 1 ? "s" : "";
+    return loc === "fr" ? `Toutes les ${h} heure${plural}` : `Every ${h} hour${plural}`;
   }
   if (seconds >= 60 && seconds % 60 === 0) {
     const m = seconds / 60;
     return loc === "fr" ? `Toutes les ${m} minutes` : `Every ${m} minutes`;
   }
+  const plural = seconds > 1 ? "s" : "";
   return loc === "fr"
-    ? `Toutes les ${seconds} seconde${seconds > 1 ? "s" : ""}`
-    : `Every ${seconds} second${seconds > 1 ? "s" : ""}`;
+    ? `Toutes les ${seconds} seconde${plural}`
+    : `Every ${seconds} second${plural}`;
 }
 
 function extractWebhookSource(config: string): string | null {
@@ -153,13 +206,37 @@ function extractWebhookSource(config: string): string | null {
 }
 
 /**
+ * Builds the localised "custom schedule" fallback label.
+ */
+function customScheduleLabel(loc: Locale): { label: string; isCustom: true } {
+  return {
+    label: loc === "fr" ? "Planification personnalisée" : "Custom schedule",
+    isCustom: true,
+  };
+}
+
+/**
+ * Builds the localised webhook label, with or without an explicit source.
+ */
+function webhookLabel(source: string | null, loc: Locale): string {
+  if (source) {
+    return loc === "fr"
+      ? `Quand Apollia reçoit un webhook depuis ${source}`
+      : `When Apollia receives a webhook from ${source}`;
+  }
+  return loc === "fr"
+    ? "Quand Apollia reçoit un webhook"
+    : "When Apollia receives a webhook";
+}
+
+/**
  * Turns a trigger definition into operator-friendly language.
  *
  * Returns `{ label, isCustom }` — when `isCustom` is `true`, the caller
  * should surface the raw expression through a tooltip.
  */
 export function humanizeSchedule(
-  kind: ScheduleKind | string,
+  kind: ScheduleKind,
   config: string,
   locale: string,
 ): { label: string; isCustom: boolean } {
@@ -168,19 +245,11 @@ export function humanizeSchedule(
   switch (kind) {
     case "cron": {
       const label = humanizeCron(config, loc);
-      if (label) return { label, isCustom: false };
-      return {
-        label: loc === "fr" ? "Planification personnalisée" : "Custom schedule",
-        isCustom: true,
-      };
+      return label ? { label, isCustom: false } : customScheduleLabel(loc);
     }
     case "interval": {
       const label = humanizeInterval(config, loc);
-      if (label) return { label, isCustom: false };
-      return {
-        label: loc === "fr" ? "Planification personnalisée" : "Custom schedule",
-        isCustom: true,
-      };
+      return label ? { label, isCustom: false } : customScheduleLabel(loc);
     }
     case "file_watch": {
       const path = config.trim() || (loc === "fr" ? "un chemin" : "a path");
@@ -189,30 +258,55 @@ export function humanizeSchedule(
         isCustom: false,
       };
     }
-    case "webhook": {
-      const source = extractWebhookSource(config);
+    case "webhook":
       return {
-        label: source
-          ? loc === "fr"
-            ? `Quand Apollia reçoit un webhook depuis ${source}`
-            : `When Apollia receives a webhook from ${source}`
-          : loc === "fr"
-            ? "Quand Apollia reçoit un webhook"
-            : "When Apollia receives a webhook",
+        label: webhookLabel(extractWebhookSource(config), loc),
         isCustom: false,
       };
-    }
     case "oneshot":
       return {
         label: loc === "fr" ? "Une seule fois" : "One time only",
         isCustom: false,
       };
     default:
-      return {
-        label: loc === "fr" ? "Planification personnalisée" : "Custom schedule",
-        isCustom: true,
-      };
+      return customScheduleLabel(loc);
   }
+}
+
+/**
+ * Converts an interval expression to milliseconds. Returns null when the
+ * expression is malformed.
+ */
+function intervalToMs(config: string): number | null {
+  const seconds = intervalToSeconds(config);
+  return seconds === null ? null : seconds * 1000;
+}
+
+/**
+ * Estimates the next run from a simple daily/weekday cron pattern.
+ * Returns null for any expression not also covered by `humanizeCron`.
+ */
+function estimateCronNextRun(config: string, now: Date): Date | null {
+  const parts = config.trim().split(/\s+/);
+  if (parts.length < 5) return null;
+  const [minuteRaw, hourRaw, dayOfMonth, month, dayOfWeek] = parts;
+  if (dayOfMonth !== "*" || month !== "*") return null;
+  if (!ONE_OR_TWO_DIGITS.test(minuteRaw) || !ONE_OR_TWO_DIGITS.test(hourRaw)) return null;
+  const minute = Number.parseInt(minuteRaw, 10);
+  const hour = Number.parseInt(hourRaw, 10);
+  const allowed = parseDowRange(dayOfWeek);
+  if (!allowed) return null;
+
+  const candidate = new Date(now);
+  candidate.setSeconds(0, 0);
+  candidate.setHours(hour, minute, 0, 0);
+  for (let i = 0; i < 8; i++) {
+    if (candidate.getTime() > now.getTime() && allowed.has(candidate.getDay())) {
+      return candidate;
+    }
+    candidate.setDate(candidate.getDate() + 1);
+  }
+  return null;
 }
 
 /**
@@ -223,50 +317,21 @@ export function humanizeSchedule(
  * fall back to "Next run scheduled".
  */
 export function estimateNextRun(
-  kind: ScheduleKind | string,
+  kind: ScheduleKind,
   config: string,
   lastFired: Date | null,
   now: Date = new Date(),
 ): Date | null {
   if (kind === "interval") {
-    const match = config.trim().toLowerCase().match(/^(\d+)\s*([smhd])?$/);
-    if (!match) return null;
-    const value = parseInt(match[1], 10);
-    if (!Number.isFinite(value) || value <= 0) return null;
-    const unit = match[2] ?? "s";
-    const ms =
-      unit === "s" ? value * 1000 :
-      unit === "m" ? value * 60_000 :
-      unit === "h" ? value * 3600_000 :
-      value * 86_400_000;
+    const ms = intervalToMs(config);
+    if (ms === null) return null;
     const base = lastFired ? lastFired.getTime() : now.getTime();
     const next = new Date(base + ms);
     return next.getTime() > now.getTime() ? next : new Date(now.getTime() + ms);
   }
 
   if (kind === "cron") {
-    // Only handle the simple daily-at-H:M and weekday variants — good enough
-    // for the card's "next run" label. Complex crons return null.
-    const parts = config.trim().split(/\s+/);
-    if (parts.length < 5) return null;
-    const [minuteRaw, hourRaw, dayOfMonth, month, dayOfWeek] = parts;
-    if (dayOfMonth !== "*" || month !== "*") return null;
-    if (!/^\d{1,2}$/.test(minuteRaw) || !/^\d{1,2}$/.test(hourRaw)) return null;
-    const minute = parseInt(minuteRaw, 10);
-    const hour = parseInt(hourRaw, 10);
-    const allowed = parseDowRange(dayOfWeek);
-    if (!allowed) return null;
-
-    const candidate = new Date(now);
-    candidate.setSeconds(0, 0);
-    candidate.setHours(hour, minute, 0, 0);
-    for (let i = 0; i < 8; i++) {
-      if (candidate.getTime() > now.getTime() && allowed.has(candidate.getDay())) {
-        return candidate;
-      }
-      candidate.setDate(candidate.getDate() + 1);
-    }
-    return null;
+    return estimateCronNextRun(config, now);
   }
 
   return null;
@@ -276,7 +341,23 @@ function parseDowRange(spec: string): Set<number> | null {
   if (spec === "*") return new Set([0, 1, 2, 3, 4, 5, 6]);
   if (spec === "1-5") return new Set([1, 2, 3, 4, 5]);
   if (spec === "0,6" || spec === "6,0") return new Set([0, 6]);
-  if (/^[0-6]$/.test(spec)) return new Set([parseInt(spec, 10)]);
+  if (DOW_SINGLE.test(spec)) return new Set([Number.parseInt(spec, 10)]);
+  return null;
+}
+
+/**
+ * Renders a localised "next run" countdown for the given diff (ms).
+ * Returns null when the diff doesn't match this bucket so the caller can
+ * fall through to the next granularity.
+ */
+function formatMinutesBucket(diffMs: number, loc: Locale): string | null {
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) {
+    return loc === "fr" ? "Prochaine exécution dans <1 min" : "Next run in <1 min";
+  }
+  if (minutes < 60) {
+    return loc === "fr" ? `Prochaine exécution dans ${minutes} min` : `Next run in ${minutes} min`;
+  }
   return null;
 }
 
@@ -293,13 +374,10 @@ export function formatNextRun(next: Date | null, locale: string, now: Date = new
   if (diffMs <= 0) {
     return loc === "fr" ? "En retard" : "Overdue";
   }
+  const minutesLabel = formatMinutesBucket(diffMs, loc);
+  if (minutesLabel) return minutesLabel;
+
   const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) {
-    return loc === "fr" ? "Prochaine exécution dans <1 min" : "Next run in <1 min";
-  }
-  if (minutes < 60) {
-    return loc === "fr" ? `Prochaine exécution dans ${minutes} min` : `Next run in ${minutes} min`;
-  }
   const hours = Math.floor(minutes / 60);
   const remMin = minutes % 60;
   if (hours < 24) {
@@ -308,9 +386,10 @@ export function formatNextRun(next: Date | null, locale: string, now: Date = new
       : `Next run in ${hours}h${pad(remMin)}`;
   }
   const days = Math.floor(hours / 24);
+  const plural = days > 1 ? "s" : "";
   return loc === "fr"
-    ? `Prochaine exécution dans ${days} jour${days > 1 ? "s" : ""}`
-    : `Next run in ${days} day${days > 1 ? "s" : ""}`;
+    ? `Prochaine exécution dans ${days} jour${plural}`
+    : `Next run in ${days} day${plural}`;
 }
 
 /**

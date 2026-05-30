@@ -28,7 +28,7 @@ use crate::exit_codes;
 /// Subcommands of `apollia-os chat` for persisted session hygiene.
 ///
 /// All variants operate directly on `~/.apollia/chat.db` via
-/// [`ChatSessionRepository`] — no runtime required. When the daemon is
+/// [`ChatSessionRepository`], no runtime required. When the daemon is
 /// running, SQLite WAL handles concurrent reads safely; a delete/rename of
 /// an actively-served session is *not* atomic with a pending message round
 /// trip, document this in the `--help`.
@@ -273,11 +273,11 @@ async fn run_resume(client: &RuntimeClient, session_id: &str) -> i32 {
 /// and prints a "session saved" notice before returning.
 ///
 /// Slash commands:
-/// - `/fork`            — fork current session (copies full history)
-/// - `/fork N`          — fork keeping the first N messages
-/// - `/fork list`       — list child sessions of the current session
-/// - `/list-commands`   — list all available commands (built-in + custom)
-/// - `/<name> [arg]`    — execute a custom command defined in `.apollia/commands/`
+/// - `/fork`            : fork current session (copies full history)
+/// - `/fork N`          : fork keeping the first N messages
+/// - `/fork list`       : list child sessions of the current session
+/// - `/list-commands`   : list all available commands (built-in + custom)
+/// - `/<name> [arg]`    : execute a custom command defined in `.apollia/commands/`
 async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
     let mut current_session_id = session_id.to_string();
     let history_file = history_path();
@@ -294,87 +294,117 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
         }
     };
 
-    // Load persistent history — silently ignored if the file does not exist yet.
+    // Load persistent history (silently ignored if the file does not exist yet).
     if let Some(ref path) = history_file {
         let _ = rl.load_history(path);
     }
 
     loop {
-        // `readline` blocks the thread — run it in a blocking context so the
+        // `readline` blocks the thread, run it in a blocking context so the
         // async executor is not starved.
         let readline_result = tokio::task::block_in_place(|| rl.readline("> "));
 
-        match readline_result {
-            Ok(line) => {
-                let trimmed = line.trim().to_string();
-                if trimmed.is_empty() {
-                    continue;
-                }
-
-                // Persist the entry immediately so it survives even if the
-                // process is killed mid-session.
-                let _ = rl.add_history_entry(line.as_str());
-                if let Some(ref path) = history_file {
-                    let _ = rl.save_history(path);
-                }
-
-                // Determine the message to send to the LLM.
-                let message = if trimmed.starts_with('/') {
-                    // Hot reload: check if command files changed since last load.
-                    if registry.needs_reload(&cwd).await {
-                        registry = CommandRegistry::load(&cwd).await;
-                    }
-
-                    match handle_slash_command(client, &current_session_id, &trimmed, &registry)
-                        .await
-                    {
-                        SlashOutcome::Continue => continue,
-                        SlashOutcome::SwitchSession(new_id) => {
-                            current_session_id = new_id;
-                            continue;
-                        }
-                        SlashOutcome::Exit(code) => return code,
-                        SlashOutcome::SendToLlm(msg) => msg,
-                    }
-                } else {
-                    trimmed.clone()
-                };
-
-                // Send the resolved message and wait for a reply.
-                if let Err(code) =
-                    send_message_and_poll(client, &current_session_id, &message).await
-                {
-                    return code;
-                }
-            }
-
+        let line = match readline_result {
+            Ok(line) => line,
             Err(ReadlineError::Interrupted) => {
-                // Ctrl+C — exit cleanly, session is already persisted server-side.
+                // Ctrl+C: exit cleanly, session is already persisted server-side.
                 println!("\nSession saved: {current_session_id}");
                 return exit_codes::SUCCESS;
             }
-
             Err(ReadlineError::Eof) => {
-                // Ctrl+D — clean exit.
+                // Ctrl+D: clean exit.
                 println!();
                 break;
             }
-
             Err(e) => {
                 eprintln!("Error reading input: {e}");
                 return exit_codes::GENERAL_ERROR;
             }
+        };
+
+        let trimmed = line.trim().to_string();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Persist the entry immediately so it survives even if the
+        // process is killed mid-session.
+        let _ = rl.add_history_entry(line.as_str());
+        if let Some(ref path) = history_file {
+            let _ = rl.save_history(path);
+        }
+
+        // Determine the message to send to the LLM.
+        let message = match resolve_repl_message(
+            client,
+            &current_session_id,
+            &trimmed,
+            &cwd,
+            &mut registry,
+        )
+        .await
+        {
+            ResolvedMessage::Send(msg) => msg,
+            ResolvedMessage::Continue => continue,
+            ResolvedMessage::SwitchSession(new_id) => {
+                current_session_id = new_id;
+                continue;
+            }
+            ResolvedMessage::Exit(code) => return code,
+        };
+
+        // Send the resolved message and wait for a reply.
+        if let Err(code) = send_message_and_poll(client, &current_session_id, &message).await {
+            return code;
         }
     }
 
     exit_codes::SUCCESS
 }
 
+/// Result of resolving an accepted REPL line into an action for the loop.
+enum ResolvedMessage {
+    /// Send this expanded message to the LLM.
+    Send(String),
+    /// Skip sending and read the next line.
+    Continue,
+    /// Switch to this session id and read the next line.
+    SwitchSession(String),
+    /// Exit the REPL with the given code.
+    Exit(i32),
+}
+
+/// Resolves an accepted, non-empty REPL line into a [`ResolvedMessage`].
+///
+/// Plain text is sent verbatim; slash commands are dispatched (with hot-reload
+/// of the custom command registry) via [`handle_slash_command`].
+async fn resolve_repl_message(
+    client: &RuntimeClient,
+    session_id: &str,
+    trimmed: &str,
+    cwd: &Path,
+    registry: &mut CommandRegistry,
+) -> ResolvedMessage {
+    if !trimmed.starts_with('/') {
+        return ResolvedMessage::Send(trimmed.to_string());
+    }
+    // Hot reload: check if command files changed since last load.
+    if registry.needs_reload(cwd).await {
+        *registry = CommandRegistry::load(cwd).await;
+    }
+    match handle_slash_command(client, session_id, trimmed, registry).await {
+        SlashOutcome::Continue => ResolvedMessage::Continue,
+        SlashOutcome::SwitchSession(new_id) => ResolvedMessage::SwitchSession(new_id),
+        SlashOutcome::Exit(code) => ResolvedMessage::Exit(code),
+        SlashOutcome::SendToLlm(msg) => ResolvedMessage::Send(msg),
+    }
+}
+
 /// Outcome of a slash command handler.
 enum SlashOutcome {
-    /// Command handled — continue the REPL loop without sending a message.
+    /// Command handled: continue the REPL loop without sending a message.
     Continue,
-    /// Fork created — switch to the new session and continue.
+    /// Fork created: switch to the new session and continue.
     SwitchSession(String),
     /// Exit the REPL with the given exit code.
     Exit(i32),
@@ -438,7 +468,7 @@ async fn handle_slash_command(
     }
 }
 
-/// Execute `/fork [N]` — create a child session and switch to it.
+/// Execute `/fork [N]`: create a child session and switch to it.
 async fn handle_fork(
     client: &RuntimeClient,
     session_id: &str,
@@ -469,7 +499,7 @@ async fn handle_fork(
     }
 }
 
-/// Execute `/fork list` — print child sessions of the current session.
+/// Execute `/fork list`: print child sessions of the current session.
 async fn handle_fork_list(client: &RuntimeClient, session_id: &str) -> SlashOutcome {
     match client.list_session_children(session_id).await {
         Ok(arr) => {
@@ -500,7 +530,7 @@ async fn handle_fork_list(client: &RuntimeClient, session_id: &str) -> SlashOutc
     }
 }
 
-/// Execute `/list-commands` — print all available built-in and custom commands.
+/// Execute `/list-commands`: print all available built-in and custom commands.
 fn handle_list_commands(registry: &CommandRegistry) -> SlashOutcome {
     println!("Built-in commands:");
     println!("  /fork              Fork current session (copies full history)");

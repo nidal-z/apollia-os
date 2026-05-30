@@ -1,27 +1,27 @@
-//! ctx.a2a — agent-to-agent invocation surface.
+//! ctx.a2a: agent-to-agent invocation surface.
 //!
-//! Façade nestée consolidant les 6 méthodes A2A historiquement aplaties sur
-//! `RuntimeContext` (`a2a_invoke`, `a2a_discover`, `a2a_list_skills`,
-//! `send`, `receive`, `delegate`). On expose les 3 méthodes
-//! "haut niveau" qui pilotent l'[`A2AInvoker`] :
+//! Nested facade consolidating the 6 A2A methods historically flattened onto
+//! `RuntimeContext` (`a2a_invoke`, `a2a_discover`, `a2a_list_skills`, `send`,
+//! `receive`, `delegate`). It exposes the 3 high-level methods that drive the
+//! [`A2AInvoker`]:
 //!
-//! - [`A2AInterface::invoke`] — appel synchrone d'un skill avec retour
-//!   typé `dict` (équivalent `a2a_invoke`).
-//! - [`A2AInterface::discover`] — résolution agent/skill (équivalent
+//! - [`A2AInterface::invoke`]: synchronous skill call with a typed `dict`
+//!   return (equivalent of `a2a_invoke`).
+//! - [`A2AInterface::discover`]: agent/skill resolution (equivalent of
 //!   `a2a_discover`).
-//! - [`A2AInterface::list_skills`] — inventaire complet du runtime
-//!   (équivalent `a2a_list_skills`).
-//! - [`A2AInterface::skill_as_tool`] — produit un descriptor
-//!   tool consommable par `ctx.react`.
+//! - [`A2AInterface::list_skills`]: full runtime inventory (equivalent of
+//!   `a2a_list_skills`).
+//! - [`A2AInterface::skill_as_tool`]: produces a tool descriptor consumable
+//!   by `ctx.react`.
 //!
-//! Les méthodes mailbox (`send`/`receive`) et la délégation Director→Worker
-//! (`delegate`) restent sur `RuntimeContext` flat — elles
-//! seront migrées sans changement de sémantique.
+//! The mailbox methods (`send`/`receive`) and the Director-to-Worker
+//! delegation (`delegate`) stay on the flat `RuntimeContext`; they will be
+//! migrated without a semantic change.
 //!
-//! L'interface partage le même `Arc<A2AInvoker>` que `RuntimeContext` —
-//! pas de duplication d'état ni de second canal d'événements. Le compteur
-//! de profondeur (`a2a_depth`) et le `chain_deadline` sont copiés au moment
-//! de la construction pour respecter l'immuabilité côté Python.
+//! The interface shares the same `Arc<A2AInvoker>` as `RuntimeContext`: no
+//! state duplication and no second event channel. The depth counter
+//! (`a2a_depth`) and the `chain_deadline` are copied at construction time to
+//! honor immutability on the Python side.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -30,33 +30,33 @@ use apollia_runtime::a2a::A2AInvoker;
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
 
-/// Façade typée exposée à l'agent Python via `ctx.a2a`.
+/// Typed facade exposed to the Python agent via `ctx.a2a`.
 ///
-/// Construite par [`crate::context::RuntimeContext::new_with_llm`] (ou via
-/// les builders `with_*`) lorsque le runtime fournit un `A2AInvoker`.
-/// L'agent n'a jamais à instancier cette structure directement.
+/// Built by [`crate::context::RuntimeContext::new_with_llm`] (or via the
+/// `with_*` builders) when the runtime provides an `A2AInvoker`. The agent
+/// never instantiates this struct directly.
 #[pyclass(name = "A2AInterface", module = "apollia._native")]
 pub struct A2AInterface {
-    /// Orchestrateur A2A partagé avec `RuntimeContext`. `None` = runtime
-    /// minimal sans support A2A (tests, CLI dry-run).
+    /// A2A orchestrator shared with `RuntimeContext`. `None` = minimal runtime
+    /// without A2A support (tests, CLI dry-run).
     invoker: Option<Arc<A2AInvoker>>,
-    /// Identifiant de l'agent caller (utilisé pour la chaîne A2A).
+    /// Caller agent id (used for the A2A chain).
     caller_agent_name: String,
-    /// Profondeur actuelle dans la chaîne (0 = invocation racine).
+    /// Current depth in the chain (0 = root invocation).
     a2a_depth: u32,
-    /// Deadline cumulé de la chaîne, propagé par l'invoker. `None` avant la
-    /// première invocation depuis cet agent.
+    /// Cumulative chain deadline, propagated by the invoker. `None` before the
+    /// first invocation from this agent.
     chain_deadline: Option<Instant>,
 }
 
 #[pymethods]
 impl A2AInterface {
-    /// Invoque un skill A2A avec entrée typée et timeout optionnel.
+    /// Invokes an A2A skill with typed input and an optional timeout.
     ///
-    /// Retourne un Python awaitable qui résout en `dict` avec les clés
-    /// `result`, `agent_name`, `skill_id`, `duration_ms` en cas de succès,
-    /// ou un dict `AIPResult` d'échec si une erreur runtime survient (jamais
-    /// d'exception Python — sémantique alignée sur l'API historique).
+    /// Returns a Python awaitable resolving to a `dict` with keys `result`,
+    /// `agent_name`, `skill_id`, `duration_ms` on success, or a failure
+    /// `AIPResult` dict if a runtime error occurs (never a Python exception,
+    /// matching the historical API semantics).
     #[pyo3(signature = (skill_id, input, timeout_secs=None))]
     fn invoke<'py>(
         &self,
@@ -69,7 +69,7 @@ impl A2AInterface {
             PyRuntimeError::new_err("A2A invoker not available in this runtime context")
         })?;
 
-        // Convertir input Python → serde_json::Value via json.dumps.
+        // Convert the Python input to serde_json::Value via json.dumps.
         let json_mod = py
             .import("json")
             .map_err(|e| PyRuntimeError::new_err(format!("failed to import json: {e}")))?;
@@ -88,14 +88,14 @@ impl A2AInterface {
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let out_json = match invoker
-                .invoke(
-                    &skill_id,
-                    input_value,
-                    &caller,
+                .invoke(apollia_runtime::a2a::A2AInvokeRequest {
+                    skill_id: &skill_id,
+                    input: input_value,
+                    caller: &caller,
                     a2a_depth,
                     timeout,
                     chain_deadline,
-                )
+                })
                 .await
             {
                 Ok(r) => serde_json::to_string(&r)
@@ -122,11 +122,11 @@ impl A2AInterface {
         })
     }
 
-    /// Découvre l'agent qui expose `skill_id` et retourne sa carte de
-    /// découverte.
+    /// Discovers the agent that exposes `skill_id` and returns its discovery
+    /// card.
     ///
-    /// Retourne un Python awaitable qui résout en `dict | None`.
-    /// `None` si aucun agent disponible ne déclare le skill.
+    /// Returns a Python awaitable resolving to `dict | None`.
+    /// `None` if no available agent declares the skill.
     fn discover<'py>(&self, py: Python<'py>, skill_id: String) -> PyResult<Bound<'py, PyAny>> {
         let invoker = self.invoker.clone().ok_or_else(|| {
             PyRuntimeError::new_err("A2A invoker not available in this runtime context")
@@ -159,10 +159,10 @@ impl A2AInterface {
         })
     }
 
-    /// Liste tous les skills A2A disponibles dans le runtime.
+    /// Lists every A2A skill available in the runtime.
     ///
-    /// Retourne un Python awaitable qui résout en `list[dict]`.
-    /// Chaque dict a les clés `skill_id`, `agent_name`, `skill_name`,
+    /// Returns a Python awaitable resolving to `list[dict]`.
+    /// Each dict has keys `skill_id`, `agent_name`, `skill_name`,
     /// `description`.
     fn list_skills<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let invoker = self.invoker.clone().ok_or_else(|| {
@@ -190,12 +190,12 @@ impl A2AInterface {
         })
     }
 
-    /// Construit un descripteur tool consommable par la boucle ReAct
+    /// Builds a tool descriptor consumable by the ReAct loop
     /// (`apollia.react`).
     ///
-    /// Effectue un appel `discover(skill_id)` pour récupérer la description
-    /// et le schéma d'entrée du skill cible, puis assemble un descripteur au
-    /// format Anthropic/OpenAI tool-use :
+    /// Performs a `discover(skill_id)` call to fetch the target skill's
+    /// description and input schema, then assembles a descriptor in the
+    /// Anthropic/OpenAI tool-use format:
     ///
     /// ```json
     /// {
@@ -205,17 +205,17 @@ impl A2AInterface {
     /// }
     /// ```
     ///
-    /// Naming :
-    /// - Le tool name remplace `.` par `__` et préfixe `a2a__` pour rester
-    ///   compatible avec OpenAI (qui refuse les `:` dans les noms d'outils).
-    /// - Le bridge [`ToolProxy::call`] reconnaît `a2a__` ET `a2a:` (legacy)
-    ///   comme préfixes équivalents — voir `crate::context`.
+    /// Naming:
+    /// - The tool name replaces `.` with `__` and prefixes `a2a__` to stay
+    ///   compatible with OpenAI (which rejects `:` in tool names).
+    /// - The bridge [`ToolProxy::call`] recognizes both `a2a__` and `a2a:`
+    ///   (legacy) as equivalent prefixes; see `crate::context`.
     ///
-    /// Retourne un Python awaitable qui résout en `dict`.
+    /// Returns a Python awaitable resolving to `dict`.
     ///
-    /// Lève [`PyKeyError`] si `skill_id` est inconnu (aucun agent A2A actif
-    /// ne l'expose). Lève [`PyRuntimeError`] si l'invoker n'est pas
-    /// configuré.
+    /// Raises [`PyKeyError`] if `skill_id` is unknown (no active A2A agent
+    /// exposes it). Raises [`PyRuntimeError`] if the invoker is not
+    /// configured.
     fn skill_as_tool<'py>(&self, py: Python<'py>, skill_id: String) -> PyResult<Bound<'py, PyAny>> {
         let invoker = self.invoker.clone().ok_or_else(|| {
             PyRuntimeError::new_err("A2A invoker not available in this runtime context")
@@ -279,7 +279,7 @@ async fn build_skill_tool_descriptor(
     });
     let input_schema = skill.input_schema.clone().unwrap_or(default_schema);
 
-    // Tool name: a2a__{skill_id with . replaced by __} — OpenAI rejects ':'
+    // Tool name: a2a__{skill_id with . replaced by __}. OpenAI rejects ':'
     // in tool names; the bridge accepts both `a2a__` and `a2a:` prefixes
     // and reverses the `__` -> `.` encoding before dispatch (see
     // `crate::context::extract_a2a_skill_id`).
@@ -306,12 +306,12 @@ async fn build_skill_tool_descriptor(
 }
 
 impl A2AInterface {
-    /// Construit une nouvelle interface A2A liée au caller.
+    /// Builds a new A2A interface bound to the caller.
     ///
-    /// `invoker = None` désactive complètement la surface (toutes les
-    /// méthodes lèvent `RuntimeError("A2A invoker not available …")`), sauf
-    /// `skill_as_tool` qui reste constructible (utile pour les tests
-    /// unitaires builder).
+    /// `invoker = None` fully disables the surface (all methods raise
+    /// `RuntimeError("A2A invoker not available ...")`), except
+    /// `skill_as_tool` which stays constructible (useful for builder unit
+    /// tests).
     pub fn new(
         invoker: Option<Arc<A2AInvoker>>,
         caller_agent_name: String,

@@ -2,7 +2,7 @@
 //!
 //! By default Apollia agents write under `Drive/Apollia/<agent_slug>/`. The
 //! end user can override the root path here so agents work inside a folder
-//! of their choosing — `Documents/Apollia`, `Work/AI`, anything. The
+//! of their choosing: `Documents/Apollia`, `Work/AI`, anything. The
 //! `<agent_slug>` subfolder is appended automatically so different agents
 //! don't collide.
 //!
@@ -12,25 +12,25 @@
 //! (`0o600` on Unix). Format:
 //!
 //! ```toml
-//! [google."nidal@example.com"]
+//! [google."user@example.com"]
 //! folder_path = "Documents/Apollia"
 //!
 //! # Folders the user designated via Google Picker. Each entry grants
 //! # Apollia drive.file access to that folder (Google extends the scope on
 //! # pick). Agents can list/read/write inside any of them without CASA.
-//! [[google."nidal@example.com".picked_folders]]
+//! [[google."user@example.com".picked_folders]]
 //! id = "1aBcDeFgHiJkLmNoPq"
 //! name = "Documents"
 //! mime_type = "application/vnd.google-apps.folder"
 //!
-//! [[google."nidal@example.com".picked_folders]]
+//! [[google."user@example.com".picked_folders]]
 //! id = "2xYzAbCdEfGhIjKlMn"
 //! name = "Travail/AI"
 //! mime_type = "application/vnd.google-apps.folder"
 //! ```
 //!
 //! Missing file, missing section, or empty value all mean "use default"
-//! (the legacy `Apollia` root). Calls never fail when the file is absent —
+//! (the legacy `Apollia` root). Calls never fail when the file is absent;
 //! callers fall back to the default automatically.
 //!
 //! # Scope constraint
@@ -52,13 +52,13 @@ pub const DRIVE_PREFS_FILENAME: &str = "drive-prefs.toml";
 /// hardcoded `Apollia` constant so existing installs keep their files.
 pub const DEFAULT_ROOT_FOLDER_PATH: &str = "Apollia";
 
-/// A folder the user designated via Google Picker — Apollia gained
+/// A folder the user designated via Google Picker; Apollia gained
 /// `drive.file` access to it (plus its descendants) on pick.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PickedFolder {
     /// Google Drive file ID. Stable.
     pub id: String,
-    /// Folder name at pick time (display only — may drift if the user
+    /// Folder name at pick time (display only; may drift if the user
     /// renames the folder in Drive; the access remains valid).
     pub name: String,
     /// MIME type. Always `application/vnd.google-apps.folder` today; kept
@@ -113,7 +113,7 @@ pub fn drive_prefs_path_in<P: Into<PathBuf>>(home: P) -> PathBuf {
 
 /// Read + parse the prefs file from `path`. `Ok(None)` when the file does
 /// not exist (the common case on a fresh install). `Err(_)` only when the
-/// file exists but cannot be parsed — surfaces to the operator so a
+/// file exists but cannot be parsed; surfaces to the operator so a
 /// malformed file is not silently ignored.
 pub fn load_from(path: &Path) -> Result<Option<DrivePrefsFile>, std::io::Error> {
     let contents = match std::fs::read_to_string(path) {
@@ -132,7 +132,7 @@ pub fn load_from(path: &Path) -> Result<Option<DrivePrefsFile>, std::io::Error> 
 
 /// Look up the folder path override for `(provider, account_id)` using the
 /// default path. Returns `Some(value)` when a section is persisted (even
-/// when the value is empty — explicit empty means "use My Drive root").
+/// when the value is empty; explicit empty means "use My Drive root").
 /// Returns `None` only when the user never saved anything → caller falls
 /// back to `DEFAULT_ROOT_FOLDER_PATH`.
 pub fn lookup_folder_path(provider_id: &str, account_id: &str) -> Option<String> {
@@ -186,7 +186,7 @@ pub fn reset_folder_path(provider_id: &str, account_id: &str) -> Result<(), std:
     reset_folder_path_at(&path, provider_id, account_id)
 }
 
-/// Wipe at an explicit `path`. Removes only `folder_path` — picked
+/// Wipe at an explicit `path`. Removes only `folder_path`; picked
 /// folders stay intact so resetting the root doesn't lose the user's
 /// Picker history.
 pub fn reset_folder_path_at(
@@ -431,7 +431,7 @@ pub fn set_folder_path_at(
 
 /// Normalise a user-typed folder path. Strips leading/trailing slashes
 /// and whitespace, collapses repeated slashes. Returns an empty string
-/// when the input contains no usable segment — the loader then treats
+/// when the input contains no usable segment; the loader then treats
 /// the entry as "no override" so we fall back to the default cleanly.
 pub fn sanitize_folder_path(raw: &str) -> String {
     raw.split('/')
@@ -442,7 +442,7 @@ pub fn sanitize_folder_path(raw: &str) -> String {
 }
 
 /// Split a folder path into its segments. Empty input yields an empty
-/// vector — callers should handle that by falling back to the default.
+/// vector; callers should handle that by falling back to the default.
 pub fn segments(path: &str) -> Vec<String> {
     sanitize_folder_path(path)
         .split('/')
@@ -484,7 +484,7 @@ mod tests {
         let (_dir, path) = tmp();
         assert_eq!(lookup_folder_path_at(&path, "google", "nidal@x"), None);
         // effective_* uses the default lookup but in this test the home is
-        // not overridden — call only the explicit-path lookup.
+        // not overridden; call only the explicit-path lookup.
         let p = lookup_folder_path_at(&path, "google", "nidal@x")
             .unwrap_or_else(|| DEFAULT_ROOT_FOLDER_PATH.to_string());
         assert_eq!(p, "Apollia");
@@ -509,7 +509,7 @@ mod tests {
     fn empty_value_means_explicit_root() {
         // GIVEN an override saved as "Documents"
         // WHEN the user replaces it with the empty string
-        // THEN the lookup returns Some("") — explicit "use Drive root",
+        // THEN the lookup returns Some(""), explicit "use Drive root",
         // NOT None (which would mean "fall back to default").
         let (_dir, path) = tmp();
         set_folder_path_at(&path, "google", "nidal@x", "Documents").unwrap();

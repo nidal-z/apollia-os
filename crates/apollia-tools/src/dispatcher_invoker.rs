@@ -24,7 +24,7 @@ use crate::executor::{ToolDispatcher, ToolExecutionError};
 /// Wraps a [`ToolDispatcher`] and exposes it as an [`apollia_llm::ToolInvoker`].
 ///
 /// Returns the tool's JSON output as a string for the streaming LLM loop.
-/// Errors are surfaced verbatim — the LLM sees the same diagnostic the
+/// Errors are surfaced verbatim: the LLM sees the same diagnostic the
 /// dispatcher would have logged for an Agent-mode call.
 pub struct DispatcherToolInvoker {
     dispatcher: Arc<ToolDispatcher>,
@@ -50,8 +50,8 @@ impl ToolInvoker for DispatcherToolInvoker {
     }
 }
 
-/// Map [`ToolExecutionError`] variants to operator-friendly strings —
-/// keeps the wording close to what the existing native fast path returns
+/// Map [`ToolExecutionError`] variants to operator-friendly strings.
+/// Keeps the wording close to what the existing native fast path returns
 /// so log scraping + UI rendering don't need to special-case the source.
 fn format_dispatch_error(err: &ToolExecutionError) -> String {
     match err {

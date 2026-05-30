@@ -1,4 +1,4 @@
-//! Code review types — shared between the review agent, the REST route, and the CLI.
+//! Code review types, shared between the review agent, the REST route, and the CLI.
 
 use serde::{Deserialize, Serialize};
 

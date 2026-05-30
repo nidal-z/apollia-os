@@ -1,4 +1,4 @@
-//! REST route for on-demand code review — `POST /api/v1/tasks/{id}/review`.
+//! REST route for on-demand code review, `POST /api/v1/tasks/{id}/review`.
 //!
 //! Submits a review task to the `apollia-review` agent, polls for completion,
 //! and returns the parsed [`ReviewReport`] as JSON.  The endpoint is synchronous

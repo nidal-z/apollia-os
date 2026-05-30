@@ -1,4 +1,4 @@
-//! ToolProxy — Python-facing proxy for invoking Rust tools.
+//! ToolProxy: Python-facing proxy for invoking Rust tools.
 //!
 //! Exposes a `#[pyclass]` that agents use via `ctx.tools.call(tool_name, input)`.
 //! Handles permission checks, registry lookup, tool execution, audit logging,
@@ -32,7 +32,7 @@ pub enum ToolProxyError {
     ExecutionFailed(String),
 }
 
-/// Trait abstracting tool execution for testability (ADR-015).
+/// Trait abstracting tool execution for testability.
 ///
 /// Concrete implementations dispatch to native tools (FileIo, BashExecutor, etc.).
 /// Tests use a mock executor.
@@ -50,7 +50,7 @@ pub trait ToolExecutor: Send + Sync {
 ///
 /// Python agents use the sync [`ToolExecutor`] trait, while the dispatcher is
 /// async. This adapter bridges the two by calling `block_in_place` +
-/// `block_on` — we're always invoked from inside the Tokio runtime because
+/// `block_on`; we're always invoked from inside the Tokio runtime because
 /// `ToolProxy::call` runs on a PyO3-async future.
 ///
 /// Per-agent instance: the wrapped dispatcher holds per-agent state
@@ -84,7 +84,7 @@ impl ToolExecutor for DispatcherExecutor {
 
 /// Converts a [`ToolDescriptor`] into a [`serde_json::Value`] for serialization to Python.
 ///
-/// Pure function — testable without PyO3 or the GIL. Returns a JSON object
+/// Pure function, testable without PyO3 or the GIL. Returns a JSON object
 /// with keys: `name`, `version`, `description`, `input_schema`, `output_schema`, `tags`.
 pub fn describe_inner(descriptor: &ToolDescriptor) -> serde_json::Value {
     serde_json::json!({
@@ -116,15 +116,15 @@ pub struct ToolProxy {
     agent_id: String,
     task_id: String,
     tool_calls: AtomicU32,
-    /// A2A invoker for routing `"a2a:{skill_id}"` tool calls — `None` if not configured.
+    /// A2A invoker for routing `"a2a:{skill_id}"` tool calls; `None` if not configured.
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
     /// Current A2A recursion depth for the owning agent (0 = direct invocation).
     a2a_depth: u32,
-    /// Cumulative deadline for the current A2A chain — `None` before the first invocation.
+    /// Cumulative deadline for the current A2A chain; `None` before the first invocation.
     chain_deadline: Option<Instant>,
-    /// Event bus pour émettre `ToolCallStarted/Completed/Denied`,
-    /// `A2AInvokeStarted/Completed` (ADR-088, Lot 2). `None` désactive
-    /// l'observabilité runtime sans casser le dispatch.
+    /// Event bus to emit `ToolCallStarted/Completed/Denied`,
+    /// `A2AInvokeStarted/Completed`. `None` disables runtime observability
+    /// without breaking dispatch.
     event_bus: Option<apollia_core::events::EventBusSender>,
 }
 
@@ -155,10 +155,9 @@ impl ToolProxy {
 
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
 
-        // ADR-088 — Émission ToolCallStarted (Lot 2). L'event_id est généré
-        // ici pour servir de parent au futur ToolCallCompleted/Denied.
-        // `event_id` est aussi utilisé comme identifiant de l'A2A invoke
-        // côté chaîne A2A.
+        // Emit ToolCallStarted. The event_id is generated here to serve as the
+        // parent of the future ToolCallCompleted/Denied. `event_id` is also
+        // used as the A2A invoke identifier on the A2A chain side.
         let started_event_id = uuid::Uuid::now_v7().to_string();
         if let Some(bus) = self.event_bus.as_ref() {
             let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallStarted {
@@ -173,10 +172,10 @@ impl ToolProxy {
         // A2A path: intercept before registry lookup.
         // Accept both `a2a:{skill_id}` (legacy, Anthropic-compatible) and
         // `a2a__{skill_id_with_dots_replaced_by_double_underscore}` (new,
-        // OpenAI-compatible — see `A2AInterface::skill_as_tool`).
+        // OpenAI-compatible; see `A2AInterface::skill_as_tool`).
         if let Some(skill_id) = extract_a2a_skill_id(&tool_name) {
             if !self.allowed_tools.iter().any(|t| t == &tool_name) {
-                // Émettre ToolCallDenied avant de retourner.
+                // Emit ToolCallDenied before returning.
                 if let Some(bus) = self.event_bus.as_ref() {
                     let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallDenied {
                         parent_event_id: started_event_id.clone(),
@@ -198,8 +197,8 @@ impl ToolProxy {
             let a2a_depth = self.a2a_depth;
             let chain_deadline = self.chain_deadline;
 
-            // Companion A2AInvokeStarted — `event_id` partagé avec
-            // ToolCallStarted, `correlation_id` neuf pour démarrer la chaîne.
+            // Companion A2AInvokeStarted: `event_id` shared with
+            // ToolCallStarted, fresh `correlation_id` to start the chain.
             let a2a_correlation_id = uuid::Uuid::now_v7().to_string();
             if let Some(bus) = self.event_bus.as_ref() {
                 let _ = bus.send(apollia_core::events::RuntimeEvent::A2AInvokeStarted {
@@ -208,7 +207,7 @@ impl ToolProxy {
                     task_id: self.task_id.clone().into(),
                     caller_agent_id: caller.clone().into(),
                     skill_id: skill_id.clone(),
-                    child_task_id: None, // Lot 2 : non encore propagé.
+                    child_task_id: None, // not yet propagated.
                 });
             }
 
@@ -222,88 +221,33 @@ impl ToolProxy {
             return pyo3_async_runtimes::tokio::future_into_py(py, async move {
                 let started_at = std::time::Instant::now();
                 let result = invoke_a2a_tool(
-                    &invoker,
-                    &skill_id_for_async,
+                    &A2AInvokeContext {
+                        invoker: invoker.as_ref(),
+                        skill_id: &skill_id_for_async,
+                        caller: &caller,
+                        a2a_depth,
+                        chain_deadline,
+                    },
                     input_value,
-                    &caller,
-                    a2a_depth,
-                    chain_deadline,
                 )
                 .await;
                 let duration_ms = started_at.elapsed().as_millis() as u64;
 
-                match &result {
-                    Ok(value) => {
-                        if let Some(bus) = bus_for_async.as_ref() {
-                            let output_str = serde_json::to_string(value).ok();
-                            let summary = output_str.as_deref().map(|s| {
-                                let mut out = s.chars().take(200).collect::<String>();
-                                if s.chars().count() > 200 {
-                                    out.push('…');
-                                }
-                                out
-                            });
-                            let _ =
-                                bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
-                                    parent_event_id: parent_id.clone(),
-                                    task_id: task_id_for_async.clone().into(),
-                                    agent_id: agent_id_for_async.clone().into(),
-                                    tool_name: tool_name_for_async.clone(),
-                                    output_json: output_str,
-                                    exit_code: None,
-                                    duration_ms,
-                                    success: true,
-                                });
-                            let _ =
-                                bus.send(apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
-                                    parent_event_id: parent_id.clone(),
-                                    task_id: task_id_for_async.into(),
-                                    skill_id: skill_id_for_async,
-                                    success: true,
-                                    output_summary: summary,
-                                    duration_ms,
-                                });
-                        }
-                    }
-                    Err(e) => {
-                        if let Some(bus) = bus_for_async.as_ref() {
-                            let _ =
-                                bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
-                                    parent_event_id: parent_id.clone(),
-                                    task_id: task_id_for_async.clone().into(),
-                                    agent_id: agent_id_for_async.into(),
-                                    tool_name: tool_name_for_async,
-                                    output_json: Some(format!("{{\"error\":{:?}}}", e.to_string())),
-                                    exit_code: None,
-                                    duration_ms,
-                                    success: false,
-                                });
-                            let _ =
-                                bus.send(apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
-                                    parent_event_id: parent_id,
-                                    task_id: task_id_for_async.into(),
-                                    skill_id: skill_id_for_async,
-                                    success: false,
-                                    output_summary: Some(e.to_string()),
-                                    duration_ms,
-                                });
-                        }
-                    }
-                }
+                emit_a2a_completion_events(
+                    bus_for_async.as_ref(),
+                    &result,
+                    A2ACompletionEvent {
+                        parent_id,
+                        task_id: task_id_for_async,
+                        agent_id: agent_id_for_async,
+                        tool_name: tool_name_for_async,
+                        skill_id: skill_id_for_async,
+                        duration_ms,
+                    },
+                );
 
                 let result = result.map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-                let json_str = serde_json::to_string(&result)
-                    .map_err(|e| PyRuntimeError::new_err(format!("result serialization: {e}")))?;
-                Python::with_gil(|py| {
-                    let json_mod = py
-                        .import("json")
-                        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
-                    let py_obj: PyObject = json_mod
-                        .call_method1("loads", (json_str,))
-                        .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
-                        .unbind();
-                    Ok(py_obj)
-                })
+                json_value_to_py(&result)
             });
         }
 
@@ -335,63 +279,22 @@ impl ToolProxy {
             .await;
             let duration_ms = started_at.elapsed().as_millis() as u64;
 
-            // ADR-088 — Émission ToolCallCompleted ou ToolCallDenied selon
-            // l'issue. Sandwich avec le ToolCallStarted émis avant dispatch.
-            if let Some(bus) = bus_for_async.as_ref() {
-                match &result {
-                    Ok(value) => {
-                        let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
-                            parent_event_id: started_event_id_clone.clone(),
-                            task_id: task_id.clone().into(),
-                            agent_id: agent_id.clone().into(),
-                            tool_name: tool_name_for_async.clone(),
-                            output_json: serde_json::to_string(value).ok(),
-                            exit_code: None,
-                            duration_ms,
-                            success: true,
-                        });
-                    }
-                    Err(ToolProxyError::ToolNotAllowed(name)) => {
-                        let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallDenied {
-                            parent_event_id: started_event_id_clone.clone(),
-                            task_id: task_id.clone().into(),
-                            agent_id: agent_id.clone().into(),
-                            tool_name: name.clone(),
-                            reason: "not_in_manifest".to_string(),
-                            detail: None,
-                        });
-                    }
-                    Err(e) => {
-                        let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
-                            parent_event_id: started_event_id_clone.clone(),
-                            task_id: task_id.clone().into(),
-                            agent_id: agent_id.clone().into(),
-                            tool_name: tool_name_for_async.clone(),
-                            output_json: Some(format!("{{\"error\":{:?}}}", e.to_string())),
-                            exit_code: None,
-                            duration_ms,
-                            success: false,
-                        });
-                    }
-                }
-            }
+            // Emit ToolCallCompleted or ToolCallDenied depending on the
+            // outcome. Pairs with the ToolCallStarted emitted before dispatch.
+            emit_tool_completion_events(
+                bus_for_async.as_ref(),
+                &result,
+                ToolCompletionEvent {
+                    parent_id: started_event_id_clone,
+                    task_id,
+                    agent_id,
+                    tool_name: tool_name_for_async,
+                    duration_ms,
+                },
+            );
 
             match result {
-                Ok(value) => {
-                    let json_str = serde_json::to_string(&value).map_err(|e| {
-                        PyRuntimeError::new_err(format!("result serialization: {e}"))
-                    })?;
-                    Python::with_gil(|py| {
-                        let json_mod = py
-                            .import("json")
-                            .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
-                        let py_obj: PyObject = json_mod
-                            .call_method1("loads", (json_str,))
-                            .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
-                            .unbind();
-                        Ok(py_obj)
-                    })
-                }
+                Ok(value) => json_value_to_py(&value),
                 Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
             }
         })
@@ -439,21 +342,41 @@ impl ToolProxy {
     }
 }
 
-// Les méthodes de ce bloc sont appelées depuis Python via PyO3 (pas depuis Rust),
-// ce qui fait que le compilateur Rust les considère comme du code mort à tort.
+/// Construction parameters for [`ToolProxy::new`].
+///
+/// Groups the proxy's required dependencies so that callers build it from a
+/// single value (see SonarQube rust:S107, too many function arguments).
+pub struct ToolProxyConfig {
+    /// Tool registry handle for descriptor lookup.
+    pub registry: ToolRegistryHandle,
+    /// Audit trail handle for recording invocations.
+    pub audit: AuditTrailHandle,
+    /// Concrete tool executor.
+    pub executor: Arc<dyn ToolExecutor>,
+    /// Tool names the owning agent is permitted to call.
+    pub allowed_tools: Vec<String>,
+    /// Identifier of the owning agent.
+    pub agent_id: String,
+    /// Identifier of the current task.
+    pub task_id: String,
+}
+
+// The methods in this block are called from Python via PyO3 (not from Rust),
+// so the Rust compiler wrongly considers them dead code.
 #[allow(dead_code)]
 impl ToolProxy {
     /// Creates a new ToolProxy for an agent.
     ///
     /// Called by the runtime when constructing a `RuntimeContext` for a task.
-    pub fn new(
-        registry: ToolRegistryHandle,
-        audit: AuditTrailHandle,
-        executor: Arc<dyn ToolExecutor>,
-        allowed_tools: Vec<String>,
-        agent_id: String,
-        task_id: String,
-    ) -> Self {
+    pub fn new(config: ToolProxyConfig) -> Self {
+        let ToolProxyConfig {
+            registry,
+            audit,
+            executor,
+            allowed_tools,
+            agent_id,
+            task_id,
+        } = config;
         Self {
             registry,
             audit,
@@ -469,11 +392,11 @@ impl ToolProxy {
         }
     }
 
-    /// Branche l'EventBus pour émettre les événements d'observabilité Lot 2
+    /// Wires the EventBus to emit observability events
     /// (`ToolCallStarted/Completed/Denied`, `A2AInvokeStarted/Completed`).
     ///
-    /// Sans bus, le dispatch fonctionne identiquement mais aucun trace
-    /// runtime n'est produit — utile pour les contextes de test isolés.
+    /// Without a bus, dispatch works identically but no runtime trace is
+    /// produced; useful for isolated test contexts.
     pub fn with_event_bus(mut self, bus: apollia_core::events::EventBusSender) -> Self {
         self.event_bus = Some(bus);
         self
@@ -484,9 +407,9 @@ impl ToolProxy {
     /// Must be called after [`new`] when the owning agent has `supports_a2a: true`
     /// and an [`A2AInvoker`] is available. Returns `self` for ergonomic chaining.
     ///
-    /// - `invoker` — high-level A2A orchestrator.
-    /// - `a2a_depth` — current recursion depth (0 for direct invocations).
-    /// - `chain_deadline` — cumulative chain deadline propagated from the parent invocation.
+    /// - `invoker`: high-level A2A orchestrator.
+    /// - `a2a_depth`: current recursion depth (0 for direct invocations).
+    /// - `chain_deadline`: cumulative chain deadline propagated from the parent invocation.
     pub fn with_a2a(
         mut self,
         invoker: Arc<apollia_runtime::a2a::A2AInvoker>,
@@ -499,7 +422,7 @@ impl ToolProxy {
         self
     }
 
-    /// Core tool execution logic — testable without PyO3.
+    /// Core tool execution logic, testable without PyO3.
     ///
     /// Performs permission check, registry lookup, execution, and audit recording.
     /// Increments the tool call counter.
@@ -520,12 +443,14 @@ impl ToolProxy {
                 )
             })?;
             return invoke_a2a_tool(
-                invoker,
-                &skill_id,
+                &A2AInvokeContext {
+                    invoker: invoker.as_ref(),
+                    skill_id: &skill_id,
+                    caller: &self.agent_id,
+                    a2a_depth: self.a2a_depth,
+                    chain_deadline: self.chain_deadline,
+                },
                 input,
-                &self.agent_id,
-                self.a2a_depth,
-                self.chain_deadline,
             )
             .await;
         }
@@ -549,7 +474,7 @@ impl ToolProxy {
 /// Extracts the original A2A `skill_id` from a tool name, supporting both
 /// the legacy `"a2a:{skill_id}"` prefix and the new
 /// `"a2a__{skill_id_with_dots_as_double_underscores}"` prefix introduced for
-/// OpenAI compatibility (which rejects `:` in tool names — see
+/// OpenAI compatibility (which rejects `:` in tool names; see
 /// `A2AInterface::skill_as_tool`). Returns `None` if the name doesn't match
 /// either A2A pattern.
 ///
@@ -570,6 +495,15 @@ fn extract_a2a_skill_id(tool_name: &str) -> Option<String> {
     None
 }
 
+/// Grouped parameters for [`invoke_a2a_tool`] to avoid too many function arguments.
+struct A2AInvokeContext<'a> {
+    invoker: &'a apollia_runtime::a2a::A2AInvoker,
+    skill_id: &'a str,
+    caller: &'a str,
+    a2a_depth: u32,
+    chain_deadline: Option<Instant>,
+}
+
 /// Routes an `"a2a:{skill_id}"` tool call to the [`A2AInvoker`].
 ///
 /// Calls `invoker.invoke()` with `a2a_depth + 1` and formats the result as
@@ -578,22 +512,20 @@ fn extract_a2a_skill_id(tool_name: &str) -> Option<String> {
 ///
 /// Returns `ToolProxyError::ExecutionFailed` if the invocation fails.
 async fn invoke_a2a_tool(
-    invoker: &apollia_runtime::a2a::A2AInvoker,
-    skill_id: &str,
+    ctx: &A2AInvokeContext<'_>,
     input: serde_json::Value,
-    caller: &str,
-    a2a_depth: u32,
-    chain_deadline: Option<Instant>,
 ) -> Result<serde_json::Value, ToolProxyError> {
-    let result = invoker
-        .invoke(
+    let skill_id = ctx.skill_id;
+    let result = ctx
+        .invoker
+        .invoke(apollia_runtime::a2a::A2AInvokeRequest {
             skill_id,
             input,
-            caller,
-            a2a_depth.saturating_add(1),
-            None,
-            chain_deadline,
-        )
+            caller: ctx.caller,
+            a2a_depth: ctx.a2a_depth.saturating_add(1),
+            timeout: None,
+            chain_deadline: ctx.chain_deadline,
+        })
         .await
         .map_err(|e| ToolProxyError::ExecutionFailed(e.to_string()))?;
 
@@ -610,6 +542,164 @@ async fn invoke_a2a_tool(
 
     let formatted = format!("[{skill_id} via {}]\n{output_text}", result.agent_name);
     Ok(serde_json::json!({ "text": formatted }))
+}
+
+/// Converts a `serde_json::Value` into a Python object via `json.loads`.
+fn json_value_to_py(value: &serde_json::Value) -> PyResult<PyObject> {
+    let json_str = serde_json::to_string(value)
+        .map_err(|e| PyRuntimeError::new_err(format!("result serialization: {e}")))?;
+    Python::with_gil(|py| {
+        let json_mod = py
+            .import("json")
+            .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+        let py_obj: PyObject = json_mod
+            .call_method1("loads", (json_str,))
+            .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+            .unbind();
+        Ok(py_obj)
+    })
+}
+
+/// Owned identifiers needed to emit A2A completion events for one tool call.
+struct A2ACompletionEvent {
+    parent_id: String,
+    task_id: String,
+    agent_id: String,
+    tool_name: String,
+    skill_id: String,
+    duration_ms: u64,
+}
+
+/// Emits `ToolCallCompleted` + `A2AInvokeCompleted` for an A2A tool call result.
+///
+/// No-op when no event bus is wired (`bus` is `None`).
+fn emit_a2a_completion_events(
+    bus: Option<&apollia_core::events::EventBusSender>,
+    result: &Result<serde_json::Value, ToolProxyError>,
+    ev: A2ACompletionEvent,
+) {
+    let Some(bus) = bus else { return };
+    let A2ACompletionEvent {
+        parent_id,
+        task_id,
+        agent_id,
+        tool_name,
+        skill_id,
+        duration_ms,
+    } = ev;
+    match result {
+        Ok(value) => {
+            let output_str = serde_json::to_string(value).ok();
+            let summary = output_str.as_deref().map(|s| {
+                let mut out = s.chars().take(200).collect::<String>();
+                if s.chars().count() > 200 {
+                    out.push('…');
+                }
+                out
+            });
+            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                parent_event_id: parent_id.clone(),
+                task_id: task_id.clone().into(),
+                agent_id: agent_id.into(),
+                tool_name,
+                output_json: output_str,
+                exit_code: None,
+                duration_ms,
+                success: true,
+            });
+            let _ = bus.send(apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
+                parent_event_id: parent_id,
+                task_id: task_id.into(),
+                skill_id,
+                success: true,
+                output_summary: summary,
+                duration_ms,
+            });
+        }
+        Err(e) => {
+            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                parent_event_id: parent_id.clone(),
+                task_id: task_id.clone().into(),
+                agent_id: agent_id.into(),
+                tool_name,
+                output_json: Some(format!("{{\"error\":{:?}}}", e.to_string())),
+                exit_code: None,
+                duration_ms,
+                success: false,
+            });
+            let _ = bus.send(apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
+                parent_event_id: parent_id,
+                task_id: task_id.into(),
+                skill_id,
+                success: false,
+                output_summary: Some(e.to_string()),
+                duration_ms,
+            });
+        }
+    }
+}
+
+/// Owned identifiers needed to emit completion/denial events for one tool call.
+struct ToolCompletionEvent {
+    parent_id: String,
+    task_id: String,
+    agent_id: String,
+    tool_name: String,
+    duration_ms: u64,
+}
+
+/// Emits `ToolCallCompleted` or `ToolCallDenied` for a registry tool call result.
+///
+/// No-op when no event bus is wired (`bus` is `None`).
+fn emit_tool_completion_events(
+    bus: Option<&apollia_core::events::EventBusSender>,
+    result: &Result<serde_json::Value, ToolProxyError>,
+    ev: ToolCompletionEvent,
+) {
+    let Some(bus) = bus else { return };
+    let ToolCompletionEvent {
+        parent_id,
+        task_id,
+        agent_id,
+        tool_name,
+        duration_ms,
+    } = ev;
+    match result {
+        Ok(value) => {
+            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                parent_event_id: parent_id,
+                task_id: task_id.into(),
+                agent_id: agent_id.into(),
+                tool_name,
+                output_json: serde_json::to_string(value).ok(),
+                exit_code: None,
+                duration_ms,
+                success: true,
+            });
+        }
+        Err(ToolProxyError::ToolNotAllowed(name)) => {
+            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallDenied {
+                parent_event_id: parent_id,
+                task_id: task_id.into(),
+                agent_id: agent_id.into(),
+                tool_name: name.clone(),
+                reason: "not_in_manifest".to_string(),
+                detail: None,
+            });
+        }
+        Err(e) => {
+            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                parent_event_id: parent_id,
+                task_id: task_id.into(),
+                agent_id: agent_id.into(),
+                tool_name,
+                output_json: Some(format!("{{\"error\":{:?}}}", e.to_string())),
+                exit_code: None,
+                duration_ms,
+                success: false,
+            });
+        }
+    }
 }
 
 /// Grouped parameters for [`execute_tool`] to avoid too many function arguments.
@@ -781,30 +871,28 @@ fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }
 
-// ─────────────────────────────────────────────
 // WorkspaceContextPy
-// ─────────────────────────────────────────────
 
-/// Contexte workspace exposé à l'agent Python via `ctx.workspace`.
+/// Workspace context exposed to the Python agent via `ctx.workspace`.
 ///
-/// Agrège les sections produites par tous les [`WorkspaceProvider`]s actifs.
-/// Accessible en lecture seule depuis Python via des méthodes `#[pymethods]`.
+/// Aggregates the sections produced by all active [`WorkspaceProvider`]s.
+/// Readable from Python via `#[pymethods]`.
 ///
-/// ## API Python
+/// ## Python API
 /// ```python
-/// ctx.workspace.rules           # contenu des règles projet (APOLLIA.md)
-/// ctx.workspace.apollia_md      # alias pour rules (compatibilité)
-/// ctx.workspace.get("Git")      # contenu d'une section par titre
-/// ctx.workspace.sections        # liste de dicts {"title": ..., "content": ...}
+/// ctx.workspace.rules           # project rules content (APOLLIA.md)
+/// ctx.workspace.apollia_md      # alias for rules (compatibility)
+/// ctx.workspace.get("Git")      # content of a section by title
+/// ctx.workspace.sections        # list of dicts {"title": ..., "content": ...}
 /// ```
 #[pyclass]
 pub struct WorkspaceContextPy {
-    /// Sections aplaties de tous les providers : (titre, contenu).
+    /// Flattened sections from all providers: (title, content).
     pub sections: Vec<(String, String)>,
 }
 
 impl WorkspaceContextPy {
-    /// Construit depuis un [`WorkspaceSnapshot`] collecté par `ProjectRuntime`.
+    /// Builds from a [`WorkspaceSnapshot`] collected by `ProjectRuntime`.
     pub fn from_snapshot(snapshot: &apollia_workspace::WorkspaceSnapshot) -> Self {
         let sections = snapshot
             .slices
@@ -815,14 +903,14 @@ impl WorkspaceContextPy {
         Self { sections }
     }
 
-    /// Construit un contexte vide (aucune section).
+    /// Builds an empty context (no sections).
     pub fn empty() -> Self {
         Self { sections: vec![] }
     }
 
-    /// Injecte ou remplace le contenu d'une section par son titre.
+    /// Inserts or replaces a section's content by its title.
     ///
-    /// Utilisé par le bridge pour patcher les règles projet après collecte asynchrone.
+    /// Used by the bridge to patch project rules after asynchronous collection.
     pub fn set_section(&mut self, title: &str, content: String) {
         if let Some(existing) = self.sections.iter_mut().find(|(t, _)| t == title) {
             existing.1 = content;
@@ -831,7 +919,7 @@ impl WorkspaceContextPy {
         }
     }
 
-    /// Retourne le contenu d'une section par titre (lookup Rust-side).
+    /// Returns a section's content by title (Rust-side lookup).
     pub fn get_section_content(&self, title: &str) -> Option<&str> {
         self.sections
             .iter()
@@ -842,19 +930,19 @@ impl WorkspaceContextPy {
 
 #[pymethods]
 impl WorkspaceContextPy {
-    /// Contenu des règles projet (section "Règles du projet"), ou `None` si absent.
+    /// Project rules content (section "Règles du projet"), or `None` if absent.
     #[getter]
     fn rules(&self) -> Option<&str> {
         self.get_section_content("Règles du projet")
     }
 
-    /// Alias pour `rules` — compatibilité avec les agents existants.
+    /// Alias for `rules`, for compatibility with existing agents.
     #[getter]
     fn apollia_md(&self) -> Option<&str> {
         self.rules()
     }
 
-    /// Retourne le contenu d'une section par son titre, ou `None` si introuvable.
+    /// Returns a section's content by its title, or `None` if not found.
     ///
     /// ```python
     /// git_info = ctx.workspace.get("Git")
@@ -864,7 +952,7 @@ impl WorkspaceContextPy {
         self.get_section_content(title)
     }
 
-    /// Toutes les sections sous forme de liste de dicts `{"title": ..., "content": ...}`.
+    /// All sections as a list of dicts `{"title": ..., "content": ...}`.
     #[getter]
     fn sections<'py>(&self, py: pyo3::Python<'py>) -> Vec<pyo3::Bound<'py, pyo3::types::PyDict>> {
         use pyo3::types::PyDict;
@@ -880,9 +968,7 @@ impl WorkspaceContextPy {
     }
 }
 
-// ─────────────────────────────────────────────
 // RuntimeContext
-// ─────────────────────────────────────────────
 
 use std::collections::HashMap;
 
@@ -894,10 +980,10 @@ use apollia_runtime::mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
 use crate::llm::LlmProxy;
 
-/// Vue lecture-seule du budget d'exécution exposée à l'agent Python via `ctx.step_budget`.
+/// Read-only view of the execution budget exposed to the Python agent via `ctx.step_budget`.
 ///
-/// Snapshot instantané au moment de l'accès. Les trois dimensions reflètent
-/// les compteurs live du [`StepBudgetView`] Rust au moment de l'appel.
+/// Instant snapshot at access time. The three dimensions reflect the live
+/// counters of the Rust [`StepBudgetView`] at call time.
 #[pyclass(frozen, name = "StepBudgetView")]
 pub struct PyStepBudgetView {
     steps_remaining: i64,
@@ -907,201 +993,190 @@ pub struct PyStepBudgetView {
 
 #[pymethods]
 impl PyStepBudgetView {
-    /// Steps restants avant d'atteindre la limite (`max_steps`).
+    /// Steps left before reaching the limit (`max_steps`).
     #[getter]
     fn steps_remaining(&self) -> i64 {
         self.steps_remaining
     }
 
-    /// Appels outils restants avant d'atteindre `max_tool_calls`.
+    /// Tool calls left before reaching `max_tool_calls`.
     #[getter]
     fn tool_calls_remaining(&self) -> i64 {
         self.tool_calls_remaining
     }
 
-    /// Secondes écoulées depuis le démarrage de la tâche.
+    /// Seconds elapsed since the task started.
     #[getter]
     fn elapsed_seconds(&self) -> f64 {
         self.elapsed_seconds
     }
 }
 
-/// Contexte d'exécution exposé à l'agent Python via `run(task, ctx)`.
+/// Execution context exposed to the Python agent via `run(task, ctx)`.
 ///
-/// Construit par le runtime pour chaque exécution d'agent. Expose les
-/// capacités optionnelles du runtime :
-/// - `ctx.tools` — [`ToolProxy`] si des outils sont alloués à l'agent, `None` sinon.
-/// - `ctx.llm` — [`LlmProxy`] si au moins un backend LLM est disponible,
-///   `None` sinon (Principe #6 — l'agent choisit si l'absence est fatale).
-/// - `ctx.memory` — [`crate::memory::MemoryInterface`] isolé par namespace si
-///   `memory_namespace` est déclaré dans le manifest, `None` sinon (Principe #6).
+/// Built by the runtime for each agent run. Exposes the runtime's optional
+/// capabilities:
+/// - `ctx.tools`: [`ToolProxy`] if tools are allocated to the agent, `None` otherwise.
+/// - `ctx.llm`: [`LlmProxy`] if at least one LLM backend is available,
+///   `None` otherwise (the agent chooses whether the absence is fatal).
+/// - `ctx.memory`: [`crate::memory::MemoryInterface`] isolated per namespace if
+///   `memory_namespace` is declared in the manifest, `None` otherwise.
 ///
-/// L'absence de LLM est signalée sur l'EventBus via `AgentDegraded`
-/// dès la construction (Principe #4 — fail fast).
+/// The absence of an LLM is signaled on the EventBus via `AgentDegraded`
+/// at construction (fail fast).
 #[pyclass(name = "RuntimeContext")]
 pub struct RuntimeContext {
-    /// Proxy outils exposé à Python — `None` si aucun outil alloué.
+    /// Tools proxy exposed to Python; `None` if no tool is allocated.
     tools: Option<pyo3::Py<ToolProxy>>,
-    /// Proxy LLM exposé à Python — `None` si aucun backend LLM disponible.
+    /// LLM proxy exposed to Python; `None` if no LLM backend is available.
     pub llm: Option<LlmProxy>,
-    /// Interface mémoire isolée par namespace — `None` si `memory_namespace` absent du manifest.
+    /// Per-namespace isolated memory interface; `None` if `memory_namespace` is absent from the manifest.
     memory: Option<pyo3::Py<crate::memory::MemoryInterface>>,
-    /// Handle vers l'AgentMailbox — `None` si le runtime n'a pas démarré de mailbox.
+    /// Handle to the AgentMailbox; `None` if the runtime did not start a mailbox.
     mailbox: Option<AgentMailboxHandle>,
-    /// Nom de l'agent propriétaire de ce contexte.
+    /// Name of the agent owning this context.
     agent_name: String,
-    /// Indique si l'agent supporte le protocole A2A (from manifest).
+    /// Whether the agent supports the A2A protocol (from manifest).
     supports_a2a: bool,
-    /// Mémoire utilisateur injectée en mode chat — `None` en mode task.
+    /// User memory injected in chat mode; `None` in task mode.
     ///
-    /// Structure : `{"preferences": [("key", "value"), ...], "habits": [...], "context": [...]}`.
-    /// L'agent décide quoi en faire — ce n'est jamais déterministe.
+    /// Structure: `{"preferences": [("key", "value"), ...], "habits": [...], "context": [...]}`.
+    /// The agent decides what to do with it; this is never deterministic.
     user_context: Option<HashMap<String, Vec<(String, String)>>>,
-    /// Fonction de délégation A2A type-erasée — `None` si le routing A2A n'est pas disponible.
+    /// Type-erased A2A delegation function; `None` if A2A routing is unavailable.
     ///
-    /// Injectée depuis `make_delegate_fn(registry, router, event_bus)` en production.
-    /// Permet à un Director Agent d'appeler `ctx.delegate(skill_id, payload)` sans
-    /// connaître le backend d'exécution sous-jacent.
+    /// Injected from `make_delegate_fn(registry, router, event_bus)` in production.
+    /// Lets a Director Agent call `ctx.delegate(skill_id, payload)` without
+    /// knowing the underlying execution backend.
     a2a_delegate: Option<A2aDelegateFn>,
-    /// Orchestrateur A2A de haut niveau — `None` si non disponible dans ce contexte.
+    /// High-level A2A orchestrator; `None` if unavailable in this context.
     ///
-    /// Expose `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` aux agents Python.
+    /// Exposes `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` to Python agents.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Si `true`, l'agent peut écrire dans la mémoire utilisateur globale
-    /// (`__user__`) via `ctx.memory.remember_user()`. Lecture du namespace
-    /// `__user__` est, elle, toujours accessible — gérée par le
-    /// [`MemoryInterface`] dès qu'un `user_manager` est fourni.
+    /// If `true`, the agent can write into the global user memory (`__user__`)
+    /// via `ctx.memory.remember_user()`. Reading the `__user__` namespace is
+    /// always allowed, handled by the [`MemoryInterface`] as soon as a
+    /// `user_manager` is provided.
     ///
-    /// Vrai uniquement pour les agents dont le manifest déclare
-    /// `user_memory_write = true` (ex. `onboarding-agent`).
+    /// True only for agents whose manifest declares `user_memory_write = true`
+    /// (e.g. `onboarding-agent`).
     user_memory_writable: bool,
-    /// Profondeur courante dans la chaîne A2A (0 = invocation directe, pas via A2A).
+    /// Current depth in the A2A chain (0 = direct invocation, not via A2A).
     ///
-    /// Incrémenté de 1 à chaque niveau d'invocation inter-agents.
-    /// Transmis à [`A2AInvoker::invoke`] pour appliquer le garde-fou de récursivité.
+    /// Incremented by 1 at each inter-agent invocation level.
+    /// Passed to [`A2AInvoker::invoke`] to apply the recursion guard.
     a2a_depth: u32,
-    /// Deadline cumulé de la chaîne A2A courante.
+    /// Cumulative deadline of the current A2A chain.
     ///
-    /// `None` avant la première invocation A2A depuis cet agent.
-    /// Initialisé par l'`A2AInvoker` à la première invocation et propagé
-    /// dans les invocations suivantes pour limiter le temps total de la chaîne.
+    /// `None` before the first A2A invocation from this agent.
+    /// Initialized by the `A2AInvoker` on the first invocation and propagated
+    /// through subsequent invocations to bound the chain's total time.
     chain_deadline: Option<Instant>,
-    /// Contexte workspace collecté au démarrage de la tâche.
+    /// Workspace context collected at task startup.
     ///
-    /// Peuplé par [`with_workspace_snapshot`](RuntimeContext::with_workspace_snapshot) ou via le bridge
-    /// lors de `call_run()`. Expose `ctx.workspace.rules`, `ctx.workspace.get("Git")`, etc.
-    /// `None` si le runtime n'a pas collecté le contexte workspace pour cette tâche.
+    /// Populated by [`with_workspace_snapshot`](RuntimeContext::with_workspace_snapshot) or via the bridge
+    /// during `call_run()`. Exposes `ctx.workspace.rules`, `ctx.workspace.get("Git")`, etc.
+    /// `None` if the runtime did not collect the workspace context for this task.
     pub workspace: Option<Py<WorkspaceContextPy>>,
-    /// Event bus cloné au construction — permet à `emit_token()` de pousser
-    /// des `RuntimeEvent::ChatToken` vers le frontend SSE. `None` lorsque le
-    /// contexte est construit hors chaîne d'événements (tests unitaires
-    /// intra-crate).
+    /// Event bus cloned at construction, letting `emit_token()` push
+    /// `RuntimeEvent::ChatToken` to the SSE frontend. `None` when the context
+    /// is built outside an event chain (intra-crate unit tests).
     event_bus: Option<EventBusSender>,
-    /// Identifiant de session à taguer sur les événements `ChatToken`.
+    /// Session id to tag on `ChatToken` events.
     ///
-    /// Injecté depuis `task.context_id` par le `BridgeRunner` en mode chat.
-    /// `None` en mode task — `emit_token()` est alors un no-op.
+    /// Injected from `task.context_id` by the `BridgeRunner` in chat mode.
+    /// `None` in task mode, where `emit_token()` is a no-op.
     chat_session_id: Option<String>,
-    /// Identifiant du message courant à taguer sur les événements `ChatToken`.
+    /// Current message id to tag on `ChatToken` events.
     ///
-    /// Injecté depuis `task.message_id` par le `BridgeRunner` en mode chat.
-    /// `None` en mode task.
+    /// Injected from `task.message_id` by the `BridgeRunner` in chat mode.
+    /// `None` in task mode.
     chat_message_id: Option<String>,
-    /// Vue partagée du budget de steps — `None` en dehors d'une exécution budgétée.
+    /// Shared step budget view; `None` outside a budgeted run.
     step_budget: Option<Arc<StepBudgetView>>,
-    /// Interface de notification exposée à l'agent Python via `ctx.notify`.
-    /// `None` si aucun canal de notification n'est configuré (opt-in).
+    /// Notification interface exposed to the Python agent via `ctx.notify`.
+    /// `None` if no notification channel is configured (opt-in).
     notify: Option<pyo3::Py<crate::notify::PyNotifyInterface>>,
-    /// Interface STT exposée à l'agent Python via `ctx.stt`.
-    /// `None` si aucun backend STT n'est configuré.
+    /// STT interface exposed to the Python agent via `ctx.stt`.
+    /// `None` if no STT backend is configured.
     stt: Option<pyo3::Py<crate::stt::PySttInterface>>,
-    /// Interface profil utilisateur exposée à l'agent Python via `ctx.profile`.
+    /// User profile interface exposed to the Python agent via `ctx.profile`.
     ///
-    /// `None` quand le runtime n'a pas initialisé de `__user__` MemoryManager
-    /// (tests, contextes minimaux).  Lecture toujours autorisée ; écriture
-    /// gated par `user_memory_writable` (ADR-087).
+    /// `None` when the runtime has not initialized a `__user__` MemoryManager
+    /// (tests, minimal contexts). Reading is always allowed; writing is gated
+    /// by `user_memory_writable`.
     profile: Option<pyo3::Py<crate::profile::ProfileInterface>>,
-    /// ID de l'agent propriétaire de ce contexte (UUID stable).
+    /// ID of the agent owning this context (stable UUID).
     ///
-    /// Propagé dans la chaîne A2A (`AIPTask::delegation_chain`) lorsque cet agent
-    /// délègue via `ctx.delegate()` (ADR-D7).
+    /// Propagated in the A2A chain (`AIPTask::delegation_chain`) when this agent
+    /// delegates via `ctx.delegate()`.
     agent_id: AgentId,
-    /// Chaîne de délégation A2A héritée de la tâche en cours d'exécution.
+    /// A2A delegation chain inherited from the running task.
     ///
-    /// Vide pour une tâche racine. Étendue à chaque délégation par
-    /// [`crate::context::RuntimeContext::delegate`] avant transmission au
+    /// Empty for a root task. Extended on each delegation by
+    /// [`crate::context::RuntimeContext::delegate`] before being passed to the
     /// runtime (`a2a::validate_chain`).
     delegation_chain: Vec<AgentId>,
-    /// Identifiant de la tâche courante — injecté par le backend au démarrage
-    /// d'un `call_run` via [`with_task_id`](RuntimeContext::with_task_id).
+    /// Current task id, injected by the backend at the start of a `call_run`
+    /// via [`with_task_id`](RuntimeContext::with_task_id).
     ///
-    /// Utilisé par `ctx.log()` pour étiqueter le `RuntimeEvent::AgentLog` qui
-    /// part vers le persistor `runtime_events` (ADR-088). `None` quand le
-    /// contexte est construit pour des tests qui ne simulent pas une tâche.
+    /// Used by `ctx.log()` to tag the `RuntimeEvent::AgentLog` that goes to the
+    /// `runtime_events` persistor. `None` when the context is built for tests
+    /// that do not simulate a task.
     task_id: Option<String>,
 
-    // ── Nouvelles surfaces nestées ────────────────────
-    /// Façade A2A consolidée — `ctx.a2a`.
+    // Nested surfaces
+    /// Consolidated A2A facade: `ctx.a2a`.
     ///
-    /// Partage le même `Arc<A2AInvoker>` que [`Self::a2a_invoker`]. Construit
-    /// systématiquement (l'agent voit toujours `ctx.a2a`, mais les méthodes
-    /// lèvent `RuntimeError` quand l'invoker n'est pas disponible).
+    /// Shares the same `Arc<A2AInvoker>` as [`Self::a2a_invoker`]. Always built
+    /// (the agent always sees `ctx.a2a`, but the methods raise `RuntimeError`
+    /// when the invoker is unavailable).
     a2a_iface: Option<Py<crate::a2a::A2AInterface>>,
 
-    /// Surface d'émission d'événements typés — `ctx.events`.
+    /// Typed event-emission surface: `ctx.events`.
     ///
-    /// Construit systématiquement (au pire en mode no-op silencieux quand le
-    /// bus est absent).
+    /// Always built (at worst in silent no-op mode when the bus is absent).
     events_iface: Option<Py<crate::events::EventsInterface>>,
 
-    /// Interface datasources YAML — `ctx.datasources`.
+    /// YAML datasources interface: `ctx.datasources`.
     ///
-    /// Construit systématiquement à partir de `manifest.datasources`. Si la
-    /// liste déclarée est vide, l'interface est quand même présente mais
-    /// `get()` lève toujours `FileNotFoundError("not declared")`.
+    /// Always built from `manifest.datasources`. If the declared list is empty,
+    /// the interface is still present but `get()` always raises
+    /// `FileNotFoundError("not declared")`.
     datasources_iface: Option<Py<crate::datasources::DatasourcesInterface>>,
 
-    /// Interface templates Jinja2 — `ctx.templates`.
+    /// Jinja2 templates interface: `ctx.templates`.
     templates_iface: Option<Py<crate::templates::TemplatesInterface>>,
 
-    /// Interface secrets read-only — `ctx.secrets`.
+    /// Read-only secrets interface: `ctx.secrets`.
     secrets_iface: Option<Py<crate::secrets::SecretsInterface>>,
 
-    /// Budget wall-clock total (en secondes) — propagé depuis le manifest
-    /// (`budget.wall_clock_secs`) au moment du `bridge.call_run()`.
+    /// Total wall-clock budget (in seconds), propagated from the manifest
+    /// (`budget.wall_clock_secs`) at `bridge.call_run()` time.
     ///
-    /// Lorsqu'il est `Some(n)`, le getter `ctx.budget.wall_clock_remaining`
-    /// renvoie `Some(max(0, n - elapsed))`. Lorsqu'il est `None` (mode test,
-    /// CLI dry-run sans deadline), le getter renvoie `None` et l'agent doit
-    /// inférer qu'aucune contrainte temporelle n'est appliquée.
+    /// When `Some(n)`, the `ctx.budget.wall_clock_remaining` getter returns
+    /// `Some(max(0, n - elapsed))`. When `None` (test mode, CLI dry-run without
+    /// a deadline), the getter returns `None` and the agent should infer that
+    /// no time constraint is applied.
     pub(crate) wall_clock_secs: Option<u64>,
 }
 
 impl RuntimeContext {
-    /// Construit le contexte avec injection LLM optionnelle et ToolProxy optionnel.
+    /// Builds the context with optional LLM injection, optional ToolProxy, and
+    /// optional MemoryInterface.
     ///
-    /// Si `llm_router` est `None` ou contient un router sans backend,
-    /// `ctx.llm` est `None` et `RuntimeEvent::AgentDegraded` est émis
-    /// fire-and-forget sur `event_bus` (erreurs `send()` silencieusement ignorées).
+    /// If `llm_router` is `None` or holds a router with no backend, `ctx.llm`
+    /// is `None` and `RuntimeEvent::AgentDegraded` is emitted fire-and-forget
+    /// on `event_bus` (`send()` errors silently ignored).
     ///
-    /// Si `tool_proxy` est `Some`, `ctx.tools` expose les outils alloués à l'agent.
+    /// If `tool_proxy` is `Some`, `ctx.tools` exposes the tools allocated to
+    /// the agent.
     ///
-    /// Le contexte ne panic jamais à la construction : la dégradation est
-    /// signalée, mais l'agent décide lui-même si l'absence de LLM est fatale.
-    /// Construit le contexte avec injection LLM optionnelle, ToolProxy optionnel,
-    /// et MemoryInterface optionnelle.
+    /// If `memory_interface` is `Some`, `ctx.memory` exposes the SQLite memory
+    /// isolated to the namespace declared in the manifest.
     ///
-    /// Si `llm_router` est `None` ou contient un router sans backend,
-    /// `ctx.llm` est `None` et `RuntimeEvent::AgentDegraded` est émis
-    /// fire-and-forget sur `event_bus` (erreurs `send()` silencieusement ignorées).
-    ///
-    /// Si `tool_proxy` est `Some`, `ctx.tools` expose les outils alloués à l'agent.
-    ///
-    /// Si `memory_interface` est `Some`, `ctx.memory` expose la mémoire SQLite
-    /// isolée du namespace déclaré dans le manifest (Principe #6).
-    ///
-    /// Le contexte ne panic jamais à la construction : la dégradation est
-    /// signalée, mais l'agent décide lui-même si l'absence d'une capacité est fatale.
+    /// The context never panics at construction: degradation is signaled, but
+    /// the agent decides whether the absence of a capability is fatal.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_llm(
         llm_router: Option<Arc<LlmRouter>>,
@@ -1125,7 +1200,7 @@ impl RuntimeContext {
         let agent_id_stored = agent_id.clone();
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
-                // fire-and-forget — erreurs send() silencieusement ignorées.
+                // fire-and-forget: send() errors silently ignored.
                 let _ = event_bus.send(RuntimeEvent::AgentDegraded {
                     agent_id,
                     reason: "no LLM backend available".into(),
@@ -1150,12 +1225,12 @@ impl RuntimeContext {
         let memory = memory_interface
             .and_then(|mem| pyo3::Python::with_gil(|py| pyo3::Py::new(py, mem).ok()));
 
-        // ── Construction des nouvelles surfaces nestées ────────
-        // Toutes sont construites systématiquement (au pire en mode no-op)
-        // pour que `ctx.a2a`, `ctx.events`, etc. soient toujours accessibles
-        // sans branchement côté Python. Les valeurs de gating (datasources,
-        // templates, secrets) sont par défaut vides — le bridge les
-        // surchargera après lecture du manifest via les builders dédiés.
+        // Build the nested surfaces.
+        // All are built systematically (at worst in no-op mode) so that
+        // `ctx.a2a`, `ctx.events`, etc. are always accessible without
+        // branching on the Python side. The gating values (datasources,
+        // templates, secrets) default to empty; the bridge overrides them
+        // after reading the manifest via the dedicated builders.
         let bus_for_iface = bus_for_token.clone();
         let agent_id_for_iface = agent_id_stored.clone();
         let agent_name_for_iface = agent_name.clone();
@@ -1221,10 +1296,9 @@ impl RuntimeContext {
         }
     }
 
-    /// Construit un contexte minimal pour les tests unitaires intra-crate.
+    /// Builds a minimal context for intra-crate unit tests.
     ///
-    /// Tous les champs optionnels sont à `None`. Ne doit jamais être appelé
-    /// dans le code de production.
+    /// All optional fields are `None`. Must never be called in production code.
     #[cfg(test)]
     pub(crate) fn for_test() -> Self {
         let test_agent_id = AgentId::new_v4();
@@ -1282,10 +1356,10 @@ impl RuntimeContext {
         }
     }
 
-    /// Injecte un [`WorkspaceSnapshot`] collecté dans ce `RuntimeContext`.
+    /// Injects a collected [`WorkspaceSnapshot`] into this `RuntimeContext`.
     ///
-    /// Convertit le snapshot en [`WorkspaceContextPy`] accessible depuis Python
-    /// via `ctx.workspace`. Doit être appelé après [`new_with_llm`](RuntimeContext::new_with_llm).
+    /// Converts the snapshot into a [`WorkspaceContextPy`] accessible from
+    /// Python via `ctx.workspace`. Must be called after [`new_with_llm`](RuntimeContext::new_with_llm).
     pub fn with_workspace_snapshot(
         mut self,
         snapshot: &apollia_workspace::WorkspaceSnapshot,
@@ -1295,61 +1369,61 @@ impl RuntimeContext {
         self
     }
 
-    /// Initialise `ctx.workspace` avec un contexte vide (aucune section).
+    /// Initializes `ctx.workspace` with an empty context (no sections).
     ///
-    /// Garantit que `ctx.workspace` n'est pas `None` même quand aucun provider
-    /// n'est configuré. Le bridge peut ensuite patcher des sections via `set_section`.
+    /// Guarantees that `ctx.workspace` is not `None` even when no provider is
+    /// configured. The bridge can then patch sections via `set_section`.
     pub fn with_empty_workspace(mut self) -> Self {
         let workspace_py = WorkspaceContextPy::empty();
         self.workspace = pyo3::Python::with_gil(|py| pyo3::Py::new(py, workspace_py).ok());
         self
     }
 
-    /// Attache une interface de notification à ce contexte.
+    /// Attaches a notification interface to this context.
     ///
-    /// Appelé après [`new_with_llm`](RuntimeContext::new_with_llm) quand un
-    /// `NotificationEngineHandle` est disponible. Si non appelé, `ctx.notify`
-    /// est `None` (no-op silencieux côté Python).
+    /// Called after [`new_with_llm`](RuntimeContext::new_with_llm) when a
+    /// `NotificationEngineHandle` is available. If not called, `ctx.notify` is
+    /// `None` (silent no-op on the Python side).
     pub fn with_notify(mut self, notify: crate::notify::PyNotifyInterface) -> Self {
         self.notify = pyo3::Python::with_gil(|py| pyo3::Py::new(py, notify).ok());
         self
     }
 
-    /// Attache une interface STT à ce contexte.
+    /// Attaches an STT interface to this context.
     ///
-    /// Appelé après [`new_with_llm`](RuntimeContext::new_with_llm) quand un
-    /// backend STT est disponible. Si non appelé, `ctx.stt` est `None`.
+    /// Called after [`new_with_llm`](RuntimeContext::new_with_llm) when an STT
+    /// backend is available. If not called, `ctx.stt` is `None`.
     pub fn with_stt(mut self, stt: crate::stt::PySttInterface) -> Self {
         self.stt = pyo3::Python::with_gil(|py| pyo3::Py::new(py, stt).ok());
         self
     }
 
-    /// Attache une interface profil utilisateur à ce contexte (ADR-087).
+    /// Attaches a user profile interface to this context.
     ///
-    /// Appelé après [`new_with_llm`](RuntimeContext::new_with_llm) quand un
-    /// `MemoryManager` ciblant `__user__` est disponible. Si non appelé,
-    /// `ctx.profile` est `None`.
+    /// Called after [`new_with_llm`](RuntimeContext::new_with_llm) when a
+    /// `MemoryManager` targeting `__user__` is available. If not called,
+    /// `ctx.profile` is `None`.
     pub fn with_profile(mut self, profile: crate::profile::ProfileInterface) -> Self {
         self.profile = pyo3::Python::with_gil(|py| pyo3::Py::new(py, profile).ok());
         self
     }
 
-    /// Propage le budget wall-clock total (en secondes) depuis le manifest
-    /// pour alimenter `ctx.budget.wall_clock_remaining`.
+    /// Propagates the total wall-clock budget (in seconds) from the manifest
+    /// to feed `ctx.budget.wall_clock_remaining`.
     ///
-    /// Appelé par le `BridgeRunner`/`AipBridge` après lecture du manifest.
-    /// Si non appelé, `ctx.budget.wall_clock_remaining` reste `None` (aucune
-    /// deadline imposée du point de vue de l'agent).
+    /// Called by the `BridgeRunner`/`AipBridge` after reading the manifest.
+    /// If not called, `ctx.budget.wall_clock_remaining` stays `None` (no
+    /// deadline imposed from the agent's point of view).
     pub fn with_wall_clock_secs(mut self, secs: u64) -> Self {
         self.wall_clock_secs = Some(secs);
         self
     }
 
-    /// Configure la cible des événements `ChatToken` émis par `emit_token()`.
+    /// Configures the target of the `ChatToken` events emitted by `emit_token()`.
     ///
-    /// Appelé par le `BridgeRunner` en mode chat pour relier le contexte à la
-    /// session + message en cours. Si non appelé (ex. mode task CLI),
-    /// `emit_token()` est un no-op.
+    /// Called by the `BridgeRunner` in chat mode to link the context to the
+    /// current session + message. If not called (e.g. CLI task mode),
+    /// `emit_token()` is a no-op.
     pub fn with_chat_target(
         mut self,
         session_id: impl Into<String>,
@@ -1360,23 +1434,22 @@ impl RuntimeContext {
         self
     }
 
-    /// Lie ce contexte à l'identifiant de la tâche courante.
+    /// Binds this context to the current task id.
     ///
-    /// Doit être appelé avant `bridge.call_run()` pour que `ctx.log()` puisse
-    /// étiqueter ses événements `RuntimeEvent::AgentLog` avec le bon
-    /// `task_id` et qu'ils soient retrouvables dans la trace de la tâche
-    /// (ADR-088).
+    /// Must be called before `bridge.call_run()` so that `ctx.log()` can tag
+    /// its `RuntimeEvent::AgentLog` events with the right `task_id` and they
+    /// are findable in the task trace.
     ///
-    /// Effet de bord : propage aussi le `task_id` au [`LlmProxy`] interne pour
-    /// l'émission des `LlmCallStarted` (Lot 2).
+    /// Side effect: also propagates `task_id` to the internal [`LlmProxy`] for
+    /// emitting `LlmCallStarted`.
     pub fn with_task_id(mut self, task_id: impl Into<String>) -> Self {
         let task_id_str = task_id.into();
-        // Propager au LlmProxy pour observabilité Lot 2.
+        // Propagate to the LlmProxy for observability.
         if let Some(llm) = self.llm.take() {
             self.llm = Some(llm.with_task_context(task_id_str.clone(), self.agent_id.to_string()));
         }
-        // Re-construit EventsInterface en y injectant le task_id.
-        // Le pyclass est immuable, on remplace donc le Py<> en place.
+        // Rebuild EventsInterface with the task_id injected.
+        // The pyclass is immutable, so we replace the Py<> in place.
         let task_id_for_events = apollia_core::events::TaskId::from(task_id_str.clone());
         let agent_id_for_events = self.agent_id.clone();
         let bus_for_events = self.event_bus.clone();
@@ -1396,18 +1469,18 @@ impl RuntimeContext {
         self
     }
 
-    // ── Builders pour les nouvelles surfaces nestées ──────────
-    /// Branche l'interface datasources sur le contexte.
+    // Builders for the nested surfaces.
+    /// Wires the datasources interface onto the context.
     ///
-    /// Construit une [`crate::datasources::DatasourcesInterface`] gating sur
-    /// `declared` (typiquement `manifest.datasources`). Si `agent_dir` est
-    /// `Some`, charge immédiatement les fichiers
-    /// `<agent_dir>/datasources/<name>.yaml` dans le cache interne — c'est ce
-    /// chemin qui est emprunté par la production. Pour les tests, passer
-    /// `None` laisse le cache vide (toute lecture renverra
+    /// Builds a [`crate::datasources::DatasourcesInterface`] gating on
+    /// `declared` (typically `manifest.datasources`). If `agent_dir` is
+    /// `Some`, immediately loads the files
+    /// `<agent_dir>/datasources/<name>.yaml` into the internal cache; this is
+    /// the path taken in production. For tests, passing `None` leaves the
+    /// cache empty (any read returns
     /// `FileNotFoundError("not found on disk")`).
     ///
-    /// Doit être appelé après [`new_with_llm`](RuntimeContext::new_with_llm).
+    /// Must be called after [`new_with_llm`](RuntimeContext::new_with_llm).
     pub fn with_datasources(
         mut self,
         declared: Vec<String>,
@@ -1421,13 +1494,13 @@ impl RuntimeContext {
         self
     }
 
-    /// Branche l'interface templates Jinja2 sur le contexte.
+    /// Wires the Jinja2 templates interface onto the context.
     ///
-    /// Construit une [`crate::templates::TemplatesInterface`] gating sur
-    /// `declared` (typiquement `manifest.templates`). Si `agent_dir` est
-    /// `Some`, compile immédiatement les templates Jinja depuis
-    /// `<agent_dir>/templates/<name>.{j2,jinja2,jinja}`. Pour les tests, passer
-    /// `None` laisse l'environnement minijinja vide.
+    /// Builds a [`crate::templates::TemplatesInterface`] gating on `declared`
+    /// (typically `manifest.templates`). If `agent_dir` is `Some`, immediately
+    /// compiles the Jinja templates from
+    /// `<agent_dir>/templates/<name>.{j2,jinja2,jinja}`. For tests, passing
+    /// `None` leaves the minijinja environment empty.
     pub fn with_templates(
         mut self,
         declared: Vec<String>,
@@ -1441,7 +1514,7 @@ impl RuntimeContext {
         self
     }
 
-    /// Branche l'interface secrets sur le contexte.
+    /// Wires the secrets interface onto the context.
     pub fn with_secrets(mut self, sc: crate::secrets::SecretsInterface) -> Self {
         self.secrets_iface = pyo3::Python::with_gil(|py| pyo3::Py::new(py, sc).ok());
         self
@@ -1450,10 +1523,10 @@ impl RuntimeContext {
 
 #[pymethods]
 impl RuntimeContext {
-    /// Proxy outils injecté — `None` si aucun outil alloué.
+    /// Injected tools proxy; `None` if no tool is allocated.
     ///
-    /// Propriété Python `ctx.tools`. Retourne `None` Python (pas d'exception)
-    /// si l'agent n'a pas de `tools_required` ou que la factory n'a pas fourni de proxy.
+    /// Python property `ctx.tools`. Returns Python `None` (no exception) if the
+    /// agent has no `tools_required` or the factory did not provide a proxy.
     #[getter]
     fn tools(&self, py: Python<'_>) -> PyObject {
         match &self.tools {
@@ -1462,10 +1535,10 @@ impl RuntimeContext {
         }
     }
 
-    /// Proxy LLM injecté — `None` si aucun backend LLM disponible.
+    /// Injected LLM proxy; `None` if no LLM backend is available.
     ///
-    /// Propriété Python `ctx.llm`. Retourne `None` Python (pas d'exception)
-    /// si le runtime a démarré sans backend LLM configuré ou disponible.
+    /// Python property `ctx.llm`. Returns Python `None` (no exception) if the
+    /// runtime started with no LLM backend configured or available.
     #[getter]
     fn llm(&self, py: Python<'_>) -> PyObject {
         match &self.llm {
@@ -1476,10 +1549,10 @@ impl RuntimeContext {
         }
     }
 
-    /// Interface mémoire isolée par namespace.
+    /// Per-namespace isolated memory interface.
     ///
-    /// Propriété Python `ctx.memory`. Retourne `None` Python si le manifest
-    /// de l'agent ne déclare pas de `memory_namespace`.
+    /// Python property `ctx.memory`. Returns Python `None` if the agent's
+    /// manifest does not declare a `memory_namespace`.
     #[getter]
     fn memory(&self, py: Python<'_>) -> PyObject {
         match &self.memory {
@@ -1488,11 +1561,11 @@ impl RuntimeContext {
         }
     }
 
-    /// Contexte workspace collecté au démarrage de la tâche.
+    /// Workspace context collected at task startup.
     ///
-    /// Propriété Python `ctx.workspace`. Expose `ctx.workspace.git_branch`,
+    /// Python property `ctx.workspace`. Exposes `ctx.workspace.git_branch`,
     /// `ctx.workspace.git_is_clean`, `ctx.workspace.apollia_md`, etc.
-    /// Retourne `None` Python si le runtime n'a pas collecté le contexte workspace.
+    /// Returns Python `None` if the runtime did not collect the workspace context.
     #[getter]
     fn workspace(&self, py: Python<'_>) -> PyObject {
         match &self.workspace {
@@ -1501,10 +1574,10 @@ impl RuntimeContext {
         }
     }
 
-    /// Interface de notification exposée à l'agent Python via `ctx.notify`.
+    /// Notification interface exposed to the Python agent via `ctx.notify`.
     ///
-    /// Propriété Python `ctx.notify`. Retourne `None` Python si aucun canal
-    /// de notification n'est configuré (canaux opt-in par conception).
+    /// Python property `ctx.notify`. Returns Python `None` if no notification
+    /// channel is configured (channels are opt-in by design).
     #[getter]
     fn notify(&self, py: Python<'_>) -> PyObject {
         match &self.notify {
@@ -1513,9 +1586,9 @@ impl RuntimeContext {
         }
     }
 
-    /// Interface STT exposée à l'agent Python via `ctx.stt`.
+    /// STT interface exposed to the Python agent via `ctx.stt`.
     ///
-    /// Propriété Python `ctx.stt`. Retourne `None` Python si le STT n'est pas configuré.
+    /// Python property `ctx.stt`. Returns Python `None` if STT is not configured.
     #[getter]
     fn stt(&self, py: Python<'_>) -> PyObject {
         match &self.stt {
@@ -1524,10 +1597,10 @@ impl RuntimeContext {
         }
     }
 
-    /// Interface profil utilisateur exposée à l'agent Python via `ctx.profile` (ADR-087).
+    /// User profile interface exposed to the Python agent via `ctx.profile`.
     ///
-    /// Propriété Python `ctx.profile`.  Retourne `None` Python quand aucun
-    /// `__user__` manager n'a été initialisé (tests, contextes minimaux).
+    /// Python property `ctx.profile`. Returns Python `None` when no `__user__`
+    /// manager has been initialized (tests, minimal contexts).
     #[getter]
     fn profile(&self, py: Python<'_>) -> PyObject {
         match &self.profile {
@@ -1536,23 +1609,23 @@ impl RuntimeContext {
         }
     }
 
-    /// Nom logique de l'agent (utilisé pour nommer le logger
-    /// `apollia.agent.<agent_name>` via le `logger_bridge`).
+    /// Logical agent name (used to name the logger
+    /// `apollia.agent.<agent_name>` via the `logger_bridge`).
     ///
-    /// Propriété Python `ctx.agent_name`. Stable sur toute la durée de vie
-    /// du contexte. Toujours présent (chaîne vide impossible en pratique).
+    /// Python property `ctx.agent_name`. Stable for the whole context lifetime.
+    /// Always present (an empty string is impossible in practice).
     #[getter]
     fn agent_name(&self) -> String {
         self.agent_name.clone()
     }
 
-    // ── Getters pour les nouvelles surfaces nestées ──
-    /// Façade A2A consolidée — `ctx.a2a`.
+    // Getters for the nested surfaces.
+    /// Consolidated A2A facade: `ctx.a2a`.
     ///
-    /// Retourne toujours une `A2AInterface` (jamais `None`) ; les méthodes
-    /// internes lèvent `RuntimeError("A2A invoker not available …")` si le
-    /// runtime n'a pas d'invoker actif. Cette uniformité évite à l'agent de
-    /// brancher sur la présence de `ctx.a2a`.
+    /// Always returns an `A2AInterface` (never `None`); the internal methods
+    /// raise `RuntimeError("A2A invoker not available ...")` if the runtime has
+    /// no active invoker. This uniformity spares the agent from branching on
+    /// the presence of `ctx.a2a`.
     #[getter]
     fn a2a(&self, py: Python<'_>) -> PyObject {
         match &self.a2a_iface {
@@ -1561,7 +1634,7 @@ impl RuntimeContext {
         }
     }
 
-    /// Émission d'événements typés — `ctx.events`.
+    /// Typed event emission: `ctx.events`.
     #[getter]
     fn events(&self, py: Python<'_>) -> PyObject {
         match &self.events_iface {
@@ -1570,7 +1643,7 @@ impl RuntimeContext {
         }
     }
 
-    /// Datasources YAML lecture-seule — `ctx.datasources`.
+    /// Read-only YAML datasources: `ctx.datasources`.
     #[getter]
     fn datasources(&self, py: Python<'_>) -> PyObject {
         match &self.datasources_iface {
@@ -1579,7 +1652,7 @@ impl RuntimeContext {
         }
     }
 
-    /// Templates Jinja2 lecture-seule — `ctx.templates`.
+    /// Read-only Jinja2 templates: `ctx.templates`.
     #[getter]
     fn templates(&self, py: Python<'_>) -> PyObject {
         match &self.templates_iface {
@@ -1588,7 +1661,7 @@ impl RuntimeContext {
         }
     }
 
-    /// Secrets lecture-seule avec gating manifest — `ctx.secrets`.
+    /// Read-only secrets with manifest gating: `ctx.secrets`.
     #[getter]
     fn secrets(&self, py: Python<'_>) -> PyObject {
         match &self.secrets_iface {
@@ -1597,10 +1670,10 @@ impl RuntimeContext {
         }
     }
 
-    /// Vue lecture-seule du budget d'exécution — `ctx.budget`.
+    /// Read-only view of the execution budget: `ctx.budget`.
     ///
-    /// Successeur typé de `ctx.step_budget` (qui reste fonctionnel et
-    /// `#[deprecated]`). Snapshot frais à chaque accès.
+    /// Typed successor of `ctx.step_budget` (which stays functional and
+    /// `#[deprecated]`). Fresh snapshot on each access.
     #[getter]
     fn budget(&self, py: Python<'_>) -> PyResult<PyObject> {
         match &self.step_budget {
@@ -1621,12 +1694,12 @@ impl RuntimeContext {
         }
     }
 
-    /// Logger structuré pré-configuré pour cet agent — `ctx.logger`.
+    /// Structured logger preconfigured for this agent: `ctx.logger`.
     ///
-    /// Retourne `logging.getLogger("apollia.agent.{agent_id}")`. La
-    /// configuration des handlers (relais tracing Rust, niveau, format) est
-    /// gérée par le bootstrap SDK Python. Ici on garantit seulement que
-    /// l'agent reçoit toujours un Logger nommé.
+    /// Returns `logging.getLogger("apollia.agent.{agent_id}")`. Handler
+    /// configuration (Rust tracing relay, level, format) is handled by the
+    /// Python SDK bootstrap. Here we only guarantee the agent always gets a
+    /// named Logger.
     #[getter]
     fn logger<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let logger_name = format!("apollia.agent.{}", self.agent_id);
@@ -1634,13 +1707,11 @@ impl RuntimeContext {
         logging.call_method1("getLogger", (logger_name,))
     }
 
-    /// Émet un token de streaming vers le frontend en mode chat.
+    /// User context injected in chat mode; `None` in task mode.
     ///
-    /// Contexte utilisateur injecté en mode chat — `None` en mode task.
-    ///
-    /// Propriété Python `ctx.user_context`. Retourne un `dict[str, list[tuple[str, str]]]`
-    /// avec les catégories `preferences`, `habits`, `context`, ou `None` Python
-    /// si l'agent n'est pas en mode chat ou si la mémoire utilisateur est vide.
+    /// Python property `ctx.user_context`. Returns a `dict[str, list[tuple[str, str]]]`
+    /// with the categories `preferences`, `habits`, `context`, or Python `None`
+    /// if the agent is not in chat mode or the user memory is empty.
     #[getter]
     fn user_context(&self, py: Python<'_>) -> PyObject {
         match &self.user_context {
@@ -1649,31 +1720,30 @@ impl RuntimeContext {
         }
     }
 
-    /// Indique si cet agent peut écrire dans la mémoire utilisateur globale
-    /// (`__user__`) via `ctx.memory.remember_user()`.
+    /// Whether this agent can write into the global user memory (`__user__`)
+    /// via `ctx.memory.remember_user()`.
     ///
-    /// Propriété Python `ctx.user_memory_writable`. La lecture de
-    /// `__user__` est toujours disponible via le fallback de
-    /// `ctx.memory.recall()` — ce drapeau ne contrôle que les écritures.
+    /// Python property `ctx.user_memory_writable`. Reading `__user__` is always
+    /// available via the `ctx.memory.recall()` fallback; this flag controls
+    /// writes only.
     #[getter]
     fn user_memory_writable(&self) -> bool {
         self.user_memory_writable
     }
 
-    /// Log un message via le système `tracing::` du runtime.
+    /// Logs a message via the runtime's `tracing::` system.
     ///
-    /// Les messages sont émis avec le champ `agent` pour corrélation dans les traces
-    /// structurées. Niveaux acceptés : `"debug"`, `"info"`, `"warn"`, `"error"`.
-    /// Lève `ValueError` pour tout autre niveau.
+    /// Messages are emitted with the `agent` field for correlation in
+    /// structured traces. Accepted levels: `"debug"`, `"info"`, `"warn"`,
+    /// `"error"`. Raises `ValueError` for any other level.
     ///
-    /// **Effet de bord (ADR-088, Lot 1).** En plus de `tracing::*`, émet un
-    /// `RuntimeEvent::AgentLog` sur l'`EventBus` si le contexte connaît son
-    /// `task_id` et a un bus configuré. Le `EventPersistor` côté
-    /// `apollia-runtime` consomme ces événements et les persiste dans
-    /// `runtime_events.db`, ce qui les rend disponibles à l'API
-    /// `GET /api/v1/tasks/{id}/trace` et à la nouvelle vue `ExecutionTrace`.
-    /// Le `tracing::*` continue d'écrire vers stderr en parallèle pour la
-    /// compatibilité ops.
+    /// **Side effect.** In addition to `tracing::*`, emits a
+    /// `RuntimeEvent::AgentLog` on the `EventBus` if the context knows its
+    /// `task_id` and has a configured bus. The `EventPersistor` in
+    /// `apollia-runtime` consumes these events and persists them in
+    /// `runtime_events.db`, making them available to the
+    /// `GET /api/v1/tasks/{id}/trace` API and the `ExecutionTrace` view.
+    /// `tracing::*` keeps writing to stderr in parallel for ops compatibility.
     #[pyo3(text_signature = "(self, level, message)")]
     fn log(&self, level: &str, message: &str) -> PyResult<()> {
         let agent = &self.agent_name;
@@ -1689,13 +1759,13 @@ impl RuntimeContext {
             }
         }
 
-        // Persistance via EventBus → EventPersistor (ADR-088).
-        // Conditionnel : un contexte sans task_id (tests) ou sans bus (CLI
-        // dry-run) reste silencieux côté trace mais émet bien dans tracing.
+        // Persistence via EventBus to EventPersistor.
+        // Conditional: a context without task_id (tests) or without a bus (CLI
+        // dry-run) stays silent on the trace side but still emits to tracing.
         if let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) {
-            // fire-and-forget : un bus saturé est tracé par broadcast,
-            // l'erreur send() est silencieusement ignorée pour ne jamais
-            // bloquer le thread d'agent.
+            // fire-and-forget: a saturated bus is traced by broadcast, the
+            // send() error is silently ignored so the agent thread is never
+            // blocked.
             let _ = bus.send(RuntimeEvent::AgentLog {
                 task_id: task_id.clone().into(),
                 agent_id: self.agent_id.clone(),
@@ -1708,10 +1778,10 @@ impl RuntimeContext {
         Ok(())
     }
 
-    /// Budget d'exécution restant pour la tâche en cours (lecture seule).
+    /// Remaining execution budget for the current task (read-only).
     ///
-    /// Retourne un [`StepBudgetView`] avec `steps_remaining`, `tool_calls_remaining`,
-    /// et `elapsed_seconds`. Retourne `None` Python si le contexte n'est pas budgété.
+    /// Returns a [`StepBudgetView`] with `steps_remaining`, `tool_calls_remaining`,
+    /// and `elapsed_seconds`. Returns Python `None` if the context is not budgeted.
     #[getter]
     fn step_budget(&self, py: Python<'_>) -> PyResult<PyObject> {
         match &self.step_budget {
@@ -1728,14 +1798,14 @@ impl RuntimeContext {
     }
 }
 
-/// Calcule le namespace mémoire effectif pour un agent dans un contexte de session.
+/// Computes the effective memory namespace for an agent in a session context.
 ///
-/// Si l'agent tourne dans un projet (`project_id` non vide), le namespace est préfixé
-/// avec le `project_id` pour garantir l'isolation entre projets.
+/// If the agent runs inside a project (`project_id` not empty), the namespace
+/// is prefixed with the `project_id` to guarantee isolation between projects.
 ///
-/// Convention : `"{project_id}:{manifest_namespace}"` | `"{manifest_namespace}"`
+/// Convention: `"{project_id}:{manifest_namespace}"` | `"{manifest_namespace}"`
 ///
-/// Les `shared_memory_namespaces` ne sont PAS préfixés — ils sont globaux.
+/// The `shared_memory_namespaces` are NOT prefixed; they are global.
 pub fn effective_memory_namespace(manifest_namespace: &str, project_id: Option<&str>) -> String {
     match project_id {
         Some(pid) if !pid.is_empty() => format!("{pid}:{manifest_namespace}"),
@@ -1743,9 +1813,9 @@ pub fn effective_memory_namespace(manifest_namespace: &str, project_id: Option<&
     }
 }
 
-/// Envoie un message d'un agent à un autre via la mailbox — testable sans PyO3.
+/// Sends a message from one agent to another via the mailbox, testable without PyO3.
 ///
-/// Wrapper fin autour de [`AgentMailboxHandle::send`].
+/// Thin wrapper around [`AgentMailboxHandle::send`].
 pub(crate) async fn send_inner(
     mailbox: &AgentMailboxHandle,
     from: &str,
@@ -1755,9 +1825,9 @@ pub(crate) async fn send_inner(
     mailbox.send(from, to, payload).await
 }
 
-/// Reçoit le prochain message en attente pour `agent_name` — testable sans PyO3.
+/// Receives the next pending message for `agent_name`, testable without PyO3.
 ///
-/// Retourne `None` si aucun message n'arrive avant l'expiration du timeout.
+/// Returns `None` if no message arrives before the timeout expires.
 pub(crate) async fn receive_inner(
     mailbox: &AgentMailboxHandle,
     agent_name: &str,
@@ -1781,7 +1851,7 @@ mod runtime_context_tests {
     };
     use futures::Stream;
 
-    // ── Mocks pour la construction du ToolCallHelper (jamais réellement appelés) ──
+    // Mocks for building the ToolCallHelper (never actually called).
 
     struct NoopModel;
 
@@ -1842,10 +1912,10 @@ mod runtime_context_tests {
         ))
     }
 
-    /// `ctx.llm` est `None` si le router n'a aucun backend.
+    /// `ctx.llm` is `None` if the router has no backend.
     #[tokio::test]
     async fn test_ac2_ctx_llm_none_if_no_backends() {
-        // GIVEN un LlmRouter vide (0 backends)
+        // GIVEN an empty LlmRouter (0 backends)
         let router = Arc::new(LlmRouter::empty());
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
         // WHEN
@@ -1870,10 +1940,10 @@ mod runtime_context_tests {
         assert!(ctx.llm.is_none());
     }
 
-    /// `AgentDegraded` émis sur EventBus si aucun backend LLM.
+    /// `AgentDegraded` emitted on EventBus if no LLM backend.
     #[tokio::test]
     async fn test_ac3_agent_degraded_emitted_if_no_llm() {
-        // GIVEN un router vide et un bus avec receiver
+        // GIVEN an empty router and a bus with a receiver
         let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
         let router = Arc::new(LlmRouter::empty());
         let agent_id = AgentId::new_v4();
@@ -1895,7 +1965,7 @@ mod runtime_context_tests {
             None,          // a2a_invoker
             false,         // user_memory_writable
         );
-        // THEN un événement AgentDegraded est présent sur le bus
+        // THEN an AgentDegraded event is present on the bus
         let event = rx.try_recv().expect("un événement doit être présent");
         assert!(
             matches!(
@@ -1907,10 +1977,10 @@ mod runtime_context_tests {
         );
     }
 
-    /// (variante) — `ctx.llm` est `None` si `llm_router` est `None`.
+    /// (variant) `ctx.llm` is `None` if `llm_router` is `None`.
     #[tokio::test]
     async fn test_ac2_ctx_llm_none_if_router_option_is_none() {
-        // GIVEN llm_router = None (Supervisor n'a pas pu initialiser le LLM)
+        // GIVEN llm_router = None (the Supervisor could not initialize the LLM)
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
         // WHEN
         let ctx = RuntimeContext::new_with_llm(
@@ -1934,7 +2004,7 @@ mod runtime_context_tests {
         assert!(ctx.llm.is_none());
     }
 
-    // FC01 — ctx.log with valid level emits tracing event (no panic, no error)
+    // ctx.log with valid level emits tracing event (no panic, no error)
     #[tokio::test]
     async fn test_log_valid_levels_succeed() {
         // GIVEN a minimal RuntimeContext
@@ -1948,7 +2018,7 @@ mod runtime_context_tests {
         assert!(ctx.log("error", "error message").is_ok());
     }
 
-    // FC01 — ctx.log with invalid level raises ValueError
+    // ctx.log with invalid level raises ValueError
     #[tokio::test]
     async fn test_log_invalid_level_raises_value_error() {
         // GIVEN a minimal RuntimeContext
@@ -1968,7 +2038,7 @@ mod runtime_context_tests {
         });
     }
 
-    // FC02 — ctx.step_budget returns None when no budget is configured
+    // ctx.step_budget returns None when no budget is configured
     #[tokio::test]
     async fn test_step_budget_none_when_not_configured() {
         // GIVEN a for_test context with no step_budget
@@ -1984,7 +2054,7 @@ mod runtime_context_tests {
         });
     }
 
-    // FC02 — steps_remaining reflects step_count atomically
+    // steps_remaining reflects step_count atomically
     #[test]
     fn test_steps_remaining_reflects_count() {
         // GIVEN a StepBudgetView with limit 5 and 3 steps consumed
@@ -2006,8 +2076,8 @@ mod runtime_context_tests {
     }
 
     /// End-to-end builder test.
-    /// `with_datasources(declared, Some(dir))` charge réellement le YAML
-    /// depuis disque et `ctx.datasources` expose la valeur à Python.
+    /// `with_datasources(declared, Some(dir))` actually loads the YAML from
+    /// disk and `ctx.datasources` exposes the value to Python.
     #[test]
     fn test_with_datasources_loads_from_real_dir() {
         // GIVEN a temp agent_dir with datasources/items.yaml
@@ -2037,8 +2107,8 @@ mod runtime_context_tests {
         });
     }
 
-    /// `with_templates(declared, Some(dir))` charge réellement
-    /// les templates Jinja2 et le rendu fonctionne avec un dict Python.
+    /// `with_templates(declared, Some(dir))` actually loads the Jinja2
+    /// templates and rendering works with a Python dict.
     #[test]
     fn test_with_templates_renders_from_real_dir() {
         // GIVEN a temp agent_dir with templates/greeting.j2
@@ -2067,8 +2137,8 @@ mod runtime_context_tests {
         });
     }
 
-    /// `with_datasources(declared, None)` n'effectue aucun
-    /// I/O ; toute lecture renvoie `FileNotFoundError("not found on disk")`.
+    /// `with_datasources(declared, None)` performs no I/O; any read returns
+    /// `FileNotFoundError("not found on disk")`.
     #[test]
     fn test_with_datasources_no_dir_keeps_empty_cache() {
         let ctx = RuntimeContext::for_test().with_datasources(vec!["foo".to_string()], None);
@@ -2160,14 +2230,14 @@ mod tests {
             result: executor_result,
         });
 
-        let proxy = ToolProxy::new(
-            registry.clone(),
-            audit.clone(),
+        let proxy = ToolProxy::new(ToolProxyConfig {
+            registry: registry.clone(),
+            audit: audit.clone(),
             executor,
-            allowed_tools.into_iter().map(String::from).collect(),
-            "test-agent".to_string(),
-            "task-001".to_string(),
-        );
+            allowed_tools: allowed_tools.into_iter().map(String::from).collect(),
+            agent_id: "test-agent".to_string(),
+            task_id: "task-001".to_string(),
+        });
 
         (proxy, registry, audit)
     }
@@ -2321,10 +2391,10 @@ mod tests {
         audit.shutdown().await;
     }
 
-    /// describe_inner retourne un JSON Value complet pour un descripteur renseigné.
+    /// describe_inner returns a complete JSON Value for a fully populated descriptor.
     #[test]
     fn test_describe_inner_returns_json_value() {
-        // GIVEN un ToolDescriptor avec tous les champs renseignés
+        // GIVEN a ToolDescriptor with all fields populated
         let descriptor = ToolDescriptor {
             name: "bash_executor".to_string(),
             version: "1.0.0".to_string(),
@@ -2344,10 +2414,10 @@ mod tests {
             reject_reason_required: false,
         };
 
-        // WHEN on appelle describe_inner
+        // WHEN describe_inner is called
         let value = describe_inner(&descriptor);
 
-        // THEN le résultat contient name, version, description, input_schema, output_schema, tags
+        // THEN the result contains name, version, description, input_schema, output_schema, tags
         assert_eq!(value["name"], "bash_executor");
         assert_eq!(value["version"], "1.0.0");
         assert_eq!(value["description"], "Execute shell commands");
@@ -2360,10 +2430,10 @@ mod tests {
         assert_eq!(tags[1], "execution");
     }
 
-    /// (côté Rust) : describe_inner sur un descripteur minimal (champs optionnels vides/None).
+    /// (Rust side) describe_inner on a minimal descriptor (optional fields empty/None).
     #[test]
     fn test_describe_inner_minimal_descriptor() {
-        // GIVEN un ToolDescriptor avec output_schema=None et tags vide
+        // GIVEN a ToolDescriptor with output_schema=None and empty tags
         let descriptor = ToolDescriptor {
             name: "minimal".to_string(),
             version: "0.1.0".to_string(),
@@ -2381,10 +2451,10 @@ mod tests {
             reject_reason_required: false,
         };
 
-        // WHEN on appelle describe_inner
+        // WHEN describe_inner is called
         let value = describe_inner(&descriptor);
 
-        // THEN les champs optionnels sont null/vides
+        // THEN the optional fields are null/empty
         assert_eq!(value["name"], "minimal");
         assert_eq!(value["version"], "0.1.0");
         assert!(value["output_schema"].is_null());
@@ -2392,9 +2462,9 @@ mod tests {
         assert!(tags.is_empty());
     }
 
-    // ── ctx.budget wall-clock plumbing ─────────────────
-    /// `ctx.budget.wall_clock_remaining` reste `None` quand le bridge n'a
-    /// pas propagé `wall_clock_secs` (mode test / dry-run).
+    // ctx.budget wall-clock plumbing
+    /// `ctx.budget.wall_clock_remaining` stays `None` when the bridge did not
+    /// propagate `wall_clock_secs` (test / dry-run mode).
     #[test]
     fn test_budget_wall_clock_none_by_default() {
         // GIVEN a ctx with a budget view but no wall_clock_secs configured
@@ -2415,8 +2485,8 @@ mod tests {
         });
     }
 
-    /// Quand `with_wall_clock_secs(n)` est appelé, `wall_clock_remaining`
-    /// renvoie `max(0, n - elapsed)` au lieu de `None`.
+    /// When `with_wall_clock_secs(n)` is called, `wall_clock_remaining`
+    /// returns `max(0, n - elapsed)` instead of `None`.
     #[test]
     fn test_budget_wall_clock_remaining_reflects_manifest() {
         // GIVEN a ctx with budget view + wall_clock_secs=600 from manifest
@@ -2442,7 +2512,7 @@ mod tests {
         });
     }
 
-    /// `ctx.agent_name` est exposé en lecture aux agents.
+    /// `ctx.agent_name` is exposed read-only to agents.
     #[test]
     fn test_agent_name_getter_exposed_to_python() {
         // GIVEN a for_test context (agent_name = "test-agent")
@@ -2460,20 +2530,20 @@ mod a2a_tests {
     use apollia_runtime::EventBus;
     use std::time::Duration;
 
-    /// send_inner délivre un message, receive_inner le reçoit.
+    /// send_inner delivers a message, receive_inner receives it.
     #[tokio::test]
     async fn test_send_inner_delivers_message() {
-        // GIVEN une mailbox active
+        // GIVEN an active mailbox
         let (event_tx, _event_rx) = EventBus::new();
         let handle = AgentMailboxHandle::spawn(event_tx, 100);
 
-        // WHEN agent-a envoie un message à agent-b
+        // WHEN agent-a sends a message to agent-b
         let payload = serde_json::json!({"greeting": "hello"});
         send_inner(&handle, "agent-a", "agent-b", payload.clone())
             .await
             .expect("send should succeed");
 
-        // THEN agent-b reçoit le message avec les bons champs
+        // THEN agent-b receives the message with the right fields
         let received = receive_inner(&handle, "agent-b", Duration::from_secs(1))
             .await
             .expect("should receive a message");
@@ -2484,29 +2554,29 @@ mod a2a_tests {
         handle.shutdown().await;
     }
 
-    /// receive_inner retourne None si aucun message en attente (timeout).
+    /// receive_inner returns None if no message is pending (timeout).
     #[tokio::test]
     async fn test_receive_inner_returns_none_on_timeout() {
-        // GIVEN une mailbox active sans messages
+        // GIVEN an active mailbox with no messages
         let (event_tx, _event_rx) = EventBus::new();
         let handle = AgentMailboxHandle::spawn(event_tx, 100);
 
-        // WHEN on essaie de recevoir avec un timeout court
+        // WHEN we try to receive with a short timeout
         let result = receive_inner(&handle, "agent-c", Duration::from_millis(50)).await;
 
-        // THEN le résultat est None
+        // THEN the result is None
         assert!(result.is_none());
 
         handle.shutdown().await;
     }
 
-    /// le gate check rejette l'appel si supports_a2a est false.
+    /// the gate check rejects the call if supports_a2a is false.
     #[tokio::test]
     async fn test_gate_check_rejects_without_a2a() {
-        // GIVEN un RuntimeContext avec supports_a2a = false
+        // GIVEN a RuntimeContext with supports_a2a = false
         let ctx = RuntimeContext::for_test();
 
-        // THEN les vérifications internes échouent
+        // THEN the internal checks fail
         assert!(!ctx.supports_a2a);
         assert!(ctx.mailbox.is_none());
     }
@@ -2659,14 +2729,14 @@ mod tool_proxy_a2a_tests {
             .expect("failed to open audit");
         let registry = apollia_tools::ToolRegistryHandle::start();
         let executor = Arc::new(AlwaysOkExecutor);
-        let proxy = ToolProxy::new(
+        let proxy = ToolProxy::new(ToolProxyConfig {
             registry,
-            audit.clone(),
+            audit: audit.clone(),
             executor,
-            allowed.into_iter().map(String::from).collect(),
-            "director-agent".to_string(),
-            "task-001".to_string(),
-        );
+            allowed_tools: allowed.into_iter().map(String::from).collect(),
+            agent_id: "director-agent".to_string(),
+            task_id: "task-001".to_string(),
+        });
         (proxy, audit)
     }
 
@@ -2803,9 +2873,7 @@ mod extract_a2a_skill_id_tests {
     }
 }
 
-// ─────────────────────────────────────────────
-// Tests — WorkspaceContextPy
-// ─────────────────────────────────────────────
+// Tests: WorkspaceContextPy
 
 #[cfg(test)]
 mod workspace_context_tests {
@@ -2905,7 +2973,10 @@ mod workspace_context_tests {
 
     #[test]
     fn test_isolation_between_two_projects() {
-        use apollia_memory::{manager::MemoryManager, semantic::SemanticMemory};
+        use apollia_memory::{
+            manager::MemoryManager,
+            semantic::{RememberInput, SemanticMemory},
+        };
         use tempfile::TempDir;
 
         // GIVEN an agent that wrote "forbidden_deps" in proj_A
@@ -2918,14 +2989,14 @@ mod workspace_context_tests {
             let mut mgr = MemoryManager::new(dir.path(), Some(ns_a.clone()), vec![]);
             let store = mgr.store(&ns_a).expect("open store for proj_A");
             let sem = SemanticMemory::new(store);
-            sem.remember(
-                &ns_a,
-                "forbidden_deps",
-                &serde_json::json!("no_async_std"),
-                1.0,
-                None,
-                None,
-            )
+            sem.remember(RememberInput {
+                namespace: &ns_a,
+                key: "forbidden_deps",
+                value: &serde_json::json!("no_async_std"),
+                confidence: 1.0,
+                source: None,
+                expires_at: None,
+            })
             .expect("write to proj_A");
         }
 

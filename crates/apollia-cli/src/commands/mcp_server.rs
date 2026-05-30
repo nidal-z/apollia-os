@@ -1,4 +1,4 @@
-//! `apollia-os mcp-server` — launch Apollia as an MCP stdio server.
+//! `apollia-os mcp-server`: launch Apollia as an MCP stdio server.
 //!
 //! Exposes 11 native tools to external MCP clients (Claude Desktop, VS Code
 //! Copilot Chat, Cursor) via stdin/stdout JSON-RPC 2.0.

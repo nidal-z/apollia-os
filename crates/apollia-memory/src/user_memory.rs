@@ -1,4 +1,4 @@
-//! UserMemoryRepository — canonical user profile backed by SemanticMemory.
+//! UserMemoryRepository: canonical user profile backed by SemanticMemory.
 //!
 //! Persists the global user profile under the reserved `__user__` namespace.
 //! Keys are flat (no `category.` or `user.` prefix) and either match a
@@ -7,14 +7,12 @@
 //!
 //! Internal state markers (onboarding bookkeeping) use a double-underscore
 //! prefix and are hidden from the profile listing.
-//!
-//! ADR-087 defines the shape of this module.
 
 use std::path::Path;
 
 use crate::profile_schema::{field_for, is_canonical, PROFILE_SCHEMA};
-use crate::search::{MemorySearch, SearchSource};
-use crate::semantic::SemanticMemory;
+use crate::search::{MemorySearch, SearchQuery, SearchSource};
+use crate::semantic::{RememberInput, SemanticMemory};
 use crate::store::MemoryStore;
 
 /// Reserved SemanticMemory namespace for the global user profile.
@@ -39,7 +37,7 @@ const KEY_ONBOARDING_TOPIC_PREFIX: &str = "__onboarding_topic_";
 // Public types
 // ---------------------------------------------------------------------------
 
-/// Provenance of a profile entry — what wrote it.
+/// Provenance of a profile entry: what wrote it.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "name")]
 pub enum WrittenBy {
@@ -117,6 +115,25 @@ pub enum UserMemoryError {
 /// tolerated and surfaced as "extras".
 pub struct UserMemoryRepository {
     store: MemoryStore,
+}
+
+/// Canonical fields rendered on the persona headline line by
+/// [`UserMemoryRepository::push_headline`].
+struct PersonaHeadline {
+    name: Option<String>,
+    role: Option<String>,
+    industry: Option<String>,
+    expertise: Option<String>,
+    team_size: Option<String>,
+}
+
+/// Describes a persona-brief section gathered by
+/// [`UserMemoryRepository::push_prefixed_list`].
+struct PrefixedListSpec<'s> {
+    exact: &'s str,
+    prefix: &'s str,
+    header: &'s str,
+    inline: bool,
 }
 
 impl UserMemoryRepository {
@@ -257,13 +274,13 @@ impl UserMemoryRepository {
         let sem = SemanticMemory::new(&self.store);
 
         let results = searcher
-            .query(
-                USER_NAMESPACE,
+            .query(SearchQuery {
+                namespace: USER_NAMESPACE,
                 query,
-                limit as u32,
-                Some(&[SearchSource::Semantic]),
-                None,
-            )
+                limit: limit as u32,
+                sources: Some(&[SearchSource::Semantic]),
+                min_importance: None,
+            })
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
 
         let all = sem
@@ -309,41 +326,49 @@ impl UserMemoryRepository {
                 .iter()
                 .filter(|e| field_for(&e.key).map(|f| f.section) == Some(section))
                 .collect();
-            if in_section.is_empty() {
-                continue;
-            }
-            if !output.is_empty() {
-                output.push('\n');
-            }
-            output.push_str(&format!("Section: {}\n", section.tag()));
-            for entry in in_section {
-                if total >= max_entries {
-                    break;
-                }
-                output.push_str(&format!("- {}: {}\n", entry.key, entry.value));
-                total += 1;
-            }
+            Self::append_injection_section(
+                &mut output,
+                &section.tag(),
+                &in_section,
+                &mut total,
+                max_entries,
+            );
             if total >= max_entries {
                 break;
             }
         }
 
         let extras: Vec<&ProfileEntry> = entries.iter().filter(|e| !e.in_schema).collect();
-        if !extras.is_empty() && total < max_entries {
-            if !output.is_empty() {
-                output.push('\n');
-            }
-            output.push_str("Section: other\n");
-            for entry in extras {
-                if total >= max_entries {
-                    break;
-                }
-                output.push_str(&format!("- {}: {}\n", entry.key, entry.value));
-                total += 1;
-            }
+        if total < max_entries {
+            Self::append_injection_section(&mut output, "other", &extras, &mut total, max_entries);
         }
 
         Ok(output)
+    }
+
+    /// Appends a `Section: <tag>` block for `group` to `output`, respecting the
+    /// `max_entries` budget tracked by `total`.  No-op when `group` is empty.
+    fn append_injection_section(
+        output: &mut String,
+        tag: &str,
+        group: &[&ProfileEntry],
+        total: &mut usize,
+        max_entries: usize,
+    ) {
+        if group.is_empty() {
+            return;
+        }
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str(&format!("Section: {tag}\n"));
+        for entry in group {
+            if *total >= max_entries {
+                break;
+            }
+            output.push_str(&format!("- {}: {}\n", entry.key, entry.value));
+            *total += 1;
+        }
     }
 
     /// Produces a structured persona brief for LLM system-prompt injection.
@@ -361,18 +386,68 @@ impl UserMemoryRepository {
             entries.iter().find(|e| e.key == k).map(|e| e.value.clone())
         };
 
-        let name = find("name");
         let role = find("role");
-        let industry = find("domain.sector");
-        let team_size = find("domain.team_size");
-        let expertise = find("tech.proficiency");
         let language = find("preferences.language");
-        let hitl = find("agents.hitl");
-        let sovereignty = find("constraints.sovereignty");
-        let compliance = find("constraints.compliance");
 
         let mut output = String::new();
 
+        Self::push_headline(
+            &mut output,
+            PersonaHeadline {
+                name: find("name"),
+                role: role.clone(),
+                industry: find("domain.sector"),
+                expertise: find("tech.proficiency"),
+                team_size: find("domain.team_size"),
+            },
+        );
+        Self::push_governance(
+            &mut output,
+            find("agents.hitl"),
+            find("constraints.sovereignty"),
+            find("constraints.compliance"),
+        );
+
+        if let Some(ref lang) = language {
+            output.push_str(&format!("Langue : {lang}\n"));
+        }
+
+        Self::push_prefixed_list(
+            &mut output,
+            &entries,
+            PrefixedListSpec {
+                exact: "goals",
+                prefix: "goal",
+                header: "\nObjectifs :\n",
+                inline: false,
+            },
+        );
+        Self::push_prefixed_list(
+            &mut output,
+            &entries,
+            PrefixedListSpec {
+                exact: "tools.daily",
+                prefix: "tools",
+                header: "\nOutils : ",
+                inline: true,
+            },
+        );
+
+        Self::push_adaptation(&mut output, language.as_deref(), role.as_deref());
+        Self::push_context(&mut output, &entries, max_entries);
+
+        Ok(output)
+    }
+
+    /// Appends the persona headline line (name, role, industry, level, team).
+    fn push_headline(output: &mut String, headline: PersonaHeadline) {
+        let PersonaHeadline {
+            name,
+            role,
+            industry,
+            expertise,
+            team_size,
+        } = headline;
         let mut headline_parts: Vec<String> = Vec::new();
         if let Some(ref n) = name {
             headline_parts.push(n.clone());
@@ -387,17 +462,26 @@ impl UserMemoryRepository {
         if let Some(ref ind) = industry {
             headline_parts.push(format!("— {ind}"));
         }
-        if !headline_parts.is_empty() {
-            output.push_str(&headline_parts.join(" "));
-            if let Some(ref exp) = expertise {
-                output.push_str(&format!(". Niveau : {exp}"));
-            }
-            if let Some(ref ts) = team_size {
-                output.push_str(&format!(". Équipe : {ts}"));
-            }
-            output.push('\n');
+        if headline_parts.is_empty() {
+            return;
         }
+        output.push_str(&headline_parts.join(" "));
+        if let Some(ref exp) = expertise {
+            output.push_str(&format!(". Niveau : {exp}"));
+        }
+        if let Some(ref ts) = team_size {
+            output.push_str(&format!(". Équipe : {ts}"));
+        }
+        output.push('\n');
+    }
 
+    /// Appends the governance line (supervision, sovereignty, compliance).
+    fn push_governance(
+        output: &mut String,
+        hitl: Option<String>,
+        sovereignty: Option<String>,
+        compliance: Option<String>,
+    ) {
         let mut gov_parts: Vec<String> = Vec::new();
         if let Some(ref h) = hitl {
             let label = match h.as_str() {
@@ -426,72 +510,72 @@ impl UserMemoryRepository {
             output.push_str(&gov_parts.join(" | "));
             output.push('\n');
         }
+    }
 
-        if let Some(ref lang) = language {
-            output.push_str(&format!("Langue : {lang}\n"));
-        }
-
-        let goals: Vec<String> = entries
+    /// Appends a section gathering entries matching `exact` or starting with
+    /// `prefix`.  When `inline`, values are joined with `", "`; otherwise each
+    /// value is rendered as a `- value` bullet.
+    fn push_prefixed_list(
+        output: &mut String,
+        entries: &[ProfileEntry],
+        spec: PrefixedListSpec<'_>,
+    ) {
+        let PrefixedListSpec {
+            exact,
+            prefix,
+            header,
+            inline,
+        } = spec;
+        let values: Vec<String> = entries
             .iter()
-            .filter(|e| e.key == "goals" || e.key.starts_with("goal"))
+            .filter(|e| e.key == exact || e.key.starts_with(prefix))
             .map(|e| e.value.clone())
             .collect();
-        if !goals.is_empty() {
-            output.push_str("\nObjectifs :\n");
-            for g in &goals {
-                output.push_str(&format!("- {g}\n"));
+        if values.is_empty() {
+            return;
+        }
+        output.push_str(header);
+        if inline {
+            output.push_str(&values.join(", "));
+            output.push('\n');
+        } else {
+            for v in &values {
+                output.push_str(&format!("- {v}\n"));
             }
         }
+    }
 
-        let tools: Vec<String> = entries
-            .iter()
-            .filter(|e| e.key == "tools.daily" || e.key.starts_with("tools"))
-            .map(|e| e.value.clone())
-            .collect();
-        if !tools.is_empty() {
-            output.push_str("\nOutils : ");
-            output.push_str(&tools.join(", "));
-            output.push('\n');
-        }
-
+    /// Appends the "Adaptation" section based on language and role profile.
+    fn push_adaptation(output: &mut String, language: Option<&str>, role: Option<&str>) {
         output.push_str("\nAdaptation :\n");
-        if let Some(ref lang) = language {
+        if let Some(lang) = language {
             output.push_str(&format!("- Langue : {lang}\n"));
         }
-        if let Some(ref r) = role {
-            let r_lower = r.to_lowercase();
-            if r_lower.contains("dev")
-                || r_lower.contains("engineer")
-                || r_lower.contains("data")
-                || r_lower.contains("devops")
-                || r_lower.contains("sysadmin")
-            {
-                output.push_str("- Profil technique : vocabulaire technique approprié\n");
-            } else if r_lower.contains("design")
-                || r_lower.contains("creat")
-                || r_lower.contains("vidéo")
-                || r_lower.contains("video")
-            {
-                output.push_str(
-                    "- Profil créatif : éviter le jargon technique, privilégier les visuels\n",
-                );
-            } else if r_lower.contains("manager")
-                || r_lower.contains("market")
-                || r_lower.contains("commercial")
-                || r_lower.contains("sales")
-                || r_lower.contains("rh")
-                || r_lower.contains("ceo")
-                || r_lower.contains("cto")
-                || r_lower.contains("coo")
-            {
-                output.push_str(
-                    "- Profil business : focus résultats, KPIs, pas de détails techniques inutiles\n",
-                );
-            } else {
-                output.push_str("- Adapter le vocabulaire au profil de l'utilisateur\n");
-            }
+        if let Some(r) = role {
+            output.push_str(Self::role_adaptation_line(&r.to_lowercase()));
         }
+    }
 
+    /// Returns the adaptation bullet matching a lowercased role string.
+    fn role_adaptation_line(r_lower: &str) -> &'static str {
+        const TECH: &[&str] = &["dev", "engineer", "data", "devops", "sysadmin"];
+        const CREATIVE: &[&str] = &["design", "creat", "vidéo", "video"];
+        const BUSINESS: &[&str] = &[
+            "manager", "market", "commercial", "sales", "rh", "ceo", "cto", "coo",
+        ];
+        if TECH.iter().any(|k| r_lower.contains(k)) {
+            "- Profil technique : vocabulaire technique approprié\n"
+        } else if CREATIVE.iter().any(|k| r_lower.contains(k)) {
+            "- Profil créatif : éviter le jargon technique, privilégier les visuels\n"
+        } else if BUSINESS.iter().any(|k| r_lower.contains(k)) {
+            "- Profil business : focus résultats, KPIs, pas de détails techniques inutiles\n"
+        } else {
+            "- Adapter le vocabulaire au profil de l'utilisateur\n"
+        }
+    }
+
+    /// Appends the "Contexte" section listing remaining (non-canonical) entries.
+    fn push_context(output: &mut String, entries: &[ProfileEntry], max_entries: usize) {
         let mentioned = [
             "name",
             "role",
@@ -514,19 +598,18 @@ impl UserMemoryRepository {
             })
             .take(max_entries)
             .collect();
-        if !remaining.is_empty() {
-            output.push_str("\nContexte :\n");
-            for entry in remaining {
-                let stale_marker = if Self::is_stale(&entry.updated_at) {
-                    " (peut-être obsolète)"
-                } else {
-                    ""
-                };
-                output.push_str(&format!("- {}: {}{stale_marker}\n", entry.key, entry.value));
-            }
+        if remaining.is_empty() {
+            return;
         }
-
-        Ok(output)
+        output.push_str("\nContexte :\n");
+        for entry in remaining {
+            let stale_marker = if Self::is_stale(&entry.updated_at) {
+                " (peut-être obsolète)"
+            } else {
+                ""
+            };
+            output.push_str(&format!("- {}: {}{stale_marker}\n", entry.key, entry.value));
+        }
     }
 
     // -- Generic internal state (hidden from profile UI) --
@@ -549,7 +632,7 @@ impl UserMemoryRepository {
     }
 
     /// Removes an internal state value.  Symmetric to [`Self::set_internal`].
-    /// Returns `Ok(())` whether the key existed or not — internal-state wipes
+    /// Returns `Ok(())` whether the key existed or not; internal-state wipes
     /// should be tolerant of missing entries.
     pub fn forget_internal(&self, key: &str) -> Result<(), UserMemoryError> {
         let storage_key = format!("{INTERNAL_KEY_PREFIX}{key}");
@@ -646,7 +729,7 @@ impl UserMemoryRepository {
         Ok(())
     }
 
-    /// Writes an entry without external-key validation — used by both the
+    /// Writes an entry without external-key validation, used by both the
     /// canonical API (after validation) and internal-state setters.
     fn write_raw(
         &self,
@@ -656,14 +739,15 @@ impl UserMemoryRepository {
     ) -> Result<(), UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let json_value = serde_json::Value::String(value.to_owned());
-        sem.remember(
-            USER_NAMESPACE,
+        let source_tag = written_by.tag();
+        sem.remember(RememberInput {
+            namespace: USER_NAMESPACE,
             key,
-            &json_value,
-            1.0,
-            Some(&written_by.tag()),
-            None,
-        )
+            value: &json_value,
+            confidence: 1.0,
+            source: Some(&source_tag),
+            expires_at: None,
+        })
         .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
         Ok(())
     }

@@ -267,7 +267,7 @@ mod tests {
         McpApprovalStore::in_memory(24).expect("in-memory store must open")
     }
 
-    // ── AC-1 — is_approved returns false when no entry ───────────────────────
+    // is_approved returns false when no entry
 
     #[test]
     fn test_is_approved_returns_false_when_no_entry() {
@@ -277,7 +277,7 @@ mod tests {
         assert!(!s.is_approved("code-tools", "bash_exec"));
     }
 
-    // ── AC-2 — approve then is_approved returns true ─────────────────────────
+    // approve then is_approved returns true
 
     #[test]
     fn test_approve_then_is_approved_returns_true() {
@@ -290,7 +290,7 @@ mod tests {
         assert!(s.is_approved("code-tools", "bash_exec"));
     }
 
-    // ── AC-3 — expired approval returns false ────────────────────────────────
+    // expired approval returns false
 
     #[test]
     fn test_expired_approval_returns_false() {

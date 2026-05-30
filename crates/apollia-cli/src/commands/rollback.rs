@@ -1,4 +1,4 @@
-//! `apollia rollback` — restore filesystem state after an agent session.
+//! `apollia rollback`: restore filesystem state after an agent session.
 //!
 //! Reads the reversible journal written by `FileWrite` and `FileEdit`
 //! and replays the inverse of each mutation in reverse order.

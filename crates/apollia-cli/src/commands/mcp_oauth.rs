@@ -1,4 +1,4 @@
-//! `apollia-os mcp oauth` subcommands — interactive PKCE flow from the CLI.
+//! `apollia-os mcp oauth` subcommands: interactive PKCE flow from the CLI.
 //!
 //! Mirrors the Desktop `mcp_oauth_login` Tauri command but drives the browser
 //! via the `open` crate. The orchestrator (`apollia_auth::negotiate_token`)
@@ -42,7 +42,7 @@ pub enum McpOauthCommand {
         #[arg(long, value_delimiter = ',', value_name = "SCOPE")]
         scopes: Vec<String>,
         /// Override the OAuth client id resolution (for tenants running their
-        /// own AS app — usually unnecessary).
+        /// own AS app, usually unnecessary).
         #[arg(long, value_name = "ID")]
         client_id: Option<String>,
         /// Override the path to `mcp.db` (default: `~/.apollia/mcp.db`).
@@ -64,7 +64,7 @@ pub enum McpOauthCommand {
 
     /// Delete the persisted token for `<server>` from the OS keychain.
     ///
-    /// The authorisation server is **not** notified — call the provider's
+    /// The authorisation server is **not** notified: call the provider's
     /// revocation endpoint manually if a server-side revocation is required.
     Logout {
         /// Server name to forget.
@@ -84,7 +84,7 @@ pub enum McpOauthCommand {
     /// Run RFC 9728 + RFC 8414 OAuth discovery against `<server>` and print
     /// the resulting authorization server, scopes and endpoints.
     ///
-    /// Read-only — no token is exchanged and no secret is written. Useful to
+    /// Read-only: no token is exchanged and no secret is written. Useful to
     /// confirm an HTTP MCP server's PRM + AS metadata before invoking `login`.
     Discover {
         /// Server name as declared in `mcp.db`.
@@ -101,7 +101,7 @@ pub enum McpClientIdCommand {
     /// Persist `<value>` as the OAuth client id for the env var `<env_var>`.
     ///
     /// The env var is the same one the connector wizard surfaces (e.g.
-    /// `APOLLIA_FIGMA_CLIENT_ID`). Pass an empty value to fail validation —
+    /// `APOLLIA_FIGMA_CLIENT_ID`). Pass an empty value to fail validation;
     /// use `clear` to remove.
     Set {
         /// Env var name (e.g. `APOLLIA_FIGMA_CLIENT_ID`).
@@ -161,7 +161,7 @@ fn emit_error(msg: impl Into<String>, json: bool) -> i32 {
 enum ReconnectOutcome {
     /// Runtime answered, server is now connected.
     Connected,
-    /// Runtime not running — token is stored for the next boot.
+    /// Runtime not running: token is stored for the next boot.
     RuntimeOffline,
     /// Runtime answered but the reconnect attempt failed (parsed error in field).
     Failed(String),
@@ -215,7 +215,7 @@ async fn probe_www_authenticate(server_url: &str) -> Result<Option<String>, reqw
         .build()?;
     // Use a minimal POST so the server's auth middleware engages even when GET
     // is unauthenticated; many MCP HTTP transports answer 200 on GET (health
-    // probe) but 401 on POST. The body is intentionally minimal — we only
+    // probe) but 401 on POST. The body is intentionally minimal, we only
     // need the response headers.
     let resp = client
         .post(server_url)
@@ -245,7 +245,7 @@ fn resolve_mcp_db(override_path: Option<&std::path::Path>) -> PathBuf {
 }
 
 /// Look up the URL stored for `server` in `mcp.db`. The orchestrator needs it
-/// to drive resource-metadata discovery — failing fast here yields a far
+/// to drive resource-metadata discovery; failing fast here yields a far
 /// clearer error than a cryptic `fetch_prm` failure deep in the auth crate.
 fn load_server_url(db_override: Option<&std::path::Path>, server: &str) -> Result<String, String> {
     let path = resolve_mcp_db(db_override);
@@ -301,7 +301,7 @@ async fn run_login(
     // hosts (Notion, Linear, …) hide their Protected Resource Metadata behind
     // an authenticated path and only advertise it via the 401 challenge, so
     // letting `negotiate_token` discover PRM blindly fails with "PRM fetch
-    // returned 401". The probe is a cheap unauthenticated request — when the
+    // returned 401". The probe is a cheap unauthenticated request: when the
     // server returns 401 we read the header verbatim; on 200 / other we leave
     // it as None and let the orchestrator's origin fallback do the work.
     let www_authenticate = match probe_www_authenticate(&server_url).await {
@@ -357,72 +357,80 @@ async fn run_login(
     .await;
 
     match result {
-        Ok(token) => {
-            if json {
-                let reconnect = reconnect_runtime_session(server).await;
-                let body = serde_json::json!({
-                    "server": server,
-                    "stored": true,
-                    "scopes": token.scope,
-                    "identity": {
-                        "sub": token.identity_sub,
-                        "email": token.identity_email,
-                    },
-                    "expires_at": token.expires_at,
-                    "runtime_reconnect": reconnect,
-                });
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&body).unwrap_or_default()
-                );
-            } else {
-                println!("  * OAuth token stored for '{server}'");
-                if let Some(email) = &token.identity_email {
-                    println!("    identity : {email}");
-                } else if let Some(sub) = &token.identity_sub {
-                    println!("    identity : {sub}");
-                }
-                if !token.scope.is_empty() {
-                    println!("    scopes   : {}", token.scope.join(", "));
-                }
-                if let Some(exp) = token.expires_at {
-                    println!("    expires  : unix {exp}");
-                }
-                // Triggers an immediate runtime reconnect — at boot the server
-                // failed because no token was stored yet, so without this the
-                // operator has to also stop+start the daemon manually.
-                match reconnect_runtime_session(server).await {
-                    ReconnectOutcome::Connected => {
-                        println!("  * runtime reconnected '{server}' (new token applied)");
-                    }
-                    ReconnectOutcome::RuntimeOffline => {
-                        println!(
-                            "  ! daemon offline — start it with `apollia-os start` and the server will pick up the token."
-                        );
-                    }
-                    ReconnectOutcome::Failed(reason) => {
-                        println!(
-                            "  ! token stored but runtime reconnect failed: {reason}\n    Retry with `apollia-os mcp restart {server}`."
-                        );
-                    }
-                    ReconnectOutcome::Skipped => {
-                        // Daemon present but the server was unknown to the
-                        // repo as well — extremely unlikely once we reached
-                        // this point because load_server_url succeeded.
-                        println!(
-                            "  ! token stored; could not reconnect (server not in runtime repo)."
-                        );
-                    }
-                }
-            }
-            exit_codes::SUCCESS
-        }
+        Ok(token) => emit_login_success(server, &token, json).await,
         Err(McpOAuthError::ReauthRequired { .. }) => emit_error(
             "the authorisation server rejected the refresh — stored token deleted, re-run login",
             json,
         ),
         Err(e) => emit_error(format!("OAuth flow failed: {e}"), json),
     }
+}
+
+/// Report a successful login and trigger an immediate runtime reconnect.
+async fn emit_login_success(
+    server: &str,
+    token: &apollia_auth::StoredMcpToken,
+    json: bool,
+) -> i32 {
+    if json {
+        let reconnect = reconnect_runtime_session(server).await;
+        let body = serde_json::json!({
+            "server": server,
+            "stored": true,
+            "scopes": token.scope,
+            "identity": {
+                "sub": token.identity_sub,
+                "email": token.identity_email,
+            },
+            "expires_at": token.expires_at,
+            "runtime_reconnect": reconnect,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
+        return exit_codes::SUCCESS;
+    }
+
+    println!("  * OAuth token stored for '{server}'");
+    if let Some(email) = &token.identity_email {
+        println!("    identity : {email}");
+    } else if let Some(sub) = &token.identity_sub {
+        println!("    identity : {sub}");
+    }
+    if !token.scope.is_empty() {
+        println!("    scopes   : {}", token.scope.join(", "));
+    }
+    if let Some(exp) = token.expires_at {
+        println!("    expires  : unix {exp}");
+    }
+    // Triggers an immediate runtime reconnect: at boot the server
+    // failed because no token was stored yet, so without this the
+    // operator has to also stop+start the daemon manually.
+    match reconnect_runtime_session(server).await {
+        ReconnectOutcome::Connected => {
+            println!("  * runtime reconnected '{server}' (new token applied)");
+        }
+        ReconnectOutcome::RuntimeOffline => {
+            println!(
+                "  ! daemon offline — start it with `apollia-os start` and the server will pick up the token."
+            );
+        }
+        ReconnectOutcome::Failed(reason) => {
+            println!(
+                "  ! token stored but runtime reconnect failed: {reason}\n    Retry with `apollia-os mcp restart {server}`."
+            );
+        }
+        ReconnectOutcome::Skipped => {
+            // Daemon present but the server was unknown to the
+            // repo as well, extremely unlikely once we reached
+            // this point because load_server_url succeeded.
+            println!(
+                "  ! token stored; could not reconnect (server not in runtime repo)."
+            );
+        }
+    }
+    exit_codes::SUCCESS
 }
 
 // ─── status ───────────────────────────────────────────────────────────────────
@@ -439,57 +447,15 @@ async fn run_status(
 
     let servers = match server {
         Some(name) => vec![name.to_string()],
-        None => {
-            // Enumerate every server declared in mcp.db so unauthenticated
-            // entries appear too, not just those with a stored token.
-            let path = resolve_mcp_db(db_override);
-            if !path.exists() {
-                if json {
-                    println!("[]");
-                } else {
-                    println!("  (mcp.db absent — no configured servers)");
-                }
-                return exit_codes::SUCCESS;
-            }
-            match apollia_mcp::McpServerRepository::open(&path) {
-                Ok(repo) => repo
-                    .list()
-                    .map(|rows| rows.into_iter().map(|r| r.name).collect::<Vec<_>>())
-                    .unwrap_or_default(),
-                Err(e) => return emit_error(format!("open {} failed: {e}", path.display()), json),
-            }
-        }
+        None => match enumerate_status_servers(db_override, json) {
+            Ok(names) => names,
+            Err(code) => return code,
+        },
     };
 
     let mut report: Vec<serde_json::Value> = Vec::with_capacity(servers.len());
     for name in &servers {
-        match load_mcp_token(&*store, name) {
-            Ok(Some(token)) => {
-                report.push(serde_json::json!({
-                    "server": name,
-                    "stored": true,
-                    "scopes": token.scope,
-                    "expires_at": token.expires_at,
-                    "identity": {
-                        "sub": token.identity_sub,
-                        "email": token.identity_email,
-                    },
-                }));
-            }
-            Ok(None) => {
-                report.push(serde_json::json!({
-                    "server": name,
-                    "stored": false,
-                }));
-            }
-            Err(e) => {
-                report.push(serde_json::json!({
-                    "server": name,
-                    "stored": false,
-                    "error": e.to_string(),
-                }));
-            }
-        }
+        report.push(status_entry(&*store, name));
     }
 
     if json {
@@ -500,41 +466,100 @@ async fn run_status(
     } else if report.is_empty() {
         println!("  (no servers found in mcp.db)");
     } else {
-        println!(
-            "  {:<24} {:<10} {:<30} IDENTITY",
-            "SERVER", "STORED", "SCOPES"
-        );
-        for entry in &report {
-            let s = entry.get("server").and_then(|v| v.as_str()).unwrap_or("?");
-            let stored = entry
-                .get("stored")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            let stored_glyph = if stored { "*" } else { "-" };
-            let scopes = entry
-                .get("scopes")
-                .and_then(|v| v.as_array())
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|s| s.as_str())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                })
-                .unwrap_or_default();
-            let identity = entry
-                .get("identity")
-                .and_then(|v| v.get("email").or_else(|| v.get("sub")))
-                .and_then(|v| v.as_str())
-                .unwrap_or("-");
-            let scopes_truncated = if scopes.len() > 28 {
-                format!("{}…", &scopes[..27])
-            } else {
-                scopes
-            };
-            println!("  {s:<24} {stored_glyph:<10} {scopes_truncated:<30} {identity}");
-        }
+        print_status_table(&report);
     }
     exit_codes::SUCCESS
+}
+
+/// Enumerate every server declared in `mcp.db`.
+///
+/// Returns `Err(exit_code)` when the caller should return early (mcp.db
+/// absent prints an empty report and exits SUCCESS; an open failure emits an
+/// error and exits with `GENERAL_ERROR`).
+fn enumerate_status_servers(
+    db_override: Option<&std::path::Path>,
+    json: bool,
+) -> Result<Vec<String>, i32> {
+    // Enumerate every server declared in mcp.db so unauthenticated
+    // entries appear too, not just those with a stored token.
+    let path = resolve_mcp_db(db_override);
+    if !path.exists() {
+        if json {
+            println!("[]");
+        } else {
+            println!("  (mcp.db absent — no configured servers)");
+        }
+        return Err(exit_codes::SUCCESS);
+    }
+    match apollia_mcp::McpServerRepository::open(&path) {
+        Ok(repo) => Ok(repo
+            .list()
+            .map(|rows| rows.into_iter().map(|r| r.name).collect::<Vec<_>>())
+            .unwrap_or_default()),
+        Err(e) => Err(emit_error(format!("open {} failed: {e}", path.display()), json)),
+    }
+}
+
+/// Build the JSON status entry for a single server.
+fn status_entry(store: &dyn apollia_auth::SecretStore, name: &str) -> serde_json::Value {
+    match load_mcp_token(store, name) {
+        Ok(Some(token)) => serde_json::json!({
+            "server": name,
+            "stored": true,
+            "scopes": token.scope,
+            "expires_at": token.expires_at,
+            "identity": {
+                "sub": token.identity_sub,
+                "email": token.identity_email,
+            },
+        }),
+        Ok(None) => serde_json::json!({
+            "server": name,
+            "stored": false,
+        }),
+        Err(e) => serde_json::json!({
+            "server": name,
+            "stored": false,
+            "error": e.to_string(),
+        }),
+    }
+}
+
+/// Print the status report as a human-readable table.
+fn print_status_table(report: &[serde_json::Value]) {
+    println!(
+        "  {:<24} {:<10} {:<30} IDENTITY",
+        "SERVER", "STORED", "SCOPES"
+    );
+    for entry in report {
+        let s = entry.get("server").and_then(|v| v.as_str()).unwrap_or("?");
+        let stored = entry
+            .get("stored")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let stored_glyph = if stored { "*" } else { "-" };
+        let scopes = entry
+            .get("scopes")
+            .and_then(|v| v.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
+            .unwrap_or_default();
+        let identity = entry
+            .get("identity")
+            .and_then(|v| v.get("email").or_else(|| v.get("sub")))
+            .and_then(|v| v.as_str())
+            .unwrap_or("-");
+        let scopes_truncated = if scopes.len() > 28 {
+            format!("{}…", &scopes[..27])
+        } else {
+            scopes
+        };
+        println!("  {s:<24} {stored_glyph:<10} {scopes_truncated:<30} {identity}");
+    }
 }
 
 // ─── logout ───────────────────────────────────────────────────────────────────
@@ -677,61 +702,89 @@ async fn run_discover(server: &str, db_override: Option<&std::path::Path>, json:
 
     let supports_pkce = as_metadata.supports_pkce_s256();
 
+    let ctx = DiscoverReport {
+        server,
+        server_url: &server_url,
+        www_authenticate_present: www_authenticate.is_some(),
+        as_url: &as_url,
+        supports_pkce,
+        prm: &prm,
+        as_metadata: &as_metadata,
+    };
     if json {
-        let body = serde_json::json!({
-            "server": server,
-            "server_url": server_url,
-            "www_authenticate_present": www_authenticate.is_some(),
-            "authorization_server": as_url,
-            "supports_pkce_s256": supports_pkce,
-            "scopes_supported": prm.scopes_supported,
-            "as_authorization_endpoint": as_metadata.authorization_endpoint,
-            "as_token_endpoint": as_metadata.token_endpoint,
-            "as_registration_endpoint": as_metadata.registration_endpoint,
-        });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        print_discover_json(&ctx);
     } else {
-        println!("  Discovery report for '{server}':");
-        println!("    server URL              : {server_url}");
-        println!(
-            "    WWW-Authenticate probe  : {}",
-            if www_authenticate.is_some() {
-                "captured"
-            } else {
-                "not present"
-            }
-        );
-        println!("    authorization server    : {as_url}");
-        println!(
-            "    supports PKCE S256      : {}",
-            if supports_pkce { "yes" } else { "NO" }
-        );
-        if !prm.scopes_supported.is_empty() {
-            println!("    PRM scopes_supported    :");
-            for s in &prm.scopes_supported {
-                println!("      - {s}");
-            }
-        }
-        println!(
-            "    authorization endpoint  : {}",
-            as_metadata.authorization_endpoint
-        );
-        println!(
-            "    token endpoint          : {}",
-            as_metadata.token_endpoint
-        );
-        if let Some(reg) = &as_metadata.registration_endpoint {
-            println!("    registration endpoint   : {reg}");
-        }
+        print_discover_human(&ctx);
     }
 
     if !supports_pkce {
         // Distinct exit code communicates that the *server* fails the policy
-        // even though discovery itself succeeded — useful in scripts that
+        // even though discovery itself succeeded, useful in scripts that
         // gate `mcp oauth login` on this report.
         return exit_codes::TASK_FAILED;
     }
     exit_codes::SUCCESS
+}
+
+/// Field set rendered by the `discover` subcommand reporters.
+struct DiscoverReport<'a> {
+    server: &'a str,
+    server_url: &'a str,
+    www_authenticate_present: bool,
+    as_url: &'a str,
+    supports_pkce: bool,
+    prm: &'a apollia_auth::ProtectedResourceMetadata,
+    as_metadata: &'a apollia_auth::AuthorizationServerMetadata,
+}
+
+fn print_discover_json(ctx: &DiscoverReport<'_>) {
+    let body = serde_json::json!({
+        "server": ctx.server,
+        "server_url": ctx.server_url,
+        "www_authenticate_present": ctx.www_authenticate_present,
+        "authorization_server": ctx.as_url,
+        "supports_pkce_s256": ctx.supports_pkce,
+        "scopes_supported": ctx.prm.scopes_supported,
+        "as_authorization_endpoint": ctx.as_metadata.authorization_endpoint,
+        "as_token_endpoint": ctx.as_metadata.token_endpoint,
+        "as_registration_endpoint": ctx.as_metadata.registration_endpoint,
+    });
+    println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+}
+
+fn print_discover_human(ctx: &DiscoverReport<'_>) {
+    println!("  Discovery report for '{}':", ctx.server);
+    println!("    server URL              : {}", ctx.server_url);
+    println!(
+        "    WWW-Authenticate probe  : {}",
+        if ctx.www_authenticate_present {
+            "captured"
+        } else {
+            "not present"
+        }
+    );
+    println!("    authorization server    : {}", ctx.as_url);
+    println!(
+        "    supports PKCE S256      : {}",
+        if ctx.supports_pkce { "yes" } else { "NO" }
+    );
+    if !ctx.prm.scopes_supported.is_empty() {
+        println!("    PRM scopes_supported    :");
+        for s in &ctx.prm.scopes_supported {
+            println!("      - {s}");
+        }
+    }
+    println!(
+        "    authorization endpoint  : {}",
+        ctx.as_metadata.authorization_endpoint
+    );
+    println!(
+        "    token endpoint          : {}",
+        ctx.as_metadata.token_endpoint
+    );
+    if let Some(reg) = &ctx.as_metadata.registration_endpoint {
+        println!("    registration endpoint   : {reg}");
+    }
 }
 
 #[cfg(test)]

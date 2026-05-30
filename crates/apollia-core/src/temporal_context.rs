@@ -7,7 +7,7 @@
 //! cutoff (Oct 2023) instead of the real wall-clock date (May 2026).
 //!
 //! Solution: prepend an authoritative, unambiguous, ISO-formatted environment
-//! block to every system prompt — Chat Libre's `build_system_prompt`,
+//! block to every system prompt: Chat Libre's `build_system_prompt`,
 //! and the apollia-aip `ctx.llm.chat()` / `ctx.llm.complete()` Python bridge.
 //! The block lives at the **top** of the prompt with an explicit override
 //! instruction so the LLM treats it as ground truth, not as one fact among
@@ -66,7 +66,7 @@ pub fn temporal_context_block() -> String {
 
 /// Best-effort IANA timezone name.
 ///
-/// `chrono::Local` does not surface the timezone name directly — we fall back
+/// `chrono::Local` does not surface the timezone name directly, so we fall back
 /// to the offset string (e.g. `+02:00`) when the IANA name can't be read from
 /// the environment. Sufficient for the LLM's needs: the offset disambiguates
 /// the wall-clock display, and the IANA name when available is a stronger
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn block_contains_iso_date() {
         let block = temporal_context_block();
-        // YYYY-MM-DD — matches any year 20XX, any month, any day.
+        // YYYY-MM-DD: matches any year 20XX, any month, any day.
         let re = regex::Regex::new(r"\b20\d{2}-\d{2}-\d{2}\b").unwrap();
         assert!(re.is_match(&block), "block missing ISO date: {block}");
     }

@@ -1,4 +1,4 @@
-//! Timeline API — `GET /api/v1/tasks/{id}/timeline`.
+//! Timeline API, `GET /api/v1/tasks/{id}/timeline`.
 //!
 //! Aggregates execution data from 5 SQLite sources into a chronologically
 //! ordered timeline for a given task. All data is read server-side in a single
@@ -105,14 +105,14 @@ pub enum TimelineEvent {
         /// Horodatage ISO 8601.
         timestamp: String,
     },
-    /// Suspension HITL — l'agent demande une approbation humaine.
+    /// Suspension HITL, l'agent demande une approbation humaine.
     HitlSuspended {
         /// Prompt affiché à l'opérateur.
         prompt: String,
         /// Horodatage ISO 8601 de la suspension.
         timestamp: String,
     },
-    /// Résolution HITL — l'opérateur a répondu.
+    /// Résolution HITL, l'opérateur a répondu.
     HitlResolved {
         /// `true` si approuvé, `false` si rejeté.
         approved: bool,
@@ -154,7 +154,7 @@ pub struct TimelineErrorResponse {
 // Handler
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `GET /api/v1/tasks/{id}/timeline` — timeline complète d'une tâche.
+/// `GET /api/v1/tasks/{id}/timeline`, timeline complète d'une tâche.
 ///
 /// Agrège les données de 5 sources SQLite (hitl.db, plans.db, llm.db, audit.db)
 /// en une timeline unifiée triée par timestamp ASC. Retourne 404 si la tâche
@@ -174,68 +174,15 @@ pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
 
     // Read all sources in a single spawn_blocking to avoid multiple thread hops.
     let result = tokio::task::spawn_blocking(move || {
-        let mut events: Vec<(String, TimelineEvent)> = Vec::new();
-        let mut task_found = false;
-        let mut completion_data: Option<(Option<String>, Option<i64>)> = None;
-
-        // Source 1: transitions_json + output/duration from hitl.db (tasks table)
-        if let Ok(conn) = rusqlite::Connection::open(&hitl_db) {
-            if let Some((transitions, output_text, duration_ms, status)) =
-                read_task_data(&conn, &tid)
-            {
-                task_found = true;
-                parse_transitions(&transitions, &mut events);
-
-                // Defer TaskCompleted until after all events are collected
-                if status == "completed" || status == "working" {
-                    completion_data = Some((output_text, duration_ms));
-                }
-            }
-
-            // Source 5: task_approvals from hitl.db
-            read_approvals(&conn, &tid, &mut events);
-        }
-
-        // Source 2: plan_steps from plans.db
-        if let Ok(conn) = rusqlite::Connection::open(&plans_db) {
-            read_plan_steps(&conn, &tid, &mut events);
-            if !task_found {
-                task_found = has_plan_for_task(&conn, &tid);
-            }
-        }
-
-        // Source 3: llm_calls from llm.db
-        if let Ok(conn) = rusqlite::Connection::open(&llm_db) {
-            read_llm_calls(&conn, &tid, &mut events);
-        }
-
-        // Source 4: tool_invocations from audit.db
-        if let Ok(conn) = rusqlite::Connection::open(&audit_db) {
-            read_tool_calls(&conn, &tid, &mut events);
-        }
-
-        if !task_found && events.is_empty() {
-            return Err(format!("task not found: {tid}"));
-        }
-
-        // Sort by timestamp ASC (ISO 8601 string comparison works)
-        events.sort_by(|a, b| a.0.cmp(&b.0));
-
-        // Append TaskCompleted as the terminal event (always last)
-        if let Some((output_text, duration_ms)) = completion_data {
-            let last_ts = events.last().map(|(ts, _)| ts.clone()).unwrap_or_default();
-            events.push((
-                last_ts.clone(),
-                TimelineEvent::TaskCompleted {
-                    output_preview: output_text.map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW).0),
-                    duration_ms,
-                    timestamp: last_ts,
-                },
-            ));
-        }
-
-        let sorted_events: Vec<TimelineEvent> = events.into_iter().map(|(_, e)| e).collect();
-        Ok(sorted_events)
+        collect_timeline_events(
+            &TimelineDbPaths {
+                hitl_db,
+                plans_db,
+                llm_db,
+                audit_db,
+            },
+            &tid,
+        )
     })
     .await
     .map_err(|e| {
@@ -257,8 +204,107 @@ pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers — data reading
+// Helpers, data reading
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Paths to the SQLite sources aggregated into a task timeline.
+struct TimelineDbPaths {
+    hitl_db: std::path::PathBuf,
+    plans_db: std::path::PathBuf,
+    llm_db: std::path::PathBuf,
+    audit_db: std::path::PathBuf,
+}
+
+/// Raw events gathered from every source before sorting and finalization.
+struct GatheredEvents {
+    events: Vec<(String, TimelineEvent)>,
+    task_found: bool,
+    completion_data: Option<(Option<String>, Option<i64>)>,
+}
+
+/// Read every source and build the sorted, finalized list of timeline events.
+///
+/// Returns `Err` with a not-found message when the task is unknown to all
+/// sources.
+fn collect_timeline_events(
+    dbs: &TimelineDbPaths,
+    tid: &str,
+) -> Result<Vec<TimelineEvent>, String> {
+    let GatheredEvents {
+        mut events,
+        task_found,
+        completion_data,
+    } = gather_timeline_events(dbs, tid);
+
+    if !task_found && events.is_empty() {
+        return Err(format!("task not found: {tid}"));
+    }
+
+    // Sort by timestamp ASC (ISO 8601 string comparison works)
+    events.sort_by(|a, b| a.0.cmp(&b.0));
+
+    // Append TaskCompleted as the terminal event (always last)
+    if let Some((output_text, duration_ms)) = completion_data {
+        let last_ts = events.last().map(|(ts, _)| ts.clone()).unwrap_or_default();
+        events.push((
+            last_ts.clone(),
+            TimelineEvent::TaskCompleted {
+                output_preview: output_text.map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW).0),
+                duration_ms,
+                timestamp: last_ts,
+            },
+        ));
+    }
+
+    Ok(events.into_iter().map(|(_, e)| e).collect())
+}
+
+/// Gather raw (timestamp, event) pairs from the 5 SQLite sources.
+fn gather_timeline_events(dbs: &TimelineDbPaths, tid: &str) -> GatheredEvents {
+    let mut events: Vec<(String, TimelineEvent)> = Vec::new();
+    let mut task_found = false;
+    let mut completion_data: Option<(Option<String>, Option<i64>)> = None;
+
+    // Source 1: transitions_json + output/duration from hitl.db (tasks table)
+    if let Ok(conn) = rusqlite::Connection::open(&dbs.hitl_db) {
+        if let Some((transitions, output_text, duration_ms, status)) = read_task_data(&conn, tid) {
+            task_found = true;
+            parse_transitions(&transitions, &mut events);
+
+            // Defer TaskCompleted until after all events are collected
+            if status == "completed" || status == "working" {
+                completion_data = Some((output_text, duration_ms));
+            }
+        }
+
+        // Source 5: task_approvals from hitl.db
+        read_approvals(&conn, tid, &mut events);
+    }
+
+    // Source 2: plan_steps from plans.db
+    if let Ok(conn) = rusqlite::Connection::open(&dbs.plans_db) {
+        read_plan_steps(&conn, tid, &mut events);
+        if !task_found {
+            task_found = has_plan_for_task(&conn, tid);
+        }
+    }
+
+    // Source 3: llm_calls from llm.db
+    if let Ok(conn) = rusqlite::Connection::open(&dbs.llm_db) {
+        read_llm_calls(&conn, tid, &mut events);
+    }
+
+    // Source 4: tool_invocations from audit.db
+    if let Ok(conn) = rusqlite::Connection::open(&dbs.audit_db) {
+        read_tool_calls(&conn, tid, &mut events);
+    }
+
+    GatheredEvents {
+        events,
+        task_found,
+        completion_data,
+    }
+}
 
 /// Resolve the runtime data directory from AppState.
 fn resolve_data_dir<B: ExecutionBackend + Clone>(_state: &AppState<B>) -> std::path::PathBuf {
@@ -623,7 +669,7 @@ mod tests {
 
     /// Create a temporary data directory with all required DBs initialized.
     fn setup_test_dbs(dir: &std::path::Path) {
-        // hitl.db — tasks + task_approvals tables
+        // hitl.db, tasks + task_approvals tables
         let conn = rusqlite::Connection::open(dir.join("hitl.db")).expect("open hitl.db");
         conn.execute_batch(include_str!(
             "../../../apollia-tools/migrations/005_hitl_tables.sql"
@@ -644,7 +690,7 @@ mod tests {
             let _ = conn.execute_batch(&format!("ALTER TABLE task_approvals ADD COLUMN {col}"));
         }
 
-        // plans.db — execution_plans + plan_steps tables
+        // plans.db, execution_plans + plan_steps tables
         let conn = rusqlite::Connection::open(dir.join("plans.db")).expect("open plans.db");
         conn.execute_batch(include_str!(
             "../../../apollia-tools/migrations/004_execution_plans.sql"

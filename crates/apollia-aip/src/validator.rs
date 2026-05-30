@@ -34,7 +34,7 @@ pub struct ValidatedAgent {
 /// Errors that can occur during AIP validation of a Python agent.
 #[derive(Debug, thiserror::Error)]
 pub enum AIPValidationError {
-    /// The agent class is missing `__apollia_manifest__` — the @agent
+    /// The agent class is missing `__apollia_manifest__`: the @agent
     /// decorator was not applied.
     #[error(
         "agent missing required attribute '__apollia_manifest__' \
@@ -42,7 +42,7 @@ pub enum AIPValidationError {
     )]
     MissingManifest,
 
-    /// The agent class is missing `__apollia_dispatch__` — the @agent
+    /// The agent class is missing `__apollia_dispatch__`: the @agent
     /// decorator was not applied.
     #[error(
         "agent missing required attribute '__apollia_dispatch__' \
@@ -113,9 +113,9 @@ fn common_prefix_len(a: &str, b: &str) -> usize {
 ///
 /// Heuristic: a candidate is a likely typo if it shares a common prefix of
 /// at least 4 bytes with `name`, or if its Levenshtein distance is small
-/// enough relative to the name length (≤ max(2, len / 3)). The candidate
-/// minimizing `(−prefix_len, distance)` wins. Returns `None` if no native
-/// tool matches the heuristic — the unknown name is then assumed to belong
+/// enough relative to the name length (<= max(2, len / 3)). The candidate
+/// minimizing `(-prefix_len, distance)` wins. Returns `None` if no native
+/// tool matches the heuristic: the unknown name is then assumed to belong
 /// to a non-native registry (MCP, custom dispatcher) and passes through.
 fn closest_native_tool(name: &str) -> Option<&'static str> {
     let limit = (name.len() / 3).max(2);
@@ -217,7 +217,7 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
 
         // The manifest is a static class attribute pre-built by the
         // @agent decorator. We do not call any dynamic `manifest()`
-        // method — that legacy escape hatch is gone.
+        // method; that legacy escape hatch is gone.
         let json_mod = py
             .import("json")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
@@ -235,7 +235,7 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
         // Semantic validation: semver + tool typo detection.
         validate_manifest_semantics(&manifest)?;
 
-        // Decision D2 — Python class is the source of truth for agent type.
+        // The Python class is the source of truth for agent type.
         // Extract `agent.__class__.__name__` and stamp it on the manifest so
         // downstream consumers (UI, registry) can render it as a badge.
         let class_name: Option<String> = agent_ref
@@ -504,7 +504,7 @@ agent = MyAgent()
         // WHEN we validate
         let result = validate_agent(&agent);
 
-        // THEN validation succeeds — unknown but distant names pass through.
+        // THEN validation succeeds; unknown but distant names pass through.
         assert!(result.is_ok(), "expected ok, got {result:?}");
     }
 }

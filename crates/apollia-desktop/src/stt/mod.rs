@@ -1,4 +1,4 @@
-//! STT desktop integration — hotkey listener, clipboard manager, flow
+//! STT desktop integration: hotkey listener, clipboard manager, flow
 //! orchestration, and recording overlay window.
 
 pub mod clipboard;

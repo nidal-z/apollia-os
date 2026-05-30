@@ -36,47 +36,64 @@ impl DirectoryTreeBuilder {
                 break;
             }
 
-            let mut rd = match tokio::fs::read_dir(&dir).await {
-                Ok(rd) => rd,
-                Err(_) => continue,
-            };
-
-            let mut children: Vec<tokio::fs::DirEntry> = Vec::new();
-            while let Ok(Some(entry)) = rd.next_entry().await {
-                let name = entry.file_name();
-                if !Self::should_ignore(&name.to_string_lossy()) {
-                    children.push(entry);
-                }
-            }
-
-            // Tri déterministe : répertoires d'abord, puis fichiers, ordre alphabétique
-            children.sort_by_key(|e| e.file_name());
+            let children = Self::collect_children(&dir).await;
 
             for entry in children {
                 if lines.len() >= max_lines {
                     break;
                 }
-
-                let name = entry.file_name();
-                let name_str = name.to_string_lossy();
-                let indent = "  ".repeat(depth);
-
-                let is_dir = entry
-                    .file_type()
-                    .await
-                    .map(|ft| ft.is_dir())
-                    .unwrap_or(false);
-
-                if is_dir {
-                    lines.push(format!("{}{}/", indent, name_str));
-                    queue.push_back((entry.path(), depth + 1));
-                } else {
-                    lines.push(format!("{}{}", indent, name_str));
-                }
+                Self::emit_entry(entry, depth, &mut lines, &mut queue).await;
             }
         }
 
         lines.join("\n")
+    }
+
+    /// Lit et filtre les enfants directs de `dir`, triés de façon déterministe.
+    ///
+    /// Retourne un vecteur vide si le répertoire n'est pas lisible.
+    async fn collect_children(dir: &Path) -> Vec<tokio::fs::DirEntry> {
+        let mut rd = match tokio::fs::read_dir(dir).await {
+            Ok(rd) => rd,
+            Err(_) => return Vec::new(),
+        };
+
+        let mut children: Vec<tokio::fs::DirEntry> = Vec::new();
+        while let Ok(Some(entry)) = rd.next_entry().await {
+            let name = entry.file_name();
+            if !Self::should_ignore(&name.to_string_lossy()) {
+                children.push(entry);
+            }
+        }
+
+        // Tri déterministe : répertoires d'abord, puis fichiers, ordre alphabétique
+        children.sort_by_key(|e| e.file_name());
+        children
+    }
+
+    /// Émet la ligne d'une entrée et, si c'est un répertoire, l'enfile pour BFS.
+    async fn emit_entry(
+        entry: tokio::fs::DirEntry,
+        depth: usize,
+        lines: &mut Vec<String>,
+        queue: &mut VecDeque<(PathBuf, usize)>,
+    ) {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        let indent = "  ".repeat(depth);
+
+        let is_dir = entry
+            .file_type()
+            .await
+            .map(|ft| ft.is_dir())
+            .unwrap_or(false);
+
+        if is_dir {
+            lines.push(format!("{}{}/", indent, name_str));
+            queue.push_back((entry.path(), depth + 1));
+        } else {
+            lines.push(format!("{}{}", indent, name_str));
+        }
     }
 
     /// Retourne `true` si l'entrée doit être ignorée dans l'arborescence.

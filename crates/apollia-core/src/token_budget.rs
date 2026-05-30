@@ -30,27 +30,37 @@ pub struct TokenBudget {
     pub streaming_duration_ms: u64,
 }
 
+/// Compteurs d'un appel LLM unique, agrégés dans un [`TokenBudget`] via
+/// [`TokenBudget::merge`].
+///
+/// `prompt_tokens` / `completion_tokens` correspondent aux champs équivalents
+/// de `TokenUsage`. `cost_usd` est le coût calculé pour cet appel. `api_ms`
+/// est la latence mesurée de l'appel HTTP.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TokenUsageDelta {
+    /// Tokens de prompt consommés par l'appel.
+    pub prompt_tokens: u32,
+    /// Tokens de complétion produits par l'appel.
+    pub completion_tokens: u32,
+    /// Tokens lus depuis le cache de prompt.
+    pub cache_read: u32,
+    /// Tokens écrits dans le cache de prompt.
+    pub cache_write: u32,
+    /// Coût calculé pour cet appel, en USD.
+    pub cost_usd: f64,
+    /// Latence mesurée de l'appel HTTP, en millisecondes.
+    pub api_ms: u64,
+}
+
 impl TokenBudget {
     /// Fusionne les compteurs d'un appel LLM dans ce budget.
-    ///
-    /// `prompt_tokens` / `completion_tokens` correspondent aux champs équivalents
-    /// de `TokenUsage`. `cost_usd` est le coût calculé pour cet appel. `api_ms`
-    /// est la latence mesurée de l'appel HTTP.
-    pub fn merge(
-        &mut self,
-        prompt_tokens: u32,
-        completion_tokens: u32,
-        cache_read: u32,
-        cache_write: u32,
-        cost_usd: f64,
-        api_ms: u64,
-    ) {
-        self.input_tokens += u64::from(prompt_tokens);
-        self.output_tokens += u64::from(completion_tokens);
-        self.cache_read_tokens += u64::from(cache_read);
-        self.cache_write_tokens += u64::from(cache_write);
-        self.cost_usd += cost_usd;
-        self.api_duration_ms += api_ms;
+    pub fn merge(&mut self, delta: TokenUsageDelta) {
+        self.input_tokens += u64::from(delta.prompt_tokens);
+        self.output_tokens += u64::from(delta.completion_tokens);
+        self.cache_read_tokens += u64::from(delta.cache_read);
+        self.cache_write_tokens += u64::from(delta.cache_write);
+        self.cost_usd += delta.cost_usd;
+        self.api_duration_ms += delta.api_ms;
     }
 
     /// Formate le budget pour un affichage CLI lisible par un humain.
@@ -83,8 +93,16 @@ mod tests {
         // GIVEN
         let mut budget = TokenBudget::default();
         // WHEN — deux appels successifs identiques
-        budget.merge(100, 50, 80, 200, 0.0012, 340);
-        budget.merge(100, 50, 80, 200, 0.0012, 340);
+        let delta = TokenUsageDelta {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            cache_read: 80,
+            cache_write: 200,
+            cost_usd: 0.0012,
+            api_ms: 340,
+        };
+        budget.merge(delta);
+        budget.merge(delta);
         // THEN
         assert_eq!(budget.input_tokens, 200);
         assert_eq!(budget.output_tokens, 100);

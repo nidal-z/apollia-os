@@ -1,4 +1,4 @@
-//! `apollia-os doctor` — diagnose the local Apollia environment.
+//! `apollia-os doctor`: diagnose the local Apollia environment.
 //!
 //! Performs read-only checks that do not require the runtime to be running:
 //! - Apollia home directory presence and writability
@@ -25,7 +25,7 @@ pub enum CheckStatus {
     Ok,
     /// Check produced a non-fatal warning.
     Warn,
-    /// Check failed — `doctor` exits with code 1.
+    /// Check failed: `doctor` exits with code 1.
     Error,
 }
 
@@ -153,7 +153,7 @@ fn check_apollia_home(data_dir: &Path) -> CheckResult {
 
 /// Verify that `apollia.toml` parses if present.
 ///
-/// `apollia.toml` is **optional** — it only carries runtime tuning sections
+/// `apollia.toml` is **optional**: it only carries runtime tuning sections
 /// (`[api]`, `[runtime]`, `[hitl]`, `[tools]`, `[a2a]`, `[oria]`, `[llm]`).
 /// All operational data (triggers, notifications, agents, MCP servers, LLM
 /// backends, projects, ...) lives in SQLite and is managed via `apollia-os`

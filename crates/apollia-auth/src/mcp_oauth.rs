@@ -3,17 +3,17 @@
 //! Implements the discovery + authorization flow required to connect a remote
 //! MCP HTTP server without per-server configuration. Conforms to:
 //!
-//! - **RFC 9728** Protected Resource Metadata — well-known
+//! - **RFC 9728** Protected Resource Metadata: well-known
 //!   `/.well-known/oauth-protected-resource` exposed by the MCP server.
-//! - **RFC 8414** Authorization Server Metadata — `/.well-known/oauth-authorization-server`.
-//! - **OIDC Discovery 1.0** — `/.well-known/openid-configuration` fallback.
-//! - **RFC 8707** Resource Indicators — `resource=` parameter MUST on every
+//! - **RFC 8414** Authorization Server Metadata: `/.well-known/oauth-authorization-server`.
+//! - **OIDC Discovery 1.0**: `/.well-known/openid-configuration` fallback.
+//! - **RFC 8707** Resource Indicators: `resource=` parameter MUST on every
 //!   authorization + token request.
-//! - **RFC 7636** PKCE S256 (always — clients are public in this model).
-//! - **Client ID Metadata Documents (CIMD)** — recommended for clients without
+//! - **RFC 7636** PKCE S256 (always, clients are public in this model).
+//! - **Client ID Metadata Documents (CIMD)**: recommended for clients without
 //!   a pre-existing relationship with the AS. Apollia hosts its CIMD at
 //!   `https://apollia.fr/.well-known/mcp-client-metadata`.
-//! - **RFC 7591** Dynamic Client Registration — fallback for AS that does not
+//! - **RFC 7591** Dynamic Client Registration: fallback for AS that does not
 //!   accept CIMD.
 //!
 //! High-level flow:
@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AuthError;
 
-// ─── RFC 9728 — Protected Resource Metadata ─────────────────────────────────
+// ─── RFC 9728: Protected Resource Metadata ─────────────────────────────────
 
 /// Protected Resource Metadata document (RFC 9728 §3).
 ///
@@ -105,7 +105,7 @@ fn split_header_parameters(s: &str) -> impl Iterator<Item = Option<(String, Stri
     })
 }
 
-// ─── RFC 8414 / OIDC Discovery — Authorization Server Metadata ──────────────
+// ─── RFC 8414 / OIDC Discovery: Authorization Server Metadata ──────────────
 
 /// Authorization Server metadata document subset (RFC 8414 + OIDC Discovery
 /// overlap). Apollia only consumes the fields it needs for the code flow.
@@ -118,7 +118,7 @@ pub struct AuthorizationServerMetadata {
     /// Optional dynamic client registration endpoint (RFC 7591).
     #[serde(default)]
     pub registration_endpoint: Option<String>,
-    /// Code challenge methods the AS supports — MUST include `S256`.
+    /// Code challenge methods the AS supports; MUST include `S256`.
     #[serde(default)]
     pub code_challenge_methods_supported: Vec<String>,
     /// Optional revocation endpoint.
@@ -189,8 +189,8 @@ fn split_issuer(issuer: &str) -> (String, String) {
 /// Apollia's CIMD payload, hosted at
 /// `https://apollia.fr/.well-known/mcp-client-metadata`.
 ///
-/// The body is mostly static and shipped to Cloudflare Pages by infrastructure
-/// — this struct lets us render it from build metadata if needed.
+/// The body is mostly static and shipped to Cloudflare Pages by
+/// infrastructure; this struct lets us render it from build metadata if needed.
 #[derive(Debug, Clone, Serialize)]
 pub struct ClientIdMetadataDocument {
     /// Display name for the user consent screen.
@@ -212,7 +212,7 @@ pub struct ClientIdMetadataDocument {
     pub software_id: &'static str,
     /// Software version surfaced to the AS.
     pub software_version: &'static str,
-    /// `token_endpoint_auth_method` — set to `"none"` for public clients.
+    /// `token_endpoint_auth_method`: set to `"none"` for public clients.
     pub token_endpoint_auth_method: &'static str,
     /// Grant types the client supports.
     pub grant_types: &'static [&'static str],
@@ -240,18 +240,18 @@ pub const APOLLIA_CIMD: ClientIdMetadataDocument = ClientIdMetadataDocument {
 /// Canonical hosted URL of Apollia's CIMD.
 pub const APOLLIA_CIMD_URL: &str = "https://apollia.fr/.well-known/mcp-client-metadata";
 
-// ─── RFC 8707 — Resource Indicators helpers ─────────────────────────────────
+// ─── RFC 8707: Resource Indicators helpers ─────────────────────────────────
 
 /// Compute the canonical resource URI to send as `resource=` (RFC 8707 §2).
 ///
 /// MCP servers identify themselves by their base URL; the canonical form
-/// strips any trailing slash and percent-encodes nothing — we only normalise
+/// strips any trailing slash and percent-encodes nothing; we only normalise
 /// trailing whitespace and slashes here.
 pub fn canonical_resource_uri(server_url: &str) -> String {
     server_url.trim().trim_end_matches('/').to_string()
 }
 
-// ─── RFC 7591 — Dynamic Client Registration request payload ─────────────────
+// ─── RFC 7591: Dynamic Client Registration request payload ─────────────────
 
 /// Minimal DCR request body (RFC 7591 §2).
 #[derive(Debug, Clone, Serialize)]
@@ -260,7 +260,7 @@ pub struct DcrRequest {
     pub client_name: &'static str,
     /// Redirect URIs (must match the URIs sent during the authorization flow).
     pub redirect_uris: Vec<String>,
-    /// Public client — no client_secret.
+    /// Public client: no client_secret.
     pub token_endpoint_auth_method: &'static str,
     /// Grant types we use.
     pub grant_types: &'static [&'static str],

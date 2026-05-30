@@ -19,7 +19,7 @@ pub type SessionId = String;
 /// Alias for a chat message identifier (UUID v4 string).
 pub type MessageId = String;
 
-/// A chat session — either free-form (Libre) or agent-backed.
+/// A chat session, either free-form (Libre) or agent-backed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatSession {
     /// Unique identifier (UUID v4).
@@ -59,19 +59,19 @@ pub struct ChatSession {
     ///
     /// Set when a project link is changed after the session has started; the
     /// initial-injection path (gated on `is_first_message`) would otherwise
-    /// skip context for already-active sessions. Transient — not persisted.
+    /// skip context for already-active sessions. Transient, not persisted.
     #[serde(skip)]
     pub force_project_context_inject: bool,
     /// In-memory filesystem allow rules for this session (not persisted).
     ///
     /// Set by the user via "Always allow (this session)" in `HitlFilesystemModal`.
     /// Format: `"op:level"` e.g., `"write:medium"`.
-    /// Cleared when the session ends (intentional — session-scoped only).
+    /// Cleared when the session ends (intentional, session-scoped only).
     #[serde(skip)]
     pub fs_allow_rules: Arc<Mutex<std::collections::HashSet<String>>>,
 }
 
-/// Chat mode — free-form LLM conversation or agent-backed.
+/// Chat mode, free-form LLM conversation or agent-backed.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ChatMode {
     /// Free-form conversation with an LLM (no agent tools).
@@ -81,7 +81,7 @@ pub enum ChatMode {
     /// Contextual platform assistant embedded in the UI.
     ///
     /// Like `Libre` but intentionally isolated from user memory and cross-session
-    /// history — the companion helps navigate the platform, not the user's personal
+    /// history, the companion helps navigate the platform, not the user's personal
     /// projects. Memory is never injected automatically (Principle #6).
     Companion,
 }
@@ -116,7 +116,7 @@ pub enum SessionStatus {
     Active,
     /// An LLM response is being generated.
     Processing,
-    /// Session has been closed — no more messages accepted.
+    /// Session has been closed, no more messages accepted.
     Closed,
 }
 
@@ -240,10 +240,10 @@ pub enum ToolCallStatus {
     /// Waiting for authorization.
     #[serde(alias = "Pending")]
     Pending,
-    /// Authorized by the user — ready to execute.
+    /// Authorized by the user, ready to execute.
     #[serde(alias = "Authorized")]
     Authorized,
-    /// Executed — output available.
+    /// Executed, output available.
     #[serde(alias = "Executed")]
     Executed,
     /// Refused by the user.
@@ -327,7 +327,7 @@ pub struct ToolStatEntry {
 /// Aggregated metrics for a chat session.
 ///
 /// Accumulated by the [`ChatSessionManager`] on each `ExchangeComplete`.
-/// Backend-local: never persisted in SQLite — rebuilt from memory on restart
+/// Backend-local: never persisted in SQLite, rebuilt from memory on restart
 /// (minimal slice; persistence is a future concern).
 ///
 /// `cost_usd` is `None` when the backend does not report pricing (e.g. local
@@ -358,7 +358,7 @@ pub struct SessionMetrics {
     pub tool_stats: Vec<ToolStatEntry>,
     /// Number of exchanges completed.
     pub exchanges_count: u32,
-    /// RFC-3339 timestamp of the first assistant response (session start — LLM time).
+    /// RFC-3339 timestamp of the first assistant response (session start, LLM time).
     pub started_at: Option<String>,
     /// RFC-3339 timestamp of the last update.
     pub updated_at: Option<String>,
@@ -445,6 +445,22 @@ pub enum ChatError {
     ProjectNotFound(String),
 }
 
+/// Parameters for [`PendingChatApprovals::start_timeout`].
+pub struct ApprovalTimeoutParams {
+    /// Pending-approval key (`"session_id::message_id::tool_name"`).
+    pub key: String,
+    /// Delay after which the approval is auto-refused.
+    pub duration: Duration,
+    /// Event bus for emitting the timeout event.
+    pub event_bus: EventBusSender,
+    /// Owning session identifier.
+    pub session_id: String,
+    /// Message that triggered the approval.
+    pub message_id: String,
+    /// Name of the tool awaiting approval.
+    pub tool_name: String,
+}
+
 /// Thread-safe store for pending chat tool approvals.
 ///
 /// Used by `ChatSessionManager` to track oneshot channels for tool approval
@@ -510,20 +526,20 @@ impl PendingChatApprovals {
     /// is emitted on the EventBus.
     ///
     /// If the approval has already been resolved before the timeout, this is a no-op.
-    pub fn start_timeout(
-        &self,
-        key: String,
-        duration: Duration,
-        event_bus: EventBusSender,
-        session_id: String,
-        message_id: String,
-        tool_name: String,
-    ) {
+    pub fn start_timeout(&self, params: ApprovalTimeoutParams) {
+        let ApprovalTimeoutParams {
+            key,
+            duration,
+            event_bus,
+            session_id,
+            message_id,
+            tool_name,
+        } = params;
         let inner = Arc::clone(&self.inner);
         tokio::spawn(async move {
             tokio::time::sleep(duration).await;
 
-            // Try to resolve — returns false if already resolved
+            // Try to resolve, returns false if already resolved
             let still_pending = {
                 let mut map = inner.lock().expect("PendingChatApprovals lock poisoned");
                 if let Some(tx) = map.remove(&key) {
@@ -576,7 +592,7 @@ pub enum FsHitlDecision {
     Deny { reason: Option<String> },
     /// Approve this operation and also install an "always accept" rule.
     ///
-    /// The rule scope is encoded by [`AlwaysAcceptScope`] — from the most
+    /// The rule scope is encoded by [`AlwaysAcceptScope`], from the most
     /// restrictive (this tool only) to the most permissive (global).
     ///
     /// `op` and `level` identify the filesystem rule bucket (e.g., `"write"` +
@@ -616,7 +632,7 @@ pub enum AlwaysAcceptScope {
     /// Auto-approve only this exact tool name for the rest of the session.
     ThisTool,
     /// Auto-approve matching ops for the rest of the current chat session.
-    /// This is the **default** scope — least sticky, safest.
+    /// This is the **default** scope, least sticky, safest.
     ThisSession,
     /// Auto-approve matching ops whenever the requesting agent runs.
     ThisAgent,
@@ -641,7 +657,7 @@ impl AlwaysAcceptScope {
 /// (which registers and awaits decisions) and `ChatSessionManager` (which resolves
 /// them when a `respond_hitl_filesystem` Tauri command arrives).
 ///
-/// This uses `Arc<Mutex<>>` — acceptable because it is an internal data structure
+/// This uses `Arc<Mutex<>>`, acceptable because it is an internal data structure
 /// coordinating two concurrent async tasks, not a cross-actor shared state.
 pub struct PendingFilesystemApprovals {
     inner: Arc<Mutex<HashMap<String, oneshot::Sender<FsHitlDecision>>>>,
@@ -957,14 +973,14 @@ mod tests {
         let rx = approvals.register("sess-1::msg-1::bash_executor".to_string());
 
         // WHEN start_timeout with 100ms
-        approvals.start_timeout(
-            "sess-1::msg-1::bash_executor".to_string(),
-            Duration::from_millis(100),
-            event_tx,
-            "sess-1".to_string(),
-            "msg-1".to_string(),
-            "bash_executor".to_string(),
-        );
+        approvals.start_timeout(ApprovalTimeoutParams {
+            key: "sess-1::msg-1::bash_executor".to_string(),
+            duration: Duration::from_millis(100),
+            event_bus: event_tx,
+            session_id: "sess-1".to_string(),
+            message_id: "msg-1".to_string(),
+            tool_name: "bash_executor".to_string(),
+        });
 
         // THEN receiver gets Refuse after timeout
         let decision = rx.await.expect("decision");
@@ -993,14 +1009,14 @@ mod tests {
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(16);
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
 
-        approvals.start_timeout(
-            "sess-1::msg-1::bash".to_string(),
-            Duration::from_secs(5),
-            event_tx,
-            "sess-1".to_string(),
-            "msg-1".to_string(),
-            "bash".to_string(),
-        );
+        approvals.start_timeout(ApprovalTimeoutParams {
+            key: "sess-1::msg-1::bash".to_string(),
+            duration: Duration::from_secs(5),
+            event_bus: event_tx,
+            session_id: "sess-1".to_string(),
+            message_id: "msg-1".to_string(),
+            tool_name: "bash".to_string(),
+        });
 
         // WHEN resolve Accept before timeout
         tokio::time::sleep(Duration::from_millis(10)).await;

@@ -7,7 +7,7 @@
 //!   the UI can list connected accounts without enumerating the keyring (which
 //!   most platforms do not allow).
 //!
-//! `account_id` is the user-facing identifier — typically the connected email
+//! `account_id` is the user-facing identifier, typically the connected email
 //! address. It is **not** a secret; the secret lives in the keyring entry.
 
 use std::collections::BTreeMap;
@@ -23,7 +23,7 @@ use crate::{connector_providers::ConnectorProvider, error::AuthError, token::Sto
 
 /// Identifier for a connected account on a given provider.
 ///
-/// Typically the user's email address — opaque to the auth crate.
+/// Typically the user's email address, opaque to the auth crate.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AccountId(pub String);
 

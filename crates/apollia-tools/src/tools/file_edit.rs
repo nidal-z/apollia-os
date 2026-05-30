@@ -48,7 +48,7 @@ pub enum FileEditError {
     #[error("old_text matches {count} times in '{path}' — use replace_all=true or provide more context to make it unique")]
     AmbiguousMatch { path: String, count: usize },
 
-    /// `old_text` and `new_text` are identical — no edit would occur.
+    /// `old_text` and `new_text` are identical, no edit would occur.
     #[error("old_text and new_text are identical")]
     NoChange,
 
@@ -60,7 +60,7 @@ pub enum FileEditError {
     #[error("I/O error on '{path}': {cause}")]
     IoError { path: String, cause: String },
 
-    /// Journal write failed — mutation aborted to preserve safety invariant.
+    /// Journal write failed, mutation aborted to preserve safety invariant.
     #[error("journal write failed before mutation: {0}")]
     JournalFailed(#[from] JournalError),
 }
@@ -107,7 +107,7 @@ impl FileEdit {
     ///
     /// When set, the original file content is persisted before each replacement
     /// write. The write is aborted if the journal entry cannot be durably
-    /// written (Principle #7).
+    /// written.
     pub fn with_journal(mut self, handle: JournalWriterHandle) -> Self {
         self.journal = Some(handle);
         self
@@ -122,7 +122,7 @@ impl FileEdit {
     ///
     /// See [`FileEditError`] for the full list of failure modes.
     pub async fn run(&self, input: FileEditInput) -> Result<FileEditOutput, FileEditError> {
-        // 1. NoChange — caught before any I/O
+        // 1. NoChange: caught before any I/O
         if input.old_text == input.new_text {
             return Err(FileEditError::NoChange);
         }

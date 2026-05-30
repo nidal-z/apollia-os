@@ -1,19 +1,19 @@
-//! `apollia-triggers` — Types fondamentaux et moteur de déclenchement pour Apollia OS.
+//! `apollia-triggers`: core types and trigger engine for Apollia OS.
 //!
-//! Ce crate fournit :
-//! - Les types de base ([`types`]) : `TriggerDefinition`, `TriggerEvent`, `InputTemplate`, etc.
-//! - L'acteur central ([`engine`]) : `TriggerEngine` + `TriggerEngineHandle` + `TaskSubmitter`.
-//! - Les sources ([`sources`]) : `CronTrigger`, `IntervalTrigger`, `OneshotTrigger` + stubs.
-//! - La persistance ([`persistence`]) : `TriggerPersistence`, `trigger_history`, `trigger_state`.
-//! - Le repository de définitions ([`definition_repository`]) : CRUD SQLite pour les définitions.
-//! - La validation métier ([`validation`]) : règles de validation des définitions de triggers.
-//! - La configuration du file watcher ([`config`]) : `FileWatchConfig` + patterns d'exclusion par défaut.
+//! This crate provides:
+//! - Core types ([`types`]): `TriggerDefinition`, `TriggerEvent`, `InputTemplate`, etc.
+//! - The central actor ([`engine`]): `TriggerEngine` + `TriggerEngineHandle` + `TaskSubmitter`.
+//! - The sources ([`sources`]): `CronTrigger`, `IntervalTrigger`, `OneshotTrigger` + stubs.
+//! - Persistence ([`persistence`]): `TriggerPersistence`, `trigger_history`, `trigger_state`.
+//! - The definition repository ([`definition_repository`]): SQLite CRUD for definitions.
+//! - Business validation ([`validation`]): validation rules for trigger definitions.
+//! - File watcher configuration ([`config`]): `FileWatchConfig` + default exclusion patterns.
 
-/// Profondeur par défaut de la file d'attente bornée FIFO par agent.
+/// Default depth of the bounded FIFO queue per agent.
 ///
-/// Utilisée quand `OnBusyPolicy::Queue` est construit sans valeur explicite —
-/// par exemple lors du parsing TOML ou de la lecture depuis SQLite.
-/// Surchargeable via `apollia.toml` : `[triggers] queue_max_depth = N`.
+/// Used when `OnBusyPolicy::Queue` is built without an explicit value, for
+/// example during TOML parsing or when reading from SQLite.
+/// Overridable via `apollia.toml`: `[triggers] queue_max_depth = N`.
 pub const DEFAULT_QUEUE_MAX_DEPTH: usize = 10;
 
 pub mod config;

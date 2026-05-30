@@ -168,7 +168,7 @@ export async function deleteChatRule(id: number): Promise<void> {
 export interface SessionAuthorizationDto {
   session_id: string;
   session_title: string | null;
-  mode: "libre" | "agent" | "companion" | string;
+  mode: "libre" | "agent" | "companion" | (string & {});
   tool_name: string;
 }
 

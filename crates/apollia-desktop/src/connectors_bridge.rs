@@ -13,14 +13,15 @@
 //! keyring under `ConnectorProvider::Google`. If none is connected, a clear
 //! `ExecutionFailed` is returned so the agent can tell the user to wire up
 //! Google in Settings → Integrations. Multi-account dispatch (`account_id`
-//! input field, default account preference) is deferred — track it in a
+//! input field, default account preference) is deferred; track it in a
 //! follow-up.
 
 use std::sync::Arc;
 
 use apollia_auth::{AccountId, AuthManager, ConnectorProvider, GoogleScope};
 use apollia_connectors::google::{
-    calendar::{Attendee, EventDraft, EventTime, ListEventsFilter},
+    calendar::{Attendee, EventDraft, EventTime, EventUpdate, ListEventsFilter},
+    drive_workspace::WorkspaceWrite,
     gmail::ComposeMail,
     GoogleConnector,
 };
@@ -33,10 +34,10 @@ use serde_json::{json, Value};
 /// boot so `ToolDispatcher::dispatch` resolves them at call time.
 pub async fn build_google_executors() -> Vec<Box<dyn ToolExecutor>> {
     let Ok(auth) = crate::commands::integrations::auth_manager().await else {
-        // AuthManager couldn't initialise (keyring unavailable, etc.) — skip
+        // AuthManager couldn't initialise (keyring unavailable, etc.), so skip
         // the executors entirely. Agents will see the descriptors in their
         // catalogue but every call returns the clear "auth not ready" error
-        // produced by the executor — strictly better than silent UnknownTool.
+        // produced by the executor, strictly better than silent UnknownTool.
         return Vec::new();
     };
     let connector = match GoogleConnector::new(auth.clone()) {
@@ -481,7 +482,15 @@ async fn gcal_update_event(
     let event = exec
         .connector
         .calendar()
-        .update_event(&cal, &event_id, &draft, &token, refresh)
+        .update_event(
+            EventUpdate {
+                calendar_id: &cal,
+                event_id: &event_id,
+                draft: &draft,
+            },
+            &token,
+            refresh,
+        )
         .await
         .map_err(map_connector_err)?;
     Ok(
@@ -577,11 +586,13 @@ async fn gdrive_write(
         .connector
         .drive()
         .workspace_write(
-            &root_path,
-            &agent_slug,
-            &name,
-            content.as_bytes(),
-            mime_type.as_deref(),
+            WorkspaceWrite {
+                root_path: &root_path,
+                agent_slug: &agent_slug,
+                name: &name,
+                content: content.as_bytes(),
+                mime_type: mime_type.as_deref(),
+            },
             &token,
             refresh,
         )

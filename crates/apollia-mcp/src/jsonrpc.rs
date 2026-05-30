@@ -1,9 +1,9 @@
 //! JSON-RPC 2.0 types for MCP transport.
 //!
 //! These types cover the three message kinds defined by JSON-RPC 2.0:
-//! - [`JsonRpcRequest`] — a call that expects a response (has an `id`)
-//! - [`JsonRpcResponse`] — the server's reply (carries either `result` or `error`)
-//! - [`JsonRpcNotification`] — a fire-and-forget message (no `id`, no response expected)
+//! - [`JsonRpcRequest`]: a call that expects a response (has an `id`)
+//! - [`JsonRpcResponse`]: the server's reply (carries either `result` or `error`)
+//! - [`JsonRpcNotification`]: a fire-and-forget message (no `id`, no response expected)
 //!
 //! `JsonRpcError` is the error object embedded in a [`JsonRpcResponse`].
 
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// when `None`, as required by the JSON-RPC 2.0 spec.
 #[derive(Debug, Clone, Serialize)]
 pub struct JsonRpcRequest {
-    /// Protocol version — always `"2.0"`.
+    /// Protocol version, always `"2.0"`.
     pub jsonrpc: &'static str,
     /// Request identifier used to correlate the response.
     pub id: u64,
@@ -47,7 +47,7 @@ impl JsonRpcRequest {
 /// the error (e.g. parse error).
 #[derive(Debug, Deserialize)]
 pub struct JsonRpcResponse {
-    /// Protocol version — always `"2.0"`.
+    /// Protocol version, always `"2.0"`.
     pub jsonrpc: String,
     /// Correlates this response to a prior request.
     pub id: Option<u64>,
@@ -74,7 +74,7 @@ pub struct JsonRpcError {
 /// `params` is omitted from the serialized JSON when `None`.
 #[derive(Debug, Clone, Serialize)]
 pub struct JsonRpcNotification {
-    /// Protocol version — always `"2.0"`.
+    /// Protocol version, always `"2.0"`.
     pub jsonrpc: &'static str,
     /// Notification method name (e.g. `"notifications/initialized"`).
     pub method: String,

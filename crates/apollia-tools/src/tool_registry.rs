@@ -1,19 +1,18 @@
-//! Runtime gouvernance des outils natifs : activation/désactivation et secrets.
+//! Runtime governance of native tools: enable/disable and secrets.
 //!
-//! Ce module expose deux composants persistés dans `governance.db` :
+//! This module exposes two components persisted in `governance.db`:
 //!
-//! - [`ToolRegistry`] — état `enabled`/`disabled` et configuration JSON par outil.
-//!   Règle d'activation : absent de la table `tools` OU `enabled = TRUE` → actif ;
-//!   seul `enabled = FALSE` désactive. La table sert uniquement de liste
-//!   d'exception ; les outils inconnus restent actifs par défaut.
-//! - [`ToolCredentialStore`] — secrets par outil (par exemple
-//!   `web_search/brave.api_key`), chiffrés AES-256-GCM avec une clé maître de
-//!   32 octets stockée dans un fichier `~/.apollia/.keyfile` (chmod 600). Le
-//!   nonce de 12 octets est généré aléatoirement par insertion et préfixé au
-//!   ciphertext en base.
+//! - [`ToolRegistry`]: `enabled`/`disabled` state and per-tool JSON configuration.
+//!   Activation rule: absent from the `tools` table OR `enabled = TRUE` means
+//!   active; only `enabled = FALSE` disables. The table is purely an exception
+//!   list; unknown tools stay active by default.
+//! - [`ToolCredentialStore`]: per-tool secrets (for example
+//!   `web_search/brave.api_key`), AES-256-GCM encrypted with a 32-byte master key
+//!   stored in a `~/.apollia/.keyfile` file (chmod 600). The 12-byte nonce is
+//!   randomly generated per insert and prefixed to the ciphertext in the store.
 //!
-//! Les deux composants partagent la base mais possèdent leur propre connexion
-//! SQLite : ils sont indépendants et peuvent vivre dans des acteurs distincts.
+//! Both components share the store but own their own SQLite connection: they are
+//! independent and can live in separate actors.
 
 use std::path::{Path, PathBuf};
 
@@ -22,12 +21,11 @@ use aes_gcm::{Aes256Gcm, Key, Nonce};
 use rand::RngCore;
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 
-/// Liste des outils natifs connus du runtime, utilisée par
-/// [`ToolRegistry::list`] pour produire un statut même quand aucune entrée
-/// n'existe en base.
+/// List of native tools known to the runtime, used by [`ToolRegistry::list`]
+/// to produce a status even when no entry exists in the store.
 ///
-/// Toute modification de [`crate::native_dispatcher::build_native_dispatcher`]
-/// doit être répercutée ici pour rester cohérente.
+/// Any change to [`crate::native_dispatcher::build_native_dispatcher`] must be
+/// mirrored here to stay consistent.
 pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "bash_executor",
     "python_executor",
@@ -44,91 +42,90 @@ pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "web_read",
     "memory_search",
     "ask_user",
-    // ADR-086 — gouvernance agent-driven des permissions.
+    // Agent-driven permission governance.
     "permission_rule_add",
     "permission_rule_remove",
     "permission_rule_list",
 ];
 
-/// Erreur retournée par [`ToolRegistry`] et [`ToolCredentialStore`].
+/// Error returned by [`ToolRegistry`] and [`ToolCredentialStore`].
 #[derive(Debug, thiserror::Error)]
 pub enum ToolGovernanceError {
-    /// Erreur SQLite au cours d'une requête de gouvernance.
+    /// SQLite error during a governance query.
     #[error("governance database error: {0}")]
     Database(#[from] rusqlite::Error),
-    /// Erreur d'I/O lors de la lecture/écriture du fichier `.keyfile`.
+    /// I/O error while reading/writing the `.keyfile` file.
     #[error("keyfile I/O error at {path}: {source}")]
     Keyfile {
-        /// Chemin du `.keyfile`.
+        /// Path of the `.keyfile`.
         path: PathBuf,
-        /// Cause sous-jacente.
+        /// Underlying cause.
         #[source]
         source: std::io::Error,
     },
-    /// La clé maître lue depuis `.keyfile` n'a pas la taille attendue.
+    /// The master key read from `.keyfile` does not have the expected size.
     #[error("keyfile is corrupted: expected 32 bytes, found {found}")]
     KeyfileCorrupted {
-        /// Taille observée.
+        /// Observed size.
         found: usize,
     },
-    /// La valeur stockée est trop courte pour contenir un nonce + ciphertext.
+    /// The stored value is too short to hold a nonce + ciphertext.
     #[error("encrypted value is corrupted (too short)")]
     CiphertextCorrupted,
-    /// Sérialisation JSON de la configuration outil impossible.
+    /// JSON serialization of the tool configuration failed.
     #[error("invalid tool config JSON: {0}")]
     InvalidJson(#[from] serde_json::Error),
-    /// Le déchiffrement AES-256-GCM a échoué (clé incorrecte ou ciphertext altéré).
+    /// AES-256-GCM decryption failed (wrong key or tampered ciphertext).
     #[error("decryption failed (wrong key or tampered ciphertext)")]
     DecryptFailed,
-    /// L'AES-256-GCM n'a pas pu produire le ciphertext.
+    /// AES-256-GCM could not produce the ciphertext.
     #[error("encryption failed")]
     EncryptFailed,
 }
 
-/// Snapshot de l'état d'un outil tel que présenté par [`ToolRegistry::list`].
+/// Snapshot of a tool's state as presented by [`ToolRegistry::list`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolStatus {
-    /// Nom canonique de l'outil (ex. `bash_executor`).
+    /// Canonical tool name (e.g. `bash_executor`).
     pub name: String,
-    /// `true` si l'outil est actif. Voir la règle d'activation du module.
+    /// `true` if the tool is active. See the module activation rule.
     pub enabled: bool,
-    /// Configuration JSON spécifique à l'outil, `None` si non définie.
+    /// Tool-specific JSON configuration, `None` if undefined.
     pub config: Option<serde_json::Value>,
-    /// Timestamp Unix (secondes) de la dernière modification de la ligne
-    /// `tools` correspondante. Vaut `0` quand l'outil n'a pas d'entrée.
+    /// Unix timestamp (seconds) of the last modification of the matching
+    /// `tools` row. `0` when the tool has no entry.
     pub updated_at: i64,
 }
 
-/// Une entrée de [`ToolCredentialStore::list`].
+/// An entry of [`ToolCredentialStore::list`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CredentialEntry {
-    /// Nom de l'outil propriétaire de la credential.
+    /// Name of the tool that owns the credential.
     pub tool_name: String,
-    /// Nom logique de la clé (ex. `brave.api_key`).
+    /// Logical key name (e.g. `brave.api_key`).
     pub key_name: String,
-    /// Timestamp Unix (secondes) de création.
+    /// Unix timestamp (seconds) of creation.
     pub created_at: i64,
-    /// Timestamp Unix (secondes) de la dernière utilisation effective, le cas
-    /// échéant.
+    /// Unix timestamp (seconds) of the last effective use, if any.
     pub last_used_at: Option<i64>,
 }
 
-/// Registre persisté des outils activés/désactivés et de leur config JSON.
+/// Persisted registry of enabled/disabled tools and their JSON config.
 pub struct ToolRegistry {
     conn: Connection,
 }
 
 impl ToolRegistry {
-    /// Ouvre la base `governance.db` à *db_path* en lecture/écriture et
-    /// retourne le registre.
+    /// Opens the `governance.db` store at *db_path* read/write and returns the
+    /// registry.
     ///
-    /// La table `tools` doit déjà exister (voir
+    /// The `tools` table must already exist (see
     /// [`crate::governance_db::GovernanceDb`]).
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si SQLite échoue à ouvrir
-    /// la base.
+    /// Returns [`ToolGovernanceError::Database`] if SQLite fails to open the
+    /// store.
     pub fn new(db_path: &Path) -> Result<Self, ToolGovernanceError> {
         let conn = Connection::open_with_flags(
             db_path,
@@ -138,14 +135,14 @@ impl ToolRegistry {
         Ok(Self { conn })
     }
 
-    /// Indique si l'outil *tool_name* est actif.
+    /// Reports whether tool *tool_name* is active.
     ///
-    /// Un outil absent de la table `tools` est considéré actif par défaut ; un
-    /// outil dont `enabled = FALSE` est inactif.
+    /// A tool absent from the `tools` table is considered active by default; a
+    /// tool with `enabled = FALSE` is inactive.
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si la requête échoue.
+    /// Returns [`ToolGovernanceError::Database`] if the query fails.
     pub fn is_enabled(&self, tool_name: &str) -> Result<bool, ToolGovernanceError> {
         let row = self
             .conn
@@ -158,14 +155,14 @@ impl ToolRegistry {
         Ok(row.unwrap_or(true))
     }
 
-    /// Active ou désactive *tool_name*.
+    /// Enables or disables *tool_name*.
     ///
-    /// L'écriture est un upsert atomique : la ligne existante est mise à jour
-    /// si présente, sinon insérée. `updated_at` est mis à `unixepoch()`.
+    /// The write is an atomic upsert: the existing row is updated if present,
+    /// otherwise inserted. `updated_at` is set to `unixepoch()`.
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si la requête échoue.
+    /// Returns [`ToolGovernanceError::Database`] if the query fails.
     pub fn set_enabled(
         &mut self,
         tool_name: &str,
@@ -180,12 +177,12 @@ impl ToolRegistry {
         Ok(())
     }
 
-    /// Retourne la configuration JSON stockée pour *tool_name*, ou `None`.
+    /// Returns the JSON configuration stored for *tool_name*, or `None`.
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si la lecture échoue ou
-    /// [`ToolGovernanceError::InvalidJson`] si le JSON stocké est mal formé.
+    /// Returns [`ToolGovernanceError::Database`] if the read fails or
+    /// [`ToolGovernanceError::InvalidJson`] if the stored JSON is malformed.
     pub fn get_config(
         &self,
         tool_name: &str,
@@ -204,13 +201,12 @@ impl ToolRegistry {
         }
     }
 
-    /// Stocke la configuration JSON associée à *tool_name*.
+    /// Stores the JSON configuration associated with *tool_name*.
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si l'écriture échoue ou
-    /// [`ToolGovernanceError::InvalidJson`] si la valeur ne peut être
-    /// sérialisée.
+    /// Returns [`ToolGovernanceError::Database`] if the write fails or
+    /// [`ToolGovernanceError::InvalidJson`] if the value cannot be serialized.
     pub fn set_config(
         &mut self,
         tool_name: &str,
@@ -226,16 +222,15 @@ impl ToolRegistry {
         Ok(())
     }
 
-    /// Liste l'union des outils enregistrés et des outils natifs connus.
+    /// Lists the union of registered tools and known native tools.
     ///
-    /// Pour un outil sans entrée en base, le statut renvoyé a `enabled = true`,
-    /// `config = None` et `updated_at = 0`.
+    /// For a tool with no entry in the store, the returned status has
+    /// `enabled = true`, `config = None` and `updated_at = 0`.
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si la lecture échoue ou
-    /// [`ToolGovernanceError::InvalidJson`] si une config stockée est mal
-    /// formée.
+    /// Returns [`ToolGovernanceError::Database`] if the read fails or
+    /// [`ToolGovernanceError::InvalidJson`] if a stored config is malformed.
     pub fn list(&self) -> Result<Vec<ToolStatus>, ToolGovernanceError> {
         let mut stmt = self
             .conn
@@ -280,32 +275,30 @@ impl ToolRegistry {
     }
 }
 
-/// Magasin chiffré de credentials par outil (AES-256-GCM).
+/// Encrypted per-tool credential store (AES-256-GCM).
 ///
-/// Chaque valeur stockée en base est `nonce(12) || ciphertext` ; le tag
-/// d'authentification GCM est inclus dans le ciphertext par la crate
-/// `aes-gcm`. La clé maître est lue depuis un fichier dédié, créé avec
-/// `chmod 600` au premier appel s'il n'existe pas.
+/// Each value stored in the store is `nonce(12) || ciphertext`; the GCM
+/// authentication tag is included in the ciphertext by the `aes-gcm` crate.
+/// The master key is read from a dedicated file, created with `chmod 600` on
+/// the first call if it does not exist.
 pub struct ToolCredentialStore {
     conn: Connection,
     cipher: Aes256Gcm,
 }
 
 impl ToolCredentialStore {
-    /// Ouvre le store en lecture/écriture sur *db_path* en utilisant la clé
-    /// maître stockée dans *keyfile_path*.
+    /// Opens the store read/write on *db_path* using the master key stored in
+    /// *keyfile_path*.
     ///
-    /// Le `.keyfile` est créé (mode `0o600`) avec une clé aléatoire de 32
-    /// octets s'il n'existe pas. S'il existe, son contenu doit faire
-    /// exactement 32 octets.
+    /// The `.keyfile` is created (mode `0o600`) with a random 32-byte key if it
+    /// does not exist. If it exists, its contents must be exactly 32 bytes.
     ///
     /// # Errors
     ///
-    /// - [`ToolGovernanceError::Database`] si SQLite échoue.
-    /// - [`ToolGovernanceError::Keyfile`] si la lecture/écriture du fichier
-    ///   échoue.
-    /// - [`ToolGovernanceError::KeyfileCorrupted`] si la clé n'a pas la
-    ///   taille attendue.
+    /// - [`ToolGovernanceError::Database`] if SQLite fails.
+    /// - [`ToolGovernanceError::Keyfile`] if reading/writing the file fails.
+    /// - [`ToolGovernanceError::KeyfileCorrupted`] if the key does not have the
+    ///   expected size.
     pub fn new(db_path: &Path, keyfile_path: &Path) -> Result<Self, ToolGovernanceError> {
         let conn = Connection::open_with_flags(
             db_path,
@@ -317,15 +310,15 @@ impl ToolCredentialStore {
         Ok(Self { conn, cipher })
     }
 
-    /// Stocke (insertion ou remplacement) la credential `(tool, key)`.
+    /// Stores (inserts or replaces) the `(tool, key)` credential.
     ///
-    /// Un nouveau nonce de 12 octets est généré à chaque appel.
+    /// A new 12-byte nonce is generated on every call.
     ///
     /// # Errors
     ///
-    /// - [`ToolGovernanceError::EncryptFailed`] si AES-256-GCM échoue
-    ///   (cas pratiquement impossible avec la crate `aes-gcm`).
-    /// - [`ToolGovernanceError::Database`] si l'écriture SQLite échoue.
+    /// - [`ToolGovernanceError::EncryptFailed`] if AES-256-GCM fails
+    ///   (practically impossible with the `aes-gcm` crate).
+    /// - [`ToolGovernanceError::Database`] if the SQLite write fails.
     pub fn set(&mut self, tool: &str, key: &str, value: &str) -> Result<(), ToolGovernanceError> {
         let mut nonce_bytes = [0u8; 12];
         rand::thread_rng().fill_bytes(&mut nonce_bytes);
@@ -351,16 +344,16 @@ impl ToolCredentialStore {
         Ok(())
     }
 
-    /// Récupère la valeur claire associée à `(tool, key)`, ou `None` si la
-    /// credential n'existe pas.
+    /// Fetches the cleartext value for `(tool, key)`, or `None` if the
+    /// credential does not exist.
     ///
     /// # Errors
     ///
-    /// - [`ToolGovernanceError::CiphertextCorrupted`] si la valeur en base est
-    ///   trop courte.
-    /// - [`ToolGovernanceError::DecryptFailed`] si AES-256-GCM rejette le
-    ///   tag d'authentification.
-    /// - [`ToolGovernanceError::Database`] si la lecture SQLite échoue.
+    /// - [`ToolGovernanceError::CiphertextCorrupted`] if the stored value is too
+    ///   short.
+    /// - [`ToolGovernanceError::DecryptFailed`] if AES-256-GCM rejects the
+    ///   authentication tag.
+    /// - [`ToolGovernanceError::Database`] if the SQLite read fails.
     pub fn get(&self, tool: &str, key: &str) -> Result<Option<String>, ToolGovernanceError> {
         let row: Option<Vec<u8>> = self
             .conn
@@ -387,12 +380,11 @@ impl ToolCredentialStore {
         Ok(Some(s))
     }
 
-    /// Supprime la credential `(tool, key)`. Retourne `true` si une ligne a
-    /// été effacée.
+    /// Deletes the `(tool, key)` credential. Returns `true` if a row was erased.
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si SQLite échoue.
+    /// Returns [`ToolGovernanceError::Database`] if SQLite fails.
     pub fn delete(&mut self, tool: &str, key: &str) -> Result<bool, ToolGovernanceError> {
         let n = self.conn.execute(
             "DELETE FROM tool_credentials WHERE tool_name = ?1 AND key_name = ?2",
@@ -401,15 +393,14 @@ impl ToolCredentialStore {
         Ok(n > 0)
     }
 
-    /// Liste les credentials, filtrées par outil si *tool* est `Some`.
+    /// Lists credentials, filtered by tool if *tool* is `Some`.
     ///
-    /// Les valeurs chiffrées ne sont jamais retournées : seules les
-    /// métadonnées le sont, ce qui permet d'afficher un état "credential
-    /// présente" sans exposer le secret.
+    /// Encrypted values are never returned: only the metadata is, which lets a
+    /// "credential present" state be displayed without exposing the secret.
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si la requête échoue.
+    /// Returns [`ToolGovernanceError::Database`] if the query fails.
     pub fn list(&self, tool: Option<&str>) -> Result<Vec<CredentialEntry>, ToolGovernanceError> {
         let mut entries = Vec::new();
         match tool {
@@ -437,13 +428,13 @@ impl ToolCredentialStore {
         Ok(entries)
     }
 
-    /// Met à jour `last_used_at` pour la credential `(tool, key)`.
+    /// Updates `last_used_at` for the `(tool, key)` credential.
     ///
-    /// Sans effet si la credential n'existe pas.
+    /// No-op if the credential does not exist.
     ///
     /// # Errors
     ///
-    /// Retourne [`ToolGovernanceError::Database`] si l'écriture échoue.
+    /// Returns [`ToolGovernanceError::Database`] if the write fails.
     pub fn touch_last_used(&mut self, tool: &str, key: &str) -> Result<(), ToolGovernanceError> {
         self.conn.execute(
             "UPDATE tool_credentials SET last_used_at = unixepoch() \
@@ -525,27 +516,27 @@ fn write_keyfile_secure(path: &Path, key: &[u8; 32]) -> Result<(), ToolGovernanc
     })
 }
 
-/// Snapshot lu depuis `governance.db` à utiliser pour configurer un
+/// Snapshot read from `governance.db`, used to configure a
 /// [`crate::native_dispatcher::build_native_dispatcher`].
 #[derive(Debug, Clone, Default)]
 pub struct GovernanceSnapshot {
-    /// Liste des outils dont `enabled = FALSE` au moment du snapshot.
+    /// List of tools with `enabled = FALSE` at snapshot time.
     pub disabled_tools: Vec<String>,
-    /// Clé d'API Brave Search déchiffrée, si présente dans `tool_credentials`.
+    /// Decrypted Brave Search API key, if present in `tool_credentials`.
     pub brave_api_key: Option<String>,
 }
 
-/// Lit `governance.db` et `.keyfile` dans *base_dir* pour produire un
-/// [`GovernanceSnapshot`] consommable par le dispatcher.
+/// Reads `governance.db` and `.keyfile` in *base_dir* to produce a
+/// [`GovernanceSnapshot`] consumable by the dispatcher.
 ///
-/// Si la base ou le `.keyfile` n'existent pas, un snapshot vide est retourné
-/// (tous les outils restent actifs, aucune clé Brave). Cette tolérance permet
-/// au runtime de fonctionner avant la première écriture.
+/// If the store or the `.keyfile` does not exist, an empty snapshot is returned
+/// (all tools stay active, no Brave key). This tolerance lets the runtime work
+/// before the first write.
 ///
 /// # Errors
 ///
-/// Remonte les erreurs SQLite ou cryptographiques rencontrées lors de la
-/// lecture quand la base existe mais n'est pas exploitable.
+/// Surfaces the SQLite or cryptographic errors encountered while reading when
+/// the store exists but is not usable.
 pub fn load_governance_snapshot(
     base_dir: &Path,
 ) -> Result<GovernanceSnapshot, ToolGovernanceError> {
@@ -590,39 +581,39 @@ mod tests {
 
     #[test]
     fn test_tool_enabled_by_default_if_absent() {
-        // GIVEN une base sans entrée pour `web_search`.
+        // GIVEN a store with no entry for `web_search`.
         let dir = TempDir::new().expect("tempdir");
         let (db, _) = fresh(&dir);
         let reg = ToolRegistry::new(&db).expect("open registry");
-        // WHEN on demande l'état.
+        // WHEN the state is queried.
         let enabled = reg.is_enabled("web_search").expect("query");
-        // THEN l'outil est considéré actif.
+        // THEN the tool is considered active.
         assert!(enabled);
     }
 
     #[test]
     fn test_set_enabled_disables_tool() {
-        // GIVEN un registre vierge.
+        // GIVEN a blank registry.
         let dir = TempDir::new().expect("tempdir");
         let (db, _) = fresh(&dir);
         let mut reg = ToolRegistry::new(&db).expect("open");
-        // WHEN on désactive bash_executor.
+        // WHEN bash_executor is disabled.
         reg.set_enabled("bash_executor", false).expect("disable");
-        // THEN is_enabled retourne false ; un nouvel outil reste actif.
+        // THEN is_enabled returns false; a new tool stays active.
         assert!(!reg.is_enabled("bash_executor").expect("read"));
         assert!(reg.is_enabled("file_read").expect("read other"));
     }
 
     #[test]
     fn test_list_unions_native_and_db() {
-        // GIVEN un registre où seul bash_executor est désactivé.
+        // GIVEN a registry where only bash_executor is disabled.
         let dir = TempDir::new().expect("tempdir");
         let (db, _) = fresh(&dir);
         let mut reg = ToolRegistry::new(&db).expect("open");
         reg.set_enabled("bash_executor", false).expect("disable");
-        // WHEN on liste.
+        // WHEN listing.
         let entries = reg.list().expect("list");
-        // THEN tous les outils natifs apparaissent et bash_executor est inactif.
+        // THEN all native tools appear and bash_executor is inactive.
         let bash = entries
             .iter()
             .find(|e| e.name == "bash_executor")
@@ -638,36 +629,36 @@ mod tests {
 
     #[test]
     fn test_set_get_config_roundtrip() {
-        // GIVEN un registre vierge.
+        // GIVEN a blank registry.
         let dir = TempDir::new().expect("tempdir");
         let (db, _) = fresh(&dir);
         let mut reg = ToolRegistry::new(&db).expect("open");
-        // WHEN on stocke puis lit la config web_search.
+        // WHEN the web_search config is stored then read.
         let cfg = serde_json::json!({"default_backend": "duckduckgo"});
         reg.set_config("web_search", &cfg).expect("set");
         let read = reg.get_config("web_search").expect("get");
-        // THEN la valeur lue est identique.
+        // THEN the read value is identical.
         assert_eq!(read, Some(cfg));
     }
 
     #[test]
     fn test_credential_roundtrip_encrypt_decrypt() {
-        // GIVEN un store fraîchement créé.
+        // GIVEN a freshly created store.
         let dir = TempDir::new().expect("tempdir");
         let (db, kf) = fresh(&dir);
         let mut store = ToolCredentialStore::new(&db, &kf).expect("open store");
-        // WHEN on stocke puis relit la valeur.
+        // WHEN the value is stored then read back.
         store
             .set("web_search", "brave.api_key", "BSA-secret-1234")
             .expect("set");
         let read = store.get("web_search", "brave.api_key").expect("get");
-        // THEN la valeur claire est identique.
+        // THEN the cleartext value is identical.
         assert_eq!(read.as_deref(), Some("BSA-secret-1234"));
     }
 
     #[test]
     fn test_credential_not_in_plaintext_in_db() {
-        // GIVEN une credential stockée.
+        // GIVEN a stored credential.
         let dir = TempDir::new().expect("tempdir");
         let (db, kf) = fresh(&dir);
         {
@@ -676,7 +667,7 @@ mod tests {
                 .set("web_search", "brave.api_key", "PLAINTEXT-MARKER-XYZ")
                 .expect("set");
         }
-        // WHEN on lit le BLOB brut directement en SQL.
+        // WHEN the raw BLOB is read directly in SQL.
         let conn = Connection::open(&db).expect("open raw");
         let blob: Vec<u8> = conn
             .query_row(
@@ -685,7 +676,7 @@ mod tests {
                 |r| r.get(0),
             )
             .expect("read blob");
-        // THEN la marque ne doit jamais apparaître en clair.
+        // THEN the marker must never appear in cleartext.
         assert!(
             !String::from_utf8_lossy(&blob).contains("PLAINTEXT-MARKER-XYZ"),
             "ciphertext must not leak the plaintext"
@@ -695,14 +686,14 @@ mod tests {
 
     #[test]
     fn test_credential_delete_and_list() {
-        // GIVEN deux credentials enregistrées.
+        // GIVEN two stored credentials.
         let dir = TempDir::new().expect("tempdir");
         let (db, kf) = fresh(&dir);
         let mut store = ToolCredentialStore::new(&db, &kf).expect("open");
         store.set("web_search", "brave.api_key", "v1").expect("a");
         store.set("http_fetch", "auth.token", "v2").expect("b");
 
-        // WHEN on liste filtré, puis on supprime, puis on liste à nouveau.
+        // WHEN listing filtered, then deleting, then listing again.
         let only_search = store.list(Some("web_search")).expect("list filtered");
         assert_eq!(only_search.len(), 1);
         assert_eq!(only_search[0].key_name, "brave.api_key");
@@ -722,7 +713,7 @@ mod tests {
 
     #[test]
     fn test_snapshot_reads_disabled_and_credential() {
-        // GIVEN une base avec bash_executor désactivé et une clé Brave stockée.
+        // GIVEN a store with bash_executor disabled and a Brave key stored.
         let dir = TempDir::new().expect("tempdir");
         let (db, kf) = fresh(&dir);
         {
@@ -733,9 +724,9 @@ mod tests {
                 .set("web_search", "brave.api_key", "BSA-snapshot")
                 .expect("set");
         }
-        // WHEN on charge le snapshot.
+        // WHEN the snapshot is loaded.
         let snap = load_governance_snapshot(dir.path()).expect("snapshot");
-        // THEN l'outil désactivé et la clé Brave apparaissent.
+        // THEN the disabled tool and the Brave key appear.
         assert!(snap.disabled_tools.iter().any(|n| n == "bash_executor"));
         assert_eq!(snap.brave_api_key.as_deref(), Some("BSA-snapshot"));
     }

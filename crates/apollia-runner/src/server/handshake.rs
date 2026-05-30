@@ -12,10 +12,10 @@ pub async fn handle(State(_state): State<AppState>) -> Json<Response<HandshakeDa
         protocol_version: "1.0".into(),
         runner_version: env!("CARGO_PKG_VERSION").into(),
         backend: Backend::from_features(),
-        // GPU info détaillée sera ajoutée en STORY-004 quand on aura les
-        // backends réels capables de l'introspecter (compute capability,
-        // driver_version, etc.). Phase 1 : pas de GPU détectée côté runner
-        // (la détection vit côté daemon dans gpu_detection.rs).
+        // Detailed GPU info (compute capability, driver_version, etc.) will be
+        // added once the backends can introspect it. For now no GPU info is
+        // returned from the runner; detection lives on the daemon side in
+        // `gpu_detection.rs`.
         gpu: None,
         supported_endpoints: supported_endpoints(),
         max_concurrent_requests: 1,

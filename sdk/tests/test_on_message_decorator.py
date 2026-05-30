@@ -18,7 +18,7 @@ def test_on_message_marker_set() -> None:
 
 
 def test_on_message_returns_method_unchanged() -> None:
-    async def original(
+    async def original(  # NOSONAR
         self: object, message: str, history: list, ctx: object
     ) -> str:
         return "ok"
@@ -51,7 +51,7 @@ def test_on_message_on_non_callable_raises() -> None:
 def test_on_message_does_not_wrap() -> None:
     """Ensure ``@on_message`` is a pure marker — no closure, no wrap."""
 
-    async def fn(self: object, message: str, history: list, ctx: object) -> str:
+    async def fn(self: object, message: str, history: list, ctx: object) -> str:  # NOSONAR
         return "ok"
 
     fn_id_before = id(fn)

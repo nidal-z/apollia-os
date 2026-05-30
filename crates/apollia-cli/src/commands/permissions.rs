@@ -1,18 +1,18 @@
-//! `apollia-os permissions` — gestion locale des règles de permissions.
+//! `apollia-os permissions`: local management of permission rules.
 //!
-//! Cette sous-commande opère directement sur `governance.db` (table
-//! `permission_rules` et `permission_audit`) sans passer par le runtime.
-//! Elle expose trois opérations à l'opérateur :
+//! This subcommand operates directly on `governance.db` (the
+//! `permission_rules` and `permission_audit` tables) without going through the
+//! runtime. It exposes three operations to the operator:
 //!
-//! - `list`   : afficher les règles persistées (project + global) avec leur portée.
-//! - `revoke` : supprimer une règle persistée par identifiant ou en masse par scope.
-//! - `audit`  : consulter l'historique immuable des décisions de permissions.
+//! - `list`:   show the persisted rules (project + global) with their scope.
+//! - `revoke`: delete a persisted rule by identifier, or in bulk by scope.
+//! - `audit`:  inspect the immutable history of permission decisions.
 //!
-//! Les règles `session` vivent uniquement en mémoire dans le `PermissionEngine`
-//! du runtime ; elles ne sont pas listables ni révocables depuis cette
-//! sous-commande, qui s'exécute hors du process daemon. Lorsqu'un identifiant
-//! préfixé `s` est passé à `revoke`, un message clair indique cette limite et
-//! redirige l'opérateur vers l'app desktop.
+//! `session` rules live only in memory inside the runtime's `PermissionEngine`;
+//! they are neither listable nor revocable from this subcommand, which runs
+//! outside the daemon process. When an identifier prefixed with `s` is passed
+//! to `revoke`, a clear message reports this limit and redirects the operator
+//! to the desktop app.
 
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -41,7 +41,7 @@ pub enum PermissionsCommand {
     Revoke {
         /// Numeric identifier of a persisted rule.
         ///
-        /// IDs prefixed with `s` denote session-scoped rules — they are not
+        /// IDs prefixed with `s` denote session-scoped rules; they are not
         /// revocable from the CLI (use the desktop app or restart the daemon).
         id: Option<String>,
         /// Revoke every rule matching `--scope`.
@@ -67,7 +67,7 @@ pub enum PermissionsCommand {
     ///
     /// Persists into `governance.db` directly (no runtime required). Session
     /// scope is not supported here because session rules live in the runtime
-    /// memory — use the chat REPL approval flow instead.
+    /// memory; use the chat REPL approval flow instead.
     Add {
         /// Tool name (e.g. `file_write`, `bash_executor`).
         #[arg(long, value_name = "NAME")]
@@ -88,10 +88,10 @@ pub enum PermissionsCommand {
     },
 }
 
-/// Exécute une sous-commande `permissions`.
+/// Execute a `permissions` subcommand.
 ///
-/// Le paramètre `socket` est accepté pour cohérence avec les autres
-/// sous-commandes mais n'est pas utilisé : tout passe par accès direct à
+/// The `socket` parameter is accepted for consistency with the other
+/// subcommands but is not used: everything goes through direct access to
 /// `governance.db`.
 pub async fn run(cmd: &PermissionsCommand, _socket: Option<PathBuf>, json: bool) -> i32 {
     match cmd {
@@ -111,7 +111,16 @@ pub async fn run(cmd: &PermissionsCommand, _socket: Option<PathBuf>, json: bool)
             action,
             scope,
             project_path,
-        } => run_add(tool, prefix.as_deref(), action, scope, project_path.as_deref(), json),
+        } => run_add(
+            AddRuleInput {
+                tool,
+                prefix: prefix.as_deref(),
+                action,
+                scope,
+                project_path: project_path.as_deref(),
+            },
+            json,
+        ),
     }
 }
 
@@ -445,14 +454,32 @@ fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
 
 // ─── Add ─────────────────────────────────────────────────────────────
 
-fn run_add(
-    tool: &str,
-    prefix: Option<&str>,
-    action: &str,
-    scope: &str,
-    project_path: Option<&Path>,
-    json: bool,
-) -> i32 {
+/// Raw CLI input for `permissions add` (string action/scope, uncanonicalised path).
+struct AddRuleInput<'a> {
+    tool: &'a str,
+    prefix: Option<&'a str>,
+    action: &'a str,
+    scope: &'a str,
+    project_path: Option<&'a Path>,
+}
+
+/// Validated rule fields ready to persist via the governance engine.
+struct ResolvedRule<'a> {
+    rule_action: RuleAction,
+    tool: &'a str,
+    prefix: Option<&'a str>,
+    scope_enum: PermissionScope,
+    project_buf: Option<PathBuf>,
+}
+
+fn run_add(input: AddRuleInput<'_>, json: bool) -> i32 {
+    let AddRuleInput {
+        tool,
+        prefix,
+        action,
+        scope,
+        project_path,
+    } = input;
     if tool.trim().is_empty() {
         return emit_error("--tool must not be empty".into(), json);
     }
@@ -494,11 +521,13 @@ fn run_add(
     };
 
     run_add_with_engine(
-        rule_action,
-        tool.trim(),
-        prefix,
-        scope_enum,
-        project_buf,
+        ResolvedRule {
+            rule_action,
+            tool: tool.trim(),
+            prefix,
+            scope_enum,
+            project_buf,
+        },
         None,
         json,
     )
@@ -507,15 +536,14 @@ fn run_add(
 /// Inner helper exposed for tests so they can inject an explicit governance
 /// directory instead of mutating `$HOME` globally (which races across the
 /// parallel test runner).
-fn run_add_with_engine(
-    rule_action: RuleAction,
-    tool: &str,
-    prefix: Option<&str>,
-    scope_enum: PermissionScope,
-    project_buf: Option<PathBuf>,
-    governance_dir: Option<&Path>,
-    json: bool,
-) -> i32 {
+fn run_add_with_engine(rule: ResolvedRule<'_>, governance_dir: Option<&Path>, json: bool) -> i32 {
+    let ResolvedRule {
+        rule_action,
+        tool,
+        prefix,
+        scope_enum,
+        project_buf,
+    } = rule;
     let db_path = match governance_dir {
         Some(dir) => {
             if !dir.exists() {
@@ -923,11 +951,13 @@ mod tests {
         // Use the inner helper with an explicit governance dir so the test
         // does not race on `$HOME` with other parallel tests.
         let code = run_add_with_engine(
-            RuleAction::Allow,
-            "web_search",
-            None,
-            PermissionScope::Global,
-            None,
+            ResolvedRule {
+                rule_action: RuleAction::Allow,
+                tool: "web_search",
+                prefix: None,
+                scope_enum: PermissionScope::Global,
+                project_buf: None,
+            },
             Some(dir.path()),
             true,
         );
@@ -944,15 +974,33 @@ mod tests {
 
     #[test]
     fn add_project_requires_project_path() {
-        // No need to set HOME — the surface validation happens in `run_add`
+        // No need to set HOME: the surface validation happens in `run_add`
         // before any DB access, so the helper short-circuits.
-        let code = run_add("file_write", None, "allow", "project", None, true);
+        let code = run_add(
+            AddRuleInput {
+                tool: "file_write",
+                prefix: None,
+                action: "allow",
+                scope: "project",
+                project_path: None,
+            },
+            true,
+        );
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn add_rejects_empty_tool() {
-        let code = run_add("   ", None, "allow", "global", None, true);
+        let code = run_add(
+            AddRuleInput {
+                tool: "   ",
+                prefix: None,
+                action: "allow",
+                scope: "global",
+                project_path: None,
+            },
+            true,
+        );
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
@@ -960,11 +1008,13 @@ mod tests {
     fn add_with_prefix_persists() {
         let dir = TempDir::new().expect("tempdir");
         let code = run_add_with_engine(
-            RuleAction::Deny,
-            "file_write",
-            Some("/tmp/"),
-            PermissionScope::Global,
-            None,
+            ResolvedRule {
+                rule_action: RuleAction::Deny,
+                tool: "file_write",
+                prefix: Some("/tmp/"),
+                scope_enum: PermissionScope::Global,
+                project_buf: None,
+            },
             Some(dir.path()),
             true,
         );

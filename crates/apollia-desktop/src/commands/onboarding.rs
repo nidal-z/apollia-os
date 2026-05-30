@@ -497,31 +497,7 @@ async fn advance_onboarding_phase_inner(
             });
         }
 
-        // Set started_at on the first transition out of Welcome.
-        if onboarding_state.phase == OnboardingPhase::Welcome
-            && onboarding_state.started_at.is_none()
-        {
-            onboarding_state.started_at = Some(chrono::Utc::now().to_rfc3339());
-        }
-
-        onboarding_state.phase = target.clone();
-
-        // When leaving Acquaintance, auto-mark any uncovered topics so the
-        // progress reaches 100% even if the agent didn't ask about every topic.
-        if target == OnboardingPhase::GuidedTour
-            || target == OnboardingPhase::Graduation
-            || target == OnboardingPhase::Done
-        {
-            for topic in &ONBOARDING_TOPICS {
-                let _ = repo.mark_topic_covered(topic);
-            }
-        }
-
-        if target == OnboardingPhase::Done {
-            onboarding_state.completed = true;
-            onboarding_state.completed_at = Some(chrono::Utc::now().to_rfc3339());
-        }
-
+        apply_phase_transition(&repo, &mut onboarding_state, &target);
         persist_state(&repo, &onboarding_state)?;
 
         // Emit the completion event outside the lock (fire-and-forget).
@@ -546,6 +522,39 @@ async fn advance_onboarding_phase_inner(
     })
     .await
     .map_err(|e| OnboardingError::PersistenceError(format!("spawn_blocking failed: {e}")))?
+}
+
+/// Apply the in-memory side effects of advancing to `target`.
+///
+/// Sets `started_at` on the first move out of Welcome, marks all topics covered
+/// when entering a terminal-ish phase, and stamps completion on `Done`.
+fn apply_phase_transition(
+    repo: &UserMemoryRepository,
+    onboarding_state: &mut OnboardingState,
+    target: &OnboardingPhase,
+) {
+    // Set started_at on the first transition out of Welcome.
+    if onboarding_state.phase == OnboardingPhase::Welcome && onboarding_state.started_at.is_none() {
+        onboarding_state.started_at = Some(chrono::Utc::now().to_rfc3339());
+    }
+
+    onboarding_state.phase = target.clone();
+
+    // When leaving Acquaintance, auto-mark any uncovered topics so the
+    // progress reaches 100% even if the agent didn't ask about every topic.
+    if *target == OnboardingPhase::GuidedTour
+        || *target == OnboardingPhase::Graduation
+        || *target == OnboardingPhase::Done
+    {
+        for topic in &ONBOARDING_TOPICS {
+            let _ = repo.mark_topic_covered(topic);
+        }
+    }
+
+    if *target == OnboardingPhase::Done {
+        onboarding_state.completed = true;
+        onboarding_state.completed_at = Some(chrono::Utc::now().to_rfc3339());
+    }
 }
 
 async fn set_onboarding_profile_inner(
@@ -775,6 +784,33 @@ fn get_repo(
         .ok_or(OnboardingError::RepositoryNotInitialized)
 }
 
+/// Scan the onboarding agent's semantic memory and mark every discovered
+/// topic as covered in the user-memory repository.
+///
+/// A missing or unreadable agent store is a silent no-op — the progress bar
+/// simply stays at whatever the repository already knows.
+fn auto_mark_discovered_topics(repo: &UserMemoryRepository, agent_db_path: &std::path::Path) {
+    if !agent_db_path.exists() {
+        return;
+    }
+    let Ok(agent_store) = apollia_memory::store::MemoryStore::open(agent_db_path) else {
+        return;
+    };
+    let sem = apollia_memory::semantic::SemanticMemory::new(&agent_store);
+    let Ok(entries) = sem.recall_all("onboarding-agent", None) else {
+        return;
+    };
+    let mut discovered = std::collections::HashSet::new();
+    for entry in &entries {
+        if let Some(topic) = topic_for_memory_key(&entry.key) {
+            discovered.insert(topic);
+        }
+    }
+    for topic in discovered {
+        let _ = repo.mark_topic_covered(topic);
+    }
+}
+
 /// Maps a memory key written by the onboarding agent to a topic name.
 ///
 /// The agent writes keys like `user.name`, `user.tools.ide`, `user.domain.stack`
@@ -850,23 +886,7 @@ async fn get_onboarding_status_inner(
             .map_err(|e| OnboardingError::SessionCreationFailed(format!("mutex poisoned: {e}")))?;
 
         // Auto-detect covered topics from the agent's semantic memory.
-        if agent_db_path.exists() {
-            if let Ok(agent_store) = apollia_memory::store::MemoryStore::open(&agent_db_path) {
-                let sem = apollia_memory::semantic::SemanticMemory::new(&agent_store);
-                if let Ok(entries) = sem.recall_all("onboarding-agent", None) {
-                    let mut discovered = std::collections::HashSet::new();
-                    for entry in &entries {
-                        if let Some(topic) = topic_for_memory_key(&entry.key) {
-                            discovered.insert(topic);
-                        }
-                    }
-                    // Mark newly discovered topics.
-                    for topic in discovered {
-                        let _ = repo.mark_topic_covered(topic);
-                    }
-                }
-            }
-        }
+        auto_mark_discovered_topics(&repo, &agent_db_path);
 
         let topics_covered = repo
             .get_covered_topics()
@@ -918,14 +938,14 @@ fn write_profile_to_agent_memory(profile: &str) {
         return;
     };
     let sem = apollia_memory::semantic::SemanticMemory::new(&store);
-    if let Err(e) = sem.remember(
-        "onboarding-agent",
-        "onboarding.active_profile",
-        &serde_json::Value::String(profile.to_string()),
-        0.95,
-        Some("onboarding"),
-        None,
-    ) {
+    if let Err(e) = sem.remember(apollia_memory::semantic::RememberInput {
+        namespace: "onboarding-agent",
+        key: "onboarding.active_profile",
+        value: &serde_json::Value::String(profile.to_string()),
+        confidence: 0.95,
+        source: Some("onboarding"),
+        expires_at: None,
+    }) {
         tracing::warn!(error = %e, "failed to write profile to agent memory");
     }
 }
@@ -1060,13 +1080,13 @@ async fn trigger_onboarding_inner(
         .ok_or(OnboardingError::ChatNotAvailable)?;
 
     let info = manager
-        .create_session(
-            ChatMode::Agent,
-            Some(ONBOARDING_AGENT_NAME.to_string()),
-            Some(system_prompt),
-            Vec::new(),
-            None,
-        )
+        .create_session(apollia_runtime::chat::manager::CreateSessionParams {
+            mode: ChatMode::Agent,
+            agent_name: Some(ONBOARDING_AGENT_NAME.to_string()),
+            system_prompt: Some(system_prompt),
+            tools: Vec::new(),
+            project_id: None,
+        })
         .await
         .map_err(|e| OnboardingError::SessionCreationFailed(e.to_string()))?;
 
@@ -1239,13 +1259,13 @@ async fn create_companion_session_inner(
         .ok_or(OnboardingError::ChatNotAvailable)?;
 
     let info = manager
-        .create_session(
-            ChatMode::Companion,
-            None,
-            Some(system_prompt),
-            Vec::new(),
-            None,
-        )
+        .create_session(apollia_runtime::chat::manager::CreateSessionParams {
+            mode: ChatMode::Companion,
+            agent_name: None,
+            system_prompt: Some(system_prompt),
+            tools: Vec::new(),
+            project_id: None,
+        })
         .await
         .map_err(|e| OnboardingError::SessionCreationFailed(e.to_string()))?;
 

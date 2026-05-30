@@ -3,8 +3,7 @@ import { waitLocale } from "svelte-i18n";
 import RecordingOverlay from "./components/stt/RecordingOverlay.svelte";
 import { mount } from "svelte";
 
-waitLocale().then(() => {
-  mount(RecordingOverlay, {
-    target: document.getElementById("overlay")!,
-  });
+await waitLocale();
+mount(RecordingOverlay, {
+  target: document.getElementById("overlay")!,
 });

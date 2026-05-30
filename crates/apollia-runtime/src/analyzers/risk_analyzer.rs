@@ -2,7 +2,7 @@
 //!
 //! Maps an `action_type` (e.g. `"tool:bash"`, `"memory_write_bulk"`,
 //! `"a2a:external"`) to a structured [`RiskAnalysis`] with categories,
-//! severity 0..10 and mitigation tips. No LLM is involved — coût : 0.
+//! severity 0..10 and mitigation tips. No LLM is involved, cost: 0.
 //!
 //! Opt-in narration (`consequences_if_approved` / `consequences_if_rejected`)
 //! is produced by [`MetaRoutine::GenerateAskUserConsequences`] via the meta

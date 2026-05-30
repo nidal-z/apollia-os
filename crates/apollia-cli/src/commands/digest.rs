@@ -1,4 +1,4 @@
-//! `apollia-os digest` — aggregate activity overview.
+//! `apollia-os digest`: aggregate activity overview.
 //!
 //! Combines the runtime's tasks list, LLM cost summary, and audit stats into
 //! a compact "what happened recently" snapshot. The Desktop computes a richer

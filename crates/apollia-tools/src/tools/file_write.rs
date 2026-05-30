@@ -36,7 +36,7 @@ pub enum FileWriteError {
     #[error("I/O error on '{path}': {cause}")]
     IoError { path: String, cause: String },
 
-    /// Journal write failed — mutation aborted to preserve safety invariant.
+    /// Journal write failed, mutation aborted to preserve safety invariant.
     #[error("journal write failed before mutation: {0}")]
     JournalFailed(#[from] JournalError),
 }
@@ -72,7 +72,7 @@ impl FileWrite {
     ///
     /// When set, the previous state of every file is persisted to the journal
     /// before each write. The write is aborted if the journal entry cannot be
-    /// durably written (Principle #7).
+    /// durably written.
     pub fn with_journal(mut self, handle: JournalWriterHandle) -> Self {
         self.journal = Some(handle);
         self
@@ -136,7 +136,7 @@ impl FileWrite {
                 previous_mtime,
             };
 
-            // Abort if journal write fails — do not proceed with mutation
+            // Abort if journal write fails: do not proceed with mutation
             handle.record(entry).await?;
         }
 

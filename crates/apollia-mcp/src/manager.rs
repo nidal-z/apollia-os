@@ -3,7 +3,7 @@
 //! [`McpClientManagerHandle`] is the only public entry point. It starts N sessions in
 //! sequence, registers discovered tools in the [`ToolRegistryHandle`], and routes
 //! `call_tool` requests to the correct session. A server that fails to start is
-//! logged and skipped — it is never fatal to the rest.
+//! logged and skipped; it is never fatal to the rest.
 
 use std::collections::{HashMap, HashSet};
 
@@ -192,7 +192,7 @@ pub struct McpClientManagerHandle {
 
 /// Actor that owns and orchestrates all MCP server sessions.
 ///
-/// Never instantiated directly — always accessed through [`McpClientManagerHandle`].
+/// Never instantiated directly; always accessed through [`McpClientManagerHandle`].
 struct McpClientManager {
     sessions: HashMap<String, McpSession>,
     rx: mpsc::Receiver<McpCommand>,
@@ -254,77 +254,18 @@ impl McpClientManagerHandle {
                         "MCP server connected"
                     );
 
-                    for tool_def in session.tools() {
-                        let mut tool_tags = vec!["mcp".to_string(), server_name.clone()];
-                        tool_tags.extend(tags.clone());
-
-                        let descriptor = ToolDescriptor {
-                            name: format!("mcp:{}/{}", server_name, tool_def.name),
-                            version: "1.0.0".to_string(),
-                            description: tool_def
-                                .description
-                                .clone()
-                                .unwrap_or_else(|| format!("MCP tool from {}", server_name)),
-                            kind: ToolKind::McpServer {
-                                server_url: format!("stdio://{}", server_name),
-                                transport: McpTransport::Stdio,
-                                tool_name: tool_def.name.clone(),
-                            },
-                            input_schema: tool_def.input_schema.clone(),
-                            output_schema: None,
-                            sandbox_profile: if requires_approval {
-                                SandboxProfile::Full
-                            } else {
-                                SandboxProfile::NetworkRestricted
-                            },
-                            tags: tool_tags,
-                            dangerous: requires_approval,
-                            is_read_only: false,
-                            risk_score: 3,
-                            approval_risk_level: None,
-                            impact_description: None,
-                            reject_reason_required: false,
-                        };
-
-                        match tool_registry.register(descriptor).await {
-                            Ok(()) => {
-                                tracing::info!(
-                                    server = %server_name,
-                                    tool = %tool_def.name,
-                                    "MCP tool registered"
-                                );
-                            }
-                            Err(e) => {
-                                tracing::warn!(
-                                    server = %server_name,
-                                    tool = %tool_def.name,
-                                    error = %e,
-                                    "failed to register MCP tool"
-                                );
-                            }
-                        }
-                    }
+                    register_session_tools_in_registry(
+                        tool_registry,
+                        &server_name,
+                        requires_approval,
+                        &tags,
+                        &session,
+                    )
+                    .await;
 
                     sessions.insert(server_name, session);
                 }
-                Err(e) => {
-                    // OAuth-not-yet-configured is expected user state, not a runtime
-                    // failure — emit as warning so log scans for ERROR stay clean.
-                    let message = e.to_string();
-                    if message.contains("MCP OAuth token not yet stored") {
-                        tracing::warn!(
-                            server = %server_name,
-                            error = %e,
-                            "MCP server skipped — OAuth not yet configured"
-                        );
-                    } else {
-                        tracing::error!(
-                            server = %server_name,
-                            error = %e,
-                            "MCP server failed to start, skipping"
-                        );
-                    }
-                }
+                Err(e) => log_session_start_error(&server_name, &e),
             }
         }
 
@@ -660,60 +601,16 @@ impl McpClientManager {
     /// Uses the `mcp:<server>/<tool>` naming convention. Failures are logged at
     /// `warn` level and do not abort the registration of remaining tools.
     async fn register_session_tools(&self, server_name: &str, session: &McpSession) {
-        let tags = {
-            let mut t = vec!["mcp".to_string(), server_name.to_string()];
-            t.extend(session.config().tags.clone());
-            t
-        };
+        let tags = session.config().tags.clone();
         let requires_approval = session.requires_approval();
-
-        for tool_def in session.tools() {
-            let descriptor = ToolDescriptor {
-                name: format!("mcp:{}/{}", server_name, tool_def.name),
-                version: "1.0.0".to_string(),
-                description: tool_def
-                    .description
-                    .clone()
-                    .unwrap_or_else(|| format!("MCP tool from {}", server_name)),
-                kind: ToolKind::McpServer {
-                    server_url: format!("stdio://{}", server_name),
-                    transport: McpTransport::Stdio,
-                    tool_name: tool_def.name.clone(),
-                },
-                input_schema: tool_def.input_schema.clone(),
-                output_schema: None,
-                sandbox_profile: if requires_approval {
-                    SandboxProfile::Full
-                } else {
-                    SandboxProfile::NetworkRestricted
-                },
-                tags: tags.clone(),
-                dangerous: requires_approval,
-                is_read_only: false,
-                risk_score: 3,
-                approval_risk_level: None,
-                impact_description: None,
-                reject_reason_required: false,
-            };
-
-            match self.tool_registry.register(descriptor).await {
-                Ok(()) => {
-                    tracing::info!(
-                        server = %server_name,
-                        tool = %tool_def.name,
-                        "MCP tool registered"
-                    );
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        server = %server_name,
-                        tool = %tool_def.name,
-                        error = %e,
-                        "failed to register MCP tool"
-                    );
-                }
-            }
-        }
+        register_session_tools_in_registry(
+            &self.tool_registry,
+            server_name,
+            requires_approval,
+            &tags,
+            session,
+        )
+        .await;
     }
 
     /// Spawn a new session for `config`, register its tools, and insert it into the map.
@@ -866,6 +763,101 @@ impl McpClientManager {
         Ok(result)
     }
 
+    /// Resolve a [`McpCommand::CallTool`] command.
+    ///
+    /// Returns `Some(result)` to be forwarded to the caller, or `None` when a
+    /// pending-approval reply has already been sent by this method.
+    async fn handle_call_tool(
+        &self,
+        server_name: String,
+        tool_name: String,
+        arguments: Option<serde_json::Value>,
+    ) -> Option<Result<ToolCallResult, McpSessionError>> {
+        if self.reloading.contains(&server_name) {
+            return Some(Err(McpSessionError::ServerReloading {
+                server: server_name,
+            }));
+        }
+
+        let session = match self.sessions.get(&server_name) {
+            Some(session) => session,
+            None => {
+                return Some(Err(McpSessionError::ServerExited {
+                    server: server_name,
+                }));
+            }
+        };
+
+        if let Some(pending) = self.register_pending_approval(&server_name, &tool_name, &arguments) {
+            return pending;
+        }
+
+        Some(session.call_tool(&tool_name, arguments).await)
+    }
+
+    /// If the session requires approval and the call is not yet approved, register
+    /// a pending approval and return the wrapped reply (`Some(Some(Err(..)))` =
+    /// reply with PendingApproval; `Some(None)` = reply already swallowed on
+    /// registration failure path). Returns `None` when no gating applies and the
+    /// call should proceed.
+    fn register_pending_approval(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: &Option<serde_json::Value>,
+    ) -> Option<Option<Result<ToolCallResult, McpSessionError>>> {
+        let session = self.sessions.get(server_name)?;
+        if !session.requires_approval() {
+            return None;
+        }
+        let store = self.approvals.as_ref()?;
+        if store.is_approved(server_name, tool_name) {
+            return None;
+        }
+
+        let args = arguments
+            .as_ref()
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        match store.register(server_name, tool_name, &args) {
+            Ok(approval_id) => Some(Some(Err(McpSessionError::PendingApproval {
+                server: server_name.to_string(),
+                tool: tool_name.to_string(),
+                approval_id,
+            }))),
+            Err(e) => {
+                tracing::error!(
+                    server = %server_name,
+                    tool   = %tool_name,
+                    error  = %e,
+                    "failed to register pending approval"
+                );
+                None
+            }
+        }
+    }
+
+    /// Resolve a [`McpCommand::RestartServer`] command.
+    async fn handle_restart_server(
+        &mut self,
+        server_name: String,
+    ) -> Result<McpServerStatus, McpSessionError> {
+        let old_session = match self.sessions.remove(&server_name) {
+            Some(session) => session,
+            None => {
+                return Err(McpSessionError::ServerExited {
+                    server: server_name,
+                });
+            }
+        };
+        let config = old_session.config().clone();
+        old_session.shutdown().await;
+        let new_session = McpSession::start(config, Some(&DefaultMcpSecretResolver)).await?;
+        let status = build_status(&server_name, &new_session);
+        self.sessions.insert(server_name, new_session);
+        Ok(status)
+    }
+
     /// Main actor loop: process commands until a [`McpCommand::Shutdown`] is received
     /// or all senders are dropped.
     async fn run(mut self) {
@@ -877,68 +869,19 @@ impl McpClientManager {
                     arguments,
                     reply,
                 } => {
-                    let result = if self.reloading.contains(&server_name) {
-                        Err(McpSessionError::ServerReloading {
-                            server: server_name,
-                        })
-                    } else {
-                        match self.sessions.get(&server_name) {
-                            None => Err(McpSessionError::ServerExited {
-                                server: server_name,
-                            }),
-                            Some(session) => {
-                                if session.requires_approval() {
-                                    if let Some(ref store) = self.approvals {
-                                        if !store.is_approved(&server_name, &tool_name) {
-                                            let args = arguments
-                                                .as_ref()
-                                                .cloned()
-                                                .unwrap_or(serde_json::Value::Null);
-                                            match store.register(&server_name, &tool_name, &args) {
-                                                Ok(approval_id) => {
-                                                    let _ = reply.send(Err(
-                                                        McpSessionError::PendingApproval {
-                                                            server: server_name,
-                                                            tool: tool_name,
-                                                            approval_id,
-                                                        },
-                                                    ));
-                                                    continue;
-                                                }
-                                                Err(e) => {
-                                                    tracing::error!(
-                                                        server = %server_name,
-                                                        tool   = %tool_name,
-                                                        error  = %e,
-                                                        "failed to register pending approval"
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                session.call_tool(&tool_name, arguments).await
-                            }
-                        }
-                    };
-                    let _ = reply.send(result);
+                    if let Some(result) =
+                        self.handle_call_tool(server_name, tool_name, arguments).await
+                    {
+                        let _ = reply.send(result);
+                    }
                 }
 
                 McpCommand::GetStatus { reply } => {
-                    let statuses = self
-                        .sessions
-                        .iter()
-                        .map(|(name, session)| build_status(name, session))
-                        .collect();
-                    let _ = reply.send(statuses);
+                    let _ = reply.send(self.collect_statuses());
                 }
 
                 McpCommand::GetDetail { server_name, reply } => {
-                    let detail = self
-                        .sessions
-                        .get(&server_name)
-                        .map(|session| build_detail(&server_name, session));
-                    let _ = reply.send(detail);
+                    let _ = reply.send(self.server_detail(&server_name));
                 }
 
                 McpCommand::AddServer { config, reply } => {
@@ -952,27 +895,8 @@ impl McpClientManager {
                 }
 
                 McpCommand::RestartServer { server_name, reply } => {
-                    match self.sessions.remove(&server_name) {
-                        None => {
-                            let _ = reply.send(Err(McpSessionError::ServerExited {
-                                server: server_name,
-                            }));
-                        }
-                        Some(old_session) => {
-                            let config = old_session.config().clone();
-                            old_session.shutdown().await;
-                            match McpSession::start(config, Some(&DefaultMcpSecretResolver)).await {
-                                Ok(new_session) => {
-                                    let status = build_status(&server_name, &new_session);
-                                    self.sessions.insert(server_name, new_session);
-                                    let _ = reply.send(Ok(status));
-                                }
-                                Err(e) => {
-                                    let _ = reply.send(Err(e));
-                                }
-                            }
-                        }
-                    }
+                    let result = self.handle_restart_server(server_name).await;
+                    let _ = reply.send(result);
                 }
 
                 McpCommand::TestConnection { config, reply } => {
@@ -981,12 +905,7 @@ impl McpClientManager {
                 }
 
                 McpCommand::ServerRequiresApproval { server_name, reply } => {
-                    let requires = self
-                        .sessions
-                        .get(&server_name)
-                        .map(|s| s.requires_approval())
-                        .unwrap_or(false);
-                    let _ = reply.send(requires);
+                    let _ = reply.send(self.server_requires_approval(&server_name));
                 }
 
                 McpCommand::SetApproval {
@@ -994,21 +913,7 @@ impl McpClientManager {
                     requires_approval,
                     reply,
                 } => {
-                    let result = match self.sessions.get_mut(&server_name) {
-                        Some(session) => {
-                            session.set_requires_approval(requires_approval);
-                            tracing::info!(
-                                server = %server_name,
-                                requires_approval = %requires_approval,
-                                "MCP server approval updated"
-                            );
-                            Ok(())
-                        }
-                        None => Err(McpSessionError::ServerExited {
-                            server: server_name,
-                        }),
-                    };
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_set_approval(server_name, requires_approval));
                 }
 
                 McpCommand::ReloadServer { server_name, reply } => {
@@ -1021,18 +926,7 @@ impl McpClientManager {
                     tool_name,
                     reply,
                 } => {
-                    let result = match &self.approvals {
-                        Some(store) => store.approve(&server_name, &tool_name),
-                        None => {
-                            tracing::warn!(
-                                server = %server_name,
-                                tool   = %tool_name,
-                                "approve_tool called but no approval store configured"
-                            );
-                            Ok(())
-                        }
-                    };
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_approve_tool_access(&server_name, &tool_name));
                 }
 
                 McpCommand::RevokeToolAccess {
@@ -1040,42 +934,205 @@ impl McpClientManager {
                     tool_name,
                     reply,
                 } => {
-                    let result = match &self.approvals {
-                        Some(store) => store.revoke(&server_name, &tool_name),
-                        None => {
-                            tracing::warn!(
-                                server = %server_name,
-                                tool   = %tool_name,
-                                "revoke_tool called but no approval store configured"
-                            );
-                            Ok(())
-                        }
-                    };
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_revoke_tool_access(&server_name, &tool_name));
                 }
 
                 McpCommand::ListPendingApprovals { reply } => {
-                    let result = match &self.approvals {
-                        Some(store) => store.list_pending(),
-                        None => Ok(Vec::new()),
-                    };
-                    let _ = reply.send(result);
+                    let _ = reply.send(self.handle_list_pending_approvals());
                 }
 
                 McpCommand::Shutdown => {
-                    tracing::info!("McpClientManager shutting down");
-                    for (name, session) in self.sessions.drain() {
-                        tracing::info!(server = %name, "Shutting down MCP session");
-                        session.shutdown().await;
-                    }
+                    self.shutdown_all().await;
                     break;
                 }
             }
         }
     }
+
+    /// Collect an enriched status snapshot for every live session.
+    fn collect_statuses(&self) -> Vec<McpServerStatus> {
+        self.sessions
+            .iter()
+            .map(|(name, session)| build_status(name, session))
+            .collect()
+    }
+
+    /// Build the detail view for a single server, if it exists.
+    fn server_detail(&self, server_name: &str) -> Option<McpServerDetail> {
+        self.sessions
+            .get(server_name)
+            .map(|session| build_detail(server_name, session))
+    }
+
+    /// Whether the named server requires per-tool approval (false if unknown).
+    fn server_requires_approval(&self, server_name: &str) -> bool {
+        self.sessions
+            .get(server_name)
+            .map(|s| s.requires_approval())
+            .unwrap_or(false)
+    }
+
+    /// Toggle the per-tool approval requirement for a live session.
+    fn handle_set_approval(
+        &mut self,
+        server_name: String,
+        requires_approval: bool,
+    ) -> Result<(), McpSessionError> {
+        match self.sessions.get_mut(&server_name) {
+            Some(session) => {
+                session.set_requires_approval(requires_approval);
+                tracing::info!(
+                    server = %server_name,
+                    requires_approval = %requires_approval,
+                    "MCP server approval updated"
+                );
+                Ok(())
+            }
+            None => Err(McpSessionError::ServerExited {
+                server: server_name,
+            }),
+        }
+    }
+
+    /// Approve tool access via the configured approval store (no-op if none).
+    fn handle_approve_tool_access(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+    ) -> Result<(), McpApprovalError> {
+        match &self.approvals {
+            Some(store) => store.approve(server_name, tool_name),
+            None => {
+                tracing::warn!(
+                    server = %server_name,
+                    tool   = %tool_name,
+                    "approve_tool called but no approval store configured"
+                );
+                Ok(())
+            }
+        }
+    }
+
+    /// Revoke tool access via the configured approval store (no-op if none).
+    fn handle_revoke_tool_access(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+    ) -> Result<(), McpApprovalError> {
+        match &self.approvals {
+            Some(store) => store.revoke(server_name, tool_name),
+            None => {
+                tracing::warn!(
+                    server = %server_name,
+                    tool   = %tool_name,
+                    "revoke_tool called but no approval store configured"
+                );
+                Ok(())
+            }
+        }
+    }
+
+    /// List pending tool approvals from the store (empty if none configured).
+    fn handle_list_pending_approvals(&self) -> Result<Vec<PendingApprovalEntry>, McpApprovalError> {
+        match &self.approvals {
+            Some(store) => store.list_pending(),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// Shut down every live session and clear the session map.
+    async fn shutdown_all(&mut self) {
+        tracing::info!("McpClientManager shutting down");
+        for (name, session) in self.sessions.drain() {
+            tracing::info!(server = %name, "Shutting down MCP session");
+            session.shutdown().await;
+        }
+    }
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+/// Register every tool exposed by a freshly started session in the tool registry
+/// under the `mcp:<server>/<tool>` naming convention.
+async fn register_session_tools_in_registry(
+    tool_registry: &ToolRegistryHandle,
+    server_name: &str,
+    requires_approval: bool,
+    tags: &[String],
+    session: &McpSession,
+) {
+    for tool_def in session.tools() {
+        let mut tool_tags = vec!["mcp".to_string(), server_name.to_string()];
+        tool_tags.extend(tags.iter().cloned());
+
+        let descriptor = ToolDescriptor {
+            name: format!("mcp:{}/{}", server_name, tool_def.name),
+            version: "1.0.0".to_string(),
+            description: tool_def
+                .description
+                .clone()
+                .unwrap_or_else(|| format!("MCP tool from {}", server_name)),
+            kind: ToolKind::McpServer {
+                server_url: format!("stdio://{}", server_name),
+                transport: McpTransport::Stdio,
+                tool_name: tool_def.name.clone(),
+            },
+            input_schema: tool_def.input_schema.clone(),
+            output_schema: None,
+            sandbox_profile: if requires_approval {
+                SandboxProfile::Full
+            } else {
+                SandboxProfile::NetworkRestricted
+            },
+            tags: tool_tags,
+            dangerous: requires_approval,
+            is_read_only: false,
+            risk_score: 3,
+            approval_risk_level: None,
+            impact_description: None,
+            reject_reason_required: false,
+        };
+
+        match tool_registry.register(descriptor).await {
+            Ok(()) => {
+                tracing::info!(
+                    server = %server_name,
+                    tool = %tool_def.name,
+                    "MCP tool registered"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    server = %server_name,
+                    tool = %tool_def.name,
+                    error = %e,
+                    "failed to register MCP tool"
+                );
+            }
+        }
+    }
+}
+
+/// Log a session start failure, distinguishing the expected OAuth-not-yet-stored
+/// user state (warning) from genuine runtime failures (error).
+fn log_session_start_error(server_name: &str, e: &McpSessionError) {
+    // OAuth-not-yet-configured is expected user state, not a runtime
+    // failure, so emit as a warning to keep log scans for ERROR clean.
+    let message = e.to_string();
+    if message.contains("MCP OAuth token not yet stored") {
+        tracing::warn!(
+            server = %server_name,
+            error = %e,
+            "MCP server skipped — OAuth not yet configured"
+        );
+    } else {
+        tracing::error!(
+            server = %server_name,
+            error = %e,
+            "MCP server failed to start, skipping"
+        );
+    }
+}
 
 /// Build an enriched [`McpServerStatus`] snapshot from a live session.
 fn build_status(name: &str, session: &McpSession) -> McpServerStatus {
@@ -1345,7 +1402,7 @@ mod tests {
             requires_approval: false,
             tags: vec![],
         };
-        // THEN only keys are exposed — no values
+        // THEN only keys are exposed, no values
         assert_eq!(view.env_keys.len(), 2);
         assert!(view.env_keys.contains(&"NOTION_TOKEN".to_string()));
         assert!(view.env_keys.contains(&"API_KEY".to_string()));

@@ -1,6 +1,6 @@
 //! MCP protocol types for the Model Context Protocol.
 //!
-//! Pinned to revision **2025-11-25** (see `docs/internal/release/MCP-SPEC-PIN.md`).
+//! Pinned to revision **2025-11-25**.
 //! Implements the JSON-RPC payloads for the capabilities Apollia v0.1.0 cares
 //! about: tools (existing), resources, prompts, logging, plus the client-side
 //! capabilities (roots, sampling, elicitation) and the progress / cancellation
@@ -96,7 +96,7 @@ pub struct ServerCapabilities {
     /// Prompt-related capabilities; `None` if the server exposes no prompts.
     #[serde(default)]
     pub prompts: Option<PromptsCapability>,
-    /// Logging capability — when present, the client can call `logging/setLevel`.
+    /// Logging capability: when present, the client can call `logging/setLevel`.
     #[serde(default)]
     pub logging: Option<serde_json::Value>,
     /// Completions capability for argument autocompletion (post-v0.1.0).
@@ -210,7 +210,7 @@ pub enum ToolCallContent {
 ///
 /// Resources are addressable by URI (file://, https://, custom schemes). The
 /// agent ReAct loop reads them via the implicit `mcp_resources.read` tool;
-/// users can also pin them through the desktop @-mention picker (ADR-092).
+/// users can also pin them through the desktop @-mention picker.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct McpResource {
     /// Stable URI identifying the resource.
@@ -316,7 +316,7 @@ pub struct PromptsGetResult {
     /// Optional human-readable description of the assembled prompt.
     #[serde(default)]
     pub description: Option<String>,
-    /// Messages composing the prompt — fed to the conversation as a system prefix.
+    /// Messages composing the prompt, fed to the conversation as a system prefix.
     pub messages: Vec<PromptMessage>,
 }
 
@@ -333,8 +333,8 @@ pub struct PromptMessage {
 
 /// Parameters for `sampling/createMessage` (server → client request).
 ///
-/// Apollia routes this through `apollia_llm::LlmRouter` after HITL pre-approval
-/// (cf. ADR-093). Rate-limiting and budget enforcement live in the handler.
+/// Apollia routes this through `apollia_llm::LlmRouter` after HITL pre-approval.
+/// Rate-limiting and budget enforcement live in the handler.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SamplingCreateMessageParams {
     /// Conversation context the server wants the LLM to complete.
@@ -391,8 +391,8 @@ pub struct SamplingCreateMessageResult {
 /// Parameters for `elicitation/create` (server → client request).
 ///
 /// Apollia routes this through the existing `chat.user_input_required` inbox
-/// pipeline (cf. plan §3.6 / §8.4) — `AskUserForm` consumes the JSON Schema
-/// directly. No new UI component required.
+/// pipeline; `AskUserForm` consumes the JSON Schema directly. No new UI
+/// component required.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ElicitationCreateParams {
     /// Human-readable message shown to the user above the form.

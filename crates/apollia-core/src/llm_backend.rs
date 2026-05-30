@@ -271,14 +271,14 @@ impl LlmBackendRepository {
         let mut configs = Vec::new();
         for row in rows {
             let (name, provider_str, model, config_json_str, enabled, is_default) = row?;
-            configs.push(row_to_config(
+            configs.push(row_to_config(RawBackendRow {
                 name,
-                &provider_str,
+                provider_str,
                 model,
-                &config_json_str,
-                enabled != 0,
-                is_default != 0,
-            )?);
+                config_json_str,
+                enabled: enabled != 0,
+                is_default: is_default != 0,
+            })?);
         }
         Ok(configs)
     }
@@ -309,14 +309,14 @@ impl LlmBackendRepository {
             None => Ok(None),
             Some(row) => {
                 let (name, provider_str, model, config_json_str, enabled, is_default) = row?;
-                Ok(Some(row_to_config(
+                Ok(Some(row_to_config(RawBackendRow {
                     name,
-                    &provider_str,
+                    provider_str,
                     model,
-                    &config_json_str,
-                    enabled != 0,
-                    is_default != 0,
-                )?))
+                    config_json_str,
+                    enabled: enabled != 0,
+                    is_default: is_default != 0,
+                })?))
             }
         }
     }
@@ -348,14 +348,14 @@ impl LlmBackendRepository {
             None => Ok(None),
             Some(row) => {
                 let (name, provider_str, model, config_json_str, enabled, is_default) = row?;
-                Ok(Some(row_to_config(
+                Ok(Some(row_to_config(RawBackendRow {
                     name,
-                    &provider_str,
+                    provider_str,
                     model,
-                    &config_json_str,
-                    enabled != 0,
-                    is_default != 0,
-                )?))
+                    config_json_str,
+                    enabled: enabled != 0,
+                    is_default: is_default != 0,
+                })?))
             }
         }
     }
@@ -540,25 +540,29 @@ impl LlmBackendRepository {
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Construit un [`LlmBackendConfig`] depuis les valeurs brutes d'une ligne SQLite.
-fn row_to_config(
+/// Valeurs brutes d'une ligne `llm_backends` — regroupées pour garder la
+/// signature de [`row_to_config`] lisible.
+struct RawBackendRow {
     name: String,
-    provider_str: &str,
+    provider_str: String,
     model: String,
-    config_json_str: &str,
+    config_json_str: String,
     enabled: bool,
     is_default: bool,
-) -> Result<LlmBackendConfig, LlmBackendError> {
-    let provider = LlmProvider::try_from(provider_str)?;
-    let config_json: serde_json::Value = serde_json::from_str(config_json_str)
+}
+
+/// Construit un [`LlmBackendConfig`] depuis les valeurs brutes d'une ligne SQLite.
+fn row_to_config(row: RawBackendRow) -> Result<LlmBackendConfig, LlmBackendError> {
+    let provider = LlmProvider::try_from(row.provider_str.as_str())?;
+    let config_json: serde_json::Value = serde_json::from_str(&row.config_json_str)
         .map_err(|e| LlmBackendError::Serialization(e.to_string()))?;
     Ok(LlmBackendConfig {
-        name,
+        name: row.name,
         provider,
-        model,
+        model: row.model,
         config_json,
-        enabled,
-        is_default,
+        enabled: row.enabled,
+        is_default: row.is_default,
     })
 }
 

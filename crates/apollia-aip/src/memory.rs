@@ -1,10 +1,10 @@
-//! MemoryInterface — Python-facing proxy for agent memory operations.
+//! MemoryInterface: Python-facing proxy for agent memory operations.
 //!
 //! Exposes a `#[pyclass]` that agents use via `ctx.memory.record()`,
 //! `ctx.memory.remember()`, `ctx.memory.recall()`, `ctx.memory.search()`,
 //! and `ctx.memory.forget()`.
 //!
-//! Respects Principle #6: memory at agent's initiative — no automatic injection.
+//! Memory is recalled at the agent's initiative: there is no automatic injection.
 
 use std::sync::{Arc, Mutex};
 
@@ -18,8 +18,8 @@ use apollia_memory::export::{export_namespace, import_namespace, ImportMode, Mem
 use apollia_memory::injection_tracker::{global_record, preview, InjectedEntry};
 use apollia_memory::manager::{MemoryAccess, MemoryManager};
 use apollia_memory::procedural::ProceduralMemory;
-use apollia_memory::search::{MemorySearch, SearchSource};
-use apollia_memory::semantic::SemanticMemory;
+use apollia_memory::search::{MemorySearch, SearchQuery, SearchSource};
+use apollia_memory::semantic::{RememberInput, SemanticMemory};
 
 /// Errors from memory operations via the Python proxy.
 #[derive(Debug, thiserror::Error)]
@@ -45,29 +45,29 @@ pub enum MemoryInterfaceError {
 ///
 /// Reads and writes are scoped to the agent's own namespace.  Access to the
 /// global user profile (`__user__`) is handled separately via
-/// `ctx.profile` ([`crate::profile::ProfileInterface`], ADR-087).
+/// `ctx.profile` ([`crate::profile::ProfileInterface`]).
 #[pyclass]
 pub struct MemoryInterface {
     manager: Arc<Mutex<MemoryManager>>,
     namespace: String,
     agent_id: String,
-    /// Current turn id — set by the runtime before each agent turn so that
+    /// Current turn id, set by the runtime before each agent turn so that
     /// `recall_entry()` / `recall_all()` can record their results into the
     /// global injection tracker.
     ///
-    /// `None` outside of a turn (e.g. during bootstrap) — injections are then
+    /// `None` outside of a turn (e.g. during bootstrap); injections are then
     /// not tracked.
     current_turn_id: Arc<Mutex<Option<String>>>,
 }
 
 #[pymethods]
 impl MemoryInterface {
-    /// Enregistre un souvenir dans la mémoire épisodique.
+    /// Records a memory in episodic memory.
     ///
-    /// importance: score entre 0.0 et 1.0 (défaut 0.5)
-    /// task_id: identifiant de la tâche courante (optionnel)
-    /// metadata: dict Python de métadonnées arbitraires (optionnel)
-    /// expires_in: durée de vie en secondes — `None` = pas d'expiration
+    /// importance: score between 0.0 and 1.0 (default 0.5)
+    /// task_id: id of the current task (optional)
+    /// metadata: Python dict of arbitrary metadata (optional)
+    /// expires_in: lifetime in seconds; `None` = no expiration
     #[pyo3(signature = (content, importance=None, task_id=None, metadata=None, expires_in=None))]
     fn record<'py>(
         &self,
@@ -128,10 +128,12 @@ impl MemoryInterface {
                 remember_inner(
                     &manager,
                     &namespace,
-                    &key,
-                    &value,
-                    source.as_deref(),
-                    confidence,
+                    RememberArgs {
+                        key: &key,
+                        value: &value,
+                        source: source.as_deref(),
+                        confidence,
+                    },
                 )
             })
             .await
@@ -145,8 +147,8 @@ impl MemoryInterface {
     /// Retrieves a value by key from the agent's semantic memory namespace.
     ///
     /// Returns the value (str) or `None` if the key does not exist.  Reads
-    /// are isolated to the agent's own namespace — the global user profile
-    /// is exposed separately via `ctx.profile` (ADR-087).
+    /// are isolated to the agent's own namespace; the global user profile
+    /// is exposed separately via `ctx.profile`.
     fn recall<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
@@ -316,10 +318,10 @@ impl MemoryInterface {
         })
     }
 
-    /// Rappelle les procédures mémorisées correspondant au déclencheur (trigger exact).
+    /// Recalls learned procedures matching the trigger (exact match).
     ///
-    /// Retourne une liste de dicts Python `[{id, trigger, steps, success_count, …}]`.
-    /// Liste vide si aucune procédure n'existe pour ce trigger.
+    /// Returns a list of Python dicts `[{id, trigger, steps, success_count, ...}]`.
+    /// Empty list if no procedure exists for this trigger.
     fn recall_procedure<'py>(
         &self,
         py: Python<'py>,
@@ -353,12 +355,12 @@ impl MemoryInterface {
         })
     }
 
-    /// Enregistre une procédure dans la mémoire procédurale du namespace.
+    /// Records a procedure in the namespace's procedural memory.
     ///
-    /// trigger: déclencheur exact (match exact pour le rappel)
-    /// steps: liste d'étapes ordonnées
-    /// Retourne l'UUID de la procédure enregistrée.
-    /// Lève `ValueError` si `steps` est vide.
+    /// trigger: exact trigger (exact match for recall)
+    /// steps: ordered list of steps
+    /// Returns the UUID of the recorded procedure.
+    /// Raises `ValueError` if `steps` is empty.
     fn learn_procedure<'py>(
         &self,
         py: Python<'py>,
@@ -406,13 +408,13 @@ impl MemoryInterface {
         })
     }
 
-    /// Exporte l'intégralité de la mémoire de l'agent (épisodique + sémantique
-    /// + procédurale) sous forme de dict JSON-sérialisable.
+    /// Exports the agent's entire memory (episodic + semantic + procedural)
+    /// as a JSON-serializable dict.
     ///
-    /// L'export ne couvre **que** le namespace privé de l'agent appelant —
-    /// les namespaces partagés (read-only) ne sont pas inclus. La structure
-    /// retournée correspond à [`apollia_memory::export::MemoryExport`] avec
-    /// `schema_version = 1` (alias `format_version` pour compat) :
+    /// The export covers **only** the calling agent's private namespace;
+    /// shared (read-only) namespaces are not included. The returned structure
+    /// matches [`apollia_memory::export::MemoryExport`] with
+    /// `schema_version = 1` (alias `format_version` for compatibility):
     ///
     /// ```python
     /// dump = await ctx.memory.export()
@@ -439,15 +441,15 @@ impl MemoryInterface {
         })
     }
 
-    /// Importe un dump produit par [`MemoryInterface::export`] dans le
-    /// namespace privé de l'agent.
+    /// Imports a dump produced by [`MemoryInterface::export`] into the
+    /// agent's private namespace.
     ///
-    /// `data` doit être un dict respectant le schéma `format_version = 1`
-    /// (ou son alias `schema_version`). Par défaut, le mode est `merge` :
-    /// les entrées dont l'`id` existe déjà sont ignorées (`INSERT OR IGNORE`).
-    /// Passe `replace=True` pour vider le namespace avant l'import.
+    /// `data` must be a dict following the `format_version = 1` schema (or its
+    /// `schema_version` alias). The default mode is `merge`: entries whose
+    /// `id` already exists are ignored (`INSERT OR IGNORE`). Pass
+    /// `replace=True` to clear the namespace before importing.
     ///
-    /// Retourne le nombre d'entrées effectivement importées.
+    /// Returns the number of entries actually imported.
     #[pyo3(signature = (data, replace = false))]
     fn import_data<'py>(
         &self,
@@ -482,7 +484,7 @@ impl MemoryInterface {
 impl MemoryInterface {
     /// Creates a new MemoryInterface for a given agent.
     ///
-    /// Returns `None` if `namespace` is empty.  Global user profile access
+    /// Returns `None` if `namespace` is empty. Global user profile access
     /// is configured separately via [`crate::profile::ProfileInterface`].
     pub fn new(manager: MemoryManager, namespace: String, agent_id: String) -> Option<Self> {
         if namespace.is_empty() {
@@ -496,13 +498,13 @@ impl MemoryInterface {
         })
     }
 
-    /// Annonce sur l'EventBus chaque shared namespace auquel l'agent a accès.
+    /// Announces on the EventBus each shared namespace the agent can access.
     ///
-    /// Émet un [`RuntimeEvent::SharedNamespaceAdded`] par namespace partagé
-    /// configuré dans le `MemoryManager` sous-jacent. Appelé par le runtime
-    /// juste après la construction de l'interface, lorsque la liste des
-    /// namespaces autorisés est figée. Les erreurs `broadcast` sont ignorées
-    /// (fire-and-forget — pas de receiver = pas d'effet).
+    /// Emits one [`RuntimeEvent::SharedNamespaceAdded`] per shared namespace
+    /// configured in the underlying `MemoryManager`. Called by the runtime
+    /// right after the interface is built, once the list of allowed
+    /// namespaces is fixed. `broadcast` errors are ignored (fire-and-forget:
+    /// no receiver means no effect).
     pub fn announce_shared_namespaces(&self, bus: &EventBusSender) {
         let Ok(guard) = self.manager.lock() else {
             return;
@@ -541,7 +543,7 @@ impl MemoryInterface {
 /// semantic/episodic JSON value and records them into the global injection
 /// tracker.
 ///
-/// Errors are swallowed (fire-and-forget) — injection tracking must never
+/// Errors are swallowed (fire-and-forget): injection tracking must never
 /// break an agent's recall path.
 fn record_injected_entry(
     turn_id: &str,
@@ -595,7 +597,7 @@ fn record_injected_entry(
 }
 
 // ---------------------------------------------------------------------------
-// Pure Rust internals — testable without PyO3
+// Pure Rust internals, testable without PyO3
 // ---------------------------------------------------------------------------
 
 /// Records an episodic event in the agent's namespace.
@@ -632,19 +634,31 @@ fn record_inner(
     .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
 }
 
+/// Key/value payload for [`remember_inner`], grouped to avoid too many
+/// function arguments.
+struct RememberArgs<'a> {
+    key: &'a str,
+    value: &'a str,
+    source: Option<&'a str>,
+    confidence: Option<f64>,
+}
+
 /// Stores a key/value pair in semantic memory.
 ///
 /// When `confidence` is `Some`, an existing entry with strictly higher
-/// confidence is preserved — the write is silently skipped.
+/// confidence is preserved: the write is silently skipped.
 /// When `None`, defaults to 1.0 (backward-compatible unconditional upsert).
 fn remember_inner(
     manager: &Arc<Mutex<MemoryManager>>,
     namespace: &str,
-    key: &str,
-    value: &str,
-    source: Option<&str>,
-    confidence: Option<f64>,
+    args: RememberArgs<'_>,
 ) -> Result<String, MemoryInterfaceError> {
+    let RememberArgs {
+        key,
+        value,
+        source,
+        confidence,
+    } = args;
     let mut mgr = lock(manager)?;
     check_write_access(&mgr, namespace)?;
 
@@ -671,8 +685,15 @@ fn remember_inner(
     }
 
     let json_value = serde_json::Value::String(value.to_string());
-    sem.remember(namespace, key, &json_value, conf, source, None)
-        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
+    sem.remember(RememberInput {
+        namespace,
+        key,
+        value: &json_value,
+        confidence: conf,
+        source,
+        expires_at: None,
+    })
+    .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
 }
 
 /// Retrieves a value by key from the agent's semantic memory namespace.
@@ -710,7 +731,13 @@ fn search_inner(
 
     let search = MemorySearch::new(store);
     let results = search
-        .query(namespace, query, limit as u32, None, None)
+        .query(SearchQuery {
+            namespace,
+            query,
+            limit: limit as u32,
+            sources: None,
+            min_importance: None,
+        })
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
 
     Ok(results
@@ -821,9 +848,9 @@ fn check_write_access(mgr: &MemoryManager, namespace: &str) -> Result<(), Memory
     }
 }
 
-/// Rappelle les procédures mémorisées correspondant au trigger exact.
+/// Recalls learned procedures matching the exact trigger.
 ///
-/// Retourne une liste (0 ou 1 entrée) — correspond à la sémantique Python `List[dict]`.
+/// Returns a list (0 or 1 entry), matching the Python `List[dict]` semantics.
 fn recall_procedure_inner(
     manager: &Arc<Mutex<MemoryManager>>,
     namespace: &str,
@@ -842,7 +869,7 @@ fn recall_procedure_inner(
     Ok(entry.into_iter().map(procedure_entry_to_json).collect())
 }
 
-/// Enregistre ou met à jour une procédure dans la mémoire procédurale.
+/// Records or updates a procedure in procedural memory.
 fn learn_procedure_inner(
     manager: &Arc<Mutex<MemoryManager>>,
     namespace: &str,
@@ -888,7 +915,7 @@ fn export_inner(
         return Err(MemoryInterfaceError::NoNamespace);
     }
     let base_dir = mgr.base_dir().to_path_buf();
-    // Drop the lock before touching disk — export_namespace opens its own
+    // Drop the lock before touching disk: export_namespace opens its own
     // store handle (read-only flow) and could deadlock if we held the manager.
     drop(mgr);
 
@@ -898,7 +925,7 @@ fn export_inner(
     let mut value = serde_json::to_value(&export)
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
     if let Some(obj) = value.as_object_mut() {
-        // Surface a canonical `schema_version` alias — the SDK Protocol uses
+        // Surface a canonical `schema_version` alias: the SDK Protocol uses
         // this name in its docstrings.
         obj.insert(
             "schema_version".to_string(),
@@ -928,7 +955,7 @@ fn import_inner(
                 obj.insert("format_version".to_string(), v);
             }
         }
-        // Default to current namespace if the payload doesn't carry one — an
+        // Default to current namespace if the payload doesn't carry one: an
         // agent re-importing its own dump shouldn't need to remember.
         obj.entry("namespace".to_string())
             .or_insert_with(|| serde_json::Value::String(namespace.to_string()));
@@ -962,7 +989,7 @@ fn json_value_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObj
 }
 
 /// Converts an arbitrary Python object to a `serde_json::Value` by round-tripping
-/// through `json.dumps` — accepts dicts, lists, primitives transparently.
+/// through `json.dumps`; accepts dicts, lists, primitives transparently.
 fn pyany_to_json(py: Python<'_>, obj: &PyObject) -> PyResult<serde_json::Value> {
     let json_mod = py
         .import("json")
@@ -1119,10 +1146,12 @@ mod tests {
         let id = remember_inner(
             &iface.manager,
             &iface.namespace,
-            "client.dupont.email",
-            "marie@dupont.fr",
-            None,
-            None,
+            RememberArgs {
+                key: "client.dupont.email",
+                value: "marie@dupont.fr",
+                source: None,
+                confidence: None,
+            },
         );
 
         // THEN the value is stored
@@ -1137,10 +1166,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "client.dupont.email",
-            "marie@dupont.fr",
-            None,
-            None,
+            RememberArgs {
+                key: "client.dupont.email",
+                value: "marie@dupont.fr",
+                source: None,
+                confidence: None,
+            },
         )
         .expect("remember");
 
@@ -1183,10 +1214,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "client.dupont.budget",
-            "15000",
-            Some("crm"),
-            None,
+            RememberArgs {
+                key: "client.dupont.budget",
+                value: "15000",
+                source: Some("crm"),
+                confidence: None,
+            },
         )
         .expect("remember");
 
@@ -1212,10 +1245,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "client.dupont.email",
-            "marie@dupont.fr",
-            None,
-            None,
+            RememberArgs {
+                key: "client.dupont.email",
+                value: "marie@dupont.fr",
+                source: None,
+                confidence: None,
+            },
         )
         .expect("remember");
 
@@ -1268,7 +1303,16 @@ mod tests {
 
         // WHEN we try to write (remember)
         let remember_result =
-            remember_inner(&iface.manager, &iface.namespace, "key", "value", None, None);
+            remember_inner(
+                &iface.manager,
+                &iface.namespace,
+                RememberArgs {
+                    key: "key",
+                    value: "value",
+                    source: None,
+                    confidence: None,
+                },
+            );
         assert!(matches!(
             remember_result,
             Err(MemoryInterfaceError::ReadOnly(_))
@@ -1281,11 +1325,11 @@ mod tests {
             Err(MemoryInterfaceError::ReadOnly(_))
         ));
 
-        // WHEN we try to read (recall) — should work
+        // WHEN we try to read (recall): should work
         let recall_result = recall_inner(&iface.manager, &iface.namespace, "nonexistent");
         assert!(recall_result.is_ok());
 
-        // WHEN we try to search — should work (empty results is ok)
+        // WHEN we try to search: should work (empty results is ok)
         let search_result = search_inner(&iface.manager, &iface.namespace, "test", 5);
         assert!(search_result.is_ok());
     }
@@ -1300,10 +1344,12 @@ mod tests {
         let id = remember_inner(
             &iface.manager,
             &iface.namespace,
-            "user.name",
-            "Nidal",
-            Some("onboarding"),
-            Some(0.9),
+            RememberArgs {
+                key: "user.name",
+                value: "Nidal",
+                source: Some("onboarding"),
+                confidence: Some(0.9),
+            },
         );
 
         // THEN the entry is stored with the given confidence
@@ -1320,10 +1366,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "user.name",
-            "Nidal",
-            Some("onboarding"),
-            Some(0.9),
+            RememberArgs {
+                key: "user.name",
+                value: "Nidal",
+                source: Some("onboarding"),
+                confidence: Some(0.9),
+            },
         )
         .expect("remember");
 
@@ -1331,10 +1379,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "user.name",
-            "Unknown",
-            Some("onboarding"),
-            Some(0.5),
+            RememberArgs {
+                key: "user.name",
+                value: "Unknown",
+                source: Some("onboarding"),
+                confidence: Some(0.5),
+            },
         )
         .expect("remember");
 
@@ -1351,10 +1401,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "user.role",
-            "developer",
-            Some("onboarding"),
-            Some(0.5),
+            RememberArgs {
+                key: "user.role",
+                value: "developer",
+                source: Some("onboarding"),
+                confidence: Some(0.5),
+            },
         )
         .expect("remember");
 
@@ -1362,10 +1414,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "user.role",
-            "CTO",
-            Some("onboarding"),
-            Some(0.5),
+            RememberArgs {
+                key: "user.role",
+                value: "CTO",
+                source: Some("onboarding"),
+                confidence: Some(0.5),
+            },
         )
         .expect("remember");
 
@@ -1404,10 +1458,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "bootstrap.meta",
-            "data",
-            Some("agent"),
-            Some(0.95),
+            RememberArgs {
+                key: "bootstrap.meta",
+                value: "data",
+                source: Some("agent"),
+                confidence: Some(0.95),
+            },
         )
         .expect("remember");
 
@@ -1444,10 +1500,12 @@ mod tests {
             remember_inner(
                 &iface.manager,
                 &iface.namespace,
-                &format!("key.{i}"),
-                &format!("val{i}"),
-                None,
-                None,
+                RememberArgs {
+                    key: &format!("key.{i}"),
+                    value: &format!("val{i}"),
+                    source: None,
+                    confidence: None,
+                },
             )
             .expect("remember");
         }
@@ -1468,10 +1526,12 @@ mod tests {
             remember_inner(
                 &iface.manager,
                 &iface.namespace,
-                &format!("key.{i}"),
-                &format!("val{i}"),
-                None,
-                None,
+                RememberArgs {
+                    key: &format!("key.{i}"),
+                    value: &format!("val{i}"),
+                    source: None,
+                    confidence: None,
+                },
             )
             .expect("remember");
         }
@@ -1483,7 +1543,7 @@ mod tests {
         assert_eq!(result.expect("recall_all").len(), 5);
     }
 
-    // FC03 — recall_procedure with existing trigger returns list with one entry
+    // recall_procedure with existing trigger returns list with one entry
     #[test]
     fn test_recall_procedure_existing_trigger() {
         // GIVEN a namespace with a learned procedure
@@ -1511,7 +1571,7 @@ mod tests {
         assert_eq!(items[0]["steps"][0], "step1");
     }
 
-    // FC03 — recall_procedure with unknown trigger returns empty list
+    // recall_procedure with unknown trigger returns empty list
     #[test]
     fn test_recall_procedure_unknown_trigger_returns_empty() {
         // GIVEN a namespace with no procedures
@@ -1524,7 +1584,7 @@ mod tests {
         assert!(results.expect("recall_procedure").is_empty());
     }
 
-    // FC04 — record with metadata persists metadata in the entry
+    // record with metadata persists metadata in the entry
     #[test]
     fn test_record_with_metadata() {
         // GIVEN a MemoryInterface
@@ -1547,7 +1607,7 @@ mod tests {
         assert!(id.is_ok(), "record with metadata should succeed");
     }
 
-    // FC04 — record without metadata is backward compatible
+    // record without metadata is backward compatible
     #[test]
     fn test_record_without_metadata_backward_compat() {
         // GIVEN a MemoryInterface
@@ -1569,7 +1629,7 @@ mod tests {
         assert!(id.is_ok());
     }
 
-    // FC04 — record with expires_in stores an expiration timestamp
+    // record with expires_in stores an expiration timestamp
     #[test]
     fn test_record_with_expires_in() {
         // GIVEN a MemoryInterface
@@ -1599,10 +1659,12 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "user.name",
-            "Nidal",
-            Some("onboarding"),
-            Some(0.9),
+            RememberArgs {
+                key: "user.name",
+                value: "Nidal",
+                source: Some("onboarding"),
+                confidence: Some(0.9),
+            },
         )
         .expect("remember");
         record_inner(
@@ -1637,10 +1699,12 @@ mod tests {
         remember_inner(
             &src.manager,
             &src.namespace,
-            "k.budget",
-            "15000",
-            Some("crm"),
-            Some(0.8),
+            RememberArgs {
+                key: "k.budget",
+                value: "15000",
+                source: Some("crm"),
+                confidence: Some(0.8),
+            },
         )
         .expect("remember src");
         record_inner(
@@ -1682,14 +1746,16 @@ mod tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "user.role",
-            "operator",
-            Some("local"),
-            Some(0.9),
+            RememberArgs {
+                key: "user.role",
+                value: "operator",
+                source: Some("local"),
+                confidence: Some(0.9),
+            },
         )
         .expect("seed");
 
-        // Craft a minimal dump that would overwrite (same key) — INSERT OR
+        // Craft a minimal dump that would overwrite (same key). INSERT OR
         // IGNORE on `id` means the same primary key collides only when the
         // entry id is identical, so we forge a fresh id but same key.
         let dump = serde_json::json!({
@@ -1709,7 +1775,7 @@ mod tests {
             "procedural": [],
         });
 
-        // WHEN we merge — semantic_memories has UNIQUE(namespace, key), so the
+        // WHEN we merge: semantic_memories has UNIQUE(namespace, key), so the
         // imported row is silently ignored and the original survives.
         let imported = import_inner(&iface.manager, &iface.namespace, dump, ImportMode::Merge)
             .expect("import");
@@ -1772,7 +1838,17 @@ mod trust_model_tests {
 
     /// Stores a key directly in the given manager/namespace using recall_inner helpers.
     fn seed_memory(mgr_arc: &Arc<Mutex<MemoryManager>>, namespace: &str, key: &str, value: &str) {
-        remember_inner(mgr_arc, namespace, key, value, None, None).expect("seed memory");
+        remember_inner(
+            mgr_arc,
+            namespace,
+            RememberArgs {
+                key,
+                value,
+                source: None,
+                confidence: None,
+            },
+        )
+        .expect("seed memory");
     }
 
     // Agent invoked via A2A writes only into its own namespace
@@ -1791,10 +1867,12 @@ mod trust_model_tests {
         remember_inner(
             &iface.manager,
             &iface.namespace,
-            "last_file",
-            "ventes.xlsx",
-            None,
-            None,
+            RememberArgs {
+                key: "last_file",
+                value: "ventes.xlsx",
+                source: None,
+                confidence: None,
+            },
         )
         .expect("remember");
 
@@ -1811,7 +1889,7 @@ mod trust_model_tests {
         assert_eq!(in_director.expect("recall director"), None);
     }
 
-    // FC23 — learn_procedure_inner stores a procedure retrievable by recall_procedure_inner
+    // learn_procedure_inner stores a procedure retrievable by recall_procedure_inner
     #[test]
     fn test_learn_procedure_round_trip() {
         // GIVEN a MemoryInterface
@@ -1839,7 +1917,7 @@ mod trust_model_tests {
         assert_eq!(items[0]["steps"][0], "Ouvrir le PDF");
     }
 
-    // FC23 — learn_procedure_inner with empty steps returns error
+    // learn_procedure_inner with empty steps returns error
     #[test]
     fn test_learn_procedure_empty_steps_error() {
         // GIVEN a MemoryInterface

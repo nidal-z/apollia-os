@@ -1,21 +1,21 @@
-//! Commande IPC Tauri pour le choix de plan binaire (binary feedback).
+//! Tauri IPC command for the binary plan choice (binary feedback).
 //!
-//! `choose_plan` reçoit le choix de l'opérateur depuis `PlanAlternativesView.svelte`,
-//! émet `RuntimeEvent::PlanChosen` sur l'EventBus et retourne une confirmation.
+//! `choose_plan` receives the operator's choice from `PlanAlternativesView.svelte`,
+//! emits `RuntimeEvent::PlanChosen` on the EventBus and returns a confirmation.
 
 use apollia_core::plan_alternatives::{ChosenPlan, PlanChoice};
 use apollia_core::RuntimeEvent;
 use apollia_runtime::embedded::RuntimeHandle;
 use tauri::State;
 
-/// Enregistre le choix de plan de l'opérateur et émet l'événement sur l'EventBus.
+/// Records the operator's plan choice and emits the event on the EventBus.
 ///
-/// Reçoit le `session_id` et le plan choisi depuis le frontend, construit un
-/// [`PlanChoice`] avec le timestamp courant, puis diffuse
-/// `RuntimeEvent::PlanChosen` via l'EventBus.
+/// Receives the `session_id` and chosen plan from the frontend, builds a
+/// [`PlanChoice`] with the current timestamp, then broadcasts
+/// `RuntimeEvent::PlanChosen` over the EventBus.
 ///
-/// Retourne `Ok(())` si l'événement a été diffusé, `Err(String)` en cas de
-/// valeur `chosen` invalide.
+/// Returns `Ok(())` if the event was broadcast, `Err(String)` on an invalid
+/// `chosen` value.
 #[tauri::command]
 pub async fn choose_plan(
     state: State<'_, RuntimeHandle>,

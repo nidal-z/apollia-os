@@ -1,4 +1,4 @@
-//! `apollia-os update` — checks and installs Apollia OS updates from GitHub Releases.
+//! `apollia-os update`: checks and installs Apollia OS updates from GitHub Releases.
 //!
 //! Downloads the platform binary, verifies SHA256 integrity, and performs an
 //! atomic replacement via `fs::rename`. A lock file prevents concurrent updates.
@@ -137,13 +137,13 @@ pub async fn check_update(owner: &str) -> Result<Option<String>, UpdateError> {
 /// 2. Fetches release metadata from GitHub API.
 /// 3. Optionally prompts the user unless `yes` is `true`.
 /// 4. Downloads the platform binary and its `.sha256` companion.
-/// 5. Verifies SHA256 — aborts without touching the live binary on mismatch.
+/// 5. Verifies SHA256, aborting without touching the live binary on mismatch.
 /// 6. Writes `/tmp/apollia-new`, sets `chmod 755` on Unix.
 /// 7. Replaces the running binary atomically via `fs::rename`; falls back to
 ///    `fs::copy` + delete when source and destination span different filesystems.
 /// 8. Lock file is removed unconditionally on exit via `scopeguard::defer!`.
 pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
-    // ── Lock file — prevent concurrent updates ─────────────────────────────
+    // ── Lock file: prevent concurrent updates ─────────────────────────────
     if std::path::Path::new(LOCK_FILE).exists() {
         return Err(UpdateError::AlreadyRunning);
     }
@@ -214,7 +214,7 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
         .text()
         .await?;
 
-    // ── Verify checksum — fail fast on mismatch ────────────────────────────
+    // ── Verify checksum: fail fast on mismatch ────────────────────────────
     let expected = sha_text
         .split_whitespace()
         .next()
@@ -236,7 +236,7 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
         std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o755))?;
     }
 
-    // ── Atomic replace — fallback to copy+delete on cross-device move ──────
+    // ── Atomic replace: fallback to copy+delete on cross-device move ──────
     let exe_path = std::env::current_exe().map_err(UpdateError::CurrentExe)?;
 
     match std::fs::rename(&tmp_path, &exe_path) {

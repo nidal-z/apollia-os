@@ -1,4 +1,4 @@
-//! `web_search` tool — privacy-preserving web search with pluggable backends.
+//! `web_search` tool: privacy-preserving web search with pluggable backends.
 //!
 //! # Architecture
 //!
@@ -7,10 +7,10 @@
 //! the user may pin a specific backend via the `backend` input field;
 //! otherwise the first available backend in the list is used. Backends are
 //! registered in priority order by [`crate::native_dispatcher::build_native_dispatcher`]
-//! — DuckDuckGo first as the zero-config, always-on fallback; Brave appended
+//! DuckDuckGo first as the zero-config, always-on fallback; Brave appended
 //! after it only when `BRAVE_SEARCH_API_KEY` is set to a non-empty value (and
 //! the `brave-search` feature is compiled in). This ordering guarantees that
-//! an invalid Brave key (HTTP 401) cannot silently break the chain — the
+//! an invalid Brave key (HTTP 401) cannot silently break the chain; the
 //! orchestrator transparently falls back to DuckDuckGo.
 //!
 //! # Security posture
@@ -39,7 +39,7 @@ use backend::SearchBackend;
 pub use backend::{SafeSearch, SearchBackendError, SearchQuery, SearchResult, TimeRange};
 
 /// Absolute minimum & maximum for `max_results`. Values outside are clamped
-/// silently — we don't reject on cosmetic bounds (Principe #4 applies to real
+/// silently; we don't reject on cosmetic bounds (fail fast applies to real
 /// failures, not to UX friction).
 const MIN_RESULTS: u32 = 1;
 const MAX_RESULTS: u32 = 20;
@@ -47,7 +47,7 @@ const MAX_RESULTS: u32 = 20;
 /// Default number of results when the caller omits `max_results`.
 const DEFAULT_RESULTS: u32 = 10;
 
-/// The `web_search` tool — holds a priority-ordered list of backends.
+/// The `web_search` tool: holds a priority-ordered list of backends.
 pub struct WebSearch {
     backends: Vec<Box<dyn SearchBackend>>,
     preferred: Option<String>,
@@ -150,7 +150,7 @@ pub struct WebSearchInput {
     /// Maximum number of results. Clamped to `[1, 20]`. Defaults to 10.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_results: Option<u32>,
-    /// Optional region hint. Free-form — forwarded verbatim to the backend.
+    /// Optional region hint. Free-form, forwarded verbatim to the backend.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
     /// Safe-search filter level. Defaults to `moderate`.
@@ -225,7 +225,7 @@ impl WebSearch {
         let backends = build_default_backends(brave_api_key.as_deref());
 
         // `build_default_backends` always pushes DuckDuckGo, so the list is
-        // never empty — `WebSearch::new` cannot return `NoBackends`.
+        // never empty: `WebSearch::new` cannot return `NoBackends`.
         Self::new(backends, None).expect("DuckDuckGo backend is always pushed")
     }
 
@@ -241,7 +241,7 @@ impl WebSearch {
     ///   DuckDuckGo unless `cfg.require_configured` is `true`.
     ///
     /// `cfg.brave.api_key_env_var` is consulted when *brave_api_key* is
-    /// `None` — the credential store always wins when it has a value.
+    /// `None`: the credential store always wins when it has a value.
     ///
     /// # Errors
     ///
@@ -320,7 +320,7 @@ impl WebSearch {
     /// that any required credentials are present. Used at runtime startup
     /// (`build_native_dispatcher`) to surface configuration mistakes early
     /// rather than letting them manifest as runtime errors deep inside an
-    /// agent's reasoning loop (Principe #4 — Fail fast).
+    /// agent's reasoning loop (fail fast).
     ///
     /// # Errors
     ///
@@ -778,7 +778,7 @@ mod tests {
         // GIVEN input requesting 100 results
         // WHEN clamped via run()
         // Here we test the clamp indirectly via a mock that returns what it's asked for.
-        // (Integration-level — exercised through ToolExecutor tests.)
+        // (Integration-level, exercised through ToolExecutor tests.)
     }
 
     #[cfg(feature = "brave-search")]
@@ -847,7 +847,7 @@ mod tests {
         // WHEN auto-mode dispatch
         let out = tool.run(basic_input("hello")).await.expect("ddg fallback");
 
-        // THEN DDG served the request — Brave never even reached.
+        // THEN DDG served the request; Brave never even reached.
         assert_eq!(out.backend, "duckduckgo");
         assert_eq!(out.total_results, 4);
     }

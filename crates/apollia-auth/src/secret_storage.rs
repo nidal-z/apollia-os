@@ -2,13 +2,12 @@
 //!
 //! v0.1.0 ships two implementations:
 //!
-//! - [`KeyringSecretStore`] — wraps the OS keyring (macOS Keychain, Windows
+//! - [`KeyringSecretStore`]: wraps the OS keyring (macOS Keychain, Windows
 //!   Credential Manager, Linux Secret Service). The default everywhere a
 //!   daemon is available.
-//! - [`AgeFileSecretStore`] — `age` symmetric (scrypt + ChaCha20-Poly1305)
+//! - [`AgeFileSecretStore`]: `age` symmetric (scrypt + ChaCha20-Poly1305)
 //!   file storage at `~/.apollia/secrets/<service>__<user>.age` for Linux
-//!   headless environments where the keyring crate cannot bind to a daemon
-//!   (per ADR-094 Option A).
+//!   headless environments where the keyring crate cannot bind to a daemon.
 //!
 //! Selection at runtime is driven by `APOLLIA_TOKEN_STORAGE`:
 //!
@@ -29,7 +28,7 @@ pub trait SecretStore: Send + Sync {
     fn set(&self, service: &str, user: &str, value: &str) -> Result<(), AuthError>;
     /// Load the secret value for (service, user). Returns `Ok(None)` when absent.
     fn get(&self, service: &str, user: &str) -> Result<Option<String>, AuthError>;
-    /// Delete the secret. Idempotent — succeeds even if the entry was absent.
+    /// Delete the secret. Idempotent: succeeds even if the entry was absent.
     fn delete(&self, service: &str, user: &str) -> Result<(), AuthError>;
     /// Short identifier for telemetry / debugging.
     fn backend_id(&self) -> &'static str;
@@ -50,7 +49,7 @@ impl SecretStore for KeyringSecretStore {
         // wrote them. When the Apollia CLI is rebuilt (every `cargo build`
         // for unsigned dev artefacts) its code signature changes, and
         // `SecItemUpdate` silently fails to overwrite entries owned by the
-        // previous signature — the entry stays put with the old payload while
+        // previous signature; the entry stays put with the old payload while
         // `set_password` returns `Ok(())`. Downstream readers (daemon /
         // chat runner) then see the stale value and OAuth flows appear to
         // succeed but never actually refresh the keychain.
@@ -99,7 +98,7 @@ impl SecretStore for KeyringSecretStore {
     }
 }
 
-// ─── Age file backend (Linux headless fallback per ADR-094) ─────────────────
+// ─── Age file backend (Linux headless fallback) ─────────────────
 
 /// `age`-symmetric file storage backend.
 ///
@@ -118,8 +117,8 @@ pub struct AgeFileSecretStore {
 impl AgeFileSecretStore {
     /// Build a new file backend rooted at `base`.
     ///
-    /// `passphrase` must be non-empty — boots fail fast otherwise per the
-    /// ADR-094 fail-fast principle (no silent unencrypted fallback).
+    /// `passphrase` must be non-empty; boots fail fast otherwise
+    /// (no silent unencrypted fallback).
     pub fn new(base: PathBuf, passphrase: String) -> Result<Self, AuthError> {
         if passphrase.is_empty() {
             return Err(AuthError::Keyring(
@@ -338,8 +337,8 @@ mod tests {
 
     #[test]
     fn test_select_default_unset_uses_keyring() {
-        // GIVEN APOLLIA_TOKEN_STORAGE unset (cannot reliably unset in tests
-        // — relax to "keyring" or unset depending on the runner). We probe
+        // GIVEN APOLLIA_TOKEN_STORAGE unset (cannot reliably unset in tests,
+        // so relax to "keyring" or unset depending on the runner). We probe
         // the explicit "keyring" branch.
         std::env::set_var("APOLLIA_TOKEN_STORAGE", "keyring");
         let store = select_default().expect("select");

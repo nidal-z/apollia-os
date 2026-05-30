@@ -10,87 +10,87 @@ use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
 use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
 
-/// Erreurs de soumission de tache.
+/// Task submission errors.
 #[derive(Debug, thiserror::Error)]
 pub enum SubmitError {
-    /// L'agent est encore en initialisation.
+    /// The agent is still initializing.
     #[error("agent '{0}' not ready (still initializing)")]
     AgentNotReady(AgentId),
 
-    /// L'agent est en arret ou arrete.
+    /// The agent is stopping or stopped.
     #[error("agent '{0}' unavailable (stopping or stopped)")]
     AgentUnavailable(AgentId),
 
-    /// L'agent n'existe pas dans le registre.
+    /// The agent does not exist in the registry.
     #[error("agent '{0}' not found")]
     AgentNotFound(AgentId),
 
-    /// Le coordinateur de l'agent a atteint sa limite de concurrence.
+    /// The agent's coordinator reached its concurrency limit.
     #[error("concurrency limit reached for agent '{0}'")]
     ConcurrencyLimit(AgentId),
 
-    /// Pas de coordinateur enregistre pour cet agent.
+    /// No coordinator registered for this agent.
     #[error("no coordinator registered for agent '{0}'")]
     NoCoordinator(AgentId),
 
-    /// L'acteur TaskRouter est mort.
+    /// The TaskRouter actor is dead.
     #[error("router actor is dead")]
     ActorDead,
 }
 
-/// Messages internes du TaskRouter acteur.
+/// Internal messages of the TaskRouter actor.
 enum RouterMessage<B: ExecutionBackend> {
-    /// Soumettre une tache pour un agent.
+    /// Submit a task for an agent.
     Submit {
         agent_id: AgentId,
         input: AIPInput,
-        /// Skill A2A invoqué, peuplé uniquement lors d'une délégation A2A.
-        /// `None` pour les exécutions racine, triggers, ou invocations directes
-        /// sans skill ciblé. Propagé jusqu'à `AIPTask.skill_id`.
+        /// A2A skill invoked, populated only during an A2A delegation.
+        /// `None` for root executions, triggers, or direct invocations
+        /// without a targeted skill. Propagated through to `AIPTask.skill_id`.
         skill_id: Option<String>,
         delegation_chain: Vec<AgentId>,
         reply: oneshot::Sender<Result<TaskId, SubmitError>>,
     },
-    /// Obtenir le statut d'une tache.
+    /// Get the status of a task.
     GetStatus {
         task_id: TaskId,
         reply: oneshot::Sender<Option<TaskStatus>>,
     },
-    /// Obtenir le texte de sortie d'une tache terminee.
+    /// Get the output text of a finished task.
     GetOutput {
         task_id: TaskId,
         reply: oneshot::Sender<Option<String>>,
     },
-    /// Annuler une tache en cours.
+    /// Cancel a running task.
     Cancel {
         task_id: TaskId,
         reply: oneshot::Sender<Option<TaskStatus>>,
     },
-    /// Retourner les IDs des taches actives (Working ou Submitted).
+    /// Return the IDs of active tasks (Working or Submitted).
     GetActiveTasks { reply: oneshot::Sender<Vec<TaskId>> },
-    /// Retourner toutes les taches connues avec leur agent_id et statut.
+    /// Return all known tasks with their agent_id and status.
     GetAllTasks {
         reply: oneshot::Sender<Vec<(TaskId, AgentId, TaskStatus)>>,
     },
-    /// Enregistrer un ExecutionCoordinator pour un agent.
+    /// Register an ExecutionCoordinator for an agent.
     RegisterCoordinator {
         agent_id: AgentId,
         coordinator: ExecutionCoordinator<B>,
     },
-    /// Retirer le coordinateur d'un agent (agent stopping).
+    /// Remove an agent's coordinator (agent stopping).
     UnregisterCoordinator { agent_id: AgentId },
-    /// Obtenir le dernier snapshot de budget de session.
+    /// Get the latest session budget snapshot.
     GetBudget {
         reply: oneshot::Sender<Option<TokenBudget>>,
     },
-    /// Arreter l'acteur.
+    /// Stop the actor.
     Shutdown,
 }
 
-/// Acteur TaskRouter — point d'entree centralise pour les soumissions de taches.
+/// TaskRouter actor, the centralized entry point for task submissions.
 ///
-/// Gere le dispatch des taches vers les ExecutionCoordinator des agents actifs.
-/// Maintient la table de correspondance agent_id -> coordinator et task_id -> status.
+/// Manages dispatch of tasks to the ExecutionCoordinators of active agents.
+/// Maintains the agent_id -> coordinator and task_id -> status maps.
 struct TaskRouter<B: ExecutionBackend> {
     rx: mpsc::Receiver<RouterMessage<B>>,
     registry: AgentRegistryHandle,
@@ -103,14 +103,14 @@ struct TaskRouter<B: ExecutionBackend> {
     task_agents: HashMap<TaskId, AgentId>,
     /// Output text stored when TaskCompleted is received (for GET /api/v1/tasks/:id).
     task_outputs: HashMap<TaskId, String>,
-    /// Latest session budget snapshot — updated on each TokenBudgetUpdated event.
+    /// Latest session budget snapshot, updated on each TokenBudgetUpdated event.
     latest_budget: Option<TokenBudget>,
 }
 
 impl<B: ExecutionBackend> TaskRouter<B> {
-    /// Boucle principale de l'acteur.
+    /// Main actor loop.
     ///
-    /// Traite les messages mpsc ET les evenements EventBus (TaskCompleted/TaskFailed).
+    /// Processes mpsc messages AND EventBus events (TaskCompleted/TaskFailed).
     async fn run(mut self) {
         use apollia_core::RuntimeEvent;
         info!("TaskRouter demarre");
@@ -182,9 +182,9 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                     match event {
                         Ok(RuntimeEvent::TaskCompleted { task_id, success, output, .. }) => {
                             if let Some(status) = self.task_statuses.get_mut(&task_id) {
-                                // Ne pas ecraser un statut terminal deja fixe (Canceled, Completed, Failed).
-                                // Un evenement TaskCompleted tardif du backend ne doit pas effacer une
-                                // annulation explicite de l'utilisateur.
+                                // Do not overwrite an already-set terminal status (Canceled, Completed, Failed).
+                                // A late TaskCompleted event from the backend must not erase an
+                                // explicit user cancellation.
                                 if !matches!(*status, TaskStatus::Canceled | TaskStatus::Completed | TaskStatus::Failed) {
                                     *status = if success {
                                         TaskStatus::Completed
@@ -220,12 +220,12 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         info!("TaskRouter arrete");
     }
 
-    /// Gere la soumission d'une tache.
+    /// Handle a task submission.
     ///
-    /// 1. Verifie l'etat de l'agent via AgentRegistryHandle
-    /// 2. Genere un TaskId (UUID v4)
-    /// 3. Construit l'AIPTask
-    /// 4. Dispatche vers le coordinateur
+    /// 1. Check the agent state via AgentRegistryHandle
+    /// 2. Generate a TaskId (UUID v4)
+    /// 3. Build the AIPTask
+    /// 4. Dispatch to the coordinator
     async fn handle_submit(
         &mut self,
         agent_id: AgentId,
@@ -233,7 +233,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         skill_id: Option<String>,
         delegation_chain: Vec<AgentId>,
     ) -> Result<TaskId, SubmitError> {
-        // 1. Verifier l'agent dans le registre (par UUID puis par nom manifest)
+        // 1. Check the agent in the registry (by UUID then by manifest name)
         let resolved_id = if self
             .registry
             .get_agent(agent_id.as_str())
@@ -243,7 +243,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         {
             agent_id.clone()
         } else {
-            // Tentative de résolution par nom manifest
+            // Attempt resolution by manifest name
             self.registry
                 .find_by_name(agent_id.as_str())
                 .await
@@ -260,7 +260,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
 
         let agent_id = resolved_id;
 
-        // 2. Verifier le ProcessState
+        // 2. Check the ProcessState
         match agent_entry.process_state {
             ProcessState::Initializing => {
                 return Err(SubmitError::AgentNotReady(agent_id));
@@ -276,11 +276,11 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 });
             }
             ProcessState::Active => {
-                // OK, dispatch normal
+                // OK, normal dispatch
             }
         }
 
-        // 3. Generer TaskId + construire AIPTask
+        // 3. Generate TaskId + build AIPTask
         let task_id = TaskId::new_v4();
         let task = AIPTask {
             task_id: task_id.to_string(),
@@ -293,7 +293,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             ..AIPTask::default()
         };
 
-        // 4. Dispatcher vers le coordinateur
+        // 4. Dispatch to the coordinator
         let coordinator = self
             .coordinators
             .get(&agent_id)
@@ -303,7 +303,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             .submit_task(task)
             .map_err(|_| SubmitError::ConcurrencyLimit(agent_id.clone()))?;
 
-        // 5. Enregistrer le statut et l'association task → agent
+        // 5. Record the status and the task -> agent association
         self.task_statuses
             .insert(task_id.clone(), TaskStatus::Working);
         self.task_agents.insert(task_id.clone(), agent_id.clone());
@@ -312,10 +312,10 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         Ok(task_id)
     }
 
-    /// Gere l'annulation d'une tache.
+    /// Handle a task cancellation.
     ///
-    /// Retourne le nouveau statut si la tache existe, None sinon.
-    /// Seules les taches en etat `Submitted` ou `Working` peuvent etre annulees.
+    /// Returns the new status if the task exists, None otherwise.
+    /// Only tasks in `Submitted` or `Working` state can be canceled.
     fn handle_cancel(&mut self, task_id: &TaskId) -> Option<TaskStatus> {
         let status = self.task_statuses.get_mut(task_id)?;
         match status {
@@ -329,11 +329,11 @@ impl<B: ExecutionBackend> TaskRouter<B> {
     }
 }
 
-/// Handle clonable pour interagir avec le TaskRouter acteur.
+/// Cloneable handle to interact with the TaskRouter actor.
 ///
-/// Thread-safe : Clone + Send + Sync.
-/// Clone est implemente manuellement car `mpsc::Sender` est Clone
-/// independamment des bounds sur B.
+/// Thread-safe: Clone + Send + Sync.
+/// Clone is implemented manually because `mpsc::Sender` is Clone
+/// independently of the bounds on B.
 pub struct TaskRouterHandle<B: ExecutionBackend> {
     tx: mpsc::Sender<RouterMessage<B>>,
 }
@@ -347,12 +347,12 @@ impl<B: ExecutionBackend> Clone for TaskRouterHandle<B> {
 }
 
 impl<B: ExecutionBackend> TaskRouterHandle<B> {
-    /// Spawne le TaskRouter acteur et retourne un Handle.
+    /// Spawn the TaskRouter actor and return a Handle.
     ///
     /// # Arguments
-    /// - `registry` : handle vers l'AgentRegistry pour verifier les etats
-    /// - `event_bus` : canal d'emission des evenements runtime
-    /// - `buffer_size` : taille du canal mpsc (defaut recommande: 256)
+    /// - `registry`: handle to the AgentRegistry for checking states
+    /// - `event_bus`: channel for emitting runtime events
+    /// - `buffer_size`: mpsc channel size (recommended default: 256)
     pub fn spawn(
         registry: AgentRegistryHandle,
         event_bus: EventBusSender,
@@ -375,23 +375,21 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         Self { tx }
     }
 
-    /// Soumet une tache pour un agent.
+    /// Submit a task for an agent.
     ///
-    /// Retourne le TaskId genere en cas de succes. Pour soumettre dans le
-    /// cadre d'une délégation A2A (avec `skill_id` ciblé), utiliser
-    /// [`Self::submit_with_chain`].
+    /// Returns the generated TaskId on success. To submit as part of an A2A
+    /// delegation (with a targeted `skill_id`), use [`Self::submit_with_chain`].
     pub async fn submit(&self, agent_id: &str, input: AIPInput) -> Result<TaskId, SubmitError> {
         self.submit_with_chain(agent_id, input, None, Vec::new())
             .await
     }
 
-    /// Soumet une tache avec une chaîne de délégation A2A explicite et un
-    /// `skill_id` ciblé optionnel.
+    /// Submit a task with an explicit A2A delegation chain and an optional
+    /// targeted `skill_id`.
     ///
-    /// Utilisé par [`crate::a2a::delegate_inner`] après validation de la chaîne
-    /// par [`crate::a2a::validate_chain`]. Pour les soumissions racines (CLI,
-    /// triggers, REST), utiliser [`Self::submit`] qui passe `None` et une
-    /// chaîne vide.
+    /// Used by [`crate::a2a::delegate_inner`] after chain validation by
+    /// [`crate::a2a::validate_chain`]. For root submissions (CLI, triggers,
+    /// REST), use [`Self::submit`] which passes `None` and an empty chain.
     pub async fn submit_with_chain(
         &self,
         agent_id: &str,
@@ -413,7 +411,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         reply_rx.await.map_err(|_| SubmitError::ActorDead)?
     }
 
-    /// Obtient le statut d'une tache.
+    /// Get the status of a task.
     pub async fn get_status(&self, task_id: &str) -> Result<Option<TaskStatus>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -426,7 +424,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         reply_rx.await.map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Obtient le texte de sortie d'une tache terminee, s'il est disponible.
+    /// Get the output text of a finished task, if available.
     pub async fn get_output(&self, task_id: &str) -> Result<Option<String>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -439,7 +437,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         reply_rx.await.map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Enregistre un coordinateur pour un agent.
+    /// Register a coordinator for an agent.
     pub async fn register_coordinator(
         &self,
         agent_id: AgentId,
@@ -454,7 +452,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Retire le coordinateur d'un agent.
+    /// Remove an agent's coordinator.
     pub async fn unregister_coordinator(&self, agent_id: &AgentId) -> Result<(), SubmitError> {
         self.tx
             .send(RouterMessage::UnregisterCoordinator {
@@ -464,7 +462,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Retourne le dernier snapshot de budget de session LLM, s'il est disponible.
+    /// Return the latest LLM session budget snapshot, if available.
     pub async fn get_budget(&self) -> Result<Option<TokenBudget>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -474,9 +472,9 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         reply_rx.await.map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Annule une tache en cours.
+    /// Cancel a running task.
     ///
-    /// Retourne le nouveau statut si la tache existe, None sinon.
+    /// Returns the new status if the task exists, None otherwise.
     pub async fn cancel(&self, task_id: &str) -> Result<Option<TaskStatus>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -489,7 +487,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         reply_rx.await.map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Retourne les IDs des taches actives (Working ou Submitted).
+    /// Return the IDs of active tasks (Working or Submitted).
     pub async fn active_tasks(&self) -> Result<Vec<TaskId>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -499,9 +497,9 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         reply_rx.await.map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Retourne toutes les taches connues avec leur agent_id et statut.
+    /// Return all known tasks with their agent_id and status.
     ///
-    /// Utilisé par `GET /api/v1/tasks` pour lister les taches récentes.
+    /// Used by `GET /api/v1/tasks` to list recent tasks.
     pub async fn all_tasks(&self) -> Result<Vec<(TaskId, AgentId, TaskStatus)>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -511,25 +509,25 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         reply_rx.await.map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Demande l'arret de l'acteur.
+    /// Request the actor to shut down.
     pub fn shutdown(&self) {
         let _ = self.tx.try_send(RouterMessage::Shutdown);
     }
 }
 
-// ─── TaskSubmitter impl ────────────────────────────────────────────────────
+// TaskSubmitter impl
 
 use std::future::Future;
 use std::pin::Pin;
 
-/// Implémentation du trait `TaskSubmitter` pour `TaskRouterHandle<B>`.
+/// `TaskSubmitter` trait implementation for `TaskRouterHandle<B>`.
 ///
-/// Permet au `TriggerEngine` de soumettre des tâches au `TaskRouter` sans
-/// dépendance directe sur `apollia-runtime` (pattern ADR-015/016).
+/// Lets the `TriggerEngine` submit tasks to the `TaskRouter` without a direct
+/// dependency on `apollia-runtime`.
 ///
-/// `pending_count` retourne toujours 0 en MVP — le comptage per-agent n'est
-/// pas encore exposé dans l'API publique du `TaskRouter`. `OnBusyPolicy::Drop`
-/// peut être amélioré avec un message `GetPendingCountForAgent`.
+/// `pending_count` always returns 0 for now; per-agent counting is not yet
+/// exposed in the `TaskRouter`'s public API. `OnBusyPolicy::Drop` could be
+/// improved with a `GetPendingCountForAgent` message.
 impl<B> apollia_triggers::TaskSubmitter for TaskRouterHandle<B>
 where
     B: ExecutionBackend + Clone + Send + Sync + 'static,
@@ -550,7 +548,7 @@ where
         &'a self,
         _agent: &'a str,
     ) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>> {
-        // MVP: per-agent pending count non exposé — retourne 0.
+        // Per-agent pending count not yet exposed, returns 0.
         Box::pin(async move { 0 })
     }
 }
@@ -565,7 +563,7 @@ mod tests {
     use crate::coordinator::ExecutionBackend;
     use crate::registry::AgentRegistry;
 
-    /// Backend mock qui accepte toujours les taches.
+    /// Mock backend that always accepts tasks.
     struct MockBackend {
         should_fail: AtomicBool,
     }
@@ -643,8 +641,8 @@ mod tests {
         }
     }
 
-    /// Helper pour creer un environnement de test complet.
-    /// Retourne (router, registry, event_rx).
+    /// Helper to create a full test environment.
+    /// Returns (router, registry, event_rx).
     async fn setup_test_env() -> (
         TaskRouterHandle<MockBackend>,
         AgentRegistryHandle,
@@ -656,8 +654,8 @@ mod tests {
         (router, registry, event_rx)
     }
 
-    /// Helper pour enregistrer un agent et le mettre dans l'etat voulu.
-    /// Retourne l'AgentId genere.
+    /// Helper to register an agent and put it in the desired state.
+    /// Returns the generated AgentId.
     async fn register_agent_in_state(
         registry: &AgentRegistryHandle,
         name: &str,
@@ -668,7 +666,7 @@ mod tests {
             .await
             .expect("register failed");
 
-        // Transitions vers l'etat cible
+        // Transitions to the target state
         match target_state {
             ProcessState::Initializing => {}
             ProcessState::Active => {
@@ -718,7 +716,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_to_active_agent_returns_task_id() {
-        // GIVEN un agent enregistre en etat Active avec un coordinateur
+        // GIVEN an agent registered in Active state with a coordinator
         let (router, registry, _rx) = setup_test_env().await;
         let agent_id =
             register_agent_in_state(&registry, "agent-active", ProcessState::Active).await;
@@ -730,10 +728,10 @@ mod tests {
             .await
             .expect("register coordinator failed");
 
-        // WHEN on soumet une tache via router.submit()
+        // WHEN submitting a task via router.submit()
         let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
 
-        // THEN un TaskId est retourne (non vide, format UUID)
+        // THEN a TaskId is returned (non-empty, UUID format)
         assert!(result.is_ok(), "submit should succeed, got: {result:?}");
         let task_id = result.expect("already checked");
         assert!(!task_id.as_str().is_empty());
@@ -745,15 +743,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_to_initializing_agent_rejected() {
-        // GIVEN un agent enregistre en etat Initializing
+        // GIVEN an agent registered in Initializing state
         let (router, registry, _rx) = setup_test_env().await;
         let agent_id =
             register_agent_in_state(&registry, "agent-init", ProcessState::Initializing).await;
 
-        // WHEN on soumet une tache
+        // WHEN submitting a task
         let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
 
-        // THEN retourne SubmitError::AgentNotReady
+        // THEN returns SubmitError::AgentNotReady
         assert!(matches!(
             result.expect_err("should fail"),
             SubmitError::AgentNotReady(_)
@@ -762,15 +760,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_to_stopped_agent_rejected() {
-        // GIVEN un agent enregistre en etat Stopped
+        // GIVEN an agent registered in Stopped state
         let (router, registry, _rx) = setup_test_env().await;
         let agent_id =
             register_agent_in_state(&registry, "agent-stopped", ProcessState::Stopped).await;
 
-        // WHEN on soumet une tache
+        // WHEN submitting a task
         let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
 
-        // THEN retourne SubmitError::AgentUnavailable
+        // THEN returns SubmitError::AgentUnavailable
         assert!(matches!(
             result.expect_err("should fail"),
             SubmitError::AgentUnavailable(_)
@@ -779,7 +777,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_to_degraded_agent_dispatches_with_warning() {
-        // GIVEN un agent enregistre en etat Degraded avec un coordinateur
+        // GIVEN an agent registered in Degraded state with a coordinator
         let (event_tx, mut event_rx) = broadcast::channel(64);
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
@@ -802,13 +800,13 @@ mod tests {
             }
         }
 
-        // WHEN on soumet une tache
+        // WHEN submitting a task
         let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
 
-        // THEN la tache est dispatche (TaskId retourne)
+        // THEN the task is dispatched (TaskId returned)
         assert!(result.is_ok(), "submit should succeed for degraded agent");
 
-        // AND un RuntimeEvent::AgentDegraded est emis sur l'EventBus
+        // AND a RuntimeEvent::AgentDegraded is emitted on the EventBus
         // Wait briefly for event propagation
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let mut found_degraded = false;
@@ -827,13 +825,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_to_unknown_agent_not_found() {
-        // GIVEN aucun agent enregistre avec l'id "unknown-agent"
+        // GIVEN no agent registered with the id "unknown-agent"
         let (router, _registry, _rx) = setup_test_env().await;
 
-        // WHEN on soumet une tache pour "unknown-agent"
+        // WHEN submitting a task for "unknown-agent"
         let result = router.submit("unknown-agent", AIPInput::default()).await;
 
-        // THEN retourne SubmitError::AgentNotFound
+        // THEN returns SubmitError::AgentNotFound
         assert!(matches!(
             result.expect_err("should fail"),
             SubmitError::AgentNotFound(_)
@@ -842,7 +840,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_status_returns_task_status() {
-        // GIVEN une tache soumise avec succes (task_id connu)
+        // GIVEN a task submitted successfully (known task_id)
         let (router, registry, _rx) = setup_test_env().await;
         let agent_id =
             register_agent_in_state(&registry, "agent-status", ProcessState::Active).await;
@@ -859,33 +857,33 @@ mod tests {
             .await
             .expect("submit failed");
 
-        // WHEN on appelle get_status(task_id)
+        // WHEN calling get_status(task_id)
         let status = router
             .get_status(task_id.as_str())
             .await
             .expect("get_status failed");
 
-        // THEN retourne Some(TaskStatus::Working)
+        // THEN returns Some(TaskStatus::Working)
         assert_eq!(status, Some(TaskStatus::Working));
     }
 
     #[tokio::test]
     async fn test_router_is_actor_handle_clone_send_sync() {
-        // GIVEN un TaskRouterHandle
-        // THEN le handle est Send + Sync (verifie a la compilation)
+        // GIVEN a TaskRouterHandle
+        // THEN the handle is Send + Sync (checked at compile time)
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<TaskRouterHandle<MockBackend>>();
 
-        // AND on peut cloner le handle
+        // AND the handle can be cloned
         let (router, _registry, _rx) = setup_test_env().await;
         let _cloned = router.clone();
     }
 
     #[tokio::test]
     async fn test_task_status_transitions_to_completed_via_eventbus() {
-        // GIVEN un agent actif avec un coordinateur MockBackend (completion instantanee)
-        // Le coordinator utilise le MEME event_tx que le router pour que
-        // TaskCompleted soit recu par l'event_rx du TaskRouter.
+        // GIVEN an active agent with a MockBackend coordinator (instant completion)
+        // The coordinator uses the SAME event_tx as the router so that
+        // TaskCompleted is received by the TaskRouter's event_rx.
         let (event_tx, _event_rx) = broadcast::channel::<RuntimeEvent>(64);
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
@@ -899,13 +897,13 @@ mod tests {
             .await
             .expect("register coordinator failed");
 
-        // WHEN on soumet une tache
+        // WHEN submitting a task
         let task_id = router
             .submit(agent_id.as_str(), AIPInput::default())
             .await
             .expect("submit failed");
 
-        // THEN get_status() retourne Completed apres propagation EventBus
+        // THEN get_status() returns Completed after EventBus propagation
         let final_status = tokio::time::timeout(std::time::Duration::from_millis(500), async {
             loop {
                 let s = router.get_status(task_id.as_str()).await.unwrap();
@@ -923,12 +921,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_by_manifest_name_dispatches_task() {
-        // GIVEN un agent enregistre avec manifest.name = "hello-agent" en etat Active
+        // GIVEN an agent registered with manifest.name = "hello-agent" in Active state
         let (router, registry, _rx) = setup_test_env().await;
         let agent_id =
             register_agent_in_state(&registry, "hello-agent", ProcessState::Active).await;
 
-        // ET un coordinateur enregistre pour cet agent (par UUID)
+        // AND a coordinator registered for this agent (by UUID)
         let (event_tx, _) = broadcast::channel(64);
         let coordinator =
             ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
@@ -937,10 +935,10 @@ mod tests {
             .await
             .expect("register coordinator failed");
 
-        // WHEN router.submit("hello-agent", input) est appele (par nom, pas par UUID)
+        // WHEN router.submit("hello-agent", input) is called (by name, not by UUID)
         let result = router.submit("hello-agent", AIPInput::default()).await;
 
-        // THEN un TaskId valide est retourne (pas AgentNotFound)
+        // THEN a valid TaskId is returned (not AgentNotFound)
         assert!(
             result.is_ok(),
             "submit by manifest name should succeed, got: {result:?}"
@@ -952,7 +950,7 @@ mod tests {
         );
     }
 
-    /// Backend mock avec delai configurable — permet de simuler une completion tardive.
+    /// Mock backend with a configurable delay, used to simulate a late completion.
     struct DelayedMockBackend {
         delay_ms: u64,
     }
@@ -980,7 +978,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_canceled_status_not_overwritten_by_late_task_completed_event() {
-        // GIVEN un agent actif avec un backend a completion differee (100ms)
+        // GIVEN an active agent with a backend that completes with a delay (100ms)
         let (event_tx, _event_rx) = broadcast::channel::<RuntimeEvent>(64);
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
@@ -998,7 +996,7 @@ mod tests {
             .await
             .expect("register coordinator failed");
 
-        // WHEN on soumet une tache puis on l'annule immediatement
+        // WHEN submitting a task then cancelling it immediately
         let task_id = router
             .submit(agent_id.as_str(), AIPInput::default())
             .await
@@ -1014,10 +1012,10 @@ mod tests {
             "cancel should return Canceled"
         );
 
-        // AND on attend que le backend envoie son TaskCompleted tardif (>100ms)
+        // AND wait for the backend to send its late TaskCompleted (>100ms)
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
-        // THEN le statut reste Canceled — l'evenement tardif n'a pas ecrase l'annulation
+        // THEN the status stays Canceled, the late event did not overwrite the cancellation
         let status = router
             .get_status(task_id.as_str())
             .await
@@ -1031,7 +1029,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_task_status_transitions_to_failed_via_eventbus() {
-        // GIVEN un agent actif avec un coordinateur FailingMockBackend
+        // GIVEN an active agent with a FailingMockBackend coordinator
         let (event_tx, _event_rx) = broadcast::channel::<RuntimeEvent>(64);
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
@@ -1045,13 +1043,13 @@ mod tests {
             .await
             .expect("register coordinator failed");
 
-        // WHEN on soumet une tache
+        // WHEN submitting a task
         let task_id = router
             .submit(agent_id.as_str(), AIPInput::default())
             .await
             .expect("submit failed");
 
-        // THEN get_status() retourne Failed apres propagation EventBus
+        // THEN get_status() returns Failed after EventBus propagation
         let final_status = tokio::time::timeout(std::time::Duration::from_millis(500), async {
             loop {
                 let s = router.get_status(task_id.as_str()).await.unwrap();

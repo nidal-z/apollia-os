@@ -1,9 +1,9 @@
 //! Tauri IPC commands for the session meta-layer.
 //!
-//! Exposes :
-//! - `compute_session_hallucination_risk` — heuristic score (toujours-on, no LLM).
-//! - `get_session_replay_events` — returns the event log for the scrubber / replay.
-//! - `append_session_replay_event` — allows the frontend (or integration tests)
+//! Exposes:
+//! - `compute_session_hallucination_risk`: heuristic score (always-on, no LLM).
+//! - `get_session_replay_events`: returns the event log for the scrubber / replay.
+//! - `append_session_replay_event`: allows the frontend (or integration tests)
 //!   to push fixtures into the log until the EventBus wiring lands.
 //!
 //! LLM-backed routines (`GenerateSessionSummary`, `GenerateNextSteps`,
@@ -23,7 +23,7 @@ use std::sync::{Mutex, OnceLock};
 /// In-memory registry mapping `session_id -> SessionEventLog`.
 ///
 /// Scaffolding until the EventBus → SQLite wiring lands. Cleared on process
-/// restart ; the UI must be resilient to an empty log.
+/// restart; the UI must be resilient to an empty log.
 fn session_event_logs() -> &'static Mutex<HashMap<String, SessionEventLog>> {
     static LOGS: OnceLock<Mutex<HashMap<String, SessionEventLog>>> = OnceLock::new();
     LOGS.get_or_init(|| Mutex::new(HashMap::new()))
@@ -39,28 +39,28 @@ fn get_or_create_log(session_id: &str) -> SessionEventLog {
         .clone()
 }
 
-/// Réponse agrégée du meta-layer de session.
+/// Aggregated response from the session meta-layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMetaResponse {
-    /// Score heuristique + facteurs (toujours-on).
+    /// Heuristic score + factors (always-on).
     pub hallucination_risk: HallucinationRisk,
-    /// Nombre d'événements disponibles pour le replay.
+    /// Number of events available for replay.
     pub event_count: usize,
-    /// `None` tant que `GenerateSessionSummary` n'est pas déclenchée.
+    /// `None` until `GenerateSessionSummary` is triggered.
     #[serde(default)]
     pub summary: Option<String>,
-    /// `None` tant que `GenerateSessionTitle` n'est pas déclenchée.
+    /// `None` until `GenerateSessionTitle` is triggered.
     #[serde(default)]
     pub title: Option<String>,
-    /// `None` tant que `GenerateNextSteps` n'est pas déclenchée.
+    /// `None` until `GenerateNextSteps` is triggered.
     #[serde(default)]
     pub next_steps: Option<Vec<String>>,
 }
 
-/// Calcule l'état méta d'une session à partir des signaux agrégés côté frontend.
+/// Computes a session's meta state from the signals aggregated frontend-side.
 ///
-/// Le frontend fournit les compteurs (P3 flags, citation gaps, contradictions) ;
-/// la commande retourne le score heuristique + le nombre d'events disponibles.
+/// The frontend provides the counters (P3 flags, citation gaps, contradictions);
+/// the command returns the heuristic score + the number of available events.
 #[tauri::command]
 pub async fn compute_session_meta(
     session_id: String,
@@ -78,23 +78,23 @@ pub async fn compute_session_meta(
     })
 }
 
-/// Retourne la liste chronologique des événements d'une session pour le scrubber
-/// et le replay.
+/// Returns the chronological list of a session's events for the scrubber and
+/// replay.
 #[tauri::command]
 pub async fn get_session_replay_events(session_id: String) -> Result<Vec<SessionEvent>, String> {
     Ok(get_or_create_log(&session_id).snapshot())
 }
 
-/// Retourne l'état initial du replay (curseur 0, en pause, 1x).
+/// Returns the initial replay state (cursor 0, paused, 1x).
 #[tauri::command]
 pub async fn get_session_replay_state(session_id: String) -> Result<ReplayState, String> {
     let total = get_or_create_log(&session_id).len();
     Ok(ReplayState::initial(total))
 }
 
-/// Ajoute un événement au log de session.
+/// Appends an event to the session log.
 ///
-/// Utilisé par le wiring runtime (à venir) et les tests d'intégration UI.
+/// Used by the upcoming runtime wiring and the UI integration tests.
 #[tauri::command]
 pub async fn append_session_replay_event(
     session_id: String,

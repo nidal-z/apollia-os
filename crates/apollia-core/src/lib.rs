@@ -1,4 +1,4 @@
-//! Apollia OS — shared types.
+//! Apollia OS shared types.
 //!
 //! `apollia-core` is the dependency foundation of the entire workspace.
 //! All other crates depend on this one; this crate depends on nothing
@@ -72,6 +72,6 @@ pub use session_metrics::{
 };
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};
-pub use token_budget::TokenBudget;
+pub use token_budget::{TokenBudget, TokenUsageDelta};
 pub use utils::truncate_middle;
 pub use workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice, WorkspaceSnapshot};

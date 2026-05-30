@@ -72,7 +72,7 @@ pub struct ExecutionCoordinator<B: ExecutionBackend> {
     concurrency: Arc<Semaphore>,
     event_bus: EventBusSender,
     backend: Arc<B>,
-    /// Repository SQLite pour la persistance d'observabilité — `None` en tests.
+    /// Repository SQLite pour la persistance d'observabilité, `None` en tests.
     task_repo: Option<Arc<TaskRepository>>,
     /// Configuration de troncature pour l'observabilité.
     obs_config: ObservabilityConfig,
@@ -143,146 +143,20 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             .try_acquire_owned()
             .map_err(|_| CoordinatorError::ConcurrencyLimitReached(self.agent_id.clone()))?;
 
-        let agent_id = self.agent_id.clone();
-        let agent_name_for_db = self.agent_name.clone();
-        let event_bus = self.event_bus.clone();
-        let task_id = TaskId::from(task.task_id.clone());
-        let backend = Arc::clone(&self.backend);
-        let task_repo = self.task_repo.clone();
-        let obs_config = self.obs_config.clone();
+        let ctx = SubmittedTaskCtx {
+            agent_id: self.agent_id.clone(),
+            agent_name_for_db: self.agent_name.clone(),
+            event_bus: self.event_bus.clone(),
+            task_id: TaskId::from(task.task_id.clone()),
+            backend: Arc::clone(&self.backend),
+            task_repo: self.task_repo.clone(),
+            obs_config: self.obs_config.clone(),
+            // Extraire le texte de l'input pour la persistance d'observabilité.
+            input_text: aip_input_to_text(&task.input),
+            task,
+        };
 
-        // Extraire le texte de l'input pour la persistance d'observabilité.
-        let input_text = aip_input_to_text(&task.input);
-
-        let handle = tokio::spawn(async move {
-            // Le permit est move dans la closure — libere au drop
-            let _permit = permit;
-
-            let started_at = Instant::now();
-            let now_str = || now_rfc3339();
-
-            // Persistance observabilité : input + agent_name + transition "submitted"
-            if let Some(ref repo) = task_repo {
-                if let Err(e) = repo
-                    .save_input(task_id.as_str(), &input_text, &obs_config)
-                    .await
-                {
-                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist task input");
-                }
-                if !agent_name_for_db.is_empty() {
-                    if let Err(e) = repo
-                        .set_agent_name(task_id.as_str(), &agent_name_for_db)
-                        .await
-                    {
-                        tracing::warn!(task_id = %task_id, error = %e, "failed to persist agent_name");
-                    }
-                }
-                if let Err(e) = repo
-                    .append_transition(task_id.as_str(), "submitted", &now_str())
-                    .await
-                {
-                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist submitted transition");
-                }
-            }
-
-            // Emettre TaskStarted
-            let _ = event_bus.send(RuntimeEvent::TaskStarted {
-                agent_id: agent_id.clone(),
-                task_id: task_id.clone(),
-            });
-
-            // Persistance observabilité : transition "running"
-            if let Some(ref repo) = task_repo {
-                if let Err(e) = repo
-                    .append_transition(task_id.as_str(), "running", &now_str())
-                    .await
-                {
-                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist running transition");
-                }
-            }
-
-            // Executer via le backend
-            let result = backend.execute(task).await;
-
-            let elapsed_ms = started_at.elapsed().as_millis() as i64;
-
-            // `is_success` must reflect the Python-level status, not just whether the
-            // Rust call succeeded. An `Ok(AIPResult { status: Failed, .. })` means the
-            // agent explicitly reported failure and must propagate as success=false so
-            // that the TaskRouter transitions the task to `TaskStatus::Failed`.
-            let is_success = match &result {
-                Ok(aip_result) => aip_result.status != TaskStatus::Failed,
-                Err(e) => {
-                    tracing::error!(
-                        agent_id = %agent_id,
-                        task_id  = %task_id,
-                        error    = %e,
-                        "task execution failed"
-                    );
-                    false
-                }
-            };
-            // For Err results, surface the error string as output_text so
-            // the UI can display it instead of showing an empty result panel.
-            // For Ok(failed), include the worker's error code/message/details
-            // in the output text so the A2A invoker / UI can surface the
-            // actual failure reason instead of a generic "worker reported
-            // failure" string.
-            let output = match &result {
-                Ok(aip_result) => {
-                    if aip_result.status == TaskStatus::Failed {
-                        let err_text = aip_result
-                            .error
-                            .as_ref()
-                            .map(|e| {
-                                let details_str = e
-                                    .details
-                                    .as_ref()
-                                    .map(|d| format!(" details={d}"))
-                                    .unwrap_or_default();
-                                format!("[{}] {}{}", e.code, e.message, details_str)
-                            })
-                            .unwrap_or_else(|| "(worker failed without error details)".to_string());
-                        Some(err_text)
-                    } else {
-                        Some(aip_result_to_text(aip_result)).filter(|s| !s.is_empty())
-                    }
-                }
-                Err(e) => Some(e.to_string()),
-            };
-
-            // Persistance observabilité : output + transition terminale + durée
-            if let Some(ref repo) = task_repo {
-                let terminal_status = if is_success { "completed" } else { "failed" };
-
-                if let Some(ref output_text) = output {
-                    if let Err(e) = repo
-                        .save_output(task_id.as_str(), output_text, &obs_config)
-                        .await
-                    {
-                        tracing::warn!(task_id = %task_id, error = %e, "failed to persist task output");
-                    }
-                }
-                if let Err(e) = repo
-                    .append_transition(task_id.as_str(), terminal_status, &now_str())
-                    .await
-                {
-                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist terminal transition");
-                }
-                if let Err(e) = repo.set_duration(task_id.as_str(), elapsed_ms).await {
-                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist task duration");
-                }
-            }
-
-            let _ = event_bus.send(RuntimeEvent::TaskCompleted {
-                agent_id,
-                task_id,
-                success: is_success,
-                output,
-            });
-
-            result.map_err(CoordinatorError::ExecutionFailed)
-        });
+        let handle = tokio::spawn(async move { run_submitted_task(ctx, permit).await });
 
         Ok(handle)
     }
@@ -290,6 +164,219 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
     /// Retourne le nombre de permits disponibles (taches pouvant etre acceptees).
     pub fn available_permits(&self) -> usize {
         self.concurrency.available_permits()
+    }
+}
+
+/// Contexte capturé pour l'exécution d'une tâche soumise dans la task Tokio.
+struct SubmittedTaskCtx<B: ExecutionBackend> {
+    agent_id: AgentId,
+    agent_name_for_db: String,
+    event_bus: EventBusSender,
+    task_id: TaskId,
+    backend: Arc<B>,
+    task_repo: Option<Arc<TaskRepository>>,
+    obs_config: ObservabilityConfig,
+    input_text: String,
+    task: AIPTask,
+}
+
+/// Exécute une tâche soumise : persistance d'observabilité, émission des
+/// événements de cycle de vie, et exécution via le backend.
+///
+/// Le `permit` est consommé ici et libéré au drop quand la fonction termine.
+async fn run_submitted_task<B: ExecutionBackend>(
+    ctx: SubmittedTaskCtx<B>,
+    permit: tokio::sync::OwnedSemaphorePermit,
+) -> Result<AIPResult, CoordinatorError> {
+    // Le permit est move dans la fonction, libere au drop.
+    let _permit = permit;
+
+    let SubmittedTaskCtx {
+        agent_id,
+        agent_name_for_db,
+        event_bus,
+        task_id,
+        backend,
+        task_repo,
+        obs_config,
+        input_text,
+        task,
+    } = ctx;
+
+    let started_at = Instant::now();
+
+    // Persistance observabilité : input + agent_name + transition "submitted"
+    persist_submission(
+        task_repo.as_deref(),
+        &task_id,
+        &input_text,
+        &agent_name_for_db,
+        &obs_config,
+    )
+    .await;
+
+    // Emettre TaskStarted
+    let _ = event_bus.send(RuntimeEvent::TaskStarted {
+        agent_id: agent_id.clone(),
+        task_id: task_id.clone(),
+    });
+
+    // Persistance observabilité : transition "running"
+    if let Some(repo) = task_repo.as_deref() {
+        if let Err(e) = repo
+            .append_transition(task_id.as_str(), "running", &now_rfc3339())
+            .await
+        {
+            tracing::warn!(task_id = %task_id, error = %e, "failed to persist running transition");
+        }
+    }
+
+    // Executer via le backend
+    let result = backend.execute(task).await;
+
+    let elapsed_ms = started_at.elapsed().as_millis() as i64;
+
+    let is_success = task_is_success(&result, &agent_id, &task_id);
+    let output = build_output_text(&result);
+
+    // Persistance observabilité : output + transition terminale + durée
+    persist_completion(CompletionRecord {
+        repo: task_repo.as_deref(),
+        task_id: &task_id,
+        output: output.as_deref(),
+        is_success,
+        elapsed_ms,
+        obs_config: &obs_config,
+    })
+    .await;
+
+    let _ = event_bus.send(RuntimeEvent::TaskCompleted {
+        agent_id,
+        task_id,
+        success: is_success,
+        output,
+    });
+
+    result.map_err(CoordinatorError::ExecutionFailed)
+}
+
+/// Persiste l'input, le nom d'agent et la transition "submitted".
+async fn persist_submission(
+    repo: Option<&TaskRepository>,
+    task_id: &TaskId,
+    input_text: &str,
+    agent_name_for_db: &str,
+    obs_config: &ObservabilityConfig,
+) {
+    let Some(repo) = repo else { return };
+    if let Err(e) = repo.save_input(task_id.as_str(), input_text, obs_config).await {
+        tracing::warn!(task_id = %task_id, error = %e, "failed to persist task input");
+    }
+    if !agent_name_for_db.is_empty() {
+        if let Err(e) = repo.set_agent_name(task_id.as_str(), agent_name_for_db).await {
+            tracing::warn!(task_id = %task_id, error = %e, "failed to persist agent_name");
+        }
+    }
+    if let Err(e) = repo
+        .append_transition(task_id.as_str(), "submitted", &now_rfc3339())
+        .await
+    {
+        tracing::warn!(task_id = %task_id, error = %e, "failed to persist submitted transition");
+    }
+}
+
+/// Inputs pour [`persist_completion`].
+struct CompletionRecord<'a> {
+    repo: Option<&'a TaskRepository>,
+    task_id: &'a TaskId,
+    output: Option<&'a str>,
+    is_success: bool,
+    elapsed_ms: i64,
+    obs_config: &'a ObservabilityConfig,
+}
+
+/// Persiste l'output, la transition terminale et la durée.
+async fn persist_completion(record: CompletionRecord<'_>) {
+    let CompletionRecord {
+        repo,
+        task_id,
+        output,
+        is_success,
+        elapsed_ms,
+        obs_config,
+    } = record;
+    let Some(repo) = repo else { return };
+    let terminal_status = if is_success { "completed" } else { "failed" };
+
+    if let Some(output_text) = output {
+        if let Err(e) = repo
+            .save_output(task_id.as_str(), output_text, obs_config)
+            .await
+        {
+            tracing::warn!(task_id = %task_id, error = %e, "failed to persist task output");
+        }
+    }
+    if let Err(e) = repo
+        .append_transition(task_id.as_str(), terminal_status, &now_rfc3339())
+        .await
+    {
+        tracing::warn!(task_id = %task_id, error = %e, "failed to persist terminal transition");
+    }
+    if let Err(e) = repo.set_duration(task_id.as_str(), elapsed_ms).await {
+        tracing::warn!(task_id = %task_id, error = %e, "failed to persist task duration");
+    }
+}
+
+/// Détermine si la tâche a réussi.
+///
+/// `is_success` doit refléter le statut côté Python, pas seulement la réussite
+/// de l'appel Rust. Un `Ok(AIPResult { status: Failed, .. })` signifie que
+/// l'agent a explicitement signalé un échec et doit propager `success=false`.
+fn task_is_success(
+    result: &Result<AIPResult, String>,
+    agent_id: &AgentId,
+    task_id: &TaskId,
+) -> bool {
+    match result {
+        Ok(aip_result) => aip_result.status != TaskStatus::Failed,
+        Err(e) => {
+            tracing::error!(
+                agent_id = %agent_id,
+                task_id  = %task_id,
+                error    = %e,
+                "task execution failed"
+            );
+            false
+        }
+    }
+}
+
+/// Construit le texte d'output persisté/émis pour la tâche.
+///
+/// Pour `Err`, on remonte la chaîne d'erreur. Pour `Ok(failed)`, on inclut le
+/// code/message/details du worker afin de surfacer la cause réelle.
+fn build_output_text(result: &Result<AIPResult, String>) -> Option<String> {
+    match result {
+        Ok(aip_result) => {
+            if aip_result.status == TaskStatus::Failed {
+                let err_text = aip_result
+                    .error
+                    .as_ref()
+                    .map(|e| {
+                        let details_str = e
+                            .details
+                            .as_ref()
+                            .map(|d| format!(" details={d}"))
+                            .unwrap_or_default();
+                        format!("[{}] {}{}", e.code, e.message, details_str)
+                    })
+                    .unwrap_or_else(|| "(worker failed without error details)".to_string());
+                Some(err_text)
+            } else {
+                Some(aip_result_to_text(aip_result)).filter(|s| !s.is_empty())
+            }
+        }
+        Err(e) => Some(e.to_string()),
     }
 }
 

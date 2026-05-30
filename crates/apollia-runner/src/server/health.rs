@@ -18,7 +18,7 @@ pub async fn handle(State(state): State<AppState>) -> Json<Response<HealthData>>
         uptime_secs,
         loaded_models: state.model_cache.loaded_ids(),
         memory_used_mb: state.model_cache.total_memory_mb(),
-        // TODO STORY-004 : récupérer la VRAM totale via le backend GPU.
+        // TODO: fetch total VRAM via the GPU backend.
         memory_total_mb: 0,
     };
 

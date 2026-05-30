@@ -1,11 +1,11 @@
-//! Tauri IPC command — Meta-LLM `GenerateNextSteps` routine.
+//! Tauri IPC command: Meta-LLM `GenerateNextSteps` routine.
 //!
 //! Produces up to 3 actionable "next steps" cards for:
 //!   - the operator Dashboard (`context = global_context`),
 //!   - the end-of-session debrief on `ChatConversation` (`context = session_end`).
 //!
 //! Reuses the user's default LLM via [`SharedLlmRouter`]. Never allocates a
-//! second backend and always returns a non-empty payload — on any LLM
+//! second backend and always returns a non-empty payload; on any LLM
 //! failure the heuristic fallback kicks in and `fromLlm = false` flags the
 //! degraded path to the UI.
 
@@ -17,7 +17,7 @@ use tauri::State;
 
 use crate::SharedLlmRouter;
 
-/// Response body — mirrors [`NextStepsResponse`] so the IPC contract stays
+/// Response body, mirrors [`NextStepsResponse`] so the IPC contract stays
 /// decoupled from the underlying crate type.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,14 +1,14 @@
-//! Parsing et validation de la configuration Apollia OS depuis `apollia.toml`.
+//! Parsing and validation of the Apollia OS configuration from `apollia.toml`.
 //!
-//! Fournit [`parse_apollia_toml`] pour lire et désérialiser le fichier de config
-//! et [`validate_llm_config`] pour une validation non-fatale (warnings seulement)
-//! des backends LLM.
+//! Provides [`parse_apollia_toml`] to read and deserialize the config file and
+//! [`validate_llm_config`] for non-fatal validation (warnings only) of LLM
+//! backends.
 //!
-//! Les sections opérationnelles (`[[triggers]]`, `[notifications]`, `[stt]`) ne sont
-//! plus gérées par le fichier TOML — elles sont désormais stockées en SQLite et
-//! administrées via l'API REST ou l'application desktop.
-//! Si un ancien fichier TOML contient ces sections, un warning est émis mais le boot
-//! continue normalement.
+//! The operational sections (`[[triggers]]`, `[notifications]`, `[stt]`) are no
+//! longer managed by the TOML file: they are now stored in SQLite and
+//! administered via the REST API or the desktop application. If an older TOML
+//! file still contains these sections, a warning is emitted but boot continues
+//! normally.
 //!
 //! # Exemple TOML minimal
 //!
@@ -33,110 +33,110 @@ use apollia_core::{
 use apollia_llm::{BackendKind, LlmConfig};
 
 // ─────────────────────────────────────────────
-// Erreurs
+// Errors
 // ─────────────────────────────────────────────
 
-/// Erreurs possibles lors du parsing de `apollia.toml`.
+/// Possible errors when parsing `apollia.toml`.
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    /// Erreur I/O lors de la lecture du fichier de configuration.
+    /// I/O error while reading the configuration file.
     #[error("failed to read config file: {0}")]
     Io(#[from] std::io::Error),
 
-    /// Erreur de désérialisation TOML (champ invalide, type incorrect, etc.).
+    /// TOML deserialization error (invalid field, wrong type, etc.).
     #[error("invalid TOML config: {0}")]
     Parse(#[from] toml::de::Error),
 }
 
 // ─────────────────────────────────────────────
-// Structures de configuration
+// Configuration structures
 // ─────────────────────────────────────────────
 
-/// Configuration globale Apollia OS validée depuis `apollia.toml`.
+/// Global Apollia OS configuration validated from `apollia.toml`.
 ///
-/// Contient la configuration LLM, l'API REST, le runtime core, le HITL et le routing A2A.
-/// La configuration opérationnelle (triggers, notifications, agents, stt)
-/// est gérée en SQLite.
+/// Holds the LLM, REST API, core runtime, HITL, and A2A routing configuration.
+/// The operational configuration (triggers, notifications, agents, stt) is
+/// managed in SQLite.
 ///
-/// Pour désérialiser depuis un fichier, utiliser [`parse_apollia_toml`].
+/// To deserialize from a file, use [`parse_apollia_toml`].
 #[derive(Debug, serde::Deserialize)]
 pub struct ApolliaCConfig {
-    /// Section `[llm]` — configuration des backends LLM.
+    /// Section `[llm]`: LLM backend configuration.
     ///
-    /// Vaut `None` si la section `[llm]` est absente du fichier.
+    /// `None` when the `[llm]` section is absent from the file.
     pub llm: Option<LlmConfig>,
 
-    /// Section `[api]` — configuration du listener TCP et de l'authentification.
+    /// Section `[api]`: TCP listener and authentication configuration.
     ///
-    /// Vaut `None` si la section `[api]` est absente du fichier ; les valeurs
-    /// par défaut de [`ApiConfig`] sont alors appliquées.
+    /// `None` when the `[api]` section is absent from the file; the
+    /// [`ApiConfig`] defaults then apply.
     pub api: Option<ApiConfig>,
 
-    /// Section `[runtime]` — capacités EventBus et mailbox.
+    /// Section `[runtime]`: EventBus and mailbox capacities.
     ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`RuntimeConfig`] s'appliquent.
+    /// `None` when absent; the [`RuntimeConfig`] defaults apply.
     pub runtime: Option<RuntimeConfig>,
 
-    /// Section `[hitl]` — timeout et scan interval Human-in-the-Loop.
+    /// Section `[hitl]`: Human-in-the-Loop timeout and scan interval.
     ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`HitlConfig`] s'appliquent.
+    /// `None` when absent; the [`HitlConfig`] defaults apply.
     pub hitl: Option<HitlConfig>,
 
-    /// Section `[a2a]` — routing inter-agents.
+    /// Section `[a2a]`: inter-agent routing.
     ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`A2AConfig`] s'appliquent.
+    /// `None` when absent; the [`A2AConfig`] defaults apply.
     pub a2a: Option<A2AConfig>,
 
-    /// Section `[oria]` — moteur Observer-Reasoner-Actor.
+    /// Section `[oria]`: Observer-Reasoner-Actor engine.
     ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`ORIAConfig`] s'appliquent.
+    /// `None` when absent; the [`ORIAConfig`] defaults apply.
     pub oria: Option<ORIAConfig>,
 
-    /// Section `[registry]` — URL du registry communautaire.
+    /// Section `[registry]`: community registry URL.
     ///
-    /// Vaut `None` si absente ; la valeur par défaut de [`RegistryConfig`] s'applique.
+    /// `None` when absent; the [`RegistryConfig`] default applies.
     pub registry: Option<RegistryConfig>,
 
-    /// Section `[tools]` — outils natifs : limites, désactivations statiques,
-    /// configuration `web_search` / `web_read`.
+    /// Section `[tools]`: native tools (limits, static disabling,
+    /// `web_search` / `web_read` configuration).
     ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`ToolsConfig`] s'appliquent.
+    /// `None` when absent; the [`ToolsConfig`] defaults apply.
     pub tools: Option<ToolsConfig>,
 
-    /// Section `[mcp]` — configuration du module MCP (TTL des approbations HITL).
+    /// Section `[mcp]`: MCP module configuration (HITL approval TTL).
     ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`McpConfig`] s'appliquent.
+    /// `None` when absent; the [`McpConfig`] defaults apply.
     pub mcp: Option<McpConfig>,
 
-    /// Section `[permissions]` — moteur de permissions (SafeList, détection d'injection).
+    /// Section `[permissions]`: permissions engine (SafeList, injection detection).
     ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`PermissionsConfig`] s'appliquent.
+    /// `None` when absent; the [`PermissionsConfig`] defaults apply.
     pub permissions: Option<PermissionsConfig>,
 
-    /// Section `[filesystem]` — journal réversible et configuration filesystem.
+    /// Section `[filesystem]`: reversible journal and filesystem configuration.
     ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`FilesystemConfig`] s'appliquent.
+    /// `None` when absent; the [`FilesystemConfig`] defaults apply.
     pub filesystem: Option<FilesystemConfig>,
 }
 
-/// Noms des sections TOML qui sont désormais obsolètes.
+/// Names of the TOML sections that are now deprecated.
 ///
-/// Utilisé par [`check_deprecated_sections`] pour émettre des warnings
-/// si un ancien fichier `apollia.toml` contient encore ces sections.
+/// Used by [`check_deprecated_sections`] to emit warnings if an older
+/// `apollia.toml` file still contains these sections.
 const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
 
 // ─────────────────────────────────────────────
-// Fonctions publiques
+// Public functions
 // ─────────────────────────────────────────────
 
-/// Résout `~` vers `$HOME` dans un chemin de fichier.
+/// Resolves `~` to `$HOME` in a file path.
 ///
-/// Remplace un composant `~` en tête de chemin par la valeur de la
-/// variable d'environnement `HOME`. Si `HOME` n'est pas définie,
-/// `~` est remplacé par une chaîne vide (comportement non-fatal).
+/// Replaces a leading `~` path component with the value of the `HOME`
+/// environment variable. If `HOME` is not set, `~` is replaced with an empty
+/// string (non-fatal behavior).
 ///
-/// Cette fonction est **pure** — aucun accès au système de fichiers,
-/// uniquement une transformation de chaîne.
+/// This function is **pure**: no filesystem access, only a string
+/// transformation.
 pub fn expand_tilde(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
     if s.starts_with("~/") {
@@ -150,20 +150,20 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
     }
 }
 
-/// Lit et désérialise `apollia.toml` depuis le chemin indiqué.
+/// Reads and deserializes `apollia.toml` from the given path.
 ///
-/// Après le parsing TOML :
-/// - Les chemins `model_path` des backends embarqués sont normalisés via [`expand_tilde`].
-/// - Les sections obsolètes (`[[triggers]]`, `[notifications]`, `[stt]`) sont
-///   détectées et émettent un warning sans bloquer le démarrage.
+/// After TOML parsing:
+/// - The `model_path` paths of embedded backends are normalized via [`expand_tilde`].
+/// - The deprecated sections (`[[triggers]]`, `[notifications]`, `[stt]`) are
+///   detected and emit a warning without blocking startup.
 ///
-/// La section `[llm]` est **optionnelle** : son absence produit `config.llm = None`
-/// sans erreur.
+/// The `[llm]` section is **optional**: its absence yields `config.llm = None`
+/// without an error.
 ///
-/// # Erreurs
+/// # Errors
 ///
-/// - [`ConfigError::Io`] — le fichier est inaccessible ou illisible.
-/// - [`ConfigError::Parse`] — le TOML est malformé ou contient des types invalides.
+/// - [`ConfigError::Io`]: the file is inaccessible or unreadable.
+/// - [`ConfigError::Parse`]: the TOML is malformed or contains invalid types.
 pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     let content = std::fs::read_to_string(path)?;
 
@@ -201,19 +201,18 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
         .try_into()
         .map_err(|e: toml::de::Error| e)?;
 
-    // ADR-113 : les chemins de modèles GGUF locaux ne sont plus configurés via
-    // `[[llm.backends]]` (déplacés dans `[llm.runner]`), donc aucune
-    // normalisation `~ → $HOME` n'est requise ici. Les backends cloud n'ont
-    // pas de chemin local.
+    // Local GGUF model paths are no longer configured via `[[llm.backends]]`
+    // (they moved to `[llm.runner]`), so no `~ -> $HOME` normalization is
+    // required here. Cloud backends have no local path.
 
     Ok(config)
 }
 
-/// Détecte et signale les sections TOML obsolètes.
+/// Detects and reports deprecated TOML sections.
 ///
-/// Les sections `[[triggers]]`, `[notifications]`, `[stt]` sont obsolètes.
-/// Si le fichier TOML les contient encore, un warning est émis pour chaque
-/// section détectée.
+/// The `[[triggers]]`, `[notifications]`, `[stt]` sections are deprecated.
+/// If the TOML file still contains them, a warning is emitted for each
+/// detected section.
 fn check_deprecated_sections(content: &str) {
     for section in DEPRECATED_SECTIONS {
         let bracket_single = format!("[{section}]");
@@ -235,18 +234,20 @@ fn check_deprecated_sections(content: &str) {
     }
 }
 
-/// Validation non-fatale de la config LLM — émet des warnings, ne retourne jamais d'erreur.
+/// Non-fatal validation of the LLM config: emits warnings, never returns an error.
 ///
-/// Pour chaque backend configuré :
-/// - **Backend embarqué** : vérifie que le fichier `.gguf` existe après expansion du `~`.
-///   Si absent → `tracing::warn!` avec le chemin manquant (backend ignoré par le router).
-/// - **Backend API** : vérifie que la variable d'environnement `api_key_env` est définie.
-///   Si absente → `tracing::warn!` avec le nom de la variable (backend ignoré par le router).
+/// For each configured backend:
+/// - **Embedded backend**: checks that the `.gguf` file exists after `~`
+///   expansion. If missing, `tracing::warn!` with the missing path (backend
+///   skipped by the router).
+/// - **API backend**: checks that the `api_key_env` environment variable is
+///   set. If absent, `tracing::warn!` with the variable name (backend skipped
+///   by the router).
 ///
-/// Cette fonction est **intentionnellement non-fatale** : la validation stricte
-/// est déléguée à [`apollia_llm::LlmRouter::from_config`] au démarrage du Supervisor.
+/// This function is **intentionally non-fatal**: strict validation is delegated
+/// to [`apollia_llm::LlmRouter::from_config`] at Supervisor startup.
 ///
-/// Retourne toujours `Ok(())`.
+/// Always returns `Ok(())`.
 pub fn validate_llm_config(config: &LlmConfig) -> Result<(), ConfigError> {
     for backend in &config.backends {
         match &backend.kind {
@@ -273,7 +274,7 @@ pub fn validate_llm_config(config: &LlmConfig) -> Result<(), ConfigError> {
 mod tests {
     use super::*;
 
-    /// Écrit le contenu dans un fichier temporaire et retourne le handle.
+    /// Writes the content to a temporary file and returns the handle.
     fn write_toml(content: &str) -> tempfile::NamedTempFile {
         use std::io::Write;
         let mut f = tempfile::NamedTempFile::new().expect("failed to create temp file");
@@ -281,9 +282,9 @@ mod tests {
         f
     }
 
-    // GIVEN un TOML avec [[llm.backends]] type = "api"
-    // WHEN on désérialise
-    // THEN config.llm.backends[0] est Api
+    // GIVEN a TOML with [[llm.backends]] type = "api"
+    // WHEN deserializing
+    // THEN config.llm.backends[0] is Api
     #[cfg(feature = "cloud")]
     #[test]
     fn test_parse_api_backend() {
@@ -313,9 +314,9 @@ model = "claude-haiku-4-5-20251001"
         );
     }
 
-    // GIVEN un TOML sans section [llm]
-    // WHEN on parse
-    // THEN config.llm est None (pas d'erreur)
+    // GIVEN a TOML without a [llm] section
+    // WHEN parsing
+    // THEN config.llm is None (no error)
     #[test]
     fn test_no_llm_section_is_none() {
         // GIVEN
@@ -331,9 +332,9 @@ model = "claude-haiku-4-5-20251001"
         );
     }
 
-    // GIVEN une LlmConfig minimale (cloud backend sans clé API)
-    // WHEN on appelle validate_llm_config
-    // THEN Ok(()) est retourné — jamais d'erreur fatale
+    // GIVEN a minimal LlmConfig (cloud backend without an API key)
+    // WHEN validate_llm_config is called
+    // THEN Ok(()) is returned, never a fatal error
     #[cfg(feature = "cloud")]
     #[test]
     fn test_validate_llm_config_always_returns_ok() {
@@ -363,9 +364,9 @@ model = "gpt-4o-mini"
         );
     }
 
-    // GIVEN un TOML avec [llm] mais sans [llm.observability]
-    // WHEN on désérialise
-    // THEN les valeurs par défaut sont appliquées
+    // GIVEN a TOML with [llm] but without [llm.observability]
+    // WHEN deserializing
+    // THEN the default values are applied
     #[cfg(feature = "cloud")]
     #[test]
     fn test_observability_defaults() {
@@ -399,9 +400,9 @@ model = "claude-haiku-4-5-20251001"
         );
     }
 
-    // GIVEN un chemin commençant par ~/
-    // WHEN on appelle expand_tilde
-    // THEN le ~ est remplacé
+    // GIVEN a path starting with ~/
+    // WHEN expand_tilde is called
+    // THEN the ~ is replaced
     #[test]
     fn test_expand_tilde_replaces_home() {
         // GIVEN
@@ -416,9 +417,9 @@ model = "claude-haiku-4-5-20251001"
         assert!(s.contains(".apollia"), "path should contain .apollia");
     }
 
-    // GIVEN un chemin sans ~ (chemin absolu)
-    // WHEN on appelle expand_tilde
-    // THEN le chemin est retourné inchangé
+    // GIVEN a path without ~ (absolute path)
+    // WHEN expand_tilde is called
+    // THEN the path is returned unchanged
     #[test]
     fn test_expand_tilde_noop_for_absolute_path() {
         // GIVEN
@@ -433,12 +434,12 @@ model = "claude-haiku-4-5-20251001"
 
     // ─── Deprecated sections warning ─────────────────────────────
 
-    // GIVEN un TOML contenant une section [[triggers]]
-    // WHEN parse_apollia_toml est appelé
-    // THEN le parsing réussit (pas d'erreur) — les sections obsolètes sont ignorées
+    // GIVEN a TOML containing a [[triggers]] section
+    // WHEN parse_apollia_toml is called
+    // THEN parsing succeeds (no error), deprecated sections are ignored
     #[test]
     fn test_deprecated_triggers_section_does_not_block_parsing() {
-        // GIVEN — TOML with deprecated [[triggers]] section
+        // GIVEN a TOML with a deprecated [[triggers]] section
         let toml = r#"
 [agents]
 directory = "agents/"
@@ -459,7 +460,7 @@ schedule = "* * * * *"
         // WHEN
         let result = parse_apollia_toml(file.path());
 
-        // THEN — parsing succeeds, deprecated sections are silently ignored
+        // THEN parsing succeeds, deprecated sections are silently ignored
         assert!(
             result.is_ok(),
             "parsing should succeed despite deprecated sections, error: {:?}",
@@ -467,9 +468,9 @@ schedule = "* * * * *"
         );
     }
 
-    // GIVEN un TOML contenant [notifications]
-    // WHEN parse_apollia_toml est appelé
-    // THEN le parsing réussit — la section est ignorée
+    // GIVEN a TOML containing [notifications]
+    // WHEN parse_apollia_toml is called
+    // THEN parsing succeeds, the section is ignored
     #[test]
     fn test_deprecated_notifications_section_does_not_block_parsing() {
         // GIVEN
@@ -493,9 +494,9 @@ events = ["task.completed"]
         );
     }
 
-    // GIVEN un TOML vide
-    // WHEN parse_apollia_toml est appelé
-    // THEN le parsing réussit avec la section llm à None
+    // GIVEN an empty TOML
+    // WHEN parse_apollia_toml is called
+    // THEN parsing succeeds with the llm section at None
     #[test]
     fn test_empty_toml_parses_ok() {
         // GIVEN
@@ -508,9 +509,9 @@ events = ["task.completed"]
         assert!(config.llm.is_none());
     }
 
-    // GIVEN la constante DEPRECATED_SECTIONS
-    // WHEN on l'inspecte
-    // THEN elle contient triggers, notifications et stt (gérés via SQLite)
+    // GIVEN the DEPRECATED_SECTIONS constant
+    // WHEN inspecting it
+    // THEN it contains triggers, notifications, and stt (managed via SQLite)
     #[test]
     fn test_deprecated_sections_constant() {
         assert!(DEPRECATED_SECTIONS.contains(&"triggers"));
@@ -518,9 +519,9 @@ events = ["task.completed"]
         assert!(DEPRECATED_SECTIONS.contains(&"stt"));
     }
 
-    // GIVEN apollia.toml contient [mcp], [permissions] et [filesystem.journal]
-    // WHEN parse_apollia_toml est appelé
-    // THEN les valeurs custom sont désérialisées correctement
+    // GIVEN apollia.toml contains [mcp], [permissions], and [filesystem.journal]
+    // WHEN parse_apollia_toml is called
+    // THEN the custom values are deserialized correctly
     #[test]
     fn test_mcp_permissions_filesystem_sections_deserialized() {
         // GIVEN
@@ -552,12 +553,12 @@ max_sessions = 100
         assert_eq!(fs.journal.max_sessions, 100);
     }
 
-    // GIVEN apollia.toml sans [mcp]/[permissions]/[filesystem]
-    // WHEN parse_apollia_toml est appelé
-    // THEN les champs sont None — pas de régression
+    // GIVEN apollia.toml without [mcp]/[permissions]/[filesystem]
+    // WHEN parse_apollia_toml is called
+    // THEN the fields are None, no regression
     #[test]
     fn test_mcp_permissions_filesystem_absent_is_none() {
-        // GIVEN — empty TOML
+        // GIVEN an empty TOML
         let file = write_toml("");
 
         // WHEN
@@ -569,9 +570,9 @@ max_sessions = 100
         assert!(config.filesystem.is_none());
     }
 
-    // GIVEN le struct ApolliaCConfig
-    // WHEN on vérifie sa structure
-    // THEN il contient les champs config statique (llm, api, runtime, hitl, a2a, oria, registry, tools, mcp, permissions, filesystem)
+    // GIVEN the ApolliaCConfig struct
+    // WHEN verifying its structure
+    // THEN it contains the static config fields (llm, api, runtime, hitl, a2a, oria, registry, tools, mcp, permissions, filesystem)
     #[test]
     fn test_config_struct_has_expected_fields() {
         let config = ApolliaCConfig {

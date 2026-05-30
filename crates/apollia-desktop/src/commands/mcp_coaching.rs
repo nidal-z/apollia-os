@@ -1,4 +1,4 @@
-//! Tauri IPC command — post-install coaching examples for a freshly added
+//! Tauri IPC command: post-install coaching examples for a freshly added
 //! MCP connection.
 //!
 //! Returns 2–3 ready-to-send prompts the operator can click to try the newly
@@ -8,7 +8,7 @@
 //! so the frontend will not need to change when the LLM path is wired.
 //!
 //! Cache is not implemented yet (owns the 7-day file cache keyed
-//! by `integration_id + version`) — the heuristic is deterministic and cheap.
+//! by `integration_id + version`); the heuristic is deterministic and cheap.
 use serde::{Deserialize, Serialize};
 
 /// One coaching example shown as a clickable card in the wizard's final step.
@@ -32,7 +32,7 @@ pub struct CoachingRequest {
 
 /// Generate 2–3 post-install examples for a newly added MCP server.
 ///
-/// Never returns `Err` — on empty match the frontend shows a generic empty
+/// Never returns `Err`; on empty match the frontend shows a generic empty
 /// state. The heuristic matches against well-known connector names; unknown
 /// servers get a single generic "Explore the tools" card.
 #[tauri::command]

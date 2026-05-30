@@ -1,6 +1,6 @@
-//! `IntervalTrigger` — source de déclenchement périodique à intervalle fixe.
+//! `IntervalTrigger`: periodic trigger source at a fixed interval.
 //!
-//! Spawne une tâche Tokio qui dort `every` puis envoie un [`TriggerEvent`] en boucle.
+//! Spawns a Tokio task that sleeps `every`, then sends a [`TriggerEvent`] in a loop.
 
 use chrono::Utc;
 use tokio::sync::mpsc;
@@ -10,18 +10,18 @@ use crate::types::{
     parse_interval, TriggerDefinition, TriggerEvent, TriggerPayload, TriggerSourceConfig,
 };
 
-/// Source de déclenchement périodique à intervalle fixe.
+/// Periodic trigger source at a fixed interval.
 pub struct IntervalTrigger;
 
 impl IntervalTrigger {
-    /// Spawne une tâche Tokio qui fire à chaque intervalle configuré.
+    /// Spawns a Tokio task that fires at each configured interval.
     ///
-    /// L'intervalle est parsé depuis la chaîne `every` via [`parse_interval`].
-    /// Si le format est invalide, la tâche log l'erreur et se termine sans paniquer.
-    /// Retourne le `JoinHandle<()>` pour abort lors du hot reload.
+    /// The interval is parsed from the `every` string via [`parse_interval`].
+    /// If the format is invalid, the task logs the error and terminates without panicking.
+    /// Returns the `JoinHandle<()>` for abort during hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
-            // Guard : extraire la durée depuis la source
+            // Extract the duration from the source.
             let every_str = match &def.source {
                 TriggerSourceConfig::Interval { every } => every.clone(),
                 _ => {
@@ -60,7 +60,7 @@ impl IntervalTrigger {
                 };
 
                 if tx.send(event).await.is_err() {
-                    // Engine dropped — arrêt propre de la source
+                    // Engine dropped; shut the source down cleanly.
                     break;
                 }
             }
@@ -76,7 +76,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac2_interval_fires_multiple_times() {
-        // GIVEN — intervalle de 100ms
+        // GIVEN a 100ms interval
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = TriggerDefinition {
             id: "interval-test".into(),
@@ -89,11 +89,11 @@ mod tests {
             input_template: InputTemplate("tick".into()),
         };
 
-        // WHEN — laisser passer 350ms
+        // WHEN letting 350ms pass
         let _handle = IntervalTrigger::spawn(def, tx);
         tokio::time::sleep(Duration::from_millis(350)).await;
 
-        // THEN — au moins 2 fires (3 ± 1 attendus)
+        // THEN at least 2 fires (3 plus or minus 1 expected)
         let mut count = 0;
         while rx.try_recv().is_ok() {
             count += 1;

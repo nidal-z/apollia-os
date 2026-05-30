@@ -1,9 +1,9 @@
 //! Runtime error analyzers.
 //!
-//! - [`error_analyzer`] — maps a raw error string into a structured
+//! - [`error_analyzer`], maps a raw error string into a structured
 //!   [`apollia_core::ErrorAnalysis`] using a static lookup table. Always-on,
 //!   zero LLM cost.
-//! - [`hallucination_detector`] — heuristic + schema-driven detector for
+//! - [`hallucination_detector`], heuristic + schema-driven detector for
 //!   suspicious tool outputs (null, empty, malformed JSON). Always-on,
 //! (session-level meta-layer).
 //!

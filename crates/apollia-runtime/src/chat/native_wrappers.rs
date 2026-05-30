@@ -1,21 +1,21 @@
 //! Wrapper [`ToolExecutor`] implementations that let the chat dispatcher
-//! host every native tool — including HITL-sensitive ones and tools with
-//! per-call side state — without keeping a parallel `invoke_*` fast path
-//! on `NativeChatToolInvoker` (ADR-096 Phase 4 — full convergence).
+//! host every native tool, including HITL-sensitive ones and tools with
+//! per-call side state, without keeping a parallel `invoke_*` fast path
+//! on `NativeChatToolInvoker` (full convergence).
 //!
 //! Two wrappers today:
 //!
-//! - [`HitlFilesystemGuard`] — runs the same Risk classification +
+//! - [`HitlFilesystemGuard`], runs the same Risk classification +
 //!   approval-event flow that lived in `check_fs_hitl` inline, then
 //!   delegates to the inner executor on approval.
-//! - [`DynamicAllowlistHttpFetch`] — preserves Chat Libre's habit of
+//! - [`DynamicAllowlistHttpFetch`], preserves Chat Libre's habit of
 //!   adding the requested URL's host to the allowlist on the fly. The
 //!   stock `HttpFetch` is constructed with a static allowlist; this
 //!   wrapper builds a fresh one per call with `[host_from_url]`.
 //!
 //! The wrappers are constructed by `chat::manager::resolve_workspace_for_session`
 //! when it builds the per-session [`ToolDispatcher`], so the dispatcher
-//! owns every native tool uniformly — no fast path, no special cases.
+//! owns every native tool uniformly, no fast path, no special cases.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -81,7 +81,7 @@ pub struct HitlFilesystemGuard {
 impl HitlFilesystemGuard {
     /// Wrap `inner` so every invocation routes through the HITL approval
     /// flow first. `op` must match the inner tool's logical filesystem
-    /// operation — used to compute the rule key (`<op>:<level>`).
+    /// operation, used to compute the rule key (`<op>:<level>`).
     pub fn new(inner: Box<dyn ToolExecutor>, op: FilesystemOp, ctx: HitlFilesystemContext) -> Self {
         Self { inner, op, ctx }
     }
@@ -93,7 +93,7 @@ impl HitlFilesystemGuard {
     /// Extract the resolved target path from the input. Each wrapped tool
     /// expects a different field name (`path` for file ops, `notebook_path`
     /// for notebooks). Returns `None` for tools whose input has no obvious
-    /// path field — those still run HITL with a synthetic "workspace" path
+    /// path field, those still run HITL with a synthetic "workspace" path
     /// so the classifier can decide based on the workspace as a whole.
     fn resolved_path(&self, input: &Value) -> PathBuf {
         let raw = input
@@ -253,7 +253,7 @@ fn truncate_diff(before: String, after: String) -> FilesystemPreview {
 /// Wraps `http_fetch` to preserve the Chat Libre behaviour where the host
 /// of the requested URL is injected into the allowlist for that single
 /// call. The stock [`HttpFetch`] executor is built once with a static
-/// allowlist — in Chat Libre, every tool call is HITL-approved upstream,
+/// allowlist, in Chat Libre, every tool call is HITL-approved upstream,
 /// so allowing the call-specific host is the right default.
 pub struct DynamicAllowlistHttpFetch;
 
@@ -271,7 +271,7 @@ impl ToolExecutor for DynamicAllowlistHttpFetch {
 
     fn is_read_only(&self) -> bool {
         // GET-style fetch is read-only from the agent's perspective even
-        // though network I/O happens — keeps batching semantics intact.
+        // though network I/O happens, keeps batching semantics intact.
         true
     }
 
@@ -306,7 +306,7 @@ impl Default for DynamicAllowlistHttpFetch {
     }
 }
 
-/// Extract the hostname from a URL string. Minimal best-effort parser —
+/// Extract the hostname from a URL string. Minimal best-effort parser -
 /// strips `scheme://`, takes everything before the next `/` or `:`.
 fn extract_hostname(url: &str) -> Option<String> {
     let after_scheme = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);

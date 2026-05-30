@@ -1,9 +1,9 @@
-//! Chargement et validation d'un Agent Package depuis son dossier.
+//! Loading and validation of an Agent Package from its directory.
 //!
-//! Un package est décrit par un `agent.toml` à la racine du dossier.
-//! Ce module parse le manifeste, valide chaque `.py` déclaré via le
-//! duck-typing AIP existant, et retourne un [`AgentPackage`] prêt à
-//! être installé par le runtime (ADR-081).
+//! A package is described by an `agent.toml` at the directory root. This
+//! module parses the manifest, validates each declared `.py` via the existing
+//! AIP duck-typing, and returns an [`AgentPackage`] ready to be installed by
+//! the runtime.
 
 use std::path::{Path, PathBuf};
 
@@ -11,11 +11,9 @@ use serde::Deserialize;
 
 use crate::loader::{load_agent_module, AIPLoaderError};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Erreurs
-// ─────────────────────────────────────────────────────────────────────────────
+// Errors
 
-/// Erreurs retournées par [`load_package`].
+/// Errors returned by [`load_package`].
 #[derive(Debug, thiserror::Error)]
 pub enum PackageLoaderError {
     #[error("agent.toml introuvable dans '{0}'")]
@@ -40,11 +38,9 @@ pub enum PackageLoaderError {
     InvalidManifest(String),
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types du manifeste (déserialisation TOML)
-// ─────────────────────────────────────────────────────────────────────────────
+// Manifest types (TOML deserialization)
 
-/// Manifeste complet d'un package (`agent.toml`).
+/// Complete package manifest (`agent.toml`).
 #[derive(Debug, Clone, Deserialize)]
 pub struct PackageManifest {
     pub package: PackageMeta,
@@ -58,7 +54,7 @@ pub struct PackageManifest {
     pub pip: Option<PipConfig>,
 }
 
-/// Section `[package]`.
+/// `[package]` section.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PackageMeta {
     pub name: String,
@@ -69,7 +65,7 @@ pub struct PackageMeta {
     pub author: String,
 }
 
-/// Entrée `[[agents]]`.
+/// `[[agents]]` entry.
 #[derive(Debug, Clone, Deserialize)]
 pub struct AgentEntry {
     pub name: String,
@@ -81,13 +77,13 @@ pub struct AgentEntry {
     pub packages: Vec<String>,
 }
 
-/// Section `[tools]`.
+/// `[tools]` section.
 #[derive(Debug, Clone, Deserialize, serde::Serialize)]
 pub struct ToolsConfig {
     pub web: Option<WebToolConfig>,
 }
 
-/// Config de l'outil web.
+/// Web tool config.
 #[derive(Debug, Clone, Deserialize, serde::Serialize)]
 pub struct WebToolConfig {
     pub enabled: bool,
@@ -95,18 +91,16 @@ pub struct WebToolConfig {
     pub ssrf_guard: bool,
 }
 
-/// Section `[pip]`.
+/// `[pip]` section.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PipConfig {
     #[serde(default)]
     pub packages: Vec<String>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types de sortie
-// ─────────────────────────────────────────────────────────────────────────────
+// Output types
 
-/// Rôle d'un agent dans le package.
+/// Role of an agent within the package.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentRole {
     Director,
@@ -129,8 +123,8 @@ impl AgentRole {
     /// (mirroring the four scaffolding templates: react / conversational /
     /// orchestrated all share `assistant`-style structure, `worker` keeps its
     /// own). Reject every other value with an explicit error so malformed
-    /// manifests don't silently install — a stale `role = "standalone"`
-    /// coming from an older `/apollia-worker-forge` template means the agent
+    /// manifests don't silently install: a stale `role = "standalone"`
+    /// coming from an older worker-forge template means the agent
     /// hasn't been updated to the canonical taxonomy and must be fixed at
     /// the source.
     fn parse(s: &str) -> Result<Self, PackageLoaderError> {
@@ -147,7 +141,7 @@ impl AgentRole {
     }
 }
 
-/// Agent du package avec son chemin absolu et son rôle parsé.
+/// Package agent with its absolute path and parsed role.
 #[derive(Debug, Clone)]
 pub struct LoadedAgentEntry {
     pub name: String,
@@ -155,20 +149,18 @@ pub struct LoadedAgentEntry {
     pub role: AgentRole,
 }
 
-/// Package complet chargé et validé.
+/// Fully loaded and validated package.
 #[derive(Debug)]
 pub struct AgentPackage {
     pub manifest: PackageManifest,
-    /// Contenu de `agent.toml` sérialisé en JSON (pour stockage en DB).
+    /// Contents of `agent.toml` serialized to JSON (for DB storage).
     pub manifest_json: String,
-    /// Chemin absolu du dossier racine du package.
+    /// Absolute path of the package root directory.
     pub root_path: PathBuf,
     pub agents: Vec<LoadedAgentEntry>,
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// API publique
-// ─────────────────────────────────────────────────────────────────────────────
+// Public API
 
 impl PackageManifest {
     /// Returns the union of pip packages declared in the top-level `[pip]`
@@ -218,20 +210,20 @@ impl PackageManifest {
     }
 }
 
-/// Charge et valide un package depuis son dossier racine.
+/// Loads and validates a package from its root directory.
 ///
-/// 1. Lit et parse `agent.toml`
-/// 2. Valide les invariants du manifeste (noms uniques, triggers valides)
-/// 3. Duck-type chaque `.py` déclaré via [`load_agent_module`]
+/// 1. Reads and parses `agent.toml`
+/// 2. Validates the manifest invariants (unique names, valid triggers)
+/// 3. Duck-types each declared `.py` via [`load_agent_module`]
 ///
-/// **Note** : ce flow ne crée pas de venv. Si un agent déclare des packages
-/// pip et les importe au top-level, le duck-typing échouera. Pour le flow
-/// d'installation production, utiliser [`load_manifest_only`] puis appeler
-/// [`duck_type_agent`] avec le chemin du `site-packages` du venv créé.
+/// **Note**: this flow does not create a venv. If an agent declares pip
+/// packages and imports them at the top level, duck-typing will fail. For the
+/// production install flow, use [`load_manifest_only`] then call
+/// [`duck_type_agent`] with the `site-packages` path of the created venv.
 ///
 /// # Errors
 ///
-/// Retourne une erreur dès la première violation détectée (Principe #4 — Fail fast).
+/// Returns an error on the first detected violation (fail fast).
 pub fn load_package(root: &Path) -> Result<AgentPackage, PackageLoaderError> {
     let pkg = load_manifest_only(root)?;
     for entry in &pkg.agents {
@@ -245,11 +237,10 @@ pub fn load_package(root: &Path) -> Result<AgentPackage, PackageLoaderError> {
     Ok(pkg)
 }
 
-/// Parse et valide le manifeste **sans** duck-typer les `.py`.
+/// Parses and validates the manifest **without** duck-typing the `.py` files.
 ///
-/// Étape pure (pas de PyO3, pas de venv) utilisée par le flow d'install
-/// pour décider s'il faut créer un venv et installer des deps pip avant de
-/// duck-typer les modules.
+/// Pure step (no PyO3, no venv) used by the install flow to decide whether a
+/// venv must be created and pip deps installed before duck-typing the modules.
 pub fn load_manifest_only(root: &Path) -> Result<AgentPackage, PackageLoaderError> {
     let toml_path = root.join("agent.toml");
     if !toml_path.exists() {
@@ -290,11 +281,11 @@ pub fn load_manifest_only(root: &Path) -> Result<AgentPackage, PackageLoaderErro
     })
 }
 
-/// Duck-type un seul fichier `.py` d'agent, avec des chemins additionnels
-/// injectés dans `sys.path` (par ex. le `site-packages` d'un venv).
+/// Duck-types a single agent `.py` file, with additional paths injected into
+/// `sys.path` (e.g. a venv's `site-packages`).
 ///
-/// Utilisé par le flow d'install après création du venv pour valider qu'un
-/// agent peut être importé avec ses packages pip installés.
+/// Used by the install flow after venv creation to validate that an agent can
+/// be imported with its pip packages installed.
 pub fn duck_type_agent(path: &Path, extra_sys_paths: &[PathBuf]) -> Result<(), PackageLoaderError> {
     crate::loader::load_agent_module_with_sys_paths(path, extra_sys_paths)
         .map(|_| ())
@@ -308,9 +299,9 @@ pub fn duck_type_agent(path: &Path, extra_sys_paths: &[PathBuf]) -> Result<(), P
         })
 }
 
-/// Valide les invariants du manifeste sans charger les `.py`.
+/// Validates the manifest invariants without loading the `.py` files.
 ///
-/// Utilisé par `preview_agent_package` (dry-run sans duck-typing).
+/// Used by `preview_agent_package` (dry-run without duck-typing).
 pub fn validate_manifest(manifest: &PackageManifest) -> Result<(), PackageLoaderError> {
     if manifest.package.name.is_empty() {
         return Err(PackageLoaderError::InvalidManifest(
@@ -328,7 +319,7 @@ pub fn validate_manifest(manifest: &PackageManifest) -> Result<(), PackageLoader
         ));
     }
 
-    // Noms d'agents uniques
+    // Unique agent names
     let mut seen = std::collections::HashSet::new();
     for a in &manifest.agents {
         if !seen.insert(&a.name) {
@@ -342,9 +333,7 @@ pub fn validate_manifest(manifest: &PackageManifest) -> Result<(), PackageLoader
     Ok(())
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sérialisation JSON du PackageManifest
-// ─────────────────────────────────────────────────────────────────────────────
+// JSON serialization of PackageManifest
 
 impl serde::Serialize for PackageManifest {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -391,9 +380,7 @@ impl serde::Serialize for PipConfig {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -447,9 +434,9 @@ packages = ["httpx>=0.27"]
 
     #[test]
     fn test_parse_minimal_toml() {
-        // GIVEN un TOML minimal
+        // GIVEN a minimal TOML
         let manifest: PackageManifest = toml::from_str(MINIMAL_TOML).expect("parse");
-        // THEN les champs sont corrects
+        // THEN the fields are correct
         assert_eq!(manifest.package.name, "test-pkg");
         assert_eq!(manifest.agents.len(), 1);
         assert_eq!(manifest.agents[0].role, "director");
@@ -457,7 +444,7 @@ packages = ["httpx>=0.27"]
 
     #[test]
     fn test_parse_full_toml() {
-        // GIVEN un TOML complet
+        // GIVEN a full TOML
         let manifest: PackageManifest = toml::from_str(FULL_TOML).expect("parse");
         // THEN
         assert_eq!(manifest.package.name, "veille-ia");
@@ -469,32 +456,32 @@ packages = ["httpx>=0.27"]
 
     #[test]
     fn test_validate_manifest_ok() {
-        // GIVEN un manifeste valide
+        // GIVEN a valid manifest
         let manifest: PackageManifest = toml::from_str(FULL_TOML).expect("parse");
-        // WHEN on valide
-        // THEN pas d'erreur
+        // WHEN we validate
+        // THEN no error
         validate_manifest(&manifest).expect("valid");
     }
 
     #[test]
     fn test_validate_manifest_empty_agents() {
-        // GIVEN un manifeste sans agents
+        // GIVEN a manifest with no agents
         let toml_str = r#"
 [package]
 name    = "empty-pkg"
 version = "1.0.0"
 "#;
         let manifest: PackageManifest = toml::from_str(toml_str).expect("parse");
-        // WHEN on valide
+        // WHEN we validate
         let result = validate_manifest(&manifest);
-        // THEN erreur
+        // THEN error
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("aucun agent"));
     }
 
     #[test]
     fn test_validate_manifest_duplicate_agent_names() {
-        // GIVEN deux agents avec le même nom
+        // GIVEN two agents with the same name
         let toml_str = r#"
 [package]
 name    = "dup-pkg"
@@ -511,28 +498,28 @@ entry = "b.py"
 role  = "worker"
 "#;
         let manifest: PackageManifest = toml::from_str(toml_str).expect("parse");
-        // WHEN on valide
+        // WHEN we validate
         let result = validate_manifest(&manifest);
-        // THEN erreur de duplication
+        // THEN duplication error
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("dupliqué"));
     }
 
     #[test]
     fn test_agent_role_parse_unknown() {
-        // GIVEN un rôle inconnu
+        // GIVEN an unknown role
         let result = AgentRole::parse("chef");
-        // THEN erreur
+        // THEN error
         assert!(result.is_err());
     }
 
     #[test]
     fn test_manifest_json_serialization() {
-        // GIVEN un manifeste parsé
+        // GIVEN a parsed manifest
         let manifest: PackageManifest = toml::from_str(FULL_TOML).expect("parse");
-        // WHEN on sérialise en JSON
+        // WHEN we serialize to JSON
         let json = serde_json::to_string(&manifest).expect("serialize");
-        // THEN JSON valide avec les champs attendus
+        // THEN valid JSON with the expected fields
         assert!(json.contains("veille-ia"));
         assert!(json.contains("director"));
     }

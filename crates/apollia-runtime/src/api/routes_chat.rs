@@ -1,13 +1,13 @@
-//! REST routes for the chat subsystem — `POST/GET/DELETE /api/v1/sessions`.
+//! REST routes for the chat subsystem, `POST/GET/DELETE /api/v1/sessions`.
 //!
 //! Seven endpoints wrapping the [`ChatSessionManagerHandle`]:
-//! - `POST   /api/v1/sessions`                 — create session
-//! - `GET    /api/v1/sessions`                 — list sessions
-//! - `GET    /api/v1/sessions/:id`             — session detail
-//! - `DELETE /api/v1/sessions/:id`             — close session
-//! - `POST   /api/v1/sessions/:id/messages`    — send message
-//! - `POST   /api/v1/sessions/:id/authorize`   — resolve approval
-//! - `GET    /api/v1/sessions/:id/stream`      — SSE stream
+//! - `POST   /api/v1/sessions`                , create session
+//! - `GET    /api/v1/sessions`                , list sessions
+//! - `GET    /api/v1/sessions/:id`            , session detail
+//! - `DELETE /api/v1/sessions/:id`            , close session
+//! - `POST   /api/v1/sessions/:id/messages`   , send message
+//! - `POST   /api/v1/sessions/:id/authorize`  , resolve approval
+//! - `GET    /api/v1/sessions/:id/stream`     , SSE stream
 
 use std::convert::Infallible;
 
@@ -105,7 +105,7 @@ pub struct ForkSessionRequest {
     pub up_to_index: Option<usize>,
 }
 
-/// Handler for `POST /api/v1/sessions` — create a new chat session.
+/// Handler for `POST /api/v1/sessions`, create a new chat session.
 pub async fn create_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<CreateSessionRequest>,
@@ -138,13 +138,13 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
     };
 
     match manager
-        .create_session(
+        .create_session(crate::chat::manager::CreateSessionParams {
             mode,
-            body.agent_name,
-            body.system_prompt,
-            body.tools,
-            body.project_id,
-        )
+            agent_name: body.agent_name,
+            system_prompt: body.system_prompt,
+            tools: body.tools,
+            project_id: body.project_id,
+        })
         .await
     {
         Ok(info) => (StatusCode::CREATED, Json(info)).into_response(),
@@ -152,7 +152,7 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `GET /api/v1/sessions` — list sessions.
+/// Handler for `GET /api/v1/sessions`, list sessions.
 pub async fn list_sessions<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(query): Query<ListSessionsQuery>,
@@ -176,7 +176,7 @@ pub async fn list_sessions<B: ExecutionBackend + Clone>(
     (StatusCode::OK, Json(sessions)).into_response()
 }
 
-/// Handler for `GET /api/v1/sessions/:id` — session detail.
+/// Handler for `GET /api/v1/sessions/:id`, session detail.
 pub async fn get_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -206,7 +206,7 @@ pub async fn get_session<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `DELETE /api/v1/sessions/:id` — close session.
+/// Handler for `DELETE /api/v1/sessions/:id`, close session.
 pub async fn close_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -234,7 +234,7 @@ pub async fn close_session<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `POST /api/v1/sessions/:id/messages` — send message.
+/// Handler for `POST /api/v1/sessions/:id/messages`, send message.
 pub async fn send_message<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -266,7 +266,7 @@ pub async fn send_message<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `POST /api/v1/sessions/:id/authorize` — resolve tool approval.
+/// Handler for `POST /api/v1/sessions/:id/authorize`, resolve tool approval.
 pub async fn authorize_tool<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -319,7 +319,7 @@ pub async fn authorize_tool<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `GET /api/v1/sessions/:id/stream` — SSE streaming.
+/// Handler for `GET /api/v1/sessions/:id/stream`, SSE streaming.
 ///
 /// Opens a persistent SSE stream filtering `ChatXxx` [`RuntimeEvent`]s by `session_id`.
 /// The stream closes when `ChatSessionClosed` is emitted.
@@ -500,7 +500,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
     Some(Ok(event_builder))
 }
 
-/// Handler for `GET /api/v1/sessions/recent` — list recent sessions with first message.
+/// Handler for `GET /api/v1/sessions/recent`, list recent sessions with first message.
 ///
 /// Query param `?limit=N` (default 10, max 50).
 pub async fn list_recent_sessions<B: ExecutionBackend + Clone>(
@@ -523,7 +523,7 @@ pub async fn list_recent_sessions<B: ExecutionBackend + Clone>(
     (StatusCode::OK, Json(summaries)).into_response()
 }
 
-/// Handler for `POST /api/v1/sessions/:id/resume` — resume an existing session.
+/// Handler for `POST /api/v1/sessions/:id/resume`, resume an existing session.
 ///
 /// Loads the session from SQLite if not already in memory, resets any stale
 /// Processing status to Active, and returns the full session detail.
@@ -550,7 +550,7 @@ pub async fn resume_session<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `POST /api/v1/sessions/:id/fork` — fork a session.
+/// Handler for `POST /api/v1/sessions/:id/fork`, fork a session.
 ///
 /// Creates a new child session that copies the parent history up to `up_to_index`
 /// messages. When `up_to_index` is omitted, the full history is copied.
@@ -579,7 +579,7 @@ pub async fn fork_session<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `GET /api/v1/sessions/:id/children` — list fork children of a session.
+/// Handler for `GET /api/v1/sessions/:id/children`, list fork children of a session.
 ///
 /// Returns a JSON array of [`SessionInfo`] objects, ordered by creation time ascending.
 pub async fn list_session_children<B: ExecutionBackend + Clone>(
@@ -765,6 +765,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
 
         APIServer::build_router_for_test(state)

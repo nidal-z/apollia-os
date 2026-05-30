@@ -2,7 +2,7 @@
 //!
 //! Parses markers inline in agent output and returns a structured
 //! [`ParsedMessage`] with assertions, citations and the cleaned text. No LLM
-//! is involved — coût : 0.
+//! is involved, cost: 0.
 //!
 //! # Supported markers
 //!
@@ -17,7 +17,7 @@
 //!   `AIPResult.metadata["citations"]`) or via the SDK helper.
 //!
 //! Malformed markers (unknown level, missing closing tag, orphan cite outside
-//! a `conf` span) are left untouched in the cleaned text — the renderer
+//! a `conf` span) are left untouched in the cleaned text, the renderer
 //! simply falls back to classic prose.
 
 use serde::{Deserialize, Serialize};
@@ -67,7 +67,7 @@ pub struct Citation {
     pub id: String,
     /// Human-readable title shown in the footnote.
     pub title: String,
-    /// Optional URL — rendered as a clickable link when present.
+    /// Optional URL, rendered as a clickable link when present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     /// Optional excerpt surfaced in the tooltip / side-panel.
@@ -138,44 +138,11 @@ pub fn parse(raw: &str) -> ParsedMessage {
     while i < bytes.len() {
         if bytes[i] == b'[' {
             if let Some((token, consumed)) = read_token(&raw[i..]) {
-                match token {
-                    Token::OpenConf(level) => {
-                        stack.push(OpenSpan {
-                            level,
-                            start: out.len(),
-                            citation_ids: Vec::new(),
-                        });
-                        i += consumed;
-                        continue;
-                    }
-                    Token::CloseConf => {
-                        if let Some(open) = stack.pop() {
-                            let end = out.len();
-                            if end > open.start {
-                                assertions.push(Assertion {
-                                    text_range: (open.start..end).into(),
-                                    confidence: open.level,
-                                    citation_ids: open.citation_ids,
-                                });
-                            }
-                            i += consumed;
-                            continue;
-                        }
-                        // Orphan [/conf] → fall through as literal.
-                    }
-                    Token::Cite(ids) => {
-                        if let Some(top) = stack.last_mut() {
-                            for id in ids {
-                                if !top.citation_ids.contains(&id) {
-                                    top.citation_ids.push(id);
-                                }
-                            }
-                            i += consumed;
-                            continue;
-                        }
-                        // Orphan [cite:...] → keep as literal.
-                    }
+                if apply_token(token, &out, &mut assertions, &mut stack) {
+                    i += consumed;
+                    continue;
                 }
+                // Orphan / unbalanced marker → fall through as literal.
             }
         }
         // Default: copy one UTF-8 character verbatim.
@@ -184,7 +151,7 @@ pub fn parse(raw: &str) -> ParsedMessage {
         i += ch_len;
     }
 
-    // Any still-open spans are malformed — we keep whatever text was emitted
+    // Any still-open spans are malformed, we keep whatever text was emitted
     // but do NOT record an assertion (the closing marker was missing).
 
     ParsedMessage {
@@ -207,6 +174,56 @@ enum Token {
     OpenConf(ConfidenceLevel),
     CloseConf,
     Cite(Vec<String>),
+}
+
+/// Apply a parsed [`Token`] to the parser state.
+///
+/// Returns `true` when the token was consumed (the caller advances past the
+/// marker), or `false` when it is orphaned/unbalanced and must be kept as a
+/// literal.
+fn apply_token(
+    token: Token,
+    out: &str,
+    assertions: &mut Vec<Assertion>,
+    stack: &mut Vec<OpenSpan>,
+) -> bool {
+    match token {
+        Token::OpenConf(level) => {
+            stack.push(OpenSpan {
+                level,
+                start: out.len(),
+                citation_ids: Vec::new(),
+            });
+            true
+        }
+        Token::CloseConf => match stack.pop() {
+            Some(open) => {
+                let end = out.len();
+                if end > open.start {
+                    assertions.push(Assertion {
+                        text_range: (open.start..end).into(),
+                        confidence: open.level,
+                        citation_ids: open.citation_ids,
+                    });
+                }
+                true
+            }
+            // Orphan [/conf] → keep as literal.
+            None => false,
+        },
+        Token::Cite(ids) => match stack.last_mut() {
+            Some(top) => {
+                for id in ids {
+                    if !top.citation_ids.contains(&id) {
+                        top.citation_ids.push(id);
+                    }
+                }
+                true
+            }
+            // Orphan [cite:...] → keep as literal.
+            None => false,
+        },
+    }
 }
 
 /// Attempt to read a marker starting at the `[` character.

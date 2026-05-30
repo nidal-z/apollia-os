@@ -420,7 +420,7 @@ def test_agent_packages_must_be_tuple() -> None:
     A.__module__ = mod_name
     with pytest.raises(AgentConfigError, match="packages"):
         agent(
-            name="a", version="0.1.0", description="d", packages=["bad"]  # type: ignore[arg-type]
+            name="a", version="0.1.0", description="d", packages=["bad"]  # type: ignore[arg-type]  # NOSONAR
         )(A)
 
 

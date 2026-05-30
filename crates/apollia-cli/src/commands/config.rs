@@ -1,4 +1,4 @@
-//! `apollia-os config` subcommands — manage the global `apollia.toml`.
+//! `apollia-os config` subcommands: manage the global `apollia.toml`.
 //!
 //! These commands operate directly on the on-disk configuration without
 //! touching the runtime. They are orthogonal to the section-specific helpers
@@ -70,11 +70,11 @@ pub enum ConfigCommand {
         file: Option<PathBuf>,
     },
 
-    /// Wipe `~/.apollia/` — irreversible factory reset.
+    /// Wipe `~/.apollia/`, an irreversible factory reset.
     ///
     /// Deletes every SQLite database, log, journal, memory file, OAuth client
     /// override, and apollia.toml stored under `~/.apollia/`. Keychain entries
-    /// (OS-managed) are NOT touched — use `auth logout`, `connector revoke`,
+    /// (OS-managed) are NOT touched: use `auth logout`, `connector revoke`,
     /// or `mcp oauth logout` to clear those.
     Reset {
         /// Skip the interactive confirmation prompt (required for scripts).
@@ -474,7 +474,7 @@ fn run_show(file: Option<&Path>, json: bool) -> i32 {
         return exit_codes::SUCCESS;
     }
     // We re-render the parsed file as JSON so missing sections naturally show
-    // up as absent rather than as `null` defaults — the runtime computes its
+    // up as absent rather than as `null` defaults: the runtime computes its
     // effective view itself at boot, and reproducing that here would require
     // duplicating the cascade logic.
     let content = match std::fs::read_to_string(&path) {
@@ -533,19 +533,7 @@ fn run_reset(confirm: bool, dry_run: bool, home: Option<&Path>, json: bool) -> i
     };
 
     if !home.exists() {
-        if json {
-            let body = serde_json::json!({
-                "home": home.display().to_string(),
-                "reset": false,
-                "reason": "home directory absent — nothing to reset",
-            });
-            println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
-        } else {
-            println!(
-                "  Apollia home {} does not exist — nothing to reset.",
-                home.display()
-            );
-        }
+        emit_reset_absent(&home, json);
         return exit_codes::SUCCESS;
     }
 
@@ -558,23 +546,7 @@ fn run_reset(confirm: bool, dry_run: bool, home: Option<&Path>, json: bool) -> i
     };
 
     if dry_run {
-        if json {
-            let body = serde_json::json!({
-                "home": home.display().to_string(),
-                "dry_run": true,
-                "entries": entries.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
-            });
-            println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
-        } else {
-            println!("  Dry run — {} entries under {} would be removed:", entries.len(), home.display());
-            for p in &entries {
-                let kind = if p.is_dir() { "dir " } else { "file" };
-                println!("    [{kind}] {}", p.display());
-            }
-            println!(
-                "  Run without --dry-run (with --confirm) to actually wipe. Keychain entries are NOT touched."
-            );
-        }
+        emit_reset_dry_run(&home, &entries, json);
         return exit_codes::SUCCESS;
     }
 
@@ -590,9 +562,55 @@ fn run_reset(confirm: bool, dry_run: bool, home: Option<&Path>, json: bool) -> i
         return exit_codes::GENERAL_ERROR;
     }
 
+    let (removed, failures) = wipe_entries(&entries);
+    emit_reset_outcome(&home, &removed, &failures, json);
+    if failures.is_empty() {
+        exit_codes::SUCCESS
+    } else {
+        exit_codes::GENERAL_ERROR
+    }
+}
+
+fn emit_reset_absent(home: &Path, json: bool) {
+    if json {
+        let body = serde_json::json!({
+            "home": home.display().to_string(),
+            "reset": false,
+            "reason": "home directory absent — nothing to reset",
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else {
+        println!(
+            "  Apollia home {} does not exist — nothing to reset.",
+            home.display()
+        );
+    }
+}
+
+fn emit_reset_dry_run(home: &Path, entries: &[PathBuf], json: bool) {
+    if json {
+        let body = serde_json::json!({
+            "home": home.display().to_string(),
+            "dry_run": true,
+            "entries": entries.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else {
+        println!("  Dry run — {} entries under {} would be removed:", entries.len(), home.display());
+        for p in entries {
+            let kind = if p.is_dir() { "dir " } else { "file" };
+            println!("    [{kind}] {}", p.display());
+        }
+        println!(
+            "  Run without --dry-run (with --confirm) to actually wipe. Keychain entries are NOT touched."
+        );
+    }
+}
+
+fn wipe_entries(entries: &[PathBuf]) -> (Vec<PathBuf>, Vec<(PathBuf, String)>) {
     let mut removed: Vec<PathBuf> = Vec::new();
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
-    for entry in &entries {
+    for entry in entries {
         let res = if entry.is_dir() {
             std::fs::remove_dir_all(entry)
         } else {
@@ -603,7 +621,15 @@ fn run_reset(confirm: bool, dry_run: bool, home: Option<&Path>, json: bool) -> i
             Err(e) => failures.push((entry.clone(), e.to_string())),
         }
     }
+    (removed, failures)
+}
 
+fn emit_reset_outcome(
+    home: &Path,
+    removed: &[PathBuf],
+    failures: &[(PathBuf, String)],
+    json: bool,
+) {
     if json {
         let body = serde_json::json!({
             "home": home.display().to_string(),
@@ -617,14 +643,9 @@ fn run_reset(confirm: bool, dry_run: bool, home: Option<&Path>, json: bool) -> i
         println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
     } else {
         println!("  * {} entries removed under {}", removed.len(), home.display());
-        for (p, e) in &failures {
+        for (p, e) in failures {
             eprintln!("  ! failed to remove {}: {e}", p.display());
         }
-    }
-    if failures.is_empty() {
-        exit_codes::SUCCESS
-    } else {
-        exit_codes::GENERAL_ERROR
     }
 }
 

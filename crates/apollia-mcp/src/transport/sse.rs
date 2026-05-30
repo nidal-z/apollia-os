@@ -77,11 +77,13 @@ impl SseTransport {
         let sse_url: String = sse_url.into();
 
         tokio::spawn(sse_listener(
-            client.clone(),
-            sse_url.clone(),
-            Arc::clone(&auth),
-            endpoint_tx,
-            msg_tx,
+            SseListenerCtx {
+                client: client.clone(),
+                sse_url: sse_url.clone(),
+                auth_headers: Arc::clone(&auth),
+                endpoint_tx,
+                msg_tx,
+            },
             shutdown_rx,
         ));
 
@@ -181,49 +183,42 @@ impl McpTransport for SseTransport {
 
 // ─── background SSE listener ──────────────────────────────────────────────────
 
-/// Entry point for the background SSE listener task.
+/// Owned context handed to the background SSE listener task.
 ///
-/// Opens the `GET` connection and processes SSE events until the stream ends or a
-/// shutdown signal is received. Dropping `msg_tx` on exit unblocks any pending
-/// [`SseTransport::recv`] callers with [`TransportError::Closed`].
-async fn sse_listener(
+/// Groups the channels and connection parameters the listener needs so the task
+/// entry point and its inner loop take a single bundle instead of a long list.
+struct SseListenerCtx {
     client: reqwest::Client,
     sse_url: String,
     auth_headers: Arc<Vec<(String, String)>>,
     endpoint_tx: watch::Sender<Option<String>>,
     msg_tx: mpsc::Sender<String>,
-    mut shutdown_rx: watch::Receiver<bool>,
-) {
-    if let Err(e) = run_sse_loop(
-        &client,
-        &sse_url,
-        &auth_headers,
-        &endpoint_tx,
-        &msg_tx,
-        &mut shutdown_rx,
-    )
-    .await
-    {
-        tracing::warn!(error = %e, url = %sse_url, "SSE connection closed with error");
+}
+
+/// Entry point for the background SSE listener task.
+///
+/// Opens the `GET` connection and processes SSE events until the stream ends or a
+/// shutdown signal is received. Dropping `msg_tx` on exit unblocks any pending
+/// [`SseTransport::recv`] callers with [`TransportError::Closed`].
+async fn sse_listener(ctx: SseListenerCtx, mut shutdown_rx: watch::Receiver<bool>) {
+    if let Err(e) = run_sse_loop(&ctx, &mut shutdown_rx).await {
+        tracing::warn!(error = %e, url = %ctx.sse_url, "SSE connection closed with error");
     }
     // `msg_tx` drops here, signalling pending recv() callers that the transport is closed.
 }
 
 /// Core SSE processing loop: opens the GET stream and dispatches events.
 async fn run_sse_loop(
-    client: &reqwest::Client,
-    sse_url: &str,
-    auth_headers: &[(String, String)],
-    endpoint_tx: &watch::Sender<Option<String>>,
-    msg_tx: &mpsc::Sender<String>,
+    ctx: &SseListenerCtx,
     shutdown_rx: &mut watch::Receiver<bool>,
 ) -> Result<(), TransportError> {
-    let mut builder = client
-        .get(sse_url)
+    let mut builder = ctx
+        .client
+        .get(&ctx.sse_url)
         .header(reqwest::header::ACCEPT, "text/event-stream")
         .header(reqwest::header::CACHE_CONTROL, "no-cache");
 
-    for (name, value) in auth_headers {
+    for (name, value) in ctx.auth_headers.as_ref() {
         builder = builder.header(name.as_str(), value.as_str());
     }
 
@@ -260,7 +255,8 @@ async fn run_sse_loop(
                     Some(Err(e)) => return Err(TransportError::Io(e.to_string())),
                     Some(Ok(bytes)) => {
                         buffer.push_str(&String::from_utf8_lossy(&bytes));
-                        process_buffer(&mut buffer, &mut current, endpoint_tx, msg_tx).await;
+                        process_buffer(&mut buffer, &mut current, &ctx.endpoint_tx, &ctx.msg_tx)
+                            .await;
                     }
                 }
             }
@@ -508,7 +504,7 @@ mod tests {
     #[tokio::test]
     async fn test_sse_transport_timeout_on_missing_endpoint() {
         // GIVEN an SSE server that keeps the connection open but never sends any event
-        // (stream::pending() yields no items and never ends — the SSE listener blocks in
+        // (stream::pending() yields no items and never ends, so the SSE listener blocks in
         //  stream.next(), so the endpoint watch channel is never updated)
         let app = Router::new().route(
             "/sse",
@@ -557,7 +553,7 @@ mod tests {
         )
         .expect("SseTransport::new must succeed");
 
-        // WHEN send() is called — the background task will have failed on the GET
+        // WHEN send() is called: the background task will have failed on the GET
         let result = transport
             .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
             .await;

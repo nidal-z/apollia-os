@@ -1,76 +1,76 @@
-//! Audit trail — SQLite-persisted log of tool invocations.
+//! Audit trail: SQLite-persisted log of tool invocations.
 //!
-//! Architecture : acteur `tokio::task::spawn_blocking` avec `tokio::sync::mpsc` borné.
-//! L'acteur détient la `rusqlite::Connection` (non-`Sync`) en exclusivité.
-//! Le handle est clonable et expose une API async via `oneshot` pour
-//! les opérations qui nécessitent une réponse.
+//! Architecture: a `tokio::task::spawn_blocking` actor with a bounded
+//! `tokio::sync::mpsc` channel. The actor exclusively owns the (non-`Sync`)
+//! `rusqlite::Connection`. The handle is clonable and exposes an async API via
+//! `oneshot` for operations that need a reply.
 
 use std::path::Path;
 
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-/// Enregistrement d'une invocation d'outil pour l'audit trail.
+/// Record of a tool invocation for the audit trail.
 #[derive(Debug, Clone)]
 pub struct ToolInvocationRecord {
-    /// Identifiant unique de l'invocation (UUID v4).
+    /// Unique invocation identifier (UUID v4).
     pub id: String,
-    /// Identifiant de l'agent ayant invoqué l'outil.
+    /// Identifier of the agent that invoked the tool.
     pub agent_id: String,
-    /// Identifiant de la tâche dans laquelle s'inscrit l'invocation.
+    /// Identifier of the task the invocation belongs to.
     pub task_id: String,
-    /// Nom de l'outil invoqué (ex. `bash_executor`, `file_io`).
+    /// Name of the invoked tool (e.g. `bash_executor`, `file_io`).
     pub tool_name: String,
-    /// SHA256 hex des paramètres sérialisés en JSON.
+    /// SHA256 hex of the JSON-serialized parameters.
     pub input_hash: String,
-    /// Profil de sandbox utilisé, sérialisé en string.
+    /// Sandbox profile used, serialized to a string.
     pub sandbox_profile: String,
-    /// Horodatage de début d'invocation au format RFC3339 UTC.
+    /// Invocation start timestamp in RFC3339 UTC format.
     pub started_at: String,
-    /// Durée de l'invocation en millisecondes.
+    /// Invocation duration in milliseconds.
     pub duration_ms: Option<u64>,
-    /// Code de retour du processus fils.
+    /// Child process exit code.
     pub exit_code: Option<i32>,
-    /// `true` si l'invocation s'est terminée sans erreur.
+    /// `true` if the invocation finished without error.
     pub success: bool,
-    /// Code d'erreur lisible si `success` est `false`.
+    /// Human-readable error code when `success` is `false`.
     pub error_code: Option<String>,
-    /// Ressources consommées (JSON brut). `null` en MVP.
+    /// Resources consumed (raw JSON). `null` for now.
     pub resources_used: Option<serde_json::Value>,
-    /// Arguments JSON complets de l'invocation.
+    /// Full JSON arguments of the invocation.
     pub args_json: Option<String>,
-    /// Sortie standard de l'outil (potentiellement tronquée).
+    /// Standard output of the tool (possibly truncated).
     pub stdout: Option<String>,
-    /// Sortie d'erreur de l'outil (potentiellement tronquée).
+    /// Error output of the tool (possibly truncated).
     pub stderr: Option<String>,
 }
 
-/// Statistiques agrégées de l'audit trail.
+/// Aggregated statistics of the audit trail.
 #[derive(Debug, Clone)]
 pub struct AuditStats {
-    /// Nombre total d'invocations enregistrées.
+    /// Total number of recorded invocations.
     pub total_events: u64,
-    /// Nombre d'outils distincts invoqués.
+    /// Number of distinct tools invoked.
     pub unique_tools: u64,
-    /// Nombre d'agents distincts ayant invoqué des outils.
+    /// Number of distinct agents that invoked tools.
     pub unique_agents: u64,
 }
 
-/// Erreurs d'ouverture ou d'initialisation de l'audit trail.
+/// Errors when opening or initializing the audit trail.
 #[derive(Debug, Error)]
 pub enum AuditTrailError {
-    /// Échec d'ouverture du fichier SQLite.
+    /// Failed to open the SQLite file.
     #[error("failed to open SQLite database: {0}")]
     OpenFailed(String),
-    /// Échec de création du schéma (table ou index).
+    /// Failed to create the schema (table or index).
     #[error("failed to initialize audit schema: {0}")]
     SchemaInitFailed(String),
 }
 
-/// Calcule le SHA256 d'un objet JSON sérialisé.
+/// Computes the SHA256 of a serialized JSON object.
 ///
-/// Retourne la représentation hexadécimale lowercase du hash.
-/// Deux appels avec la même valeur JSON produisent toujours le même résultat.
+/// Returns the lowercase hexadecimal representation of the hash. Two calls with
+/// the same JSON value always produce the same result.
 pub fn compute_input_hash(params: &serde_json::Value) -> String {
     let serialized = serde_json::to_string(params).unwrap_or_default();
     let hash = Sha256::digest(serialized.as_bytes());
@@ -78,10 +78,10 @@ pub fn compute_input_hash(params: &serde_json::Value) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Schéma SQL
+// SQL schema
 // ---------------------------------------------------------------------------
 
-/// Schéma SQL de la table `tool_invocations` et de ses index.
+/// SQL schema of the `tool_invocations` table and its indexes.
 const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS tool_invocations (
         id              TEXT PRIMARY KEY,
@@ -109,10 +109,10 @@ const SCHEMA: &str = "
         BEGIN SELECT RAISE(ABORT, 'audit trail is append-only'); END;
 ";
 
-/// Colonnes d'observabilité ajoutées par la migration Sprint 13.
+/// Observability columns added by a later migration.
 ///
-/// Chaque ALTER TABLE est exécuté individuellement ; l'erreur « duplicate column »
-/// est ignorée pour garantir l'idempotence sur les bases existantes.
+/// Each ALTER TABLE is run individually; the "duplicate column" error is
+/// ignored to keep the migration idempotent on existing stores.
 const MIGRATION_OBSERVABILITY_COLUMNS: &[&str] = &[
     "ALTER TABLE tool_invocations ADD COLUMN args_json TEXT",
     "ALTER TABLE tool_invocations ADD COLUMN stdout    TEXT",
@@ -120,41 +120,41 @@ const MIGRATION_OBSERVABILITY_COLUMNS: &[&str] = &[
 ];
 
 // ---------------------------------------------------------------------------
-// Messages internes
+// Internal messages
 // ---------------------------------------------------------------------------
 
-/// Messages envoyés à l'acteur AuditTrail.
+/// Messages sent to the AuditTrail actor.
 enum AuditMessage {
-    /// Insère un enregistrement (fire-and-forget).
+    /// Inserts a record (fire-and-forget).
     Record(Box<ToolInvocationRecord>),
-    /// Retourne les N dernières invocations, triées par date décroissante.
+    /// Returns the last N invocations, sorted by descending date.
     QueryLast {
         n: usize,
         reply: tokio::sync::oneshot::Sender<Vec<ToolInvocationRecord>>,
     },
-    /// Retourne les statistiques agrégées de l'audit trail.
+    /// Returns the aggregated audit trail statistics.
     QueryStats {
         reply: tokio::sync::oneshot::Sender<AuditStats>,
     },
-    /// Arrête l'acteur proprement après avoir vidé la file.
+    /// Stops the actor cleanly after draining the queue.
     Shutdown,
 }
 
 // ---------------------------------------------------------------------------
-// Acteur interne
+// Internal actor
 // ---------------------------------------------------------------------------
 
-/// Acteur interne — jamais exposé directement.
+/// Internal actor, never exposed directly.
 ///
-/// Détient la `rusqlite::Connection` et traite les messages de manière séquentielle,
-/// garantissant l'absence de contention sur la base de données.
+/// Owns the `rusqlite::Connection` and processes messages sequentially,
+/// guaranteeing no contention on the database.
 struct AuditTrail {
     conn: rusqlite::Connection,
     receiver: tokio::sync::mpsc::Receiver<AuditMessage>,
 }
 
 impl AuditTrail {
-    /// Boucle principale de l'acteur.
+    /// Main actor loop.
     fn run(mut self) {
         while let Some(msg) = self.receiver.blocking_recv() {
             match msg {
@@ -185,7 +185,7 @@ impl AuditTrail {
         }
     }
 
-    /// Insère un enregistrement dans `tool_invocations`.
+    /// Inserts a record into `tool_invocations`.
     fn insert(conn: &rusqlite::Connection, r: &ToolInvocationRecord) -> rusqlite::Result<()> {
         let resources_json = r.resources_used.as_ref().map(|v| v.to_string());
         conn.execute(
@@ -215,7 +215,7 @@ impl AuditTrail {
         Ok(())
     }
 
-    /// Retourne les statistiques agrégées de l'audit trail via une requête SQL agrégée.
+    /// Returns the aggregated audit trail statistics via an aggregate SQL query.
     fn query_stats(conn: &rusqlite::Connection) -> rusqlite::Result<AuditStats> {
         conn.query_row(
             "SELECT COUNT(*), COUNT(DISTINCT tool_name), COUNT(DISTINCT agent_id) \
@@ -231,7 +231,7 @@ impl AuditTrail {
         )
     }
 
-    /// Retourne les N dernières invocations, ordonnées par `started_at` décroissant.
+    /// Returns the last N invocations, ordered by descending `started_at`.
     fn query_last_n(
         conn: &rusqlite::Connection,
         n: usize,
@@ -270,36 +270,36 @@ impl AuditTrail {
 }
 
 // ---------------------------------------------------------------------------
-// Handle public
+// Public handle
 // ---------------------------------------------------------------------------
 
-/// Capacité du channel interne entre le handle et l'acteur.
+/// Capacity of the internal channel between the handle and the actor.
 const CHANNEL_CAPACITY: usize = 1024;
 
-/// Handle clonable vers l'acteur [`AuditTrail`].
+/// Clonable handle to the [`AuditTrail`] actor.
 ///
-/// Créé via [`AuditTrailHandle::open`]. Toutes les méthodes sont thread-safe ;
-/// plusieurs handles peuvent coexister et émettre des messages vers le même acteur.
+/// Created via [`AuditTrailHandle::open`]. All methods are thread-safe; several
+/// handles can coexist and emit messages to the same actor.
 #[derive(Clone)]
 pub struct AuditTrailHandle {
     sender: tokio::sync::mpsc::Sender<AuditMessage>,
 }
 
 impl AuditTrailHandle {
-    /// Ouvre la base SQLite et démarre l'acteur en arrière-plan.
+    /// Opens the SQLite store and starts the actor in the background.
     ///
-    /// Crée le fichier si absent. Crée la table `tool_invocations` et ses index
-    /// si ils n'existent pas (`CREATE … IF NOT EXISTS`). Active le mode WAL.
+    /// Creates the file if absent. Creates the `tool_invocations` table and its
+    /// indexes if they do not exist (`CREATE … IF NOT EXISTS`). Enables WAL mode.
     pub async fn open(db_path: &Path) -> Result<Self, AuditTrailError> {
         let db_path = db_path.to_path_buf();
         let (sender, receiver) = tokio::sync::mpsc::channel::<AuditMessage>(CHANNEL_CAPACITY);
 
-        // Canal de signalisation pour l'initialisation : le thread informe l'appelant
-        // dès que la connexion et le schéma sont prêts (ou en cas d'erreur).
+        // Signalling channel for initialization: the thread notifies the caller
+        // as soon as the connection and schema are ready (or on error).
         let (init_tx, init_rx) = tokio::sync::oneshot::channel::<Result<(), AuditTrailError>>();
 
         tokio::task::spawn_blocking(move || {
-            // Ouverture de la connexion SQLite.
+            // Open the SQLite connection.
             let conn = match rusqlite::Connection::open(&db_path) {
                 Ok(c) => c,
                 Err(e) => {
@@ -308,23 +308,23 @@ impl AuditTrailHandle {
                 }
             };
 
-            // Mode WAL pour la concurrence lecture/écriture.
+            // WAL mode for read/write concurrency.
             if let Err(e) = conn.execute_batch("PRAGMA journal_mode=WAL;") {
                 let _ = init_tx.send(Err(AuditTrailError::SchemaInitFailed(e.to_string())));
                 return;
             }
 
-            // Création du schéma (idempotente).
+            // Schema creation (idempotent).
             if let Err(e) = conn.execute_batch(SCHEMA) {
                 let _ = init_tx.send(Err(AuditTrailError::SchemaInitFailed(e.to_string())));
                 return;
             }
 
-            // Migration Sprint 13 — colonnes d'observabilité.
+            // Observability columns migration.
             for ddl in MIGRATION_OBSERVABILITY_COLUMNS {
                 if let Err(e) = conn.execute_batch(ddl) {
                     let msg = e.to_string();
-                    // « duplicate column name » signifie que la colonne existe déjà — idempotent.
+                    // "duplicate column name" means the column already exists, idempotent.
                     if !msg.contains("duplicate column name") {
                         let _ = init_tx.send(Err(AuditTrailError::SchemaInitFailed(msg)));
                         return;
@@ -332,14 +332,14 @@ impl AuditTrailHandle {
                 }
             }
 
-            // Signale le succès de l'initialisation avant d'entrer dans la boucle.
+            // Signal successful initialization before entering the loop.
             let _ = init_tx.send(Ok(()));
 
-            // Boucle de l'acteur — tourne jusqu'à réception de Shutdown.
+            // Actor loop, runs until Shutdown is received.
             AuditTrail { conn, receiver }.run();
         });
 
-        // Attendre le résultat de l'initialisation.
+        // Wait for the initialization result.
         init_rx
             .await
             .map_err(|_| AuditTrailError::OpenFailed("init channel disconnected".to_string()))??;
@@ -347,10 +347,10 @@ impl AuditTrailHandle {
         Ok(Self { sender })
     }
 
-    /// Enregistre une invocation (fire-and-forget).
+    /// Records an invocation (fire-and-forget).
     ///
-    /// Retourne immédiatement sans attendre la confirmation SQLite.
-    /// Si le channel est saturé, l'enregistrement est abandonné avec un `warn!`.
+    /// Returns immediately without waiting for SQLite confirmation. If the
+    /// channel is saturated, the record is dropped with a `warn!`.
     pub fn record(&self, record: ToolInvocationRecord) {
         match self.sender.try_send(AuditMessage::Record(Box::new(record))) {
             Ok(()) => {}
@@ -363,7 +363,7 @@ impl AuditTrailHandle {
         }
     }
 
-    /// Retourne les N dernières invocations, triées par date décroissante.
+    /// Returns the last N invocations, sorted by descending date.
     pub async fn query_last(&self, n: usize) -> Vec<ToolInvocationRecord> {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         if self
@@ -377,7 +377,7 @@ impl AuditTrailHandle {
         reply_rx.await.unwrap_or_default()
     }
 
-    /// Retourne les statistiques agrégées (total, outils distincts, agents distincts).
+    /// Returns the aggregated statistics (total, distinct tools, distinct agents).
     pub async fn stats(&self) -> AuditStats {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         if self
@@ -399,13 +399,14 @@ impl AuditTrailHandle {
         })
     }
 
-    /// Envoie le signal d'arrêt à l'acteur et attend qu'il ait traité tous les messages en attente.
+    /// Sends the shutdown signal to the actor and waits for it to process all
+    /// pending messages.
     ///
-    /// Après cet appel, le handle est consommé. Les handles clonés restants
-    /// tenteront d'envoyer sur un channel dont le receiver est fermé.
+    /// After this call the handle is consumed. Any remaining cloned handles will
+    /// try to send on a channel whose receiver is closed.
     pub async fn shutdown(self) {
         let _ = self.sender.send(AuditMessage::Shutdown).await;
-        // Laisse le temps à l'acteur de traiter les messages en file et de fermer la connexion.
+        // Give the actor time to process queued messages and close the connection.
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
 }
@@ -446,7 +447,7 @@ mod tests {
         }
     }
 
-    // Enregistrement d'une invocation réussie
+    // Recording a successful invocation
     #[tokio::test]
     async fn test_ac1_record_successful_invocation() {
         // GIVEN
@@ -464,7 +465,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // Enregistrement d'une invocation échouée
+    // Recording a failed invocation
     #[tokio::test]
     async fn test_ac2_record_failed_invocation() {
         // GIVEN
@@ -481,10 +482,10 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // Schéma créé automatiquement sur une base fraîche
+    // Schema created automatically on a fresh store
     #[tokio::test]
     async fn test_ac3_schema_created_on_fresh_db() {
-        // GIVEN — base inexistante
+        // GIVEN: a non-existent store
         let db_path =
             std::env::temp_dir().join(format!("apollia_fresh_{}.db", uuid::Uuid::new_v4()));
         // WHEN
@@ -496,26 +497,26 @@ mod tests {
         tokio::fs::remove_file(&db_path).await.ok();
     }
 
-    // record() ne bloque pas (fire-and-forget)
+    // record() does not block (fire-and-forget)
     #[tokio::test]
     async fn test_ac4_record_is_fire_and_forget() {
         // GIVEN
         let handle = open_test_audit().await;
-        // WHEN — on enregistre 10 invocations sans attendre
+        // WHEN: 10 invocations are recorded without waiting
         for i in 0..10 {
             let mut r = make_record(true, None);
             r.id = format!("id-{i}");
             r.started_at = format!("2026-01-01T00:00:{i:02}Z");
             handle.record(r);
         }
-        // THEN — la méthode a retourné immédiatement ; les inserts arrivent en fond
+        // THEN: the method returned immediately; the inserts arrive in the background
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         let results = handle.query_last(10).await;
         assert_eq!(results.len(), 10);
         handle.shutdown().await;
     }
 
-    // Mêmes paramètres → même input_hash
+    // Same parameters produce the same input_hash
     #[test]
     fn test_ac5_same_params_same_input_hash() {
         // GIVEN
@@ -527,7 +528,7 @@ mod tests {
         assert_eq!(hash1, hash2);
     }
 
-    // Hash différents pour des paramètres différents
+    // Different hashes for different parameters
     #[test]
     fn test_different_params_different_hash() {
         // GIVEN
@@ -537,7 +538,7 @@ mod tests {
         assert_ne!(compute_input_hash(&params_a), compute_input_hash(&params_b));
     }
 
-    // Hash est une string hexadécimale valide (64 caractères = SHA256)
+    // Hash is a valid hexadecimal string (64 chars = SHA256)
     #[test]
     fn test_input_hash_is_valid_hex() {
         // GIVEN
@@ -549,17 +550,17 @@ mod tests {
         assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
-    // Arguments JSON persistés
+    // JSON arguments are persisted
     #[tokio::test]
     async fn test_tool_invocation_args_persisted() {
-        // GIVEN un AuditTrail avec DB in-memory
+        // GIVEN an AuditTrail with an in-memory DB
         let handle = open_test_audit().await;
         let mut record = make_record(true, None);
         record.args_json = Some(r#"{"path":"/tmp/test"}"#.to_string());
-        // WHEN record avec args_json
+        // WHEN recording with args_json
         handle.record(record);
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        // THEN SELECT args_json retourne la valeur
+        // THEN SELECT args_json returns the value
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
         assert_eq!(
@@ -569,20 +570,20 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // Stdout tronqué via truncate_with_marker
+    // Stdout truncated via truncate_with_marker
     #[tokio::test]
     async fn test_tool_invocation_stdout_truncated() {
-        // GIVEN config max_tool_output_bytes = 100
+        // GIVEN max_tool_output_bytes = 100
         use apollia_core::truncate_with_marker;
         let handle = open_test_audit().await;
         let big_stdout = "x".repeat(500);
         let (truncated_stdout, _) = truncate_with_marker(&big_stdout, 100);
         let mut record = make_record(true, None);
         record.stdout = Some(truncated_stdout);
-        // WHEN record avec stdout tronqué
+        // WHEN recording with truncated stdout
         handle.record(record);
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        // THEN la valeur persistée est tronquée avec marqueur
+        // THEN the persisted value is truncated with a marker
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
         let stored = results[0].stdout.as_ref().expect("stdout should be set");
@@ -591,33 +592,33 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // Stderr persisté
+    // Stderr is persisted
     #[tokio::test]
     async fn test_tool_invocation_stderr_persisted() {
-        // GIVEN un AuditTrail
+        // GIVEN an AuditTrail
         let handle = open_test_audit().await;
         let mut record = make_record(false, Some("NotFound"));
         record.stderr = Some("command not found".to_string());
-        // WHEN record avec stderr
+        // WHEN recording with stderr
         handle.record(record);
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        // THEN SELECT stderr retourne la valeur
+        // THEN SELECT stderr returns the value
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].stderr.as_deref(), Some("command not found"));
         handle.shutdown().await;
     }
 
-    // Duration et exit_code existants préservés après migration
+    // Existing duration and exit_code preserved after migration
     #[tokio::test]
     async fn test_tool_invocation_duration_preserved() {
-        // GIVEN un AuditTrail
+        // GIVEN an AuditTrail
         let handle = open_test_audit().await;
         let record = make_record(true, None);
-        // WHEN record avec duration_ms = 42
+        // WHEN recording with duration_ms = 42
         handle.record(record);
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        // THEN duration_ms et exit_code sont correctement lus
+        // THEN duration_ms and exit_code are read back correctly
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].duration_ms, Some(42));
@@ -625,10 +626,10 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // Audit trail append-only — UPDATE/DELETE refusés par triggers SQLite
+    // Audit trail append-only: UPDATE/DELETE refused by SQLite triggers
     #[tokio::test]
     async fn test_audit_trail_is_append_only() {
-        // GIVEN une base avec une invocation enregistrée
+        // GIVEN a store with one recorded invocation
         let db_path =
             std::env::temp_dir().join(format!("apollia_append_only_{}.db", uuid::Uuid::new_v4()));
         let handle = AuditTrailHandle::open(&db_path).await.unwrap();
@@ -636,7 +637,7 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         handle.shutdown().await;
 
-        // WHEN on tente un UPDATE puis un DELETE direct sur la table
+        // WHEN attempting a direct UPDATE then DELETE on the table
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         let update_err = conn
             .execute("UPDATE tool_invocations SET success = 0", [])
@@ -647,7 +648,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        // THEN les deux opérations sont refusées avec le message attendu
+        // THEN both operations are refused with the expected message
         assert!(
             update_err.contains("audit trail is append-only"),
             "expected append-only abort on UPDATE, got: {update_err}"

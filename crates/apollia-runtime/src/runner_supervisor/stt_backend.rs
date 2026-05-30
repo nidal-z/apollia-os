@@ -1,7 +1,7 @@
-//! `RunnerSttBackend` : adapte `SttBackend` (apollia-stt) sur le
+//! `RunnerSttBackend`: adapts `SttBackend` (apollia-stt) onto the
 //! [`RunnerProxy`] via HTTP/JSON IPC.
 //!
-//! Cf. ADR-113 et IPC-PROTOCOL §3.8.
+//! Routes all STT through the runner sidecar.
 
 use std::path::Path;
 
@@ -12,12 +12,12 @@ use tokio::runtime::Handle;
 
 use super::proxy::RunnerProxy;
 
-/// Backend `SttBackend` qui route les appels vers le runner sidecar.
+/// `SttBackend` that routes calls to the runner sidecar.
 ///
-/// `SttBackend::transcribe` est synchrone et reçoit un buffer PCM. Le proxy
-/// HTTP est async et l'endpoint `/stt/transcribe` attend un chemin de fichier.
-/// On écrit donc le buffer dans un WAV temporaire, on appelle le runner, puis
-/// on cleanup (le `tempfile` est drop-supprimé en fin de scope).
+/// `SttBackend::transcribe` is synchronous and receives a PCM buffer. The HTTP
+/// proxy is async and the `/stt/transcribe` endpoint expects a file path.
+/// So we write the buffer to a temporary WAV, call the runner, then clean up
+/// (the `tempfile` is dropped at end of scope).
 pub struct RunnerSttBackend {
     proxy: RunnerProxy,
     model_id: String,

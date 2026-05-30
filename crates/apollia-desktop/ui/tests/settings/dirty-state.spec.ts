@@ -41,7 +41,7 @@ async function installTauriStub(page: import("@playwright/test").Page): Promise<
     };
 
     // Minimal Tauri-v2 invoke shim — only what the UI calls.
-    (window as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
+    (globalThis as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
       invoke: (cmd: string, args: unknown) => {
         const h = handlers[cmd];
         return Promise.resolve(h ? h(args) : null);
@@ -69,7 +69,9 @@ test.describe("settings dirty-state", () => {
     await expect(page.locator('[data-testid="settings-unsaved-badge"]')).toBeVisible();
 
     // Trigger Cmd+S (metaKey on macOS, ctrlKey elsewhere).
-    const isMac = await page.evaluate(() => /Mac/.test(navigator.platform));
+    // NOSONAR typescript:S1874 — navigator.platform retained inside page.evaluate;
+    // userAgentData is unavailable in WebKit (Playwright cross-browser parity).
+    const isMac = await page.evaluate(() => /Mac/.test(navigator.platform)); // NOSONAR typescript:S1874
     await page.keyboard.press(isMac ? "Meta+s" : "Control+s");
 
     await expect(page.locator('[data-testid="stt-save-status-saved"]')).toBeVisible({ timeout: 3_000 });

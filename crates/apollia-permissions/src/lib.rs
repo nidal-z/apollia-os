@@ -1,14 +1,14 @@
-//! Apollia OS — moteur de permissions 3 couches.
+//! Apollia OS three-layer permission engine.
 //!
-//! Évalue chaque invocation d'outil avant son exécution selon trois couches ordonnées :
+//! Evaluates every tool invocation before execution through three ordered layers:
 //!
-//! 1. **InjectionDetector** (couche 3, priorité absolue) — bloque les patterns shell dangereux.
-//! 2. **SafeList** (couche 1) — auto-approuve les commandes explicitement configurées.
-//! 3. **PrefixRuleEngine** (couche 2) — évalue les règles préfixe persistées en SQLite.
+//! 1. `InjectionDetector` (layer 3, highest priority): blocks dangerous shell patterns.
+//! 2. `SafeList` (layer 1): auto-approves explicitly configured commands.
+//! 3. `PrefixRuleEngine` (layer 2): evaluates persisted prefix rules in SQLite.
 //!
-//! Toutes les décisions sont enregistrées dans `PermissionAuditLog` (SQLite, immuable).
+//! Every decision is recorded in `PermissionAuditLog` (SQLite, immutable).
 //!
-//! ## Utilisation
+//! ## Usage
 //!
 //! ```rust,ignore
 //! use apollia_permissions::{PermissionEngine, PermissionDecision};
@@ -17,9 +17,9 @@
 //! let engine = PermissionEngine::new(&config, db_path)?;
 //! let decision = engine.decide("bash_executor", &input, &manifest)?;
 //! match decision {
-//!     PermissionDecision::AutoAllowedSafeList => { /* exécuter */ }
-//!     PermissionDecision::NeedsApproval => { /* émettre PermissionRequired */ }
-//!     PermissionDecision::AutoDeniedInjection { pattern } => { /* retourner PermissionDenied */ }
+//!     PermissionDecision::AutoAllowedSafeList => { /* execute */ }
+//!     PermissionDecision::NeedsApproval => { /* emit PermissionRequired */ }
+//!     PermissionDecision::AutoDeniedInjection { pattern } => { /* return PermissionDenied */ }
 //!     _ => {}
 //! }
 //! ```

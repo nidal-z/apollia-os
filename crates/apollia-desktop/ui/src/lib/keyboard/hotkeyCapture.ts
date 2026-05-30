@@ -173,5 +173,8 @@ export function hotkeyChips(hotkey: ParsedHotkey, platform: "mac" | "other" = de
 /** Best-effort platform detection. Returns `"mac"` when running on macOS. */
 export function detectPlatform(): "mac" | "other" {
   if (typeof navigator === "undefined") return "other";
-  return /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? "mac" : "other";
+  // navigator.platform is deprecated but no widely-supported replacement
+  // exists (userAgentData.platform is Chromium-only and gated behind HTTPS).
+  const platform = (navigator as Navigator & { platform?: string }).platform ?? ""; // NOSONAR typescript:S1874
+  return /Mac|iPod|iPhone|iPad/.test(platform) ? "mac" : "other";
 }

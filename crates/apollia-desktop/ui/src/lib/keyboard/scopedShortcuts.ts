@@ -19,7 +19,11 @@ export interface ScopedShortcut {
   handler: (e: KeyboardEvent) => void | boolean;
 }
 
-const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+// navigator.platform is deprecated but still the most reliable signal across
+// engines for Mac detection — no widely-supported replacement exists.
+const isMac =
+  typeof navigator !== "undefined" &&
+  /Mac|iPod|iPhone|iPad/.test((navigator as Navigator & { platform?: string }).platform ?? ""); // NOSONAR typescript:S1874
 
 /** Cross-platform "save" key-combo: Cmd+S on macOS, Ctrl+S elsewhere. */
 export function isSaveCombo(e: KeyboardEvent): boolean {

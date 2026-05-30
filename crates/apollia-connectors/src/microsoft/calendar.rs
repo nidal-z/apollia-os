@@ -8,7 +8,10 @@ use chrono::{DateTime, Utc};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest, RawRequest},
+};
 
 const GRAPH: &str = "https://graph.microsoft.com/v1.0/me";
 
@@ -60,7 +63,7 @@ pub struct EventBody {
 pub struct EventDateTime {
     /// ISO 8601 date-time. Note: Graph expects a naive form when paired with `time_zone`.
     pub date_time: String,
-    /// IANA timezone (e.g. `Europe/Paris`) — or `UTC`.
+    /// IANA timezone (e.g. `Europe/Paris`) or `UTC`.
     pub time_zone: String,
 }
 
@@ -194,11 +197,19 @@ impl OutlookCalendarClient {
     {
         let url = format!("{GRAPH}/events");
         self.http
-            .json_request(Method::POST, &url, draft, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: draft,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
-    /// Update an existing event (PATCH semantics — only provided fields are replaced).
+    /// Update an existing event (PATCH semantics: only provided fields are replaced).
     pub async fn update_event<F, Fut>(
         &self,
         event_id: &str,
@@ -212,7 +223,15 @@ impl OutlookCalendarClient {
     {
         let url = format!("{GRAPH}/events/{event_id}");
         self.http
-            .json_request(Method::PATCH, &url, draft, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::PATCH,
+                    url: &url,
+                    body: draft,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
@@ -229,7 +248,16 @@ impl OutlookCalendarClient {
     {
         let url = format!("{GRAPH}/events/{event_id}");
         self.http
-            .send_with_retries(Method::DELETE, &url, None, bearer, refresh)
+            .send(
+                RawRequest {
+                    method: Method::DELETE,
+                    url: &url,
+                    body: None,
+                    content_type: None,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         Ok(())
     }

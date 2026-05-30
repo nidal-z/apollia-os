@@ -1,4 +1,4 @@
-//! SSE streaming route for task events — `GET /api/v1/tasks/{id}/stream`.
+//! SSE streaming route for task events, `GET /api/v1/tasks/{id}/stream`.
 //!
 //! Subscribes to the runtime [`EventBus`] and filters [`RuntimeEvent`]s by
 //! `task_id`, pushing each matching event as an SSE frame. The stream closes
@@ -44,7 +44,7 @@ struct ErrorResponse {
 ///
 /// Returns `None` for events that do not belong to the task or are not relevant
 /// for per-task streaming (e.g. system-level events).
-/// Returns `Some((event, is_terminal))` — `is_terminal` is true for events that
+/// Returns `Some((event, is_terminal))`, `is_terminal` is true for events that
 /// signal the end of the task execution (completed, failed, canceled, plan_failed).
 fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskEvent, bool)> {
     match event {
@@ -177,7 +177,7 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
             false,
         )),
 
-        // A plan step failed — may trigger replanning.
+        // A plan step failed, may trigger replanning.
         RuntimeEvent::StepFailed {
             task_id: tid,
             plan_id,
@@ -217,7 +217,7 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
             false,
         )),
 
-        // All steps completed — the plan finished successfully.
+        // All steps completed, the plan finished successfully.
         RuntimeEvent::PlanCompleted {
             task_id: tid,
             plan_id,
@@ -235,7 +235,7 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
             false,
         )),
 
-        // The plan failed irrecoverably — terminal event, closes the stream.
+        // The plan failed irrecoverably, terminal event, closes the stream.
         RuntimeEvent::PlanFailed {
             task_id: tid,
             plan_id,
@@ -253,7 +253,7 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
 
         // ── HITL events (Sprint 11) ────────────────────────────────────────
 
-        // The task is suspended waiting for human approval — non-terminal.
+        // The task is suspended waiting for human approval, non-terminal.
         RuntimeEvent::TaskInputRequired {
             task_id: tid,
             prompt,
@@ -271,7 +271,7 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
             false,
         )),
 
-        // The task has been resumed after HITL — non-terminal, execution continues.
+        // The task has been resumed after HITL, non-terminal, execution continues.
         RuntimeEvent::TaskResumed {
             task_id: tid,
             approved,
@@ -352,7 +352,7 @@ pub async fn stream_task<B: ExecutionBackend + Clone>(
 /// Extension trait to add `take_while_inclusive` to streams.
 ///
 /// Unlike `take_while`, this yields the first item that fails the predicate
-/// before closing the stream — needed to send the terminal SSE event.
+/// before closing the stream, needed to send the terminal SSE event.
 struct TakeWhileInclusive<S, F> {
     stream: S,
     predicate: F,
@@ -487,6 +487,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))
@@ -694,7 +695,7 @@ mod tests {
         // WHEN on filtre pour task-001
         let result = runtime_event_to_sse(&event, "task-001");
 
-        // THEN None — event ignoré
+        // THEN None, event ignored
         assert!(result.is_none());
     }
 

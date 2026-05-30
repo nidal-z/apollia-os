@@ -1,4 +1,4 @@
-//! `McpConfigWatcher` — watches `mcp.toml` for changes and hot-reloads modified servers.
+//! `McpConfigWatcher`: watches `mcp.toml` for changes and hot-reloads modified servers.
 //!
 //! Uses the same `notify` backend as [`crate::sources::file_watch::FileWatchTrigger`]
 //! (inotify on Linux, FSEvents on macOS, ReadDirectoryChangesW on Windows).
@@ -42,41 +42,13 @@ impl McpConfigWatcher {
     pub fn spawn(mcp_toml_path: PathBuf, handle: McpClientManagerHandle) -> JoinHandle<()> {
         tokio::spawn(async move {
             // Load the initial config as the baseline for diffing.
-            let mut baseline = McpConfig::load(&mcp_toml_path).unwrap_or_else(|e| {
-                tracing::warn!(
-                    path = %mcp_toml_path.display(),
-                    error = %e,
-                    "McpConfigWatcher: failed to load initial mcp.toml — starting with empty baseline"
-                );
-                McpConfig {
-                    servers: Vec::new(),
-                    mdns_discovery: false,
-                }
-            });
+            let mut baseline = load_baseline(&mcp_toml_path);
 
-            // Sync channel: notify (sync) → async bridge.
-            let (notify_tx, notify_rx) = std::sync::mpsc::channel();
-
-            let mut watcher = match notify::recommended_watcher(notify_tx) {
-                Ok(w) => w,
-                Err(e) => {
-                    tracing::error!(
-                        path = %mcp_toml_path.display(),
-                        error = %e,
-                        "McpConfigWatcher: failed to create file watcher"
-                    );
-                    return;
-                }
-            };
-
-            if let Err(e) = watcher.watch(&mcp_toml_path, RecursiveMode::NonRecursive) {
-                tracing::error!(
-                    path = %mcp_toml_path.display(),
-                    error = %e,
-                    "McpConfigWatcher: failed to watch mcp.toml"
-                );
+            // Set up the notify watcher and the sync→async bridge. On a fatal
+            // setup error the task ends without watching anything.
+            let Some(mut bridge_rx) = start_notify_bridge(&mcp_toml_path) else {
                 return;
-            }
+            };
 
             tracing::info!(
                 path = %mcp_toml_path.display(),
@@ -89,39 +61,6 @@ impl McpConfigWatcher {
                 .checked_sub(Duration::from_secs(10))
                 .unwrap_or_else(std::time::Instant::now);
 
-            // Blocking bridge: poll the sync channel from a spawn_blocking context
-            // so we never block Tokio worker threads.
-            let path_clone = mcp_toml_path.clone();
-            let (bridge_tx, mut bridge_rx) = tokio::sync::mpsc::channel::<()>(4);
-
-            tokio::task::spawn_blocking(move || {
-                let _watcher = watcher;
-                loop {
-                    match notify_rx.recv_timeout(Duration::from_millis(50)) {
-                        Ok(Ok(event)) => {
-                            if matches!(event.kind, EventKind::Modify(_))
-                                && bridge_tx.blocking_send(()).is_err()
-                            {
-                                break; // async side dropped
-                            }
-                        }
-                        Ok(Err(e)) => {
-                            tracing::warn!(
-                                path = %path_clone.display(),
-                                error = %e,
-                                "McpConfigWatcher: notify error"
-                            );
-                        }
-                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                            if bridge_tx.is_closed() {
-                                break;
-                            }
-                        }
-                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
-                    }
-                }
-            });
-
             while bridge_rx.recv().await.is_some() {
                 let now = std::time::Instant::now();
                 if now.duration_since(last_reload) < Duration::from_secs(1) {
@@ -129,55 +68,166 @@ impl McpConfigWatcher {
                     continue;
                 }
                 last_reload = now;
-
-                let new_config = match McpConfig::load(&mcp_toml_path) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        tracing::warn!(
-                            path = %mcp_toml_path.display(),
-                            error = %e,
-                            "McpConfigWatcher: failed to parse updated mcp.toml — skipping reload"
-                        );
-                        continue;
-                    }
-                };
-
-                // Identify servers whose configuration changed.
-                let changed_names = detect_changed_servers(&baseline, &new_config);
-
-                if changed_names.is_empty() {
-                    tracing::debug!(
-                        path = %mcp_toml_path.display(),
-                        "McpConfigWatcher: mcp.toml changed but no server config differences found"
-                    );
-                    baseline = new_config;
-                    continue;
-                }
-
-                tracing::info!(
-                    path = %mcp_toml_path.display(),
-                    servers = ?changed_names,
-                    "McpConfigWatcher: detected MCP server config changes — hot reloading"
-                );
-
-                for name in &changed_names {
-                    match handle.reload_server(name).await {
-                        Ok(()) => {
-                            tracing::info!(server = %name, "McpConfigWatcher: server hot reloaded");
-                        }
-                        Err(e) => {
-                            tracing::warn!(
-                                server = %name,
-                                error = %e,
-                                "McpConfigWatcher: hot reload failed"
-                            );
-                        }
-                    }
-                }
-
-                baseline = new_config;
+                handle_reload_tick(&mcp_toml_path, &handle, &mut baseline).await;
             }
         })
+    }
+}
+
+/// Load `mcp.toml` as the diffing baseline, falling back to an empty config
+/// (logged at `warn`) when the initial parse fails.
+fn load_baseline(mcp_toml_path: &std::path::Path) -> McpConfig {
+    McpConfig::load(mcp_toml_path).unwrap_or_else(|e| {
+        tracing::warn!(
+            path = %mcp_toml_path.display(),
+            error = %e,
+            "McpConfigWatcher: failed to load initial mcp.toml — starting with empty baseline"
+        );
+        McpConfig {
+            servers: Vec::new(),
+            mdns_discovery: false,
+        }
+    })
+}
+
+/// Create the notify watcher, start watching `mcp_toml_path`, and spawn the
+/// blocking poll loop that bridges sync `notify` events to an async channel.
+///
+/// Returns the async receiver of debounce-eligible ticks, or `None` if the
+/// watcher could not be created or could not watch the file (both fatal,
+/// logged at `error`).
+fn start_notify_bridge(mcp_toml_path: &std::path::Path) -> Option<tokio::sync::mpsc::Receiver<()>> {
+    // Sync channel: notify (sync) → async bridge.
+    let (notify_tx, notify_rx) = std::sync::mpsc::channel();
+
+    let mut watcher = match notify::recommended_watcher(notify_tx) {
+        Ok(w) => w,
+        Err(e) => {
+            tracing::error!(
+                path = %mcp_toml_path.display(),
+                error = %e,
+                "McpConfigWatcher: failed to create file watcher"
+            );
+            return None;
+        }
+    };
+
+    if let Err(e) = watcher.watch(mcp_toml_path, RecursiveMode::NonRecursive) {
+        tracing::error!(
+            path = %mcp_toml_path.display(),
+            error = %e,
+            "McpConfigWatcher: failed to watch mcp.toml"
+        );
+        return None;
+    }
+
+    // Blocking bridge: poll the sync channel from a spawn_blocking context
+    // so we never block Tokio worker threads.
+    let path_clone = mcp_toml_path.to_path_buf();
+    let (bridge_tx, bridge_rx) = tokio::sync::mpsc::channel::<()>(4);
+
+    tokio::task::spawn_blocking(move || {
+        let _watcher = watcher;
+        run_bridge_poll_loop(&notify_rx, &bridge_tx, &path_clone);
+    });
+
+    Some(bridge_rx)
+}
+
+/// Blocking poll loop bridging the sync `notify` channel to the async
+/// `bridge_tx`. Forwards a `()` tick for each `Modify` event and exits when the
+/// async side is dropped or the sync channel disconnects.
+fn run_bridge_poll_loop(
+    notify_rx: &std::sync::mpsc::Receiver<notify::Result<notify::Event>>,
+    bridge_tx: &tokio::sync::mpsc::Sender<()>,
+    path: &std::path::Path,
+) {
+    loop {
+        match notify_rx.recv_timeout(Duration::from_millis(50)) {
+            Ok(Ok(event)) => {
+                if matches!(event.kind, EventKind::Modify(_))
+                    && bridge_tx.blocking_send(()).is_err()
+                {
+                    break; // async side dropped
+                }
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    error = %e,
+                    "McpConfigWatcher: notify error"
+                );
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                if bridge_tx.is_closed() {
+                    break;
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+    }
+}
+
+/// Handles a reload tick: reloads `mcp.toml`, detects the changed servers, and
+/// triggers their hot reload. Updates `baseline` to the new configuration once
+/// the reloads are dispatched.
+///
+/// Parse errors are logged and leave `baseline` unchanged.
+async fn handle_reload_tick(
+    mcp_toml_path: &std::path::Path,
+    handle: &McpClientManagerHandle,
+    baseline: &mut McpConfig,
+) {
+    let new_config = match McpConfig::load(mcp_toml_path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!(
+                path = %mcp_toml_path.display(),
+                error = %e,
+                "McpConfigWatcher: failed to parse updated mcp.toml — skipping reload"
+            );
+            return;
+        }
+    };
+
+    // Identify servers whose configuration changed.
+    let changed_names = detect_changed_servers(baseline, &new_config);
+
+    if changed_names.is_empty() {
+        tracing::debug!(
+            path = %mcp_toml_path.display(),
+            "McpConfigWatcher: mcp.toml changed but no server config differences found"
+        );
+        *baseline = new_config;
+        return;
+    }
+
+    tracing::info!(
+        path = %mcp_toml_path.display(),
+        servers = ?changed_names,
+        "McpConfigWatcher: detected MCP server config changes — hot reloading"
+    );
+
+    for name in &changed_names {
+        reload_one_server(handle, name).await;
+    }
+
+    *baseline = new_config;
+}
+
+/// Reloads a single MCP server, logging success and failure without propagating the error.
+async fn reload_one_server(handle: &McpClientManagerHandle, name: &str) {
+    match handle.reload_server(name).await {
+        Ok(()) => {
+            tracing::info!(server = %name, "McpConfigWatcher: server hot reloaded");
+        }
+        Err(e) => {
+            tracing::warn!(
+                server = %name,
+                error = %e,
+                "McpConfigWatcher: hot reload failed"
+            );
+        }
     }
 }
 
@@ -248,7 +298,7 @@ mod tests {
         // WHEN
         let changed = detect_changed_servers(&baseline, &updated);
 
-        // THEN — no change detected
+        // THEN no change detected
         assert!(changed.is_empty(), "expected no change, got: {:?}", changed);
     }
 
@@ -261,7 +311,7 @@ mod tests {
         // WHEN
         let changed = detect_changed_servers(&baseline, &updated);
 
-        // THEN — "notion" is detected as changed
+        // THEN "notion" is detected as changed
         assert_eq!(changed, vec!["notion"]);
     }
 
@@ -277,7 +327,7 @@ mod tests {
         // WHEN
         let changed = detect_changed_servers(&baseline, &updated);
 
-        // THEN — "sqlite" is new and not reported; "notion" is unchanged
+        // THEN "sqlite" is new and not reported; "notion" is unchanged
         assert!(
             changed.is_empty(),
             "new server must not be reported as changed"
@@ -296,7 +346,7 @@ mod tests {
         // WHEN
         let changed = detect_changed_servers(&baseline, &updated);
 
-        // THEN — removed server is not reported
+        // THEN removed server is not reported
         assert!(
             changed.is_empty(),
             "removed server must not be reported as changed"
@@ -319,7 +369,7 @@ mod tests {
         let mut changed = detect_changed_servers(&baseline, &updated);
         changed.sort();
 
-        // THEN — both changed servers are reported
+        // THEN both changed servers are reported
         assert_eq!(changed, vec!["notion", "sqlite"]);
     }
 }

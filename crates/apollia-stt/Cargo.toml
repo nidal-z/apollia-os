@@ -2,12 +2,12 @@
 name = "apollia-stt"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — Speech-to-Text traits, types et repository (moteur whisper hébergé dans apollia-runner depuis ADR-113)"
+description = "Apollia OS Speech-to-Text traits, types and repository (the whisper engine lives in the apollia-runner sidecar)"
 license = "MIT OR Apache-2.0"
 
-# ADR-113 : whisper.cpp ne vit plus dans cette crate, il est hébergé par le
-# sidecar `apollia-runner`. Le daemon utilise `RunnerSttBackend`
-# (apollia-runtime) qui implémente `SttBackend` via HTTP IPC.
+# whisper.cpp no longer lives in this crate; it is hosted by the
+# `apollia-runner` sidecar. The daemon uses `RunnerSttBackend` (apollia-runtime)
+# which implements `SttBackend` via HTTP IPC.
 
 [dependencies]
 apollia-core = { workspace = true }

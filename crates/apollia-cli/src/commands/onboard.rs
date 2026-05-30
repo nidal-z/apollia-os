@@ -1,4 +1,4 @@
-//! `apollia-os onboard [--topic <topic>]` — launch onboarding or re-onboarding on a specific topic.
+//! `apollia-os onboard [--topic <topic>]`: launch onboarding or re-onboarding on a specific topic.
 //!
 //! Submits a task to the `onboarding-agent` via the runtime API. When `--topic`
 //! is specified, the agent focuses the conversation on that particular domain
@@ -132,67 +132,79 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
     loop {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
-        let result = client.get_task(task_id).await;
-        match result {
-            Ok(task_json) => {
-                let status = task_json
-                    .get("status")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
+        let task_json = match client.get_task(task_id).await {
+            Ok(task_json) => task_json,
+            Err(e) => return output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR),
+        };
 
-                match status {
-                    "completed" => {
-                        let elapsed = start.elapsed();
-                        if json {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&task_json).unwrap_or_default()
-                            );
-                        } else {
-                            if let Some(text) = task_json.get("result").and_then(|v| v.as_str()) {
-                                println!("{text}");
-                            }
-                            println!("  * Onboarding completed in {:.1}s", elapsed.as_secs_f64());
-                        }
-                        return exit_codes::SUCCESS;
-                    }
-                    "failed" => {
-                        let error_msg = task_json
-                            .get("error")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("unknown error");
-                        if json {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&task_json).unwrap_or_default()
-                            );
-                        } else {
-                            eprintln!(
-                                "  x Onboarding failed in {:.1}s: {error_msg}",
-                                start.elapsed().as_secs_f64()
-                            );
-                        }
-                        return exit_codes::TASK_FAILED;
-                    }
-                    "canceled" => {
-                        if json {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&task_json).unwrap_or_default()
-                            );
-                        } else {
-                            println!("  Onboarding task {task_id} was canceled");
-                        }
-                        return exit_codes::GENERAL_ERROR;
-                    }
-                    _ => continue,
-                }
-            }
-            Err(e) => {
-                return output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR);
-            }
+        let status = task_json
+            .get("status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        if let Some(code) = render_task_status(&task_json, status, task_id, json, start) {
+            return code;
         }
     }
+}
+
+/// Renders a terminal task status and returns its exit code, or `None` when the
+/// task is not yet terminal (the caller keeps polling).
+fn render_task_status(
+    task_json: &serde_json::Value,
+    status: &str,
+    task_id: &str,
+    json: bool,
+    start: Instant,
+) -> Option<i32> {
+    match status {
+        "completed" => {
+            if json {
+                print_task_json(task_json);
+            } else {
+                if let Some(text) = task_json.get("result").and_then(|v| v.as_str()) {
+                    println!("{text}");
+                }
+                println!(
+                    "  * Onboarding completed in {:.1}s",
+                    start.elapsed().as_secs_f64()
+                );
+            }
+            Some(exit_codes::SUCCESS)
+        }
+        "failed" => {
+            if json {
+                print_task_json(task_json);
+            } else {
+                let error_msg = task_json
+                    .get("error")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown error");
+                eprintln!(
+                    "  x Onboarding failed in {:.1}s: {error_msg}",
+                    start.elapsed().as_secs_f64()
+                );
+            }
+            Some(exit_codes::TASK_FAILED)
+        }
+        "canceled" => {
+            if json {
+                print_task_json(task_json);
+            } else {
+                println!("  Onboarding task {task_id} was canceled");
+            }
+            Some(exit_codes::GENERAL_ERROR)
+        }
+        _ => None,
+    }
+}
+
+/// Pretty-prints the task JSON payload to stdout.
+fn print_task_json(task_json: &serde_json::Value) {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(task_json).unwrap_or_default()
+    );
 }
 
 /// Output an error and return the given exit code.

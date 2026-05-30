@@ -1,9 +1,9 @@
-//! Téléchargement de modèles GGUF depuis HuggingFace avec suivi de progression.
+//! GGUF model downloads from HuggingFace with progress tracking.
 //!
-//! - Streaming via `reqwest` avec header `Range` pour la reprise.
-//! - Un [`DownloadManager`] gère un pool de téléchargements concurrents.
-//! - La progression est reportée via [`DownloadProgress`] — à router vers
-//!   les events Tauri côté desktop.
+//! - Streaming via `reqwest` with a `Range` header for resuming.
+//! - A [`DownloadManager`] manages a pool of concurrent downloads.
+//! - Progress is reported via [`DownloadProgress`], to be routed to the
+//!   desktop-side Tauri events.
 
 #![cfg(feature = "cloud")]
 
@@ -19,108 +19,96 @@ use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-// ─────────────────────────────────────────────
-// Errors
-// ─────────────────────────────────────────────
-
-/// Erreurs du module de téléchargement.
+/// Errors of the download module.
 #[derive(Debug, Error)]
 pub enum DownloadError {
-    /// Erreur réseau.
+    /// Network error.
     #[error("http error: {0}")]
     Http(#[from] reqwest::Error),
-    /// Erreur I/O (écriture fichier).
+    /// I/O error (file write).
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
-    /// Téléchargement annulé par l'utilisateur.
+    /// Download cancelled by the user.
     #[error("download cancelled")]
     Cancelled,
-    /// Téléchargement introuvable.
+    /// Download not found.
     #[error("download '{0}' not found")]
     NotFound(String),
 }
 
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
-
-/// Identifiant unique d'un téléchargement.
+/// Unique identifier of a download.
 pub type DownloadId = String;
 
-/// Progression d'un téléchargement en cours.
+/// Progress of an in-flight download.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadProgress {
-    /// Identifiant du téléchargement.
+    /// Download identifier.
     pub id: DownloadId,
-    /// Octets téléchargés jusqu'à présent.
+    /// Bytes downloaded so far.
     pub downloaded_bytes: u64,
-    /// Taille totale attendue (si connue via `Content-Length`).
+    /// Expected total size (if known via `Content-Length`).
     pub total_bytes: Option<u64>,
-    /// Vitesse instantanée en bytes/seconde.
+    /// Instantaneous speed in bytes/second.
     pub speed_bps: f64,
-    /// Chemin de destination.
+    /// Destination path.
     pub dest_path: PathBuf,
-    /// Statut courant.
+    /// Current status.
     pub status: DownloadStatus,
 }
 
-/// Statut d'un téléchargement.
+/// Status of a download.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DownloadStatus {
-    /// En cours de téléchargement.
+    /// Downloading.
     InProgress,
-    /// Terminé avec succès.
+    /// Completed successfully.
     Completed,
-    /// Annulé par l'utilisateur.
+    /// Cancelled by the user.
     Cancelled,
-    /// Erreur irrécupérable.
+    /// Unrecoverable error.
     Failed,
 }
 
-/// Requête de démarrage d'un téléchargement.
+/// Request to start a download.
 #[derive(Debug, Clone)]
 pub struct DownloadRequest {
-    /// URL du fichier à télécharger.
+    /// URL of the file to download.
     pub url: String,
-    /// Répertoire de destination (ex. `~/.apollia/models/`).
+    /// Destination directory (e.g. `~/.apollia/models/`).
     pub dest_dir: PathBuf,
-    /// Nom de fichier de destination (optionnel — déduit de l'URL si absent).
+    /// Destination filename (optional, derived from the URL if absent).
     pub filename: Option<String>,
-    /// Token HF pour les modèles gated (optionnel).
+    /// HF token for gated models (optional).
     pub hf_token: Option<String>,
-    /// Repo HF source (`org/name`). Quand `Some`, le downloader fetch le
-    /// `generation_config.json` du dépôt à la fin et persiste les
-    /// `temperature` / `top_p` / `top_k` / `repetition_penalty` recommandés
-    /// dans `~/.apollia/models/sampling-defaults.json` indexé par
-    /// `filename`. C'est ce qui permet à un agent local de bénéficier
-    /// automatiquement des hyperparamètres officiels publiés par l'éditeur
-    /// du modèle. Aucun effet si `None` (téléchargements non-HF).
+    /// Source HF repo (`org/name`). When `Some`, the downloader fetches the
+    /// repo's `generation_config.json` at the end and persists the recommended
+    /// `temperature` / `top_p` / `top_k` / `repetition_penalty` into
+    /// `~/.apollia/models/sampling-defaults.json` indexed by `filename`. This
+    /// lets a local agent automatically benefit from the official
+    /// hyperparameters published by the model author. No effect if `None`
+    /// (non-HF downloads).
     pub repo_id: Option<String>,
 }
 
-// ─────────────────────────────────────────────
-// Manager
-// ─────────────────────────────────────────────
-
 type ProgressCallback = Arc<dyn Fn(DownloadProgress) + Send + Sync + 'static>;
 
-/// Gestionnaire de téléchargements concurrents.
+/// Manager for concurrent downloads.
 ///
-/// Chaque téléchargement reçoit un UUID et peut être annulé individuellement.
-/// La progression est reportée via un callback injectable (Tauri events côté desktop).
+/// Each download gets a UUID and can be cancelled individually. Progress is
+/// reported via an injectable callback (desktop-side Tauri events).
 pub struct DownloadManager {
     client: reqwest::Client,
-    /// Map download_id → CancellationToken pour les annulations.
+    /// Map of download_id to CancellationToken for cancellations.
     active: Arc<Mutex<HashMap<DownloadId, CancellationToken>>>,
 }
 
 impl DownloadManager {
-    /// Crée un nouveau gestionnaire.
+    /// Create a new manager.
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent("Apollia-OS/1.0")
-            // connect_timeout only — no total-request timeout so large model downloads
+            // connect_timeout only, no total-request timeout so large model downloads
             // (multi-GB) are not killed mid-stream after 60 s.
             .connect_timeout(std::time::Duration::from_secs(30))
             .build()
@@ -131,10 +119,10 @@ impl DownloadManager {
         }
     }
 
-    /// Démarre un téléchargement en arrière-plan.
+    /// Start a download in the background.
     ///
-    /// Retourne le `DownloadId` immédiatement.
-    /// La progression est reportée via `on_progress` à chaque chunk reçu.
+    /// Returns the `DownloadId` immediately. Progress is reported via
+    /// `on_progress` on each received chunk.
     pub fn start(&self, request: DownloadRequest, on_progress: ProgressCallback) -> DownloadId {
         let id = Uuid::new_v4().to_string();
         let cancel = CancellationToken::new();
@@ -172,10 +160,10 @@ impl DownloadManager {
         id
     }
 
-    /// Annule un téléchargement en cours.
+    /// Cancel an in-flight download.
     ///
     /// # Errors
-    /// [`DownloadError::NotFound`] si l'ID est inconnu ou déjà terminé.
+    /// [`DownloadError::NotFound`] if the ID is unknown or already finished.
     pub fn cancel(&self, id: &str) -> Result<(), DownloadError> {
         let active = self.active.lock().expect("active lock");
         match active.get(id) {
@@ -187,7 +175,7 @@ impl DownloadManager {
         }
     }
 
-    /// Retourne la liste des IDs de téléchargements actifs.
+    /// Return the list of active download IDs.
     pub fn active_ids(&self) -> Vec<DownloadId> {
         self.active
             .lock()
@@ -204,9 +192,7 @@ impl Default for DownloadManager {
     }
 }
 
-// ─────────────────────────────────────────────
-// Core download logic
-// ─────────────────────────────────────────────
+// ── Core download logic ──────────────────────────────────────────────────
 
 async fn run_download(
     client: reqwest::Client,
@@ -323,10 +309,10 @@ async fn run_download(
         "model download completed"
     );
 
-    // Persistance opportuniste des sampling defaults officiels HF.
-    // Ne jamais faire échouer le download : c'est un confort, pas un
-    // contrat. Si HF est down ou si le fichier `generation_config.json`
-    // est absent, on logge à `info` et on continue.
+    // Opportunistically persist the official HF sampling defaults. Never fail
+    // the download over this: it is a convenience, not a contract. If HF is
+    // down or the `generation_config.json` file is absent, log at `info` and
+    // continue.
     if let Some(ref repo) = repo_id {
         if let Err(e) = persist_sampling_defaults(repo, &filename, hf_token.as_deref()).await {
             tracing::info!(
@@ -341,17 +327,17 @@ async fn run_download(
     Ok(())
 }
 
-/// Fetch `generation_config.json` du dépôt HF et écrit les paramètres
-/// recommandés dans `~/.apollia/models/sampling-defaults.json`, indexé
-/// par `model_filename` (le nom du `.gguf` sans chemin).
+/// Fetch the HF repo's `generation_config.json` and write the recommended
+/// parameters into `~/.apollia/models/sampling-defaults.json`, indexed by
+/// `model_filename` (the `.gguf` name without its path).
 ///
-/// Indexer par filename plutôt que par repo_id couvre le cas multi-quants
-/// (un même repo peut shipper Q4_K_M, Q5_K_M, Q8_0…) — chaque quantisation
-/// peut être nommée et resolved indépendamment, mais tous partagent les
-/// mêmes hyperparamètres officiels donc on duplique l'entrée par fichier.
+/// Indexing by filename rather than repo_id covers the multi-quant case (one
+/// repo can ship Q4_K_M, Q5_K_M, Q8_0, etc.): each quantization can be named
+/// and resolved independently, but all share the same official
+/// hyperparameters, so the entry is duplicated per file.
 ///
-/// Idempotent : un re-download écrase l'entrée (utile si l'éditeur a
-/// publié de nouvelles recommandations).
+/// Idempotent: a re-download overwrites the entry (useful if the author has
+/// published new recommendations).
 async fn persist_sampling_defaults(
     repo_id: &str,
     model_filename: &str,
@@ -359,14 +345,14 @@ async fn persist_sampling_defaults(
 ) -> Result<(), String> {
     let client = crate::hf_registry::HfRegistryClient::new(hf_token.map(String::from));
 
-    // Tentative directe — fonctionne pour les repos officiels (Qwen, Meta…).
+    // Direct attempt: works for official repos (Qwen, Meta, etc.).
     let gen_config = match client.get_generation_config(repo_id).await {
         Some(c) => c,
         None => {
-            // Les quanteurs (Bartowski, Unsloth, mradermacher) republient
-            // les GGUF SANS `generation_config.json`. Le repo amont, déclaré
-            // via `cardData.base_model` ou un tag `base_model:…`, lui le
-            // contient. On retry une fois là-dessus.
+            // Quantizers (Bartowski, Unsloth, mradermacher) republish the GGUF
+            // WITHOUT `generation_config.json`. The upstream repo, declared via
+            // `cardData.base_model` or a `base_model:...` tag, does contain it.
+            // Retry once against that.
             let Some(base) = client.resolve_base_model(repo_id).await else {
                 return Err("generation_config.json absent et aucun base_model déclaré".to_string());
             };
@@ -381,8 +367,8 @@ async fn persist_sampling_defaults(
         }
     };
 
-    // Conversion f64 → f32 ; les valeurs HF tiennent largement dans la
-    // précision simple (jamais plus de 4 chiffres significatifs).
+    // f64 to f32 conversion; HF values fit comfortably in single precision
+    // (never more than 4 significant digits).
     let defaults = crate::model_defaults::ModelDefaults {
         temperature: gen_config.temperature.map(|v| v as f32),
         top_p: gen_config.top_p.map(|v| v as f32),

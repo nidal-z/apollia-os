@@ -51,9 +51,11 @@ describe("chatTemplates", () => {
     // GIVEN the hardcoded template list
     // WHEN we inspect it
     // THEN the 5 ultra-generic use-case templates are present
-    const ids = CHAT_TEMPLATES.map((t) => t.id).sort();
+    const ids = CHAT_TEMPLATES.map((t) => t.id).sort((a, b) => a.localeCompare(b));
     expect(ids).toEqual(
-      ["brainstorm", "draft-writing", "explain", "research", "summarize"].sort(),
+      ["brainstorm", "draft-writing", "explain", "research", "summarize"].sort((a, b) =>
+        a.localeCompare(b),
+      ),
     );
   });
 
@@ -99,7 +101,7 @@ describe("agent filtering", () => {
   });
 
   test("detects empty state when list is empty", () => {
-    const list: AgentListItem[] = [];
+    const list: AgentListItem[] = []; // NOSONAR typescript:S4158
     expect(list.filter((a) => a.agent_type !== "system").length).toBe(0);
   });
 });

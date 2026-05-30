@@ -23,7 +23,7 @@ use tauri::State;
 // View types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Payload de création d'un projet.
+/// Payload to create a project.
 #[derive(Debug, Deserialize)]
 pub struct CreateProjectRequest {
     pub name: String,
@@ -32,7 +32,7 @@ pub struct CreateProjectRequest {
     pub workspace_path: Option<String>,
 }
 
-/// Payload de mise à jour partielle d'un projet.
+/// Payload for a partial project update.
 #[derive(Debug, Deserialize)]
 pub struct UpdateProjectRequest {
     pub name: Option<String>,
@@ -41,16 +41,16 @@ pub struct UpdateProjectRequest {
     pub workspace_path: Option<Option<String>>,
 }
 
-/// Section du snapshot workspace exposée au frontend.
+/// Workspace snapshot section exposed to the frontend.
 #[derive(Debug, Serialize)]
 pub struct WorkspaceSnapshotView {
-    /// Sections produites par les providers actifs.
+    /// Sections produced by the active providers.
     pub sections: Vec<WorkspaceSectionView>,
-    /// Nombre de providers ayant produit au moins une erreur.
+    /// Number of providers that produced at least one error.
     pub error_count: usize,
 }
 
-/// Une section individuelle du snapshot.
+/// An individual snapshot section.
 #[derive(Debug, Serialize)]
 pub struct WorkspaceSectionView {
     pub source: String,
@@ -74,7 +74,7 @@ fn get_repo(state: &RuntimeHandle) -> Result<Arc<ProjectRepository>, String> {
 // Commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Liste tous les projets.
+/// Lists all projects.
 #[tauri::command]
 pub async fn list_projects(state: State<'_, RuntimeHandle>) -> Result<Vec<ProjectSummary>, String> {
     let repo = get_repo(&state)?;
@@ -84,7 +84,7 @@ pub async fn list_projects(state: State<'_, RuntimeHandle>) -> Result<Vec<Projec
         .map_err(|e| e.to_string())
 }
 
-/// Retourne le détail d'un projet (documents + providers).
+/// Returns a project's detail (documents + providers).
 #[tauri::command]
 pub async fn get_project(
     state: State<'_, RuntimeHandle>,
@@ -97,14 +97,14 @@ pub async fn get_project(
         .map_err(|e| e.to_string())
 }
 
-/// Calcule une suggestion de dossier de travail pour un nouveau projet.
+/// Computes a suggested working directory for a new project.
 ///
-/// Stratégie de priorité :
-/// 1. `$HOME/Apollia` existe → `$HOME/Apollia/<slug>`
-/// 2. `$HOME/Documents` existe → `$HOME/Documents/Apollia/<slug>`
+/// Priority strategy:
+/// 1. `$HOME/Apollia` exists → `$HOME/Apollia/<slug>`
+/// 2. `$HOME/Documents` exists → `$HOME/Documents/Apollia/<slug>`
 /// 3. Fallback → `$HOME/<slug>`
 ///
-/// Ne crée aucun dossier sur disque.
+/// Creates no directory on disk.
 #[tauri::command]
 pub async fn suggest_workspace_path(project_name: String) -> Result<String, String> {
     let home = dirs::home_dir().ok_or_else(|| "$HOME not available".to_string())?;
@@ -121,10 +121,10 @@ pub async fn suggest_workspace_path(project_name: String) -> Result<String, Stri
     Ok(suggestion.to_string_lossy().into_owned())
 }
 
-/// Produit un slug URL-safe à partir d'un nom de projet.
+/// Produces a URL-safe slug from a project name.
 ///
-/// Règles : lowercase, tout caractère non-alphanumérique ASCII → `-`,
-/// tirets consécutifs collapsés, tirets en début/fin supprimés.
+/// Rules: lowercase, any non-alphanumeric ASCII character → `-`, consecutive
+/// hyphens collapsed, leading/trailing hyphens removed.
 fn slugify(s: &str) -> String {
     s.trim()
         .to_lowercase()
@@ -137,10 +137,10 @@ fn slugify(s: &str) -> String {
         .join("-")
 }
 
-/// Crée un nouveau projet et retourne son détail complet.
+/// Creates a new project and returns its full detail.
 ///
-/// `workspace_path` est obligatoire. Le dossier est créé via `create_dir_all`
-/// s'il n'existe pas encore.
+/// `workspace_path` is required. The directory is created via `create_dir_all`
+/// if it does not exist yet.
 #[tauri::command]
 pub async fn create_project(
     state: State<'_, RuntimeHandle>,
@@ -170,7 +170,7 @@ pub async fn create_project(
     get_project(state, id).await
 }
 
-/// Met à jour un projet (patch partiel) et retourne le détail mis à jour.
+/// Updates a project (partial patch) and returns the updated detail.
 #[tauri::command]
 pub async fn update_project(
     state: State<'_, RuntimeHandle>,
@@ -197,7 +197,7 @@ pub async fn update_project(
     get_project(state, id).await
 }
 
-/// Supprime un projet et ses documents/providers associés.
+/// Deletes a project and its associated documents/providers.
 #[tauri::command]
 pub async fn delete_project(state: State<'_, RuntimeHandle>, id: String) -> Result<(), String> {
     let repo = get_repo(&state)?;
@@ -208,7 +208,7 @@ pub async fn delete_project(state: State<'_, RuntimeHandle>, id: String) -> Resu
     Ok(())
 }
 
-/// Attache un fichier au projet. Retourne les métadonnées du document créé.
+/// Attaches a file to the project. Returns the created document's metadata.
 #[tauri::command]
 pub async fn upload_project_document(
     state: State<'_, RuntimeHandle>,
@@ -254,7 +254,7 @@ pub async fn upload_project_document(
     })
 }
 
-/// Supprime un document attaché à un projet.
+/// Deletes a document attached to a project.
 #[tauri::command]
 pub async fn delete_project_document(
     state: State<'_, RuntimeHandle>,
@@ -268,7 +268,7 @@ pub async fn delete_project_document(
     Ok(())
 }
 
-/// Liste les templates de projets disponibles (builtins + custom).
+/// Lists the available project templates (builtins + custom).
 #[tauri::command]
 pub async fn list_project_templates(
     state: State<'_, RuntimeHandle>,
@@ -280,11 +280,11 @@ pub async fn list_project_templates(
         .map_err(|e| e.to_string())
 }
 
-/// Collecte un snapshot workspace live pour un projet donné.
+/// Collects a live workspace snapshot for a given project.
 ///
-/// Charge les providers configurés pour le projet et les lance en parallèle
-/// sur le `workspace_path` du projet (cwd du processus en repli). Retourne les
-/// sections produites pour prévisualisation dans l'interface.
+/// Loads the providers configured for the project and runs them in parallel on
+/// the project's `workspace_path` (falling back to the process cwd). Returns the
+/// produced sections for preview in the UI.
 #[tauri::command]
 pub async fn get_project_snapshot(
     state: State<'_, RuntimeHandle>,
@@ -293,7 +293,7 @@ pub async fn get_project_snapshot(
     let repo = get_repo(&state)?;
 
     // Load project + providers in one blocking pass. The project's
-    // `workspace_path` is the cwd we hand to the runtime — same source of
+    // `workspace_path` is the cwd we hand to the runtime, the same source of
     // truth as the real agent execution path (cf. project_context.rs).
     let pid = project_id.clone();
     let (workspace_path, providers) = tokio::task::spawn_blocking(move || {
@@ -359,7 +359,7 @@ pub async fn get_project_snapshot(
 // Agent linking commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Associe un agent à un projet.
+/// Associates an agent with a project.
 #[tauri::command]
 pub async fn add_project_agent(
     state: State<'_, RuntimeHandle>,
@@ -373,7 +373,7 @@ pub async fn add_project_agent(
         .map_err(|e| e.to_string())
 }
 
-/// Dissocie un agent d'un projet.
+/// Disassociates an agent from a project.
 #[tauri::command]
 pub async fn remove_project_agent(
     state: State<'_, RuntimeHandle>,
@@ -388,7 +388,7 @@ pub async fn remove_project_agent(
     Ok(())
 }
 
-/// Liste les noms d'agents associés à un projet.
+/// Lists the names of agents associated with a project.
 #[tauri::command]
 pub async fn list_project_agents(
     state: State<'_, RuntimeHandle>,
@@ -401,7 +401,7 @@ pub async fn list_project_agents(
         .map_err(|e| e.to_string())
 }
 
-/// Liste les projets auxquels un agent appartient (retourne les résumés).
+/// Lists the projects an agent belongs to (returns the summaries).
 #[tauri::command]
 pub async fn list_projects_for_agent(
     state: State<'_, RuntimeHandle>,
@@ -428,10 +428,10 @@ pub async fn list_projects_for_agent(
 // Provider management commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Ajoute ou met à jour un provider de contexte pour un projet.
+/// Adds or updates a context provider for a project.
 ///
-/// Si `provider_id` est `Some`, met à jour la ligne existante ; sinon insère
-/// une nouvelle ligne. Retourne l'id de la ligne affectée.
+/// If `provider_id` is `Some`, updates the existing row; otherwise inserts a
+/// new row. Returns the id of the affected row.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn set_project_provider(
@@ -463,7 +463,7 @@ pub async fn set_project_provider(
     .map_err(|e| e.to_string())
 }
 
-/// Supprime un provider de contexte.
+/// Deletes a context provider.
 #[tauri::command]
 pub async fn remove_project_provider(
     state: State<'_, RuntimeHandle>,
@@ -477,7 +477,7 @@ pub async fn remove_project_provider(
     Ok(())
 }
 
-/// Active ou désactive un provider de contexte.
+/// Enables or disables a context provider.
 #[tauri::command]
 pub async fn toggle_project_provider(
     state: State<'_, RuntimeHandle>,
@@ -502,24 +502,24 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    // Helper : crée un HOME factice via variable d'environnement.
-    // HOME est lu par dirs::home_dir() sur Unix.
+    // Helper: creates a fake HOME via an environment variable.
+    // HOME is read by dirs::home_dir() on Unix.
     fn with_fake_home<F: FnOnce(&std::path::Path)>(f: F) {
         let tmp = TempDir::new().expect("tempdir");
-        // dirs::home_dir() lit $HOME sur Unix, USERPROFILE sur Windows.
+        // dirs::home_dir() reads $HOME on Unix, USERPROFILE on Windows.
         #[cfg(unix)]
         std::env::set_var("HOME", tmp.path());
         #[cfg(windows)]
         std::env::set_var("USERPROFILE", tmp.path());
         f(tmp.path());
-        // Nettoyage : restaurer une valeur cohérente n'est pas possible de façon
-        // fiable en environnement de test parallèle, mais les tests slugify
-        // n'utilisent pas HOME, donc aucun risque de contamination.
+        // Cleanup: reliably restoring a consistent value is not possible in a
+        // parallel test environment, but the slugify tests do not use HOME, so
+        // there is no risk of contamination.
     }
 
     #[tokio::test]
     async fn suggest_prefers_home_apollia_when_exists() {
-        // GIVEN $HOME/Apollia/ existe
+        // GIVEN $HOME/Apollia/ exists
         with_fake_home(|home| {
             fs::create_dir_all(home.join("Apollia")).expect("mkdir");
 
@@ -535,7 +535,7 @@ mod tests {
                 home.join(&slug)
             };
 
-            // THEN retourne $HOME/Apollia/demo
+            // THEN returns $HOME/Apollia/demo
             assert_eq!(suggestion, home.join("Apollia").join("demo"));
         });
     }
@@ -543,7 +543,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "flaky: dirs::home_dir() race with parallel tests overriding $HOME"]
     async fn suggest_falls_back_to_documents() {
-        // GIVEN $HOME/Apollia/ absent, $HOME/Documents/ présent
+        // GIVEN $HOME/Apollia/ absent, $HOME/Documents/ present
         with_fake_home(|home| {
             fs::create_dir_all(home.join("Documents")).expect("mkdir");
 
@@ -558,7 +558,7 @@ mod tests {
                 h.join(&slug)
             };
 
-            // THEN retourne $HOME/Documents/Apollia/demo
+            // THEN returns $HOME/Documents/Apollia/demo
             assert_eq!(
                 suggestion,
                 home.join("Documents").join("Apollia").join("demo")
@@ -568,7 +568,7 @@ mod tests {
 
     #[tokio::test]
     async fn suggest_final_fallback_to_home() {
-        // GIVEN $HOME/Apollia/ et $HOME/Documents/ absents
+        // GIVEN $HOME/Apollia/ and $HOME/Documents/ absent
         with_fake_home(|home| {
             let h = dirs::home_dir().expect("home_dir");
             let slug = slugify("demo");
@@ -581,16 +581,16 @@ mod tests {
                 h.join(&slug)
             };
 
-            // THEN retourne $HOME/demo
+            // THEN returns $HOME/demo
             assert_eq!(suggestion, home.join("demo"));
         });
     }
 
     #[test]
     fn slugify_handles_spaces_and_punctuation() {
-        // GIVEN divers noms de projets avec espaces et ponctuation
-        // WHEN slugify est appelée
-        // THEN produit un slug lowercase sans tirets superflus
+        // GIVEN various project names with spaces and punctuation
+        // WHEN slugify is called
+        // THEN produces a lowercase slug with no spurious hyphens
         assert_eq!(slugify("Mon Super Projet"), "mon-super-projet");
         assert_eq!(slugify("  hello!! world  "), "hello-world");
         assert_eq!(slugify("foo---bar"), "foo-bar");
@@ -600,9 +600,9 @@ mod tests {
 
     #[test]
     fn slugify_empty_input_produces_empty() {
-        // GIVEN une chaîne vide ou que des caractères non-alphanum
-        // WHEN slugify est appelée
-        // THEN retourne une chaîne vide
+        // GIVEN an empty string or only non-alphanumeric characters
+        // WHEN slugify is called
+        // THEN returns an empty string
         assert_eq!(slugify(""), "");
         assert_eq!(slugify("   "), "");
         assert_eq!(slugify("!!!"), "");

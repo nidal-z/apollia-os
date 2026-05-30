@@ -9,99 +9,99 @@ fn default_inactivity_timeout_secs() -> u64 {
     30
 }
 
-/// Configuration globale du système de notifications.
+/// Global configuration of the notification system.
 ///
-/// Chargée depuis `apollia.toml` via la section `[notifications]`.
-/// Contient la liste des événements activés globalement et la liste des canaux.
+/// Loaded from `apollia.toml` via the `[notifications]` section. Holds the list
+/// of globally enabled events and the list of channels.
 #[derive(Debug, Clone, Deserialize)]
 pub struct NotificationConfig {
-    /// Événements activés globalement (ex: `["task.input_required", "task.failed"]`).
+    /// Globally enabled events (e.g. `["task.input_required", "task.failed"]`).
     ///
-    /// Utilisé comme liste de référence pour les canaux configurés avec `events = ["*"]`
-    /// ou sans liste d'événements spécifique.
+    /// Used as the reference list for channels configured with `events = ["*"]`
+    /// or without a specific event list.
     pub events: Vec<String>,
-    /// Canaux de notification configurés.
+    /// Configured notification channels.
     pub channels: Vec<ChannelConfig>,
-    /// Durée d'inactivité en secondes avant déclenchement d'une notification (défaut : 30).
+    /// Inactivity duration in seconds before triggering a notification (default: 30).
     #[serde(default = "default_inactivity_timeout_secs")]
     pub inactivity_timeout_secs: u64,
 }
 
-/// Configuration d'un canal de notification individuel.
+/// Configuration of an individual notification channel.
 ///
-/// Correspond à une entrée `[[notifications.channels]]` dans `apollia.toml`.
+/// Maps to a `[[notifications.channels]]` entry in `apollia.toml`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ChannelConfig {
-    /// Identifiant unique du canal (ex: `"desktop"`, `"slack"`).
+    /// Unique channel identifier (e.g. `"desktop"`, `"slack"`).
     pub id: String,
-    /// Type de canal.
+    /// Channel type.
     #[serde(rename = "type")]
     pub kind: ChannelKind,
-    /// Si `false`, le canal est ignoré même s'il est configuré.
+    /// If `false`, the channel is ignored even if configured.
     pub enabled: bool,
-    /// Liste des événements à recevoir sur ce canal.
+    /// List of events to receive on this channel.
     ///
-    /// - `None` → utilise la liste globale (`NotificationConfig.events`)
-    /// - `Some(["*"])` → accepte tous les événements de la liste globale
-    /// - `Some(liste)` → sous-ensemble d'événements spécifiques à ce canal
+    /// - `None` -> uses the global list (`NotificationConfig.events`)
+    /// - `Some(["*"])` -> accepts all events from the global list
+    /// - `Some(list)` -> a subset of events specific to this channel
     pub events: Option<Vec<String>>,
-    /// URL du webhook (uniquement pour le canal `webhook`).
+    /// Webhook URL (only for the `webhook` channel).
     pub url: Option<String>,
-    /// Secret HMAC-SHA256 pour signer les payloads sortants (uniquement pour `webhook`).
+    /// HMAC-SHA256 secret to sign outgoing payloads (only for `webhook`).
     ///
-    /// Si absent, le webhook est envoyé sans header de signature.
+    /// If absent, the webhook is sent without a signature header.
     pub signing_secret: Option<String>,
-    /// Sévérité minimale pour ce canal (uniquement pour le canal `terminal`).
+    /// Minimum severity for this channel (only for the `terminal` channel).
     ///
-    /// Les notifications dont la sévérité est inférieure à ce seuil sont silencieusement
-    /// ignorées. Défaut : `Info` (toutes les notifications sont transmises).
+    /// Notifications whose severity is below this threshold are silently
+    /// ignored. Default: `Info` (all notifications are forwarded).
     pub min_severity: Option<Severity>,
-    /// Intervalle minimal entre deux notifications pour le même couple
-    /// `(canal, événement)`, en secondes. `0` = pas de throttling.
+    /// Minimum interval between two notifications for the same
+    /// `(channel, event)` pair, in seconds. `0` = no throttling.
     ///
-    /// Appliqué par [`crate::engine::NotificationEngine`] avant le dispatch.
-    /// Les notifications dropées sont comptabilisées et synthétisées en un
-    /// récapitulatif émis à la fin de la fenêtre.
+    /// Applied by [`crate::engine::NotificationEngine`] before dispatch.
+    /// Dropped notifications are counted and summarized in a recap emitted at
+    /// the end of the window.
     #[serde(default)]
     pub min_interval_seconds: u32,
 }
 
-/// Type de canal de notification.
+/// Notification channel type.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelKind {
-    /// Notification native OS via `notify-rust`.
+    /// Native OS notification via `notify-rust`.
     Desktop,
-    /// Requête HTTP POST vers une URL configurée.
+    /// HTTP POST request to a configured URL.
     Webhook,
-    /// Notification dans le terminal via séquences OSC (iTerm2, GNOME/VTE, ou bell).
+    /// Terminal notification via OSC sequences (iTerm2, GNOME/VTE, or bell).
     Terminal,
 }
 
-/// Niveau de sévérité d'une notification, du moins critique au plus critique.
+/// Severity level of a notification, from least to most critical.
 ///
-/// L'ordre des variantes définit l'ordre naturel (Ord) utilisé pour le filtrage :
+/// The variant order defines the natural ordering (Ord) used for filtering:
 /// `Debug < Info < Warning < Error < Critical`.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
-    /// Diagnostic — destiné aux développeurs, non affiché aux utilisateurs en production.
+    /// Diagnostic: for developers, not shown to users in production.
     Debug = 0,
-    /// Information — événement non bloquant.
+    /// Information: a non-blocking event.
     #[default]
     Info = 1,
-    /// Avertissement — intervention recommandée.
+    /// Warning: intervention recommended.
     Warning = 2,
-    /// Erreur — intervention requise.
+    /// Error: intervention required.
     Error = 3,
-    /// Critique — défaillance grave, intervention immédiate.
+    /// Critical: serious failure, immediate intervention.
     Critical = 4,
 }
 
 impl Severity {
-    /// Retourne la représentation textuelle de la sévérité.
+    /// Returns the textual representation of the severity.
     pub fn as_str(&self) -> &'static str {
         match self {
             Severity::Debug => "debug",
@@ -114,12 +114,12 @@ impl Severity {
 }
 
 impl ChannelConfig {
-    /// Retourne la sévérité minimale par défaut selon le type de canal.
+    /// Returns the default minimum severity per channel type.
     ///
-    /// Ces valeurs sont appliquées quand `min_severity` est absent de la configuration :
-    /// - `Desktop` → [`Severity::Error`] (bureau ne reçoit que les alertes graves)
-    /// - `Webhook` → [`Severity::Info`] (webhook reçoit tout)
-    /// - `Terminal` → [`Severity::Warning`] (terminal filtre les informations de bas niveau)
+    /// These values apply when `min_severity` is absent from the configuration:
+    /// - `Desktop` -> [`Severity::Error`] (desktop only receives serious alerts)
+    /// - `Webhook` -> [`Severity::Info`] (webhook receives everything)
+    /// - `Terminal` -> [`Severity::Warning`] (terminal filters out low-level info)
     pub fn default_min_severity(kind: &ChannelKind) -> Severity {
         match kind {
             ChannelKind::Desktop => Severity::Error,
@@ -129,13 +129,13 @@ impl ChannelConfig {
     }
 }
 
-/// Détermine si un canal accepte un événement donné selon sa configuration.
+/// Determines whether a channel accepts a given event based on its configuration.
 ///
-/// Logique de filtrage :
-/// - `enabled == false` → `false` (canal désactivé)
-/// - `channel_events == None` → `true` si l'événement est dans `global_events`
-/// - `channel_events == Some(["*"])` → `true` si l'événement est dans `global_events`
-/// - `channel_events == Some(liste)` → `true` si l'événement est dans `liste`
+/// Filtering logic:
+/// - `enabled == false` -> `false` (disabled channel)
+/// - `channel_events == None` -> `true` if the event is in `global_events`
+/// - `channel_events == Some(["*"])` -> `true` if the event is in `global_events`
+/// - `channel_events == Some(list)` -> `true` if the event is in `list`
 pub fn channel_accepts_event(
     enabled: bool,
     channel_events: &Option<Vec<String>>,
@@ -154,26 +154,26 @@ pub fn channel_accepts_event(
     }
 }
 
-/// Erreur retournée par [`build_channels`] quand la configuration est invalide.
+/// Error returned by [`build_channels`] when the configuration is invalid.
 #[derive(Debug, thiserror::Error)]
 pub enum NotifConfigError {
-    /// Champ `url` absent pour un canal de type `webhook`.
+    /// Missing `url` field for a `webhook` channel.
     #[error("url manquante pour le canal webhook '{id}'")]
     MissingWebhookUrl {
-        /// Identifiant du canal mal configuré.
+        /// Identifier of the misconfigured channel.
         id: String,
     },
 }
 
-/// Instancie les canaux actifs à partir d'une liste de [`ChannelConfig`].
+/// Instantiates the active channels from a list of [`ChannelConfig`].
 ///
-/// Itère sur `configs` en ordre de déclaration :
-/// - `enabled = false` → canal ignoré silencieusement
-/// - `type = "desktop"` → [`DesktopChannel`] ajouté
-/// - `type = "webhook"` → [`WebhookChannel`] ajouté (erreur si `url` absent)
-/// - `type = "terminal"` → [`TerminalChannel`] ajouté (détection automatique de l'émulateur)
+/// Iterates over `configs` in declaration order:
+/// - `enabled = false` -> channel silently ignored
+/// - `type = "desktop"` -> [`DesktopChannel`] added
+/// - `type = "webhook"` -> [`WebhookChannel`] added (error if `url` absent)
+/// - `type = "terminal"` -> [`TerminalChannel`] added (automatic emulator detection)
 ///
-/// Retourne une erreur si un canal `webhook` actif n'a pas de `url`.
+/// Returns an error if an active `webhook` channel has no `url`.
 pub fn build_channels(
     configs: &[ChannelConfig],
 ) -> Result<Vec<Box<dyn NotificationChannel>>, NotifConfigError> {
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_channel_accepts_event_disabled() {
-        // GIVEN canal désactivé
+        // GIVEN a disabled channel
         // WHEN
         let result = channel_accepts_event(
             false,
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_channel_accepts_event_global_list() {
-        // GIVEN canal sans liste propre → liste globale
+        // GIVEN a channel without its own list, using the global list
         // WHEN
         let result = channel_accepts_event(
             true,
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_channel_accepts_event_global_list_rejects_unknown() {
-        // GIVEN canal sans liste propre, événement absent de la liste globale
+        // GIVEN a channel without its own list, event absent from the global list
         // WHEN
         let result = channel_accepts_event(
             true,
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_channel_accepts_event_wildcard() {
-        // GIVEN canal avec events=["*"]
+        // GIVEN a channel with events=["*"]
         // WHEN
         let result = channel_accepts_event(
             true,
@@ -284,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_channel_accepts_event_subset() {
-        // GIVEN canal avec events=["task.input_required"]
+        // GIVEN a channel with events=["task.input_required"]
         // WHEN
         let accepted = channel_accepts_event(
             true,
@@ -305,8 +305,8 @@ mod tests {
 
     #[test]
     fn test_severity_ordering() {
-        // GIVEN les 5 niveaux de sévérité
-        // WHEN comparés
+        // GIVEN the 5 severity levels
+        // WHEN compared
         // THEN Debug < Info < Warning < Error < Critical
         assert!(Severity::Debug < Severity::Info);
         assert!(Severity::Info < Severity::Warning);
@@ -331,9 +331,9 @@ mod tests {
 
     #[test]
     fn test_default_min_severity_per_channel() {
-        // GIVEN les 3 types de canaux configurables
-        // WHEN on appelle default_min_severity()
-        // THEN Desktop → Error, Webhook → Info, Terminal → Warning
+        // GIVEN the 3 configurable channel types
+        // WHEN default_min_severity() is called
+        // THEN Desktop -> Error, Webhook -> Info, Terminal -> Warning
         assert_eq!(
             ChannelConfig::default_min_severity(&ChannelKind::Desktop),
             Severity::Error
@@ -348,10 +348,10 @@ mod tests {
         );
     }
 
-    // build_channels retourne un DesktopChannel quand desktop enabled=true
+    // build_channels returns a DesktopChannel when desktop enabled=true
     #[test]
     fn test_ac1_build_channels_desktop_enabled() {
-        // GIVEN config avec desktop enabled=true
+        // GIVEN config with desktop enabled=true
         let configs = vec![ChannelConfig {
             id: "desktop".into(),
             kind: ChannelKind::Desktop,
@@ -372,10 +372,10 @@ mod tests {
         assert_eq!(channels[0].id(), "desktop");
     }
 
-    // build_channels ignore les canaux avec enabled=false
+    // build_channels ignores channels with enabled=false
     #[test]
     fn test_ac3_build_channels_disabled_skipped() {
-        // GIVEN config avec webhook enabled=false
+        // GIVEN config with webhook enabled=false
         let configs = vec![ChannelConfig {
             id: "slack".into(),
             kind: ChannelKind::Webhook,
@@ -390,15 +390,15 @@ mod tests {
         // WHEN
         let result = build_channels(&configs);
 
-        // THEN 0 canaux retournés (canal désactivé ignoré silencieusement)
+        // THEN 0 channels returned (disabled channel silently ignored)
         let channels = result.expect("build_channels ne doit pas échouer");
         assert!(channels.is_empty());
     }
 
-    // build_channels retourne une erreur si webhook n'a pas d'url
+    // build_channels returns an error if webhook has no url
     #[test]
     fn test_ac5_build_channels_webhook_no_url_returns_error() {
-        // GIVEN config type="webhook" sans champ url
+        // GIVEN config type="webhook" without a url field
         let configs = vec![ChannelConfig {
             id: "monitoring".into(),
             kind: ChannelKind::Webhook,
@@ -413,7 +413,7 @@ mod tests {
         // WHEN
         let result = build_channels(&configs);
 
-        // THEN Err(NotifConfigError::MissingWebhookUrl) avec l'id du canal
+        // THEN Err(NotifConfigError::MissingWebhookUrl) with the channel id
         let err = match result {
             Err(e) => e,
             Ok(_) => panic!("build_channels doit retourner une erreur pour webhook sans url"),

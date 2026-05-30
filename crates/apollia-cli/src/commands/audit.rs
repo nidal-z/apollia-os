@@ -1,4 +1,4 @@
-//! `apollia-os audit` subcommands — query audit trail via the runtime API.
+//! `apollia-os audit` subcommands: query audit trail via the runtime API.
 //!
 //! Provides `list` and `stats` operations on the audit trail.
 
@@ -48,7 +48,7 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
     }
 }
 
-/// `apollia-os audit export` — dump the audit trail as JSON.
+/// `apollia-os audit export`: dump the audit trail as JSON.
 async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, limit: u32) -> i32 {
     let uri = format!("/api/v1/audit?limit={limit}");
     match client.get(&uri).await {
@@ -83,7 +83,7 @@ async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, li
     }
 }
 
-/// `apollia-os audit list` — display recent audit events.
+/// `apollia-os audit list`: display recent audit events.
 async fn run_list(client: &RuntimeClient, limit: u32, json: bool) -> i32 {
     let uri = format!("/api/v1/audit?limit={limit}");
     let resp = match client.get(&uri).await {
@@ -138,7 +138,7 @@ async fn run_list(client: &RuntimeClient, limit: u32, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os audit stats` — display audit statistics.
+/// `apollia-os audit stats`: display audit statistics.
 async fn run_stats(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.get("/api/v1/audit/stats").await {
         Ok(r) => r,

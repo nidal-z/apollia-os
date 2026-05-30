@@ -11,121 +11,122 @@ use apollia_core::{EventBusSender, RuntimeEvent};
 
 use crate::{config::NotificationConfig, config::Severity, event_filter};
 
-/// Erreur retournée par un canal de notification lors de l'envoi.
+/// Error returned by a notification channel during send.
 ///
-/// Chaque variante correspond à une catégorie de canal. Les erreurs sont
-/// loggées en `warn!` par le [`NotificationEngine`] — elles n'interrompent
-/// jamais le dispatch vers les autres canaux.
+/// Each variant corresponds to a channel category. The errors are logged at
+/// `warn!` by the [`NotificationEngine`]; they never interrupt dispatch to the
+/// other channels.
 #[derive(Debug, thiserror::Error)]
 pub enum NotifError {
-    /// Canal desktop indisponible (notifications OS non supportées ou permission refusée).
+    /// Desktop channel unavailable (OS notifications unsupported or permission denied).
     #[error("canal desktop indisponible : {0}")]
     DesktopUnavailable(String),
-    /// Appel webhook échoué (erreur réseau, timeout, code HTTP non-2xx).
+    /// Webhook call failed (network error, timeout, non-2xx HTTP code).
     #[error("webhook échoué : {0}")]
     WebhookFailed(String),
-    /// Erreur interne du canal (sérialisation, état incohérent, etc.).
+    /// Internal channel error (serialization, inconsistent state, etc.).
     #[error("erreur interne : {0}")]
     Internal(String),
-    /// URL du webhook malformée — parsing impossible.
+    /// Malformed webhook URL: parsing failed.
     #[error("URL webhook invalide : {0}")]
     InvalidUrl(String),
-    /// SSRF guard a refusé l'envoi (URL pointant sur loopback / RFC1918 /
-    /// link-local / metadata cloud / domaine `.local|.internal|localhost`).
+    /// SSRF guard refused the send (URL pointing to loopback / RFC1918 /
+    /// link-local / cloud metadata / `.local|.internal|localhost` domain).
     #[error("SSRF bloqué : {0}")]
     Ssrf(String),
 }
 
-/// Notification prête à être envoyée via un ou plusieurs canaux.
+/// Notification ready to be sent through one or more channels.
 ///
-/// Produite par [`crate::event_filter::map_event`] à partir d'un [`RuntimeEvent`].
-/// Distribuée à chaque [`NotificationChannel`] qui l'accepte.
+/// Produced by [`crate::event_filter::map_event`] from a [`RuntimeEvent`].
+/// Distributed to each [`NotificationChannel`] that accepts it.
 #[derive(Debug, Clone)]
 pub struct Notification {
-    /// Nom de l'événement déclencheur (ex: `"task.input_required"`, `"task.failed"`).
+    /// Name of the triggering event (e.g. `"task.input_required"`, `"task.failed"`).
     pub event: String,
-    /// Horodatage UTC de la notification.
+    /// UTC timestamp of the notification.
     pub timestamp: DateTime<Utc>,
-    /// Identifiant de la tâche concernée, si applicable.
+    /// Identifier of the relevant task, if applicable.
     pub task_id: Option<String>,
-    /// Nom ou identifiant de l'agent concerné, si applicable.
+    /// Name or identifier of the relevant agent, if applicable.
     pub agent: Option<String>,
-    /// Message lisible destiné à l'utilisateur.
+    /// Human-readable message for the user.
     pub message: String,
-    /// Métadonnées additionnelles (URLs d'action, identifiants, contexte).
+    /// Additional metadata (action URLs, identifiers, context).
     pub metadata: HashMap<String, String>,
-    /// Sévérité de la notification.
+    /// Notification severity.
     pub severity: Severity,
 }
 
-/// Trait à implémenter par chaque canal de notification.
+/// Trait implemented by each notification channel.
 ///
-/// Un canal est object-safe (`Box<dyn NotificationChannel>`) et thread-safe (`Send + Sync`).
-/// Les canaux concrets sont implémentés dans :
-/// - [`crate::channels::desktop`] — notifications natives OS.
-/// - [`crate::channels::webhook`] — requêtes HTTP POST.
+/// A channel is object-safe (`Box<dyn NotificationChannel>`) and thread-safe (`Send + Sync`).
+/// The concrete channels are implemented in:
+/// - [`crate::channels::desktop`]: native OS notifications.
+/// - [`crate::channels::webhook`]: HTTP POST requests.
 #[async_trait]
 pub trait NotificationChannel: Send + Sync {
-    /// Identifiant unique du canal tel que configuré dans `apollia.toml`.
+    /// Unique channel identifier as configured in `apollia.toml`.
     fn id(&self) -> &str;
 
-    /// Retourne `true` si ce canal accepte l'événement nommé.
+    /// Returns `true` if this channel accepts the named event.
     ///
-    /// Déléguer la logique à [`crate::config::channel_accepts_event`] en passant
-    /// l'état propre du canal (`enabled`, `events`) et la config globale.
+    /// Delegate the logic to [`crate::config::channel_accepts_event`], passing
+    /// the channel's own state (`enabled`, `events`) and the global config.
     fn accepts(&self, event: &str, config: &NotificationConfig) -> bool;
 
-    /// Envoie la notification via ce canal.
+    /// Sends the notification through this channel.
     ///
-    /// En cas d'erreur, retourner un [`NotifError`] — le [`NotificationEngine`]
-    /// logge l'erreur et continue avec les autres canaux sans panic.
+    /// On error, return a [`NotifError`]; the [`NotificationEngine`] logs the
+    /// error and continues with the other channels without panicking.
     async fn send(&self, notif: &Notification) -> Result<(), NotifError>;
 }
 
-/// État de throttling pour un couple `(canal, événement)`.
+/// Throttling state for a `(channel, event)` pair.
 ///
-/// Posé par [`apply_throttle`] avant chaque dispatch et flushé par
-/// [`flush_recaps`] en fin de fenêtre. Tout est local au [`run_engine_loop`] :
-/// la map n'est jamais partagée entre tâches, ce qui élimine les Arc<Mutex>.
+/// Set by [`apply_throttle`] before each dispatch and flushed by
+/// [`flush_recaps`] at the end of the window. Everything is local to
+/// [`run_engine_loop`]: the map is never shared across tasks, which eliminates
+/// the Arc<Mutex>.
 #[derive(Debug, Default)]
 struct ThrottleState {
-    /// Dernière émission effective (utilisée pour calculer la fin de fenêtre).
-    /// `None` = aucune émission encore — la première arrive systématiquement.
+    /// Last actual emission (used to compute the end of the window).
+    /// `None` = no emission yet; the first one always goes through.
     last_sent_at: Option<Instant>,
-    /// Nombre de notifications dropées depuis la dernière émission.
+    /// Number of notifications dropped since the last emission.
     dropped_count: u32,
-    /// Échantillon de la dernière notification dropée — utilisé pour le récap
-    /// (on conserve le timestamp et les métadonnées du plus récent drop).
+    /// Sample of the last dropped notification, used for the recap (we keep the
+    /// timestamp and metadata of the most recent drop).
     recap_sample: Option<Notification>,
 }
 
-/// Résultat d'un check de throttle pour un canal donné.
+/// Result of a throttle check for a given channel.
 enum ThrottleDecision {
-    /// Pas de throttling configuré pour ce canal — envoyer.
+    /// No throttling configured for this channel: send.
     NoThrottle,
-    /// Fenêtre écoulée ou première émission — envoyer et réarmer.
+    /// Window elapsed or first emission: send and rearm.
     Send,
-    /// Encore dans la fenêtre — droper en silence, accumuler pour le récap.
+    /// Still within the window: drop silently, accumulate for the recap.
     Drop,
 }
 
-/// Commande interne envoyée au [`NotificationEngine`] via son handle.
+/// Internal command sent to the [`NotificationEngine`] via its handle.
 enum NotifEngineCommand {
-    /// Remplace la configuration et les canaux actifs (hot-reload).
+    /// Replaces the active configuration and channels (hot-reload).
     Reload {
         config: NotificationConfig,
         channels: Vec<Box<dyn NotificationChannel>>,
     },
-    /// Publie une notification directement sans passer par l'EventBus.
+    /// Publishes a notification directly without going through the EventBus.
     Publish { notification: Notification },
-    /// Demande un arrêt propre du moteur.
+    /// Requests a clean engine shutdown.
     Shutdown,
 }
 
 /// Handle returned by [`NotificationEngine::spawn`] to control the engine.
 ///
-/// Cloneable — stockable dans `AppState` (routes REST) et `SupervisorHandles`
-/// (shutdown gracieux) simultanément.
+/// Cloneable: storable in `AppState` (REST routes) and `SupervisorHandles`
+/// (graceful shutdown) at the same time.
 ///
 /// Call [`NotificationEngineHandle::shutdown`] to signal the engine to stop.
 /// Call [`NotificationEngineHandle::reload`] to hot-reload configuration.
@@ -142,10 +143,10 @@ impl Clone for NotificationEngineHandle {
 }
 
 impl NotificationEngineHandle {
-    /// Hot-reload la configuration et les canaux du moteur.
+    /// Hot-reloads the engine's configuration and channels.
     ///
-    /// Le moteur remplace immédiatement ses canaux internes. Les événements
-    /// reçus après le reload utiliseront la nouvelle configuration.
+    /// The engine immediately replaces its internal channels. Events received
+    /// after the reload use the new configuration.
     pub async fn reload(
         &self,
         config: NotificationConfig,
@@ -157,10 +158,11 @@ impl NotificationEngineHandle {
             .await;
     }
 
-    /// Publie une notification directement, sans passer par l'EventBus.
+    /// Publishes a notification directly, without going through the EventBus.
     ///
-    /// La notification est dispatchée à tous les canaux dont [`NotificationChannel::accepts`]
-    /// retourne `true`. Utilisé par [`crate::inactivity_watcher::InactivityWatcher`].
+    /// The notification is dispatched to every channel whose
+    /// [`NotificationChannel::accepts`] returns `true`. Used by
+    /// [`crate::inactivity_watcher::InactivityWatcher`].
     pub async fn publish(&self, notification: Notification) {
         let _ = self
             .tx
@@ -170,54 +172,54 @@ impl NotificationEngineHandle {
 
     /// Signal the engine to stop gracefully.
     ///
-    /// Fire-and-forget — the engine arrête sa boucle dès réception.
+    /// Fire-and-forget: the engine stops its loop on receipt.
     pub async fn shutdown(&self) {
         let _ = self.tx.send(NotifEngineCommand::Shutdown).await;
     }
 }
 
-/// Moteur de notification : s'abonne à l'EventBus et dispatche les événements
-/// aux canaux configurés.
+/// Notification engine: subscribes to the EventBus and dispatches events to the
+/// configured channels.
 ///
-/// Démarré par le Supervisor via [`NotificationEngine::spawn`].
-/// Chaque événement reçu est transformé en [`Notification`] via
-/// [`map_event`], puis dispatché à chaque canal dont [`NotificationChannel::accepts`]
-/// retourne `true`.
+/// Started by the Supervisor via [`NotificationEngine::spawn`].
+/// Each received event is turned into a [`Notification`] via [`map_event`], then
+/// dispatched to every channel whose [`NotificationChannel::accepts`] returns
+/// `true`.
 ///
-/// Les erreurs de canal sont loggées en `warn!` et n'interrompent pas le dispatch.
+/// Channel errors are logged at `warn!` and do not interrupt dispatch.
 pub struct NotificationEngine {
     config: NotificationConfig,
     channels: Vec<Box<dyn NotificationChannel>>,
     event_bus: EventBusSender,
-    /// URL de base de l'API REST locale (ex : `http://127.0.0.1:7771`).
+    /// Base URL of the local REST API (e.g. `http://127.0.0.1:7771`).
     ///
-    /// Construite depuis `ApiConfig` au démarrage. Utilisée pour produire
-    /// les URLs de reprise HITL dans les métadonnées des notifications.
+    /// Built from `ApiConfig` at startup. Used to produce the HITL resume URLs
+    /// in the notification metadata.
     api_base_url: String,
-    /// Chemin vers la base SQLite `hitl.db` pour l'écriture dans `notification_logs`.
+    /// Path to the `hitl.db` SQLite database for writing to `notification_logs`.
     ///
-    /// `None` → logging désactivé (tests, dev sans data_dir). En production, le
-    /// Supervisor passe `Some(data_dir.join("hitl.db"))`.
+    /// `None` = logging disabled (tests, dev without data_dir). In production,
+    /// the Supervisor passes `Some(data_dir.join("hitl.db"))`.
     log_db_path: Option<PathBuf>,
-    /// `true` si le seuil de coût LLM a déjà déclenché une notification pour cette session.
+    /// `true` if the LLM cost threshold has already triggered a notification this session.
     ///
-    /// Edge trigger : remis à `false` quand `threshold_exceeded` repasse à `false`
-    /// (nouvelle session ou coût redescendu sous le seuil).
+    /// Edge trigger: reset to `false` when `threshold_exceeded` returns to
+    /// `false` (new session or cost dropped below the threshold).
     cost_threshold_already_notified: bool,
 }
 
 impl NotificationEngine {
-    /// Crée un nouveau moteur de notification.
+    /// Creates a new notification engine.
     ///
-    /// `api_base_url` : URL de base de l'API REST locale (ex : `http://127.0.0.1:7771`),
-    /// construite depuis `ApiConfig` au démarrage du Supervisor.
+    /// `api_base_url`: base URL of the local REST API (e.g. `http://127.0.0.1:7771`),
+    /// built from `ApiConfig` at Supervisor startup.
     ///
-    /// `log_db_path` : chemin vers `hitl.db` pour écrire la table `notification_logs`.
-    /// Passer `None` pour désactiver le logging SQLite (tests).
+    /// `log_db_path`: path to `hitl.db` to write the `notification_logs` table.
+    /// Pass `None` to disable SQLite logging (tests).
     ///
-    /// Émet un `tracing::warn!` pour chaque nom d'événement présent dans `config.events`
-    /// ou dans les listes de canaux qui n'est pas reconnu par le moteur. Le démarrage
-    /// n'est pas bloqué par ces avertissements.
+    /// Emits a `tracing::warn!` for each event name in `config.events` or in the
+    /// channel lists that is not recognized by the engine. Startup is not
+    /// blocked by these warnings.
     pub fn new(
         config: NotificationConfig,
         channels: Vec<Box<dyn NotificationChannel>>,
@@ -258,7 +260,7 @@ impl NotificationEngine {
             log_db_path,
             cost_threshold_already_notified,
         } = self;
-        tokio::spawn(run_engine_loop(
+        tokio::spawn(run_engine_loop(EngineLoopState {
             config,
             channels,
             event_bus,
@@ -266,40 +268,43 @@ impl NotificationEngine {
             log_db_path,
             cost_threshold_already_notified,
             cmd_rx,
-        ));
+        }));
         NotificationEngineHandle { tx: cmd_tx }
     }
 
-    /// Réaction à [`RuntimeEvent::TokenBudgetUpdated`].
+    /// Reaction to [`RuntimeEvent::TokenBudgetUpdated`].
     ///
-    /// Edge trigger : émet une notification OS uniquement à la transition `false → true`
-    /// de `threshold_exceeded`. Le flag est réarmé lorsque `threshold_exceeded` repasse
-    /// à `false` (nouvelle session ou coût redescendu sous le seuil).
+    /// Edge trigger: emits an OS notification only on the `false -> true`
+    /// transition of `threshold_exceeded`. The flag is rearmed when
+    /// `threshold_exceeded` returns to `false` (new session or cost dropped
+    /// below the threshold).
     ///
-    /// N'émet rien si le seuil n'est pas encore dépassé ou si la notification
-    /// a déjà été envoyée pour ce dépassement.
+    /// Emits nothing if the threshold is not yet exceeded or if the notification
+    /// has already been sent for this excess.
     pub async fn handle_budget_update(&mut self, event: &RuntimeEvent) {
         process_budget_alert(
             &mut self.cost_threshold_already_notified,
             event,
-            &self.config,
-            &self.channels,
-            &self.api_base_url,
-            self.log_db_path.as_deref(),
+            DispatchCtx {
+                config: &self.config,
+                channels: &self.channels,
+                api_base_url: &self.api_base_url,
+                log_db_path: self.log_db_path.as_deref(),
+            },
         )
         .await;
     }
 
-    /// Transforme un [`RuntimeEvent`] en [`Notification`].
+    /// Turns a [`RuntimeEvent`] into a [`Notification`].
     ///
-    /// Fonction pure — délègue à [`event_filter::map_event`].
-    /// Testable sans infrastructure.
+    /// Pure function: delegates to [`event_filter::map_event`].
+    /// Testable without infrastructure.
     pub fn map_event(&self, event: &RuntimeEvent) -> Option<Notification> {
         event_filter::map_event(&self.api_base_url, event)
     }
 }
 
-/// Construit la notification d'alerte de seuil de coût LLM.
+/// Builds the LLM cost-threshold alert notification.
 fn build_cost_alert_notification(
     session_cost_usd: f64,
     threshold_usd: f64,
@@ -318,18 +323,24 @@ fn build_cost_alert_notification(
     }
 }
 
-/// Évalue un [`RuntimeEvent::TokenBudgetUpdated`] contre l'état de l'edge trigger.
+/// Dispatch dependencies shared by the notification paths, grouped to avoid
+/// passing a long list of parameters around.
+struct DispatchCtx<'a> {
+    config: &'a NotificationConfig,
+    channels: &'a [Box<dyn NotificationChannel>],
+    api_base_url: &'a str,
+    log_db_path: Option<&'a std::path::Path>,
+}
+
+/// Evaluates a [`RuntimeEvent::TokenBudgetUpdated`] against the edge-trigger state.
 ///
-/// Si `threshold_exceeded` passe de `false` à `true`, dispatche une notification
-/// via les canaux configurés et met à jour `already_notified`.
-/// Réarme `already_notified` à `false` quand `threshold_exceeded` repasse à `false`.
+/// If `threshold_exceeded` goes from `false` to `true`, dispatches a
+/// notification via the configured channels and updates `already_notified`.
+/// Rearms `already_notified` to `false` when `threshold_exceeded` returns to `false`.
 async fn process_budget_alert(
     already_notified: &mut bool,
     event: &RuntimeEvent,
-    config: &NotificationConfig,
-    channels: &[Box<dyn NotificationChannel>],
-    api_base_url: &str,
-    log_db_path: Option<&std::path::Path>,
+    ctx: DispatchCtx<'_>,
 ) {
     let RuntimeEvent::TokenBudgetUpdated {
         session_cost_usd,
@@ -343,9 +354,10 @@ async fn process_budget_alert(
 
     if *threshold_exceeded && !*already_notified {
         *already_notified = true;
-        let notif = build_cost_alert_notification(*session_cost_usd, *threshold_usd, api_base_url);
-        let results = dispatch_notif(config, channels, &notif).await;
-        if let Some(db_path) = log_db_path {
+        let notif =
+            build_cost_alert_notification(*session_cost_usd, *threshold_usd, ctx.api_base_url);
+        let results = dispatch_notif(ctx.config, ctx.channels, &notif).await;
+        if let Some(db_path) = ctx.log_db_path {
             let db_path = db_path.to_path_buf();
             tokio::task::spawn_blocking(move || {
                 write_notification_log(&db_path, &notif, &results);
@@ -356,24 +368,40 @@ async fn process_budget_alert(
     }
 }
 
-/// Boucle principale du moteur de notification (fonction libre).
+/// Owned state moved into the notification engine's loop task.
 ///
-/// Écoute simultanément l'EventBus (événements runtime) et le canal de commande
-/// (reload / shutdown). Le reload remplace la config et les canaux à chaud,
-/// sans interrompre l'écoute de l'EventBus.
-async fn run_engine_loop(
-    mut config: NotificationConfig,
-    mut channels: Vec<Box<dyn NotificationChannel>>,
+/// Groups the config, channels, bus, and edge-trigger state to pass a single
+/// bundle to [`run_engine_loop`] instead of a long list of parameters.
+struct EngineLoopState {
+    config: NotificationConfig,
+    channels: Vec<Box<dyn NotificationChannel>>,
     event_bus: EventBusSender,
     api_base_url: String,
     log_db_path: Option<PathBuf>,
-    mut cost_threshold_already_notified: bool,
-    mut cmd_rx: mpsc::Receiver<NotifEngineCommand>,
-) {
+    cost_threshold_already_notified: bool,
+    cmd_rx: mpsc::Receiver<NotifEngineCommand>,
+}
+
+/// Main loop of the notification engine (free function).
+///
+/// Listens to both the EventBus (runtime events) and the command channel
+/// (reload / shutdown). The reload replaces the config and channels live,
+/// without interrupting the EventBus listening.
+async fn run_engine_loop(state: EngineLoopState) {
+    let EngineLoopState {
+        mut config,
+        mut channels,
+        event_bus,
+        api_base_url,
+        log_db_path,
+        mut cost_threshold_already_notified,
+        mut cmd_rx,
+    } = state;
+
     let mut rx = event_bus.subscribe();
     drop(event_bus);
 
-    // Per-(channel_id, event_name) throttle state — local to this task,
+    // Per-(channel_id, event_name) throttle state: local to this task,
     // never shared. Reset on engine restart by design (UX anti-spam, not
     // a security rate-limit).
     let mut throttle: HashMap<(String, String), ThrottleState> = HashMap::new();
@@ -449,10 +477,12 @@ async fn run_engine_loop(
                         process_budget_alert(
                             &mut cost_threshold_already_notified,
                             &event,
-                            &config,
-                            &channels,
-                            &api_base_url,
-                            log_db_path.as_deref(),
+                            DispatchCtx {
+                                config: &config,
+                                channels: &channels,
+                                api_base_url: &api_base_url,
+                                log_db_path: log_db_path.as_deref(),
+                            },
                         )
                         .await;
                     }
@@ -475,13 +505,13 @@ async fn run_engine_loop(
     }
 }
 
-/// Décide ce qu'il faut faire pour le couple `(canal, événement)` donné.
+/// Decides what to do for the given `(channel, event)` pair.
 ///
-/// Met à jour l'entrée de throttle correspondante :
-/// - `NoThrottle` : `min_interval_seconds == 0` → l'entrée n'est pas créée.
-/// - `Send` : on enregistre `last_sent_at = now` et on remet le compteur à zéro.
-/// - `Drop` : on incrémente `dropped_count` et on conserve un échantillon
-///   de la notification pour le récap.
+/// Updates the corresponding throttle entry:
+/// - `NoThrottle`: `min_interval_seconds == 0`, so the entry is not created.
+/// - `Send`: records `last_sent_at = now` and resets the counter to zero.
+/// - `Drop`: increments `dropped_count` and keeps a sample of the notification
+///   for the recap.
 fn apply_throttle(
     throttle: &mut HashMap<(String, String), ThrottleState>,
     channel_id: &str,
@@ -511,11 +541,11 @@ fn apply_throttle(
     }
 }
 
-/// Dispatch une notification en appliquant le throttle par (canal, événement).
+/// Dispatches a notification, applying the per-(channel, event) throttle.
 ///
-/// Wrapper autour de [`send_to_channel`] qui consulte la table de throttle
-/// avant chaque envoi. Pour les canaux sans throttling, le comportement est
-/// identique à l'ancien `dispatch_notif`.
+/// Wrapper around [`send_to_channel`] that consults the throttle table before
+/// each send. For channels without throttling, the behavior is identical to
+/// plain dispatch.
 async fn dispatch_with_throttle(
     config: &NotificationConfig,
     channels: &[Box<dyn NotificationChannel>],
@@ -550,10 +580,9 @@ async fn dispatch_with_throttle(
     results
 }
 
-/// Envoie `notif` à `channel` et enregistre le résultat dans `results`.
+/// Sends `notif` to `channel` and records the result in `results`.
 ///
-/// Extrait de l'ancien `dispatch_notif` pour être partagé entre dispatch
-/// throttled et flush de récap.
+/// Shared helper between throttled dispatch and recap flush.
 async fn send_to_channel(
     channel: &dyn NotificationChannel,
     notif: &Notification,
@@ -575,12 +604,12 @@ async fn send_to_channel(
     }
 }
 
-/// Émet les récaps des fenêtres de throttle écoulées.
+/// Emits the recaps for elapsed throttle windows.
 ///
-/// Pour chaque entrée `(channel_id, event_name)` avec `dropped_count > 0`
-/// dont la fenêtre est échue, construit une notification de synthèse et
-/// la dispatche **uniquement** vers le canal concerné. Cette même émission
-/// réarme l'entrée (`dropped_count = 0`, `last_sent_at = now`).
+/// For each `(channel_id, event_name)` entry with `dropped_count > 0` whose
+/// window has elapsed, builds a summary notification and dispatches it **only**
+/// to the relevant channel. That same emission rearms the entry
+/// (`dropped_count = 0`, `last_sent_at = now`).
 async fn flush_recaps(
     config: &NotificationConfig,
     channels: &[Box<dyn NotificationChannel>],
@@ -588,7 +617,7 @@ async fn flush_recaps(
     log_db_path: Option<&std::path::Path>,
     now: Instant,
 ) {
-    // Collect keys due to flush — borrow-checker dance to avoid holding a mut
+    // Collect keys due to flush: a borrow-checker dance to avoid holding a mut
     // borrow on `throttle` across the async send.
     let due_keys: Vec<(String, String, u32, u32, Notification)> = throttle
         .iter()
@@ -621,7 +650,7 @@ async fn flush_recaps(
 
     for (channel_id, event_name, dropped_count, min_interval, sample) in due_keys {
         let Some(channel) = channels.iter().find(|c| c.id() == channel_id) else {
-            // Channel disappeared after reload — clear the entry and move on.
+            // Channel disappeared after reload: clear the entry and move on.
             throttle.remove(&(channel_id, event_name));
             continue;
         };
@@ -646,12 +675,12 @@ async fn flush_recaps(
     }
 }
 
-/// Construit la notification de synthèse pour une fenêtre de throttle écoulée.
+/// Builds the summary notification for an elapsed throttle window.
 ///
-/// Réutilise les `task_id` / `agent` / `severity` du dernier échantillon —
-/// ils seront représentatifs sur un agrégat homogène en pratique. Le
-/// `message` est traduit côté backend (FR uniquement à ce stade ; l'UI
-/// dispose des libellés humains par event_name si elle souhaite re-localiser).
+/// Reuses the `task_id` / `agent` / `severity` of the last sample, which are
+/// representative on a homogeneous aggregate in practice. The `message` is
+/// produced backend-side (the UI has human labels per event_name if it wants to
+/// re-localize).
 fn build_recap_notification(
     sample: &Notification,
     dropped_count: u32,

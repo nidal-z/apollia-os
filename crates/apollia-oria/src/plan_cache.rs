@@ -1,10 +1,10 @@
-//! Plan cache repository for ORIA — avoids regenerating identical plans via LLM.
+//! Plan cache repository for ORIA: avoids regenerating identical plans via LLM.
 //!
 //! Implements [`PlanCacheRepository`] backed by SQLite (`plan_cache.db`), following
 //! the same pattern as existing repositories (`TriggerDefinitionRepository`, etc.).
 //!
 //! The cache key is a SHA-256 digest of `{agent_name}:{agent_version}:{sorted_tools}:{normalized_text}`.
-//! See ADR-036 for the full strategy (TTL 7 days, max 1000 entries, LRU eviction).
+//! Strategy: TTL 7 days, max 1000 entries, LRU eviction.
 
 use std::path::Path;
 
@@ -13,9 +13,7 @@ use sha2::{Digest, Sha256};
 
 use crate::plan::ExecutionPlan;
 
-// ─────────────────────────────────────────────
 // Error type
-// ─────────────────────────────────────────────
 
 /// Errors returned by [`PlanCacheRepository`] operations.
 #[derive(Debug, thiserror::Error)]
@@ -28,16 +26,12 @@ pub enum PlanCacheError {
     Serialization(#[from] serde_json::Error),
 }
 
-// ─────────────────────────────────────────────
 // Constants
-// ─────────────────────────────────────────────
 
 /// Maximum length of the normalized task text included in the cache key.
 const MAX_TEXT_LENGTH: usize = 500;
 
-// ─────────────────────────────────────────────
 // Repository
-// ─────────────────────────────────────────────
 
 /// SQLite-backed cache for ORIA execution plans.
 ///
@@ -45,7 +39,7 @@ const MAX_TEXT_LENGTH: usize = 500;
 /// task text. On cache hit, `hit_count` and `last_used_at` are updated for
 /// observability. Eviction is time-based via [`Self::evict_expired`].
 ///
-/// See ADR-036 for the caching strategy.
+/// Time-based eviction keeps the cache bounded.
 pub struct PlanCacheRepository {
     conn: rusqlite::Connection,
 }
@@ -282,11 +276,11 @@ mod tests {
         }
     }
 
-    // ─── Aller-retour store + lookup ───
+    // store + lookup round-trip
 
-    /// GIVEN un ExecutionPlan valide et une clé de cache calculée
-    /// WHEN le plan est stocké via store() puis récupéré via lookup()
-    /// THEN le plan retourné est identique au plan original
+    /// GIVEN a valid ExecutionPlan and a computed cache key
+    /// WHEN the plan is stored via store() then retrieved via lookup()
+    /// THEN the returned plan is identical to the original plan
     #[test]
     fn test_ac1_store_and_lookup_roundtrip() {
         // GIVEN
@@ -315,11 +309,11 @@ mod tests {
         assert_eq!(fetched.steps[1].model_hint, Some("fast-7b".to_string()));
     }
 
-    // ─── Eviction supprime les entrées expirées ───
+    // Eviction removes expired entries
 
-    /// GIVEN 3 entrées en cache dont 2 datent de plus de 7 jours
-    /// WHEN evict_expired(7) est appelé
-    /// THEN 2 entrées sont supprimées et la fonction retourne 2
+    /// GIVEN 3 cache entries, 2 of which are older than 7 days
+    /// WHEN evict_expired(7) is called
+    /// THEN 2 entries are removed and the function returns 2
     #[test]
     fn test_ac2_evict_expired_entries() {
         // GIVEN
@@ -328,7 +322,7 @@ mod tests {
         let repo = PlanCacheRepository::open(&db_path).expect("open");
         let plan = sample_plan();
 
-        // Insert 3 entries — 2 with old timestamps, 1 fresh.
+        // Insert 3 entries: 2 with old timestamps, 1 fresh.
         repo.store("key-old-1", &plan, "agent", "1.0")
             .expect("store");
         repo.store("key-old-2", &plan, "agent", "1.0")
@@ -354,11 +348,11 @@ mod tests {
         assert!(repo.lookup("key-fresh").expect("lookup").is_some());
     }
 
-    // ─── Versions différentes → clés différentes ───
+    // Different versions produce different keys
 
-    /// GIVEN le même agent_name, les mêmes outils, et le même texte de tâche
-    /// WHEN compute_cache_key est appelé avec agent_version "1.0" puis "1.1"
-    /// THEN les deux clés de cache sont différentes
+    /// GIVEN the same agent_name, the same tools, and the same task text
+    /// WHEN compute_cache_key is called with agent_version "1.0" then "1.1"
+    /// THEN the two cache keys differ
     #[test]
     fn test_ac3_different_versions_produce_different_keys() {
         // GIVEN
@@ -374,11 +368,11 @@ mod tests {
         assert_eq!(key_v1.len(), 64, "SHA-256 hex should be 64 chars");
     }
 
-    // ─── Normalisation du texte dans la clé ───
+    // Text normalization in the key
 
-    /// GIVEN un texte avec majuscules, espaces multiples, et plus de 500 caractères
-    /// WHEN compute_cache_key est appelé
-    /// THEN le texte est normalisé (lowercase, whitespace-collapsed, tronqué à 500 chars)
+    /// GIVEN text with uppercase, multiple spaces, and more than 500 characters
+    /// WHEN compute_cache_key is called
+    /// THEN the text is normalized (lowercase, whitespace-collapsed, truncated to 500 chars)
     #[test]
     fn test_ac4_text_normalization_in_cache_key() {
         // GIVEN
@@ -386,20 +380,20 @@ mod tests {
         let text_messy = "  Hello   WORLD   with   extra   spaces  ";
         let text_clean = "hello world with extra spaces";
 
-        // WHEN — messy and clean should produce the same key.
+        // WHEN: messy and clean should produce the same key.
         let key_messy = compute_cache_key("agent", "1.0", &tools, text_messy);
         let key_clean = compute_cache_key("agent", "1.0", &tools, text_clean);
 
         // THEN
         assert_eq!(key_messy, key_clean);
 
-        // GIVEN — text longer than 500 chars.
+        // GIVEN: text longer than 500 chars.
         let long_text = "a ".repeat(600); // 1200 chars
         let key_long = compute_cache_key("agent", "1.0", &tools, &long_text);
         // Verify the key is a valid SHA-256 hex.
         assert_eq!(key_long.len(), 64);
 
-        // Verify truncation: a very long text differs only after 500 chars → same key.
+        // Verify truncation: a very long text differs only after 500 chars, same key.
         let base = "x".repeat(500);
         let extended = format!("{base}YYYYY");
         let key_base = compute_cache_key("agent", "1.0", &tools, &base);

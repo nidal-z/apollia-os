@@ -47,8 +47,10 @@ export interface ShortcutBinding {
   run: (event: KeyboardEvent) => boolean | void;
 }
 
+// navigator.platform is deprecated but still the most reliable Mac signal.
 const isMac =
-  typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac");
+  typeof navigator !== "undefined" &&
+  ((navigator as Navigator & { platform?: string }).platform ?? "").toLowerCase().includes("mac"); // NOSONAR typescript:S1874
 
 export const MOD_LABEL = isMac ? "⌘" : "Ctrl";
 
@@ -116,8 +118,8 @@ export function installChatShortcuts(bindings: ShortcutBinding[]): () => void {
       return;
     }
   }
-  window.addEventListener("keydown", handler);
-  return () => window.removeEventListener("keydown", handler);
+  globalThis.addEventListener("keydown", handler);
+  return () => globalThis.removeEventListener("keydown", handler);
 }
 
 /**

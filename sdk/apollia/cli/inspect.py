@@ -25,6 +25,10 @@ __all__ = [
 ]
 
 
+# Sentinel string used in the human-readable report for empty / absent fields.
+_NONE_LABEL = "(none)"
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Module loading
 # ──────────────────────────────────────────────────────────────────────
@@ -202,6 +206,18 @@ def _skills_from_legacy_manifest(manifest: dict[str, Any]) -> list[dict[str, Any
 # ──────────────────────────────────────────────────────────────────────
 
 
+def _prop_type_label(prop: Any) -> str:
+    """Pick a short type label out of one JSON Schema property dict."""
+    if not isinstance(prop, dict):
+        return "any"
+    raw_type = prop.get("type")
+    if isinstance(raw_type, str):
+        return raw_type
+    if isinstance(raw_type, list) and raw_type:
+        return "|".join(str(t) for t in raw_type)
+    return "any"
+
+
 def _format_schema_brief(schema: Any) -> str:
     """Render a one-line summary of a JSON-Schema-shaped dict.
 
@@ -214,25 +230,109 @@ def _format_schema_brief(schema: Any) -> str:
     if not isinstance(props, dict) or not props:
         # Fall back to the schema's own type if it's a primitive.
         t = schema.get("type")
-        if isinstance(t, str):
-            return t
-        return "(none)"
-    required: set[str] = set()
+        return t if isinstance(t, str) else _NONE_LABEL
     raw_required = schema.get("required")
-    if isinstance(raw_required, list):
-        required = {r for r in raw_required if isinstance(r, str)}
-    parts: list[str] = []
-    for pname, prop in props.items():
-        ptype = "any"
-        if isinstance(prop, dict):
-            raw_type = prop.get("type")
-            if isinstance(raw_type, str):
-                ptype = raw_type
-            elif isinstance(raw_type, list) and raw_type:
-                ptype = "|".join(str(t) for t in raw_type)
-        marker = "!" if pname in required else "?"
-        parts.append(f"{pname}: {ptype}{marker}")
+    required: set[str] = (
+        {r for r in raw_required if isinstance(r, str)}
+        if isinstance(raw_required, list)
+        else set()
+    )
+    parts = [
+        f"{pname}: {_prop_type_label(prop)}{'!' if pname in required else '?'}"
+        for pname, prop in props.items()
+    ]
     return "{" + ", ".join(parts) + "}"
+
+
+def _fmt_list(values: list[Any]) -> str:
+    return ", ".join(str(v) for v in values) if values else _NONE_LABEL
+
+
+def _header_lines(manifest: dict[str, Any]) -> list[str]:
+    """Render the boxed header block describing the agent identity."""
+    name = manifest.get("name", "?")
+    version = manifest.get("version", "?")
+    desc = manifest.get("description", "?")
+    tags = _fmt_list(manifest.get("tags") or [])
+    packages = _fmt_list(manifest.get("packages") or [])
+    execution = manifest.get("execution_mode", "direct")
+    supports_a2a = bool(manifest.get("supports_a2a", False))
+
+    width = 65
+    header = "─" * (width - 17)
+    return [
+        f"╭─ Apollia Agent {header}╮",
+        f"│ Name:         {name}",
+        f"│ Version:      {version}",
+        f"│ Description:  {desc}",
+        f"│ Tags:         {tags}",
+        f"│ Packages:     {packages}",
+        f"│ Execution:    {execution}",
+        f"│ Supports A2A: {str(supports_a2a).lower()}",
+        "╰" + "─" * width + "╯",
+        "",
+    ]
+
+
+def _skill_lines(skill: dict[str, Any]) -> list[str]:
+    """Render one skill entry (head + input/output + flags)."""
+    sid = skill.get("id", "?")
+    sdesc = skill.get("description", "") or ""
+    head = f"  • {sid}"
+    if sdesc:
+        head += f" — {sdesc}"
+    lines = [
+        head,
+        f"    Input:  {_format_schema_brief(skill.get('input_schema', {}))}",
+        f"    Output: {_format_schema_brief(skill.get('output_schema', {}))}",
+    ]
+    if skill.get("requires_approval"):
+        lines.append("    [HITL] Requires human approval")
+    if skill.get("dangerous"):
+        lines.append("    [!] Dangerous skill")
+    return lines
+
+
+def _skills_block(skills: list[dict[str, Any]]) -> list[str]:
+    if not skills:
+        return ["Skills: (none)", ""]
+    lines = [f"Skills ({len(skills)}):"]
+    for s in skills:
+        lines.extend(_skill_lines(s))
+    lines.append("")
+    return lines
+
+
+def _resources_block(manifest: dict[str, Any]) -> list[str]:
+    ds_list = manifest.get("datasources") or []
+    tpl_list = manifest.get("templates") or []
+    secrets_list = manifest.get("secrets") or []
+    tools_list = manifest.get("tools_required") or []
+    return [
+        "Declared resources:",
+        f"  Datasources: {_fmt_list(ds_list)}",
+        f"  Templates:   {_fmt_list(tpl_list)}",
+        f"  Secrets:     {_fmt_list(secrets_list)}",
+        "",
+        f"Tools required: {_fmt_list(tools_list)}",
+        "",
+    ]
+
+
+def _diagnostics_block(warnings: list[str], errors: list[str]) -> list[str]:
+    lines: list[str] = []
+    if warnings:
+        lines.append("Warnings:")
+        lines.extend(f"  • {w}" for w in warnings)
+        lines.append("")
+    if errors:
+        lines.append("Errors:")
+        lines.extend(f"  • {e}" for e in errors)
+        lines.append("")
+        lines.append("Status: invalid")
+    else:
+        lines.append("Status: valid")
+    return lines
 
 
 def _format_human(
@@ -243,86 +343,10 @@ def _format_human(
 ) -> str:
     """Build the human-readable inspect report."""
     lines: list[str] = []
-
-    name = manifest.get("name", "?")
-    version = manifest.get("version", "?")
-    desc = manifest.get("description", "?")
-    tags_list = manifest.get("tags") or []
-    packages_list = manifest.get("packages") or []
-    execution = manifest.get("execution_mode", "direct")
-    supports_a2a = bool(manifest.get("supports_a2a", False))
-
-    tags = ", ".join(str(t) for t in tags_list) if tags_list else "(none)"
-    packages = (
-        ", ".join(str(p) for p in packages_list) if packages_list else "(none)"
-    )
-
-    width = 65
-    header = "─" * (width - 17)
-    lines.append(f"╭─ Apollia Agent {header}╮")
-    lines.append(f"│ Name:         {name}")
-    lines.append(f"│ Version:      {version}")
-    lines.append(f"│ Description:  {desc}")
-    lines.append(f"│ Tags:         {tags}")
-    lines.append(f"│ Packages:     {packages}")
-    lines.append(f"│ Execution:    {execution}")
-    lines.append(f"│ Supports A2A: {str(supports_a2a).lower()}")
-    lines.append("╰" + "─" * width + "╯")
-    lines.append("")
-
-    if skills:
-        lines.append(f"Skills ({len(skills)}):")
-        for s in skills:
-            sid = s.get("id", "?")
-            sdesc = s.get("description", "") or ""
-            head = f"  • {sid}"
-            if sdesc:
-                head += f" — {sdesc}"
-            lines.append(head)
-            ischema = s.get("input_schema", {})
-            oschema = s.get("output_schema", {})
-            lines.append(f"    Input:  {_format_schema_brief(ischema)}")
-            lines.append(f"    Output: {_format_schema_brief(oschema)}")
-            if s.get("requires_approval"):
-                lines.append("    [HITL] Requires human approval")
-            if s.get("dangerous"):
-                lines.append("    [!] Dangerous skill")
-        lines.append("")
-    else:
-        lines.append("Skills: (none)")
-        lines.append("")
-
-    ds_list = manifest.get("datasources") or []
-    tpl_list = manifest.get("templates") or []
-    secrets_list = manifest.get("secrets") or []
-    tools_list = manifest.get("tools_required") or []
-
-    def _fmt_list(values: list[Any]) -> str:
-        return ", ".join(str(v) for v in values) if values else "(none)"
-
-    lines.append("Declared resources:")
-    lines.append(f"  Datasources: {_fmt_list(ds_list)}")
-    lines.append(f"  Templates:   {_fmt_list(tpl_list)}")
-    lines.append(f"  Secrets:     {_fmt_list(secrets_list)}")
-    lines.append("")
-    lines.append(f"Tools required: {_fmt_list(tools_list)}")
-    lines.append("")
-
-    if warnings:
-        lines.append("Warnings:")
-        for w in warnings:
-            lines.append(f"  • {w}")
-        lines.append("")
-
-    if errors:
-        lines.append("Errors:")
-        for e in errors:
-            lines.append(f"  • {e}")
-        lines.append("")
-        lines.append("Status: invalid")
-    else:
-        lines.append("Status: valid")
-
+    lines.extend(_header_lines(manifest))
+    lines.extend(_skills_block(skills))
+    lines.extend(_resources_block(manifest))
+    lines.extend(_diagnostics_block(warnings, errors))
     return "\n".join(lines)
 
 
@@ -347,6 +371,56 @@ def _format_json(
 # ──────────────────────────────────────────────────────────────────────
 
 
+def _emit_error(
+    json_mode: bool,
+    *,
+    error_text: str,
+    stderr_text: str,
+    traceback_text: str | None = None,
+) -> None:
+    """Print an inspect-error report in either JSON or human form."""
+    if json_mode:
+        payload: dict[str, Any] = {
+            "manifest": {},
+            "skills": [],
+            "warnings": [],
+            "errors": [error_text],
+        }
+        if traceback_text is not None:
+            payload["traceback"] = traceback_text
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"✗ {stderr_text}", file=sys.stderr)
+
+
+def _load_module_for_inspect(
+    path: Path, json_mode: bool
+) -> tuple[ModuleType | None, int]:
+    """Load the agent module; return ``(module, exit_code)``.
+
+    ``exit_code`` is ``0`` on success (caller continues) or a non-zero
+    code the caller should return as-is after the helper printed the
+    error report.
+    """
+    try:
+        return _load_agent_module(path), 0
+    except FileNotFoundError as exc:
+        _emit_error(json_mode, error_text=str(exc), stderr_text=str(exc))
+        return None, 2
+    except ValueError as exc:
+        _emit_error(json_mode, error_text=str(exc), stderr_text=str(exc))
+        return None, 2
+    except Exception as exc:  # noqa: BLE001 — surface every load error
+        message = f"Failed to load module: {exc}"
+        _emit_error(
+            json_mode,
+            error_text=message,
+            stderr_text=message,
+            traceback_text=traceback.format_exc(),
+        )
+        return None, 1
+
+
 def inspect_command(args: argparse.Namespace) -> int:
     """Execute ``apollia inspect`` and return a process exit code.
 
@@ -358,77 +432,18 @@ def inspect_command(args: argparse.Namespace) -> int:
     json_mode = bool(getattr(args, "json", False))
     path = Path(args.agent_path).resolve()
 
-    try:
-        module = _load_agent_module(path)
-    except FileNotFoundError as exc:
-        if json_mode:
-            print(
-                json.dumps(
-                    {
-                        "manifest": {},
-                        "skills": [],
-                        "warnings": [],
-                        "errors": [str(exc)],
-                    },
-                    indent=2,
-                )
-            )
-        else:
-            print(f"✗ {exc}", file=sys.stderr)
-        return 2
-    except ValueError as exc:
-        if json_mode:
-            print(
-                json.dumps(
-                    {
-                        "manifest": {},
-                        "skills": [],
-                        "warnings": [],
-                        "errors": [str(exc)],
-                    },
-                    indent=2,
-                )
-            )
-        else:
-            print(f"✗ {exc}", file=sys.stderr)
-        return 2
-    except Exception as exc:  # noqa: BLE001 — surface every load error
-        message = f"Failed to load module: {exc}"
-        if json_mode:
-            print(
-                json.dumps(
-                    {
-                        "manifest": {},
-                        "skills": [],
-                        "warnings": [],
-                        "errors": [message],
-                        "traceback": traceback.format_exc(),
-                    },
-                    indent=2,
-                )
-            )
-        else:
-            print(f"✗ {message}", file=sys.stderr)
-        return 1
+    module, rc = _load_module_for_inspect(path, json_mode)
+    if module is None:
+        return rc
 
     try:
         manifest, skills, warnings = _extract_agent_data(module)
     except AgentError as exc:
-        message = f"Inspection failed: {exc}"
-        if json_mode:
-            print(
-                json.dumps(
-                    {
-                        "manifest": {},
-                        "skills": [],
-                        "warnings": [],
-                        "errors": [str(exc)],
-                    },
-                    indent=2,
-                )
-            )
-        else:
-            print(f"✗ {message}", file=sys.stderr)
+        _emit_error(
+            json_mode,
+            error_text=str(exc),
+            stderr_text=f"Inspection failed: {exc}",
+        )
         return 1
 
     if json_mode:

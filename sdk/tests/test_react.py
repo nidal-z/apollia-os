@@ -164,7 +164,7 @@ async def test_react_negative_max_steps_raises_domain_error() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Observability
+# Observability  # NOSONAR
 # ──────────────────────────────────────────────────────────────────────
 
 

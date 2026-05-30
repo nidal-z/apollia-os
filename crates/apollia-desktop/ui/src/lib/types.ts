@@ -3,7 +3,7 @@
 /** Résumé d'un agent dans un package. */
 export interface PackageAgentSummary {
   name: string;
-  role: "director" | "worker" | "assistant" | string;
+  role: "director" | "worker" | "assistant" | (string & {});
   entry: string;
 }
 
@@ -36,7 +36,7 @@ export interface AgentPackageDetailView {
 /** Preview d'un trigger (dry-run, sans validation stricte). */
 export interface TriggerPreview {
   id: string;
-  source_type: "cron" | "interval" | "webhook" | "file_watch" | "oneshot" | string;
+  source_type: "cron" | "interval" | "webhook" | "file_watch" | "oneshot" | (string & {});
   agent: string;
   schedule?: string;
   every?: string;
@@ -187,7 +187,7 @@ export interface AgentListItem {
     | "ConversationalAgent"
     | "OrchestratedAgent"
     | "WorkerAgent"
-    | string
+    | (string & {})
     | null;
   /**
    * Namespace mémoire primaire déclaré dans le manifest Python. `null` si
@@ -624,7 +624,7 @@ export interface NotificationLogEntry {
 
 /** Événement de la timeline globale. */
 export interface GlobalTimelineEvent {
-  event_type: "task" | "tool" | "llm" | "hitl" | string;
+  event_type: "task" | "tool" | "llm" | "hitl" | (string & {});
   timestamp: string;
   summary: string;
   detail: Record<string, unknown>;
@@ -674,16 +674,14 @@ export interface SessionHallucinationInputs {
   thinking_contradictions: number;
 }
 
-/** Suggestion actionnable retournée par `GenerateNextSteps` (string courte). */
-export type NextStep = string;
-
 /** Réponse agrégée du meta-layer de session. */
 export interface SessionMeta {
   hallucination_risk: HallucinationRisk;
   event_count: number;
   summary: string | null;
   title: string | null;
-  next_steps: NextStep[] | null;
+  /** Suggestion actionnable retournée par `GenerateNextSteps` (string courte). */
+  next_steps: string[] | null;
 }
 
 /** Entrée de l'audit trail. */

@@ -1,4 +1,4 @@
-//! `RunnerSupervisor` : spawn + health monitoring + restart auto du runner.
+//! `RunnerSupervisor`: spawn + health monitoring + automatic restart of the runner.
 
 use std::process::Stdio;
 use std::sync::Arc;
@@ -14,35 +14,35 @@ use super::error::RunnerError;
 use super::gpu_detection::{GpuInfo, RunnerBackend};
 use super::lifecycle_inner::RunnerInnerHandle;
 
-/// Timeout pour le handshake initial `READY <port>` (cf. IPC-PROTOCOL §1.2).
+/// Timeout for the initial `READY <port>` handshake.
 const HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 
-/// Intervalle de health poll (cf. IPC-PROTOCOL §4.2).
+/// Health poll interval.
 #[allow(dead_code)]
 const HEALTH_POLL_INTERVAL_SECS: u64 = 30;
 
-/// Supervisor du process enfant runner.
+/// Supervisor of the runner child process.
 ///
-/// Spawn le binaire `apollia-runner-{backend}` au boot, parse `READY <port>`,
-/// expose un `RunnerProxy` pour les appels d'inférence, et redémarre le
-/// runner automatiquement en cas de crash.
+/// Spawns the `apollia-runner-{backend}` binary at boot, parses `READY <port>`,
+/// exposes a `RunnerProxy` for inference calls, and restarts the runner
+/// automatically on crash.
 pub struct RunnerSupervisor {
     backend: RunnerBackend,
     gpu_info: GpuInfo,
-    /// Handle léger (client HTTP + port) partagé avec le `RunnerProxy`.
+    /// Lightweight handle (HTTP client + port) shared with the `RunnerProxy`.
     inner: Arc<RwLock<Option<RunnerInnerHandle>>>,
-    /// Process enfant géré exclusivement par le supervisor (Child n'est pas
-    /// Clone et seul le supervisor doit pouvoir wait/kill).
+    /// Child process managed exclusively by the supervisor (Child is not Clone
+    /// and only the supervisor should be able to wait/kill it).
     child: Arc<Mutex<Option<Child>>>,
-    /// Flag pour empêcher de nouveaux spawn quand on est en shutdown.
+    /// Flag to prevent new spawns while shutting down.
     shutting_down: Arc<Mutex<bool>>,
 }
 
 impl RunnerSupervisor {
-    /// Spawn un nouveau runner correspondant au `backend` choisi.
+    /// Spawn a new runner matching the chosen `backend`.
     ///
-    /// Le binaire `apollia-runner-{backend}` doit être présent dans le même
-    /// répertoire que l'exécutable courant (cf. PACKAGING-PLAN §3).
+    /// The `apollia-runner-{backend}` binary must be present in the same
+    /// directory as the current executable.
     pub async fn start(gpu_info: GpuInfo, backend: RunnerBackend) -> Result<Self, RunnerError> {
         let supervisor = Self {
             backend,
@@ -55,7 +55,7 @@ impl RunnerSupervisor {
         Ok(supervisor)
     }
 
-    /// Spawn le binaire runner et attend le handshake.
+    /// Spawn the runner binary and wait for the handshake.
     async fn spawn_runner(&self) -> Result<(), RunnerError> {
         let bin_path = locate_runner_binary(self.backend)?;
         tracing::info!(
@@ -74,7 +74,7 @@ impl RunnerSupervisor {
                 RunnerError::Io(e)
             })?;
 
-        // Parse READY <port>\n sur stdout, avec timeout.
+        // Parse READY <port>\n on stdout, with a timeout.
         let stdout = child
             .stdout
             .take()
@@ -100,13 +100,13 @@ impl RunnerSupervisor {
             }
         };
 
-        // Redirige stderr vers les logs tracing du daemon.
+        // Redirect stderr to the daemon's tracing logs.
         if let Some(stderr) = child.stderr.take() {
             let backend = self.backend;
             tokio::spawn(forward_stderr(stderr, backend));
         }
 
-        // Spawn une tâche qui consomme stdout restant (sinon le pipe se remplit).
+        // Spawn a task that drains the remaining stdout (otherwise the pipe fills up).
         tokio::spawn(async move {
             let mut lines = reader.lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -114,7 +114,7 @@ impl RunnerSupervisor {
             }
         });
 
-        // Vérifie le handshake HTTP.
+        // Check the HTTP handshake.
         let client = RunnerClient::new(port)?;
         let handshake: serde_json::Value = client.get("/handshake").await?;
         let proto = handshake
@@ -140,31 +140,31 @@ impl RunnerSupervisor {
         Ok(())
     }
 
-    /// Retourne un `RunnerProxy` qui fait des appels HTTP au runner.
+    /// Return a `RunnerProxy` that makes HTTP calls to the runner.
     pub fn proxy(&self) -> super::proxy::RunnerProxy {
         super::proxy::RunnerProxy::new(self.inner.clone())
     }
 
-    /// GPU info détectée au boot.
+    /// GPU info detected at boot.
     pub fn gpu_info(&self) -> &GpuInfo {
         &self.gpu_info
     }
 
-    /// Backend actif (= type de runner spawné).
+    /// Active backend (= type of spawned runner).
     pub fn backend(&self) -> RunnerBackend {
         self.backend
     }
 
-    /// Port HTTP actuel du runner. Pour debug / tests.
+    /// Current HTTP port of the runner. For debug / tests.
     pub async fn port(&self) -> Option<u16> {
         self.inner.read().await.as_ref().map(|i| i.port)
     }
 
-    /// Arrête proprement le runner (`POST /shutdown` + attente exit).
+    /// Cleanly stop the runner (`POST /shutdown` + wait for exit).
     pub async fn shutdown(self) -> Result<(), RunnerError> {
         *self.shutting_down.lock().await = true;
 
-        // 1. Tente le shutdown propre via HTTP.
+        // 1. Try a clean shutdown via HTTP.
         let shutdown_ok = {
             let inner_guard = self.inner.read().await;
             if let Some(handle) = inner_guard.as_ref() {
@@ -189,7 +189,7 @@ impl RunnerSupervisor {
             tracing::warn!("runner shutdown HTTP failed, will force kill");
         }
 
-        // 2. Récupère le Child et attend exit avec timeout, sinon kill.
+        // 2. Take the Child and wait for exit with a timeout, otherwise kill.
         let mut child_guard = self.child.lock().await;
         if let Some(mut child) = child_guard.take() {
             match tokio::time::timeout(Duration::from_secs(3), child.wait()).await {
@@ -203,14 +203,14 @@ impl RunnerSupervisor {
                 }
             }
         }
-        // Le RunnerInnerHandle est dropped automatiquement quand inner_guard sort.
+        // The RunnerInnerHandle is dropped automatically when inner_guard goes out of scope.
         *self.inner.write().await = None;
         Ok(())
     }
 }
 
-/// Localise le binaire `apollia-runner-{backend}` à côté de l'exécutable
-/// courant (`apollia-os`).
+/// Locate the `apollia-runner-{backend}` binary next to the current executable
+/// (`apollia-os`).
 fn locate_runner_binary(backend: RunnerBackend) -> Result<std::path::PathBuf, RunnerError> {
     let exe = std::env::current_exe()
         .map_err(|e| RunnerError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, format!("current_exe: {e}"))))?;
@@ -225,9 +225,9 @@ fn locate_runner_binary(backend: RunnerBackend) -> Result<std::path::PathBuf, Ru
         return Ok(candidate);
     }
 
-    // Fallback dev (`cargo run -p apollia-cli`) : le binaire `apollia-runner`
-    // est posé dans target/{debug,release}/ sans suffix de backend. On
-    // l'accepte pour permettre le test local sans renommer manuellement.
+    // Dev fallback (`cargo run -p apollia-cli`): the `apollia-runner` binary
+    // is placed in target/{debug,release}/ without a backend suffix. We accept
+    // it to allow local testing without renaming manually.
     let dev_fallback = dir.join(format!("apollia-runner{ext}"));
     if dev_fallback.exists() {
         tracing::warn!(
@@ -263,7 +263,7 @@ async fn read_ready_line(
 async fn forward_stderr(stderr: tokio::process::ChildStderr, backend: RunnerBackend) {
     let mut lines = BufReader::new(stderr).lines();
     while let Ok(Some(line)) = lines.next_line().await {
-        // Le runner émet déjà du JSON Lines, on log tel quel.
+        // The runner already emits JSON Lines, so log it as-is.
         tracing::info!(target: "runner", backend = ?backend, line = %line);
     }
 }

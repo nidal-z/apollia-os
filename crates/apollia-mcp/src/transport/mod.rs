@@ -2,9 +2,9 @@
 //!
 //! The [`McpTransport`] trait decouples session logic from the underlying
 //! byte-level channel. Implementations:
-//! - [`StdioTransport`] — subprocess stdio pipes.
-//! - [`StreamableHttpTransport`] — single HTTP POST per request to a remote server.
-//! - [`SseTransport`] — persistent SSE stream with HTTP POST for requests.
+//! - [`StdioTransport`]: subprocess stdio pipes.
+//! - [`StreamableHttpTransport`]: single HTTP POST per request to a remote server.
+//! - [`SseTransport`]: persistent SSE stream with HTTP POST for requests.
 
 pub mod http;
 pub mod sse;
@@ -59,7 +59,7 @@ pub enum TransportError {
 ///
 /// Each method operates on a single newline-terminated JSON-RPC message.
 /// Implementors are responsible for framing; callers must not include a
-/// trailing newline in `send` — the transport adds it.
+/// trailing newline in `send`; the transport adds it.
 ///
 /// The trait is `Send + Sync + 'static` so it can be held behind an `Arc`
 /// and shared between the session main task and the background dispatch task.
@@ -90,7 +90,7 @@ pub trait McpTransport: Send + Sync + 'static {
     }
 
     /// Returns the most recent stderr lines produced by the server, oldest
-    /// first. Only meaningful for subprocess-based transports — network
+    /// first. Only meaningful for subprocess-based transports; network
     /// transports return an empty vec. Used by the session layer to enrich
     /// `TransportError` messages on handshake / tool-call failures so the
     /// operator sees what the subprocess actually wrote before stalling.
@@ -99,15 +99,15 @@ pub trait McpTransport: Send + Sync + 'static {
     }
 }
 
-// ─── factory ─────────────────────────────────────────────────────────────────
+// factory
 
 /// Create and connect a transport from a server configuration.
 ///
 /// Dispatches on `config.transport`:
-/// - `"stdio"` — spawns the subprocess and returns a [`StdioTransport`].
-/// - `"streamable-http"` — builds a [`StreamableHttpTransport`] targeting `config.url`.
-/// - `"sse"` — builds an [`SseTransport`] targeting `config.url`.
-/// - anything else — returns [`TransportError::Unsupported`].
+/// - `"stdio"`: spawns the subprocess and returns a [`StdioTransport`].
+/// - `"streamable-http"`: builds a [`StreamableHttpTransport`] targeting `config.url`.
+/// - `"sse"`: builds an [`SseTransport`] targeting `config.url`.
+/// - anything else: returns [`TransportError::Unsupported`].
 ///
 /// The `resolved_env` map must already have all `${VAR}` placeholders resolved;
 /// use [`McpServerConfig::resolve_env`] before calling this function. For

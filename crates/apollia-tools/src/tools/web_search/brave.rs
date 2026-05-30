@@ -1,6 +1,6 @@
 //! Brave Search API backend.
 //!
-//! Uses Brave's public Web Search API — documented, rate-tier'd, and
+//! Uses Brave's public Web Search API: documented, rate-tier'd, and
 //! authenticated by an API key delivered via the `X-Subscription-Token`
 //! header. Free tier grants 2_000 queries per month as of 2025.
 //!
@@ -73,7 +73,7 @@ impl BraveBackend {
         )
     }
 
-    /// Build a backend with an arbitrary endpoint — intended for tests hitting
+    /// Build a backend with an arbitrary endpoint, intended for tests hitting
     /// an in-process mock server.
     pub fn with_endpoint(api_key: impl Into<String>, endpoint: impl Into<String>) -> Self {
         Self::build(
@@ -318,7 +318,7 @@ pub(crate) fn parse_brave_json(
     Ok(results)
 }
 
-/// Cache the tag-stripping regex — compiled once per call is cheap but we can
+/// Cache the tag-stripping regex: compiled once per call is cheap but we can
 /// do better. Using a plain function with a fresh Regex on every call is fine
 /// for now; switch to `once_cell::sync::Lazy` if hot-path profiling says so.
 fn tag_regex() -> Regex {
@@ -385,7 +385,7 @@ pub(crate) mod tests {
     #[test]
     fn prefers_age_over_page_age() {
         let results = parse_brave_json(FIXTURE, 20).expect("parse ok");
-        // First result has both `age` and `page_age` — human-readable `age` wins.
+        // First result has both `age` and `page_age`: human-readable `age` wins.
         assert_eq!(results[0].age.as_deref(), Some("2 days ago"));
         // Second result has only `page_age`.
         assert_eq!(results[1].age.as_deref(), Some("2026-03-10T00:00:00"));

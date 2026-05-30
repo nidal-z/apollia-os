@@ -1,7 +1,7 @@
-//! `CronTrigger` — source de déclenchement basée sur une expression cron.
+//! `CronTrigger`: trigger source based on a cron expression.
 //!
-//! Spawne une tâche Tokio indépendante qui calcule le prochain instant de
-//! déclenchement via la crate `cron` v0.12 et dort jusqu'à ce moment.
+//! Spawns an independent Tokio task that computes the next fire instant via the
+//! `cron` crate v0.12 and sleeps until that moment.
 
 use chrono::Utc;
 use cron::Schedule;
@@ -11,18 +11,18 @@ use tokio::task::JoinHandle;
 
 use crate::types::{TriggerDefinition, TriggerEvent, TriggerPayload, TriggerSourceConfig};
 
-/// Source de déclenchement basée sur une expression cron.
+/// Trigger source based on a cron expression.
 pub struct CronTrigger;
 
 impl CronTrigger {
-    /// Spawne une tâche Tokio qui fire au prochain instant calculé par l'expression cron.
+    /// Spawns a Tokio task that fires at the next instant computed by the cron expression.
     ///
-    /// La tâche boucle indéfiniment et envoie un [`TriggerEvent`] à chaque fire.
-    /// Si le channel est fermé, la tâche se termine proprement.
-    /// Retourne le `JoinHandle<()>` pour abort lors du hot reload.
+    /// The task loops indefinitely and sends a [`TriggerEvent`] on each fire.
+    /// If the channel is closed, the task terminates cleanly.
+    /// Returns the `JoinHandle<()>` for abort during hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
-            // Guard : extraire le schedule depuis la source
+            // Extract the schedule from the source.
             let schedule_str = match &def.source {
                 TriggerSourceConfig::Cron { schedule } => schedule.clone(),
                 _ => {
@@ -50,7 +50,7 @@ impl CronTrigger {
             };
 
             while let Some(next) = schedule.upcoming(Utc).next() {
-                // Si le prochain fire est dans le passé, délai minimal de 100ms
+                // If the next fire is in the past, use a minimal 100ms delay.
                 let duration = (next - Utc::now()).to_std().unwrap_or_else(|_| {
                     tracing::warn!(
                         trigger = %def.id,
@@ -73,7 +73,7 @@ impl CronTrigger {
                 };
 
                 if tx.send(event).await.is_err() {
-                    // Engine dropped — arrêt propre de la source
+                    // Engine dropped; shut the source down cleanly.
                     break;
                 }
             }
@@ -103,14 +103,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac1_cron_fires_within_timeout() {
-        // GIVEN — expression every-second (6 champs avec secondes)
+        // GIVEN an every-second expression (6 fields including seconds)
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = make_def_cron("test-cron", "* * * * * *");
 
         // WHEN
         let _handle = CronTrigger::spawn(def, tx);
 
-        // THEN — au moins 1 événement reçu dans les 3 secondes
+        // THEN at least 1 event received within 3 seconds
         let event = timeout(Duration::from_secs(3), rx.recv()).await;
         assert!(event.is_ok(), "no event received within 3s");
         let event = event.unwrap().unwrap();

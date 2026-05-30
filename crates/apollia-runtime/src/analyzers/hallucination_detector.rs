@@ -2,7 +2,7 @@
 //!
 //! Always-on, schema-driven where possible, with a fallback heuristic for
 //! tools that do not declare a JSON schema.
-//! (session-level meta-layer) — this module is the single source of truth.
+//! (session-level meta-layer), this module is the single source of truth.
 //!
 //! # Heuristic
 //!
@@ -66,7 +66,7 @@ impl HeuristicReport {
 /// Run the hallucination heuristic on a tool output.
 ///
 /// `output` is the raw stringified output from the tool. `schema` is an
-/// optional per-tool [`SchemaValidator`] — when absent, only the fallback
+/// optional per-tool [`SchemaValidator`], when absent, only the fallback
 /// heuristic (null / empty / empty container) runs.
 ///
 /// Returns a [`HeuristicReport`] so callers can both decide and explain.
@@ -181,7 +181,7 @@ impl HallucinationRisk {
     }
 }
 
-/// Heuristique déterministe — calcule un score 0-100 à partir des signaux
+/// Heuristique déterministe, calcule un score 0-100 à partir des signaux
 /// de session. Toujours-on : coût zéro, aucun LLM.
 ///
 /// # Formule

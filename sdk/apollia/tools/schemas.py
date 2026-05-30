@@ -18,6 +18,11 @@ from __future__ import annotations
 from typing import Any
 
 
+# Common parameter descriptor strings reused across the legacy mirror.
+_SANDBOX_PATH_DESC = "str — relative path inside the sandbox (required)"
+_BOOL_OPT_FALSE_DESC = "bool (optional, default false)"
+
+
 # Legacy offline mirror of the Rust tool descriptors — used as a fallback
 # when ``ctx.tools.describe()`` is unreachable (tests, dry-runs, agents
 # instantiated outside a runtime). Treat as best-effort; the runtime
@@ -42,7 +47,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "truncated}. Content is prefixed with line numbers."
         ),
         "parameters": {
-            "path": "str — relative path inside the sandbox (required)",
+            "path": _SANDBOX_PATH_DESC,
             "offset": "int (optional) — 1-based line offset",
             "limit": "int (optional) — max lines to return",
         },
@@ -54,7 +59,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "directories automatically. Overwrites existing files."
         ),
         "parameters": {
-            "path": "str — relative path inside the sandbox (required)",
+            "path": _SANDBOX_PATH_DESC,
             "content": "str — full file content to write (required)",
         },
         "example": (
@@ -70,10 +75,10 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "replace_all=true)."
         ),
         "parameters": {
-            "path": "str — relative path inside the sandbox (required)",
+            "path": _SANDBOX_PATH_DESC,
             "old_text": "str — exact text to locate (required)",
             "new_text": "str — replacement text (required)",
-            "replace_all": "bool (optional, default false)",
+            "replace_all": _BOOL_OPT_FALSE_DESC,
         },
         "example": (
             '{"path": "src/main.rs", "old_text": "fn foo()", '
@@ -87,7 +92,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
         ),
         "parameters": {
             "dir": "str (optional) — directory path, defaults to sandbox root",
-            "recursive": "bool (optional, default false)",
+            "recursive": _BOOL_OPT_FALSE_DESC,
         },
         "example": '{"dir": ".apollia/tasks", "recursive": false}',
     },
@@ -112,7 +117,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "path": "str (optional) — directory to search",
             "glob": "str (optional) — filename glob filter",
             "context_lines": "int (optional, 0-10, default 0)",
-            "case_insensitive": "bool (optional, default false)",
+            "case_insensitive": _BOOL_OPT_FALSE_DESC,
             "max_results": "int (optional, 1-500, default 100)",
         },
         "example": '{"pattern": "TODO", "glob": "*.py"}',

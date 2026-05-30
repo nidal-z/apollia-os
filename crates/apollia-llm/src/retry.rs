@@ -1,6 +1,6 @@
-//! Politique de retry exponentiel partagée par tous les backends LLM.
+//! Exponential retry policy shared by all LLM backends.
 //!
-//! # Utilisation
+//! # Usage
 //!
 //! ```rust,ignore
 //! let policy = RetryPolicy::default();
@@ -8,9 +8,9 @@
 //! let response = policy.execute(cancel, || async { backend.complete(req.clone()).await }).await?;
 //! ```
 //!
-//! Le délai entre les tentatives est `base_delay_ms * 2^attempt`, plafonné via
-//! `attempt.min(10)`. Si le `CancellationToken` est déclenché pendant l'attente,
-//! l'exécution s'arrête immédiatement avec [`LlmError::Cancelled`].
+//! The delay between attempts is `base_delay_ms * 2^attempt`, capped via
+//! `attempt.min(10)`. If the `CancellationToken` fires during the wait,
+//! execution stops immediately with [`LlmError::Cancelled`].
 
 use std::future::Future;
 
@@ -18,32 +18,24 @@ use tokio_util::sync::CancellationToken;
 
 use crate::types::LlmError;
 
-// ─────────────────────────────────────────────
-// Traits
-// ─────────────────────────────────────────────
-
-/// Permet de déterminer si une erreur justifie une nouvelle tentative.
+/// Decides whether an error warrants a new attempt.
 ///
-/// Implémenté sur [`LlmError`] pour les variantes transitoires (rate limit,
-/// surcharge serveur, service indisponible). Les erreurs non-retryables
-/// (authentification, requête invalide) échouent immédiatement.
+/// Implemented on [`LlmError`] for the transient variants (rate limit, server
+/// overload, service unavailable). Non-retryable errors (authentication,
+/// invalid request) fail immediately.
 pub trait IsRetryable {
-    /// Retourne `true` si l'erreur est transitoire et justifie un retry.
+    /// Returns `true` if the error is transient and warrants a retry.
     fn is_retryable(&self) -> bool;
 }
 
-/// Permet de construire une erreur représentant une annulation par l'appelant.
+/// Builds an error that represents cancellation by the caller.
 ///
-/// Implémenté sur [`LlmError`] pour permettre à [`RetryPolicy::execute`]
-/// de retourner [`LlmError::Cancelled`] quand le `CancellationToken` est déclenché.
+/// Implemented on [`LlmError`] so [`RetryPolicy::execute`] can return
+/// [`LlmError::Cancelled`] when the `CancellationToken` fires.
 pub trait IsCancelled {
-    /// Construit une instance de l'erreur représentant une annulation.
+    /// Build an instance of the error that represents a cancellation.
     fn cancelled() -> Self;
 }
-
-// ─────────────────────────────────────────────
-// Implémentations pour LlmError
-// ─────────────────────────────────────────────
 
 impl IsRetryable for LlmError {
     fn is_retryable(&self) -> bool {
@@ -60,25 +52,21 @@ impl IsCancelled for LlmError {
     }
 }
 
-// ─────────────────────────────────────────────
-// RetryPolicy
-// ─────────────────────────────────────────────
-
-/// Politique de retry exponentiel partagée par tous les backends LLM.
+/// Exponential retry policy shared by all LLM backends.
 ///
-/// Encapsule le nombre maximum de tentatives, le délai de base, et les codes
-/// HTTP considérés comme retryables (à titre documentaire — la décision de retry
-/// est déléguée au trait [`IsRetryable`] sur l'erreur).
+/// Holds the maximum number of attempts, the base delay, and the HTTP codes
+/// treated as retryable (documentation only: the retry decision is delegated
+/// to the [`IsRetryable`] trait on the error).
 ///
-/// Cloneable et `Send + Sync` — peut être stockée dans un `Arc` ou partagée
-/// entre backends via composition.
+/// Cloneable and `Send + Sync`: can be stored in an `Arc` or shared between
+/// backends via composition.
 #[derive(Debug, Clone)]
 pub struct RetryPolicy {
-    /// Nombre maximum de tentatives (inclut la première). Défaut : `10`.
+    /// Maximum number of attempts (includes the first). Default: `10`.
     pub max_attempts: u32,
-    /// Délai de base en millisecondes pour le premier retry. Défaut : `500`.
+    /// Base delay in milliseconds for the first retry. Default: `500`.
     pub base_delay_ms: u64,
-    /// Codes HTTP déclenchant un retry — à titre documentaire. Défaut : `[429, 503, 529]`.
+    /// HTTP codes that trigger a retry, documentation only. Default: `[429, 503, 529]`.
     pub retryable_codes: Vec<u16>,
 }
 
@@ -93,16 +81,16 @@ impl Default for RetryPolicy {
 }
 
 impl RetryPolicy {
-    /// Exécute `f` avec retry exponentiel et abort sur `CancellationToken`.
+    /// Run `f` with exponential retry and abort on `CancellationToken`.
     ///
-    /// Boucle jusqu'à `max_attempts` tentatives :
-    /// - `Ok(val)` → retourne immédiatement `Ok(val)`.
-    /// - `Err(e)` non-retryable → retourne immédiatement `Err(e)` (fail-fast).
-    /// - `Err(e)` retryable → attend `base_delay_ms * 2^attempt` ms,
-    ///   en interrompant l'attente si `cancel` est déclenché.
+    /// Loops up to `max_attempts` times:
+    /// - `Ok(val)`: returns `Ok(val)` immediately.
+    /// - non-retryable `Err(e)`: returns `Err(e)` immediately (fail-fast).
+    /// - retryable `Err(e)`: waits `base_delay_ms * 2^attempt` ms, interrupting
+    ///   the wait if `cancel` fires.
     ///
-    /// Si `cancel` est déclenché pendant l'attente, retourne `E::cancelled()`.
-    /// Si `max_attempts` est atteint, retourne la dernière erreur retryable.
+    /// If `cancel` fires during the wait, returns `E::cancelled()`.
+    /// If `max_attempts` is reached, returns the last retryable error.
     pub async fn execute<F, Fut, T, E>(&self, cancel: CancellationToken, f: F) -> Result<T, E>
     where
         F: Fn() -> Fut,
@@ -130,14 +118,10 @@ impl RetryPolicy {
                 }
             }
         }
-        // Unreachable : la boucle retourne toujours avant d'atteindre cette ligne.
+        // The loop always returns before reaching this line.
         unreachable!("retry loop must always return before exhausting attempts")
     }
 }
-
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -266,7 +250,7 @@ mod tests {
 
     // GIVEN IsRetryable is implemented for LlmError
     // WHEN is_retryable() is called on each variant
-    // THEN only transitoires errors return true
+    // THEN only transient errors return true
     #[test]
     fn test_is_retryable_variants() {
         assert!(LlmError::RateLimit.is_retryable());

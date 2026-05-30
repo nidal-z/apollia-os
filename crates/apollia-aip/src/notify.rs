@@ -1,4 +1,4 @@
-//! PyNotifyInterface — Python-facing proxy for agent notifications.
+//! PyNotifyInterface: Python-facing proxy for agent notifications.
 //!
 //! Exposes `ctx.notify.publish(message, severity)` to Python agents via
 //! the `NotificationEngineHandle`. When no handle is configured (opt-in),
@@ -32,13 +32,13 @@ impl PyNotifyInterface {
 
 #[pymethods]
 impl PyNotifyInterface {
-    /// Émet une notification via le NotificationEngine.
+    /// Emits a notification via the NotificationEngine.
     ///
-    /// Quand aucun canal n'est configuré, la méthode retourne sans erreur
-    /// (no-op — les canaux sont opt-in par conception).
+    /// When no channel is configured, the method returns without error
+    /// (no-op; channels are opt-in by design).
     ///
     /// severity: "debug" | "info" | "warn" | "warning" | "error" | "critical"
-    /// Lève ValueError pour toute autre valeur de severity.
+    /// Raises ValueError for any other severity value.
     #[pyo3(signature = (message, severity = "info", title = None, channel = None))]
     fn publish<'py>(
         &self,
@@ -49,7 +49,7 @@ impl PyNotifyInterface {
         channel: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let sev = parse_severity(severity)?;
-        let _ = channel; // channel override not yet routed — reserved for future use
+        let _ = channel; // channel override not yet routed, reserved for future use
 
         let handle = self.handle.clone();
         let agent = title; // use title field as agent context if provided

@@ -33,7 +33,7 @@ use crate::eventbus::EventBusReceiver;
 /// Mis à jour à chaque événement consommé par l'actor. Cloné via `Arc`.
 pub type SessionMetricsStore = Arc<Mutex<HashMap<String, SessionMetrics>>>;
 
-/// Tool call en cours — sert à mesurer la latence côté actor.
+/// Tool call en cours, sert à mesurer la latence côté actor.
 struct InFlightToolCall {
     session_id: String,
     tool_name: String,
@@ -59,6 +59,11 @@ impl SessionMetricsActor {
     ) -> Self {
         let store: SessionMetricsStore = Arc::new(Mutex::new(HashMap::new()));
         let store_task = Arc::clone(&store);
+        let budget = MetricsBudget {
+            thresholds,
+            context_window_max,
+            token_budget,
+        };
 
         let handle = tokio::spawn(async move {
             // Map tool_call_id (message_id) -> in-flight pour calcul de durée.
@@ -67,14 +72,7 @@ impl SessionMetricsActor {
             loop {
                 match rx.recv().await {
                     Ok(event) => {
-                        let updates = process_event(
-                            &event,
-                            &store_task,
-                            &mut in_flight,
-                            thresholds,
-                            context_window_max,
-                            token_budget,
-                        );
+                        let updates = process_event(&event, &store_task, &mut in_flight, budget);
                         for (session_id, metrics, alert) in updates {
                             let _ = bus.send(RuntimeEvent::SessionMetricsUpdated {
                                 session_id,
@@ -108,7 +106,7 @@ impl SessionMetricsActor {
         let _ = self.handle.await;
     }
 
-    /// Abandonne la task — utilisé au shutdown quand on ne veut pas attendre.
+    /// Abandonne la task, utilisé au shutdown quand on ne veut pas attendre.
     pub fn abort(self) {
         self.handle.abort();
     }
@@ -139,14 +137,25 @@ pub fn spawn_detached(
 ///
 /// Isolé dans une fonction pure-ish pour pouvoir tester la logique sans
 /// spawner d'acteur Tokio.
+/// Paramètres de budget partagés par tous les événements traités.
+#[derive(Debug, Clone, Copy)]
+struct MetricsBudget {
+    thresholds: SessionThresholds,
+    context_window_max: u64,
+    token_budget: u64,
+}
+
 fn process_event(
     event: &RuntimeEvent,
     store: &SessionMetricsStore,
     in_flight: &mut HashMap<String, InFlightToolCall>,
-    thresholds: SessionThresholds,
-    context_window_max: u64,
-    token_budget: u64,
+    budget: MetricsBudget,
 ) -> Vec<(String, SessionMetrics, BudgetAlertLevel)> {
+    let MetricsBudget {
+        thresholds,
+        context_window_max,
+        token_budget,
+    } = budget;
     match event {
         RuntimeEvent::LlmCallCompleted {
             task_id,
@@ -205,7 +214,7 @@ fn process_event(
             summary_chars,
             original_messages,
         } => {
-            // `ContextCompacted` ne porte pas de session_id — on applique à toutes
+            // `ContextCompacted` ne porte pas de session_id, on applique à toutes
             // les sessions actives (cas courant : une session active à la fois).
             let mut guard = store.lock().unwrap_or_else(|e| e.into_inner());
             let mut updates = Vec::new();
@@ -285,12 +294,14 @@ mod tests {
             &event,
             &store,
             &mut in_flight,
-            SessionThresholds::default(),
-            200_000,
-            10_000,
+            MetricsBudget {
+                thresholds: SessionThresholds::default(),
+                context_window_max: 200_000,
+                token_budget: 10_000,
+            },
         );
 
-        // THEN — une mise à jour émise, tokens cumulés dans la session "task-1"
+        // THEN, une mise à jour émise, tokens cumulés dans la session "task-1"
         assert_eq!(updates.len(), 1);
         let (sid, m, alert) = &updates[0];
         assert_eq!(sid, "task-1");
@@ -320,14 +331,16 @@ mod tests {
             analysis: None,
         };
 
-        // WHEN — started puis completed
+        // WHEN, started puis completed
         let u1 = process_event(
             &started,
             &store,
             &mut in_flight,
-            SessionThresholds::default(),
-            0,
-            0,
+            MetricsBudget {
+                thresholds: SessionThresholds::default(),
+                context_window_max: 0,
+                token_budget: 0,
+            },
         );
         assert!(u1.is_empty(), "started ne doit pas émettre de snapshot");
         assert!(in_flight.contains_key("msg-1"));
@@ -336,12 +349,14 @@ mod tests {
             &completed,
             &store,
             &mut in_flight,
-            SessionThresholds::default(),
-            0,
-            0,
+            MetricsBudget {
+                thresholds: SessionThresholds::default(),
+                context_window_max: 0,
+                token_budget: 0,
+            },
         );
 
-        // THEN — un timing ajouté pour la session
+        // THEN, un timing ajouté pour la session
         assert_eq!(u2.len(), 1);
         let (sid, m, _alert) = &u2[0];
         assert_eq!(sid, "sess-1");
@@ -368,11 +383,13 @@ mod tests {
             &completed,
             &store,
             &mut in_flight,
-            SessionThresholds::default(),
-            0,
-            0,
+            MetricsBudget {
+                thresholds: SessionThresholds::default(),
+                context_window_max: 0,
+                token_budget: 0,
+            },
         );
-        // THEN — aucune update
+        // THEN, aucune update
         assert!(updates.is_empty());
     }
 
@@ -381,7 +398,11 @@ mod tests {
         // GIVEN un budget de 1000 et des appels successifs
         let store = store();
         let mut in_flight = HashMap::new();
-        let th = SessionThresholds::default();
+        let budget = MetricsBudget {
+            thresholds: SessionThresholds::default(),
+            context_window_max: 0,
+            token_budget: 1000,
+        };
 
         let mk = |tokens: u32| RuntimeEvent::LlmCallCompleted {
             backend: "b".into(),
@@ -395,16 +416,16 @@ mod tests {
         };
 
         // WHEN premier appel sous warning
-        let u1 = process_event(&mk(500), &store, &mut in_flight, th, 0, 1000);
+        let u1 = process_event(&mk(500), &store, &mut in_flight, budget);
         assert_eq!(u1[0].2, BudgetAlertLevel::Ok);
 
         // AND deuxième appel franchit 80 %
-        let u2 = process_event(&mk(350), &store, &mut in_flight, th, 0, 1000);
+        let u2 = process_event(&mk(350), &store, &mut in_flight, budget);
         // THEN warning
         assert_eq!(u2[0].2, BudgetAlertLevel::Warning);
 
         // AND troisième appel franchit 100 %
-        let u3 = process_event(&mk(200), &store, &mut in_flight, th, 0, 1000);
+        let u3 = process_event(&mk(200), &store, &mut in_flight, budget);
         // THEN block
         assert_eq!(u3[0].2, BudgetAlertLevel::Block);
     }
@@ -435,9 +456,11 @@ mod tests {
             &event,
             &store,
             &mut in_flight,
-            SessionThresholds::default(),
-            10_000,
-            0,
+            MetricsBudget {
+                thresholds: SessionThresholds::default(),
+                context_window_max: 10_000,
+                token_budget: 0,
+            },
         );
 
         // THEN un SummarizationEvent a été poussé et le contexte réduit
@@ -462,9 +485,11 @@ mod tests {
             &event,
             &store,
             &mut in_flight,
-            SessionThresholds::default(),
-            0,
-            0,
+            MetricsBudget {
+                thresholds: SessionThresholds::default(),
+                context_window_max: 0,
+                token_budget: 0,
+            },
         );
         assert_eq!(updates.len(), 1);
         assert_eq!(updates[0].2, BudgetAlertLevel::Block);
@@ -480,7 +505,7 @@ mod tests {
         let actor =
             SessionMetricsActor::spawn(rx, tx.clone(), SessionThresholds::default(), 10_000, 1_000);
 
-        // WHEN — on envoie un scénario multi-tools + LLM
+        // WHEN, on envoie un scénario multi-tools + LLM
         tx.send(RuntimeEvent::ChatToolCallStarted {
             session_id: "S".into(),
             message_id: "m1".into(),
@@ -510,7 +535,7 @@ mod tests {
         })
         .unwrap();
 
-        // THEN — on observe au moins une SessionMetricsUpdated avec alert Warning ou Block
+        // THEN, on observe au moins une SessionMetricsUpdated avec alert Warning ou Block
         let mut saw_alert = false;
         let timeout = tokio::time::Duration::from_millis(500);
         let deadline = tokio::time::Instant::now() + timeout;
@@ -558,14 +583,16 @@ mod tests {
             cost_usd: None,
         };
         let mut in_flight = HashMap::new();
-        // THEN aucune panique — process_event se termine normalement
+        // THEN aucune panique, process_event se termine normalement
         let updates = process_event(
             &event,
             &store,
             &mut in_flight,
-            SessionThresholds::default(),
-            0,
-            0,
+            MetricsBudget {
+                thresholds: SessionThresholds::default(),
+                context_window_max: 0,
+                token_budget: 0,
+            },
         );
         assert_eq!(
             updates.len(),

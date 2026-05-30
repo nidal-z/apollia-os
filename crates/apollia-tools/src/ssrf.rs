@@ -1,4 +1,4 @@
-//! Shared SSRF guard — reject URLs whose host resolves to a private,
+//! Shared SSRF guard: reject URLs whose host resolves to a private,
 //! loopback, or otherwise internal range before any socket is opened.
 //!
 //! Used by `http_fetch`, `web_read`, and the webhook notification channel.
@@ -8,8 +8,8 @@
 //! This guard is a *name-level* check. A malicious domain that resolves to a
 //! public IP at check-time and to a private one at connect-time (DNS
 //! rebinding) is not mitigated. Closing that gap requires a custom
-//! `reqwest::dns::Resolve` implementation and a matching connector policy —
-//! scheduled as a follow-up story (ADR-072).
+//! `reqwest::dns::Resolve` implementation and a matching connector policy,
+//! scheduled as a follow-up.
 
 use thiserror::Error;
 

@@ -26,6 +26,36 @@ const MAX_RETRIES: u32 = 3;
 /// Backoff cap to avoid waiting forever on a 429 with a giant `Retry-After`.
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
+/// A JSON-bodied request descriptor passed to [`HttpClient::json_request`].
+///
+/// Groups the request shape (method, url, body) so callers don't thread a
+/// long positional argument list; auth (`bearer` + `refresh`) stays separate.
+pub struct JsonRequest<'a, B: ?Sized> {
+    /// HTTP method.
+    pub method: Method,
+    /// Target URL.
+    pub url: &'a str,
+    /// Request body, serialised to JSON.
+    pub body: &'a B,
+}
+
+/// A raw-bytes request descriptor passed to [`HttpClient::send`].
+///
+/// Groups the request shape (method, url, body bytes, optional content type)
+/// so callers don't thread a long positional argument list; auth
+/// (`bearer` + `refresh`) stays separate.
+pub struct RawRequest<'a> {
+    /// HTTP method.
+    pub method: Method,
+    /// Target URL.
+    pub url: &'a str,
+    /// Optional raw request body bytes.
+    pub body: Option<Vec<u8>>,
+    /// Explicit `Content-Type` override; `None` defaults to
+    /// `application/json` when a body is present.
+    pub content_type: Option<&'a str>,
+}
+
 /// Shared HTTP client for connector implementations.
 #[derive(Clone)]
 pub struct HttpClient {
@@ -64,7 +94,16 @@ impl HttpClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let response = self
-            .send_with_retries(Method::GET, url, None, bearer, refresh)
+            .send(
+                RawRequest {
+                    method: Method::GET,
+                    url,
+                    body: None,
+                    content_type: None,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         deserialize_json(self.provider_id, response).await
     }
@@ -72,9 +111,7 @@ impl HttpClient {
     /// Execute a JSON-bodied request (POST/PUT/PATCH/DELETE) and decode the response.
     pub async fn json_request<B, T, F, Fut>(
         &self,
-        method: Method,
-        url: &str,
-        body: &B,
+        request: JsonRequest<'_, B>,
         bearer: &str,
         refresh: F,
     ) -> Result<T, ConnectorError>
@@ -85,44 +122,34 @@ impl HttpClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let body_bytes =
-            serde_json::to_vec(body).map_err(|e| ConnectorError::Decoding(e.to_string()))?;
+            serde_json::to_vec(request.body).map_err(|e| ConnectorError::Decoding(e.to_string()))?;
         let response = self
-            .send_with_retries(method, url, Some(body_bytes), bearer, refresh)
+            .send(
+                RawRequest {
+                    method: request.method,
+                    url: request.url,
+                    body: Some(body_bytes),
+                    content_type: None,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         deserialize_json(self.provider_id, response).await
     }
 
-    /// Execute a request and return the raw response — useful for streaming
+    /// Execute a request and return the raw response, useful for streaming
     /// downloads where the caller drives the body. The 401-refresh and 429
-    /// policies still apply. Defaults to `Content-Type: application/json` when
-    /// a body is provided.
-    pub async fn send_with_retries<F, Fut>(
-        &self,
-        method: Method,
-        url: &str,
-        body: Option<Vec<u8>>,
-        bearer: &str,
-        refresh: F,
-    ) -> Result<Response, ConnectorError>
-    where
-        F: FnOnce() -> Fut + Send,
-        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
-    {
-        self.send_with_retries_typed(method, url, body, None, bearer, refresh)
-            .await
-    }
-
-    /// Same as [`send_with_retries`] with an explicit `Content-Type` override.
-    /// When `content_type` is `Some`, it replaces the default
+    /// policies still apply.
+    ///
+    /// When [`RawRequest::content_type`] is `Some`, it replaces the default
     /// `application/json` applied to bodied requests. Drive's `uploadType=media`
-    /// PATCH needs the real upstream MIME (`text/plain`, `text/markdown`, …) so
-    /// Google doesn't auto-detect a wrong type from the bytes.
-    pub async fn send_with_retries_typed<F, Fut>(
+    /// PATCH needs the real upstream MIME (`text/plain`, `text/markdown`, etc.) so
+    /// Google doesn't auto-detect a wrong type from the bytes. When `None`,
+    /// bodied requests default to `Content-Type: application/json`.
+    pub async fn send<F, Fut>(
         &self,
-        method: Method,
-        url: &str,
-        body: Option<Vec<u8>>,
-        content_type: Option<&str>,
+        request: RawRequest<'_>,
         bearer: &str,
         refresh: F,
     ) -> Result<Response, ConnectorError>
@@ -130,6 +157,12 @@ impl HttpClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
+        let RawRequest {
+            method,
+            url,
+            body,
+            content_type,
+        } = request;
         let mut effective_bearer: String = bearer.to_owned();
         let mut refresh_slot: Option<F> = Some(refresh);
         let mut refreshed_once = false;
@@ -144,28 +177,17 @@ impl HttpClient {
                 req = req.header("Content-Type", ct).body(b.clone());
             }
 
-            let result = req.send().await;
-            let response = match result {
+            let response = match req.send().await {
                 Ok(r) => r,
-                Err(e) => {
-                    if attempt < MAX_RETRIES && (e.is_connect() || e.is_timeout()) {
-                        let backoff = exponential_backoff(attempt);
-                        tracing::warn!(
-                            provider = %self.provider_id,
-                            attempt,
-                            err = %e,
-                            "connector.http.network_error.retrying"
-                        );
-                        tokio::time::sleep(backoff).await;
-                        continue;
-                    }
-                    return Err(ConnectorError::Network(e.to_string()));
-                }
+                Err(e) => match self.on_network_error(e, attempt).await {
+                    Some(err) => return Err(err),
+                    None => continue,
+                },
             };
 
             let status = response.status();
 
-            // 401 — refresh once and retry exactly once.
+            // 401: refresh once and retry exactly once.
             if status.as_u16() == 401 && !refreshed_once {
                 refreshed_once = true;
                 let f = refresh_slot.take().ok_or_else(|| {
@@ -178,69 +200,15 @@ impl HttpClient {
                 continue;
             }
 
-            if status.as_u16() == 401 {
-                return Err(ConnectorError::Unauthorized {
-                    provider: self.provider_id,
-                });
-            }
-
-            // 429 — honour Retry-After up to MAX_BACKOFF, then retry.
-            if status.as_u16() == 429 {
-                if attempt >= MAX_RETRIES {
-                    return Err(ConnectorError::RateLimited {
-                        provider: self.provider_id,
-                        retries: attempt,
-                    });
+            match self.classify_response(&response, attempt) {
+                ResponseAction::Return => return Ok(response),
+                ResponseAction::Fail(err) => return Err(err),
+                ResponseAction::FailUpstream => return Err(self.upstream_error(response).await),
+                ResponseAction::Retry(wait) => {
+                    tokio::time::sleep(wait).await;
+                    continue;
                 }
-                let wait = retry_after_or_backoff(response.headers(), attempt);
-                tracing::warn!(
-                    provider = %self.provider_id,
-                    attempt,
-                    wait_ms = wait.as_millis() as u64,
-                    "connector.http.rate_limited.retrying"
-                );
-                tokio::time::sleep(wait).await;
-                continue;
             }
-
-            // 5xx — exponential backoff, retry.
-            if status.is_server_error() {
-                if attempt >= MAX_RETRIES {
-                    let raw = response
-                        .text()
-                        .await
-                        .unwrap_or_else(|_| "<unreadable>".into());
-                    return Err(ConnectorError::Upstream {
-                        provider: self.provider_id,
-                        status: status.as_u16(),
-                        body: extract_error_message(&raw),
-                    });
-                }
-                let wait = exponential_backoff(attempt);
-                tracing::warn!(
-                    provider = %self.provider_id,
-                    attempt,
-                    status = status.as_u16(),
-                    wait_ms = wait.as_millis() as u64,
-                    "connector.http.server_error.retrying"
-                );
-                tokio::time::sleep(wait).await;
-                continue;
-            }
-
-            if !status.is_success() {
-                let raw = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "<unreadable>".into());
-                return Err(ConnectorError::Upstream {
-                    provider: self.provider_id,
-                    status: status.as_u16(),
-                    body: extract_error_message(&raw),
-                });
-            }
-
-            return Ok(response);
         }
 
         Err(ConnectorError::RateLimited {
@@ -262,13 +230,119 @@ impl HttpClient {
         B: serde::Serialize + ?Sized,
         T: DeserializeOwned,
     {
-        self.json_request(method, url, body, bearer, || async move {
-            Err(ConnectorError::Unauthorized {
-                provider: self.provider_id,
-            })
-        })
+        self.json_request(
+            JsonRequest { method, url, body },
+            bearer,
+            || async move {
+                Err(ConnectorError::Unauthorized {
+                    provider: self.provider_id,
+                })
+            },
+        )
         .await
     }
+
+    /// Decide what to do after a request failed to even produce a response.
+    ///
+    /// Returns `None` when the caller should back off and retry the attempt,
+    /// or `Some(err)` when the error is terminal.
+    async fn on_network_error(
+        &self,
+        e: reqwest::Error,
+        attempt: u32,
+    ) -> Option<ConnectorError> {
+        if attempt < MAX_RETRIES && (e.is_connect() || e.is_timeout()) {
+            let backoff = exponential_backoff(attempt);
+            tracing::warn!(
+                provider = %self.provider_id,
+                attempt,
+                err = %e,
+                "connector.http.network_error.retrying"
+            );
+            tokio::time::sleep(backoff).await;
+            return None;
+        }
+        Some(ConnectorError::Network(e.to_string()))
+    }
+
+    /// Classify a received response (after the 401-refresh branch) into the
+    /// next action: succeed, retry after a wait, or fail.
+    fn classify_response(&self, response: &Response, attempt: u32) -> ResponseAction {
+        let status = response.status();
+
+        if status.as_u16() == 401 {
+            return ResponseAction::Fail(ConnectorError::Unauthorized {
+                provider: self.provider_id,
+            });
+        }
+
+        // 429: honour Retry-After up to MAX_BACKOFF, then retry.
+        if status.as_u16() == 429 {
+            if attempt >= MAX_RETRIES {
+                return ResponseAction::Fail(ConnectorError::RateLimited {
+                    provider: self.provider_id,
+                    retries: attempt,
+                });
+            }
+            let wait = retry_after_or_backoff(response.headers(), attempt);
+            tracing::warn!(
+                provider = %self.provider_id,
+                attempt,
+                wait_ms = wait.as_millis() as u64,
+                "connector.http.rate_limited.retrying"
+            );
+            return ResponseAction::Retry(wait);
+        }
+
+        // 5xx: exponential backoff, retry.
+        if status.is_server_error() {
+            if attempt >= MAX_RETRIES {
+                return ResponseAction::FailUpstream;
+            }
+            let wait = exponential_backoff(attempt);
+            tracing::warn!(
+                provider = %self.provider_id,
+                attempt,
+                status = status.as_u16(),
+                wait_ms = wait.as_millis() as u64,
+                "connector.http.server_error.retrying"
+            );
+            return ResponseAction::Retry(wait);
+        }
+
+        if !status.is_success() {
+            return ResponseAction::FailUpstream;
+        }
+
+        ResponseAction::Return
+    }
+
+    /// Build an [`ConnectorError::Upstream`] from a non-success response,
+    /// reading its body for the surfaced error message.
+    async fn upstream_error(&self, response: Response) -> ConnectorError {
+        let status = response.status();
+        let raw = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "<unreadable>".into());
+        ConnectorError::Upstream {
+            provider: self.provider_id,
+            status: status.as_u16(),
+            body: extract_error_message(&raw),
+        }
+    }
+}
+
+/// Outcome of classifying a received HTTP response in the retry loop.
+enum ResponseAction {
+    /// The response is successful: return it to the caller.
+    Return,
+    /// Terminal error that doesn't need the response body.
+    Fail(ConnectorError),
+    /// Terminal error built from the response body (`Upstream`).
+    FailUpstream,
+    /// Retry after sleeping for the given duration.
+    Retry(Duration),
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -515,7 +589,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_send_with_retries_typed_overrides_content_type() {
+    async fn test_send_overrides_content_type() {
         // GIVEN a server that asserts Content-Type: text/plain
         let server = MockServer::start().await;
         Mock::given(method("PATCH"))
@@ -530,11 +604,13 @@ mod tests {
         let url = format!("{}/upload", server.uri());
 
         let _ = client
-            .send_with_retries_typed(
-                Method::PATCH,
-                &url,
-                Some(b"hello".to_vec()),
-                Some("text/plain"),
+            .send(
+                RawRequest {
+                    method: Method::PATCH,
+                    url: &url,
+                    body: Some(b"hello".to_vec()),
+                    content_type: Some("text/plain"),
+                },
                 "tok",
                 || async { Ok::<_, ConnectorError>("never".into()) },
             )

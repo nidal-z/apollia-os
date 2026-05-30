@@ -1,11 +1,12 @@
-//! Commandes IPC Tauri pour le Human-in-the-Loop (HITL).
+//! Tauri IPC commands for Human-in-the-Loop (HITL).
 //!
-//! `list_pending_approvals` croise les données de `PendingApprovals` (tâches en
-//! attente en mémoire) avec `TaskRepository` (détails SQLite : prompt, contexte,
-//! timestamp).
+//! `list_pending_approvals` cross-references data from `PendingApprovals`
+//! (in-memory pending tasks) with `TaskRepository` (SQLite details: prompt,
+//! context, timestamp).
 //!
-//! `resume_task` délègue à l'API REST `POST /api/v1/tasks/{id}/resume` qui gère
-//! la persistance, l'émission d'événements et la résolution du oneshot channel.
+//! `resume_task` delegates to the REST API `POST /api/v1/tasks/{id}/resume`,
+//! which handles persistence, event emission, and resolution of the oneshot
+//! channel.
 
 use apollia_runtime::chat::{AlwaysAcceptScope, FsHitlDecision};
 use apollia_runtime::embedded::RuntimeHandle;
@@ -14,56 +15,56 @@ use tauri::State;
 
 use super::http_post_json;
 
-/// Décision filesystem sérialisée depuis le frontend.
+/// Filesystem decision serialized from the frontend.
 ///
-/// Correspond à [`FsHitlDecision`] côté Rust. Le discriminant `decision` est
-/// exprimé en snake_case ; le scope d'un "always accept" est un champ séparé
-/// (`scope`) pour rester rétro-compatible avec les builds antérieurs qui
-/// n'envoyaient que `op`+`level`.
+/// Corresponds to [`FsHitlDecision`] on the Rust side. The `decision`
+/// discriminant is expressed in snake_case; the scope of an "always accept" is
+/// a separate field (`scope`) to stay backward-compatible with earlier builds
+/// that only sent `op`+`level`.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "decision", rename_all = "snake_case")]
 pub enum HitlFilesystemDecisionInput {
-    /// L'utilisateur approuve l'opération pour cette invocation.
+    /// The user approves the operation for this invocation.
     Approve,
-    /// L'utilisateur refuse — l'opération est annulée.
-    /// `reason` est requis côté frontend quand le manifest outil le demande ;
-    /// il est transmis à l'agent via `FsHitlDecision::Deny { reason }`.
+    /// The user denies; the operation is cancelled.
+    /// `reason` is required on the frontend when the tool manifest asks for it;
+    /// it is forwarded to the agent via `FsHitlDecision::Deny { reason }`.
     Deny {
-        /// Raison textuelle saisie par l'opérateur (optionnelle).
+        /// Free-text reason entered by the operator (optional).
         #[serde(default)]
         reason: Option<String>,
     },
-    /// L'utilisateur approuve **et** installe une règle « toujours accepter ».
-    /// Le scope précise la portée ; par défaut (`None` côté JS) on applique
+    /// The user approves **and** installs an "always accept" rule.
+    /// The scope sets the breadth; by default (`None` on the JS side) we apply
     /// [`AlwaysAcceptScope::ThisSession`].
     AlwaysAllow {
-        /// Opération filesystem (ex. `"write"`).
+        /// Filesystem operation (e.g. `"write"`).
         op: String,
-        /// Niveau de risque (ex. `"medium"`).
+        /// Risk level (e.g. `"medium"`).
         level: String,
-        /// Scope du "always accept". Absent ⇒ session uniquement.
+        /// Scope of the "always accept". Absent means session only.
         #[serde(default)]
         scope: Option<AlwaysAcceptScope>,
     },
-    /// Legacy variant kept for older frontends — equivalent to `AlwaysAllow`
+    /// Legacy variant kept for older frontends, equivalent to `AlwaysAllow`
     /// with `scope = ThisSession`.
     AlwaysAllowSession {
-        /// Opération filesystem (ex. `"write"`).
+        /// Filesystem operation (e.g. `"write"`).
         op: String,
-        /// Niveau de risque (ex. `"medium"`).
+        /// Risk level (e.g. `"medium"`).
         level: String,
     },
 }
 
-/// Résout une demande d'approbation filesystem HITL émise par `HitlFilesystemRequired`.
+/// Resolves a filesystem HITL approval request emitted by `HitlFilesystemRequired`.
 ///
-/// Le frontend appelle cette commande après que l'utilisateur a cliqué sur
-/// Approuver / Refuser / Toujours autoriser dans le modal HITL.
+/// The frontend calls this command after the user clicks Approve / Deny /
+/// Always allow in the HITL modal.
 ///
 /// # Errors
 ///
-/// Retourne une erreur si le gestionnaire de chat n'est pas disponible ou si
-/// `request_id` est inconnu (déjà résolu ou expiré).
+/// Returns an error if the chat manager is unavailable or if `request_id` is
+/// unknown (already resolved or expired).
 #[tauri::command]
 pub async fn respond_hitl_filesystem(
     state: State<'_, RuntimeHandle>,
@@ -100,26 +101,26 @@ pub async fn respond_hitl_filesystem(
         .map_err(|e| e.to_string())
 }
 
-/// Approbation en attente pour l'affichage dans l'UI.
+/// Pending approval for display in the UI.
 #[derive(Debug, Serialize)]
 pub struct PendingApproval {
-    /// Identifiant de la tâche suspendue.
+    /// Identifier of the suspended task.
     pub task_id: String,
-    /// Nom de l'agent qui a demandé l'approbation.
+    /// Name of the agent that requested the approval.
     pub agent_name: String,
-    /// Prompt affiché à l'utilisateur.
+    /// Prompt shown to the user.
     pub prompt: String,
-    /// Contexte additionnel optionnel.
+    /// Optional additional context.
     pub context: Option<serde_json::Value>,
-    /// Timestamp de la suspension ISO8601.
+    /// ISO8601 suspension timestamp.
     pub suspended_at: String,
 }
 
-/// Liste les approbations HITL en attente.
+/// Lists the pending HITL approvals.
 ///
-/// Récupère les `task_id` depuis `PendingApprovals` (état en mémoire),
-/// puis enrichit chaque entrée avec les détails de `TaskRepository` (SQLite)
-/// si disponible. Retourne une liste vide si HITL n'est pas configuré.
+/// Reads the `task_id`s from `PendingApprovals` (in-memory state), then
+/// enriches each entry with details from `TaskRepository` (SQLite) when
+/// available. Returns an empty list if HITL is not configured.
 #[tauri::command]
 pub async fn list_pending_approvals(
     state: State<'_, RuntimeHandle>,
@@ -148,8 +149,8 @@ pub async fn list_pending_approvals(
                         suspended_at: info.suspended_at,
                     },
                     _ => {
-                        // TaskRepository ne contient pas d'info pour cette tâche,
-                        // on retourne une entrée avec les champs minimaux.
+                        // TaskRepository has no info for this task,
+                        // so return an entry with minimal fields.
                         PendingApproval {
                             task_id,
                             agent_name: String::new(),
@@ -175,20 +176,20 @@ pub async fn list_pending_approvals(
     Ok(approvals)
 }
 
-/// Reprend ou rejette une tâche en attente d'approbation.
+/// Resumes or rejects a task awaiting approval.
 ///
-/// Délègue à `POST /api/v1/tasks/{id}/resume` qui gère :
-/// - la validation du statut `input_required` dans `TaskRepository`
-/// - la persistance de la décision humaine
-/// - l'émission de `RuntimeEvent::TaskResumed` sur l'EventBus
-/// - la résolution du oneshot channel dans `PendingApprovals`
+/// Delegates to `POST /api/v1/tasks/{id}/resume`, which handles:
+/// - validating the `input_required` status in `TaskRepository`
+/// - persisting the human decision
+/// - emitting `RuntimeEvent::TaskResumed` on the EventBus
+/// - resolving the oneshot channel in `PendingApprovals`
 ///
 /// # Errors
 ///
-/// Retourne une erreur si :
-/// - `approved == false` et `reason` est `None`
-/// - la tâche n'est pas en status `input_required` (409)
-/// - la tâche n'existe pas (404)
+/// Returns an error if:
+/// - `approved == false` and `reason` is `None`
+/// - the task is not in `input_required` status (409)
+/// - the task does not exist (404)
 #[tauri::command]
 pub async fn resume_task(
     state: State<'_, RuntimeHandle>,
@@ -211,27 +212,27 @@ pub async fn resume_task(
     Ok(())
 }
 
-/// Approbation résolue (approuvée ou rejetée) pour l'affichage dans l'historique UI.
+/// Resolved approval (approved or rejected) for display in the UI history.
 #[derive(Debug, Serialize)]
 pub struct ResolvedApproval {
-    /// Identifiant de la tâche (tronqué à 8 caractères côté UI).
+    /// Task identifier (truncated to 8 characters on the UI side).
     pub task_id: String,
-    /// Nom de l'agent.
+    /// Agent name.
     pub agent_name: String,
-    /// `true` si approuvée, `false` si rejetée.
+    /// `true` if approved, `false` if rejected.
     pub approved: bool,
-    /// Raison du rejet (si applicable).
+    /// Rejection reason (if applicable).
     pub reason: Option<String>,
-    /// Durée d'attente en millisecondes.
+    /// Wait duration in milliseconds.
     pub wait_duration_ms: Option<i64>,
-    /// Timestamp ISO 8601 de la réponse.
+    /// ISO 8601 timestamp of the response.
     pub responded_at: Option<String>,
 }
 
-/// Liste les approbations résolues des derniers `days` jours (max `limit`).
+/// Lists the resolved approvals from the last `days` days (max `limit`).
 ///
-/// Lit la table `task_approvals` via `TaskRepository::list_resolved_approvals()`.
-/// Retourne une liste vide si `TaskRepository` n'est pas disponible.
+/// Reads the `task_approvals` table via `TaskRepository::list_resolved_approvals()`.
+/// Returns an empty list if `TaskRepository` is unavailable.
 #[tauri::command]
 pub async fn list_resolved_approvals(
     state: State<'_, RuntimeHandle>,
@@ -266,24 +267,23 @@ pub async fn list_resolved_approvals(
     Ok(approvals)
 }
 
-/// Ajoute une règle de préfixe dont la portée est choisie par l'opérateur.
+/// Adds a prefix rule whose scope is chosen by the operator.
 ///
-/// Appelé par les boutons « Toujours autoriser » des composants HITL desktop.
-/// Deux portées sont supportées (le scope `session` a été retiré : il vivait
-/// uniquement dans le processus desktop et n'était jamais consulté par le
-/// `PermissionEngine` du runtime) :
+/// Called by the "Always allow" buttons of the desktop HITL components. Two
+/// scopes are supported (the `session` scope was removed: it lived only in the
+/// desktop process and was never consulted by the runtime's `PermissionEngine`):
 ///
-/// - `"project"` — règle persistée dans `governance.db` avec son
-///   `project_path` canonicalisé. `project_path` est requis dans ce mode.
-/// - `"global"` — règle persistée pour tous les projets.
+/// - `"project"`: rule persisted in `governance.db` with its canonicalized
+///   `project_path`. `project_path` is required in this mode.
+/// - `"global"`: rule persisted for all projects.
 ///
 /// # Errors
 ///
-/// Retourne une erreur si :
-/// - `tool_name`, `action`, ou `scope` sont invalides ;
-/// - `scope = "project"` mais `project_path` est absent ;
-/// - la variable `HOME` est absente ;
-/// - la base SQLite ne peut pas être ouverte ou écrite.
+/// Returns an error if:
+/// - `tool_name`, `action`, or `scope` are invalid;
+/// - `scope = "project"` but `project_path` is absent;
+/// - the `HOME` variable is absent;
+/// - the SQLite database cannot be opened or written.
 #[tauri::command]
 pub async fn add_permission_prefix_rule(
     tool_name: String,

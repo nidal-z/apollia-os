@@ -57,21 +57,21 @@ export class TokenBufferStore {
     const expiredChanged = this.evictExpired(now);
 
     const existing = this.map.get(sessionId);
-    if (existing !== undefined) {
+    if (existing === undefined) {
+      this.map.set(sessionId, { text: token, lastAccess: now });
+      while (this.map.size > MAX_BUFFERS) {
+        const oldestKey = this.map.keys().next().value;
+        if (oldestKey === undefined) break;
+        this.map.delete(oldestKey);
+        this.streaming.delete(oldestKey);
+      }
+    } else {
       // Re-insert to move to tail of insertion order (LRU = head).
       this.map.delete(sessionId);
       this.map.set(sessionId, {
         text: existing.text + token,
         lastAccess: now,
       });
-    } else {
-      this.map.set(sessionId, { text: token, lastAccess: now });
-      while (this.map.size > MAX_BUFFERS) {
-        const oldestKey = this.map.keys().next().value as string | undefined;
-        if (oldestKey === undefined) break;
-        this.map.delete(oldestKey);
-        this.streaming.delete(oldestKey);
-      }
     }
 
     const streamingChanged = !this.streaming.has(sessionId);

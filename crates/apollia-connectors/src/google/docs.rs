@@ -1,4 +1,4 @@
-//! Google Docs API client — non-sensitive scope (`documents`).
+//! Google Docs API client, non-sensitive scope (`documents`).
 //!
 //! Per-resource gated: agent can read+write docs it created or that the
 //! user opened with Apollia (via Picker). No CASA needed.
@@ -6,7 +6,10 @@
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest},
+};
 
 const BASE: &str = "https://docs.googleapis.com/v1/documents";
 
@@ -16,7 +19,7 @@ const BASE: &str = "https://docs.googleapis.com/v1/documents";
 pub struct DocumentMeta {
     pub document_id: String,
     pub title: String,
-    /// Full body content tree — kept as raw JSON because the schema is
+    /// Full body content tree, kept as raw JSON because the schema is
     /// huge (structural elements, paragraphs, tables, etc.). Agents call
     /// `read_plain_text` for the flattened version.
     #[serde(default)]
@@ -48,7 +51,15 @@ impl DocsClient {
     {
         let body = serde_json::json!({ "title": title });
         self.http
-            .json_request(Method::POST, BASE, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: BASE,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
@@ -84,7 +95,7 @@ impl DocsClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        // `endOfSegmentLocation` inserts at the very end of the body —
+        // `endOfSegmentLocation` inserts at the very end of the body,
         // simplest pattern, no need to compute the current length.
         let url = format!("{BASE}/{document_id}:batchUpdate");
         let body = serde_json::json!({
@@ -96,14 +107,22 @@ impl DocsClient {
             }]
         });
         self.http
-            .json_request(Method::POST, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 }
 
 /// Best-effort flattening of the Docs body tree to plain text. Walks
 /// `content[].paragraph.elements[].textRun.content` and concatenates.
-/// Ignores tables, images, etc. — agents needing structure can fetch the
+/// Ignores tables, images, etc. Agents needing structure can fetch the
 /// raw JSON via the underlying API.
 fn flatten_body(body: &serde_json::Value) -> Option<String> {
     let content = body.get("content")?.as_array()?;

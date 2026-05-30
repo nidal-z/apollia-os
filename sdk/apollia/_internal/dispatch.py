@@ -64,6 +64,28 @@ def extract_task_skill_id(task: dict[str, Any]) -> str | None:
     return None
 
 
+def _data_part_payload(part: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the ``data`` dict of a ``DataPart``, or ``None``."""
+    if part.get("type") != "data":
+        return None
+    data = part.get("data")
+    return data if isinstance(data, dict) else None
+
+
+def _text_part_payload(part: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the parsed JSON object from a ``TextPart``, or ``None``."""
+    if part.get("type") != "text":
+        return None
+    text = part.get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        return None
+    try:
+        decoded = json.loads(text)
+    except ValueError:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
 def extract_task_payload(task: dict[str, Any]) -> dict[str, Any]:
     """Extract the structured A2A payload from a task.
 
@@ -83,23 +105,14 @@ def extract_task_payload(task: dict[str, Any]) -> dict[str, Any]:
     for part in parts:
         if not isinstance(part, dict):
             continue
-        ptype = part.get("type")
-        if ptype == "data":
-            data = part.get("data")
-            if isinstance(data, dict):
-                return data
-        elif ptype == "text" and text_fallback is None:
-            text = part.get("text", "")
-            if isinstance(text, str) and text.strip():
-                try:
-                    decoded = json.loads(text)
-                except (json.JSONDecodeError, ValueError):
-                    decoded = None
-                if isinstance(decoded, dict):
-                    text_fallback = decoded
-    if text_fallback is not None:
-        return text_fallback
-    return {}
+        data_payload = _data_part_payload(part)
+        if data_payload is not None:
+            return data_payload
+        if text_fallback is None:
+            text_payload = _text_part_payload(part)
+            if text_payload is not None:
+                text_fallback = text_payload
+    return text_fallback if text_fallback is not None else {}
 
 
 # ──────────────────────────────────────────────────────────────────────

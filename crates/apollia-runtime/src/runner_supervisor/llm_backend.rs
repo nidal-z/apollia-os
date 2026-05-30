@@ -1,7 +1,5 @@
-//! `RunnerLlmBackend` : adapte `CompletionModel` (apollia-llm) sur le
+//! `RunnerLlmBackend`: adapts `CompletionModel` (apollia-llm) onto the
 //! [`RunnerProxy`] via HTTP/JSON IPC.
-//!
-//! Cf. ADR-113 §4 (lifecycle) et IPC-PROTOCOL §3.4-3.6.
 
 use std::pin::Pin;
 use std::sync::Arc;
@@ -17,16 +15,16 @@ use serde_json::Value;
 
 use super::proxy::RunnerProxy;
 
-/// Backend `CompletionModel` qui route les appels vers le runner sidecar.
+/// `CompletionModel` backend that routes calls to the runner sidecar.
 ///
-/// Instancié par le `Supervisor` au boot quand un `LlmBackendConfig` de
-/// provider `LlamaCpp` est trouvé en DB ET qu'un runner est dispo.
+/// Instantiated by the `Supervisor` at boot when a `LlamaCpp` provider
+/// `LlmBackendConfig` is found in the DB AND a runner is available.
 pub struct RunnerLlmBackend {
     proxy: RunnerProxy,
     backend_name: String,
     model_id: String,
     model_path: String,
-    /// True après le premier `load_model` réussi côté runner.
+    /// True after the first successful `load_model` on the runner.
     loaded: std::sync::Mutex<bool>,
 }
 
@@ -46,7 +44,7 @@ impl RunnerLlmBackend {
         })
     }
 
-    /// Charge le modèle côté runner si pas déjà fait. Idempotent.
+    /// Load the model on the runner if not already done. Idempotent.
     async fn ensure_loaded(&self) -> Result<(), LlmError> {
         {
             let guard = self.loaded.lock().unwrap();
@@ -85,8 +83,8 @@ impl RunnerLlmBackend {
                     Role::System => "system",
                     Role::User => "user",
                     Role::Assistant => "assistant",
-                    // Tool results : pas encore plombés via IPC (limitation Phase 2),
-                    // sérialiser en message user avec le contenu textuel.
+                    // Tool results: not yet wired through IPC (Phase 2 limitation),
+                    // serialize as a user message with the textual content.
                     Role::Tool => "user",
                 };
                 let content = match &m.content {
@@ -173,9 +171,9 @@ impl CompletionModel for RunnerLlmBackend {
         &self,
         req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        // Phase 3 minimal : déléguer à complete(), retourner le texte en un
-        // seul chunk. Le vrai streaming SSE sera plombé en finalisation
-        // (parser le flux text/event-stream et ré-émettre des StreamChunk::Text).
+        // Minimal: delegate to complete() and return the text as a single
+        // chunk. Real SSE streaming is wired up later (parse the
+        // text/event-stream and re-emit StreamChunk::Text).
         let resp = self.complete(req).await?;
         let chunk = StreamChunk::Text(resp.content);
         let stream = futures::stream::once(async move { Ok(chunk) });

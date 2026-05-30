@@ -1,4 +1,4 @@
-//! `web_read` tool — fetch a URL and return the readable article text.
+//! `web_read` tool: fetch a URL and return the readable article text.
 //!
 //! Complements `web_search`: the agent searches, picks promising URLs from the
 //! snippets, then calls `web_read` on each to obtain the full content.
@@ -28,14 +28,14 @@ pub use error::WebReadError;
 use crate::descriptor::{ToolDescriptor, ToolKind};
 
 /// Default pre-extraction body cap. Articles routinely include images that push
-/// a page well past `http_fetch`'s 1 MB ceiling — we allow 5 MB so image-heavy
+/// a page well past `http_fetch`'s 1 MB ceiling, so we allow 5 MB so image-heavy
 /// long-form stays readable.
 const MAX_BODY_BYTES: usize = 5 * 1024 * 1024;
 
 /// Fixed request timeout. Not an LLM knob on purpose (one fewer footgun).
 const REQUEST_TIMEOUT_SECS: u64 = 20;
 
-/// Follow no more than 5 redirects — tighter than reqwest's default of 10.
+/// Follow no more than 5 redirects, tighter than reqwest's default of 10.
 const MAX_REDIRECTS: usize = 5;
 
 /// Default and maximum values for `max_chars`.
@@ -46,7 +46,7 @@ const MIN_MAX_CHARS: usize = 500;
 /// Minimum extracted length before we upgrade `Ok(empty)` to [`WebReadError::EmptyContent`].
 const MIN_EXTRACTED_CHARS: usize = 100;
 
-/// UA mirrors the DDG backend — browser-like, rotated annually.
+/// UA mirrors the DDG backend: browser-like, rotated annually.
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
 
 /// Input for [`WebRead::run`].
@@ -60,7 +60,7 @@ pub struct WebReadInput {
     /// Include title/byline in the output. Defaults to `true`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub include_metadata: Option<bool>,
-    /// Currently unused — reserved for a future "image reference stripper".
+    /// Currently unused, reserved for a future "image reference stripper".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strip_images: Option<bool>,
 }

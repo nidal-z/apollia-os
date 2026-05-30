@@ -1,4 +1,4 @@
-//! `persistent_bash` — stateful shell executor.
+//! `persistent_bash`: stateful shell executor.
 //!
 //! Maintains one `/bin/sh -l` process per `session_id`. The working directory and
 //! exported variables persist across successive ORIA steps, enabling patterns like
@@ -7,9 +7,9 @@
 //! # Architecture
 //!
 //! ```text
-//! PersistentBashExecutor   (implements ToolExecutor — is_read_only = false)
-//!   └── ShellSessionRegistry  (Arc — one registry per executor instance)
-//!         └── ShellSession    (Arc<Mutex<>> — one /bin/sh -l per session_id)
+//! PersistentBashExecutor   (implements ToolExecutor, is_read_only = false)
+//!   └── ShellSessionRegistry  (Arc, one registry per executor instance)
+//!         └── ShellSession    (Arc<Mutex<>>, one /bin/sh -l per session_id)
 //! ```
 
 pub mod registry;
@@ -29,7 +29,7 @@ use crate::executor::{ToolExecutionError, ToolExecutor};
 use self::registry::ShellSessionRegistry;
 use self::session::{PersistentBashError, SessionId, ShellOutput};
 
-/// Stateful shell executor — executes commands in a long-lived `/bin/sh -l` process.
+/// Stateful shell executor: executes commands in a long-lived `/bin/sh -l` process.
 ///
 /// A `PersistentBashExecutor` wraps a [`ShellSessionRegistry`] and implements
 /// [`ToolExecutor`]. The registry is shared via `Arc` so a single executor instance
@@ -143,7 +143,7 @@ impl ToolExecutor for PersistentBashExecutor {
         "persistent_bash"
     }
 
-    /// Returns `false` — this tool mutates external state and is never parallelised.
+    /// Returns `false`: this tool mutates external state and is never parallelised.
     fn is_read_only(&self) -> bool {
         false
     }

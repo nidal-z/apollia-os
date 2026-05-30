@@ -1,4 +1,4 @@
-//! `apollia-os agent` subcommands — manage agents via the runtime API and local persistence.
+//! `apollia-os agent` subcommands: manage agents via the runtime API and local persistence.
 //!
 //! Provides `list`, `start`, `stop`, `info` (runtime-dependent) and
 //! `install`, `uninstall`, `enable`, `disable`, `update` (local).
@@ -70,7 +70,7 @@ pub enum AgentCommand {
         /// Local path to a Python module or a Git URL (with optional #tag).
         source: String,
 
-        /// Skip the agent test suite (not recommended — reduces validation coverage).
+        /// Skip the agent test suite (not recommended, reduces validation coverage).
         #[arg(long)]
         skip_tests: bool,
     },
@@ -198,11 +198,11 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet:
 // Existing commands (list/start/stop/info)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent list` — display all agents (installed + runtime).
+/// `apollia-os agent list`: display all agents (installed + runtime).
 ///
 /// When `supports_a2a` is `true`, fetches from `/api/v1/a2a/agents` instead
 /// and displays only A2A-capable agents with their skill descriptors.
-/// When `quiet` is `true`, only agent names are printed — one per line.
+/// When `quiet` is `true`, only agent names are printed, one per line.
 async fn run_list(client: &RuntimeClient, supports_a2a: bool, json: bool, quiet: bool) -> i32 {
     if supports_a2a {
         return run_list_a2a(client, json).await;
@@ -234,7 +234,7 @@ async fn run_list(client: &RuntimeClient, supports_a2a: bool, json: bool, quiet:
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent list --supports-a2a` — display A2A-capable agents with skills.
+/// `apollia-os agent list --supports-a2a`: display A2A-capable agents with skills.
 async fn run_list_a2a(client: &RuntimeClient, json: bool) -> i32 {
     match client.list_a2a_agents().await {
         Ok(resp) => {
@@ -299,7 +299,7 @@ fn format_a2a_agent_list(resp: &serde_json::Value) {
     }
 }
 
-/// `apollia-os agent start <path-or-name>` — register / re-load an agent.
+/// `apollia-os agent start <path-or-name>`: register / re-load an agent.
 ///
 /// Accepts either a filesystem path to a `.py` (legacy mode for ad-hoc
 /// agents) or the **name** of an already installed agent. In the latter case
@@ -352,7 +352,7 @@ fn looks_like_file_path(arg: &str) -> bool {
     arg.contains('/') || arg.contains('\\') || arg.ends_with(".py")
 }
 
-/// `apollia-os agent stop <id>` — stop a running agent.
+/// `apollia-os agent stop <id>`: stop a running agent.
 async fn run_stop(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
     if looks_like_file_path(agent_id) {
         let msg = format!(
@@ -382,19 +382,14 @@ async fn run_stop(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os agent info <id>` — display agent detail.
+/// `apollia-os agent info <id>`: display agent detail.
 async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
     if looks_like_file_path(agent_id) {
         let msg = format!(
             "'{agent_id}' looks like a file path — use the agent name or UUID instead\n\
              Hint: apollia-os agent info <name|uuid>  (e.g. apollia-os agent info apollia-reviewer)"
         );
-        if json {
-            println!("{}", serde_json::json!({"error": msg}));
-        } else {
-            eprintln!("Error: {msg}");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return print_compact_error_and_exit(&msg, json);
     }
     match client.get_agent(agent_id).await {
         Ok(resp) => {
@@ -412,90 +407,85 @@ async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
         // registry but still present in `agents.db`. Fall back to the local
         // repository so `apollia-os agent info` works on every installed
         // agent regardless of its runtime state.
-        Err(ClientError::ServerError { status: 404, .. }) => match local_agent_detail(agent_id) {
-            Some(detail) => {
-                if json {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&detail).unwrap_or_default()
-                    );
-                } else {
-                    format_local_agent_detail(&detail);
-                }
-                exit_codes::SUCCESS
-            }
-            None => {
-                let msg = format!("agent not found: {agent_id}");
-                if json {
-                    println!("{}", serde_json::json!({"error": msg}));
-                } else {
-                    eprintln!("Error: {msg}");
-                }
-                exit_codes::GENERAL_ERROR
-            }
-        },
+        Err(ClientError::ServerError { status: 404, .. }) => run_info_local_fallback(agent_id, json),
         Err(e) => handle_error(e, json),
     }
 }
 
-/// `apollia-os agent status <id>` — compact runtime-status snapshot.
-async fn run_status(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
-    match client.get_agent(agent_id).await {
-        Ok(resp) => {
-            let name = resp.get("name").and_then(|v| v.as_str()).unwrap_or(agent_id);
-            let state = resp.get("state").and_then(|v| v.as_str()).unwrap_or("unknown");
-            let started_at = resp.get("started_at").and_then(|v| v.as_str());
-            let last_activity = resp
-                .get("last_activity_at")
-                .and_then(|v| v.as_str());
-            let active_tasks = resp.get("active_tasks").and_then(|v| v.as_u64()).unwrap_or(0);
-            let completed_tasks = resp
-                .get("completed_tasks")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+/// Render `agent info` from the local `agents.db` row when the runtime
+/// registry returns 404 (e.g. disabled or not-yet-loaded agents).
+fn run_info_local_fallback(agent_id: &str, json: bool) -> i32 {
+    match local_agent_detail(agent_id) {
+        Some(detail) => {
             if json {
-                let body = serde_json::json!({
-                    "agent": name,
-                    "state": state,
-                    "active_tasks": active_tasks,
-                    "completed_tasks": completed_tasks,
-                    "started_at": started_at,
-                    "last_activity_at": last_activity,
-                });
-                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&detail).unwrap_or_default()
+                );
             } else {
-                let glyph = match state {
-                    "active" | "idle" | "ready" => "*",
-                    "error" | "failed" => "x",
-                    _ => "?",
-                };
-                println!("  {glyph} {name}");
-                println!("    state          : {state}");
-                println!("    active tasks   : {active_tasks}");
-                println!("    completed tasks: {completed_tasks}");
-                if let Some(s) = started_at {
-                    println!("    started at     : {s}");
-                }
-                if let Some(s) = last_activity {
-                    println!("    last activity  : {s}");
-                }
+                format_local_agent_detail(&detail);
             }
             exit_codes::SUCCESS
         }
+        None => print_compact_error_and_exit(&format!("agent not found: {agent_id}"), json),
+    }
+}
+
+/// `apollia-os agent status <id>`: compact runtime-status snapshot.
+async fn run_status(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
+    match client.get_agent(agent_id).await {
+        Ok(resp) => {
+            format_status_snapshot(&resp, agent_id, json);
+            exit_codes::SUCCESS
+        }
         Err(ClientError::ServerError { status: 404, .. }) => {
-            let msg = format!("agent not found: {agent_id}");
-            if json {
-                println!("{}", serde_json::json!({ "error": msg }));
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            exit_codes::GENERAL_ERROR
+            print_compact_error_and_exit(&format!("agent not found: {agent_id}"), json)
         }
         Err(e) => handle_error(e, json),
     }
 }
 
-/// `apollia-os agent messages <id>` — list in-memory A2A messages.
+/// Render the compact runtime-status snapshot produced by `agent status`.
+fn format_status_snapshot(resp: &serde_json::Value, agent_id: &str, json: bool) {
+    let name = resp.get("name").and_then(|v| v.as_str()).unwrap_or(agent_id);
+    let state = resp.get("state").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let started_at = resp.get("started_at").and_then(|v| v.as_str());
+    let last_activity = resp.get("last_activity_at").and_then(|v| v.as_str());
+    let active_tasks = resp.get("active_tasks").and_then(|v| v.as_u64()).unwrap_or(0);
+    let completed_tasks = resp
+        .get("completed_tasks")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    if json {
+        let body = serde_json::json!({
+            "agent": name,
+            "state": state,
+            "active_tasks": active_tasks,
+            "completed_tasks": completed_tasks,
+            "started_at": started_at,
+            "last_activity_at": last_activity,
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        return;
+    }
+    let glyph = match state {
+        "active" | "idle" | "ready" => "*",
+        "error" | "failed" => "x",
+        _ => "?",
+    };
+    println!("  {glyph} {name}");
+    println!("    state          : {state}");
+    println!("    active tasks   : {active_tasks}");
+    println!("    completed tasks: {completed_tasks}");
+    if let Some(s) = started_at {
+        println!("    started at     : {s}");
+    }
+    if let Some(s) = last_activity {
+        println!("    last activity  : {s}");
+    }
+}
+
+/// `apollia-os agent messages <id>`: list in-memory A2A messages.
 async fn run_messages(
     client: &RuntimeClient,
     agent_id: &str,
@@ -627,7 +617,7 @@ fn format_local_agent_detail(detail: &serde_json::Value) {
 // New commands (install/uninstall/enable/disable/update)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent install <source> [--skip-tests]` — install an agent permanently.
+/// `apollia-os agent install <source> [--skip-tests]`: install an agent permanently.
 ///
 /// `source` may be a local Python file path or a Git URL with an optional
 /// `#<tag>` fragment.
@@ -669,7 +659,7 @@ async fn run_install_git(
         return print_error_and_exit(&e.to_string(), json);
     }
 
-    // Create a temporary clone directory — removed when `temp` is dropped.
+    // Create a temporary clone directory, removed when `temp` is dropped.
     let temp = match registry_remote::TempInstallDir::new() {
         Ok(t) => t,
         Err(e) => return print_error_and_exit(&format!("cannot create temp dir: {e}"), json),
@@ -718,7 +708,7 @@ async fn run_install_git(
         Err(e) => return print_error_and_exit(&format!("installation failed: {e}"), json),
     };
 
-    // Check if runtime is running — informational only.
+    // Check if runtime is running (informational only).
     if client.list_agents().await.is_err() {
         eprintln!("Info: Runtime not running — agent will auto-start on next boot");
     }
@@ -851,7 +841,7 @@ async fn run_install_local(
         return print_error_and_exit(&format!("failed to save to database: {e}"), json);
     }
 
-    // Check if runtime is running — informational only.
+    // Check if runtime is running (informational only).
     let runtime_running = client.list_agents().await.is_ok();
     if !runtime_running {
         eprintln!("Info: Runtime not running — agent will auto-start on next boot");
@@ -881,7 +871,7 @@ async fn run_install_local(
 // Package commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent install <dir>` — install a multi-agent package from a folder.
+/// `apollia-os agent install <dir>`: install a multi-agent package from a folder.
 ///
 /// 1. Validates `agent.toml` + duck-types every `.py`
 /// 2. Copies the folder to `~/.apollia/agents/packages/<name>/`
@@ -897,7 +887,7 @@ async fn run_install_package(
     // Step 1: parse the manifest structure and verify each `.py` exists on
     // disk. Strict duck-typing (`load_package`) is deferred to the per-agent
     // loop below so a single broken worker (e.g. failing top-level Python
-    // import) doesn't tank the entire package install — partial installs
+    // import) doesn't tank the entire package install: partial installs
     // mark the failing agents as DEGRADED and report a summary at the end.
     let pkg = match load_manifest_only(source_path) {
         Ok(p) => p,
@@ -939,95 +929,22 @@ async fn run_install_package(
     // are reported in the final summary so the operator can fix and re-run.
     //
     // For each agent that declares pip dependencies we provision its venv
-    // *before* duck-typing — mirroring what the Supervisor does at boot —
+    // *before* duck-typing (mirroring what the Supervisor does at boot)
     // so top-level imports of declared packages resolve. Without this step
     // the validator never finds pip-installed modules (incl. the apollia
     // SDK when the agent imports it from a site-packages location).
     let now = now_rfc3339();
     let venv_base = data_dir.join("venvs");
-    let mut agent_count = 0;
-    let mut failed_agents: Vec<(String, String)> = Vec::new();
-    for entry in &pkg.agents {
-        let installed_entry_path = install_root.join(
-            entry
-                .entry
-                .strip_prefix(source_path)
-                .unwrap_or(&entry.entry),
-        );
-
-        // Read this agent's declared pip dependencies from the manifest.
-        let agent_packages: Vec<String> = pkg
-            .manifest
-            .agents
-            .iter()
-            .find(|a| a.name == entry.name)
-            .map(|a| a.packages.clone())
-            .unwrap_or_default();
-
-        if !agent_packages.is_empty() {
-            match apollia_tools::tools::python_executor::PythonExecutor::new(
-                &entry.name,
-                &venv_base,
-            ) {
-                Ok(executor) => {
-                    if let Err(e) = executor.setup_venv(&agent_packages).await {
-                        let msg = format!(
-                            "venv provisioning failed (the agent declares {} pip dep(s)): {e}",
-                            agent_packages.len()
-                        );
-                        tracing::warn!(
-                            agent = %entry.name,
-                            error = %msg,
-                            "package install: setup_venv failed, skipping agent"
-                        );
-                        failed_agents.push((entry.name.clone(), msg));
-                        continue;
-                    }
-                }
-                Err(e) => {
-                    let msg = format!("could not initialise per-agent venv: {e}");
-                    failed_agents.push((entry.name.clone(), msg));
-                    continue;
-                }
-            }
-        }
-
-        let agent_manifest = match validate_community_agent(&installed_entry_path, skip_tests).await
-        {
-            Ok(m) => m,
-            Err(e) => {
-                let msg = e.to_string();
-                tracing::warn!(
-                    agent = %entry.name,
-                    error = %msg,
-                    "package install: agent validation failed, skipping"
-                );
-                failed_agents.push((entry.name.clone(), msg));
-                continue;
-            }
-        };
-
-        let installed_agent = InstalledAgent {
-            name: entry.name.clone(),
-            version: pkg_version.clone(),
-            install_path: installed_entry_path.clone(),
-            source_path: installed_entry_path,
-            manifest: agent_manifest,
-            enabled: true,
-            installed_at: now.clone(),
-            updated_at: now.clone(),
-        };
-        if let Err(e) = agent_repo.save(&installed_agent) {
-            tracing::warn!(
-                agent = %entry.name,
-                error = %e,
-                "package install: failed to persist agent, skipping"
-            );
-            failed_agents.push((entry.name.clone(), format!("save failed: {e}")));
-            continue;
-        }
-        agent_count += 1;
-    }
+    let install_ctx = PackageInstallCtx {
+        version: &pkg_version,
+        now: &now,
+        skip_tests,
+        source_path,
+        install_root: &install_root,
+        venv_base: &venv_base,
+    };
+    let (agent_count, failed_agents) =
+        register_package_agents(&pkg, &agent_repo, &install_ctx).await;
 
     if agent_count == 0 {
         return print_error_and_exit(
@@ -1078,19 +995,44 @@ async fn run_install_package(
         eprintln!("Info: Runtime not running — agents will auto-start on next boot");
     }
 
+    let summary = InstallSummary {
+        pkg_name: &pkg_name,
+        pkg_version: &pkg_version,
+        agent_count,
+        trigger_count,
+        install_root: &install_root,
+        failed_agents: &failed_agents,
+    };
+    print_install_summary(&summary, json);
+    exit_codes::SUCCESS
+}
+
+/// Fields rendered by [`print_install_summary`].
+struct InstallSummary<'a> {
+    pkg_name: &'a str,
+    pkg_version: &'a str,
+    agent_count: u32,
+    trigger_count: usize,
+    install_root: &'a Path,
+    failed_agents: &'a [(String, String)],
+}
+
+/// Print the package install summary (JSON or human-readable form).
+fn print_install_summary(s: &InstallSummary<'_>, json: bool) {
     if json {
-        let failed_view: Vec<serde_json::Value> = failed_agents
+        let failed_view: Vec<serde_json::Value> = s
+            .failed_agents
             .iter()
             .map(|(n, r)| serde_json::json!({ "agent": n, "reason": r }))
             .collect();
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
-                "name": pkg_name,
-                "version": pkg_version,
-                "agent_count": agent_count,
-                "trigger_count": trigger_count,
-                "install_path": install_root.to_string_lossy(),
+                "name": s.pkg_name,
+                "version": s.pkg_version,
+                "agent_count": s.agent_count,
+                "trigger_count": s.trigger_count,
+                "install_path": s.install_root.to_string_lossy(),
                 "failed_agents": failed_view,
             }))
             .unwrap_or_default()
@@ -1098,23 +1040,151 @@ async fn run_install_package(
     } else {
         println!(
             "Package '{}' v{} installed: {} agents, {} triggers",
-            pkg_name, pkg_version, agent_count, trigger_count,
+            s.pkg_name, s.pkg_version, s.agent_count, s.trigger_count,
         );
-        println!("  Install path : {}", install_root.display());
-        if !failed_agents.is_empty() {
+        println!("  Install path : {}", s.install_root.display());
+        if !s.failed_agents.is_empty() {
             println!(
                 "  ! {} agent(s) skipped due to validation errors:",
-                failed_agents.len()
+                s.failed_agents.len()
             );
-            for (name, reason) in &failed_agents {
+            for (name, reason) in s.failed_agents {
                 println!("    - {name}: {reason}");
             }
         }
     }
-    exit_codes::SUCCESS
 }
 
-/// `apollia-os agent package list` — list installed packages.
+/// Register every agent declared in the package (best-effort, per agent).
+///
+/// Returns the count of successfully registered agents and the list of
+/// `(agent_name, failure_reason)` pairs for the ones that were skipped.
+async fn register_package_agents(
+    pkg: &apollia_aip::package_loader::AgentPackage,
+    agent_repo: &AgentRepository,
+    install_ctx: &PackageInstallCtx<'_>,
+) -> (u32, Vec<(String, String)>) {
+    let mut agent_count = 0;
+    let mut failed_agents: Vec<(String, String)> = Vec::new();
+    for entry in &pkg.agents {
+        let installed_entry_path = install_ctx.install_root.join(
+            entry
+                .entry
+                .strip_prefix(install_ctx.source_path)
+                .unwrap_or(&entry.entry),
+        );
+
+        // Read this agent's declared pip dependencies from the manifest.
+        let agent_packages: Vec<String> = pkg
+            .manifest
+            .agents
+            .iter()
+            .find(|a| a.name == entry.name)
+            .map(|a| a.packages.clone())
+            .unwrap_or_default();
+
+        if let Err(msg) =
+            provision_agent_venv(&entry.name, install_ctx.venv_base, &agent_packages).await
+        {
+            failed_agents.push((entry.name.clone(), msg));
+            continue;
+        }
+
+        match register_installed_agent(agent_repo, &entry.name, &installed_entry_path, install_ctx)
+            .await
+        {
+            Ok(()) => agent_count += 1,
+            Err(msg) => failed_agents.push((entry.name.clone(), msg)),
+        }
+    }
+    (agent_count, failed_agents)
+}
+
+/// Provision a per-agent venv for the declared pip packages, mirroring the
+/// Supervisor's boot behaviour so top-level imports resolve during
+/// validation. A no-op when `packages` is empty. Returns the operator-facing
+/// failure reason on error.
+async fn provision_agent_venv(
+    agent_name: &str,
+    venv_base: &Path,
+    packages: &[String],
+) -> Result<(), String> {
+    if packages.is_empty() {
+        return Ok(());
+    }
+    let executor =
+        apollia_tools::tools::python_executor::PythonExecutor::new(agent_name, venv_base)
+            .map_err(|e| format!("could not initialise per-agent venv: {e}"))?;
+    if let Err(e) = executor.setup_venv(packages).await {
+        let msg = format!(
+            "venv provisioning failed (the agent declares {} pip dep(s)): {e}",
+            packages.len()
+        );
+        tracing::warn!(
+            agent = %agent_name,
+            error = %msg,
+            "package install: setup_venv failed, skipping agent"
+        );
+        return Err(msg);
+    }
+    Ok(())
+}
+
+/// Per-package install metadata shared across each agent's registration.
+struct PackageInstallCtx<'a> {
+    version: &'a str,
+    now: &'a str,
+    skip_tests: bool,
+    source_path: &'a Path,
+    install_root: &'a Path,
+    venv_base: &'a Path,
+}
+
+/// Duck-type validate a packaged agent and persist its `InstalledAgent` row.
+/// Returns the operator-facing failure reason on error (the caller records it
+/// in the per-package skip summary).
+async fn register_installed_agent(
+    agent_repo: &AgentRepository,
+    agent_name: &str,
+    installed_entry_path: &Path,
+    ctx: &PackageInstallCtx<'_>,
+) -> Result<(), String> {
+    let agent_manifest = match validate_community_agent(installed_entry_path, ctx.skip_tests).await
+    {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = e.to_string();
+            tracing::warn!(
+                agent = %agent_name,
+                error = %msg,
+                "package install: agent validation failed, skipping"
+            );
+            return Err(msg);
+        }
+    };
+
+    let installed_agent = InstalledAgent {
+        name: agent_name.to_string(),
+        version: ctx.version.to_string(),
+        install_path: installed_entry_path.to_path_buf(),
+        source_path: installed_entry_path.to_path_buf(),
+        manifest: agent_manifest,
+        enabled: true,
+        installed_at: ctx.now.to_string(),
+        updated_at: ctx.now.to_string(),
+    };
+    if let Err(e) = agent_repo.save(&installed_agent) {
+        tracing::warn!(
+            agent = %agent_name,
+            error = %e,
+            "package install: failed to persist agent, skipping"
+        );
+        return Err(format!("save failed: {e}"));
+    }
+    Ok(())
+}
+
+/// `apollia-os agent package list`: list installed packages.
 fn run_package_list(json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let pkg_repo = match open_package_repository_or_create(&data_dir) {
@@ -1153,7 +1223,7 @@ fn run_package_list(json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent package info <name>` — show package details.
+/// `apollia-os agent package info <name>`: show package details.
 fn run_package_info(name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let pkg_repo = match open_package_repository_or_create(&data_dir) {
@@ -1194,7 +1264,7 @@ fn run_package_info(name: &str, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent package uninstall <name>` — remove package, all its agents and triggers.
+/// `apollia-os agent package uninstall <name>`: remove package, all its agents and triggers.
 async fn run_package_uninstall(name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let pkg_repo = match open_package_repository_or_create(&data_dir) {
@@ -1351,7 +1421,7 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// `apollia-os agent uninstall <name>` — remove an installed agent.
+/// `apollia-os agent uninstall <name>`: remove an installed agent.
 fn run_uninstall(name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
@@ -1396,13 +1466,13 @@ fn run_uninstall(name: &str, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent enable <name>` — re-enable an installed agent.
+/// `apollia-os agent enable <name>`: re-enable an installed agent.
 ///
 /// Two-phase, symmetric with [`run_disable`]:
 /// 1. Mark `enabled = true` in `agents.db` so the agent auto-starts at the
 ///    next runtime boot.
 /// 2. Best-effort `POST /api/v1/agents` with the persisted `install_path`
-///    so the agent is loaded into the live registry immediately — without
+///    so the agent is loaded into the live registry immediately. Without
 ///    this, `apollia-os run <name>` returns 404 until the daemon is
 ///    restarted.
 async fn run_enable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
@@ -1470,7 +1540,7 @@ async fn run_enable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os agent disable <name>` — disable an installed agent.
+/// `apollia-os agent disable <name>`: disable an installed agent.
 ///
 /// Two-phase operation:
 /// 1. Mark the agent `enabled = false` in `agents.db` so it won't auto-start
@@ -1479,7 +1549,7 @@ async fn run_enable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
 ///    holding an executor for it. This is what makes `apollia-os agent list`
 ///    immediately show `disabled` instead of an outdated `active` state.
 ///    A runtime that is offline (or has never had this agent loaded) is
-///    treated as a no-op for phase 2 — the persisted disable is what
+///    treated as a no-op for phase 2: the persisted disable is what
 ///    matters across reboots.
 async fn run_disable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
@@ -1532,7 +1602,7 @@ async fn run_disable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os agent update <name> <path>` — update an installed agent.
+/// `apollia-os agent update <name> <path>`: update an installed agent.
 fn run_update(name: &str, source_path: &Path, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
@@ -1627,7 +1697,7 @@ fn run_update(name: &str, source_path: &Path, json: bool) -> i32 {
 /// Supported agent template types.
 const VALID_AGENT_TYPES: &[&str] = &["react", "conversational", "orchestrated"];
 
-/// `apollia-os agent new <name> [--type <type>]` — scaffold a new agent via the SDK.
+/// `apollia-os agent new <name> [--type <type>]`: scaffold a new agent via the SDK.
 fn run_new(name: &str, agent_type: &str, json: bool) -> i32 {
     // Validate template type.
     if !VALID_AGENT_TYPES.contains(&agent_type) {
@@ -1789,7 +1859,7 @@ fn open_repository() -> Option<AgentRepository> {
     AgentRepository::open(&db_path).ok()
 }
 
-/// Real agent loader using PyO3 AIPLoader + validate_agent (ADR-019).
+/// Real agent loader using PyO3 AIPLoader + validate_agent.
 ///
 /// Loads a Python module, validates AIP duck typing, and returns the manifest.
 struct CliAgentLoader;
@@ -1822,6 +1892,18 @@ fn print_error_and_exit(msg: &str, json: bool) -> i32 {
             "{}",
             serde_json::to_string_pretty(&output).unwrap_or_default()
         );
+    } else {
+        eprintln!("Error: {msg}");
+    }
+    exit_codes::GENERAL_ERROR
+}
+
+/// Emit an `{"error": msg}` payload as compact JSON (or a plain `Error:`
+/// line) and return `GENERAL_ERROR`. Distinct from `print_error_and_exit`,
+/// which pretty-prints the JSON form.
+fn print_compact_error_and_exit(msg: &str, json: bool) -> i32 {
+    if json {
+        println!("{}", serde_json::json!({ "error": msg }));
     } else {
         eprintln!("Error: {msg}");
     }
@@ -1933,7 +2015,7 @@ fn format_enriched_agent_list(installed: &[InstalledAgent], runtime: &Option<ser
         // human-readable status so operators don't have to cross-reference
         // two columns. When the operator has explicitly disabled the agent
         // (enabled=false) we surface 'disabled' over the registry state so
-        // it's clear the agent will not auto-start on the next boot — the
+        // it's clear the agent will not auto-start on the next boot, the
         // registry might still report 'stopped' transiently for a moment.
         let status = match (agent.enabled, runtime_state) {
             (false, _) => "disabled",
@@ -2046,7 +2128,7 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
 // Logs
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent logs <id> [--last N] [--follow]` — display recent
+/// `apollia-os agent logs <id> [--last N] [--follow]`: display recent
 /// activity for an agent.
 ///
 /// Until a dedicated agent stderr persistence layer ships (v0.1.1+), the
@@ -2057,7 +2139,7 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
 /// that `agent logs` should answer.
 ///
 /// With `--follow`, opens the SSE stream at
-/// `GET /api/v1/agents/{id}/logs/stream` (server-side route — when absent,
+/// `GET /api/v1/agents/{id}/logs/stream` (server-side route; when absent,
 /// the CLI prints a clear "not implemented" message and exits 1).
 async fn run_logs(
     client: &RuntimeClient,
@@ -2071,12 +2153,7 @@ async fn run_logs(
             "'{agent_id}' looks like a file path — use the agent name or UUID instead\n\
              Hint: apollia-os agent logs <name|uuid>"
         );
-        if json {
-            println!("{}", serde_json::json!({"error": msg}));
-        } else {
-            eprintln!("Error: {msg}");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return print_compact_error_and_exit(&msg, json);
     }
 
     if follow {
@@ -2085,7 +2162,7 @@ async fn run_logs(
 
     // Fetch a generous slice of recent audit events. We cap at 500
     // (runtime hard limit) and client-side filter on agent_id, then keep
-    // the last `last` matches. This is O(500) per call — fine for an
+    // the last `last` matches. This is O(500) per call, fine for an
     // interactive CLI; a dedicated route would be faster but is out of
     // scope.
     let fetch_limit = 500u32;
@@ -2094,25 +2171,14 @@ async fn run_logs(
         Ok(r) if r.status < 400 => r,
         Ok(r) => {
             let msg = format!("HTTP {} from /audit: {}", r.status, r.body);
-            if json {
-                println!("{}", serde_json::json!({ "error": msg }));
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            return exit_codes::GENERAL_ERROR;
+            return print_compact_error_and_exit(&msg, json);
         }
         Err(e) => return handle_error(e, json),
     };
     let body: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            let msg = format!("invalid audit JSON: {e}");
-            if json {
-                println!("{}", serde_json::json!({ "error": msg }));
-            } else {
-                eprintln!("Error: {msg}");
-            }
-            return exit_codes::GENERAL_ERROR;
+            return print_compact_error_and_exit(&format!("invalid audit JSON: {e}"), json);
         }
     };
 
@@ -2152,22 +2218,24 @@ async fn run_logs(
         events.len()
     );
     for e in &events {
-        let ts = e.get("timestamp").and_then(|v| v.as_str()).unwrap_or("?");
-        let tool = e.get("tool").and_then(|v| v.as_str()).unwrap_or("?");
-        let outcome = e
-            .get("outcome")
-            .and_then(|v| v.as_str())
-            .unwrap_or("?");
-        let task = e.get("task_id").and_then(|v| v.as_str()).unwrap_or("-");
-        println!("  {ts}  {tool:<20} {outcome:<10} task={task}");
+        print_audit_event_row(e);
     }
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent logs <id> --follow` — live stream placeholder.
+/// Print a single audit event as an aligned text row for `agent logs`.
+fn print_audit_event_row(e: &serde_json::Value) {
+    let ts = e.get("timestamp").and_then(|v| v.as_str()).unwrap_or("?");
+    let tool = e.get("tool").and_then(|v| v.as_str()).unwrap_or("?");
+    let outcome = e.get("outcome").and_then(|v| v.as_str()).unwrap_or("?");
+    let task = e.get("task_id").and_then(|v| v.as_str()).unwrap_or("-");
+    println!("  {ts}  {tool:<20} {outcome:<10} task={task}");
+}
+
+/// `apollia-os agent logs <id> --follow`: live stream placeholder.
 ///
 /// The runtime does not yet register `GET /api/v1/agents/:id/logs/stream`
-/// (no dedicated agent stderr persistence layer ships in v0.1.0 — the
+/// (no dedicated agent stderr persistence layer ships in v0.1.0; the
 /// audit fallback used by `agent logs` covers the structured tool-call
 /// view). Rather than fail silently by hitting a missing endpoint, the
 /// CLI returns a clear, actionable error pointing at the same `--last`
@@ -2197,7 +2265,7 @@ async fn run_logs_follow(_client: &RuntimeClient, agent_id: &str, json: bool) ->
 // Validate
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent validate <path>` — validate an agent manifest without starting it.
+/// `apollia-os agent validate <path>`: validate an agent manifest without starting it.
 ///
 /// Performs AIP duck-typing validation via PyO3, then reports the manifest
 /// summary and any tool requirements. Exit 0 on success (with optional warnings),
@@ -2214,121 +2282,158 @@ fn run_validate(path: &Path, json: bool) -> i32 {
         Err(e) => return print_error_and_exit(&format!("manifest invalid: {e}"), json),
     };
 
-    // Determine tool warnings: we can only flag absence if the Tool Registry is accessible.
-    // Without a running runtime, we report the declared tools and let the operator decide.
-    let required = &manifest.tools_required;
-    let optional = &manifest.tools_optional;
-
     if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "valid": true,
-                "name": manifest.name,
-                "version": manifest.version,
-                "description": manifest.description,
-                "execution_mode": manifest.execution_mode,
-                "memory_namespace": manifest.memory_namespace,
-                "max_concurrent_tasks": manifest.max_concurrent_tasks,
-                "supports_a2a": manifest.supports_a2a,
-                "supports_streaming": manifest.supports_streaming,
-                "dangerous_tools_allowed": manifest.dangerous_tools_allowed,
-                "user_memory_write": manifest.user_memory_write,
-                "tools_required": required,
-                "tools_optional": optional,
-                "tools_requiring_approval": manifest.tools_requiring_approval,
-                "step_budget": manifest.step_budget,
-                "skills": manifest.skills,
-                "tags": manifest.tags,
-                "packages": manifest.packages,
-                "datasources": manifest.datasources,
-                "templates": manifest.templates,
-                "secrets": manifest.secrets,
-            }))
-            .unwrap_or_default()
-        );
+        print_validate_json(&manifest);
     } else {
-        println!("✔ Manifest valide");
-        println!("  Name             : {}", manifest.name);
-        println!("  Version          : {}", manifest.version);
-        if !manifest.description.is_empty() {
-            println!("  Description      : {}", manifest.description);
-        }
-        println!("  Execution mode   : {}", manifest.execution_mode);
-        if let Some(ns) = &manifest.memory_namespace {
-            println!("  Memory namespace : {ns}");
-        }
-        println!("  Max concurrency  : {}", manifest.max_concurrent_tasks);
-        let mut feature_flags = Vec::new();
-        if manifest.supports_a2a {
-            feature_flags.push("a2a");
-        }
-        if manifest.supports_streaming {
-            feature_flags.push("streaming");
-        }
-        if manifest.user_memory_write {
-            feature_flags.push("writes user memory");
-        }
-        if manifest.dangerous_tools_allowed {
-            feature_flags.push("dangerous tools allowed");
-        }
-        if !feature_flags.is_empty() {
-            println!("  Features         : {}", feature_flags.join(", "));
-        }
-        if !required.is_empty() {
-            println!("  Required tools   : {}", required.join(", "));
-        }
-        if !optional.is_empty() {
-            println!("  Optional tools   : {}", optional.join(", "));
-            println!("  ⚠ Optional tools not checked — agent may start in DEGRADED mode if absent");
-        }
-        if !manifest.tools_requiring_approval.is_empty() {
-            println!(
-                "  HITL gated tools : {}",
-                manifest.tools_requiring_approval.join(", ")
-            );
-        }
-        if let Some(budget) = &manifest.step_budget {
-            println!(
-                "  Step budget      : {} steps, {} tool calls, {}s wall-clock",
-                budget.max_steps, budget.max_tool_calls, budget.wall_clock_secs
-            );
-        }
-        if !manifest.skills.is_empty() {
-            println!("  Skills ({})       :", manifest.skills.len());
-            for skill in &manifest.skills {
-                println!("    - {} ({})", skill.id, skill.name);
-            }
-        }
-        if !manifest.tags.is_empty() {
-            println!("  Tags             : {}", manifest.tags.join(", "));
-        }
-        if !manifest.packages.is_empty() {
-            println!("  Pip deps         : {}", manifest.packages.join(", "));
-        }
-        if !manifest.datasources.is_empty() {
-            println!("  Datasources      : {}", manifest.datasources.join(", "));
-        }
-        if !manifest.templates.is_empty() {
-            println!("  Templates        : {}", manifest.templates.join(", "));
-        }
-        if !manifest.secrets.is_empty() {
-            println!("  Secrets          : {}", manifest.secrets.join(", "));
-        }
-        if let Some(notes) = &manifest.setup_notes {
-            if !notes.is_empty() {
-                println!("  Setup notes      :");
-                for line in notes.lines() {
-                    println!("    {line}");
-                }
-            }
-        }
+        print_validate_text(&manifest);
     }
 
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent repair <name>` — re-provision an installed agent's venv.
+/// Emit the full validated-manifest payload as pretty JSON.
+fn print_validate_json(manifest: &apollia_core::AgentManifest) {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "valid": true,
+            "name": manifest.name,
+            "version": manifest.version,
+            "description": manifest.description,
+            "execution_mode": manifest.execution_mode,
+            "memory_namespace": manifest.memory_namespace,
+            "max_concurrent_tasks": manifest.max_concurrent_tasks,
+            "supports_a2a": manifest.supports_a2a,
+            "supports_streaming": manifest.supports_streaming,
+            "dangerous_tools_allowed": manifest.dangerous_tools_allowed,
+            "user_memory_write": manifest.user_memory_write,
+            "tools_required": manifest.tools_required,
+            "tools_optional": manifest.tools_optional,
+            "tools_requiring_approval": manifest.tools_requiring_approval,
+            "step_budget": manifest.step_budget,
+            "skills": manifest.skills,
+            "tags": manifest.tags,
+            "packages": manifest.packages,
+            "datasources": manifest.datasources,
+            "templates": manifest.templates,
+            "secrets": manifest.secrets,
+        }))
+        .unwrap_or_default()
+    );
+}
+
+/// Compute the comma-joined feature-flag summary for a manifest, or `None`
+/// when no flags are set.
+fn manifest_feature_flags(manifest: &apollia_core::AgentManifest) -> Option<String> {
+    let mut feature_flags = Vec::new();
+    if manifest.supports_a2a {
+        feature_flags.push("a2a");
+    }
+    if manifest.supports_streaming {
+        feature_flags.push("streaming");
+    }
+    if manifest.user_memory_write {
+        feature_flags.push("writes user memory");
+    }
+    if manifest.dangerous_tools_allowed {
+        feature_flags.push("dangerous tools allowed");
+    }
+    if feature_flags.is_empty() {
+        None
+    } else {
+        Some(feature_flags.join(", "))
+    }
+}
+
+/// Render the validated-manifest summary as human-readable text.
+fn print_validate_text(manifest: &apollia_core::AgentManifest) {
+    let required = &manifest.tools_required;
+    let optional = &manifest.tools_optional;
+
+    println!("✔ Manifest valide");
+    println!("  Name             : {}", manifest.name);
+    println!("  Version          : {}", manifest.version);
+    if !manifest.description.is_empty() {
+        println!("  Description      : {}", manifest.description);
+    }
+    println!("  Execution mode   : {}", manifest.execution_mode);
+    if let Some(ns) = &manifest.memory_namespace {
+        println!("  Memory namespace : {ns}");
+    }
+    println!("  Max concurrency  : {}", manifest.max_concurrent_tasks);
+    if let Some(flags) = manifest_feature_flags(manifest) {
+        println!("  Features         : {flags}");
+    }
+    if !required.is_empty() {
+        println!("  Required tools   : {}", required.join(", "));
+    }
+    if !optional.is_empty() {
+        println!("  Optional tools   : {}", optional.join(", "));
+        println!("  ⚠ Optional tools not checked — agent may start in DEGRADED mode if absent");
+    }
+    if !manifest.tools_requiring_approval.is_empty() {
+        println!(
+            "  HITL gated tools : {}",
+            manifest.tools_requiring_approval.join(", ")
+        );
+    }
+    if let Some(budget) = &manifest.step_budget {
+        println!(
+            "  Step budget      : {} steps, {} tool calls, {}s wall-clock",
+            budget.max_steps, budget.max_tool_calls, budget.wall_clock_secs
+        );
+    }
+    print_validate_text_skills(manifest);
+    print_validate_text_lists(manifest);
+    print_validate_text_setup_notes(manifest);
+}
+
+/// Print the declared skills section of a validated manifest.
+fn print_validate_text_skills(manifest: &apollia_core::AgentManifest) {
+    if manifest.skills.is_empty() {
+        return;
+    }
+    println!("  Skills ({})       :", manifest.skills.len());
+    for skill in &manifest.skills {
+        println!("    - {} ({})", skill.id, skill.name);
+    }
+}
+
+/// Print the multi-line setup notes section of a validated manifest.
+fn print_validate_text_setup_notes(manifest: &apollia_core::AgentManifest) {
+    let Some(notes) = &manifest.setup_notes else {
+        return;
+    };
+    if notes.is_empty() {
+        return;
+    }
+    println!("  Setup notes      :");
+    for line in notes.lines() {
+        println!("    {line}");
+    }
+}
+
+/// Print the trailing string-list fields (tags, deps, datasources, etc.) of
+/// a validated manifest in the human-readable summary.
+fn print_validate_text_lists(manifest: &apollia_core::AgentManifest) {
+    if !manifest.tags.is_empty() {
+        println!("  Tags             : {}", manifest.tags.join(", "));
+    }
+    if !manifest.packages.is_empty() {
+        println!("  Pip deps         : {}", manifest.packages.join(", "));
+    }
+    if !manifest.datasources.is_empty() {
+        println!("  Datasources      : {}", manifest.datasources.join(", "));
+    }
+    if !manifest.templates.is_empty() {
+        println!("  Templates        : {}", manifest.templates.join(", "));
+    }
+    if !manifest.secrets.is_empty() {
+        println!("  Secrets          : {}", manifest.secrets.join(", "));
+    }
+}
+
+/// `apollia-os agent repair <name>`: re-provision an installed agent's venv.
 ///
 /// Looks the agent up in the package repository, parses the `manifest_json`
 /// stored for its owning package, finds the matching agent entry, then runs
@@ -2349,37 +2454,7 @@ async fn run_repair(name: &str, json: bool) -> i32 {
         Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
     };
 
-    let mut found: Option<(String, Vec<String>)> = None;
-    for pkg in &packages {
-        let manifest: serde_json::Value = match serde_json::from_str(&pkg.manifest_json) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        let Some(agents) = manifest.get("agents").and_then(|v| v.as_array()) else {
-            continue;
-        };
-        for entry in agents {
-            let entry_name = entry.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            if entry_name == name {
-                let pkgs: Vec<String> = entry
-                    .get("packages")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|s| s.as_str().map(String::from))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                found = Some((pkg.name.clone(), pkgs));
-                break;
-            }
-        }
-        if found.is_some() {
-            break;
-        }
-    }
-
-    let (package_name, declared) = match found {
+    let (package_name, declared) = match find_agent_package_deps(&packages, name) {
         Some(f) => f,
         None => {
             return print_error_and_exit(
@@ -2456,6 +2531,40 @@ async fn run_repair(name: &str, json: bool) -> i32 {
         println!("    apollia-os stop && apollia-os start");
     }
     exit_codes::SUCCESS
+}
+
+/// Locate the package owning `agent_name` and return its `(package_name,
+/// declared_pip_packages)`. Returns `None` when no installed package
+/// declares an agent with that name.
+fn find_agent_package_deps(
+    packages: &[InstalledPackage],
+    agent_name: &str,
+) -> Option<(String, Vec<String>)> {
+    for pkg in packages {
+        let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&pkg.manifest_json) else {
+            continue;
+        };
+        let Some(agents) = manifest.get("agents").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        let Some(entry) = agents
+            .iter()
+            .find(|e| e.get("name").and_then(|v| v.as_str()) == Some(agent_name))
+        else {
+            continue;
+        };
+        let pkgs: Vec<String> = entry
+            .get("packages")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|s| s.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        return Some((pkg.name.clone(), pkgs));
+    }
+    None
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

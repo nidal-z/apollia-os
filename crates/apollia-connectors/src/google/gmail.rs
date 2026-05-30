@@ -1,16 +1,18 @@
-//! Gmail client — `send`, `compose_draft`, `list_drafts`, `delete_draft`.
+//! Gmail client: `send`, `compose_draft`, `list_drafts`, `delete_draft`.
 //!
-//! Free-tier scope policy (cf. ADR-088 §9bis): only non-restricted /
-//! "sensitive" scopes are used (`gmail.send`, `gmail.compose`). No inbox read
-//! / search / modify in v0.1.0 — those require restricted scopes (CASA Tier
-//! 2). Power users who want full Gmail access go through Expert Mode (their
-//! own OAuth app).
+//! Free-tier scope policy: only non-restricted / "sensitive" scopes are used
+//! (`gmail.send`, `gmail.compose`). No inbox read / search / modify in v0.1.0,
+//! those require restricted scopes (CASA Tier 2). Power users who want full
+//! Gmail access go through Expert Mode (their own OAuth app).
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest, RawRequest},
+};
 
 /// Base URL for the Gmail API v1.
 const BASE: &str = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -146,7 +148,15 @@ impl GmailClient {
         let url = format!("{BASE}/messages/send");
         let response: SendResponse = self
             .http
-            .json_request(Method::POST, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         Ok(GmailMessageRef {
             id: response.id,
@@ -174,10 +184,18 @@ impl GmailClient {
         let url = format!("{BASE}/drafts");
         let response: DraftResponse = self
             .http
-            .json_request(Method::POST, &url, &payload, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &payload,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         Ok(GmailMessageRef {
-            id: response.id, // The draft id, not the message id — caller can use either.
+            id: response.id, // The draft id, not the message id; caller can use either.
             thread_id: response.message.thread_id,
         })
     }
@@ -211,7 +229,16 @@ impl GmailClient {
     {
         let url = format!("{BASE}/drafts/{draft_id}");
         self.http
-            .send_with_retries(Method::DELETE, &url, None, bearer, refresh)
+            .send(
+                RawRequest {
+                    method: Method::DELETE,
+                    url: &url,
+                    body: None,
+                    content_type: None,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         Ok(())
     }
@@ -319,9 +346,15 @@ mod tests {
         });
         let body = GmailMessageRawBody { raw };
         let response: SendResponse = http
-            .json_request(Method::POST, &url, &body, "tok", || async {
-                Ok::<_, ConnectorError>("unused".to_owned())
-            })
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &body,
+                },
+                "tok",
+                || async { Ok::<_, ConnectorError>("unused".to_owned()) },
+            )
             .await
             .expect("send");
         assert_eq!(response.id, "msg-1");

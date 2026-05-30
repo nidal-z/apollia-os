@@ -1,7 +1,7 @@
 //! Local OAuth2 callback HTTP server (RFC 6749 §3.1.2).
 //!
 //! Binds an ephemeral TCP port on localhost, serves the OAuth callback at
-//! both `/callback` and `/oauth/callback` (ADR-095 §5 — unified router so
+//! both `/callback` and `/oauth/callback` (unified router so
 //! the same listener serves the connector flows on `/callback` and the
 //! MCP HTTP OAuth flow which advertises `/oauth/callback` in its CIMD),
 //! validates the `state` parameter (CSRF protection), and returns the
@@ -85,7 +85,7 @@ pub async fn wait_for_callback(
 
     // Build a handler that captures the result + triggers shutdown, then
     // register it on both `/callback` (connector flows) and `/oauth/callback`
-    // (MCP HTTP OAuth, per CIMD `redirect_uris`). Same semantics for both —
+    // (MCP HTTP OAuth, per CIMD `redirect_uris`). Same semantics for both;
     // the path only differs because the MCP spec mandates the longer form.
     let result_cell_for_handler = result_cell.clone();
     let shutdown_cell_for_handler = shutdown_cell.clone();

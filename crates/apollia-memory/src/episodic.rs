@@ -1,8 +1,8 @@
-//! EpisodicMemory — journal des evenements de l'agent.
+//! EpisodicMemory: journal of agent events.
 //!
-//! Chaque episode est date, porte un score d'importance (0.0..=1.0),
-//! et peut avoir un TTL (expiration via `expires_at`).
-//! L'agent est seul maitre de ce qui est enregistre (Principe #6).
+//! Each episode is timestamped, carries an importance score (0.0..=1.0),
+//! and may have a TTL (expiration via `expires_at`).
+//! The agent alone decides what gets recorded.
 
 use crate::store::MemoryStore;
 use serde_json::Value as JsonValue;
@@ -11,67 +11,67 @@ use serde_json::Value as JsonValue;
 /// Beyond this limit, oldest entries are evicted (FIFO).
 pub(crate) const DEFAULT_MAX_ENTRIES_PER_NAMESPACE: u64 = 10_000;
 
-/// Backend de memoire episodique — journal des evenements de l'agent.
+/// Episodic memory backend: journal of agent events.
 ///
-/// Chaque episode est date, porte un score d'importance, et peut expirer.
-/// L'agent est seul maitre de ce qui est enregistre (Principe #6).
+/// Each episode is timestamped, carries an importance score, and may expire.
+/// The agent alone decides what gets recorded.
 pub struct EpisodicMemory<'a> {
     store: &'a MemoryStore,
 }
 
-/// Entree retournee par [`EpisodicMemory::history`].
+/// Entry returned by [`EpisodicMemory::history`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EpisodicEntry {
-    /// UUID v4 unique de l'episode.
+    /// Unique UUID v4 of the episode.
     pub id: String,
-    /// Namespace de l'episode.
+    /// Namespace of the episode.
     pub namespace: String,
-    /// Identifiant de l'agent ayant cree l'episode.
+    /// Identifier of the agent that created the episode.
     pub agent_id: String,
-    /// Identifiant optionnel de la tache associee.
+    /// Optional identifier of the associated task.
     pub task_id: Option<String>,
-    /// Contenu textuel de l'episode.
+    /// Textual content of the episode.
     pub content: String,
-    /// Score d'importance (0.0..=1.0).
+    /// Importance score (0.0..=1.0).
     pub importance: f64,
-    /// Date de creation ISO 8601.
+    /// ISO 8601 creation date.
     pub created_at: String,
-    /// Date d'expiration optionnelle ISO 8601.
+    /// Optional ISO 8601 expiration date.
     pub expires_at: Option<String>,
-    /// Metadonnees JSON additionnelles.
+    /// Additional JSON metadata.
     pub metadata: JsonValue,
 }
 
-/// Erreurs du backend episodique.
+/// Errors of the episodic backend.
 #[derive(Debug, thiserror::Error)]
 pub enum EpisodicMemoryError {
-    /// L'insertion d'un episode a echoue.
+    /// Inserting an episode failed.
     #[error("failed to record episode: {0}")]
     RecordFailed(String),
 
-    /// La requete d'historique a echoue.
+    /// The history query failed.
     #[error("failed to query history: {0}")]
     QueryFailed(String),
 
-    /// Le score d'importance est hors de l'intervalle [0.0, 1.0].
+    /// The importance score is outside the [0.0, 1.0] range.
     #[error("invalid importance score: {0} (must be 0.0..=1.0)")]
     InvalidImportance(f64),
 
-    /// Erreur SQLite propagee depuis rusqlite.
+    /// SQLite error propagated from rusqlite.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 }
 
 impl<'a> EpisodicMemory<'a> {
-    /// Cree un backend episodique lie a un [`MemoryStore`].
+    /// Creates an episodic backend bound to a [`MemoryStore`].
     pub fn new(store: &'a MemoryStore) -> Self {
         Self { store }
     }
 
-    /// Enregistre un episode. Retourne l'UUID de l'episode cree.
+    /// Records an episode. Returns the UUID of the created episode.
     ///
-    /// Insere dans `episodic_memories` ET dans `memory_fts` (contenu indexe
-    /// pour la recherche full-text).
+    /// Inserts into `episodic_memories` and into `memory_fts` (content indexed
+    /// for full-text search).
     #[allow(clippy::too_many_arguments)]
     pub fn record(
         &self,
@@ -178,7 +178,7 @@ impl<'a> EpisodicMemory<'a> {
         Ok(evicted as u64)
     }
 
-    /// Retourne l'historique du namespace, trie par date descendante.
+    /// Returns the namespace history, sorted by date descending.
     pub fn history(
         &self,
         namespace: &str,
@@ -246,9 +246,9 @@ impl<'a> EpisodicMemory<'a> {
         Ok(entries)
     }
 
-    /// Supprime les episodes expires. Retourne le nombre d'episodes purges.
+    /// Deletes expired episodes. Returns the number of purged episodes.
     ///
-    /// Nettoie aussi les entrees FTS correspondantes.
+    /// Also cleans up the corresponding FTS entries.
     pub fn purge_expired(&self, namespace: &str) -> Result<u64, EpisodicMemoryError> {
         let conn = self.store.conn();
 
@@ -385,7 +385,7 @@ mod tests {
     // History returns most recent first, limited
     #[test]
     fn test_ac2_history_returns_recent_first() {
-        // GIVEN — 5 episodes
+        // GIVEN: 5 episodes
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
         for i in 0..5 {
@@ -409,7 +409,7 @@ mod tests {
     // History filtered by since date
     #[test]
     fn test_ac3_history_filtered_by_since() {
-        // GIVEN — insert episodes with explicit timestamps via raw SQL
+        // GIVEN: insert episodes with explicit timestamps via raw SQL
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
         let conn = store.conn();
@@ -449,7 +449,7 @@ mod tests {
     // Purge expired episodes (including FTS cleanup)
     #[test]
     fn test_ac4_purge_expired() {
-        // GIVEN — 1 expired, 1 not expired
+        // GIVEN: 1 expired, 1 not expired
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
         let expired_id = ep
@@ -501,13 +501,13 @@ mod tests {
         assert_eq!(entry[0].metadata, json!({}));
     }
 
-    // Importance validation — reject out of range
+    // Importance validation: reject out of range
     #[test]
     fn test_invalid_importance_rejected() {
         // GIVEN
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
-        // WHEN — too high
+        // WHEN: too high
         let result = ep.record("ns", "agent-1", "Bad", 1.5, None, None, None);
         // THEN
         assert!(matches!(
@@ -515,7 +515,7 @@ mod tests {
             Err(EpisodicMemoryError::InvalidImportance(_))
         ));
 
-        // WHEN — negative
+        // WHEN: negative
         let result = ep.record("ns", "agent-1", "Bad", -0.1, None, None, None);
         // THEN
         assert!(matches!(
@@ -524,10 +524,10 @@ mod tests {
         ));
     }
 
-    // DT-018 — enforce_limit evicts oldest entries (FIFO) and cleans FTS
+    // enforce_limit evicts oldest entries (FIFO) and cleans FTS
     #[test]
     fn test_enforce_limit_evicts_oldest_entries() {
-        // GIVEN — 5 episodes with explicit timestamps for deterministic ordering
+        // GIVEN: 5 episodes with explicit timestamps for deterministic ordering
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
         let conn = store.conn();
@@ -555,10 +555,10 @@ mod tests {
             .unwrap();
         }
 
-        // WHEN — enforce limit of 3
+        // WHEN: enforce limit of 3
         let evicted = ep.enforce_limit("ns", 3).unwrap();
 
-        // THEN — 2 oldest evicted, 3 remain
+        // THEN: 2 oldest evicted, 3 remain
         assert_eq!(evicted, 2);
         let remaining = ep.history("ns", 10, None).unwrap();
         assert_eq!(remaining.len(), 3);
@@ -581,10 +581,10 @@ mod tests {
         assert_eq!(fts_count, 3);
     }
 
-    // DT-018 — enforce_limit is no-op when under limit
+    // enforce_limit is no-op when under limit
     #[test]
     fn test_enforce_limit_noop_under_limit() {
-        // GIVEN — 2 episodes
+        // GIVEN: 2 episodes
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
         ep.record("ns", "agent-1", "A", 0.5, None, None, None)
@@ -592,19 +592,19 @@ mod tests {
         ep.record("ns", "agent-1", "B", 0.5, None, None, None)
             .unwrap();
 
-        // WHEN — enforce limit of 10
+        // WHEN: enforce limit of 10
         let evicted = ep.enforce_limit("ns", 10).unwrap();
 
-        // THEN — nothing evicted
+        // THEN: nothing evicted
         assert_eq!(evicted, 0);
         let remaining = ep.history("ns", 10, None).unwrap();
         assert_eq!(remaining.len(), 2);
     }
 
-    // DT-018 — record() triggers eviction when over default limit (tested with small limit via enforce_limit)
+    // record() triggers eviction when over default limit (tested with small limit via enforce_limit)
     #[test]
     fn test_record_triggers_eviction_via_enforce_limit() {
-        // GIVEN — insert 3 entries, then enforce limit of 2 manually
+        // GIVEN: insert 3 entries, then enforce limit of 2 manually
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
         ep.record("ns", "agent-1", "First", 0.5, None, None, None)
@@ -614,16 +614,16 @@ mod tests {
         ep.record("ns", "agent-1", "Third", 0.5, None, None, None)
             .unwrap();
 
-        // WHEN — enforce small limit
+        // WHEN: enforce small limit
         let evicted = ep.enforce_limit("ns", 2).unwrap();
 
-        // THEN — 1 evicted, 2 remain
+        // THEN: 1 evicted, 2 remain
         assert_eq!(evicted, 1);
         let remaining = ep.history("ns", 10, None).unwrap();
         assert_eq!(remaining.len(), 2);
     }
 
-    // Namespace isolation — episodes from different namespaces don't mix
+    // Namespace isolation: episodes from different namespaces don't mix
     #[test]
     fn test_namespace_isolation() {
         // GIVEN
@@ -647,10 +647,10 @@ mod tests {
     /// The fallback path (chrono::Utc::now()) is exercised via unit test of the helper.
     #[test]
     fn test_episodic_timestamp_fallback_on_sqlite_error() {
-        // GIVEN / WHEN — call the timestamp helper directly
+        // GIVEN / WHEN: call the timestamp helper directly
         let ts = chrono_now_utc();
 
-        // THEN — the result is a valid ISO 8601 string regardless of which path was taken
+        // THEN: the result is a valid ISO 8601 string regardless of which path was taken
         assert!(
             ts.len() >= 19,
             "timestamp should be at least 19 chars: {ts}"

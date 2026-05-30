@@ -127,7 +127,7 @@ pub async fn install_cli(app: tauri::AppHandle) -> Result<(), String> {
 
 /// Removes the CLI symlink from `/usr/local/bin/apollia-os`.
 ///
-/// Safety: only removes the file if it is a symlink — never deletes a real
+/// Safety: only removes the file if it is a symlink, never deletes a real
 /// binary.
 #[tauri::command]
 pub async fn uninstall_cli() -> Result<(), String> {

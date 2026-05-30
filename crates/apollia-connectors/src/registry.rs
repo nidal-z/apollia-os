@@ -1,11 +1,11 @@
 //! In-process registry of active connectors.
 //!
 //! Populated once at runtime startup from the build-time list of connectors
-//! (see ADR-090 — no dynamic plugin loading in v0.1.0). The registry exposes:
-//! - [`ConnectorRegistry::register`] — add a connector instance.
-//! - [`ConnectorRegistry::get`] — look up by id.
-//! - [`ConnectorRegistry::list`] — enumerate all registered connectors.
-//! - [`ConnectorRegistry::manifests`] — lightweight summary for the UI.
+//! (no dynamic plugin loading in v0.1.0). The registry exposes:
+//! - [`ConnectorRegistry::register`]: add a connector instance.
+//! - [`ConnectorRegistry::get`]: look up by id.
+//! - [`ConnectorRegistry::list`]: enumerate all registered connectors.
+//! - [`ConnectorRegistry::manifests`]: lightweight summary for the UI.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -32,8 +32,8 @@ impl ConnectorRegistry {
     /// Register a connector instance.
     ///
     /// If a connector with the same id is already registered, the new one
-    /// replaces it and the previous instance is dropped — useful in tests, a
-    /// no-op consequence in production where each id is wired once.
+    /// replaces it and the previous instance is dropped. This is useful in
+    /// tests and a no-op consequence in production where each id is wired once.
     pub async fn register<C: Connector>(&self, connector: C) {
         let id = connector.id();
         let arc: Arc<dyn Connector> = Arc::new(connector);
@@ -55,7 +55,7 @@ impl ConnectorRegistry {
     }
 
     /// Return a [`ConnectorSummary`] (manifest + operations) for every
-    /// registered connector — UI-friendly snapshot.
+    /// registered connector, as a UI-friendly snapshot.
     pub async fn manifests(&self) -> Vec<ConnectorSummary> {
         let guard = self.inner.by_id.read().await;
         guard

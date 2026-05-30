@@ -1,16 +1,14 @@
-//! Wrap llama-cpp-2 pour le runner.
+//! llama-cpp-2 wrapper for the runner.
 //!
-//! Migration STORY-004 depuis `apollia-llm::backends::embedded`. Scope simplifié
-//! pour cette première version :
+//! Simplified scope for the current version:
 //!
-//! - Mono-fichier `.gguf` uniquement (les custom splits FFI seront restaurés en
-//!   STORY-011 lors du nettoyage final).
-//! - Tooling et grammar GBNF non portés : non requis par le protocole IPC actuel.
-//! - Pas d'embeddings : retourne `UnsupportedOperation` (à câbler ultérieurement
-//!   quand un backend d'embeddings local sera ajouté).
+//! - Single-file `.gguf` models only (custom-split FFI loading is not wired).
+//! - Tooling and GBNF grammars are not ported; not required by the IPC protocol.
+//! - No embeddings: returns `UnsupportedOperation` (to be wired when a local
+//!   embeddings backend is added).
 //!
-//! Le code reste compatible avec le protocole IPC v1 défini dans
-//! `docs/internal/architecture/IPC-PROTOCOL.md` §3.4-3.7.
+//! Implements IPC protocol v1 (`/llm/load_model`, `/llm/unload_model`,
+//! `/llm/complete`, `/llm/stream`).
 
 use std::collections::HashMap;
 use std::num::NonZeroU32;
@@ -32,11 +30,11 @@ use crate::ipc::{
     LoadModelParams, Role, StreamChunk, Timing, TokenUsage,
 };
 
-/// Fallback de sampling — repris à l'identique du backend embedded historique
-/// (cf. `apollia-llm::backends::embedded` constantes `DEFAULT_TEMPERATURE` etc.).
+/// Sampling defaults applied when the request leaves the corresponding fields
+/// at their zero value.
 const DEFAULT_TOP_P: f32 = 0.95;
 const DEFAULT_TOP_K: i32 = 40;
-/// Plancher du n_ctx pour qu'un prompt court ait quand même de la marge.
+/// Lower bound on `n_ctx` so a short prompt still has working headroom.
 const MIN_CTX_SIZE: u32 = 1024;
 
 /// Entrée d'un modèle chargé en VRAM/RAM.

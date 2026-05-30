@@ -1,12 +1,12 @@
-//! `GenerateNextSteps` — meta-LLM routine producing up to 3 actionable
+//! `GenerateNextSteps`: meta-LLM routine producing up to 3 actionable
 //! "next steps" cards for the operator Dashboard and for end-of-session
 //! debriefs.
 //!
 //! # Principles
 //!
-//! - **Reuses the user's default LLM backend** via [`LlmRouter::get(None)`]
-//!   — never allocates a second model nor performs a cloud call the user
-//!   has not already authorised (ADR-073).
+//! - **Reuses the user's default LLM backend** via [`LlmRouter::get(None)`]:
+//!   never allocates a second model nor performs a cloud call the user
+//!   has not already authorised.
 //! - **Whitelisted action surface**: each suggestion points to either a
 //!   known Apollia route (`/memory`, `/automations`, `/templates`, …) or
 //!   a known Tauri command (`memory_insert`, …). The parser drops any
@@ -24,13 +24,13 @@ use serde::{Deserialize, Serialize};
 use crate::router::LlmRouter;
 use crate::types::{ChatMessage, CompletionRequest, LlmError};
 
-/// Upper bound on the LLM call — beyond that we emit the heuristic fallback.
+/// Upper bound on the LLM call; beyond that we emit the heuristic fallback.
 const CALL_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Max number of cards ever returned, regardless of LLM output.
 pub const MAX_NEXT_STEPS: usize = 3;
 
-/// Allowed navigation routes — mirror of the frontend whitelist. Any suggestion
+/// Allowed navigation routes, a mirror of the frontend whitelist. Any suggestion
 /// referencing a route not in this list is silently dropped.
 const ALLOWED_ROUTES: &[&str] = &[
     "/dashboard",
@@ -65,14 +65,14 @@ const ALLOWED_COMMANDS: &[&str] = &[
     "export_session",
 ];
 
-/// Panel the suggestion targets — lets the prompt steer between "derniers
-/// jours" (global) and "cette session" (session end).
+/// Panel the suggestion targets; lets the prompt steer between a global
+/// "last few days" context and a "this session" context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NextStepsContext {
-    /// Operator Dashboard — rolling context of the last few days.
+    /// Operator Dashboard: rolling context of the last few days.
     GlobalContext,
-    /// End of a chat session — contextualised to the session that just closed.
+    /// End of a chat session: contextualised to the session that just closed.
     SessionEnd,
 }
 
@@ -87,9 +87,9 @@ impl Default for NextStepsContext {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NextStepsMode {
-    /// Non-technical operator — pragmatic, outcome-oriented suggestions.
+    /// Non-technical operator: pragmatic, outcome-oriented suggestions.
     Operator,
-    /// Builder/developer — technical vocabulary and observability-flavoured
+    /// Builder/developer: technical vocabulary and observability-flavoured
     /// suggestions ("see logs", "export session").
     Builder,
 }
@@ -100,7 +100,7 @@ impl Default for NextStepsMode {
     }
 }
 
-/// Facts the frontend already computed — the LLM only narrates, it never
+/// Facts the frontend already computed; the LLM only narrates, it never
 /// invents numbers. All fields are optional; an empty payload yields the
 /// heuristic fallback.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -152,7 +152,7 @@ pub enum NextStepAction {
 pub struct NextStepButton {
     /// User-visible label (translated by the frontend when needed).
     pub label: String,
-    /// Action kind — restricted to the whitelist above.
+    /// Action kind, restricted to the whitelist above.
     pub action: NextStepAction,
     /// For `navigate`: `{"route": "/memory?new"}`. For `invoke`:
     /// `{"command": "memory_insert", "args": {...}}`.
@@ -170,7 +170,7 @@ pub struct NextStep {
     pub title: String,
     /// 1-2 sentence explanation of why this step is proposed.
     pub description: String,
-    /// Single action button — the card has exactly one CTA.
+    /// Single action button: the card has exactly one CTA.
     pub action_button: NextStepButton,
 }
 
@@ -181,7 +181,7 @@ pub struct NextStepsRequest {
     /// Panel this payload targets.
     #[serde(default)]
     pub context: NextStepsContext,
-    /// Persona — operator vs builder.
+    /// Persona: operator vs builder.
     #[serde(default)]
     pub mode: NextStepsMode,
     /// Frontend-computed facts.
@@ -199,7 +199,7 @@ pub struct NextStepsResponse {
 }
 
 /// Errors surfaced by [`generate_next_steps`]. Callers should not abort on
-/// these — the helper already returns a heuristic fallback and never panics.
+/// these: the helper already returns a heuristic fallback and never panics.
 #[derive(Debug, thiserror::Error)]
 pub enum NextStepsError {
     #[error("LLM call failed: {0}")]
@@ -291,7 +291,7 @@ fn build_facts_block(f: &NextStepsFacts) -> String {
         lines.push(format!("signals: {}", cap.join(" | ")));
     }
     if !f.recent_messages.is_empty() {
-        // Guard against huge transcripts — take last 8, trim each.
+        // Guard against huge transcripts: take last 8, trim each.
         let tail = if f.recent_messages.len() > 8 {
             &f.recent_messages[f.recent_messages.len() - 8..]
         } else {
@@ -326,18 +326,16 @@ fn build_system_prompt(req: &NextStepsRequest) -> String {
     )
 }
 
-// ─────────────────────────────────────────────
 // LLM output parsing + validation
-// ─────────────────────────────────────────────
 
 /// Pull a JSON object from a raw completion string. Models often wrap JSON in
-/// ```json fences — strip them here.
+/// ```json fences; strip them here.
 fn extract_json_object(raw: &str) -> Option<&str> {
     let trimmed = raw.trim();
     if trimmed.starts_with('{') {
         return Some(trimmed);
     }
-    // Look for the first `{` and the last matching `}` — good enough when
+    // Look for the first `{` and the last matching `}`; good enough when
     // the LLM decorates the JSON with surrounding prose.
     let start = trimmed.find('{')?;
     let end = trimmed.rfind('}')?;
@@ -443,8 +441,8 @@ fn parse_steps(raw: &str) -> Result<Vec<NextStep>, NextStepsError> {
 // ─────────────────────────────────────────────
 
 /// Deterministic 3-card fallback used whenever the LLM path fails, times
-/// out, or returns invalid JSON. The suggestions are intentionally generic
-/// — they always apply and always point to a valid route.
+/// out, or returns invalid JSON. The suggestions are intentionally generic:
+/// they always apply and always point to a valid route.
 pub fn heuristic_fallback(req: &NextStepsRequest) -> Vec<NextStep> {
     let mut steps: Vec<NextStep> = Vec::new();
 

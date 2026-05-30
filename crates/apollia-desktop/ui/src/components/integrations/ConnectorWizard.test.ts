@@ -11,7 +11,7 @@ import {
 // The disclaimer helpers use `localStorage`. Node 18+ already exposes
 // `crypto.subtle` as a global webcrypto, but `localStorage` is absent —
 // provide a tiny in-memory shim.
-if (typeof globalThis.localStorage === "undefined") {
+if (globalThis.localStorage === undefined) {
   const store = new Map<string, string>();
   (globalThis as unknown as { localStorage: Storage }).localStorage = {
     getItem: (k: string) => store.get(k) ?? null,
@@ -73,23 +73,23 @@ describe("WizardStepDisclaimer — version hashing", () => {
 //   - test       → test has succeeded OR user bypassed (builder only)
 //   - coaching   → server is installable
 
+function disclaimerReady(checks: Record<string, boolean>): boolean {
+  return DISCLAIMER_ITEMS.every((key) => {
+    const short = key.replace("i18n:integrations.disclaimer.items.", "");
+    return checks[short] === true;
+  });
+}
+
+function authReady(
+  required: { name: string; is_required: boolean }[],
+  values: Record<string, string>,
+): boolean {
+  return required
+    .filter((v) => v.is_required)
+    .every((v) => (values[v.name] ?? "").trim() !== "");
+}
+
 describe("ConnectorWizard — gating rules", () => {
-  function disclaimerReady(checks: Record<string, boolean>): boolean {
-    return DISCLAIMER_ITEMS.every((key) => {
-      const short = key.replace("i18n:integrations.disclaimer.items.", "");
-      return checks[short] === true;
-    });
-  }
-
-  function authReady(
-    required: { name: string; is_required: boolean }[],
-    values: Record<string, string>,
-  ): boolean {
-    return required
-      .filter((v) => v.is_required)
-      .every((v) => (values[v.name] ?? "").trim() !== "");
-  }
-
   test("disclaimer gating — partial checks block Next", () => {
     expect(disclaimerReady({ code_on_machine: true })).toBe(false);
     expect(
@@ -143,18 +143,18 @@ describe("ConnectorWizard — gating rules", () => {
 // semantics are covered here: every documented HTTP-ish code funnels into a
 // dedicated i18n key so operator users never see a raw 401/403/404.
 
-describe("WizardStepTest — error humanization coverage", () => {
-  function classify(raw: string): string {
-    const lower = raw.toLowerCase();
-    if (lower.includes("401") || lower.includes("unauthorized")) return "unauthorized";
-    if (lower.includes("403") || lower.includes("forbidden")) return "forbidden";
-    if (lower.includes("404") || lower.includes("not found")) return "not_found";
-    if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("network"))
-      return "network";
-    if (lower.includes("enoent") || lower.includes("command")) return "command_missing";
-    return "generic";
-  }
+function classify(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes("401") || lower.includes("unauthorized")) return "unauthorized";
+  if (lower.includes("403") || lower.includes("forbidden")) return "forbidden";
+  if (lower.includes("404") || lower.includes("not found")) return "not_found";
+  if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("network"))
+    return "network";
+  if (lower.includes("enoent") || lower.includes("command")) return "command_missing";
+  return "generic";
+}
 
+describe("WizardStepTest — error humanization coverage", () => {
   test("maps 401 to unauthorized", () => {
     expect(classify("HTTP 401 Unauthorized")).toBe("unauthorized");
   });

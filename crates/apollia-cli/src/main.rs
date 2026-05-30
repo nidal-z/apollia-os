@@ -1,6 +1,6 @@
-//! Apollia OS — CLI binary entry point.
+//! Apollia OS CLI binary entry point.
 //!
-//! Command structure follows noun-verb pattern (ADR-008):
+//! Command structure follows a noun-verb pattern:
 //!   apollia-os <command> [options]
 //!
 //! Level 1 commands: start, stop, status, run.
@@ -42,7 +42,7 @@ use commands::trigger::TriggerCommand;
 use commands::user_memory::UserMemoryCommand;
 use commands::workspace::WorkspaceCommand;
 
-/// Apollia OS — Sovereign AI Agent Runtime.
+/// Apollia OS, sovereign AI agent runtime.
 #[derive(Debug, Parser)]
 #[command(name = "apollia-os", version, about)]
 struct Cli {
@@ -101,7 +101,7 @@ enum Commands {
     ///
     /// Use the positional `<INPUT>` for free-text input (react/conversational
     /// agents). For worker agents that expect a typed skill payload, use
-    /// `apollia-os a2a invoke <skill_id> --args '<JSON>'` instead — or pass
+    /// `apollia-os a2a invoke <skill_id> --args '<JSON>'` instead, or pass
     /// `--input-json '<JSON>'` here to override the default text wrapping.
     Run {
         /// Agent identifier.
@@ -256,7 +256,7 @@ enum Commands {
     ///
     /// Without a subcommand: launches the REPL (resume with `--resume <id>`,
     /// or list recent sessions with `--list`). With a subcommand: operates on
-    /// `~/.apollia/chat.db` directly — no runtime required.
+    /// `~/.apollia/chat.db` directly; no runtime required.
     Chat {
         /// Resume an existing session from its last message.
         #[arg(long, value_name = "SESSION_ID")]
@@ -366,7 +366,7 @@ enum Commands {
         command: UserMemoryCommand,
     },
 
-    /// Shortcut for `task list --pending-approval` — list pending HITL tasks.
+    /// Shortcut for `task list --pending-approval`: list pending HITL tasks.
     Hitl,
 
     /// Project management (list, create, show, update, delete, agents, templates).
@@ -379,7 +379,7 @@ enum Commands {
         command: ProjectCommand,
     },
 
-    /// Print the event-sourced trace of a task (ADR-088).
+    /// Print the event-sourced trace of a task.
     Trace {
         /// Task identifier.
         task_id: String,
@@ -408,9 +408,8 @@ enum Commands {
     },
 }
 
-fn main() {
-    let cli = Cli::parse();
-
+/// Configure the tracing subscriber from the global verbosity/color flags.
+fn init_tracing(cli: &Cli) {
     // Apply --no-color before tracing init so the subscriber respects it.
     if cli.no_color {
         std::env::set_var("NO_COLOR", "1");
@@ -442,6 +441,105 @@ fn main() {
             .with_target(false)
             .init();
     }
+}
+
+/// Run the daemon, mapping its result to an exit code.
+async fn run_start(socket: Option<PathBuf>, port: Option<u16>) -> i32 {
+    match commands::start::run(socket, port).await {
+        Ok(interrupted) => {
+            if interrupted {
+                exit_codes::INTERRUPTED
+            } else {
+                exit_codes::SUCCESS
+            }
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+/// Owned parameters for the `run` subcommand dispatch.
+struct RunDispatch {
+    socket: Option<PathBuf>,
+    json: bool,
+    agent_id: String,
+    input: String,
+    input_json: Option<String>,
+    stream: bool,
+    detach: bool,
+    alternatives: bool,
+    allowed_tools: Vec<String>,
+    disallowed_tools: Vec<String>,
+}
+
+/// Dispatch the `run` subcommand after validating that input was supplied.
+async fn run_run(dispatch: RunDispatch) -> i32 {
+    let RunDispatch {
+        socket,
+        json,
+        agent_id,
+        input,
+        input_json,
+        stream,
+        detach,
+        alternatives,
+        allowed_tools,
+        disallowed_tools,
+    } = dispatch;
+    if input.is_empty() && input_json.is_none() {
+        eprintln!("Error: missing task input.");
+        eprintln!("Usage:");
+        eprintln!("  apollia-os run <AGENT_ID> \"<free-text input>\"");
+        eprintln!("  apollia-os run <AGENT_ID> --input-json '<JSON>'");
+        eprintln!("  apollia-os a2a invoke <SKILL_ID> --args '<JSON>'   # for workers");
+        return exit_codes::GENERAL_ERROR;
+    }
+    commands::run::run(commands::run::RunCommandArgs {
+        agent_id: &agent_id,
+        input: &input,
+        input_json: input_json.as_deref(),
+        socket,
+        json,
+        stream,
+        detach,
+        alternatives,
+        allowed_tools,
+        disallowed_tools,
+    })
+    .await
+}
+
+/// Run a memory subcommand, printing its output or error.
+fn run_memory(command: &commands::memory::MemoryCommand, json: bool) -> i32 {
+    match commands::memory::run(command, json) {
+        Ok(output) => {
+            println!("{output}");
+            exit_codes::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+/// Run the embedded MCP server, mapping its result to an exit code.
+async fn run_mcp_server(args: &commands::mcp_server::McpServerArgs) -> i32 {
+    match commands::mcp_server::run(args).await {
+        Ok(()) => exit_codes::SUCCESS,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    init_tracing(&cli);
 
     let rt = tokio::runtime::Runtime::new().expect("failed to create Tokio runtime");
 
@@ -449,19 +547,7 @@ fn main() {
     let quiet = cli.quiet;
     let exit_code = rt.block_on(async {
         match cli.command {
-            Commands::Start { port } => match commands::start::run(cli.socket, port).await {
-                Ok(interrupted) => {
-                    if interrupted {
-                        exit_codes::INTERRUPTED
-                    } else {
-                        exit_codes::SUCCESS
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error: {e}");
-                    exit_codes::GENERAL_ERROR
-                }
-            },
+            Commands::Start { port } => run_start(cli.socket, port).await,
             Commands::Stop => commands::stop::run(cli.socket, json).await,
             Commands::Status => commands::status::run(cli.socket, json).await,
             Commands::Run {
@@ -474,20 +560,12 @@ fn main() {
                 allowed_tools,
                 disallowed_tools,
             } => {
-                if input.is_empty() && input_json.is_none() {
-                    eprintln!("Error: missing task input.");
-                    eprintln!("Usage:");
-                    eprintln!("  apollia-os run <AGENT_ID> \"<free-text input>\"");
-                    eprintln!("  apollia-os run <AGENT_ID> --input-json '<JSON>'");
-                    eprintln!("  apollia-os a2a invoke <SKILL_ID> --args '<JSON>'   # for workers");
-                    return exit_codes::GENERAL_ERROR;
-                }
-                commands::run::run(commands::run::RunCommandArgs {
-                    agent_id: &agent_id,
-                    input: &input,
-                    input_json: input_json.as_deref(),
+                run_run(RunDispatch {
                     socket: cli.socket,
                     json,
+                    agent_id,
+                    input,
+                    input_json,
                     stream,
                     detach,
                     alternatives,
@@ -504,16 +582,7 @@ fn main() {
             Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
             Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,
-            Commands::Memory { command } => match commands::memory::run(&command, json) {
-                Ok(output) => {
-                    println!("{output}");
-                    exit_codes::SUCCESS
-                }
-                Err(e) => {
-                    eprintln!("Error: {e}");
-                    exit_codes::GENERAL_ERROR
-                }
-            },
+            Commands::Memory { command } => run_memory(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
@@ -536,13 +605,7 @@ fn main() {
                 None => chat::run(resume.as_deref(), list, cli.socket, json).await,
             },
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
-            Commands::McpServer(args) => match commands::mcp_server::run(&args).await {
-                Ok(()) => exit_codes::SUCCESS,
-                Err(e) => {
-                    eprintln!("Error: {e}");
-                    exit_codes::GENERAL_ERROR
-                }
-            },
+            Commands::McpServer(args) => run_mcp_server(&args).await,
             Commands::Update(args) => commands::update::run(&args, "apollia-os").await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
@@ -700,7 +763,7 @@ mod tests {
 
     #[test]
     fn test_cli_parses_run_detach_flag_after_input() {
-        // GIVEN — detach appears after the positional arguments (the pattern from ONBOARDING)
+        // GIVEN detach appears after the positional arguments
         let cli = parse(&[
             "apollia-os",
             "run",
@@ -888,7 +951,7 @@ mod tests {
         // GIVEN "apollia-os --quiet --json agent list"
         // WHEN parse
         let cli = parse(&["apollia-os", "--quiet", "--json", "agent", "list"]);
-        // THEN both flags are set — handlers must give --json priority
+        // THEN both flags are set; handlers must give --json priority
         assert!(cli.quiet);
         assert!(cli.json);
     }
@@ -1110,7 +1173,7 @@ mod tests {
 
     #[test]
     fn test_cli_parses_agent_json_flag_before_verb() {
-        // GIVEN "apollia-os agent --json list" (--json avant le verbe, syntaxe historique)
+        // GIVEN "apollia-os agent --json list" (--json before the verb, legacy syntax)
         // WHEN parse
         let cli = parse(&["apollia-os", "agent", "--json", "list"]);
         // THEN global json=true
@@ -1120,10 +1183,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_agent_json_flag_after_arg() {
-        // GIVEN "apollia-os agent info hello-agent --json" (--json après l'arg positionnel)
+        // GIVEN "apollia-os agent info hello-agent --json" (--json after the positional arg)
         // WHEN parse
         let cli = parse(&["apollia-os", "agent", "info", "hello-agent", "--json"]);
-        // THEN global json=true — la forme attendue dans l'ONBOARDING
+        // THEN global json=true
         assert!(matches!(cli.command, Commands::Agent { .. }));
         assert!(cli.json);
     }
@@ -1757,7 +1820,7 @@ mod tests {
     fn test_cli_parses_workspace_status() {
         // GIVEN "apollia-os workspace status"
         let cli = parse(&["apollia-os", "workspace", "status"]);
-        // THEN Commands::Workspace avec WorkspaceCommand::Status
+        // THEN Commands::Workspace with WorkspaceCommand::Status
         assert!(
             matches!(
                 cli.command,
@@ -1774,7 +1837,7 @@ mod tests {
     fn test_cli_parses_workspace_init() {
         // GIVEN "apollia-os workspace init"
         let cli = parse(&["apollia-os", "workspace", "init"]);
-        // THEN Commands::Workspace avec WorkspaceCommand::Init { force: false }
+        // THEN Commands::Workspace with WorkspaceCommand::Init { force: false }
         assert!(
             matches!(
                 cli.command,
@@ -1790,7 +1853,7 @@ mod tests {
     fn test_cli_parses_workspace_init_force() {
         // GIVEN "apollia-os workspace init --force"
         let cli = parse(&["apollia-os", "workspace", "init", "--force"]);
-        // THEN Commands::Workspace avec WorkspaceCommand::Init { force: true }
+        // THEN Commands::Workspace with WorkspaceCommand::Init { force: true }
         assert!(
             matches!(
                 cli.command,

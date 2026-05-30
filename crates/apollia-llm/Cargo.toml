@@ -7,11 +7,11 @@ license = "MIT OR Apache-2.0"
 [features]
 default = ["cloud"]
 
-# ADR-113 : les backends d'inférence locale (llama-cpp) sont hébergés par le
-# crate `apollia-runner` (sidecar). Cette crate ne contient plus que les
-# clients cloud HTTP et les types partagés (CompletionModel, LlmRouter, etc.).
+# Local inference backends (llama-cpp) live in the `apollia-runner` crate
+# (sidecar process). This crate only ships the cloud HTTP clients and the
+# shared types (CompletionModel, LlmRouter, etc.).
 
-# Backend cloud (API HTTP : Anthropic, OpenAI-compatible, Vertex)
+# Cloud backends (HTTP API: Anthropic, OpenAI-compatible, Vertex)
 cloud            = ["dep:async-openai", "dep:reqwest"]
 
 [dependencies]
@@ -31,12 +31,12 @@ reqwest        = { workspace = true, optional = true }
 tokio-stream   = { workspace = true }
 tokio-util     = { workspace = true }
 chrono         = { workspace = true }
-# MetaLlmOrchestrator — ADR-073
+# MetaLlmOrchestrator
 lru            = { workspace = true }
 sha2           = { workspace = true }
-# tool_performance_hints — US-SP42-038
+# tool_performance_hints
 toml           = { workspace = true }
-# Hardware detection (RAM, CPU, GPU — toujours disponible)
+# Hardware detection (RAM, CPU, GPU, always available)
 sysinfo        = { workspace = true }
 
 [dev-dependencies]

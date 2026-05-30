@@ -1,10 +1,10 @@
-//! `apollia-os trigger` subcommands — trigger management.
+//! `apollia-os trigger` subcommands: trigger management.
 //!
-//! Fournit les sous-commandes `list`, `status`, `fire`, `enable`, `disable`,
-//! `logs` et `reload` pour gérer, déboguer et auditer les déclenchements
-//! automatiques d'agents depuis le terminal sans modifier `apollia.toml`.
+//! Provides the `list`, `status`, `fire`, `enable`, `disable`, `logs`, and
+//! `reload` subcommands to manage, debug, and audit automatic agent triggers
+//! from the terminal without editing `apollia.toml`.
 //!
-//! Pattern noun-verb cohérent avec `agent` et `task`.
+//! Noun-verb pattern consistent with `agent` and `task`.
 
 use std::path::PathBuf;
 
@@ -54,7 +54,7 @@ pub enum TriggerCommand {
     /// and restarts modified sources. Invalid TOML or invalid trigger configuration
     /// returns an error without interrupting the currently-running triggers.
     Reload,
-    /// Create a new trigger (CRUD — complements hot-reload via apollia.toml).
+    /// Create a new trigger (CRUD, complements hot-reload via apollia.toml).
     Create {
         /// Unique trigger identifier.
         id: String,
@@ -131,12 +131,14 @@ pub async fn run(cmd: &TriggerCommand, socket: Option<PathBuf>, json: bool) -> i
         } => {
             run_create(
                 &client,
-                id,
-                agent,
-                kind,
-                detail.as_deref(),
-                on_busy,
-                input.as_deref(),
+                CreateArgs {
+                    id,
+                    agent,
+                    kind,
+                    detail: detail.as_deref(),
+                    on_busy,
+                    input: input.as_deref(),
+                },
                 json,
             )
             .await
@@ -149,10 +151,12 @@ pub async fn run(cmd: &TriggerCommand, socket: Option<PathBuf>, json: bool) -> i
         } => {
             run_update(
                 &client,
-                id,
-                detail.as_deref(),
-                on_busy.as_deref(),
-                input.as_deref(),
+                UpdateArgs {
+                    id,
+                    detail: detail.as_deref(),
+                    on_busy: on_busy.as_deref(),
+                    input: input.as_deref(),
+                },
                 json,
             )
             .await
@@ -163,7 +167,7 @@ pub async fn run(cmd: &TriggerCommand, socket: Option<PathBuf>, json: bool) -> i
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
 
-/// `apollia-os trigger list` — liste de tous les triggers.
+/// `apollia-os trigger list`: list all triggers.
 async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     match client.list_triggers().await {
         Ok(resp) => {
@@ -181,7 +185,7 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os trigger status <id>` — statut détaillé d'un trigger.
+/// `apollia-os trigger status <id>`: detailed status of a trigger.
 async fn run_status(client: &RuntimeClient, id: &str, json: bool) -> i32 {
     match client.get_trigger(id).await {
         Ok(resp) => {
@@ -208,7 +212,7 @@ async fn run_status(client: &RuntimeClient, id: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os trigger fire <id>` — déclenchement immédiat.
+/// `apollia-os trigger fire <id>`: fire immediately.
 async fn run_fire(client: &RuntimeClient, id: &str, json: bool) -> i32 {
     match client.fire_trigger(id).await {
         Ok(resp) => {
@@ -236,7 +240,7 @@ async fn run_fire(client: &RuntimeClient, id: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os trigger enable <id>` — activer un trigger.
+/// `apollia-os trigger enable <id>`: enable a trigger.
 async fn run_enable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
     match client.enable_trigger(id).await {
         Ok(resp) => {
@@ -263,7 +267,7 @@ async fn run_enable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os trigger disable <id>` — désactiver un trigger.
+/// `apollia-os trigger disable <id>`: disable a trigger.
 async fn run_disable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
     match client.disable_trigger(id).await {
         Ok(resp) => {
@@ -290,7 +294,7 @@ async fn run_disable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os trigger logs <id> [--last N]` — historique des déclenchements.
+/// `apollia-os trigger logs <id> [--last N]`: firing history.
 async fn run_logs(client: &RuntimeClient, id: &str, last: usize, json: bool) -> i32 {
     match client.get_trigger_logs(id, last).await {
         Ok(resp) => {
@@ -317,7 +321,7 @@ async fn run_logs(client: &RuntimeClient, id: &str, last: usize, json: bool) -> 
     }
 }
 
-/// `apollia-os trigger reload` — hot reload des triggers depuis `apollia.toml`.
+/// `apollia-os trigger reload`: hot reload triggers from `apollia.toml`.
 async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
     match client.reload_triggers().await {
         Ok(resp) => {
@@ -426,7 +430,7 @@ fn format_trigger_detail(resp: &serde_json::Value) {
     let agent = resp.get("agent").and_then(|v| v.as_str()).unwrap_or("?");
     // The runtime returns `source_type` + structured `source_config` (a JSON
     // object). Older CLI builds looked for `source_kind` / `source_detail`
-    // which never existed — fix here so `trigger status` shows the real
+    // which never existed; fix here so `trigger status` shows the real
     // kind + the kind-specific config slot.
     let kind = resp
         .get("source_type")
@@ -479,7 +483,7 @@ fn trigger_detail_from_config(kind: &str, config: Option<&serde_json::Value>) ->
 
 /// Format trigger logs as human-readable rows.
 ///
-/// Format: `date  status  task_id|—  reason|—`
+/// Columns: date, status, task_id (or a dash placeholder), reason (or a dash placeholder).
 fn format_trigger_logs(resp: &serde_json::Value) {
     let entries = resp
         .get("entries")
@@ -510,22 +514,31 @@ fn format_trigger_logs(resp: &serde_json::Value) {
     }
 }
 
+/// Fields supplied to `apollia-os trigger create`.
+struct CreateArgs<'a> {
+    id: &'a str,
+    agent: &'a str,
+    kind: &'a str,
+    detail: Option<&'a str>,
+    on_busy: &'a str,
+    input: Option<&'a str>,
+}
+
 /// `apollia-os trigger create <id> --agent <agent> --kind <kind> [options]`
 ///
-/// Crée un nouveau trigger via `POST /api/v1/triggers`.
-async fn run_create(
-    client: &RuntimeClient,
-    id: &str,
-    agent: &str,
-    kind: &str,
-    detail: Option<&str>,
-    on_busy: &str,
-    input: Option<&str>,
-    json: bool,
-) -> i32 {
+/// Creates a new trigger via `POST /api/v1/triggers`.
+async fn run_create(client: &RuntimeClient, args: CreateArgs<'_>, json: bool) -> i32 {
+    let CreateArgs {
+        id,
+        agent,
+        kind,
+        detail,
+        on_busy,
+        input,
+    } = args;
     // Build the `source` object the runtime expects (`CreateTriggerRequest`
     // in routes_triggers.rs). The CLI `--kind` is the friendly name; the
-    // runtime accepts the canonical `TriggerSourceConfig` tag — most kinds
+    // runtime accepts the canonical `TriggerSourceConfig` tag; most kinds
     // map 1:1, except `filewatch` which the runtime spells `file_watch`.
     let source = match build_trigger_source(kind, detail) {
         Ok(s) => s,
@@ -632,30 +645,81 @@ fn build_trigger_source(kind: &str, detail: Option<&str>) -> Result<serde_json::
 
 /// `apollia-os trigger update <id> [options]`
 ///
-/// Met à jour un trigger existant via `PUT /api/v1/triggers/{id}`.
+/// Updates an existing trigger via `PUT /api/v1/triggers/{id}`.
 ///
-/// Le runtime attend un body **complet** (`UpdateTriggerRequest` exige
-/// notamment `source: { type, … }` — pas de patch partiel), donc on lit
-/// d'abord la définition courante via `GET /api/v1/triggers/{id}` pour
-/// préserver les champs non modifiés. Cela garde la sémantique merge
-/// que l'utilisateur attend.
-async fn run_update(
-    client: &RuntimeClient,
-    id: &str,
+/// The runtime expects a **complete** body (`UpdateTriggerRequest` requires
+/// `source: { type, ... }` in particular, no partial patch), so we first read
+/// the current definition via `GET /api/v1/triggers/{id}` to preserve the
+/// unmodified fields. This keeps the merge semantics the user expects.
+/// Fields supplied to `apollia-os trigger update`.
+struct UpdateArgs<'a> {
+    id: &'a str,
+    detail: Option<&'a str>,
+    on_busy: Option<&'a str>,
+    input: Option<&'a str>,
+}
+
+/// Maps a runtime `source_type` to the kind-specific detail field name.
+fn detail_field_for(source_type: &str) -> Option<&'static str> {
+    match source_type {
+        "cron" => Some("schedule"),
+        "interval" => Some("every"),
+        "oneshot" => Some("fire_at"),
+        "file_watch" => Some("path"),
+        "webhook" => Some("secret"),
+        _ => None,
+    }
+}
+
+/// Report a `404 Not Found` for a trigger in the operator's preferred format.
+fn report_trigger_not_found(id: &str, body: &str, json: bool) {
+    if json {
+        let out = serde_json::json!({ "error": body });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+    } else {
+        eprintln!("Error: trigger '{id}' not found");
+    }
+}
+
+/// Patch the kind-specific `--detail` field onto `source_config` in place.
+///
+/// Returns `Err(exit_code)` when the source type is unknown (the caller must
+/// return that code immediately); `Ok(())` otherwise (including no `--detail`).
+fn apply_detail_patch(
+    source_config: &mut serde_json::Value,
+    source_type: &str,
     detail: Option<&str>,
-    on_busy: Option<&str>,
-    input: Option<&str>,
     json: bool,
-) -> i32 {
+) -> Result<(), i32> {
+    let Some(d) = detail else {
+        return Ok(());
+    };
+    let Some(field) = detail_field_for(source_type) else {
+        let msg = format!("cannot patch --detail on unknown source type '{source_type}'");
+        if json {
+            println!("{}", serde_json::json!({ "error": msg }));
+        } else {
+            eprintln!("Error: {msg}");
+        }
+        return Err(exit_codes::GENERAL_ERROR);
+    };
+    if let Some(obj) = source_config.as_object_mut() {
+        obj.insert(field.to_string(), serde_json::Value::String(d.to_string()));
+    }
+    Ok(())
+}
+
+async fn run_update(client: &RuntimeClient, args: UpdateArgs<'_>, json: bool) -> i32 {
+    let UpdateArgs {
+        id,
+        detail,
+        on_busy,
+        input,
+    } = args;
     let current = match client.get_trigger(id).await {
         Ok(v) => v,
         Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: trigger '{id}' not found");
-            }
+            report_trigger_not_found(id, &body, json);
             return exit_codes::GENERAL_ERROR;
         }
         Err(e) => return handle_client_error(e, json),
@@ -671,30 +735,8 @@ async fn run_update(
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
 
-    if let Some(d) = detail {
-        // Patch the kind-specific detail field on the existing source_config.
-        let field = match source_type.as_str() {
-            "cron" => "schedule",
-            "interval" => "every",
-            "oneshot" => "fire_at",
-            "file_watch" => "path",
-            "webhook" => "secret",
-            other => {
-                let msg = format!("cannot patch --detail on unknown source type '{other}'");
-                if json {
-                    println!(
-                        "{}",
-                        serde_json::json!({ "error": msg })
-                    );
-                } else {
-                    eprintln!("Error: {msg}");
-                }
-                return exit_codes::GENERAL_ERROR;
-            }
-        };
-        if let Some(obj) = source_config.as_object_mut() {
-            obj.insert(field.to_string(), serde_json::Value::String(d.to_string()));
-        }
+    if let Err(code) = apply_detail_patch(&mut source_config, source_type.as_str(), detail, json) {
+        return code;
     }
 
     let mut source = serde_json::Map::new();
@@ -752,12 +794,7 @@ async fn run_update(
             exit_codes::SUCCESS
         }
         Err(ClientError::ServerError { status: 404, body }) => {
-            if json {
-                let out = serde_json::json!({"error": body});
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
-                eprintln!("Error: trigger '{id}' not found");
-            }
+            report_trigger_not_found(id, &body, json);
             exit_codes::GENERAL_ERROR
         }
         Err(e) => handle_client_error(e, json),
@@ -766,7 +803,7 @@ async fn run_update(
 
 /// `apollia-os trigger delete <id> [--confirm]`
 ///
-/// Supprime un trigger via `DELETE /api/v1/triggers/{id}`.
+/// Deletes a trigger via `DELETE /api/v1/triggers/{id}`.
 async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
         if json {
@@ -808,7 +845,7 @@ async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool)
 
 // ─── Error handling ───────────────────────────────────────────────────────
 
-/// Gestion uniforme des erreurs client.
+/// Uniform handling of client errors.
 fn handle_client_error(err: ClientError, json: bool) -> i32 {
     match err {
         ClientError::ConnectionRefused => {
@@ -845,7 +882,7 @@ fn handle_client_error(err: ClientError, json: bool) -> i32 {
 mod tests {
     use clap::Parser;
 
-    /// CLI minimal pour tester le parsing des sous-commandes trigger.
+    /// Minimal CLI to test parsing of the trigger subcommands.
     #[derive(Debug, Parser)]
     struct TestCli {
         #[command(subcommand)]
@@ -962,7 +999,7 @@ mod tests {
             "--detail",
             "0 9 * * 1",
         ]);
-        // THEN TriggerCommand::Create avec les bons champs
+        // THEN TriggerCommand::Create with the right fields
         match &cli.command {
             super::TriggerCommand::Create {
                 id,
@@ -978,7 +1015,7 @@ mod tests {
                 assert_eq!(detail.as_deref(), Some("0 9 * * 1"));
                 // Default on_busy was changed from "skip" (CLI-only fiction)
                 // to "queue" (runtime canonical value) in the v0.1.0 trigger
-                // payload fix — see run_create.
+                // payload fix; see run_create.
                 assert_eq!(on_busy, "queue");
                 assert!(input.is_none());
             }
@@ -1053,7 +1090,7 @@ mod tests {
 
     #[test]
     fn test_trigger_delete_without_confirm() {
-        // GIVEN "delete rapport-hebdo" sans --confirm
+        // GIVEN "delete rapport-hebdo" without --confirm
         // WHEN
         let cli = TestCli::parse_from(["apollia-os", "delete", "rapport-hebdo"]);
         // THEN confirm = false

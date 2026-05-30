@@ -1,10 +1,10 @@
-//! MemoryManager — namespace isolation and cross-namespace access control.
+//! MemoryManager: namespace isolation and cross-namespace access control.
 //!
-//! Point d'entree unique pour acceder a la memoire d'un agent.
-//! Gere l'ouverture lazy des fichiers `.db`, les permissions (read/write vs read-only),
-//! et le routage vers le bon store.
+//! Single entry point for accessing an agent's memory.
+//! Handles lazy opening of `.db` files, permissions (read/write vs read-only),
+//! and routing to the right store.
 //!
-//! Un fichier SQLite par namespace : `<base_dir>/<namespace>.db` (Principe #1 local-first).
+//! One SQLite file per namespace: `<base_dir>/<namespace>.db` (local-first).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -33,90 +33,90 @@ pub struct PurgeReport {
 /// Intervalle minimum entre deux purges automatiques (5 minutes).
 const PURGE_INTERVAL_SECS: u64 = 300;
 
-/// Gestionnaire de memoire avec isolation par namespace.
+/// Memory manager with per-namespace isolation.
 ///
-/// Point d'entree unique pour acceder a la memoire d'un agent.
-/// Gere l'ouverture des fichiers `.db`, les permissions (read/write vs read-only),
-/// et le routage vers le bon store.
+/// Single entry point for accessing an agent's memory.
+/// Handles opening `.db` files, permissions (read/write vs read-only),
+/// and routing to the right store.
 pub struct MemoryManager {
-    /// Repertoire racine des fichiers memoire (`~/.apollia/memory/`).
+    /// Root directory for memory files (`~/.apollia/memory/`).
     base_dir: PathBuf,
-    /// Namespace prive de l'agent (lecture/ecriture).
+    /// The agent's private namespace (read/write).
     primary_namespace: Option<String>,
-    /// Namespaces partages (lecture seule).
+    /// Shared namespaces (read-only).
     shared_namespaces: Vec<String>,
-    /// Stores ouverts (lazy-opened).
+    /// Open stores (lazy-opened).
     stores: HashMap<String, MemoryStore>,
-    /// Instant de la derniere purge automatique (None si jamais purgee).
+    /// Instant of the last automatic purge (None if never purged).
     last_purge: Option<Instant>,
 }
 
-/// Niveau d'acces a un namespace.
+/// Access level to a namespace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryAccess {
-    /// Lecture et ecriture (namespace prive de l'agent).
+    /// Read and write (the agent's private namespace).
     ReadWrite,
-    /// Lecture seule (namespace partage).
+    /// Read-only (shared namespace).
     ReadOnly,
 }
 
-/// Erreurs du MemoryManager.
+/// MemoryManager errors.
 #[derive(Debug, thiserror::Error)]
 pub enum MemoryManagerError {
-    /// Aucun namespace memoire configure pour cet agent.
+    /// No memory namespace configured for this agent.
     #[error("no memory namespace configured for this agent")]
     NoNamespace,
 
-    /// Le namespace est en lecture seule (namespace partage).
+    /// The namespace is read-only (shared namespace).
     #[error("namespace '{0}' is read-only (shared namespace)")]
     ReadOnlyNamespace(String),
 
-    /// Le namespace n'est pas autorise pour cet agent.
+    /// The namespace is not allowed for this agent.
     #[error("namespace '{0}' is not allowed for this agent")]
     NamespaceNotAllowed(String),
 
-    /// L'ouverture du namespace a echoue.
+    /// Opening the namespace failed.
     #[error("failed to open namespace '{namespace}': {reason}")]
     OpenFailed {
-        /// Namespace concerne.
+        /// Namespace concerned.
         namespace: String,
-        /// Raison de l'echec.
+        /// Reason for the failure.
         reason: String,
     },
 
-    /// Erreur du MemoryStore sous-jacent.
+    /// Error from the underlying MemoryStore.
     #[error("memory store error: {0}")]
     Store(#[from] crate::store::MemoryStoreError),
 
-    /// Erreur du backend episodique.
+    /// Error from the episodic backend.
     #[error("episodic memory error: {0}")]
     Episodic(#[from] crate::episodic::EpisodicMemoryError),
 
-    /// Erreur du backend semantique.
+    /// Error from the semantic backend.
     #[error("semantic memory error: {0}")]
     Semantic(#[from] crate::semantic::SemanticMemoryError),
 
-    /// Erreur du backend procedural.
+    /// Error from the procedural backend.
     #[error("procedural memory error: {0}")]
     Procedural(#[from] crate::procedural::ProceduralMemoryError),
 
-    /// Erreur de recherche FTS5.
+    /// FTS5 search error.
     #[error("search error: {0}")]
     Search(#[from] crate::search::MemorySearchError),
 
-    /// Erreur d'I/O (fichier, repertoire).
+    /// I/O error (file, directory).
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
 
 impl MemoryManager {
-    /// Cree un MemoryManager pour un agent.
+    /// Create a MemoryManager for an agent.
     ///
-    /// - `base_dir` : repertoire racine (`~/.apollia/memory/`)
-    /// - `primary_namespace` : namespace prive (None si pas de memoire)
-    /// - `shared_namespaces` : namespaces en lecture seule
+    /// - `base_dir`: root directory (`~/.apollia/memory/`)
+    /// - `primary_namespace`: private namespace (None if no memory)
+    /// - `shared_namespaces`: read-only namespaces
     ///
-    /// Les stores sont ouverts lazily au premier acces, pas au `new()`.
+    /// Stores are opened lazily on first access, not in `new()`.
     pub fn new(
         base_dir: &Path,
         primary_namespace: Option<String>,
@@ -131,11 +131,11 @@ impl MemoryManager {
         }
     }
 
-    /// Verifie le niveau d'acces a un namespace.
+    /// Check the access level to a namespace.
     ///
-    /// Retourne `ReadWrite` pour le namespace prive, `ReadOnly` pour les
-    /// namespaces partages, `None` si le namespace n'est pas autorise.
-    /// Liste les shared namespaces (lecture seule) configurés pour cet agent.
+    /// Returns `ReadWrite` for the private namespace, `ReadOnly` for shared
+    /// namespaces, `None` if the namespace is not allowed.
+    /// Lists the shared (read-only) namespaces configured for this agent.
     pub fn shared_namespaces(&self) -> &[String] {
         &self.shared_namespaces
     }
@@ -150,10 +150,10 @@ impl MemoryManager {
         None
     }
 
-    /// Retourne une reference au store d'un namespace (l'ouvre si necessaire).
+    /// Return a reference to a namespace's store (opening it if needed).
     ///
-    /// Verifie que l'agent a le droit d'acceder au namespace.
-    /// Cree le repertoire `base_dir` s'il n'existe pas.
+    /// Checks that the agent is allowed to access the namespace.
+    /// Creates the `base_dir` directory if it does not exist.
     pub fn store(&mut self, namespace: &str) -> Result<&MemoryStore, MemoryManagerError> {
         if self.primary_namespace.is_none() {
             return Err(MemoryManagerError::NoNamespace);
@@ -172,9 +172,9 @@ impl MemoryManager {
         Ok(self.stores.get(namespace).expect("store was just inserted"))
     }
 
-    /// Statistiques d'un namespace.
+    /// Statistics for a namespace.
     ///
-    /// Delegue a [`MemoryStore::stats`] apres verification des permissions.
+    /// Delegates to [`MemoryStore::stats`] after checking permissions.
     pub fn stats(&mut self, namespace: &str) -> Result<MemoryStats, MemoryManagerError> {
         let db_path = self.db_path(namespace);
         let store = self.store(namespace)?;
@@ -182,10 +182,10 @@ impl MemoryManager {
         Ok(stats)
     }
 
-    /// Purge les entrees expirees dans le namespace prive.
+    /// Purge expired entries in the private namespace.
     ///
-    /// Delegue a `EpisodicMemory::purge_expired()` et
-    /// `SemanticMemory::purge_expired()`. Retourne le nombre total d'entrees purgees.
+    /// Delegates to `EpisodicMemory::purge_expired()` and
+    /// `SemanticMemory::purge_expired()`. Returns the total number of entries purged.
     pub fn purge_expired(&mut self) -> Result<u64, MemoryManagerError> {
         let namespace = self
             .primary_namespace
@@ -213,13 +213,13 @@ impl MemoryManager {
         Ok(total)
     }
 
-    /// Purge automatique conditionnelle des entrees expirees.
+    /// Conditional automatic purge of expired entries.
     ///
-    /// Appelle `purge_expired()` uniquement si au moins `PURGE_INTERVAL_SECS`
-    /// secondes se sont ecoulees depuis la derniere purge (ou si aucune purge
-    /// n'a encore eu lieu). Les erreurs sont loguees mais ignorees (fire-and-forget).
+    /// Calls `purge_expired()` only if at least `PURGE_INTERVAL_SECS` seconds
+    /// have elapsed since the last purge (or if no purge has happened yet).
+    /// Errors are logged but ignored (fire-and-forget).
     ///
-    /// Destinee a etre appelee apres chaque ecriture memoire.
+    /// Meant to be called after each memory write.
     pub fn maybe_purge(&mut self) {
         let should_purge = match self.last_purge {
             None => true,
@@ -328,36 +328,36 @@ impl MemoryManager {
         }
     }
 
-    /// Répertoire racine où vivent les fichiers `.db` du manager.
+    /// Root directory where the manager's `.db` files live.
     ///
-    /// Exposé pour permettre aux composants externes (notamment le bridge
-    /// PyO3) de déléguer à [`crate::export`] sans réouvrir un store eux-mêmes.
+    /// Exposed so external components (notably the PyO3 bridge) can delegate
+    /// to [`crate::export`] without reopening a store themselves.
     pub fn base_dir(&self) -> &Path {
         &self.base_dir
     }
 
-    /// Namespace privé (lecture/écriture) du manager, ou `None` si l'agent
-    /// n'a pas de mémoire configurée.
+    /// The manager's private (read/write) namespace, or `None` if the agent
+    /// has no memory configured.
     pub fn primary_namespace(&self) -> Option<&str> {
         self.primary_namespace.as_deref()
     }
 
-    /// Construit le chemin du fichier `.db` pour un namespace.
+    /// Build the `.db` file path for a namespace.
     fn db_path(&self, namespace: &str) -> PathBuf {
         self.base_dir.join(format!("{namespace}.db"))
     }
 
-    /// Retourne le chemin du fichier `.db` pour un namespace, ou `None` si
-    /// le manager ne connait pas ce namespace.
+    /// Return the `.db` file path for a namespace, or `None` if the manager
+    /// does not know that namespace.
     ///
-    /// Exposé pour permettre aux composants externes (notamment
-    /// [`crate::user_memory::UserMemoryRepository`]) d'ouvrir leur propre
-    /// connection sur le même fichier.
+    /// Exposed so external components (notably
+    /// [`crate::user_memory::UserMemoryRepository`]) can open their own
+    /// connection on the same file.
     pub fn db_path_for(&self, namespace: &str) -> Option<PathBuf> {
         Some(self.db_path(namespace))
     }
 
-    /// Ouvre un store pour un namespace et l'insere dans le cache.
+    /// Open a store for a namespace and insert it into the cache.
     fn open_store(&mut self, namespace: &str) -> Result<(), MemoryManagerError> {
         std::fs::create_dir_all(&self.base_dir)?;
 
@@ -382,6 +382,7 @@ impl MemoryManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::semantic::RememberInput;
 
     fn temp_base_dir() -> PathBuf {
         let dir = std::env::temp_dir().join(format!("apollia_mgr_{}", uuid::Uuid::new_v4()));
@@ -389,7 +390,7 @@ mod tests {
         dir
     }
 
-    // -- Ouvrir un namespace prive (lecture/ecriture)
+    // Open a private namespace (read/write)
     #[test]
     fn test_ac1_open_primary_namespace() {
         // GIVEN
@@ -402,7 +403,7 @@ mod tests {
         assert!(base.join("crm-dupont.db").exists());
     }
 
-    // -- Lire un namespace partage (lecture seule)
+    // Read a shared namespace (read-only)
     #[test]
     fn test_ac2_read_shared_namespace() {
         // GIVEN -- create the shared namespace DB first
@@ -416,7 +417,7 @@ mod tests {
         assert_eq!(mgr.access_level("shared"), Some(MemoryAccess::ReadOnly));
     }
 
-    // -- Ecriture refusee sur namespace partage (verification access_level)
+    // Write refused on a shared namespace (access_level check)
     #[test]
     fn test_ac3_write_to_shared_rejected() {
         // GIVEN
@@ -471,7 +472,7 @@ mod tests {
         assert!(matches!(result, Err(MemoryManagerError::NoNamespace)));
     }
 
-    // access_level retourne None pour un namespace inconnu
+    // access_level returns None for an unknown namespace
     #[test]
     fn test_access_level_returns_none_for_unknown() {
         // GIVEN
@@ -481,7 +482,7 @@ mod tests {
         assert!(mgr.access_level("unknown").is_none());
     }
 
-    // purge_expired sans namespace retourne NoNamespace
+    // purge_expired with no namespace returns NoNamespace
     #[test]
     fn test_purge_expired_no_namespace() {
         // GIVEN
@@ -514,14 +515,14 @@ mod tests {
         .expect("record expired episode");
 
         let sem = SemanticMemory::new(store);
-        sem.remember(
-            "ns",
-            "old.key",
-            &serde_json::json!("old"),
-            1.0,
-            None,
-            Some("2020-01-01T00:00:00Z"),
-        )
+        sem.remember(RememberInput {
+            namespace: "ns",
+            key: "old.key",
+            value: &serde_json::json!("old"),
+            confidence: 1.0,
+            source: None,
+            expires_at: Some("2020-01-01T00:00:00Z"),
+        })
         .expect("remember expired semantic");
 
         ep.record("ns", "agent-1", "Fresh episode", 0.5, None, None, None)
@@ -533,7 +534,7 @@ mod tests {
         assert_eq!(purged, 2);
     }
 
-    // Stats avec des donnees reelles
+    // Stats with real data
     #[test]
     fn test_stats_with_data() {
         // GIVEN
@@ -548,8 +549,15 @@ mod tests {
             .expect("record");
 
         let sem = SemanticMemory::new(store);
-        sem.remember("ns", "k1", &serde_json::json!("v"), 1.0, None, None)
-            .expect("remember");
+        sem.remember(RememberInput {
+            namespace: "ns",
+            key: "k1",
+            value: &serde_json::json!("v"),
+            confidence: 1.0,
+            source: None,
+            expires_at: None,
+        })
+        .expect("remember");
 
         // WHEN
         let stats = mgr.stats("ns").expect("stats");
@@ -561,7 +569,7 @@ mod tests {
         assert!(stats.db_size_bytes > 0);
     }
 
-    // Lazy opening -- store n'est pas cree au new()
+    // Lazy opening: store is not created in new()
     #[test]
     fn test_lazy_opening() {
         // GIVEN
@@ -628,7 +636,7 @@ mod tests {
         );
     }
 
-    // create_dir_all -- le repertoire base est cree automatiquement
+    // create_dir_all: the base directory is created automatically
     #[test]
     fn test_create_dir_all_on_open() {
         // GIVEN -- base_dir doesn't exist yet
@@ -668,8 +676,15 @@ mod tests {
         .expect("insert episodic");
         drop(ep);
 
-        sem.remember("ns", "key", &serde_json::json!("val"), 1.0, None, None)
-            .expect("remember semantic");
+        sem.remember(RememberInput {
+            namespace: "ns",
+            key: "key",
+            value: &serde_json::json!("val"),
+            confidence: 1.0,
+            source: None,
+            expires_at: None,
+        })
+        .expect("remember semantic");
 
         proc.learn("ns", "trig", &["step1".to_string()])
             .expect("learn procedural");
@@ -792,8 +807,15 @@ mod tests {
         drop(conn);
 
         let sem = SemanticMemory::new(store);
-        sem.remember("ns", "k", &serde_json::json!("v"), 1.0, None, None)
-            .expect("semantic");
+        sem.remember(RememberInput {
+            namespace: "ns",
+            key: "k",
+            value: &serde_json::json!("v"),
+            confidence: 1.0,
+            source: None,
+            expires_at: None,
+        })
+        .expect("semantic");
         drop(sem);
 
         // Force the semantic entry to an old created_at

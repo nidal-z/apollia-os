@@ -1,14 +1,14 @@
-//! Resilience routes — snapshot and manage per-tool circuit breakers.
+//! Resilience routes, snapshot and manage per-tool circuit breakers.
 //!
-//! - `GET /api/v1/resilience/status` — list every registered breaker.
-//! - `GET /api/v1/resilience/status/:tool` — single-tool snapshot.
-//! - `POST /api/v1/resilience/reset/:tool` — force-close a breaker.
+//! - `GET /api/v1/resilience/status`, list every registered breaker.
+//! - `GET /api/v1/resilience/status/:tool`, single-tool snapshot.
+//! - `POST /api/v1/resilience/reset/:tool`, force-close a breaker.
 //!
 //! The shared [`ResilienceLayer`](apollia_oria::ResilienceLayer) lives in
 //! [`crate::api::server::AppState::resilience_layer`]. It is hydrated by
 //! [`crate::observability::spawn_resilience_subscriber`] from the
 //! `RuntimeEvent::ToolCallCompleted` / `ToolCallDenied` stream, so a fresh
-//! runtime returns an empty snapshot until tools actually run — the same
+//! runtime returns an empty snapshot until tools actually run, the same
 //! semantics the per-task ORIA engines exhibit today.
 
 use axum::extract::{Path, State};
@@ -37,7 +37,7 @@ pub struct ResilienceStatusResponse {
     pub circuit_breakers: Vec<CircuitBreakerSnapshot>,
 }
 
-/// `GET /api/v1/resilience/status` — list all known circuit breakers.
+/// `GET /api/v1/resilience/status`, list all known circuit breakers.
 pub async fn list_breakers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<ResilienceStatusResponse> {
@@ -60,7 +60,7 @@ pub struct NotFoundResponse {
     pub error: String,
 }
 
-/// `GET /api/v1/resilience/status/:tool` — single-tool snapshot.
+/// `GET /api/v1/resilience/status/:tool`, single-tool snapshot.
 pub async fn get_breaker<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(tool): Path<String>,
@@ -103,7 +103,7 @@ pub struct ResetResponse {
     pub reset: bool,
 }
 
-/// `POST /api/v1/resilience/reset/:tool` — force-close a breaker.
+/// `POST /api/v1/resilience/reset/:tool`, force-close a breaker.
 pub async fn reset_breaker<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(tool): Path<String>,

@@ -1,39 +1,39 @@
 use serde::{Deserialize, Serialize};
 
-/// Machine d'état du processus agent, alignée ACP (Agent Communication Protocol).
+/// Agent process state machine, aligned with ACP (Agent Communication Protocol).
 ///
-/// Transitions valides :
-/// `Initializing` → `Active` → `Degraded` → `Stopping` → `Stopped`
-///                               ↑                           ↑
-///                          (outils optionnels          (erreur fatale,
-///                            manquants)                skip vers Stopping)
+/// Valid transitions:
+/// `Initializing` -> `Active` -> `Degraded` -> `Stopping` -> `Stopped`
+///                                 ^                            ^
+///                            (missing optional            (fatal error,
+///                             tools)                       skip to Stopping)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProcessState {
-    /// Résolution des outils, validation du manifest, ouverture SQLite.
-    /// Toute erreur ici = échec de démarrage (Principe #4 — Fail fast).
+    /// Tool resolution, manifest validation, SQLite opening.
+    /// Any error here is a startup failure (fail fast).
     Initializing,
-    /// Prêt à accepter des tâches.
+    /// Ready to accept tasks.
     Active,
-    /// Actif mais avec des `tools_optional` manquants ou dégradés.
+    /// Active but with missing or degraded `tools_optional`.
     Degraded,
-    /// Drain des tâches en cours (timeout 30s). Refuse les nouvelles tâches.
+    /// Draining in-flight tasks (30s timeout). Refuses new tasks.
     Stopping,
-    /// Arrêt propre. Plus aucune tâche acceptée.
+    /// Clean stop. No more tasks accepted.
     Stopped,
 }
 
 impl ProcessState {
-    /// Vérifie si la transition vers `target` est valide selon la machine d'état.
+    /// Checks whether the transition to `target` is valid per the state machine.
     ///
-    /// Transitions valides :
-    /// - `Initializing` → `Active` (démarrage normal)
-    /// - `Initializing` → `Stopping` (fail-fast sur erreur de démarrage)
-    /// - `Active` → `Degraded` (outils optionnels manquants)
-    /// - `Active` → `Stopping` (arrêt demandé)
-    /// - `Degraded` → `Active` (récupération)
-    /// - `Degraded` → `Stopping` (arrêt demandé)
-    /// - `Stopping` → `Stopped` (fin du drain des tâches)
+    /// Valid transitions:
+    /// - `Initializing` -> `Active` (normal startup)
+    /// - `Initializing` -> `Stopping` (fail-fast on startup error)
+    /// - `Active` -> `Degraded` (missing optional tools)
+    /// - `Active` -> `Stopping` (stop requested)
+    /// - `Degraded` -> `Active` (recovery)
+    /// - `Degraded` -> `Stopping` (stop requested)
+    /// - `Stopping` -> `Stopped` (end of task drain)
     pub fn can_transition_to(&self, target: &ProcessState) -> bool {
         matches!(
             (self, target),
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_can_transition_to_valid() {
-        // GIVEN / WHEN / THEN — toutes les transitions valides passent
+        // GIVEN / WHEN / THEN: all valid transitions pass
         assert!(ProcessState::Initializing.can_transition_to(&ProcessState::Active));
         assert!(ProcessState::Initializing.can_transition_to(&ProcessState::Stopping));
         assert!(ProcessState::Active.can_transition_to(&ProcessState::Degraded));
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_can_transition_to_invalid() {
-        // GIVEN / WHEN / THEN — transitions invalides refusées
+        // GIVEN / WHEN / THEN: invalid transitions refused
         assert!(!ProcessState::Stopped.can_transition_to(&ProcessState::Active));
         assert!(!ProcessState::Stopped.can_transition_to(&ProcessState::Initializing));
         assert!(!ProcessState::Initializing.can_transition_to(&ProcessState::Stopped));

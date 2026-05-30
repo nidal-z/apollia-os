@@ -52,8 +52,10 @@ function normaliseLang(raw: string): BundledLanguage | null {
     yml: "yaml",
     markdown: "md",
   };
-  const resolved = (map[lower] ?? lower) as BundledLanguage;
-  return (SUPPORTED_LANGS as readonly string[]).includes(resolved) ? resolved : null;
+  const resolved = map[lower] ?? lower;
+  return (SUPPORTED_LANGS as readonly string[]).includes(resolved)
+    ? (resolved as BundledLanguage)
+    : null;
 }
 
 function detectTheme(): "github-light" | "github-dark" {
@@ -85,8 +87,8 @@ export async function hydrateCodeBlocks(root: HTMLElement): Promise<void> {
   const theme = detectTheme();
 
   for (const code of blocks) {
-    const encodedSource = code.getAttribute("data-shiki-code") ?? "";
-    const rawLang = code.getAttribute("data-shiki-lang") ?? "";
+    const encodedSource = code.dataset.shikiCode ?? "";
+    const rawLang = code.dataset.shikiLang ?? "";
     const source = (() => {
       try {
         return decodeURIComponent(encodedSource);

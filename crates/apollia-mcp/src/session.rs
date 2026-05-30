@@ -193,13 +193,13 @@ pub enum McpSessionError {
     /// The remote MCP server returned HTTP 401 Unauthorized during the handshake
     /// or a tool call. `www_authenticate` carries the verbatim
     /// `WWW-Authenticate` header (RFC 6750), which orchestration layers parse
-    /// to drive the MCP HTTP OAuth 2.1 flow (ADR-095).
+    /// to drive the MCP HTTP OAuth 2.1 flow.
     #[error("server '{server}' returned 401 Unauthorized; OAuth handshake required")]
     Unauthorized {
         /// MCP server name.
         server: String,
         /// `WWW-Authenticate` header value verbatim (empty when the server
-        /// omitted the header — unusual but technically allowed).
+        /// omitted the header, unusual but technically allowed).
         www_authenticate: String,
     },
 }
@@ -438,7 +438,7 @@ impl McpSession {
                 server: self.config.name.clone(),
             }),
             Err(_) => {
-                // Timed out — remove the stale pending entry to avoid map growth.
+                // Timed out: remove the stale pending entry to avoid map growth.
                 self.pending.lock().await.remove(&id);
                 Err(McpSessionError::InitializeTimeout {
                     server: self.config.name.clone(),
@@ -581,7 +581,7 @@ impl McpSession {
     /// List the resources exposed by the server (`resources/list`).
     ///
     /// Returns an empty result when the server does not advertise the
-    /// `resources` capability — callers should branch on
+    /// `resources` capability; callers should branch on
     /// [`McpSession::capabilities`] to avoid the round-trip in that case.
     pub async fn list_resources(
         &self,
@@ -624,7 +624,7 @@ impl McpSession {
     ///
     /// The server will subsequently send `notifications/resources/updated` for
     /// the matching URI. Apollia's dispatch loop currently drops notifications
-    /// (cf. dispatch_task) — wiring them through is part of the next step.
+    /// (cf. dispatch_task); wiring them through is part of the next step.
     pub async fn subscribe_resource(&self, uri: &str) -> Result<(), McpSessionError> {
         let params = serde_json::json!({ "uri": uri });
         self.send_request(
@@ -723,7 +723,7 @@ fn spawn_dispatch_task(
                     if let Some(id) = response.id {
                         let mut map = pending.lock().await;
                         if let Some(sender) = map.remove(&id) {
-                            // The receiver may have been dropped on timeout — expected.
+                            // The receiver may have been dropped on timeout, which is expected.
                             let _ = sender.send(response);
                         }
                     }

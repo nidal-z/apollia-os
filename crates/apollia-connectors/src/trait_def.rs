@@ -1,4 +1,4 @@
-//! The `Connector` trait — abstraction implemented by every native SaaS connector.
+//! The `Connector` trait: abstraction implemented by every native SaaS connector.
 
 use async_trait::async_trait;
 
@@ -13,14 +13,14 @@ pub struct HealthReport {
     pub reachable: bool,
     /// Scopes the token actually holds (as reported by the upstream).
     pub granted_scopes: Vec<String>,
-    /// Free-form human-readable detail (failure reason, latency, …).
+    /// Free-form human-readable detail (failure reason, latency, etc.).
     pub detail: String,
 }
 
 /// A connector binds Apollia to an external service via OAuth + a typed API client.
 ///
 /// Implementations expose a stable set of operations consumed by
-/// `apollia-tools::registry`. Connectors are stateless wrappers — credentials
+/// `apollia-tools::registry`. Connectors are stateless wrappers: credentials
 /// live in `apollia-auth` (keyring) and are fetched per-call.
 ///
 /// The trait is intentionally minimal (4 methods). Anything beyond identity,
@@ -43,7 +43,7 @@ pub trait Connector: Send + Sync + 'static {
     ///
     /// Implementations should make a cheap upstream call (typically the
     /// userinfo / `/me` endpoint) and report the result. **Not** an exhaustive
-    /// scope audit — surface `granted_scopes` from the token, not from a
+    /// scope audit: surface `granted_scopes` from the token, not from a
     /// per-API probe.
     async fn check(&self, account_id: &AccountId) -> Result<HealthReport, ConnectorError>;
 }

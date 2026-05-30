@@ -1,7 +1,7 @@
-//! Export et import de la mémoire d'un agent par namespace.
+//! Export and import of an agent's memory, per namespace.
 //!
-//! Format d'export `.apollia-memory` : JSON avec format_version = 1.
-//! Utilisé par la CLI (`memory export` / `memory import`) et le Desktop IPC.
+//! Export format `.apollia-memory`: JSON with format_version = 1.
+//! Used by the CLI (`memory export` / `memory import`) and the Desktop IPC.
 
 use std::path::Path;
 
@@ -9,60 +9,60 @@ use serde::{Deserialize, Serialize};
 
 use crate::store::{MemoryStore, MemoryStoreError};
 
-/// Format d'export de la mémoire d'un namespace.
+/// Export format for a namespace's memory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryExport {
-    /// Version du format (toujours 1 pour cette implémentation).
+    /// Format version (always 1 for this implementation).
     pub format_version: u32,
-    /// Namespace exporté.
+    /// Exported namespace.
     pub namespace: String,
-    /// Horodatage UTC ISO 8601 de l'export.
+    /// ISO 8601 UTC timestamp of the export.
     pub exported_at: String,
-    /// Entrées épisodiques sérialisées.
+    /// Serialized episodic entries.
     pub episodic: Vec<serde_json::Value>,
-    /// Entrées sémantiques sérialisées.
+    /// Serialized semantic entries.
     pub semantic: Vec<serde_json::Value>,
-    /// Procédures sérialisées.
+    /// Serialized procedures.
     pub procedural: Vec<serde_json::Value>,
 }
 
-/// Mode d'import : remplace ou fusionne les entrées existantes.
+/// Import mode: replace or merge existing entries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImportMode {
-    /// Vide le namespace puis importe toutes les entrées.
+    /// Clear the namespace, then import all entries.
     Replace,
-    /// Insère les entrées absentes (ignore les doublons par id).
+    /// Insert missing entries (ignores duplicates by id).
     Merge,
 }
 
-/// Erreur d'export/import.
+/// Export/import error.
 #[derive(Debug, thiserror::Error)]
 pub enum ExportError {
-    /// Erreur SQLite.
+    /// SQLite error.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 
-    /// Erreur du MemoryStore.
+    /// MemoryStore error.
     #[error("memory store error: {0}")]
     Store(#[from] MemoryStoreError),
 
-    /// Erreur de sérialisation/désérialisation JSON.
+    /// JSON serialization/deserialization error.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
-    /// Format non reconnu.
+    /// Unrecognized format.
     #[error("unsupported format version: {0}")]
     UnsupportedVersion(u32),
 
-    /// Erreur I/O.
+    /// I/O error.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
 
-/// Exporte toutes les entrées d'un namespace dans un [`MemoryExport`].
+/// Exports all entries of a namespace into a [`MemoryExport`].
 ///
-/// Ouvre le fichier `.db` existant pour `namespace` dans `data_dir` et
-/// sérialise toutes les entrées épisodiques, sémantiques et procédurales.
+/// Opens the existing `.db` file for `namespace` in `data_dir` and
+/// serializes all episodic, semantic, and procedural entries.
 pub fn export_namespace(data_dir: &Path, namespace: &str) -> Result<MemoryExport, ExportError> {
     let db_path = data_dir.join(format!("{namespace}.db"));
     let store = MemoryStore::open(&db_path)?;
@@ -143,12 +143,12 @@ pub fn export_namespace(data_dir: &Path, namespace: &str) -> Result<MemoryExport
     })
 }
 
-/// Importe les entrées d'un [`MemoryExport`] dans un namespace.
+/// Imports the entries of a [`MemoryExport`] into a namespace.
 ///
-/// - `ImportMode::Replace` : vide le namespace avant d'insérer.
-/// - `ImportMode::Merge` : insère uniquement les entrées absentes (par `id`).
+/// - `ImportMode::Replace`: clears the namespace before inserting.
+/// - `ImportMode::Merge`: inserts only missing entries (by `id`).
 ///
-/// Crée le fichier `.db` si absent. Retourne le nombre total d'entrées importées.
+/// Creates the `.db` file if absent. Returns the total number of imported entries.
 pub fn import_namespace(
     data_dir: &Path,
     namespace: &str,
@@ -288,7 +288,7 @@ mod tests {
         .unwrap();
     }
 
-    // FC22 — export serializes episodic, semantic, procedural entries
+    // export serializes episodic, semantic, procedural entries
     #[test]
     fn test_export_serializes_all_types() {
         // GIVEN a namespace with entries of each type
@@ -311,7 +311,7 @@ mod tests {
         assert_eq!(export.procedural[0]["trigger"], "analyser rapport");
     }
 
-    // FC22 — import with replace clears namespace and restores entries
+    // import with replace clears namespace and restores entries
     #[test]
     fn test_import_replace_round_trip() {
         // GIVEN a namespace with entries
@@ -352,7 +352,7 @@ mod tests {
         assert_eq!(count, 3);
     }
 
-    // FC22 — import with unsupported version returns error
+    // import with unsupported version returns error
     #[test]
     fn test_import_unsupported_version_error() {
         // GIVEN an export with version 99

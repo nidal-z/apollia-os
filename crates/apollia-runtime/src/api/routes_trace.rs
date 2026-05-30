@@ -1,8 +1,8 @@
-//! `GET /api/v1/tasks/{id}/trace` — event-sourced execution trace (ADR-088).
+//! `GET /api/v1/tasks/{id}/trace`, event-sourced execution trace (ADR-088).
 //!
 //! Source de vérité unique : table `runtime_events` peuplée par
 //! [`crate::observability::EventPersistorHandle`]. Pagination par curseur
-//! UUIDv7 (`?since=<event_id>`) — pas d'`OFFSET`, l'ordre lexicographique
+//! UUIDv7 (`?since=<event_id>`), pas d'`OFFSET`, l'ordre lexicographique
 //! des UUIDv7 est l'ordre causal.
 
 use axum::extract::{Path, Query, State};
@@ -27,7 +27,7 @@ const MAX_LIMIT: usize = 5000;
 /// Paramètres de query string.
 #[derive(Debug, Deserialize)]
 pub struct TraceQuery {
-    /// Curseur de pagination — ne retourne que les événements *strictement*
+    /// Curseur de pagination, ne retourne que les événements *strictement*
     /// après cet `event_id` (UUIDv7 lex-ordonnable). Absent = depuis le début.
     #[serde(default)]
     pub since: Option<String>,
@@ -95,7 +95,7 @@ pub async fn get_task_trace<B: ExecutionBackend + Clone>(
     })?;
 
     // Curseur : si on a renvoyé exactement `limit` événements, il en reste
-    // probablement d'autres — exposer le dernier event_id comme prochain
+    // probablement d'autres, exposer le dernier event_id comme prochain
     // curseur. Sinon (page partielle), aucun cursor.
     let next_cursor = if events.len() == limit {
         events.last().map(|e| e.event_id.clone())

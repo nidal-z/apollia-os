@@ -1,11 +1,11 @@
 //! Native bash executor tool with Linux namespace isolation.
 //!
-//! On Linux: wraps every command with `unshare --pid --mount --fork` (ADR-005).
-//! On macOS/non-Linux: executes directly with a per-invocation `tracing::warn!` (ADR-012).
+//! On Linux: wraps every command with `unshare --pid --mount --fork`.
+//! On macOS/non-Linux: executes directly with a per-invocation `tracing::warn!`.
 //!
 //! Before spawning a process, two validation steps are applied in order:
-//! 1. Risk classification (sync) — blocked if a risky pattern is matched.
-//! 2. Syntax validation (async, `bash -n -c`) — blocked if syntax is invalid.
+//! 1. Risk classification (sync): blocked if a risky pattern is matched.
+//! 2. Syntax validation (async, `bash -n -c`): blocked if syntax is invalid.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -25,13 +25,13 @@ use crate::tools::risk_classifier::RiskCategory;
 /// Native shell executor with Linux namespace isolation (PID + mount).
 ///
 /// On Linux: wraps commands with `unshare --pid --mount --fork /bin/sh -c` for PID
-/// and mount namespace isolation (see ADR-005).
+/// and mount namespace isolation.
 ///
 /// On non-Linux (macOS, dev): executes directly via `/bin/sh -c` with a per-invocation
-/// `tracing::warn!` to make the absence of sandbox impossible to miss (see ADR-012).
+/// `tracing::warn!` to make the absence of sandbox impossible to miss.
 ///
 /// Before any process is spawned, [`BashValidator`] applies risk classification
-/// and syntax validation (Principe #4 — Fail fast).
+/// and syntax validation (fail fast).
 ///
 /// An optional [`FilePathExtractor`] can be wired in via
 /// [`with_file_path_extractor`](Self::with_file_path_extractor). When set, paths found
@@ -69,7 +69,7 @@ pub struct BashOutput {
 /// Errors produced by [`BashExecutor::run`].
 #[derive(Debug, Error)]
 pub enum BashExecutorError {
-    /// `command` is empty or whitespace-only — rejected before any I/O (Principe #4).
+    /// `command` is empty or whitespace-only, rejected before any I/O (fail fast).
     #[error("command must not be empty")]
     EmptyCommand,
     /// The specified working directory does not exist or is not a directory.
@@ -89,7 +89,7 @@ pub enum BashExecutorError {
     /// I/O error reading stdout or stderr from the child process.
     #[error("output capture failed: {0}")]
     OutputCaptureFailed(String),
-    /// `bash -n -c` reported a syntax error — the command was never executed.
+    /// `bash -n -c` reported a syntax error; the command was never executed.
     #[error("bash syntax error in `{cmd}`: {detail}")]
     SyntaxError {
         /// The command that failed syntax validation.
@@ -97,7 +97,7 @@ pub enum BashExecutorError {
         /// stderr output from `bash -n -c`.
         detail: String,
     },
-    /// A risk pattern was matched — the command was blocked before spawning.
+    /// A risk pattern was matched; the command was blocked before spawning.
     #[error("risky command blocked (category: {category:?}): {command}")]
     RiskyCommand {
         /// The command that triggered the risk classifier.
@@ -113,7 +113,7 @@ pub enum BashExecutorError {
 impl BashExecutor {
     /// Creates a `BashExecutor` with default validation configuration.
     ///
-    /// All risk categories are enabled but pattern lists are empty — no command is blocked
+    /// All risk categories are enabled but pattern lists are empty; no command is blocked
     /// without explicit operator configuration in `apollia.toml` (opt-in behaviour).
     pub fn new() -> Self {
         Self {
@@ -140,7 +140,7 @@ impl BashExecutor {
     /// After every successful bash execution, paths found in stdout are extracted
     /// asynchronously via `extractor` and emitted on `event_tx` as
     /// [`apollia_core::RuntimeEvent::BashFilePathsExtracted`].
-    /// The extraction never blocks `run` — it runs in a detached [`tokio::spawn`] task.
+    /// The extraction never blocks `run`; it runs in a detached [`tokio::spawn`] task.
     pub fn with_file_path_extractor(
         mut self,
         extractor: Arc<FilePathExtractor>,
@@ -207,7 +207,7 @@ impl BashExecutor {
 
     /// Executes a shell command with sandbox isolation.
     ///
-    /// # Validation order (Principe #4 — Fail fast)
+    /// # Validation order (fail fast)
     ///
     /// 1. Empty-command check (sync).
     /// 2. Working-directory existence check (sync).
@@ -217,19 +217,19 @@ impl BashExecutor {
     ///
     /// # Errors
     ///
-    /// - [`BashExecutorError::EmptyCommand`] — `command` is blank.
-    /// - [`BashExecutorError::WorkingDirNotFound`] — `working_dir` path does not exist.
-    /// - [`BashExecutorError::RiskyCommand`] — a risk pattern was matched; process never spawned.
-    /// - [`BashExecutorError::SyntaxError`] — `bash -n` reported a parse error.
-    /// - [`BashExecutorError::SyntaxValidationTimeout`] — syntax check exceeded its timeout.
-    /// - [`BashExecutorError::Timeout`] — command exceeded `timeout_secs`; child is killed.
-    /// - [`BashExecutorError::SpawnFailed`] — OS refused to spawn the child.
-    /// - [`BashExecutorError::OutputCaptureFailed`] — I/O error reading stdout/stderr.
+    /// - [`BashExecutorError::EmptyCommand`]: `command` is blank.
+    /// - [`BashExecutorError::WorkingDirNotFound`]: `working_dir` path does not exist.
+    /// - [`BashExecutorError::RiskyCommand`]: a risk pattern was matched; process never spawned.
+    /// - [`BashExecutorError::SyntaxError`]: `bash -n` reported a parse error.
+    /// - [`BashExecutorError::SyntaxValidationTimeout`]: syntax check exceeded its timeout.
+    /// - [`BashExecutorError::Timeout`]: command exceeded `timeout_secs`; child is killed.
+    /// - [`BashExecutorError::SpawnFailed`]: OS refused to spawn the child.
+    /// - [`BashExecutorError::OutputCaptureFailed`]: I/O error reading stdout/stderr.
     pub async fn run(&self, input: BashInput) -> Result<BashOutput, BashExecutorError> {
         // Filesystem mutations executed via shell (rm, mv, dd, …) are NOT journaled.
         // Apollia has no control over what a shell command mutates; capturing the inverse
         // is therefore impossible. Safety for bash remains upstream (RiskClassifier,
-        // BashValidator, HITL). See ADR-069 §Couche 3 for the explicit scope boundary.
+        // BashValidator, HITL).
 
         // Pre-capture the command string for extraction before any conditional moves.
         // The clone is skipped when no extractor is configured (common path).
@@ -238,19 +238,19 @@ impl BashExecutor {
             .as_ref()
             .map(|_| input.command.clone());
 
-        // Step 1 — Fail fast: empty command.
+        // Step 1, fail fast: empty command.
         if input.command.trim().is_empty() {
             return Err(BashExecutorError::EmptyCommand);
         }
 
-        // Step 2 — Fail fast: working directory existence.
+        // Step 2, fail fast: working directory existence.
         if let Some(ref dir) = input.working_dir {
             if !dir.is_dir() {
                 return Err(BashExecutorError::WorkingDirNotFound(dir.clone()));
             }
         }
 
-        // Step 3 — Risk classification (sync, no I/O).
+        // Step 3, risk classification (sync, no I/O).
         let risks = self.validator.classify_risks(&input.command);
         if let Some(category) = risks.into_iter().next() {
             tracing::warn!(
@@ -264,10 +264,10 @@ impl BashExecutor {
             });
         }
 
-        // Step 4 — Syntax validation (async, bash -n -c).
+        // Step 4, syntax validation (async, bash -n -c).
         self.validator.validate_syntax(&input.command).await?;
 
-        // Step 5 — Execution.
+        // Step 5, execution.
         let mut cmd = Self::build_command(&input);
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
@@ -354,7 +354,7 @@ impl BashExecutor {
     /// Builds the OS-appropriate [`tokio::process::Command`] for the given input.
     ///
     /// On Linux: wraps with `unshare --pid --mount --fork` for namespace isolation.
-    /// On non-Linux: direct `/bin/sh -c` with a per-invocation dev-mode warning (ADR-012).
+    /// On non-Linux: direct `/bin/sh -c` with a per-invocation dev-mode warning.
     #[cfg(target_os = "linux")]
     fn build_command(input: &BashInput) -> tokio::process::Command {
         let mut cmd = tokio::process::Command::new("/usr/bin/unshare");
@@ -396,7 +396,7 @@ mod tests {
     /// Returns `true` if the platform can actually execute shell commands
     /// through our `build_command` path. On Linux without `CAP_SYS_ADMIN`
     /// (e.g. GitHub Actions runners), `unshare --pid --mount` fails with
-    /// EPERM — these tests must be skipped gracefully.
+    /// EPERM: these tests must be skipped gracefully.
     fn can_run_shell() -> bool {
         #[cfg(target_os = "linux")]
         {
@@ -489,7 +489,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac4_whitespace_only_command_rejected() {
-        // GIVEN — whitespace is not a valid command either
+        // GIVEN: whitespace is not a valid command either
         let executor = BashExecutor::new();
         let input = BashInput {
             command: "   ".to_string(),
@@ -542,7 +542,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_risk_classification_blocks_before_exec() {
-        // GIVEN executor avec pattern réseau configuré
+        // GIVEN an executor with a network pattern configured
         let config = BashValidatorConfig {
             block_network_egress: true,
             network_egress_patterns: vec!["wget".to_owned()],
@@ -556,7 +556,7 @@ mod tests {
         };
         // WHEN
         let result = executor.run(input).await;
-        // THEN — bloqué avant tout spawn
+        // THEN: blocked before any spawn
         assert!(
             matches!(
                 result,
@@ -571,7 +571,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_syntax_error_blocks_before_exec() {
-        // GIVEN executor avec config par défaut (aucun pattern de risque)
+        // GIVEN an executor with default config (no risk patterns)
         let executor = BashExecutor::new();
         let input = BashInput {
             command: "if [ -z $VAR; then echo ok".to_string(),
@@ -605,7 +605,7 @@ mod tests {
             return;
         }
 
-        // GIVEN — executor wired with a mock extractor
+        // GIVEN: executor wired with a mock extractor
         use std::collections::HashMap;
         use std::pin::Pin;
         use std::sync::Arc;
@@ -679,7 +679,7 @@ mod tests {
         // WHEN
         let _output = executor.run(input).await.expect("execution must succeed");
 
-        // THEN — BashFilePathsExtracted must arrive within 2 seconds (non-blocking)
+        // THEN: BashFilePathsExtracted must arrive within 2 seconds (non-blocking)
         tokio::time::timeout(std::time::Duration::from_secs(2), async {
             loop {
                 match rx.recv().await {

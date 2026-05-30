@@ -8,11 +8,11 @@
 //! # Design
 //!
 //! Two layers:
-//! - **Always-on**: a static lookup maps a thiserror message → [`ErrorCategory`]
-//!   + i18n-ready human key (`error.<snake>.human`). Coût : 0.
+//! - **Always-on**: a static lookup maps a thiserror message to [`ErrorCategory`]
+//!   plus an i18n-ready human key (`error.<snake>.human`). Cost: 0.
 //! - **Opt-in**: when [`ErrorCategory::Unknown`], the runtime may invoke
 //!   `MetaRoutine::GenerateErrorExplanation` to enrich `human_message` and
-//!   produce a `suggested_action`. Coût : ~400+150 tokens si activé.
+//!   produce a `suggested_action`. Cost: ~400+150 tokens when enabled.
 
 use serde::{Deserialize, Serialize};
 
@@ -41,7 +41,7 @@ pub enum ErrorCategory {
     /// The output looks like a fabrication (empty payload despite `success`,
     /// schema violation despite a "ok" field, etc.).
     HallucinationSuspected,
-    /// Could not be classified — humanisation requires the opt-in LLM routine.
+    /// Could not be classified; humanisation requires the opt-in LLM routine.
     Unknown,
 }
 
@@ -70,7 +70,7 @@ impl ErrorCategory {
 /// generated plain-language explanation and may set `suggested_action`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorAnalysis {
-    /// Coarse category — drives the icon, color, and i18n root key.
+    /// Coarse category, drives the icon, color, and i18n root key.
     pub category: ErrorCategory,
     /// One sentence in plain language. Always populated.
     pub human_message: String,
@@ -80,7 +80,7 @@ pub struct ErrorAnalysis {
     /// `true` if the failure shape matches a hallucination heuristic.
     #[serde(default)]
     pub hallucination_suspected: bool,
-    /// Raw error message (or stringified `thiserror`) — for "Show details".
+    /// Raw error message (or stringified `thiserror`), for "Show details".
     pub technical_details: String,
 }
 

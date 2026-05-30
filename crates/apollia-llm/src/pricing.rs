@@ -1,41 +1,32 @@
-//! Table de pricing LLM centralisée pour le calcul des coûts d'inférence.
+//! Centralized LLM pricing table for inference cost calculation.
 //!
-//! Fournit une table statique des modèles connus et un algorithme de lookup
-//! par correspondance exacte puis par préfixe (le préfixe le plus long gagne).
-//! La correspondance par préfixe gère les suffixes de date des modèles Anthropic
-//! (ex : `claude-sonnet-4-5-20261015` correspond à l'entrée `claude-sonnet-4-5`).
+//! Provides a static table of known models and a lookup algorithm by exact
+//! match then by prefix (longest prefix wins). The prefix match handles the
+//! date suffixes of Anthropic models (e.g. `claude-sonnet-4-5-20261015`
+//! matches the `claude-sonnet-4-5` entry).
 //!
-//! Les surcharges opérateur sont supportées via `[llm.pricing_overrides]` dans
-//! `apollia.toml` — elles ont priorité sur la table par défaut.
+//! Operator overrides are supported via `[llm.pricing_overrides]` in
+//! `apollia.toml`; they take priority over the default table.
 
 use std::collections::HashMap;
 
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
-
-/// Pricing d'un modèle LLM en dollars par million de tokens.
+/// Pricing of an LLM model in dollars per million tokens.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct PricingTier {
-    /// Coût par million de tokens en entrée (prompt).
+    /// Cost per million input (prompt) tokens.
     pub input_per_mtok: f64,
-    /// Coût par million de tokens en sortie (completion).
+    /// Cost per million output (completion) tokens.
     pub output_per_mtok: f64,
 }
 
-// ─────────────────────────────────────────────
-// Table par défaut
-// ─────────────────────────────────────────────
-
-/// Retourne la table de pricing par défaut pour les modèles connus.
+/// Return the default pricing table for known models.
 ///
-/// Les clés sont des préfixes de `model_id` : un modèle dont l'identifiant
-/// commence par cette clé correspond à ce tier de pricing. Cette convention
-/// permet de gérer les suffixes de date (`claude-sonnet-4-5-20261015`
-/// correspond à `claude-sonnet-4-5`).
+/// Keys are `model_id` prefixes: a model whose identifier starts with a key
+/// matches that pricing tier. This convention handles date suffixes
+/// (`claude-sonnet-4-5-20261015` matches `claude-sonnet-4-5`).
 ///
-/// Les prix reflètent les tarifs publics au moment de l'implémentation
-/// (avril 2026) et peuvent évoluer.
+/// Prices reflect the public rates at implementation time (April 2026) and
+/// may change.
 pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     let mut m = HashMap::new();
     // Anthropic
@@ -113,31 +104,27 @@ pub fn default_pricing() -> HashMap<&'static str, PricingTier> {
     m
 }
 
-// ─────────────────────────────────────────────
-// Lookup
-// ─────────────────────────────────────────────
-
-/// Cherche le pricing d'un modèle par correspondance exacte ou par préfixe.
+/// Look up a model's pricing by exact match or by prefix.
 ///
-/// Ordre de priorité :
-/// 1. `overrides` — correspondance exacte
-/// 2. `overrides` — correspondance par préfixe (le plus long gagne)
-/// 3. `table` — correspondance exacte
-/// 4. `table` — correspondance par préfixe (le plus long gagne)
+/// Priority order:
+/// 1. `overrides`, exact match
+/// 2. `overrides`, prefix match (longest wins)
+/// 3. `table`, exact match
+/// 4. `table`, prefix match (longest wins)
 ///
-/// Retourne `None` si aucune correspondance n'est trouvée. L'appelant est
-/// responsable d'émettre un avertissement en cas de `None`.
+/// Returns `None` if no match is found. The caller is responsible for emitting
+/// a warning when `None` is returned.
 pub fn lookup_pricing<'a>(
     model_id: &str,
     table: &'a HashMap<&str, PricingTier>,
     overrides: &'a HashMap<String, PricingTier>,
 ) -> Option<&'a PricingTier> {
-    // 1. Overrides — correspondance exacte
+    // 1. Overrides, exact match
     if let Some(tier) = overrides.get(model_id) {
         return Some(tier);
     }
 
-    // 2. Overrides — correspondance par préfixe (plus long préfixe en premier)
+    // 2. Overrides, prefix match (longest prefix first)
     {
         let mut keys: Vec<&str> = overrides.keys().map(String::as_str).collect();
         keys.sort_unstable_by_key(|k| std::cmp::Reverse(k.len()));
@@ -150,12 +137,12 @@ pub fn lookup_pricing<'a>(
         }
     }
 
-    // 3. Table par défaut — correspondance exacte
+    // 3. Default table, exact match
     if let Some(tier) = table.get(model_id) {
         return Some(tier);
     }
 
-    // 4. Table par défaut — correspondance par préfixe (plus long préfixe en premier)
+    // 4. Default table, prefix match (longest prefix first)
     {
         let mut keys: Vec<&str> = table.keys().copied().collect();
         keys.sort_unstable_by_key(|k| std::cmp::Reverse(k.len()));
@@ -171,10 +158,6 @@ pub fn lookup_pricing<'a>(
     None
 }
 
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,9 +166,9 @@ mod tests {
         HashMap::new()
     }
 
-    // GIVEN la table de pricing par défaut
-    // WHEN on lookup le modèle "claude-sonnet-4-5"
-    // THEN le pricing retourné est input_per_mtok=3.0, output_per_mtok=15.0
+    // GIVEN the default pricing table
+    // WHEN looking up the model "claude-sonnet-4-5"
+    // THEN the returned pricing is input_per_mtok=3.0, output_per_mtok=15.0
     #[test]
     fn test_known_model_returns_correct_pricing() {
         let table = default_pricing();
@@ -202,9 +185,9 @@ mod tests {
         assert_eq!(tier.output_per_mtok, 15.0);
     }
 
-    // GIVEN la table de pricing par défaut
-    // WHEN on lookup le modèle "unknown-model-xyz"
-    // THEN le résultat est None
+    // GIVEN the default pricing table
+    // WHEN looking up the model "unknown-model-xyz"
+    // THEN the result is None
     #[test]
     fn test_unknown_model_returns_none() {
         let table = default_pricing();
@@ -215,9 +198,9 @@ mod tests {
         assert!(result.is_none(), "unknown-model-xyz must return None");
     }
 
-    // GIVEN la table de pricing avec l'entrée "claude-sonnet-4-5"
-    // WHEN on lookup le modèle "claude-sonnet-4-5-20261015"
-    // THEN le pricing retourné est celui de "claude-sonnet-4-5"
+    // GIVEN the pricing table with the "claude-sonnet-4-5" entry
+    // WHEN looking up the model "claude-sonnet-4-5-20261015"
+    // THEN the returned pricing is that of "claude-sonnet-4-5"
     #[test]
     fn test_prefix_match_with_date_suffix() {
         let table = default_pricing();
@@ -231,9 +214,9 @@ mod tests {
         assert_eq!(tier.output_per_mtok, 15.0);
     }
 
-    // GIVEN des overrides avec "custom-model" = { input_per_mtok=1.0, output_per_mtok=5.0 }
-    // WHEN on lookup le modèle "custom-model"
-    // THEN le pricing retourné est input_per_mtok=1.0, output_per_mtok=5.0
+    // GIVEN overrides with "custom-model" = { input_per_mtok=1.0, output_per_mtok=5.0 }
+    // WHEN looking up the model "custom-model"
+    // THEN the returned pricing is input_per_mtok=1.0, output_per_mtok=5.0
     #[test]
     fn test_toml_override_takes_precedence() {
         let table = default_pricing();
@@ -252,9 +235,9 @@ mod tests {
         assert_eq!(tier.output_per_mtok, 5.0);
     }
 
-    // GIVEN le codebase après implémentation
-    // WHEN on inspecte anthropic.rs
-    // THEN il n'y a plus aucun appel à estimate_cost_usd
+    // GIVEN the codebase after implementation
+    // WHEN inspecting anthropic.rs
+    // THEN there is no longer any call to estimate_cost_usd
     #[test]
     fn test_no_model_contains_in_pricing_logic() {
         let source = include_str!("backends/anthropic.rs");
@@ -276,9 +259,9 @@ mod tests {
         );
     }
 
-    // GIVEN la table avec "claude-sonnet-4-5" et un hypothétique "claude-sonnet"
-    // WHEN on lookup "claude-sonnet-4-5-20261015"
-    // THEN "claude-sonnet-4-5" matche avant "claude-sonnet" (plus long préfixe)
+    // GIVEN the table with "claude-sonnet-4-5" and a hypothetical "claude-sonnet"
+    // WHEN looking up "claude-sonnet-4-5-20261015"
+    // THEN "claude-sonnet-4-5" matches before "claude-sonnet" (longer prefix)
     #[test]
     fn test_longest_prefix_wins() {
         let mut table: HashMap<&str, PricingTier> = HashMap::new();
@@ -306,9 +289,9 @@ mod tests {
         );
     }
 
-    // GIVEN la table avec une entrée "claude-sonnet-4-5" et un override "claude-sonnet-4-5"
-    // WHEN on lookup l'identifiant exact "claude-sonnet-4-5"
-    // THEN le match exact dans les overrides est prioritaire
+    // GIVEN the table with a "claude-sonnet-4-5" entry and a "claude-sonnet-4-5" override
+    // WHEN looking up the exact identifier "claude-sonnet-4-5"
+    // THEN the exact match in the overrides takes priority
     #[test]
     fn test_exact_match_preferred_over_prefix() {
         let table = default_pricing();
@@ -329,9 +312,9 @@ mod tests {
         );
     }
 
-    // GIVEN la table de pricing par défaut
-    // WHEN on compte les entrées
-    // THEN il y en a exactement 10
+    // GIVEN the default pricing table
+    // WHEN counting the entries
+    // THEN there are exactly 10
     #[test]
     fn test_all_default_models_present() {
         let table = default_pricing();
@@ -342,13 +325,13 @@ mod tests {
             "default pricing table must contain 10 models"
         );
 
-        // Vérifie la présence des 5 modèles Anthropic
+        // Check the 5 Anthropic models are present
         assert!(table.contains_key("claude-haiku-4-5"));
         assert!(table.contains_key("claude-sonnet-4-5"));
         assert!(table.contains_key("claude-sonnet-4-6"));
         assert!(table.contains_key("claude-opus-4-5"));
         assert!(table.contains_key("claude-opus-4-6"));
-        // Vérifie la présence des 5 modèles OpenAI
+        // Check the 5 OpenAI models are present
         assert!(table.contains_key("gpt-4o-mini"));
         assert!(table.contains_key("gpt-4o"));
         assert!(table.contains_key("gpt-4.1-mini"));
@@ -356,9 +339,9 @@ mod tests {
         assert!(table.contains_key("gpt-4.1"));
     }
 
-    // GIVEN des overrides vides
-    // WHEN on lookup un modèle connu
-    // THEN la table par défaut est utilisée sans erreur
+    // GIVEN empty overrides
+    // WHEN looking up a known model
+    // THEN the default table is used without error
     #[test]
     fn test_empty_overrides_uses_defaults() {
         let table = default_pricing();
@@ -373,9 +356,9 @@ mod tests {
         assert_eq!(tier.unwrap().input_per_mtok, 0.80);
     }
 
-    // GIVEN un modèle local Ollama non présent dans la table
-    // WHEN on lookup ce modèle
-    // THEN None est retourné sans panique
+    // GIVEN a local Ollama model not present in the table
+    // WHEN looking up that model
+    // THEN None is returned without panicking
     #[test]
     fn test_local_model_not_in_table() {
         let table = default_pricing();

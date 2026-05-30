@@ -86,6 +86,6 @@ export function parseStream(text: string): StreamBlock[] {
 
 /** True when the final block is an unclosed `thinking` block. */
 export function isThinking(blocks: readonly StreamBlock[]): boolean {
-  const last = blocks[blocks.length - 1];
-  return last !== undefined && last.type === "thinking" && !last.closed;
+  const last = blocks.at(-1);
+  return last?.type === "thinking" && !last.closed;
 }

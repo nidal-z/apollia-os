@@ -1,9 +1,9 @@
-//! `link_preview` Tauri command — fetches Open Graph metadata for a URL.
+//! `link_preview` Tauri command: fetches Open Graph metadata for a URL.
 //!
 //! Rationale:
 //!   - Fetching from the frontend would hit CORS on most servers.
 //!   - Running the fetch in Rust keeps the outbound traffic auditable and
-//!     respects Apollia principle 1 (local-first).
+//!     keeps Apollia local-first.
 //!   - A 24-hour on-disk cache avoids repeat fetches for the same URL.
 //!
 //! Opt-in: the command is gated behind `[ui].link_preview_enabled` in
@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use super::ssrf::{assert_public, SsrfError};
 
-/// Cache TTL — 24 hours.
+/// Cache TTL: 24 hours.
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
 /// Maximum HTML bytes downloaded per URL (512 KB).
 const MAX_BYTES: usize = 512 * 1024;
@@ -48,7 +48,7 @@ struct CachedPreview {
     fetched_at: u64,
 }
 
-/// Disk-backed cache — lazy-initialised, guarded by a mutex.
+/// Disk-backed cache, lazy-initialised, guarded by a mutex.
 static CACHE: OnceLock<Mutex<HashMap<String, CachedPreview>>> = OnceLock::new();
 
 fn cache() -> &'static Mutex<HashMap<String, CachedPreview>> {
@@ -147,7 +147,7 @@ impl From<SsrfError> for String {
     }
 }
 
-/// Tauri command — fetch Open Graph metadata for a URL.
+/// Tauri command: fetch Open Graph metadata for a URL.
 ///
 /// Returns [`LinkPreview`] on success, or a human-readable error string.
 #[tauri::command]
@@ -205,20 +205,19 @@ pub async fn link_preview(url: String) -> Result<LinkPreview, String> {
     Ok(preview)
 }
 
-/// Parse `<title>`, `<meta og:*>`, `<meta name="description">`, and
-/// `<link rel="icon">` from an HTML string.
-fn extract_og_tags(base_url: &url::Url, html: &str) -> LinkPreview {
-    let doc = Html::parse_document(html);
+/// Open Graph / description metadata gathered from `<meta>` tags.
+#[derive(Default)]
+struct MetaTags {
+    title: Option<String>,
+    description: Option<String>,
+    image: Option<String>,
+    site_name: Option<String>,
+}
 
+/// Collect the relevant `<meta og:*>` / `<meta name="description">` values.
+fn collect_meta_tags(doc: &Html) -> MetaTags {
     let meta_sel = Selector::parse("meta").expect("static selector");
-    let title_sel = Selector::parse("title").expect("static selector");
-    let link_sel = Selector::parse("link[rel]").expect("static selector");
-
-    let mut title: Option<String> = None;
-    let mut description: Option<String> = None;
-    let mut image: Option<String> = None;
-    let mut site_name: Option<String> = None;
-
+    let mut out = MetaTags::default();
     for meta in doc.select(&meta_sel) {
         let property = meta
             .value()
@@ -232,34 +231,55 @@ fn extract_og_tags(base_url: &url::Url, html: &str) -> LinkPreview {
             continue;
         }
         match property {
-            Some("og:title") => title.get_or_insert(content),
-            Some("og:description") | Some("description") => description.get_or_insert(content),
-            Some("og:image") => image.get_or_insert(content),
-            Some("og:site_name") => site_name.get_or_insert(content),
+            Some("og:title") => out.title.get_or_insert(content),
+            Some("og:description") | Some("description") => out.description.get_or_insert(content),
+            Some("og:image") => out.image.get_or_insert(content),
+            Some("og:site_name") => out.site_name.get_or_insert(content),
             _ => continue,
         };
     }
+    out
+}
 
-    if title.is_none() {
+/// Find the first `<link rel="...icon...">` href, if any.
+fn find_favicon(doc: &Html) -> Option<String> {
+    let link_sel = Selector::parse("link[rel]").expect("static selector");
+    for link in doc.select(&link_sel) {
+        let rel = link.value().attr("rel").unwrap_or("");
+        if rel.to_ascii_lowercase().contains("icon") {
+            if let Some(href) = link.value().attr("href") {
+                return Some(href.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Parse `<title>`, `<meta og:*>`, `<meta name="description">`, and
+/// `<link rel="icon">` from an HTML string.
+fn extract_og_tags(base_url: &url::Url, html: &str) -> LinkPreview {
+    let doc = Html::parse_document(html);
+
+    let title_sel = Selector::parse("title").expect("static selector");
+
+    let mut meta = collect_meta_tags(&doc);
+
+    if meta.title.is_none() {
         if let Some(t) = doc.select(&title_sel).next() {
             let text: String = t.text().collect::<String>().trim().to_string();
             if !text.is_empty() {
-                title = Some(text);
+                meta.title = Some(text);
             }
         }
     }
 
-    let mut favicon: Option<String> = None;
-    for link in doc.select(&link_sel) {
-        let rel = link.value().attr("rel").unwrap_or("");
-        let rel_lower = rel.to_ascii_lowercase();
-        if rel_lower.contains("icon") {
-            if let Some(href) = link.value().attr("href") {
-                favicon = Some(href.to_string());
-                break;
-            }
-        }
-    }
+    let favicon = find_favicon(&doc);
+    let MetaTags {
+        title,
+        description,
+        image,
+        site_name,
+    } = meta;
 
     // Resolve relative URLs against the final (post-redirect) URL.
     let resolve = |candidate: Option<String>| -> Option<String> {

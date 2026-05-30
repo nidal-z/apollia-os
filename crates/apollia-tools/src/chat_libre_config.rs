@@ -1,7 +1,7 @@
-//! Persistance de la configuration du chat libre dans `governance.db`.
+//! Persistence of the free-chat configuration in `governance.db`.
 //!
-//! Singleton (id=1) regroupant le system_prompt par défaut, la liste des outils
-//! autorisés sans HITL, et le backend LLM préféré pour les sessions Libre.
+//! Singleton (id=1) grouping the default system prompt, the list of tools
+//! allowed without HITL, and the preferred LLM backend for free-chat sessions.
 
 use std::path::Path;
 
@@ -10,31 +10,32 @@ use serde::{Deserialize, Serialize};
 
 use crate::governance_db::GovernanceError;
 
-/// Configuration du chat libre persistée dans `governance.db`.
+/// Free-chat configuration persisted in `governance.db`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ChatLibreConfig {
-    /// System prompt par défaut injecté en tête de chaque session Libre.
+    /// Default system prompt injected at the start of each free-chat session.
     pub system_prompt: String,
-    /// Liste des outils auto-autorisés (équivaut à des règles agent-scoped).
+    /// List of auto-allowed tools (equivalent to agent-scoped rules).
     pub allowed_tools: Vec<String>,
-    /// Backend LLM préféré (`None` ⇒ défaut runtime).
+    /// Preferred LLM backend (`None` means the runtime default).
     pub llm_backend: Option<String>,
 }
 
-/// Repository SQLite pour [`ChatLibreConfig`].
+/// SQLite repository for [`ChatLibreConfig`].
 ///
-/// La table `chat_libre_config` est créée par la migration de [`crate::governance_db`].
-/// Ce repository ne fait qu'ouvrir la connexion et lire/écrire la ligne unique (id=1).
+/// The `chat_libre_config` table is created by the [`crate::governance_db`]
+/// migration. This repository only opens the connection and reads/writes the
+/// single row (id=1).
 pub struct ChatLibreConfigRepository {
     conn: Connection,
 }
 
 impl ChatLibreConfigRepository {
-    /// Ouvre la base `governance.db` en lecture/écriture.
+    /// Opens the `governance.db` store read/write.
     ///
     /// # Errors
     ///
-    /// Retourne [`GovernanceError::Database`] si l'ouverture échoue.
+    /// Returns [`GovernanceError::Database`] if opening fails.
     pub fn open(db_path: &Path) -> Result<Self, GovernanceError> {
         let conn = Connection::open_with_flags(
             db_path,
@@ -43,14 +44,14 @@ impl ChatLibreConfigRepository {
         Ok(Self { conn })
     }
 
-    /// Lit la ligne id=1 de la table `chat_libre_config`.
+    /// Reads the id=1 row of the `chat_libre_config` table.
     ///
-    /// Si la table est vide (cas inattendu après migration), retourne la
-    /// configuration par défaut pour préserver le fallback silencieux.
+    /// If the table is empty (unexpected after migration), returns the default
+    /// configuration to preserve the silent fallback.
     ///
     /// # Errors
     ///
-    /// Retourne [`GovernanceError::Database`] en cas d'erreur SQLite.
+    /// Returns [`GovernanceError::Database`] on a SQLite error.
     pub fn load(&self) -> Result<ChatLibreConfig, GovernanceError> {
         let row = self.conn.query_row(
             "SELECT system_prompt, allowed_tools, llm_backend FROM chat_libre_config WHERE id = 1",
@@ -78,14 +79,14 @@ impl ChatLibreConfigRepository {
         }
     }
 
-    /// Écrit la configuration dans la ligne id=1 (UPSERT).
+    /// Writes the configuration to the id=1 row (UPSERT).
     ///
-    /// `allowed_tools` est sérialisé en JSON. `updated_at` est mis à jour à
-    /// l'instant courant (UTC ISO-8601).
+    /// `allowed_tools` is serialized as JSON. `updated_at` is set to the current
+    /// instant (UTC ISO-8601).
     ///
     /// # Errors
     ///
-    /// Retourne [`GovernanceError::Database`] en cas d'erreur SQLite.
+    /// Returns [`GovernanceError::Database`] on a SQLite error.
     pub fn save(&self, config: &ChatLibreConfig) -> Result<(), GovernanceError> {
         let allowed_tools_json = serde_json::to_string(&config.allowed_tools).map_err(|e| {
             GovernanceError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
@@ -116,19 +117,19 @@ mod tests {
     use tempfile::TempDir;
 
     fn open_repo(dir: &TempDir) -> ChatLibreConfigRepository {
-        // GovernanceDb::open applique la migration qui crée chat_libre_config.
+        // GovernanceDb::open applies the migration that creates chat_libre_config.
         let db = GovernanceDb::open(dir.path()).expect("open governance.db");
         ChatLibreConfigRepository::open(db.path()).expect("open chat_libre repo")
     }
 
     #[test]
     fn test_load_default_when_freshly_migrated() {
-        // GIVEN une governance.db fraîchement migrée.
+        // GIVEN a freshly migrated governance.db.
         let dir = TempDir::new().expect("tempdir");
         let repo = open_repo(&dir);
-        // WHEN on charge la config.
+        // WHEN the config is loaded.
         let cfg = repo.load().expect("load");
-        // THEN tous les champs sont vides/None (équivalent à Default).
+        // THEN all fields are empty/None (equivalent to Default).
         assert_eq!(cfg.system_prompt, "");
         assert!(cfg.allowed_tools.is_empty());
         assert!(cfg.llm_backend.is_none());
@@ -136,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_save_then_load_roundtrip() {
-        // GIVEN une config non triviale.
+        // GIVEN a non-trivial config.
         let dir = TempDir::new().expect("tempdir");
         let repo = open_repo(&dir);
         let cfg = ChatLibreConfig {
@@ -144,10 +145,10 @@ mod tests {
             allowed_tools: vec!["bash_executor".into(), "file_read".into()],
             llm_backend: Some("ollama".into()),
         };
-        // WHEN on sauvegarde puis recharge.
+        // WHEN it is saved then reloaded.
         repo.save(&cfg).expect("save");
         let loaded = repo.load().expect("reload");
-        // THEN la config relue est identique à celle sauvegardée.
+        // THEN the reloaded config is identical to the saved one.
         assert_eq!(loaded, cfg);
     }
 

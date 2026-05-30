@@ -11,14 +11,14 @@ pub struct ProviderConfig {
     pub auth_url: &'static str,
     /// Token exchange endpoint URL.
     pub token_url: &'static str,
-    /// OAuth2 client identifier — read from the environment at runtime.
+    /// OAuth2 client identifier, read from the environment at runtime.
     pub client_id: String,
     /// Optional OAuth client secret. Sent at the token endpoint when present.
     ///
     /// **Why optional**: Apollia is an OAuth 2.1 public client and uses PKCE,
     /// which per spec replaces the client secret. **However** Google's
     /// "Installed app" / "Desktop app" type requires sending a `client_secret`
-    /// at the token endpoint anyway — Google explicitly documents that this
+    /// at the token endpoint anyway. Google explicitly documents that this
     /// secret "is obviously not treated as a secret" for native apps
     /// (developers.google.com/identity/protocols/oauth2/native-app). Microsoft
     /// public clients honour the spec and leave this empty.

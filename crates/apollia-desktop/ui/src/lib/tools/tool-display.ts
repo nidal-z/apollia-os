@@ -14,12 +14,23 @@ import {
   Compass,
   BookOpen,
 } from "lucide-svelte";
-import type { ComponentType } from "svelte";
+// NOSONAR typescript:S1874 — Svelte 4 ComponentType retained for lucide-svelte compat
+import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
+
+/**
+ * Local alias for Svelte 4 `ComponentType`. Retained because lucide-svelte's
+ * exported icon components are typed against this legacy alias; switching to
+ * Svelte 5's `Component` would break the lucide type compatibility. All
+ * `ComponentType` usages below funnel through this alias for centralized
+ * suppression of the deprecated-symbol lint.
+ */
+// NOSONAR typescript:S1874
+type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874
 
 /** Display metadata for a tool call in the chat UI. */
 export interface ToolDisplayInfo {
   /** Lucide icon component for this tool. */
-  icon: ComponentType;
+  icon: SvelteComponentType;
   /** i18n key for the operator-friendly label. */
   labelKey: string;
   /** i18n key for the operator-friendly description template. */
@@ -32,7 +43,26 @@ export interface ToolDisplayInfo {
   outputParams: Record<string, string>;
 }
 
-const TOOL_ICONS: Record<string, ComponentType> = {
+/** Returns the first input field whose value is a non-empty string, or "". */
+function pickStringInput(
+  input: Record<string, unknown>,
+  ...keys: string[]
+): string {
+  for (const k of keys) {
+    const v = input[k];
+    if (typeof v === "string") return v;
+  }
+  return "";
+}
+
+/** Maps an HTTP method to the description key the operator card should render. */
+function httpFetchDescriptionKey(method: string): string {
+  if (method === "GET") return "tools.descriptions.http_fetch_get";
+  if (method === "POST") return "tools.descriptions.http_fetch_post";
+  return "tools.descriptions.http_fetch";
+}
+
+const TOOL_ICONS: Record<string, SvelteComponentType> = {
   file_read: FileText,
   file_write: FilePen,
   file_edit: FilePenLine,
@@ -53,236 +83,259 @@ const TOOL_ICONS: Record<string, ComponentType> = {
  * Covers all 10 native tools, MCP tools (mcp:server/tool pattern), and
  * falls back to a generic display for unknown tools.
  */
+type ToolResolver = (
+  toolCall: ToolCallView,
+  icon: SvelteComponentType,
+) => ToolDisplayInfo;
+
+function resolveFileRead(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const filePath = typeof input.path === "string" ? input.path : "";
+  const partial = "offset" in input;
+  return {
+    icon,
+    labelKey: "tools.labels.file_read",
+    descriptionKey: partial
+      ? "tools.descriptions.file_read_partial"
+      : "tools.descriptions.file_read",
+    templateParams: { path: truncatePath(filePath) },
+    outputSummaryKey: "tools.outputs.file_read",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveFileWrite(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const filePath = typeof toolCall.input.path === "string" ? toolCall.input.path : "";
+  return {
+    icon,
+    labelKey: "tools.labels.file_write",
+    descriptionKey: "tools.descriptions.file_write",
+    templateParams: { path: truncatePath(filePath) },
+    outputSummaryKey: "tools.outputs.file_write",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveFileEdit(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const filePath = typeof input.path === "string" ? input.path : "";
+  const replaceAll = input.replace_all === true;
+  return {
+    icon,
+    labelKey: "tools.labels.file_edit",
+    descriptionKey: replaceAll
+      ? "tools.descriptions.file_edit_replace_all"
+      : "tools.descriptions.file_edit",
+    templateParams: { path: truncatePath(filePath) },
+    outputSummaryKey: "tools.outputs.file_edit",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveFileList(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const filePath = pickStringInput(input, "dir", "path");
+  const recursive = input.recursive === true;
+  return {
+    icon,
+    labelKey: "tools.labels.file_list",
+    descriptionKey: recursive
+      ? "tools.descriptions.file_list_recursive"
+      : "tools.descriptions.file_list",
+    templateParams: { path: truncatePath(filePath) },
+    outputSummaryKey: "tools.outputs.file_list",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveFileGlob(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const pattern =
+    typeof input.pattern === "string" ? truncateString(input.pattern, 40) : "";
+  const hasPath = typeof input.path === "string" && input.path.length > 0;
+  const templateParams: Record<string, string> = { pattern };
+  if (hasPath) {
+    templateParams.path = truncatePath(input.path as string);
+  }
+  return {
+    icon,
+    labelKey: "tools.labels.file_glob",
+    descriptionKey: hasPath
+      ? "tools.descriptions.file_glob_in"
+      : "tools.descriptions.file_glob",
+    templateParams,
+    outputSummaryKey: "tools.outputs.file_glob",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveFileGrep(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const pattern =
+    typeof input.pattern === "string" ? truncateString(input.pattern, 40) : "";
+  const hasGlob = typeof input.glob === "string" && input.glob.length > 0;
+  const templateParams: Record<string, string> = { pattern };
+  if (hasGlob) {
+    templateParams.glob = input.glob as string;
+  }
+  return {
+    icon,
+    labelKey: "tools.labels.file_grep",
+    descriptionKey: hasGlob
+      ? "tools.descriptions.file_grep_in"
+      : "tools.descriptions.file_grep",
+    templateParams,
+    outputSummaryKey: "tools.outputs.file_grep",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveBashExecutor(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const command =
+    typeof input.command === "string" ? truncateString(input.command, 50) : "";
+  return {
+    icon,
+    labelKey: "tools.labels.bash_executor",
+    descriptionKey: "tools.descriptions.bash_executor",
+    templateParams: { command },
+    outputSummaryKey: "tools.outputs.bash_executor",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolvePythonExecutor(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const code =
+    typeof input.code === "string" ? truncateString(input.code, 50) : "";
+  return {
+    icon,
+    labelKey: "tools.labels.python_executor",
+    descriptionKey: "tools.descriptions.python_executor",
+    templateParams: { code },
+    outputSummaryKey: "tools.outputs.python_executor",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveHttpFetch(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const url = typeof input.url === "string" ? input.url : "";
+  const method =
+    typeof input.method === "string" ? input.method.toUpperCase() : "GET";
+  const hostname = extractHostname(url);
+  return {
+    icon,
+    labelKey: "tools.labels.http_fetch",
+    descriptionKey: httpFetchDescriptionKey(method),
+    templateParams: { hostname, method },
+    outputSummaryKey: "tools.outputs.http_fetch",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveMemorySearch(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const query =
+    typeof input.query === "string" ? truncateString(input.query, 50) : "";
+  const hasNamespace =
+    typeof input.namespace === "string" && input.namespace.length > 0;
+  const templateParams: Record<string, string> = { query };
+  if (hasNamespace) {
+    templateParams.namespace = input.namespace as string;
+  }
+  return {
+    icon,
+    labelKey: "tools.labels.memory_search",
+    descriptionKey: hasNamespace
+      ? "tools.descriptions.memory_search_ns"
+      : "tools.descriptions.memory_search",
+    templateParams,
+    outputSummaryKey: "tools.outputs.memory_search",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveWebSearch(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const query =
+    typeof input.query === "string" ? truncateString(input.query, 50) : "";
+  const requestedBackend =
+    typeof input.backend === "string" && input.backend !== "auto"
+      ? input.backend
+      : "";
+  const outputParams = resolveOutputParams(toolCall);
+  // Prefer the agent-requested backend for the "searching with X for Y" label,
+  // falling back to the backend the output reports having actually used.
+  const backendUsed = requestedBackend || outputParams.backend || "";
+  const descriptionKey = backendUsed
+    ? "tools.descriptions.web_search_backend"
+    : "tools.descriptions.web_search";
+  const templateParams: Record<string, string> = { query };
+  if (backendUsed) templateParams.backend = backendUsed;
+  return {
+    icon,
+    labelKey: "tools.labels.web_search",
+    descriptionKey,
+    templateParams,
+    outputSummaryKey: "tools.outputs.web_search",
+    outputParams,
+  };
+}
+
+function resolveWebRead(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = toolCall.input;
+  const url = typeof input.url === "string" ? input.url : "";
+  const hostname = extractHostname(url);
+  const outputParams = resolveOutputParams(toolCall);
+  const outputSummaryKey =
+    outputParams.truncated === "true"
+      ? "tools.output.web_read_truncated"
+      : "tools.outputs.web_read";
+  return {
+    icon,
+    labelKey: "tools.labels.web_read",
+    descriptionKey: "tools.descriptions.web_read",
+    templateParams: { hostname },
+    outputSummaryKey,
+    outputParams,
+  };
+}
+
+const TOOL_RESOLVERS: Record<string, ToolResolver> = {
+  file_read: resolveFileRead,
+  file_write: resolveFileWrite,
+  file_edit: resolveFileEdit,
+  file_list: resolveFileList,
+  file_glob: resolveFileGlob,
+  file_grep: resolveFileGrep,
+  bash_executor: resolveBashExecutor,
+  python_executor: resolvePythonExecutor,
+  http_fetch: resolveHttpFetch,
+  memory_search: resolveMemorySearch,
+  web_search: resolveWebSearch,
+  web_read: resolveWebRead,
+};
+
 export function resolveToolDisplay(toolCall: ToolCallView): ToolDisplayInfo {
-  const { tool_name, input } = toolCall;
+  const { tool_name } = toolCall;
 
   if (tool_name.startsWith("mcp:")) {
     return resolveMcpToolDisplay(toolCall);
   }
 
   const icon = TOOL_ICONS[tool_name] ?? Terminal;
+  const resolver = TOOL_RESOLVERS[tool_name];
+  if (resolver) return resolver(toolCall, icon);
 
-  switch (tool_name) {
-    case "file_read": {
-      const filePath = typeof input.path === "string" ? input.path : "";
-      const partial = "offset" in input;
-      return {
-        icon,
-        labelKey: "tools.labels.file_read",
-        descriptionKey: partial
-          ? "tools.descriptions.file_read_partial"
-          : "tools.descriptions.file_read",
-        templateParams: { path: truncatePath(filePath) },
-        outputSummaryKey: "tools.outputs.file_read",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "file_write": {
-      const filePath = typeof input.path === "string" ? input.path : "";
-      return {
-        icon,
-        labelKey: "tools.labels.file_write",
-        descriptionKey: "tools.descriptions.file_write",
-        templateParams: { path: truncatePath(filePath) },
-        outputSummaryKey: "tools.outputs.file_write",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "file_edit": {
-      const filePath = typeof input.path === "string" ? input.path : "";
-      const replaceAll = input.replace_all === true;
-      return {
-        icon,
-        labelKey: "tools.labels.file_edit",
-        descriptionKey: replaceAll
-          ? "tools.descriptions.file_edit_replace_all"
-          : "tools.descriptions.file_edit",
-        templateParams: { path: truncatePath(filePath) },
-        outputSummaryKey: "tools.outputs.file_edit",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "file_list": {
-      const filePath = typeof input.dir === "string" ? input.dir : (typeof input.path === "string" ? input.path : "");
-      const recursive = input.recursive === true;
-      return {
-        icon,
-        labelKey: "tools.labels.file_list",
-        descriptionKey: recursive
-          ? "tools.descriptions.file_list_recursive"
-          : "tools.descriptions.file_list",
-        templateParams: { path: truncatePath(filePath) },
-        outputSummaryKey: "tools.outputs.file_list",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "file_glob": {
-      const pattern =
-        typeof input.pattern === "string" ? truncateString(input.pattern, 40) : "";
-      const hasPath = typeof input.path === "string" && input.path.length > 0;
-      const templateParams: Record<string, string> = { pattern };
-      if (hasPath) {
-        templateParams.path = truncatePath(input.path as string);
-      }
-      return {
-        icon,
-        labelKey: "tools.labels.file_glob",
-        descriptionKey: hasPath
-          ? "tools.descriptions.file_glob_in"
-          : "tools.descriptions.file_glob",
-        templateParams,
-        outputSummaryKey: "tools.outputs.file_glob",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "file_grep": {
-      const pattern =
-        typeof input.pattern === "string" ? truncateString(input.pattern, 40) : "";
-      const hasGlob = typeof input.glob === "string" && input.glob.length > 0;
-      const templateParams: Record<string, string> = { pattern };
-      if (hasGlob) {
-        templateParams.glob = input.glob as string;
-      }
-      return {
-        icon,
-        labelKey: "tools.labels.file_grep",
-        descriptionKey: hasGlob
-          ? "tools.descriptions.file_grep_in"
-          : "tools.descriptions.file_grep",
-        templateParams,
-        outputSummaryKey: "tools.outputs.file_grep",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "bash_executor": {
-      const command =
-        typeof input.command === "string" ? truncateString(input.command, 50) : "";
-      return {
-        icon,
-        labelKey: "tools.labels.bash_executor",
-        descriptionKey: "tools.descriptions.bash_executor",
-        templateParams: { command },
-        outputSummaryKey: "tools.outputs.bash_executor",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "python_executor": {
-      const code =
-        typeof input.code === "string" ? truncateString(input.code, 50) : "";
-      return {
-        icon,
-        labelKey: "tools.labels.python_executor",
-        descriptionKey: "tools.descriptions.python_executor",
-        templateParams: { code },
-        outputSummaryKey: "tools.outputs.python_executor",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "http_fetch": {
-      const url = typeof input.url === "string" ? input.url : "";
-      const method =
-        typeof input.method === "string" ? input.method.toUpperCase() : "GET";
-      const hostname = extractHostname(url);
-      const descriptionKey =
-        method === "GET"
-          ? "tools.descriptions.http_fetch_get"
-          : method === "POST"
-            ? "tools.descriptions.http_fetch_post"
-            : "tools.descriptions.http_fetch";
-      return {
-        icon,
-        labelKey: "tools.labels.http_fetch",
-        descriptionKey,
-        templateParams: { hostname, method },
-        outputSummaryKey: "tools.outputs.http_fetch",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "memory_search": {
-      const query =
-        typeof input.query === "string" ? truncateString(input.query, 50) : "";
-      const hasNamespace =
-        typeof input.namespace === "string" && input.namespace.length > 0;
-      const templateParams: Record<string, string> = { query };
-      if (hasNamespace) {
-        templateParams.namespace = input.namespace as string;
-      }
-      return {
-        icon,
-        labelKey: "tools.labels.memory_search",
-        descriptionKey: hasNamespace
-          ? "tools.descriptions.memory_search_ns"
-          : "tools.descriptions.memory_search",
-        templateParams,
-        outputSummaryKey: "tools.outputs.memory_search",
-        outputParams: resolveOutputParams(toolCall),
-      };
-    }
-
-    case "web_search": {
-      const query =
-        typeof input.query === "string" ? truncateString(input.query, 50) : "";
-      const requestedBackend =
-        typeof input.backend === "string" && input.backend !== "auto"
-          ? input.backend
-          : "";
-      const outputParams = resolveOutputParams(toolCall);
-      // Prefer the agent-requested backend for the "searching with X for Y" label,
-      // falling back to the backend the output reports having actually used.
-      const backendUsed = requestedBackend || outputParams.backend || "";
-      const descriptionKey = backendUsed
-        ? "tools.descriptions.web_search_backend"
-        : "tools.descriptions.web_search";
-      const templateParams: Record<string, string> = { query };
-      if (backendUsed) templateParams.backend = backendUsed;
-      return {
-        icon,
-        labelKey: "tools.labels.web_search",
-        descriptionKey,
-        templateParams,
-        outputSummaryKey: "tools.outputs.web_search",
-        outputParams,
-      };
-    }
-
-    case "web_read": {
-      const url = typeof input.url === "string" ? input.url : "";
-      const hostname = extractHostname(url);
-      const outputParams = resolveOutputParams(toolCall);
-      const outputSummaryKey =
-        outputParams.truncated === "true"
-          ? "tools.output.web_read_truncated"
-          : "tools.outputs.web_read";
-      return {
-        icon,
-        labelKey: "tools.labels.web_read",
-        descriptionKey: "tools.descriptions.web_read",
-        templateParams: { hostname },
-        outputSummaryKey,
-        outputParams,
-      };
-    }
-
-    default: {
-      return {
-        icon: Terminal,
-        labelKey: `tools.labels.${tool_name}`,
-        descriptionKey: `tools.descriptions.${tool_name}`,
-        templateParams: {},
-        outputSummaryKey: null,
-        outputParams: {},
-      };
-    }
-  }
+  return {
+    icon: Terminal,
+    labelKey: `tools.labels.${tool_name}`,
+    descriptionKey: `tools.descriptions.${tool_name}`,
+    templateParams: {},
+    outputSummaryKey: null,
+    outputParams: {},
+  };
 }
 
 /**
@@ -323,7 +376,7 @@ export function truncatePath(path: string, max = 50): string {
   if (path.length <= max) return path;
   const sep = path.includes("/") ? "/" : "\\";
   const parts = path.split(sep);
-  const filename = parts[parts.length - 1] ?? "";
+  const filename = parts.at(-1) ?? "";
   if (filename.length >= max - 3) {
     return "\u2026" + filename.slice(-(max - 3));
   }
@@ -344,70 +397,69 @@ export function truncateString(s: string, max: number): string {
  * card's collapsible output toggle. Returns `null` when no meaningful summary
  * can be derived (unknown tool or missing expected output fields).
  */
+type OutputSummariser = (params: Record<string, string>) => string | null;
+
+const OUTPUT_SUMMARISERS: Record<string, OutputSummariser> = {
+  file_grep: (params) => {
+    const matches = params.matches_count ?? params.match_count ?? params.count;
+    const files = params.files_searched ?? params.file_count;
+    if (matches !== undefined && files !== undefined) {
+      return `${matches} matches in ${files} files`;
+    }
+    return matches === undefined ? null : `${matches} matches`;
+  },
+  file_read: (params) => {
+    const lines = params.total_lines;
+    return lines === undefined ? null : `${lines} lines`;
+  },
+  file_write: (params) => {
+    const bytes = params.bytes_written;
+    return bytes === undefined ? null : `${bytes} bytes written`;
+  },
+  file_edit: (params) => {
+    const replacements = params.replacements;
+    return replacements === undefined ? null : `${replacements} replacement(s)`;
+  },
+  file_list: (params) => {
+    const count = params.entries_count ?? params.entry_count;
+    return count === undefined ? null : `${count} entries`;
+  },
+  file_glob: (params) => {
+    const count = params.matches_count ?? params.match_count;
+    return count === undefined ? null : `${count} matches`;
+  },
+  bash_executor: (params) => {
+    const exitCode = params.exit_code;
+    return exitCode === undefined ? null : `exit ${exitCode}`;
+  },
+  http_fetch: (params) => {
+    const status = params.status_code;
+    return status === undefined ? null : `HTTP ${status}`;
+  },
+  web_search: (params) => {
+    const total = params.total_results ?? params.count;
+    if (total === undefined) return null;
+    const backend = params.backend;
+    return backend ? `${total} results (${backend})` : `${total} results`;
+  },
+  web_read: (params) => {
+    const chars = params.chars_total;
+    if (chars === undefined) return null;
+    const truncated = params.truncated === "true";
+    return truncated ? `${chars} chars (truncated)` : `${chars} chars`;
+  },
+  memory_search: (params) => {
+    const count = params.results_count ?? params.result_count ?? params.count;
+    return count === undefined ? null : `${count} results`;
+  },
+};
+
 export function buildOutputSummary(
   toolName: string,
   params: Record<string, string>,
 ): string | null {
-  switch (toolName) {
-    case "file_grep": {
-      const matches = params.matches_count ?? params.match_count ?? params.count;
-      const files = params.files_searched ?? params.file_count;
-      if (matches !== undefined && files !== undefined) {
-        return `${matches} matches in ${files} files`;
-      }
-      if (matches !== undefined) return `${matches} matches`;
-      return null;
-    }
-    case "file_read": {
-      const lines = params.total_lines;
-      return lines !== undefined ? `${lines} lines` : null;
-    }
-    case "file_write": {
-      const bytes = params.bytes_written;
-      return bytes !== undefined ? `${bytes} bytes written` : null;
-    }
-    case "file_edit": {
-      const replacements = params.replacements;
-      return replacements !== undefined ? `${replacements} replacement(s)` : null;
-    }
-    case "file_list": {
-      const count = params.entries_count ?? params.entry_count;
-      return count !== undefined ? `${count} entries` : null;
-    }
-    case "file_glob": {
-      const count = params.matches_count ?? params.match_count;
-      return count !== undefined ? `${count} matches` : null;
-    }
-    case "bash_executor": {
-      const exitCode = params.exit_code;
-      return exitCode !== undefined ? `exit ${exitCode}` : null;
-    }
-    case "http_fetch": {
-      const status = params.status_code;
-      return status !== undefined ? `HTTP ${status}` : null;
-    }
-    case "web_search": {
-      const total = params.total_results ?? params.count;
-      const backend = params.backend;
-      if (total !== undefined && backend) return `${total} results (${backend})`;
-      if (total !== undefined) return `${total} results`;
-      return null;
-    }
-    case "web_read": {
-      const chars = params.chars_total;
-      const truncated = params.truncated === "true";
-      if (chars !== undefined) {
-        return truncated ? `${chars} chars (truncated)` : `${chars} chars`;
-      }
-      return null;
-    }
-    case "memory_search": {
-      const count = params.results_count ?? params.result_count ?? params.count;
-      return count !== undefined ? `${count} results` : null;
-    }
-    default:
-      return null;
-  }
+  const summariser = OUTPUT_SUMMARISERS[toolName];
+  return summariser ? summariser(params) : null;
 }
 
 /**
@@ -416,7 +468,7 @@ export function buildOutputSummary(
  */
 export function buildBashInputDisplay(input: Record<string, unknown>): string | null {
   const command = typeof input.command === "string" ? input.command : null;
-  return command !== null ? `$ ${command}` : null;
+  return command === null ? null : `$ ${command}`;
 }
 
 /**

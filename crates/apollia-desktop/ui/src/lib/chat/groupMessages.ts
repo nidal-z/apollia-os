@@ -36,8 +36,8 @@ export function groupMessages(messages: ChatMessageView[]): MessageGroup[] {
   const groups: MessageGroup[] = [];
 
   for (const msg of messages) {
-    const last = groups[groups.length - 1];
-    const lastMsg = last?.messages[last.messages.length - 1];
+    const last = groups.at(-1);
+    const lastMsg = last?.messages.at(-1);
 
     const canGroup =
       last !== undefined &&

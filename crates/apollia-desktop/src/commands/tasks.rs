@@ -1,8 +1,8 @@
-//! Commandes IPC Tauri pour la gestion des tâches.
+//! Tauri IPC commands for task management.
 //!
-//! `list_tasks` et `submit_task` délèguent aux handles du runtime.
-//! `get_task_timeline` appelle l'API REST interne `GET /api/v1/tasks/{id}/timeline`
-//! pour éviter de dupliquer la logique d'agrégation.
+//! `list_tasks` and `submit_task` delegate to the runtime handles.
+//! `get_task_timeline` calls the internal REST API `GET /api/v1/tasks/{id}/timeline`
+//! to avoid duplicating the aggregation logic.
 
 use apollia_core::{AIPInput, AIPPart, TaskStatus, TextPart};
 use apollia_runtime::embedded::RuntimeHandle;
@@ -11,37 +11,37 @@ use tauri::State;
 
 use super::http_get_json;
 
-/// Filtre optionnel pour la liste des tâches.
+/// Optional filter for the task list.
 #[derive(Debug, Deserialize)]
 pub struct TaskFilter {
-    /// Filtrer par statut (submitted, working, completed, failed, etc.).
+    /// Filter by status (submitted, working, completed, failed, etc.).
     pub status: Option<String>,
-    /// Filtrer par identifiant agent.
+    /// Filter by agent identifier.
     pub agent_id: Option<String>,
 }
 
-/// Résumé d'une tâche pour l'affichage dans l'UI.
+/// Summary of a task for display in the UI.
 #[derive(Debug, Serialize)]
 pub struct TaskSummary {
-    /// Identifiant unique de la tâche.
+    /// Unique task identifier.
     pub id: String,
-    /// Identifiant de l'agent assigné.
+    /// Identifier of the assigned agent.
     pub agent_id: String,
-    /// Nom de l'agent assigné.
+    /// Name of the assigned agent.
     pub agent_name: String,
-    /// Statut courant.
+    /// Current status.
     pub status: String,
-    /// Aperçu du texte d'entrée (tronqué).
+    /// Preview of the input text (truncated).
     pub input_preview: String,
-    /// Texte de sortie complet (possiblement tronqué par l'observabilité).
+    /// Full output text (possibly truncated by observability).
     pub output_text: Option<String>,
-    /// Durée d'exécution en millisecondes.
+    /// Execution duration in milliseconds.
     pub duration_ms: Option<u64>,
-    /// Date de création ISO8601.
+    /// ISO8601 creation date.
     pub created_at: String,
 }
 
-/// Convertit un `TaskStatus` en chaîne snake_case pour le frontend.
+/// Converts a `TaskStatus` into a snake_case string for the frontend.
 fn status_to_string(status: &TaskStatus) -> String {
     serde_json::to_value(status)
         .ok()
@@ -49,17 +49,17 @@ fn status_to_string(status: &TaskStatus) -> String {
         .unwrap_or_else(|| format!("{status:?}"))
 }
 
-/// Nombre maximum de tâches historiques à charger depuis SQLite.
+/// Maximum number of historical tasks to load from SQLite.
 const PERSISTED_TASK_LIMIT: usize = 50;
 
-/// Liste toutes les tâches avec filtrage optionnel par statut ou agent.
+/// Lists all tasks with optional filtering by status or agent.
 ///
-/// Fusionne deux sources :
-/// 1. **Runtime** (TaskRouter en mémoire) — tâches actives de la session courante.
-/// 2. **SQLite** (TaskRepository) — tâches historiques persistées à travers les redémarrages.
+/// Merges two sources:
+/// 1. **Runtime** (in-memory TaskRouter): active tasks for the current session.
+/// 2. **SQLite** (TaskRepository): historical tasks persisted across restarts.
 ///
-/// Les tâches runtime sont prioritaires : si une tâche existe dans les deux sources,
-/// seule la version runtime est conservée.
+/// Runtime tasks take priority: if a task exists in both sources, only the
+/// runtime version is kept.
 #[tauri::command]
 pub async fn list_tasks(
     state: State<'_, RuntimeHandle>,
@@ -71,42 +71,66 @@ pub async fn list_tasks(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Résoudre le nom de l'agent une seule fois pour filtrer les tâches
-    // persistées (qui n'ont pas l'UUID runtime mais ont le nom de l'agent).
-    let filter_agent_name: Option<String> = if let Some(ref f) = filter {
-        if let Some(ref agent_id) = f.agent_id {
-            state
-                .registry_handle
-                .get_agent(agent_id.as_str())
-                .await
-                .ok()
-                .flatten()
-                .map(|e| e.manifest.name.clone())
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    // Resolve the agent name once to filter the persisted tasks (which lack the
+    // runtime UUID but carry the agent name).
+    let filter_agent_name = resolve_filter_agent_name(&state, filter.as_ref()).await;
 
     let mut summaries = Vec::with_capacity(all.len());
     let mut seen_task_ids = std::collections::HashSet::new();
 
     // 1. Runtime tasks (current session, in-memory).
-    for (task_id, agent_id, status) in &all {
+    append_runtime_tasks(
+        &state,
+        &all,
+        filter.as_ref(),
+        &mut summaries,
+        &mut seen_task_ids,
+    )
+    .await;
+
+    // 2. Persisted tasks from SQLite (historical, survived restart).
+    append_persisted_tasks(
+        &state,
+        filter.as_ref(),
+        filter_agent_name.as_deref(),
+        &mut summaries,
+        &mut seen_task_ids,
+    )
+    .await;
+
+    Ok(summaries)
+}
+
+/// Resolve the filter's agent UUID to the agent *name* used by persisted rows.
+///
+/// Returns `None` when no agent filter is set or the agent cannot be resolved.
+async fn resolve_filter_agent_name(
+    state: &RuntimeHandle,
+    filter: Option<&TaskFilter>,
+) -> Option<String> {
+    let agent_id = filter.and_then(|f| f.agent_id.as_ref())?;
+    state
+        .registry_handle
+        .get_agent(agent_id.as_str())
+        .await
+        .ok()
+        .flatten()
+        .map(|e| e.manifest.name.clone())
+}
+
+/// Append the in-memory runtime tasks (current session) that pass the filter.
+async fn append_runtime_tasks(
+    state: &RuntimeHandle,
+    all: &[(apollia_core::TaskId, apollia_core::AgentId, TaskStatus)],
+    filter: Option<&TaskFilter>,
+    summaries: &mut Vec<TaskSummary>,
+    seen_task_ids: &mut std::collections::HashSet<String>,
+) {
+    for (task_id, agent_id, status) in all {
         let status_str = status_to_string(status);
 
-        if let Some(ref f) = filter {
-            if let Some(ref filter_status) = f.status {
-                if &status_str != filter_status {
-                    continue;
-                }
-            }
-            if let Some(ref filter_agent) = f.agent_id {
-                if agent_id.as_str() != filter_agent.as_str() {
-                    continue;
-                }
-            }
+        if !runtime_task_matches(filter, agent_id.as_str(), &status_str) {
+            continue;
         }
 
         let agent_name = state
@@ -119,24 +143,7 @@ pub async fn list_tasks(
             .unwrap_or_default();
 
         let (input_preview, output_text, duration_ms, created_at) =
-            if let Some(repo) = state.task_repository.as_ref() {
-                match repo.get_task_detail(task_id.as_str()).await {
-                    Ok(Some(detail)) => {
-                        let preview = detail
-                            .input_text
-                            .as_deref()
-                            .unwrap_or("")
-                            .chars()
-                            .take(120)
-                            .collect::<String>();
-                        let dur = detail.duration_ms.map(|ms| ms as u64);
-                        (preview, detail.output_text, dur, detail.created_at)
-                    }
-                    _ => (String::new(), None, None, String::new()),
-                }
-            } else {
-                (String::new(), None, None, String::new())
-            };
+            fetch_runtime_task_fields(state, task_id.as_str()).await;
 
         seen_task_ids.insert(task_id.to_string());
 
@@ -151,58 +158,118 @@ pub async fn list_tasks(
             created_at,
         });
     }
-
-    // 2. Persisted tasks from SQLite (historical, survived restart).
-    if let Some(repo) = state.task_repository.as_ref() {
-        if let Ok(persisted) = repo.list_recent_tasks(PERSISTED_TASK_LIMIT).await {
-            for row in persisted {
-                if seen_task_ids.contains(&row.task_id) {
-                    continue;
-                }
-
-                let status_str = &row.status;
-
-                if let Some(ref f) = filter {
-                    if let Some(ref filter_status) = f.status {
-                        if status_str != filter_status {
-                            continue;
-                        }
-                    }
-                    if let Some(ref name) = filter_agent_name {
-                        if &row.agent_name != name {
-                            continue;
-                        }
-                    }
-                }
-
-                seen_task_ids.insert(row.task_id.clone());
-
-                summaries.push(TaskSummary {
-                    id: row.task_id,
-                    agent_id: String::new(),
-                    agent_name: row.agent_name,
-                    status: row.status,
-                    input_preview: row.input_preview,
-                    output_text: row.output_text,
-                    duration_ms: row.duration_ms.map(|ms| ms as u64),
-                    created_at: row.created_at,
-                });
-            }
-        }
-    }
-
-    Ok(summaries)
 }
 
-/// Soumet une tâche à un agent et retourne le `TaskId` généré.
+/// Append the historical SQLite-persisted tasks that pass the filter and were
+/// not already produced by the runtime source.
+async fn append_persisted_tasks(
+    state: &RuntimeHandle,
+    filter: Option<&TaskFilter>,
+    filter_agent_name: Option<&str>,
+    summaries: &mut Vec<TaskSummary>,
+    seen_task_ids: &mut std::collections::HashSet<String>,
+) {
+    let Some(repo) = state.task_repository.as_ref() else {
+        return;
+    };
+    let Ok(persisted) = repo.list_recent_tasks(PERSISTED_TASK_LIMIT).await else {
+        return;
+    };
+    for row in persisted {
+        if seen_task_ids.contains(&row.task_id) {
+            continue;
+        }
+        if !persisted_task_matches(filter, filter_agent_name, &row) {
+            continue;
+        }
+
+        seen_task_ids.insert(row.task_id.clone());
+
+        summaries.push(TaskSummary {
+            id: row.task_id,
+            agent_id: String::new(),
+            agent_name: row.agent_name,
+            status: row.status,
+            input_preview: row.input_preview,
+            output_text: row.output_text,
+            duration_ms: row.duration_ms.map(|ms| ms as u64),
+            created_at: row.created_at,
+        });
+    }
+}
+
+/// Whether a runtime task passes the optional status/agent filter.
+fn runtime_task_matches(filter: Option<&TaskFilter>, agent_id: &str, status_str: &str) -> bool {
+    let Some(f) = filter else { return true };
+    if let Some(ref filter_status) = f.status {
+        if status_str != filter_status {
+            return false;
+        }
+    }
+    if let Some(ref filter_agent) = f.agent_id {
+        if agent_id != filter_agent.as_str() {
+            return false;
+        }
+    }
+    true
+}
+
+/// Whether a persisted task row passes the optional status/agent filter.
 ///
-/// Construit un `AIPInput` à partir du texte brut fourni par le frontend
-/// et le soumet via `TaskRouterHandle::submit()`.
+/// `filter_agent_name` is the resolved agent *name* (persisted rows carry the
+/// name, not the runtime UUID).
+fn persisted_task_matches(
+    filter: Option<&TaskFilter>,
+    filter_agent_name: Option<&str>,
+    row: &apollia_tools::PersistedTaskSummary,
+) -> bool {
+    let Some(f) = filter else { return true };
+    if let Some(ref filter_status) = f.status {
+        if &row.status != filter_status {
+            return false;
+        }
+    }
+    if let Some(name) = filter_agent_name {
+        if row.agent_name != name {
+            return false;
+        }
+    }
+    true
+}
+
+/// Fetch the input preview / output / duration / created_at for a runtime task
+/// from the persisted observability store, defaulting to empties when absent.
+async fn fetch_runtime_task_fields(
+    state: &RuntimeHandle,
+    task_id: &str,
+) -> (String, Option<String>, Option<u64>, String) {
+    let Some(repo) = state.task_repository.as_ref() else {
+        return (String::new(), None, None, String::new());
+    };
+    match repo.get_task_detail(task_id).await {
+        Ok(Some(detail)) => {
+            let preview = detail
+                .input_text
+                .as_deref()
+                .unwrap_or("")
+                .chars()
+                .take(120)
+                .collect::<String>();
+            let dur = detail.duration_ms.map(|ms| ms as u64);
+            (preview, detail.output_text, dur, detail.created_at)
+        }
+        _ => (String::new(), None, None, String::new()),
+    }
+}
+
+/// Submits a task to an agent and returns the generated `TaskId`.
 ///
-/// `allowed_tools` et `disallowed_tools` sont acceptés pour compatibilité avec
-/// la CLI (`--allowed-tools` / `--disallowed-tools`) mais ne sont pas encore
-/// propagés au runtime — ils seront transmis via les métadonnées AIP dans une
-/// story dédiée.
+/// Builds an `AIPInput` from the raw text provided by the frontend and submits
+/// it via `TaskRouterHandle::submit()`.
+///
+/// `allowed_tools` and `disallowed_tools` are accepted for compatibility with
+/// the CLI (`--allowed-tools` / `--disallowed-tools`) but are not yet propagated
+/// to the runtime; they will be passed through the AIP metadata later.
 #[tauri::command]
 pub async fn submit_task(
     state: State<'_, RuntimeHandle>,
@@ -233,10 +300,10 @@ pub async fn submit_task(
     Ok(task_id.to_string())
 }
 
-/// Annule une tâche en cours d'exécution.
+/// Cancels a running task.
 ///
-/// Appelle `DELETE /api/v1/tasks/{id}` via l'API REST interne.
-/// Retourne `true` si la tâche a été annulée, `false` si déjà terminée ou introuvable.
+/// Calls `DELETE /api/v1/tasks/{id}` via the internal REST API.
+/// Returns `true` if the task was cancelled, `false` if already finished or not found.
 #[tauri::command]
 pub async fn cancel_task(state: State<'_, RuntimeHandle>, task_id: String) -> Result<bool, String> {
     let path = format!("/api/v1/tasks/{task_id}");
@@ -247,11 +314,11 @@ pub async fn cancel_task(state: State<'_, RuntimeHandle>, task_id: String) -> Re
     }
 }
 
-/// Récupère la timeline d'une tâche via l'API REST interne.
+/// Fetches a task's timeline via the internal REST API.
 ///
-/// Appelle `GET /api/v1/tasks/{id}/timeline` qui
-/// agrège les événements de 5 sources SQLite (transitions, plans, LLM calls,
-/// tool calls, HITL). Le résultat est retourné tel quel au frontend.
+/// Calls `GET /api/v1/tasks/{id}/timeline`, which aggregates events from 5
+/// SQLite sources (transitions, plans, LLM calls, tool calls, HITL). The result
+/// is returned as-is to the frontend.
 #[tauri::command]
 pub async fn get_task_timeline(
     state: State<'_, RuntimeHandle>,
@@ -272,73 +339,46 @@ pub async fn get_task_timeline(
     }
 }
 
-/// Nœud de l'arbre de délégation A2A retourné au frontend.
+/// Node of the A2A delegation tree returned to the frontend.
 #[derive(Debug, Serialize)]
 pub struct DelegationTreeNode {
-    /// Identifiant de l'agent (UUID runtime ou nom si la résolution échoue).
+    /// Agent identifier (runtime UUID, or name if resolution fails).
     pub agent_id: String,
-    /// Nom lisible de l'agent.
+    /// Human-readable agent name.
     pub agent_name: String,
-    /// Statut courant : `submitted`, `working`, `completed`, `failed`, `running`, etc.
+    /// Current status: `submitted`, `working`, `completed`, `failed`, `running`, etc.
     pub status: String,
-    /// Horodatage ISO 8601 de début (None pour la racine si inconnu).
+    /// ISO 8601 start timestamp (None for the root if unknown).
     pub started_at: Option<String>,
-    /// Délégations enfants (sous-tâches A2A).
+    /// Child delegations (A2A subtasks).
     pub children: Vec<DelegationTreeNode>,
 }
 
-/// Récupère l'arbre de délégation A2A pour une tâche.
+/// Fetches the A2A delegation tree for a task.
 ///
-/// La racine est la tâche parente ; les enfants sont les délégations enregistrées
-/// dans `task_sidechains` via `GET /api/v1/tasks/{id}/sidechains`.
+/// The root is the parent task; the children are the delegations recorded in
+/// `task_sidechains` via `GET /api/v1/tasks/{id}/sidechains`.
 ///
-/// Si aucune délégation n'a été enregistrée pour la tâche (404 ou liste vide),
-/// retourne un arbre racine sans enfants.
+/// If no delegation was recorded for the task (404 or empty list), returns a
+/// root tree with no children.
 #[tauri::command]
 pub async fn get_delegation_tree(
     state: State<'_, RuntimeHandle>,
     task_id: String,
 ) -> Result<DelegationTreeNode, String> {
-    // 1. Résolution de la racine (agent_id, agent_name, status, started_at).
-    let mut root_agent_id = String::new();
-    let mut root_agent_name = String::new();
-    let mut root_status = String::from("unknown");
-    let mut root_started_at: Option<String> = None;
+    // 1. Resolve the root (agent_id, agent_name, status, started_at).
+    let mut root = resolve_runtime_root(&state, &task_id).await;
 
-    // a) Essayer le runtime (tâche active en mémoire).
-    if let Ok(all) = state.router_handle.all_tasks().await {
-        if let Some((_, agent_id, status)) = all.iter().find(|(tid, _, _)| tid.as_str() == task_id)
-        {
-            root_agent_id = agent_id.to_string();
-            root_status = status_to_string(status);
-            if let Ok(Some(entry)) = state.registry_handle.get_agent(agent_id.as_str()).await {
-                root_agent_name = entry.manifest.name.clone();
-            }
-        }
+    // b) Fallback: look in the persisted tasks.
+    if root.agent_name.is_empty() {
+        apply_persisted_root_fallback(&state, &task_id, &mut root).await;
     }
 
-    // b) Fallback : chercher dans les tâches persistées.
-    if root_agent_name.is_empty() {
-        if let Some(repo) = state.task_repository.as_ref() {
-            if let Ok(persisted) = repo.list_recent_tasks(PERSISTED_TASK_LIMIT).await {
-                if let Some(row) = persisted.into_iter().find(|r| r.task_id == task_id) {
-                    if root_agent_name.is_empty() {
-                        root_agent_name = row.agent_name;
-                    }
-                    if root_status == "unknown" {
-                        root_status = row.status;
-                    }
-                    root_started_at = Some(row.created_at);
-                }
-            }
-        }
+    if root.agent_name.is_empty() {
+        root.agent_name = task_id.clone();
     }
 
-    if root_agent_name.is_empty() {
-        root_agent_name = task_id.clone();
-    }
-
-    // 2. Récupérer les délégations via l'API REST interne.
+    // 2. Fetch the delegations via the internal REST API.
     let path = format!("/api/v1/tasks/{task_id}/sidechains");
     let children = match http_get_json(state.api_port, &path).await {
         Ok(json) => parse_sidechains(json),
@@ -347,19 +387,70 @@ pub async fn get_delegation_tree(
     };
 
     Ok(DelegationTreeNode {
-        agent_id: if root_agent_id.is_empty() {
+        agent_id: if root.agent_id.is_empty() {
             task_id
         } else {
-            root_agent_id
+            root.agent_id
         },
-        agent_name: root_agent_name,
-        status: root_status,
-        started_at: root_started_at,
+        agent_name: root.agent_name,
+        status: root.status,
+        started_at: root.started_at,
         children,
     })
 }
 
-/// Convertit la réponse JSON `/sidechains` en nœuds enfants.
+/// Partially-resolved root node fields (before sidechains are attached).
+struct RootInfo {
+    agent_id: String,
+    agent_name: String,
+    status: String,
+    started_at: Option<String>,
+}
+
+/// Resolve the root node from the in-memory runtime (active task), if present.
+async fn resolve_runtime_root(state: &RuntimeHandle, task_id: &str) -> RootInfo {
+    let mut root = RootInfo {
+        agent_id: String::new(),
+        agent_name: String::new(),
+        status: String::from("unknown"),
+        started_at: None,
+    };
+
+    let Ok(all) = state.router_handle.all_tasks().await else {
+        return root;
+    };
+    let Some((_, agent_id, status)) = all.iter().find(|(tid, _, _)| tid.as_str() == task_id) else {
+        return root;
+    };
+    root.agent_id = agent_id.to_string();
+    root.status = status_to_string(status);
+    if let Ok(Some(entry)) = state.registry_handle.get_agent(agent_id.as_str()).await {
+        root.agent_name = entry.manifest.name.clone();
+    }
+    root
+}
+
+/// Fill missing root fields from the persisted task store.
+async fn apply_persisted_root_fallback(state: &RuntimeHandle, task_id: &str, root: &mut RootInfo) {
+    let Some(repo) = state.task_repository.as_ref() else {
+        return;
+    };
+    let Ok(persisted) = repo.list_recent_tasks(PERSISTED_TASK_LIMIT).await else {
+        return;
+    };
+    let Some(row) = persisted.into_iter().find(|r| r.task_id == task_id) else {
+        return;
+    };
+    if root.agent_name.is_empty() {
+        root.agent_name = row.agent_name;
+    }
+    if root.status == "unknown" {
+        root.status = row.status;
+    }
+    root.started_at = Some(row.created_at);
+}
+
+/// Converts the `/sidechains` JSON response into child nodes.
 fn parse_sidechains(json: serde_json::Value) -> Vec<DelegationTreeNode> {
     let arr = match json.as_array() {
         Some(arr) => arr,

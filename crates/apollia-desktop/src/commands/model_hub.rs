@@ -1,11 +1,11 @@
-//! Commandes IPC Tauri pour le Model Hub.
+//! Tauri IPC commands for the Model Hub.
 //!
-//! - [`get_hardware_profile`] — détecte RAM, CPU, GPU de la machine
-//! - [`search_hf_models`] — recherche HuggingFace GGUF models
-//! - [`get_hf_model`] — métadonnées complètes d'un modèle HF
-//! - [`start_model_download`] — télécharge un fichier GGUF
-//! - [`cancel_model_download`] — annule un téléchargement en cours
-//! - [`list_model_downloads`] — liste les téléchargements actifs
+//! - [`get_hardware_profile`]: detects the machine's RAM, CPU and GPU
+//! - [`search_hf_models`]: searches HuggingFace GGUF models
+//! - [`get_hf_model`]: full metadata for a HuggingFace model
+//! - [`start_model_download`]: downloads a GGUF file
+//! - [`cancel_model_download`]: cancels an in-progress download
+//! - [`list_model_downloads`]: lists active downloads
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,14 +20,14 @@ use tokio::sync::Mutex;
 // Shared download manager state
 // ─────────────────────────────────────────────
 
-/// Shared download manager — managed as Tauri state.
+/// Shared download manager, managed as Tauri state.
 pub type SharedDownloadManager = Arc<Mutex<apollia_llm::DownloadManager>>;
 
 // ─────────────────────────────────────────────
 // Response types
 // ─────────────────────────────────────────────
 
-/// Vue sérialisable du profil hardware.
+/// Serializable view of the hardware profile.
 #[derive(Debug, Clone, Serialize)]
 pub struct HardwareProfileView {
     pub total_ram_gb: f64,
@@ -51,40 +51,40 @@ impl From<HardwareProfile> for HardwareProfileView {
     }
 }
 
-/// Paramètres de recherche HuggingFace.
+/// HuggingFace search parameters.
 #[derive(Debug, Deserialize)]
 pub struct HfSearchParams {
     pub query: String,
     pub limit: Option<u32>,
     pub sort: Option<String>,
-    /// Filtre par tâche HF (défaut : `"text-generation"`).
+    /// Filter by HF task (defaults to `"text-generation"`).
     pub pipeline_tag: Option<String>,
-    /// Filtre par langue ISO 639-1 (ex. `"fr"`, `"en"`).
+    /// Filter by ISO 639-1 language (e.g. `"fr"`, `"en"`).
     pub language: Option<String>,
-    /// Curseur de pagination — URL complète `rel="next"` retournée par la page précédente.
+    /// Pagination cursor: full `rel="next"` URL returned by the previous page.
     pub next_cursor: Option<String>,
-    /// Token HF optionnel (pour les modèles gated).
+    /// Optional HF token (for gated models).
     pub hf_token: Option<String>,
 }
 
-/// Requête de téléchargement de modèle.
+/// Model download request.
 #[derive(Debug, Deserialize)]
 pub struct DownloadModelRequest {
-    /// URL directe du fichier GGUF.
+    /// Direct URL of the GGUF file.
     pub url: String,
-    /// Nom de fichier de destination (optionnel — déduit de l'URL si absent).
+    /// Destination filename (optional; derived from the URL when absent).
     pub filename: Option<String>,
-    /// Token HF pour les modèles gated.
+    /// HF token for gated models.
     pub hf_token: Option<String>,
-    /// Dossier de destination (défaut : `~/.apollia/models/`).
+    /// Destination directory (defaults to `~/.apollia/models/`).
     pub dest_dir: Option<String>,
-    /// Repo HF source (`org/name`). Permet au downloader de fetch
-    /// `generation_config.json` après le download et de persister les
-    /// sampling defaults officiels dans `~/.apollia/models/sampling-defaults.json`.
+    /// Source HF repo (`org/name`). Lets the downloader fetch
+    /// `generation_config.json` after the download and persist the
+    /// official sampling defaults in `~/.apollia/models/sampling-defaults.json`.
     pub repo_id: Option<String>,
 }
 
-/// Statut d'un téléchargement actif.
+/// Status of an active download.
 #[derive(Debug, Clone, Serialize)]
 pub struct DownloadStatusView {
     pub id: String,
@@ -95,7 +95,7 @@ pub struct DownloadStatusView {
 // Commands
 // ─────────────────────────────────────────────
 
-/// Détecte le profil hardware de la machine (RAM, CPU, GPU/Metal/CUDA).
+/// Detects the machine's hardware profile (RAM, CPU, GPU/Metal/CUDA).
 #[tauri::command]
 pub async fn get_hardware_profile() -> Result<HardwareProfileView, String> {
     let profile = tokio::task::spawn_blocking(detect_hardware)
@@ -104,9 +104,9 @@ pub async fn get_hardware_profile() -> Result<HardwareProfileView, String> {
     Ok(HardwareProfileView::from(profile))
 }
 
-/// Recherche des modèles GGUF sur HuggingFace.
+/// Searches GGUF models on HuggingFace.
 ///
-/// Retourne une liste de [`HfModelCard`] avec badges de compatibilité hardware.
+/// Returns a list of [`HfModelCard`] with hardware-compatibility badges.
 #[tauri::command]
 pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Value, String> {
     use apollia_llm::{HfRegistryClient, HfSearchFilter};
@@ -135,11 +135,11 @@ pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Valu
     serde_json::to_value(page).map_err(|e| format!("serialization error: {e}"))
 }
 
-/// Récupère les métadonnées complètes d'un modèle HuggingFace.
+/// Fetches the full metadata for a HuggingFace model.
 ///
-/// Inclut la liste des fichiers GGUF avec taille et badge de compatibilité,
-/// les paramètres de génération recommandés depuis `generation_config.json`,
-/// et le type d'architecture depuis `config.json` (avec cache session TTL 24h).
+/// Includes the list of GGUF files with size and compatibility badge, the
+/// recommended generation parameters from `generation_config.json`, and the
+/// architecture type from `config.json` (with a 24h session cache).
 #[tauri::command]
 pub async fn get_hf_model(
     cache: State<'_, Arc<apollia_llm::HfModelTypeCache>>,
@@ -164,10 +164,10 @@ pub async fn get_hf_model(
     serde_json::to_value(card).map_err(|e| format!("serialization error: {e}"))
 }
 
-/// Démarre le téléchargement d'un fichier GGUF depuis HuggingFace.
+/// Starts downloading a GGUF file from HuggingFace.
 ///
-/// Retourne un `download_id` unique. La progression est émise via l'event
-/// Tauri `model-download-progress` avec payload [`apollia_llm::DownloadProgress`].
+/// Returns a unique `download_id`. Progress is emitted via the Tauri
+/// `model-download-progress` event with an [`apollia_llm::DownloadProgress`] payload.
 #[tauri::command]
 pub async fn start_model_download(
     app: tauri::AppHandle,
@@ -215,7 +215,7 @@ pub async fn start_model_download(
     Ok(id)
 }
 
-/// Annule un téléchargement en cours.
+/// Cancels an in-progress download.
 #[tauri::command]
 pub async fn cancel_model_download(
     manager: State<'_, SharedDownloadManager>,
@@ -228,7 +228,7 @@ pub async fn cancel_model_download(
         .map_err(|e| format!("cancel failed: {e}"))
 }
 
-/// Retourne la liste des IDs de téléchargements actifs.
+/// Returns the list of active download IDs.
 #[tauri::command]
 pub async fn list_model_downloads(
     manager: State<'_, SharedDownloadManager>,

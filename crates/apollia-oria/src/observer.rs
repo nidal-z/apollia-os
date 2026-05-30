@@ -1,4 +1,4 @@
-//! Observer — enriches incoming `AIPTask` into a `ContextBundle`.
+//! Observer: enriches incoming `AIPTask` into a `ContextBundle`.
 //!
 //! The Observer is the first component of the ORIA pipeline, triggered
 //! when a task is received. Its role is twofold:
@@ -9,7 +9,7 @@
 //! 2. **Classification**: determine whether the task should run in [`ExecutionMode::Direct`]
 //!    (single step) or [`ExecutionMode::Orchestrated`] (multi-step with planning).
 //!
-//! The Observer is a **pure function** (not a Tokio actor) — it takes inputs and
+//! The Observer is a **pure function** (not a Tokio actor): it takes inputs and
 //! returns a result with no internal state.
 
 use apollia_core::{AIPInput, AIPPart, AIPTask, AgentManifest};
@@ -154,7 +154,7 @@ pub fn extract_total_text_length(input: &AIPInput) -> usize {
 /// Each factor that exceeds its threshold adds its weight to the total.
 /// The caller compares the result against [`ORCHESTRATED_THRESHOLD`].
 ///
-/// This is a **pure function** — deterministic, no side effects.
+/// This is a **pure function**: deterministic, no side effects.
 pub fn compute_complexity_score(
     manifest: &AgentManifest,
     input: &AIPInput,
@@ -206,21 +206,21 @@ pub fn compute_complexity_score(
 /// - `"direct"` → always [`ExecutionMode::Direct`], skipping scoring.
 /// - `"auto"` (or any unknown value) → falls through to [`compute_complexity_score`].
 ///
-/// If the weighted score ≥ `threshold`, the task is Orchestrated.
+/// If the weighted score is at least `threshold`, the task is Orchestrated.
 /// Pass [`ORCHESTRATED_THRESHOLD`] as the default when no config is available.
 ///
-/// This is a **pure function** — no side effects, deterministic output.
+/// This is a **pure function**: no side effects, deterministic output.
 pub fn classify(
     task: &AIPTask,
     manifest: &AgentManifest,
     memory_snapshot: Option<&MemorySnapshot>,
     threshold: f32,
 ) -> ExecutionMode {
-    // Override explicite — priorité absolue sur le scoring.
+    // Explicit override: absolute priority over scoring.
     match manifest.execution_mode.as_str() {
         "orchestrated" => return ExecutionMode::Orchestrated,
         "direct" => return ExecutionMode::Direct,
-        _ => {} // "auto" ou valeur inconnue → scoring pondéré
+        _ => {} // "auto" or unknown value: weighted scoring
     }
 
     let score = compute_complexity_score(manifest, &task.input, memory_snapshot);
@@ -241,7 +241,7 @@ pub fn classify(
 /// The memory snapshot is built first so it can inform [`classify`]
 /// (the `WEIGHT_MEMORY_DEPTH` factor uses episode count).
 ///
-/// `threshold` is forwarded to [`classify`] — pass [`ORCHESTRATED_THRESHOLD`]
+/// `threshold` is forwarded to [`classify`]; pass [`ORCHESTRATED_THRESHOLD`]
 /// as the default when no config is available.
 pub fn observe(
     task: AIPTask,
@@ -484,14 +484,14 @@ mod tests {
 
         let semantic = SemanticMemory::new(store);
         semantic
-            .remember(
-                "agent-test",
-                "client.budget",
-                &serde_json::json!(15000),
-                1.0,
-                None,
-                None,
-            )
+            .remember(apollia_memory::semantic::RememberInput {
+                namespace: "agent-test",
+                key: "client.budget",
+                value: &serde_json::json!(15000),
+                confidence: 1.0,
+                source: None,
+                expires_at: None,
+            })
             .expect("remember fact");
 
         let mut manifest = simple_manifest();
@@ -543,7 +543,7 @@ mod tests {
     // classify complex agent returns Orchestrated
     #[test]
     fn test_classify_complex_agent_returns_orchestrated() {
-        // GIVEN — 5 tools (>4) + 20 steps (>15) → score = 0.20 + 0.30 = 0.50 ≥ 0.40
+        // GIVEN: 5 tools (>4) + 20 steps (>15) -> score = 0.20 + 0.30 = 0.50 >= 0.40
         let task = simple_task();
         let manifest = complex_manifest();
 
@@ -570,24 +570,24 @@ mod tests {
     }
 
     // many input parts alone are below threshold with weighted scoring
-    // (4 parts = WEIGHT_PARTS 0.20 < 0.40 — correctly classified as Direct)
+    // (4 parts = WEIGHT_PARTS 0.20 < 0.40, correctly classified as Direct)
     #[test]
     fn test_classify_many_input_parts_alone_returns_direct() {
         // GIVEN a simple manifest and a task with 4 input parts
         let manifest = simple_manifest();
         let task = multi_part_task();
 
-        // WHEN — score = WEIGHT_PARTS (0.20) < ORCHESTRATED_THRESHOLD (0.40)
+        // WHEN: score = WEIGHT_PARTS (0.20) < ORCHESTRATED_THRESHOLD (0.40)
         let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
-        // THEN — weighted scoring reduces false positives vs old boolean OR
+        // THEN: weighted scoring reduces false positives vs old boolean OR
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // override explicite "orchestrated"
+    // explicit "orchestrated" override
     #[test]
     fn test_ac1_orchestrated_override() {
-        // GIVEN un manifest avec execution_mode = "orchestrated"
+        // GIVEN a manifest with execution_mode = "orchestrated"
         let mut manifest = simple_manifest();
         manifest.execution_mode = "orchestrated".to_string();
         let task = simple_task();
@@ -595,14 +595,14 @@ mod tests {
         // WHEN
         let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
-        // THEN : override prime, même pour un agent simple
+        // THEN: the override wins, even for a simple agent
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // override explicite "direct" même avec 6 outils
+    // explicit "direct" override even with 6 tools
     #[test]
     fn test_ac2_direct_override_despite_many_tools() {
-        // GIVEN un manifest avec execution_mode = "direct" et 6 outils (> 4)
+        // GIVEN a manifest with execution_mode = "direct" and 6 tools (> 4)
         let mut manifest = simple_manifest();
         manifest.execution_mode = "direct".to_string();
         manifest.tools_required = vec!["a", "b", "c", "d", "e", "f"]
@@ -614,15 +614,15 @@ mod tests {
         // WHEN
         let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
-        // THEN : l'override prime sur l'heuristique
+        // THEN: the override wins over the heuristic
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // "auto" + 5 outils + 20 steps → Orchestrated
-    // (5 tools alone = 0.20, need steps > 15 too for 0.50 ≥ 0.40)
+    // "auto" + 5 tools + 20 steps -> Orchestrated
+    // (5 tools alone = 0.20, need steps > 15 too for 0.50 >= 0.40)
     #[test]
     fn test_ac3_auto_heuristic_orchestrated_on_many_tools_and_steps() {
-        // GIVEN un manifest avec 5 outils ET 20 steps
+        // GIVEN a manifest with 5 tools AND 20 steps
         let mut manifest = simple_manifest();
         manifest.execution_mode = "auto".to_string();
         manifest.tools_required = vec!["a", "b", "c", "d", "e"]
@@ -636,17 +636,17 @@ mod tests {
         });
         let task = simple_task();
 
-        // WHEN — score = WEIGHT_TOOLS (0.20) + WEIGHT_STEPS (0.30) = 0.50 ≥ 0.40
+        // WHEN: score = WEIGHT_TOOLS (0.20) + WEIGHT_STEPS (0.30) = 0.50 >= 0.40
         let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
-        // THEN : scoring → Orchestrated
+        // THEN: scoring -> Orchestrated
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // "auto" + agent simple → Direct
+    // "auto" + simple agent -> Direct
     #[test]
     fn test_ac4_auto_heuristic_direct_on_simple_agent() {
-        // GIVEN un manifest avec execution_mode = "auto" et 1 outil
+        // GIVEN a manifest with execution_mode = "auto" and 1 tool
         let mut manifest = simple_manifest();
         manifest.execution_mode = "auto".to_string();
         manifest.tools_required = vec!["file_io".to_string()];
@@ -655,14 +655,14 @@ mod tests {
         // WHEN
         let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
-        // THEN : heuristique → Direct
+        // THEN: heuristic -> Direct
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // agent simple classé Direct (score ~0.0)
+    // simple agent classified Direct (score ~0.0)
     #[test]
     fn test_simple_agent_classified_direct() {
-        // GIVEN un agent avec 2 outils, 10 steps max, pas de tag, input court
+        // GIVEN an agent with 2 tools, 10 max steps, no tag, short input
         let manifest = simple_manifest();
         let task = simple_task();
 
@@ -675,10 +675,10 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // agent complexe classé Orchestrated (score >= 0.9)
+    // complex agent classified Orchestrated (score >= 0.9)
     #[test]
     fn test_complex_agent_classified_orchestrated() {
-        // GIVEN un agent avec 5+ outils, 20 steps, tag "multi-step", input long
+        // GIVEN an agent with 5+ tools, 20 steps, "multi-step" tag, long input
         let mut manifest = complex_manifest();
         manifest.tags = vec!["multi-step".into()];
         let task = AIPTask {
@@ -699,7 +699,7 @@ mod tests {
             ..AIPTask::default()
         };
 
-        // WHEN — steps(0.30) + parts(0) + tag(0.40) + tools(0.20) + input_len(0.10) = 1.0
+        // WHEN: steps(0.30) + parts(0) + tag(0.40) + tools(0.20) + input_len(0.10) = 1.0
         let score = compute_complexity_score(&manifest, &task.input, None);
         let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
@@ -708,10 +708,10 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // tag "multi-step" seul déclenche Orchestrated
+    // "multi-step" tag alone triggers Orchestrated
     #[test]
     fn test_multi_step_tag_alone_triggers_orchestrated() {
-        // GIVEN un agent avec 1 outil, 5 steps, tag "multi-step", input court
+        // GIVEN an agent with 1 tool, 5 steps, "multi-step" tag, short input
         let mut manifest = simple_manifest();
         manifest.tools_required = vec!["file_io".into()];
         manifest.step_budget = Some(StepBudgetConfig {
@@ -726,15 +726,15 @@ mod tests {
         let score = compute_complexity_score(&manifest, &task.input, None);
         let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
-        // THEN — score = WEIGHT_MULTI_STEP_TAG (0.40) ≥ 0.40
+        // THEN: score = WEIGHT_MULTI_STEP_TAG (0.40) >= 0.40
         assert!(score >= 0.40, "score should be >= 0.40, got {score}");
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // input long + nombreux outils contribuent au score
+    // long input + many tools contribute to the score
     #[test]
     fn test_input_length_and_tools_contribute_to_score() {
-        // GIVEN un agent avec 6 outils, 10 steps, pas de tag, input de 800 chars
+        // GIVEN an agent with 6 tools, 10 steps, no tag, 800-char input
         let mut manifest = simple_manifest();
         manifest.tools_required = vec!["a", "b", "c", "d", "e", "f"]
             .into_iter()
@@ -753,19 +753,19 @@ mod tests {
             ..AIPTask::default()
         };
 
-        // WHEN — tools(0.20) + input_len(0.10) = 0.30
+        // WHEN: tools(0.20) + input_len(0.10) = 0.30
         let score = compute_complexity_score(&manifest, &task.input, None);
 
         // THEN
         assert!(score >= 0.30, "score should be >= 0.30, got {score}");
     }
 
-    // serde round-trip JSON → execution_mode + system_prompt
+    // serde round-trip JSON -> execution_mode + system_prompt
     #[test]
     fn test_ac5_serde_round_trip() {
         use apollia_core::AgentManifest;
 
-        // GIVEN un JSON avec execution_mode et system_prompt
+        // GIVEN a JSON with execution_mode and system_prompt
         let json = r#"{"name":"a","version":"1.0.0","description":"d","tools_required":[],"execution_mode":"orchestrated","system_prompt":"Planifie."}"#;
 
         // WHEN
@@ -776,12 +776,12 @@ mod tests {
         assert_eq!(manifest.system_prompt, Some("Planifie.".to_string()));
     }
 
-    // valeur par défaut "auto" quand le champ est absent
+    // default value "auto" when the field is absent
     #[test]
     fn test_default_execution_mode_is_auto() {
         use apollia_core::AgentManifest;
 
-        // GIVEN un JSON minimal sans execution_mode
+        // GIVEN a minimal JSON without execution_mode
         let json = r#"{"name":"a","version":"1.0.0","description":"d","tools_required":[]}"#;
 
         // WHEN

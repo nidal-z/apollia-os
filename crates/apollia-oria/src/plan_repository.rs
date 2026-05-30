@@ -1,11 +1,11 @@
-//! Persistance SQLite des plans d'exécution ORIA.
+//! SQLite persistence for ORIA execution plans.
 //!
-//! `PlanRepository` est un wrapper synchrone autour de `rusqlite` — même pattern
-//! que `AuditTrail`. Toutes les méthodes sont synchrones ; l'`ActorLoop`
-//! async les appelle via `tokio::task::spawn_blocking` si nécessaire.
+//! `PlanRepository` is a synchronous wrapper around `rusqlite`, same pattern as
+//! `AuditTrail`. All methods are synchronous; the async `ActorLoop` calls them
+//! via `tokio::task::spawn_blocking` when needed.
 //!
-//! La migration `004_execution_plans.sql` est incluse au moment de la compilation
-//! et appliquée idempotentiellement à l'ouverture de la base.
+//! The `004_execution_plans.sql` migration is included at compile time and
+//! applied idempotently when the database is opened.
 
 use std::sync::Mutex;
 
@@ -15,14 +15,14 @@ use apollia_core::observability::{truncate_with_marker, ObservabilityConfig};
 
 use crate::plan::{ExecutionPlan, PlanStep};
 
-/// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
+/// Embedded migration SQL, applied idempotently on every open.
 const MIGRATION_SQL: &str = include_str!("../../apollia-tools/migrations/004_execution_plans.sql");
 
-/// Colonnes d'observabilité à ajouter sur `plan_steps`.
+/// Observability columns to add to `plan_steps`.
 ///
-/// Chaque tuple : (nom colonne, type SQL). Appliquées idempotentiellement
-/// via [`apply_observability_migration`] — les colonnes déjà existantes
-/// sont silencieusement ignorées.
+/// Each tuple: (column name, SQL type). Applied idempotently via
+/// [`apply_observability_migration`]; columns that already exist are
+/// silently ignored.
 const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("input_rendered", "TEXT"),
     ("input_truncated", "INTEGER NOT NULL DEFAULT 0"),
@@ -33,17 +33,17 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("duration_ms", "INTEGER"),
 ];
 
-/// Applique la migration d'observabilité de façon idempotente.
+/// Apply the observability migration idempotently.
 ///
-/// Utilise `ALTER TABLE ADD COLUMN` individuellement et ignore l'erreur
-/// « duplicate column name » (code SQLite 1) si la colonne existe déjà.
+/// Uses `ALTER TABLE ADD COLUMN` individually and ignores the
+/// "duplicate column name" error (SQLite code 1) when the column already exists.
 fn apply_observability_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
     for (col, col_type) in OBSERVABILITY_COLUMNS {
         let sql = format!("ALTER TABLE plan_steps ADD COLUMN {col} {col_type}");
         match conn.execute_batch(&sql) {
             Ok(()) => {}
             Err(rusqlite::Error::SqliteFailure(err, _)) if err.extended_code == 1 => {
-                // « duplicate column name » — colonne déjà présente, ignoré.
+                // "duplicate column name": column already present, ignored.
             }
             Err(e) => return Err(PlanRepositoryError::Sqlite(e)),
         }
@@ -51,106 +51,100 @@ fn apply_observability_migration(conn: &Connection) -> Result<(), PlanRepository
     Ok(())
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Erreurs
-// ────────────────────────────────────────────────────────────────────────────
+// Errors
 
-/// Erreurs possibles du [`PlanRepository`].
+/// Possible errors from the [`PlanRepository`].
 #[derive(Debug, thiserror::Error)]
 pub enum PlanRepositoryError {
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
-    /// Aucun plan trouvé pour le `task_id` donné.
+    /// No plan found for the given `task_id`.
     #[error("Plan not found for task_id: {0}")]
     NotFound(String),
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Types de retour
-// ────────────────────────────────────────────────────────────────────────────
+// Return types
 
-/// Représentation complète d'un plan avec ses steps, utilisée par `task inspect`.
+/// Full representation of a plan with its steps, used by `task inspect`.
 #[derive(Debug)]
 pub struct PlanWithSteps {
-    /// Identifiant unique du plan (UUID v4).
+    /// Unique plan identifier (UUID v4).
     pub plan_id: String,
-    /// Identifiant de la tâche associée.
+    /// Identifier of the associated task.
     pub task_id: String,
-    /// Nom de l'agent propriétaire du plan.
+    /// Name of the agent that owns the plan.
     pub agent_name: String,
-    /// Statut courant : `running` | `completed` | `failed` | `replanning`.
+    /// Current status: `running` | `completed` | `failed` | `replanning`.
     pub status: String,
-    /// Nombre de replanifications effectuées depuis la création.
+    /// Number of replans performed since creation.
     pub replan_count: u32,
-    /// Horodatage ISO 8601 de création du plan.
+    /// ISO 8601 timestamp of plan creation.
     pub created_at: String,
-    /// Steps du plan dans l'ordre de récupération SQLite.
+    /// Plan steps in SQLite retrieval order.
     pub steps: Vec<StepRecord>,
 }
 
-/// État complet d'un step individuel tel que persisté en SQLite.
+/// Full state of a single step as persisted in SQLite.
 #[derive(Debug)]
 pub struct StepRecord {
-    /// Identifiant unique dans le plan (ex : `"s1"`).
+    /// Unique identifier within the plan (e.g. `"s1"`).
     pub step_id: String,
-    /// Description en langage naturel de l'action à réaliser.
+    /// Natural-language description of the action to perform.
     pub description: String,
-    /// Outil suggéré par le LLM, s'il y en a un.
+    /// Tool suggested by the LLM, if any.
     pub tool_hint: Option<String>,
-    /// Identifiants des steps dont ce step dépend (désérialisés depuis JSON).
+    /// Identifiers of the steps this step depends on (deserialized from JSON).
     pub depends_on: Vec<String>,
-    /// Statut courant : `pending` | `running` | `completed` | `failed` | `skipped`.
+    /// Current status: `pending` | `running` | `completed` | `failed` | `skipped`.
     pub status: String,
-    /// Sortie produite par le step, présente une fois `completed`.
+    /// Output produced by the step, present once `completed`.
     pub output: Option<String>,
-    /// Message d'erreur, présent si `failed` ou `skipped`.
+    /// Error message, present when `failed` or `skipped`.
     pub error: Option<String>,
-    /// Horodatage de démarrage du step.
+    /// Step start timestamp.
     pub started_at: Option<String>,
-    /// Horodatage de fin du step.
+    /// Step completion timestamp.
     pub completed_at: Option<String>,
-    /// Input rendu après interpolation template (potentiellement tronqué).
+    /// Input rendered after template interpolation (possibly truncated).
     pub input_rendered: Option<String>,
-    /// Indique si `input_rendered` a été tronqué.
+    /// Whether `input_rendered` was truncated.
     pub input_truncated: bool,
-    /// Texte d'output d'observabilité (potentiellement tronqué).
+    /// Observability output text (possibly truncated).
     pub output_text: Option<String>,
-    /// Indique si `output_text` a été tronqué.
+    /// Whether `output_text` was truncated.
     pub output_truncated: bool,
-    /// Nom de l'outil effectivement utilisé (vs `tool_hint` suggéré par le LLM).
+    /// Name of the tool actually used (vs `tool_hint` suggested by the LLM).
     pub tool_used: Option<String>,
-    /// Détail complet de l'erreur pour diagnostic (vs `error` qui est le message bref).
+    /// Full error detail for diagnostics (vs `error` which is the brief message).
     pub error_detail: Option<String>,
-    /// Durée d'exécution du step en millisecondes.
+    /// Step execution duration in milliseconds.
     pub duration_ms: Option<i64>,
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Repository
-// ────────────────────────────────────────────────────────────────────────────
 
-/// Repository SQLite pour la persistance des plans d'exécution ORIA.
+/// SQLite repository for persisting ORIA execution plans.
 ///
-/// Encapsule une connexion `rusqlite` derrière un [`Mutex`] afin d'offrir
-/// une API `&self` sur toutes les méthodes tout en autorisant l'emprunt mutable
-/// nécessaire aux transactions atomiques (cf. [`Self::begin_replan`]).
+/// Wraps a `rusqlite` connection behind a [`Mutex`] to offer
+/// an `&self` API on all methods while allowing the mutable borrow required for
+/// atomic transactions (cf. [`Self::begin_replan`]).
 ///
-/// **Thread safety :** `PlanRepository` est `Send + Sync` grâce au `Mutex`.
-/// Toute opération SQLite acquiert le verrou, donc les opérations sont
-/// sérialisées au niveau de la base (cohérent avec SQLite single-writer).
+/// **Thread safety:** `PlanRepository` is `Send + Sync` thanks to the `Mutex`.
+/// Every SQLite operation acquires the lock, so operations are serialized at the
+/// database level (consistent with SQLite's single-writer model).
 pub struct PlanRepository {
     conn: Mutex<Connection>,
 }
 
 impl PlanRepository {
-    /// Ouvre la base SQLite et applique la migration `004_execution_plans.sql`.
+    /// Open the SQLite database and apply the `004_execution_plans.sql` migration.
     ///
-    /// La migration est idempotente (`CREATE TABLE IF NOT EXISTS`), donc sûre
-    /// à réexécuter sur une base existante.
+    /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`), so it is safe
+    /// to re-run on an existing database.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] si l'ouverture ou la migration échoue.
+    /// Returns [`PlanRepositoryError::Sqlite`] if opening or the migration fails.
     pub fn new(db_path: &str) -> Result<Self, PlanRepositoryError> {
         let conn = Connection::open(db_path)?;
         conn.execute_batch(MIGRATION_SQL)?;
@@ -160,10 +154,10 @@ impl PlanRepository {
         })
     }
 
-    /// Insère un nouveau plan avec le statut `running`.
+    /// Insert a new plan with `running` status.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite (ex : `plan_id` dupliqué).
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error (e.g. duplicate `plan_id`).
     pub fn insert_plan(
         &self,
         plan: &ExecutionPlan,
@@ -177,12 +171,12 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Insère les steps d'un plan, tous avec le statut `pending`.
+    /// Insert a plan's steps, all with `pending` status.
     ///
-    /// Le champ `depends_on` de chaque step est sérialisé en JSON avant stockage.
+    /// Each step's `depends_on` field is serialized to JSON before storage.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] si un step ne peut pas être inséré.
+    /// Returns [`PlanRepositoryError::Sqlite`] if a step cannot be inserted.
     pub fn insert_steps(
         &self,
         plan_id: &str,
@@ -208,10 +202,10 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Marque un step comme `running` avec `started_at = CURRENT_TIMESTAMP`.
+    /// Mark a step as `running` with `started_at = CURRENT_TIMESTAMP`.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn start_step(&self, plan_id: &str, step_id: &str) -> Result<(), PlanRepositoryError> {
         self.conn.lock().expect("plan repository mutex poisoned").execute(
             "UPDATE plan_steps \
@@ -222,10 +216,10 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Marque un step comme `completed` avec son `output` et `completed_at = CURRENT_TIMESTAMP`.
+    /// Mark a step as `completed` with its `output` and `completed_at = CURRENT_TIMESTAMP`.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn complete_step(
         &self,
         plan_id: &str,
@@ -241,10 +235,10 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Marque un step comme `failed` avec un message d'erreur.
+    /// Mark a step as `failed` with an error message.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn fail_step(
         &self,
         plan_id: &str,
@@ -260,17 +254,17 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Prépare la replanification de façon atomique.
+    /// Prepare the replan atomically.
     ///
-    /// En une seule transaction SQLite :
-    /// - Passe `execution_plans.status` à `replanning`
-    /// - Met à jour `replan_count` avec `new_count`
-    /// - **Supprime** tous les steps au statut `pending` (les steps `completed`/`failed` sont conservés)
+    /// In a single SQLite transaction:
+    /// - Set `execution_plans.status` to `replanning`
+    /// - Update `replan_count` with `new_count`
+    /// - **Delete** all steps with `pending` status (`completed`/`failed` steps are kept)
     ///
-    /// Les nouveaux steps doivent ensuite être insérés via [`Self::insert_steps`].
+    /// The new steps must then be inserted via [`Self::insert_steps`].
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] si la transaction échoue.
+    /// Returns [`PlanRepositoryError::Sqlite`] if the transaction fails.
     pub fn begin_replan(&self, plan_id: &str, new_count: u32) -> Result<(), PlanRepositoryError> {
         let mut conn = self.conn.lock().expect("plan repository mutex poisoned");
         let tx = conn.transaction()?;
@@ -288,12 +282,12 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Marque le plan comme `failed` et passe tous ses steps `pending` en `skipped`.
+    /// Mark the plan as `failed` and move all its `pending` steps to `skipped`.
     ///
-    /// La raison d'échec est conservée dans le champ `error` des steps skippés.
+    /// The failure reason is kept in the `error` field of the skipped steps.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn fail_plan(&self, plan_id: &str, reason: &str) -> Result<(), PlanRepositoryError> {
         let conn = self.conn.lock().expect("plan repository mutex poisoned");
         conn.execute(
@@ -311,10 +305,10 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Marque le plan comme `completed`.
+    /// Mark the plan as `completed`.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn complete_plan(&self, plan_id: &str) -> Result<(), PlanRepositoryError> {
         self.conn.lock().expect("plan repository mutex poisoned").execute(
             "UPDATE execution_plans \
@@ -325,13 +319,13 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Persiste l'input rendu d'un step avec troncature selon [`ObservabilityConfig`].
+    /// Persist a step's rendered input with truncation per [`ObservabilityConfig`].
     ///
-    /// L'input est tronqué si sa taille dépasse `config.max_input_bytes`.
-    /// Le flag `input_truncated` est positionné en conséquence.
+    /// The input is truncated when its size exceeds `config.max_input_bytes`.
+    /// The `input_truncated` flag is set accordingly.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn save_step_input(
         &self,
         step_id: &str,
@@ -349,13 +343,13 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Persiste l'output d'observabilité d'un step avec troncature.
+    /// Persist a step's observability output with truncation.
     ///
-    /// Distinct de la colonne `output` (utilisée par ORIA pour le chaînage).
-    /// L'output est tronqué si sa taille dépasse `config.max_output_bytes`.
+    /// Distinct from the `output` column (used by ORIA for chaining).
+    /// The output is truncated when its size exceeds `config.max_output_bytes`.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn save_step_output(
         &self,
         step_id: &str,
@@ -373,12 +367,12 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Persiste le détail complet d'erreur d'un step pour diagnostic.
+    /// Persist a step's full error detail for diagnostics.
     ///
-    /// Distinct de la colonne `error` (message bref utilisé par ORIA).
+    /// Distinct from the `error` column (brief message used by ORIA).
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn save_step_error(
         &self,
         step_id: &str,
@@ -394,12 +388,12 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Persiste le nom de l'outil effectivement utilisé par le step.
+    /// Persist the name of the tool actually used by the step.
     ///
-    /// Distinct de `tool_hint` (outil suggéré par le LLM).
+    /// Distinct from `tool_hint` (tool suggested by the LLM).
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn save_step_tool(
         &self,
         step_id: &str,
@@ -415,10 +409,10 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Persiste la durée d'exécution du step en millisecondes.
+    /// Persist the step execution duration in milliseconds.
     ///
     /// # Errors
-    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn save_step_duration(
         &self,
         step_id: &str,
@@ -434,17 +428,17 @@ impl PlanRepository {
         Ok(())
     }
 
-    /// Récupère le plan complet avec ses steps depuis SQLite.
+    /// Retrieve the full plan with its steps from SQLite.
     ///
-    /// Utilisé par `apollia-os task inspect`.
+    /// Used by `apollia-os task inspect`.
     ///
     /// # Errors
-    /// - [`PlanRepositoryError::NotFound`] si aucun plan n'est associé à `task_id`.
-    /// - [`PlanRepositoryError::Sqlite`] pour toute autre erreur SQLite.
+    /// - [`PlanRepositoryError::NotFound`] if no plan is associated with `task_id`.
+    /// - [`PlanRepositoryError::Sqlite`] for any other SQLite error.
     pub fn get_plan_with_steps(&self, task_id: &str) -> Result<PlanWithSteps, PlanRepositoryError> {
         let conn = self.conn.lock().expect("plan repository mutex poisoned");
 
-        // ── Récupération du plan ──────────────────────────────────────────────
+        // Fetch the plan
         let (plan_id, agent_name, status, replan_count, created_at) = conn
             .query_row(
                 "SELECT plan_id, agent_name, status, replan_count, created_at \
@@ -467,7 +461,7 @@ impl PlanRepository {
                 other => PlanRepositoryError::Sqlite(other),
             })?;
 
-        // ── Récupération des steps ────────────────────────────────────────────
+        // Fetch the steps
         let mut stmt = conn.prepare(
             "SELECT step_id, description, tool_hint, depends_on, status, \
                     output, error, started_at, completed_at, \
@@ -479,7 +473,7 @@ impl PlanRepository {
         let steps = stmt
             .query_map(params![plan_id], |row| {
                 let depends_on_str: String = row.get(3)?;
-                // Données insérées par notre propre code — fallback sûr si JSON malformé.
+                // Data inserted by our own code: safe fallback if the JSON is malformed.
                 let depends_on: Vec<String> =
                     serde_json::from_str(&depends_on_str).unwrap_or_default();
                 let input_truncated_raw: i32 = row.get(10)?;
@@ -555,17 +549,17 @@ mod tests {
         }
     }
 
-    // GIVEN / WHEN : PlanRepository::new() sur une base vide
-    // THEN : tables créées sans erreur
+    // GIVEN / WHEN: PlanRepository::new() on an empty database
+    // THEN: tables created without error
     #[test]
     fn test_ac1_migration_appliquee() {
         let (_repo, _f) = make_repo();
-        // La migration réussit implicitement si new() ne retourne pas d'erreur.
+        // The migration succeeds implicitly if new() does not return an error.
     }
 
-    // GIVEN : un PlanRepository ouvert
-    // WHEN  : cycle de vie complet — insert_plan → start/complete steps → complete_plan
-    // THEN  : get_plan_with_steps retourne status=completed et outputs corrects
+    // GIVEN: an open PlanRepository
+    // WHEN:  full life cycle: insert_plan -> start/complete steps -> complete_plan
+    // THEN:  get_plan_with_steps returns status=completed and correct outputs
     #[test]
     fn test_ac2_cycle_de_vie_complet() {
         let (repo, _f) = make_repo();
@@ -588,9 +582,9 @@ mod tests {
         assert_eq!(s2.output.as_deref(), Some("output-2"));
     }
 
-    // GIVEN : un plan avec s1 completed, s2 pending
-    // WHEN  : begin_replan(plan_id, 1)
-    // THEN  : status=replanning, replan_count=1, s2 supprimé, s1 conservé
+    // GIVEN: a plan with s1 completed, s2 pending
+    // WHEN:  begin_replan(plan_id, 1)
+    // THEN:  status=replanning, replan_count=1, s2 deleted, s1 kept
     #[test]
     fn test_ac3_replan_supprime_pending_garde_completed() {
         let (repo, _f) = make_repo();
@@ -607,15 +601,15 @@ mod tests {
         assert_eq!(result.replan_count, 1);
 
         let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
-        assert_eq!(s1.status, "completed"); // conservé
+        assert_eq!(s1.status, "completed"); // kept
 
         let s2 = result.steps.iter().find(|s| s.step_id == "s2");
-        assert!(s2.is_none()); // supprimé
+        assert!(s2.is_none()); // deleted
     }
 
-    // GIVEN : un plan avec s1 et s2 pending
-    // WHEN  : fail_plan(plan_id, "STEP_BUDGET_EXCEEDED")
-    // THEN  : plan.status=failed, tous les steps skipped ou failed
+    // GIVEN: a plan with s1 and s2 pending
+    // WHEN:  fail_plan(plan_id, "STEP_BUDGET_EXCEEDED")
+    // THEN:  plan.status=failed, all steps skipped or failed
     #[test]
     fn test_ac4_fail_plan_skippe_pending() {
         let (repo, _f) = make_repo();
@@ -638,8 +632,8 @@ mod tests {
         }
     }
 
-    // GIVEN / WHEN : get_plan_with_steps sur un task_id inexistant
-    // THEN  : PlanRepositoryError::NotFound retourné
+    // GIVEN / WHEN: get_plan_with_steps on a nonexistent task_id
+    // THEN:  PlanRepositoryError::NotFound returned
     #[test]
     fn test_not_found() {
         let (repo, _f) = make_repo();
@@ -647,11 +641,11 @@ mod tests {
         assert!(matches!(result, Err(PlanRepositoryError::NotFound(_))));
     }
 
-    // ── observabilité step ────────────────────────────────────
+    // step observability
 
-    // GIVEN un step dans un plan
-    // WHEN  save_step_input avec un texte court
-    // THEN  input_rendered persisté, input_truncated = false
+    // GIVEN a step in a plan
+    // WHEN  save_step_input with a short text
+    // THEN  input_rendered persisted, input_truncated = false
     #[test]
     fn test_step_input_rendered_persisted() {
         let (repo, _f) = make_repo();
@@ -669,9 +663,9 @@ mod tests {
         assert!(!s1.input_truncated);
     }
 
-    // GIVEN un step complété
+    // GIVEN a completed step
     // WHEN  save_step_output + save_step_tool + save_step_duration
-    // THEN  output_text, tool_used, duration_ms persistés
+    // THEN  output_text, tool_used, duration_ms persisted
     #[test]
     fn test_step_output_on_success() {
         let (repo, _f) = make_repo();
@@ -693,9 +687,9 @@ mod tests {
         assert_eq!(s1.duration_ms, Some(42));
     }
 
-    // GIVEN un step échoué
+    // GIVEN a failed step
     // WHEN  save_step_error + save_step_tool + save_step_duration
-    // THEN  error_detail, tool_used, duration_ms persistés
+    // THEN  error_detail, tool_used, duration_ms persisted
     #[test]
     fn test_step_error_detail_on_failure() {
         let (repo, _f) = make_repo();
@@ -718,9 +712,9 @@ mod tests {
         assert_eq!(s1.duration_ms, Some(5));
     }
 
-    // GIVEN un step
-    // WHEN  save_step_duration avec une valeur
-    // THEN  duration_ms persisté
+    // GIVEN a step
+    // WHEN  save_step_duration with a value
+    // THEN  duration_ms persisted
     #[test]
     fn test_step_duration_measured() {
         let (repo, _f) = make_repo();
@@ -735,9 +729,9 @@ mod tests {
         assert_eq!(s1.duration_ms, Some(150));
     }
 
-    // GIVEN un step avec un input > max_input_bytes
+    // GIVEN a step with an input > max_input_bytes
     // WHEN  save_step_input
-    // THEN  input tronqué, input_truncated = true
+    // THEN  input truncated, input_truncated = true
     #[test]
     fn test_step_input_truncated_when_over_limit() {
         let (repo, _f) = make_repo();
@@ -762,9 +756,9 @@ mod tests {
             .map_or(false, |t| t.contains("200 octets total")));
     }
 
-    // GIVEN : plan avec depends_on non vide
-    // WHEN  : get_plan_with_steps
-    // THEN  : depends_on est correctement désérialisé
+    // GIVEN: plan with a non-empty depends_on
+    // WHEN:  get_plan_with_steps
+    // THEN:  depends_on is correctly deserialized
     #[test]
     fn test_ac5_depends_on_deserialise() {
         let (repo, _f) = make_repo();

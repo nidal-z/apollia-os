@@ -39,7 +39,7 @@ export class ChatRateLimiter {
     }
     this.prune(now);
     if (this.recent.length >= this.maxPerMinute) {
-      const oldest = this.recent[0]!;
+      const oldest = this.recent[0];
       return {
         allowed: false,
         reason: "too_many",
@@ -63,7 +63,7 @@ export class ChatRateLimiter {
 
   private prune(now: number): void {
     const cutoff = now - 60_000;
-    while (this.recent.length > 0 && this.recent[0]! < cutoff) {
+    while (this.recent.length > 0 && this.recent[0] < cutoff) {
       this.recent.shift();
     }
   }

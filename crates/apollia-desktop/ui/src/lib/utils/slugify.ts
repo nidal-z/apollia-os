@@ -17,11 +17,11 @@ export function slugify(input: string): string {
 
   const ascii = input
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replaceAll(/[̀-ͯ]/g, "");
 
   return ascii
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/-+/g, "-")
+    .replaceAll(/^-|-$/g, "");
 }

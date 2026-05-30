@@ -1,4 +1,4 @@
-//! A2AToolsProvider — builds virtual tool descriptors for A2A-enabled agents.
+//! A2AToolsProvider, builds virtual tool descriptors for A2A-enabled agents.
 //!
 //! Queries the [`A2AInvoker`] for active skills and maps them to
 //! [`ToolDescriptor`]s prefixed with `"a2a:"`. Used by the runtime to inject
@@ -19,7 +19,7 @@ use super::invoker::A2AInvoker;
 /// task execution, allowing the ORIA ReAct loop to see and invoke them without
 /// the Director Agent hard-coding any `a2a_invoke()` calls.
 ///
-/// Virtual tools are **not** persisted in the global [`ToolRegistry`] — they are
+/// Virtual tools are **not** persisted in the global [`ToolRegistry`], they are
 /// built fresh for each task by interrogating the live [`A2AInvoker`].
 ///
 /// This is a pure helper struct, not a Tokio actor. Clone cheaply via the
@@ -44,7 +44,7 @@ impl A2AToolsProvider {
     /// - `input_schema` defaults to `{"type": "object", "properties": {"text": {"type": "string"}}}`.
     ///
     /// Returns an empty `Vec` if no A2A agents are currently active or if the
-    /// registry query fails — callers always receive a safe, non-error result.
+    /// registry query fails, callers always receive a safe, non-error result.
     pub async fn build_tool_descriptors(&self) -> Vec<ToolDescriptor> {
         let skills = match self.a2a_invoker.list_skills().await {
             Ok(s) => s,

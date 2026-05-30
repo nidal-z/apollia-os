@@ -553,6 +553,26 @@ pub async fn restart_mcp_server(
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
+/// Whether a public-registry server is already covered by an Apollia curated
+/// enrichment (by registry name, package identifier, or remote URL).
+fn is_covered_by_curated(
+    detail: &crate::mcp::registry_client::RegistryServerDetail,
+    by_name: &HashMap<&str, &ConnectorEnrichment>,
+    by_pkg: &HashMap<&str, &ConnectorEnrichment>,
+    by_remote_url: &HashSet<&str>,
+) -> bool {
+    let name_covered = by_name.contains_key(detail.name.as_str());
+    let pkg_covered = detail.packages.as_ref().is_some_and(|pkgs| {
+        pkgs.iter()
+            .any(|pkg| by_pkg.contains_key(pkg.identifier.as_str()))
+    });
+    let remote_covered = detail
+        .remotes
+        .iter()
+        .any(|r| by_remote_url.contains(r.url.as_str()));
+    name_covered || pkg_covered || remote_covered
+}
+
 /// Fetch MCP Registry servers with enrichment and install-status join.
 ///
 /// Queries the official MCP registry, then enriches each result:
@@ -626,19 +646,14 @@ pub async fn fetch_mcp_registry(
     let views: Vec<RegistryServerView> = raw_servers
         .into_iter()
         .filter_map(|s| {
-            let detail = &s.server;
-            let name_covered = enrichment_by_name.contains_key(detail.name.as_str());
-            let pkg_covered = detail.packages.as_ref().is_some_and(|pkgs| {
-                pkgs.iter()
-                    .any(|pkg| enrichment_by_pkg.contains_key(pkg.identifier.as_str()))
-            });
-            let remote_covered = detail
-                .remotes
-                .iter()
-                .any(|r| enrichment_by_remote_url.contains(r.url.as_str()));
-            if name_covered || pkg_covered || remote_covered {
+            if is_covered_by_curated(
+                &s.server,
+                &enrichment_by_name,
+                &enrichment_by_pkg,
+                &enrichment_by_remote_url,
+            ) {
                 tracing::debug!(
-                    server = %detail.name,
+                    server = %s.server.name,
                     "mcp.registry.dedup — skipping public entry already covered by curated"
                 );
                 return None;

@@ -1,4 +1,4 @@
-//! APIServer — dual TCP + Unix socket HTTP server for the Apollia runtime.
+//! APIServer, dual TCP + Unix socket HTTP server for the Apollia runtime.
 //!
 //! Listens on `localhost:<tcp_port>` and a Unix socket simultaneously,
 //! sharing the same axum `Router` and `AppState`.
@@ -74,7 +74,7 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub event_sender: EventBusSender,
     /// Agent loader for Python module loading (ADR-019).
     pub agent_loader: Arc<dyn AgentLoader>,
-    /// Execution backend — cloned per coordinator on agent start.
+    /// Execution backend, cloned per coordinator on agent start.
     pub backend: B,
     /// Shared, hot-reloadable handle to the active [`LlmRouter`].
     ///
@@ -87,22 +87,22 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     ///
     /// Webhook route returns 503 Service Unavailable when this is `None`.
     pub trigger_engine: Option<TriggerEngineHandle>,
-    /// Path to `apollia.toml` — used by `POST /api/v1/triggers/reload`.
+    /// Path to `apollia.toml`, used by `POST /api/v1/triggers/reload`.
     ///
     /// `None` when the runtime was started without a config file (e.g. in unit tests).
     /// The reload route returns 503 when this is `None`.
     pub config_path: Option<PathBuf>,
-    /// HITL task repository — SQLite persistence for Human-in-the-Loop state.
+    /// HITL task repository, SQLite persistence for Human-in-the-Loop state.
     ///
     /// Opened by the Supervisor on startup from `~/.apollia/hitl.db`.
     /// `None` in unit tests or when HITL is not configured.
     /// The resume route returns 503 when this is `None`.
     pub task_repository: Option<Arc<TaskRepository>>,
-    /// Registre HITL des approbations en attente — partagé entre routes et ORIAEngine.
+    /// Registre HITL des approbations en attente, partagé entre routes et ORIAEngine.
     ///
     /// `ResumeHandler` appelle `pending_approvals.resolve()` pour débloquer
     /// `execute_direct()` qui attend sur le oneshot channel.
-    /// `None` quand le HITL n'est pas configuré — `resume_task` logue un warning.
+    /// `None` quand le HITL n'est pas configuré, `resume_task` logue un warning.
     pub pending_approvals: Option<Arc<PendingApprovals>>,
     /// Configuration des canaux de notification chargée depuis `apollia.toml`.
     ///
@@ -112,24 +112,24 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub notification_config: Option<NotificationConfig>,
     /// Factory for creating per-agent execution backends (ADR-019 extension).
     ///
-    /// `Some` in production — creates real `AIPBridge` backends with tool access.
-    /// `None` in tests — falls back to `state.backend.clone()` (MockBackend/NoopBackend).
+    /// `Some` in production, creates real `AIPBridge` backends with tool access.
+    /// `None` in tests, falls back to `state.backend.clone()` (MockBackend/NoopBackend).
     pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
-    /// Handle to the ToolRegistry actor — exposes the tool catalogue via REST.
+    /// Handle to the ToolRegistry actor, exposes the tool catalogue via REST.
     ///
-    /// `Some` in production — populated by the Supervisor at startup.
-    /// `None` in tests — the `/api/v1/tools` routes return 503 when `None`.
+    /// `Some` in production, populated by the Supervisor at startup.
+    /// `None` in tests, the `/api/v1/tools` routes return 503 when `None`.
     pub tool_registry_handle: Option<ToolRegistryHandle>,
-    /// Handle to the AuditTrail actor — exposes tool invocations via REST.
+    /// Handle to the AuditTrail actor, exposes tool invocations via REST.
     ///
-    /// `Some` in production — opened by the Supervisor from `~/.apollia/audit.db`.
-    /// `None` in tests — the `/api/v1/audit` routes return 503 when `None`.
+    /// `Some` in production, opened by the Supervisor from `~/.apollia/audit.db`.
+    /// `None` in tests, the `/api/v1/audit` routes return 503 when `None`.
     pub audit_trail: Option<AuditTrailHandle>,
     /// Configuration de troncature pour l'observabilité des tâches.
     ///
     /// Passée aux `ExecutionCoordinator` pour la persistance input/output/transitions.
     pub obs_config: apollia_core::ObservabilityConfig,
-    /// Repository des appels LLM — agrégation coûts/tokens.
+    /// Repository des appels LLM, agrégation coûts/tokens.
     ///
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     /// `None` en tests ou quand aucun backend LLM n'est configuré.
@@ -156,7 +156,7 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` after Phase 13 of the Supervisor startup sequence.
     /// `None` in tests or when the chat subsystem is not configured.
     pub chat_manager: Option<ChatSessionManagerHandle>,
-    /// ORIA plan cache repository — stores cached execution plans.
+    /// ORIA plan cache repository, stores cached execution plans.
     ///
     /// `Some` when plan caching is enabled (SQLite `plan_cache.db` opened).
     /// `None` in tests or when plan caching failed to initialize.
@@ -176,7 +176,7 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` after Phase 14 of the Supervisor startup when `stt.enabled = true`.
     /// `None` in tests or when STT is disabled. Routes return 503 when `None`.
     pub stt_engine: Option<crate::stt::SttEngineHandle>,
-    /// STT transcription repository — persists transcription history.
+    /// STT transcription repository, persists transcription history.
     ///
     /// `Some` when the STT subsystem is initialized.
     /// `None` in tests or when STT is disabled.
@@ -198,14 +198,14 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Partagé entre le boot (chargement du LlmRouter) et les routes REST CRUD.
     /// `None` en tests unitaires ou quand `system.db` n'a pas pu être ouvert.
     pub llm_backend_repo: Option<Arc<std::sync::Mutex<LlmBackendRepository>>>,
-    /// STT configuration repository — persists and reads the singleton `stt_config`
+    /// STT configuration repository, persists and reads the singleton `stt_config`
     /// row in `system.db`.
     ///
     /// `Some` after Phase 15 of the Supervisor startup sequence.
     /// `None` in tests or when `system.db` could not be opened.
     /// Config routes return 503 when `None`.
     pub stt_config_repo: Option<Arc<std::sync::Mutex<SttConfigRepository>>>,
-    /// Orchestrateur A2A de haut niveau — invocations inter-agents par skill ID.
+    /// Orchestrateur A2A de haut niveau, invocations inter-agents par skill ID.
     ///
     /// `Some` après l'initialisation du runtime avec registry + router + event_bus.
     /// `None` en tests unitaires. Les routes `/api/v1/a2a/skills` et
@@ -219,6 +219,17 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// when subscriber init failed; the resilience routes degrade to a
     /// stable empty snapshot instead of returning a 503.
     pub resilience_layer: Option<Arc<std::sync::Mutex<apollia_oria::ResilienceLayer>>>,
+    /// Proxy onto the local sidecar runner.
+    ///
+    /// `Some` when the runtime started a runner at boot. The REST reload
+    /// endpoint uses it to rebuild the LLM router with the same
+    /// `LlamaCpp -> runner` override the supervisor applied; otherwise the
+    /// reload would drop the local backend (the runner would become
+    /// unreachable from agents and chat).
+    ///
+    /// `None` in unit tests and when no runner is available; the reload still
+    /// works for cloud-only backends in that case.
+    pub runner_proxy: Option<crate::runner_supervisor::RunnerProxy>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -255,6 +266,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             stt_config_repo: self.stt_config_repo.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             resilience_layer: self.resilience_layer.clone(),
+            runner_proxy: self.runner_proxy.clone(),
         }
     }
 }
@@ -272,11 +284,11 @@ pub struct APIServerConfig {
     pub tcp_port: u16,
     /// Bearer token required on TCP connections.
     ///
-    /// `Some(token)` — every incoming TCP request must supply
+    /// `Some(token)`, every incoming TCP request must supply
     /// `Authorization: Bearer <token>`. Requests without it or with an incorrect
     /// value receive `401 Unauthorized`.
     ///
-    /// `None` — no authentication check is performed (equivalent to
+    /// `None`, no authentication check is performed (equivalent to
     /// `require_token = false` in `apollia.toml`).
     ///
     /// The Unix socket listener is never subject to token authentication.
@@ -324,7 +336,7 @@ pub enum APIServerError {
     ServerError(String),
 }
 
-/// The Apollia APIServer — dual TCP + Unix socket HTTP server.
+/// The Apollia APIServer, dual TCP + Unix socket HTTP server.
 ///
 /// Built with [`APIServer::new`] and started with [`APIServer::start`].
 /// Both listeners share the same axum `Router` and `AppState`.
@@ -606,7 +618,7 @@ impl APIServer {
             Some(token) => router.clone().layer(TokenAuthLayer::new(token.as_str())),
             None => router.clone(),
         };
-        // Unix socket router: no authentication layer — filesystem permissions suffice.
+        // Unix socket router: no authentication layer, filesystem permissions suffice.
         let unix_router = router;
 
         info!(
@@ -670,7 +682,7 @@ async fn serve_unix(
                         let conn_builder = builder.clone();
                         tokio::spawn(async move {
                             if let Err(e) = conn_builder.serve_connection(io, svc).await {
-                                // "error shutting down connection" is benign — the CLI client
+                                // "error shutting down connection" is benign, the CLI client
                                 // closed its end before hyper completed the graceful shutdown.
                                 // Note: hyper emits "shutting down" (not "shutdown") in this message,
                                 // so we match on "shut" to cover both variants.
@@ -705,7 +717,7 @@ mod tests {
     use std::pin::Pin;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    /// Minimal ExecutionBackend for testing — never actually called.
+    /// Minimal ExecutionBackend for testing, never actually called.
     #[derive(Clone)]
     struct MockBackend;
 
@@ -771,6 +783,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         }
     }
 
@@ -982,7 +995,7 @@ mod tests {
         let response_str = String::from_utf8_lossy(&response);
 
         // Extract body after headers (blank line separator).
-        // May be chunked — extract the JSON object.
+        // May be chunked, extract the JSON object.
         let raw_body = response_str.split("\r\n\r\n").nth(1).unwrap_or("").trim();
 
         // Handle chunked transfer encoding: find JSON payload in body.

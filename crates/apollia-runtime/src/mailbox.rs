@@ -342,7 +342,7 @@ mod tests {
     /// Queue overflow returns MailboxError::QueueFull.
     #[tokio::test]
     async fn test_queue_full_returns_error() {
-        // GIVEN — mailbox_capacity = 100 (default)
+        // GIVEN, mailbox_capacity = 100 (default)
         let (event_tx, _event_rx) = EventBus::new();
         let mailbox_capacity = 100usize;
         let handle = AgentMailboxHandle::spawn(event_tx, mailbox_capacity);
@@ -355,7 +355,7 @@ mod tests {
                 .expect("send should succeed");
         }
 
-        // WHEN — one message over capacity
+        // WHEN, one message over capacity
         let result = handle
             .send("sender", "agent-b", serde_json::json!({"overflow": true}))
             .await;
@@ -412,10 +412,10 @@ mod tests {
         let (event_tx, _event_rx) = EventBus::new();
         let handle = AgentMailboxHandle::spawn(event_tx, 10);
 
-        // WHEN — drop the handle, which drops the sole Sender and closes the channel
+        // WHEN, drop the handle, which drops the sole Sender and closes the channel
         drop(handle);
 
-        // THEN — actor task should terminate without hanging; give it time to exit
+        // THEN, actor task should terminate without hanging; give it time to exit
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         // If we reach this point the actor exited cleanly (no panic, no hang)
     }

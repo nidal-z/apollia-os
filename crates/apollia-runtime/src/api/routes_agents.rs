@@ -1,4 +1,4 @@
-//! REST routes for agent management — GET/POST/DELETE `/api/v1/agents`.
+//! REST routes for agent management, GET/POST/DELETE `/api/v1/agents`.
 //!
 //! These routes expose agent lifecycle management via the API. They delegate
 //! to [`AgentRegistryHandle`] for state reads and transitions.
@@ -272,7 +272,7 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
                 ));
             }
         },
-        // No registry available (test harness fallback) — treat non-A2A optional tools
+        // No registry available (test harness fallback), treat non-A2A optional tools
         // as missing. A2A deps are resolved at invocation, never at boot.
         None => manifest
             .tools_optional
@@ -280,7 +280,7 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
             .any(|name| !name.starts_with("a2a:")),
     };
     let max_concurrent = manifest.max_concurrent_tasks;
-    // Clone manifest before consuming it in register() — needed for factory below.
+    // Clone manifest before consuming it in register(), needed for factory below.
     let manifest_for_factory = manifest.clone();
 
     let agent_id = state
@@ -313,7 +313,7 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
 
     // Create and register an ExecutionCoordinator for this agent.
     // Production: factory creates a real AIPBridge backend, converted to B via From<DynBackend>.
-    // Tests: factory is None — use state.backend directly (already type B).
+    // Tests: factory is None, use state.backend directly (already type B).
     let agent_backend: B = match &state.backend_factory {
         Some(factory) => {
             let dyn_backend =
@@ -361,7 +361,7 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
     ))
 }
 
-/// Resolves `id_or_name` — either a UUID or a human-readable agent name — to its
+/// Resolves `id_or_name`, either a UUID or a human-readable agent name, to its
 /// [`AgentEntry`].
 ///
 /// Resolution order:
@@ -373,7 +373,7 @@ async fn resolve_agent<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     id_or_name: &str,
 ) -> Result<Option<crate::registry::AgentEntry>, (StatusCode, Json<ErrorResponse>)> {
-    // 1. Direct lookup — works when id_or_name is a UUID.
+    // 1. Direct lookup, works when id_or_name is a UUID.
     let entry = state
         .registry_handle
         .get_agent(id_or_name)
@@ -384,7 +384,7 @@ async fn resolve_agent<B: ExecutionBackend + Clone>(
         return Ok(entry);
     }
 
-    // 2. Name-based lookup — resolves human-readable identifiers like "apollia-reviewer".
+    // 2. Name-based lookup, resolves human-readable identifiers like "apollia-reviewer".
     let resolved_id = state
         .registry_handle
         .find_by_name(id_or_name)
@@ -487,7 +487,7 @@ pub async fn stop_agent<B: ExecutionBackend + Clone>(
         ));
     }
 
-    // Use the canonical AgentId — never the raw user input which may be a name.
+    // Use the canonical AgentId, never the raw user input which may be a name.
     let agent_id = entry.id.clone();
 
     // Step 1: signal drain (emits AgentStopping on the EventBus).
@@ -694,6 +694,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         let router = Router::new()
             .route(
@@ -899,7 +900,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec state "stopped" — cycle Stopping→Stopped complété atomiquement
+        // THEN 200 avec state "stopped", cycle Stopping→Stopped complété atomiquement
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["agent_id"], agent_id.as_str());
@@ -1150,7 +1151,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_agent_with_a2a_optional_dep_is_active() {
-        // GIVEN — un agent qui ne déclare que des dépendances A2A en tools_optional.
+        // GIVEN, un agent qui ne déclare que des dépendances A2A en tools_optional.
         // Le ToolRegistry est vide ; la résolution A2A se fait à l'invocation, pas au boot.
         // L'agent doit donc démarrer en Active, pas Degraded.
         struct A2aOnlyLoader;
@@ -1231,6 +1232,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         let router = Router::new()
             .route(

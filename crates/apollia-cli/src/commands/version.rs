@@ -1,4 +1,4 @@
-//! `apollia-os version` — print binary version information.
+//! `apollia-os version`: print binary version information.
 //!
 //! Complements clap's built-in `--version` flag with a `--json` output that
 //! surfaces compile-time metadata useful for bug reports and CI logs.
@@ -50,10 +50,10 @@ fn built_profile() -> &'static str {
 }
 
 fn active_features() -> Vec<&'static str> {
-    let mut f = Vec::new();
-    #[cfg(feature = "cloud")]
-    f.push("cloud");
-    f
+    vec![
+        #[cfg(feature = "cloud")]
+        "cloud",
+    ]
 }
 
 #[cfg(test)]

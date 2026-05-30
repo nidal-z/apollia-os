@@ -1,4 +1,4 @@
-//! `apollia-os status` — display runtime and agent status.
+//! `apollia-os status`: display runtime and agent status.
 //!
 //! Connects via Unix socket and queries health + agent list endpoints.
 
@@ -44,7 +44,7 @@ pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
 
 /// Format status output as human-readable text.
 ///
-/// Health was already verified by the caller — reaching this function
+/// Health was already verified by the caller; reaching this function
 /// means the runtime is active and reachable.
 fn format_text_status(agents_json: &serde_json::Value) {
     let agents = agents_json

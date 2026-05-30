@@ -127,7 +127,7 @@ async def test_invoke_skill_happy_path() -> None:
 
 @pytest.mark.asyncio
 async def test_invoke_skill_domain_error_to_failed() -> None:
-    agent_instance, ctx = mock(_make_simple_agent())
+    agent_instance, _ctx = mock(_make_simple_agent())
     result = await agent_instance.invoke_skill("foo.fail")
     assert_result_failed(result, code="bad_input")
 

@@ -1,4 +1,4 @@
-//! `apollia-os user-memory` subcommands — manage the global user profile.
+//! `apollia-os user-memory` subcommands: manage the global user profile.
 //!
 //! Operates directly on `~/.apollia/user_memory.db` (a [`UserMemoryRepository`])
 //! without requiring the runtime to be running. This is the CLI counterpart

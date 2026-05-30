@@ -18,7 +18,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 
 /** True when running inside the Tauri runtime (vs. plain browser dev). */
 function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  return globalThis.window !== undefined && "__TAURI_INTERNALS__" in globalThis.window;
 }
 
 /**
@@ -73,7 +73,7 @@ export function handleExternalLinkClick(
   // hijacked. Only true external URLs go through the opener.
   try {
     const target = new URL(href);
-    if (target.origin === window.location.origin) {
+    if (target.origin === globalThis.location.origin) {
       return;
     }
   } catch {

@@ -1,16 +1,16 @@
-//! `apollia-llm` — clients LLM cloud pour Apollia OS.
+//! `apollia-llm`, cloud LLM clients for Apollia OS.
 //!
-//! Depuis ADR-113, les backends d'inférence locale (llama-cpp) ne vivent plus
-//! ici : ils sont hébergés par le crate `apollia-runner` (sidecar) et exposés
-//! au daemon via `RunnerLlmBackend` (apollia-runtime).
+//! Local inference backends (llama-cpp) no longer live here: they are hosted
+//! by the `apollia-runner` crate (sidecar) and exposed to the daemon via
+//! `RunnerLlmBackend` (apollia-runtime).
 //!
 //! # Features
 //!
-//! - `cloud` (défaut) : active `OpenAICompatibleClient`, `AnthropicClient` et
+//! - `cloud` (default): enables `OpenAICompatibleClient`, `AnthropicClient` and
 //!   `VertexClient` via `async-openai` / `reqwest`.
 //!
-//! Les types fondamentaux (`CompletionModel`, `CompletionRequest`, etc.) sont
-//! disponibles quelle que soit la feature activée.
+//! The core types (`CompletionModel`, `CompletionRequest`, etc.) are available
+//! regardless of which feature is enabled.
 
 pub mod backends;
 pub mod downloader;

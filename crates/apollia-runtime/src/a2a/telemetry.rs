@@ -51,7 +51,7 @@ pub struct A2ASkillTelemetry {
     pub tokens_consumed: u64,
 }
 
-/// Provenance d'un step dans une chaîne A2A — clé partagée avec TimelineGlobal
+/// Provenance d'un step dans une chaîne A2A, clé partagée avec TimelineGlobal
 /// pour le drill-down.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AStepProvenance {
@@ -90,7 +90,7 @@ pub fn make_excerpt(s: &str) -> String {
 /// Stockage des fenêtres glissantes de télémétrie et des provenances de steps.
 ///
 /// Partagé entre acteurs via `Arc`. Les écritures passent par des mutex courts
-/// en lecture/écriture — pas de contention significative au volume attendu.
+/// en lecture/écriture, pas de contention significative au volume attendu.
 #[derive(Debug, Default)]
 pub struct TelemetryStore {
     windows: RwLock<HashMap<TelemetryKey, VecDeque<InvocationRecord>>>,
@@ -215,7 +215,7 @@ impl TelemetryStore {
     /// Implémentation courante : no-op. Une persistance SQLite pourra être
     /// branchée ici sans modifier l'API publique.
     pub async fn flush(&self) {
-        // no-op — le store est in-memory pour cette release.
+        // no-op, le store est in-memory pour cette release.
     }
 }
 

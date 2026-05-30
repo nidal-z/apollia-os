@@ -1,13 +1,13 @@
-//! Client HuggingFace Hub API pour la découverte et le téléchargement de modèles GGUF.
+//! HuggingFace Hub API client for discovering and downloading GGUF models.
 //!
-//! Utilise l'API publique HF (pas d'authentification pour les modèles publics).
-//! Un token optionnel permet d'accéder aux modèles gated (Llama 3.1, etc.).
+//! Uses the public HF API (no authentication for public models). An optional
+//! token allows access to gated models (Llama 3.1, etc.).
 //!
-//! Architecture :
-//! - [`HfRegistryClient`] — client HTTP principal
-//! - [`HfModelCard`] — métadonnées d'un modèle HF
-//! - [`HfFile`] — fichier dans un repo HF (avec taille pour les badges de compatibilité)
-//! - [`HfSearchFilter`] — filtres de recherche (format, sort, etc.)
+//! Architecture:
+//! - [`HfRegistryClient`]: main HTTP client
+//! - [`HfModelCard`]: metadata for an HF model
+//! - [`HfFile`]: a file in an HF repo (with size for the compatibility badges)
+//! - [`HfSearchFilter`]: search filters (format, sort, etc.)
 
 #![cfg(feature = "cloud")]
 
@@ -16,91 +16,83 @@ use thiserror::Error;
 
 use crate::hardware::{CompatibilityBadge, HardwareProfile};
 
-// ─────────────────────────────────────────────
-// Errors
-// ─────────────────────────────────────────────
-
-/// Erreurs du client HuggingFace.
+/// Errors of the HuggingFace client.
 #[derive(Debug, Error)]
 pub enum HfError {
-    /// Erreur réseau HTTP.
+    /// HTTP network error.
     #[error("http error: {0}")]
     Http(#[from] reqwest::Error),
 
-    /// Erreur de désérialisation JSON.
+    /// JSON deserialization error.
     #[error("json parse error: {0}")]
     Json(String),
 
-    /// Modèle introuvable sur HuggingFace.
+    /// Model not found on HuggingFace.
     #[error("model not found: {0}")]
     NotFound(String),
 
-    /// Le modèle est gated et nécessite un token HF.
+    /// The model is gated and requires an HF token.
     #[error("model '{0}' is gated — a HuggingFace token is required")]
     Gated(String),
 }
 
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
-
-/// Carte de métadonnées d'un modèle HuggingFace.
+/// Metadata card for a HuggingFace model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HfModelCard {
-    /// Identifiant du repo (ex. `"bartowski/Qwen3-30B-A3B-GGUF"`).
+    /// Repo identifier (e.g. `"bartowski/Qwen3-30B-A3B-GGUF"`).
     pub repo_id: String,
-    /// Auteur / organisation.
+    /// Author / organization.
     pub author: Option<String>,
-    /// Nombre de téléchargements (30 jours glissants).
+    /// Download count (rolling 30 days).
     pub downloads: u64,
-    /// Nombre de likes.
+    /// Number of likes.
     pub likes: u64,
-    /// License SPDX (ex. `"apache-2.0"`, `"mit"`).
+    /// SPDX license (e.g. `"apache-2.0"`, `"mit"`).
     pub license: Option<String>,
-    /// Tags HF (ex. `["gguf", "qwen3", "text-generation"]`).
+    /// HF tags (e.g. `["gguf", "qwen3", "text-generation"]`).
     pub tags: Vec<String>,
-    /// `true` si le modèle nécessite un token HF pour être téléchargé.
+    /// `true` if the model requires an HF token to download.
     pub gated: bool,
-    /// Taille totale du repo en bytes (somme de tous les fichiers).
+    /// Total repo size in bytes (sum of all files).
     pub total_size_bytes: Option<u64>,
-    /// Fichiers GGUF disponibles dans ce repo.
+    /// GGUF files available in this repo.
     pub gguf_files: Vec<HfFile>,
-    /// Paramètres de génération recommandés (depuis `generation_config.json`).
+    /// Recommended generation parameters (from `generation_config.json`).
     pub generation_config: Option<GenerationConfig>,
-    /// Problème de compatibilité détecté (pipeline_tag ou model_type).
+    /// Detected compatibility issue (pipeline_tag or model_type).
     pub compatibility_issue: Option<CompatIssue>,
-    /// Type de modèle HF depuis `config.json` (ex. `"LlamaForCausalLM"`).
+    /// HF model type from `config.json` (e.g. `"LlamaForCausalLM"`).
     pub model_type: Option<String>,
 }
 
-/// Raisons pour lesquelles un modèle est incompatible avec llama.cpp.
+/// Reasons a model is incompatible with llama.cpp.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CompatIssue {
-    /// Modèle d'embedding ou de feature-extraction — pas adapté à la génération de texte.
+    /// Embedding or feature-extraction model, not suited to text generation.
     EmbeddingModel,
-    /// Architecture dans `config.json` absente de la liste supportée par llama.cpp.
+    /// Architecture in `config.json` absent from the list supported by llama.cpp.
     UnknownArchitecture,
-    /// Aucun fichier GGUF trouvé dans ce repo.
+    /// No GGUF file found in this repo.
     NoGgufFiles,
 }
 
-/// Un fichier dans un repo HuggingFace.
+/// A file in a HuggingFace repo.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HfFile {
-    /// Nom du fichier (ex. `"Qwen3-30B-A3B-Q4_K_M.gguf"`).
+    /// File name (e.g. `"Qwen3-30B-A3B-Q4_K_M.gguf"`).
     pub filename: String,
-    /// Taille du fichier en bytes.
+    /// File size in bytes.
     pub size_bytes: u64,
-    /// Taille en format lisible (ex. `"17.2 GB"`).
+    /// Human-readable size (e.g. `"17.2 GB"`).
     pub size_human: String,
-    /// Badge de compatibilité calculé par rapport au hardware local.
+    /// Compatibility badge computed against the local hardware.
     pub compatibility: Option<CompatibilityBadge>,
-    /// URL de téléchargement directe.
+    /// Direct download URL.
     pub download_url: String,
 }
 
-/// Paramètres de génération recommandés depuis `generation_config.json`.
+/// Recommended generation parameters from `generation_config.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerationConfig {
     pub temperature: Option<f64>,
@@ -110,39 +102,38 @@ pub struct GenerationConfig {
     pub max_new_tokens: Option<u32>,
 }
 
-/// Filtres pour la recherche de modèles HF.
+/// Filters for HF model search.
 #[derive(Debug, Clone, Default)]
 pub struct HfSearchFilter {
-    /// Filtre par tag (ex. `"gguf"`).
+    /// Filter by tag (e.g. `"gguf"`).
     pub filter: Option<String>,
-    /// Tri : `"downloads"` (défaut), `"likes"`, `"trending"`, `"createdAt"`.
+    /// Sort: `"downloads"` (default), `"likes"`, `"trending"`, `"createdAt"`.
     pub sort: Option<String>,
-    /// Nombre maximum de résultats.
+    /// Maximum number of results.
     pub limit: Option<u32>,
-    /// Filtre par tâche HF (ex. `"text-generation"`).
+    /// Filter by HF task (e.g. `"text-generation"`).
     pub pipeline_tag: Option<String>,
-    /// Filtre par langue (ex. `"fr"`, `"en"`, `"zh"`).
+    /// Filter by language (e.g. `"fr"`, `"en"`, `"zh"`).
     pub language: Option<String>,
-    /// Curseur "Load more" — URL complète retournée par l'API HF dans le header `Link: rel="next"`.
-    /// Si renseigné, remplace tous les autres paramètres (la requête est déjà encodée dans l'URL).
+    /// "Load more" cursor: the full URL returned by the HF API in the
+    /// `Link: rel="next"` header. When set, it replaces all other parameters
+    /// (the request is already encoded in the URL).
     pub next_cursor: Option<String>,
 }
 
-/// Résultat d'une page de recherche HF.
+/// Result of one HF search page.
 #[derive(Debug, Clone, Serialize)]
 pub struct SearchPage {
-    /// Modèles de cette page.
+    /// Models in this page.
     pub models: Vec<HfModelCard>,
-    /// URL de la prochaine page (header `Link: rel="next"`) — `None` si dernière page.
+    /// URL of the next page (`Link: rel="next"` header); `None` on the last page.
     pub next_cursor: Option<String>,
 }
 
-// ─────────────────────────────────────────────
-// Compatibility detection
-// ─────────────────────────────────────────────
+// ── Compatibility detection ───────────────────────────────────────────────
 
-/// Architectures `model_type` dont llama.cpp garantit le support.
-/// Source : `src/llama.cpp` (LLAMA_MODEL_ARCH) — mise à jour à chaque bump de crate.
+/// `model_type` architectures llama.cpp guarantees support for.
+/// Source: `src/llama.cpp` (LLAMA_MODEL_ARCH), updated on each crate bump.
 static LLAMA_CPP_SUPPORTED_MODEL_TYPES: &[&str] = &[
     // LLaMA family
     "LlamaForCausalLM",
@@ -223,7 +214,7 @@ fn compat_from_pipeline_tag(pipeline_tag: Option<&str>) -> Option<CompatIssue> {
 }
 
 fn compat_from_model_type(model_type: &str) -> Option<CompatIssue> {
-    // Suffixes qui indiquent un modèle non-génératif
+    // Suffixes that indicate a non-generative model
     if model_type.ends_with("ForMaskedLM")
         || model_type.ends_with("ForSequenceClassification")
         || model_type.ends_with("ForTokenClassification")
@@ -237,7 +228,7 @@ fn compat_from_model_type(model_type: &str) -> Option<CompatIssue> {
         return Some(CompatIssue::EmbeddingModel);
     }
     if LLAMA_CPP_SUPPORTED_MODEL_TYPES.contains(&model_type) {
-        return None; // architecture connue et supportée
+        return None; // known and supported architecture
     }
     Some(CompatIssue::UnknownArchitecture)
 }
@@ -253,19 +244,17 @@ async fn extract_model_type(resp: Result<reqwest::Response, reqwest::Error>) -> 
         .map(String::from)
 }
 
-// ─────────────────────────────────────────────
-// Model type cache (session-level, TTL 24h)
-// ─────────────────────────────────────────────
+// ── Model type cache (session-level, TTL 24h) ─────────────────────────────
 
 struct CachedModelType {
     model_type: Option<String>,
     cached_at: std::time::Instant,
 }
 
-/// Cache session des types de modèle HF (depuis `config.json`).
+/// Session cache of HF model types (from `config.json`).
 ///
-/// Évite de refetcher `config.json` à chaque ouverture d'une card.
-/// TTL 24h — enregistré comme état Tauri (`Arc<HfModelTypeCache>`).
+/// Avoids refetching `config.json` each time a card is opened. TTL 24h,
+/// stored as Tauri state (`Arc<HfModelTypeCache>`).
 pub struct HfModelTypeCache {
     entries: tokio::sync::RwLock<std::collections::HashMap<String, CachedModelType>>,
 }
@@ -302,11 +291,9 @@ impl HfModelTypeCache {
     }
 }
 
-// ─────────────────────────────────────────────
-// Internal types
-// ─────────────────────────────────────────────
+// ── Internal types ────────────────────────────────────────────────────────
 
-/// Entrée retournée par `/api/models/{id}/tree/main`.
+/// Entry returned by `/api/models/{id}/tree/main`.
 #[derive(Debug, Deserialize)]
 struct TreeEntry {
     path: String,
@@ -315,21 +302,19 @@ struct TreeEntry {
     entry_type: String,
 }
 
-// ─────────────────────────────────────────────
-// Client
-// ─────────────────────────────────────────────
+// ── Client ────────────────────────────────────────────────────────────────
 
 const HF_API_BASE: &str = "https://huggingface.co/api";
 const HF_CDN_BASE: &str = "https://huggingface.co";
 
-/// Client HuggingFace Hub — API publique + token optionnel pour les modèles gated.
+/// HuggingFace Hub client: public API plus an optional token for gated models.
 pub struct HfRegistryClient {
     client: reqwest::Client,
     token: Option<String>,
 }
 
 impl HfRegistryClient {
-    /// Crée un nouveau client. `token` est optionnel (uniquement pour les modèles gated).
+    /// Create a new client. `token` is optional (only for gated models).
     pub fn new(token: Option<String>) -> Self {
         let client = reqwest::Client::builder()
             .user_agent("Apollia-OS/1.0")
@@ -349,51 +334,25 @@ impl HfRegistryClient {
         headers
     }
 
-    /// Recherche des modèles GGUF sur HuggingFace.
+    /// Search GGUF models on HuggingFace.
     ///
-    /// Retourne une [`SearchPage`] avec les modèles et un curseur `next_cursor` pour la pagination.
-    /// Le curseur est extrait du header HTTP `Link: rel="next"` — il contient l'URL complète
-    /// de la page suivante. Passer ce curseur dans `filter.next_cursor` pour charger la page suivante.
+    /// Returns a [`SearchPage`] with the models and a `next_cursor` for
+    /// pagination. The cursor is extracted from the HTTP `Link: rel="next"`
+    /// header and holds the full URL of the next page. Pass this cursor in
+    /// `filter.next_cursor` to load the next page.
     ///
     /// # Errors
-    /// [`HfError::Http`] si la requête échoue.
+    /// [`HfError::Http`] if the request fails.
     pub async fn search(
         &self,
         query: &str,
         filter: HfSearchFilter,
         hardware: Option<&HardwareProfile>,
     ) -> Result<SearchPage, HfError> {
-        // Si un curseur est fourni, on l'utilise directement (l'URL encode déjà tous les filtres).
-        let url = if let Some(ref cursor) = filter.next_cursor {
-            cursor.clone()
-        } else {
-            let sort = filter.sort.as_deref().unwrap_or("downloads");
-            let tag = filter.filter.as_deref().unwrap_or("gguf");
-            let limit = filter.limit.unwrap_or(50);
-
-            let mut u =
-                format!("{HF_API_BASE}/models?filter={tag}&sort={sort}&limit={limit}&full=false");
-            if !query.is_empty() {
-                // URL-encode the query to handle spaces and special chars.
-                let encoded: String = query
-                    .chars()
-                    .flat_map(|c| {
-                        if c.is_alphanumeric() || matches!(c, '-' | '_' | '.') {
-                            vec![c]
-                        } else {
-                            format!("%{:02X}", c as u32).chars().collect::<Vec<_>>()
-                        }
-                    })
-                    .collect();
-                u.push_str(&format!("&search={encoded}"));
-            }
-            if let Some(pt) = filter.pipeline_tag.as_deref() {
-                u.push_str(&format!("&pipeline_tag={pt}"));
-            }
-            if let Some(lang) = filter.language.as_deref() {
-                u.push_str(&format!("&language={lang}"));
-            }
-            u
+        // If a cursor is provided, use it directly (the URL already encodes all filters).
+        let url = match filter.next_cursor.as_ref() {
+            Some(cursor) => cursor.clone(),
+            None => build_search_url(query, &filter),
         };
 
         let resp = self
@@ -403,7 +362,7 @@ impl HfRegistryClient {
             .send()
             .await?;
 
-        // Extrait le curseur de pagination depuis le header `Link: <url>; rel="next"`.
+        // Extract the pagination cursor from the `Link: <url>; rel="next"` header.
         let next_cursor = parse_next_link(resp.headers());
 
         let json = resp.json::<serde_json::Value>().await?;
@@ -422,15 +381,15 @@ impl HfRegistryClient {
         })
     }
 
-    /// Récupère les métadonnées complètes d'un modèle (y compris la liste des fichiers GGUF).
+    /// Fetch the full metadata of a model (including the list of GGUF files).
     ///
-    /// Fait deux requêtes en parallèle :
-    /// 1. `/api/models/{id}` — métadonnées (downloads, likes, tags, license, gated)
-    /// 2. `/api/models/{id}/tree/main` — tailles réelles des fichiers LFS
+    /// Issues two requests in parallel:
+    /// 1. `/api/models/{id}`: metadata (downloads, likes, tags, license, gated)
+    /// 2. `/api/models/{id}/tree/main`: real sizes of the LFS files
     ///
     /// # Errors
-    /// - [`HfError::NotFound`] si le repo n'existe pas.
-    /// - [`HfError::Gated`] si le modèle est gated et qu'aucun token n'est fourni.
+    /// - [`HfError::NotFound`] if the repo does not exist.
+    /// - [`HfError::Gated`] if the model is gated and no token is provided.
     pub async fn get_model(
         &self,
         repo_id: &str,
@@ -492,47 +451,14 @@ impl HfRegistryClient {
             .ok_or_else(|| HfError::Json(format!("failed to parse model {repo_id}")))?;
 
         // Build gguf_files from tree (sizes are accurate here).
-        card.gguf_files = tree_entries
-            .iter()
-            .filter(|e| e.entry_type == "file" && e.path.ends_with(".gguf"))
-            .map(|e| {
-                let size_bytes = e.size;
-                let size_gb = size_bytes as f64 / 1_073_741_824.0;
-                let compatibility = hardware.map(|hw| CompatibilityBadge::compute(size_gb, hw));
-                HfFile {
-                    filename: e.path.clone(),
-                    size_bytes,
-                    size_human: format_size(size_bytes),
-                    compatibility,
-                    download_url: format!("{HF_CDN_BASE}/{repo_id}/resolve/main/{}", e.path),
-                }
-            })
-            .collect();
+        card.gguf_files = build_gguf_files(&tree_entries, repo_id, hardware);
 
         // Re-evaluate NoGgufFiles based on authoritative tree data.
-        match &card.compatibility_issue {
-            None if card.gguf_files.is_empty() => {
-                card.compatibility_issue = Some(CompatIssue::NoGgufFiles);
-            }
-            Some(CompatIssue::NoGgufFiles) if !card.gguf_files.is_empty() => {
-                card.compatibility_issue = None;
-            }
-            _ => {}
-        }
+        reevaluate_gguf_compat(&mut card);
 
         // Determine model_type: prefer cache, then config_resp.
-        let model_type: Option<String> = if let Some(ref cached) = cached_model_type {
-            cached.clone()
-        } else {
-            let mt = match config_resp {
-                Ok(Some(r)) => extract_model_type(Ok(r)).await,
-                _ => None,
-            };
-            if let Some(cache) = type_cache {
-                cache.set(repo_id, mt.clone()).await;
-            }
-            mt
-        };
+        let model_type =
+            resolve_model_type(cached_model_type, config_resp, type_cache, repo_id).await;
 
         card.model_type = model_type.clone();
 
@@ -546,17 +472,16 @@ impl HfRegistryClient {
         Ok(card)
     }
 
-    /// Résout le `base_model` déclaré par un repo dérivé (quantisations
-    /// Bartowski/Unsloth/mradermacher, fine-tunes, merges).
+    /// Resolve the `base_model` declared by a derived repo (Bartowski/Unsloth/
+    /// mradermacher quantizations, fine-tunes, merges).
     ///
-    /// Retourne `Some("org/name")` quand le repo déclare un parent via
-    /// `cardData.base_model` (champ structuré) ou via un tag
-    /// `base_model:org/name`. `None` si le repo est de premier ordre ou
-    /// si le champ est absent.
+    /// Returns `Some("org/name")` when the repo declares a parent via
+    /// `cardData.base_model` (structured field) or a `base_model:org/name` tag.
+    /// `None` if the repo is first-order or the field is absent.
     ///
-    /// Indispensable pour récupérer un `generation_config.json` quand le
-    /// repo téléchargé est une dérivation GGUF — les quanteurs ne
-    /// republient pas le fichier de config (il vient du repo amont).
+    /// Needed to fetch a `generation_config.json` when the downloaded repo is a
+    /// GGUF derivation: quantizers do not republish the config file (it comes
+    /// from the upstream repo).
     pub async fn resolve_base_model(&self, repo_id: &str) -> Option<String> {
         let url = format!("{HF_API_BASE}/models/{repo_id}");
         let resp = self
@@ -573,9 +498,9 @@ impl HfRegistryClient {
         extract_base_model_from_json(&json)
     }
 
-    /// Récupère les paramètres de génération recommandés depuis `generation_config.json`.
+    /// Fetch the recommended generation parameters from `generation_config.json`.
     ///
-    /// Retourne `None` si le fichier est absent (modèle sans config de génération explicite).
+    /// Returns `None` if the file is absent (model with no explicit generation config).
     pub async fn get_generation_config(&self, repo_id: &str) -> Option<GenerationConfig> {
         let url = format!("{HF_CDN_BASE}/{repo_id}/resolve/main/generation_config.json");
         let resp = self
@@ -604,30 +529,21 @@ impl HfRegistryClient {
     }
 }
 
-// ─────────────────────────────────────────────
-// Pagination helper
-// ─────────────────────────────────────────────
+// ── Pagination helper ─────────────────────────────────────────────────────
 
-/// Extrait le `base_model` (org/name) depuis la réponse `/api/models/{id}`.
+/// Extract the `base_model` (org/name) from the `/api/models/{id}` response.
 ///
-/// Stratégie en deux passes :
-/// 1. `cardData.base_model` (string ou tableau) — c'est le champ structuré
-///    que HF expose quand le model card YAML déclare `base_model: foo/bar`.
-/// 2. Tags `base_model:org/name` — fallback pour les repos qui ne mettent
-///    que les tags. On préfère un tag *non qualifié* (`base_model:Qwen/X`)
-///    car il pointe directement vers l'amont. Si seul un tag qualifié
-///    existe (`base_model:quantized:Qwen/X`), on extrait l'org/name après
-///    le second `:`.
+/// Two-pass strategy:
+/// 1. `cardData.base_model` (string or array): the structured field HF exposes
+///    when the model card YAML declares `base_model: foo/bar`.
+/// 2. `base_model:org/name` tags: fallback for repos that only set tags. An
+///    *unqualified* tag (`base_model:Qwen/X`) is preferred since it points
+///    directly upstream. If only a qualified tag exists
+///    (`base_model:quantized:Qwen/X`), the org/name after the second `:` is
+///    extracted.
 fn extract_base_model_from_json(json: &serde_json::Value) -> Option<String> {
-    if let Some(v) = json.get("cardData").and_then(|c| c.get("base_model")) {
-        if let Some(s) = v.as_str() {
-            return Some(s.to_string());
-        }
-        if let Some(arr) = v.as_array() {
-            if let Some(s) = arr.iter().find_map(|x| x.as_str()) {
-                return Some(s.to_string());
-            }
-        }
+    if let Some(from_card) = base_model_from_card_data(json) {
+        return Some(from_card);
     }
 
     let tags: Vec<&str> = json
@@ -636,29 +552,139 @@ fn extract_base_model_from_json(json: &serde_json::Value) -> Option<String> {
         .map(|a| a.iter().filter_map(|t| t.as_str()).collect())
         .unwrap_or_default();
 
-    for t in &tags {
-        if let Some(rest) = t.strip_prefix("base_model:") {
-            if !rest.contains(':') && rest.contains('/') {
-                return Some(rest.to_string());
-            }
-        }
-    }
-    for t in &tags {
-        if let Some(rest) = t.strip_prefix("base_model:") {
-            if let Some(colon) = rest.find(':') {
-                let upstream = &rest[colon + 1..];
-                if upstream.contains('/') {
-                    return Some(upstream.to_string());
-                }
-            }
-        }
-    }
-    None
+    base_model_from_unqualified_tag(&tags).or_else(|| base_model_from_qualified_tag(&tags))
 }
 
-/// Extrait l'URL `rel="next"` depuis le header HTTP `Link` de HuggingFace.
+/// Pass 1: `cardData.base_model` (string or array).
+fn base_model_from_card_data(json: &serde_json::Value) -> Option<String> {
+    let v = json.get("cardData").and_then(|c| c.get("base_model"))?;
+    if let Some(s) = v.as_str() {
+        return Some(s.to_string());
+    }
+    v.as_array()
+        .and_then(|arr| arr.iter().find_map(|x| x.as_str()))
+        .map(str::to_string)
+}
+
+/// Pass 2a: unqualified `base_model:org/name` tag (points directly upstream).
+fn base_model_from_unqualified_tag(tags: &[&str]) -> Option<String> {
+    tags.iter().find_map(|t| {
+        let rest = t.strip_prefix("base_model:")?;
+        if !rest.contains(':') && rest.contains('/') {
+            Some(rest.to_string())
+        } else {
+            None
+        }
+    })
+}
+
+/// Pass 2b: qualified `base_model:quantized:org/name` tag; extract the
+/// org/name after the second `:`.
+fn base_model_from_qualified_tag(tags: &[&str]) -> Option<String> {
+    tags.iter().find_map(|t| {
+        let rest = t.strip_prefix("base_model:")?;
+        let colon = rest.find(':')?;
+        let upstream = &rest[colon + 1..];
+        if upstream.contains('/') {
+            Some(upstream.to_string())
+        } else {
+            None
+        }
+    })
+}
+
+/// Build the list of GGUF files from the repo's tree entries.
+/// Sizes are accurate here (from the tree API).
+fn build_gguf_files(
+    tree_entries: &[TreeEntry],
+    repo_id: &str,
+    hardware: Option<&HardwareProfile>,
+) -> Vec<HfFile> {
+    tree_entries
+        .iter()
+        .filter(|e| e.entry_type == "file" && e.path.ends_with(".gguf"))
+        .map(|e| {
+            let size_bytes = e.size;
+            let size_gb = size_bytes as f64 / 1_073_741_824.0;
+            let compatibility = hardware.map(|hw| CompatibilityBadge::compute(size_gb, hw));
+            HfFile {
+                filename: e.path.clone(),
+                size_bytes,
+                size_human: format_size(size_bytes),
+                compatibility,
+                download_url: format!("{HF_CDN_BASE}/{repo_id}/resolve/main/{}", e.path),
+            }
+        })
+        .collect()
+}
+
+/// Re-evaluate `NoGgufFiles` from the authoritative tree data.
+fn reevaluate_gguf_compat(card: &mut HfModelCard) {
+    match &card.compatibility_issue {
+        None if card.gguf_files.is_empty() => {
+            card.compatibility_issue = Some(CompatIssue::NoGgufFiles);
+        }
+        Some(CompatIssue::NoGgufFiles) if !card.gguf_files.is_empty() => {
+            card.compatibility_issue = None;
+        }
+        _ => {}
+    }
+}
+
+/// Determine the `model_type`: prefer the cache, then `config.json`.
+/// On a miss, populate the cache with the resolved value.
+async fn resolve_model_type(
+    cached_model_type: Option<Option<String>>,
+    config_resp: Result<Option<reqwest::Response>, reqwest::Error>,
+    type_cache: Option<&HfModelTypeCache>,
+    repo_id: &str,
+) -> Option<String> {
+    if let Some(cached) = cached_model_type {
+        return cached;
+    }
+    let mt = match config_resp {
+        Ok(Some(r)) => extract_model_type(Ok(r)).await,
+        _ => None,
+    };
+    if let Some(cache) = type_cache {
+        cache.set(repo_id, mt.clone()).await;
+    }
+    mt
+}
+
+/// Build the `/api/models` search URL from the query and filters.
+fn build_search_url(query: &str, filter: &HfSearchFilter) -> String {
+    let sort = filter.sort.as_deref().unwrap_or("downloads");
+    let tag = filter.filter.as_deref().unwrap_or("gguf");
+    let limit = filter.limit.unwrap_or(50);
+
+    let mut u = format!("{HF_API_BASE}/models?filter={tag}&sort={sort}&limit={limit}&full=false");
+    if !query.is_empty() {
+        // URL-encode the query to handle spaces and special chars.
+        let encoded: String = query
+            .chars()
+            .flat_map(|c| {
+                if c.is_alphanumeric() || matches!(c, '-' | '_' | '.') {
+                    vec![c]
+                } else {
+                    format!("%{:02X}", c as u32).chars().collect::<Vec<_>>()
+                }
+            })
+            .collect();
+        u.push_str(&format!("&search={encoded}"));
+    }
+    if let Some(pt) = filter.pipeline_tag.as_deref() {
+        u.push_str(&format!("&pipeline_tag={pt}"));
+    }
+    if let Some(lang) = filter.language.as_deref() {
+        u.push_str(&format!("&language={lang}"));
+    }
+    u
+}
+
+/// Extract the `rel="next"` URL from HuggingFace's HTTP `Link` header.
 ///
-/// Format : `Link: <https://huggingface.co/api/models?...>; rel="next", <...>; rel="first"`
+/// Format: `Link: <https://huggingface.co/api/models?...>; rel="next", <...>; rel="first"`
 fn parse_next_link(headers: &reqwest::header::HeaderMap) -> Option<String> {
     let link = headers.get("Link")?.to_str().ok()?;
     for part in link.split(',') {
@@ -672,12 +698,10 @@ fn parse_next_link(headers: &reqwest::header::HeaderMap) -> Option<String> {
     None
 }
 
-// ─────────────────────────────────────────────
-// Parsing helpers
-// ─────────────────────────────────────────────
+// ── Parsing helpers ───────────────────────────────────────────────────────
 
-/// Extrait les métadonnées de base d'un modèle depuis la réponse JSON HF.
-/// N'inclut PAS les tailles de fichiers (disponibles uniquement via l'API tree).
+/// Extract the basic metadata of a model from the HF JSON response.
+/// Does NOT include file sizes (available only via the tree API).
 fn parse_model_list_item(
     json: &serde_json::Value,
     _hardware: Option<&HardwareProfile>,
@@ -712,7 +736,7 @@ fn parse_model_list_item(
         });
 
     // In search results, siblings only carry rfilename (no LFS sizes).
-    // Populate gguf_files with filenames only — sizes come from the tree API.
+    // Populate gguf_files with filenames only; sizes come from the tree API.
     let gguf_files: Vec<HfFile> = json["siblings"]
         .as_array()
         .map(|siblings| {

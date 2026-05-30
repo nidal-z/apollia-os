@@ -1,40 +1,40 @@
-//! Commandes IPC Tauri pour le code review automatisé.
+//! Tauri IPC commands for automated code review.
 //!
-//! Déclenche l'agent `apollia-review` via le TaskRouter pour effectuer
-//! une revue de code automatisée depuis l'interface Desktop.
+//! Triggers the `apollia-review` agent via the TaskRouter to run an automated
+//! code review from the Desktop interface.
 
 use apollia_core::{AIPInput, AIPPart, TextPart};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-/// Paramètres pour démarrer une revue de code.
+/// Parameters to start a code review.
 #[derive(Debug, Deserialize)]
 pub struct ReviewParams {
-    /// Chemin ou URL Git de la cible à réviser.
+    /// Path or Git URL of the target to review.
     pub target: String,
-    /// Type de revue : `"diff"`, `"pr"`, ou `"task"`.
+    /// Review type: `"diff"`, `"pr"`, or `"task"`.
     pub review_type: String,
-    /// Instructions supplémentaires pour la revue (optionnel).
+    /// Additional instructions for the review (optional).
     pub instructions: Option<String>,
 }
 
-/// Résultat du démarrage d'une revue de code.
+/// Result of starting a code review.
 #[derive(Debug, Serialize)]
 pub struct ReviewStartResult {
-    /// ID de la tâche créée pour la revue.
+    /// ID of the task created for the review.
     pub task_id: String,
-    /// Nom de l'agent chargé d'effectuer la revue.
+    /// Name of the agent in charge of the review.
     pub agent_id: String,
 }
 
-/// Démarre une revue de code automatisée via l'agent apollia-review.
+/// Starts an automated code review via the apollia-review agent.
 ///
-/// Cherche un agent nommé `"apollia-review"` dans le registry et lui soumet
-/// une tâche avec les paramètres de la revue. La tâche peut ensuite être
-/// suivie via `get_task_timeline`.
+/// Looks up an agent named `"apollia-review"` in the registry and submits a
+/// task with the review parameters. The task can then be tracked via
+/// `get_task_timeline`.
 ///
-/// Retourne une erreur si l'agent `"apollia-review"` n'est pas installé.
+/// Returns an error if the `"apollia-review"` agent is not installed.
 #[tauri::command]
 pub async fn start_code_review(
     state: State<'_, RuntimeHandle>,

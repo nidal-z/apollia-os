@@ -20,11 +20,11 @@
 //!
 //! [microsoft]
 //! client_id = "00000000-0000-0000-0000-000000000000"
-//! # microsoft has no client_secret — public client per spec
+//! # microsoft has no client_secret (public client per spec)
 //! ```
 //!
 //! Missing keys, missing sections, an empty file, and a missing file are all
-//! treated as "no override" — never an error — so the resolution chain falls
+//! treated as "no override" (never an error), so the resolution chain falls
 //! through to the next step cleanly.
 
 use serde::{Deserialize, Serialize};
@@ -40,12 +40,12 @@ pub struct OAuthClientEntry {
     #[serde(default)]
     pub client_id: String,
     /// Override OAuth client secret for this provider. Empty/absent means
-    /// "no override". Required for Google's Installed App type — Microsoft
+    /// "no override". Required for Google's Installed App type; Microsoft
     /// public clients leave this empty per spec.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub client_secret: String,
     /// Public Google API key used by Google Picker (separate from the OAuth
-    /// client_id — Google requires both). Restricted to the Picker + Drive
+    /// client_id; Google requires both). Restricted to the Picker + Drive
     /// APIs in the Google Cloud Console. Empty means "no override".
     /// Microsoft entries leave this empty (Picker is Google-only).
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -87,8 +87,8 @@ pub fn load() -> Result<Option<OAuthClientsFile>, std::io::Error> {
 /// Read and parse the overrides file from `path`.
 ///
 /// Returns `Ok(None)` when the file does not exist (the common case on a
-/// fresh install) and `Err(_)` only when the file exists but cannot be parsed
-/// — that should surface to the user so a malformed file is not silently
+/// fresh install) and `Err(_)` only when the file exists but cannot be parsed.
+/// That should surface to the user so a malformed file is not silently
 /// ignored.
 pub fn load_from(path: &std::path::Path) -> Result<Option<OAuthClientsFile>, std::io::Error> {
     let contents = match std::fs::read_to_string(path) {

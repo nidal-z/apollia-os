@@ -2,7 +2,7 @@
 //!
 //! We intentionally duplicate the helper (it is `pub(crate)` in apollia-tools)
 //! instead of widening the public surface of that crate.  Keep the two
-//! copies in sync if SSRF policy changes — see ADR-072 for the policy.
+//! copies in sync if SSRF policy changes.
 
 use thiserror::Error;
 

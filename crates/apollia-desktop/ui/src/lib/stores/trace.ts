@@ -90,7 +90,9 @@ function _mergeEvents(taskId: string, incoming: RuntimeEventDto[]): void {
     if (fresh.length === 0) return m;
     const merged = [...prev.events, ...fresh].sort((a, b) => {
       if (a.ts !== b.ts) return a.ts < b.ts ? -1 : 1;
-      return a.eventId < b.eventId ? -1 : a.eventId > b.eventId ? 1 : 0;
+      if (a.eventId < b.eventId) return -1;
+      if (a.eventId > b.eventId) return 1;
+      return 0;
     });
     m.set(taskId, { ...prev, events: merged });
     return m;
@@ -212,26 +214,35 @@ function envelopeToDto(env: TauriRuntimeEvent): RuntimeEventDto | null {
   };
   const kind = kindMap[variantName] ?? variantName.toLowerCase();
 
+  // Helper: only stringify primitive-ish values; objects/arrays fall back to "".
+  const asString = (v: unknown): string =>
+    typeof v === "string" ? v : "";
+
   // Extraction des champs communs depuis la variante. Tous sont optionnels
   // selon le variant — on prend ce qui est présent.
-  const taskId = String(variantPayload.task_id ?? "");
-  const agentId = String(
-    variantPayload.agent_id ?? variantPayload.caller_agent_id ?? "",
-  );
+  const taskId = asString(variantPayload.task_id);
+  const agentId =
+    asString(variantPayload.agent_id) ||
+    asString(variantPayload.caller_agent_id);
   const parentEventId =
-    (variantPayload.parent_event_id as string | undefined) ?? null;
+    typeof variantPayload.parent_event_id === "string"
+      ? variantPayload.parent_event_id
+      : null;
   const correlationId =
-    (variantPayload.correlation_id as string | undefined) ?? null;
+    typeof variantPayload.correlation_id === "string"
+      ? variantPayload.correlation_id
+      : null;
   const stepNum =
     typeof variantPayload.step_num === "number"
-      ? (variantPayload.step_num as number)
+      ? variantPayload.step_num
       : null;
   // Pour les started/completed qui portent leur event_id explicite, le
   // réutiliser pour permettre au pairing client de fonctionner avant
   // même que le DB ne soit interrogé.
   const eventId =
-    (variantPayload.event_id as string | undefined) ??
-    `live-${crypto.randomUUID()}`;
+    typeof variantPayload.event_id === "string"
+      ? variantPayload.event_id
+      : `live-${crypto.randomUUID()}`;
 
   return {
     eventId,
@@ -241,7 +252,7 @@ function envelopeToDto(env: TauriRuntimeEvent): RuntimeEventDto | null {
     correlationId,
     stepNum,
     kind,
-    payload: variantPayload as Record<string, unknown>,
+    payload: variantPayload,
     ts: new Date().toISOString(),
   } as RuntimeEventDto;
 }

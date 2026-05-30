@@ -1,88 +1,90 @@
-//! ToolResolver — validation de la disponibilite des outils a l'etat INITIALIZING.
+//! ToolResolver: validates tool availability in the INITIALIZING state.
 //!
-//! Cette fonction est appelee exclusivement par le runtime lors de la transition
-//! CREATED → INITIALIZING. Elle ne produit aucun side-effect : lecture seule du
-//! ToolRegistry, emission de warnings via `tracing` pour les outils optionnels absents.
+//! This function is called exclusively by the runtime during the
+//! CREATED -> INITIALIZING transition. It produces no side effect: read-only
+//! access to the ToolRegistry, emitting `tracing` warnings for absent optional
+//! tools.
 //!
-//! Principe #4 — Fail fast : le premier outil requis manquant provoque un echec immediat.
-//! Principe #5 — Un acteur, une responsabilite : le ToolResolver valide, il n'execute pas.
+//! Fail fast: the first missing required tool triggers an immediate failure.
+//! One actor, one responsibility: the ToolResolver validates, it does not execute.
 
 use apollia_core::AgentManifest;
 use thiserror::Error;
 
 use crate::registry::{ToolRegistryError, ToolRegistryHandle};
 
-/// Prefixe reserve aux dependances A2A (skills d'agents inter-agents).
-/// Ces entrees ne sont pas dans le `ToolRegistry` ; leur resolution se fait a l'invocation
-/// via le ToolProxy + A2AInvoker (cf. `apollia-runtime::chat::a2a_tools`).
+/// Prefix reserved for A2A dependencies (inter-agent skills).
+/// These entries are not in the `ToolRegistry`; they are resolved at invocation
+/// time via the ToolProxy + A2AInvoker (see `apollia-runtime::chat::a2a_tools`).
 const A2A_DEPENDENCY_PREFIX: &str = "a2a:";
 
-/// Rapport de resolution des outils d'un agent.
+/// Resolution report for an agent's tools.
 ///
-/// Retourne par [`resolve`] en cas de succes. Transmis par le runtime a
-/// [`AgentRegistry`][apollia_runtime] pour determiner la transition vers
-/// `ACTIVE` (AllResolved) ou `DEGRADED` (Degraded).
+/// Returned by [`resolve`] on success. Forwarded by the runtime to
+/// [`AgentRegistry`][apollia_runtime] to determine the transition to `ACTIVE`
+/// (AllResolved) or `DEGRADED` (Degraded).
 pub struct ResolutionReport {
-    /// Status global de la resolution.
+    /// Overall resolution status.
     pub status: ResolutionStatus,
-    /// Noms des outils requis resolus avec succes.
+    /// Names of the required tools resolved successfully.
     pub resolved: Vec<String>,
-    /// Avertissements : outils optionnels absents, etc.
+    /// Warnings: absent optional tools, etc.
     pub warnings: Vec<String>,
 }
 
-/// Status global d'une resolution de outils.
+/// Overall status of a tool resolution.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ResolutionStatus {
-    /// Tous les outils requis sont disponibles dans le catalogue.
+    /// All required tools are available in the catalogue.
     AllResolved,
-    /// Certains outils optionnels sont absents — agent passe en DEGRADED.
+    /// Some optional tools are absent; the agent moves to DEGRADED.
     Degraded,
 }
 
-/// Erreurs bloquantes retournees par [`resolve`].
+/// Blocking errors returned by [`resolve`].
 ///
-/// Ces erreurs font passer l'agent en `STOPPED` avec un message d'erreur clair.
+/// These errors move the agent to `STOPPED` with a clear error message.
 #[derive(Debug, Error)]
 pub enum ToolResolutionError {
-    /// Un outil requis est absent du catalogue.
+    /// A required tool is absent from the catalogue.
     #[error("required tool not found in registry: {0}")]
     RequiredToolMissing(String),
-    /// Un outil marque `dangerous=true` est demande mais le manifest n'a pas
-    /// active `dangerous_tools_allowed = true`.
+    /// A tool marked `dangerous=true` is requested but the manifest does not set
+    /// `dangerous_tools_allowed = true`.
     #[error("tool '{0}' is dangerous but manifest does not set dangerous_tools_allowed=true")]
     DangerousToolNotAllowed(String),
-    /// Erreur de communication avec l'acteur ToolRegistry.
+    /// Communication error with the ToolRegistry actor.
     #[error("tool registry error: {0}")]
     RegistryError(#[from] ToolRegistryError),
 }
 
-/// Valide la disponibilite de tous les outils declares dans un [`AgentManifest`].
+/// Validates the availability of every tool declared in an [`AgentManifest`].
 ///
-/// Appele exclusivement pendant la transition `INITIALIZING`. Retourne un
-/// [`ResolutionReport`] en cas de succes, ou [`ToolResolutionError`] si un
-/// outil requis est manquant ou si un outil dangereux est non-autorise.
+/// Called exclusively during the `INITIALIZING` transition. Returns a
+/// [`ResolutionReport`] on success, or [`ToolResolutionError`] if a required
+/// tool is missing or a dangerous tool is not authorized.
 ///
-/// # Comportement
+/// # Behaviour
 ///
-/// 1. Pour chaque outil dans `tools_required` (dans l'ordre) :
-///    - Absent du catalogue → `Err(RequiredToolMissing)` immediat (fail fast).
-///    - `dangerous=true` sans `dangerous_tools_allowed` → `Err(DangerousToolNotAllowed)`.
-///    - Present et safe → ajoute a `resolved`.
-/// 2. Pour chaque outil dans `tools_optional` :
-///    - Absent → `tracing::warn!` + message ajoute a `warnings`, continue.
-///    - `dangerous=true` sans `dangerous_tools_allowed` → `tracing::warn!` + continue.
-///    - Present et safe → ajoute a `resolved`.
-/// 3. Si `warnings` est vide → `ResolutionStatus::AllResolved`.
-///    Sinon → `ResolutionStatus::Degraded`.
-/// 4. Les dependances avec prefixe `a2a:` sont resolues d'office (resolution reelle
-///    a l'invocation via ToolProxy/A2AInvoker), sans interroger le `ToolRegistry`.
+/// 1. For each tool in `tools_required` (in order):
+///    - Absent from the catalogue: immediate `Err(RequiredToolMissing)` (fail fast).
+///    - `dangerous=true` without `dangerous_tools_allowed`: `Err(DangerousToolNotAllowed)`.
+///    - Present and safe: added to `resolved`.
+/// 2. For each tool in `tools_optional`:
+///    - Absent: `tracing::warn!` plus a message added to `warnings`, continue.
+///    - `dangerous=true` without `dangerous_tools_allowed`: `tracing::warn!`, continue.
+///    - Present and safe: added to `resolved`.
+/// 3. If `warnings` is empty, `ResolutionStatus::AllResolved`; otherwise
+///    `ResolutionStatus::Degraded`.
+/// 4. Dependencies prefixed with `a2a:` are resolved unconditionally (the real
+///    resolution happens at invocation via ToolProxy/A2AInvoker), without
+///    querying the `ToolRegistry`.
 ///
 /// # Errors
 ///
-/// - [`ToolResolutionError::RequiredToolMissing`] — outil requis introuvable.
-/// - [`ToolResolutionError::DangerousToolNotAllowed`] — outil requis dangereux non autorise.
-/// - [`ToolResolutionError::RegistryError`] — l'acteur registry est inaccessible.
+/// - [`ToolResolutionError::RequiredToolMissing`]: required tool not found.
+/// - [`ToolResolutionError::DangerousToolNotAllowed`]: required dangerous tool not authorized.
+/// - [`ToolResolutionError::RegistryError`]: the registry actor is unreachable.
 pub async fn resolve(
     manifest: &AgentManifest,
     registry: &ToolRegistryHandle,
@@ -90,7 +92,7 @@ pub async fn resolve(
     let mut resolved: Vec<String> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
 
-    // Pass 1 — outils requis : echec immediat sur le premier probleme (Principe #4).
+    // Pass 1, required tools: immediate failure on the first problem (fail fast).
     for tool_name in &manifest.tools_required {
         if tool_name.starts_with(A2A_DEPENDENCY_PREFIX) {
             tracing::info!(
@@ -131,7 +133,7 @@ pub async fn resolve(
         }
     }
 
-    // Pass 2 — outils optionnels : degradation, pas d'erreur fatale.
+    // Pass 2, optional tools: degradation, no fatal error.
     for tool_name in &manifest.tools_optional {
         if tool_name.starts_with(A2A_DEPENDENCY_PREFIX) {
             tracing::info!(
@@ -293,7 +295,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac2_missing_required_tool_returns_error() {
-        // GIVEN — empty registry
+        // GIVEN: empty registry
         let registry = ToolRegistryHandle::start();
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["bash_executor".to_string()];
@@ -310,7 +312,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac3_missing_optional_tool_is_warning_only() {
-        // GIVEN — registry without "mcp_erp"
+        // GIVEN: registry without "mcp_erp"
         let registry = ToolRegistryHandle::start();
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec!["mcp_erp".to_string()];
@@ -329,7 +331,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac4_dangerous_required_tool_without_flag_blocked() {
-        // GIVEN — registry with a dangerous tool, manifest without dangerous_tools_allowed
+        // GIVEN: registry with a dangerous tool, manifest without dangerous_tools_allowed
         let registry = registry_with_dangerous_tool("risky_tool").await;
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["risky_tool".to_string()];
@@ -347,7 +349,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac4_dangerous_tool_allowed_when_flag_set() {
-        // GIVEN — registry with a dangerous tool, manifest with dangerous_tools_allowed=true
+        // GIVEN: registry with a dangerous tool, manifest with dangerous_tools_allowed=true
         let registry = registry_with_dangerous_tool("risky_tool").await;
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["risky_tool".to_string()];
@@ -363,7 +365,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac5_empty_manifest_resolves_immediately() {
-        // GIVEN — empty registry, empty manifest
+        // GIVEN: empty registry, empty manifest
         let registry = ToolRegistryHandle::start();
         let manifest = minimal_manifest();
         // WHEN
@@ -378,13 +380,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_fail_fast_stops_at_first_missing_required() {
-        // GIVEN — only "file_read" present, manifest requires ["bash_executor", "file_read"]
+        // GIVEN: only "file_read" present, manifest requires ["bash_executor", "file_read"]
         let registry = registry_with_tools(&["file_read"]).await;
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["bash_executor".to_string(), "file_read".to_string()];
         // WHEN
         let result = resolve(&manifest, &registry).await;
-        // THEN — fails on first missing, not second
+        // THEN: fails on first missing, not second
         assert!(matches!(
             result,
             Err(ToolResolutionError::RequiredToolMissing(ref name)) if name == "bash_executor"
@@ -394,13 +396,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_a2a_dependency_in_optional_does_not_degrade() {
-        // GIVEN — empty registry, manifest declares only A2A optional deps
+        // GIVEN: empty registry, manifest declares only A2A optional deps
         let registry = ToolRegistryHandle::start();
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec!["a2a:foo".to_string(), "a2a:bar".to_string()];
         // WHEN
         let result = resolve(&manifest, &registry).await;
-        // THEN — A2A deps are resolved without registry lookup, no warnings
+        // THEN: A2A deps are resolved without registry lookup, no warnings
         let report = result.expect("A2A optional deps should resolve without registry lookup");
         assert!(matches!(report.status, ResolutionStatus::AllResolved));
         assert_eq!(report.resolved, vec!["a2a:foo", "a2a:bar"]);
@@ -410,13 +412,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_a2a_dependency_in_required_passes_without_registry_lookup() {
-        // GIVEN — empty registry, manifest declares an A2A required dep
+        // GIVEN: empty registry, manifest declares an A2A required dep
         let registry = ToolRegistryHandle::start();
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["a2a:critical-skill".to_string()];
         // WHEN
         let result = resolve(&manifest, &registry).await;
-        // THEN — no RequiredToolMissing, AllResolved
+        // THEN: no RequiredToolMissing, AllResolved
         let report = result.expect("A2A required dep should resolve without registry lookup");
         assert!(matches!(report.status, ResolutionStatus::AllResolved));
         assert_eq!(report.resolved, vec!["a2a:critical-skill"]);
@@ -426,7 +428,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mixed_a2a_and_native_optional() {
-        // GIVEN — registry contains "file_read" only ; manifest mixes native + A2A + missing native
+        // GIVEN: registry contains "file_read" only; manifest mixes native + A2A + missing native
         let registry = registry_with_tools(&["file_read"]).await;
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec![
@@ -436,7 +438,7 @@ mod tests {
         ];
         // WHEN
         let result = resolve(&manifest, &registry).await;
-        // THEN — Degraded only because of missing native ; A2A resolved silently
+        // THEN: Degraded only because of missing native; A2A resolved silently
         let report = result.expect("should succeed");
         assert!(matches!(report.status, ResolutionStatus::Degraded));
         assert!(report.resolved.contains(&"file_read".to_string()));
@@ -448,13 +450,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_a2a_prefix_is_exact_match() {
-        // GIVEN — empty registry, manifest declares two entries that are NOT exact A2A matches
+        // GIVEN: empty registry, manifest declares two entries that are NOT exact A2A matches
         let registry = ToolRegistryHandle::start();
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec!["a2asomething".to_string(), "not-a2a:foo".to_string()];
         // WHEN
         let result = resolve(&manifest, &registry).await;
-        // THEN — both go through registry lookup path, both missing → Degraded with 2 warnings
+        // THEN: both go through registry lookup path, both missing, Degraded with 2 warnings
         let report = result.expect("should succeed");
         assert!(matches!(report.status, ResolutionStatus::Degraded));
         assert_eq!(report.warnings.len(), 2);
@@ -464,13 +466,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_optional_present_and_missing_mix() {
-        // GIVEN — "file_read" present, "mcp_erp" absent
+        // GIVEN: "file_read" present, "mcp_erp" absent
         let registry = registry_with_tools(&["file_read"]).await;
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec!["file_read".to_string(), "mcp_erp".to_string()];
         // WHEN
         let result = resolve(&manifest, &registry).await;
-        // THEN — Degraded because of missing optional, but resolved contains file_read
+        // THEN: Degraded because of missing optional, but resolved contains file_read
         let report = result.expect("should succeed");
         assert!(matches!(report.status, ResolutionStatus::Degraded));
         assert_eq!(report.resolved, vec!["file_read"]);

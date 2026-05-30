@@ -1,9 +1,9 @@
-//! Commandes IPC Tauri pour la gestion des triggers.
+//! Tauri IPC commands for managing triggers.
 //!
-//! Chaque commande délègue à l'API REST interne (`/api/v1/triggers/*`) via
-//! les helpers `http_get_json` / `http_post_json`. Les données transitent
-//! en JSON brut (`serde_json::Value`) pour éviter de dupliquer les types
-//! Rust déjà définis dans `apollia-triggers`.
+//! Each command delegates to the internal REST API (`/api/v1/triggers/*`) via
+//! the `http_get_json` / `http_post_json` helpers. Data travels as raw JSON
+//! (`serde_json::Value`) to avoid duplicating the Rust types already defined in
+//! `apollia-triggers`.
 
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -11,63 +11,63 @@ use tauri::State;
 
 use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 
-/// Statut d'un trigger pour l'affichage dans l'UI.
+/// Trigger status for display in the UI.
 #[derive(Debug, Serialize)]
 pub struct TriggerStatus {
-    /// Identifiant du trigger.
+    /// Trigger identifier.
     pub id: String,
-    /// Nom de l'agent cible.
+    /// Name of the target agent.
     pub agent: String,
-    /// Type de source : `"cron"` | `"interval"` | `"file_watch"` | `"webhook"` | `"oneshot"`.
+    /// Source type: `"cron"` | `"interval"` | `"file_watch"` | `"webhook"` | `"oneshot"`.
     pub source_kind: String,
-    /// Détail de la configuration source (ex : expression cron, intervalle, chemin).
+    /// Source configuration detail (e.g. cron expression, interval, path).
     pub source_config: String,
-    /// Trigger actif ou non.
+    /// Whether the trigger is active.
     pub enabled: bool,
-    /// Nombre de fires réussis.
+    /// Number of successful fires.
     pub fire_count: u64,
-    /// Nombre de skips.
+    /// Number of skips.
     pub skip_count: u64,
-    /// Horodatage du dernier fire (RFC3339) ou `null`.
+    /// Timestamp of the last fire (RFC3339) or `null`.
     pub last_fired: Option<String>,
 }
 
-/// Entrée d'historique d'un trigger.
+/// History entry of a trigger.
 #[derive(Debug, Serialize)]
 pub struct TriggerLogEntry {
-    /// Identifiant unique de l'entrée.
+    /// Unique entry identifier.
     pub id: String,
-    /// Identifiant du trigger.
+    /// Trigger identifier.
     pub trigger_id: String,
-    /// Nom de l'agent cible.
+    /// Name of the target agent.
     pub agent_name: String,
-    /// Horodatage du déclenchement (RFC3339).
+    /// Fire timestamp (RFC3339).
     pub fired_at: String,
-    /// Identifiant de la tâche soumise (si `status` est `"fired"`).
+    /// Identifier of the submitted task (if `status` is `"fired"`).
     pub task_id: Option<String>,
-    /// Statut : `"fired"` | `"skipped"` | `"error"`.
+    /// Status: `"fired"` | `"skipped"` | `"error"`.
     pub status: String,
-    /// Raison du skip ou de l'erreur.
+    /// Reason for the skip or error.
     pub reason: Option<String>,
 }
 
-/// Résultat d'un fire manuel.
+/// Result of a manual fire.
 #[derive(Debug, Serialize)]
 pub struct FireResult {
-    /// Identifiant de la tâche créée.
+    /// Identifier of the created task.
     pub task_id: String,
 }
 
-/// Résultat du rechargement de la configuration.
+/// Result of reloading the configuration.
 #[derive(Debug, Serialize)]
 pub struct ReloadResult {
-    /// Nombre de triggers actifs après rechargement.
+    /// Number of active triggers after the reload.
     pub reloaded: u64,
 }
 
-/// Liste tous les triggers configurés avec leur statut.
+/// Lists all configured triggers with their status.
 ///
-/// Délègue à `GET /api/v1/triggers` sur l'API REST interne.
+/// Delegates to `GET /api/v1/triggers` on the internal REST API.
 #[tauri::command]
 pub async fn list_triggers(state: State<'_, RuntimeHandle>) -> Result<Vec<TriggerStatus>, String> {
     let json = http_get_json(state.api_port, "/api/v1/triggers").await?;
@@ -114,9 +114,9 @@ pub async fn list_triggers(state: State<'_, RuntimeHandle>) -> Result<Vec<Trigge
     Ok(result)
 }
 
-/// Active ou désactive un trigger.
+/// Enables or disables a trigger.
 ///
-/// Délègue à `POST /api/v1/triggers/:id/enable` ou `POST /api/v1/triggers/:id/disable`.
+/// Delegates to `POST /api/v1/triggers/:id/enable` or `POST /api/v1/triggers/:id/disable`.
 #[tauri::command]
 pub async fn set_trigger_enabled(
     state: State<'_, RuntimeHandle>,
@@ -130,9 +130,9 @@ pub async fn set_trigger_enabled(
     Ok(())
 }
 
-/// Déclenche un trigger manuellement.
+/// Fires a trigger manually.
 ///
-/// Délègue à `POST /api/v1/triggers/:id/fire`.
+/// Delegates to `POST /api/v1/triggers/:id/fire`.
 #[tauri::command]
 pub async fn fire_trigger(
     state: State<'_, RuntimeHandle>,
@@ -155,9 +155,9 @@ pub async fn fire_trigger(
     Ok(FireResult { task_id })
 }
 
-/// Récupère les logs d'un trigger.
+/// Fetches a trigger's logs.
 ///
-/// Délègue à `GET /api/v1/triggers/:id/logs?last=N`.
+/// Delegates to `GET /api/v1/triggers/:id/logs?last=N`.
 #[tauri::command]
 pub async fn get_trigger_logs(
     state: State<'_, RuntimeHandle>,
@@ -210,9 +210,9 @@ pub async fn get_trigger_logs(
     Ok(result)
 }
 
-/// Recharge la configuration des triggers depuis apollia.toml.
+/// Reloads the trigger configuration from apollia.toml.
 ///
-/// Délègue à `POST /api/v1/triggers/reload`.
+/// Delegates to `POST /api/v1/triggers/reload`.
 #[tauri::command]
 pub async fn reload_triggers(state: State<'_, RuntimeHandle>) -> Result<ReloadResult, String> {
     let body = serde_json::json!({});
@@ -225,78 +225,78 @@ pub async fn reload_triggers(state: State<'_, RuntimeHandle>) -> Result<ReloadRe
 
 // ─── CRUD types & commands ──────────────────────────────────────────────────
 
-/// Définition complète d'un trigger retournée par les opérations CRUD.
+/// Full definition of a trigger returned by the CRUD operations.
 #[derive(Debug, Serialize)]
 pub struct TriggerDefinitionView {
-    /// Identifiant unique du trigger.
+    /// Unique trigger identifier.
     pub id: String,
-    /// Agent cible (exclusif avec `pipeline`).
+    /// Target agent (mutually exclusive with `pipeline`).
     pub agent: Option<String>,
-    /// Pipeline cible (exclusif avec `agent`).
+    /// Target pipeline (mutually exclusive with `agent`).
     pub pipeline: Option<String>,
-    /// Indique si le trigger est actif.
+    /// Whether the trigger is active.
     pub enabled: bool,
-    /// Politique quand l'agent est occupé : `"queue"` ou `"drop"`.
+    /// Policy when the agent is busy: `"queue"` or `"drop"`.
     pub on_busy: String,
-    /// Type de source : `"cron"`, `"interval"`, etc.
+    /// Source type: `"cron"`, `"interval"`, etc.
     pub source_type: String,
-    /// Configuration JSON de la source.
+    /// JSON configuration of the source.
     pub source_config: serde_json::Value,
-    /// Template du message d'entrée.
+    /// Input message template.
     pub input_template: Option<String>,
-    /// Horodatage de création (ISO 8601).
+    /// Creation timestamp (ISO 8601).
     pub created_at: String,
-    /// Horodatage de dernière modification (ISO 8601).
+    /// Last-modification timestamp (ISO 8601).
     pub updated_at: String,
 }
 
-/// Configuration de la source de déclenchement dans les requêtes CRUD.
+/// Trigger source configuration in CRUD requests.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TriggerSourceInput {
-    /// Type de source : `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
+    /// Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
     pub r#type: String,
-    /// Configuration spécifique à la source.
+    /// Source-specific configuration.
     #[serde(flatten)]
     pub config: serde_json::Value,
 }
 
-/// Corps de requête pour la création d'un trigger via `create_trigger`.
+/// Request body for creating a trigger via `create_trigger`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateTriggerRequest {
-    /// Identifiant unique du trigger.
+    /// Unique trigger identifier.
     pub id: String,
-    /// Agent cible — exclusif avec `pipeline`.
+    /// Target agent, mutually exclusive with `pipeline`.
     pub agent: Option<String>,
-    /// Pipeline cible — exclusif avec `agent`.
+    /// Target pipeline, mutually exclusive with `agent`.
     pub pipeline: Option<String>,
-    /// Indique si le trigger est actif (défaut : `true`).
+    /// Whether the trigger is active (default: `true`).
     pub enabled: Option<bool>,
-    /// Politique quand l'agent est occupé (défaut : `"queue"`).
+    /// Policy when the agent is busy (default: `"queue"`).
     pub on_busy: Option<String>,
-    /// Configuration de la source de déclenchement.
+    /// Trigger source configuration.
     pub source: TriggerSourceInput,
-    /// Template du message d'entrée.
+    /// Input message template.
     pub input_template: Option<String>,
 }
 
-/// Corps de requête pour la mise à jour d'un trigger via `update_trigger`.
+/// Request body for updating a trigger via `update_trigger`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateTriggerRequest {
-    /// Agent cible — exclusif avec `pipeline`.
+    /// Target agent, mutually exclusive with `pipeline`.
     pub agent: Option<String>,
-    /// Pipeline cible — exclusif avec `agent`.
+    /// Target pipeline, mutually exclusive with `agent`.
     pub pipeline: Option<String>,
-    /// Indique si le trigger est actif.
+    /// Whether the trigger is active.
     pub enabled: Option<bool>,
-    /// Politique quand l'agent est occupé.
+    /// Policy when the agent is busy.
     pub on_busy: Option<String>,
-    /// Configuration de la source de déclenchement.
+    /// Trigger source configuration.
     pub source: TriggerSourceInput,
-    /// Template du message d'entrée.
+    /// Input message template.
     pub input_template: Option<String>,
 }
 
-/// Parse un JSON de réponse API en `TriggerDefinitionView`.
+/// Parses an API response JSON into a `TriggerDefinitionView`.
 fn parse_trigger_definition(json: &serde_json::Value) -> TriggerDefinitionView {
     TriggerDefinitionView {
         id: json
@@ -344,9 +344,9 @@ fn parse_trigger_definition(json: &serde_json::Value) -> TriggerDefinitionView {
     }
 }
 
-/// Crée un nouveau trigger.
+/// Creates a new trigger.
 ///
-/// Délègue à `POST /api/v1/triggers`.
+/// Delegates to `POST /api/v1/triggers`.
 #[tauri::command]
 pub async fn create_trigger(
     state: State<'_, RuntimeHandle>,
@@ -358,9 +358,9 @@ pub async fn create_trigger(
     Ok(parse_trigger_definition(&json))
 }
 
-/// Met à jour un trigger existant.
+/// Updates an existing trigger.
 ///
-/// Délègue à `PUT /api/v1/triggers/:id`.
+/// Delegates to `PUT /api/v1/triggers/:id`.
 #[tauri::command]
 pub async fn update_trigger(
     state: State<'_, RuntimeHandle>,
@@ -374,9 +374,9 @@ pub async fn update_trigger(
     Ok(parse_trigger_definition(&json))
 }
 
-/// Récupère la définition complète d'un trigger par son identifiant.
+/// Fetches the full definition of a trigger by its identifier.
 ///
-/// Délègue à `GET /api/v1/triggers/:id` (route CRUD).
+/// Delegates to `GET /api/v1/triggers/:id` (CRUD route).
 #[tauri::command]
 pub async fn get_trigger_definition(
     state: State<'_, RuntimeHandle>,
@@ -387,9 +387,9 @@ pub async fn get_trigger_definition(
     Ok(parse_trigger_definition(&json))
 }
 
-/// Supprime un trigger.
+/// Deletes a trigger.
 ///
-/// Délègue à `DELETE /api/v1/triggers/:id`.
+/// Delegates to `DELETE /api/v1/triggers/:id`.
 #[tauri::command]
 pub async fn delete_trigger(state: State<'_, RuntimeHandle>, id: String) -> Result<(), String> {
     let path = format!("/api/v1/triggers/{id}");

@@ -1,6 +1,6 @@
 //! Token-based authentication middleware for the TCP REST API.
 //!
-//! Implements [`TokenAuthLayer`] — a Tower [`Layer`] that enforces Bearer token
+//! Implements [`TokenAuthLayer`], a Tower [`Layer`] that enforces Bearer token
 //! authentication on incoming requests. Applied exclusively to the TCP listener;
 //! the Unix socket listener is intentionally left unauthenticated (filesystem
 //! permissions provide equivalent isolation).
@@ -297,7 +297,7 @@ mod tests {
         let req = Request::builder().uri("/ping").body(Body::empty()).unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
-        // THEN 200 OK — no auth enforced on the Unix socket router
+        // THEN 200 OK, no auth enforced on the Unix socket router
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -310,7 +310,7 @@ mod tests {
         let req = Request::builder().uri("/ping").body(Body::empty()).unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
-        // THEN 200 OK — no auth check performed
+        // THEN 200 OK, no auth check performed
         assert_eq!(resp.status(), StatusCode::OK);
     }
 

@@ -1,13 +1,16 @@
-//! Google Tasks API client — non-sensitive scope (`tasks`).
+//! Google Tasks API client, non-sensitive scope (`tasks`).
 //!
 //! Note: unlike `drive.file`, the `tasks` scope has no per-resource
-//! gating — it grants full access to all of the user's task lists.
+//! gating; it grants full access to all of the user's task lists.
 //! Still non-sensitive per Google's policy.
 
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest, RawRequest},
+};
 
 const BASE: &str = "https://tasks.googleapis.com/tasks/v1";
 
@@ -45,6 +48,18 @@ struct TaskListsResponse {
 struct TasksResponse {
     #[serde(default)]
     items: Vec<Task>,
+}
+
+/// Parameters for [`TasksClient::create_task`].
+pub struct NewTask<'a> {
+    /// Id of the list the task is created in (`@default` for the default list).
+    pub task_list_id: &'a str,
+    /// Task title.
+    pub title: &'a str,
+    /// Optional free-text notes.
+    pub notes: Option<&'a str>,
+    /// Optional due date (RFC 3339).
+    pub due_rfc3339: Option<&'a str>,
 }
 
 #[derive(Clone)]
@@ -91,10 +106,7 @@ impl TasksClient {
     /// Create a new task inside a list.
     pub async fn create_task<F, Fut>(
         &self,
-        task_list_id: &str,
-        title: &str,
-        notes: Option<&str>,
-        due_rfc3339: Option<&str>,
+        task: NewTask<'_>,
         bearer: &str,
         refresh: F,
     ) -> Result<Task, ConnectorError>
@@ -102,16 +114,25 @@ impl TasksClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let mut body = serde_json::json!({ "title": title });
-        if let Some(n) = notes {
+        let mut body = serde_json::json!({ "title": task.title });
+        if let Some(n) = task.notes {
             body["notes"] = serde_json::Value::String(n.to_string());
         }
-        if let Some(d) = due_rfc3339 {
+        if let Some(d) = task.due_rfc3339 {
             body["due"] = serde_json::Value::String(d.to_string());
         }
+        let task_list_id = task.task_list_id;
         let url = format!("{BASE}/lists/{task_list_id}/tasks");
         self.http
-            .json_request(Method::POST, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
@@ -130,7 +151,15 @@ impl TasksClient {
         let body = serde_json::json!({ "status": "completed" });
         let url = format!("{BASE}/lists/{task_list_id}/tasks/{task_id}");
         self.http
-            .json_request(Method::PATCH, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::PATCH,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
@@ -148,7 +177,16 @@ impl TasksClient {
     {
         let url = format!("{BASE}/lists/{task_list_id}/tasks/{task_id}");
         self.http
-            .send_with_retries(Method::DELETE, &url, None, bearer, refresh)
+            .send(
+                RawRequest {
+                    method: Method::DELETE,
+                    url: &url,
+                    body: None,
+                    content_type: None,
+                },
+                bearer,
+                refresh,
+            )
             .await?;
         Ok(())
     }

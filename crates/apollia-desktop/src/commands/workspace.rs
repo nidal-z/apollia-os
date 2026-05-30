@@ -1,32 +1,32 @@
-//! Commandes IPC Tauri pour l'inspection et l'initialisation du workspace.
+//! Tauri IPC commands for inspecting and initializing the workspace.
 //!
-//! Délègue à l'API REST interne pour les opérations workspace qui nécessitent
-//! l'accès au runtime, et opère directement sur le système de fichiers pour
-//! les opérations locales.
+//! Delegates to the internal REST API for workspace operations that need
+//! runtime access, and operates directly on the filesystem for local
+//! operations.
 
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::Serialize;
 use tauri::State;
 
-/// Statut du workspace courant.
+/// Status of the current workspace.
 #[derive(Debug, Serialize)]
 pub struct WorkspaceStatus {
-    /// Chemin du workspace courant.
+    /// Path of the current workspace.
     pub path: String,
-    /// Indique si `apollia.toml` est présent et valide.
+    /// Whether `apollia.toml` is present and valid.
     pub has_config: bool,
-    /// Indique si le dossier `.apollia/` est initialisé.
+    /// Whether the `.apollia/` directory is initialized.
     pub initialized: bool,
-    /// Nombre d'agents déclarés dans la config (ou chargés dans le runtime).
+    /// Number of agents declared in the config (or loaded in the runtime).
     pub agent_count: usize,
-    /// Version de la config (si présente).
+    /// Config version (if present).
     pub config_version: Option<String>,
 }
 
-/// Retourne le statut du workspace courant.
+/// Returns the status of the current workspace.
 ///
-/// Lit `apollia.toml` dans le répertoire courant et les métadonnées runtime
-/// pour construire une vue synthétique de l'état du workspace.
+/// Reads `apollia.toml` in the current directory and the runtime metadata to
+/// build a synthetic view of the workspace state.
 #[tauri::command]
 pub async fn get_workspace_status(
     state: State<'_, RuntimeHandle>,
@@ -70,11 +70,11 @@ pub async fn get_workspace_status(
     })
 }
 
-/// Initialise le workspace en créant la structure de base.
+/// Initializes the workspace by creating the base structure.
 ///
-/// Crée `apollia.toml` minimal et le dossier `.apollia/` si absents.
-/// Retourne une erreur si le workspace est déjà initialisé, sauf avec `force = true`.
-/// En cas de succès, retourne le chemin absolu du workspace initialisé.
+/// Creates a minimal `apollia.toml` and the `.apollia/` directory if missing.
+/// Returns an error if the workspace is already initialized, unless `force = true`.
+/// On success, returns the absolute path of the initialized workspace.
 #[tauri::command]
 pub async fn init_workspace(force: bool) -> Result<String, String> {
     let cwd = std::env::current_dir().map_err(|e| format!("cannot determine cwd: {e}"))?;

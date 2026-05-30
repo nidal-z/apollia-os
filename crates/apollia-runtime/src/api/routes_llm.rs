@@ -1,17 +1,17 @@
-//! LLM routes — status/ping/chat diagnostics + CRUD backends.
+//! LLM routes, status/ping/chat diagnostics + CRUD backends.
 //!
-//! - `GET  /api/v1/llm/status`                     — list backends
-//! - `POST /api/v1/llm/ping`                       — measure backend latency
-//! - `POST /api/v1/llm/chat`                       — one-shot prompt
-//! - `POST /api/v1/llm/complete`                   — multi-turn completion
-//! - `GET  /api/v1/llm/costs`                      — aggregate cost/token stats
-//! - `GET  /api/v1/llm/costs/daily`                — daily cost breakdown
-//! - `GET    /api/v1/llm/backends`                 — list configured backends
-//! - `GET    /api/v1/llm/backends/:name`           — get one backend
-//! - `POST   /api/v1/llm/backends`                 — create backend
-//! - `PUT    /api/v1/llm/backends/:name`           — update backend
-//! - `DELETE /api/v1/llm/backends/:name`           — delete backend
-//! - `POST   /api/v1/llm/backends/:name/set-default` — mark as default
+//! - `GET  /api/v1/llm/status`                    , list backends
+//! - `POST /api/v1/llm/ping`                      , measure backend latency
+//! - `POST /api/v1/llm/chat`                      , one-shot prompt
+//! - `POST /api/v1/llm/complete`                  , multi-turn completion
+//! - `GET  /api/v1/llm/costs`                     , aggregate cost/token stats
+//! - `GET  /api/v1/llm/costs/daily`               , daily cost breakdown
+//! - `GET    /api/v1/llm/backends`                , list configured backends
+//! - `GET    /api/v1/llm/backends/:name`          , get one backend
+//! - `POST   /api/v1/llm/backends`                , create backend
+//! - `PUT    /api/v1/llm/backends/:name`          , update backend
+//! - `DELETE /api/v1/llm/backends/:name`          , delete backend
+//! - `POST   /api/v1/llm/backends/:name/set-default`, mark as default
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -430,9 +430,9 @@ pub async fn get_llm_costs<B: ExecutionBackend + Clone>(
 pub struct DailyCostEntry {
     /// Date au format `YYYY-MM-DD`.
     pub date: String,
-    /// Nom du backend.
+    /// Backend name.
     pub backend: String,
-    /// Coût total estimé en USD pour ce jour.
+    /// Total estimated cost in USD for this day.
     pub cost_usd: f64,
 }
 
@@ -506,7 +506,7 @@ pub async fn get_llm_daily_costs<B: ExecutionBackend + Clone>(
 /// Request body for `POST /api/v1/llm/backends`.
 #[derive(Debug, Deserialize)]
 pub struct CreateLlmBackendRequest {
-    /// Unique name — pattern `^[a-z0-9_-]+$`.
+    /// Unique name, pattern `^[a-z0-9_-]+$`.
     pub name: String,
     /// Provider identifier: `"llama-cpp"`, `"openai"`, `"mistral"`, `"anthropic"`, `"ollama"`.
     pub provider: String,
@@ -630,7 +630,7 @@ fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<BackendErrorResp
     (status, Json(BackendErrorResponse { error: msg }))
 }
 
-/// Sync backends from DB to `apollia.toml` after a mutation (best-effort — never fails the request).
+/// Sync backends from DB to `apollia.toml` after a mutation (best-effort, never fails the request).
 fn sync_toml_after_mutation<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     guard: &LlmBackendRepository,
@@ -949,16 +949,26 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
         (all, default)
     };
 
-    let new_router = apollia_llm::LlmRouter::from_backend_configs(all_configs, default_name)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(BackendErrorResponse {
-                    error: format!("rebuild failed: {e}"),
-                }),
-            )
-        })?;
+    // Re-inject the `LlamaCpp -> runner` override so the local backend stays
+    // wired through the sidecar; otherwise the rebuild would drop it and the
+    // runner would become unreachable from agents and chat. Shares the same
+    // factory used by the supervisor at boot.
+    let factory =
+        crate::runner_supervisor::runner_llm_override(state.runner_proxy.clone());
+    let new_router = apollia_llm::LlmRouter::from_backend_configs_with_override(
+        all_configs,
+        default_name,
+        factory,
+    )
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(BackendErrorResponse {
+                error: format!("rebuild failed: {e}"),
+            }),
+        )
+    })?;
 
     let backends = new_router.list();
     let default = new_router.default_name().to_owned();
@@ -989,17 +999,17 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
 /// Build the axum sub-router for LLM diagnostic and CRUD endpoints.
 ///
 /// Routes registered:
-/// - `GET  /api/v1/llm/status`                          — list all backends
-/// - `POST /api/v1/llm/ping`                            — measure backend latency
-/// - `POST /api/v1/llm/chat`                            — send a one-shot prompt
-/// - `GET  /api/v1/llm/costs`                           — aggregate cost/token stats
-/// - `GET  /api/v1/llm/costs/daily`                     — daily cost breakdown per backend
-/// - `GET    /api/v1/llm/backends`                      — list configured backends
-/// - `GET    /api/v1/llm/backends/:name`                — get one backend
-/// - `POST   /api/v1/llm/backends`                      — create backend
-/// - `PUT    /api/v1/llm/backends/:name`                — update backend
-/// - `DELETE /api/v1/llm/backends/:name`                — delete backend
-/// - `POST   /api/v1/llm/backends/:name/set-default`    — mark as default
+/// - `GET  /api/v1/llm/status`                         , list all backends
+/// - `POST /api/v1/llm/ping`                           , measure backend latency
+/// - `POST /api/v1/llm/chat`                           , send a one-shot prompt
+/// - `GET  /api/v1/llm/costs`                          , aggregate cost/token stats
+/// - `GET  /api/v1/llm/costs/daily`                    , daily cost breakdown per backend
+/// - `GET    /api/v1/llm/backends`                     , list configured backends
+/// - `GET    /api/v1/llm/backends/:name`               , get one backend
+/// - `POST   /api/v1/llm/backends`                     , create backend
+/// - `PUT    /api/v1/llm/backends/:name`               , update backend
+/// - `DELETE /api/v1/llm/backends/:name`               , delete backend
+/// - `POST   /api/v1/llm/backends/:name/set-default`   , mark as default
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
@@ -1045,7 +1055,7 @@ mod tests {
     use std::sync::Arc;
     use tower::ServiceExt;
 
-    /// Minimal `ExecutionBackend` for tests — never actually executed.
+    /// Minimal `ExecutionBackend` for tests, never actually executed.
     #[derive(Clone)]
     struct MockBackend;
 
@@ -1105,6 +1115,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         }
     }
 
@@ -1421,7 +1432,7 @@ mod tests {
 
     // GIVEN no `system.db` available in AppState
     // WHEN POST /api/v1/llm/reload
-    // THEN 503 — repository is required to rebuild the router
+    // THEN 503, repository is required to rebuild the router
     #[tokio::test]
     async fn test_reload_without_repo_returns_503() {
         let state = test_app_state_no_llm();
@@ -1439,7 +1450,7 @@ mod tests {
 
     // GIVEN a repo with no default backend
     // WHEN POST /api/v1/llm/reload
-    // THEN 503 with an explicit "no default" message — the rebuild needs a
+    // THEN 503 with an explicit "no default" message, the rebuild needs a
     //       default to pick.
     #[tokio::test]
     async fn test_reload_without_default_returns_503() {

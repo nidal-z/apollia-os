@@ -78,7 +78,7 @@ export function validateActionButton(raw: RawActionButton): SafeActionButton | n
   if (!raw || typeof raw.label !== "string" || !raw.label.trim()) return null;
 
   if (raw.action === "navigate") {
-    const route = typeof raw.payload?.route === "string" ? (raw.payload.route as string) : "";
+    const route = typeof raw.payload?.route === "string" ? raw.payload.route : "";
     const [basePath, query = ""] = route.split("?", 2);
     const resolved = ROUTE_WHITELIST[basePath];
     if (!resolved) return null;
@@ -91,7 +91,7 @@ export function validateActionButton(raw: RawActionButton): SafeActionButton | n
   }
 
   if (raw.action === "invoke") {
-    const command = typeof raw.payload?.command === "string" ? (raw.payload.command as string) : "";
+    const command = typeof raw.payload?.command === "string" ? raw.payload.command : "";
     if (!INVOKE_WHITELIST.has(command)) return null;
     return {
       label: raw.label,
@@ -129,10 +129,10 @@ export function sanitizeActionButtons(raw: RawActionButton[] | null | undefined)
  */
 export async function executeActionButton(btn: SafeActionButton): Promise<void> {
   if (btn.action === "navigate") {
-    if (btn.query && typeof window !== "undefined") {
-      const url = new URL(window.location.href);
+    if (btn.query && globalThis.window !== undefined) {
+      const url = new URL(globalThis.location.href);
       url.search = `?${btn.query}`;
-      window.history.replaceState({}, "", url.toString());
+      globalThis.history.replaceState({}, "", url.toString());
     }
     navigateTo(btn.target as Route);
     return;

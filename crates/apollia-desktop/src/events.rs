@@ -11,7 +11,7 @@ use tauri::{AppHandle, Emitter};
 
 /// Payload emitted to the Svelte frontend via `app.emit("chat-token", …)`.
 ///
-/// Dedicated fast-path for token streaming — avoids the generic `"runtime-event"`
+/// Dedicated fast-path for token streaming, avoids the generic `"runtime-event"`
 /// envelope so the frontend can append tokens without a full IPC refresh.
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatTokenPayload {
@@ -25,11 +25,11 @@ pub struct ChatTokenPayload {
 
 /// Payload emitted to the Svelte frontend via `app.emit("hitl-fs-required", …)`.
 ///
-/// Dedicated fast-path for filesystem HITL — allows the UI to display the diff
+/// Dedicated fast-path for filesystem HITL, allows the UI to display the diff
 /// modal immediately without going through the generic `"runtime-event"` envelope.
 #[derive(Debug, Clone, Serialize)]
 pub struct HitlFsRequiredPayload {
-    /// Unique request identifier — must be passed back to `respond_hitl_filesystem`.
+    /// Unique request identifier, must be passed back to `respond_hitl_filesystem`.
     pub request_id: String,
     /// Chat session that triggered this request.
     pub session_id: String,
@@ -39,7 +39,7 @@ pub struct HitlFsRequiredPayload {
     pub op: String,
     /// Absolute path of the file being operated on.
     pub path: String,
-    /// Preview payload — JSON value matching `FilesystemPreview` variants.
+    /// Preview payload: JSON value matching `FilesystemPreview` variants.
     pub preview: serde_json::Value,
 }
 
@@ -70,7 +70,7 @@ pub struct TauriRuntimeEvent {
 ///
 /// Without this, entering or switching chat sessions could trigger the
 /// "Reconnexion au runtime" banner after 15s of inactivity even though the
-/// bridge was perfectly alive — there was simply no `runtime-event` traffic.
+/// bridge was perfectly alive; there was simply no `runtime-event` traffic.
 pub fn spawn_heartbeat(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(5));
@@ -93,79 +93,7 @@ pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
     tauri::async_runtime::spawn(async move {
         loop {
             match rx.recv().await {
-                Ok(event) => {
-                    // ChatToken uses a dedicated "chat-token" Tauri event for
-                    // real-time streaming without triggering a full IPC refresh.
-                    if let RuntimeEvent::ChatToken {
-                        ref session_id,
-                        ref message_id,
-                        ref token,
-                    } = event
-                    {
-                        let payload = ChatTokenPayload {
-                            session_id: session_id.clone(),
-                            message_id: message_id.clone(),
-                            token: token.clone(),
-                        };
-                        if let Err(e) = app.emit("chat-token", &payload) {
-                            tracing::warn!(error = %e, "failed to emit chat-token event");
-                        }
-                        continue;
-                    }
-
-                    // Dedicated fast-path for filesystem HITL — emits "hitl-fs-required"
-                    // so the chat UI can open the diff modal without polling.
-                    if let RuntimeEvent::HitlFilesystemRequired {
-                        ref request_id,
-                        ref session_id,
-                        ref level,
-                        ref op,
-                        ref path,
-                        ref preview,
-                    } = event
-                    {
-                        let preview_value =
-                            serde_json::to_value(preview).unwrap_or(serde_json::Value::Null);
-                        let payload = HitlFsRequiredPayload {
-                            request_id: request_id.clone(),
-                            session_id: session_id.clone(),
-                            level: level.clone(),
-                            op: op.clone(),
-                            path: path.clone(),
-                            preview: preview_value,
-                        };
-                        if let Err(e) = app.emit("hitl-fs-required", &payload) {
-                            tracing::warn!(error = %e, "failed to emit hitl-fs-required event");
-                        }
-                        // fall through — also emit via generic runtime-event
-                    }
-
-                    // Dedicated fast-path events for STT overlay and
-                    // latency-critical transcription delivery.
-                    match &event {
-                        RuntimeEvent::SttTranscribed { ref text, .. } => {
-                            if let Err(e) = app.emit("stt-transcribed", text) {
-                                tracing::warn!(error = %e, "failed to emit stt-transcribed event");
-                            }
-                        }
-                        RuntimeEvent::SttRecordingStarted => {
-                            if let Err(e) = app.emit("stt-recording-started", ()) {
-                                tracing::warn!(error = %e, "failed to emit stt-recording-started event");
-                            }
-                        }
-                        RuntimeEvent::SttRecordingStopped { .. } => {
-                            if let Err(e) = app.emit("stt-recording-stopped", ()) {
-                                tracing::warn!(error = %e, "failed to emit stt-recording-stopped event");
-                            }
-                        }
-                        _ => {}
-                    }
-
-                    let tauri_event = map_runtime_event(&event);
-                    if let Err(e) = app.emit("runtime-event", &tauri_event) {
-                        tracing::warn!(error = %e, "failed to emit Tauri event");
-                    }
-                }
+                Ok(event) => bridge_one_event(&app, &event),
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                     tracing::warn!(skipped = n, "event bridge lagged, events dropped");
                 }
@@ -176,6 +104,91 @@ pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
             }
         }
     });
+}
+
+/// Re-emit a single `RuntimeEvent` to the frontend.
+///
+/// Some events take a dedicated fast-path Tauri channel; all events (except
+/// `ChatToken`, which returns early) are also emitted via the generic
+/// `"runtime-event"` envelope.
+fn bridge_one_event(app: &AppHandle, event: &RuntimeEvent) {
+    // ChatToken uses a dedicated "chat-token" Tauri event for
+    // real-time streaming without triggering a full IPC refresh.
+    if let RuntimeEvent::ChatToken {
+        session_id,
+        message_id,
+        token,
+    } = event
+    {
+        let payload = ChatTokenPayload {
+            session_id: session_id.clone(),
+            message_id: message_id.clone(),
+            token: token.clone(),
+        };
+        if let Err(e) = app.emit("chat-token", &payload) {
+            tracing::warn!(error = %e, "failed to emit chat-token event");
+        }
+        return;
+    }
+
+    emit_hitl_fs_fastpath(app, event);
+    emit_stt_fastpath(app, event);
+
+    let tauri_event = map_runtime_event(event);
+    if let Err(e) = app.emit("runtime-event", &tauri_event) {
+        tracing::warn!(error = %e, "failed to emit Tauri event");
+    }
+}
+
+/// Dedicated fast-path for filesystem HITL, emits "hitl-fs-required" so the
+/// chat UI can open the diff modal without polling. Falls through afterwards so
+/// the generic `"runtime-event"` is still emitted.
+fn emit_hitl_fs_fastpath(app: &AppHandle, event: &RuntimeEvent) {
+    if let RuntimeEvent::HitlFilesystemRequired {
+        request_id,
+        session_id,
+        level,
+        op,
+        path,
+        preview,
+    } = event
+    {
+        let preview_value = serde_json::to_value(preview).unwrap_or(serde_json::Value::Null);
+        let payload = HitlFsRequiredPayload {
+            request_id: request_id.clone(),
+            session_id: session_id.clone(),
+            level: level.clone(),
+            op: op.clone(),
+            path: path.clone(),
+            preview: preview_value,
+        };
+        if let Err(e) = app.emit("hitl-fs-required", &payload) {
+            tracing::warn!(error = %e, "failed to emit hitl-fs-required event");
+        }
+    }
+}
+
+/// Dedicated fast-path events for STT overlay and latency-critical
+/// transcription delivery.
+fn emit_stt_fastpath(app: &AppHandle, event: &RuntimeEvent) {
+    match event {
+        RuntimeEvent::SttTranscribed { text, .. } => {
+            if let Err(e) = app.emit("stt-transcribed", text) {
+                tracing::warn!(error = %e, "failed to emit stt-transcribed event");
+            }
+        }
+        RuntimeEvent::SttRecordingStarted => {
+            if let Err(e) = app.emit("stt-recording-started", ()) {
+                tracing::warn!(error = %e, "failed to emit stt-recording-started event");
+            }
+        }
+        RuntimeEvent::SttRecordingStopped { .. } => {
+            if let Err(e) = app.emit("stt-recording-stopped", ()) {
+                tracing::warn!(error = %e, "failed to emit stt-recording-stopped event");
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Maps a [`RuntimeEvent`] to a [`TauriRuntimeEvent`] with the correct category.
@@ -277,7 +290,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::ChatUserInputRequired { .. }
         | RuntimeEvent::ChatUserInputResolved { .. } => "chat-changed",
 
-        // ChatToken uses a dedicated fast path — not "chat-changed" to avoid
+        // ChatToken uses a dedicated fast path, not "chat-changed", to avoid
         // triggering a full IPC refresh on every streamed token.
         RuntimeEvent::ChatToken { .. } => "chat-token",
 
@@ -338,7 +351,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── Decision branches ───────────────────────────────
         RuntimeEvent::DecisionPointRecorded { .. } => "chat-changed",
 
-        // ── Meta LLM Orchestrator (ADR-073) ───────────────────────────────
+        // ── Meta LLM Orchestrator ─────────────────────────────────────────
         RuntimeEvent::MetaLlmBudgetExceeded { .. } => "llm-changed",
 
         // ── Session metrics ─────────────────────────────────
@@ -347,8 +360,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── Memory namespaces ───────────────────────────────
         RuntimeEvent::SharedNamespaceAdded { .. } => "memory-changed",
 
-        // ── Observability — event-sourced runtime trace (ADR-088) ────
-        // Routé sur le bus front-side `trace-event` — Lot 1 + Lot 2.
+        // ── Observability: event-sourced runtime trace ────
+        // Routed onto the front-side `trace-event` bus.
         RuntimeEvent::AgentLog { .. }
         | RuntimeEvent::Thought { .. }
         | RuntimeEvent::LlmCallStarted { .. }

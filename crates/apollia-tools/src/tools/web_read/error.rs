@@ -4,7 +4,7 @@ use thiserror::Error;
 
 /// Errors produced by [`super::WebRead`].
 ///
-/// Variants map to stable `snake_case` codes in the [`ToolExecutor`] impl —
+/// Variants map to stable `snake_case` codes in the [`ToolExecutor`] impl,
 /// the LLM uses those codes to pick the right retry / fallback strategy.
 ///
 /// [`ToolExecutor`]: crate::executor::ToolExecutor
@@ -53,7 +53,7 @@ pub enum WebReadError {
     #[error("extraction failed: {0}")]
     ExtractionFailed(String),
 
-    /// Extraction succeeded but returned fewer than 100 characters — the page
+    /// Extraction succeeded but returned fewer than 100 characters; the page
     /// is likely dynamic (JS-rendered) or behind a paywall.
     #[error("empty content (extracted {0} chars)")]
     EmptyContent(usize),

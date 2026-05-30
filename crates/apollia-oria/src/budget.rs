@@ -1,12 +1,11 @@
-//! StepBudget — runtime-enforced tri-dimensional execution budget.
+//! StepBudget: runtime-enforced tri-dimensional execution budget.
 //!
 //! The StepBudget is the most important safety mechanism of Apollia OS
-//! (Principle #7: Non-negotiable guardrails). It bounds agent execution
-//! along three dimensions:
+//! (a non-negotiable guardrail). It bounds agent execution along three dimensions:
 //!
-//! 1. **max_steps** — maximum iterations of the agent's ReAct loop
-//! 2. **max_tool_calls** — maximum tool invocations via ToolProxy
-//! 3. **wall_clock_limit** — absolute wall-clock timeout
+//! 1. **max_steps**: maximum iterations of the agent's ReAct loop
+//! 2. **max_tool_calls**: maximum tool invocations via ToolProxy
+//! 3. **wall_clock_limit**: absolute wall-clock timeout
 //!
 //! Thread-safe via `AtomicU32` counters, shared as `Arc<StepBudget>`
 //! between ORIAEngine and ToolProxy.
@@ -19,14 +18,14 @@ use tokio::sync::oneshot;
 
 use apollia_core::StepBudgetConfig;
 
-/// Budget d'execution tri-dimensionnel applique par le runtime.
+/// Tri-dimensional execution budget enforced by the runtime.
 ///
-/// Thread-safe grace a `AtomicU32` pour les compteurs et `Instant` pour le chrono.
-/// Partage via `Arc<StepBudget>` entre ORIAEngine et ToolProxy.
+/// Thread-safe via `AtomicU32` counters and `Instant` for the timer.
+/// Shared via `Arc<StepBudget>` between ORIAEngine and ToolProxy.
 ///
-/// Quand le budget est épuisé (steps ou tool_calls), le sender `exhaustion_tx` est
-/// consommé pour notifier les waiters via [`wait_for_exhaustion`]. La dimension
-/// wall_clock est gérée par un `tokio::time::sleep` sur la durée restante.
+/// When the budget is exhausted (steps or tool_calls), the `exhaustion_tx` sender
+/// is consumed to notify waiters via [`wait_for_exhaustion`]. The wall_clock
+/// dimension is handled by a `tokio::time::sleep` on the remaining duration.
 ///
 /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
 pub struct StepBudget {
@@ -158,9 +157,9 @@ impl StepBudget {
         self.started_at.elapsed()
     }
 
-    /// Crée un `StepBudget` sans limite effective — réservé aux tests unitaires.
+    /// Create a `StepBudget` with no effective limit, reserved for unit tests.
     ///
-    /// Toutes les dimensions sont fixées à leur maximum pratique :
+    /// All dimensions are set to their practical maximum:
     /// `max_steps = u32::MAX`, `max_tool_calls = u32::MAX`, `wall_clock = 24 h`.
     pub fn unlimited() -> Self {
         Self::new(&StepBudgetConfig {
@@ -170,10 +169,10 @@ impl StepBudget {
         })
     }
 
-    /// Crée un `StepBudget` limité à `max_steps` steps — réservé aux tests unitaires.
+    /// Create a `StepBudget` limited to `max_steps` steps, reserved for unit tests.
     ///
-    /// Les autres dimensions (`max_tool_calls`, `wall_clock`) sont fixées à leur
-    /// maximum pratique pour ne pas interférer avec le test.
+    /// The other dimensions (`max_tool_calls`, `wall_clock`) are set to their
+    /// practical maximum so they do not interfere with the test.
     pub fn with_max(max_steps: u32) -> Self {
         Self::new(&StepBudgetConfig {
             max_steps,
@@ -182,10 +181,10 @@ impl StepBudget {
         })
     }
 
-    /// Crée un snapshot du budget exposant steps, tool_calls et temps écoulé.
+    /// Create a budget snapshot exposing steps, tool_calls and elapsed time.
     ///
-    /// Les compteurs sont capturés au moment de l'appel. `started_at` est partagé
-    /// par copie — `elapsed_secs()` sur la vue reflète toujours le bon temps écoulé.
+    /// Counters are captured at call time. `started_at` is shared by copy, so
+    /// `elapsed_secs()` on the view always reflects the correct elapsed time.
     pub fn to_budget_view(&self) -> apollia_llm::StepBudgetView {
         apollia_llm::StepBudgetView::with_tool_tracking(
             Arc::new(AtomicU32::new(self.current_steps.load(Ordering::Relaxed))),
@@ -388,16 +387,16 @@ mod tests {
         let budget = Arc::new(StepBudget::new(&config));
         let budget_clone = Arc::clone(&budget);
 
-        // WHEN on incrémente dans une tâche concurrente et attend l'épuisement
+        // WHEN we increment in a concurrent task and wait for exhaustion
         let waiter = tokio::spawn(async move { budget_clone.wait_for_exhaustion().await });
 
         // Give the waiter time to start
         tokio::task::yield_now().await;
 
-        // THEN incrémenter les steps déclenche la notification oneshot
+        // THEN incrementing the steps triggers the oneshot notification
         budget.increment_steps();
 
-        // La future doit se compléter sans atteindre le wall_clock_limit (60s)
+        // The future must complete without reaching the wall_clock_limit (60s)
         tokio::time::timeout(std::time::Duration::from_secs(1), waiter)
             .await
             .expect("wait_for_exhaustion should complete within 1s, not poll for 60s")

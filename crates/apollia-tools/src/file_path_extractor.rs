@@ -1,7 +1,7 @@
 //! File path extraction from bash command output via the fast LLM backend.
 //!
 //! [`FilePathExtractor::extract_detached`] spawns a detached [`tokio::spawn`] task so
-//! that `BashExecutor::run` is never blocked (Principe #5 — Un acteur, une responsabilité).
+//! that `BashExecutor::run` is never blocked (one actor, one responsibility).
 //! LLM failures are logged as `tracing::warn` and never propagated.
 
 use std::path::PathBuf;
@@ -39,7 +39,7 @@ impl FilePathExtractor {
     /// The default pattern covers Unix absolute/relative paths (POSIX.1-2017 §3.265)
     /// and Windows UNC paths (RFC 8089).
     pub fn new(llm_router: Arc<LlmRouter>) -> Self {
-        // DEFAULT_PATH_PATTERN is a compile-time constant — an error here is a bug.
+        // DEFAULT_PATH_PATTERN is a compile-time constant, so an error here is a bug.
         let path_pattern =
             Regex::new(DEFAULT_PATH_PATTERN).expect("DEFAULT_PATH_PATTERN is a valid regex");
         Self {
@@ -65,7 +65,7 @@ impl FilePathExtractor {
     /// Spawns a detached task that extracts paths from `output` and emits
     /// [`RuntimeEvent::BashFilePathsExtracted`] when paths are found.
     ///
-    /// Returns immediately — the caller is never blocked. Failures are logged
+    /// Returns immediately; the caller is never blocked. Failures are logged
     /// at `WARN` level and silently discarded (best-effort extraction).
     pub fn extract_detached(&self, command: String, output: String, event_tx: EventBusSender) {
         let router = Arc::clone(&self.llm_router);
@@ -77,7 +77,7 @@ impl FilePathExtractor {
                     let _ = event_tx.send(RuntimeEvent::BashFilePathsExtracted { paths });
                 }
                 Ok(_) => {
-                    // No paths found — nothing to emit.
+                    // No paths found, nothing to emit.
                 }
                 Err(err) => {
                     tracing::warn!(
@@ -211,7 +211,7 @@ mod tests {
 
     #[tokio::test]
     async fn file_path_extractor_parses_find_output() {
-        // GIVEN — output de find = "src/main.rs\nsrc/lib.rs"
+        // GIVEN: find output = "src/main.rs\nsrc/lib.rs"
         let router = make_router("src/main.rs\nsrc/lib.rs");
         let extractor = FilePathExtractor::new(router);
 
@@ -234,7 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn file_path_extractor_returns_empty_for_no_paths() {
-        // GIVEN — output sans paths, LLM retourne une chaîne vide
+        // GIVEN: output with no paths, LLM returns an empty string
         let router = make_router("");
         let extractor = FilePathExtractor::new(router);
 
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn parse_paths_returns_empty_for_plain_text() {
-        // GIVEN — text with no path-like tokens
+        // GIVEN: text with no path-like tokens
         let pattern = Regex::new(DEFAULT_PATH_PATTERN).unwrap();
 
         // WHEN
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn with_pattern_rejects_invalid_regex() {
-        // GIVEN — invalid regex pattern
+        // GIVEN: invalid regex pattern
         let router = make_router("");
 
         // WHEN / THEN
@@ -325,7 +325,7 @@ mod tests {
         // WHEN
         extractor.extract_detached("find . -name '*.rs'".into(), "src/main.rs".into(), tx);
 
-        // THEN — event must arrive
+        // THEN: event must arrive
         let event = tokio::time::timeout(std::time::Duration::from_secs(2), async {
             loop {
                 match rx.recv().await {
@@ -344,7 +344,7 @@ mod tests {
 
     #[tokio::test]
     async fn extract_detached_emits_no_event_when_llm_returns_empty() {
-        // GIVEN — LLM returns empty → no event emitted
+        // GIVEN: LLM returns empty, so no event emitted
         use tokio::sync::broadcast;
 
         let router = make_router("");
@@ -354,7 +354,7 @@ mod tests {
         // WHEN
         extractor.extract_detached("echo done".into(), "all done".into(), tx);
 
-        // THEN — no BashFilePathsExtracted within a short window
+        // THEN: no BashFilePathsExtracted within a short window
         let result = tokio::time::timeout(std::time::Duration::from_millis(300), async {
             loop {
                 match rx.recv().await {

@@ -9,7 +9,10 @@
  * - `homeFor`    : UI modes for which this route is the home. Used by the
  *                  Topbar logo to route to the right landing page.
  */
-import type { ComponentType } from "svelte";
+// `ComponentType` is the Svelte 4 component class type. Svelte 5 introduced a
+// new `Component` shape, but our route metadata still uses the legacy class
+// type because the icons come from `lucide-svelte` (compiled with Svelte 4).
+import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 import {
   LayoutDashboard,
   Bot,
@@ -33,7 +36,7 @@ import type { Route } from "$lib/stores/navigation";
 export interface RouteMeta {
   labelKey: string;
   parent: Route | null;
-  icon?: ComponentType;
+  icon?: ComponentType; // NOSONAR typescript:S1874
   /** Home route for the given UI mode(s). */
   homeFor?: Array<"operator" | "builder">;
 }
@@ -53,6 +56,7 @@ export const routeMeta: Record<Route, RouteMeta> = {
   notifications: { labelKey: "nav.notifications", parent: null, icon: Bell },
   observability: { labelKey: "nav.observability", parent: null, icon: Activity },
   settings: { labelKey: "nav.settings", parent: null, icon: Settings },
+  onboarding: { labelKey: "nav.onboarding", parent: null },
   "settings-permission-rules": {
     labelKey: "settings.permission_rules.title",
     parent: "settings",

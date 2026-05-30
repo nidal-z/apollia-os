@@ -1,11 +1,11 @@
 //! Routes REST pour le routing A2A (Agent-to-Agent).
 //!
 //! Expose :
-//! - `GET  /api/v1/a2a/agents`          — liste les agents A2A actifs avec leurs skills
-//! - `POST /api/v1/a2a/delegate`         — délègue une tâche à un Worker Agent par skill ID
-//! - `GET  /api/v1/a2a/skills`           — liste plate de tous les skills A2A disponibles
-//! - `POST /api/v1/a2a/invoke`           — invocation haut niveau via [`A2AInvoker`]
-//! - `GET  /api/v1/tasks/:id/sidechains` — arborescence des délégations A2A d'une tâche parent
+//! - `GET  /api/v1/a2a/agents`         , liste les agents A2A actifs avec leurs skills
+//! - `POST /api/v1/a2a/delegate`        , délègue une tâche à un Worker Agent par skill ID
+//! - `GET  /api/v1/a2a/skills`          , liste plate de tous les skills A2A disponibles
+//! - `POST /api/v1/a2a/invoke`          , invocation haut niveau via [`A2AInvoker`]
+//! - `GET  /api/v1/tasks/:id/sidechains`, arborescence des délégations A2A d'une tâche parent
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -16,7 +16,8 @@ use apollia_core::ProcessState;
 
 use crate::a2a::invoker::{A2AError, SkillListing};
 use crate::a2a::{
-    delegate_inner, A2aDelegateResult, A2aError, A2aErrorResponse, DEFAULT_A2A_MAX_HOPS,
+    delegate_inner, A2aDelegateResult, A2aError, A2aErrorResponse, DelegateInner,
+    DEFAULT_A2A_MAX_HOPS,
 };
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
@@ -25,7 +26,7 @@ use crate::coordinator::ExecutionBackend;
 const DEFAULT_DELEGATE_TIMEOUT_SECS: u64 = 120;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de réponse — GET /api/v1/a2a/agents
+// Types de réponse, GET /api/v1/a2a/agents
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Skill déclaré par un agent A2A.
@@ -66,7 +67,7 @@ pub struct A2aAgentsResponse {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de requête — POST /api/v1/a2a/delegate
+// Types de requête, POST /api/v1/a2a/delegate
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Corps de requête pour `POST /api/v1/a2a/delegate`.
@@ -148,24 +149,24 @@ pub async fn delegate<B: ExecutionBackend + Clone>(
 
     // Délégation initiée depuis l'API REST → chaîne vide, agent appelant fictif.
     let rest_caller = apollia_core::AgentId::from("__rest_api__");
-    delegate_inner(
-        &state.registry_handle,
-        &state.router_handle,
-        &state.event_sender,
-        &req.skill_id,
-        req.input,
+    delegate_inner(DelegateInner {
+        registry: &state.registry_handle,
+        router: &state.router_handle,
+        event_bus: &state.event_sender,
+        skill_id: &req.skill_id,
+        input_payload: req.input,
         timeout_secs,
-        &[],
-        &rest_caller,
-        DEFAULT_A2A_MAX_HOPS,
-    )
+        parent_chain: &[],
+        current_agent: &rest_caller,
+        max_hops: DEFAULT_A2A_MAX_HOPS,
+    })
     .await
     .map(Json)
     .map_err(a2a_err_response)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de réponse — GET /api/v1/a2a/skills
+// Types de réponse, GET /api/v1/a2a/skills
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Corps de réponse pour `GET /api/v1/a2a/skills`.
@@ -176,7 +177,7 @@ pub struct A2aSkillsResponse {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de requête — POST /api/v1/a2a/invoke
+// Types de requête, POST /api/v1/a2a/invoke
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Corps de requête pour `POST /api/v1/a2a/invoke`.
@@ -186,7 +187,7 @@ pub struct InvokeRequest {
     pub skill_id: String,
     /// Payload JSON transmis au Worker Agent comme input.
     pub input: serde_json::Value,
-    /// Nom du caller (Director Agent) — utilisé pour l'observabilité.
+    /// Nom du caller (Director Agent), utilisé pour l'observabilité.
     #[serde(default)]
     pub caller: Option<String>,
     /// Timeout de l'invocation en secondes (défaut: 120).
@@ -195,7 +196,7 @@ pub struct InvokeRequest {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Handlers — GET /api/v1/a2a/skills
+// Handlers, GET /api/v1/a2a/skills
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Handler pour `GET /api/v1/a2a/skills`.
@@ -257,14 +258,21 @@ pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
     let timeout = req.timeout_secs.map(std::time::Duration::from_secs);
 
     invoker
-        .invoke(&req.skill_id, req.input, caller, 0, timeout, None)
+        .invoke(crate::a2a::A2AInvokeRequest {
+            skill_id: &req.skill_id,
+            input: req.input,
+            caller,
+            a2a_depth: 0,
+            timeout,
+            chain_deadline: None,
+        })
         .await
         .map(Json)
         .map_err(a2a_invoker_err_response)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Handler — GET /api/v1/tasks/{task_id}/sidechains
+// Handler, GET /api/v1/tasks/{task_id}/sidechains
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Handler pour `GET /api/v1/tasks/{task_id}/sidechains`.

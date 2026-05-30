@@ -15,6 +15,41 @@ from typing import Any
 __all__ = ["extract_a2a_payload", "extract_skill_id"]
 
 
+def _extract_parts(task: Any) -> list[Any]:
+    """Return the ``input.parts`` list of an AIP task, or an empty list."""
+    if isinstance(task, dict):
+        parts = task.get("input", {}).get("parts", [])
+    else:
+        # Tolerate AIPTask-like objects (dataclass/attr-based) without forcing
+        # callers to know the concrete shape.
+        input_obj = getattr(task, "input", None)
+        parts = getattr(input_obj, "parts", []) if input_obj is not None else []
+    return parts if isinstance(parts, list) else []
+
+
+def _datapart_dict(part: Any) -> dict[str, Any] | None:
+    """Return the dict payload of a ``DataPart``, or ``None``."""
+    if not isinstance(part, dict) or part.get("type") != "data":
+        return None
+    data = part.get("data")
+    # mypy: cast through a fresh dict to drop the Any from .get()
+    return dict(data) if isinstance(data, dict) else None
+
+
+def _textpart_json_dict(part: Any) -> dict[str, Any] | None:
+    """Return the parsed JSON-object payload of a ``TextPart``, or ``None``."""
+    if not isinstance(part, dict) or part.get("type") != "text":
+        return None
+    raw = (part.get("text") or "").strip()
+    if not raw.startswith("{"):
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def extract_a2a_payload(task: Any) -> dict[str, Any]:
     """Read the structured A2A payload from an AIP task.
 
@@ -26,37 +61,19 @@ def extract_a2a_payload(task: Any) -> dict[str, Any]:
     Returns an empty dict when no usable payload is found — callers should
     treat that as "missing required fields" and return a domain error.
     """
-    if isinstance(task, dict):
-        parts = task.get("input", {}).get("parts", [])
-    else:
-        # Tolerate AIPTask-like objects (dataclass/attr-based) without forcing
-        # callers to know the concrete shape.
-        input_obj = getattr(task, "input", None)
-        parts = getattr(input_obj, "parts", []) if input_obj is not None else []
+    parts = _extract_parts(task)
 
     # 1. Prefer DataPart with a dict payload.
     for part in parts:
-        if not isinstance(part, dict):
-            continue
-        if part.get("type") == "data":
-            data = part.get("data")
-            if isinstance(data, dict):
-                # mypy: cast through a fresh dict to drop the Any from .get()
-                return dict(data)
+        payload = _datapart_dict(part)
+        if payload is not None:
+            return payload
 
     # 2. Fall back to a TextPart that holds a JSON object.
     for part in parts:
-        if not isinstance(part, dict):
-            continue
-        if part.get("type") == "text":
-            raw = (part.get("text") or "").strip()
-            if raw.startswith("{"):
-                try:
-                    parsed = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(parsed, dict):
-                    return parsed
+        payload = _textpart_json_dict(part)
+        if payload is not None:
+            return payload
 
     return {}
 

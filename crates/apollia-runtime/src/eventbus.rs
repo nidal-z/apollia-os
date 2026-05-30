@@ -1,18 +1,18 @@
 use apollia_core::RuntimeEvent;
 use tokio::sync::broadcast;
 
-/// Handle en écriture sur l'EventBus — clonable, partageable entre acteurs.
+/// Handle en écriture sur l'EventBus, clonable, partageable entre acteurs.
 ///
 /// Chaque acteur reçoit un clone de ce sender à l'initialisation.
 /// La publication est non-bloquante ; si le buffer est plein, l'envoi
 /// retourne une erreur (les receivers lents recevront `RecvError::Lagged`).
 pub type EventBusSender = broadcast::Sender<RuntimeEvent>;
 
-/// Handle en lecture sur l'EventBus — un par acteur consommateur.
+/// Handle en lecture sur l'EventBus, un par acteur consommateur.
 ///
 /// Obtenu soit via [`EventBus::new`] (premier receiver), soit via
 /// `sender.subscribe()` pour les receivers suivants.
-/// En cas de `RecvError::Lagged`, logger un warning et continuer —
+/// En cas de `RecvError::Lagged`, logger un warning et continuer -
 /// jamais de panic.
 pub type EventBusReceiver = broadcast::Receiver<RuntimeEvent>;
 
@@ -32,7 +32,7 @@ impl EventBus {
     /// (bornes : [64, 65536]). Cette fonction ne valide pas elle-même la valeur.
     ///
     /// Intentionnellement factory (pas un constructeur Self) : `EventBus` est
-    /// un namespace sans état propre — il délègue entièrement au canal broadcast.
+    /// un namespace sans état propre, il délègue entièrement au canal broadcast.
     pub fn with_capacity(capacity: usize) -> (EventBusSender, EventBusReceiver) {
         broadcast::channel(capacity)
     }
@@ -76,7 +76,7 @@ mod tests {
         // WHEN
         tx.send(RuntimeEvent::AllReady).unwrap();
 
-        // THEN — les 3 consumers reçoivent
+        // THEN, les 3 consumers reçoivent
         assert!(matches!(rx1.recv().await.unwrap(), RuntimeEvent::AllReady));
         assert!(matches!(rx2.recv().await.unwrap(), RuntimeEvent::AllReady));
         assert!(matches!(rx3.recv().await.unwrap(), RuntimeEvent::AllReady));
@@ -84,10 +84,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac3_lagged_consumer_ne_panic_pas() {
-        // GIVEN — buffer de 8 pour accélérer le test (comportement identique à 1024)
+        // GIVEN, buffer de 8 pour accélérer le test (comportement identique à 1024)
         let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(8);
 
-        // WHEN — on envoie 9 messages sans consommer (buffer saturé)
+        // WHEN, on envoie 9 messages sans consommer (buffer saturé)
         for i in 0..9u32 {
             let _ = tx.send(RuntimeEvent::StepExecuted {
                 task_id: format!("task-{}", i).into(),
@@ -96,7 +96,7 @@ mod tests {
             });
         }
 
-        // THEN — RecvError::Lagged retourné, pas de panic
+        // THEN, RecvError::Lagged retourné, pas de panic
         let result = rx.recv().await;
         assert!(
             matches!(result, Err(broadcast::error::RecvError::Lagged(_))),
@@ -104,7 +104,7 @@ mod tests {
             result
         );
 
-        // ET — le consumer peut continuer à recevoir les prochains événements
+        // ET, le consumer peut continuer à recevoir les prochains événements
         // (vider d'abord les messages encore dans le buffer avant d'en envoyer un nouveau)
         loop {
             match rx.try_recv() {
@@ -120,7 +120,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sender_clone_is_independent() {
-        // GIVEN — deux clones du sender publient sans interférence
+        // GIVEN, deux clones du sender publient sans interférence
         let (tx1, mut rx) = EventBus::new();
         let tx2 = tx1.clone();
 

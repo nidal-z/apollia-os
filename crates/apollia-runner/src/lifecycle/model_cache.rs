@@ -1,8 +1,7 @@
-//! Cache LRU des modèles chargés en VRAM.
+//! LRU cache for models loaded in VRAM.
 //!
-//! Squelette pour Phase 1. La logique réelle de chargement et d'éviction
-//! sera implémentée en STORY-004/005 quand les backends llama-cpp et
-//! whisper-rs migreront.
+//! Skeleton implementation. The real loading and eviction logic will be
+//! filled in once the llama-cpp and whisper backends grow VRAM accounting.
 
 use std::collections::HashMap;
 use std::sync::Mutex;

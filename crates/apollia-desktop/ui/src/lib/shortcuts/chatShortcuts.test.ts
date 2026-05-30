@@ -24,12 +24,15 @@ function evt(init: FakeKeyEvent): KeyboardEvent {
   return init as unknown as KeyboardEvent;
 }
 
+// navigator.platform is deprecated but still the most reliable Mac signal.
 const MOD_FIELD: keyof FakeKeyEvent =
-  typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac")
+  typeof navigator !== "undefined" &&
+  ((navigator as Navigator & { platform?: string }).platform ?? "").toLowerCase().includes("mac") // NOSONAR typescript:S1874
     ? "metaKey"
     : "ctrlKey";
 
-function mod(extra: FakeKeyEvent = { code: "" }): FakeKeyEvent {
+const EMPTY_EVT: Readonly<FakeKeyEvent> = { code: "" };
+function mod(extra: FakeKeyEvent = EMPTY_EVT): FakeKeyEvent {
   return { ...extra, [MOD_FIELD]: true };
 }
 

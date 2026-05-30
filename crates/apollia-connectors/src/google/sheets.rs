@@ -1,4 +1,4 @@
-//! Google Sheets API client — non-sensitive scope (`spreadsheets`).
+//! Google Sheets API client, non-sensitive scope (`spreadsheets`).
 //!
 //! Operates on sheets the agent creates OR that the user opens with
 //! Apollia via Google Picker (same per-resource gating as `drive.file`).
@@ -7,7 +7,10 @@
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest},
+};
 
 const BASE: &str = "https://sheets.googleapis.com/v4/spreadsheets";
 
@@ -56,6 +59,17 @@ pub struct ValueRange {
     pub values: Vec<Vec<serde_json::Value>>,
 }
 
+/// Target range plus the rows to write, for
+/// [`SheetsClient::append_values`] and [`SheetsClient::update_values`].
+pub struct ValueWrite<'a> {
+    /// Spreadsheet id.
+    pub spreadsheet_id: &'a str,
+    /// A1 range expression (e.g. `"Sheet1!A1:C10"`).
+    pub range: &'a str,
+    /// Rows of cell values.
+    pub values: &'a [Vec<serde_json::Value>],
+}
+
 #[derive(Clone)]
 pub struct SheetsClient {
     http: HttpClient,
@@ -81,16 +95,24 @@ impl SheetsClient {
             "properties": { "title": title },
         });
         self.http
-            .json_request(Method::POST, BASE, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: BASE,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
     /// List the tabs (sheets) inside a spreadsheet with their titles and ids.
     ///
     /// The Sheets API distinguishes the **spreadsheet title** (the overall
-    /// document name) from the **sheet title** (each tab's name — defaults
+    /// document name) from the **sheet title** (each tab's name, defaults
     /// to `Sheet1` in English locales, `Feuille 1` in French, etc.). Range
-    /// expressions use the *sheet* title, not the spreadsheet title — call
+    /// expressions use the *sheet* title, not the spreadsheet title; call
     /// this method before constructing an A1 range when you only know the
     /// spreadsheet id.
     pub async fn list_sheets<F, Fut>(
@@ -132,9 +154,7 @@ impl SheetsClient {
     /// Append rows at the bottom of a range (Sheets auto-extends).
     pub async fn append_values<F, Fut>(
         &self,
-        spreadsheet_id: &str,
-        range: &str,
-        values: &[Vec<serde_json::Value>],
+        write: ValueWrite<'_>,
         bearer: &str,
         refresh: F,
     ) -> Result<serde_json::Value, ConnectorError>
@@ -142,22 +162,29 @@ impl SheetsClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
+        let spreadsheet_id = write.spreadsheet_id;
         let url = format!(
             "{BASE}/{spreadsheet_id}/values/{}:append?valueInputOption=USER_ENTERED",
-            urlencode(range)
+            urlencode(write.range)
         );
-        let body = serde_json::json!({ "values": values });
+        let body = serde_json::json!({ "values": write.values });
         self.http
-            .json_request(Method::POST, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
     /// Update values inside an existing range (overwrites existing cells).
     pub async fn update_values<F, Fut>(
         &self,
-        spreadsheet_id: &str,
-        range: &str,
-        values: &[Vec<serde_json::Value>],
+        write: ValueWrite<'_>,
         bearer: &str,
         refresh: F,
     ) -> Result<serde_json::Value, ConnectorError>
@@ -165,13 +192,22 @@ impl SheetsClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
+        let spreadsheet_id = write.spreadsheet_id;
         let url = format!(
             "{BASE}/{spreadsheet_id}/values/{}?valueInputOption=USER_ENTERED",
-            urlencode(range)
+            urlencode(write.range)
         );
-        let body = serde_json::json!({ "values": values });
+        let body = serde_json::json!({ "values": write.values });
         self.http
-            .json_request(Method::PUT, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::PUT,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 }

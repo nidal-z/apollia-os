@@ -1,15 +1,15 @@
-//! ProfileInterface — Python-facing proxy for the global user profile.
+//! ProfileInterface: Python-facing proxy for the global user profile.
 //!
 //! Exposes `#[pyclass]` accessors that agents use via:
 //!
 //! ```python
-//! await ctx.profile.set("name", "Nidal")
+//! await ctx.profile.set("name", "Ada")
 //! ctx.profile.get("role")
 //! ctx.profile.all()
 //! ctx.profile.has("agents.hitl")
 //! ```
 //!
-//! Reads are always available — every agent can recall the profile through
+//! Reads are always available: every agent can recall the profile through
 //! the `__user__` namespace.  Writes are gated by the manifest's
 //! `user_memory_write` field, matching the rule that already governs
 //! [`crate::memory::MemoryInterface::remember_user`].
@@ -36,7 +36,7 @@ pub struct ProfileInterface {
     /// non-onboarding agents.  Onboarding agent writes use
     /// [`WrittenBy::Onboarding`] regardless of the agent name.
     agent_name: String,
-    /// `true` when this interface represents the onboarding agent — writes are
+    /// `true` when this interface represents the onboarding agent; writes are
     /// tagged [`WrittenBy::Onboarding`].
     is_onboarding: bool,
 }
@@ -187,8 +187,8 @@ impl ProfileInterface {
     /// Constructs a profile interface for the runtime context.
     ///
     /// `user_memory_writable` mirrors the manifest's `user_memory_write`
-    /// field.  `is_onboarding` tags writes with [`WrittenBy::Onboarding`]
-    /// — set this to `true` only for the onboarding agent.
+    /// field.  `is_onboarding` tags writes with [`WrittenBy::Onboarding`];
+    /// set this to `true` only for the onboarding agent.
     pub fn new(
         user_manager: MemoryManager,
         agent_name: String,
@@ -205,7 +205,7 @@ impl ProfileInterface {
 }
 
 // ---------------------------------------------------------------------------
-// Pure Rust internals — testable without PyO3
+// Pure Rust internals, testable without PyO3
 // ---------------------------------------------------------------------------
 
 fn lock_manager(

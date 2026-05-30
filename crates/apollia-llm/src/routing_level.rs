@@ -1,31 +1,31 @@
-//! Niveau de routing LLM — distingue raisonnement profond et extraction légère.
+//! LLM routing level: separates deep reasoning from light extraction.
 //!
-//! [`LlmRoutingLevel`] encode le tradeoff coût/latence/qualité en deux catégories
-//! directement déductibles des scaling laws (Kaplan et al., 2020).
-//! Utilisé par [`crate::router::LlmRouter::route_precise`] et
-//! [`crate::router::LlmRouter::route_fast`] pour sélectionner le backend approprié.
+//! [`LlmRoutingLevel`] encodes the cost/latency/quality tradeoff into two
+//! categories directly derivable from the scaling laws (Kaplan et al., 2020).
+//! Used by [`crate::router::LlmRouter::route_precise`] and
+//! [`crate::router::LlmRouter::route_fast`] to select the right backend.
 
-/// Niveau de routing LLM par type de tâche.
+/// LLM routing level by task type.
 ///
-/// Issu du tradeoff coût/latence/qualité documenté dans les scaling laws
-/// (Kaplan et al., 2020, "Scaling Laws for Neural Language Models").
-/// Les deux niveaux correspondent aux deux axes naturels d'utilisation des LLMs :
-/// raisonnement profond vs extraction déterministe.
+/// Derived from the cost/latency/quality tradeoff documented in the scaling
+/// laws (Kaplan et al., 2020, "Scaling Laws for Neural Language Models").
+/// The two levels match the two natural axes of LLM use: deep reasoning vs
+/// deterministic extraction.
 ///
-/// Utilisé pour sélectionner le backend via
-/// [`LlmRouter::route_precise`](crate::router::LlmRouter::route_precise) et
+/// Used to select the backend via
+/// [`LlmRouter::route_precise`](crate::router::LlmRouter::route_precise) and
 /// [`LlmRouter::route_fast`](crate::router::LlmRouter::route_fast).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LlmRoutingLevel {
-    /// Tâches de raisonnement : planification, analyse complexe, jugement.
+    /// Reasoning tasks: planning, complex analysis, judgment.
     ///
-    /// Privilégie la qualité au détriment du coût et de la latence.
-    /// Configurable via `[llm.routing] precise` dans `apollia.toml`.
+    /// Favors quality at the expense of cost and latency.
+    /// Configurable via `[llm.routing] precise` in `apollia.toml`.
     Precise,
 
-    /// Tâches d'extraction : métadonnées, résumés courts, classification, parsing.
+    /// Extraction tasks: metadata, short summaries, classification, parsing.
     ///
-    /// Privilégie la vitesse et le coût au détriment de la nuance.
-    /// Configurable via `[llm.routing] fast` dans `apollia.toml`.
+    /// Favors speed and cost at the expense of nuance.
+    /// Configurable via `[llm.routing] fast` in `apollia.toml`.
     Fast,
 }

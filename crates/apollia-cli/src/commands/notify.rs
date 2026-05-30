@@ -1,9 +1,9 @@
-//! `apollia-os notify` subcommands — notification channel management.
+//! `apollia-os notify` subcommands: notification channel management.
 //!
-//! Fournit les sous-commandes `test`, `list` et `logs` pour vérifier les canaux
-//! de notification configurés et consulter l'historique des alertes.
+//! Provides the `test`, `list`, and `logs` sub-commands to check the
+//! configured notification channels and review the alert history.
 //!
-//! Pattern noun-verb cohérent avec `trigger`, `agent`, `task` (ADR-008).
+//! Noun-verb pattern, consistent with `trigger`, `agent`, and `task`.
 
 use std::path::PathBuf;
 
@@ -118,11 +118,13 @@ pub async fn run(cmd: &NotifyCommand, socket: Option<PathBuf>, json: bool) -> i3
         } => {
             run_create(
                 &client,
-                kind,
-                url.as_deref(),
-                id.as_deref(),
-                label.as_deref(),
-                !*disabled,
+                CreateArgs {
+                    kind,
+                    url: url.as_deref(),
+                    id: id.as_deref(),
+                    label: label.as_deref(),
+                    enabled: !*disabled,
+                },
                 json,
             )
             .await
@@ -139,10 +141,10 @@ pub async fn run(cmd: &NotifyCommand, socket: Option<PathBuf>, json: bool) -> i3
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-/// `apollia-os notify test` — envoi d'une notification de test sur tous les canaux actifs.
+/// `apollia-os notify test`: send a test notification to every active channel.
 ///
-/// Exit code 0 si tous les canaux actifs réussissent.
-/// Exit code 1 si au moins un canal actif échoue.
+/// Exit code 0 when every active channel succeeds.
+/// Exit code 1 when at least one active channel fails.
 async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.post("/api/v1/notifications/test", None).await {
         Ok(r) => r,
@@ -168,7 +170,6 @@ async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
         .unwrap_or_default();
 
     if json {
-        // JSON structuré
         let output = serde_json::json!(results);
         match serde_json::to_string_pretty(&output) {
             Ok(s) => println!("{s}"),
@@ -181,7 +182,7 @@ async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
         format_test_results(&results);
     }
 
-    // exit code 1 si au moins un canal actif est en erreur
+    // exit code 1 when at least one active channel is in error
     let has_error = results.iter().any(|r| {
         r.get("status")
             .and_then(|s| s.as_str())
@@ -196,7 +197,7 @@ async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os notify list` — liste des canaux configurés.
+/// `apollia-os notify list`: list the configured channels.
 async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.get("/api/v1/notifications/channels").await {
         Ok(r) => r,
@@ -233,7 +234,7 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os notify logs [--last N]` — historique des notifications récentes.
+/// `apollia-os notify logs [--last N]`: recent notification history.
 async fn run_logs(client: &RuntimeClient, last: usize, json: bool) -> i32 {
     let uri = format!("/api/v1/notifications/logs?last={last}");
     let resp = match client.get(&uri).await {
@@ -276,7 +277,7 @@ async fn run_logs(client: &RuntimeClient, last: usize, json: bool) -> i32 {
 /// Format `notify test` results as a human-readable list.
 ///
 /// Each line shows a check/cross mark, the channel ID, and the status detail.
-/// Disabled channels are shown with `✗` and the label `désactivé`.
+/// Disabled channels are shown with `✗` and a `disabled` label.
 fn format_test_results(results: &[serde_json::Value]) {
     if results.is_empty() {
         println!("  (no channels configured)");
@@ -416,21 +417,28 @@ fn format_log_entries(resp: &serde_json::Value) {
     }
 }
 
-/// `apollia-os notify create --kind <type>` — créer un canal de notification.
+/// `apollia-os notify create --kind <type>`: create a notification channel.
 ///
-/// Builds the `CreateChannelRequest` body the runtime expects
-/// (`routes_notifications.rs:37`): `{ id, label?, channel_type, enabled,
-/// config }`. The kind-specific config slot is populated from `--url` for
-/// webhook channels; desktop channels carry an empty config.
-async fn run_create(
-    client: &RuntimeClient,
-    kind: &str,
-    url: Option<&str>,
-    id: Option<&str>,
-    label: Option<&str>,
+/// Builds the `CreateChannelRequest` body the runtime expects: `{ id, label?,
+/// channel_type, enabled, config }`. The kind-specific config slot is populated
+/// from `--url` for webhook channels; desktop channels carry an empty config.
+/// Fields supplied to `apollia-os notify create`.
+struct CreateArgs<'a> {
+    kind: &'a str,
+    url: Option<&'a str>,
+    id: Option<&'a str>,
+    label: Option<&'a str>,
     enabled: bool,
-    json: bool,
-) -> i32 {
+}
+
+async fn run_create(client: &RuntimeClient, args: CreateArgs<'_>, json: bool) -> i32 {
+    let CreateArgs {
+        kind,
+        url,
+        id,
+        label,
+        enabled,
+    } = args;
     // Webhook requires `url`; fail fast with a clear message rather than
     // letting the runtime return a generic 422.
     if kind == "webhook" && url.is_none() {
@@ -497,11 +505,11 @@ async fn run_create(
     }
 }
 
-/// `apollia-os notify update <id>` — mettre à jour un canal de notification.
+/// `apollia-os notify update <id>`: update a notification channel.
 ///
 /// Maps `--url` (kind-specific config) to `config.url`, and leaves all
 /// untouched fields absent so the runtime preserves them
-/// (`UpdateChannelRequest` merge semantics, `routes_notifications.rs:63`).
+/// (`UpdateChannelRequest` merge semantics).
 async fn run_update_channel(
     client: &RuntimeClient,
     id: &str,
@@ -542,7 +550,7 @@ async fn run_update_channel(
     }
 }
 
-/// `apollia-os notify delete <id> [--confirm]` — supprimer un canal de notification.
+/// `apollia-os notify delete <id> [--confirm]`: delete a notification channel.
 async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
         if json {
@@ -582,7 +590,7 @@ async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, jso
     }
 }
 
-/// `apollia-os notify events get|set` — gérer les types d'événements.
+/// `apollia-os notify events get|set`: manage event types.
 async fn run_events(client: &RuntimeClient, command: &NotifyEventsCommand, json: bool) -> i32 {
     match command {
         NotifyEventsCommand::Get => run_events_get(client, json).await,
@@ -590,7 +598,7 @@ async fn run_events(client: &RuntimeClient, command: &NotifyEventsCommand, json:
     }
 }
 
-/// `apollia-os notify events get` — afficher les types d'événements configurés.
+/// `apollia-os notify events get`: show the configured event types.
 async fn run_events_get(client: &RuntimeClient, json: bool) -> i32 {
     match client.get_notification_events().await {
         Ok(resp) => {
@@ -620,7 +628,7 @@ async fn run_events_get(client: &RuntimeClient, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os notify events set <event,...>` — modifier les types d'événements.
+/// `apollia-os notify events set <event,...>`: change the event types.
 async fn run_events_set(client: &RuntimeClient, events: &[String], json: bool) -> i32 {
     let body = serde_json::json!({ "events": events });
     match client.set_notification_events(&body).await {
@@ -699,7 +707,7 @@ mod tests {
 
     use super::*;
 
-    /// CLI minimal pour tester le parsing des sous-commandes notify.
+    /// Minimal CLI to test parsing of the notify sub-commands.
     #[derive(Debug, Parser)]
     struct TestCli {
         #[command(subcommand)]
@@ -730,7 +738,7 @@ mod tests {
         assert!(matches!(cli.command, NotifyCommand::List));
     }
 
-    // GIVEN "logs" sans --last
+    // GIVEN "logs" without --last
     // WHEN parse
     // THEN NotifyCommand::Logs { last: 20 }
     #[test]
@@ -760,8 +768,8 @@ mod tests {
 
     // ── format_test_results all OK → exit 0 logic ─────────────────────
 
-    // GIVEN deux canaux actifs en succès
-    // WHEN has_error est calculé
+    // GIVEN two active channels that both succeed
+    // WHEN has_error is computed
     // THEN false → exit code 0
     #[test]
     fn test_ac1_all_ok_no_error_flag() {
@@ -781,10 +789,10 @@ mod tests {
         assert!(!has_error, "all OK → no error flag");
     }
 
-    // ── un canal en erreur → exit 1 logic ──────────────────────────────
+    // ── one channel in error → exit 1 logic ──────────────────────────────
 
-    // GIVEN un canal en erreur
-    // WHEN has_error est calculé
+    // GIVEN one channel in error
+    // WHEN has_error is computed
     // THEN true → exit code 1
     #[test]
     fn test_ac2_one_error_sets_flag() {
@@ -804,11 +812,11 @@ mod tests {
         assert!(has_error, "one error → error flag set");
     }
 
-    // ── JSON ChannelTestResult désérialisable ──────────────────────────
+    // ── JSON ChannelTestResult deserializable ──────────────────────────
 
-    // GIVEN un JSON conforme à la spec
-    // WHEN désérialisé en ChannelTestResult
-    // THEN tous les champs sont corrects
+    // GIVEN a spec-conformant JSON
+    // WHEN deserialized into ChannelTestResult
+    // THEN all fields are correct
     #[test]
     fn test_ac5_notify_test_json_structure() {
         // GIVEN
@@ -834,7 +842,7 @@ mod tests {
 
     // GIVEN "create --kind webhook --url https://hooks.example.com"
     // WHEN parse
-    // THEN NotifyCommand::Create avec les bons champs
+    // THEN NotifyCommand::Create with the expected fields
     #[test]
     fn test_notify_create_webhook_parses() {
         // GIVEN / WHEN
@@ -881,7 +889,7 @@ mod tests {
 
     // GIVEN "update ch-01 --url https://new.example.com"
     // WHEN parse
-    // THEN NotifyCommand::Update avec les bons champs
+    // THEN NotifyCommand::Update with the expected fields
     #[test]
     fn test_notify_update_parses() {
         // GIVEN / WHEN

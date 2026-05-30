@@ -1,4 +1,4 @@
-//! Microsoft 365 connector — implements [`Connector`](crate::trait_def::Connector).
+//! Microsoft 365 connector, implements [`Connector`](crate::trait_def::Connector).
 //!
 //! Composes the Outlook Mail / Calendar / OneDrive sub-clients into a single
 //! connector. Microsoft Graph has no CASA-like restriction, so the v0.1.0

@@ -1,13 +1,13 @@
-//! `apollia-os tools` — gouvernance locale des outils natifs.
+//! `apollia-os tools`: local governance of the native tools.
 //!
-//! Cette sous-commande opère directement sur la base `governance.db` et le
-//! fichier `apollia.toml` du poste, sans passer par le runtime. Les commandes
-//! sont sûres même quand le daemon n'est pas démarré ; le runtime relit le
-//! snapshot de gouvernance à chaque exécution d'agent (cf.
+//! This subcommand operates directly on the `governance.db` database and the
+//! machine's `apollia.toml` file, without going through the runtime. The
+//! commands are safe even when the daemon is not started; the runtime rereads
+//! the governance snapshot on every agent run (see
 //! [`apollia_tools::load_governance_snapshot`]).
 //!
-//! `describe` reste exposée pour interroger le catalogue de descripteurs via
-//! `GET /api/v1/tools/<name>` quand le runtime tourne.
+//! `describe` remains exposed to query the descriptor catalogue via
+//! `GET /api/v1/tools/<name>` when the runtime is running.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -128,7 +128,7 @@ pub enum ToolsCredentialsCmd {
     },
 }
 
-/// Exécute une sous-commande `tools`.
+/// Execute a `tools` subcommand.
 pub async fn run(cmd: &ToolsCommand, socket: Option<PathBuf>, json: bool) -> i32 {
     match cmd {
         ToolsCommand::List => run_list(json),
@@ -156,6 +156,46 @@ async fn run_approvals(socket: Option<PathBuf>, cmd: &ToolsApprovalsCmd, json: b
     }
 }
 
+/// Emit a non-success HTTP response (status >= 400) and return its exit code.
+fn emit_approvals_http_error(resp: &crate::client::RawResponse, json: bool) -> i32 {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({"error": resp.body}))
+                .unwrap_or_default()
+        );
+    } else {
+        eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
+    }
+    exit_codes::GENERAL_ERROR
+}
+
+/// Emit a client transport error and return its exit code.
+fn emit_approvals_client_error(err: &ClientError, json: bool) -> i32 {
+    match err {
+        ClientError::ConnectionRefused => {
+            if json {
+                println!("{{\"error\":\"runtime not started\"}}");
+            } else {
+                eprintln!("Error: runtime not started");
+            }
+            exit_codes::RUNTIME_ERROR
+        }
+        e => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({"error": e.to_string()}))
+                        .unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: {e}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
 async fn run_approvals_pending(client: &RuntimeClient, json: bool) -> i32 {
     match client.get("/api/v1/approvals/pending").await {
         Ok(resp) if resp.status < 400 => {
@@ -169,38 +209,8 @@ async fn run_approvals_pending(client: &RuntimeClient, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
-        Ok(resp) => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": resp.body}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-            }
-            exit_codes::GENERAL_ERROR
-        }
-        Err(ClientError::ConnectionRefused) => {
-            if json {
-                println!("{{\"error\":\"runtime not started\"}}");
-            } else {
-                eprintln!("Error: runtime not started");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        Err(e) => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": e.to_string()}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {e}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Ok(resp) => emit_approvals_http_error(&resp, json),
+        Err(e) => emit_approvals_client_error(&e, json),
     }
 }
 
@@ -218,38 +228,8 @@ async fn run_approvals_resolved(client: &RuntimeClient, days: u32, limit: u32, j
             }
             exit_codes::SUCCESS
         }
-        Ok(resp) => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": resp.body}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
-            }
-            exit_codes::GENERAL_ERROR
-        }
-        Err(ClientError::ConnectionRefused) => {
-            if json {
-                println!("{{\"error\":\"runtime not started\"}}");
-            } else {
-                eprintln!("Error: runtime not started");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        Err(e) => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({"error": e.to_string()}))
-                        .unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {e}");
-            }
-            exit_codes::GENERAL_ERROR
-        }
+        Ok(resp) => emit_approvals_http_error(&resp, json),
+        Err(e) => emit_approvals_client_error(&e, json),
     }
 }
 
@@ -1090,7 +1070,7 @@ fn load_tools_config(json: bool) -> ToolsConfig {
     }
 }
 
-/// Recherche `apollia.toml` dans le répertoire courant puis `~/.config/apollia/`.
+/// Looks for `apollia.toml` in the current directory, then `~/.config/apollia/`.
 fn find_config_path() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;
     let local = cwd.join("apollia.toml");
@@ -1106,8 +1086,8 @@ fn find_config_path() -> Option<PathBuf> {
     }
 }
 
-/// Renvoie un chemin où écrire la config : préfère un fichier existant, sinon
-/// `~/.config/apollia/apollia.toml` (créé à la volée si nécessaire).
+/// Returns a path to write the config to: prefers an existing file, otherwise
+/// `~/.config/apollia/apollia.toml` (created on the fly if needed).
 fn resolve_writable_config_path() -> Result<PathBuf, i32> {
     if let Some(p) = find_config_path() {
         return Ok(p);
@@ -1148,9 +1128,9 @@ fn format_unix_date(ts: i64) -> String {
 fn handle_client_error(err: ClientError, json: bool) -> i32 {
     match err {
         ClientError::ConnectionRefused => {
-            // Daemon-off is exit 2 per ADR-008 — distinct from generic
-            // failures (exit 1). `emit_error` returns GENERAL_ERROR, so we
-            // emit the message ourselves and override the return code here.
+            // Daemon-off is exit 2, distinct from generic failures (exit 1).
+            // `emit_error` returns GENERAL_ERROR, so we emit the message
+            // ourselves and override the return code here.
             if json {
                 let out =
                     serde_json::json!({"error": "runtime not started (connection refused)"});
@@ -1189,16 +1169,16 @@ mod tests {
 
     #[test]
     fn parse_value_for_web_search_backend_ok() {
-        // GIVEN une valeur de backend acceptée.
-        // WHEN parse_value_for est appelé.
+        // GIVEN an accepted backend value.
+        // WHEN parse_value_for is called.
         let v = parse_value_for("web_search", &["backend"], "duckduckgo").expect("parse");
-        // THEN la valeur TOML est bien la chaîne attendue.
+        // THEN the TOML value is the expected string.
         assert_eq!(v.as_str(), Some("duckduckgo"));
     }
 
     #[test]
     fn parse_value_for_unknown_key_returns_help() {
-        // GIVEN une clé inconnue.
+        // GIVEN an unknown key.
         let err = parse_value_for("web_search", &["plouf"], "x").unwrap_err();
         // THEN the message lists the valid keys.
         assert!(err.contains("valid keys"));
@@ -1206,25 +1186,25 @@ mod tests {
 
     #[test]
     fn parse_value_for_int_bounds_enforced() {
-        // GIVEN un entier hors borne pour brave.timeout_secs.
+        // GIVEN an out-of-range integer for brave.timeout_secs.
         let err = parse_value_for("web_search", &["brave", "timeout_secs"], "999").unwrap_err();
-        // THEN bornes signalées.
+        // THEN the bounds are reported.
         assert!(err.contains("hors bornes"));
     }
 
     #[test]
     fn config_set_writes_toml_section() {
-        // GIVEN un fichier TOML vide.
+        // GIVEN an empty TOML file.
         let dir = TempDir::new().expect("tempdir");
         let path = write_toml(&dir, "");
 
-        // WHEN on injecte tools.web_search.backend = "duckduckgo".
+        // WHEN we inject tools.web_search.backend = "duckduckgo".
         let mut doc: DocumentMut = "".parse().expect("empty parse");
         let value = parse_value_for("web_search", &["backend"], "duckduckgo").expect("parse");
         set_nested_value(&mut doc, &["tools", "web_search"], &["backend"], value);
         std::fs::write(&path, doc.to_string()).expect("write");
 
-        // THEN le fichier contient la section attendue.
+        // THEN the file contains the expected section.
         let read = std::fs::read_to_string(&path).expect("read");
         assert!(read.contains("[tools.web_search]"));
         assert!(read.contains("backend = \"duckduckgo\""));
@@ -1232,22 +1212,22 @@ mod tests {
 
     #[test]
     fn known_tool_check_recognizes_native_set() {
-        // GIVEN le set NATIVE_TOOL_NAMES.
-        // THEN bash_executor est connu, mais "fake_tool" non.
+        // GIVEN the NATIVE_TOOL_NAMES set.
+        // THEN bash_executor is known, but "fake_tool" is not.
         assert!(is_known_tool("bash_executor"));
         assert!(!is_known_tool("fake_tool"));
     }
 
     #[test]
     fn list_includes_all_native_tools_via_registry() {
-        // GIVEN un data_dir frais.
+        // GIVEN a fresh data_dir.
         let dir = TempDir::new().expect("tempdir");
         apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
         let reg = NativeToolRegistry::new(&dir.path().join(GOVERNANCE_DB_FILENAME))
             .expect("open registry");
-        // WHEN on liste.
+        // WHEN we list.
         let entries = reg.list().expect("list");
-        // THEN tous les outils natifs sont présents.
+        // THEN all native tools are present.
         for native in NATIVE_TOOL_NAMES {
             assert!(
                 entries.iter().any(|e| e.name == *native),
@@ -1258,22 +1238,22 @@ mod tests {
 
     #[test]
     fn disable_then_enable_roundtrip() {
-        // GIVEN un registre frais.
+        // GIVEN a fresh registry.
         let dir = TempDir::new().expect("tempdir");
         apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
         let mut reg = NativeToolRegistry::new(&dir.path().join(GOVERNANCE_DB_FILENAME))
             .expect("open registry");
-        // WHEN on désactive puis réactive bash_executor.
+        // WHEN we disable then re-enable bash_executor.
         reg.set_enabled("bash_executor", false).expect("disable");
         assert!(!reg.is_enabled("bash_executor").expect("read"));
         reg.set_enabled("bash_executor", true).expect("enable");
-        // THEN l'outil est de nouveau actif.
+        // THEN the tool is active again.
         assert!(reg.is_enabled("bash_executor").expect("read"));
     }
 
     #[test]
     fn credential_set_then_list_masks_value() {
-        // GIVEN un store frais avec une credential.
+        // GIVEN a fresh store with one credential.
         let dir = TempDir::new().expect("tempdir");
         apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
         let mut store = ToolCredentialStore::new(
@@ -1284,9 +1264,9 @@ mod tests {
         store
             .set("web_search", "brave.api_key", "BSA-test")
             .expect("set");
-        // WHEN on liste les entrées.
+        // WHEN we list the entries.
         let entries = store.list(None).expect("list");
-        // THEN une entrée existe sans exposer la valeur claire.
+        // THEN one entry exists without exposing the cleartext value.
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].tool_name, "web_search");
         assert_eq!(entries[0].key_name, "brave.api_key");
@@ -1294,9 +1274,9 @@ mod tests {
 
     #[test]
     fn backend_label_reflects_config() {
-        // GIVEN une config par défaut (auto).
+        // GIVEN a default config (auto).
         let cfg = ToolsConfig::default();
-        // THEN web_search affiche "DuckDuckGo (auto)".
+        // THEN web_search shows "DuckDuckGo (auto)".
         assert_eq!(backend_label("web_search", &cfg), "DuckDuckGo (auto)");
         assert_eq!(backend_label("file_read", &cfg), "—");
     }

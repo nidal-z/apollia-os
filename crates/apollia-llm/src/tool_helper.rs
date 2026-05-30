@@ -1,6 +1,6 @@
-//! `ToolCallHelper` — boucle ReAct automatique avec exécution d'outils.
+//! `ToolCallHelper`, automatic ReAct loop with tool execution.
 //!
-//! Orchestre les appels LLM successifs et l'invocation du [`ToolInvoker`].
+//! Orchestrates the successive LLM calls and the [`ToolInvoker`] invocation.
 
 use std::sync::{
     atomic::{AtomicU32, Ordering},
@@ -12,14 +12,11 @@ use crate::types::{
     ChatMessage, CompletionModel, CompletionRequest, FinishReason, LlmError, ToolSpec,
 };
 
-// ─────────────────────────────────────────────
-// StepBudgetView
-// ─────────────────────────────────────────────
-
-/// Vue read-only du `StepBudget` exposée à la boucle ReAct et à `ctx.step_budget`.
+/// Read-only view of the `StepBudget` exposed to the ReAct loop and to
+/// `ctx.step_budget`.
 ///
-/// Partagée via `Arc<AtomicU32>` avec le budget mutable du runtime.
-/// Aucune mutation n'est possible depuis cette vue.
+/// Shared via `Arc<AtomicU32>` with the runtime's mutable budget. No mutation
+/// is possible from this view.
 pub struct StepBudgetView {
     step_count: Arc<AtomicU32>,
     step_limit: u32,
@@ -29,10 +26,10 @@ pub struct StepBudgetView {
 }
 
 impl StepBudgetView {
-    /// Crée une vue à partir d'un compteur atomique partagé et d'une limite.
+    /// Create a view from a shared atomic counter and a limit.
     ///
-    /// `tool_calls_count` et `max_tool_calls` défaut à 0 / `u32::MAX`.
-    /// `started_at` est initialisé à maintenant.
+    /// `tool_calls_count` and `max_tool_calls` default to 0 / `u32::MAX`.
+    /// `started_at` is initialized to now.
     pub fn new(step_count: Arc<AtomicU32>, step_limit: u32) -> Self {
         Self {
             step_count,
@@ -43,7 +40,7 @@ impl StepBudgetView {
         }
     }
 
-    /// Crée une vue avec tracking complet des tool calls et du temps écoulé.
+    /// Create a view with full tracking of tool calls and elapsed time.
     pub fn with_tool_tracking(
         step_count: Arc<AtomicU32>,
         step_limit: u32,
@@ -60,7 +57,7 @@ impl StepBudgetView {
         }
     }
 
-    /// Crée une vue sans limite de budget — pour les tests unitaires.
+    /// Create a view with no budget limit, for unit tests.
     pub fn unlimited() -> Self {
         Self {
             step_count: Arc::new(AtomicU32::new(0)),
@@ -71,53 +68,49 @@ impl StepBudgetView {
         }
     }
 
-    /// Retourne `true` si le budget de steps a été épuisé.
+    /// Return `true` if the step budget has been exhausted.
     pub fn is_exhausted(&self) -> bool {
         self.step_count.load(Ordering::Relaxed) >= self.step_limit
     }
 
-    /// Steps restants avant d'atteindre la limite.
+    /// Steps remaining before reaching the limit.
     ///
-    /// Retourne 0 si le budget est déjà épuisé (pas de valeur négative).
+    /// Returns 0 if the budget is already exhausted (no negative value).
     pub fn steps_remaining(&self) -> i64 {
         let used = self.step_count.load(Ordering::Relaxed) as i64;
         let limit = self.step_limit as i64;
         (limit - used).max(0)
     }
 
-    /// Appels outils restants avant d'atteindre `max_tool_calls`.
+    /// Tool calls remaining before reaching `max_tool_calls`.
     ///
-    /// Retourne 0 si épuisé. Retourne `i64::MAX` si non limité (`max_tool_calls = u32::MAX`).
+    /// Returns 0 if exhausted. Returns `i64::MAX` if unlimited (`max_tool_calls = u32::MAX`).
     pub fn tool_calls_remaining(&self) -> i64 {
         let used = self.tool_calls_count.load(Ordering::Relaxed) as i64;
         let max = self.max_tool_calls as i64;
         (max - used).max(0)
     }
 
-    /// Secondes écoulées depuis le démarrage du budget.
+    /// Seconds elapsed since the budget started.
     pub fn elapsed_secs(&self) -> f64 {
         self.started_at.elapsed().as_secs_f64()
     }
 }
 
-// ─────────────────────────────────────────────
-// ToolInvoker trait
-// ─────────────────────────────────────────────
-
-/// Abstraction pour l'invocation d'outils depuis la boucle ReAct.
+/// Abstraction for tool invocation from the ReAct loop.
 ///
-/// Pattern ADR-015 : dépendance via trait, pas via type concret.
-/// Cela évite toute dépendance directe de `apollia-llm` vers `apollia-tools`
-/// et permet l'injection d'un mock en test.
+/// Dependency via a trait, not a concrete type. This avoids any direct
+/// dependency from `apollia-llm` to `apollia-tools` and allows injecting a
+/// mock in tests.
 ///
-/// L'implémentation concrète wrappant `ToolRegistryHandle` est créée.
+/// The concrete implementation wraps `ToolRegistryHandle`.
 #[async_trait::async_trait]
 pub trait ToolInvoker: Send + Sync {
-    /// Invoque un outil par son nom avec les arguments JSON fournis.
+    /// Invoke a tool by name with the provided JSON arguments.
     ///
-    /// Retourne `Ok(résultat)` sous forme de chaîne ou `Err(description)`.
-    /// Les erreurs sont absorbées par [`ToolCallHelper`] comme résultats texte —
-    /// elles ne sont jamais fatales pour la boucle.
+    /// Returns `Ok(result)` as a string or `Err(description)`. Errors are
+    /// absorbed by [`ToolCallHelper`] as text results; they are never fatal to
+    /// the loop.
     async fn invoke(
         &self,
         tool_name: &str,
@@ -125,41 +118,37 @@ pub trait ToolInvoker: Send + Sync {
     ) -> Result<String, String>;
 }
 
-// ─────────────────────────────────────────────
-// ToolCallHelper
-// ─────────────────────────────────────────────
-
-/// Orchestre la boucle ReAct : LLM → outil(s) → LLM → ... → réponse finale.
+/// Orchestrates the ReAct loop: LLM, tool(s), LLM, ..., final answer.
 ///
-/// Applique deux garde-fous non-négociables (Principe #7) :
-/// - `max_iters` : nombre maximal d'appels LLM avant [`LlmError::MaxIterationsReached`]
-/// - [`StepBudgetView`] : budget d'agent vérifié en premier à chaque itération
+/// Applies two non-negotiable guardrails:
+/// - `max_iters`: maximum number of LLM calls before [`LlmError::MaxIterationsReached`]
+/// - [`StepBudgetView`]: agent budget checked first on every iteration
 ///
-/// Principe #5 — Un acteur, une responsabilité : `ToolCallHelper` orchestre
-/// mais n'exécute pas directement les outils (délégué au [`ToolInvoker`]).
+/// One actor, one responsibility: `ToolCallHelper` orchestrates but does not
+/// execute tools directly (that is delegated to the [`ToolInvoker`]).
 pub struct ToolCallHelper {
     model: Arc<dyn CompletionModel>,
     invoker: Arc<dyn ToolInvoker>,
 }
 
 impl ToolCallHelper {
-    /// Crée un `ToolCallHelper` à partir d'un backend LLM et d'un invoqueur d'outils.
+    /// Create a `ToolCallHelper` from an LLM backend and a tool invoker.
     pub fn new(model: Arc<dyn CompletionModel>, invoker: Arc<dyn ToolInvoker>) -> Self {
         Self { model, invoker }
     }
 
-    /// Exécute la boucle ReAct complète.
+    /// Run the full ReAct loop.
     ///
-    /// Itère jusqu'à [`FinishReason::Stop`] ou épuisement d'un garde-fou.
-    /// Les tool_calls sont exécutés séquentiellement pour garantir l'ordre.
-    /// Les erreurs d'outil sont absorbées comme résultats texte (jamais fatales).
+    /// Iterates until [`FinishReason::Stop`] or until a guardrail is exhausted.
+    /// Tool calls are executed sequentially to guarantee ordering. Tool errors
+    /// are absorbed as text results (never fatal).
     ///
     /// # Errors
     ///
-    /// - [`LlmError::BudgetExceeded`] si le `StepBudget` est épuisé avant un appel LLM
-    /// - [`LlmError::MaxIterationsReached`] si la boucle dépasse `max_iters` itérations
-    /// - [`LlmError::MaxTokensReached`] si le LLM retourne [`FinishReason::Length`]
-    /// - [`LlmError::InferenceError`] si le LLM retourne [`FinishReason::Error`]
+    /// - [`LlmError::BudgetExceeded`] if the `StepBudget` is exhausted before an LLM call
+    /// - [`LlmError::MaxIterationsReached`] if the loop exceeds `max_iters` iterations
+    /// - [`LlmError::MaxTokensReached`] if the LLM returns [`FinishReason::Length`]
+    /// - [`LlmError::InferenceError`] if the LLM returns [`FinishReason::Error`]
     pub async fn run_tools(
         &self,
         mut messages: Vec<ChatMessage>,
@@ -168,7 +157,7 @@ impl ToolCallHelper {
         budget: &StepBudgetView,
     ) -> Result<String, LlmError> {
         for _iter in 0..max_iters {
-            // Principe #7 — garde-fou budget vérifié en première position
+            // Budget guardrail checked first.
             if budget.is_exhausted() {
                 return Err(LlmError::BudgetExceeded);
             }
@@ -214,10 +203,6 @@ impl ToolCallHelper {
     }
 }
 
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,7 +212,7 @@ mod tests {
 
     use futures::Stream;
 
-    // ── Helpers de budget ──────────────────────────────────────────────────
+    // ── Budget helpers ─────────────────────────────────────────────────────
 
     fn unlimited_budget() -> StepBudgetView {
         StepBudgetView::new(Arc::new(AtomicU32::new(0)), 100)
@@ -237,7 +222,7 @@ mod tests {
         StepBudgetView::new(Arc::new(AtomicU32::new(100)), 100)
     }
 
-    // ── Helpers de réponse ────────────────────────────────────────────────
+    // ── Response helpers ───────────────────────────────────────────────────
 
     fn stop_response(content: impl Into<String>) -> CompletionResponse {
         CompletionResponse {
@@ -271,7 +256,7 @@ mod tests {
         }
     }
 
-    // ── Mock CompletionModel : Stop immédiat ──────────────────────────────
+    // ── Mock CompletionModel: immediate Stop ──────────────────────────────
 
     struct MockStopModel {
         content: String,
@@ -310,7 +295,7 @@ mod tests {
         }
     }
 
-    // ── Mock CompletionModel : ToolCalls puis Stop ────────────────────────
+    // ── Mock CompletionModel: ToolCalls then Stop ─────────────────────────
 
     struct MockReActModel {
         calls: Vec<ToolCall>,
@@ -358,7 +343,7 @@ mod tests {
         }
     }
 
-    // ── Mock CompletionModel : toujours ToolCalls (infini) ────────────────
+    // ── Mock CompletionModel: always ToolCalls (infinite) ─────────────────
 
     struct MockInfiniteToolCallModel;
 
@@ -429,7 +414,7 @@ mod tests {
         }
     }
 
-    // ── Mock ToolInvoker qui échoue toujours ──────────────────────────────
+    // ── Mock ToolInvoker that always fails ────────────────────────────────
 
     struct MockFailingToolInvoker;
 
@@ -446,7 +431,7 @@ mod tests {
 
     // ── Tests ─────────────────────────────────────────────────────────────
 
-    /// LLM répond directement sans appel d'outil.
+    /// LLM answers directly with no tool call.
     #[tokio::test]
     async fn test_ac1_stop_immediately_no_tool_call() {
         // GIVEN
@@ -469,7 +454,7 @@ mod tests {
         assert_eq!(invoker.call_count(), 0);
     }
 
-    /// Boucle ReAct : LLM appelle 1 outil puis répond.
+    /// ReAct loop: LLM calls 1 tool then answers.
     #[tokio::test]
     async fn test_ac2_one_tool_call_then_stop() {
         // GIVEN
@@ -503,10 +488,10 @@ mod tests {
         assert_eq!(invoker.call_count(), 1);
     }
 
-    /// Garde-fou `max_iterations` respecté.
+    /// `max_iterations` guardrail enforced.
     #[tokio::test]
     async fn test_ac3_max_iterations_reached() {
-        // GIVEN — LLM retourne toujours ToolCalls
+        // GIVEN: the LLM always returns ToolCalls
         let model = Arc::new(MockInfiniteToolCallModel);
         let invoker = Arc::new(MockToolInvoker::new());
         let helper = ToolCallHelper::new(model, invoker);
@@ -523,7 +508,7 @@ mod tests {
         ));
     }
 
-    /// Garde-fou `StepBudget` respecté : aucun appel LLM si budget épuisé.
+    /// `StepBudget` guardrail enforced: no LLM call if the budget is exhausted.
     #[tokio::test]
     async fn test_ac4_budget_exhausted_stops_immediately() {
         // GIVEN
@@ -540,10 +525,10 @@ mod tests {
         assert!(matches!(result, Err(LlmError::BudgetExceeded)));
     }
 
-    /// Erreur d'outil absorbée comme texte, boucle continue.
+    /// Tool error absorbed as text, the loop continues.
     #[tokio::test]
     async fn test_ac5_tool_error_absorbed_as_text() {
-        // GIVEN — ToolInvoker retourne toujours une erreur
+        // GIVEN: the ToolInvoker always returns an error
         let model = Arc::new(MockReActModel::new(
             vec![ToolCall {
                 id: "c1".into(),
@@ -560,7 +545,7 @@ mod tests {
             .run_tools(vec![ChatMessage::user("q")], vec![], 5, &unlimited_budget())
             .await;
 
-        // THEN — l'erreur d'outil n'est pas fatale
+        // THEN: the tool error is not fatal
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "réponse malgré erreur");
     }

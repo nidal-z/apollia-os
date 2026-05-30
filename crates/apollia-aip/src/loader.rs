@@ -59,7 +59,7 @@ pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
 /// `sys.path` before importing.
 ///
 /// Used by the package installer to make the agent's per-package venv
-/// `site-packages` visible to the embedded Python interpreter — otherwise
+/// `site-packages` visible to the embedded Python interpreter; otherwise
 /// duck-typing fails with `ModuleNotFoundError` for any package the agent
 /// imports at top level (e.g. `matplotlib`, `openpyxl`).
 ///
@@ -106,7 +106,7 @@ pub fn load_agent_module_with_sys_paths(
         // Drop cached `apollia.*` modules so any update to the editable SDK
         // is picked up without restarting the daemon. Without this, a long-
         // running runtime would keep the version of `apollia.skills` that
-        // was first imported — and reject newer kwargs on subsequent loads.
+        // was first imported, and reject newer kwargs on subsequent loads.
         let sys_modules = sys
             .getattr("modules")
             .map_err(|e| AIPLoaderError::PythonError(format!("failed to get sys.modules: {e}")))?;

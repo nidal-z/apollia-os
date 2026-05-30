@@ -38,7 +38,7 @@ pub enum HttpFetchError {
         hostname: String,
     },
 
-    /// No `network_allowlist` was configured — all network access is denied.
+    /// No `network_allowlist` was configured; all network access is denied.
     #[error("no network_allowlist configured — all network access is denied")]
     NoAllowlist,
 
@@ -155,7 +155,7 @@ impl HttpFetch {
 
         let parsed_url = self.validate_url(&input.url)?;
 
-        // SSRF guard — must precede any network I/O. Runs after the allowlist
+        // SSRF guard: must precede any network I/O. Runs after the allowlist
         // check so an invalid configuration (`HostNotAllowed`) is reported
         // first; `Ssrf` only fires when the host *is* allowlisted but still
         // points at a private destination.
@@ -164,6 +164,51 @@ impl HttpFetch {
         }
 
         let timeout_secs = input.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
+
+        let builder = self.build_request(&parsed_url, &input, timeout_secs)?;
+
+        let response = builder.send().await.map_err(|e| {
+            if e.is_timeout() {
+                HttpFetchError::Timeout { timeout_secs }
+            } else {
+                HttpFetchError::RequestFailed(e.to_string())
+            }
+        })?;
+
+        let status = response.status().as_u16();
+
+        let resp_headers: HashMap<String, String> = response
+            .headers()
+            .iter()
+            .filter_map(|(name, value)| {
+                value
+                    .to_str()
+                    .ok()
+                    .map(|v| (name.to_string(), v.to_owned()))
+            })
+            .collect();
+
+        let body_bytes = Self::read_body(response, timeout_secs).await?;
+
+        let body = String::from_utf8_lossy(&body_bytes).into_owned();
+        let duration_ms = started.elapsed().as_millis() as u64;
+
+        Ok(HttpFetchOutput {
+            status,
+            headers: resp_headers,
+            body,
+            duration_ms,
+        })
+    }
+
+    /// Build the `reqwest` request for `input`, parsing the method and applying
+    /// the optional headers and body.
+    fn build_request(
+        &self,
+        parsed_url: &url::Url,
+        input: &HttpFetchInput,
+        timeout_secs: u64,
+    ) -> Result<reqwest::RequestBuilder, HttpFetchError> {
         let method_str = input.method.as_deref().unwrap_or("GET").to_uppercase();
 
         let method = reqwest::Method::from_bytes(method_str.as_bytes()).map_err(|_| {
@@ -188,34 +233,20 @@ impl HttpFetch {
             }
         }
 
-        if let Some(body) = input.body {
-            builder = builder.body(body);
+        if let Some(body) = &input.body {
+            builder = builder.body(body.clone());
         }
 
-        let response = builder.send().await.map_err(|e| {
-            if e.is_timeout() {
-                HttpFetchError::Timeout { timeout_secs }
-            } else {
-                HttpFetchError::RequestFailed(e.to_string())
-            }
-        })?;
+        Ok(builder)
+    }
 
-        let status = response.status().as_u16();
-
-        let resp_headers: HashMap<String, String> = response
-            .headers()
-            .iter()
-            .filter_map(|(name, value)| {
-                value
-                    .to_str()
-                    .ok()
-                    .map(|v| (name.to_string(), v.to_owned()))
-            })
-            .collect();
-
-        // Stream the body in chunks, aborting once MAX_RESPONSE_BYTES is exceeded.
+    /// Stream the response body in chunks, aborting once `MAX_RESPONSE_BYTES`
+    /// is exceeded.
+    async fn read_body(
+        mut response: reqwest::Response,
+        timeout_secs: u64,
+    ) -> Result<Vec<u8>, HttpFetchError> {
         let mut body_bytes: Vec<u8> = Vec::new();
-        let mut response = response;
         loop {
             match response.chunk().await {
                 Ok(Some(chunk)) => {
@@ -237,16 +268,7 @@ impl HttpFetch {
                 }
             }
         }
-
-        let body = String::from_utf8_lossy(&body_bytes).into_owned();
-        let duration_ms = started.elapsed().as_millis() as u64;
-
-        Ok(HttpFetchOutput {
-            status,
-            headers: resp_headers,
-            body,
-            duration_ms,
-        })
+        Ok(body_bytes)
     }
 
     /// Parse `url` and validate its hostname against the allowlist.
@@ -370,7 +392,7 @@ mod tests {
     use tokio::net::TcpListener;
 
     // ---------------------------------------------------------------------------
-    // Helpers — minimal in-process HTTP/1.1 mock servers
+    // Helpers: minimal in-process HTTP/1.1 mock servers
     // ---------------------------------------------------------------------------
 
     /// Bind a TCP listener on 127.0.0.1:0 and return it alongside the allocated port.
@@ -436,7 +458,7 @@ mod tests {
 
     #[tokio::test]
     async fn fetch_disallowed_host_errors_before_io() {
-        // GIVEN: allowlist = ["safe.example.com"] — no server bound (would timeout if reached)
+        // GIVEN: allowlist = ["safe.example.com"], no server bound (would timeout if reached)
         let tool = HttpFetch::new(Some(vec!["safe.example.com".to_string()]));
 
         // WHEN
@@ -693,7 +715,7 @@ mod tests {
     #[tokio::test]
     async fn ssrf_blocks_metadata_endpoint() {
         // GIVEN: allowlist permits the AWS metadata link-local IP. SSRF must
-        // still slam the door — this is the canonical cloud-credential
+        // still slam the door: this is the canonical cloud-credential
         // exfiltration vector.
         let tool = HttpFetch::new(Some(vec!["169.254.169.254".to_string()]));
 

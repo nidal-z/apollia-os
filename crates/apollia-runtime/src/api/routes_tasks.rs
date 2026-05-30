@@ -1,4 +1,4 @@
-//! REST routes for task management — POST/GET/DELETE/resume `/api/v1/tasks`.
+//! REST routes for task management, POST/GET/DELETE/resume `/api/v1/tasks`.
 //!
 //! These routes are the core API surface for submitting, querying, canceling,
 //! and resuming agent tasks. They delegate to [`TaskRouterHandle`] for dispatch
@@ -275,18 +275,18 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ResumeHandler — POST /api/v1/tasks/{id}/resume
+// ResumeHandler, POST /api/v1/tasks/{id}/resume
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Body de la requête `POST /api/v1/tasks/{id}/resume`.
 ///
 /// L'opérateur transmet sa décision (`approved`) et une raison optionnelle.
-/// Le champ `approved` est obligatoire — son absence provoque HTTP 422.
+/// Le champ `approved` est obligatoire, son absence provoque HTTP 422.
 #[derive(Debug, Deserialize)]
 pub struct ResumeRequest {
     /// `true` pour approuver, `false` pour rejeter.
     pub approved: bool,
-    /// Raison de la décision — optionnelle, surtout utile en cas de rejet.
+    /// Raison de la décision, optionnelle, surtout utile en cas de rejet.
     pub reason: Option<String>,
 }
 
@@ -310,11 +310,11 @@ pub struct ResumeResponse {
 /// et reconstruit l'`AIPTask` enrichi pour la relance ORIA.
 ///
 /// ## Codes HTTP
-/// - `200 OK` — reprise enregistrée avec succès
-/// - `404 Not Found` — tâche inconnue du système HITL
-/// - `409 Conflict` — tâche connue mais pas en status `input_required`
-/// - `503 Service Unavailable` — HITL non configuré (`task_repository` absent)
-/// - `500 Internal Server Error` — erreur SQLite ou interne
+/// - `200 OK`, reprise enregistrée avec succès
+/// - `404 Not Found`, tâche inconnue du système HITL
+/// - `409 Conflict`, tâche connue mais pas en status `input_required`
+/// - `503 Service Unavailable`, HITL non configuré (`task_repository` absent)
+/// - `500 Internal Server Error`, erreur SQLite ou interne
 pub async fn resume_task<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,
@@ -377,7 +377,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         responded_at,
     };
 
-    // ── durabilité avant notification — DB write avant EventBus ───────
+    // ── durabilité avant notification, DB write avant EventBus ───────
     repo.save_input_response(&task_id, &input_response)
         .await
         .map_err(|e| {
@@ -420,7 +420,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
                         );
                     }
                     Err(e) => {
-                        // Not a fatal error — the task may have been cleaned up or
+                        // Not a fatal error, the task may have been cleaned up or
                         // PendingApprovals was not registered (e.g. non-ORIA execution).
                         tracing::warn!(
                             task_id = %task_id,
@@ -504,7 +504,7 @@ mod tests {
         }
     }
 
-    /// Backend that blocks forever — used for cancel tests to avoid race with TaskCompleted.
+    /// Backend that blocks forever, used for cancel tests to avoid race with TaskCompleted.
     #[derive(Clone)]
     struct NeverMockBackend;
 
@@ -592,6 +592,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -659,6 +660,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -671,7 +673,7 @@ mod tests {
         (router, agent_id.to_string())
     }
 
-    /// Build a test environment with a never-completing backend — for cancel tests.
+    /// Build a test environment with a never-completing backend, for cancel tests.
     async fn test_router_with_blocking_agent() -> (Router, String) {
         let (event_tx, _) = broadcast::channel::<RuntimeEvent>(64);
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
@@ -726,6 +728,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -909,7 +912,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Tests ResumeHandler — POST /api/v1/tasks/{id}/resume
+    // Tests ResumeHandler, POST /api/v1/tasks/{id}/resume
     // ─────────────────────────────────────────────────────────────────────────
 
     /// Ouvre un `TaskRepository` sur un fichier temporaire unique.
@@ -958,6 +961,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

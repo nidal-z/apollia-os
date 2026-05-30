@@ -1,14 +1,14 @@
-//! Wrap whisper-rs pour le runner.
+//! whisper-rs wrapper for the runner.
 //!
-//! Migration STORY-005 depuis `apollia-stt::whisper_cpp`. Le scope est strict :
+//! Strict scope:
 //!
-//! - Chargement d'un fichier GGML/GGUF whisper depuis un chemin absolu.
-//! - Transcription d'un fichier WAV (PCM int16 ou f32) en mono 16 kHz.
-//! - Output conforme au protocole IPC §3.8 (texte + segments + langue détectée).
+//! - Loads a whisper GGML/GGUF file from an absolute path.
+//! - Transcribes a WAV file (PCM int16 or f32) at mono 16 kHz.
+//! - Output matches the IPC protocol: text + segments + detected language.
 //!
-//! Le ré-échantillonnage (rubato) et le mix-down stéréo → mono sont inlinés
-//! ici pour éviter de dépendre du crate `apollia-stt` (qui restera utilisé
-//! pour la capture micro côté daemon jusqu'à STORY-011).
+//! Resampling (rubato) and stereo-to-mono downmix are inlined here so this
+//! crate does not depend on `apollia-stt` (which still handles microphone
+//! capture on the daemon side).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

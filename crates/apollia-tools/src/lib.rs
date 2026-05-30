@@ -1,23 +1,23 @@
-//! Apollia OS — Tool Registry and native tools.
+//! Apollia OS tool registry and native tools.
 //!
 //! Provides the tooling infrastructure for agents:
-//! - `ToolRegistry` — in-memory catalogue of available tools
-//! - `ToolResolver` — validates tool availability at INITIALIZING
-//! - `SandboxProfile` — Linux namespace isolation profiles
-//! - `AuditTrail` — SQLite-persisted tool invocation log
-//! - `TaskRepository` — SQLite-persisted HITL task state
-//! - `AgentRepository` — SQLite-persisted installed agents
-//! - `executor` — [`ToolExecutor`] trait and [`ToolDispatcher`] for unified JSON dispatch
+//! - `ToolRegistry`: in-memory catalogue of available tools
+//! - `ToolResolver`: validates tool availability at INITIALIZING
+//! - `SandboxProfile`: Linux namespace isolation profiles
+//! - `AuditTrail`: SQLite-persisted tool invocation log
+//! - `TaskRepository`: SQLite-persisted HITL task state
+//! - `AgentRepository`: SQLite-persisted installed agents
+//! - `executor`: [`ToolExecutor`] trait and [`ToolDispatcher`] for unified JSON dispatch
 //!
 //! Native tools:
-//! - `bash_executor` — sandboxed shell execution via unshare(1)
-//! - `python_executor` — isolated virtualenv execution
-//! - `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep` — atomic filesystem operations
-//! - `http_fetch` — network-restricted HTTP client (feature `http`)
-//! - `memory_search` — FTS5 full-text search (feature `memory-search`)
-//! - `persistent_bash` — stateful shell executor (CWD + env vars persist across steps)
-//! - `notebook_read` — read and format Jupyter `.ipynb` cells for LLM consumption
-//! - `notebook_edit` — apply atomic cell operations to Jupyter `.ipynb` notebooks
+//! - `bash_executor`: sandboxed shell execution via unshare(1)
+//! - `python_executor`: isolated virtualenv execution
+//! - `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep`: atomic filesystem operations
+//! - `http_fetch`: network-restricted HTTP client (feature `http`)
+//! - `memory_search`: FTS5 full-text search (feature `memory-search`)
+//! - `persistent_bash`: stateful shell executor (CWD + env vars persist across steps)
+//! - `notebook_read`: read and format Jupyter `.ipynb` cells for LLM consumption
+//! - `notebook_edit`: apply atomic cell operations to Jupyter `.ipynb` notebooks
 
 pub mod agent_repository;
 pub mod audit;

@@ -1,4 +1,4 @@
-//! REST routes for the tool catalogue — `GET /api/v1/tools` and `GET /api/v1/tools/:name`.
+//! REST routes for the tool catalogue, `GET /api/v1/tools` and `GET /api/v1/tools/:name`.
 //!
 //! Exposes the [`ToolRegistry`](apollia_tools::ToolRegistryHandle) actor over HTTP
 //! so the CLI (`apollia-os tools list|describe`) and other clients can introspect
@@ -38,7 +38,7 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
-/// `GET /api/v1/tools` — return all registered tool descriptors.
+/// `GET /api/v1/tools`, return all registered tool descriptors.
 ///
 /// Returns `200 OK` with the list, even when empty.
 /// Returns `503` if the tool registry is not available in the current runtime context.
@@ -68,7 +68,7 @@ pub async fn list_tools<B: ExecutionBackend + Clone + From<DynBackend>>(
     Ok((StatusCode::OK, Json(ToolListResponse { tools })))
 }
 
-/// `GET /api/v1/tools/:name` — return the descriptor for a specific tool.
+/// `GET /api/v1/tools/:name`, return the descriptor for a specific tool.
 ///
 /// Returns `200 OK` with the descriptor, `404 Not Found` if the tool is not registered,
 /// `503` if the tool registry is not available, or `500` on actor error.
@@ -213,6 +213,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
 
         Router::new()
@@ -260,6 +261,7 @@ mod tests {
             stt_config_repo: None,
             a2a_invoker: None,
             resilience_layer: None,
+            runner_proxy: None,
         };
 
         Router::new()

@@ -1,17 +1,17 @@
-//! Validateur pré-exécution pour `BashExecutor`.
+//! Pre-execution validator for `BashExecutor`.
 //!
-//! `BashValidator` regroupe les deux vérifications appliquées avant tout spawn de processus :
+//! `BashValidator` groups the two checks applied before any process spawn:
 //!
-//! 1. **Classification des risques** (synchrone, sans I/O) — délégue à [`RiskClassifier`].
-//!    Retourne immédiatement si un pattern de risque est détecté.
+//! 1. **Risk classification** (synchronous, no I/O), delegated to [`RiskClassifier`].
+//!    Returns immediately if a risk pattern is detected.
 //!
-//! 2. **Validation syntaxique** (asynchrone, `bash -n -c`) — invoque un sous-processus `bash`
-//!    en mode dry-run pour détecter les erreurs de syntaxe sans exécuter la commande.
-//!    Soumis à un timeout configurable (défaut : 1 000 ms).
+//! 2. **Syntax validation** (asynchronous, `bash -n -c`), invokes a `bash`
+//!    subprocess in dry-run mode to detect syntax errors without running the
+//!    command. Subject to a configurable timeout (default: 1000 ms).
 //!
-//! L'ordre d'application est imposé par l'architecture :
-//! classification → syntaxe → exécution. Cela garantit que les commandes à risque
-//! ne consomment jamais une invocation du StepBudget (Principe #4 — Fail fast).
+//! The order is imposed by the architecture: classification, then syntax, then
+//! execution. This guarantees that risky commands never consume a StepBudget
+//! invocation (fail fast).
 
 use std::time::Duration;
 
@@ -21,41 +21,44 @@ use tokio::process::Command;
 use crate::tools::bash_executor::BashExecutorError;
 use crate::tools::risk_classifier::{RiskCategory, RiskClassifier};
 
-/// Validateur pré-exécution combinant classification des risques et contrôle syntaxique.
+/// Pre-execution validator combining risk classification and syntax checking.
 ///
-/// Instancié depuis [`BashValidatorConfig`] — la configuration est immuable après construction.
-/// `BashValidator` est un champ de `BashExecutor` et ne doit pas être partagé entre acteurs.
+/// Instantiated from [`BashValidatorConfig`]; the configuration is immutable
+/// after construction. `BashValidator` is a field of `BashExecutor` and must
+/// not be shared between actors.
 pub struct BashValidator {
     config: BashValidatorConfig,
 }
 
 impl BashValidator {
-    /// Construit un `BashValidator` depuis sa configuration.
+    /// Builds a `BashValidator` from its configuration.
     pub fn new(config: BashValidatorConfig) -> Self {
         Self { config }
     }
 
-    /// Retourne les catégories de risque détectées pour `cmd`.
+    /// Returns the risk categories detected for `cmd`.
     ///
-    /// Délègue à [`RiskClassifier::classify`]. La liste est vide si aucun risque n'est détecté.
+    /// Delegates to [`RiskClassifier::classify`]. The list is empty if no risk is detected.
     pub fn classify_risks(&self, cmd: &str) -> Vec<RiskCategory> {
         RiskClassifier::classify(cmd, &self.config)
     }
 
-    /// Valide la syntaxe bash de `cmd` via `bash -n -c`.
+    /// Validates the bash syntax of `cmd` via `bash -n -c`.
     ///
-    /// Exécute `bash -n -c <cmd>` dans un sous-processus isolé (mode dry-run — aucune commande
-    /// n'est réellement exécutée). Si `bash` signale une erreur de syntaxe (exit code ≠ 0),
-    /// retourne [`BashExecutorError::SyntaxError`] avec le stderr de `bash -n`.
+    /// Runs `bash -n -c <cmd>` in an isolated subprocess (dry-run mode, no
+    /// command is actually executed). If `bash` reports a syntax error (exit
+    /// code != 0), returns [`BashExecutorError::SyntaxError`] with the stderr of
+    /// `bash -n`.
     ///
-    /// Le sous-processus est soumis au timeout `syntax_check_timeout_ms` configuré.
-    /// Au-delà, le processus est tué et [`BashExecutorError::SyntaxValidationTimeout`] est retourné.
+    /// The subprocess is subject to the configured `syntax_check_timeout_ms`
+    /// timeout. Beyond that, the process is killed and
+    /// [`BashExecutorError::SyntaxValidationTimeout`] is returned.
     ///
     /// # Errors
     ///
-    /// - [`BashExecutorError::SyntaxError`] — `bash -n` a signalé une erreur de syntaxe.
-    /// - [`BashExecutorError::SyntaxValidationTimeout`] — timeout dépassé.
-    /// - [`BashExecutorError::SpawnFailed`] — `bash` n'est pas disponible ou le spawn a échoué.
+    /// - [`BashExecutorError::SyntaxError`]: `bash -n` reported a syntax error.
+    /// - [`BashExecutorError::SyntaxValidationTimeout`]: timeout exceeded.
+    /// - [`BashExecutorError::SpawnFailed`]: `bash` is unavailable or the spawn failed.
     pub async fn validate_syntax(&self, cmd: &str) -> Result<(), BashExecutorError> {
         let timeout = Duration::from_millis(self.config.syntax_check_timeout_ms);
 
@@ -70,7 +73,7 @@ impl BashValidator {
             BashExecutorError::SpawnFailed("bash -n: stderr pipe missing".to_string())
         })?;
 
-        // Drainer stderr dans une tâche de fond pour éviter le deadlock sur pipe plein.
+        // Drain stderr in a background task to avoid deadlock on a full pipe.
         let stderr_task = tokio::spawn(async move {
             use tokio::io::AsyncReadExt;
             let mut buf = Vec::new();
@@ -116,13 +119,13 @@ mod tests {
 
     #[tokio::test]
     async fn bash_validator_rejects_invalid_syntax() {
-        // GIVEN un BashValidator avec config par défaut
+        // GIVEN a BashValidator with default config
         let validator = default_validator();
-        // WHEN commande bash syntaxiquement invalide
+        // WHEN a syntactically invalid bash command
         let result = validator
             .validate_syntax("if [ -z $VAR; then echo ok")
             .await;
-        // THEN erreur de syntaxe retournée
+        // THEN a syntax error is returned
         assert!(
             matches!(result, Err(BashExecutorError::SyntaxError { .. })),
             "expected SyntaxError, got: {result:?}"
@@ -131,13 +134,13 @@ mod tests {
 
     #[tokio::test]
     async fn bash_validator_accepts_valid_complex_command() {
-        // GIVEN un BashValidator avec config par défaut
+        // GIVEN a BashValidator with default config
         let validator = default_validator();
-        // WHEN commande bash complexe mais syntaxiquement correcte
+        // WHEN a complex but syntactically correct bash command
         let result = validator
             .validate_syntax("if [ -z \"$VAR\" ]; then echo ok; fi")
             .await;
-        // THEN aucune erreur
+        // THEN no error
         assert!(result.is_ok(), "expected Ok, got: {result:?}");
     }
 
@@ -155,7 +158,7 @@ mod tests {
     async fn bash_validator_rejects_unclosed_quote() {
         // GIVEN
         let validator = default_validator();
-        // WHEN chaîne non fermée
+        // WHEN an unclosed string
         let result = validator.validate_syntax("echo \"unclosed").await;
         // THEN
         assert!(matches!(result, Err(BashExecutorError::SyntaxError { .. })));
@@ -163,7 +166,7 @@ mod tests {
 
     #[test]
     fn bash_validator_classify_risks_delegates_to_classifier() {
-        // GIVEN validator avec pattern réseau configuré
+        // GIVEN a validator with a network pattern configured
         let config = BashValidatorConfig {
             block_network_egress: true,
             network_egress_patterns: vec!["wget".to_owned()],

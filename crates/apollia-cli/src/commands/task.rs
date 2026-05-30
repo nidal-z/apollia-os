@@ -1,13 +1,13 @@
-//! `apollia-os task` subcommands — manage tasks via the runtime API.
+//! `apollia-os task` subcommands: manage tasks via the runtime API.
 //!
 //! Provides `list`, `status`, `cancel`, `inspect`, and `resume` operations on
 //! tasks. The `inspect` subcommand reads directly from SQLite (`~/.apollia/plans.db`)
-//! without requiring a running runtime (Principe #1 — Local-first).
+//! without requiring a running runtime (local-first).
 //!
 //! HITL additions:
-//! - `task list --pending-approval` — filter tasks awaiting human approval.
-//! - `task resume <id> --approve` — approve a suspended HITL task.
-//! - `task resume <id> --reject [--reason "..."]` — reject a suspended HITL task.
+//! - `task list --pending-approval`: filter tasks awaiting human approval.
+//! - `task resume <id> --approve`: approve a suspended HITL task.
+//! - `task resume <id> --reject [--reason "..."]`: reject a suspended HITL task.
 
 use std::path::PathBuf;
 
@@ -50,7 +50,7 @@ pub enum TaskCommand {
     },
     /// Display the full execution plan of an orchestrated task.
     ///
-    /// Reads directly from `~/.apollia/plans.db` — no runtime connection required.
+    /// Reads directly from `~/.apollia/plans.db`, no runtime connection required.
     Inspect {
         /// Task identifier (UUID).
         id: String,
@@ -62,11 +62,11 @@ pub enum TaskCommand {
         /// Task identifier.
         task_id: String,
 
-        /// Approve the pending task — resumes agent execution.
+        /// Approve the pending task, resumes agent execution.
         #[clap(long, group = "decision")]
         approve: bool,
 
-        /// Reject the pending task — terminates the task with REJECTED status.
+        /// Reject the pending task, terminates the task with REJECTED status.
         #[clap(long, group = "decision")]
         reject: bool,
 
@@ -76,7 +76,7 @@ pub enum TaskCommand {
     },
     /// List resolved HITL approvals (accepted or rejected).
     Approvals {
-        /// Inclure aussi les approbations en attente.
+        /// Also include pending approvals.
         #[arg(long)]
         pending: bool,
     },
@@ -105,7 +105,19 @@ pub async fn run(cmd: &TaskCommand, socket: Option<PathBuf>, json: bool) -> i32 
             approve,
             reject,
             reason,
-        } => run_resume(&client, task_id, *approve, *reject, reason.clone(), json).await,
+        } => {
+            run_resume(
+                &client,
+                ResumeArgs {
+                    task_id,
+                    approve: *approve,
+                    reject: *reject,
+                    reason: reason.clone(),
+                },
+                json,
+            )
+            .await
+        }
         TaskCommand::Approvals { pending } => run_approvals(&client, *pending, json).await,
     }
 }
@@ -114,7 +126,7 @@ pub async fn run(cmd: &TaskCommand, socket: Option<PathBuf>, json: bool) -> i32 
 // Handlers
 // ────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os task list` — display recent tasks.
+/// `apollia-os task list`: display recent tasks.
 ///
 /// Resolves `agent_id` (UUID) to the human-readable agent name by fetching
 /// the agents list once and joining locally. The runtime does not embed the
@@ -172,7 +184,7 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os task list --pending-approval` — display tasks awaiting HITL approval.
+/// `apollia-os task list --pending-approval`: display tasks awaiting HITL approval.
 ///
 /// Calls `GET /api/v1/tasks?status=input_required` and renders a table with
 /// `TASK_ID | AGENT | DEPUIS | PROMPT` columns, or a JSON array.
@@ -211,52 +223,63 @@ async fn run_list_pending(client: &RuntimeClient, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os task status <id>` — display task status.
-async fn run_status(client: &RuntimeClient, task_id: &str, json: bool) -> i32 {
-    match client.get_task(task_id).await {
-        Ok(resp) => {
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&resp).unwrap_or_default()
-                );
-            } else {
-                let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-                println!("  Task      : {task_id}");
-                println!("  Status    : {status}");
-                if let Some(error) = resp.get("error").and_then(|v| v.as_str()) {
-                    println!("  Error     :");
-                    for line in error.lines() {
-                        println!("    {line}");
-                    }
-                }
-                if let Some(result) = resp.get("result").and_then(|v| v.as_str()) {
-                    println!("  Result    :");
-                    for line in result.lines() {
-                        println!("    {line}");
-                    }
-                }
-                if let Some(budget) = resp.get("token_budget") {
-                    let input = budget
-                        .get("input_tokens")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
-                    let output = budget
-                        .get("output_tokens")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
-                    if input + output > 0 {
-                        println!("  Tokens    : {input} in / {output} out");
-                    }
-                }
-            }
-            exit_codes::SUCCESS
-        }
-        Err(e) => handle_error(e, json),
+/// Prints an indented, labelled multi-line block when the field is present.
+fn print_status_block(resp: &serde_json::Value, key: &str, label: &str) {
+    let Some(text) = resp.get(key).and_then(|v| v.as_str()) else {
+        return;
+    };
+    println!("  {label}:");
+    for line in text.lines() {
+        println!("    {line}");
     }
 }
 
-/// `apollia-os task cancel <id>` — cancel a running task.
+/// Prints the token budget line when usage is recorded.
+fn print_token_budget(resp: &serde_json::Value) {
+    let Some(budget) = resp.get("token_budget") else {
+        return;
+    };
+    let input = budget
+        .get("input_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let output = budget
+        .get("output_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    if input + output > 0 {
+        println!("  Tokens    : {input} in / {output} out");
+    }
+}
+
+/// Renders the human-readable status summary for a task response.
+fn print_status_human(resp: &serde_json::Value, task_id: &str) {
+    let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("?");
+    println!("  Task      : {task_id}");
+    println!("  Status    : {status}");
+    print_status_block(resp, "error", "Error     ");
+    print_status_block(resp, "result", "Result    ");
+    print_token_budget(resp);
+}
+
+/// `apollia-os task status <id>`: display task status.
+async fn run_status(client: &RuntimeClient, task_id: &str, json: bool) -> i32 {
+    let resp = match client.get_task(task_id).await {
+        Ok(resp) => resp,
+        Err(e) => return handle_error(e, json),
+    };
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&resp).unwrap_or_default()
+        );
+    } else {
+        print_status_human(&resp, task_id);
+    }
+    exit_codes::SUCCESS
+}
+
+/// `apollia-os task cancel <id>`: cancel a running task.
 async fn run_cancel(client: &RuntimeClient, task_id: &str, json: bool) -> i32 {
     match client.cancel_task(task_id).await {
         Ok(resp) => {
@@ -274,18 +297,25 @@ async fn run_cancel(client: &RuntimeClient, task_id: &str, json: bool) -> i32 {
     }
 }
 
+/// Decision fields supplied to `apollia-os task resume`.
+struct ResumeArgs<'a> {
+    task_id: &'a str,
+    approve: bool,
+    reject: bool,
+    reason: Option<String>,
+}
+
 /// `apollia-os task resume <id> --approve|--reject [--reason "..."]`
 ///
 /// Posts `{ approved: bool, reason?: String }` to
 /// `POST /api/v1/tasks/{id}/resume` and prints the result.
-async fn run_resume(
-    client: &RuntimeClient,
-    task_id: &str,
-    approve: bool,
-    reject: bool,
-    reason: Option<String>,
-    json: bool,
-) -> i32 {
+async fn run_resume(client: &RuntimeClient, args: ResumeArgs<'_>, json: bool) -> i32 {
+    let ResumeArgs {
+        task_id,
+        approve,
+        reject,
+        reason,
+    } = args;
     // Manual guard: clap groups make --approve/--reject mutually exclusive but
     // not required; validate the "neither" case here.
     if !approve && !reject {
@@ -348,11 +378,11 @@ async fn run_resume(
     exit_codes::SUCCESS
 }
 
-/// `apollia-os task inspect <id>` — display the full execution plan of an orchestrated task.
+/// `apollia-os task inspect <id>`: display the full execution plan of an orchestrated task.
 ///
 /// Opens `~/.apollia/plans.db` directly (no runtime required) and renders the plan
 /// with per-step statuses, outputs, and errors. On `NotFound`, exits with code 0 and
-/// an informative message (direct-mode tasks have no persisted plan — this is normal).
+/// an informative message (direct-mode tasks have no persisted plan, this is normal).
 fn run_inspect(task_id: &str, json: bool) -> i32 {
     let db_path = {
         let home = std::env::var("HOME").unwrap_or_default();
@@ -414,10 +444,10 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os task approvals [--pending]` — lister les approbations HITL résolues (ou en attente).
+/// `apollia-os task approvals [--pending]`: list resolved (or pending) HITL approvals.
 ///
-/// Sans `--pending` : appelle `GET /api/v1/approvals/resolved`.
-/// Avec `--pending` : appelle `GET /api/v1/approvals/pending`.
+/// Without `--pending`: calls `GET /api/v1/approvals/resolved`.
+/// With `--pending`: calls `GET /api/v1/approvals/pending`.
 async fn run_approvals(client: &RuntimeClient, pending: bool, json: bool) -> i32 {
     let uri = if pending {
         "/api/v1/approvals/pending"
@@ -636,7 +666,7 @@ fn display_plan_human(plan: &PlanWithSteps) {
 
 /// Render an RFC3339 timestamp as `YYYY-MM-DD HH:MM:SS` for compact display.
 ///
-/// Falls back to the raw value when parsing fails — the formatter must
+/// Falls back to the raw value when parsing fails; the formatter must
 /// never lose information just because the runtime grew a new format.
 fn format_rfc3339_compact(raw: &str) -> String {
     chrono::DateTime::parse_from_rfc3339(raw)
@@ -707,30 +737,38 @@ fn format_approvals_list(resp: &serde_json::Value, pending: bool) {
     }
 
     for a in &approvals {
-        let id = a.get("id").and_then(|v| v.as_str()).unwrap_or("?");
-        let task_id = a.get("task_id").and_then(|v| v.as_str()).unwrap_or("?");
-        let agent = a.get("agent_id").and_then(|v| v.as_str()).unwrap_or("?");
-        let decision = if pending {
-            "en attente".to_string()
-        } else {
-            let approved = a.get("approved").and_then(|v| v.as_bool());
-            match approved {
-                Some(true) => "approved".to_string(),
-                Some(false) => "rejected".to_string(),
-                None => "?".to_string(),
-            }
-        };
-        let date = a
-            .get("resolved_at")
-            .or_else(|| a.get("requested_at"))
-            .and_then(|v| v.as_str())
-            .map(|s| if s.len() >= 19 { &s[..19] } else { s })
-            .unwrap_or("?");
-        println!(
-            "  {:<36} {:<36} {:<20} {:<10} {}",
-            id, task_id, agent, decision, date
-        );
+        print_approval_row(a, pending);
     }
+}
+
+/// Maps the approval decision to its display label.
+fn approval_decision(a: &serde_json::Value, pending: bool) -> &'static str {
+    if pending {
+        return "en attente";
+    }
+    match a.get("approved").and_then(|v| v.as_bool()) {
+        Some(true) => "approved",
+        Some(false) => "rejected",
+        None => "?",
+    }
+}
+
+/// Renders a single approvals-table row.
+fn print_approval_row(a: &serde_json::Value, pending: bool) {
+    let id = a.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+    let task_id = a.get("task_id").and_then(|v| v.as_str()).unwrap_or("?");
+    let agent = a.get("agent_id").and_then(|v| v.as_str()).unwrap_or("?");
+    let decision = approval_decision(a, pending);
+    let date = a
+        .get("resolved_at")
+        .or_else(|| a.get("requested_at"))
+        .and_then(|v| v.as_str())
+        .map(|s| if s.len() >= 19 { &s[..19] } else { s })
+        .unwrap_or("?");
+    println!(
+        "  {:<36} {:<36} {:<20} {:<10} {}",
+        id, task_id, agent, decision, date
+    );
 }
 
 /// Extract the `tasks` array from a server response, defaulting to an empty vec.
@@ -919,9 +957,9 @@ mod tests {
         }
     }
 
-    // GIVEN un output de 200 caractères
-    // WHEN truncate_output est appelé
-    // THEN l'output est tronqué à 120 chars + "..."
+    // GIVEN a 200-character output
+    // WHEN truncate_output is called
+    // THEN the output is truncated to 120 chars + "..."
     #[test]
     fn test_ac5_output_tronque() {
         // GIVEN
@@ -935,9 +973,9 @@ mod tests {
         assert!(truncated.ends_with("..."), "doit se terminer par '...'");
     }
 
-    // GIVEN un output exactement de 120 caractères
-    // WHEN truncate_output est appelé
-    // THEN l'output n'est pas tronqué
+    // GIVEN an output of exactly 120 characters
+    // WHEN truncate_output is called
+    // THEN the output is not truncated
     #[test]
     fn test_ac5_output_non_tronque_si_exact_120() {
         // GIVEN
@@ -951,9 +989,9 @@ mod tests {
         assert!(!result.ends_with("..."));
     }
 
-    // GIVEN un plan complété avec un step
-    // WHEN plan_to_json est appelé
-    // THEN le JSON contient les champs attendus
+    // GIVEN a completed plan with one step
+    // WHEN plan_to_json is called
+    // THEN the JSON contains the expected fields
     #[test]
     fn test_plan_to_json_structure() {
         // GIVEN
@@ -977,9 +1015,9 @@ mod tests {
         assert_eq!(json["steps"][0]["tool_hint"], "file_io");
     }
 
-    // GIVEN des statuts step connus et inconnus
-    // WHEN step_status_icon est appelé
-    // THEN les icônes correctes sont retournées
+    // GIVEN known and unknown step statuses
+    // WHEN step_status_icon is called
+    // THEN the correct icons are returned
     #[test]
     fn test_step_status_icons() {
         assert_eq!(step_status_icon("completed"), "✔");
@@ -990,10 +1028,10 @@ mod tests {
         assert_eq!(step_status_icon("unknown"), "○");
     }
 
-    // body du resume --approve
+    // resume --approve body
     // GIVEN approve=true, reason=None
-    // WHEN build_resume_body est appelé
-    // THEN body = { "approved": true } sans "reason"
+    // WHEN build_resume_body is called
+    // THEN body = { "approved": true } without "reason"
     #[test]
     fn test_ac2_resume_approve_body() {
         // GIVEN
@@ -1005,9 +1043,9 @@ mod tests {
         assert!(body.get("reason").is_none(), "reason should be absent");
     }
 
-    // body du resume --reject --reason "Budget"
+    // resume --reject --reason "Budget" body
     // GIVEN approve=false, reason=Some("Budget")
-    // WHEN build_resume_body est appelé
+    // WHEN build_resume_body is called
     // THEN body = { "approved": false, "reason": "Budget" }
     #[test]
     fn test_ac3_resume_reject_with_reason_body() {
@@ -1020,13 +1058,13 @@ mod tests {
         assert_eq!(body["reason"], "Budget");
     }
 
-    // structure JSON de la liste pending-approval
-    // GIVEN deux tâches en attente (mock)
-    // WHEN build_pending_json est appelé
-    // THEN JSON array avec task_id, agent, waiting_since_secs, prompt, step_id
+    // JSON structure of the pending-approval list
+    // GIVEN two pending tasks (mock)
+    // WHEN build_pending_json is called
+    // THEN JSON array with task_id, agent, waiting_since_secs, prompt, step_id
     #[test]
     fn test_ac5_pending_approval_json_output_structure() {
-        // GIVEN — timestamp in the past so waiting_since_secs > 0
+        // GIVEN a timestamp in the past so waiting_since_secs > 0
         let tasks = vec![
             serde_json::json!({
                 "task_id": "t-0042",
@@ -1047,7 +1085,7 @@ mod tests {
         // WHEN
         let output = build_pending_json(&tasks);
 
-        // THEN — array with expected fields
+        // THEN array with expected fields
         assert_eq!(output.len(), 2);
         assert_eq!(output[0]["task_id"], "t-0042");
         assert_eq!(output[0]["agent"], "devis-agent");
@@ -1064,27 +1102,27 @@ mod tests {
         assert_eq!(output[1]["step_id"], serde_json::Value::Null);
     }
 
-    // --approve et --reject mutuellement exclusifs
+    // --approve and --reject are mutually exclusive
     // GIVEN "task resume t-0042 --approve --reject"
-    // WHEN clap parse
-    // THEN erreur de conflit de groupe (parse error)
+    // WHEN clap parses
+    // THEN group conflict error (parse error)
     #[test]
     fn test_ac6_approve_and_reject_mutually_exclusive() {
         // GIVEN
         // WHEN
         let result = TestApp::try_parse_from(["app", "resume", "t-0042", "--approve", "--reject"]);
 
-        // THEN — clap returns an error for conflicting group members
+        // THEN clap returns an error for conflicting group members
         assert!(
             result.is_err(),
             "--approve and --reject must be mutually exclusive"
         );
     }
 
-    // prompt truncation à 60 chars
-    // GIVEN un prompt de 80 caractères
-    // WHEN truncate_prompt est appelé
-    // THEN le prompt est tronqué à 60 + "..."
+    // prompt truncation at 60 chars
+    // GIVEN an 80-character prompt
+    // WHEN truncate_prompt is called
+    // THEN the prompt is truncated to 60 + "..."
     #[test]
     fn test_truncate_prompt_long() {
         // GIVEN
@@ -1098,10 +1136,10 @@ mod tests {
         assert!(result.ends_with("..."));
     }
 
-    // prompt court non tronqué
-    // GIVEN un prompt de 30 caractères
-    // WHEN truncate_prompt est appelé
-    // THEN le prompt est retourné tel quel
+    // short prompt left untruncated
+    // GIVEN a 30-character prompt
+    // WHEN truncate_prompt is called
+    // THEN the prompt is returned as-is
     #[test]
     fn test_truncate_prompt_short() {
         // GIVEN
@@ -1115,14 +1153,14 @@ mod tests {
         assert!(!result.ends_with("..."));
     }
 
-    // format_duration_since avec timestamp passé
-    // GIVEN un timestamp il y a 90 minutes
-    // WHEN format_duration_since est appelé
-    // THEN la durée est formatée en "1h"
+    // format_duration_since with a past timestamp
+    // GIVEN a timestamp 90 minutes ago
+    // WHEN format_duration_since is called
+    // THEN the duration is formatted as "1h"
     #[test]
     fn test_format_duration_since_hours() {
         use chrono::Duration;
-        // GIVEN — timestamp 90 minutes ago
+        // GIVEN a timestamp 90 minutes ago
         let past = Utc::now() - Duration::minutes(90);
         let ts = past.to_rfc3339();
 
@@ -1133,17 +1171,17 @@ mod tests {
         assert_eq!(result, "1h");
     }
 
-    // format_duration_since avec timestamp invalide
-    // GIVEN un timestamp invalide
-    // WHEN format_duration_since est appelé
-    // THEN "-" est retourné
+    // format_duration_since with an invalid timestamp
+    // GIVEN an invalid timestamp
+    // WHEN format_duration_since is called
+    // THEN "-" is returned
     #[test]
     fn test_format_duration_since_invalid() {
         // GIVEN / WHEN / THEN
         assert_eq!(format_duration_since("not-a-date"), "-");
     }
 
-    // approvals sans --pending
+    // approvals without --pending
     // GIVEN "task approvals"
     // WHEN parse
     // THEN TaskCommand::Approvals { pending: false }
@@ -1158,7 +1196,7 @@ mod tests {
         }
     }
 
-    // approvals avec --pending
+    // approvals with --pending
     // GIVEN "task approvals --pending"
     // WHEN parse
     // THEN TaskCommand::Approvals { pending: true }
@@ -1173,10 +1211,10 @@ mod tests {
         }
     }
 
-    // format_approvals_list sans approbations
-    // GIVEN réponse vide
-    // WHEN format_approvals_list est appelé
-    // THEN pas de panique
+    // format_approvals_list with no approvals
+    // GIVEN an empty response
+    // WHEN format_approvals_list is called
+    // THEN no panic
     #[test]
     fn test_format_approvals_list_empty() {
         // GIVEN
@@ -1185,10 +1223,10 @@ mod tests {
         format_approvals_list(&resp, false);
     }
 
-    // format_approvals_list avec données
-    // GIVEN une approbation résolue
-    // WHEN format_approvals_list est appelé
-    // THEN pas de panique
+    // format_approvals_list with data
+    // GIVEN a resolved approval
+    // WHEN format_approvals_list is called
+    // THEN no panic
     #[test]
     fn test_format_approvals_list_with_data() {
         // GIVEN

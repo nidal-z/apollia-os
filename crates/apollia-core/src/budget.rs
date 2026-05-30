@@ -1,18 +1,18 @@
 use serde::{Deserialize, Serialize};
 
-/// Configuration du budget d'exécution déclarée par l'agent dans son AgentManifest.
+/// Execution budget configuration declared by the agent in its AgentManifest.
 ///
-/// Ces valeurs sont des suggestions maximales. Le runtime (ORIA StepBudget)
-/// applique les valeurs minimales entre la config agent et la config runtime globale.
-/// Un agent ne peut PAS dépasser les limites configurées dans apollia.toml.
+/// These values are maximum suggestions. The runtime (ORIA StepBudget) applies
+/// the minimum between the agent config and the global runtime config. An agent
+/// CANNOT exceed the limits configured in apollia.toml.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepBudgetConfig {
-    /// Nombre maximum de steps ORIA (appels successifs à l'agent). Défaut: 30.
+    /// Maximum number of ORIA steps (successive calls to the agent). Default: 30.
     pub max_steps: u32,
-    /// Nombre maximum d'appels d'outils au total sur la tâche. Défaut: 60.
+    /// Maximum number of tool calls in total over the task. Default: 60.
     pub max_tool_calls: u32,
-    /// Durée maximum wall-clock en secondes. Défaut: 600 (10 minutes).
-    /// L'alias `wall_clock_timeout_secs` est accepté pour compatibilité avec la doc.
+    /// Maximum wall-clock duration in seconds. Default: 600 (10 minutes).
+    /// The `wall_clock_timeout_secs` alias is accepted for doc compatibility.
     #[serde(alias = "wall_clock_timeout_secs")]
     pub wall_clock_secs: u64,
 }
@@ -28,11 +28,11 @@ impl Default for StepBudgetConfig {
 }
 
 impl StepBudgetConfig {
-    /// Budget par défaut pour les sessions de chat interactives.
+    /// Default budget for interactive chat sessions.
     ///
-    /// Les sessions de chat sont conversationnelles et impliquent souvent
-    /// de nombreux appels d'outils successifs (recherche web, fetch HTTP, etc.).
-    /// Les limites sont donc plus généreuses que pour l'exécution ORIA.
+    /// Chat sessions are conversational and often involve many successive tool
+    /// calls (web search, HTTP fetch, etc.). The limits are therefore more
+    /// generous than for ORIA execution.
     pub fn chat_default() -> Self {
         Self {
             max_steps: 100,
@@ -61,7 +61,7 @@ mod tests {
         // GIVEN / WHEN
         let chat = StepBudgetConfig::chat_default();
         let oria = StepBudgetConfig::default();
-        // THEN — chat limits are strictly higher
+        // THEN: chat limits are strictly higher
         assert!(chat.max_steps > oria.max_steps);
         assert!(chat.max_tool_calls > oria.max_tool_calls);
         assert!(chat.wall_clock_secs > oria.wall_clock_secs);

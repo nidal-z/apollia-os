@@ -1,17 +1,18 @@
-//! Apollia OS — Memory Engine.
+//! Apollia OS: Memory Engine.
 //!
 //! Sovereign, local-first memory persistence via SQLite + FTS5.
 //! One `.db` file per agent namespace: `~/.apollia/memory/<namespace>.db`
 //!
-//! Components (Sprint 3):
-//! - `MemoryStore` — SQLite schema + versioned migrations.
-//! - `EpisodicMemory` — event record with TTL and importance scoring.
-//! - `SemanticMemory` — key/value with confidence and TTL.
-//! - `ProceduralMemory` — trigger→steps patterns with success tracking.
+//! Components:
+//! - `MemoryStore`: SQLite schema and versioned migrations.
+//! - `EpisodicMemory`: event record with TTL and importance scoring.
+//! - `SemanticMemory`: key/value with confidence and TTL.
+//! - `ProceduralMemory`: trigger-to-steps patterns with success tracking.
 //! - FTS5 full-text search with `unicode61` tokenizer for French.
-//! - `MemoryManager` — namespace isolation and cross-namespace access control.
+//! - `MemoryManager`: namespace isolation and cross-namespace access control.
 //!
-//! The `unicode61` tokenizer is mandatory (ADR-009): "réunion" must match "reunion".
+//! The `unicode61` tokenizer is mandatory so that accent-insensitive search
+//! works: "réunion" must match "reunion".
 
 pub mod episodic;
 pub mod export;

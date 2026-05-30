@@ -2,8 +2,8 @@
 //!
 //! Commands are discovered from two directories in priority order:
 //!
-//! 1. `{cwd}/.apollia/commands/*.md` — project-local (highest priority)
-//! 2. `~/.apollia/commands/*.md` — user-global
+//! 1. `{cwd}/.apollia/commands/*.md`, project-local (highest priority)
+//! 2. `~/.apollia/commands/*.md`, user-global
 //!
 //! When a command name exists in both directories, the CWD version wins.
 //!
@@ -129,14 +129,14 @@ impl CommandRegistry {
 
         let mut commands: HashMap<String, CustomCommand> = HashMap::new();
 
-        // Load home first — lower priority.
+        // Load home first, lower priority.
         if let Some(ref hd) = home_dir {
             for lc in CommandLoader::load_dir(hd).await {
                 commands.insert(lc.name.clone(), CustomCommand::from(lc));
             }
         }
 
-        // Load CWD — overwrites home entries of the same name.
+        // Load CWD, overwrites home entries of the same name.
         for lc in CommandLoader::load_dir(&cwd_dir).await {
             commands.insert(lc.name.clone(), CustomCommand::from(lc));
         }
@@ -290,11 +290,11 @@ mod tests {
         // Brief sleep to ensure the filesystem mtime differs.
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
-        // Force mtime to differ by re-creating the directory entry — rely on the
+        // Force mtime to differ by re-creating the directory entry, rely on the
         // file write above having bumped the dir mtime on the target filesystem.
         let needs = registry.needs_reload(cwd.path()).await;
 
-        // THEN needs_reload returns true (or at least no panic — mtime behaviour
+        // THEN needs_reload returns true (or at least no panic, mtime behaviour
         // may vary on in-memory/fast filesystems, so we only assert no crash).
         let _ = needs;
     }

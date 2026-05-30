@@ -1,4 +1,4 @@
-//! `apollia-os review` — submit a code review request to the `apollia-review` agent.
+//! `apollia-os review`: submit a code review request to the `apollia-review` agent.
 //!
 //! Three input modes:
 //!   `--task <id>`  Review the plan of an existing Apollia task.

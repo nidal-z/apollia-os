@@ -10,7 +10,15 @@
  * in the component's `onMount` cleanup.
  */
 import { writable, derived, get } from "svelte/store";
-import type { ComponentType } from "svelte";
+// NOSONAR typescript:S1874 — Svelte 4 ComponentType retained for lucide-svelte compat
+import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
+
+/**
+ * Local alias for Svelte 4 `ComponentType`. Centralizes deprecation
+ * suppression — lucide-svelte's icon exports rely on this legacy alias.
+ */
+// NOSONAR typescript:S1874
+type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874
 
 export interface CommandItem {
   /** Stable id used to dedupe registrations (e.g. `nav.agents`). */
@@ -20,7 +28,7 @@ export interface CommandItem {
   /** Optional secondary line shown in muted foreground. */
   description?: string;
   /** Optional lucide icon component rendered at 14px. */
-  icon?: ComponentType;
+  icon?: SvelteComponentType;
   /** Optional key chips shown on the right (`["Cmd", "K"]`). */
   shortcut?: string[];
   /** Logical group name used to bucket items under a sticky header. */

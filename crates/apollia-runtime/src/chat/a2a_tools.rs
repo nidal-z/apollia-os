@@ -13,7 +13,7 @@ use apollia_llm::ToolInvoker;
 use tracing::warn;
 
 use crate::a2a::invoker::A2AError;
-use crate::a2a::A2AInvoker;
+use crate::a2a::{A2AInvokeRequest, A2AInvoker};
 use crate::chat::builtin_agent::NativeChatToolInvoker;
 
 /// Prefix used to distinguish A2A virtual tools from native chat tools.
@@ -78,7 +78,7 @@ pub async fn generate_a2a_tool_specs(a2a_invoker: &A2AInvoker) -> Vec<ToolSpec> 
 /// - tout autre champ (ex: `enum`, `items`, `properties`, `default`) → recopié
 ///   tel quel sans transformation
 ///
-/// Si le schéma fourni n'est pas un objet (rare — par exemple worker mal
+/// Si le schéma fourni n'est pas un objet (rare, par exemple worker mal
 /// formé), retombe sur un schéma ouvert pour ne pas casser l'invocation.
 fn apollia_input_schema_to_json_schema(schema: &serde_json::Value) -> serde_json::Value {
     let serde_json::Value::Object(fields) = schema else {
@@ -199,7 +199,7 @@ impl ToolInvoker for CompositeToolInvoker {
                 }
             }
 
-            // Pass-through complet du dict `arguments` comme payload A2A —
+            // Pass-through complet du dict `arguments` comme payload A2A -
             // ce dict est le JSON construit par le LLM à partir du schéma
             // qu'on lui expose dans `generate_a2a_tool_specs` (lui-même
             // dérivé de l'`input_schema` du worker). Le runtime A2A l'emballe
@@ -209,14 +209,14 @@ impl ToolInvoker for CompositeToolInvoker {
 
             match self
                 .a2a
-                .invoke(
+                .invoke(A2AInvokeRequest {
                     skill_id,
                     input,
-                    "chat-libre",
-                    0,
-                    Some(CHAT_A2A_TIMEOUT),
-                    None,
-                )
+                    caller: "chat-libre",
+                    a2a_depth: 0,
+                    timeout: Some(CHAT_A2A_TIMEOUT),
+                    chain_deadline: None,
+                })
                 .await
             {
                 Ok(result) => {
@@ -436,7 +436,7 @@ mod tests {
         }
 
         // AND each input_schema falls back to an open-object schema (no
-        // `input_schema` declared on the test manifest — generate_a2a_tool_specs
+        // `input_schema` declared on the test manifest, generate_a2a_tool_specs
         // returns `{"type": "object", "additionalProperties": true}`).
         for spec in &specs {
             assert_eq!(
@@ -561,7 +561,7 @@ mod tests {
         let composite =
             CompositeToolInvoker::new(NativeChatToolInvoker::new_with_workspace(None), a2a_invoker);
 
-        // WHEN invoke("unknown_native_tool", ...) — no "a2a:" prefix
+        // WHEN invoke("unknown_native_tool", ...), no "a2a:" prefix
         // THEN it is forwarded to NativeChatToolInvoker which returns an error for unknown tools
         let result = composite
             .invoke("unknown_native_tool", &serde_json::json!({}))

@@ -1,4 +1,4 @@
-//! REST route for agent-to-agent messages — `GET /api/v1/agents/:name/messages`.
+//! REST route for agent-to-agent messages, `GET /api/v1/agents/:name/messages`.
 //!
 //! Exposes the in-memory mailbox contents so the desktop frontend can display
 //! inter-agent communication. Returns `503` when the mailbox is not available.
@@ -51,7 +51,7 @@ const MAX_LIMIT: u32 = 200;
 /// Default limit when not specified.
 const DEFAULT_LIMIT: u32 = 50;
 
-/// `GET /api/v1/agents/:name/messages` — list messages for an agent.
+/// `GET /api/v1/agents/:name/messages`, list messages for an agent.
 ///
 /// Returns messages from the in-memory mailbox, sorted by `sent_at` descending.
 /// Returns an empty array when the agent has no messages.

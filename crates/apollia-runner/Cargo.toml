@@ -2,11 +2,11 @@
 name = "apollia-runner"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — sidecar runner pour l'inférence LLM et STT locale (ADR-113)"
+description = "Apollia OS sidecar runner for local LLM and STT inference"
 license = "MIT OR Apache-2.0"
 
-# Un seul binaire par build, nom déterminé par la feature backend activée.
-# Le launcher CI/Tauri compile ce crate 5 fois avec un nom différent.
+# One binary per build, named after the active backend feature.
+# The CI/Tauri launcher compiles this crate once per backend with a different name.
 [[bin]]
 name = "apollia-runner"
 path = "src/main.rs"

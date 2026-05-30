@@ -1,8 +1,8 @@
-//! Commandes IPC Tauri pour l'introspection des outils.
+//! Tauri IPC commands for tool introspection.
 //!
-//! Délègue à l'API REST interne (`GET /api/v1/tools` et `GET /api/v1/tools/:name`)
-//! pour récupérer la liste des outils et le descripteur complet d'un outil
-//! enregistré dans le ToolRegistry.
+//! Delegates to the internal REST API (`GET /api/v1/tools` and
+//! `GET /api/v1/tools/:name`) to fetch the tool list and the full descriptor of
+//! a tool registered in the ToolRegistry.
 
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -14,35 +14,35 @@ use super::http_get_json;
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Résumé d'un outil pour l'affichage en liste.
+/// Summary of a tool for list display.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ToolSummary {
-    /// Nom unique de l'outil.
+    /// Unique tool name.
     pub name: String,
-    /// Version semver.
+    /// Semver version.
     pub version: String,
-    /// Description humaine.
+    /// Human-readable description.
     pub description: String,
-    /// Type d'outil (`"native"`, `"mcp"`, `"python"`).
+    /// Tool kind (`"native"`, `"mcp"`, `"python"`).
     pub kind: String,
 }
 
-/// Vue détaillée d'un outil pour le frontend.
+/// Detailed view of a tool for the frontend.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ToolDescriptorView {
-    /// Nom unique de l'outil.
+    /// Unique tool name.
     pub name: String,
-    /// Version semver.
+    /// Semver version.
     pub version: String,
-    /// Description humaine.
+    /// Human-readable description.
     pub description: String,
-    /// Type d'outil (`"native"`, `"mcp"`, etc.).
+    /// Tool kind (`"native"`, `"mcp"`, etc.).
     pub kind: String,
-    /// Schéma JSON des entrées, ou `null`.
+    /// JSON schema of the inputs, or `null`.
     pub input_schema: Option<serde_json::Value>,
-    /// Schéma JSON des sorties, ou `null`.
+    /// JSON schema of the outputs, or `null`.
     pub output_schema: Option<serde_json::Value>,
-    /// Permissions requises par l'outil.
+    /// Permissions required by the tool.
     pub permissions: Vec<String>,
 }
 
@@ -50,7 +50,7 @@ pub struct ToolDescriptorView {
 // Inner logic (testable without Tauri State)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Récupère la liste des outils enregistrés via l'API REST interne.
+/// Fetches the list of registered tools via the internal REST API.
 async fn list_tools_inner(port: u16) -> Result<Vec<ToolSummary>, String> {
     let json = http_get_json(port, "/api/v1/tools").await?;
 
@@ -89,9 +89,9 @@ async fn list_tools_inner(port: u16) -> Result<Vec<ToolSummary>, String> {
     Ok(summaries)
 }
 
-/// Récupère le descripteur d'un outil via l'API REST interne.
+/// Fetches a tool's descriptor via the internal REST API.
 ///
-/// Retourne `Ok(None)` si le nom est vide ou si l'outil n'existe pas (404).
+/// Returns `Ok(None)` if the name is empty or the tool does not exist (404).
 async fn describe_tool_inner(port: u16, name: &str) -> Result<Option<ToolDescriptorView>, String> {
     if name.is_empty() {
         return Ok(None);
@@ -144,15 +144,15 @@ async fn describe_tool_inner(port: u16, name: &str) -> Result<Option<ToolDescrip
 // Tauri commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Retourne la liste des outils enregistrés dans le runtime.
+/// Returns the list of tools registered in the runtime.
 #[tauri::command]
 pub async fn list_tools(state: State<'_, RuntimeHandle>) -> Result<Vec<ToolSummary>, String> {
     list_tools_inner(state.api_port).await
 }
 
-/// Retourne le descripteur complet d'un outil par son nom.
+/// Returns the full descriptor of a tool by its name.
 ///
-/// Retourne `null` si l'outil n'existe pas ou si le nom est vide.
+/// Returns `null` if the tool does not exist or the name is empty.
 #[tauri::command]
 pub async fn describe_tool(
     state: State<'_, RuntimeHandle>,

@@ -1,57 +1,56 @@
-//! Initialisation et migration de la base SQLite consolidée `governance.db`.
+//! Initialization and migration of the consolidated `governance.db` SQLite store.
 //!
-//! Cette base unique remplace l'ancienne `permissions.db` et regroupe sous
-//! `~/.apollia/governance.db` toutes les tables de gouvernance du runtime :
+//! This single store replaces the former `permissions.db` and gathers every
+//! runtime governance table under `~/.apollia/governance.db`:
 //!
-//! - `permission_rules` — règles préfixe scope-aware (session/project/global) ;
-//! - `permission_audit` — log immuable des décisions, append-only via triggers ;
-//! - `tools` — état enabled/disabled et configuration JSON par outil ;
-//! - `tool_credentials` — secrets par outil, valeurs chiffrées AES-256-GCM.
+//! - `permission_rules`: scope-aware prefix rules (session/project/global);
+//! - `permission_audit`: immutable decision log, append-only via triggers;
+//! - `tools`: enabled/disabled state and per-tool JSON configuration;
+//! - `tool_credentials`: per-tool secrets, AES-256-GCM encrypted values.
 //!
-//! ## Migration depuis `permissions.db`
+//! ## Migration from `permissions.db`
 //!
-//! Au premier démarrage avec une `permissions.db` existante, le fichier est
-//! copié vers `governance.db` puis renommé `permissions.db.bak`. La sauvegarde
-//! est conservée mais plus utilisée par le runtime. Les migrations de schéma
-//! (ALTER TABLE) sont idempotentes : un redémarrage ultérieur ne produit
-//! aucune erreur ni doublon.
+//! On first startup with an existing `permissions.db`, the file is copied to
+//! `governance.db` then renamed `permissions.db.bak`. The backup is kept but no
+//! longer used by the runtime. Schema migrations (ALTER TABLE) are idempotent:
+//! a later restart produces no error and no duplicate.
 
 use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OpenFlags};
 
-/// Erreur retournée par [`GovernanceDb`].
+/// Error returned by [`GovernanceDb`].
 #[derive(Debug, thiserror::Error)]
 pub enum GovernanceError {
-    /// Erreur d'I/O lors de la création du dossier ou de la migration de fichier.
+    /// I/O error while creating the directory or migrating the file.
     #[error("governance.db I/O error at {path}: {source}")]
     Io {
-        /// Chemin concerné par l'erreur d'I/O.
+        /// Path involved in the I/O error.
         path: PathBuf,
-        /// Cause sous-jacente.
+        /// Underlying cause.
         #[source]
         source: std::io::Error,
     },
-    /// Erreur SQLite lors de l'ouverture ou de la migration du schéma.
+    /// SQLite error while opening or migrating the schema.
     #[error("governance.db SQLite error: {0}")]
     Database(#[from] rusqlite::Error),
 }
 
-/// Nom de fichier de la base consolidée.
+/// Filename of the consolidated store.
 pub const GOVERNANCE_DB_FILENAME: &str = "governance.db";
 
-/// Nom de fichier de l'ancienne base de permissions (legacy).
+/// Filename of the legacy permissions store.
 pub const LEGACY_PERMISSIONS_FILENAME: &str = "permissions.db";
 
-/// Nom de fichier du backup créé après migration depuis `permissions.db`.
+/// Filename of the backup created after migrating from `permissions.db`.
 pub const LEGACY_BACKUP_FILENAME: &str = "permissions.db.bak";
 
-/// Base SQLite consolidée pour la gouvernance d'outils et de permissions.
+/// Consolidated SQLite store for tool and permission governance.
 ///
-/// `GovernanceDb` est responsable de :
-/// - migrer une éventuelle ancienne `permissions.db` vers `governance.db` ;
-/// - garantir l'existence de toutes les tables et triggers du schéma cible ;
-/// - exposer la connexion et le chemin pour les composants en aval (registry,
+/// `GovernanceDb` is responsible for:
+/// - migrating any legacy `permissions.db` to `governance.db`;
+/// - ensuring every table and trigger of the target schema exists;
+/// - exposing the connection and path to downstream components (registry,
 ///   credential store, prefix-rule engine, audit log).
 pub struct GovernanceDb {
     path: PathBuf,
@@ -59,21 +58,20 @@ pub struct GovernanceDb {
 }
 
 impl GovernanceDb {
-    /// Ouvre (ou crée) `<base_dir>/governance.db` et exécute la migration de schéma.
+    /// Opens (or creates) `<base_dir>/governance.db` and runs the schema migration.
     ///
-    /// Si `governance.db` n'existe pas mais qu'un ancien `permissions.db` est
-    /// présent dans `base_dir`, ce dernier est copié vers `governance.db` puis
-    /// renommé en `permissions.db.bak`. La sauvegarde est conservée.
+    /// If `governance.db` does not exist but a legacy `permissions.db` is present
+    /// in `base_dir`, the latter is copied to `governance.db` then renamed to
+    /// `permissions.db.bak`. The backup is kept.
     ///
-    /// La migration de schéma est idempotente : appeler `open` plusieurs fois
-    /// sur une base déjà migrée ne produit aucun changement.
+    /// The schema migration is idempotent: calling `open` several times on an
+    /// already-migrated store produces no change.
     ///
     /// # Errors
     ///
-    /// - [`GovernanceError::Io`] si la création du dossier ou la copie/renommage
-    ///   échoue.
-    /// - [`GovernanceError::Database`] si SQLite échoue à ouvrir le fichier ou
-    ///   à appliquer la migration.
+    /// - [`GovernanceError::Io`] if creating the directory or the copy/rename fails.
+    /// - [`GovernanceError::Database`] if SQLite fails to open the file or apply
+    ///   the migration.
     pub fn open(base_dir: &Path) -> Result<Self, GovernanceError> {
         if !base_dir.exists() {
             std::fs::create_dir_all(base_dir).map_err(|e| GovernanceError::Io {
@@ -114,12 +112,12 @@ impl GovernanceDb {
         Ok(Self { path, conn })
     }
 
-    /// Chemin absolu du fichier `governance.db` ouvert.
+    /// Absolute path of the open `governance.db` file.
     pub fn path(&self) -> &Path {
         &self.path
     }
 
-    /// Connexion SQLite sous-jacente, en lecture/écriture.
+    /// Underlying SQLite connection, read/write.
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
@@ -252,11 +250,11 @@ mod tests {
 
     #[test]
     fn test_fresh_create_all_tables() {
-        // GIVEN un dossier vide sans aucune base existante.
+        // GIVEN an empty directory with no existing store.
         let dir = TempDir::new().expect("tempdir");
-        // WHEN on ouvre une GovernanceDb pour la première fois.
+        // WHEN a GovernanceDb is opened for the first time.
         let db = GovernanceDb::open(dir.path()).expect("open governance.db");
-        // THEN governance.db est créée avec les quatre tables cibles.
+        // THEN governance.db is created with the four target tables.
         let conn = db.connection();
         assert_eq!(count_tables(conn, "permission_rules"), 1);
         assert_eq!(count_tables(conn, "permission_audit"), 1);
@@ -268,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_migration_from_permissions_db() {
-        // GIVEN une ancienne permissions.db remplie avec une règle existante.
+        // GIVEN a legacy permissions.db seeded with an existing rule.
         let dir = TempDir::new().expect("tempdir");
         let legacy = dir.path().join(LEGACY_PERMISSIONS_FILENAME);
         {
@@ -292,11 +290,11 @@ mod tests {
             .expect("seed legacy rule");
         }
 
-        // WHEN GovernanceDb::open migre cette base.
+        // WHEN GovernanceDb::open migrates that store.
         let db = GovernanceDb::open(dir.path()).expect("migrate");
 
-        // THEN governance.db existe, permissions.db a été renommée en .bak,
-        //      la règle existante est présente avec scope='global'.
+        // THEN governance.db exists, permissions.db has been renamed to .bak,
+        //      and the existing rule is present with scope='global'.
         let governance = dir.path().join(GOVERNANCE_DB_FILENAME);
         let backup = dir.path().join(LEGACY_BACKUP_FILENAME);
         assert!(governance.exists(), "governance.db must exist");
@@ -319,14 +317,14 @@ mod tests {
 
     #[test]
     fn test_idempotent_migration() {
-        // GIVEN un dossier qui a déjà été migré une fois.
+        // GIVEN a directory that has already been migrated once.
         let dir = TempDir::new().expect("tempdir");
         {
             let _first = GovernanceDb::open(dir.path()).expect("first open");
         }
-        // WHEN on rouvre la GovernanceDb.
+        // WHEN the GovernanceDb is reopened.
         let second = GovernanceDb::open(dir.path()).expect("second open");
-        // THEN aucune erreur, schéma identique, pas de tables dupliquées.
+        // THEN no error, identical schema, no duplicated tables.
         let conn = second.connection();
         for table in [
             "permission_rules",
@@ -340,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_audit_trigger_blocks_update() {
-        // GIVEN une GovernanceDb fraîche avec une entrée d'audit insérée.
+        // GIVEN a fresh GovernanceDb with one audit entry inserted.
         let dir = TempDir::new().expect("tempdir");
         let db = GovernanceDb::open(dir.path()).expect("open");
         db.connection()
@@ -351,14 +349,14 @@ mod tests {
             )
             .expect("insert audit row");
 
-        // WHEN on tente de modifier la décision...
+        // WHEN attempting to modify the decision...
         let update_result = db
             .connection()
             .execute("UPDATE permission_audit SET decision = 'NeedsApproval'", []);
-        // ...ou de la supprimer.
+        // ...or to delete it.
         let delete_result = db.connection().execute("DELETE FROM permission_audit", []);
 
-        // THEN les deux opérations sont bloquées par les triggers d'append-only.
+        // THEN both operations are blocked by the append-only triggers.
         assert!(update_result.is_err(), "UPDATE must be blocked");
         assert!(delete_result.is_err(), "DELETE must be blocked");
     }

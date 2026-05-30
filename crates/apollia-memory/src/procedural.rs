@@ -1,9 +1,9 @@
-//! ProceduralMemory — workflows appris par l'agent.
+//! ProceduralMemory: workflows the agent has learned.
 //!
-//! Stocke des patterns trigger->steps avec compteur de succes.
-//! Quand un agent reconnait une situation similaire, il peut recuperer
-//! le workflow associe plutot que de repartir de zero.
-//! L'agent est seul maitre de ce qui est enregistre (Principe #6).
+//! Stores trigger->steps patterns with a success counter.
+//! When an agent recognises a similar situation, it can retrieve the
+//! associated workflow rather than starting from scratch.
+//! The agent alone decides what gets recorded.
 
 use crate::store::MemoryStore;
 
@@ -11,63 +11,63 @@ use crate::store::MemoryStore;
 /// Beyond this limit, least-recently-used entries are evicted (LRU).
 pub(crate) const DEFAULT_MAX_ENTRIES_PER_NAMESPACE: u64 = 1_000;
 
-/// Backend de memoire procedurale — workflows appris par l'agent.
+/// Procedural memory backend: workflows the agent has learned.
 ///
-/// Stocke des patterns trigger->steps avec compteur de succes.
-/// Le trigger est match exact (pas de FTS).
+/// Stores trigger->steps patterns with a success counter.
+/// The trigger is matched exactly (no FTS).
 pub struct ProceduralMemory<'a> {
     store: &'a MemoryStore,
 }
 
-/// Entree retournee par [`ProceduralMemory::recall`] et [`ProceduralMemory::list`].
+/// Entry returned by [`ProceduralMemory::recall`] and [`ProceduralMemory::list`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProcedureEntry {
-    /// UUID v4 unique de la procedure.
+    /// Unique UUID v4 of the procedure.
     pub id: String,
-    /// Namespace de la procedure.
+    /// Procedure namespace.
     pub namespace: String,
-    /// Trigger exact qui declenche cette procedure.
+    /// Exact trigger that fires this procedure.
     pub trigger: String,
-    /// Etapes du workflow, en ordre.
+    /// Workflow steps, in order.
     pub steps: Vec<String>,
-    /// Nombre de fois que cette procedure a ete confirmee comme reussie.
+    /// Number of times this procedure was confirmed successful.
     pub success_count: u32,
-    /// Date de dernier usage ISO 8601.
+    /// ISO 8601 last-used date.
     pub last_used_at: String,
-    /// Date de creation ISO 8601.
+    /// ISO 8601 creation date.
     pub created_at: String,
 }
 
-/// Erreurs du backend procedural.
+/// Errors from the procedural backend.
 #[derive(Debug, thiserror::Error)]
 pub enum ProceduralMemoryError {
-    /// L'apprentissage d'une procedure a echoue.
+    /// Learning a procedure failed.
     #[error("failed to learn procedure: {0}")]
     LearnFailed(String),
 
-    /// Le trigger est vide.
+    /// The trigger is empty.
     #[error("empty trigger")]
     EmptyTrigger,
 
-    /// La liste de steps est vide.
+    /// The steps list is empty.
     #[error("empty steps list")]
     EmptySteps,
 
-    /// Erreur SQLite propagee depuis rusqlite.
+    /// SQLite error propagated from rusqlite.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 }
 
 impl<'a> ProceduralMemory<'a> {
-    /// Cree un backend procedural lie a un [`MemoryStore`].
+    /// Create a procedural backend bound to a [`MemoryStore`].
     pub fn new(store: &'a MemoryStore) -> Self {
         Self { store }
     }
 
-    /// Apprend une procedure. Si le trigger existe deja dans le namespace,
-    /// incremente `success_count` et met a jour `steps` et `last_used_at`.
+    /// Learn a procedure. If the trigger already exists in the namespace,
+    /// increment `success_count` and update `steps` and `last_used_at`.
     ///
-    /// Retourne l'UUID de la procedure (nouveau ou existant).
+    /// Returns the UUID of the procedure (new or existing).
     pub fn learn(
         &self,
         namespace: &str,
@@ -191,7 +191,7 @@ impl<'a> ProceduralMemory<'a> {
         Ok(evicted as u64)
     }
 
-    /// Recupere une procedure par trigger exact. `None` si absente.
+    /// Retrieve a procedure by exact trigger. `None` if absent.
     pub fn recall(
         &self,
         namespace: &str,
@@ -225,7 +225,7 @@ impl<'a> ProceduralMemory<'a> {
         }
     }
 
-    /// Liste toutes les procedures d'un namespace, triees par `success_count` DESC.
+    /// List all procedures in a namespace, sorted by `success_count` DESC.
     pub fn list(&self, namespace: &str) -> Result<Vec<ProcedureEntry>, ProceduralMemoryError> {
         let conn = self.store.conn();
 
@@ -424,10 +424,10 @@ mod tests {
         ));
     }
 
-    // DT-018 — enforce_limit evicts least-recently-used entries (LRU)
+    // enforce_limit evicts least-recently-used entries (LRU)
     #[test]
     fn test_enforce_limit_evicts_lru_entries() {
-        // GIVEN — 5 procedures with explicit last_used_at timestamps
+        // GIVEN: 5 procedures with explicit last_used_at timestamps
         let (store, _) = setup();
         let proc_mem = ProceduralMemory::new(&store);
         let conn = store.conn();
@@ -451,10 +451,10 @@ mod tests {
             .unwrap();
         }
 
-        // WHEN — enforce limit of 3
+        // WHEN: enforce limit of 3
         let evicted = proc_mem.enforce_limit("ns", 3).unwrap();
 
-        // THEN — 2 LRU evicted, 3 remain
+        // THEN: 2 LRU evicted, 3 remain
         assert_eq!(evicted, 2);
         let remaining = proc_mem.list("ns").unwrap();
         assert_eq!(remaining.len(), 3);
@@ -467,39 +467,39 @@ mod tests {
         }
     }
 
-    // DT-018 — enforce_limit is no-op when under limit
+    // enforce_limit is no-op when under limit
     #[test]
     fn test_enforce_limit_noop_under_limit() {
-        // GIVEN — 2 procedures
+        // GIVEN: 2 procedures
         let (store, _) = setup();
         let proc_mem = ProceduralMemory::new(&store);
         proc_mem.learn("ns", "t1", &["s".into()]).unwrap();
         proc_mem.learn("ns", "t2", &["s".into()]).unwrap();
 
-        // WHEN — enforce limit of 10
+        // WHEN: enforce limit of 10
         let evicted = proc_mem.enforce_limit("ns", 10).unwrap();
 
-        // THEN — nothing evicted
+        // THEN: nothing evicted
         assert_eq!(evicted, 0);
         assert_eq!(proc_mem.list("ns").unwrap().len(), 2);
     }
 
-    // DT-018 — reinforcing existing trigger does NOT trigger eviction
+    // reinforcing existing trigger does NOT trigger eviction
     #[test]
     fn test_reinforce_does_not_trigger_eviction() {
-        // GIVEN — 3 procedures
+        // GIVEN: 3 procedures
         let (store, _) = setup();
         let proc_mem = ProceduralMemory::new(&store);
         proc_mem.learn("ns", "t1", &["s".into()]).unwrap();
         proc_mem.learn("ns", "t2", &["s".into()]).unwrap();
         proc_mem.learn("ns", "t3", &["s".into()]).unwrap();
 
-        // WHEN — reinforce existing trigger (no new row)
+        // WHEN: reinforce existing trigger (no new row)
         proc_mem
             .learn("ns", "t1", &["s1".into(), "s2".into()])
             .unwrap();
 
-        // THEN — still 3 procedures
+        // THEN: still 3 procedures
         assert_eq!(proc_mem.list("ns").unwrap().len(), 3);
     }
 
@@ -531,10 +531,10 @@ mod tests {
     /// The fallback path (chrono::Utc::now()) is exercised via unit test of the helper.
     #[test]
     fn test_procedural_timestamp_fallback_on_sqlite_error() {
-        // GIVEN / WHEN — call the timestamp helper directly
+        // GIVEN / WHEN: call the timestamp helper directly
         let ts = chrono_now_utc();
 
-        // THEN — the result is a valid ISO 8601 string regardless of which path was taken
+        // THEN: the result is a valid ISO 8601 string regardless of which path was taken
         assert!(
             ts.len() >= 19,
             "timestamp should be at least 19 chars: {ts}"

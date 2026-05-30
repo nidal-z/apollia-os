@@ -1,16 +1,16 @@
-//! Validation des canaux de notification et des noms d'événements.
+//! Validation of notification channels and event names.
 //!
-//! Ce module centralise la liste des événements connus ([`KNOWN_EVENTS`])
-//! et fournit des fonctions de validation appelées par le
+//! This module centralizes the list of known events ([`KNOWN_EVENTS`]) and
+//! provides validation functions called by the
 //! [`NotificationConfigRepository`](crate::repository::NotificationConfigRepository)
-//! avant toute écriture en base.
+//! before any write to the database.
 
 use crate::repository::NotificationChannelRow;
 
-/// Liste exhaustive des noms d'événements reconnus par le système de notification.
+/// Exhaustive list of event names recognized by the notification system.
 ///
-/// Tout événement qui n'apparaît pas dans cette liste est rejeté par
-/// [`validate_events`] avec une erreur [`NotificationConfigError::ValidationError`].
+/// Any event not in this list is rejected by [`validate_events`] with a
+/// [`NotificationConfigError::ValidationError`].
 pub const KNOWN_EVENTS: &[&str] = &[
     "task.completed",
     "task.failed",
@@ -27,38 +27,38 @@ pub const KNOWN_EVENTS: &[&str] = &[
     "chat.user_input_required",
 ];
 
-/// Erreur retournée par les opérations du [`NotificationConfigRepository`](crate::repository::NotificationConfigRepository).
+/// Error returned by [`NotificationConfigRepository`](crate::repository::NotificationConfigRepository) operations.
 #[derive(Debug, thiserror::Error)]
 pub enum NotificationConfigError {
-    /// Le canal demandé n'existe pas en base.
+    /// The requested channel does not exist in the database.
     #[error("channel not found: {0}")]
     NotFound(String),
-    /// Un canal avec cet identifiant existe déjà.
+    /// A channel with this identifier already exists.
     #[error("duplicate channel id: {0}")]
     DuplicateId(String),
-    /// Donnée invalide (webhook sans URL, événement inconnu, etc.).
+    /// Invalid data (webhook without URL, unknown event, etc.).
     #[error("validation error: {0}")]
     ValidationError(String),
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
 }
 
-/// Longueur maximale du `label` d'un canal, en caractères Unicode (`char`).
+/// Maximum length of a channel `label`, in Unicode characters (`char`).
 pub const MAX_LABEL_LEN: usize = 80;
 
-/// Borne supérieure du throttle d'un canal — 24 heures.
+/// Upper bound on a channel's throttle: 24 hours.
 ///
-/// Au-delà, on bascule en territoire de digest planifié, qui sort du périmètre
-/// de cette feature.
+/// Beyond that, we move into scheduled-digest territory, which is out of scope
+/// for this feature.
 pub const MAX_MIN_INTERVAL_SECONDS: u32 = 86_400;
 
-/// Valide un canal de notification avant insertion ou mise à jour.
+/// Validates a notification channel before insert or update.
 ///
-/// Règles :
-/// - Un canal de type `"webhook"` doit avoir une clé `"url"` non vide dans `config_json`.
-/// - Si `label` est `Some`, il doit être non vide après trim et ≤ [`MAX_LABEL_LEN`] caractères.
-/// - `min_interval_seconds` ≤ [`MAX_MIN_INTERVAL_SECONDS`].
+/// Rules:
+/// - A `"webhook"` channel must have a non-empty `"url"` key in `config_json`.
+/// - If `label` is `Some`, it must be non-empty after trim and <= [`MAX_LABEL_LEN`] characters.
+/// - `min_interval_seconds` <= [`MAX_MIN_INTERVAL_SECONDS`].
 pub fn validate_channel(ch: &NotificationChannelRow) -> Result<(), NotificationConfigError> {
     if ch.channel_type == "webhook" {
         let has_url = ch
@@ -77,10 +77,10 @@ pub fn validate_channel(ch: &NotificationChannelRow) -> Result<(), NotificationC
     Ok(())
 }
 
-/// Valide une valeur de `min_interval_seconds`.
+/// Validates a `min_interval_seconds` value.
 ///
-/// `0` est accepté (pas de throttling). Au-delà de [`MAX_MIN_INTERVAL_SECONDS`],
-/// la valeur est refusée pour éviter des fenêtres absurdes côté UI.
+/// `0` is accepted (no throttling). Beyond [`MAX_MIN_INTERVAL_SECONDS`], the
+/// value is rejected to avoid absurd windows on the UI side.
 pub fn validate_min_interval(seconds: u32) -> Result<(), NotificationConfigError> {
     if seconds > MAX_MIN_INTERVAL_SECONDS {
         return Err(NotificationConfigError::ValidationError(format!(
@@ -90,11 +90,11 @@ pub fn validate_min_interval(seconds: u32) -> Result<(), NotificationConfigError
     Ok(())
 }
 
-/// Valide un label libre.
+/// Validates a free-form label.
 ///
-/// - `None` est accepté (le canal retombera sur son `id` côté UI).
-/// - `Some("")` ou `Some("   ")` (whitespace seul) est refusé.
-/// - Plus de [`MAX_LABEL_LEN`] caractères Unicode est refusé.
+/// - `None` is accepted (the channel falls back to its `id` on the UI side).
+/// - `Some("")` or `Some("   ")` (whitespace only) is rejected.
+/// - More than [`MAX_LABEL_LEN`] Unicode characters is rejected.
 pub fn validate_label(label: Option<&str>) -> Result<(), NotificationConfigError> {
     let Some(label) = label else {
         return Ok(());
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_validate_label_human_text_ok() {
-        // GIVEN un label libre avec espaces et accents
+        // GIVEN a free-form label with spaces and accents
         // WHEN / THEN validation passes
         assert!(validate_label(Some("Alertes Slack équipe")).is_ok());
     }

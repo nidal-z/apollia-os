@@ -43,10 +43,10 @@ function buttonIsIconOnly(openTag, innerText) {
   if (/\$t\s*\(/.test(innerText)) return false;
 
   const stripped = innerText
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/{#if[\s\S]*?{\/if}/g, " ") // best-effort: inline Svelte branches
-    .replace(/{[^{}]*}/g, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/<!--[\s\S]*?-->/g, "")
+    .replaceAll(/{#if[\s\S]*?{\/if}/g, " ") // best-effort: inline Svelte branches
+    .replaceAll(/{[^{}]*}/g, " ")
+    .replaceAll(/\s+/g, " ")
     .trim();
   if (!stripped) return false;
   // A single lucide tag, e.g. `<X size={18} />` or `<Settings … />`.

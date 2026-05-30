@@ -235,7 +235,7 @@ export function buildReasoningSequence(
 
   const calls = message.tool_calls ?? [];
   for (let i = 0; i < calls.length; i += 1) {
-    items.push(toReasoningItem(calls[i]!, `${message.id}-tc`, i));
+    items.push(toReasoningItem(calls[i], `${message.id}-tc`, i));
   }
   return items;
 }

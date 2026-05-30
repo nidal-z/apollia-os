@@ -82,11 +82,6 @@ class LlmMessage(TypedDict, total=False):
     content: list[MessageContent] | str
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Conversational
-# ──────────────────────────────────────────────────────────────────────
-
-
 class Message(TypedDict):
     """A conversational message exchanged with a user-facing agent."""
 

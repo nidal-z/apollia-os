@@ -36,7 +36,7 @@ pub enum ConnectorError {
     /// The upstream returned 401 even after a refresh attempt.
     ///
     /// Typically indicates the user revoked Apollia's access from the SaaS
-    /// admin console — the stored token is no longer valid and must be
+    /// admin console: the stored token is no longer valid and must be
     /// re-acquired through the OAuth flow.
     #[error("unauthorized: token rejected by {provider}")]
     Unauthorized {
@@ -77,7 +77,7 @@ pub enum ConnectorError {
 
     /// The operation argument or runtime context is invalid.
     ///
-    /// Distinct from upstream errors — this captures programmer or caller
+    /// Distinct from upstream errors: this captures programmer or caller
     /// mistakes that should never be retried.
     #[error("invalid argument: {0}")]
     InvalidArgument(String),

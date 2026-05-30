@@ -1,4 +1,4 @@
-//! STT (Speech-to-Text) engine — Tokio actor for transcription orchestration.
+//! STT (Speech-to-Text) engine, Tokio actor for transcription orchestration.
 //!
 //! The [`SttEngine`] actor wraps a [`SttBackend`](apollia_stt::SttBackend)
 //! behind a bounded `mpsc` channel. Transcription inference runs in

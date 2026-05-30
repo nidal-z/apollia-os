@@ -3,7 +3,7 @@
 //! Artifacts are snapshots of agent tool outputs (file contents, code blocks,
 //! specs, diagrams, bash logs) captured per chat session. They live in a
 //! standalone SQLite DB at `~/.apollia/artifacts.db`, independent of the
-//! chat manager actor — write/read paths are synchronous here and do not
+//! chat manager actor; write/read paths are synchronous here and do not
 //! interact with the runtime event bus.
 
 use std::path::PathBuf;
@@ -19,9 +19,9 @@ pub struct Artifact {
     pub id: String,
     /// Owning chat session identifier.
     pub session_id: String,
-    /// Source message identifier (nullable — manual creation).
+    /// Source message identifier (nullable, manual creation).
     pub source_message_id: Option<String>,
-    /// Kind bucket : `"code"`, `"file"`, `"spec"`, `"bash_output"`, `"other"`.
+    /// Kind bucket: `"code"`, `"file"`, `"spec"`, `"bash_output"`, `"other"`.
     pub kind: String,
     /// Detected or declared language (e.g. `"rust"`, `"markdown"`).
     pub language: Option<String>,
@@ -42,7 +42,7 @@ pub struct Artifact {
 pub struct SaveArtifactRequest {
     /// Owning session.
     pub session_id: String,
-    /// Source message identifier — set when detected from a tool call.
+    /// Source message identifier, set when detected from a tool call.
     pub source_message_id: Option<String>,
     /// Classification bucket.
     pub kind: String,
@@ -269,7 +269,7 @@ pub async fn update_artifact(
     })
 }
 
-/// Delete an artifact by id. Idempotent — returns `Ok(())` even when absent.
+/// Delete an artifact by id. Idempotent: returns `Ok(())` even when absent.
 #[tauri::command]
 pub async fn delete_artifact(id: String) -> Result<(), String> {
     with_conn(|conn| {

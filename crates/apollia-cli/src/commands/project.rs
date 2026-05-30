@@ -1,4 +1,4 @@
-//! `apollia-os project` subcommands — local-first project management.
+//! `apollia-os project` subcommands: local-first project management.
 //!
 //! Operates directly on `~/.apollia/projects.db` through
 //! [`apollia_tools::ProjectRepository`] without requiring the runtime.
@@ -173,11 +173,13 @@ pub fn run(cmd: &ProjectCommand, json: bool) -> i32 {
             workspace,
             db,
         } => run_create(
-            db.as_deref(),
-            name,
-            description.clone(),
-            instructions.clone(),
-            workspace.clone(),
+            CreateArgs {
+                db: db.as_deref(),
+                name,
+                description: description.clone(),
+                instructions: instructions.clone(),
+                workspace: workspace.clone(),
+            },
             json,
         ),
         ProjectCommand::Show { id, db } => run_show(db.as_deref(), id, json),
@@ -189,12 +191,14 @@ pub fn run(cmd: &ProjectCommand, json: bool) -> i32 {
             workspace,
             db,
         } => run_update(
-            db.as_deref(),
-            id,
-            name.clone(),
-            description.clone(),
-            instructions.clone(),
-            workspace.clone(),
+            UpdateArgs {
+                db: db.as_deref(),
+                id,
+                name: name.clone(),
+                description: description.clone(),
+                instructions: instructions.clone(),
+                workspace: workspace.clone(),
+            },
             json,
         ),
         ProjectCommand::Delete { id, confirm, db } => run_delete(db.as_deref(), id, *confirm, json),
@@ -422,14 +426,23 @@ fn run_list(db: Option<&Path>, json: bool) -> i32 {
 
 // ─── create ───────────────────────────────────────────────────────────────────
 
-fn run_create(
-    db: Option<&Path>,
-    name: &str,
+/// Fields supplied to `apollia-os project create`.
+struct CreateArgs<'a> {
+    db: Option<&'a Path>,
+    name: &'a str,
     description: Option<String>,
     instructions: Option<String>,
     workspace: Option<String>,
-    json: bool,
-) -> i32 {
+}
+
+fn run_create(args: CreateArgs<'_>, json: bool) -> i32 {
+    let CreateArgs {
+        db,
+        name,
+        description,
+        instructions,
+        workspace,
+    } = args;
     let Some(repo) = open_repo(db, json) else {
         return exit_codes::GENERAL_ERROR;
     };
@@ -487,15 +500,25 @@ fn run_show(db: Option<&Path>, id: &str, json: bool) -> i32 {
 
 // ─── update ───────────────────────────────────────────────────────────────────
 
-fn run_update(
-    db: Option<&Path>,
-    id: &str,
+/// Fields supplied to `apollia-os project update`.
+struct UpdateArgs<'a> {
+    db: Option<&'a Path>,
+    id: &'a str,
     name: Option<String>,
     description: Option<String>,
     instructions: Option<String>,
     workspace: Option<String>,
-    json: bool,
-) -> i32 {
+}
+
+fn run_update(args: UpdateArgs<'_>, json: bool) -> i32 {
+    let UpdateArgs {
+        db,
+        id,
+        name,
+        description,
+        instructions,
+        workspace,
+    } = args;
     if name.is_none() && description.is_none() && instructions.is_none() && workspace.is_none() {
         emit_error(
             "provide at least one of --name, --description, --instructions, --workspace",
@@ -772,11 +795,13 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("p.db");
         let code = run_create(
-            Some(&db),
-            "Acme",
-            Some("desc".to_string()),
-            None,
-            None,
+            CreateArgs {
+                db: Some(&db),
+                name: "Acme",
+                description: Some("desc".to_string()),
+                instructions: None,
+                workspace: None,
+            },
             true,
         );
         assert_eq!(code, exit_codes::SUCCESS);
@@ -799,7 +824,17 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("p.db");
         assert_eq!(
-            run_update(Some(&db), "abc", None, None, None, None, true),
+            run_update(
+                UpdateArgs {
+                    db: Some(&db),
+                    id: "abc",
+                    name: None,
+                    description: None,
+                    instructions: None,
+                    workspace: None,
+                },
+                true
+            ),
             exit_codes::GENERAL_ERROR
         );
     }

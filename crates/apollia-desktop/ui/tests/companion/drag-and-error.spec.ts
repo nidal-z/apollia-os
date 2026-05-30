@@ -25,12 +25,14 @@ async function installTauriStub(
       ],
       get_companion_context: () => "Contextual help.",
       create_companion_session: () =>
+        // NOSONAR typescript:S2004 — Tauri stub deliberately mirrors the runtime
+        // call chain (handler → Promise → delayed resolve) for fidelity.
         new Promise((resolve) => {
-          setTimeout(() => resolve({ session_id: "sess-1" }), delay);
+          setTimeout(() => resolve({ session_id: "sess-1" }), delay); // NOSONAR typescript:S2004
         }),
       update_chat_session: () => null,
     };
-    (window as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
+    (globalThis as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
       invoke: (cmd: string, args: unknown) => {
         const fn = handlers[cmd];
         return fn ? Promise.resolve(fn(args)) : Promise.resolve(null);
@@ -70,7 +72,7 @@ test.describe("Companion — error state", () => {
   }) => {
     // Session creation never resolves → force the 10 s timeout path.
     await page.addInitScript(() => {
-      (window as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
+      (globalThis as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
         invoke: (cmd: string) => {
           if (cmd === "get_user_memory")
             return Promise.resolve([

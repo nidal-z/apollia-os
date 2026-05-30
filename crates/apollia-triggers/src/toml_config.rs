@@ -1,10 +1,10 @@
-//! Parsing TOML de la section `[[triggers]]` depuis le contenu d'`apollia.toml`.
+//! TOML parsing of the `[[triggers]]` section from the contents of `apollia.toml`.
 //!
-//! Utilisé par `apollia-runtime` pour le hot reload via `POST /api/v1/triggers/reload`
-//! sans dépendre de `apollia-cli` (qui créerait une dépendance circulaire).
+//! Used by `apollia-runtime` for hot reload via `POST /api/v1/triggers/reload`
+//! without depending on `apollia-cli` (which would create a circular dependency).
 //!
-//! La validation suit le **Principe #4 — Fail fast** : toute erreur de configuration
-//! est détectée avant de transmettre les définitions au [`TriggerEngine`].
+//! Validation is fail-fast: any configuration error is detected before the
+//! definitions are handed to the [`TriggerEngine`].
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -16,39 +16,39 @@ use crate::types::{
     TriggerDefinitionError, TriggerSourceConfig,
 };
 
-// ─── Erreur ───────────────────────────────────────────────────────────────────
+// --- Error -------------------------------------------------------------------
 
-/// Erreurs retournées par [`parse_triggers_from_toml_str`].
+/// Errors returned by [`parse_triggers_from_toml_str`].
 #[derive(Debug, thiserror::Error)]
 pub enum TriggerTomlError {
-    /// Le contenu TOML est malformé (syntaxe invalide, type incorrect).
+    /// The TOML content is malformed (invalid syntax, wrong type).
     #[error("invalid TOML: {0}")]
     Parse(#[from] toml::de::Error),
 
-    /// Un trigger a une configuration sémantiquement invalide.
+    /// A trigger has a semantically invalid configuration.
     #[error("invalid trigger '{id}': {reason}")]
     InvalidTrigger {
-        /// Identifiant du trigger fautif.
+        /// Identifier of the offending trigger.
         id: String,
-        /// Description de l'erreur de validation.
+        /// Description of the validation error.
         reason: String,
     },
 }
 
-// ─── Types bruts TOML ─────────────────────────────────────────────────────────
+// --- Raw TOML types ----------------------------------------------------------
 
-/// Structure racine pour désérialiser uniquement la section `[[triggers]]`.
+/// Root structure to deserialize only the `[[triggers]]` section.
 #[derive(Debug, Deserialize)]
 struct RawRoot {
     #[serde(default)]
     triggers: Vec<RawTrigger>,
 }
 
-/// Format brut d'un trigger dans le TOML avant validation sémantique.
+/// Raw format of a trigger in TOML before semantic validation.
 #[derive(Debug, Deserialize)]
 struct RawTrigger {
     id: String,
-    /// Agent cible.
+    /// Target agent.
     #[serde(default)]
     agent: String,
     #[serde(default = "default_true")]
@@ -60,7 +60,7 @@ struct RawTrigger {
     source: RawTriggerSource,
 }
 
-/// Format brut de la sous-section `source` d'un trigger.
+/// Raw format of a trigger's `source` subsection.
 #[derive(Debug, Deserialize)]
 struct RawTriggerSource {
     #[serde(rename = "type")]
@@ -71,34 +71,34 @@ struct RawTriggerSource {
     path: Option<String>,
     events: Option<Vec<String>>,
     secret: Option<String>,
-    /// Surveillance récursive des sous-dossiers pour les sources `file_watch`
-    /// pointant sur un dossier (défaut : false).
+    /// Recursive watch of subdirectories for `file_watch` sources pointing to a
+    /// directory (default: false).
     #[serde(default)]
     recursive: bool,
-    /// Suivre les symlinks pour les sources `file_watch` (défaut : false).
+    /// Follow symlinks for `file_watch` sources (default: false).
     #[serde(default)]
     follow_symlinks: bool,
-    /// Patterns d'exclusion pour les sources `file_watch`.
-    /// Absent du TOML → défauts appliqués.
+    /// Exclusion patterns for `file_watch` sources.
+    /// Absent from the TOML means the defaults are applied.
     exclude_patterns: Option<Vec<String>>,
 }
 
-/// Retourne `true` — valeur par défaut pour le champ `enabled`.
+/// Returns `true`, the default value for the `enabled` field.
 fn default_true() -> bool {
     true
 }
 
-// ─── API publique ─────────────────────────────────────────────────────────────
+// --- Public API --------------------------------------------------------------
 
-/// Parse la section `[[triggers]]` depuis le contenu TOML d'un `apollia.toml`.
+/// Parses the `[[triggers]]` section from the TOML contents of an `apollia.toml`.
 ///
-/// Valide sémantiquement chaque trigger activé (schedule cron, secret webhook, etc.).
-/// Les triggers avec `enabled = false` ne sont pas validés sémantiquement.
+/// Semantically validates each enabled trigger (cron schedule, webhook secret, etc.).
+/// Triggers with `enabled = false` are not semantically validated.
 ///
-/// # Erreurs
+/// # Errors
 ///
-/// - [`TriggerTomlError::Parse`] — TOML malformé.
-/// - [`TriggerTomlError::InvalidTrigger`] — trigger avec configuration invalide.
+/// - [`TriggerTomlError::Parse`]: malformed TOML.
+/// - [`TriggerTomlError::InvalidTrigger`]: trigger with an invalid configuration.
 pub fn parse_triggers_from_toml_str(
     toml_str: &str,
 ) -> Result<Vec<TriggerDefinition>, TriggerTomlError> {
@@ -106,9 +106,9 @@ pub fn parse_triggers_from_toml_str(
     raw.triggers.iter().map(validate_trigger).collect()
 }
 
-// ─── Validation ───────────────────────────────────────────────────────────────
+// --- Validation --------------------------------------------------------------
 
-/// Valide un trigger brut et le convertit en [`TriggerDefinition`].
+/// Validates a raw trigger and converts it into a [`TriggerDefinition`].
 fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, TriggerTomlError> {
     if raw.id.is_empty() {
         return Err(TriggerTomlError::InvalidTrigger {
@@ -147,7 +147,7 @@ fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, TriggerTomlEr
     })
 }
 
-/// Valide sémantiquement la source d'un trigger activé.
+/// Semantically validates the source of an enabled trigger.
 fn validate_trigger_source(
     id: &str,
     raw: &RawTriggerSource,
@@ -222,7 +222,7 @@ fn validate_trigger_source(
     }
 }
 
-/// Valide et normalise une expression cron (5 ou 6 champs).
+/// Validates and normalizes a cron expression (5 or 6 fields).
 fn normalize_cron(id: &str, schedule: &str) -> Result<String, TriggerTomlError> {
     if cron::Schedule::from_str(schedule).is_ok() {
         return Ok(schedule.to_string());
@@ -248,7 +248,7 @@ fn normalize_cron(id: &str, schedule: &str) -> Result<String, TriggerTomlError> 
     })
 }
 
-/// Convertit des noms d'événements fichier en [`FileEventKind`].
+/// Converts file event names into [`FileEventKind`].
 fn parse_file_event_kinds(raw: &[String]) -> Vec<FileEventKind> {
     if raw.is_empty() {
         return vec![FileEventKind::Create];
@@ -263,7 +263,7 @@ fn parse_file_event_kinds(raw: &[String]) -> Vec<FileEventKind> {
         .collect()
 }
 
-/// Parsing minimal d'une source sans validation — pour les triggers désactivés.
+/// Minimal source parsing without validation, for disabled triggers.
 fn parse_trigger_source_unchecked(raw: &RawTriggerSource) -> TriggerSourceConfig {
     match raw.kind.as_str() {
         "cron" => TriggerSourceConfig::Cron {
@@ -301,7 +301,7 @@ fn parse_trigger_source_unchecked(raw: &RawTriggerSource) -> TriggerSourceConfig
     }
 }
 
-/// Résout le composant `~` en tête de chemin vers `$HOME`.
+/// Resolves a leading `~` path component to `$HOME`.
 fn expand_tilde(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
     if s.starts_with("~/") {
@@ -314,7 +314,7 @@ fn expand_tilde(path: &Path) -> PathBuf {
     }
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
+// --- Tests -------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -322,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_parse_valid_cron_trigger() {
-        // GIVEN un TOML avec un trigger cron valide
+        // GIVEN a TOML with a valid cron trigger
         let toml = r#"
 [[triggers]]
 id             = "rapport-hebdo"
@@ -346,7 +346,7 @@ schedule = "0 8 * * MON"
 
     #[test]
     fn test_parse_invalid_cron_returns_error() {
-        // GIVEN un trigger cron avec schedule invalide
+        // GIVEN a cron trigger with an invalid schedule
         let toml = r#"
 [[triggers]]
 id             = "bad-cron"
@@ -360,7 +360,7 @@ schedule = "not-valid"
 "#;
         // WHEN
         let result = parse_triggers_from_toml_str(toml);
-        // THEN erreur contenant le trigger_id
+        // THEN error containing the trigger_id
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(
@@ -371,16 +371,16 @@ schedule = "not-valid"
 
     #[test]
     fn test_parse_empty_triggers_returns_empty_vec() {
-        // GIVEN un TOML sans section [[triggers]]
+        // GIVEN a TOML without a [[triggers]] section
         let result = parse_triggers_from_toml_str("[agents]\ndirectory = \"agents/\"");
-        // THEN vec vide, pas d'erreur
+        // THEN empty vec, no error
         let defs = result.expect("doit parser sans erreur");
         assert!(defs.is_empty());
     }
 
     #[test]
     fn test_parse_webhook_empty_secret_returns_error() {
-        // GIVEN un trigger webhook avec secret vide
+        // GIVEN a webhook trigger with an empty secret
         let toml = r#"
 [[triggers]]
 id             = "crm-sync"
@@ -394,7 +394,7 @@ secret = ""
 "#;
         // WHEN
         let result = parse_triggers_from_toml_str(toml);
-        // THEN erreur
+        // THEN error
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(

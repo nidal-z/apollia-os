@@ -9,10 +9,11 @@ use uuid::Uuid;
 
 use super::error::RunnerError;
 
-/// Client HTTP qui parle au runner via 127.0.0.1:<port>.
+/// HTTP client that talks to the runner via 127.0.0.1:<port>.
 ///
-/// Wraps `reqwest::Client` avec : timeout par défaut 60 sec, base URL pinned
-/// au port retenu au spawn, deserialization en types IPC du crate `apollia-runner`.
+/// Wraps `reqwest::Client` with: default 60-second timeout, base URL pinned to
+/// the port selected at spawn, deserialization into the IPC types of the
+/// `apollia-runner` crate.
 #[derive(Clone)]
 pub struct RunnerClient {
     http: Client,
@@ -72,7 +73,7 @@ impl RunnerClient {
             .await
             .map_err(|e| RunnerError::Http(e.to_string()))?;
         if !resp.status().is_success() {
-            // Tente de parser un ErrorBody normalisé.
+            // Try to parse a normalized ErrorBody.
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
@@ -100,7 +101,7 @@ impl RunnerClient {
             .map_err(|e| RunnerError::Http(e.to_string()))
     }
 
-    /// Génère un `request_id` UUID v4 pour la corrélation logs.
+    /// Generate a UUID v4 `request_id` for log correlation.
     pub fn new_request_id() -> Uuid {
         Uuid::new_v4()
     }

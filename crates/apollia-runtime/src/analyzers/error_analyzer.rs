@@ -2,7 +2,7 @@
 //!
 //! Maps a raw error string (typically the `Display` of a `thiserror` enum)
 //! to an [`ErrorAnalysis`] with a stable category and an i18n-ready human
-//! message. No LLM is involved — coût : 0.
+//! message. No LLM is involved, cost: 0.
 //!
 //! When the classifier produces [`ErrorCategory::Unknown`], call
 //! [`enrich_with_llm`] with a [`MetaOrchestratorHandle`] to opt-into
@@ -17,7 +17,7 @@ use apollia_llm::meta_orchestrator::{MetaOrchestratorHandle, MetaRoutine};
 /// error string. The first match wins; entries are ordered roughly from
 /// most-specific to least-specific.
 ///
-/// To add a new mapping, push a tuple — the test
+/// To add a new mapping, push a tuple, the test
 /// `every_category_has_at_least_one_mapping` ensures coverage.
 const STATIC_MAPPINGS: &[(&str, ErrorCategory, &str, Option<&str>)] = &[
     // ── Timeout (must come before generic NetworkError matches) ──
@@ -159,7 +159,7 @@ const STATIC_MAPPINGS: &[(&str, ErrorCategory, &str, Option<&str>)] = &[
 ///
 /// `raw` is the `Display` form of the underlying error (or the body of a
 /// `tool error: …` message). When no entry matches, returns
-/// [`ErrorCategory::Unknown`] with a generic human message — call
+/// [`ErrorCategory::Unknown`] with a generic human message, call
 /// [`enrich_with_llm`] to humanise it via the meta-LLM (opt-in).
 pub fn classify_tool_error(raw: &str) -> ErrorAnalysis {
     classify_with_default(raw, ErrorCategory::ToolFailure)
@@ -183,7 +183,7 @@ fn classify_with_default(raw: &str, default: ErrorCategory) -> ErrorAnalysis {
             return analysis;
         }
     }
-    // No needle matched — fall back to the caller-provided default with a
+    // No needle matched, fall back to the caller-provided default with a
     // generic message. The frontend will render the technical details and,
     // if the user opted in, the runtime can later call `enrich_with_llm`.
     let (human, category) = match default {

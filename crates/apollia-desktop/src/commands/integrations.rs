@@ -108,7 +108,7 @@ pub enum IntegrationsError {
 
 // ─── DTOs ───────────────────────────────────────────────────────────────────
 
-/// Result of `oauth_start_flow` — the URL the desktop should open in the
+/// Result of `oauth_start_flow`: the URL the desktop should open in the
 /// system browser, plus the opaque `state` the frontend will echo back.
 #[derive(Debug, Clone, Serialize)]
 pub struct OauthStartFlow {
@@ -120,7 +120,7 @@ pub struct OauthStartFlow {
     pub callback_port: u16,
 }
 
-/// Result of `oauth_complete_flow` — minimal account info to confirm success.
+/// Result of `oauth_complete_flow`: minimal account info to confirm success.
 #[derive(Debug, Clone, Serialize)]
 pub struct OauthCompletedAccount {
     /// Provider id (`google` / `microsoft`).
@@ -203,7 +203,7 @@ fn build_provider_with_scopes(
 pub enum SovereigntyProfile {
     /// All cloud connectors allowed.
     CloudAllowed,
-    /// Local-only — block all cloud OAuth flows.
+    /// Local-only: block all cloud OAuth flows.
     LocalOnly,
 }
 
@@ -225,7 +225,7 @@ fn ensure_cloud_allowed(profile: SovereigntyProfile) -> Result<(), IntegrationsE
 /// the captured `code` to the frontend via the `oauth://code-ready` Tauri
 /// event, and returns the auth URL the renderer should open in the system
 /// browser. The frontend listens for the event and finalises the flow with
-/// [`oauth_complete_flow`] — no manual code paste needed on the happy path.
+/// [`oauth_complete_flow`]: no manual code paste needed on the happy path.
 ///
 /// When the loopback can't fire (browser blocked the redirect, headless
 /// environment, user closed the tab before granting), the frontend keeps a
@@ -255,7 +255,7 @@ pub async fn oauth_start_flow(
     let auth_url = apollia_auth::build_auth_url(&provider_config, &flow);
     let state = flow.state.clone();
 
-    // Open the system browser via the Tauri opener plugin — `window.open`
+    // Open the system browser via the Tauri opener plugin; `window.open`
     // from the renderer is unreliable in Tauri 2 webviews (browser sandboxing
     // blocks the popup silently on some platforms). The opener plugin goes
     // through the OS shell, same path as `xdg-open` / `open` / `start`.
@@ -278,7 +278,7 @@ pub async fn oauth_start_flow(
         },
     );
 
-    // Spawn the loopback callback waiter — emit a Tauri event as soon as the
+    // Spawn the loopback callback waiter; emit a Tauri event as soon as the
     // browser hits 127.0.0.1:port/callback. Frontend auto-finalises by
     // calling `oauth_complete_flow(state, code)`.
     let app_handle = app.clone();
@@ -362,7 +362,7 @@ pub async fn oauth_list_accounts(
 
 /// Revoke (forget) the token for `(provider, account_id)`.
 ///
-/// The local keyring entry is cleared. The upstream is not notified — call
+/// The local keyring entry is cleared. The upstream is not notified; call
 /// the provider's revocation endpoint separately if a server-side revoke is
 /// required.
 #[tauri::command]
@@ -407,7 +407,7 @@ pub async fn oauth_get_status() -> Result<Vec<OauthAccountInfo>, IntegrationsErr
 /// (`env var → override file → compiled default`) so the UI can show the
 /// user what is currently active per provider, and whether the override
 /// file contains a per-provider entry. Also reports whether a client_secret
-/// is configured (Google Installed App needs one — Microsoft does not).
+/// is configured (Google Installed App needs one, Microsoft does not).
 #[derive(Debug, Clone, Serialize)]
 pub struct OauthClientIdStatus {
     /// Provider id (`"google"` / `"microsoft"`).
@@ -419,7 +419,7 @@ pub struct OauthClientIdStatus {
     /// Override stored in `~/.apollia/oauth-clients.toml`, if any.
     pub override_client_id: Option<String>,
     /// True when a client_secret is resolved through any source. Never
-    /// returns the secret value itself — the UI only renders a presence dot.
+    /// returns the secret value itself; the UI only renders a presence dot.
     pub has_client_secret: bool,
     /// Same source semantics as `source` but for the secret.
     pub client_secret_source: String,
@@ -499,7 +499,7 @@ const fn provider_requires_api_key(provider: ConnectorProvider) -> bool {
 ///
 /// Used by the Settings → Integrations OAuth panel to render which client id
 /// is active and where it came from. Safe to call without a sovereignty check
-/// since the response contains no token material — only the public client id.
+/// since the response contains no token material, only the public client id.
 #[tauri::command]
 pub async fn oauth_list_client_ids() -> Result<Vec<OauthClientIdStatus>, IntegrationsError> {
     let mut out = Vec::new();
@@ -612,7 +612,7 @@ pub struct PickedFolderView {
 /// from the OAuth client id. The renderer uses these values to boot
 /// the Picker JS widget.
 ///
-/// `account_id` may be omitted — when `None`, the first connected
+/// `account_id` may be omitted; when `None`, the first connected
 /// Google account is used.
 #[tauri::command]
 pub async fn oauth_google_picker_session(
@@ -684,7 +684,7 @@ pub async fn oauth_list_picked_drive_folders(
         .collect())
 }
 
-/// Append a folder to the user's picker-grant list. Idempotent — same id
+/// Append a folder to the user's picker-grant list. Idempotent: same id
 /// twice just refreshes the cached name.
 #[tauri::command]
 pub async fn oauth_add_picked_drive_folder(
@@ -742,7 +742,7 @@ pub async fn oauth_set_drive_folder(
 
 /// Clear the Drive folder override for one Google account, restoring the
 /// default `Apollia/<agent_slug>` placement. Different from
-/// [`oauth_set_drive_folder`] called with an empty string — that means
+/// [`oauth_set_drive_folder`] called with an empty string; that means
 /// "use Drive root". Picked folders (Google Picker) are preserved.
 #[tauri::command]
 pub async fn oauth_reset_drive_folder(account_id: String) -> Result<(), IntegrationsError> {
@@ -767,7 +767,7 @@ pub async fn oauth_set_api_key(provider: String, api_key: String) -> Result<(), 
 ///
 /// Only meaningful for Google (Installed App requires a secret at the token
 /// endpoint per their non-standard implementation). Microsoft public clients
-/// don't use a secret — calling this for `"microsoft"` is allowed but pointless.
+/// don't use a secret; calling this for `"microsoft"` is allowed but pointless.
 #[tauri::command]
 pub async fn oauth_set_client_secret(
     provider: String,

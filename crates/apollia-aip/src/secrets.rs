@@ -1,67 +1,64 @@
-//! ctx.secrets — read-only credentials access for agents.
+//! ctx.secrets: read-only credentials access for agents.
 //!
-//! Encapsule un [`ToolCredentialStore`](apollia_tools::ToolCredentialStore)
-//! existant (AES-256-GCM) avec **gating manifest** : un agent ne voit que
-//! les clés déclarées dans `@agent(secrets=...)`. Toute clé non déclarée est
-//! invisible (retourne `None`), même si elle existe en base.
+//! Wraps an existing [`ToolCredentialStore`](apollia_tools::ToolCredentialStore)
+//! (AES-256-GCM) with **manifest gating**: an agent only sees the keys
+//! declared in `@agent(secrets=...)`. Any undeclared key is invisible
+//! (returns `None`), even if it exists in the database.
 //!
-//! Le store n'est pas exposé en écriture aux agents — les ops gèrent les
-//! secrets via la CLI / le desktop. Cette interface est lecture-seule par
-//! conception.
+//! The store is not exposed for writing to agents; ops manage secrets via the
+//! CLI / desktop. This interface is read-only by design.
 //!
-//! L'interface fonctionne aussi en mode dégradé (`store = None`) avec gating
-//! fonctionnel et toutes les valeurs à `None`. Le namespace tool utilisé pour
-//! les agents est `"agent"` par convention.
+//! The interface also works in degraded mode (`store = None`) with functional
+//! gating and all values at `None`. The tool namespace used for agents is
+//! `"agent"` by convention.
 
 use std::sync::{Arc, Mutex};
 
 use apollia_tools::ToolCredentialStore;
 use pyo3::prelude::*;
 
-/// Namespace `tool_name` utilisé dans `ToolCredentialStore` pour les
-/// credentials propres à un agent (par opposition aux secrets propres à un
-/// outil natif comme `web_search`).
+/// `tool_name` namespace used in `ToolCredentialStore` for credentials that
+/// belong to an agent (as opposed to secrets owned by a native tool such as
+/// `web_search`).
 const AGENT_SECRETS_NAMESPACE: &str = "agent";
 
-/// Interface lecture-seule exposée à l'agent via `ctx.secrets`.
+/// Read-only interface exposed to the agent via `ctx.secrets`.
 ///
-/// Construit avec :
-/// - `store` — optionnel ; `None` pour les tests / runtimes sans store.
-/// - `declared` — copie de `manifest.secrets`, agit comme allowlist stricte.
+/// Built with:
+/// - `store`: optional; `None` for tests / runtimes without a store.
+/// - `declared`: copy of `manifest.secrets`, acts as a strict allowlist.
 #[pyclass(name = "SecretsInterface", module = "apollia._native")]
 pub struct SecretsInterface {
-    /// Store partagé (lecture seule depuis l'agent). `None` désactive la
-    /// résolution effective mais conserve la sémantique de gating.
+    /// Shared store (read-only from the agent). `None` disables effective
+    /// resolution but keeps the gating semantics.
     ///
-    /// Wrappé dans `Mutex` parce que [`ToolCredentialStore`] contient une
-    /// [`rusqlite::Connection`] qui n'est pas `Sync` (à cause du
-    /// `RefCell<StatementCache>`). Le `Mutex` n'introduit pas de contention
-    /// dans la pratique : les agents sont single-threaded côté Python et le
-    /// store est lu rarement (au plus quelques fois par tâche).
+    /// Wrapped in a `Mutex` because [`ToolCredentialStore`] holds a
+    /// [`rusqlite::Connection`] that is not `Sync` (due to the
+    /// `RefCell<StatementCache>`). The `Mutex` introduces no contention in
+    /// practice: agents are single-threaded on the Python side and the store
+    /// is read rarely (at most a few times per task).
     store: Option<Arc<Mutex<ToolCredentialStore>>>,
-    /// Liste des clés autorisées au manifest. Lookup linéaire car cette
-    /// liste reste petite (≤ 10 typiquement).
+    /// List of keys allowed by the manifest. Linear lookup since this list
+    /// stays small (<= 10 typically).
     declared: Vec<String>,
-    /// Namespace `tool_name` à utiliser pour chercher les credentials de cet
-    /// agent dans le store. Par défaut [`AGENT_SECRETS_NAMESPACE`] ;
-    /// surchargeable via [`Self::with_namespace`] pour les tests / les
-    /// futurs scenarios par-agent.
+    /// `tool_name` namespace to use when looking up this agent's credentials
+    /// in the store. Defaults to [`AGENT_SECRETS_NAMESPACE`]; overridable via
+    /// [`Self::with_namespace`] for tests / future per-agent scenarios.
     namespace: String,
 }
 
 #[pymethods]
 impl SecretsInterface {
-    /// Retourne la valeur du secret `key` ou `None` si inconnu / non
-    /// configuré.
+    /// Returns the value of secret `key`, or `None` if unknown / not
+    /// configured.
     ///
-    /// **Pas d'exception** : un secret manquant est légitime (agent qui
-    /// dégrade gracieusement). Pour faire échouer fail-fast, l'agent
-    /// vérifie lui-même la présence et lève l'erreur métier appropriée.
+    /// **No exception**: a missing secret is legitimate (an agent that
+    /// degrades gracefully). To fail fast, the agent checks presence itself
+    /// and raises the appropriate business error.
     ///
-    /// **Gating** : si `key` n'est pas dans la liste déclarée au manifest,
-    /// le retour est `None` même si la valeur existe en base. Ce comportement
-    /// est silencieux — la déclaration manifest est la **seule** source
-    /// d'autorité (Principe #1).
+    /// **Gating**: if `key` is not in the manifest's declared list, the return
+    /// is `None` even if the value exists in the database. This behavior is
+    /// silent: the manifest declaration is the **only** source of authority.
     fn get(&self, key: &str) -> PyResult<Option<String>> {
         if !self.declared.iter().any(|d| d == key) {
             return Ok(None);
@@ -93,28 +90,27 @@ impl SecretsInterface {
         }
     }
 
-    /// `True` si la clé est déclarée ET configurée en base.
+    /// `True` if the key is declared AND configured in the database.
     ///
-    /// Strictement équivalent à `ctx.secrets.get(key) is not None` côté
-    /// agent. Forme idiomatique pour la branchement précoce.
+    /// Strictly equivalent to `ctx.secrets.get(key) is not None` on the agent
+    /// side. Idiomatic form for early branching.
     fn has(&self, key: &str) -> PyResult<bool> {
         Ok(self.get(key)?.is_some())
     }
 
-    /// Liste les clés déclarées au manifest (jamais les valeurs).
+    /// Lists the keys declared in the manifest (never the values).
     ///
-    /// Permet à un agent d'auto-introspecter sa configuration au démarrage
-    /// sans hardcoder les noms. Aucune fuite : on ne révèle que les noms
-    /// que l'agent a lui-même déclarés.
+    /// Lets an agent introspect its own configuration at startup without
+    /// hardcoding names. No leak: only the names the agent declared itself
+    /// are revealed.
     fn list_names(&self) -> Vec<String> {
         self.declared.clone()
     }
 }
 
 impl SecretsInterface {
-    /// Construit l'interface secrets avec le store partagé et la liste
-    /// déclarée. Utilise le namespace par défaut
-    /// ([`AGENT_SECRETS_NAMESPACE`]).
+    /// Builds the secrets interface with the shared store and the declared
+    /// list. Uses the default namespace ([`AGENT_SECRETS_NAMESPACE`]).
     pub fn new(store: Option<Arc<Mutex<ToolCredentialStore>>>, declared: Vec<String>) -> Self {
         Self {
             store,
@@ -123,8 +119,8 @@ impl SecretsInterface {
         }
     }
 
-    /// Surcharge le namespace `tool_name` utilisé pour la résolution. Permet
-    /// d'isoler les secrets par agent (ex. `"agent::veille-ia"`).
+    /// Overrides the `tool_name` namespace used for resolution. Allows
+    /// isolating secrets per agent (e.g. `"agent::veille-ia"`).
     pub fn with_namespace(mut self, namespace: impl Into<String>) -> Self {
         self.namespace = namespace.into();
         self
@@ -145,7 +141,7 @@ mod tests {
     #[test]
     fn test_undeclared_key_returns_none() {
         let s = SecretsInterface::new(None, vec!["API_KEY".to_string()]);
-        // Un secret existant en base mais non déclaré : toujours None.
+        // A secret that exists in the database but is undeclared: always None.
         let v = s.get("OTHER_KEY").expect("get");
         assert!(v.is_none(), "undeclared keys are invisible");
     }
@@ -163,10 +159,10 @@ mod tests {
         assert_eq!(s.list_names(), vec!["A", "B"]);
     }
 
-    // ── Tests avec un ToolCredentialStore réel ────────────────────
+    // Tests with a real ToolCredentialStore
 
-    /// Construit un `ToolCredentialStore` éphémère + insère un secret pour
-    /// le namespace `"agent"`.
+    /// Builds an ephemeral `ToolCredentialStore` and inserts a secret for the
+    /// `"agent"` namespace.
     fn store_with_agent_secret(
         dir: &tempfile::TempDir,
         key: &str,
@@ -182,8 +178,8 @@ mod tests {
         Arc::new(Mutex::new(store))
     }
 
-    /// Avec un store réel et une clé déclarée, `get()` retourne la
-    /// valeur en clair.
+    /// With a real store and a declared key, `get()` returns the cleartext
+    /// value.
     #[test]
     fn test_get_with_store_returns_value_when_declared() {
         // GIVEN
@@ -198,28 +194,27 @@ mod tests {
         assert!(iface.has("brave_api_key").expect("has"));
     }
 
-    /// Gating manifest : une clé existante en base mais non
-    /// déclarée renvoie `None`.
+    /// Manifest gating: a key that exists in the database but is undeclared
+    /// returns `None`.
     #[test]
     fn test_get_with_store_gated_by_manifest() {
-        // GIVEN store contient `brave_api_key` mais l'agent n'a déclaré
-        // que `openai_api_key`.
+        // GIVEN the store contains `brave_api_key` but the agent only declared
+        // `openai_api_key`.
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store_with_agent_secret(&tmp, "brave_api_key", "BSA-secret-001");
         let iface = SecretsInterface::new(Some(store), vec!["openai_api_key".to_string()]);
-        // WHEN / THEN — Le secret en base est invisible parce que non déclaré.
+        // WHEN / THEN: the stored secret is invisible because it is undeclared.
         assert_eq!(iface.get("brave_api_key").expect("get"), None);
         assert!(!iface.has("brave_api_key").expect("has"));
-        // La clé déclarée mais absente du store renvoie None aussi.
+        // A declared key absent from the store also returns None.
         assert_eq!(iface.get("openai_api_key").expect("get"), None);
     }
 
-    /// `has()` retourne false pour une clé déclarée mais absente
-    /// du store.
+    /// `has()` returns false for a declared key that is absent from the store.
     #[test]
     fn test_has_false_when_declared_but_missing_in_store() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        // store ouvert (vide).
+        // store opened (empty).
         let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
         let db = tmp.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
         let kf = tmp.path().join(".keyfile");
@@ -231,10 +226,10 @@ mod tests {
         assert!(!iface.has("api_key").expect("has"));
     }
 
-    /// `with_namespace` permet d'isoler les secrets par agent.
-    /// Un store qui contient un secret sous `agent::veille-ia` n'est visible
-    /// que pour une interface configurée avec ce namespace, pas pour le
-    /// namespace par défaut `"agent"`.
+    /// `with_namespace` allows isolating secrets per agent.
+    /// A store that holds a secret under `agent::veille-ia` is visible only to
+    /// an interface configured with that namespace, not to the default
+    /// `"agent"` namespace.
     #[test]
     fn test_with_namespace_isolates_secrets() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -247,12 +242,12 @@ mod tests {
             .expect("set scoped");
         let shared = Arc::new(Mutex::new(store));
 
-        // Namespace par défaut "agent" — ne voit rien.
+        // Default "agent" namespace: sees nothing.
         let default_iface =
             SecretsInterface::new(Some(shared.clone()), vec!["brave_api_key".to_string()]);
         assert_eq!(default_iface.get("brave_api_key").expect("get"), None);
 
-        // Namespace scopé — voit la valeur.
+        // Scoped namespace: sees the value.
         let scoped_iface = SecretsInterface::new(Some(shared), vec!["brave_api_key".to_string()])
             .with_namespace("agent::veille-ia");
         assert_eq!(

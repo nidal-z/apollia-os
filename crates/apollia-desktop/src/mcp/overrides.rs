@@ -1,6 +1,6 @@
 //! User-side overrides for the MCP catalog (`~/.apollia/mcp-overrides.json`).
 //!
-//! Per ADR-091, the v0.1.0 catalog is static, embedded in the binary. To let
+//! The v0.1.0 catalog is static, embedded in the binary. To let
 //! power users patch the catalog without waiting for an Apollia release, an
 //! optional `~/.apollia/mcp-overrides.json` file can:
 //!
@@ -9,7 +9,7 @@
 //! - **`override`**: deep-merge fields on existing entries (e.g. flip
 //!   `default_requires_approval`).
 //!
-//! Errors parsing the override file are logged but never fatal — the catalog
+//! Errors parsing the override file are logged but never fatal; the catalog
 //! falls back to the embedded set.
 
 use std::collections::HashMap;
@@ -42,7 +42,7 @@ pub fn default_overrides_path() -> Option<PathBuf> {
 /// Order of operations:
 /// 1. Disable: drop any entry whose `package_identifier` is in `disable`.
 /// 2. Override: deep-merge each `override` patch into the matching entry.
-/// 3. Add: append `add` entries (no de-duplication — power user owns the file).
+/// 3. Add: append `add` entries (no de-duplication; the power user owns the file).
 pub fn apply_overrides(
     base: Vec<ConnectorEnrichment>,
     overrides: &McpOverrides,
@@ -70,7 +70,7 @@ pub fn apply_overrides(
 /// Load the override file from `path` (defaults to [`default_overrides_path`]).
 ///
 /// Returns `Ok(McpOverrides::default())` when the file does not exist or is
-/// unreadable — overrides are best-effort.
+/// unreadable; overrides are best-effort.
 pub fn load_overrides_from(path: Option<&std::path::Path>) -> McpOverrides {
     let resolved: PathBuf = match path {
         Some(p) => p.to_path_buf(),

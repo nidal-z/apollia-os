@@ -1,4 +1,4 @@
-//! `apollia-os stop` — send shutdown signal to a running runtime.
+//! `apollia-os stop`: send shutdown signal to a running runtime.
 //!
 //! Connects via Unix socket and sends `POST /api/v1/shutdown`.
 

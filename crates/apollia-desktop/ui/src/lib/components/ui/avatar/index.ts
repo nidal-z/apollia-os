@@ -1,5 +1,5 @@
-import Avatar, { avatarHue } from "./Avatar.svelte";
-import type { AvatarSize } from "./Avatar.svelte";
+import Avatar from "./Avatar.svelte";
 
-export { Avatar, avatarHue };
-export type { AvatarSize };
+export { Avatar };
+export { avatarHue } from "./Avatar.svelte";
+export type { AvatarSize } from "./Avatar.svelte";

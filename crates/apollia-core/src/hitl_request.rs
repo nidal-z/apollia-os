@@ -7,12 +7,12 @@
 //! # Design
 //!
 //! Two layers:
-//! - **Always-on** : a static analyzer (`apollia-runtime/src/analyzers/risk_analyzer.rs`)
+//! - **Always-on**: a static analyzer (`apollia-runtime/src/analyzers/risk_analyzer.rs`)
 //!   maps an `action_type` to a [`RiskAnalysis`] (categories, severity 0..10,
-//!   mitigations). Coût : 0.
-//! - **Opt-in** : `MetaRoutine::GenerateAskUserConsequences` may be called to
+//!   mitigations). Cost: 0.
+//! - **Opt-in**: `MetaRoutine::GenerateAskUserConsequences` may be called to
 //!   enrich `consequences_if_approved` / `consequences_if_rejected` with a
-//!   short plain-text narration. Coût : ~400 in / 200 out tokens per HITL.
+//!   short plain-text narration. Cost: ~400 in / 200 out tokens per HITL.
 //!
 //! Reject workflow : when the operator rejects, the textarea reason is
 //! required (non-empty). The runtime emits
@@ -71,7 +71,7 @@ impl ImpactLevel {
 /// Structured risk breakdown attached to a [`HitlRequest`].
 ///
 /// Produced by the always-on `risk_analyzer` from the action type and
-/// arguments. Never empty — if no category applies, the analyzer falls
+/// arguments. Never empty; if no category applies, the analyzer falls
 /// back to a generic `["unknown"]` category with severity 5.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RiskAnalysis {
@@ -116,7 +116,7 @@ impl RiskAnalysis {
 /// Enriched payload for a human-in-the-loop request.
 ///
 /// Built by the runtime before a HITL suspension is surfaced to the UI.
-/// The `context_thinking` and `consequences_*` fields are optional — the
+/// The `context_thinking` and `consequences_*` fields are optional; the
 /// former is populated from the reasoner trace when available, the latter
 /// only when the user opts into `routines.ask_user_consequences`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,7 +125,7 @@ pub struct HitlRequest {
     pub id: String,
     /// The question or action summary the user must approve.
     pub question: String,
-    /// The agent's reasoning trace excerpt — "Why is the agent asking?".
+    /// The agent's reasoning trace excerpt: "Why is the agent asking?".
     #[serde(default)]
     pub context_thinking: Option<String>,
     /// Coarse-grained impact classification (always-on).
@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(ImpactLevel::from_severity(8), ImpactLevel::High);
         assert_eq!(ImpactLevel::from_severity(9), ImpactLevel::Critical);
         assert_eq!(ImpactLevel::from_severity(10), ImpactLevel::Critical);
-        // Out-of-range — still maps to Critical (saturates).
+        // Out-of-range: still maps to Critical (saturates).
         assert_eq!(ImpactLevel::from_severity(42), ImpactLevel::Critical);
     }
 

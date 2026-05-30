@@ -1,4 +1,4 @@
-//! Embedded runtime — starts the full Supervisor inside a dedicated thread.
+//! Embedded runtime, starts the full Supervisor inside a dedicated thread.
 //!
 //! Designed for Tauri v2 integration: the desktop process calls
 //! [`init_embedded()`] once at startup, receives a [`RuntimeHandle`] with all
@@ -63,7 +63,7 @@ pub struct RuntimeHandle {
     /// Handle vers le NotificationEngine optionnel. Wrappé dans `Arc` car
     /// `NotificationEngineHandle` n'implémente pas `Clone`.
     pub notification_engine: Option<Arc<NotificationEngineHandle>>,
-    /// Repository des appels LLM — agrégation coûts/tokens.
+    /// Repository des appels LLM, agrégation coûts/tokens.
     ///
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<apollia_llm::LlmCallRepository>>>,
@@ -95,7 +95,7 @@ pub struct RuntimeHandle {
     ///
     /// Separate connection for read operations. `None` when STT is disabled.
     pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
-    /// Repository des projets — gestion des contextes workspace par projet.
+    /// Repository des projets, gestion des contextes workspace par projet.
     ///
     /// `Some` quand `projects.db` est ouvert avec succès au démarrage.
     pub project_repository: Option<Arc<ProjectRepository>>,
@@ -114,6 +114,14 @@ pub struct RuntimeHandle {
     pub tools_config: apollia_core::ToolsConfig,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
+    /// Supervisor of the local sidecar runner.
+    ///
+    /// Held for the entire lifetime of the embedded runtime: it owns the
+    /// runner child process (`kill_on_drop(true)`). Without this reference the
+    /// runner would be killed after boot and local inference calls would fail
+    /// with connection-refused. Also exposes `.proxy()` so the reload commands
+    /// can rebuild the router with the local backend wired through.
+    pub runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
 }
 
 /// Erreur retournée par [`init_embedded()`].
@@ -152,15 +160,15 @@ pub struct EmbeddedConfig {
     pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
     /// Configuration LLM optionnelle parsée depuis `apollia.toml`.
     pub llm_config: Option<apollia_llm::LlmConfig>,
-    /// Chemin du fichier `apollia.toml` chargé — requis pour le hot reload des triggers.
+    /// Chemin du fichier `apollia.toml` chargé, requis pour le hot reload des triggers.
     pub config_path: Option<PathBuf>,
-    /// Repository des agents installés — requis pour l'auto-load au boot.
+    /// Repository des agents installés, requis pour l'auto-load au boot.
     pub agent_repository: Option<AgentRepository>,
     /// Répertoire des agents bundled pour l'auto-install au premier boot.
     ///
     /// Si `None` ou si `manifest.json` est absent, l'auto-install est ignoré.
     pub bundled_agents_path: Option<PathBuf>,
-    /// Chat Agent runner — enables Chat Agent mode in the ChatSessionManager.
+    /// Chat Agent runner, enables Chat Agent mode in the ChatSessionManager.
     /// When `None`, Agent mode sessions will fail at message time.
     pub chat_agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
 
@@ -219,7 +227,7 @@ impl EmbeddedConfig {
     /// Applique toutes les sections parsables de `apollia.toml` à cette config.
     ///
     /// Parse `[llm]`, `[runtime]`, `[hitl]`, `[a2a]`, et `[api]` en une seule passe.
-    /// Les erreurs de parsing sont ignorées silencieusement — le runtime démarre
+    /// Les erreurs de parsing sont ignorées silencieusement, le runtime démarre
     /// avec les valeurs par défaut si une section est absente ou invalide.
     pub fn apply_toml(mut self, content: &str) -> Self {
         #[derive(serde::Deserialize)]
@@ -302,7 +310,7 @@ pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedEr
                 let _ = result_tx.send(result);
 
                 // Keep the Tokio runtime alive so actors continue running.
-                // The thread parks here indefinitely — shutdown is driven by
+                // The thread parks here indefinitely, shutdown is driven by
                 // the ShutdownController via the EventBus.
                 std::future::pending::<()>().await;
             });
@@ -381,10 +389,11 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         mcp_handle: handles.mcp_handle,
         tools_config,
         api_port: tcp_port,
+        runner_supervisor: handles.runner_supervisor,
     })
 }
 
-/// Fallback backend — returns a `Failed` result immediately.
+/// Fallback backend, returns a `Failed` result immediately.
 ///
 /// Used as the default execution backend when no Python agent is configured.
 #[derive(Clone)]

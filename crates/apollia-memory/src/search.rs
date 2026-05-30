@@ -1,60 +1,80 @@
-//! MemorySearch — recherche FTS5 avec ranking BM25.
+//! MemorySearch: FTS5 search with BM25 ranking.
 //!
-//! Interroge la table `memory_fts` et joint les tables source
-//! (episodic/semantic) pour enrichir les resultats avec namespace,
-//! importance/confiance et dates.
-//! Le tokenizer `unicode61` normalise les accents (Principe #1 local-first).
+//! Queries the `memory_fts` table and joins the source tables
+//! (episodic/semantic) to enrich results with namespace,
+//! importance/confidence and dates.
+//! The `unicode61` tokenizer normalises accents (local-first).
 
 use crate::store::MemoryStore;
 
-/// Moteur de recherche FTS5 avec ranking BM25.
+/// FTS5 search engine with BM25 ranking.
 ///
-/// Interroge la table `memory_fts` et joint les tables source
-/// (episodic/semantic) pour enrichir les resultats.
+/// Queries the `memory_fts` table and joins the source tables
+/// (episodic/semantic) to enrich results.
 pub struct MemorySearch<'a> {
     store: &'a MemoryStore,
 }
 
-/// Resultat d'une recherche memoire.
+/// A memory search result.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchResult {
-    /// Score BM25 (plus eleve = plus pertinent).
+    /// BM25 score (higher = more relevant).
     pub score: f64,
-    /// Table source du resultat.
+    /// Source table of the result.
     pub source: SearchSource,
-    /// ID de l'entree dans la table source.
+    /// ID of the entry in the source table.
     pub source_id: String,
-    /// Contenu textuel du resultat.
+    /// Textual content of the result.
     pub content: String,
-    /// Importance (episodic) ou confiance (semantic). None si non applicable.
+    /// Importance (episodic) or confidence (semantic). None when not applicable.
     pub relevance: Option<f64>,
-    /// Date de creation ISO 8601.
+    /// ISO 8601 creation date.
     pub created_at: String,
 }
 
-/// Source d'un resultat de recherche.
+/// Source of a search result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SearchSource {
-    /// Memoire episodique (journal d'evenements).
+    /// Episodic memory (event journal).
     Episodic,
-    /// Memoire semantique (base de connaissances).
+    /// Semantic memory (knowledge base).
     Semantic,
 }
 
-/// Erreurs de recherche.
+/// Search errors.
 #[derive(Debug, thiserror::Error)]
 pub enum MemorySearchError {
-    /// La requete FTS5 a echoue.
+    /// The FTS5 query failed.
     #[error("search query failed: {0}")]
     QueryFailed(String),
 
-    /// La requete de recherche est vide.
+    /// The search query is empty.
     #[error("empty search query")]
     EmptyQuery,
 
-    /// Erreur SQLite propagee depuis rusqlite.
+    /// SQLite error propagated from rusqlite.
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+}
+
+/// Parameters for a memory search run by [`MemorySearch::query`].
+///
+/// - `namespace`: filter by namespace
+/// - `query`: FTS5 query (keywords)
+/// - `limit`: max number of results
+/// - `sources`: filter by type (None = all)
+/// - `min_importance`: importance/confidence threshold (None = no filter)
+pub struct SearchQuery<'q> {
+    /// Filter by namespace.
+    pub namespace: &'q str,
+    /// FTS5 query (keywords).
+    pub query: &'q str,
+    /// Max number of results.
+    pub limit: u32,
+    /// Filter by type (None = all).
+    pub sources: Option<&'q [SearchSource]>,
+    /// Importance/confidence threshold (None = no filter).
+    pub min_importance: Option<f64>,
 }
 
 /// FTS5 operators and special tokens that must be escaped in user queries.
@@ -86,27 +106,35 @@ fn escape_fts5_query(raw: &str) -> String {
         .join(" ")
 }
 
+/// Parameters shared by the per-source-table FTS5 queries.
+///
+/// Groups the common arguments of [`MemorySearch::query_episodic`] and
+/// [`MemorySearch::query_semantic`] to keep their signatures concise.
+struct FtsQueryParams<'q> {
+    conn: &'q rusqlite::Connection,
+    escaped_query: &'q str,
+    namespace: &'q str,
+    limit: u32,
+    min_importance: Option<f64>,
+}
+
 impl<'a> MemorySearch<'a> {
-    /// Cree un moteur de recherche lie a un [`MemoryStore`].
+    /// Create a search engine bound to a [`MemoryStore`].
     pub fn new(store: &'a MemoryStore) -> Self {
         Self { store }
     }
 
-    /// Recherche dans la memoire par mots-cles avec ranking BM25.
+    /// Search memory by keywords with BM25 ranking.
     ///
-    /// - `namespace` : filtre par namespace
-    /// - `query` : requete FTS5 (mots-cles)
-    /// - `limit` : nombre max de resultats
-    /// - `sources` : filtrer par type (None = tous)
-    /// - `min_importance` : seuil d'importance/confiance (None = pas de filtre)
-    pub fn query(
-        &self,
-        namespace: &str,
-        query: &str,
-        limit: u32,
-        sources: Option<&[SearchSource]>,
-        min_importance: Option<f64>,
-    ) -> Result<Vec<SearchResult>, MemorySearchError> {
+    /// Parameters are grouped in [`SearchQuery`].
+    pub fn query(&self, search: SearchQuery<'_>) -> Result<Vec<SearchResult>, MemorySearchError> {
+        let SearchQuery {
+            namespace,
+            query,
+            limit,
+            sources,
+            min_importance,
+        } = search;
         let trimmed = query.trim();
         if trimmed.is_empty() {
             return Err(MemorySearchError::EmptyQuery);
@@ -122,28 +150,21 @@ impl<'a> MemorySearch<'a> {
             .unwrap_or(true);
 
         let conn = self.store.conn();
+        let params = FtsQueryParams {
+            conn,
+            escaped_query: &escaped,
+            namespace,
+            limit,
+            min_importance,
+        };
         let mut results = Vec::new();
 
         if want_episodic {
-            self.query_episodic(
-                conn,
-                &escaped,
-                namespace,
-                limit,
-                min_importance,
-                &mut results,
-            )?;
+            self.query_episodic(&params, &mut results)?;
         }
 
         if want_semantic {
-            self.query_semantic(
-                conn,
-                &escaped,
-                namespace,
-                limit,
-                min_importance,
-                &mut results,
-            )?;
+            self.query_semantic(&params, &mut results)?;
         }
 
         // Sort by score descending (higher = more relevant).
@@ -161,13 +182,16 @@ impl<'a> MemorySearch<'a> {
     /// Queries episodic memories via FTS5 JOIN.
     fn query_episodic(
         &self,
-        conn: &rusqlite::Connection,
-        escaped_query: &str,
-        namespace: &str,
-        limit: u32,
-        min_importance: Option<f64>,
+        params: &FtsQueryParams,
         results: &mut Vec<SearchResult>,
     ) -> Result<(), MemorySearchError> {
+        let FtsQueryParams {
+            conn,
+            escaped_query,
+            namespace,
+            limit,
+            min_importance,
+        } = *params;
         let min_imp = min_importance.unwrap_or(0.0);
 
         let sql = "\
@@ -211,13 +235,16 @@ impl<'a> MemorySearch<'a> {
     /// Queries semantic memories via FTS5 JOIN.
     fn query_semantic(
         &self,
-        conn: &rusqlite::Connection,
-        escaped_query: &str,
-        namespace: &str,
-        limit: u32,
-        min_importance: Option<f64>,
+        params: &FtsQueryParams,
         results: &mut Vec<SearchResult>,
     ) -> Result<(), MemorySearchError> {
+        let FtsQueryParams {
+            conn,
+            escaped_query,
+            namespace,
+            limit,
+            min_importance,
+        } = *params;
         let min_conf = min_importance.unwrap_or(0.0);
 
         let sql = "\
@@ -263,7 +290,7 @@ impl<'a> MemorySearch<'a> {
 mod tests {
     use super::*;
     use crate::episodic::EpisodicMemory;
-    use crate::semantic::SemanticMemory;
+    use crate::semantic::{RememberInput, SemanticMemory};
     use crate::store::MemoryStore;
     use serde_json::json;
 
@@ -306,14 +333,14 @@ mod tests {
         .unwrap();
 
         let sem = SemanticMemory::new(&store);
-        sem.remember(
-            "ns",
-            "client.dupont.budget_max",
-            &json!(15000),
-            1.0,
-            Some("crm"),
-            None,
-        )
+        sem.remember(RememberInput {
+            namespace: "ns",
+            key: "client.dupont.budget_max",
+            value: &json!(15000),
+            confidence: 1.0,
+            source: Some("crm"),
+            expires_at: None,
+        })
         .unwrap();
 
         store
@@ -326,7 +353,15 @@ mod tests {
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
         // WHEN
-        let results = search.query("ns", "devis Dupont", 3, None, None).unwrap();
+        let results = search
+            .query(SearchQuery {
+                namespace: "ns",
+                query: "devis Dupont",
+                limit: 3,
+                sources: None,
+                min_importance: None,
+            })
+            .unwrap();
         // THEN
         assert!(!results.is_empty());
         assert!(results.len() <= 3);
@@ -343,7 +378,13 @@ mod tests {
         let search = MemorySearch::new(&store);
         // WHEN
         let results = search
-            .query("ns", "Dupont", 10, Some(&[SearchSource::Episodic]), None)
+            .query(SearchQuery {
+                namespace: "ns",
+                query: "Dupont",
+                limit: 10,
+                sources: Some(&[SearchSource::Episodic]),
+                min_importance: None,
+            })
             .unwrap();
         // THEN
         assert!(!results.is_empty());
@@ -352,7 +393,7 @@ mod tests {
         }
     }
 
-    // bis — Filter by semantic source only
+    // Filter by semantic source only
     #[test]
     fn test_ac2_filter_by_semantic_source() {
         // GIVEN
@@ -360,7 +401,13 @@ mod tests {
         let search = MemorySearch::new(&store);
         // WHEN
         let results = search
-            .query("ns", "dupont", 10, Some(&[SearchSource::Semantic]), None)
+            .query(SearchQuery {
+                namespace: "ns",
+                query: "dupont",
+                limit: 10,
+                sources: Some(&[SearchSource::Semantic]),
+                min_importance: None,
+            })
             .unwrap();
         // THEN
         assert!(!results.is_empty());
@@ -376,7 +423,15 @@ mod tests {
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
         // WHEN
-        let results = search.query("ns", "Dupont", 10, None, Some(0.7)).unwrap();
+        let results = search
+            .query(SearchQuery {
+                namespace: "ns",
+                query: "Dupont",
+                limit: 10,
+                sources: None,
+                min_importance: Some(0.7),
+            })
+            .unwrap();
         // THEN
         assert!(!results.is_empty());
         for r in &results {
@@ -405,9 +460,15 @@ mod tests {
         )
         .unwrap();
         let search = MemorySearch::new(&store);
-        // WHEN — search without accents
+        // WHEN: search without accents
         let results = search
-            .query("ns", "reunion societe", 10, None, None)
+            .query(SearchQuery {
+                namespace: "ns",
+                query: "reunion societe",
+                limit: 10,
+                sources: None,
+                min_importance: None,
+            })
             .unwrap();
         // THEN
         assert!(!results.is_empty());
@@ -421,7 +482,13 @@ mod tests {
         let search = MemorySearch::new(&store);
         // WHEN
         let results = search
-            .query("ns", "xyznonexistent", 10, None, None)
+            .query(SearchQuery {
+                namespace: "ns",
+                query: "xyznonexistent",
+                limit: 10,
+                sources: None,
+                min_importance: None,
+            })
             .unwrap();
         // THEN
         assert!(results.is_empty());
@@ -434,7 +501,13 @@ mod tests {
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
         // WHEN
-        let result = search.query("ns", "", 10, None, None);
+        let result = search.query(SearchQuery {
+            namespace: "ns",
+            query: "",
+            limit: 10,
+            sources: None,
+            min_importance: None,
+        });
         // THEN
         assert!(matches!(result, Err(MemorySearchError::EmptyQuery)));
     }
@@ -446,7 +519,13 @@ mod tests {
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
         // WHEN
-        let result = search.query("ns", "   ", 10, None, None);
+        let result = search.query(SearchQuery {
+            namespace: "ns",
+            query: "   ",
+            limit: 10,
+            sources: None,
+            min_importance: None,
+        });
         // THEN
         assert!(matches!(result, Err(MemorySearchError::EmptyQuery)));
     }
@@ -457,20 +536,34 @@ mod tests {
         // GIVEN
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
-        // WHEN — query with FTS5 operators should not crash
-        let result = search.query("ns", "NOT AND OR devis*", 10, None, None);
-        // THEN — should not error (may return empty)
+        // WHEN: query with FTS5 operators should not crash
+        let result = search.query(SearchQuery {
+            namespace: "ns",
+            query: "NOT AND OR devis*",
+            limit: 10,
+            sources: None,
+            min_importance: None,
+        });
+        // THEN: should not error (may return empty)
         assert!(result.is_ok());
     }
 
-    // Namespace isolation — search in wrong namespace returns empty
+    // Namespace isolation: search in wrong namespace returns empty
     #[test]
     fn test_namespace_isolation() {
         // GIVEN
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
         // WHEN
-        let results = search.query("other-ns", "Dupont", 10, None, None).unwrap();
+        let results = search
+            .query(SearchQuery {
+                namespace: "other-ns",
+                query: "Dupont",
+                limit: 10,
+                sources: None,
+                min_importance: None,
+            })
+            .unwrap();
         // THEN
         assert!(results.is_empty());
     }

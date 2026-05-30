@@ -1,4 +1,4 @@
-//! Google Forms API client — non-sensitive scope (`forms.body`).
+//! Google Forms API client, non-sensitive scope (`forms.body`).
 //!
 //! v0.1.x exposes only form creation. Agents can read responses via a
 //! follow-up via Drive (`drive.file`) once the form is owned by Apollia.
@@ -6,7 +6,10 @@
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest},
+};
 
 const BASE: &str = "https://forms.googleapis.com/v1/forms";
 
@@ -54,7 +57,15 @@ impl FormsClient {
             "info": { "title": title }
         });
         self.http
-            .json_request(Method::POST, BASE, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: BASE,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 }

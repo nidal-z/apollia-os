@@ -1,10 +1,10 @@
-//! Cache des timestamps de fichiers lus par les agents.
+//! Cache of timestamps for files read by agents.
 //!
-//! Persiste le `mtime` de chaque fichier lu par un agent dans une base SQLite
-//! dédiée. À chaque accès ultérieur, le `mtime` courant est comparé à la valeur
-//! stockée. Si les deux diffèrent, un [`RuntimeEvent::FileModifiedSinceRead`] est
-//! émis afin qu'ORIA puisse invalider les entrées de plan cache dépendantes de ce
-//! fichier (Principe #4 — Fail fast).
+//! Persists the `mtime` of each file read by an agent in a dedicated SQLite
+//! database. On every subsequent access, the current `mtime` is compared to the
+//! stored value. If the two differ, a [`RuntimeEvent::FileModifiedSinceRead`] is
+//! emitted so that ORIA can invalidate plan cache entries that depend on that
+//! file (fail fast).
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -55,7 +55,7 @@ pub struct FileTimestampEntry {
 ///
 /// The cache stores data in a standalone SQLite database (separate from the
 /// agent's memory namespace databases). Pass `Path::new(":memory:")` to use
-/// an in-memory database — intended for testing only.
+/// an in-memory database, intended for testing only.
 ///
 /// [`record_read`]: FileTimestampCache::record_read
 pub struct FileTimestampCache {
@@ -102,9 +102,9 @@ impl FileTimestampCache {
     /// Records a file read and emits [`RuntimeEvent::FileModifiedSinceRead`]
     /// when the file has changed since the last recorded access.
     ///
-    /// - **First access** — entry created, no event emitted.
-    /// - **Unchanged file** — `last_read_at` updated, no event emitted.
-    /// - **Modified file** — event broadcast, then entry updated.
+    /// - **First access**: entry created, no event emitted.
+    /// - **Unchanged file**: `last_read_at` updated, no event emitted.
+    /// - **Modified file**: event broadcast, then entry updated.
     ///
     /// # Errors
     ///
@@ -250,7 +250,7 @@ impl FileTimestampCache {
 
     /// Inserts or updates the cache entry for `path`.
     ///
-    /// Uses a single UPSERT statement — no separate INSERT + UPDATE.
+    /// Uses a single UPSERT statement, no separate INSERT + UPDATE.
     fn upsert_entry(
         &self,
         path: &Path,

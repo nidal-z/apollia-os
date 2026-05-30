@@ -1,9 +1,12 @@
-//! Google Slides API client — non-sensitive scope (`presentations`).
+//! Google Slides API client, non-sensitive scope (`presentations`).
 
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ConnectorError, http::HttpClient};
+use crate::{
+    error::ConnectorError,
+    http::{HttpClient, JsonRequest},
+};
 
 const BASE: &str = "https://slides.googleapis.com/v1/presentations";
 
@@ -26,7 +29,7 @@ impl SlidesClient {
         Self { http }
     }
 
-    /// Create a new presentation. v0.1.x ships only this — agents can
+    /// Create a new presentation. v0.1.x ships only this; agents can
     /// chain Drive operations to share/move the deck once created.
     pub async fn create<F, Fut>(
         &self,
@@ -40,7 +43,15 @@ impl SlidesClient {
     {
         let body = serde_json::json!({ "title": title });
         self.http
-            .json_request(Method::POST, BASE, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: BASE,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 
@@ -97,7 +108,15 @@ impl SlidesClient {
             ]
         });
         self.http
-            .json_request(Method::POST, &url, &body, bearer, refresh)
+            .json_request(
+                JsonRequest {
+                    method: Method::POST,
+                    url: &url,
+                    body: &body,
+                },
+                bearer,
+                refresh,
+            )
             .await
     }
 }

@@ -1,8 +1,8 @@
-//! ORIAEngine — execution engine for agent tasks.
+//! ORIAEngine: execution engine for agent tasks.
 //!
 //! Entry point for running agent tasks. Supports two modes:
-//! - **Mode Direct** — single `agent.run()` call with `StepBudget` supervision.
-//! - **Mode Orchestrated** — `Reasoner` generates a plan, `ActorLoop` executes
+//! - **Mode Direct**: single `agent.run()` call with `StepBudget` supervision.
+//! - **Mode Orchestrated**: `Reasoner` generates a plan, `ActorLoop` executes
 //!   each step via `ToolProxy`, and outputs are concatenated or forwarded to
 //!   `on_plan_complete()`.
 //!
@@ -25,7 +25,7 @@ use apollia_memory::manager::MemoryManager;
 
 use apollia_workspace::ProjectRuntime;
 
-use crate::actor::{ActorLoop, ToolProxyTrait};
+use crate::actor::{ActorLoop, StepDeps, ToolProxyTrait};
 use crate::budget::StepBudget;
 use crate::context_manager::ContextManager;
 use crate::observer::{classify, ContextBundle, ExecutionMode, ObserverError};
@@ -35,13 +35,7 @@ use crate::plan_repository::PlanRepository;
 use crate::reasoner::{Reasoner, ReasonerError};
 use crate::resilience::ResilienceLayer;
 
-// ─────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────
-
-// ─────────────────────────────────────────────
 // Traits
-// ─────────────────────────────────────────────
 
 /// Trait abstracting agent execution for testability.
 ///
@@ -59,7 +53,7 @@ pub trait AgentRunner: Send + Sync {
 ///
 /// Provides the `manifest()` for mode classification and tool resolution.
 /// Optionally declares `on_plan_complete()` availability for orchestrated post-processing
-/// (duck-typing detection, ADR-022 / ADR-003).
+/// (duck-typing detection).
 ///
 /// Minimum contract: implement `manifest()` only. All other methods have defaults.
 pub trait AIPAgent: Send + Sync {
@@ -68,7 +62,7 @@ pub trait AIPAgent: Send + Sync {
 
     /// Returns `true` if the agent exposes an `on_plan_complete()` method.
     ///
-    /// Detected via `hasattr` Python. Returns `false` by default —
+    /// Detected via `hasattr` Python. Returns `false` by default, in which case
     /// the automatic step-output concatenation is used as fallback.
     fn has_on_plan_complete(&self) -> bool {
         false
@@ -91,50 +85,46 @@ pub trait AIPAgent: Send + Sync {
     }
 }
 
-// ─────────────────────────────────────────────
 // Error types
-// ─────────────────────────────────────────────
 
-/// Erreurs de l'engine ORIA.
+/// ORIA engine errors.
 #[derive(Debug, thiserror::Error)]
 pub enum ORIAError {
-    /// Budget d'execution epuise.
+    /// Execution budget exhausted.
     #[error("step budget exceeded: {reason}")]
     BudgetExceeded {
-        /// Description lisible de la raison d'epuisement.
+        /// Human-readable description of the exhaustion reason.
         reason: String,
     },
 
-    /// Echec de l'execution de l'agent.
+    /// Agent execution failure.
     #[error("agent execution failed: {0}")]
     ExecutionFailed(String),
 
-    /// Erreur de l'Observer.
+    /// Observer error.
     #[error("observer error: {0}")]
     ObserverError(#[from] ObserverError),
 
-    /// Erreur du bridge AIP.
+    /// AIP bridge error.
     #[error("bridge error: {0}")]
     BridgeError(String),
 
-    /// Aucun LLM configuré — impossible d'exécuter le mode Orchestrated.
+    /// No LLM configured, cannot run Orchestrated mode.
     #[error("no LLM configured for orchestrated execution")]
     NoLlmConfigured,
 
-    /// Erreur du Reasoner lors de la planification.
+    /// Reasoner error during planning.
     #[error("planning failed: {0}")]
     PlanFailed(#[from] ReasonerError),
 
-    /// Le oneshot channel d'approbation a été fermé avant réponse — runtime shutdown.
+    /// The approval oneshot channel was closed before a response (runtime shutdown).
     #[error("approval channel closed before human response — runtime may be shutting down")]
     ApprovalChannelClosed,
 }
 
-// ─────────────────────────────────────────────
-// NoopToolProxy — fallback when no proxy configured
-// ─────────────────────────────────────────────
+// NoopToolProxy: fallback when no proxy configured
 
-/// Tool proxy that always returns an error — used when no tool proxy is configured.
+/// Tool proxy that always returns an error, used when no tool proxy is configured.
 struct NoopToolProxy;
 
 #[async_trait::async_trait]
@@ -146,20 +136,17 @@ impl ToolProxyTrait for NoopToolProxy {
     }
 }
 
-// ─────────────────────────────────────────────
 // ORIAEngine
-// ─────────────────────────────────────────────
 
-/// Moteur d'execution ORIA (Observer-Reasoner-Actor).
+/// ORIA execution engine (Observer-Reasoner-Actor).
 ///
-/// Point d'entrée unifié pour l'exécution des tâches agents.
-/// Supporte deux modes :
-/// - **Mode Direct** — `execute_direct()` avec supervision `StepBudget`.
-/// - **Mode Orchestrated** — `execute()` → planification LLM + `ActorLoop`.
+/// Unified entry point for executing agent tasks. Supports two modes:
+/// - **Mode Direct**: `execute_direct()` with `StepBudget` supervision.
+/// - **Mode Orchestrated**: `execute()`, LLM planning plus `ActorLoop`.
 ///
-/// Utilise le pattern builder pour l'injection des dépendances (ADR-016).
-/// Toutes les dépendances sont optionnelles — un engine sans LLM ne supporte
-/// que le Mode Direct.
+/// Uses the builder pattern for dependency injection.
+/// All dependencies are optional: an engine without an LLM only supports
+/// Mode Direct.
 pub struct ORIAEngine {
     reasoner: Option<Reasoner>,
     tool_proxy: Option<Arc<dyn ToolProxyTrait>>,
@@ -167,58 +154,59 @@ pub struct ORIAEngine {
     resilience: ResilienceLayer,
     event_bus: EventBusSender,
     runtime_config: StepBudgetConfig,
-    /// Configuration du moteur ORIA injectée depuis `apollia.toml`.
+    /// ORIA engine configuration injected from `apollia.toml`.
     oria_config: ORIAConfig,
     db_path: Option<String>,
-    /// Registre HITL des approbations en attente — partagé avec le `ResumeHandler`.
+    /// HITL registry of pending approvals, shared with the `ResumeHandler`.
     ///
-    /// Requis pour que `execute_direct()` suspende la tâche et attende la décision
-    /// humaine. Si `None`, les résultats `InputRequired` sont retournés
-    /// tels quels sans suspension.
+    /// Required for `execute_direct()` to suspend the task and wait for the
+    /// human decision. When `None`, `InputRequired` results are returned
+    /// as-is without suspension.
     pending_approvals: Option<Arc<PendingApprovals>>,
-    /// Repository SQLite HITL — persiste le prompt et le contexte lors de la suspension.
+    /// HITL SQLite repository, persists the prompt and context on suspension.
     ///
-    /// Si `None`, la persistance est ignorée (warning tracé) mais l'exécution continue.
+    /// When `None`, persistence is skipped (logged warning) but execution continues.
     task_repository: Option<Arc<apollia_tools::TaskRepository>>,
     /// Memory manager for automatic episodic recording per step.
     ///
     /// Passed to [`ActorLoop`] during orchestrated execution. When `Some`, each completed
     /// step records an episodic memory entry in the agent's namespace.
     ///
-    /// Exception au principe #5 (un acteur, une responsabilité) : `Arc<Mutex<MemoryManager>>`
-    /// est partagé entre l'`ORIAEngine` (configuration) et l'`ActorLoop` (écriture épisodique
-    /// par step). Les mutations sont rares (une écriture par step, fire-and-forget) et
-    /// `MemoryManager` encapsule une connexion SQLite non-`Sync`. Voir précédent ADR-033.
+    /// Deliberate exception to the one-actor-one-responsibility rule:
+    /// `Arc<Mutex<MemoryManager>>` is shared between the `ORIAEngine` (configuration)
+    /// and the `ActorLoop` (per-step episodic writes). Mutations are rare (one write
+    /// per step, fire-and-forget) and `MemoryManager` wraps a non-`Sync` SQLite
+    /// connection.
     memory_manager: Option<Arc<Mutex<MemoryManager>>>,
-    /// Cache de plans d'exécution.
+    /// Execution plan cache.
     ///
-    /// Wrappé dans un `Mutex` car `rusqlite::Connection` n'est pas `Sync`.
-    /// Les accès sont courts (lookup/store) et non concurrents en pratique.
-    /// Un cache hit évite l'appel LLM et émet [`RuntimeEvent::PlanCacheHit`].
-    /// Les erreurs de cache sont loguées en `warn` et n'empêchent jamais l'exécution.
+    /// Wrapped in a `Mutex` because `rusqlite::Connection` is not `Sync`.
+    /// Accesses are short (lookup/store) and not concurrent in practice.
+    /// A cache hit avoids the LLM call and emits [`RuntimeEvent::PlanCacheHit`].
+    /// Cache errors are logged at `warn` level and never block execution.
     plan_cache: Option<Mutex<PlanCacheRepository>>,
-    /// Assembleur de contexte workspace avec cache TTL.
+    /// Workspace context assembler with a TTL cache.
     ///
-    /// Collecte la branche git, l'état des fichiers et le contenu d'`APOLLIA.md`
-    /// au démarrage d'une tâche orchestrée, puis injecte le résultat dans le system prompt.
+    /// Collects the git branch, file status, and `APOLLIA.md` content at the
+    /// start of an orchestrated task, then injects the result into the system prompt.
     workspace_assembler: ProjectRuntime,
-    /// Répertoire de travail utilisé comme racine pour la collecte workspace.
+    /// Working directory used as the root for workspace collection.
     ///
-    /// Initialisé à `"."` par défaut ; surchargeable via [`with_cwd`](ORIAEngine::with_cwd).
+    /// Initialized to `"."` by default; overridable via [`with_cwd`](ORIAEngine::with_cwd).
     cwd: PathBuf,
-    /// Gestionnaire de fenêtre de contexte LLM — compacte l'historique quand nécessaire.
+    /// LLM context-window manager, compacts history when needed.
     ///
-    /// Initialisé depuis `ORIAConfig::context_compact_threshold` et
-    /// `ORIAConfig::context_summary_max_chars`. Passé à l'`ActorLoop` lors de
-    /// l'exécution orchestrée pour protéger les étapes LLM longues.
+    /// Initialized from `ORIAConfig::context_compact_threshold` and
+    /// `ORIAConfig::context_summary_max_chars`. Passed to the `ActorLoop` during
+    /// orchestrated execution to protect long LLM steps.
     context_manager: ContextManager,
 }
 
 impl ORIAEngine {
-    /// Crée un `ORIAEngine` avec les valeurs par défaut (Mode Direct uniquement).
+    /// Create an `ORIAEngine` with default values (Mode Direct only).
     ///
-    /// Pour activer le Mode Orchestrated, chaîner avec [`with_reasoner`].
-    /// Pour activer le HITL, chaîner avec [`with_pending_approvals`] et [`with_task_repository`].
+    /// To enable Mode Orchestrated, chain with [`with_reasoner`].
+    /// To enable HITL, chain with [`with_pending_approvals`] and [`with_task_repository`].
     ///
     /// [`with_reasoner`]: ORIAEngine::with_reasoner
     /// [`with_pending_approvals`]: ORIAEngine::with_pending_approvals
@@ -246,10 +234,10 @@ impl ORIAEngine {
         }
     }
 
-    /// Configure le `ORIAEngine` avec un LLM pour activer le Mode Orchestrated.
+    /// Configure the `ORIAEngine` with an LLM to enable Mode Orchestrated.
     ///
-    /// `max_steps` borne la taille des plans générés par le Reasoner
-    /// (principe #7 — Garde-fous non-négociables).
+    /// `max_steps` bounds the size of plans generated by the Reasoner
+    /// (non-negotiable safety guardrail).
     pub fn with_reasoner(mut self, model: Arc<dyn CompletionModel>, max_steps: u32) -> Self {
         self.reasoner = Some(Reasoner::new(model, max_steps));
         self
@@ -260,37 +248,37 @@ impl ORIAEngine {
     /// [`with_llm_router_and_reasoner`](Self::with_llm_router_and_reasoner).
     ///
     /// The runtime relies on this to fail orchestrated tasks with a
-    /// stable `NO_LLM` code at `engine.execute()` time (cf. BUG-004:
-    /// before the fix, orchestrated agents fell through to NO_HANDLER
-    /// because the engine was never wired with a Reasoner).
+    /// stable `NO_LLM` code at `engine.execute()` time: without this check,
+    /// orchestrated agents would fall through to NO_HANDLER because the engine
+    /// was never wired with a Reasoner.
     pub fn has_reasoner(&self) -> bool {
         self.reasoner.is_some()
     }
 
-    /// Configure le `ToolProxy` pour l'exécution des steps orchestrés.
+    /// Configure the `ToolProxy` for executing orchestrated steps.
     ///
-    /// Sans `ToolProxy`, les steps avec `tool_hint` échouent avec `NoopToolProxy`.
+    /// Without a `ToolProxy`, steps with a `tool_hint` fail via `NoopToolProxy`.
     pub fn with_tool_proxy(mut self, proxy: Arc<dyn ToolProxyTrait>) -> Self {
         self.tool_proxy = Some(proxy);
         self
     }
 
-    /// Configure le `LlmRouter` pour la synthèse LLM dans les steps orchestrés.
+    /// Configure the `LlmRouter` for LLM synthesis in orchestrated steps.
     pub fn with_llm_router(mut self, router: LlmRouter) -> Self {
         self.llm_router = router;
         self
     }
 
-    /// Configure le router LLM et instancie le Reasoner depuis le backend précis.
+    /// Configure the LLM router and instantiate the Reasoner from the precise backend.
     ///
-    /// Combine [`with_llm_router`](Self::with_llm_router) et [`with_reasoner`](Self::with_reasoner) :
-    /// sélectionne `route_precise()` pour la planification orchestrée, puis stocke
-    /// le router pour les appels LLM des steps.
+    /// Combines [`with_llm_router`](Self::with_llm_router) and [`with_reasoner`](Self::with_reasoner):
+    /// selects `route_precise()` for orchestrated planning, then stores the router
+    /// for step-level LLM calls.
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// - [`apollia_llm::LlmError::RoutingConfigMissing`] — `[llm.routing]` absent de la config.
-    /// - [`apollia_llm::LlmError::BackendNotFound`] — backend `precise` introuvable dans le router.
+    /// - [`apollia_llm::LlmError::RoutingConfigMissing`]: `[llm.routing]` missing from the config.
+    /// - [`apollia_llm::LlmError::BackendNotFound`]: `precise` backend not found in the router.
     pub fn with_llm_router_and_reasoner(
         mut self,
         router: LlmRouter,
@@ -302,72 +290,72 @@ impl ORIAEngine {
         Ok(self)
     }
 
-    /// Injecte un `EventBusSender` pour diffuser les événements du plan sur le bus.
+    /// Inject an `EventBusSender` to broadcast plan events on the bus.
     pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
         self.event_bus = bus;
         self
     }
 
-    /// Configure le budget runtime global (plafond appliqué via `StepBudget::from_capped`).
+    /// Configure the global runtime budget (cap applied via `StepBudget::from_capped`).
     pub fn with_runtime_config(mut self, config: StepBudgetConfig) -> Self {
         self.runtime_config = config;
         self
     }
 
-    /// Injecte la configuration ORIA lue depuis `apollia.toml`.
+    /// Inject the ORIA configuration read from `apollia.toml`.
     ///
-    /// Si non appelé, [`ORIAConfig::default`] est utilisé (`max_replans = 2`).
-    /// La valeur `max_replans` contrôle le nombre de re-planifications autorisées
-    /// en mode Orchestrated avant d'échouer définitivement.
-    /// Met également à jour le `ContextManager` avec les seuils de compactage configurés.
+    /// If not called, [`ORIAConfig::default`] is used (`max_replans = 2`).
+    /// The `max_replans` value controls how many re-plans are allowed in
+    /// Orchestrated mode before failing permanently.
+    /// Also updates the `ContextManager` with the configured compaction thresholds.
     pub fn with_oria_config(mut self, config: ORIAConfig) -> Self {
         self.context_manager = ContextManager::from_config(&config);
         self.oria_config = config;
         self
     }
 
-    /// Configure le chemin SQLite pour la persistance des plans d'exécution.
+    /// Configure the SQLite path for execution-plan persistence.
     ///
-    /// Si absent, un fallback `:memory:` est utilisé (pas de persistance entre redémarrages).
+    /// If absent, a `:memory:` fallback is used (no persistence across restarts).
     pub fn with_db_path(mut self, path: impl Into<String>) -> Self {
         self.db_path = Some(path.into());
         self
     }
 
-    /// Injecte le registre HITL des approbations en attente.
+    /// Inject the HITL registry of pending approvals.
     ///
-    /// Requis pour que `execute_direct()` suspende la tâche en status `input_required`
-    /// et attende la décision humaine via un oneshot channel.
-    /// Partagé entre le `ORIAEngine` et les routes REST via `AppState`.
+    /// Required for `execute_direct()` to suspend the task in `input_required` status
+    /// and wait for the human decision through a oneshot channel.
+    /// Shared between the `ORIAEngine` and the REST routes via `AppState`.
     pub fn with_pending_approvals(mut self, pending: Arc<PendingApprovals>) -> Self {
         self.pending_approvals = Some(pending);
         self
     }
 
-    /// Injecte le repository SQLite HITL pour persister le prompt et le contexte.
+    /// Inject the HITL SQLite repository to persist the prompt and context.
     ///
-    /// Si absent, la persistance SQLite est ignorée mais l'exécution HITL continue
-    /// (warning tracé — Principe #4 : fail fast uniquement pour les erreurs détectables).
+    /// If absent, SQLite persistence is skipped but HITL execution continues
+    /// (logged warning: fail fast only for detectable errors).
     pub fn with_task_repository(mut self, repo: Arc<apollia_tools::TaskRepository>) -> Self {
         self.task_repository = Some(repo);
         self
     }
 
-    /// Injecte un [`MemoryManager`] pour l'enregistrement épisodique per-step.
+    /// Inject a [`MemoryManager`] for per-step episodic recording.
     ///
-    /// Passé à l'[`ActorLoop`] lors de l'exécution orchestrée. Chaque step complété
-    /// enregistre automatiquement une entrée épisodique dans le namespace de l'agent.
+    /// Passed to the [`ActorLoop`] during orchestrated execution. Each completed step
+    /// automatically records an episodic entry in the agent's namespace.
     pub fn with_memory_manager(mut self, mm: Arc<Mutex<MemoryManager>>) -> Self {
         self.memory_manager = Some(mm);
         self
     }
 
-    /// Ajoute un cache de plans à l'engine.
+    /// Add a plan cache to the engine.
     ///
-    /// Quand configuré, [`execute_orchestrated_plan`] vérifie le cache avant d'appeler
-    /// le Reasoner. Un cache hit évite l'appel LLM, clone le plan avec un nouveau
-    /// `plan_id`, et émet [`RuntimeEvent::PlanCacheHit`] sur l'EventBus.
-    /// Les erreurs de cache sont loguées en `warn` sans bloquer l'exécution.
+    /// When configured, [`execute_orchestrated_plan`] checks the cache before calling
+    /// the Reasoner. A cache hit avoids the LLM call, clones the plan with a new
+    /// `plan_id`, and emits [`RuntimeEvent::PlanCacheHit`] on the EventBus.
+    /// Cache errors are logged at `warn` level without blocking execution.
     ///
     /// [`execute_orchestrated_plan`]: ORIAEngine::execute_orchestrated_plan
     pub fn with_plan_cache(mut self, repo: PlanCacheRepository) -> Self {
@@ -375,49 +363,49 @@ impl ORIAEngine {
         self
     }
 
-    /// Configure le répertoire de travail pour la collecte du contexte workspace.
+    /// Configure the working directory for workspace context collection.
     ///
-    /// Utilisé par `execute_orchestrated_plan` pour collecter la branche git,
-    /// l'état des fichiers et le contenu d'`APOLLIA.md` avant chaque exécution.
+    /// Used by `execute_orchestrated_plan` to collect the git branch, file status,
+    /// and `APOLLIA.md` content before each execution.
     pub fn with_cwd(mut self, cwd: PathBuf) -> Self {
         self.cwd = cwd;
         self
     }
 
-    /// Crée un `ORIAEngine` avec un répertoire de travail spécifique.
+    /// Create an `ORIAEngine` with a specific working directory.
     ///
-    /// Raccourci équivalent à `ORIAEngine::new().with_cwd(cwd)`.
-    /// Principalement utilisé dans les tests unitaires.
+    /// Shorthand equivalent to `ORIAEngine::new().with_cwd(cwd)`.
+    /// Mainly used in unit tests.
     pub fn new_with_cwd(cwd: PathBuf) -> Self {
         Self::new().with_cwd(cwd)
     }
 
-    /// Collecte le contexte workspace et retourne les blocs `<context name="...">`.
+    /// Collect the workspace context and return the `<context name="...">` blocks.
     ///
-    /// Utilise [`ProjectRuntime`] avec le cache TTL configuré pour éviter
-    /// les I/O répétées. Retourne une chaîne vide si aucun contexte n'est disponible
-    /// (répertoire hors dépôt git, aucun `APOLLIA.md`, ou timeout de collecte dépassé).
-    /// Chaque section est encapsulée dans son propre tag `<context name="...">`.
+    /// Uses [`ProjectRuntime`] with the configured TTL cache to avoid repeated I/O.
+    /// Returns an empty string when no context is available (directory outside a git
+    /// repo, no `APOLLIA.md`, or the collection timeout was exceeded).
+    /// Each section is wrapped in its own `<context name="...">` tag.
     pub async fn build_system_prompt(&self) -> String {
         let snapshot = self.workspace_assembler.collect(&self.cwd).await;
         snapshot.format_for_prompt()
     }
 
-    // ─── Binary Feedback ─────────────────────────────────────────────────
+    // Binary Feedback
 
-    /// Génère deux plans alternatifs pour une tâche et émet l'événement sur l'EventBus.
+    /// Generate two alternative plans for a task and emit the event on the EventBus.
     ///
-    /// Appelle [`Reasoner::plan_with_alternatives`] via `tokio::join!` (les deux plans
-    /// sont produits en parallèle) puis émet `RuntimeEvent::PlanAlternativesGenerated`.
+    /// Calls [`Reasoner::plan_with_alternatives`] via `tokio::join!` (both plans are
+    /// produced in parallel) then emits `RuntimeEvent::PlanAlternativesGenerated`.
     ///
-    /// Le frontend (CLI `--alternatives` ou `PlanAlternativesView.svelte`) intercepte
-    /// l'événement, affiche les deux plans, et demande le choix à l'opérateur.
-    /// La persistance du choix est assurée par `PlanChoiceStore::log_plan_choice()`.
+    /// The frontend (CLI `--alternatives` or `PlanAlternativesView.svelte`) intercepts
+    /// the event, shows both plans, and asks the operator to choose.
+    /// The choice is persisted by `PlanChoiceStore::log_plan_choice()`.
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// - [`ORIAError::NoLlmConfigured`] si aucun Reasoner n'est configuré.
-    /// - [`ORIAError::PlanFailed`] si la génération d'un des deux plans échoue.
+    /// - [`ORIAError::NoLlmConfigured`] when no Reasoner is configured.
+    /// - [`ORIAError::PlanFailed`] when generating either plan fails.
     pub async fn run_task_with_alternatives(
         &self,
         ctx: &ContextBundle,
@@ -442,20 +430,20 @@ impl ORIAEngine {
         Ok(alternatives)
     }
 
-    // ─── Point d'entrée unifié ────────────────────────────────────────────
+    // Unified entry point
 
-    /// Point d'entrée principal — route la tâche vers le mode Direct ou Orchestrated.
+    /// Main entry point: routes the task to Direct or Orchestrated mode.
     ///
-    /// Le mode est déterminé par [`classify`] selon `manifest.execution_mode`
-    /// (override explicite) ou les heuristiques de complexité.
+    /// The mode is determined by [`classify`] from `manifest.execution_mode`
+    /// (explicit override) or complexity heuristics.
     ///
     /// ## Mode Direct
-    /// Non implémenté via ce point d'entrée — utiliser [`execute_direct`] directement
-    /// avec un [`AgentRunner`] concret.
+    /// Not implemented through this entry point: use [`execute_direct`] directly
+    /// with a concrete [`AgentRunner`].
     ///
     /// ## Mode Orchestrated
-    /// Délègue à [`execute_orchestrated_plan`] :
-    /// validate → plan → persist → ActorLoop → concat outputs.
+    /// Delegates to [`execute_orchestrated_plan`]:
+    /// validate, plan, persist, ActorLoop, concat outputs.
     pub async fn execute(
         &self,
         task: AIPTask,
@@ -485,25 +473,25 @@ impl ORIAEngine {
         }
     }
 
-    // ─── Mode Orchestrated ────────────────────────────────────────────────
+    // Mode Orchestrated
 
-    /// Exécution orchestrée complète : plan → persist → ActorLoop → concat.
+    /// Full orchestrated execution: plan, persist, ActorLoop, concat.
     ///
-    /// Implémente le pipeline ADR-022 Option B :
-    /// 1. Valide `system_prompt` présent (fail fast — Principe #4)
-    /// 2. Génère le plan via `Reasoner` (retry ×3 interne)
-    /// 3. Persiste plan + steps dans SQLite (non-bloquant sur erreur)
-    /// 4. Émet `RuntimeEvent::PlanGenerated`
-    /// 5. Crée `StepBudget::from_capped(manifest, runtime)`
-    /// 6. Exécute via `ActorLoop`
-    /// 7. Concatène les outputs (ou stub `on_plan_complete`)
+    /// Implements the pipeline:
+    /// 1. Validate `system_prompt` is present (fail fast)
+    /// 2. Generate the plan via `Reasoner` (internal retry x3)
+    /// 3. Persist plan + steps in SQLite (non-blocking on error)
+    /// 4. Emit `RuntimeEvent::PlanGenerated`
+    /// 5. Create `StepBudget::from_capped(manifest, runtime)`
+    /// 6. Execute via `ActorLoop`
+    /// 7. Concatenate outputs (or stub `on_plan_complete`)
     async fn execute_orchestrated_plan(
         &self,
         task: AIPTask,
         agent: &(dyn AIPAgent + Send + Sync),
         manifest: AgentManifest,
     ) -> AIPResult {
-        // ── validate system_prompt ────────────────────────────────
+        // validate system_prompt
         if manifest.system_prompt.is_none() {
             return AIPResult::failed(
                 "MISSING_SYSTEM_PROMPT",
@@ -511,7 +499,7 @@ impl ORIAEngine {
             );
         }
 
-        // ── Collect workspace context and enrich system prompt ────────────
+        // Collect workspace context and enrich system prompt
         let workspace_block = self.build_system_prompt().await;
         let enriched_system_prompt = if workspace_block.is_empty() {
             manifest.system_prompt.clone()
@@ -522,7 +510,7 @@ impl ORIAEngine {
                 .map(|sp| format!("{}\n\n{}", sp, workspace_block))
         };
 
-        // ── Build ContextBundle ───────────────────────────────────────────
+        // Build ContextBundle
         let available_tools: Vec<String> = manifest
             .tools_required
             .iter()
@@ -539,7 +527,7 @@ impl ORIAEngine {
             llm_backend_names: vec![],
         };
 
-        // ── get reasoner or fail ───────────────────────────────────
+        // get reasoner or fail
         let reasoner = match self.reasoner.as_ref() {
             Some(r) => r,
             None => {
@@ -550,7 +538,7 @@ impl ORIAEngine {
             }
         };
 
-        // ── Plan cache lookup ─────────────────────────────────
+        // Plan cache lookup
         let task_text = extract_task_text(&task);
         let cache_key = compute_cache_key(
             &manifest.name,
@@ -559,68 +547,33 @@ impl ORIAEngine {
             &task_text,
         );
 
-        if let Some(ref cache_mutex) = self.plan_cache {
-            let lookup_result = match cache_mutex.lock() {
-                Ok(cache) => Some(cache.lookup(&cache_key)),
-                Err(e) => {
-                    tracing::warn!(error = %e, "plan cache mutex poisoned, skipping lookup");
-                    None
-                }
-            };
-            match lookup_result {
-                Some(Ok(Some(cached_plan))) => {
-                    let new_plan_id = uuid::Uuid::new_v4().to_string();
-                    let plan = ExecutionPlan {
-                        plan_id: new_plan_id,
-                        task_id: task.task_id.clone(),
-                        steps: cached_plan.steps,
-                    };
+        if let Some(plan) = self.lookup_cached_plan(&cache_key, &task.task_id) {
+            let _ = self.event_bus.send(RuntimeEvent::PlanCacheHit {
+                task_id: task.task_id.clone().into(),
+                cache_key: cache_key.clone(),
+            });
 
-                    let _ = self.event_bus.send(RuntimeEvent::PlanCacheHit {
-                        task_id: task.task_id.clone().into(),
-                        cache_key: cache_key.clone(),
-                    });
-
-                    return self.execute_cached_plan(plan, task, agent, manifest).await;
-                }
-                Some(Ok(None)) | None => { /* cache miss or lock error — proceed to Reasoner */ }
-                Some(Err(e)) => {
-                    tracing::warn!(error = %e, "plan cache lookup failed");
-                }
-            }
+            return self.execute_cached_plan(plan, task, agent, manifest).await;
         }
 
-        // ── Generate plan (Reasoner handles retries internally) ───────────
+        // Generate plan (Reasoner handles retries internally)
         let plan = match reasoner.plan(&ctx).await {
             Ok(p) => p,
             Err(e) => return AIPResult::failed("PLAN_FAILED", &e.to_string()),
         };
 
-        // ── Store in cache ────────────────────────────────────
-        if let Some(ref cache_mutex) = self.plan_cache {
-            match cache_mutex.lock() {
-                Ok(cache) => {
-                    if let Err(e) =
-                        cache.store(&cache_key, &plan, &manifest.name, &manifest.version)
-                    {
-                        tracing::warn!(error = %e, "plan cache store failed");
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, "plan cache mutex poisoned, skipping store");
-                }
-            }
-        }
+        // Store in cache
+        self.store_plan_in_cache(&cache_key, &plan, &manifest);
 
         let plan_id = plan.plan_id.clone();
         let step_count = plan.steps.len();
         let task_id_str = task.task_id.clone();
 
-        // ── Persist plan in SQLite (non-blocking on error) ────────────────
+        // Persist plan in SQLite (non-blocking on error)
         let db_path = self.db_path.as_deref().unwrap_or(":memory:");
         let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
 
-        // ── emit PlanGenerated ─────────────────────────────────────
+        // emit PlanGenerated
         let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
             task_id: task_id_str.clone().into(),
             agent_name: manifest.name.clone(),
@@ -628,14 +581,14 @@ impl ORIAEngine {
             step_count,
         });
 
-        // ── create StepBudget via from_capped ─────────────────────
+        // create StepBudget via from_capped
         let agent_budget = manifest.step_budget.clone().unwrap_or_default();
         let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
 
         // Reset per-task token budget before execution.
         self.llm_router.reset_session_budget();
 
-        // ── Execute via ActorLoop ─────────────────────────────────────────
+        // Execute via ActorLoop
         let noop_proxy = NoopToolProxy;
         let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
             Some(p) => p.as_ref(),
@@ -656,11 +609,13 @@ impl ORIAEngine {
         .with_context_manager(self.context_manager.clone());
         let step_result = actor
             .execute(
-                tool_proxy,
-                &self.llm_router,
-                &budget,
+                StepDeps {
+                    tool_proxy,
+                    llm_router: &self.llm_router,
+                    budget: &budget,
+                    reasoner,
+                },
                 &self.resilience,
-                reasoner,
             )
             .await;
         let duration_ms = plan_start.elapsed().as_millis() as u64;
@@ -676,7 +631,7 @@ impl ORIAEngine {
             threshold_exceeded: false,
         });
 
-        // ── Post-process ──────────────────────────────────────────────────
+        // Post-process
         if step_result.status == TaskStatus::Completed {
             let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
                 task_id: task_id_str.into(),
@@ -699,10 +654,60 @@ impl ORIAEngine {
         }
     }
 
-    /// Exécute un plan récupéré depuis le cache.
+    /// Looks up a cached plan for `cache_key`, returning a ready-to-run
+    /// [`ExecutionPlan`] (fresh `plan_id`, the supplied `task_id`, cached steps)
+    /// on a hit, or `None` on a miss, an absent cache, or a recoverable error.
     ///
-    /// Identique au chemin post-Reasoner de [`execute_orchestrated_plan`] :
-    /// persist → emit PlanGenerated → StepBudget → ActorLoop → concat.
+    /// Lock poisoning and lookup errors are logged and treated as a miss so the
+    /// caller falls back to the Reasoner.
+    fn lookup_cached_plan(&self, cache_key: &str, task_id: &str) -> Option<ExecutionPlan> {
+        let cache_mutex = self.plan_cache.as_ref()?;
+        let cache = match cache_mutex.lock() {
+            Ok(cache) => cache,
+            Err(e) => {
+                tracing::warn!(error = %e, "plan cache mutex poisoned, skipping lookup");
+                return None;
+            }
+        };
+        let cached_plan = match cache.lookup(cache_key) {
+            Ok(Some(cached_plan)) => cached_plan,
+            Ok(None) => return None,
+            Err(e) => {
+                tracing::warn!(error = %e, "plan cache lookup failed");
+                return None;
+            }
+        };
+        Some(ExecutionPlan {
+            plan_id: uuid::Uuid::new_v4().to_string(),
+            task_id: task_id.to_string(),
+            steps: cached_plan.steps,
+        })
+    }
+
+    /// Stores `plan` in the plan cache under `cache_key`.
+    ///
+    /// No-op when no cache is configured. Lock poisoning and store errors are
+    /// logged and otherwise ignored (caching is best-effort).
+    fn store_plan_in_cache(&self, cache_key: &str, plan: &ExecutionPlan, manifest: &AgentManifest) {
+        let Some(cache_mutex) = self.plan_cache.as_ref() else {
+            return;
+        };
+        match cache_mutex.lock() {
+            Ok(cache) => {
+                if let Err(e) = cache.store(cache_key, plan, &manifest.name, &manifest.version) {
+                    tracing::warn!(error = %e, "plan cache store failed");
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "plan cache mutex poisoned, skipping store");
+            }
+        }
+    }
+
+    /// Execute a plan retrieved from the cache.
+    ///
+    /// Identical to the post-Reasoner path of [`execute_orchestrated_plan`]:
+    /// persist, emit PlanGenerated, StepBudget, ActorLoop, concat.
     async fn execute_cached_plan(
         &self,
         plan: ExecutionPlan,
@@ -759,11 +764,13 @@ impl ORIAEngine {
         .with_context_manager(self.context_manager.clone());
         let step_result = actor
             .execute(
-                tool_proxy,
-                &self.llm_router,
-                &budget,
+                StepDeps {
+                    tool_proxy,
+                    llm_router: &self.llm_router,
+                    budget: &budget,
+                    reasoner,
+                },
                 &self.resilience,
-                reasoner,
             )
             .await;
         let duration_ms = plan_start.elapsed().as_millis() as u64;
@@ -802,8 +809,8 @@ impl ORIAEngine {
     /// Opens a `PlanRepository` at `db_path`, inserts the plan and its steps.
     ///
     /// Falls back to `:memory:` if `db_path` fails. Errors during `insert_plan`
-    /// or `insert_steps` are logged but do not abort execution (Principle #4 —
-    /// persistance non-bloquante).
+    /// or `insert_steps` are logged but do not abort execution (persistence is
+    /// non-blocking).
     fn open_repo_with_plan(
         &self,
         db_path: &str,
@@ -828,23 +835,23 @@ impl ORIAEngine {
         repo
     }
 
-    // ─── Mode Direct ──────────────────────────────────────────────────────
+    // Mode Direct
 
-    /// Exécute une tâche en Mode Direct avec support HITL.
+    /// Execute a task in Mode Direct with HITL support.
     ///
-    /// 1. Vérifie que le budget n'est pas déjà épuisé.
-    /// 2. Appelle `runner.call_run(task)` avec supervision `StepBudget`.
-    /// 3. Si `AIPResult::InputRequired` :
-    ///    - Persiste prompt + context dans SQLite via `task_repository` (si configuré).
-    ///    - Émet `RuntimeEvent::TaskInputRequired` sur l'EventBus.
-    ///    - Enregistre un oneshot dans `pending_approvals` et **attend** la décision humaine.
-    ///    - Si `approved=true` : reconstruit `AIPTask` avec `is_resumed=true` et rappelle `run()`.
-    ///    - Si `approved=false` : retourne `AIPResult::failed("REJECTED", reason)`.
-    /// 4. Sinon retourne le résultat directement.
+    /// 1. Check the budget is not already exhausted.
+    /// 2. Call `runner.call_run(task)` with `StepBudget` supervision.
+    /// 3. On `AIPResult::InputRequired`:
+    ///    - Persist prompt + context in SQLite via `task_repository` (when configured).
+    ///    - Emit `RuntimeEvent::TaskInputRequired` on the EventBus.
+    ///    - Register a oneshot in `pending_approvals` and **wait** for the human decision.
+    ///    - If `approved=true`: rebuild `AIPTask` with `is_resumed=true` and call `run()` again.
+    ///    - If `approved=false`: return `AIPResult::failed("REJECTED", reason)`.
+    /// 4. Otherwise return the result directly.
     ///
-    /// **StepBudget pausé pendant suspension** : l'attente sur le oneshot est un
-    /// `await` pur — le polling du budget ne tourne pas pendant la suspension.
-    /// Le budget ne progresse pas tant que l'humain n'a pas répondu.
+    /// **StepBudget paused during suspension**: waiting on the oneshot is a pure
+    /// `await`, budget polling does not run during suspension.
+    /// The budget does not advance until the human responds.
     pub async fn execute_direct(
         &self,
         task: AIPTask,
@@ -859,21 +866,21 @@ impl ORIAEngine {
             return Err(ORIAError::BudgetExceeded { reason });
         }
 
-        // First run — with budget supervision
+        // First run, with budget supervision
         let result = Self::run_with_budget(runner, task.clone(), &budget).await?;
 
-        // Non-HITL path — return immediately
+        // Non-HITL path: return immediately
         if result.status != TaskStatus::InputRequired {
             return Ok(result);
         }
 
-        // ── HITL Suspension ───────────────────────────────────────────────
+        // HITL Suspension
         let (prompt, context) = match result.input_required_data {
             Some(data) => (data.prompt, data.context),
             None => ("Approbation requise".to_string(), serde_json::Value::Null),
         };
 
-        // : persist input_required in SQLite (non-blocking on error — Principle #4)
+        // persist input_required in SQLite (non-blocking on error)
         if let Some(repo) = self.task_repository.as_ref() {
             if let Err(e) = repo
                 .save_input_required(&task.task_id, None, &prompt, &context)
@@ -901,8 +908,8 @@ impl ORIAEngine {
             }
         }
 
-        // : broadcast TaskInputRequired on EventBus
-        // step_id=None in Mode Direct — the whole task is suspended (not a specific step).
+        // broadcast TaskInputRequired on EventBus
+        // step_id=None in Mode Direct: the whole task is suspended (not a specific step).
         let _ = self.event_bus.send(RuntimeEvent::TaskInputRequired {
             task_id: task.task_id.clone().into(),
             prompt: prompt.clone(),
@@ -915,7 +922,7 @@ impl ORIAEngine {
             "task suspended — waiting for human approval"
         );
 
-        // : register on PendingApprovals — if not configured, degrade gracefully
+        // register on PendingApprovals: if not configured, degrade gracefully
         let pending = match self.pending_approvals.as_ref() {
             Some(p) => p,
             None => {
@@ -929,7 +936,7 @@ impl ORIAEngine {
 
         let rx = pending.register(&task.task_id);
 
-        // : plain await — StepBudget does NOT advance during suspension
+        // plain await: StepBudget does NOT advance during suspension
         let response = rx.await.map_err(|_| ORIAError::ApprovalChannelClosed)?;
 
         tracing::info!(
@@ -938,7 +945,7 @@ impl ORIAEngine {
             "human approval received — resuming task"
         );
 
-        // : rejection → AIPResult::failed without calling run()
+        // rejection: AIPResult::failed without calling run()
         if !response.approved {
             return Ok(AIPResult::failed(
                 "REJECTED",
@@ -946,7 +953,7 @@ impl ORIAEngine {
             ));
         }
 
-        // : approval → rebuild AIPTask with is_resumed=true and call run() again
+        // approval: rebuild AIPTask with is_resumed=true and call run() again
         let resumed_task = AIPTask {
             is_resumed: true,
             input_response: Some(response),
@@ -957,15 +964,15 @@ impl ORIAEngine {
         Self::run_with_budget(runner, resumed_task, &budget).await
     }
 
-    /// Exécute `runner.call_run(task)` avec supervision concurrente du `StepBudget`.
+    /// Execute `runner.call_run(task)` with concurrent `StepBudget` supervision.
     ///
-    /// Retourne immédiatement avec `ORIAError::BudgetExceeded` si le budget expire
-    /// avant la fin de l'exécution. Utilisé pour le premier appel et pour la reprise
-    /// après HITL.
+    /// Returns immediately with `ORIAError::BudgetExceeded` if the budget expires
+    /// before execution completes. Used for the first call and for the resume
+    /// after HITL.
     ///
-    /// La supervision utilise un `oneshot` notifié par `StepBudget::increment_steps` /
-    /// `increment_tool_calls`, combiné à un sleep sur la durée wall-clock restante.
-    /// Aucun polling périodique.
+    /// Supervision uses a `oneshot` notified by `StepBudget::increment_steps` /
+    /// `increment_tool_calls`, combined with a sleep on the remaining wall-clock
+    /// duration. No periodic polling.
     async fn run_with_budget(
         runner: &dyn AgentRunner,
         task: AIPTask,
@@ -991,16 +998,12 @@ impl Default for ORIAEngine {
     }
 }
 
-// ─────────────────────────────────────────────
 // Private helpers
-// ─────────────────────────────────────────────
 
-/// Extracts the step outputs map from an `AIPResult::completed_with_steps` result.
+/// Extract a task's text from its `input.parts`.
 ///
-/// Extrait le texte d'une tâche à partir de ses `input.parts`.
-///
-/// Concatène tous les `TextPart` séparés par un espace. Retourne une chaîne vide
-/// si aucune partie textuelle n'est présente.
+/// Concatenates all `TextPart`s separated by a space. Returns an empty string
+/// when no text part is present.
 fn extract_task_text(task: &AIPTask) -> String {
     task.input
         .parts
@@ -1027,10 +1030,10 @@ fn extract_step_outputs(result: &AIPResult) -> HashMap<String, String> {
     HashMap::new()
 }
 
-/// Concatène les outputs des steps en un `AIPResult::Completed`.
+/// Concatenate step outputs into an `AIPResult::Completed`.
 ///
-/// Les steps sont triés par `step_id` pour un résultat déterministe.
-/// Séparateur : deux sauts de ligne (`\n\n`), aligné sur le format Markdown.
+/// Steps are sorted by `step_id` for a deterministic result.
+/// Separator: two newlines (`\n\n`), aligned with Markdown formatting.
 fn concat_outputs(outputs: &HashMap<String, String>) -> AIPResult {
     let mut sorted: Vec<(&String, &String)> = outputs.iter().collect();
     sorted.sort_by_key(|(k, _)| *k);
@@ -1042,9 +1045,7 @@ fn concat_outputs(outputs: &HashMap<String, String>) -> AIPResult {
     AIPResult::completed(&text)
 }
 
-// ─────────────────────────────────────────────
-// Tests — execute_direct
-// ─────────────────────────────────────────────
+// Tests: execute_direct
 
 #[cfg(test)]
 mod tests {
@@ -1193,13 +1194,13 @@ mod tests {
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Box::pin(async move {
                 if count == 0 {
-                    // First call — return InputRequired
+                    // First call: return InputRequired
                     Ok(AIPResult::input_required(
                         "Confirmer l'envoi ?",
                         serde_json::json!({"devis": 42}),
                     ))
                 } else {
-                    // Second call (resumed) — verify is_resumed and return Completed
+                    // Second call (resumed): verify is_resumed and return Completed
                     assert!(task.is_resumed, "task should be resumed on second call");
                     assert!(
                         task.input_response.is_some(),
@@ -1226,11 +1227,11 @@ mod tests {
         }))
     }
 
-    // InputRequired → TaskInputRequired émis sur EventBus + suspension enregistrée
+    // InputRequired: TaskInputRequired emitted on EventBus + suspension recorded.
 
-    /// ÉTANT DONNÉ un agent qui retourne InputRequired
-    /// QUAND execute_direct() reçoit ce résultat
-    /// ALORS RuntimeEvent::TaskInputRequired est émis sur l'EventBus
+    /// GIVEN an agent that returns InputRequired
+    /// WHEN execute_direct() receives that result
+    /// THEN RuntimeEvent::TaskInputRequired is emitted on the EventBus
     #[tokio::test]
     async fn test_ac1_input_required_emits_event() {
         // GIVEN
@@ -1247,7 +1248,7 @@ mod tests {
             ..AIPTask::default()
         };
 
-        // WHEN — spawn execute_direct in background so we can resolve from this task
+        // WHEN: spawn execute_direct in background so we can resolve from this task
         let engine_ref = &engine;
         let runner_ref = &runner;
         let budget = make_budget();
@@ -1291,11 +1292,11 @@ mod tests {
         assert!(found, "expected TaskInputRequired event on EventBus");
     }
 
-    // Approve → run() rappelé avec is_resumed=true
+    // Approve: run() is called again with is_resumed=true.
 
-    /// ÉTANT DONNÉ une tâche suspendue en input_required
-    /// QUAND PendingApprovals.resolve(approved=true)
-    /// ALORS execute_direct() se débloque et rappelle run() avec is_resumed=true
+    /// GIVEN a task suspended in input_required
+    /// WHEN PendingApprovals.resolve(approved=true)
+    /// THEN execute_direct() unblocks and calls run() again with is_resumed=true
     #[tokio::test]
     async fn test_ac2_approve_resumes_and_recalls_run() {
         // GIVEN
@@ -1334,15 +1335,15 @@ mod tests {
         // THEN result is Completed (run() called twice)
         assert!(result.is_ok());
         assert_eq!(result.unwrap().status, TaskStatus::Completed);
-        // run() was called twice: first → InputRequired, second → Completed
+        // run() was called twice: first returned InputRequired, second Completed
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 2);
     }
 
-    // Reject → AIPResult::failed("REJECTED") sans rappeler run()
+    // Reject: AIPResult::failed("REJECTED") without calling run() again.
 
-    /// ÉTANT DONNÉ une tâche suspendue en input_required
-    /// QUAND PendingApprovals.resolve(approved=false, reason="Trop cher")
-    /// ALORS execute_direct() retourne AIPResult::failed("REJECTED") sans rappeler run()
+    /// GIVEN a task suspended in input_required
+    /// WHEN PendingApprovals.resolve(approved=false, reason="Trop cher")
+    /// THEN execute_direct() returns AIPResult::failed("REJECTED") without calling run() again
     #[tokio::test]
     async fn test_reject_returns_failed_without_run() {
         // GIVEN
@@ -1402,9 +1403,7 @@ mod tests {
     }
 }
 
-// ─────────────────────────────────────────────
-// Tests — workspace context injection
-// ─────────────────────────────────────────────
+// Tests: workspace context injection
 
 #[cfg(test)]
 mod workspace_tests {
@@ -1439,7 +1438,7 @@ mod workspace_tests {
         let engine = ORIAEngine::new_with_cwd(dir.path().to_owned());
         // WHEN
         let prompt = engine.build_system_prompt().await;
-        // THEN — build_system_prompt retourne une chaîne vide (pas de section vide)
+        // THEN: build_system_prompt returns an empty string (no empty section)
         assert!(
             !prompt.contains("Règles du projet"),
             "no 'Règles du projet' section expected when APOLLIA.md is absent"
@@ -1453,7 +1452,7 @@ mod workspace_tests {
         let engine = ORIAEngine::new_with_cwd(dir.path().to_owned());
         // WHEN
         let prompt = engine.build_system_prompt().await;
-        // THEN — no workspace context block emitted
+        // THEN: no workspace context block emitted
         assert!(
             prompt.is_empty() || !prompt.contains("<context name=\"workspace\">"),
             "no context block expected in empty workspace: {prompt}"
@@ -1461,9 +1460,7 @@ mod workspace_tests {
     }
 }
 
-// ─────────────────────────────────────────────
-// Tests — execute() Mode Orchestrated
-// ─────────────────────────────────────────────
+// Tests: execute() Mode Orchestrated
 
 #[cfg(test)]
 mod orchestrated_tests {
@@ -1683,14 +1680,14 @@ mod orchestrated_tests {
         }
     }
 
-    // ── agent sans hook → concaténation automatique des outputs ──
+    // agent without a hook: automatic concatenation of outputs
 
-    /// ÉTANT DONNÉ un agent execution_mode=orchestrated sans on_plan_complete()
-    ///      ET un mock LLM retournant un plan de 2 steps
-    ///      ET un mock ToolProxy retournant un output pour chaque step
-    /// QUAND ORIAEngine::execute(task, &agent) est appelé
-    /// ALORS AIPResult::Completed est retourné
-    ///   ET RuntimeEvent::PlanCompleted a été émis
+    /// GIVEN an execution_mode=orchestrated agent without on_plan_complete()
+    ///      AND a mock LLM returning a 2-step plan
+    ///      AND a mock ToolProxy returning an output for each step
+    /// WHEN ORIAEngine::execute(task, &agent) is called
+    /// THEN AIPResult::Completed is returned
+    ///   AND RuntimeEvent::PlanCompleted was emitted
     #[tokio::test]
     async fn test_sans_hook_concatenation() {
         // GIVEN
@@ -1712,12 +1709,12 @@ mod orchestrated_tests {
         );
     }
 
-    // ── hook on_plan_complete() appelé si présent ────────────────
+    // hook on_plan_complete() called when present
 
-    /// ÉTANT DONNÉ un agent avec on_plan_complete() qui retourne "HOOK_CALLED"
-    ///      ET execute_orchestrated() qui retourne CompletedWithSteps
-    /// QUAND ORIAEngine::execute(task, &agent) est appelé
-    /// ALORS le résultat contient "HOOK_CALLED" (pas la concaténation auto)
+    /// GIVEN an agent with on_plan_complete() returning "HOOK_CALLED"
+    ///      AND execute_orchestrated() returning CompletedWithSteps
+    /// WHEN ORIAEngine::execute(task, &agent) is called
+    /// THEN the result contains "HOOK_CALLED" (not the auto concatenation)
     #[tokio::test]
     async fn test_hook_called_when_present() {
         // GIVEN
@@ -1751,13 +1748,13 @@ mod orchestrated_tests {
         );
     }
 
-    // ── concaténation utilisée si hook absent ─────────────────────
+    // concatenation used when no hook is present
 
-    /// ÉTANT DONNÉ un agent SANS on_plan_complete()
-    ///      ET execute_orchestrated() qui retourne CompletedWithSteps
-    /// QUAND ORIAEngine::execute(task, &agent) est appelé
-    /// ALORS call_on_plan_complete() n'est PAS appelé
-    ///   ET la concaténation automatique des outputs est retournée
+    /// GIVEN an agent WITHOUT on_plan_complete()
+    ///      AND execute_orchestrated() returning CompletedWithSteps
+    /// WHEN ORIAEngine::execute(task, &agent) is called
+    /// THEN call_on_plan_complete() is NOT called
+    ///   AND the automatic concatenation of outputs is returned
     #[tokio::test]
     async fn test_concat_used_when_no_hook() {
         // GIVEN
@@ -1790,15 +1787,15 @@ mod orchestrated_tests {
         );
     }
 
-    // ── system_prompt absent → AIPResult::failed immédiat ────────
+    // system_prompt absent: immediate AIPResult::failed
 
-    /// ÉTANT DONNÉ un agent execution_mode=orchestrated SANS system_prompt
-    /// QUAND ORIAEngine::execute(task, &agent) est appelé
-    /// ALORS AIPResult::failed("MISSING_SYSTEM_PROMPT", _) est retourné
-    ///   ET Reasoner.plan() n'est PAS appelé (aucun LLM configuré)
+    /// GIVEN an execution_mode=orchestrated agent WITHOUT system_prompt
+    /// WHEN ORIAEngine::execute(task, &agent) is called
+    /// THEN AIPResult::failed("MISSING_SYSTEM_PROMPT", _) is returned
+    ///   AND Reasoner.plan() is NOT called (no LLM configured)
     #[tokio::test]
     async fn test_system_prompt_absent_retourne_failed() {
-        // GIVEN — no LLM and no system_prompt (both should be caught at system_prompt check)
+        // GIVEN: no LLM and no system_prompt (both should be caught at the system_prompt check)
         let engine = ORIAEngine::new();
         let agent = MockAgent {
             manifest: AgentManifest {
@@ -1848,11 +1845,11 @@ mod orchestrated_tests {
         );
     }
 
-    // ── Reasoner échoue → AIPResult::failed propagé ──────────────
+    // Reasoner fails: AIPResult::failed propagated
 
-    /// ÉTANT DONNÉ un mock LLM qui retourne toujours une erreur
-    /// QUAND ORIAEngine::execute(task, &agent) est appelé
-    /// ALORS AIPResult::failed("PLAN_FAILED", _) est retourné
+    /// GIVEN a mock LLM that always returns an error
+    /// WHEN ORIAEngine::execute(task, &agent) is called
+    /// THEN AIPResult::failed("PLAN_FAILED", _) is returned
     #[tokio::test]
     async fn test_reasoner_echec_retourne_failed() {
         // GIVEN
@@ -1875,12 +1872,12 @@ mod orchestrated_tests {
         );
     }
 
-    // ── PlanGenerated avec step_count correct ─────────────────────
+    // PlanGenerated with correct step_count
 
-    /// ÉTANT DONNÉ un plan de 4 steps généré par le Reasoner
-    ///      ET un EventBus subscriber actif
-    /// QUAND ORIAEngine::execute_orchestrated() est appelé
-    /// ALORS le subscriber reçoit RuntimeEvent::PlanGenerated { step_count: 4, .. }
+    /// GIVEN a 4-step plan generated by the Reasoner
+    ///      AND an active EventBus subscriber
+    /// WHEN ORIAEngine::execute_orchestrated() is called
+    /// THEN the subscriber receives RuntimeEvent::PlanGenerated { step_count: 4, .. }
     #[tokio::test]
     async fn test_plan_generated_event_step_count() {
         // GIVEN
@@ -1895,7 +1892,7 @@ mod orchestrated_tests {
         // WHEN
         let _ = engine.execute(task, &agent).await;
 
-        // THEN — collect all events and look for PlanGenerated
+        // THEN: collect all events and look for PlanGenerated
         let mut found_step_count = None;
         while let Ok(event) = rx.try_recv() {
             if let RuntimeEvent::PlanGenerated { step_count, .. } = event {
@@ -1911,11 +1908,11 @@ mod orchestrated_tests {
         );
     }
 
-    // ── Helper tests ────────────────────────────────────────────────────
+    // Helper tests
 
-    /// ÉTANT DONNÉ un AIPResult::completed_with_steps avec 2 outputs
-    /// QUAND extract_step_outputs est appelé
-    /// ALORS les 2 outputs sont correctement extraits
+    /// GIVEN an AIPResult::completed_with_steps with 2 outputs
+    /// WHEN extract_step_outputs is called
+    /// THEN both outputs are extracted correctly
     #[test]
     fn test_extract_step_outputs_parses_data_part() {
         // GIVEN
@@ -1933,9 +1930,9 @@ mod orchestrated_tests {
         assert_eq!(outputs.get("s2").map(String::as_str), Some("output two"));
     }
 
-    /// ÉTANT DONNÉ une map vide
-    /// QUAND concat_outputs est appelé
-    /// ALORS AIPResult::Completed avec output vide est retourné
+    /// GIVEN an empty map
+    /// WHEN concat_outputs is called
+    /// THEN AIPResult::Completed with an empty output is returned
     #[test]
     fn test_concat_outputs_empty_map_returns_completed() {
         // GIVEN
@@ -1948,11 +1945,11 @@ mod orchestrated_tests {
         assert_eq!(result.status, TaskStatus::Completed);
     }
 
-    // ─── Plan Cache Integration ──────────────────────────────
+    // Plan Cache Integration
 
-    /// ÉTANT DONNÉ deux versions différentes du même agent
-    /// QUAND compute_cache_key est appelé avec "1.0" puis "1.1"
-    /// ALORS les clés de cache sont différentes
+    /// GIVEN two different versions of the same agent
+    /// WHEN compute_cache_key is called with "1.0" then "1.1"
+    /// THEN the cache keys differ
     #[test]
     fn test_version_change_produces_different_key() {
         // GIVEN
@@ -1969,9 +1966,9 @@ mod orchestrated_tests {
         assert_eq!(key_v2.len(), 64, "SHA-256 hex should be 64 chars");
     }
 
-    /// ÉTANT DONNÉ une tâche avec des parties textuelles
-    /// QUAND extract_task_text est appelé
-    /// ALORS les textes sont concaténés avec un espace
+    /// GIVEN a task with text parts
+    /// WHEN extract_task_text is called
+    /// THEN the texts are concatenated with a space
     #[test]
     fn test_extract_task_text_concatenates_text_parts() {
         // GIVEN
@@ -1999,9 +1996,9 @@ mod orchestrated_tests {
         assert_eq!(text, "analyze logs");
     }
 
-    /// ÉTANT DONNÉ une tâche sans partie textuelle
-    /// QUAND extract_task_text est appelé
-    /// ALORS une chaîne vide est retournée
+    /// GIVEN a task without any text part
+    /// WHEN extract_task_text is called
+    /// THEN an empty string is returned
     #[test]
     fn test_extract_task_text_empty_when_no_text_parts() {
         // GIVEN
@@ -2014,9 +2011,9 @@ mod orchestrated_tests {
         assert!(text.is_empty());
     }
 
-    /// ÉTANT DONNÉ un PlanCacheHit event
-    /// QUAND il est émis sur l'EventBus
-    /// ALORS il est reçu avec les bons champs
+    /// GIVEN a PlanCacheHit event
+    /// WHEN it is emitted on the EventBus
+    /// THEN it is received with the correct fields
     #[test]
     fn test_cache_hit_event_emits_on_bus() {
         // GIVEN
@@ -2039,11 +2036,11 @@ mod orchestrated_tests {
         }
     }
 
-    // ─── ORIAConfig — max_replans ────────────────────────────────────────
+    // ORIAConfig: max_replans
 
-    /// ÉTANT DONNÉ ORIAConfig sans champ explicite
-    /// QUAND Default::default() est appelé
-    /// ALORS max_replans vaut 2
+    /// GIVEN ORIAConfig without an explicit field
+    /// WHEN Default::default() is called
+    /// THEN max_replans equals 2
     #[test]
     fn test_default_max_replans_is_two() {
         // GIVEN / WHEN
@@ -2053,9 +2050,9 @@ mod orchestrated_tests {
         assert_eq!(config.max_replans, 2);
     }
 
-    /// ÉTANT DONNÉ ORIAConfig avec max_replans = 11
-    /// QUAND validate() est appelé
-    /// ALORS une erreur ConfigError::InvalidValue est retournée
+    /// GIVEN ORIAConfig with max_replans = 11
+    /// WHEN validate() is called
+    /// THEN a ConfigError::InvalidValue error is returned
     #[test]
     fn test_max_replans_eleven_fails_validation() {
         // GIVEN
@@ -2080,9 +2077,9 @@ mod orchestrated_tests {
         );
     }
 
-    /// ÉTANT DONNÉ ORIAConfig avec max_replans = 10
-    /// QUAND validate() est appelé
-    /// ALORS Ok(()) est retourné (borne haute acceptée)
+    /// GIVEN ORIAConfig with max_replans = 10
+    /// WHEN validate() is called
+    /// THEN Ok(()) is returned (upper bound accepted)
     #[test]
     fn test_max_replans_ten_is_valid() {
         // GIVEN
@@ -2098,9 +2095,9 @@ mod orchestrated_tests {
         assert!(result.is_ok());
     }
 
-    /// ÉTANT DONNÉ ORIAConfig avec max_replans = 0
-    /// QUAND with_oria_config est injecté dans ORIAEngine
-    /// ALORS oria_config.max_replans vaut 0 (aucun replan autorisé)
+    /// GIVEN ORIAConfig with max_replans = 0
+    /// WHEN with_oria_config is injected into ORIAEngine
+    /// THEN oria_config.max_replans equals 0 (no replan allowed)
     #[test]
     fn test_max_replans_zero_disallows_replan() {
         // GIVEN
@@ -2116,9 +2113,9 @@ mod orchestrated_tests {
         assert_eq!(engine.oria_config.max_replans, 0);
     }
 
-    /// ÉTANT DONNÉ ORIAConfig avec max_replans = 5
-    /// QUAND with_oria_config est injecté dans ORIAEngine
-    /// ALORS oria_config.max_replans vaut 5
+    /// GIVEN ORIAConfig with max_replans = 5
+    /// WHEN with_oria_config is injected into ORIAEngine
+    /// THEN oria_config.max_replans equals 5
     #[test]
     fn test_max_replans_five_allows_up_to_five() {
         // GIVEN
@@ -2134,18 +2131,18 @@ mod orchestrated_tests {
         assert_eq!(engine.oria_config.max_replans, 5);
     }
 
-    /// ÉTANT DONNÉ une valeur négative dans le JSON (`max_replans: -1`)
-    /// QUAND serde_json tente de désérialiser la valeur en ORIAConfig (u32)
-    /// ALORS la désérialisation échoue car u32 rejette les négatifs nativement
+    /// GIVEN a negative value in the JSON (`max_replans: -1`)
+    /// WHEN serde_json tries to deserialize it into ORIAConfig (u32)
+    /// THEN deserialization fails because u32 natively rejects negatives
     #[test]
     fn test_max_replans_negative_handled() {
-        // GIVEN — JSON avec valeur négative
+        // GIVEN: JSON with a negative value
         let json = serde_json::json!({ "max_replans": -1 });
 
         // WHEN
         let result = serde_json::from_value::<ORIAConfig>(json);
 
-        // THEN — serde refuse -1 pour un champ u32
+        // THEN: serde rejects -1 for a u32 field
         assert!(
             result.is_err(),
             "serde should reject negative values for u32 max_replans"

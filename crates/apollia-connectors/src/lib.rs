@@ -1,14 +1,14 @@
-//! Apollia OS — Native SaaS connectors.
+//! Apollia OS: native SaaS connectors.
 //!
 //! This crate implements connectors that bind Apollia agents to external SaaS
-//! APIs **without any cloud relay** — every request is made from the user's
+//! APIs **without any cloud relay**: every request is made from the user's
 //! machine, OAuth tokens stay in [`apollia_auth`]'s keyring, and Apollia's
 //! infrastructure never sees the user's data.
 //!
 //! Connectors live alongside the MCP client (in `apollia-mcp`): MCP is for
-//! third-party servers (Notion, Slack, GitHub…), connectors are the native
+//! third-party servers (Notion, Slack, GitHub), connectors are the native
 //! path for SaaS that don't publish an official MCP server (Google Workspace,
-//! Microsoft 365). See ADR-088 for the architecture rationale.
+//! Microsoft 365).
 //!
 //! # Trait surface
 //!

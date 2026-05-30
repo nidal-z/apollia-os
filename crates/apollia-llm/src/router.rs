@@ -1,8 +1,8 @@
-//! `LlmRouter` — dispatche les requêtes vers le bon backend par nom.
+//! `LlmRouter`, dispatches requests to the right backend by name.
 //!
-//! Construit au démarrage du Supervisor (position 5, avant `TaskRouter`)
-//! via [`LlmRouter::from_config`]. Partageable via `Arc<LlmRouter>` grâce
-//! à `Clone + Send + Sync`.
+//! Built at Supervisor startup (before `TaskRouter`) via
+//! [`LlmRouter::from_config`]. Shareable as `Arc<LlmRouter>` thanks to
+//! `Clone + Send + Sync`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -32,37 +32,34 @@ use crate::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
 #[cfg(feature = "cloud")]
 use crate::backends::vertex::VertexClient;
 
-// ─────────────────────────────────────────────
-// Configuration
-// ─────────────────────────────────────────────
-
-/// Configuration LLM désérialisée depuis la section `[llm]` de `apollia.toml`.
+/// LLM configuration deserialized from the `[llm]` section of `apollia.toml`.
 ///
-/// Passée à [`LlmRouter::from_config`] au démarrage du Supervisor.
-/// Le champ `default` désigne le backend utilisé quand `get(None)` est appelé.
+/// Passed to [`LlmRouter::from_config`] at Supervisor startup. The `default`
+/// field names the backend used when `get(None)` is called.
 ///
-/// La section `[llm.routing]` est **obligatoire** — son absence provoque
-/// [`LlmError::RoutingConfigMissing`] au démarrage (Principe #4 — Fail fast).
+/// The `[llm.routing]` section is mandatory: its absence triggers
+/// [`LlmError::RoutingConfigMissing`] at startup (fail fast).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct LlmConfig {
-    /// Nom du backend par défaut (doit exister dans `backends`).
+    /// Default backend name (must exist in `backends`).
     pub default: String,
-    /// Liste des backends à instancier dans `[[llm.backends]]`.
+    /// Backends to instantiate from `[[llm.backends]]`.
     pub backends: Vec<BackendConfig>,
-    /// Paramètres d'observabilité (tokens, latence, coût, prompt debug).
+    /// Observability settings (tokens, latency, cost, prompt debug).
     #[serde(default)]
     pub observability: ObservabilityConfig,
-    /// Routing LLM par niveau de précision (section `[llm.routing]`).
+    /// LLM routing by precision level (`[llm.routing]` section).
     ///
-    /// Obligatoire — déclenche [`LlmError::RoutingConfigMissing`] si absent.
-    /// Voir [`LlmRoutingConfig`] pour les champs `precise` et `fast`.
+    /// Mandatory: triggers [`LlmError::RoutingConfigMissing`] if absent.
+    /// See [`LlmRoutingConfig`] for the `precise` and `fast` fields.
     pub routing: Option<LlmRoutingConfig>,
-    /// Surcharges de pricing opérateur (section `[llm.pricing_overrides]`).
+    /// Operator pricing overrides (`[llm.pricing_overrides]` section).
     ///
-    /// Les entrées ici ont priorité sur la table interne de [`crate::pricing::default_pricing`].
-    /// Permet d'ajouter des modèles custom ou de corriger les prix sans mise à jour du code.
+    /// Entries here take priority over the internal table in
+    /// [`crate::pricing::default_pricing`]. Lets operators add custom models
+    /// or correct prices without a code update.
     ///
-    /// Exemple `apollia.toml` :
+    /// `apollia.toml` example:
     /// ```toml
     /// [llm.pricing_overrides]
     /// "custom-local-model" = { input_per_mtok = 0.0, output_per_mtok = 0.0 }
@@ -70,23 +67,23 @@ pub struct LlmConfig {
     /// ```
     #[serde(default)]
     pub pricing_overrides: HashMap<String, PricingTier>,
-    /// Seuil de coût en USD au-delà duquel [`RuntimeEvent::TokenBudgetUpdated`]
-    /// est émis avec `threshold_exceeded = true`.
+    /// Cost threshold in USD above which [`RuntimeEvent::TokenBudgetUpdated`]
+    /// is emitted with `threshold_exceeded = true`.
     ///
-    /// `None` (défaut) désactive les alertes de seuil.
+    /// `None` (default) disables threshold alerts.
     ///
-    /// Exemple `apollia.toml` :
+    /// `apollia.toml` example:
     /// ```toml
     /// [llm]
     /// cost_alert_threshold_usd = 0.50
     /// ```
     #[serde(default)]
     pub cost_alert_threshold_usd: Option<f64>,
-    /// Configuration optionnelle du backend Google Vertex AI (`[llm.vertex]`).
+    /// Optional Google Vertex AI backend configuration (`[llm.vertex]`).
     ///
-    /// Si absent ou `enabled = false`, le backend n'est pas instancié.
+    /// If absent or `enabled = false`, the backend is not instantiated.
     ///
-    /// Exemple `apollia.toml` :
+    /// `apollia.toml` example:
     /// ```toml
     /// [llm.vertex]
     /// enabled    = true
@@ -96,11 +93,12 @@ pub struct LlmConfig {
     /// ```
     #[serde(default)]
     pub vertex: Option<VertexConfig>,
-    /// Configuration du sidecar runner LLM local (section `[llm.runner]`).
+    /// Local LLM sidecar runner configuration (`[llm.runner]` section).
     ///
-    /// Détermine quel binaire runner (`apollia-runner-cuda`, `apollia-runner-metal`,
-    /// etc.) le daemon spawn au boot. La valeur par défaut `"auto"` laisse
-    /// `apollia_runtime::runner_supervisor::gpu_detection` choisir d'après le hardware.
+    /// Determines which runner binary (`apollia-runner-cuda`,
+    /// `apollia-runner-metal`, etc.) the daemon spawns at boot. The default
+    /// `"auto"` lets `apollia_runtime::runner_supervisor::gpu_detection`
+    /// choose based on the hardware.
     #[serde(default)]
     pub runner: LlmRunnerConfig,
 }
@@ -150,22 +148,22 @@ fn infer_api_provider_from_url(api_url: &str) -> LlmProvider {
     }
 }
 
-/// Paramètres d'observabilité pour le router LLM.
+/// Observability settings for the LLM router.
 ///
-/// Les champs `log_token_usage` et `log_latency` sont actifs par défaut.
-/// `log_cost` et `debug_log_prompt` sont désactivés par défaut.
+/// `log_token_usage` and `log_latency` are enabled by default.
+/// `log_cost` and `debug_log_prompt` are disabled by default.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ObservabilityConfig {
-    /// Log le nombre de tokens consommés après chaque appel.
+    /// Log the number of tokens consumed after each call.
     #[serde(default = "default_true")]
     pub log_token_usage: bool,
-    /// Log la latence totale de chaque appel.
+    /// Log the total latency of each call.
     #[serde(default = "default_true")]
     pub log_latency: bool,
-    /// Log le coût estimé en USD (backends cloud uniquement).
+    /// Log the estimated cost in USD (cloud backends only).
     #[serde(default)]
     pub log_cost: bool,
-    /// Log le prompt complet au niveau `TRACE` (uniquement en debug).
+    /// Log the full prompt at `TRACE` level (debug only).
     #[serde(default)]
     pub debug_log_prompt: bool,
 }
@@ -185,19 +183,35 @@ fn default_true() -> bool {
     true
 }
 
-/// Entrée de configuration pour un backend individuel dans `[[llm.backends]]`.
+/// Routing context for [`LlmRouter::complete_with_fallback`].
 ///
-/// Le nom logique du backend est défini dans la config interne
+/// Groups the primary backend, the ordered fallback list, the optional event
+/// bus and the observability config. The completion request stays passed
+/// separately because it is consumed per call.
+pub struct FallbackPlan<'a> {
+    /// Name of the primary backend to try first.
+    pub primary: &'a str,
+    /// Secondary backends tried in order if the primary fails.
+    pub fallbacks: &'a [&'a str],
+    /// Optional event bus to emit [`RuntimeEvent::LlmFallbackTriggered`].
+    pub bus: Option<&'a EventBusSender>,
+    /// Observability config propagated to the underlying calls.
+    pub obs: &'a ObservabilityConfig,
+}
+
+/// Configuration entry for an individual backend in `[[llm.backends]]`.
+///
+/// The backend's logical name is defined in the inner config
 /// (`ApiBackendConfig.name`).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct BackendConfig {
-    /// Type et paramètres du backend — discriminé par le champ TOML `type`.
+    /// Backend type and parameters, discriminated by the TOML `type` field.
     #[serde(flatten)]
     pub kind: BackendKind,
 }
 
 impl BackendConfig {
-    /// Retourne le nom logique du backend depuis la config interne.
+    /// Return the backend's logical name from the inner config.
     pub fn name(&self) -> &str {
         match &self.kind {
             #[cfg(feature = "cloud")]
@@ -205,9 +219,9 @@ impl BackendConfig {
         }
     }
 
-    /// Retourne un hint de chemin/URL pour l'événement `LlmModelLoading`.
+    /// Return a path/URL hint for the `LlmModelLoading` event.
     ///
-    /// Backend cloud : URL de l'API.
+    /// For a cloud backend this is the API URL.
     fn model_path_hint(&self) -> String {
         match &self.kind {
             #[cfg(feature = "cloud")]
@@ -216,69 +230,261 @@ impl BackendConfig {
     }
 }
 
-/// Discriminant de type de backend dans `[[llm.backends]]`.
+/// Backend type discriminant in `[[llm.backends]]`.
 ///
-/// `type = "api"` : [`ApiBackendConfig`] (feature `"cloud"`).
-/// Les backends locaux (llama-cpp) sont désormais hébergés par le crate
-/// `apollia-runner` (sidecar) et injectés à part via `RunnerLlmBackend`.
+/// `type = "api"`: [`ApiBackendConfig`] (feature `"cloud"`).
+/// Local backends (llama-cpp) are now hosted by the `apollia-runner` crate
+/// (sidecar) and injected separately via `RunnerLlmBackend`.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum BackendKind {
-    /// Backend HTTP cloud compatible OpenAI ou Anthropic (feature `"cloud"`).
+    /// OpenAI- or Anthropic-compatible cloud HTTP backend (feature `"cloud"`).
     #[cfg(feature = "cloud")]
     Api(ApiBackendConfig),
 }
 
-// ─────────────────────────────────────────────
-// Router
-// ─────────────────────────────────────────────
-
-/// Point d'entrée unique pour toute la couche LLM d'Apollia OS.
+/// Single entry point for the entire Apollia OS LLM layer.
 ///
-/// Instancié par le Supervisor au démarrage (position 5) via
-/// [`LlmRouter::from_config`]. Dispatche les requêtes vers le bon backend
-/// par nom via [`get`](Self::get), avec fallback sur le backend `default`.
+/// Instantiated by the Supervisor at startup via [`LlmRouter::from_config`].
+/// Dispatches requests to the right backend by name via [`get`](Self::get),
+/// with fallback to the `default` backend.
 ///
-/// Les méthodes [`route_precise`](Self::route_precise) et [`route_fast`](Self::route_fast)
-/// sélectionnent le backend selon le niveau de précision requis (config `[llm.routing]`).
+/// [`route_precise`](Self::route_precise) and [`route_fast`](Self::route_fast)
+/// select the backend by the required precision level (`[llm.routing]` config).
 ///
-/// `LlmRouter` est `Clone + Send + Sync` — partageable via `Arc<LlmRouter>`
-/// entre les composants du runtime (agit comme un catalogue en lecture seule).
+/// `LlmRouter` is `Clone + Send + Sync`, shareable as `Arc<LlmRouter>` across
+/// runtime components (it acts as a read-only catalog).
 ///
-/// `Debug` est implémenté manuellement : `Arc<dyn CompletionModel>` n'implémente
-/// pas `Debug` (le trait objet ne l'exporte pas).
+/// `Debug` is implemented manually: `Arc<dyn CompletionModel>` does not
+/// implement `Debug` (the trait object does not expose it).
 ///
-/// Le `CancellationToken` de session permet à `ORIAEngine::abort()` d'annuler
-/// tous les appels LLM en cours et leurs délais de retry via [`cancellation_token`](Self::cancellation_token).
+/// The session `CancellationToken` lets `ORIAEngine::abort()` cancel all
+/// in-flight LLM calls and their retry delays via
+/// [`cancellation_token`](Self::cancellation_token).
 #[derive(Clone)]
 pub struct LlmRouter {
     backends: HashMap<String, Arc<dyn CompletionModel>>,
     default: String,
-    /// Routing LLM par niveau de précision — `None` pour les routers construits
-    /// via `from_repository` ou `with_backends` (pas de config TOML).
+    /// LLM routing by precision level. `None` for routers built via
+    /// `from_repository` or `with_backends` (no TOML config).
     routing: Option<LlmRoutingConfig>,
-    /// Token d'annulation partagé par tous les backends de ce router.
+    /// Cancellation token shared by all backends of this router.
     cancellation_token: CancellationToken,
-    /// Budget de session cumulé avec émission d'événements temps réel.
+    /// Cumulative session budget with real-time event emission.
     ///
-    /// Protégé par un `Mutex` standard (verrou court, jamais tenu pendant
-    /// un appel async) pour permettre le `Clone` sans `Arc` supplémentaire.
+    /// Guarded by a standard `Mutex` (short lock, never held across an async
+    /// call) so the struct can `Clone` without an extra `Arc`.
     session_budget: Arc<Mutex<SessionBudgetTracker>>,
 }
 
+/// Instantiate an `Arc<dyn CompletionModel>` backend from its config.
+///
+/// Heuristic: Anthropic API maps to `AnthropicClient`, any other provider to
+/// `OpenAICompatibleClient`. Returns `Err` if the API key cannot be resolved.
+#[cfg(feature = "cloud")]
+fn build_backend(
+    backend_cfg: &BackendConfig,
+    config: &LlmConfig,
+    cancellation_token: &CancellationToken,
+) -> Result<Arc<dyn CompletionModel>, LlmError> {
+    match &backend_cfg.kind {
+        BackendKind::Api(cfg) => {
+            let key = cfg
+                .resolve_api_key()
+                .map_err(|e| LlmError::BackendUnavailable {
+                    backend: cfg.name.clone(),
+                    reason: e.to_string(),
+                })?;
+            let backend: Arc<dyn CompletionModel> = if cfg.api_url.contains("anthropic.com") {
+                Arc::new(AnthropicClient::new(
+                    cfg,
+                    key,
+                    config.pricing_overrides.clone(),
+                    cancellation_token.clone(),
+                ))
+            } else {
+                Arc::new(OpenAICompatibleClient::new(
+                    cfg,
+                    key,
+                    cancellation_token.clone(),
+                ))
+            };
+            Ok(backend)
+        }
+    }
+}
+
+/// Instantiate the Vertex AI backend from `[llm.vertex]` when `enabled = true`.
+///
+/// Fails silently (logs a warning, skips the backend) and does not propagate
+/// an error.
+#[cfg(feature = "cloud")]
+fn insert_vertex_backend(
+    backends: &mut HashMap<String, Arc<dyn CompletionModel>>,
+    config: &LlmConfig,
+    cancellation_token: &CancellationToken,
+) {
+    let Some(vertex_cfg) = &config.vertex else {
+        return;
+    };
+    if !vertex_cfg.enabled {
+        return;
+    }
+    match VertexClient::new(vertex_cfg, cancellation_token.clone()) {
+        Ok(client) => {
+            backends.insert(
+                "vertex".to_owned(),
+                Arc::new(client) as Arc<dyn CompletionModel>,
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Vertex AI backend ignoré : ADC absent ou invalide"
+            );
+        }
+    }
+}
+
+/// Load a backend, emitting `LlmModelLoading` / `LlmModelReady` /
+/// `LlmModelFailed` on the bus (when present). Fails silently: the backend is
+/// skipped, no crash.
+fn load_backend_with_bus(
+    backends: &mut HashMap<String, Arc<dyn CompletionModel>>,
+    backend_cfg: &BackendConfig,
+    config: &LlmConfig,
+    cancellation_token: &CancellationToken,
+    bus: &Option<EventBusSender>,
+) {
+    let name = backend_cfg.name().to_owned();
+    let model_path = backend_cfg.model_path_hint();
+
+    // Emit LlmModelLoading before each load attempt.
+    if let Some(b) = bus {
+        let _ = b.send(RuntimeEvent::LlmModelLoading {
+            backend: name.clone(),
+            model_path,
+        });
+    }
+
+    #[cfg(feature = "cloud")]
+    let result = build_backend(backend_cfg, config, cancellation_token);
+    #[cfg(not(feature = "cloud"))]
+    let result: Result<Arc<dyn CompletionModel>, LlmError> = {
+        let _ = (config, cancellation_token);
+        match &backend_cfg.kind {}
+    };
+
+    match result {
+        Ok(backend) => {
+            // Emit LlmModelReady on success.
+            if let Some(b) = bus {
+                let _ = b.send(RuntimeEvent::LlmModelReady {
+                    backend: name.clone(),
+                    model_id: backend.model_id().to_owned(),
+                });
+            }
+            backends.insert(name, backend);
+        }
+        Err(e) => {
+            tracing::warn!(
+                backend = %name,
+                error = %e,
+                "backend ignoré : chargement échoué"
+            );
+            // Emit LlmModelFailed: backend skipped, no crash.
+            if let Some(b) = bus {
+                let _ = b.send(RuntimeEvent::LlmModelFailed {
+                    backend: name.clone(),
+                    reason: e.to_string(),
+                });
+            }
+            // Keep going and try the remaining backends.
+        }
+    }
+}
+
+/// Variant of [`insert_vertex_backend`] that emits events on the bus.
+#[cfg(feature = "cloud")]
+fn insert_vertex_backend_with_bus(
+    backends: &mut HashMap<String, Arc<dyn CompletionModel>>,
+    config: &LlmConfig,
+    cancellation_token: &CancellationToken,
+    bus: &Option<EventBusSender>,
+) {
+    let Some(vertex_cfg) = &config.vertex else {
+        return;
+    };
+    if !vertex_cfg.enabled {
+        return;
+    }
+    let vertex_name = "vertex".to_owned();
+    if let Some(b) = bus {
+        let _ = b.send(RuntimeEvent::LlmModelLoading {
+            backend: vertex_name.clone(),
+            model_path: vertex_cfg.model_id.clone(),
+        });
+    }
+    match VertexClient::new(vertex_cfg, cancellation_token.clone()) {
+        Ok(client) => {
+            let model_id = client.model_id().to_owned();
+            if let Some(b) = bus {
+                let _ = b.send(RuntimeEvent::LlmModelReady {
+                    backend: vertex_name.clone(),
+                    model_id,
+                });
+            }
+            backends.insert(vertex_name, Arc::new(client) as Arc<dyn CompletionModel>);
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Vertex AI backend ignoré : ADC absent ou invalide"
+            );
+            if let Some(b) = bus {
+                let _ = b.send(RuntimeEvent::LlmModelFailed {
+                    backend: vertex_name,
+                    reason: e.to_string(),
+                });
+            }
+        }
+    }
+}
+
+/// Validate `[llm.routing]` consistency: the named backends must exist.
+///
+/// `[llm.routing]` is optional. When present, the `precise`/`fast` names must
+/// be in the map; otherwise `route_precise/fast` fall back to
+/// `config.default` at runtime.
+fn validate_routing(
+    backends: &HashMap<String, Arc<dyn CompletionModel>>,
+    routing: Option<&LlmRoutingConfig>,
+) -> Result<(), LlmError> {
+    if let Some(routing) = routing {
+        if !backends.contains_key(&routing.precise) {
+            return Err(LlmError::BackendNotFound(routing.precise.clone()));
+        }
+        if !backends.contains_key(&routing.fast) {
+            return Err(LlmError::BackendNotFound(routing.fast.clone()));
+        }
+    }
+    Ok(())
+}
+
 impl LlmRouter {
-    /// Construit le router depuis la configuration — appelé par le Supervisor au démarrage.
+    /// Build the router from configuration, called by the Supervisor at startup.
     ///
-    /// Itère sur `config.backends` et tente d'instancier chaque backend :
-    /// `Api` : résout la clé API ; si absente : `tracing::warn!` + backend ignoré.
+    /// Iterates over `config.backends` and tries to instantiate each backend.
+    /// For `Api`: resolves the API key; if missing, logs `tracing::warn!` and
+    /// skips the backend.
     ///
-    /// Après la boucle, vérifie que `config.default` est présent dans le map.
-    /// Si absent (non configuré ou ignoré) → retourne [`LlmError::BackendUnavailable`].
+    /// After the loop, checks that `config.default` is present in the map.
+    /// If absent (unconfigured or skipped) returns [`LlmError::BackendUnavailable`].
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// - [`LlmError::ModelNotFound`] / [`LlmError::InferenceError`] — chargement `.gguf` échoué.
-    /// - [`LlmError::BackendUnavailable`] — le backend par défaut est introuvable ou indisponible.
+    /// - [`LlmError::ModelNotFound`] / [`LlmError::InferenceError`]: `.gguf` load failed.
+    /// - [`LlmError::BackendUnavailable`]: the default backend is missing or unavailable.
     pub async fn from_config(config: &LlmConfig) -> Result<Self, LlmError> {
         let cancellation_token = CancellationToken::new();
         let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
@@ -286,63 +492,31 @@ impl LlmRouter {
         for backend_cfg in &config.backends {
             let name = backend_cfg.name().to_owned();
 
-            let backend: Arc<dyn CompletionModel> = match &backend_cfg.kind {
-                #[cfg(feature = "cloud")]
-                BackendKind::Api(cfg) => match cfg.resolve_api_key() {
-                    Ok(key) => {
-                        // Heuristique : API Anthropic → AnthropicClient,
-                        // tout autre fournisseur → OpenAICompatibleClient.
-                        if cfg.api_url.contains("anthropic.com") {
-                            Arc::new(AnthropicClient::new(
-                                cfg,
-                                key,
-                                config.pricing_overrides.clone(),
-                                cancellation_token.clone(),
-                            ))
-                        } else {
-                            Arc::new(OpenAICompatibleClient::new(
-                                cfg,
-                                key,
-                                cancellation_token.clone(),
-                            ))
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            backend = %name,
-                            error = %e,
-                            "backend ignoré : clé API absente"
-                        );
-                        continue;
-                    }
-                },
-            };
+            #[cfg(feature = "cloud")]
+            let result = build_backend(backend_cfg, config, &cancellation_token);
+            #[cfg(not(feature = "cloud"))]
+            let result: Result<Arc<dyn CompletionModel>, LlmError> = match &backend_cfg.kind {};
 
-            backends.insert(name, backend);
-        }
-
-        // Vertex AI — instancié séparément depuis [llm.vertex] si enabled = true.
-        #[cfg(feature = "cloud")]
-        if let Some(vertex_cfg) = &config.vertex {
-            if vertex_cfg.enabled {
-                match VertexClient::new(vertex_cfg, cancellation_token.clone()) {
-                    Ok(client) => {
-                        backends.insert(
-                            "vertex".to_owned(),
-                            Arc::new(client) as Arc<dyn CompletionModel>,
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            "Vertex AI backend ignoré : ADC absent ou invalide"
-                        );
-                    }
+            match result {
+                Ok(backend) => {
+                    backends.insert(name, backend);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        backend = %name,
+                        error = %e,
+                        "backend ignoré : clé API absente"
+                    );
+                    continue;
                 }
             }
         }
 
-        // : le backend par défaut doit être disponible après la boucle.
+        // Vertex AI is instantiated separately from [llm.vertex] when enabled = true.
+        #[cfg(feature = "cloud")]
+        insert_vertex_backend(&mut backends, config, &cancellation_token);
+
+        // The default backend must be available after the loop.
         if !backends.contains_key(&config.default) {
             return Err(LlmError::BackendUnavailable {
                 backend: config.default.clone(),
@@ -350,18 +524,7 @@ impl LlmRouter {
             });
         }
 
-        // `[llm.routing]` est optionnelle. Si elle est présente, on valide la
-        // cohérence (les backends nommés doivent exister). Si elle est
-        // absente, `route_precise/fast` retombent sur `config.default` au
-        // runtime (cf. méthodes `route_precise` / `route_fast`).
-        if let Some(routing) = config.routing.as_ref() {
-            if !backends.contains_key(&routing.precise) {
-                return Err(LlmError::BackendNotFound(routing.precise.clone()));
-            }
-            if !backends.contains_key(&routing.fast) {
-                return Err(LlmError::BackendNotFound(routing.fast.clone()));
-            }
-        }
+        validate_routing(&backends, config.routing.as_ref())?;
 
         Ok(Self {
             backends,
@@ -372,25 +535,25 @@ impl LlmRouter {
         })
     }
 
-    /// Construit le router depuis la configuration avec observabilité EventBus.
+    /// Build the router from configuration with EventBus observability.
     ///
-    /// Variante de [`from_config`](Self::from_config) à utiliser par le Supervisor.
-    /// Émet sur le bus pour chaque backend :
-    /// - [`RuntimeEvent::LlmModelLoading`] — avant le chargement
-    /// - [`RuntimeEvent::LlmModelReady`] — si le chargement réussit
-    /// - [`RuntimeEvent::LlmModelFailed`] — si le chargement échoue (backend ignoré, pas de crash)
+    /// Variant of [`from_config`](Self::from_config) for the Supervisor to use.
+    /// Emits on the bus for each backend:
+    /// - [`RuntimeEvent::LlmModelLoading`]: before loading
+    /// - [`RuntimeEvent::LlmModelReady`]: when loading succeeds
+    /// - [`RuntimeEvent::LlmModelFailed`]: when loading fails (backend skipped, no crash)
     ///
-    /// L'`EventBusSender` est optionnel — `None` désactive l'émission d'événements
-    /// sans changer le comportement fonctionnel.
+    /// The `EventBusSender` is optional: `None` disables event emission without
+    /// changing functional behavior.
     ///
-    /// Contrairement à [`from_config`](Self::from_config), les erreurs de chargement
-    /// par backend (`.gguf` absent, etc.) sont loggées + émises comme `LlmModelFailed`
-    /// mais ne propagent pas d'erreur — le router continue avec les backends disponibles.
+    /// Unlike [`from_config`](Self::from_config), per-backend load errors
+    /// (missing `.gguf`, etc.) are logged and emitted as `LlmModelFailed` but
+    /// do not propagate an error; the router continues with the available backends.
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// - [`LlmError::BackendUnavailable`] — le backend par défaut est introuvable
-    ///   après que tous les backends aient été tentés.
+    /// - [`LlmError::BackendUnavailable`]: the default backend is missing after
+    ///   all backends have been tried.
     pub async fn from_config_with_bus(
         config: &LlmConfig,
         bus: Option<EventBusSender>,
@@ -399,110 +562,12 @@ impl LlmRouter {
         let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
 
         for backend_cfg in &config.backends {
-            let name = backend_cfg.name().to_owned();
-            let model_path = backend_cfg.model_path_hint();
-
-            // : émettre LlmModelLoading avant chaque tentative de chargement.
-            if let Some(ref b) = bus {
-                let _ = b.send(RuntimeEvent::LlmModelLoading {
-                    backend: name.clone(),
-                    model_path,
-                });
-            }
-
-            let result: Result<Arc<dyn CompletionModel>, LlmError> = match &backend_cfg.kind {
-                #[cfg(feature = "cloud")]
-                BackendKind::Api(cfg) => match cfg.resolve_api_key() {
-                    Ok(key) => {
-                        let b: Arc<dyn CompletionModel> = if cfg.api_url.contains("anthropic.com") {
-                            Arc::new(AnthropicClient::new(
-                                cfg,
-                                key,
-                                config.pricing_overrides.clone(),
-                                cancellation_token.clone(),
-                            ))
-                        } else {
-                            Arc::new(OpenAICompatibleClient::new(
-                                cfg,
-                                key,
-                                cancellation_token.clone(),
-                            ))
-                        };
-                        Ok(b)
-                    }
-                    Err(e) => Err(LlmError::BackendUnavailable {
-                        backend: name.clone(),
-                        reason: e.to_string(),
-                    }),
-                },
-            };
-
-            match result {
-                Ok(backend) => {
-                    // : émettre LlmModelReady après succès.
-                    if let Some(ref b) = bus {
-                        let _ = b.send(RuntimeEvent::LlmModelReady {
-                            backend: name.clone(),
-                            model_id: backend.model_id().to_owned(),
-                        });
-                    }
-                    backends.insert(name, backend);
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        backend = %name,
-                        error = %e,
-                        "backend ignoré : chargement échoué"
-                    );
-                    // : émettre LlmModelFailed — backend ignoré, pas de crash.
-                    if let Some(ref b) = bus {
-                        let _ = b.send(RuntimeEvent::LlmModelFailed {
-                            backend: name.clone(),
-                            reason: e.to_string(),
-                        });
-                    }
-                    // Continue — on tente les backends suivants.
-                }
-            }
+            load_backend_with_bus(&mut backends, backend_cfg, config, &cancellation_token, &bus);
         }
 
-        // Vertex AI — instancié séparément depuis [llm.vertex] si enabled = true.
+        // Vertex AI is instantiated separately from [llm.vertex] when enabled = true.
         #[cfg(feature = "cloud")]
-        if let Some(vertex_cfg) = &config.vertex {
-            if vertex_cfg.enabled {
-                let vertex_name = "vertex".to_owned();
-                if let Some(ref b) = bus {
-                    let _ = b.send(RuntimeEvent::LlmModelLoading {
-                        backend: vertex_name.clone(),
-                        model_path: vertex_cfg.model_id.clone(),
-                    });
-                }
-                match VertexClient::new(vertex_cfg, cancellation_token.clone()) {
-                    Ok(client) => {
-                        let model_id = client.model_id().to_owned();
-                        if let Some(ref b) = bus {
-                            let _ = b.send(RuntimeEvent::LlmModelReady {
-                                backend: vertex_name.clone(),
-                                model_id,
-                            });
-                        }
-                        backends.insert(vertex_name, Arc::new(client) as Arc<dyn CompletionModel>);
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            "Vertex AI backend ignoré : ADC absent ou invalide"
-                        );
-                        if let Some(ref b) = bus {
-                            let _ = b.send(RuntimeEvent::LlmModelFailed {
-                                backend: vertex_name,
-                                reason: e.to_string(),
-                            });
-                        }
-                    }
-                }
-            }
-        }
+        insert_vertex_backend_with_bus(&mut backends, config, &cancellation_token, &bus);
 
         if !backends.contains_key(&config.default) {
             return Err(LlmError::BackendUnavailable {
@@ -511,17 +576,7 @@ impl LlmRouter {
             });
         }
 
-        // `[llm.routing]` est optionnelle. Si présente, on valide la
-        // cohérence ; sinon `route_precise/fast` retombent sur `config.default`
-        // (cf. méthodes `route_precise` / `route_fast` plus bas).
-        if let Some(routing) = config.routing.as_ref() {
-            if !backends.contains_key(&routing.precise) {
-                return Err(LlmError::BackendNotFound(routing.precise.clone()));
-            }
-            if !backends.contains_key(&routing.fast) {
-                return Err(LlmError::BackendNotFound(routing.fast.clone()));
-            }
-        }
+        validate_routing(&backends, config.routing.as_ref())?;
 
         Ok(Self {
             backends,
@@ -535,22 +590,22 @@ impl LlmRouter {
         })
     }
 
-    /// Appelle le backend et émet automatiquement [`RuntimeEvent::LlmCallCompleted`].
+    /// Call the backend and automatically emit [`RuntimeEvent::LlmCallCompleted`].
     ///
-    /// Séquence d'exécution :
-    /// 1. Log le prompt au niveau `TRACE` si `obs.debug_log_prompt` est actif.
-    /// 2. Appelle `backend.complete(req)`.
-    /// 3. Émet `LlmCallCompleted` fire-and-forget sur le bus (si présent).
-    /// 4. Log tokens/latence au niveau `INFO` selon les flags `obs`.
-    /// 5. Retourne `Ok(response)`.
+    /// Execution sequence:
+    /// 1. Log the prompt at `TRACE` level if `obs.debug_log_prompt` is enabled.
+    /// 2. Call `backend.complete(req)`.
+    /// 3. Emit `LlmCallCompleted` fire-and-forget on the bus (when present).
+    /// 4. Log tokens/latency at `INFO` level per the `obs` flags.
+    /// 5. Return `Ok(response)`.
     ///
-    /// L'`EventBusSender` est optionnel — `None` désactive l'émission sans changer
-    /// le comportement fonctionnel. Les erreurs `send()` sont silencieusement ignorées.
+    /// The `EventBusSender` is optional: `None` disables emission without
+    /// changing functional behavior. `send()` errors are silently ignored.
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// - [`LlmError::BackendUnavailable`] — le backend demandé n'est pas dans le router.
-    /// - Toute erreur propagée par `backend.complete()`.
+    /// - [`LlmError::BackendUnavailable`]: the requested backend is not in the router.
+    /// - Any error propagated by `backend.complete()`.
     pub async fn complete_with_observability(
         &self,
         backend_name: Option<&str>,
@@ -568,7 +623,7 @@ impl LlmRouter {
                     reason: "not found in router".to_owned(),
                 })?;
 
-        // : log du prompt uniquement à TRACE — jamais à INFO.
+        // Log the prompt at TRACE only, never at INFO.
         if obs.debug_log_prompt {
             tracing::trace!(prompt = ?req.messages, "llm prompt");
         }
@@ -578,12 +633,12 @@ impl LlmRouter {
         let latency_ms = started.elapsed().as_millis() as u64;
 
         // Accumulate into the session budget and emit TokenBudgetUpdated.
-        // Lock held only for the duration of record_usage() — never across awaits.
+        // Lock held only for the duration of record_usage(), never across awaits.
         if let Ok(mut tracker) = self.session_budget.lock() {
             tracker.record_usage(&response.usage, latency_ms, response.ttft_ms);
         }
 
-        // : émission fire-and-forget — erreurs send() silencieusement ignorées.
+        // Fire-and-forget emission: send() errors are silently ignored.
         if let Some(b) = bus {
             let _ = b.send(RuntimeEvent::LlmCallCompleted {
                 backend: backend_key.to_owned(),
@@ -617,21 +672,24 @@ impl LlmRouter {
         Ok(response)
     }
 
-    /// Invoque le backend primaire puis, en cas d'échec non récupérable,
-    /// bascule sur le premier backend secondaire disponible.
+    /// Invoke the primary backend, then on a non-recoverable failure switch to
+    /// the first available secondary backend.
     ///
-    /// Émet [`RuntimeEvent::LlmFallbackTriggered`] sur le bus à chaque bascule
-    /// réussie. Le basculement est silencieux du point de vue fonctionnel —
-    /// l'appelant reçoit soit la réponse du primaire, soit la réponse du
-    /// premier fallback qui répond, soit la dernière erreur observée.
+    /// Emits [`RuntimeEvent::LlmFallbackTriggered`] on the bus for each
+    /// successful switch. The switch is functionally transparent: the caller
+    /// receives either the primary's response, the response of the first
+    /// fallback that answers, or the last observed error.
     pub async fn complete_with_fallback(
         &self,
-        primary: &str,
-        fallbacks: &[&str],
+        plan: FallbackPlan<'_>,
         req: CompletionRequest,
-        bus: Option<&EventBusSender>,
-        obs: &ObservabilityConfig,
     ) -> Result<CompletionResponse, LlmError> {
+        let FallbackPlan {
+            primary,
+            fallbacks,
+            bus,
+            obs,
+        } = plan;
         let primary_result = self
             .complete_with_observability(Some(primary), req.clone(), bus, obs)
             .await;
@@ -673,16 +731,16 @@ impl LlmRouter {
         Err(last_err)
     }
 
-    /// Ouvre un stream de [`StreamChunk`]s depuis le backend résolu.
+    /// Open a stream of [`StreamChunk`]s from the resolved backend.
     ///
-    /// Résout le backend (par nom ou défaut), appelle `backend.stream(req)`,
-    /// et retourne le stream brut. L'appelant est responsable de l'émission
-    /// de l'événement `LlmCallCompleted` une fois le stream consommé.
+    /// Resolves the backend (by name or default), calls `backend.stream(req)`,
+    /// and returns the raw stream. The caller is responsible for emitting the
+    /// `LlmCallCompleted` event once the stream is consumed.
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// - [`LlmError::BackendUnavailable`] — le backend demandé n'est pas dans le router.
-    /// - Toute erreur propagée par `backend.stream()`.
+    /// - [`LlmError::BackendUnavailable`]: the requested backend is not in the router.
+    /// - Any error propagated by `backend.stream()`.
     pub async fn stream_with_observability(
         &self,
         backend_name: Option<&str>,
@@ -712,24 +770,24 @@ impl LlmRouter {
         Ok(stream)
     }
 
-    /// Retourne le backend par nom, ou le backend défaut si `name` est `None`.
+    /// Return the backend by name, or the default backend if `name` is `None`.
     ///
-    /// Retourne `None` si le backend demandé n'est pas dans le router.
+    /// Returns `None` if the requested backend is not in the router.
     pub fn get(&self, name: Option<&str>) -> Option<Arc<dyn CompletionModel>> {
         let key = name.unwrap_or(&self.default);
         self.backends.get(key).cloned()
     }
 
-    /// Construit un `LlmRouter` avec des backends déjà instanciés.
+    /// Build an `LlmRouter` from already-instantiated backends.
     ///
-    /// Utilisé dans les tests d'intégration pour injecter des mocks [`CompletionModel`]
-    /// sans passer par la configuration TOML.
-    /// Le routing LLM n'est pas configuré sur ce router — `route_precise()` et
-    /// `route_fast()` retourneront [`LlmError::RoutingConfigMissing`].
+    /// Used in integration tests to inject [`CompletionModel`] mocks without
+    /// going through the TOML configuration. LLM routing is not configured on
+    /// this router, so `route_precise()` and `route_fast()` will return
+    /// [`LlmError::RoutingConfigMissing`].
     ///
     /// # Panics
     ///
-    /// Panique si `default` n'est pas présent dans `backends`.
+    /// Panics if `default` is not present in `backends`.
     pub fn with_backends(
         backends: HashMap<String, Arc<dyn CompletionModel>>,
         default: impl Into<String>,
@@ -748,27 +806,50 @@ impl LlmRouter {
         }
     }
 
-    /// Construit le router depuis une liste de [`LlmBackendConfig`] déjà chargée.
+    /// Build the router from an already-loaded list of [`LlmBackendConfig`].
     ///
-    /// Variante de [`from_repository`](Self::from_repository) qui prend les configs
-    /// directement (utile quand le repository SQLite a déjà été lu dans un thread
-    /// bloquant, par ex. via `spawn_blocking`).
+    /// Variant of [`from_repository`](Self::from_repository) that takes the
+    /// configs directly (useful when the SQLite repository has already been
+    /// read in a blocking thread, e.g. via `spawn_blocking`).
     ///
-    /// Seuls les backends `enabled = true` sont instanciés.
-    /// Les backends qui échouent sont loggués et ignorés (dégradation non fatale).
+    /// Only `enabled = true` backends are instantiated. Backends that fail are
+    /// logged and skipped (non-fatal degradation).
     ///
     /// # Errors
     ///
-    /// - [`LlmError::BackendUnavailable`] si `default_name` n'est pas instancié avec succès.
+    /// - [`LlmError::BackendUnavailable`] if `default_name` is not instantiated successfully.
     pub async fn from_backend_configs(
         all: Vec<LlmBackendConfig>,
         default_name: String,
     ) -> Result<Self, LlmError> {
+        Self::from_backend_configs_with_override(all, default_name, |_| None).await
+    }
+
+    /// Variant of [`from_backend_configs`](Self::from_backend_configs) with an
+    /// override factory (multi-runner).
+    ///
+    /// Identical to [`from_repository_with_override`](Self::from_repository_with_override)
+    /// but takes already-loaded configs (useful for reloads that read the
+    /// SQLite repository in a `spawn_blocking`). The factory routes `LlamaCpp`
+    /// backends to a `RunnerLlmBackend`; without it, those backends are skipped
+    /// (the local runner becomes unreachable).
+    pub async fn from_backend_configs_with_override<F>(
+        all: Vec<LlmBackendConfig>,
+        default_name: String,
+        override_factory: F,
+    ) -> Result<Self, LlmError>
+    where
+        F: Fn(&LlmBackendConfig) -> Option<Arc<dyn CompletionModel>>,
+    {
         let cancellation_token = CancellationToken::new();
         let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
 
         for cfg in all.into_iter().filter(|c| c.enabled) {
             let name = cfg.name.clone();
+            if let Some(overriden) = override_factory(&cfg) {
+                backends.insert(name, overriden);
+                continue;
+            }
             match instantiate_from_config(&cfg, cancellation_token.clone()).await {
                 Ok(backend) => {
                     backends.insert(name, backend);
@@ -794,27 +875,27 @@ impl LlmRouter {
         })
     }
 
-    /// Construit le router depuis un [`LlmBackendRepository`] SQLite.
+    /// Build the router from a SQLite [`LlmBackendRepository`].
     ///
-    /// Charge tous les backends `enabled = true`. Le backend `is_default = true`
-    /// devient le backend par défaut. Les backends qui échouent à l'instanciation
-    /// sont loggués avec `tracing::warn!` et ignorés (dégradation non fatale).
+    /// Loads every `enabled = true` backend. The `is_default = true` backend
+    /// becomes the default. Backends that fail to instantiate are logged with
+    /// `tracing::warn!` and skipped (non-fatal degradation).
     ///
     /// # Errors
     ///
-    /// - [`LlmError::BackendUnavailable`] si aucun backend n'est marqué `is_default = true`
-    ///   dans `system.db`, ou si le backend par défaut échoue à l'instanciation.
+    /// - [`LlmError::BackendUnavailable`] if no backend is marked `is_default = true`
+    ///   in `system.db`, or if the default backend fails to instantiate.
     pub async fn from_repository(repo: &LlmBackendRepository) -> Result<Self, LlmError> {
         Self::from_repository_with_override(repo, |_| None).await
     }
 
-    /// Variante de [`from_repository`] qui permet d'injecter une factory
-    /// pour overrider l'instanciation de certains backends (ADR-113 multi-runner).
+    /// Variant of [`from_repository`] that lets callers inject a factory to
+    /// override instantiation of certain backends (multi-runner support).
     ///
-    /// La closure reçoit la `LlmBackendConfig` et retourne :
-    /// - `Some(Arc<dyn CompletionModel>)` pour overrider (typiquement utilisé
-    ///   pour rediriger les backends `LlamaCpp` vers un `RunnerLlmBackend`).
-    /// - `None` pour laisser l'instanciation standard (cas backends cloud).
+    /// The closure receives the `LlmBackendConfig` and returns:
+    /// - `Some(Arc<dyn CompletionModel>)` to override (typically used to
+    ///   redirect `LlamaCpp` backends to a `RunnerLlmBackend`).
+    /// - `None` to keep standard instantiation (the cloud backend case).
     pub async fn from_repository_with_override<F>(
         repo: &LlmBackendRepository,
         override_factory: F,
@@ -845,7 +926,7 @@ impl LlmRouter {
 
         for cfg in all.into_iter().filter(|c| c.enabled) {
             let name = cfg.name.clone();
-            // Tente l'override d'abord (runner proxy pour LlamaCpp typiquement).
+            // Try the override first (typically the runner proxy for LlamaCpp).
             if let Some(overriden) = override_factory(&cfg) {
                 tracing::info!(
                     backend = %name,
@@ -880,15 +961,15 @@ impl LlmRouter {
         })
     }
 
-    /// Retourne le backend pour `llm_backend`, ou le backend par défaut si `None` / inconnu.
+    /// Return the backend for `llm_backend`, or the default if `None` / unknown.
     ///
-    /// Émet `tracing::warn!` si le backend nommé est absent du router (fallback silencieux
-    /// sauf pour le log structuré).
+    /// Emits `tracing::warn!` if the named backend is absent from the router
+    /// (silent fallback apart from the structured log).
     ///
     /// # Panics
     ///
-    /// Panique si le router ne contient aucun backend. Ne pas appeler `route()` sur un
-    /// router construit via [`LlmRouter::empty()`].
+    /// Panics if the router holds no backend. Do not call `route()` on a router
+    /// built via [`LlmRouter::empty()`].
     pub fn route(&self, llm_backend: Option<&str>) -> Arc<dyn CompletionModel> {
         match llm_backend {
             None => self
@@ -914,35 +995,35 @@ impl LlmRouter {
         }
     }
 
-    /// Retourne les noms de tous les backends chargés dans le router.
+    /// Return the names of all backends loaded in the router.
     pub fn backend_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self.backends.keys().cloned().collect();
         names.sort();
         names
     }
 
-    /// Attache (ou remplace) le `[llm.routing]` du router.
+    /// Attach (or replace) the router's `[llm.routing]`.
     ///
-    /// Utile en post-construction quand le router est instancié via
-    /// [`from_repository`](Self::from_repository) (qui lit `system.db`)
-    /// alors que la config `[llm.routing]` vit dans `apollia.toml`. Le
-    /// supervisor appelle `from_repository` puis chaîne `with_routing` si
-    /// le TOML déclare une section `[llm.routing]`, ce qui propage le
-    /// routing applicatif au router sans dupliquer la lecture.
+    /// Useful post-construction when the router is instantiated via
+    /// [`from_repository`](Self::from_repository) (which reads `system.db`)
+    /// while the `[llm.routing]` config lives in `apollia.toml`. The supervisor
+    /// calls `from_repository` then chains `with_routing` if the TOML declares
+    /// a `[llm.routing]` section, propagating the application routing to the
+    /// router without duplicating the read.
     ///
-    /// Validation : le routing est appliqué tel quel. Les backends qu'il
-    /// nomme sont vérifiés à l'invocation via [`route_precise`](Self::route_precise)
-    /// / [`route_fast`](Self::route_fast), qui retourneront
-    /// [`LlmError::BackendNotFound`] si un nom pointe vers un backend absent.
+    /// Validation: the routing is applied as-is. The backends it names are
+    /// checked at invocation via [`route_precise`](Self::route_precise) /
+    /// [`route_fast`](Self::route_fast), which return
+    /// [`LlmError::BackendNotFound`] if a name points to an absent backend.
     pub fn with_routing(mut self, routing: LlmRoutingConfig) -> Self {
         self.routing = Some(routing);
         self
     }
 
-    /// Crée un `LlmRouter` vide sans aucun backend — pour les tests unitaires.
+    /// Create an empty `LlmRouter` with no backend, for unit tests.
     ///
-    /// Utilisé pour tester les chemins de dégradation :
-    /// `ctx.llm = None` et `AgentDegraded` sur l'EventBus.
+    /// Used to test degradation paths: `ctx.llm = None` and `AgentDegraded`
+    /// on the EventBus.
     pub fn empty() -> Self {
         Self {
             backends: HashMap::new(),
@@ -953,42 +1034,41 @@ impl LlmRouter {
         }
     }
 
-    /// Retourne le nom du backend par défaut configuré dans `apollia.toml`.
+    /// Return the default backend name configured in `apollia.toml`.
     pub fn default_name(&self) -> &str {
         &self.default
     }
 
-    /// Retourne le seuil d'alerte de coût LLM configuré en USD, ou `None` si non configuré.
+    /// Return the configured LLM cost alert threshold in USD, or `None`.
     ///
-    /// Correspond à `[llm] cost_alert_threshold_usd` dans `apollia.toml`.
+    /// Maps to `[llm] cost_alert_threshold_usd` in `apollia.toml`.
     pub fn cost_alert_threshold_usd(&self) -> Option<f64> {
         self.session_budget.lock().ok()?.threshold_usd()
     }
 
-    /// Retourne le backend configuré pour les tâches de raisonnement profond.
+    /// Return the backend configured for deep reasoning tasks.
     ///
-    /// Sélectionne le backend nommé dans `[llm.routing] precise` de `apollia.toml`.
-    /// Utilisé par les composants nécessitant une qualité de raisonnement maximale
-    /// (planification ORIA, analyse complexe, jugement).
+    /// Selects the backend named in `[llm.routing] precise` of `apollia.toml`.
+    /// Used by components that need maximum reasoning quality (ORIA planning,
+    /// complex analysis, judgment).
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// - [`LlmError::BackendNotFound`] — `[llm.routing] precise` nomme un backend
-    ///   qui n'est pas instancié.
-    /// - [`LlmError::RoutingConfigMissing`] — aucun `[llm.routing]` ET aucun
-    ///   backend par défaut résolvable (router vide ou default invalide).
+    /// - [`LlmError::BackendNotFound`]: `[llm.routing] precise` names a backend
+    ///   that is not instantiated.
+    /// - [`LlmError::RoutingConfigMissing`]: no `[llm.routing]` AND no resolvable
+    ///   default backend (empty router or invalid default).
     ///
     /// # Fallback
     ///
-    /// Quand `[llm.routing]` n'est pas configuré explicitement (cas par défaut
-    /// après un simple `apollia-os llm backends set-default <name>`), le router
-    /// retombe sur `self.default`. C'est la promesse documentée dans le book
-    /// (ch 01 « Pré-requis pour les agents `@orchestrated` ») : un setup
-    /// single-backend doit fonctionner pour les agents orchestrés sans config
-    /// `[llm.routing]` explicite.
+    /// When `[llm.routing]` is not configured explicitly (the default case
+    /// after a plain `apollia-os llm backends set-default <name>`), the router
+    /// falls back to `self.default`. This is the documented promise: a
+    /// single-backend setup must work for orchestrated agents without an
+    /// explicit `[llm.routing]` config.
     pub fn route_precise(&self) -> Result<Arc<dyn CompletionModel>, LlmError> {
-        // Cas explicite : `[llm.routing] precise = "<name>"`. Si le backend
-        // nommé existe, on l'utilise ; sinon erreur structurée (config invalide).
+        // Explicit case: `[llm.routing] precise = "<name>"`. If the named
+        // backend exists, use it; otherwise a structured error (invalid config).
         if let Some(routing) = self.routing.as_ref() {
             return self
                 .backends
@@ -996,27 +1076,27 @@ impl LlmRouter {
                 .cloned()
                 .ok_or_else(|| LlmError::BackendNotFound(routing.precise.clone()));
         }
-        // Fallback : pas de routing → backend par défaut.
+        // Fallback: no routing means the default backend.
         self.fallback_default("precise")
     }
 
-    /// Retourne le backend configuré pour les tâches d'extraction légère.
+    /// Return the backend configured for light extraction tasks.
     ///
-    /// Sélectionne le backend nommé dans `[llm.routing] fast` de `apollia.toml`.
-    /// Utilisé par les composants effectuant des extractions déterministes
-    /// (métadonnées, résumés courts, classification, parsing de paths).
+    /// Selects the backend named in `[llm.routing] fast` of `apollia.toml`.
+    /// Used by components doing deterministic extraction (metadata, short
+    /// summaries, classification, path parsing).
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// - [`LlmError::BackendNotFound`] — `[llm.routing] fast` nomme un backend
-    ///   qui n'est pas instancié.
-    /// - [`LlmError::RoutingConfigMissing`] — aucun `[llm.routing]` ET aucun
-    ///   backend par défaut résolvable.
+    /// - [`LlmError::BackendNotFound`]: `[llm.routing] fast` names a backend
+    ///   that is not instantiated.
+    /// - [`LlmError::RoutingConfigMissing`]: no `[llm.routing]` AND no resolvable
+    ///   default backend.
     ///
     /// # Fallback
     ///
-    /// Voir [`route_precise`](Self::route_precise) : mêmes règles de fallback
-    /// sur `self.default` quand `[llm.routing]` n'est pas explicite.
+    /// See [`route_precise`](Self::route_precise): same fallback rules on
+    /// `self.default` when `[llm.routing]` is not explicit.
     pub fn route_fast(&self) -> Result<Arc<dyn CompletionModel>, LlmError> {
         if let Some(routing) = self.routing.as_ref() {
             return self
@@ -1028,14 +1108,14 @@ impl LlmRouter {
         self.fallback_default("fast")
     }
 
-    /// Résout le backend par défaut quand `[llm.routing]` n'est pas configuré.
+    /// Resolve the default backend when `[llm.routing]` is not configured.
     ///
-    /// Cohérent avec la promesse du book (`set-default suffit` pour le cas
-    /// single-backend). Retourne le backend nommé par `self.default` s'il
-    /// existe ; sinon retourne [`LlmError::RoutingConfigMissing`] avec un
-    /// message qui guide l'opérateur.
+    /// Consistent with the single-backend promise (`set-default` is enough).
+    /// Returns the backend named by `self.default` if it exists; otherwise
+    /// returns [`LlmError::RoutingConfigMissing`] with a message that guides
+    /// the operator.
     ///
-    /// `role` est juste utilisé pour le log structuré ("precise" ou "fast").
+    /// `role` is only used for the structured log ("precise" or "fast").
     fn fallback_default(&self, role: &str) -> Result<Arc<dyn CompletionModel>, LlmError> {
         if self.default.is_empty() || self.backends.is_empty() {
             return Err(LlmError::RoutingConfigMissing);
@@ -1053,31 +1133,31 @@ impl LlmRouter {
         }
     }
 
-    /// Retourne la taille estimée de la fenêtre de contexte en tokens.
+    /// Return the estimated context window size in tokens.
     ///
-    /// Utilisé par `ContextManager` pour calculer le taux d'utilisation et décider
-    /// si un compactage est nécessaire. La valeur `200_000` correspond à la fenêtre
-    /// de `claude-sonnet` — conservatrice et valide pour tous les backends cloud.
-    /// Les backends locaux disposent généralement de fenêtres plus petites ; le
-    /// compactage précoce est préférable à un `context_length_exceeded`.
+    /// Used by `ContextManager` to compute utilization and decide whether
+    /// compaction is needed. The `200_000` value matches the `claude-sonnet`
+    /// window: conservative and valid for all cloud backends. Local backends
+    /// usually have smaller windows; early compaction is preferable to a
+    /// `context_length_exceeded`.
     pub fn context_limit(&self) -> usize {
         200_000
     }
 
-    /// Retourne le `CancellationToken` de session pour annuler les appels en cours.
+    /// Return the session `CancellationToken` to cancel in-flight calls.
     ///
-    /// Appelé par `ORIAEngine::abort()` pour interrompre tous les appels LLM
-    /// et délais de retry en cours sur l'ensemble des backends du router.
+    /// Called by `ORIAEngine::abort()` to interrupt all in-flight LLM calls
+    /// and retry delays across every backend of the router.
     ///
-    /// Le token est `Clone` — chaque backend en possède un clone,
-    /// tous annulés simultanément par `token.cancel()`.
+    /// The token is `Clone`: each backend holds a clone, all cancelled at once
+    /// by `token.cancel()`.
     pub fn cancellation_token(&self) -> CancellationToken {
         self.cancellation_token.clone()
     }
 
-    /// Retourne un snapshot du budget de tokens cumulé depuis le dernier reset.
+    /// Return a snapshot of the token budget accumulated since the last reset.
     ///
-    /// Appelé par `ORIAEngine` en fin de tâche pour persister le coût dans
+    /// Called by `ORIAEngine` at task end to persist the cost in
     /// `~/.apollia/session_costs.jsonl`.
     pub fn session_budget(&self) -> TokenBudget {
         self.session_budget
@@ -1086,17 +1166,17 @@ impl LlmRouter {
             .unwrap_or_default()
     }
 
-    /// Remet à zéro les compteurs de session.
+    /// Reset the session counters.
     ///
-    /// Appelé par `ORIAEngine` au début de chaque tâche pour isoler
-    /// les compteurs par exécution. La configuration du tracker (bus, seuil) est préservée.
+    /// Called by `ORIAEngine` at the start of each task to isolate counters
+    /// per run. The tracker configuration (bus, threshold) is preserved.
     pub fn reset_session_budget(&self) {
         if let Ok(mut tracker) = self.session_budget.lock() {
             tracker.reset();
         }
     }
 
-    /// Liste tous les backends disponibles avec leurs informations synthétiques.
+    /// List all available backends with their summary information.
     pub fn list(&self) -> Vec<BackendInfo> {
         self.backends
             .values()
@@ -1145,31 +1225,30 @@ fn pick_default_or_fallback(
 // Backend instantiation helpers
 // ─────────────────────────────────────────────
 
-/// Instancie un [`CompletionModel`] depuis une [`LlmBackendConfig`] SQLite.
+/// Instantiate a [`CompletionModel`] from a SQLite [`LlmBackendConfig`].
 async fn instantiate_from_config(
     cfg: &LlmBackendConfig,
     cancel: CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     match &cfg.provider {
-        // ADR-113 : les backends `LlamaCpp` sont injectés par le supervisor
-        // via `from_repository_with_override` (RunnerLlmBackend qui parle au
-        // sidecar via HTTP). Atterrir ici signifie que le runner n'a pas été
-        // spawné ou que l'override a renvoyé `None` — on retourne un message
-        // explicite plutôt que de re-créer un backend in-process.
+        // `LlamaCpp` backends (local .gguf models) are served by the
+        // `apollia-runner` sidecar via a `RunnerLlmBackend` injected by the
+        // caller's override factory. Reaching here means no runner was
+        // available when the router was built.
         LlmProvider::LlamaCpp => Err(LlmError::BackendUnavailable {
             backend: cfg.name.clone(),
-            reason: "llama-cpp backend requires the sidecar runner (apollia-runner) — \
-                     either the runner failed to spawn or the supervisor did not \
-                     inject a RunnerLlmBackend override (ADR-113)"
+            reason: "local llama-cpp backend requires the apollia-runner sidecar, \
+                     which is currently unavailable (the runner failed to start, \
+                     or no runner is bundled for this platform)"
                 .to_string(),
         }),
         provider => instantiate_cloud_backend(cfg, provider, cancel).await,
     }
 }
 
-/// Instancie un backend cloud (OpenAI-compatible ou Anthropic) depuis la config SQLite.
+/// Instantiate a cloud backend (OpenAI-compatible or Anthropic) from the SQLite config.
 ///
-/// Résout la clé API depuis `config_json["api_key"]` si présente.
+/// Resolves the API key from `config_json["api_key"]` when present.
 #[cfg(feature = "cloud")]
 async fn instantiate_cloud_backend(
     cfg: &LlmBackendConfig,
@@ -1184,7 +1263,7 @@ async fn instantiate_cloud_backend(
         LlmProvider::Ollama => "http://localhost:11434/v1",
         LlmProvider::Anthropic => "https://api.anthropic.com",
         LlmProvider::LlamaCpp => {
-            unreachable!("LlamaCpp handled before reaching instantiate_cloud_backend (ADR-113 runner sidecar)")
+            unreachable!("LlamaCpp is handled before reaching instantiate_cloud_backend (sidecar runner path)")
         }
     };
 
@@ -1193,7 +1272,7 @@ async fn instantiate_cloud_backend(
     let api_cfg = ApiBackendConfig {
         name: cfg.name.clone(),
         api_url: base_url,
-        api_key_env: String::new(), // clé déjà résolue
+        api_key_env: String::new(), // key already resolved
         model: cfg.model.clone(),
     };
 
@@ -1212,7 +1291,7 @@ async fn instantiate_cloud_backend(
     )
 }
 
-/// Retourne `BackendUnavailable` quand la feature `"cloud"` n'est pas compilée.
+/// Return `BackendUnavailable` when the `"cloud"` feature is not compiled.
 #[cfg(not(feature = "cloud"))]
 async fn instantiate_cloud_backend(
     cfg: &LlmBackendConfig,
@@ -1225,11 +1304,11 @@ async fn instantiate_cloud_backend(
     })
 }
 
-/// Extrait et résout la clé API depuis `config_json["api_key"]`.
+/// Extract and resolve the API key from `config_json["api_key"]`.
 ///
-/// - Absent → `Ok("")` (Ollama-style, pas d'authentification)
-/// - `"${VAR}"` → résout via `std::env::var(VAR)` ; erreur si la variable est absente
-/// - Valeur littérale → retournée telle quelle
+/// - Absent: `Ok("")` (Ollama-style, no authentication)
+/// - `"${VAR}"`: resolved via `std::env::var(VAR)`; errors if the variable is absent
+/// - Literal value: returned as-is
 #[cfg(feature = "cloud")]
 fn extract_api_key_value(cfg: &LlmBackendConfig) -> Result<String, LlmError> {
     let raw = match cfg.config_json.get("api_key").and_then(|v| v.as_str()) {
@@ -1246,7 +1325,7 @@ fn extract_api_key_value(cfg: &LlmBackendConfig) -> Result<String, LlmError> {
     }
 }
 
-/// Extrait l'URL de base depuis `config_json["base_url"]`, ou retourne `default`.
+/// Extract the base URL from `config_json["base_url"]`, or return `default`.
 #[cfg(feature = "cloud")]
 fn extract_base_url(cfg: &LlmBackendConfig, default: &str) -> String {
     cfg.config_json
@@ -1471,11 +1550,11 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
 
-        // empty repo — no default
+        // empty repo, no default
         let result = LlmRouter::from_repository(&repo).await;
         assert!(matches!(result, Err(LlmError::BackendUnavailable { .. })));
 
-        // backend with is_default=false — still no default
+        // backend with is_default=false, still no default
         repo.save(&LlmBackendConfig {
             name: "orphan".to_string(),
             provider: LlmProvider::Ollama,
@@ -1490,11 +1569,11 @@ mod tests {
         assert!(matches!(result2, Err(LlmError::BackendUnavailable { .. })));
     }
 
-    // ── Tests : get, list, clone, error cases ────────────────────────────────
+    // ── Tests: get, list, clone, error cases ─────────────────────────────────
 
-    // GIVEN un LlmRouter avec default = "local" et un backend "local"
-    // WHEN on appelle get(None)
-    // THEN Some(backend) avec backend_name() == "local" est retourné
+    // GIVEN an LlmRouter with default = "local" and a "local" backend
+    // WHEN get(None) is called
+    // THEN Some(backend) with backend_name() == "local" is returned
     #[tokio::test]
     async fn test_ac3_get_none_returns_default() {
         // GIVEN
@@ -1517,9 +1596,9 @@ mod tests {
         );
     }
 
-    // GIVEN un LlmRouter avec un backend "anthropic"
-    // WHEN on appelle get(Some("anthropic"))
-    // THEN Some(arc) est retourné avec backend_name() == "anthropic"
+    // GIVEN an LlmRouter with an "anthropic" backend
+    // WHEN get(Some("anthropic")) is called
+    // THEN Some(arc) with backend_name() == "anthropic" is returned
     #[tokio::test]
     async fn test_ac4_get_named_backend() {
         // GIVEN
@@ -1538,9 +1617,9 @@ mod tests {
         assert_eq!(result.unwrap().backend_name(), "anthropic");
     }
 
-    // GIVEN un LlmRouter sans backend "inexistant"
-    // WHEN on appelle get(Some("inexistant"))
-    // THEN None est retourné
+    // GIVEN an LlmRouter without an "inexistant" backend
+    // WHEN get(Some("inexistant")) is called
+    // THEN None is returned
     #[tokio::test]
     async fn test_ac5_get_unknown_returns_none() {
         // GIVEN
@@ -1555,9 +1634,9 @@ mod tests {
         );
     }
 
-    // GIVEN un LlmRouter avec 2 backends ("a" et "b")
-    // WHEN on appelle list()
-    // THEN un Vec de longueur 2 est retourné
+    // GIVEN an LlmRouter with 2 backends ("a" and "b")
+    // WHEN list() is called
+    // THEN a Vec of length 2 is returned
     #[tokio::test]
     async fn test_router_list_returns_all_backends() {
         // GIVEN
@@ -1577,9 +1656,9 @@ mod tests {
         );
     }
 
-    // GIVEN un LlmRouter cloné
-    // WHEN on interroge le clone
-    // THEN il partage les mêmes backends via Arc (refcount)
+    // GIVEN a cloned LlmRouter
+    // WHEN the clone is queried
+    // THEN it shares the same backends via Arc (refcount)
     #[tokio::test]
     async fn test_router_clone_shares_backends() {
         // GIVEN
@@ -1598,9 +1677,9 @@ mod tests {
         assert_eq!(cloned.list().len(), 1);
     }
 
-    // GIVEN un LlmConfig avec default = "local" mais backends vide
-    // WHEN on appelle LlmRouter::from_config(&config).await
-    // THEN Err(LlmError::BackendUnavailable { backend: "local", .. }) est retourné
+    // GIVEN an LlmConfig with default = "local" but an empty backends list
+    // WHEN LlmRouter::from_config(&config).await is called
+    // THEN Err(LlmError::BackendUnavailable { backend: "local", .. }) is returned
     #[tokio::test]
     async fn test_ac6_from_config_errors_if_default_missing() {
         // GIVEN
@@ -1628,11 +1707,11 @@ mod tests {
         );
     }
 
-    // ── Tests observabilité ────────────────────────────────────────────────────
+    // ── Observability tests ──────────────────────────────────────────────────
 
-    // GIVEN un LlmRouter avec un mock backend et un EventBusSender
-    // WHEN on appelle complete_with_observability(None, req, Some(&tx), &obs)
-    // THEN un événement LlmCallCompleted est reçu sur le bus avec backend == "mock"
+    // GIVEN an LlmRouter with a mock backend and an EventBusSender
+    // WHEN complete_with_observability(None, req, Some(&tx), &obs) is called
+    // THEN an LlmCallCompleted event is received on the bus with backend == "mock"
     #[tokio::test]
     async fn test_ac1_llm_call_completed_emitted() {
         use apollia_core::events::RuntimeEvent;
@@ -1671,9 +1750,9 @@ mod tests {
         );
     }
 
-    // GIVEN un router avec debug_log_prompt = false
-    // WHEN on appelle complete_with_observability() avec un message "secret_payload_xyz"
-    // THEN la fonction ne panic pas et retourne Ok — le prompt n'est pas loggué à INFO
+    // GIVEN a router with debug_log_prompt = false
+    // WHEN complete_with_observability() is called with a "secret_payload_xyz" message
+    // THEN the function does not panic and returns Ok; the prompt is not logged at INFO
     #[tokio::test]
     async fn test_ac4_prompt_not_logged_at_info_without_debug_flag() {
         // GIVEN
@@ -1692,7 +1771,7 @@ mod tests {
         );
         let router = make_test_router(backends, "mock");
 
-        // WHEN — ne doit pas panic, bus absent est acceptable (Option::None)
+        // WHEN: must not panic; an absent bus is acceptable (Option::None)
         let result = router
             .complete_with_observability(None, req, None, &obs)
             .await;
@@ -1704,10 +1783,10 @@ mod tests {
         );
     }
 
-    // GIVEN un LlmRouter avec EventBusSender et backends vide (default absent)
-    // WHEN on appelle from_config_with_bus
-    // THEN Err(LlmError::BackendUnavailable) est retourné sans crash
-    // (variante sans feature "local" : vérifie que le router ne crash pas)
+    // GIVEN an LlmRouter with an EventBusSender and an empty backends list (default absent)
+    // WHEN from_config_with_bus is called
+    // THEN Err(LlmError::BackendUnavailable) is returned without a crash
+    // (variant without the "local" feature: checks the router does not crash)
     #[tokio::test]
     async fn test_ac3_from_config_with_bus_no_backends_returns_error() {
         use apollia_core::events::RuntimeEvent;
@@ -1729,7 +1808,7 @@ mod tests {
         // WHEN
         let result = LlmRouter::from_config_with_bus(&config, Some(tx)).await;
 
-        // THEN — erreur propre, pas de crash
+        // THEN: clean error, no crash
         assert!(
             matches!(
                 result,
@@ -1739,11 +1818,11 @@ mod tests {
         );
     }
 
-    // ── Tests routing ────────────────────────────────────────────────────────
+    // ── Routing tests ────────────────────────────────────────────────────────
 
     // GIVEN routing config { precise: "claude-opus-4-6", fast: "claude-haiku-4-5-20251001" }
     // WHEN route_precise()
-    // THEN backend "claude-opus-4-6" est sélectionné
+    // THEN backend "claude-opus-4-6" is selected
     #[tokio::test]
     async fn router_precise_selects_configured_backend() {
         let router = make_routing_router("claude-opus-4-6", "claude-haiku-4-5-20251001");
@@ -1756,7 +1835,7 @@ mod tests {
 
     // GIVEN routing config { precise: "claude-opus-4-6", fast: "claude-haiku-4-5-20251001" }
     // WHEN route_fast()
-    // THEN backend "claude-haiku-4-5-20251001" est sélectionné
+    // THEN backend "claude-haiku-4-5-20251001" is selected
     #[tokio::test]
     async fn router_fast_selects_configured_backend() {
         let router = make_routing_router("claude-opus-4-6", "claude-haiku-4-5-20251001");
@@ -1765,10 +1844,10 @@ mod tests {
         assert_eq!(backend.backend_name(), "claude-haiku-4-5-20251001");
     }
 
-    // GIVEN un router avec un backend "default" mais aucune [llm.routing] (routing: None)
-    // WHEN route_precise() / route_fast() sont appelés
-    // THEN les deux retombent sur le backend `default` (cas single-backend
-    //      documenté : `apollia-os llm backends set-default <name>` suffit).
+    // GIVEN a router with a "default" backend but no [llm.routing] (routing: None)
+    // WHEN route_precise() / route_fast() are called
+    // THEN both fall back to the `default` backend (documented single-backend
+    //      case: `apollia-os llm backends set-default <name>` is enough).
     #[tokio::test]
     async fn router_falls_back_to_default_when_routing_missing() {
         let mut backends = HashMap::new();
@@ -1786,10 +1865,10 @@ mod tests {
         assert_eq!(fast.backend_name(), "default");
     }
 
-    // GIVEN aucun backend du tout (router vide) et aucune [llm.routing]
-    // WHEN route_precise() est appelé
-    // THEN Err(RoutingConfigMissing) — pas de fallback possible, l'opérateur
-    //      doit déclarer au moins un backend.
+    // GIVEN no backend at all (empty router) and no [llm.routing]
+    // WHEN route_precise() is called
+    // THEN Err(RoutingConfigMissing): no fallback possible, the operator must
+    //      declare at least one backend.
     #[tokio::test]
     async fn router_errors_when_no_backend_and_no_routing() {
         let backends = HashMap::new();
@@ -1805,10 +1884,10 @@ mod tests {
         );
     }
 
-    // GIVEN un router construit via `from_repository` (donc routing=None) puis
-    //       enrichi via with_routing(LlmRoutingConfig { precise, fast })
-    // WHEN route_precise() / route_fast() sont appelés
-    // THEN le routing chaîné est respecté.
+    // GIVEN a router built via `from_repository` (so routing=None) then enriched
+    //       via with_routing(LlmRoutingConfig { precise, fast })
+    // WHEN route_precise() / route_fast() are called
+    // THEN the chained routing is respected.
     #[tokio::test]
     async fn router_with_routing_attaches_routing_post_construction() {
         let mut backends = HashMap::new();
@@ -1887,13 +1966,16 @@ mod tests {
         };
 
         // WHEN complete_with_fallback
+        let obs = ObservabilityConfig::default();
         let response = router
             .complete_with_fallback(
-                "primary",
-                &["secondary"],
+                FallbackPlan {
+                    primary: "primary",
+                    fallbacks: &["secondary"],
+                    bus: Some(&tx),
+                    obs: &obs,
+                },
                 req,
-                Some(&tx),
-                &ObservabilityConfig::default(),
             )
             .await
             .expect("fallback should succeed");
@@ -1922,8 +2004,8 @@ mod tests {
     }
 
     // GIVEN routing config { precise: "claude-opus-4-6", fast: "claude-opus-4-6" }
-    // WHEN route_precise() et route_fast()
-    // THEN le même backend "claude-opus-4-6" est retourné dans les deux cas
+    // WHEN route_precise() and route_fast()
+    // THEN the same backend "claude-opus-4-6" is returned in both cases
     #[tokio::test]
     async fn router_same_backend_for_precise_and_fast_when_identical() {
         let router = make_routing_router("claude-opus-4-6", "claude-opus-4-6");

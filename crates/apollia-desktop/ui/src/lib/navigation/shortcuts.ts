@@ -209,7 +209,10 @@ export const SHORTCUTS: ShortcutEntry[] = [
 /** `true` when running on macOS (best-effort browser detection). */
 export function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
-  return /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "");
+  // navigator.platform is deprecated but still the most reliable signal across
+  // engines; userAgent is the documented fallback.
+  const platform = (navigator as Navigator & { platform?: string }).platform ?? ""; // NOSONAR typescript:S1874
+  return /Mac|iPhone|iPad/i.test(platform || navigator.userAgent || "");
 }
 
 /** Return the platform-appropriate combo string for a shortcut. */

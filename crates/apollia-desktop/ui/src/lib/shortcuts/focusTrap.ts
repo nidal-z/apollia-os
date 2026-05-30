@@ -66,7 +66,7 @@ export function focusTrap(node: HTMLElement, options: FocusTrapOptions = {}) {
       return;
     }
     const first = tabbables[0];
-    const last = tabbables[tabbables.length - 1];
+    const last = tabbables.at(-1)!;
     const active = document.activeElement as HTMLElement | null;
     if (event.shiftKey) {
       if (active === first || !node.contains(active)) {

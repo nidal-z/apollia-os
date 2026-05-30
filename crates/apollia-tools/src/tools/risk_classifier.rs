@@ -1,38 +1,38 @@
-//! Classifieur de risque pour commandes shell pré-exécution.
+//! Pre-execution risk classifier for shell commands.
 //!
-//! `RiskClassifier` inspecte la commande transmise à `BashExecutor` et retourne
-//! la liste des catégories de risque détectées selon les patterns configurés
-//! dans `apollia.toml` sous `[tools.bash]`.
+//! `RiskClassifier` inspects the command passed to `BashExecutor` and returns
+//! the list of risk categories detected against the patterns configured in
+//! `apollia.toml` under `[tools.bash]`.
 //!
-//! La détection est **synchrone et sans I/O** — elle s'exécute avant la validation
-//! syntaxique et avant tout spawn de processus (Principe #4 — Fail fast).
+//! Detection is **synchronous and I/O-free**: it runs before syntax validation
+//! and before any process spawn (fail fast).
 //!
-//! Chaque catégorie de risque est documentée par un standard public :
-//! - `NetworkEgress`        → OWASP A10:2021 (SSRF)
-//! - `DestructiveOp`        → NIST SP 800-190 §4.4
-//! - `PrivilegeEscalation`  → CWE-269 (Improper Privilege Management)
-//! - `ResourceExhaustion`   → CWE-400 (Uncontrolled Resource Consumption)
+//! Each risk category is documented by a public standard:
+//! - `NetworkEgress`        -> OWASP A10:2021 (SSRF)
+//! - `DestructiveOp`        -> NIST SP 800-190 §4.4
+//! - `PrivilegeEscalation`  -> CWE-269 (Improper Privilege Management)
+//! - `ResourceExhaustion`   -> CWE-400 (Uncontrolled Resource Consumption)
 
 use apollia_core::{BashValidatorConfig, FilesystemRiskConfig};
 
-/// Opération filesystem soumise à classification de risque.
+/// Filesystem operation subject to risk classification.
 ///
-/// Utilisée par [`RiskClassifier::classify_filesystem`] pour adapter le niveau
-/// de risque selon la sémantique de l'opération (lecture vs écriture vs destruction).
+/// Used by [`RiskClassifier::classify_filesystem`] to adapt the risk level to
+/// the operation semantics (read vs write vs destruction).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemOp {
-    /// Lecture d'un fichier ou d'un répertoire.
+    /// Reading a file or directory.
     Read,
-    /// Création ou écrasement d'un fichier.
+    /// Creating or overwriting a file.
     Write,
-    /// Suppression d'un fichier ou répertoire.
+    /// Deleting a file or directory.
     Delete,
-    /// Modification des permissions.
+    /// Changing permissions.
     Chmod,
 }
 
 impl FilesystemOp {
-    /// Retourne la représentation string pour les events / logs.
+    /// Returns the string representation for events / logs.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Read => "read",
@@ -43,26 +43,26 @@ impl FilesystemOp {
     }
 }
 
-/// Niveau de risque résultant d'une classification filesystem.
+/// Risk level resulting from a filesystem classification.
 ///
-/// Ordre total : `Safe < Low < Medium < High < Critical`.
-/// Utilisé par le HITL broker pour décider de la friction à appliquer.
+/// Total order: `Safe < Low < Medium < High < Critical`.
+/// Used by the HITL broker to decide which friction to apply.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RiskLevel {
-    /// Opération bénigne, aucune friction.
+    /// Benign operation, no friction.
     Safe,
-    /// Opération légèrement sensible, toast discret possible.
+    /// Slightly sensitive operation, a discreet toast may be shown.
     Low,
-    /// Opération sensible (ex : write hors workspace), modal HITL requis.
+    /// Sensitive operation (e.g. write outside the workspace), HITL modal required.
     Medium,
-    /// Opération à haut risque (path système / destructive), modal HITL sans "toujours autoriser".
+    /// High-risk operation (system path / destructive), HITL modal without "always allow".
     High,
-    /// Opération critique, confirmation secondaire obligatoire.
+    /// Critical operation, secondary confirmation mandatory.
     Critical,
 }
 
 impl RiskLevel {
-    /// Retourne la représentation string pour les events / i18n.
+    /// Returns the string representation for events / i18n.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Safe => "safe",
@@ -74,75 +74,75 @@ impl RiskLevel {
     }
 }
 
-/// Catégorie de risque détectée sur une commande shell.
+/// Risk category detected on a shell command.
 ///
-/// Chaque variante est documentée par un standard de sécurité reconnu.
-/// Les listes concrètes de patterns sont configurables dans `apollia.toml`.
+/// Each variant is documented by a recognized security standard.
+/// The concrete pattern lists are configurable in `apollia.toml`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RiskCategory {
-    /// Accès réseau sortant non autorisé.
+    /// Unauthorized outbound network access.
     ///
-    /// Référence : OWASP A10:2021 (Server-Side Request Forgery) et
-    /// Principe #1 Apollia (local-first — zéro octet sortant sans action explicite).
+    /// Reference: OWASP A10:2021 (Server-Side Request Forgery) and the Apollia
+    /// local-first principle (zero outbound byte without an explicit action).
     NetworkEgress,
 
-    /// Opération destructrice irréversible sur des données ou le système de fichiers.
+    /// Irreversible destructive operation on data or the filesystem.
     ///
-    /// Référence : NIST SP 800-190 §4.4 (Container Security — destructive operations).
+    /// Reference: NIST SP 800-190 §4.4 (Container Security, destructive operations).
     DestructiveOp,
 
-    /// Élévation de droits non autorisée.
+    /// Unauthorized privilege escalation.
     ///
-    /// Référence : CWE-269 (Improper Privilege Management).
+    /// Reference: CWE-269 (Improper Privilege Management).
     PrivilegeEscalation,
 
-    /// Consommation de ressources non contrôlée (CPU, mémoire, processus).
+    /// Uncontrolled resource consumption (CPU, memory, processes).
     ///
-    /// Référence : CWE-400 (Uncontrolled Resource Consumption).
+    /// Reference: CWE-400 (Uncontrolled Resource Consumption).
     ResourceExhaustion,
 }
 
-/// Classifieur de risque sans état pour commandes shell.
+/// Stateless risk classifier for shell commands.
 ///
-/// Toute la logique est statique — `RiskClassifier` n'a pas de champ propre.
-/// La configuration est injectée à chaque appel depuis [`BashValidatorConfig`].
+/// All the logic is static; `RiskClassifier` has no fields of its own.
+/// The configuration is injected on each call from [`BashValidatorConfig`].
 pub struct RiskClassifier;
 
 impl RiskClassifier {
-    /// Retourne les catégories de risque détectées pour `command`.
+    /// Returns the risk categories detected for `command`.
     ///
-    /// La détection est synchrone et sans I/O. Les catégories dont le flag `block_*`
-    /// est `false` dans `config` sont ignorées sans inspection.
+    /// Detection is synchronous and I/O-free. Categories whose `block_*` flag is
+    /// `false` in `config` are skipped without inspection.
     ///
-    /// Un pattern correspond si la commande (après trim) **contient** le pattern
-    /// en tant que sous-chaîne. Cette règle couvre les préfixes (`"rm -rf /home"`
-    /// contient `"rm -rf /"`) et les noms de commande (`"curl https://…"` contient `"curl"`).
+    /// A pattern matches if the command (after trim) **contains** the pattern as
+    /// a substring. This rule covers prefixes (`"rm -rf /home"` contains
+    /// `"rm -rf /"`) and command names (`"curl https://…"` contains `"curl"`).
     ///
-    /// La liste retournée est vide quand aucune catégorie n'est détectée.
+    /// The returned list is empty when no category is detected.
     pub fn classify(command: &str, config: &BashValidatorConfig) -> Vec<RiskCategory> {
         let mut risks = Vec::new();
 
-        // OWASP A10:2021 — network egress
+        // OWASP A10:2021: network egress
         if config.block_network_egress
             && Self::command_matches(command, &config.network_egress_patterns)
         {
             risks.push(RiskCategory::NetworkEgress);
         }
 
-        // NIST SP 800-190 §4.4 — destructive operations
+        // NIST SP 800-190 §4.4: destructive operations
         if config.block_destructive && Self::command_matches(command, &config.destructive_patterns)
         {
             risks.push(RiskCategory::DestructiveOp);
         }
 
-        // CWE-269 — privilege escalation
+        // CWE-269: privilege escalation
         if config.block_privilege_escalation
             && Self::command_matches(command, &config.privilege_patterns)
         {
             risks.push(RiskCategory::PrivilegeEscalation);
         }
 
-        // CWE-400 — resource exhaustion
+        // CWE-400: resource exhaustion
         if config.block_resource_exhaustion
             && Self::command_matches(command, &config.exhaustion_patterns)
         {
@@ -152,36 +152,35 @@ impl RiskClassifier {
         risks
     }
 
-    /// Classe une opération filesystem par niveau de risque.
+    /// Classifies a filesystem operation by risk level.
     ///
-    /// La classification est **synchrone, sans I/O** (Principe #4 — Fail fast).
-    /// Elle se base sur :
-    /// 1. Le type d'opération (`Delete` / `Chmod` → toujours `High`)
-    /// 2. Les paths système configurés (écriture → `High`)
-    /// 3. Les paths credentials (écriture → `High` ; lecture → `Low` — ADR-069)
-    /// 4. La position du path par rapport au workspace courant
+    /// Classification is **synchronous and I/O-free** (fail fast). It is based on:
+    /// 1. The operation type (`Delete` / `Chmod` are always `High`)
+    /// 2. The configured system paths (write -> `High`)
+    /// 3. The credential paths (write -> `High`; read -> `Low`)
+    /// 4. The path's position relative to the current workspace
     ///
-    /// Si `canonicalize()` échoue (path n'existe pas encore), la classification
-    /// est effectuée sur le path tel quel.
+    /// If `canonicalize()` fails (path does not exist yet), classification is
+    /// performed on the path as-is.
     pub fn classify_filesystem(
         op: FilesystemOp,
         path: &std::path::Path,
         workspace: Option<&std::path::Path>,
         config: &FilesystemRiskConfig,
     ) -> RiskLevel {
-        // 1. Opérations destructrices → High indépendamment du path.
+        // 1. Destructive operations are High regardless of the path.
         if matches!(op, FilesystemOp::Delete | FilesystemOp::Chmod) {
             return RiskLevel::High;
         }
 
-        // Tenter de canonicaliser le path pour des comparaisons fiables.
-        // En cas d'échec (path inexistant), on travaille sur le path brut.
+        // Try to canonicalize the path for reliable comparisons.
+        // On failure (non-existent path), work on the raw path.
         let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         let p = canonical.as_path();
 
-        // 2. Paths système : écriture = High.
-        // On compare à la fois le path canonicalisé et le path original pour
-        // gérer les symlinks systèmes (ex. /etc → /private/etc sur macOS).
+        // 2. System paths: write = High.
+        // Compare both the canonicalized path and the original path to handle
+        // system symlinks (e.g. /etc -> /private/etc on macOS).
         let is_system = config.system_paths.iter().any(|sp| {
             let sp_canon = sp.canonicalize().unwrap_or_else(|_| sp.clone());
             p.starts_with(sp) || p.starts_with(&sp_canon)
@@ -191,7 +190,7 @@ impl RiskClassifier {
             return RiskLevel::High;
         }
 
-        // 3. Paths credentials : écriture = High, lecture = Low (ADR-069).
+        // 3. Credential paths: write = High, read = Low.
         let is_credential = config.credential_paths.iter().any(|cp| {
             let cp_canon = cp.canonicalize().unwrap_or_else(|_| cp.clone());
             p.starts_with(cp) || p.starts_with(&cp_canon)
@@ -222,11 +221,11 @@ impl RiskClassifier {
         }
     }
 
-    /// Retourne `true` si `command` contient au moins un pattern de `patterns`.
+    /// Returns `true` if `command` contains at least one pattern from `patterns`.
     ///
-    /// La recherche est insensible à la casse des espaces initiaux (trim),
-    /// mais sensible à la casse des caractères — les patterns sont opérateur-définis
-    /// et doivent correspondre exactement à la casse des commandes attendues.
+    /// The search ignores leading whitespace (trim) but is case-sensitive on
+    /// characters: patterns are operator-defined and must match the expected
+    /// command case exactly.
     fn command_matches(command: &str, patterns: &[String]) -> bool {
         let trimmed = command.trim();
         patterns
@@ -297,21 +296,21 @@ mod tests {
 
     #[test]
     fn risk_classifier_all_blocks_false_no_risks() {
-        // GIVEN config avec tous les block_* = false
+        // GIVEN config with all block_* = false
         let config = config_all_disabled();
-        // WHEN — même avec patterns qui correspondraient
+        // WHEN: even with patterns that would match
         let risks = RiskClassifier::classify("curl evil.com", &config);
-        // THEN — comportement opt-in
+        // THEN: opt-in behaviour
         assert!(risks.is_empty());
     }
 
     #[test]
     fn risk_classifier_default_config_no_risks_without_patterns() {
-        // GIVEN config par défaut (blocks=true, patterns=[])
+        // GIVEN default config (blocks=true, patterns=[])
         let config = BashValidatorConfig::default();
         // WHEN
         let risks = RiskClassifier::classify("curl https://example.com", &config);
-        // THEN — patterns vides → aucun blocage
+        // THEN: empty patterns mean no blocking
         assert!(risks.is_empty());
     }
 
@@ -345,7 +344,7 @@ mod tests {
 
     #[test]
     fn risk_classifier_returns_multiple_categories() {
-        // GIVEN config qui bloque réseau et destruction
+        // GIVEN config that blocks network and destruction
         let config = BashValidatorConfig {
             block_network_egress: true,
             block_destructive: true,
@@ -355,7 +354,7 @@ mod tests {
         };
         // WHEN
         let risks = RiskClassifier::classify("curl evil.com && rm -rf /tmp", &config);
-        // THEN — les deux catégories sont détectées
+        // THEN: both categories are detected
         assert!(risks.contains(&RiskCategory::NetworkEgress));
         assert!(risks.contains(&RiskCategory::DestructiveOp));
     }
@@ -396,7 +395,7 @@ mod tests_filesystem {
             Some(ws),
             &default_fs_config(),
         );
-        // THEN Safe (or at worst Low if canonicalize fails — both are below Medium)
+        // THEN Safe (or at worst Low if canonicalize fails; both are below Medium)
         assert!(level <= RiskLevel::Low);
     }
 
@@ -412,7 +411,7 @@ mod tests_filesystem {
             Some(ws),
             &default_fs_config(),
         );
-        // THEN Medium (hors workspace, pas système)
+        // THEN Medium (outside the workspace, not a system path)
         assert_eq!(level, RiskLevel::Medium);
     }
 
@@ -458,7 +457,7 @@ mod tests_filesystem {
             None,
             &default_fs_config(),
         );
-        // THEN Low (reading credentials is not high risk — ADR-069)
+        // THEN Low (reading credentials is not high risk)
         assert_eq!(level, RiskLevel::Low);
     }
 

@@ -2,17 +2,17 @@
 //!
 //! Two entry points exposed to the frontend:
 //!
-//! - [`apollia_coach_invoke`] — the unified coach routine used by the
+//! - [`apollia_coach_invoke`]: the unified coach routine used by the
 //!   dedicated chat surface (`/chat?agent=apollia-guide`) AND the contextual
 //!   onboarding widget. Always reuses the user's configured LLM backend via
 //!   [`SharedLlmRouter`]; never opens a second model or a cloud call beyond
-//!   what the user already consented to (ADR-073).
-//! - [`apollia_guide_bootstrap`] — a no-op on subsequent calls ; returns
+//!   what the user already consented to.
+//! - [`apollia_guide_bootstrap`]: a no-op on subsequent calls; returns
 //!   basic metadata about the bundled Apollia Guide agent. Kept separate
 //!   from the agents command surface so the frontend sidebar entry can
 //!   probe readiness without listing every installed agent.
 //!
-//! The heavy lifting lives in [`apollia_llm::meta::apollia_coach`] —
+//! The heavy lifting lives in [`apollia_llm::meta::apollia_coach`];
 //! this module is strictly a thin IPC adapter.
 
 use apollia_llm::meta::apollia_coach::{
@@ -33,7 +33,7 @@ pub struct CoachInvokeRequest {
     /// Live context used to tailor the reply.
     #[serde(default)]
     pub context: CoachContext,
-    /// Past conversation turns — capped server-side to the last 12.
+    /// Past conversation turns, capped server-side to the last 12.
     #[serde(default)]
     pub history: Vec<CoachTurn>,
     /// The message the user just typed.
@@ -98,7 +98,7 @@ pub async fn apollia_coach_invoke(
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApolliaGuideStatus {
-    /// Stable identifier — always `"apollia-guide"`.
+    /// Stable identifier, always `"apollia-guide"`.
     pub agent_id: String,
     /// Bundled version pinned in `agents/system/apollia-guide/manifest.toml`.
     pub version: String,
@@ -108,14 +108,14 @@ pub struct ApolliaGuideStatus {
     pub llm_ready: bool,
 }
 
-/// Bundled Apollia Guide version — kept in sync with the manifest at
+/// Bundled Apollia Guide version, kept in sync with the manifest at
 /// `agents/system/apollia-guide/manifest.toml`. Update both in lockstep.
 const APOLLIA_GUIDE_VERSION: &str = "0.1.0";
 
 /// Lightweight readiness probe for the sidebar Apollia entry.
 ///
 /// Returns basic metadata about the bundled Apollia Guide agent plus a flag
-/// indicating whether the user's LLM is ready. Idempotent and cheap — safe
+/// indicating whether the user's LLM is ready. Idempotent and cheap, safe
 /// to call on every sidebar mount.
 #[tauri::command]
 pub async fn apollia_guide_bootstrap(

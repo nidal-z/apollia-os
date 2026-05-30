@@ -5,7 +5,7 @@
 //!
 //! Deserialization is performed from a raw `serde_json::Value` rather than a
 //! `#[serde(tag = "method")]` enum because MCP request params are nested objects
-//! with optional presence — raw dispatch avoids serde tag limitations.
+//! with optional presence; raw dispatch avoids serde tag limitations.
 
 use serde::Deserialize;
 
@@ -35,7 +35,7 @@ pub struct InitializeParams {
 /// is preserved so every response can be correlated back to its originating request.
 #[derive(Debug)]
 pub enum McpRequest {
-    /// Client handshake — must be the first message in every session.
+    /// Client handshake: must be the first message in every session.
     Initialize {
         /// JSON-RPC request id.
         id: serde_json::Value,
@@ -54,7 +54,7 @@ pub enum McpRequest {
         /// Tool name + arguments.
         params: CallToolParams,
     },
-    /// Notification — no response expected.
+    /// Notification: no response expected.
     ///
     /// Notifications carry no `id` field per JSON-RPC 2.0 spec.
     Notification {

@@ -9,11 +9,11 @@
 //!   runtime [`ProviderConfig`] with the requested scopes, plus the
 //!   discovery endpoints (`userinfo_url`).
 //!
-//! # Scope policy — v0.1.0 power user
+//! # Scope policy: v0.1.0 power user
 //!
 //! Only Google scopes classified by Google as **sensitive** or **non-sensitive**
 //! are included. Restricted scopes (`gmail.readonly`, `gmail.modify`,
-//! `drive.readonly`, `drive`) are NOT exposed here — they require Google CASA
+//! `drive.readonly`, `drive`) are NOT exposed here; they require Google CASA
 //! Tier 2 audit (~$5-15k/year) and would shift the cost model. Power users who
 //! need restricted scopes go through their own OAuth app (Expert Mode, cf.
 //! `docs/help/integrations/mode-expert-google-restricted-scopes.md`).
@@ -24,7 +24,7 @@ use crate::providers::ProviderConfig;
 
 /// User-facing scope groups for Google Workspace.
 ///
-/// Each variant maps to one or more raw OAuth scopes — never expose the raw
+/// Each variant maps to one or more raw OAuth scopes; never expose the raw
 /// strings in the UI, route through this enum so the policy stays in one place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GoogleScope {
@@ -43,7 +43,7 @@ pub enum GoogleScope {
     /// this to back the Drive Workspace pattern (folder `Apollia/<agent>/`).
     DriveWorkspace,
     /// Google Sheets read+write (`spreadsheets`). Non-sensitive, free.
-    /// Restricted to sheets the app creates or the user pickers — same
+    /// Restricted to sheets the app creates or the user pickers; same
     /// pattern as `drive.file`.
     SheetsReadWrite,
     /// Google Docs read+write (`documents`). Non-sensitive, free. Same
@@ -55,7 +55,7 @@ pub enum GoogleScope {
     /// Limited to forms the app creates or the user opens with it.
     FormsReadWrite,
     /// Google Tasks full access (`tasks`). Non-sensitive, free.
-    /// Covers all of the user's task lists — no per-resource gate exists.
+    /// Covers all of the user's task lists; no per-resource gate exists.
     Tasks,
     /// YouTube read-only (`youtube.readonly`). Non-sensitive, free.
     /// Search, video metadata, channel listings.
@@ -114,7 +114,7 @@ pub enum MicrosoftScope {
     FilesWrite,
     /// Sign-in + read basic profile (`User.Read`).
     Profile,
-    /// Refresh tokens (`offline_access`) — required to obtain a refresh token.
+    /// Refresh tokens (`offline_access`), required to obtain a refresh token.
     Offline,
 }
 
@@ -172,7 +172,7 @@ impl ConnectorProvider {
     /// **Not part of the user-facing flow.** This override targets Expert
     /// Mode power users who run their own OAuth app (cf.
     /// `mode-expert-google-restricted-scopes.md`) and developers running a
-    /// dev build against a non-production AS. End users never set this — the
+    /// dev build against a non-production AS. End users never set this; the
     /// compiled-in [`default_client_id`](Self::default_client_id) is used and
     /// shipped in the binary.
     pub const fn client_id_env_var(self) -> &'static str {
@@ -195,19 +195,19 @@ impl ConnectorProvider {
 
     /// Compiled-in default OAuth client ID shipped with Apollia.
     ///
-    /// Apollia is a public OAuth client (PKCE — no client secret), so it is
+    /// Apollia is a public OAuth client (PKCE, no client secret), so it is
     /// safe to embed the client ID directly in the binary. Released builds
-    /// substitute the real values produced by Nidal's Google Cloud / Azure AD
-    /// apps at build time (see `docs/internal/release/OAUTH-CLIENT-IDS.md`).
+    /// substitute the real values produced by the project's Google Cloud /
+    /// Azure AD apps at build time.
     ///
-    /// Returns an empty string in dev / unconfigured builds — the runtime
+    /// Returns an empty string in dev / unconfigured builds; the runtime
     /// surfaces a clear "OAuth client not configured" error in that case
     /// rather than panicking.
     pub const fn default_client_id(self) -> &'static str {
         match self {
             // Replaced at release build time with the production client IDs.
-            // Dev / open-source builds default to empty — the runtime then
-            // surfaces an explicit error pointing at OAUTH-CLIENT-IDS.md.
+            // Dev / open-source builds default to empty; the runtime then
+            // surfaces an explicit "OAuth client not configured" error.
             Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_CLIENT_ID")),
             Self::Microsoft => env_or_empty(option_env!("APOLLIA_BUILD_MICROSOFT_CLIENT_ID")),
         }
@@ -225,7 +225,7 @@ impl ConnectorProvider {
     }
 
     /// Runtime env var that overrides the compiled-in Google API key.
-    /// Google-only — used by Google Picker. Microsoft picker equivalent
+    /// Google-only, used by Google Picker. Microsoft picker equivalent
     /// (OneDrive File Picker) would follow the same pattern when added.
     pub const fn api_key_env_var(self) -> &'static str {
         match self {
@@ -248,13 +248,13 @@ impl ConnectorProvider {
     ///
     /// Priority order:
     /// 1. Runtime env var override (`APOLLIA_GOOGLE_CLIENT_ID` /
-    ///    `APOLLIA_MICROSOFT_CLIENT_ID`) — handy for one-off shell sessions
+    ///    `APOLLIA_MICROSOFT_CLIENT_ID`), handy for one-off shell sessions
     ///    and CI.
-    /// 2. User-editable `~/.apollia/oauth-clients.toml` — populated by the
+    /// 2. User-editable `~/.apollia/oauth-clients.toml`, populated by the
     ///    Settings → Integrations panel, so a power user running a custom
     ///    build can plug in their own Google / Microsoft client IDs without
     ///    rebuilding the binary.
-    /// 3. Build-time compiled default (`APOLLIA_BUILD_*_CLIENT_ID`) — what
+    /// 3. Build-time compiled default (`APOLLIA_BUILD_*_CLIENT_ID`), what
     ///    the official desktop release uses.
     ///
     /// Returns `None` when all sources are absent so the UI can surface a
@@ -276,7 +276,7 @@ impl ConnectorProvider {
         }
     }
 
-    /// Resolve the effective Google API key at runtime — same 3-source
+    /// Resolve the effective Google API key at runtime: same 3-source
     /// priority chain as [`resolve_client_id`](Self::resolve_client_id).
     /// `None` is the normal case for Microsoft and for any dev build that
     /// hasn't been provisioned with a key. The Picker UI surfaces a clear
@@ -298,10 +298,10 @@ impl ConnectorProvider {
         }
     }
 
-    /// Resolve the effective OAuth client secret at runtime — same 3-source
+    /// Resolve the effective OAuth client secret at runtime: same 3-source
     /// priority chain as [`resolve_client_id`](Self::resolve_client_id).
     /// Returns `None` when no source provides a secret (the normal case for
-    /// Microsoft — spec-compliant public clients don't carry one).
+    /// Microsoft, spec-compliant public clients don't carry one).
     pub fn resolve_client_secret(self) -> Option<String> {
         if let Ok(v) = std::env::var(self.client_secret_env_var()) {
             if !v.is_empty() {
@@ -395,7 +395,7 @@ pub fn build_microsoft_provider_for_tenant(
         client_id: ConnectorProvider::Microsoft
             .resolve_client_id()
             .unwrap_or_default(),
-        // Spec-compliant public client — no secret. resolve_client_secret
+        // Spec-compliant public client, no secret. resolve_client_secret
         // returns None unless someone explicitly forced one via env var (rare).
         client_secret: ConnectorProvider::Microsoft.resolve_client_secret(),
         scopes: all_scopes,

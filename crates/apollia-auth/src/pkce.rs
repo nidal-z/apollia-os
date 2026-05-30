@@ -1,4 +1,4 @@
-//! PKCE helpers — code verifier, code challenge, and flow state (RFC 7636).
+//! PKCE helpers: code verifier, code challenge, and flow state (RFC 7636).
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rand::RngCore;

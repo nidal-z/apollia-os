@@ -7,11 +7,11 @@
 //!
 //! Populated by [`crate::events::RuntimeEvent::DecisionPointRecorded`] after
 //! the thinking phase, via the meta-LLM routine `GenerateAlternativeBranches`.
-//! Opt-in (`routines.decision_branches`, default off) — no cost when disabled.
+//! Opt-in (`routines.decision_branches`, default off): no cost when disabled.
 
 use serde::{Deserialize, Serialize};
 
-/// Coarse kind of decision — used to filter which selections warrant the
+/// Coarse kind of decision, used to filter which selections warrant the
 /// extra meta-LLM call (`Significant` only).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -28,7 +28,7 @@ pub enum DecisionKind {
 
 /// One alternative path the agent considered but rejected.
 ///
-/// `confidence_delta` is expressed relative to the chosen path — it is
+/// `confidence_delta` is expressed relative to the chosen path; it is
 /// therefore expected to be ≤ 0 (UI renders a negative-going bar).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConsideredAlternative {
@@ -65,7 +65,7 @@ impl DecisionPoint {
     /// `GenerateAlternativeBranches` meta routine.
     ///
     /// Tolerates Markdown code fences (` ```json … ``` `) the way sister
-    /// routines do. Caps `alternatives` at 3 entries — anything above is
+    /// routines do. Caps `alternatives` at 3 entries; anything above is
     /// truncated silently (the prompt already enforces the limit).
     pub fn parse(
         raw: &str,

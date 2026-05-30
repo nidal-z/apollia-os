@@ -1,14 +1,14 @@
-//! MCP-server-scoped OAuth token persistence (ADR-095 Phase 1).
+//! MCP-server-scoped OAuth token persistence.
 //!
-//! Tokens issued by the MCP HTTP OAuth flow (ADR-089) are stored in the
-//! existing [`SecretStore`] backend under a dedicated namespace, parallel to
-//! the `apollia-connector-<provider>` namespace used by [`AuthManager`] for
+//! Tokens issued by the MCP HTTP OAuth flow are stored in the existing
+//! [`SecretStore`] backend under a dedicated namespace, parallel to the
+//! `apollia-connector-<provider>` namespace used by [`AuthManager`] for
 //! Google / Microsoft.
 //!
 //! Keying:
-//! - `service = "apollia-mcp-oauth"` — stable, distinct from connector entries.
-//! - `user = <server_name>` — the persisted MCP server name (one token per
-//!   server in v0.1.0, multi-account reported per ADR-095).
+//! - `service = "apollia-mcp-oauth"`: stable, distinct from connector entries.
+//! - `user = <server_name>`: the persisted MCP server name (one token per
+//!   server in v0.1.0, multi-account deferred to a later release).
 //!
 //! Value: JSON-serialised [`StoredMcpToken`].
 //!
@@ -42,8 +42,8 @@ pub struct StoredMcpToken {
     /// interaction (OAuth 2.1 §4.2.4).
     #[serde(default)]
     pub refresh_token: Option<String>,
-    /// Token type — always `"Bearer"` in MCP HTTP OAuth, kept for forward
-    /// compatibility (e.g. future DPoP support, SEP-1932).
+    /// Token type: always `"Bearer"` in MCP HTTP OAuth, kept for forward
+    /// compatibility (e.g. future DPoP support).
     pub token_type: String,
     /// Unix epoch seconds at which `access_token` expires. `None` ⇒ presumed
     /// long-lived.
@@ -54,7 +54,7 @@ pub struct StoredMcpToken {
     #[serde(default)]
     pub scope: Vec<String>,
     /// MCP server URL the token is bound to (RFC 8707 `resource=` parameter).
-    /// Verified by the AS at issuance — never accept a token whose
+    /// Verified by the AS at issuance; never accept a token whose
     /// `resource_uri` no longer matches the configured server URL.
     pub resource_uri: String,
     /// Authorization Server issuer URL, cached so the orchestrator can refresh
@@ -64,7 +64,7 @@ pub struct StoredMcpToken {
     /// supports CIMD, or the dynamically-registered identifier (RFC 7591).
     pub client_id: String,
     /// `sub` claim extracted from the access token when it is a parseable JWT.
-    /// Best-effort, surfaced to the UI for the "Connecté en tant que …" label.
+    /// Best-effort, surfaced to the UI for the "connected as …" label.
     #[serde(default)]
     pub identity_sub: Option<String>,
     /// `email` claim, idem.
@@ -100,7 +100,7 @@ impl StoredMcpToken {
 
 /// Persist `token` under `(MCP_OAUTH_SERVICE, server_name)`.
 ///
-/// Overwrites any prior token for the same server — the OAuth flow is
+/// Overwrites any prior token for the same server; the OAuth flow is
 /// idempotent, callers should not need to delete-then-save.
 pub fn save_mcp_token(
     store: &dyn SecretStore,
@@ -115,7 +115,7 @@ pub fn save_mcp_token(
 
 /// Load the persisted token for `server_name`, if any.
 ///
-/// Returns `Ok(None)` when no token has been stored yet — distinguishes
+/// Returns `Ok(None)` when no token has been stored yet; distinguishes
 /// "never connected" from "connection failed".
 pub fn load_mcp_token(
     store: &dyn SecretStore,
@@ -130,7 +130,7 @@ pub fn load_mcp_token(
     Ok(Some(token))
 }
 
-/// Remove the persisted token for `server_name`. Idempotent — never errors on
+/// Remove the persisted token for `server_name`. Idempotent: never errors on
 /// missing entries.
 pub fn delete_mcp_token(store: &dyn SecretStore, server_name: &str) -> Result<(), AuthError> {
     validate_server_name(server_name)?;
@@ -140,13 +140,13 @@ pub fn delete_mcp_token(store: &dyn SecretStore, server_name: &str) -> Result<()
 // ─── JWT introspection (best-effort, no signature verification) ─────────────
 
 /// Identity claims extracted from a JWT access token. Used only for UI
-/// display ("Connecté en tant que …") — never as an authorisation signal
+/// display ("connected as …"); never as an authorisation signal
 /// (the AS has already done its job at issuance).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JwtIdentityClaims {
-    /// `sub` claim — stable subject identifier.
+    /// `sub` claim: stable subject identifier.
     pub sub: Option<String>,
-    /// `email` claim — commonly present in OIDC ID tokens, sometimes mirrored
+    /// `email` claim: commonly present in OIDC ID tokens, sometimes mirrored
     /// onto access tokens.
     pub email: Option<String>,
 }
@@ -154,10 +154,10 @@ pub struct JwtIdentityClaims {
 /// Best-effort `sub` / `email` extraction from a JWT access token.
 ///
 /// Returns `JwtIdentityClaims::default()` for opaque tokens (non-JWT shape) or
-/// malformed payloads — we do not propagate parse errors because token
+/// malformed payloads; we do not propagate parse errors because token
 /// validity is owned by the AS, not by Apollia.
 pub fn extract_identity_claims(access_token: &str) -> JwtIdentityClaims {
-    // JWTs are `header.payload.signature` — base64url-encoded each part.
+    // JWTs are `header.payload.signature`, base64url-encoded each part.
     let parts: Vec<&str> = access_token.split('.').collect();
     if parts.len() != 3 {
         return JwtIdentityClaims::default();
@@ -187,7 +187,7 @@ pub fn extract_identity_claims(access_token: &str) -> JwtIdentityClaims {
 
 /// Validate `server_name` against the same charset accepted by
 /// `McpServerConfig::validate` (`[a-z0-9_-]+`). Catches typos / accidental
-/// path traversal in callers — the SecretStore backends sanitise too, but
+/// path traversal in callers; the SecretStore backends sanitise too, but
 /// fail-fast here gives a clearer error.
 fn validate_server_name(server_name: &str) -> Result<(), AuthError> {
     if server_name.is_empty() {
@@ -206,12 +206,12 @@ fn validate_server_name(server_name: &str) -> Result<(), AuthError> {
     Ok(())
 }
 
-/// Minimal base64url decoder (no padding, URL-safe alphabet) — JWTs use this
+/// Minimal base64url decoder (no padding, URL-safe alphabet); JWTs use this
 /// flavour per RFC 7515 §2.
 fn base64_url_decode(input: &str) -> Result<Vec<u8>, &'static str> {
     // Reconstitute standard-base64 padding so we can use the `base64` crate
     // re-export from a transitive dep. Apollia-auth already pulls in `base64`
-    // via reqwest's TLS stack, but to stay decoupled we implement it locally —
+    // via reqwest's TLS stack, but to stay decoupled we implement it locally,
     // ~30 lines, no new dep.
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut lookup = [0u8; 256];
@@ -291,7 +291,7 @@ mod tests {
         // WHEN we look up a server with no token
         let loaded = load_mcp_token(&store, "notion").expect("load");
 
-        // THEN we get Ok(None) — distinct from an error
+        // THEN we get Ok(None), distinct from an error
         assert!(loaded.is_none());
     }
 
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn test_extract_identity_claims_from_jwt() {
         // GIVEN a 3-segment JWT-shaped token with a known payload.
-        // Header `{"alg":"none"}` and payload `{"sub":"abc","email":"a@b"}` —
+        // Header `{"alg":"none"}` and payload `{"sub":"abc","email":"a@b"}`,
         // base64url encoded with no padding.
         let header = "eyJhbGciOiJub25lIn0";
         let payload = "eyJzdWIiOiJhYmMiLCJlbWFpbCI6ImFAYiJ9";

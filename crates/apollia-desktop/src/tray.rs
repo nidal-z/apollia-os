@@ -74,7 +74,7 @@ fn plural_s(n: usize) -> &'static str {
 
 /// Shows and focuses the main window.
 ///
-/// Silently ignores errors if the window is not found (defensive — should not
+/// Silently ignores errors if the window is not found (defensive; should not
 /// happen since the main window is always created).
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
@@ -178,7 +178,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             let _ = approvals_item_clone.set_enabled(payload.pending_approvals > 0);
 
             // tooltip is computed but not dynamically settable on all platforms
-            // in Tauri v2 after construction — the menu item is the primary
+            // in Tauri v2 after construction; the menu item is the primary
             // dynamic feedback visible to the user.
             let _ = tooltip;
         }

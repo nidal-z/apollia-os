@@ -1,23 +1,23 @@
-//! `ContextManager` — gestion automatique de la fenêtre de contexte LLM.
+//! `ContextManager`: automatic management of the LLM context window.
 //!
-//! Détecte quand l'historique de conversation approche la limite du modèle et
-//! compacte via résumé LLM. Le système prompt original (messages\[0\]) est toujours
-//! préservé ; tout le reste est remplacé par un message utilisateur contenant le
-//! résumé synthétisé.
+//! Detects when the conversation history approaches the model limit and compacts
+//! it via an LLM summary. The original system prompt (messages\[0\]) is always
+//! preserved; everything else is replaced by a user message containing the
+//! synthesized summary.
 //!
-//! ## Stratégie de compactage
+//! ## Compaction strategy
 //!
 //! ```text
 //! maybe_compact(&messages, &llm)
-//!   ├── estimate_tokens(messages)  →  estimated_tokens
-//!   ├── estimated_tokens / context_limit < threshold  →  retourne messages inchangés
-//!   └── estimated_tokens / context_limit ≥ threshold
-//!         ├── summarize(messages, llm)  →  summary (max summary_max_chars)
-//!         └── retourne [messages[0], User("[Résumé...]\n\n{summary}")]
+//!   |-- estimate_tokens(messages)  ->  estimated_tokens
+//!   |-- estimated_tokens / context_limit < threshold  ->  returns messages unchanged
+//!   `-- estimated_tokens / context_limit >= threshold
+//!         |-- summarize(messages, llm)  ->  summary (max summary_max_chars)
+//!         `-- returns [messages[0], User("[Resume...]\n\n{summary}")]
 //! ```
 //!
-//! En cas d'échec LLM pendant la synthèse, un texte de substitution est utilisé
-//! (principe #4 — pas de crash sur erreur transitoire).
+//! On an LLM failure during synthesis, a fallback text is used
+//! (no crash on a transient error).
 
 use apollia_core::ORIAConfig;
 use apollia_llm::{
@@ -25,29 +25,27 @@ use apollia_llm::{
     LlmRouter,
 };
 
-// ─────────────────────────────────────────────
 // ContextManager
-// ─────────────────────────────────────────────
 
-/// Gère la fenêtre de contexte LLM — détecte le dépassement du seuil et compacte.
+/// Manages the LLM context window: detects threshold overruns and compacts.
 ///
-/// Instancié depuis `ORIAConfig` via [`ContextManager::from_config`].
-/// Utilisé dans la boucle ReAct de `BuiltInChatAgent` (boucle d'inférence itérative)
-/// pour éviter les erreurs `context_length_exceeded` sur les sessions longues.
+/// Instantiated from `ORIAConfig` via [`ContextManager::from_config`].
+/// Used in `BuiltInChatAgent`'s ReAct loop (iterative inference loop) to avoid
+/// `context_length_exceeded` errors on long sessions.
 #[derive(Debug, Clone)]
 pub struct ContextManager {
-    /// Fraction de `context_limit` au-delà de laquelle le compactage est déclenché.
+    /// Fraction of `context_limit` above which compaction is triggered.
     ///
-    /// `0.80` laisse 20% de headroom pour au moins 1 tour de conversation supplémentaire.
+    /// `0.80` leaves 20% headroom for at least one more conversation turn.
     compact_threshold: f32,
-    /// Longueur maximale en caractères du résumé généré lors du compactage.
+    /// Maximum character length of the summary generated during compaction.
     ///
-    /// ~1000 tokens à 4 chars/token — suffisant pour capturer l'état d'une tâche complexe.
+    /// ~1000 tokens at 4 chars/token, enough to capture the state of a complex task.
     summary_max_chars: usize,
 }
 
 impl ContextManager {
-    /// Crée un `ContextManager` avec un seuil et un budget de résumé explicites.
+    /// Create a `ContextManager` with explicit threshold and summary budget.
     pub fn new(compact_threshold: f32, summary_max_chars: usize) -> Self {
         Self {
             compact_threshold,
@@ -55,7 +53,7 @@ impl ContextManager {
         }
     }
 
-    /// Crée un `ContextManager` depuis la section `[oria]` de `apollia.toml`.
+    /// Create a `ContextManager` from the `[oria]` section of `apollia.toml`.
     pub fn from_config(config: &ORIAConfig) -> Self {
         Self::new(
             config.context_compact_threshold,
@@ -63,16 +61,16 @@ impl ContextManager {
         )
     }
 
-    /// Vérifie si les messages dépassent le seuil et compacte si nécessaire.
+    /// Check whether the messages exceed the threshold and compact if needed.
     ///
-    /// Retourne `(messages_résultants, was_compacted)`.
+    /// Returns `(resulting_messages, was_compacted)`.
     ///
-    /// Quand `was_compacted = true` :
-    /// - `result[0]` : le message original `messages[0]` préservé verbatim (system prompt)
-    /// - `result[1]` : `User` — résumé LLM de toute la conversation
+    /// When `was_compacted = true`:
+    /// - `result[0]`: the original `messages[0]` preserved verbatim (system prompt)
+    /// - `result[1]`: `User`, an LLM summary of the whole conversation
     ///
-    /// Quand `was_compacted = false`, les messages sont retournés inchangés.
-    /// Si `messages` est vide ou ne contient qu'un seul message, retourne inchangé.
+    /// When `was_compacted = false`, the messages are returned unchanged.
+    /// If `messages` is empty or has a single message, returns unchanged.
     pub async fn maybe_compact(
         &self,
         messages: &[ChatMessage],
@@ -106,19 +104,19 @@ impl ContextManager {
         (compacted, true)
     }
 
-    /// Estime le nombre de tokens d'une liste de messages.
+    /// Estimate the token count of a list of messages.
     ///
-    /// Utilise le proxy `total_chars / 4 × 1.2` — conservateur pour préférer
-    /// un compactage anticipé plutôt qu'un débordement de contexte.
+    /// Uses the `total_chars / 4 * 1.2` proxy, conservative to prefer early
+    /// compaction over a context overflow.
     pub fn estimate_tokens(messages: &[ChatMessage]) -> usize {
         let total_chars: usize = messages.iter().map(message_char_len).sum();
         ((total_chars as f32) / 4.0 * 1.2) as usize
     }
 
-    /// Génère un résumé LLM de l'historique, tronqué à `summary_max_chars`.
+    /// Generate an LLM summary of the history, truncated to `summary_max_chars`.
     ///
-    /// Utilise le backend par défaut du `LlmRouter`. En cas d'erreur (réseau,
-    /// modèle indisponible), retourne un texte de substitution sans propager l'erreur.
+    /// Uses the `LlmRouter`'s default backend. On an error (network, model
+    /// unavailable), returns a fallback text without propagating the error.
     async fn summarize(&self, messages: &[ChatMessage], llm: &LlmRouter) -> String {
         let history = messages
             .iter()
@@ -177,9 +175,7 @@ impl ContextManager {
     }
 }
 
-// ─────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────
 
 fn fallback_summary() -> String {
     "[Résumé indisponible]\n\n[Session continue avec contexte compacté]".to_owned()
@@ -214,9 +210,7 @@ fn message_text_preview(msg: &ChatMessage, max_chars: usize) -> String {
     }
 }
 
-// ─────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -229,7 +223,7 @@ mod tests {
     use std::pin::Pin;
     use std::sync::Arc;
 
-    // ─── Mock LLM ────────────────────────────
+    // Mock LLM
 
     struct MockSummaryModel {
         response: String,
@@ -285,11 +279,11 @@ mod tests {
         LlmRouter::with_backends(map, "mock")
     }
 
-    // ─── Tests ───────────────────────────────
+    // Tests
 
-    /// GIVEN un historique estimé à 60% de la fenêtre
-    /// WHEN maybe_compact est appelé avec threshold = 0.80
-    /// THEN was_compacted = false et messages inchangés
+    /// GIVEN a history estimated at 60% of the window
+    /// WHEN maybe_compact is called with threshold = 0.80
+    /// THEN was_compacted = false and messages unchanged
     #[tokio::test]
     async fn test_no_compact_below_threshold() {
         // GIVEN
@@ -308,14 +302,14 @@ mod tests {
         assert_eq!(result.len(), 2);
     }
 
-    /// GIVEN un historique estimé à 85% (big_content)
-    /// WHEN maybe_compact est appelé avec threshold = 0.80
-    /// THEN was_compacted = true, 2 messages, system préservé, résumé présent
+    /// GIVEN a history estimated at 85% (big_content)
+    /// WHEN maybe_compact is called with threshold = 0.80
+    /// THEN was_compacted = true, 2 messages, system preserved, summary present
     #[tokio::test]
     async fn test_compact_above_threshold() {
         // GIVEN
         let manager = ContextManager::new(0.80, 4000);
-        // 600_000 chars / 4 * 1.2 = 180_000 tokens → 90% de 200_000
+        // 600_000 chars / 4 * 1.2 = 180_000 tokens, 90% of 200_000
         let big_content = "x".repeat(600_000);
         let messages = vec![
             ChatMessage::system("system"),
@@ -338,9 +332,9 @@ mod tests {
         assert!(summary_text.contains("résumé du contexte"));
     }
 
-    /// GIVEN 4000 chars de contenu
-    /// WHEN estimate_tokens est appelé
-    /// THEN résultat = 4000 / 4 * 1.2 = 1200
+    /// GIVEN 4000 chars of content
+    /// WHEN estimate_tokens is called
+    /// THEN result = 4000 / 4 * 1.2 = 1200
     #[test]
     fn test_estimate_tokens_proportional() {
         // GIVEN
@@ -353,9 +347,9 @@ mod tests {
         assert_eq!(tokens, 1200);
     }
 
-    /// GIVEN un LlmRouter vide (aucun backend)
-    /// WHEN maybe_compact est appelé sur un historique au-dessus du seuil
-    /// THEN was_compacted = true, résumé = fallback text
+    /// GIVEN an empty LlmRouter (no backend)
+    /// WHEN maybe_compact is called on a history above the threshold
+    /// THEN was_compacted = true, summary = fallback text
     #[tokio::test]
     async fn test_fallback_when_no_backend() {
         // GIVEN
@@ -379,8 +373,8 @@ mod tests {
         assert!(summary_text.contains("[Résumé indisponible]"));
     }
 
-    /// GIVEN messages vides
-    /// WHEN maybe_compact est appelé
+    /// GIVEN empty messages
+    /// WHEN maybe_compact is called
     /// THEN was_compacted = false
     #[tokio::test]
     async fn test_empty_messages_no_compact() {

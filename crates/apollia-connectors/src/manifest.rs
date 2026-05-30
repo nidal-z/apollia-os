@@ -1,4 +1,4 @@
-//! Connector manifest — declarative description of a connector.
+//! Connector manifest: declarative description of a connector.
 
 use serde::Serialize;
 
@@ -9,7 +9,7 @@ use crate::operation::OperationSpec;
 /// Surfaced in the desktop integrations panel and consumed by `apollia-tools`
 /// to register the connector's operations as native tools.
 ///
-/// `Serialize` only — manifests are produced by the Rust code (static `&str`
+/// `Serialize` only: manifests are produced by the Rust code (static `&str`
 /// references) and never round-tripped from JSON. The UI consumes the
 /// serialized form; introspection from outside the crate uses [`ConnectorSummary`].
 #[derive(Debug, Clone, Serialize)]

@@ -1,19 +1,19 @@
-//! `MetaLlmOrchestrator` — service partagé pour la transparence des agents (ADR-073).
+//! `MetaLlmOrchestrator`, shared service for agent transparency.
 //!
-//! Réutilise le `LlmRouter` configuré par l'utilisateur pour produire les artefacts
-//! de transparence affichés dans le frontend (rationale d'outil, résumés, titre de
-//! session, explication d'erreur, etc.). Pas de modèle dédié — la politique de coût
-//! est : jamais de nouveau backend, toujours le LLM déjà payé.
+//! Reuses the user-configured `LlmRouter` to produce the transparency
+//! artifacts shown in the frontend (tool rationale, summaries, session title,
+//! error explanation, etc.). No dedicated model: the cost policy is never a new
+//! backend, always the LLM already paid for.
 //!
 //! # Architecture
 //!
-//! Acteur Tokio (`mpsc::channel` + handle clonable) avec :
-//! - cache LRU keyed `(routine, SHA-256(inputs))`, taille 512, TTL 15 min ;
-//! - budget tracker `AtomicU64` par session, défaut 10_000 tokens/session ;
-//! - prompt templates versionnés en `include_str!` depuis `prompts/meta/*.md` ;
-//! - toggle `MetaLlmSettings { enabled: false, per_routine }` — opt-in strict ;
-//! - timeout 10 s → fallback `None` (l'UI affiche un texte statique) ;
-//! - émission `RuntimeEvent::MetaLlmBudgetExceeded` si dépassement du budget.
+//! Tokio actor (`mpsc::channel` plus a cloneable handle) with:
+//! - an LRU cache keyed by `(routine, SHA-256(inputs))`, size 512, TTL 15 min;
+//! - a per-session `AtomicU64` budget tracker, default 10_000 tokens/session;
+//! - prompt templates versioned via `include_str!` from `prompts/meta/*.md`;
+//! - a `MetaLlmSettings { enabled: false, per_routine }` toggle (strict opt-in);
+//! - a 10 s timeout that falls back to `None` (the UI shows static text);
+//! - emission of `RuntimeEvent::MetaLlmBudgetExceeded` when the budget is exceeded.
 
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
@@ -31,60 +31,56 @@ use tokio::sync::{mpsc, oneshot};
 use crate::router::LlmRouter;
 use crate::types::{ChatMessage, CompletionRequest, LlmError};
 
-// ─────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────
 
-/// Capacité du cache LRU partagé entre toutes les routines.
+/// LRU cache capacity shared across all routines.
 const CACHE_CAPACITY: usize = 512;
 
-/// Durée de vie d'une entrée dans le cache (15 minutes).
+/// Lifetime of a cache entry (15 minutes).
 const CACHE_TTL: Duration = Duration::from_secs(15 * 60);
 
-/// Timeout d'un appel LLM méta — au-delà, fallback à `None`.
+/// Meta LLM call timeout; beyond it, fall back to `None`.
 const CALL_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Budget par défaut en tokens consommés par session (toutes routines confondues).
+/// Default budget in tokens consumed per session (all routines combined).
 pub const DEFAULT_SESSION_BUDGET_TOKENS: u64 = 10_000;
 
-// ─────────────────────────────────────────────
-// Routines
-// ─────────────────────────────────────────────
+// ── Routines ──────────────────────────────────────────────────────────────
 
-/// Enum typée listant toutes les routines de génération méta supportées.
+/// Typed enum listing every supported meta generation routine.
 ///
-/// Chaque variante correspond à un fichier `prompts/meta/*.md` embarqué via
-/// `include_str!`. Pour ajouter une routine : créer le template puis ajouter
-/// la variante + la ligne `include_str!` dans [`MetaRoutine::prompt_template`].
+/// Each variant maps to a `prompts/meta/*.md` file embedded via `include_str!`.
+/// To add a routine: create the template, then add the variant plus the
+/// `include_str!` line in [`MetaRoutine::prompt_template`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MetaRoutine {
-    /// Explication courte du pourquoi d'un appel d'outil.
+    /// Short explanation of why a tool is being called.
     GenerateToolCallRationale,
-    /// Résumé d'une trace de thinking.
+    /// Summary of a thinking trace.
     GenerateThinkingSummary,
-    /// Résumé global de session.
+    /// Overall session summary.
     GenerateSessionSummary,
-    /// Proposition de prochaines étapes.
+    /// Suggestion of next steps.
     GenerateNextSteps,
-    /// Titre court de session.
+    /// Short session title.
     GenerateSessionTitle,
-    /// Explication en langage simple d'une erreur.
+    /// Plain-language explanation of an error.
     GenerateErrorExplanation,
-    /// Conséquences probables d'une question AskUser.
+    /// Likely consequences of an AskUser question.
     GenerateAskUserConsequences,
-    /// Branches alternatives d'un plan.
+    /// Alternative branches of a plan.
     GenerateAlternativeBranches,
-    /// Évaluation de risque d'une action.
+    /// Risk assessment of an action.
     GenerateRiskAssessment,
-    /// Vérification de possibles hallucinations.
+    /// Check for possible hallucinations.
     GenerateHallucinationCheck,
-    /// Score de risque d'hallucination agrégé au niveau session.
+    /// Session-level aggregated hallucination risk score.
     GenerateHallucinationRisk,
 }
 
 impl MetaRoutine {
-    /// Retourne le template Markdown embarqué pour cette routine.
+    /// Return the embedded Markdown template for this routine.
     pub fn prompt_template(self) -> &'static str {
         match self {
             Self::GenerateToolCallRationale => {
@@ -111,14 +107,14 @@ impl MetaRoutine {
         }
     }
 
-    /// `true` si la routine doit rester désactivée même quand le master toggle
-    /// est on — l'utilisateur doit l'activer explicitement via `per_routine`
-    /// (ex. `routines.decision_branches` pour `GenerateAlternativeBranches`).
+    /// `true` if the routine must stay off even when the master toggle is on;
+    /// the user must enable it explicitly via `per_routine` (e.g.
+    /// `routines.decision_branches` for `GenerateAlternativeBranches`).
     pub fn is_opt_in_by_default(self) -> bool {
         matches!(self, Self::GenerateAlternativeBranches)
     }
 
-    /// Toutes les variantes — utile pour itérer côté Settings UI et tests.
+    /// All variants, useful to iterate in the Settings UI and in tests.
     pub const ALL: [MetaRoutine; 11] = [
         Self::GenerateToolCallRationale,
         Self::GenerateThinkingSummary,
@@ -134,23 +130,21 @@ impl MetaRoutine {
     ];
 }
 
-// ─────────────────────────────────────────────
-// Settings
-// ─────────────────────────────────────────────
+// ── Settings ──────────────────────────────────────────────────────────────
 
-/// Configuration utilisateur persistable (SQLite) du service méta.
+/// User-persistable (SQLite) configuration of the meta service.
 ///
-/// `enabled` est le master toggle "Enable AI narration" ; `per_routine` permet
-/// de désactiver individuellement une routine même si le master est actif.
+/// `enabled` is the "Enable AI narration" master toggle; `per_routine` lets the
+/// user disable an individual routine even when the master is on.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaLlmSettings {
-    /// Master toggle — défaut `false` (opt-in strict).
+    /// Master toggle, default `false` (strict opt-in).
     #[serde(default)]
     pub enabled: bool,
-    /// Overrides par routine ; si absent, la routine hérite de `enabled`.
+    /// Per-routine overrides; if absent, the routine inherits `enabled`.
     #[serde(default)]
     pub per_routine: HashMap<MetaRoutine, bool>,
-    /// Budget tokens/session (toutes routines confondues).
+    /// Tokens/session budget (all routines combined).
     #[serde(default = "default_session_budget")]
     pub session_budget_tokens: u64,
 }
@@ -170,11 +164,11 @@ impl Default for MetaLlmSettings {
 }
 
 impl MetaLlmSettings {
-    /// Indique si la routine doit être exécutée pour cette config.
+    /// Whether the routine should run for this config.
     ///
-    /// Certaines routines sont opt-in strict même avec master `enabled = true` —
-    /// elles coûtent un appel LLM par occurrence (ex. `GenerateAlternativeBranches`,
-    ///) et doivent être activées explicitement via `per_routine`.
+    /// Some routines are strict opt-in even with master `enabled = true`: they
+    /// cost one LLM call per occurrence (e.g. `GenerateAlternativeBranches`) and
+    /// must be enabled explicitly via `per_routine`.
     pub fn is_routine_enabled(&self, routine: MetaRoutine) -> bool {
         if !self.enabled {
             return false;
@@ -184,20 +178,18 @@ impl MetaLlmSettings {
     }
 }
 
-// ─────────────────────────────────────────────
-// Budget
-// ─────────────────────────────────────────────
+// ── Budget ────────────────────────────────────────────────────────────────
 
-/// Snapshot immuable du budget d'une session, exposé via Tauri.
+/// Immutable snapshot of a session's budget, exposed via Tauri.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaLlmBudget {
-    /// Identifiant de session suivi.
+    /// Tracked session identifier.
     pub session_id: String,
-    /// Tokens consommés cumulés depuis la création du compteur.
+    /// Tokens consumed cumulatively since the counter was created.
     pub tokens_used: u64,
-    /// Budget configuré (tokens/session).
+    /// Configured budget (tokens/session).
     pub budget: u64,
-    /// `true` dès que `tokens_used >= budget`.
+    /// `true` once `tokens_used >= budget`.
     pub exceeded: bool,
 }
 
@@ -218,7 +210,7 @@ impl SessionCounter {
     }
 }
 
-/// Tracker de budget par session, protégé par un Mutex court (jamais tenu async).
+/// Per-session budget tracker, guarded by a short Mutex (never held across async).
 #[derive(Debug, Default)]
 struct BudgetTracker {
     sessions: HashMap<String, Arc<SessionCounter>>,
@@ -245,9 +237,7 @@ impl BudgetTracker {
     }
 }
 
-// ─────────────────────────────────────────────
-// Cache
-// ─────────────────────────────────────────────
+// ── Cache ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 struct CacheEntry {
@@ -255,7 +245,7 @@ struct CacheEntry {
     inserted_at: Instant,
 }
 
-/// Calcule la clé de cache `(routine, SHA-256(canonical_json(inputs)))`.
+/// Compute the cache key `(routine, SHA-256(canonical_json(inputs)))`.
 fn cache_key(routine: MetaRoutine, inputs: &serde_json::Value) -> String {
     let canonical = canonical_json(inputs);
     let mut hasher = Sha256::new();
@@ -264,7 +254,7 @@ fn cache_key(routine: MetaRoutine, inputs: &serde_json::Value) -> String {
     format!("{:?}::{:x}", routine, digest)
 }
 
-/// Sérialise un `serde_json::Value` en JSON canonique (clés triées).
+/// Serialize a `serde_json::Value` into canonical JSON (sorted keys).
 fn canonical_json(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Object(map) => {
@@ -290,51 +280,49 @@ fn canonical_json(value: &serde_json::Value) -> String {
     }
 }
 
-// ─────────────────────────────────────────────
-// Thinking summary
-// ─────────────────────────────────────────────
+// ── Thinking summary ──────────────────────────────────────────────────────
 
-/// Niveau de qualité estimé d'une trace de thinking par [`MetaRoutine::GenerateThinkingSummary`].
+/// Estimated quality level of a thinking trace by [`MetaRoutine::GenerateThinkingSummary`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ThinkingQuality {
-    /// Raisonnement vague, hésitant, ou contradictoire avec lui-même.
+    /// Vague, hesitant, or self-contradictory reasoning.
     Low,
-    /// Cohérent mais superficiel — saute aux conclusions sans examiner d'alternatives.
+    /// Coherent but shallow: jumps to conclusions without weighing alternatives.
     Medium,
-    /// Raisonnement explicite, alternatives pondérées, décisions ancrées dans le contexte.
+    /// Explicit reasoning, weighed alternatives, decisions grounded in context.
     High,
 }
 
-/// Contradiction détectée entre la trace courante et un tour précédent.
+/// Contradiction detected between the current trace and a previous turn.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThinkingContradiction {
-    /// Identifiant du tour précédent avec lequel il y a contradiction.
+    /// Identifier of the previous turn the contradiction is with.
     pub turn_id: String,
-    /// Court extrait (≤ 30 mots) du raisonnement précédent concerné.
+    /// Short excerpt (<= 30 words) of the relevant previous reasoning.
     pub excerpt: String,
 }
 
-/// Sortie structurée de [`MetaRoutine::GenerateThinkingSummary`].
+/// Structured output of [`MetaRoutine::GenerateThinkingSummary`].
 ///
-/// Le prompt `thinking_summary.md` demande au LLM de retourner ce JSON.
-/// Utiliser [`ThinkingSummary::parse`] pour désérialiser la réponse brute
-/// (tolère les backticks Markdown éventuels).
+/// The `thinking_summary.md` prompt asks the LLM to return this JSON. Use
+/// [`ThinkingSummary::parse`] to deserialize the raw response (tolerates
+/// possible Markdown backticks).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThinkingSummary {
-    /// Résumé en langage naturel du point de décision clé (1-2 phrases).
+    /// Natural-language summary of the key decision point (1-2 sentences).
     pub summary: String,
-    /// Qualité estimée du raisonnement.
+    /// Estimated quality of the reasoning.
     pub quality: ThinkingQuality,
-    /// Contradiction détectée avec un tour précédent, ou `None`.
+    /// Contradiction detected with a previous turn, or `None`.
     #[serde(default)]
     pub contradiction_with_previous: Option<ThinkingContradiction>,
 }
 
 impl ThinkingSummary {
-    /// Désérialise une réponse brute du LLM (trim + strip des backticks Markdown).
+    /// Deserialize a raw LLM response (trim + strip Markdown backticks).
     ///
-    /// Retourne `Err` si le JSON est invalide ou si les champs requis sont absents.
+    /// Returns `Err` if the JSON is invalid or required fields are absent.
     pub fn parse(raw: &str) -> Result<Self, serde_json::Error> {
         let clean = raw
             .trim()
@@ -346,11 +334,9 @@ impl ThinkingSummary {
     }
 }
 
-// ─────────────────────────────────────────────
-// Prompt rendering
-// ─────────────────────────────────────────────
+// ── Prompt rendering ──────────────────────────────────────────────────────
 
-/// Substitue les placeholders `{{key}}` par les valeurs de `inputs` (stringifiées).
+/// Substitute `{{key}}` placeholders with the (stringified) `inputs` values.
 pub fn render_prompt(template: &str, inputs: &serde_json::Value) -> String {
     let mut out = template.to_owned();
     if let Some(obj) = inputs.as_object() {
@@ -366,21 +352,36 @@ pub fn render_prompt(template: &str, inputs: &serde_json::Value) -> String {
     out
 }
 
-// ─────────────────────────────────────────────
-// Handle (clonable)
-// ─────────────────────────────────────────────
+// ── Handle (cloneable) ────────────────────────────────────────────────────
 
-/// Handle clonable vers l'acteur `MetaLlmOrchestrator`.
+/// A decision trace to turn into a structured [`DecisionPoint`] via
+/// [`MetaOrchestratorHandle::generate_decision_point`].
 ///
-/// Envoie une [`MetaCmd`] sur le `mpsc` interne ; la réponse arrive via un
-/// `oneshot` côté appelant. Retourne `Ok(None)` quand la routine est désactivée,
-/// le budget épuisé, ou que l'appel a dépassé le timeout (fallback UI statique).
+/// Groups the turn identifier, the decision kind, the raw thinking trace and
+/// the chosen action. The `session_id` stays passed separately because it
+/// addresses the budget rather than the decision itself.
+pub struct DecisionPointRequest<'a> {
+    /// Identifier of the ReAct turn the decision attaches to.
+    pub turn_id: &'a str,
+    /// Decision category (tool choice, replanning, etc.).
+    pub kind: DecisionKind,
+    /// Raw thinking trace produced by the reasoner.
+    pub thinking_raw: &'a str,
+    /// Action actually chosen at the end of reasoning.
+    pub chosen_action: &'a str,
+}
+
+/// Cloneable handle to the `MetaLlmOrchestrator` actor.
+///
+/// Sends a [`MetaCmd`] on the internal `mpsc`; the response arrives via a
+/// caller-side `oneshot`. Returns `Ok(None)` when the routine is disabled, the
+/// budget is exhausted, or the call timed out (static UI fallback).
 #[derive(Clone)]
 pub struct MetaOrchestratorHandle {
     tx: mpsc::Sender<MetaCmd>,
 }
 
-/// Commande adressée à l'acteur `MetaLlmOrchestrator`.
+/// Command addressed to the `MetaLlmOrchestrator` actor.
 #[derive(Debug)]
 enum MetaCmd {
     Run {
@@ -403,7 +404,7 @@ enum MetaCmd {
 }
 
 impl MetaOrchestratorHandle {
-    /// Exécute une routine. `Ok(None)` = désactivée / budget épuisé / timeout.
+    /// Run a routine. `Ok(None)` = disabled / budget exhausted / timeout.
     pub async fn run(
         &self,
         routine: MetaRoutine,
@@ -421,12 +422,12 @@ impl MetaOrchestratorHandle {
         rx.await.map_err(|_| LlmError::Cancelled)?
     }
 
-    /// Génère un [`ToolCallRationale`] structuré pour un appel d'outil.
+    /// Generate a structured [`ToolCallRationale`] for a tool call.
     ///
-    /// Retourne `Ok(None)` si la routine est désactivée / le budget est
-    /// épuisé / l'appel LLM a échoué ou dépassé le timeout / la réponse
-    /// n'a pas pu être parsée en JSON conforme au schéma. L'UI doit
-    /// afficher un fallback statique dans ces cas-là.
+    /// Returns `Ok(None)` if the routine is disabled / the budget is exhausted
+    /// / the LLM call failed or timed out / the response could not be parsed as
+    /// schema-conformant JSON. The UI must show a static fallback in these
+    /// cases.
     pub async fn generate_tool_call_rationale(
         &self,
         tool_name: &str,
@@ -449,23 +450,27 @@ impl MetaOrchestratorHandle {
         ToolCallRationale::parse(&raw).ok()
     }
 
-    /// Génère un [`DecisionPoint`] structuré depuis une trace de thinking.
+    /// Generate a structured [`DecisionPoint`] from a thinking trace.
     ///
-    /// Appelle la routine `GenerateAlternativeBranches` qui renvoie un JSON
+    /// Calls the `GenerateAlternativeBranches` routine, which returns JSON
     /// `{ chosen, alternatives: [{ label, rejected_reason, confidence_delta }] }`.
-    /// Retourne `None` si la routine est désactivée (opt-in `routines.decision_branches`,
-    /// default off), si le budget est épuisé, si l'appel LLM échoue, ou si la
-    /// réponse ne parse pas. Au plus 3 alternatives sont conservées.
+    /// Returns `None` if the routine is disabled (opt-in
+    /// `routines.decision_branches`, default off), the budget is exhausted, the
+    /// LLM call fails, or the response does not parse. At most 3 alternatives
+    /// are kept.
     ///
-    /// L'UI doit afficher un fallback silencieux (aucun panneau) dans ces cas.
+    /// The UI must show a silent fallback (no panel) in these cases.
     pub async fn generate_decision_point(
         &self,
-        turn_id: &str,
-        kind: DecisionKind,
-        thinking_raw: &str,
-        chosen_action: &str,
+        req: DecisionPointRequest<'_>,
         session_id: impl Into<String>,
     ) -> Option<DecisionPoint> {
+        let DecisionPointRequest {
+            turn_id,
+            kind,
+            thinking_raw,
+            chosen_action,
+        } = req;
         let inputs = serde_json::json!({
             "turn_id": turn_id,
             "thinking": thinking_raw,
@@ -478,7 +483,7 @@ impl MetaOrchestratorHandle {
         DecisionPoint::parse(&raw, turn_id, kind).ok()
     }
 
-    /// Retourne la config courante.
+    /// Return the current config.
     pub async fn get_settings(&self) -> Result<MetaLlmSettings, LlmError> {
         let (reply, rx) = oneshot::channel();
         self.tx
@@ -488,7 +493,7 @@ impl MetaOrchestratorHandle {
         rx.await.map_err(|_| LlmError::Cancelled)
     }
 
-    /// Met à jour la config.
+    /// Update the config.
     pub async fn set_settings(&self, settings: MetaLlmSettings) -> Result<(), LlmError> {
         let (reply, rx) = oneshot::channel();
         self.tx
@@ -498,7 +503,7 @@ impl MetaOrchestratorHandle {
         rx.await.map_err(|_| LlmError::Cancelled)
     }
 
-    /// Retourne un snapshot du budget de la session.
+    /// Return a snapshot of the session's budget.
     pub async fn get_budget(
         &self,
         session_id: impl Into<String>,
@@ -515,15 +520,13 @@ impl MetaOrchestratorHandle {
     }
 }
 
-// ─────────────────────────────────────────────
-// Actor
-// ─────────────────────────────────────────────
+// ── Actor ─────────────────────────────────────────────────────────────────
 
-/// Acteur Tokio `MetaLlmOrchestrator`.
+/// `MetaLlmOrchestrator` Tokio actor.
 ///
-/// Construit via [`spawn`](Self::spawn). Boucle sur `mpsc::Receiver<MetaCmd>` et
-/// exécute chaque commande séquentiellement (aucun état partagé cross-tâches ;
-/// le cache et les compteurs sont privés).
+/// Built via [`spawn`](Self::spawn). Loops on `mpsc::Receiver<MetaCmd>` and runs
+/// each command sequentially (no cross-task shared state; the cache and counters
+/// are private).
 pub struct MetaLlmOrchestrator {
     router: Arc<LlmRouter>,
     bus: Option<EventBusSender>,
@@ -533,9 +536,9 @@ pub struct MetaLlmOrchestrator {
 }
 
 impl MetaLlmOrchestrator {
-    /// Démarre l'acteur et retourne un handle clonable.
+    /// Start the actor and return a cloneable handle.
     ///
-    /// Le task tokio s'arrête automatiquement quand tous les handles sont drop.
+    /// The tokio task stops automatically once all handles are dropped.
     pub fn spawn(
         router: Arc<LlmRouter>,
         bus: Option<EventBusSender>,
@@ -597,13 +600,13 @@ impl MetaLlmOrchestrator {
         inputs: serde_json::Value,
         session_id: &str,
     ) -> Result<Option<String>, LlmError> {
-        // Short-circuit : toggle off → aucun appel, aucune consommation.
+        // Short-circuit: toggle off means no call and no consumption.
         if !self.settings.is_routine_enabled(routine) {
             tracing::debug!(routine = ?routine, "meta routine disabled — short-circuit");
             return Ok(None);
         }
 
-        // Budget vérifié AVANT l'appel — si déjà dépassé on refuse d'émettre.
+        // Budget checked BEFORE the call: if already exceeded, refuse to emit.
         let counter = {
             let mut guard = self
                 .budget
@@ -631,7 +634,7 @@ impl MetaLlmOrchestrator {
                 tracing::info!(hit = true, routine = ?routine, "meta cache");
                 return Ok(Some(value));
             }
-            // Expired — will be overwritten below.
+            // Expired, will be overwritten below.
         }
         tracing::info!(hit = false, routine = ?routine, "meta cache");
 
@@ -698,10 +701,6 @@ impl MetaLlmOrchestrator {
     }
 }
 
-// ─────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -716,7 +715,7 @@ mod tests {
     use crate::types::{CompletionResponse, FinishReason, StreamChunk, TokenUsage};
     use crate::{CompletionModel, CompletionRequest};
 
-    // ── Mock backend avec compteur d'appels et délai configurable ─────────
+    // ── Mock backend with a call counter and configurable delay ───────────
 
     struct CountingBackend {
         calls: Arc<AtomicUsize>,
@@ -804,9 +803,9 @@ mod tests {
         }
     }
 
-    // GIVEN orchestrator + settings enabled + cache vide
-    // WHEN on appelle run() deux fois avec les mêmes inputs
-    // THEN le backend n'est appelé qu'une seule fois (cache hit)
+    // GIVEN an enabled orchestrator with an empty cache
+    // WHEN run() is called twice with the same inputs
+    // THEN the backend is called only once (cache hit)
     #[tokio::test]
     async fn meta_cache_hit_avoids_second_call() {
         let (backend, calls) = CountingBackend::new();
@@ -831,9 +830,9 @@ mod tests {
         );
     }
 
-    // GIVEN orchestrator + settings disabled (master toggle off)
-    // WHEN on appelle run()
-    // THEN Ok(None) sans appel LLM
+    // GIVEN a disabled orchestrator (master toggle off)
+    // WHEN run() is called
+    // THEN Ok(None) with no LLM call
     #[tokio::test]
     async fn meta_toggle_off_short_circuits() {
         let (backend, calls) = CountingBackend::new();
@@ -853,9 +852,9 @@ mod tests {
         assert_eq!(calls.load(AtomicOrdering::SeqCst), 0);
     }
 
-    // GIVEN budget très bas (100 tokens) et backend qui consomme 150 tokens/appel
-    // WHEN on fait 2 appels distincts (cache miss)
-    // THEN le 2e retourne None + RuntimeEvent::MetaLlmBudgetExceeded émis
+    // GIVEN a very low budget (100 tokens) and a backend that consumes 150 tokens/call
+    // WHEN we make 2 distinct calls (cache miss)
+    // THEN the 2nd returns None + RuntimeEvent::MetaLlmBudgetExceeded emitted
     #[tokio::test]
     async fn meta_budget_exceeded_emits_event_and_short_circuits() {
         let (backend, _calls) = CountingBackend::with_tokens(100, 50);
@@ -869,7 +868,7 @@ mod tests {
         };
         let handle = MetaLlmOrchestrator::spawn(router, Some(tx), settings);
 
-        // 1er appel : consomme 150 tokens → dépassement → event émis
+        // 1st call: consumes 150 tokens, exceeds budget, event emitted
         let first = handle
             .run(
                 MetaRoutine::GenerateSessionTitle,
@@ -880,7 +879,7 @@ mod tests {
             .unwrap();
         assert!(first.is_some());
 
-        // 2e appel (inputs différents pour éviter le cache) → short-circuit, None.
+        // 2nd call (different inputs to avoid the cache): short-circuit, None.
         let second = handle
             .run(
                 MetaRoutine::GenerateSessionTitle,
@@ -891,7 +890,7 @@ mod tests {
             .unwrap();
         assert!(second.is_none(), "budget-exceeded routine must return None");
 
-        // L'event a été émis exactement une fois.
+        // The event was emitted exactly once.
         let evt = rx.try_recv().expect("budget exceeded event emitted");
         assert!(matches!(
             evt,
@@ -900,13 +899,13 @@ mod tests {
         ));
     }
 
-    // GIVEN un backend qui retourne une erreur (scénario timeout/unavailable)
-    // WHEN on appelle run()
-    // THEN Ok(None) sans propagation (fallback UI statique)
+    // GIVEN a backend that returns an error (timeout/unavailable scenario)
+    // WHEN run() is called
+    // THEN Ok(None) without propagation (static UI fallback)
     //
-    // Note : la logique `tokio::time::timeout` qui entoure l'appel est testée
-    // implicitement — cette branche couvre l'`Ok(Err)` du `timeout(...)`, qui
-    // partage le même traitement (`Ok(None)`) que la branche `Err(_)` timeout.
+    // Note: the `tokio::time::timeout` logic wrapping the call is tested
+    // implicitly; this branch covers the `Ok(Err)` of `timeout(...)`, which
+    // shares the same handling (`Ok(None)`) as the `Err(_)` timeout branch.
     #[tokio::test]
     async fn meta_llm_error_returns_none() {
         struct FailingBackend;
@@ -950,9 +949,9 @@ mod tests {
         assert!(result.is_none(), "backend error must fall back to None");
     }
 
-    // GIVEN routine désactivée par `per_routine` (master on mais routine off)
-    // WHEN on appelle run() pour cette routine
-    // THEN Ok(None) sans appel LLM
+    // GIVEN a routine disabled via `per_routine` (master on but routine off)
+    // WHEN run() is called for this routine
+    // THEN Ok(None) without an LLM call
     #[tokio::test]
     async fn meta_per_routine_override_disables() {
         let (backend, calls) = CountingBackend::new();
@@ -964,7 +963,7 @@ mod tests {
             .insert(MetaRoutine::GenerateRiskAssessment, false);
         let handle = MetaLlmOrchestrator::spawn(router, None, settings);
 
-        // Routine désactivée → None.
+        // Disabled routine: None.
         let risk = handle
             .run(
                 MetaRoutine::GenerateRiskAssessment,
@@ -975,7 +974,7 @@ mod tests {
             .unwrap();
         assert!(risk.is_none());
 
-        // Autre routine toujours active → appel LLM.
+        // Another routine still active: LLM call.
         let title = handle
             .run(
                 MetaRoutine::GenerateSessionTitle,
@@ -988,9 +987,9 @@ mod tests {
         assert_eq!(calls.load(AtomicOrdering::SeqCst), 1);
     }
 
-    // GIVEN deux entrées sémantiquement identiques mais clés JSON non-triées
-    // WHEN on calcule la clé de cache
-    // THEN la clé est stable (canonical_json trie les clés)
+    // GIVEN two semantically identical inputs but unsorted JSON keys
+    // WHEN the cache key is computed
+    // THEN the key is stable (canonical_json sorts the keys)
     #[test]
     fn cache_key_is_canonical() {
         let a = serde_json::json!({ "b": 1, "a": 2 });
@@ -1000,9 +999,9 @@ mod tests {
         assert_eq!(ka, kb);
     }
 
-    // GIVEN settings master=false, routine non listée
+    // GIVEN settings master=false, routine not listed
     // WHEN is_routine_enabled()
-    // THEN false quelque soit la routine
+    // THEN false regardless of the routine
     #[test]
     fn settings_is_routine_enabled_respects_master() {
         let s = MetaLlmSettings::default();
@@ -1013,23 +1012,25 @@ mod tests {
 
     // ─── DecisionPoint extraction ───
 
-    /// GIVEN un orchestrator avec `GenerateAlternativeBranches` désactivée
-    ///   (opt-in par défaut off, même avec master=on)
-    /// WHEN generate_decision_point() est appelé
-    /// THEN retourne None sans appel LLM
+    /// GIVEN an orchestrator with `GenerateAlternativeBranches` disabled
+    ///   (opt-in, off by default, even with master=on)
+    /// WHEN generate_decision_point() is called
+    /// THEN returns None without an LLM call
     #[tokio::test]
     async fn decision_point_opt_in_default_off() {
         let (backend, calls) = CountingBackend::new();
         let router = router_with(backend as Arc<dyn CompletionModel>);
-        // master=on mais pas de per_routine override → GenerateAlternativeBranches OFF
+        // master=on but no per_routine override, so GenerateAlternativeBranches OFF
         let handle = MetaLlmOrchestrator::spawn(router, None, enabled_settings());
 
         let dp = handle
             .generate_decision_point(
-                "turn-1",
-                DecisionKind::ToolChoice,
-                "let me think…",
-                "read_file",
+                DecisionPointRequest {
+                    turn_id: "turn-1",
+                    kind: DecisionKind::ToolChoice,
+                    thinking_raw: "let me think…",
+                    chosen_action: "read_file",
+                },
                 "sess-opt",
             )
             .await;
@@ -1038,10 +1039,10 @@ mod tests {
         assert_eq!(calls.load(AtomicOrdering::SeqCst), 0);
     }
 
-    /// GIVEN un orchestrator avec la routine explicitement activée et un
-    ///   backend qui renvoie un JSON DecisionPoint valide
-    /// WHEN generate_decision_point() est appelé
-    /// THEN un DecisionPoint parsé est retourné avec ses 2 alternatives
+    /// GIVEN an orchestrator with the routine explicitly enabled and a
+    ///   backend that returns a valid DecisionPoint JSON
+    /// WHEN generate_decision_point() is called
+    /// THEN a parsed DecisionPoint is returned with its 2 alternatives
     #[tokio::test]
     async fn decision_point_parses_structured_payload() {
         struct FixedBackend {
@@ -1103,10 +1104,12 @@ mod tests {
 
         let dp = handle
             .generate_decision_point(
-                "turn-77",
-                DecisionKind::ToolChoice,
-                "I should read the file before running bash…",
-                "read_file",
+                DecisionPointRequest {
+                    turn_id: "turn-77",
+                    kind: DecisionKind::ToolChoice,
+                    thinking_raw: "I should read the file before running bash…",
+                    chosen_action: "read_file",
+                },
                 "sess-dp",
             )
             .await
@@ -1123,9 +1126,9 @@ mod tests {
 
     // ─── ThinkingSummary parsing ───
 
-    /// GIVEN une réponse JSON valide avec tous les champs
+    /// GIVEN a valid JSON response with all fields
     /// WHEN ThinkingSummary::parse()
-    /// THEN les champs sont désérialisés correctement
+    /// THEN the fields are deserialized correctly
     #[test]
     fn thinking_summary_parses_full_payload() {
         let raw = r#"{
@@ -1142,9 +1145,9 @@ mod tests {
         assert_eq!(c.turn_id, "turn-3");
     }
 
-    /// GIVEN une réponse avec backticks Markdown et contradiction nulle
+    /// GIVEN a response with Markdown backticks and null contradiction
     /// WHEN ThinkingSummary::parse()
-    /// THEN les fences sont strippées et contradiction_with_previous = None
+    /// THEN the fences are stripped and contradiction_with_previous = None
     #[test]
     fn thinking_summary_strips_backticks_and_allows_null_contradiction() {
         let raw = "```json\n{\"summary\":\"s\",\"quality\":\"medium\",\"contradiction_with_previous\":null}\n```";
@@ -1153,9 +1156,9 @@ mod tests {
         assert!(ts.contradiction_with_previous.is_none());
     }
 
-    /// GIVEN une réponse où contradiction_with_previous est absent
+    /// GIVEN a response where contradiction_with_previous is absent
     /// WHEN ThinkingSummary::parse()
-    /// THEN serde default donne None
+    /// THEN serde default yields None
     #[test]
     fn thinking_summary_defaults_missing_contradiction_to_none() {
         let raw = r#"{"summary":"s","quality":"low"}"#;
@@ -1164,9 +1167,9 @@ mod tests {
         assert!(ts.contradiction_with_previous.is_none());
     }
 
-    // GIVEN prompt template avec placeholders et inputs correspondants
+    // GIVEN a prompt template with placeholders and matching inputs
     // WHEN render_prompt()
-    // THEN les placeholders sont remplacés
+    // THEN the placeholders are substituted
     #[test]
     fn render_prompt_substitutes_placeholders() {
         let tpl = "hello {{name}}, you have {{count}} items";

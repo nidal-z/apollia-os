@@ -100,7 +100,7 @@ const DEFAULT_COMPANION_STATE: CompanionState = {
 };
 
 function viewport(): Viewport {
-  return { width: window.innerWidth, height: window.innerHeight };
+  return { width: globalThis.innerWidth, height: globalThis.innerHeight };
 }
 
 function isAutoPosition(pos: CompanionPosition): boolean {
@@ -112,12 +112,12 @@ function safeClampPosition(
   size: CompanionSize,
 ): CompanionPosition {
   if (isAutoPosition(pos)) return pos;
-  if (typeof window === "undefined") return pos;
+  if (globalThis.window === undefined) return pos;
   return clampPosition(pos, size, viewport());
 }
 
 function safeClampSize(size: CompanionSize): CompanionSize {
-  if (typeof window === "undefined") {
+  if (globalThis.window === undefined) {
     return {
       width: Math.max(COMPANION_MIN_SIZE.width, size.width),
       height: Math.max(COMPANION_MIN_SIZE.height, size.height),
@@ -131,28 +131,30 @@ function safeClampSize(size: CompanionSize): CompanionSize {
  * Geometry is stored under {@link GEOMETRY_KEY}; legacy state blobs stored
  * under {@link STORAGE_KEY} are still honoured for backwards compatibility.
  */
+/** Reads `position`/`size` from the canonical or legacy localStorage blob. */
+function readStoredGeometry(): { position?: Position; size?: Size } {
+  const geoRaw = localStorage.getItem(GEOMETRY_KEY);
+  if (geoRaw) {
+    const geo = JSON.parse(geoRaw) as { position?: Position; size?: Size };
+    return { position: geo.position, size: geo.size };
+  }
+  const legacy = localStorage.getItem(STORAGE_KEY);
+  if (legacy) {
+    const parsed = JSON.parse(legacy) as Partial<CompanionState>;
+    return { position: parsed.position, size: parsed.size };
+  }
+  return {};
+}
+
 function loadFromStorage(): CompanionState {
   try {
     const state: CompanionState = { ...DEFAULT_COMPANION_STATE };
+    const stored = readStoredGeometry();
+    if (stored.size) state.size = stored.size;
+    if (stored.position) state.position = stored.position;
 
-    const geoRaw = localStorage.getItem(GEOMETRY_KEY);
-    if (geoRaw) {
-      const geo = JSON.parse(geoRaw) as {
-        position?: Position;
-        size?: Size;
-      };
-      if (geo.size) state.size = geo.size;
-      if (geo.position) state.position = geo.position;
-    } else {
-      const legacy = localStorage.getItem(STORAGE_KEY);
-      if (legacy) {
-        const parsed = JSON.parse(legacy) as Partial<CompanionState>;
-        if (parsed.size) state.size = parsed.size;
-        if (parsed.position) state.position = parsed.position;
-      }
-    }
-
-    if (!isAutoPosition(state.position) && typeof window !== "undefined") {
+    const hasWindow = globalThis.window !== undefined;
+    if (!isAutoPosition(state.position) && hasWindow) {
       const validated = validateGeometry(
         { position: state.position, size: state.size },
         viewport(),
@@ -236,9 +238,9 @@ async function withTimeout<T>(
 
 function createCompanionStore() {
   const initial =
-    typeof localStorage !== "undefined"
-      ? loadFromStorage()
-      : { ...DEFAULT_COMPANION_STATE };
+    typeof localStorage === "undefined"
+      ? { ...DEFAULT_COMPANION_STATE }
+      : loadFromStorage();
 
   const { subscribe, update, set } = writable<CompanionState>(initial);
 

@@ -247,6 +247,151 @@ interface TauriRuntimeEvent {
 }
 
 /**
+ * Returns the string value of a field if it is a string, otherwise `fallback`.
+ * Guards against accidental `[object Object]` stringification when the
+ * payload shape diverges from the expected schema.
+ */
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+/**
+ * Returns the string value of a field, or `undefined` when the field is
+ * missing or not a string.
+ */
+function asOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * Extracts an inner payload for an externally tagged Rust enum variant.
+ * Falls back to the outer payload when the variant key is absent.
+ */
+function variantPayload(
+  payload: Record<string, unknown>,
+  variant: string,
+): Record<string, unknown> {
+  const inner = payload[variant];
+  if (inner && typeof inner === "object") {
+    return inner as Record<string, unknown>;
+  }
+  return payload;
+}
+
+/** Handles `ChatApprovalRequired`: enqueues a pending approval + notification. */
+function handleChatApprovalRequired(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "ChatApprovalRequired");
+  const sessionId = asOptionalString(p.session_id);
+  if (!sessionId) return;
+  addPendingChatApproval({
+    sessionId,
+    messageId: asString(p.message_id),
+    toolName: asString(p.tool_name),
+    inputPreview: asString(p.prompt),
+    receivedAt: new Date().toISOString(),
+  });
+  void sendChatApprovalNotification(sessionId, asString(p.tool_name, "tool"));
+}
+
+/** Handles `ChatApprovalResolved` / `ChatApprovalTimeout`: drops the pending row. */
+function handleChatApprovalCleared(
+  event: TauriRuntimeEvent,
+  eventType: "ChatApprovalResolved" | "ChatApprovalTimeout",
+): void {
+  const p = variantPayload(event.payload, eventType);
+  const sessionId = asOptionalString(p.session_id);
+  if (!sessionId) return;
+  removePendingChatApproval(
+    sessionId,
+    asOptionalString(p.message_id),
+    asOptionalString(p.tool_name),
+  );
+}
+
+/** Handles `ChatUserInputRequired`: enqueues a pending user-input prompt. */
+function handleChatUserInputRequired(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "ChatUserInputRequired");
+  addPendingUserInput({
+    request_id: asString(p.request_id),
+    session_id: asString(p.session_id),
+    questions_json: asString(p.questions_json, "[]"),
+    context: asOptionalString(p.context) ?? null,
+    created_at: new Date().toISOString(),
+  });
+}
+
+/** Handles `ChatUserInputResolved`: removes the matching pending input. */
+function handleChatUserInputResolved(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "ChatUserInputResolved");
+  const requestId = asOptionalString(p.request_id);
+  if (requestId) removePendingUserInput(requestId);
+}
+
+/** Handles `ChatResponseCompleted`: clears the token buffer + refreshes metrics. */
+function handleChatResponseCompleted(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "ChatResponseCompleted");
+  const sessionId = asOptionalString(p.session_id);
+  if (!sessionId) return;
+  clearGlobalBuffer(sessionId);
+  void import("./chatMetrics").then((m) => m.refreshSessionMetrics(sessionId));
+}
+
+/** Handles `ChatToolCallCompleted`: surfaces tool failure + refreshes metrics. */
+function handleChatToolCallCompleted(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "ChatToolCallCompleted");
+  const sessionId = asOptionalString(p.session_id);
+  const toolName = asOptionalString(p.tool_name);
+  if (p.success === false && toolName) {
+    void sendToolFailureNotification(sessionId ?? "", toolName);
+  }
+  if (sessionId) {
+    void import("./chatMetrics").then((m) => m.refreshSessionMetrics(sessionId));
+  }
+}
+
+/** Handles `ChatError`: clears the token buffer for the affected session. */
+function handleChatError(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "ChatError");
+  const sessionId = asOptionalString(p.session_id);
+  if (sessionId) clearGlobalBuffer(sessionId);
+}
+
+/**
+ * Dispatches a chat-changed runtime event to the chat-global helpers.
+ * Each event type is handled by a dedicated helper to keep this dispatcher's
+ * cognitive complexity within the lint budget.
+ */
+function dispatchChatEvent(event: TauriRuntimeEvent): void {
+  const eventType = event.event_type;
+  switch (eventType) {
+    case "ChatApprovalRequired":
+      handleChatApprovalRequired(event);
+      return;
+    case "ChatApprovalResolved":
+    case "ChatApprovalTimeout":
+      handleChatApprovalCleared(event, eventType);
+      return;
+    case "ChatUserInputRequired":
+      handleChatUserInputRequired(event);
+      return;
+    case "ChatUserInputResolved":
+      handleChatUserInputResolved(event);
+      return;
+    case "ChatResponseCompleted":
+      handleChatResponseCompleted(event);
+      return;
+    case "ChatToolCallCompleted":
+      handleChatToolCallCompleted(event);
+      return;
+    case "ChatError":
+      handleChatError(event);
+      return;
+    default:
+      return;
+  }
+}
+
+/**
  * Dispatches a runtime event to the appropriate store by refreshing the
  * relevant domain via IPC.  This ensures data consistency (the IPC command
  * returns the full current state, not just a delta).
@@ -280,112 +425,7 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       break;
     case "chat-changed":
       void refreshChatSessionsViaIpc();
-      // ── Global chat approval / streaming tracking ──────────────────
-      if (event.event_type === "ChatApprovalRequired") {
-        const inner =
-          (event.payload as Record<string, unknown>)?.ChatApprovalRequired as
-            | {
-                session_id?: string;
-                message_id?: string;
-                tool_name?: string;
-                prompt?: string;
-              }
-            | undefined;
-        const p = inner ?? (event.payload as Record<string, unknown>);
-        if (p.session_id) {
-          addPendingChatApproval({
-            sessionId: String(p.session_id),
-            messageId: String(p.message_id ?? ""),
-            toolName: String(p.tool_name ?? ""),
-            inputPreview: String(p.prompt ?? ""),
-            receivedAt: new Date().toISOString(),
-          });
-          void sendChatApprovalNotification(
-            String(p.session_id),
-            String(p.tool_name ?? "tool"),
-          );
-        }
-      } else if (
-        event.event_type === "ChatApprovalResolved" ||
-        event.event_type === "ChatApprovalTimeout"
-      ) {
-        const inner =
-          (event.payload as Record<string, unknown>)?.[event.event_type] as
-            | { session_id?: string; message_id?: string; tool_name?: string }
-            | undefined;
-        const p = inner ?? (event.payload as Record<string, unknown>);
-        if (p.session_id) {
-          removePendingChatApproval(
-            String(p.session_id),
-            p.message_id ? String(p.message_id) : undefined,
-            p.tool_name ? String(p.tool_name) : undefined,
-          );
-        }
-      } else if (event.event_type === "ChatUserInputRequired") {
-        const inner =
-          (event.payload as Record<string, unknown>)?.ChatUserInputRequired as
-            | { request_id?: string; session_id?: string; questions_json?: string; context?: string }
-            | undefined;
-        const p = inner ?? (event.payload as Record<string, unknown>);
-        addPendingUserInput({
-          request_id: String(p.request_id ?? ""),
-          session_id: String(p.session_id ?? ""),
-          questions_json: String(p.questions_json ?? "[]"),
-          context: p.context ? String(p.context) : null,
-          created_at: new Date().toISOString(),
-        });
-      } else if (event.event_type === "ChatUserInputResolved") {
-        const inner =
-          (event.payload as Record<string, unknown>)?.ChatUserInputResolved as
-            | { request_id?: string }
-            | undefined;
-        const p = inner ?? (event.payload as Record<string, unknown>);
-        if (p.request_id) removePendingUserInput(String(p.request_id));
-      } else if (event.event_type === "ChatResponseCompleted") {
-        const inner =
-          (event.payload as Record<string, unknown>)?.ChatResponseCompleted as
-            | { session_id?: string }
-            | undefined;
-        const p = inner ?? (event.payload as Record<string, unknown>);
-        if (p.session_id) {
-          clearGlobalBuffer(String(p.session_id));
-          // refresh SessionMetrics (throttled inside store).
-          void import("./chatMetrics").then((m) =>
-            m.refreshSessionMetrics(String(p.session_id)),
-          );
-        }
-      } else if (event.event_type === "ChatToolCallCompleted") {
-        const inner =
-          (event.payload as Record<string, unknown>)?.ChatToolCallCompleted as
-            | {
-                session_id?: string;
-                tool_name?: string;
-                success?: boolean;
-                output_preview?: string;
-              }
-            | undefined;
-        const p = inner ?? (event.payload as Record<string, unknown>);
-        if (p.success === false && p.tool_name) {
-          void sendToolFailureNotification(
-            String(p.session_id ?? ""),
-            String(p.tool_name),
-          );
-        }
-        if (p.session_id) {
-          void import("./chatMetrics").then((m) =>
-            m.refreshSessionMetrics(String(p.session_id)),
-          );
-        }
-      } else if (event.event_type === "ChatError") {
-        const inner =
-          (event.payload as Record<string, unknown>)?.ChatError as
-            | { session_id?: string }
-            | undefined;
-        const p = inner ?? (event.payload as Record<string, unknown>);
-        if (p.session_id) {
-          clearGlobalBuffer(String(p.session_id));
-        }
-      }
+      dispatchChatEvent(event);
       break;
     case "plan-cache-hit":
       lastPlanCacheHit.set(event.payload as unknown as PlanCacheHitEvent);

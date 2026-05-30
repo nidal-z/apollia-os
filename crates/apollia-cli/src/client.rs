@@ -1,13 +1,11 @@
 //! HTTP client for communicating with the Apollia runtime.
 //!
-//! Sur **Unix** (macOS, Linux) : connexion via `tokio::net::UnixStream` au
-//! chemin `--socket` (par défaut `/tmp/apollia.sock`). Sécurité filesystem-based.
+//! On **Unix** (macOS, Linux): connects via `tokio::net::UnixStream` to the
+//! `--socket` path (default `/tmp/apollia.sock`). Filesystem-based security.
 //!
-//! Sur **Windows** : `tokio::net::TcpStream` sur `127.0.0.1:DEFAULT_TCP_PORT`.
-//! Le runtime écoute toujours en TCP en parallèle, et Windows n'a pas de
-//! support natif des Unix domain sockets dans hyper 1.x.
-//!
-//! Cf. STORY-013 dans sprint-multirunner.
+//! On **Windows**: `tokio::net::TcpStream` on `127.0.0.1:DEFAULT_TCP_PORT`.
+//! The runtime always listens on TCP in parallel, and Windows has no native
+//! support for Unix domain sockets in hyper 1.x.
 
 use std::path::{Path, PathBuf};
 
@@ -23,16 +21,16 @@ use tokio::net::UnixStream;
 #[cfg(windows)]
 use tokio::net::TcpStream;
 
-/// Type d'I/O bas niveau utilisé pour la connexion daemon ↔ CLI.
+/// Low-level I/O type used for the daemon to CLI connection.
 #[cfg(unix)]
 type RuntimeStream = UnixStream;
 #[cfg(windows)]
 type RuntimeStream = TcpStream;
 
-/// Ouvre une connexion vers le runtime.
+/// Opens a connection to the runtime.
 ///
-/// Sur Unix, utilise le `socket_path` (Unix domain socket).
-/// Sur Windows, ignore le path et connecte sur `127.0.0.1:DEFAULT_TCP_PORT`.
+/// On Unix, uses `socket_path` (Unix domain socket).
+/// On Windows, ignores the path and connects to `127.0.0.1:DEFAULT_TCP_PORT`.
 #[cfg(unix)]
 async fn connect_runtime(socket_path: &Path) -> std::io::Result<RuntimeStream> {
     UnixStream::connect(socket_path).await
@@ -60,16 +58,16 @@ pub struct RuntimeClient {
 /// Result returned by `POST /api/v1/notifications/test` for one channel.
 #[derive(Debug, serde::Deserialize)]
 pub struct ChannelTestResult {
-    /// Identifiant unique du canal.
+    /// Unique channel identifier.
     pub channel_id: String,
-    /// Type de canal : `"desktop"`, `"webhook"`, ou `"sse"`.
+    /// Channel type: `"desktop"`, `"webhook"`, or `"sse"`.
     #[serde(rename = "type")]
     pub kind: String,
-    /// Statut : `"ok"`, `"error"`, ou `"disabled"`.
+    /// Status: `"ok"`, `"error"`, or `"disabled"`.
     pub status: String,
-    /// Message d'erreur si `status == "error"`.
+    /// Error message when `status == "error"`.
     pub error: Option<String>,
-    /// Latence mesurée en millisecondes (`None` si canal désactivé).
+    /// Measured latency in milliseconds (`None` if the channel is disabled).
     pub latency_ms: Option<u64>,
 }
 
@@ -847,51 +845,13 @@ impl RuntimeClient {
             .await
             .map_err(|e| ClientError::Http(e.to_string()))?;
 
-        // Buffer of 64 events — generous for any realistic task execution.
+        // Buffer of 64 events, generous for any realistic task execution.
         let (tx, rx) = mpsc::channel::<Result<String, ClientError>>(64);
 
         // Background task: reads body frames, accumulates a line buffer, and
         // pushes complete lines (stripped of trailing '\r') to the channel.
         // Exits when the connection closes or when the receiver is dropped.
-        tokio::spawn(async move {
-            let mut buffer = String::new();
-            let mut pinned_body = Box::pin(resp.into_body());
-            let mut tx = tx;
-
-            loop {
-                let frame_opt = std::future::poll_fn(|cx| {
-                    hyper::body::Body::poll_frame(pinned_body.as_mut(), cx)
-                })
-                .await;
-
-                match frame_opt {
-                    None => break, // Server closed the connection
-                    Some(Err(e)) => {
-                        let _ = tx.send(Err(ClientError::Http(e.to_string()))).await;
-                        return;
-                    }
-                    Some(Ok(frame)) => {
-                        let Ok(data) = frame.into_data() else {
-                            continue; // Skip HTTP trailers
-                        };
-                        buffer.push_str(&String::from_utf8_lossy(&data));
-                        // Drain all complete lines ('\n'-terminated) from the buffer.
-                        while let Some(pos) = buffer.find('\n') {
-                            let line = buffer[..pos].trim_end_matches('\r').to_string();
-                            buffer.drain(..=pos);
-                            if tx.send(Ok(line)).await.is_err() {
-                                return; // Receiver dropped — stop reading
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Flush any remaining content that arrived without a trailing newline.
-            if !buffer.is_empty() {
-                let _ = tx.send(Ok(std::mem::take(&mut buffer))).await;
-            }
-        });
+        tokio::spawn(pump_sse_body(resp.into_body(), tx));
 
         Ok(rx)
     }
@@ -1634,6 +1594,61 @@ impl RuntimeClient {
         }
         Ok(serde_json::from_str(&resp.body)?)
     }
+}
+
+/// Reads HTTP body frames from an SSE response, accumulates a line buffer, and
+/// pushes complete lines (stripped of trailing '\r') to `tx`. Exits when the
+/// connection closes or when the receiver is dropped.
+async fn pump_sse_body(
+    body: hyper::body::Incoming,
+    mut tx: mpsc::Sender<Result<String, ClientError>>,
+) {
+    let mut buffer = String::new();
+    let mut pinned_body = Box::pin(body);
+
+    loop {
+        let frame_opt =
+            std::future::poll_fn(|cx| hyper::body::Body::poll_frame(pinned_body.as_mut(), cx))
+                .await;
+
+        match frame_opt {
+            None => break, // Server closed the connection
+            Some(Err(e)) => {
+                let _ = tx.send(Err(ClientError::Http(e.to_string()))).await;
+                return;
+            }
+            Some(Ok(frame)) => {
+                let Ok(data) = frame.into_data() else {
+                    continue; // Skip HTTP trailers
+                };
+                buffer.push_str(&String::from_utf8_lossy(&data));
+                if drain_sse_lines(&mut buffer, &mut tx).await.is_err() {
+                    return; // Receiver dropped, stop reading
+                }
+            }
+        }
+    }
+
+    // Flush any remaining content that arrived without a trailing newline.
+    if !buffer.is_empty() {
+        let _ = tx.send(Ok(std::mem::take(&mut buffer))).await;
+    }
+}
+
+/// Drains all complete ('\n'-terminated) lines from `buffer`, sending each to
+/// `tx`. Returns `Err(())` if the receiver has been dropped.
+async fn drain_sse_lines(
+    buffer: &mut String,
+    tx: &mut mpsc::Sender<Result<String, ClientError>>,
+) -> Result<(), ()> {
+    while let Some(pos) = buffer.find('\n') {
+        let line = buffer[..pos].trim_end_matches('\r').to_string();
+        buffer.drain(..=pos);
+        if tx.send(Ok(line)).await.is_err() {
+            return Err(());
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

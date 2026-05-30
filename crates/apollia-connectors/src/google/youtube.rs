@@ -1,4 +1,4 @@
-//! YouTube Data API v3 client — non-sensitive scope (`youtube.readonly`).
+//! YouTube Data API v3 client, non-sensitive scope (`youtube.readonly`).
 //!
 //! Search videos, fetch video metadata, list a channel's uploads. Useful
 //! for agents that do video-based information retrieval.

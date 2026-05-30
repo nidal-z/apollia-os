@@ -6,7 +6,7 @@
  * `export_conversation` reuses the same logic server-side, but the UI
  * may also render a preview locally without a round-trip.
  */
-import type { ChatMessageView, ChatSessionDetail, ToolCallView } from "$lib/types";
+import type { ChatMessageView, ChatSessionDetail } from "$lib/types";
 
 export type ExportFormat = "markdown" | "json" | "markdown-with-tools";
 
@@ -42,20 +42,20 @@ export function exportConversation(
 function toMarkdown(session: ChatSessionDetail, withTools: boolean): string {
   const lines: string[] = [];
   const title = session.title ?? session.agent_name ?? "Chat conversation";
-  lines.push(`# ${title}`);
-  lines.push("");
-  lines.push(`- **Session:** ${session.id}`);
-  lines.push(`- **Mode:** ${session.mode}${session.agent_name ? ` (${session.agent_name})` : ""}`);
-  lines.push(`- **Created:** ${session.created_at}`);
+  const modeSuffix = session.agent_name ? ` (${session.agent_name})` : "";
+  lines.push(
+    `# ${title}`,
+    "",
+    `- **Session:** ${session.id}`,
+    `- **Mode:** ${session.mode}${modeSuffix}`,
+    `- **Created:** ${session.created_at}`,
+  );
   if (session.closed_at) lines.push(`- **Closed:** ${session.closed_at}`);
   if (session.llm_backend) lines.push(`- **LLM:** ${session.llm_backend}`);
-  lines.push("");
-  lines.push("---");
-  lines.push("");
+  lines.push("", "---", "");
 
   for (const msg of session.messages ?? []) {
-    lines.push(...renderMessage(msg, withTools));
-    lines.push("");
+    lines.push(...renderMessage(msg, withTools), "");
   }
 
   return lines.join("\n");
@@ -66,32 +66,28 @@ function renderMessage(msg: ChatMessageView, withTools: boolean): string[] {
   const role = roleLabel(msg.role);
   out.push(`## ${role} — ${msg.created_at}`);
   if (msg.content?.trim()) {
-    out.push("");
-    out.push(msg.content.trim());
+    out.push("", msg.content.trim());
   }
   if (withTools && msg.tool_calls && msg.tool_calls.length > 0) {
     out.push("");
-    for (const call of msg.tool_calls as ToolCallView[]) {
-      out.push(`<details><summary>🔧 ${call.tool_name} · ${call.status}</summary>`);
-      out.push("");
-      out.push("**Input:**");
-      out.push("```json");
-      out.push(JSON.stringify(call.input, null, 2));
-      out.push("```");
+    for (const call of msg.tool_calls) {
+      const inputJson = JSON.stringify(call.input, null, 2);
+      out.push(
+        `<details><summary>🔧 ${call.tool_name} · ${call.status}</summary>`,
+        "",
+        "**Input:**",
+        "```json",
+        inputJson,
+        "```",
+      );
       if (call.output) {
-        out.push("");
-        out.push("**Output:**");
-        out.push("```");
-        out.push(call.output);
-        out.push("```");
+        out.push("", "**Output:**", "```", call.output, "```");
       }
-      out.push("");
-      out.push("</details>");
+      out.push("", "</details>");
     }
   }
   if (withTools && msg.role === "tool" && msg.tool_name) {
-    out.push("");
-    out.push(`> Tool: \`${msg.tool_name}\``);
+    out.push("", `> Tool: \`${msg.tool_name}\``);
   }
   return out;
 }
@@ -115,9 +111,9 @@ function slugify(input: string): string {
   return input
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replaceAll(/[\u0300-\u036f]/g, "")
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
     .slice(0, 40) || "chat";
 }
 

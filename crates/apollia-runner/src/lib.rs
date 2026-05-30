@@ -1,16 +1,12 @@
-//! Apollia OS — sidecar runner pour l'inférence LLM et STT locale.
+//! Apollia OS sidecar runner for local LLM and STT inference.
 //!
-//! Voir [ADR-113](../../docs/adr/ADR-113-multi-runner-sidecar-architecture.md)
-//! pour le contexte et [IPC-PROTOCOL](../../docs/internal/architecture/IPC-PROTOCOL.md)
-//! pour la spec du protocole.
+//! This crate produces a binary `apollia-runner` (renamed to
+//! `apollia-runner-{backend}` during packaging) that:
 //!
-//! Ce crate produit un binaire `apollia-runner` (renommé en `apollia-runner-{backend}`
-//! lors du packaging) qui :
-//!
-//! 1. Bind un serveur axum sur `127.0.0.1:0` (port choisi par l'OS).
-//! 2. Annonce le port au parent via stdout (`READY <port>\n`).
-//! 3. Sert les endpoints `/handshake`, `/health`, `/llm/*`, `/stt/*`, `/shutdown`.
-//! 4. Charge `llama-cpp-2` et `whisper-rs` avec un seul backend GPU compilé.
+//! 1. Binds an axum server on `127.0.0.1:0` (port picked by the OS).
+//! 2. Announces the port to its parent via stdout (`READY <port>\n`).
+//! 3. Serves the `/handshake`, `/health`, `/llm/*`, `/stt/*`, `/shutdown` endpoints.
+//! 4. Loads `llama-cpp-2` and `whisper-rs` with a single GPU backend compiled in.
 
 pub mod ipc;
 pub mod lifecycle;

@@ -1,10 +1,10 @@
-//! Operation specification — declarative description of a connector operation.
+//! Operation specification: declarative description of a connector operation.
 
 use serde::Serialize;
 
 /// Approval policy for an operation.
 ///
-/// Surfaced to `apollia-tools::governance` (ADR-082): operations marked
+/// Surfaced to `apollia-tools::governance`: operations marked
 /// [`AlwaysRequireApproval`](ApprovalPolicy::AlwaysRequireApproval) trigger
 /// a HITL prompt before execution, even when the agent is otherwise trusted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -31,7 +31,7 @@ pub enum ApprovalPolicy {
 /// owning connector). This keeps `OperationSpec` cheap to clone and
 /// `Serialize` friendly for telemetry and the registry UI.
 ///
-/// `Serialize` only — operation specs are constructed in Rust with static
+/// `Serialize` only: operation specs are constructed in Rust with static
 /// string slices and never round-tripped from JSON.
 #[derive(Debug, Clone, Serialize)]
 pub struct OperationSpec {

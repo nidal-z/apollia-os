@@ -1,4 +1,4 @@
-//! APIServer module — axum HTTP server on Unix socket + TCP.
+//! APIServer module, axum HTTP server on Unix socket + TCP.
 //!
 //! Provides the external API surface for the runtime (CLI, SDK, integrations).
 

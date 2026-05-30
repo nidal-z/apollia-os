@@ -24,7 +24,9 @@ ACTION_FINAL_ANSWER: str = "final_answer"
 # ---------------------------------------------------------------------------
 
 # Matches a JSON object inside an optional ```json ... ``` fence.
-_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
+# NOSONAR S5857 — lazy quantifier is needed to handle nested JSON objects;
+# the `[^}]*` alternative would break matching of fenced nested objects.
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)  # NOSONAR
 
 # Matches a closed `<think>...</think>` reasoning block emitted by Qwen3,
 # DeepSeek-R1 and similar thinking models. We strip these *before* JSON
@@ -47,6 +49,40 @@ class ActionParseError(Exception):
 # ---------------------------------------------------------------------------
 # Public API — general-purpose parsing
 # ---------------------------------------------------------------------------
+
+
+def _try_load_dict(text: str) -> dict[str, Any] | None:
+    """Parse *text* as JSON and return it if (and only if) it's a dict."""
+    try:
+        result = json.loads(text)
+    except ValueError:
+        return None
+    return result if isinstance(result, dict) else None
+
+
+def _try_fenced_json(text: str) -> dict[str, Any] | None:
+    """Return the dict inside a ```json …``` fence, or ``None``."""
+    match = _JSON_FENCE_RE.search(text)
+    if match is None:
+        return None
+    return _try_load_dict(match.group(1))
+
+
+def _outermost_braces(text: str) -> str | None:
+    """Return the ``{…}`` substring between the first ``{`` and last ``}``."""
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    return text[start : end + 1]
+
+
+def _try_repaired_json(target: str) -> dict[str, Any] | None:
+    """Attempt the unescaped-quote repair on *target* and parse the result."""
+    repaired = _repair_unescaped_quotes_in_long_strings(target)
+    if repaired is None:
+        return None
+    return _try_load_dict(repaired)
 
 
 def extract_json(content: str) -> dict[str, Any]:
@@ -78,50 +114,30 @@ def extract_json(content: str) -> dict[str, Any]:
         return {}
 
     # Strategy 1 — full content is already valid JSON.
-    try:
-        result = json.loads(text)
-        if isinstance(result, dict):
-            return result
-    except (json.JSONDecodeError, ValueError):
-        pass
+    result = _try_load_dict(text)
+    if result is not None:
+        return result
 
     # Strategy 2 — JSON is inside a fenced block.
-    match = _JSON_FENCE_RE.search(text)
-    if match:
-        try:
-            result = json.loads(match.group(1))
-            if isinstance(result, dict):
-                return result
-        except (json.JSONDecodeError, ValueError):
-            pass
+    result = _try_fenced_json(text)
+    if result is not None:
+        return result
 
     # Strategy 3 — find outermost braces.
-    start = text.find("{")
-    end = text.rfind("}")
-    candidate = None
-    if start != -1 and end > start:
-        candidate = text[start : end + 1]
-        try:
-            result = json.loads(candidate)
-            if isinstance(result, dict):
-                return result
-        except (json.JSONDecodeError, ValueError):
-            pass
+    candidate = _outermost_braces(text)
+    if candidate is not None:
+        result = _try_load_dict(candidate)
+        if result is not None:
+            return result
 
     # Strategy 4 — heuristic repair of long-string fields whose inner
     # quotes weren't escaped by the LLM.
     for target in (text, candidate):
         if not target:
             continue
-        repaired = _repair_unescaped_quotes_in_long_strings(target)
-        if repaired is None:
-            continue
-        try:
-            result = json.loads(repaired)
-            if isinstance(result, dict):
-                return result
-        except (json.JSONDecodeError, ValueError):
-            continue
+        result = _try_repaired_json(target)
+        if result is not None:
+            return result
 
     return {}
 
@@ -153,8 +169,6 @@ def _repair_unescaped_quotes_in_long_strings(text: str) -> str | None:
     found. The repair is best-effort — if it doesn't produce valid JSON
     the caller will simply fall back.
     """
-    import re
-
     repaired = text
     repaired_any = False
     for field in _LONG_STRING_FIELDS:
@@ -299,7 +313,7 @@ def safe_json_loads(text: str, default: Any = None) -> Any:
         return default
     try:
         return json.loads(text)
-    except (json.JSONDecodeError, ValueError, TypeError):
+    except (ValueError, TypeError):
         return default
 
 

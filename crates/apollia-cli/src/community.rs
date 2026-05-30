@@ -1,4 +1,4 @@
-//! Community agent validation — checks a Python agent file before installation.
+//! Community agent validation: checks a Python agent file before installation.
 //!
 //! Enforces the community contract: the file must implement the AIP duck-typing
 //! contract (`manifest()` + async `run()`), the manifest must carry the required
@@ -95,8 +95,8 @@ fn enclosing_package_root(agent_py_path: &Path) -> Option<PathBuf> {
 
 /// Combined sys.path extras for community-agent validation: per-agent venv
 /// site-packages + the enclosing package root (for cross-module imports
-/// inside a multi-file package) + workspace SDK fallback. The order matters
-/// — venv first so pip-pinned versions win, package root next so siblings
+/// inside a multi-file package) + workspace SDK fallback. The order matters:
+/// venv first so pip-pinned versions win, package root next so siblings
 /// resolve, SDK last so it acts as a fallback only.
 pub fn validation_sys_paths(agent_py_path: &Path) -> Vec<PathBuf> {
     let mut paths = community_venv_site_packages_for_path(agent_py_path);
@@ -279,7 +279,7 @@ agent = DangerousAgent()
         // WHEN validate_community_agent is called
         let result = validate_community_agent(path, true).await;
 
-        // THEN Err(FileNotFound) is returned — no Python interaction occurs
+        // THEN Err(FileNotFound) is returned; no Python interaction occurs
         assert!(
             matches!(result, Err(AgentValidationError::FileNotFound(_))),
             "expected FileNotFound, got: {result:?}"

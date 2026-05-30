@@ -8,9 +8,9 @@ const SUPPORTED_LOCALES = ["fr", "en"] as const;
 const DEFAULT_LOCALE = "fr";
 
 const savedLocale =
-  typeof localStorage !== "undefined"
-    ? localStorage.getItem(LOCALE_STORAGE_KEY)
-    : null;
+  typeof localStorage === "undefined"
+    ? null
+    : localStorage.getItem(LOCALE_STORAGE_KEY);
 
 function resolveInitialLocale(): string {
   if (savedLocale && SUPPORTED_LOCALES.includes(savedLocale as (typeof SUPPORTED_LOCALES)[number])) {

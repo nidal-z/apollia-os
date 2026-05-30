@@ -1,68 +1,68 @@
-//! Commandes IPC Tauri pour l'inspection et la gestion de la mémoire.
+//! Tauri IPC commands for inspecting and managing memory.
 //!
-//! Accède directement aux fichiers SQLite `~/.apollia/memory/<namespace>.db`
-//! via les APIs `apollia-memory` (MemoryStore, EpisodicMemory, SemanticMemory,
-//! ProceduralMemory, MemorySearch). Vue admin — pas de contrôle d'accès namespace.
+//! Accesses the SQLite files `~/.apollia/memory/<namespace>.db` directly via the
+//! `apollia-memory` APIs (MemoryStore, EpisodicMemory, SemanticMemory,
+//! ProceduralMemory, MemorySearch). Admin view: no namespace access control.
 
 use std::path::PathBuf;
 
 use apollia_memory::episodic::EpisodicMemory;
 use apollia_memory::injection_tracker::{global_entries_for, InjectedEntry};
 use apollia_memory::procedural::ProceduralMemory;
-use apollia_memory::search::{MemorySearch, SearchSource};
+use apollia_memory::search::{MemorySearch, SearchQuery, SearchSource};
 use apollia_memory::semantic::SemanticMemory;
 use apollia_memory::store::MemoryStore;
 use serde::Serialize;
 
-/// Répertoire par défaut des fichiers mémoire.
+/// Default directory for memory files.
 const MEMORY_DIR: &str = ".apollia/memory";
 
-/// Entrée mémoire unifiée pour l'affichage dans l'UI.
+/// Unified memory entry for display in the UI.
 #[derive(Debug, Serialize)]
 pub struct MemoryEntry {
-    /// UUID de l'entrée.
+    /// Entry UUID.
     pub id: String,
-    /// Type : `"episodic"` | `"semantic"` | `"procedural"`.
+    /// Type: `"episodic"` | `"semantic"` | `"procedural"`.
     pub entry_type: String,
-    /// Clé ou sujet (key pour semantic, trigger pour procedural, agent_id pour episodic).
+    /// Key or subject (key for semantic, trigger for procedural, agent_id for episodic).
     pub key: String,
-    /// Valeur ou contenu textuel.
+    /// Value or text content.
     pub value: String,
-    /// Date de création ISO 8601.
+    /// ISO 8601 creation date.
     pub created_at: String,
-    /// Date d'expiration ISO 8601 ou `null` si pas de TTL.
+    /// ISO 8601 expiration date, or `null` if no TTL.
     pub expires_at: Option<String>,
-    /// Score BM25 (uniquement en mode recherche, sinon `null`).
+    /// BM25 score (search mode only, otherwise `null`).
     pub score: Option<f64>,
 }
 
-/// Résultat de recherche FTS5 pour l'UI.
+/// FTS5 search result for the UI.
 #[derive(Debug, Serialize)]
 pub struct MemorySearchResult {
-    /// UUID de l'entrée source.
+    /// UUID of the source entry.
     pub id: String,
-    /// Type : `"episodic"` | `"semantic"`.
+    /// Type: `"episodic"` | `"semantic"`.
     pub entry_type: String,
-    /// Contenu textuel du résultat.
+    /// Text content of the result.
     pub content: String,
-    /// Score BM25 (plus élevé = plus pertinent).
+    /// BM25 score (higher = more relevant).
     pub score: f64,
-    /// Importance (episodic) ou confiance (semantic).
+    /// Importance (episodic) or confidence (semantic).
     pub relevance: Option<f64>,
-    /// Date de création ISO 8601.
+    /// ISO 8601 creation date.
     pub created_at: String,
 }
 
-/// Résout le chemin du répertoire mémoire (`~/.apollia/memory/`).
+/// Resolves the memory directory path (`~/.apollia/memory/`).
 fn memory_base_dir() -> Result<PathBuf, String> {
     let home = std::env::var("HOME")
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
     Ok(PathBuf::from(home).join(MEMORY_DIR))
 }
 
-/// Liste les namespaces mémoire disponibles (un fichier `.db` = un namespace).
+/// Lists the available memory namespaces (one `.db` file = one namespace).
 ///
-/// Scanne `~/.apollia/memory/*.db` et retourne les noms sans extension.
+/// Scans `~/.apollia/memory/*.db` and returns the names without the extension.
 #[tauri::command]
 pub async fn list_memory_namespaces() -> Result<Vec<String>, String> {
     let base = memory_base_dir()?;
@@ -90,9 +90,9 @@ pub async fn list_memory_namespaces() -> Result<Vec<String>, String> {
     Ok(namespaces)
 }
 
-/// Liste toutes les entrées mémoire d'un namespace (episodic + semantic + procedural).
+/// Lists all memory entries of a namespace (episodic + semantic + procedural).
 ///
-/// Retourne une liste unifiée d'entrées triées par date de création décroissante.
+/// Returns a unified list of entries sorted by creation date descending.
 #[tauri::command]
 pub async fn list_memory_entries(namespace: String) -> Result<Vec<MemoryEntry>, String> {
     let base = memory_base_dir()?;
@@ -155,9 +155,9 @@ pub async fn list_memory_entries(namespace: String) -> Result<Vec<MemoryEntry>, 
     Ok(entries)
 }
 
-/// Recherche FTS5 dans un namespace mémoire.
+/// FTS5 search within a memory namespace.
 ///
-/// Retourne les résultats triés par score BM25 décroissant.
+/// Returns the results sorted by BM25 score descending.
 #[tauri::command]
 pub async fn search_memory(
     namespace: String,
@@ -174,7 +174,13 @@ pub async fn search_memory(
     let search = MemorySearch::new(&store);
 
     let results = search
-        .query(&namespace, &query, 50, None, None)
+        .query(SearchQuery {
+            namespace: &namespace,
+            query: &query,
+            limit: 50,
+            sources: None,
+            min_importance: None,
+        })
         .map_err(|e| format!("search failed: {e}"))?;
 
     Ok(results
@@ -193,10 +199,10 @@ pub async fn search_memory(
         .collect())
 }
 
-/// Efface toutes les entrées mémoire d'un namespace par type.
+/// Clears all memory entries of a namespace by type.
 ///
-/// `memory_type` peut être `"episodic"`, `"semantic"`, `"procedural"`, ou `"all"` (défaut).
-/// Retourne le nombre total d'entrées supprimées.
+/// `memory_type` can be `"episodic"`, `"semantic"`, `"procedural"`, or `"all"` (default).
+/// Returns the total number of removed entries.
 #[tauri::command]
 pub async fn clear_memory(namespace: String, memory_type: Option<String>) -> Result<u64, String> {
     let base = memory_base_dir()?;
@@ -242,10 +248,10 @@ pub async fn clear_memory(namespace: String, memory_type: Option<String>) -> Res
     Ok(total)
 }
 
-/// Purge les entrées mémoire plus anciennes que N jours.
+/// Purges memory entries older than N days.
 ///
-/// `memory_type` peut être `"episodic"`, `"semantic"`, `"procedural"`, ou `"all"` (défaut).
-/// Retourne le nombre total d'entrées purgées.
+/// `memory_type` can be `"episodic"`, `"semantic"`, `"procedural"`, or `"all"` (default).
+/// Returns the total number of purged entries.
 #[tauri::command]
 pub async fn purge_memory(
     namespace: String,
@@ -301,10 +307,10 @@ pub async fn purge_memory(
     Ok(total)
 }
 
-/// Supprime une entrée mémoire par son UUID.
+/// Deletes a memory entry by its UUID.
 ///
-/// Cherche dans toutes les tables (episodic, semantic, procedural) et supprime
-/// l'entrée correspondante ainsi que son index FTS5.
+/// Searches all tables (episodic, semantic, procedural) and deletes the
+/// matching entry along with its FTS5 index.
 #[tauri::command]
 pub async fn delete_memory_entry(namespace: String, entry_id: String) -> Result<bool, String> {
     let base = memory_base_dir()?;
@@ -321,10 +327,10 @@ pub async fn delete_memory_entry(namespace: String, entry_id: String) -> Result<
         .map_err(|e| format!("failed to delete entry: {e}"))
 }
 
-/// Exporte la mémoire d'un namespace vers un fichier JSON.
+/// Exports a namespace's memory to a JSON file.
 ///
-/// `output_path` : chemin absolu du fichier de sortie.
-/// Retourne un message de confirmation avec les statistiques d'export.
+/// `output_path`: absolute path of the output file.
+/// Returns a confirmation message with the export statistics.
 #[tauri::command]
 pub async fn memory_export_namespace(
     namespace: String,
@@ -349,10 +355,10 @@ pub async fn memory_export_namespace(
     ))
 }
 
-/// Importe la mémoire depuis un fichier JSON vers un namespace.
+/// Imports memory from a JSON file into a namespace.
 ///
-/// `mode` peut être `"replace"` ou `"merge"` (défaut: `"merge"`).
-/// Retourne le nombre d'entrées importées.
+/// `mode` can be `"replace"` or `"merge"` (default: `"merge"`).
+/// Returns the number of imported entries.
 #[tauri::command]
 pub async fn memory_import_namespace(
     namespace: String,

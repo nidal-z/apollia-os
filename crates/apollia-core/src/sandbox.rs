@@ -1,23 +1,23 @@
 use serde::{Deserialize, Serialize};
 
-/// Profil d'isolation sandbox appliqué à l'exécution d'un outil natif.
+/// Sandbox isolation profile applied to the execution of a native tool.
 ///
-/// Défini dans apollia-core car c'est une contrainte architecturale fondamentale (ADR-005).
-/// L'isolation effective est implémentée dans apollia-tools via Linux namespaces.
+/// Defined in apollia-core because it is a fundamental architectural constraint.
+/// The effective isolation is implemented in apollia-tools via Linux namespaces.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SandboxProfile {
     /// tmpfs read-only + PID namespace. 128MB RAM, 30s timeout.
-    /// Usage: lecture de fichiers, calculs purs.
+    /// Usage: reading files, pure computation.
     ReadOnly,
     /// Sandbox filesystem rw + PID namespace. 256MB RAM, 60s timeout.
-    /// Usage: écriture de fichiers dans un répertoire isolé.
+    /// Usage: writing files in an isolated directory.
     FileSystem,
     /// FileSystem + network namespace + iptables allowlist.
-    /// Accès réseau limité à network_allowlist du manifest.
+    /// Network access limited to the manifest's network_allowlist.
     NetworkRestricted,
-    /// Tout autorisé — aucune restriction de sandbox.
-    /// EXIGE dangerous=true dans ToolDescriptor. Non recommandé en production.
+    /// Everything allowed, no sandbox restriction.
+    /// REQUIRES dangerous=true in ToolDescriptor. Not recommended in production.
     Full,
 }
 

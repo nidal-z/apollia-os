@@ -1,13 +1,12 @@
-//! ORIA Reasoner — produit un `ExecutionPlan` structuré via un appel LLM.
+//! ORIA Reasoner: produces a structured `ExecutionPlan` via an LLM call.
 //!
-//! Le Reasoner est le composant central du pipeline ORIA pour le mode Orchestrated.
-//! Il reçoit un [`crate::observer::ContextBundle`] enrichi par l'Observer, appelle
-//! un LLM via `Arc<dyn CompletionModel>` et retourne un [`crate::plan::ExecutionPlan`]
-//! validé.
+//! The Reasoner is the central component of the ORIA pipeline for Orchestrated mode.
+//! It receives a [`crate::observer::ContextBundle`] enriched by the Observer, calls
+//! an LLM via `Arc<dyn CompletionModel>` and returns a validated
+//! [`crate::plan::ExecutionPlan`].
 //!
-//! En cas de réponse invalide, un message de correction est injecté dans le prompt
-//! et l'appel est retenté jusqu'à [`MAX_ATTEMPTS`] fois (principe #4 — Fail fast
-//! après N retries).
+//! On an invalid response, a correction message is injected into the prompt and
+//! the call is retried up to [`MAX_ATTEMPTS`] times (fail fast after N retries).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -16,72 +15,68 @@ use apollia_core::decision_point::DecisionKind;
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::plan_alternatives::{PlanAlternatives, TaskPlan, TaskPlanStep};
 use apollia_core::{AIPPart, ORIAConfig};
-use apollia_llm::meta_orchestrator::MetaOrchestratorHandle;
+use apollia_llm::meta_orchestrator::{DecisionPointRequest, MetaOrchestratorHandle};
 use apollia_llm::{ChatMessage, CompletionModel, CompletionRequest};
 
 use crate::observer::ContextBundle;
 use crate::plan::{ExecutionPlan, PlanStep};
 use crate::topo::topological_sort;
 
-// ─────────────────────────────────────────────
 // Error types
-// ─────────────────────────────────────────────
 
-/// Erreurs de validation d'un plan individuel retourné par le LLM.
+/// Validation errors for a single plan returned by the LLM.
 ///
-/// Retournées par [`Reasoner::parse_and_validate`] ; encapsulées dans
-/// [`ReasonerError::PlanParseError`] après épuisement des tentatives.
+/// Returned by [`Reasoner::parse_and_validate`]; wrapped in
+/// [`ReasonerError::PlanParseError`] after the retries are exhausted.
 #[derive(Debug, thiserror::Error)]
 pub enum PlanValidationError {
-    /// La réponse du LLM n'est pas du JSON valide.
+    /// The LLM response is not valid JSON.
     #[error("Invalid JSON: {0}")]
     InvalidJson(String),
-    /// La structure JSON ne correspond pas au schéma `{{ "steps": [...] }}` attendu.
+    /// The JSON structure does not match the expected `{{ "steps": [...] }}` schema.
     #[error("Invalid structure: {0}")]
     InvalidStructure(String),
-    /// Plusieurs steps partagent le même `step_id`.
+    /// Several steps share the same `step_id`.
     #[error("Duplicate step IDs")]
     DuplicateStepIds,
-    /// Un step référence dans ses `depends_on` un `step_id` inexistant dans le plan.
+    /// A step's `depends_on` references a `step_id` that does not exist in the plan.
     #[error("Unknown dependency: step '{step_id}' depends on unknown '{dep}'")]
     UnknownDependency {
-        /// Identifiant du step qui contient la référence invalide.
+        /// Identifier of the step containing the invalid reference.
         step_id: String,
-        /// Identifiant de la dépendance introuvable.
+        /// Identifier of the missing dependency.
         dep: String,
     },
-    /// Les dépendances forment un cycle — exécution topologique impossible.
+    /// The dependencies form a cycle, topological execution is impossible.
     #[error("Circular dependency detected")]
     CircularDependency,
 }
 
-/// Erreurs du Reasoner ORIA.
+/// ORIA Reasoner errors.
 #[derive(Debug, thiserror::Error)]
 pub enum ReasonerError {
-    /// Échec d'un appel LLM (réseau, timeout, backend indisponible…).
+    /// An LLM call failed (network, timeout, backend unavailable, etc.).
     #[error("LLM call failed: {0}")]
     LlmFailed(String),
-    /// Échec de parsage/validation JSON après N tentatives consécutives.
+    /// JSON parse/validation failed after N consecutive attempts.
     #[error("Plan parse/validation failed after {attempts} attempts: {reason}")]
     PlanParseError {
-        /// Nombre de tentatives effectuées avant l'abandon.
+        /// Number of attempts made before giving up.
         attempts: u32,
-        /// Dernière erreur de validation rencontrée.
+        /// Last validation error encountered.
         reason: String,
     },
 }
 
-// ─────────────────────────────────────────────
 // Constants
-// ─────────────────────────────────────────────
 
-/// Nombre maximum de tentatives de génération de plan avant abandon.
+/// Maximum number of plan-generation attempts before giving up.
 const MAX_ATTEMPTS: u32 = 3;
 
-/// Prompt système pour la planification initiale.
+/// System prompt for initial planning.
 ///
-/// Les placeholders `{max_steps}`, `{tool_names}`, `{llm_backend_names}`,
-/// `{memory_summary}` et `{recent_history}` sont interpolés par
+/// The placeholders `{max_steps}`, `{tool_names}`, `{llm_backend_names}`,
+/// `{memory_summary}` and `{recent_history}` are interpolated by
 /// `build_system_prompt()` via `str::replace`.
 const PLANNER_SYSTEM_PROMPT: &str = r#"Tu es un planificateur d'exécution pour un agent IA autonome.
 À partir du contexte et du system_prompt de l'agent, génère un plan d'exécution structuré.
@@ -101,10 +96,10 @@ RÉPONDRE UNIQUEMENT EN JSON VALIDE, sans texte avant ou après :
 Contexte mémoire disponible : {memory_summary}
 Historique récent : {recent_history}"#;
 
-/// Prompt système pour la replanification partielle après l'échec d'un step.
+/// System prompt for partial replanning after a step failure.
 ///
-/// Les placeholders `{original_plan_json}`, `{completed_steps_json}`,
-/// `{failed_step_id}` et `{error_message}` sont interpolés par `replan()`.
+/// The placeholders `{original_plan_json}`, `{completed_steps_json}`,
+/// `{failed_step_id}` and `{error_message}` are interpolated by `replan()`.
 const REPLANNER_SYSTEM_PROMPT: &str = r#"Le plan d'exécution a rencontré une erreur. Génère un plan alternatif.
 
 Plan original : {original_plan_json}
@@ -115,36 +110,34 @@ Génère un nouveau plan pour les steps restants uniquement.
 Réutilise les outputs des steps déjà complétés si pertinent.
 RÉPONDRE UNIQUEMENT EN JSON VALIDE."#;
 
-// ─────────────────────────────────────────────
 // Reasoner
-// ─────────────────────────────────────────────
 
-/// Produit et valide des [`ExecutionPlan`] via un appel LLM.
+/// Produces and validates [`ExecutionPlan`]s via an LLM call.
 ///
-/// Le `Reasoner` reçoit un `Arc<dyn CompletionModel>` injecté (pattern ADR-016
-/// pour la testabilité) et un `max_steps` bornant la taille des plans générés
-/// (principe #7 — Garde-fous non-négociables).
+/// The `Reasoner` receives an injected `Arc<dyn CompletionModel>` (for testability)
+/// and a `max_steps` bounding the size of generated plans (non-negotiable safety
+/// guardrail).
 ///
-/// En cas de réponse JSON invalide, le message d'erreur est injecté dans le prompt
-/// suivant et l'appel est retenté jusqu'à [`MAX_ATTEMPTS`] fois.
+/// On an invalid JSON response, the error message is injected into the next prompt
+/// and the call is retried up to [`MAX_ATTEMPTS`] times.
 pub struct Reasoner {
     model: Arc<dyn CompletionModel>,
     max_steps: u32,
-    /// Optional EventBus pour émettre `ThinkingStarted` / `ThinkingEnded` autour
-    /// de la phase Reasoner. Injecté via [`Reasoner::with_event_bus`].
+    /// Optional EventBus to emit `ThinkingStarted` / `ThinkingEnded` around the
+    /// Reasoner phase. Injected via [`Reasoner::with_event_bus`].
     event_bus: Option<EventBusSender>,
-    /// Optional handle vers le `MetaLlmOrchestrator` — utilisé pour extraire
-    /// les branches alternatives de la trace de thinking et émettre un
-    /// `DecisionPointRecorded`. Opt-in via le
-    /// toggle `routines.decision_branches`.
+    /// Optional handle to the `MetaLlmOrchestrator`, used to extract the
+    /// alternative branches from the thinking trace and emit a
+    /// `DecisionPointRecorded`. Opt-in via the
+    /// `routines.decision_branches` toggle.
     meta_orchestrator: Option<MetaOrchestratorHandle>,
 }
 
 impl Reasoner {
-    /// Crée un `Reasoner` avec le modèle LLM injecté et un budget maximum de steps.
+    /// Create a `Reasoner` with the injected LLM model and a maximum step budget.
     ///
-    /// `max_steps` borne la taille du plan que le LLM est autorisé à générer.
-    /// Il est typiquement dérivé du `StepBudget` de l'agent via `from_capped()`.
+    /// `max_steps` bounds the plan size the LLM is allowed to generate.
+    /// It is typically derived from the agent's `StepBudget` via `from_capped()`.
     pub fn new(model: Arc<dyn CompletionModel>, max_steps: u32) -> Self {
         Self {
             model,
@@ -154,7 +147,7 @@ impl Reasoner {
         }
     }
 
-    /// Attache un `EventBusSender` pour émettre les événements de transparence
+    /// Attach an `EventBusSender` to emit the transparency events
     /// `ThinkingStarted` / `ThinkingEnded`.
     #[must_use]
     pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
@@ -162,17 +155,17 @@ impl Reasoner {
         self
     }
 
-    /// Attache un `MetaOrchestratorHandle` pour activer l'extraction des
-    /// branches alternatives du thinking. Opt-in : la routine
-    /// `GenerateAlternativeBranches` doit être activée dans `MetaLlmSettings`
-    /// (par défaut off). Sans ce handle, aucun `DecisionPointRecorded` n'est émis.
+    /// Attach a `MetaOrchestratorHandle` to enable extracting alternative branches
+    /// from the thinking trace. Opt-in: the `GenerateAlternativeBranches` routine
+    /// must be enabled in `MetaLlmSettings` (off by default). Without this handle,
+    /// no `DecisionPointRecorded` is emitted.
     #[must_use]
     pub fn with_meta_orchestrator(mut self, handle: MetaOrchestratorHandle) -> Self {
         self.meta_orchestrator = Some(handle);
         self
     }
 
-    /// Timestamp Unix en millisecondes — utilisé pour horodater les events thinking.
+    /// Unix timestamp in milliseconds, used to time-stamp thinking events.
     fn now_ms() -> u64 {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -180,7 +173,7 @@ impl Reasoner {
             .as_millis() as u64
     }
 
-    /// Émet `ThinkingStarted` sur le bus si configuré — silencieux si le bus est absent.
+    /// Emit `ThinkingStarted` on the bus if configured, silent when the bus is absent.
     fn emit_thinking_started(&self, turn_id: &str) -> (u64, std::time::Instant) {
         let ts = Self::now_ms();
         let start = std::time::Instant::now();
@@ -193,7 +186,7 @@ impl Reasoner {
         (ts, start)
     }
 
-    /// Émet `ThinkingEnded` avec le raw content et les tokens consommés.
+    /// Emit `ThinkingEnded` with the raw content and consumed tokens.
     fn emit_thinking_ended(
         &self,
         turn_id: &str,
@@ -213,16 +206,16 @@ impl Reasoner {
         }
     }
 
-    /// Extrait les branches alternatives du thinking via la routine méta
-    /// `GenerateAlternativeBranches` puis émet `DecisionPointRecorded`.
+    /// Extract alternative branches from the thinking trace via the meta routine
+    /// `GenerateAlternativeBranches`, then emit `DecisionPointRecorded`.
     ///
-    /// Silencieux (no-op) si :
-    /// - aucun `MetaOrchestratorHandle` n'est branché,
-    /// - aucun `EventBusSender` n'est branché,
-    /// - la routine est désactivée / budget épuisé / timeout / parse échoue.
+    /// No-op when:
+    /// - no `MetaOrchestratorHandle` is wired,
+    /// - no `EventBusSender` is wired,
+    /// - the routine is disabled / budget exhausted / timeout / parse fails.
     ///
-    /// Kind utilisé : [`DecisionKind::ToolChoice`] — le step racine d'un plan
-    /// représente le choix d'outil principal de ce tour.
+    /// Kind used: [`DecisionKind::ToolChoice`], the root step of a plan represents
+    /// the main tool choice of this turn.
     async fn maybe_emit_decision_point(
         &self,
         turn_id: &str,
@@ -243,10 +236,12 @@ impl Reasoner {
 
         if let Some(point) = orchestrator
             .generate_decision_point(
-                turn_id,
-                DecisionKind::ToolChoice,
-                thinking_raw,
-                &chosen,
+                DecisionPointRequest {
+                    turn_id,
+                    kind: DecisionKind::ToolChoice,
+                    thinking_raw,
+                    chosen_action: &chosen,
+                },
                 turn_id,
             )
             .await
@@ -255,22 +250,22 @@ impl Reasoner {
         }
     }
 
-    /// Génère un plan d'exécution initial depuis le [`ContextBundle`].
+    /// Generate an initial execution plan from the [`ContextBundle`].
     ///
-    /// Délègue à [`plan_internal`] avec la température par défaut (`None`).
-    /// Retourne [`ReasonerError::PlanParseError`] après [`MAX_ATTEMPTS`] tentatives.
+    /// Delegates to [`plan_internal`] with the default temperature (`None`).
+    /// Returns [`ReasonerError::PlanParseError`] after [`MAX_ATTEMPTS`] attempts.
     pub async fn plan(&self, ctx: &ContextBundle) -> Result<ExecutionPlan, ReasonerError> {
         self.plan_internal(ctx, None).await
     }
 
-    /// Génère deux plans alternatifs en parallèle via `tokio::join!`.
+    /// Generate two alternative plans in parallel via `tokio::join!`.
     ///
-    /// Plan A est produit à `config.plan_alternatives_temp_a` (basse température —
-    /// déterministe, conservateur). Plan B est produit à `config.plan_alternatives_temp_b`
-    /// (haute température — créatif, exploratoire).
+    /// Plan A is produced at `config.plan_alternatives_temp_a` (low temperature:
+    /// deterministic, conservative). Plan B is produced at `config.plan_alternatives_temp_b`
+    /// (high temperature: creative, exploratory).
     ///
-    /// Les deux appels LLM sont concurrents : la durée totale est ≈ 1 appel, pas 2.
-    /// Retourne [`ReasonerError`] si l'un des deux plans est invalide après retries.
+    /// Both LLM calls are concurrent: total duration is roughly 1 call, not 2.
+    /// Returns [`ReasonerError`] if either plan is invalid after retries.
     pub async fn plan_with_alternatives(
         &self,
         ctx: &ContextBundle,
@@ -308,13 +303,13 @@ impl Reasoner {
         })
     }
 
-    /// Génère un plan d'exécution avec une température LLM explicite.
+    /// Generate an execution plan with an explicit LLM temperature.
     ///
-    /// Implémentation commune partagée par [`plan`] et [`plan_with_alternatives`].
-    /// Applique jusqu'à [`MAX_ATTEMPTS`] retries en cas de JSON invalide.
+    /// Shared implementation used by [`plan`] and [`plan_with_alternatives`].
+    /// Applies up to [`MAX_ATTEMPTS`] retries on invalid JSON.
     ///
-    /// `temperature` est transmis à [`CompletionRequest`] si `Some` ; le backend
-    /// utilise sa valeur par défaut si `None`.
+    /// `temperature` is passed to [`CompletionRequest`] when `Some`; the backend
+    /// uses its default value when `None`.
     async fn plan_internal(
         &self,
         ctx: &ContextBundle,
@@ -393,13 +388,13 @@ impl Reasoner {
         })
     }
 
-    /// Replanification partielle après l'échec d'un step.
+    /// Partial replanning after a step failure.
     ///
-    /// Génère uniquement les steps restants en tenant compte des outputs des steps
-    /// complétés (`completed_outputs`) et de la raison d'échec du step `failed_step_id`.
+    /// Generates only the remaining steps, accounting for the completed steps'
+    /// outputs (`completed_outputs`) and the failure reason of `failed_step_id`.
     ///
-    /// Un seul appel LLM sans retry propre — la gestion des retries de replanification
-    /// incombe à l'`ActorLoop`.
+    /// A single LLM call without its own retry: replan retry management is the
+    /// `ActorLoop`'s responsibility.
     pub async fn replan(
         &self,
         ctx: &ContextBundle,
@@ -432,16 +427,16 @@ impl Reasoner {
             })
     }
 
-    /// Valide un plan JSON brut retourné par le LLM.
+    /// Validate a raw JSON plan returned by the LLM.
     ///
-    /// 5 validations séquentielles — retourne `Err` au premier problème rencontré :
-    /// 1. Strip les backticks Markdown éventuels et parse le JSON
-    /// 2. Désérialise le tableau de [`PlanStep`] depuis le champ `"steps"`
-    /// 3. Vérifie que tous les `step_id` sont uniques
-    /// 4. Vérifie que chaque `depends_on` référence un `step_id` existant dans le plan
-    /// 5. Détecte les cycles via [`topological_sort`] (algorithme de Kahn)
+    /// 5 sequential validations, returning `Err` at the first problem encountered:
+    /// 1. Strip any Markdown backticks and parse the JSON
+    /// 2. Deserialize the [`PlanStep`] array from the `"steps"` field
+    /// 3. Check that all `step_id`s are unique
+    /// 4. Check that each `depends_on` references a `step_id` present in the plan
+    /// 5. Detect cycles via [`topological_sort`] (Kahn's algorithm)
     ///
-    /// Cette fonction est publique et pure — testable indépendamment du LLM.
+    /// This function is public and pure, testable independently of the LLM.
     pub fn parse_and_validate(
         &self,
         raw: &str,
@@ -599,12 +594,12 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Mutex;
 
-    // ─── Mock LLM ─────────────────────────────
+    // Mock LLM
 
-    /// Mock `CompletionModel` pour les tests du Reasoner.
+    /// Mock `CompletionModel` for Reasoner tests.
     ///
-    /// Consomme les réponses de la `queue` dans l'ordre ; utilise `fallback`
-    /// une fois la queue épuisée. Compte le nombre d'appels via `call_count`.
+    /// Consumes `queue` responses in order; uses `fallback` once the queue is
+    /// exhausted. Counts the number of calls via `call_count`.
     struct MockCompletionModel {
         queue: Mutex<VecDeque<String>>,
         fallback: String,
@@ -693,10 +688,10 @@ mod tests {
 
     // ─── Plan valide depuis mock LLM ───
 
-    /// GIVEN un Reasoner avec un mock CompletionModel qui retourne un JSON valide
-    /// WHEN reasoner.plan(&ctx).await est appelé
-    /// THEN Ok(ExecutionPlan) est retourné avec 2 steps
-    ///   ET le mock a été appelé exactement 1 fois
+    /// GIVEN a Reasoner with a mock CompletionModel returning valid JSON
+    /// WHEN reasoner.plan(&ctx).await is called
+    /// THEN Ok(ExecutionPlan) is returned with 2 steps
+    ///   AND the mock was called exactly once
     #[tokio::test]
     async fn test_ac1_plan_valide_depuis_mock_llm() {
         // GIVEN
@@ -715,12 +710,12 @@ mod tests {
         assert_eq!(model.calls(), 1);
     }
 
-    // ─── Retry ×3 sur JSON invalide ───
+    // Retry x3 on invalid JSON
 
-    /// GIVEN un mock qui retourne du texte non-JSON 3 fois
-    /// WHEN reasoner.plan(&ctx).await est appelé
-    /// THEN Err(PlanParseError { attempts: 3 }) est retourné
-    ///   ET le mock a été appelé exactement 3 fois
+    /// GIVEN a mock returning non-JSON text 3 times
+    /// WHEN reasoner.plan(&ctx).await is called
+    /// THEN Err(PlanParseError { attempts: 3 }) is returned
+    ///   AND the mock was called exactly 3 times
     #[tokio::test]
     async fn test_ac2_retry_3_fois_sur_json_invalide() {
         // GIVEN
@@ -742,11 +737,11 @@ mod tests {
         assert_eq!(model.calls(), 3);
     }
 
-    // ─── Détection dépendance circulaire → retry ───
+    // Circular dependency detected: retry
 
-    /// GIVEN un mock qui retourne un plan cyclique 3 fois
-    /// WHEN reasoner.plan(&ctx).await est appelé
-    /// THEN PlanParseError après 3 tentatives
+    /// GIVEN a mock returning a cyclic plan 3 times
+    /// WHEN reasoner.plan(&ctx).await is called
+    /// THEN PlanParseError after 3 attempts
     #[tokio::test]
     async fn test_ac3_cycle_detecte_et_retry() {
         // GIVEN
@@ -768,11 +763,11 @@ mod tests {
         assert_eq!(model.calls(), 3);
     }
 
-    // ─── suite — cycle puis plan valide ───
+    // continued: cycle then valid plan
 
-    /// GIVEN un mock qui retourne un plan cyclique puis un plan valide
-    /// WHEN reasoner.plan(&ctx).await est appelé
-    /// THEN Ok(ExecutionPlan) au 2ème essai
+    /// GIVEN a mock returning a cyclic plan then a valid plan
+    /// WHEN reasoner.plan(&ctx).await is called
+    /// THEN Ok(ExecutionPlan) on the 2nd attempt
     #[tokio::test]
     async fn test_ac3_cycle_puis_plan_valide() {
         // GIVEN
@@ -788,11 +783,11 @@ mod tests {
         assert_eq!(model.calls(), 2);
     }
 
-    // ─── replan() génère un plan partiel ───
+    // replan() generates a partial plan
 
-    /// GIVEN un mock qui retourne un plan de remplacement valide
-    /// WHEN reasoner.replan(&ctx, &outputs, "s3", "timeout").await est appelé
-    /// THEN Ok(ExecutionPlan) avec les nouveaux steps
+    /// GIVEN a mock returning a valid replacement plan
+    /// WHEN reasoner.replan(&ctx, &outputs, "s3", "timeout").await is called
+    /// THEN Ok(ExecutionPlan) with the new steps
     #[tokio::test]
     async fn test_ac5_replan_retourne_plan_valide() {
         // GIVEN
@@ -819,11 +814,11 @@ mod tests {
         assert_eq!(model.calls(), 1);
     }
 
-    // ─── Backticks Markdown strippés ───
+    // Markdown backticks stripped
 
-    /// GIVEN une réponse LLM avec backticks Markdown
-    /// WHEN parse_and_validate() est appelé
-    /// THEN le JSON est parsé correctement
+    /// GIVEN an LLM response with Markdown backticks
+    /// WHEN parse_and_validate() is called
+    /// THEN the JSON is parsed correctly
     #[test]
     fn test_ac6_backticks_strippes() {
         // GIVEN
@@ -838,10 +833,10 @@ mod tests {
         assert_eq!(result.unwrap().steps[0].step_id, "s1");
     }
 
-    // ─── Validation directe de parse_and_validate ───
+    // Direct validation of parse_and_validate
 
-    /// GIVEN un plan avec dépendance vers step inexistant
-    /// WHEN parse_and_validate() est appelé
+    /// GIVEN a plan with a dependency on a nonexistent step
+    /// WHEN parse_and_validate() is called
     /// THEN Err(UnknownDependency)
     #[test]
     fn test_unknown_dependency() {
@@ -859,8 +854,8 @@ mod tests {
         );
     }
 
-    /// GIVEN un plan avec deux steps ayant le même step_id
-    /// WHEN parse_and_validate() est appelé
+    /// GIVEN a plan with two steps sharing the same step_id
+    /// WHEN parse_and_validate() is called
     /// THEN Err(DuplicateStepIds)
     #[test]
     fn test_duplicate_step_ids() {
@@ -881,9 +876,9 @@ mod tests {
         );
     }
 
-    /// GIVEN un plan 3 steps linéaires (s1→s2→s3)
-    /// WHEN parse_and_validate() est appelé
-    /// THEN Ok(ExecutionPlan) avec 3 steps et task_id correct
+    /// GIVEN a linear 3-step plan (s1->s2->s3)
+    /// WHEN parse_and_validate() is called
+    /// THEN Ok(ExecutionPlan) with 3 steps and the correct task_id
     #[test]
     fn test_parse_and_validate_plan_lineaire() {
         // GIVEN
@@ -899,10 +894,10 @@ mod tests {
         assert!(!plan.plan_id.is_empty());
     }
 
-    // ─── Désérialisation sans model_hint ───
+    // Deserialization without model_hint
 
-    /// GIVEN un JSON de PlanStep sans champ model_hint
-    /// WHEN on désérialise
+    /// GIVEN a PlanStep JSON without a model_hint field
+    /// WHEN deserializing
     /// THEN model_hint == None (serde default)
     #[test]
     fn test_deserialize_plan_without_model_hint() {
@@ -921,10 +916,10 @@ mod tests {
         assert_eq!(steps[0].model_hint, None);
     }
 
-    // ─── Désérialisation avec model_hint ───
+    // Deserialization with model_hint
 
-    /// GIVEN un JSON de PlanStep avec "model_hint": "fast-7b"
-    /// WHEN on désérialise
+    /// GIVEN a PlanStep JSON with "model_hint": "fast-7b"
+    /// WHEN deserializing
     /// THEN model_hint == Some("fast-7b")
     #[test]
     fn test_deserialize_plan_with_model_hint() {
@@ -961,12 +956,12 @@ mod tests {
         );
     }
 
-    // ─── Deux plans générés en parallèle ───
+    // Two plans generated in parallel
 
-    /// GIVEN un Reasoner avec un mock CompletionModel fournissant deux plans valides
-    /// WHEN plan_with_alternatives(&ctx, &config) est appelé
-    /// THEN PlanAlternatives retourné avec plan_a et plan_b non-vides
-    ///   ET le mock a été appelé exactement 2 fois (un par plan)
+    /// GIVEN a Reasoner with a mock CompletionModel providing two valid plans
+    /// WHEN plan_with_alternatives(&ctx, &config) is called
+    /// THEN PlanAlternatives is returned with non-empty plan_a and plan_b
+    ///   AND the mock was called exactly twice (one per plan)
     #[tokio::test]
     async fn test_plan_with_alternatives_generates_two_plans() {
         // GIVEN
@@ -993,13 +988,13 @@ mod tests {
         );
     }
 
-    // ─── ThinkingStarted / ThinkingEnded emission ───
+    // ThinkingStarted / ThinkingEnded emission
 
-    /// GIVEN un Reasoner branché sur un EventBus et un mock qui retourne un plan valide
-    /// WHEN reasoner.plan(&ctx).await est appelé
-    /// THEN exactement un `ThinkingStarted` suivi d'un `ThinkingEnded` sont émis
-    ///   ET le `turn_id` des events correspond au `task_id` du ContextBundle
-    ///   ET `ThinkingEnded.raw_content` transporte le dernier contenu LLM
+    /// GIVEN a Reasoner wired to an EventBus and a mock returning a valid plan
+    /// WHEN reasoner.plan(&ctx).await is called
+    /// THEN exactly one `ThinkingStarted` followed by one `ThinkingEnded` are emitted
+    ///   AND the events' `turn_id` matches the ContextBundle's `task_id`
+    ///   AND `ThinkingEnded.raw_content` carries the last LLM content
     #[tokio::test]
     async fn emits_thinking_started_and_ended_on_success() {
         use apollia_core::events::RuntimeEvent;
@@ -1016,7 +1011,7 @@ mod tests {
         let plan = reasoner.plan(&ctx).await.expect("plan ok");
         assert_eq!(plan.steps.len(), 2);
 
-        // THEN — ThinkingStarted puis ThinkingEnded avec le bon turn_id
+        // THEN: ThinkingStarted then ThinkingEnded with the correct turn_id
         let started = rx.recv().await.expect("started");
         match started {
             RuntimeEvent::ThinkingStarted { turn_id, ts_ms } => {
@@ -1039,9 +1034,9 @@ mod tests {
         }
     }
 
-    /// GIVEN un Reasoner branché sur un EventBus et un mock qui retourne du JSON invalide
-    /// WHEN reasoner.plan(&ctx).await échoue après MAX_ATTEMPTS
-    /// THEN `ThinkingEnded` est quand même émis (garantie de fin de phase)
+    /// GIVEN a Reasoner wired to an EventBus and a mock returning invalid JSON
+    /// WHEN reasoner.plan(&ctx).await fails after MAX_ATTEMPTS
+    /// THEN `ThinkingEnded` is still emitted (phase-end guarantee)
     #[tokio::test]
     async fn emits_thinking_ended_on_parse_failure() {
         use apollia_core::events::RuntimeEvent;
@@ -1054,7 +1049,7 @@ mod tests {
 
         let _ = reasoner.plan(&ctx).await;
 
-        // Drain until we see ThinkingEnded — there must be exactly one.
+        // Drain until we see ThinkingEnded: there must be exactly one.
         let mut saw_started = false;
         let mut saw_ended = false;
         while let Ok(evt) = rx.try_recv() {
@@ -1068,9 +1063,9 @@ mod tests {
         assert!(saw_ended, "ThinkingEnded must fire on failure path too");
     }
 
-    /// GIVEN un mock qui fournit des plans avec des steps ayant des descriptions
-    /// WHEN plan_with_alternatives() est appelé
-    /// THEN les descriptions sont correctement converties en TaskPlanStep
+    /// GIVEN a mock providing plans whose steps have descriptions
+    /// WHEN plan_with_alternatives() is called
+    /// THEN the descriptions are correctly converted into TaskPlanStep
     #[tokio::test]
     async fn test_plan_alternatives_step_descriptions_preserved() {
         // GIVEN

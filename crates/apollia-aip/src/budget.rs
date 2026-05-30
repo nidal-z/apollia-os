@@ -1,71 +1,69 @@
-//! ctx.budget — read-only StepBudget view exposed to Python.
+//! ctx.budget: read-only StepBudget view exposed to Python.
 //!
-//! Successeur typé du [`crate::context::PyStepBudgetView`] historique. La
-//! sémantique est strictement identique (snapshot lecture-seule au moment de
-//! l'accès) ; seul le nommage du namespace change : un agent qui suit le
-//! Ctx Protocol consomme `ctx.budget.steps_remaining` au lieu de
-//! `ctx.step_budget.steps_remaining`.
+//! Typed successor of the legacy [`crate::context::PyStepBudgetView`]. The
+//! semantics are strictly identical (read-only snapshot at access time); only
+//! the namespace name changes: an agent following the Ctx Protocol reads
+//! `ctx.budget.steps_remaining` instead of `ctx.step_budget.steps_remaining`.
 //!
-//! Construit par [`crate::context::RuntimeContext::new_with_llm`] à chaque
-//! exécution d'agent en lisant les compteurs live du `StepBudgetView` Rust.
+//! Built by [`crate::context::RuntimeContext::new_with_llm`] on every agent
+//! run by reading the live counters of the Rust `StepBudgetView`.
 //!
 //! ## Wall-clock
 //!
-//! Le `wall_clock_secs` est propagé depuis le manifest (champ
-//! `budget.wall_clock_secs`, alias `wall_clock_timeout_secs`) au moment du
-//! `bridge.call_run()`. Lorsqu'il est présent, `wall_clock_remaining` renvoie
-//! `Some(max(0, wall_clock_secs - elapsed_seconds))` ; sinon `None`
-//! (agent sans deadline configurée, p. ex. mode CLI dry-run).
+//! `wall_clock_secs` is propagated from the manifest (field
+//! `budget.wall_clock_secs`, alias `wall_clock_timeout_secs`) at
+//! `bridge.call_run()` time. When present, `wall_clock_remaining` returns
+//! `Some(max(0, wall_clock_secs - elapsed_seconds))`; otherwise `None`
+//! (agent without a configured deadline, e.g. CLI dry-run mode).
 
 use pyo3::prelude::*;
 
-/// Vue snapshot du budget d'exécution exposée à Python via `ctx.budget`.
+/// Snapshot view of the execution budget exposed to Python via `ctx.budget`.
 ///
-/// Tous les compteurs sont en `i64` pour permettre la convention `-1`
-/// = illimité. `wall_clock_remaining` est `Option<f64>` car certains profils
-/// (CLI sans deadline) n'imposent pas de limite wall-clock.
+/// All counters are `i64` to allow the `-1` = unlimited convention.
+/// `wall_clock_remaining` is `Option<f64>` because some profiles (CLI without
+/// a deadline) impose no wall-clock limit.
 #[pyclass(frozen, name = "BudgetView", module = "apollia._native")]
 pub struct BudgetView {
-    /// Steps restants avant `max_steps`, ou `-1` si illimité.
+    /// Steps left before `max_steps`, or `-1` if unlimited.
     steps_remaining: i64,
-    /// Tool calls restants avant `max_tool_calls`, ou `-1` si illimité.
+    /// Tool calls left before `max_tool_calls`, or `-1` if unlimited.
     tool_calls_remaining: i64,
-    /// Secondes écoulées depuis le démarrage de la tâche.
+    /// Seconds elapsed since the task started.
     elapsed_seconds: f64,
-    /// Secondes restantes avant le deadline wall-clock — `None` si pas de
-    /// deadline.
+    /// Seconds left before the wall-clock deadline; `None` if no deadline.
     wall_clock_remaining: Option<f64>,
 }
 
 #[pymethods]
 impl BudgetView {
-    /// Steps restants avant d'atteindre `max_steps` (ReAct).
+    /// Steps left before reaching `max_steps` (ReAct).
     ///
-    /// Convention : `-1` = illimité, sinon `>= 0` (clamp à 0 si dépassement
-    /// transitoire pendant l'incrément concurrent).
+    /// Convention: `-1` = unlimited, otherwise `>= 0` (clamped to 0 on a
+    /// transient overshoot during concurrent increment).
     #[getter]
     fn steps_remaining(&self) -> i64 {
         self.steps_remaining
     }
 
-    /// Tool calls restants avant `max_tool_calls`.
+    /// Tool calls left before `max_tool_calls`.
     ///
-    /// Convention : `-1` = illimité, sinon `>= 0`.
+    /// Convention: `-1` = unlimited, otherwise `>= 0`.
     #[getter]
     fn tool_calls_remaining(&self) -> i64 {
         self.tool_calls_remaining
     }
 
-    /// Secondes écoulées depuis le démarrage de la tâche.
+    /// Seconds elapsed since the task started.
     ///
-    /// Toujours `>= 0`. Compteur monotone (basé sur `Instant::now`).
+    /// Always `>= 0`. Monotonic counter (based on `Instant::now`).
     #[getter]
     fn elapsed_seconds(&self) -> f64 {
         self.elapsed_seconds
     }
 
-    /// Secondes restantes avant le deadline wall-clock, ou `None` si aucun
-    /// deadline n'est imposé.
+    /// Seconds left before the wall-clock deadline, or `None` if no deadline
+    /// is imposed.
     #[getter]
     fn wall_clock_remaining(&self) -> Option<f64> {
         self.wall_clock_remaining
@@ -73,11 +71,11 @@ impl BudgetView {
 }
 
 impl BudgetView {
-    /// Construit une vue depuis les compteurs Rust live.
+    /// Builds a view from the live Rust counters.
     ///
-    /// Appelé par [`crate::context::RuntimeContext`] au moment où Python
-    /// demande `ctx.budget` (le PyObject est créé à la volée à chaque accès
-    /// pour rester un snapshot frais).
+    /// Called by [`crate::context::RuntimeContext`] when Python requests
+    /// `ctx.budget` (the PyObject is created on the fly on each access to stay
+    /// a fresh snapshot).
     pub fn new(
         steps_remaining: i64,
         tool_calls_remaining: i64,

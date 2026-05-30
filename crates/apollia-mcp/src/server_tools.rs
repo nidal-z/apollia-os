@@ -252,7 +252,7 @@ pub fn submit_task_definition() -> serde_json::Value {
 /// Returns the MCP schema definitions for the 9 native tools.
 ///
 /// This list is the authoritative source for what the MCP stdio server exposes.
-/// `submit_task` is not included here — it is added conditionally by the server
+/// `submit_task` is not included here; it is added conditionally by the server
 /// when a `RuntimeHandle` is available.
 pub fn native_tool_definitions() -> Vec<serde_json::Value> {
     vec![
@@ -284,7 +284,7 @@ mod tests {
     fn all_native_tools_have_required_fields() {
         // GIVEN
         let tools = native_tool_definitions();
-        // WHEN / THEN — every tool must have name, description, inputSchema
+        // WHEN / THEN: every tool must have name, description, inputSchema
         for tool in &tools {
             assert!(
                 tool.get("name").and_then(|v| v.as_str()).is_some(),

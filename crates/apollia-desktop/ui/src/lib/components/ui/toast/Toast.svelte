@@ -40,6 +40,7 @@
     info: Info,
     loading: Loader2,
     urgent: AlertCircle,
+    warning: AlertCircle,
   } as const;
 
   const iconClassByVariant: Record<ToastVariant, string> = {
@@ -48,6 +49,7 @@
     info: "text-sky-600 dark:text-sky-400",
     loading: "text-primary animate-spin",
     urgent: "text-destructive",
+    warning: "text-amber-600 dark:text-amber-400",
   };
 
   const progressColorByVariant: Record<ToastVariant, string> = {
@@ -56,6 +58,7 @@
     info: "rgb(14 165 233)",
     loading: "hsl(var(--primary))",
     urgent: "hsl(var(--destructive))",
+    warning: "rgb(217 119 6)",
   };
 
   const isUrgent = $derived(variant === "urgent");

@@ -1,41 +1,42 @@
-//! Suivi du budget de session LLM avec émission d'événements temps réel.
+//! LLM session budget tracking with real-time event emission.
 //!
-//! [`SessionBudgetTracker`] accumule les tokens et coûts de chaque appel LLM
-//! et émet [`RuntimeEvent::TokenBudgetUpdated`] sur le bus après chaque enregistrement.
-//! L'émission est non-bloquante — les erreurs d'envoi sont silencieusement ignorées.
+//! [`SessionBudgetTracker`] accumulates the tokens and cost of each LLM call
+//! and emits [`RuntimeEvent::TokenBudgetUpdated`] on the bus after each record.
+//! Emission is non-blocking: send errors are silently ignored.
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::token_budget::TokenBudget;
 
 use crate::types::TokenUsage;
 
-/// Suivi du budget de tokens pour une session LLM avec émission temps réel.
+/// Token budget tracking for an LLM session with real-time emission.
 ///
-/// Construit par [`LlmRouter`](crate::router::LlmRouter) au démarrage via
-/// [`SessionBudgetTracker::new`]. Protégé par un `Mutex` — verrou tenu uniquement
-/// le temps de la mise à jour des compteurs, jamais pendant un appel async.
+/// Built by [`LlmRouter`](crate::router::LlmRouter) at startup via
+/// [`SessionBudgetTracker::new`]. Guarded by a `Mutex`: the lock is held only
+/// while updating counters, never across an async call.
 ///
-/// Émet [`RuntimeEvent::TokenBudgetUpdated`] après chaque [`record_usage`](Self::record_usage).
-/// Le desktop widget s'abonne à cet événement pour afficher le coût en temps réel.
+/// Emits [`RuntimeEvent::TokenBudgetUpdated`] after each
+/// [`record_usage`](Self::record_usage). The desktop widget subscribes to this
+/// event to display the cost in real time.
 #[derive(Debug, Clone)]
 pub struct SessionBudgetTracker {
-    /// Coût total de la session en USD cumulé depuis le dernier reset.
+    /// Total session cost in USD accumulated since the last reset.
     pub session_cost_usd: f64,
-    /// Tokens en entrée cumulés depuis le dernier reset.
+    /// Input tokens accumulated since the last reset.
     pub total_input_tokens: u64,
-    /// Tokens en sortie cumulés depuis le dernier reset.
+    /// Output tokens accumulated since the last reset.
     pub total_output_tokens: u64,
-    /// Tokens lus depuis le cache Anthropic cumulés depuis le dernier reset.
+    /// Anthropic cache-read tokens accumulated since the last reset.
     pub total_cache_read_tokens: u64,
-    /// Tokens écrits dans le cache Anthropic cumulés depuis le dernier reset.
+    /// Anthropic cache-write tokens accumulated since the last reset.
     pub total_cache_write_tokens: u64,
-    /// Latence cumulée des appels API en millisecondes.
+    /// Cumulative API call latency in milliseconds.
     pub api_duration_ms: u64,
-    /// Time to First Token pour le premier appel streaming de la session.
+    /// Time to first token for the session's first streaming call.
     pub ttft_ms: Option<u64>,
-    /// Seuil de coût en USD configuré par l'opérateur. `f64::MAX` si non configuré.
+    /// Operator-configured cost threshold in USD. `f64::MAX` if not configured.
     threshold_usd: f64,
-    /// Bus d'événements pour l'émission temps réel. `None` si non configuré.
+    /// Event bus for real-time emission. `None` if not configured.
     event_tx: Option<EventBusSender>,
 }
 
@@ -56,10 +57,11 @@ impl Default for SessionBudgetTracker {
 }
 
 impl SessionBudgetTracker {
-    /// Construit un tracker avec bus d'événements et seuil de coût.
+    /// Build a tracker with an event bus and a cost threshold.
     ///
-    /// `event_tx: None` désactive l'émission sans changer l'accumulation.
-    /// `threshold_usd: None` désactive les alertes de seuil (`threshold_exceeded` sera toujours `false`).
+    /// `event_tx: None` disables emission without changing accumulation.
+    /// `threshold_usd: None` disables threshold alerts (`threshold_exceeded`
+    /// is always `false`).
     pub fn new(event_tx: Option<EventBusSender>, threshold_usd: Option<f64>) -> Self {
         Self {
             threshold_usd: threshold_usd.unwrap_or(f64::MAX),
@@ -68,10 +70,11 @@ impl SessionBudgetTracker {
         }
     }
 
-    /// Accumule les compteurs d'un appel LLM et émet [`RuntimeEvent::TokenBudgetUpdated`].
+    /// Accumulate the counters of an LLM call and emit [`RuntimeEvent::TokenBudgetUpdated`].
     ///
-    /// Le verrou sur ce tracker doit être tenu le temps de cet appel uniquement —
-    /// l'émission sur le bus se fait via `send()`, non-bloquant (broadcast channel).
+    /// The lock on this tracker should be held only for the duration of this
+    /// call: emission on the bus goes through `send()`, non-blocking (broadcast
+    /// channel).
     pub fn record_usage(&mut self, usage: &TokenUsage, api_ms: u64, ttft_ms: Option<u64>) {
         self.total_input_tokens += u64::from(usage.prompt_tokens);
         self.total_output_tokens += u64::from(usage.completion_tokens);
@@ -85,7 +88,7 @@ impl SessionBudgetTracker {
         self.emit_update_event();
     }
 
-    /// Remet à zéro tous les compteurs en conservant la configuration (bus, seuil).
+    /// Reset all counters while preserving the configuration (bus, threshold).
     pub fn reset(&mut self) {
         self.session_cost_usd = 0.0;
         self.total_input_tokens = 0;
@@ -96,9 +99,9 @@ impl SessionBudgetTracker {
         self.ttft_ms = None;
     }
 
-    /// Retourne le seuil de coût configuré en USD, ou `None` si non configuré.
+    /// Return the configured cost threshold in USD, or `None` if not configured.
     ///
-    /// Retourne `None` quand la valeur interne vaut `f64::MAX` (seuil désactivé).
+    /// Returns `None` when the internal value is `f64::MAX` (threshold disabled).
     pub fn threshold_usd(&self) -> Option<f64> {
         if self.threshold_usd < f64::MAX {
             Some(self.threshold_usd)
@@ -107,7 +110,7 @@ impl SessionBudgetTracker {
         }
     }
 
-    /// Convertit le snapshot courant en [`TokenBudget`] pour l'API REST.
+    /// Convert the current snapshot into a [`TokenBudget`] for the REST API.
     pub fn to_token_budget(&self) -> TokenBudget {
         TokenBudget {
             input_tokens: self.total_input_tokens,

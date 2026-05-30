@@ -2,7 +2,7 @@
 //!
 //! MCP servers advertise themselves under the `_apollia-mcp._tcp.local.`
 //! service type. Discovery is disabled by default (`mdns_discovery = false`
-//! in `mcp.toml`) and must be opted into explicitly — see [`McpConfig`].
+//! in `mcp.toml`) and must be opted into explicitly; see [`McpConfig`].
 //!
 //! [`McpConfig`]: crate::config::McpConfig
 
@@ -107,7 +107,7 @@ pub async fn announce_mcp_server(
 ///
 /// Browses `_apollia-mcp._tcp.local.` for up to 3 seconds and returns every
 /// [`DiscoveredServer`] that was fully resolved before the deadline. Returns
-/// an empty `Vec` when no servers are found — this is not an error.
+/// an empty `Vec` when no servers are found; this is not an error.
 pub async fn discover_mcp_servers() -> Result<Vec<DiscoveredServer>, DiscoveryError> {
     tokio::task::spawn_blocking(|| {
         let daemon = ServiceDaemon::new().map_err(DiscoveryError::from)?;

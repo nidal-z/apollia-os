@@ -1,10 +1,9 @@
-//! `RunnerProxy` : adapte les appels `CompletionModel` / `SttBackend` du
-//! daemon vers le runner via HTTP/JSON.
+//! `RunnerProxy`: adapts the daemon's `CompletionModel` / `SttBackend` calls
+//! to the runner via HTTP/JSON.
 //!
-//! Phase 3 : implémente l'API HTTP côté daemon, mais les traits
-//! `CompletionModel` (de `apollia-llm`) et `SttBackend` (de `apollia-stt`) ne
-//! sont pas encore connectés — c'est STORY-009/finalisation qui le fait
-//! quand le RunnerLlmBackend du runner est câblé.
+//! Implements the daemon-side HTTP API. The `CompletionModel` (from
+//! `apollia-llm`) and `SttBackend` (from `apollia-stt`) traits are wired up
+//! once the runner's RunnerLlmBackend is connected.
 
 use std::sync::Arc;
 
@@ -14,15 +13,15 @@ use uuid::Uuid;
 
 use super::error::RunnerError;
 
-/// Proxy vers le runner. Cloneable via `Arc`.
+/// Proxy to the runner. Cloneable via `Arc`.
 #[derive(Clone)]
 pub struct RunnerProxy {
     inner: Arc<RwLock<Option<RunnerInnerHandle>>>,
 }
 
-/// Type alias caché : on ne réexpose pas la struct lifecycle::RunnerInner ici
-/// pour ne pas créer de circular dep. À la place, on garde un handle générique
-/// au RwLock<Option<RunnerInner>> qui appartient au supervisor.
+/// Hidden type alias: we do not re-expose the lifecycle::RunnerInner struct here
+/// to avoid a circular dep. Instead we keep a generic handle to the
+/// RwLock<Option<RunnerInner>> owned by the supervisor.
 pub(super) type RunnerInnerHandle = super::lifecycle_inner::RunnerInnerHandle;
 
 impl RunnerProxy {
@@ -32,7 +31,7 @@ impl RunnerProxy {
         Self { inner }
     }
 
-    /// Appel HTTP générique `POST /llm/...` ou `/stt/...`.
+    /// Generic HTTP call `POST /llm/...` or `/stt/...`.
     pub async fn post_json<P: serde::Serialize, D: serde::de::DeserializeOwned>(
         &self,
         path: &str,
@@ -49,8 +48,8 @@ impl RunnerProxy {
             .as_ref()
             .ok_or_else(|| RunnerError::Http("runner not started".into()))?;
 
-        // Le response du runner est `{ok, request_id, data | error}`.
-        // On parse au niveau `Value` puis on extrait `data` typé.
+        // The runner's response is `{ok, request_id, data | error}`.
+        // Parse at the `Value` level then extract the typed `data`.
         let raw: Value = inner.client.post(path, &envelope).await?;
         let ok = raw.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
         if !ok {
@@ -74,7 +73,7 @@ impl RunnerProxy {
         serde_json::from_value(data).map_err(RunnerError::Json)
     }
 
-    /// Vérifie la santé du runner via `GET /health`.
+    /// Check the runner's health via `GET /health`.
     pub async fn health_check(&self) -> Result<Value, RunnerError> {
         let guard = self.inner.read().await;
         let inner = guard

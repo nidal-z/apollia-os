@@ -9,23 +9,26 @@
  */
 import { commandPaletteOpen } from "$lib/stores/commandPalette";
 
-const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
+// navigator.platform is deprecated but still the most reliable Mac signal.
+const isMac =
+  typeof navigator !== "undefined" &&
+  ((navigator as Navigator & { platform?: string }).platform ?? "").includes("Mac"); // NOSONAR typescript:S1874
 
 function isModKey(event: KeyboardEvent): boolean {
   return isMac ? event.metaKey : event.ctrlKey;
 }
 
-export function installGlobalShortcuts(): () => void {
-  function onKey(event: KeyboardEvent): void {
-    const mod = isModKey(event);
-    if (!mod) return;
+function handleGlobalKey(event: KeyboardEvent): void {
+  const mod = isModKey(event);
+  if (!mod) return;
 
-    if (!event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      commandPaletteOpen.update((v) => !v);
-    }
+  if (!event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    commandPaletteOpen.update((v) => !v);
   }
+}
 
-  window.addEventListener("keydown", onKey);
-  return () => window.removeEventListener("keydown", onKey);
+export function installGlobalShortcuts(): () => void {
+  globalThis.addEventListener("keydown", handleGlobalKey);
+  return () => globalThis.removeEventListener("keydown", handleGlobalKey);
 }

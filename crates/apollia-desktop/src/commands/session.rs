@@ -1,16 +1,16 @@
-//! Commandes IPC Tauri exposant l'état de `SessionMetrics`.
+//! Tauri IPC commands exposing the `SessionMetrics` state.
 //!
-//! Le panel frontend écoute l'événement `runtime-event`/`SessionMetricsUpdated`
-//! pour les mises à jour temps-réel, et utilise `get_session_metrics` pour
-//! récupérer le snapshot courant au premier rendu.
+//! The frontend panel listens to the `runtime-event`/`SessionMetricsUpdated`
+//! event for real-time updates, and uses `get_session_metrics` to fetch the
+//! current snapshot on first render.
 
 use apollia_core::session_metrics::SessionMetrics;
 use apollia_runtime::SessionMetricsStore;
 use tauri::State;
 
-/// Retourne le snapshot courant des métriques pour une session donnée.
+/// Returns the current metrics snapshot for a given session.
 ///
-/// Retourne `None` si la session est inconnue (aucun événement reçu encore).
+/// Returns `None` if the session is unknown (no event received yet).
 #[tauri::command]
 pub fn get_session_metrics(
     session_id: String,
@@ -22,7 +22,7 @@ pub fn get_session_metrics(
     Ok(guard.get(&session_id).cloned())
 }
 
-/// Retourne la liste des session_ids connus du store — utile pour diagnostic.
+/// Returns the list of session_ids known to the store; useful for diagnostics.
 #[tauri::command]
 pub fn list_session_metrics_ids(
     store: State<'_, SessionMetricsStore>,

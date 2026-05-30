@@ -68,77 +68,13 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
         let mut has_content = false;
 
         // 1. Project instructions
-        if let Some(ref instructions) = detail.instructions {
-            if !instructions.is_empty() {
-                block.push_str("\n### Project Instructions\n");
-                block.push_str(instructions);
-                block.push('\n');
-                has_content = true;
-            }
-        }
+        has_content |= append_instructions(&mut block, &detail);
 
         // 2. Attached document contents (read from disk, truncated)
-        for doc in &detail.documents {
-            match tokio::fs::read_to_string(&doc.file_path).await {
-                Ok(content) => {
-                    let truncated = if content.len() > MAX_DOCUMENT_BYTES {
-                        let mut s = content[..MAX_DOCUMENT_BYTES].to_string();
-                        s.push_str("\n...[truncated]");
-                        s
-                    } else {
-                        content
-                    };
-                    block.push_str(&format!("\n### Document: {}\n{}\n", doc.name, truncated));
-                    has_content = true;
-                }
-                Err(_) => {
-                    // File may have been moved or deleted — skip silently.
-                }
-            }
-        }
+        has_content |= append_documents(&mut block, &detail).await;
 
         // 3. Workspace snapshot from configured providers (git, rules, tree, etc.)
-        let enabled_providers: Vec<_> = detail.providers.iter().filter(|p| p.enabled).collect();
-
-        if !enabled_providers.is_empty() {
-            // Determine the workspace directory: use project's workspace_path,
-            // or fall back to the process cwd.
-            let cwd = detail
-                .workspace_path
-                .as_deref()
-                .map(PathBuf::from)
-                .unwrap_or_else(|| {
-                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"))
-                });
-
-            let entries: Vec<apollia_workspace::ProviderEntry> = enabled_providers
-                .iter()
-                .map(|p| apollia_workspace::ProviderEntry {
-                    provider_type: p.provider_type.clone(),
-                    name: p.name.clone(),
-                    config_json: if p.config_json == "{}" {
-                        None
-                    } else {
-                        Some(p.config_json.clone())
-                    },
-                    path: p.path.clone(),
-                    enabled: p.enabled,
-                    priority: p.priority,
-                })
-                .collect();
-
-            let runtime = apollia_workspace::ProjectRuntime::from_providers_config(&entries, None);
-            let snapshot = runtime.collect(&cwd).await;
-
-            for slice in &snapshot.slices {
-                for section in &slice.sections {
-                    if !section.content.is_empty() {
-                        block.push_str(&format!("\n### {}\n{}\n", section.title, section.content));
-                        has_content = true;
-                    }
-                }
-            }
-        }
+        has_content |= append_workspace_snapshot(&mut block, &detail).await;
 
         if has_content {
             info!(
@@ -157,4 +93,89 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
             None
         }
     }
+}
+
+/// Append the project instructions section. Returns `true` when content was added.
+fn append_instructions(block: &mut String, detail: &apollia_tools::ProjectDetail) -> bool {
+    if let Some(ref instructions) = detail.instructions {
+        if !instructions.is_empty() {
+            block.push_str("\n### Project Instructions\n");
+            block.push_str(instructions);
+            block.push('\n');
+            return true;
+        }
+    }
+    false
+}
+
+/// Append attached document contents (read from disk, truncated). Returns
+/// `true` when at least one document was added.
+async fn append_documents(block: &mut String, detail: &apollia_tools::ProjectDetail) -> bool {
+    let mut added = false;
+    for doc in &detail.documents {
+        let Ok(content) = tokio::fs::read_to_string(&doc.file_path).await else {
+            // File may have been moved or deleted, skip silently.
+            continue;
+        };
+        let truncated = if content.len() > MAX_DOCUMENT_BYTES {
+            let mut s = content[..MAX_DOCUMENT_BYTES].to_string();
+            s.push_str("\n...[truncated]");
+            s
+        } else {
+            content
+        };
+        block.push_str(&format!("\n### Document: {}\n{}\n", doc.name, truncated));
+        added = true;
+    }
+    added
+}
+
+/// Append the workspace snapshot collected by the project's configured
+/// providers (git, rules, tree, etc.). Returns `true` when content was added.
+async fn append_workspace_snapshot(
+    block: &mut String,
+    detail: &apollia_tools::ProjectDetail,
+) -> bool {
+    let enabled_providers: Vec<_> = detail.providers.iter().filter(|p| p.enabled).collect();
+    if enabled_providers.is_empty() {
+        return false;
+    }
+
+    // Determine the workspace directory: use project's workspace_path,
+    // or fall back to the process cwd.
+    let cwd = detail
+        .workspace_path
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp")));
+
+    let entries: Vec<apollia_workspace::ProviderEntry> = enabled_providers
+        .iter()
+        .map(|p| apollia_workspace::ProviderEntry {
+            provider_type: p.provider_type.clone(),
+            name: p.name.clone(),
+            config_json: if p.config_json == "{}" {
+                None
+            } else {
+                Some(p.config_json.clone())
+            },
+            path: p.path.clone(),
+            enabled: p.enabled,
+            priority: p.priority,
+        })
+        .collect();
+
+    let runtime = apollia_workspace::ProjectRuntime::from_providers_config(&entries, None);
+    let snapshot = runtime.collect(&cwd).await;
+
+    let mut added = false;
+    for slice in &snapshot.slices {
+        for section in &slice.sections {
+            if !section.content.is_empty() {
+                block.push_str(&format!("\n### {}\n{}\n", section.title, section.content));
+                added = true;
+            }
+        }
+    }
+    added
 }

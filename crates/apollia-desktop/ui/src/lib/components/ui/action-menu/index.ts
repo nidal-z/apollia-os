@@ -1,3 +1,4 @@
-import ActionMenu, { type ActionMenuItem } from "./ActionMenu.svelte";
+import ActionMenu from "./ActionMenu.svelte";
 
-export { ActionMenu, type ActionMenuItem };
+export { ActionMenu };
+export type { ActionMenuItem } from "./ActionMenu.svelte";

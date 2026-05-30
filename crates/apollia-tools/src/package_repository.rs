@@ -1,14 +1,14 @@
-//! Repository SQLite pour la persistance des packages d'agents installés.
+//! SQLite repository for persisting installed agent packages.
 //!
-//! Un **package** est un dossier auto-contenu décrit par un `agent.toml`
-//! (ADR-081). Il regroupe un director et ses workers, des triggers, et des
-//! dépendances pip partagées.
+//! A **package** is a self-contained directory described by an `agent.toml`.
+//! It bundles a director and its workers, triggers, and shared pip
+//! dependencies.
 //!
-//! Ce repository gère `installed_packages` et `package_agents`. Les agents
-//! individuels restent dans `installed_agents` (voir [`AgentRepository`]).
+//! This repository manages `installed_packages` and `package_agents`. Individual
+//! agents remain in `installed_agents` (see [`AgentRepository`]).
 //!
-//! La migration `008_package_tables.sql` est appliquée idempotentiellement
-//! à l'appel de [`PackageRepository::open`].
+//! The `008_package_tables.sql` migration is applied idempotently when
+//! [`PackageRepository::open`] is called.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -16,35 +16,35 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-/// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
+/// Embedded migration SQL, applied idempotently on every open.
 const MIGRATION_SQL: &str = include_str!("../migrations/008_package_tables.sql");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Métadonnées d'un package installé, persisted dans `agents.db`.
+/// Metadata of an installed package, persisted in `agents.db`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstalledPackage {
-    /// Nom unique du package (clé primaire).
+    /// Unique package name (primary key).
     pub name: String,
-    /// Version semver du package.
+    /// Package semver version.
     pub version: String,
-    /// Chemin absolu du dossier package (`~/.apollia/agents/packages/<name>/`).
+    /// Absolute path of the package directory (`~/.apollia/agents/packages/<name>/`).
     pub root_path: PathBuf,
-    /// Contenu du `agent.toml` sérialisé en JSON.
+    /// Contents of `agent.toml` serialized as JSON.
     pub manifest_json: String,
-    /// Horodatage d'installation (RFC 3339).
+    /// Installation timestamp (RFC 3339).
     pub installed_at: String,
-    /// Horodatage de dernière mise à jour (RFC 3339).
+    /// Last-update timestamp (RFC 3339).
     pub updated_at: String,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Erreurs
+// Errors
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Erreurs du repository packages.
+/// Package repository errors.
 #[derive(Debug, thiserror::Error)]
 pub enum PackageRepositoryError {
     #[error("erreur SQLite : {0}")]
@@ -64,20 +64,20 @@ pub enum PackageRepositoryError {
 // Repository
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Repository SQLite pour les packages d'agents installés.
+/// SQLite repository for installed agent packages.
 ///
-/// Clonable via `Arc` — chaque clone partage la même connexion.
-/// Le mode WAL est activé pour la concurrence lecture/écriture.
+/// Clonable via `Arc`; every clone shares the same connection.
+/// WAL mode is enabled for read/write concurrency.
 #[derive(Clone)]
 pub struct PackageRepository {
     conn: Arc<Mutex<Connection>>,
 }
 
 impl PackageRepository {
-    /// Ouvre (ou crée) la base SQLite et applique la migration 008.
+    /// Opens (or creates) the SQLite store and applies migration 008.
     ///
-    /// Compatible avec un `agents.db` existant (migration 007 déjà appliquée) :
-    /// la migration 008 ajoute uniquement de nouvelles tables (`IF NOT EXISTS`).
+    /// Compatible with an existing `agents.db` (migration 007 already applied):
+    /// migration 008 only adds new tables (`IF NOT EXISTS`).
     pub fn open(path: &Path) -> Result<Self, PackageRepositoryError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
@@ -87,7 +87,7 @@ impl PackageRepository {
         })
     }
 
-    /// Insère ou met à jour un package installé (UPSERT idempotent).
+    /// Inserts or updates an installed package (idempotent UPSERT).
     pub fn save(&self, pkg: &InstalledPackage) -> Result<(), PackageRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         conn.execute(
@@ -106,9 +106,9 @@ impl PackageRepository {
         Ok(())
     }
 
-    /// Enregistre le lien entre un package et un de ses agents.
+    /// Records the link between a package and one of its agents.
     ///
-    /// Idempotent : utilise `INSERT OR IGNORE`.
+    /// Idempotent: uses `INSERT OR IGNORE`.
     pub fn link_agent(
         &self,
         package_name: &str,
@@ -122,7 +122,7 @@ impl PackageRepository {
         Ok(())
     }
 
-    /// Récupère un package par son nom.
+    /// Fetches a package by name.
     pub fn get(&self, name: &str) -> Result<Option<InstalledPackage>, PackageRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let mut stmt = conn.prepare(
@@ -136,7 +136,7 @@ impl PackageRepository {
         }
     }
 
-    /// Liste tous les packages installés.
+    /// Lists all installed packages.
     pub fn list(&self) -> Result<Vec<InstalledPackage>, PackageRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let mut stmt = conn.prepare(
@@ -146,7 +146,7 @@ impl PackageRepository {
         collect_packages(&mut stmt, [])
     }
 
-    /// Retourne les noms des agents appartenant à un package.
+    /// Returns the names of the agents belonging to a package.
     pub fn list_agents_for_package(
         &self,
         package_name: &str,
@@ -163,10 +163,10 @@ impl PackageRepository {
         Ok(names)
     }
 
-    /// Supprime un package et ses liens agents (CASCADE sur `package_agents`).
+    /// Deletes a package and its agent links (CASCADE on `package_agents`).
     ///
-    /// Les entrées dans `installed_agents` doivent être supprimées séparément
-    /// via [`AgentRepository::delete`].
+    /// Entries in `installed_agents` must be deleted separately via
+    /// [`AgentRepository::delete`].
     pub fn delete(&self, name: &str) -> Result<(), PackageRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         conn.execute(
@@ -178,7 +178,7 @@ impl PackageRepository {
 
     // ─── Async wrappers ──────────────────────────────────────────────────────
 
-    /// Wrapper async pour [`save`].
+    /// Async wrapper for [`save`].
     pub async fn save_async(&self, pkg: InstalledPackage) -> Result<(), PackageRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.save(&pkg))
@@ -186,7 +186,7 @@ impl PackageRepository {
             .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`get`].
+    /// Async wrapper for [`get`].
     pub async fn get_async(
         &self,
         name: String,
@@ -197,7 +197,7 @@ impl PackageRepository {
             .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`list`].
+    /// Async wrapper for [`list`].
     pub async fn list_async(&self) -> Result<Vec<InstalledPackage>, PackageRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.list())
@@ -205,7 +205,7 @@ impl PackageRepository {
             .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`list_agents_for_package`].
+    /// Async wrapper for [`list_agents_for_package`].
     pub async fn list_agents_for_package_async(
         &self,
         package_name: String,
@@ -216,7 +216,7 @@ impl PackageRepository {
             .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`delete`].
+    /// Async wrapper for [`delete`].
     pub async fn delete_async(&self, name: String) -> Result<(), PackageRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.delete(&name))
@@ -224,7 +224,7 @@ impl PackageRepository {
             .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`link_agent`].
+    /// Async wrapper for [`link_agent`].
     pub async fn link_agent_async(
         &self,
         package_name: String,
@@ -309,10 +309,10 @@ mod tests {
 
     #[test]
     fn test_open_creates_tables() {
-        // GIVEN une base vide
+        // GIVEN an empty store
         let repo = open_test_repo();
-        // WHEN on ouvre le repo
-        // THEN les tables existent (requête sans erreur)
+        // WHEN the repo is opened
+        // THEN the tables exist (query without error)
         let conn = repo.conn.lock().expect("lock");
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM installed_packages", [], |r| r.get(0))
@@ -322,13 +322,13 @@ mod tests {
 
     #[test]
     fn test_save_and_get_roundtrip() {
-        // GIVEN un package
+        // GIVEN a package
         let repo = open_test_repo();
         let pkg = test_package("veille-ia");
-        // WHEN on sauvegarde et récupère
+        // WHEN it is saved and fetched
         repo.save(&pkg).expect("save");
         let loaded = repo.get("veille-ia").expect("get").expect("exists");
-        // THEN les champs sont identiques
+        // THEN the fields are identical
         assert_eq!(loaded.name, "veille-ia");
         assert_eq!(loaded.version, "1.0.0");
         assert_eq!(loaded.root_path, pkg.root_path);
@@ -336,11 +336,11 @@ mod tests {
 
     #[test]
     fn test_link_agent_and_list() {
-        // GIVEN un package avec 2 agents liés
+        // GIVEN a package with 2 linked agents
         let repo = open_test_repo();
         repo.save(&test_package("my-pkg")).expect("save pkg");
-        // Note : pas de FK vers installed_agents en :memory: (pas de migration 007)
-        // → on désactive PRAGMA foreign_keys pour ce test
+        // Note: no FK to installed_agents in :memory: (no migration 007),
+        // so PRAGMA foreign_keys is disabled for this test
         {
             let conn = repo.conn.lock().expect("lock");
             conn.execute_batch("PRAGMA foreign_keys=OFF;").unwrap();
@@ -349,9 +349,9 @@ mod tests {
             .expect("link director");
         repo.link_agent("my-pkg", "worker-agent")
             .expect("link worker");
-        // WHEN on liste les agents du package
+        // WHEN listing the package agents
         let agents = repo.list_agents_for_package("my-pkg").expect("list agents");
-        // THEN on obtient les 2 agents
+        // THEN the 2 agents are returned
         assert_eq!(agents.len(), 2);
         assert!(agents.contains(&"director-agent".to_string()));
         assert!(agents.contains(&"worker-agent".to_string()));
@@ -359,14 +359,14 @@ mod tests {
 
     #[test]
     fn test_save_upsert_existing() {
-        // GIVEN un package déjà sauvegardé
+        // GIVEN an already-saved package
         let repo = open_test_repo();
         repo.save(&test_package("pkg-v1")).expect("save v1");
-        // WHEN on sauvegarde avec une nouvelle version (upsert)
+        // WHEN saving with a new version (upsert)
         let mut pkg_v2 = test_package("pkg-v1");
         pkg_v2.version = "2.0.0".to_string();
         repo.save(&pkg_v2).expect("save v2");
-        // THEN la version est mise à jour, un seul enregistrement
+        // THEN the version is updated, a single record
         let loaded = repo.get("pkg-v1").expect("get").expect("exists");
         assert_eq!(loaded.version, "2.0.0");
         assert_eq!(repo.list().expect("list").len(), 1);
@@ -374,24 +374,24 @@ mod tests {
 
     #[test]
     fn test_delete_removes_package() {
-        // GIVEN un package sauvegardé
+        // GIVEN a saved package
         let repo = open_test_repo();
         repo.save(&test_package("to-delete")).expect("save");
-        // WHEN on supprime
+        // WHEN it is deleted
         repo.delete("to-delete").expect("delete");
-        // THEN le package n'existe plus
+        // THEN the package no longer exists
         assert!(repo.get("to-delete").expect("get").is_none());
     }
 
     #[tokio::test]
     async fn test_list_async_returns_saved_packages() {
-        // GIVEN 2 packages sauvegardés
+        // GIVEN 2 saved packages
         let repo = open_test_repo();
         repo.save(&test_package("pkg-a")).expect("save a");
         repo.save(&test_package("pkg-b")).expect("save b");
-        // WHEN on liste en async
+        // WHEN listing asynchronously
         let pkgs = repo.list_async().await.expect("list_async");
-        // THEN on obtient les 2 packages
+        // THEN the 2 packages are returned
         assert_eq!(pkgs.len(), 2);
     }
 }

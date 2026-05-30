@@ -1,15 +1,15 @@
-//! Tauri IPC command — daily digest narration for the operator Dashboard.
+//! Tauri IPC command: daily digest narration for the operator Dashboard.
 //!
 //! Generates a 2-4 sentence narration summarising the user's last N hours of
 //! activity ("Aujourd'hui chez Apollia"). Facts are computed frontend-side
-//! from the existing stores (tasks, approvals, failures) and passed in — the
+//! from the existing stores (tasks, approvals, failures) and passed in; the
 //! backend's job is narration + a 6h SQLite TTL cache keyed by
 //! `(user_id, user_date)`.
 //!
 //! Today the narration is a deterministic template. When the Meta-LLM
 //! `GenerateDailyDigest` routine lands the same
 //! `DailyDigest { narration, source_facts }` shape will be produced by a
-//! Haiku 4.5 prompt with output cap ≤ 200 tokens — so the frontend will not
+//! Meta-LLM prompt with an output cap of 200 tokens, so the frontend will not
 //! need to change. `from_llm` exposes which path produced the current digest.
 
 use std::path::PathBuf;
@@ -19,7 +19,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 /// Concrete facts derived from the user's last `window_hours`. Everything is
-/// precomputed by the frontend from stores already live on the Dashboard —
+/// precomputed by the frontend from stores already live on the Dashboard;
 /// the backend never invents numbers.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,7 +39,7 @@ pub struct DigestFacts {
     /// Failed automations / triggers in the window.
     #[serde(default)]
     pub automations_failed: u32,
-    /// Optional, named failure (first one) — surfaced in the narration.
+    /// Optional, named failure (first one), surfaced in the narration.
     #[serde(default)]
     pub first_failure_label: Option<String>,
     /// Optional, named top-performing assistant surfaced in the narration.
@@ -52,7 +52,7 @@ pub struct DigestFacts {
 #[serde(rename_all = "camelCase")]
 pub struct GenerateDigestRequest {
     /// User-local date in `YYYY-MM-DD`. The frontend computes this from the
-    /// browser tz — keeps the backend free of tz dependencies.
+    /// browser tz, keeping the backend free of tz dependencies.
     pub user_date: String,
     /// Rolling window used to aggregate the facts (hours).
     #[serde(default = "default_window")]
@@ -74,7 +74,7 @@ fn default_window() -> u32 {
 pub struct DailyDigest {
     /// 2-4 sentences rendered in the `DigestNarration` block.
     pub narration: String,
-    /// Facts used to generate the narration — displayed as a "Why this?"
+    /// Facts used to generate the narration, displayed as a "Why this?"
     /// disclosure under the hero.
     pub source_facts: DigestFacts,
     /// RFC-3339 timestamp of the generation that produced this narration.
@@ -82,11 +82,11 @@ pub struct DailyDigest {
     /// `true` when the digest was served from cache (no regeneration).
     pub cached: bool,
     /// `true` when the narration came from the Meta-LLM path.
-    /// Currently always `false` — placeholder for the upcoming LLM wiring.
+    /// Currently always `false`; placeholder for the upcoming LLM wiring.
     pub from_llm: bool,
 }
 
-/// SQLite cache (6h TTL). Keyed by `(user_date, window_hours)` — the next
+/// SQLite cache (6h TTL). Keyed by `(user_date, window_hours)`; the next
 /// iteration will also include the authenticated user id once user_memory
 /// gets multi-profile support.
 static DIGEST_DB: Mutex<Option<Connection>> = Mutex::new(None);
@@ -130,8 +130,8 @@ fn with_conn<R>(f: impl FnOnce(&Connection) -> Result<R, String>) -> Result<R, S
     f(guard.as_ref().expect("just initialized"))
 }
 
-/// Cache TTL — 6h per the story. Matches the "Actualiser le résumé" budget:
-/// one LLM call at most per 6h window unless the user explicitly refreshes.
+/// Cache TTL: 6h. Matches the "refresh summary" budget: at most one LLM call
+/// per 6h window unless the user explicitly refreshes.
 const CACHE_TTL_SECONDS: i64 = 6 * 3600;
 
 fn read_cache(user_date: &str, window_hours: u32) -> Result<Option<DailyDigest>, String> {
@@ -197,7 +197,7 @@ fn write_cache(user_date: &str, window_hours: u32, digest: &DailyDigest) -> Resu
 }
 
 /// Deterministic narration used until the Meta-LLM path is wired. Always in
-/// French (operator persona is fr-first) — the LLM prompt will produce the
+/// French (operator persona is fr-first); the LLM prompt will produce the
 /// localised equivalents. The sentences are composed strictly from the
 /// provided facts: if there is nothing to say, we say so.
 fn render_narration(facts: &DigestFacts) -> String {
@@ -268,7 +268,7 @@ fn render_narration(facts: &DigestFacts) -> String {
 
 /// Generate (or return a cached) daily digest for the operator Dashboard.
 ///
-/// Never fails on missing facts — a zero-filled `DigestFacts` yields the
+/// Never fails on missing facts; a zero-filled `DigestFacts` yields the
 /// "Rien à signaler aujourd'hui" narration. Cache misses always produce a
 /// fresh entry; `force_refresh = true` bypasses the 6h TTL.
 #[tauri::command]

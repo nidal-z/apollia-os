@@ -1,13 +1,13 @@
-//! Système de notification découplé pour Apollia OS.
+//! Decoupled notification system for Apollia OS.
 //!
-//! Cette crate centralise la logique de notification :
-//! - [`NotificationChannel`] — trait à implémenter par chaque canal de livraison
-//! - [`NotificationEngine`] — s'abonne à l'EventBus et dispatche les événements
-//! - [`event_filter::map_event`] — transforme un [`RuntimeEvent`] en [`Notification`]
-//! - [`InactivityWatcher`] — surveille l'inactivité et publie une notification OS + terminal
+//! This crate centralizes the notification logic:
+//! - [`NotificationChannel`]: trait implemented by each delivery channel
+//! - [`NotificationEngine`]: subscribes to the EventBus and dispatches events
+//! - [`event_filter::map_event`]: turns a [`RuntimeEvent`] into a [`Notification`]
+//! - [`InactivityWatcher`]: watches for inactivity and publishes an OS + terminal notification
 //!
-//! Les canaux concrets (`DesktopChannel`, `WebhookChannel`, `TerminalChannel`) sont dans
-//! le module [`channels`].
+//! The concrete channels (`DesktopChannel`, `WebhookChannel`, `TerminalChannel`)
+//! live in the [`channels`] module.
 
 pub mod channels;
 pub mod config;

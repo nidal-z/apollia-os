@@ -1,4 +1,4 @@
-//! `apollia-os plan-cache` subcommands — plan cache statistics and management.
+//! `apollia-os plan-cache` subcommands: plan cache statistics and management.
 //!
 //! Accesses `~/.apollia/plan_cache.db` directly (no runtime connection required).
 //! Exposes the `stats`, `clear`, and `evict` operations from [`PlanCacheRepository`].
@@ -44,7 +44,7 @@ pub fn run(cmd: &PlanCacheCommand, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os plan-cache stats` — display aggregate cache statistics.
+/// `apollia-os plan-cache stats`: display aggregate cache statistics.
 fn run_stats(db_path: &Path, json: bool) -> i32 {
     let repo = match open_repo(db_path, json) {
         Some(r) => r,
@@ -85,7 +85,7 @@ fn run_stats(db_path: &Path, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os plan-cache clear [--force]` — remove all cached plans.
+/// `apollia-os plan-cache clear [--force]`: remove all cached plans.
 fn run_clear(db_path: &Path, force: bool, json: bool) -> i32 {
     if !force {
         print!("This will delete all cached plans. Continue? [y/N] ");
@@ -125,7 +125,7 @@ fn run_clear(db_path: &Path, force: bool, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os plan-cache evict [--max-age-days N]` — evict entries older than N days.
+/// `apollia-os plan-cache evict [--max-age-days N]`: evict entries older than N days.
 fn run_evict(db_path: &Path, max_age_days: u32, json: bool) -> i32 {
     let repo = match open_repo(db_path, json) {
         Some(r) => r,

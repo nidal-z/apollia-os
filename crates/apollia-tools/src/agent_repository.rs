@@ -1,15 +1,14 @@
-//! Repository SQLite pour la persistance des agents installés.
+//! SQLite repository for persisting installed agents.
 //!
-//! Fournit [`AgentRepository`] qui stocke et restitue les agents installés
-//! dans une base SQLite locale (`agents.db`). Les agents survivent aux
-//! redémarrages et sont auto-chargés au boot.
+//! Provides [`AgentRepository`], which stores and retrieves installed agents in
+//! a local SQLite store (`agents.db`). Agents survive restarts and are
+//! auto-loaded at boot.
 //!
-//! La migration `007_agent_tables.sql` est appliquée idempotentiellement
-//! à l'appel de [`AgentRepository::open`].
+//! The `007_agent_tables.sql` migration is applied idempotently when
+//! [`AgentRepository::open`] is called.
 //!
-//! Toutes les méthodes sont synchrones car les appels SQLite sont légers
-//! et l'appelant est responsable de les exécuter dans `spawn_blocking`
-//! si nécessaire.
+//! All methods are synchronous because SQLite calls are lightweight, and the
+//! caller is responsible for running them in `spawn_blocking` when needed.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -18,57 +17,57 @@ use apollia_core::AgentManifest;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-/// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
+/// Embedded migration SQL, applied idempotently on every open.
 const MIGRATION_SQL: &str = include_str!("../migrations/007_agent_tables.sql");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Agent installé persisté dans `agents.db`.
+/// Installed agent persisted in `agents.db`.
 ///
-/// Représente un agent copié dans `~/.apollia/agents/<name>/` avec son
-/// manifest sérialisé. Le champ `enabled` contrôle le chargement au boot.
+/// Represents an agent copied into `~/.apollia/agents/<name>/` with its
+/// serialized manifest. The `enabled` field controls loading at boot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstalledAgent {
-    /// Nom unique de l'agent (clé primaire).
+    /// Unique agent name (primary key).
     pub name: String,
-    /// Version semver de l'agent.
+    /// Agent semver version.
     pub version: String,
-    /// Chemin d'installation (ex: `~/.apollia/agents/<name>/agent.py`).
+    /// Install path (e.g. `~/.apollia/agents/<name>/agent.py`).
     pub install_path: PathBuf,
-    /// Chemin original du fichier source installé.
+    /// Original path of the installed source file.
     pub source_path: PathBuf,
-    /// Manifest de l'agent (sérialisé en JSON dans la base).
+    /// Agent manifest (serialized as JSON in the store).
     pub manifest: AgentManifest,
-    /// Indique si l'agent est actif et doit être chargé au boot.
+    /// Whether the agent is active and should be loaded at boot.
     pub enabled: bool,
-    /// Horodatage d'installation (RFC 3339).
+    /// Installation timestamp (RFC 3339).
     pub installed_at: String,
-    /// Horodatage de dernière mise à jour (RFC 3339).
+    /// Last-update timestamp (RFC 3339).
     pub updated_at: String,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Erreurs
+// Errors
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Erreurs du repository agents.
+/// Agent repository errors.
 #[derive(Debug, thiserror::Error)]
 pub enum AgentRepositoryError {
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),
 
-    /// Agent introuvable pour le nom donné.
+    /// Agent not found for the given name.
     #[error("agent '{0}' introuvable")]
     NotFound(String),
 
-    /// Erreur de sérialisation/désérialisation du manifest JSON.
+    /// Manifest JSON serialization/deserialization error.
     #[error("erreur sérialisation manifest : {0}")]
     SerdeError(#[from] serde_json::Error),
 
-    /// Échec d'une tâche `spawn_blocking` (panique dans le thread de travail).
+    /// A `spawn_blocking` task failed (panic in the worker thread).
     #[error("erreur tâche async : {0}")]
     SpawnError(String),
 }
@@ -77,15 +76,15 @@ pub enum AgentRepositoryError {
 // Repository
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Repository SQLite pour les agents installés.
+/// SQLite repository for installed agents.
 ///
-/// Encapsule une connexion SQLite vers `agents.db`. La migration
-/// `007_agent_tables.sql` est appliquée à [`open`](Self::open).
-/// Le mode WAL est activé pour la concurrence lecture/écriture.
+/// Wraps a SQLite connection to `agents.db`. The `007_agent_tables.sql`
+/// migration is applied in [`open`](Self::open). WAL mode is enabled for
+/// read/write concurrency.
 ///
-/// Clonable via `Arc` — chaque clone partage la même connexion. Les wrappers
-/// async utilisent `tokio::task::spawn_blocking` pour éviter de bloquer
-/// l'exécuteur Tokio. Voir [`save_async`], [`list_async`], etc.
+/// Clonable via `Arc`; every clone shares the same connection. The async
+/// wrappers use `tokio::task::spawn_blocking` to avoid blocking the Tokio
+/// executor. See [`save_async`], [`list_async`], etc.
 ///
 /// [`save_async`]: Self::save_async
 /// [`list_async`]: Self::list_async
@@ -95,15 +94,15 @@ pub struct AgentRepository {
 }
 
 impl AgentRepository {
-    /// Ouvre (ou crée) la base SQLite et applique la migration 007.
+    /// Opens (or creates) the SQLite store and applies migration 007.
     ///
-    /// La migration est idempotente (`CREATE TABLE IF NOT EXISTS`), donc sûre
-    /// à rejouer sur une base existante. Active le mode WAL pour la concurrence.
+    /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`), so it is safe
+    /// to replay on an existing store. Enables WAL mode for concurrency.
     ///
     /// # Errors
     ///
-    /// Retourne une erreur si le fichier SQLite ne peut pas être ouvert ou si
-    /// la migration échoue.
+    /// Returns an error if the SQLite file cannot be opened or the migration
+    /// fails.
     pub fn open(path: &Path) -> Result<Self, AgentRepositoryError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
@@ -113,16 +112,16 @@ impl AgentRepository {
         })
     }
 
-    /// Insère ou met à jour un agent installé.
+    /// Inserts or updates an installed agent.
     ///
-    /// Utilise `INSERT OR REPLACE` : si un agent avec le même `name` existe
-    /// déjà, il est remplacé intégralement. Le champ `updated_at` est mis
-    /// à jour automatiquement.
+    /// Uses `INSERT OR REPLACE`: if an agent with the same `name` already
+    /// exists, it is fully replaced. The `updated_at` field is updated
+    /// automatically.
     ///
     /// # Errors
     ///
-    /// - [`AgentRepositoryError::SerdeError`] si le manifest ne peut pas être sérialisé
-    /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
+    /// - [`AgentRepositoryError::SerdeError`] if the manifest cannot be serialized
+    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn save(&self, agent: &InstalledAgent) -> Result<(), AgentRepositoryError> {
         let manifest_json = serde_json::to_string(&agent.manifest)?;
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
@@ -145,14 +144,14 @@ impl AgentRepository {
         Ok(())
     }
 
-    /// Récupère un agent installé par son nom.
+    /// Fetches an installed agent by name.
     ///
-    /// Retourne `None` si aucun agent ne porte ce nom.
+    /// Returns `None` if no agent has that name.
     ///
     /// # Errors
     ///
-    /// - [`AgentRepositoryError::SerdeError`] si le manifest JSON est corrompu
-    /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
+    /// - [`AgentRepositoryError::SerdeError`] if the manifest JSON is corrupted
+    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn get(&self, name: &str) -> Result<Option<InstalledAgent>, AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let mut stmt = conn.prepare(
@@ -168,12 +167,12 @@ impl AgentRepository {
         }
     }
 
-    /// Liste tous les agents installés.
+    /// Lists all installed agents.
     ///
     /// # Errors
     ///
-    /// - [`AgentRepositoryError::SerdeError`] si un manifest JSON est corrompu
-    /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
+    /// - [`AgentRepositoryError::SerdeError`] if a manifest JSON is corrupted
+    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn list(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let mut stmt = conn.prepare(
@@ -184,12 +183,12 @@ impl AgentRepository {
         collect_agents(&mut stmt, [])
     }
 
-    /// Liste uniquement les agents installés et activés (`enabled = true`).
+    /// Lists only the installed and enabled agents (`enabled = true`).
     ///
     /// # Errors
     ///
-    /// - [`AgentRepositoryError::SerdeError`] si un manifest JSON est corrompu
-    /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
+    /// - [`AgentRepositoryError::SerdeError`] if a manifest JSON is corrupted
+    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn list_enabled(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let mut stmt = conn.prepare(
@@ -200,13 +199,13 @@ impl AgentRepository {
         collect_agents(&mut stmt, [])
     }
 
-    /// Supprime un agent installé par son nom.
+    /// Deletes an installed agent by name.
     ///
-    /// Opération idempotente : ne retourne pas d'erreur si l'agent n'existe pas.
+    /// Idempotent operation: returns no error if the agent does not exist.
     ///
     /// # Errors
     ///
-    /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
+    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn delete(&self, name: &str) -> Result<(), AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         conn.execute(
@@ -216,14 +215,14 @@ impl AgentRepository {
         Ok(())
     }
 
-    /// Active ou désactive un agent installé.
+    /// Enables or disables an installed agent.
     ///
-    /// Met à jour le champ `enabled` et l'horodatage `updated_at`.
+    /// Updates the `enabled` field and the `updated_at` timestamp.
     ///
     /// # Errors
     ///
-    /// - [`AgentRepositoryError::NotFound`] si l'agent n'existe pas
-    /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
+    /// - [`AgentRepositoryError::NotFound`] if the agent does not exist
+    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn set_enabled(&self, name: &str, enabled: bool) -> Result<(), AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let rows_affected = conn.execute(
@@ -239,7 +238,7 @@ impl AgentRepository {
 
     // ─── Async wrappers ──────────────────────────────────────────────────────
 
-    /// Wrapper async pour [`save`] — exécute l'I/O SQLite sur un thread bloquant.
+    /// Async wrapper for [`save`]: runs the SQLite I/O on a blocking thread.
     ///
     /// [`save`]: Self::save
     pub async fn save_async(&self, agent: InstalledAgent) -> Result<(), AgentRepositoryError> {
@@ -249,7 +248,7 @@ impl AgentRepository {
             .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`get`] — exécute l'I/O SQLite sur un thread bloquant.
+    /// Async wrapper for [`get`]: runs the SQLite I/O on a blocking thread.
     ///
     /// [`get`]: Self::get
     pub async fn get_async(
@@ -262,7 +261,7 @@ impl AgentRepository {
             .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`list`] — exécute l'I/O SQLite sur un thread bloquant.
+    /// Async wrapper for [`list`]: runs the SQLite I/O on a blocking thread.
     ///
     /// [`list`]: Self::list
     pub async fn list_async(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
@@ -272,7 +271,7 @@ impl AgentRepository {
             .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`list_enabled`] — exécute l'I/O SQLite sur un thread bloquant.
+    /// Async wrapper for [`list_enabled`]: runs the SQLite I/O on a blocking thread.
     ///
     /// [`list_enabled`]: Self::list_enabled
     pub async fn list_enabled_async(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
@@ -282,7 +281,7 @@ impl AgentRepository {
             .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`delete`] — exécute l'I/O SQLite sur un thread bloquant.
+    /// Async wrapper for [`delete`]: runs the SQLite I/O on a blocking thread.
     ///
     /// [`delete`]: Self::delete
     pub async fn delete_async(&self, name: String) -> Result<(), AgentRepositoryError> {
@@ -292,7 +291,7 @@ impl AgentRepository {
             .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Wrapper async pour [`set_enabled`] — exécute l'I/O SQLite sur un thread bloquant.
+    /// Async wrapper for [`set_enabled`]: runs the SQLite I/O on a blocking thread.
     ///
     /// [`set_enabled`]: Self::set_enabled
     pub async fn set_enabled_async(
@@ -308,10 +307,10 @@ impl AgentRepository {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers internes
+// Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Convertit une ligne SQLite en [`InstalledAgent`].
+/// Converts a SQLite row into an [`InstalledAgent`].
 fn row_to_installed_agent(row: &rusqlite::Row<'_>) -> Result<InstalledAgent, AgentRepositoryError> {
     let manifest_json: String = row.get(4)?;
     let manifest: AgentManifest = serde_json::from_str(&manifest_json)?;
@@ -330,7 +329,7 @@ fn row_to_installed_agent(row: &rusqlite::Row<'_>) -> Result<InstalledAgent, Age
     })
 }
 
-/// Collecte les résultats d'une requête en vecteur d'[`InstalledAgent`].
+/// Collects query results into a vector of [`InstalledAgent`].
 fn collect_agents<P: rusqlite::Params>(
     stmt: &mut rusqlite::Statement<'_>,
     params: P,
@@ -389,7 +388,7 @@ mod tests {
     use apollia_core::AgentManifest;
     use std::path::PathBuf;
 
-    /// Crée un [`AgentManifest`] de test avec des valeurs par défaut.
+    /// Creates a test [`AgentManifest`] with default values.
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
             name: name.to_string(),
@@ -425,7 +424,7 @@ mod tests {
         }
     }
 
-    /// Crée un [`InstalledAgent`] de test.
+    /// Creates a test [`InstalledAgent`].
     fn test_agent(name: &str) -> InstalledAgent {
         InstalledAgent {
             name: name.to_string(),
@@ -439,16 +438,16 @@ mod tests {
         }
     }
 
-    /// Ouvre un repository en mémoire pour les tests.
+    /// Opens an in-memory repository for tests.
     fn open_test_repo() -> AgentRepository {
         AgentRepository::open(Path::new(":memory:")).expect("failed to open test repo")
     }
 
-    // Migration crée la table installed_agents
+    // Migration creates the installed_agents table
     #[test]
     fn test_open_creates_table() {
         let repo = open_test_repo();
-        // Vérifie que la table existe en requêtant sans erreur
+        // Checks the table exists by querying without error
         let count: i64 = {
             let conn = repo.conn.lock().expect("lock");
             conn.query_row("SELECT COUNT(*) FROM installed_agents", [], |row| {
@@ -530,33 +529,33 @@ mod tests {
         let repo = open_test_repo();
         repo.save(&test_agent("toggle-agent")).expect("save");
 
-        // Vérifie état initial : enabled
+        // Check initial state: enabled
         let agent = repo.get("toggle-agent").expect("get").expect("exists");
         assert!(agent.enabled);
 
-        // Désactive
+        // Disable
         repo.set_enabled("toggle-agent", false)
             .expect("set_enabled false");
         let agent = repo.get("toggle-agent").expect("get").expect("exists");
         assert!(!agent.enabled);
-        // updated_at a changé (datetime('now') != timestamp original)
+        // updated_at changed (datetime('now') != original timestamp)
         assert_ne!(agent.updated_at, "2026-03-17T10:00:00Z");
 
-        // Réactive
+        // Re-enable
         repo.set_enabled("toggle-agent", true)
             .expect("set_enabled true");
         let agent = repo.get("toggle-agent").expect("get").expect("exists");
         assert!(agent.enabled);
     }
 
-    // save() upsert sur agent existant
+    // save() upserts an existing agent
     #[test]
     fn test_save_upsert_existing() {
         let repo = open_test_repo();
         let mut agent = test_agent("upsert-agent");
         repo.save(&agent).expect("save v1");
 
-        // Met à jour la version
+        // Update the version
         agent.version = "2.0.0".to_string();
         agent.updated_at = "2026-03-17T12:00:00Z".to_string();
         repo.save(&agent).expect("save v2");
@@ -565,12 +564,12 @@ mod tests {
         assert_eq!(loaded.version, "2.0.0");
         assert_eq!(loaded.updated_at, "2026-03-17T12:00:00Z");
 
-        // Un seul agent dans la base
+        // A single agent in the store
         let all = repo.list().expect("list");
         assert_eq!(all.len(), 1);
     }
 
-    // get() retourne None si agent inexistant
+    // get() returns None for a non-existent agent
     #[test]
     fn test_get_nonexistent_returns_none() {
         let repo = open_test_repo();
@@ -578,7 +577,7 @@ mod tests {
         assert!(result.is_none());
     }
 
-    // list_async() retourne les mêmes agents que list()
+    // list_async() returns the same agents as list()
     #[tokio::test]
     async fn test_agent_repository_async_list() {
         // GIVEN
@@ -595,11 +594,11 @@ mod tests {
         assert_eq!(agents[1].name, "beta");
     }
 
-    // list_async() propage les erreurs correctement
+    // list_async() propagates errors correctly
     #[tokio::test]
     async fn test_agent_repository_async_error_propagation() {
-        // GIVEN un repository fermé ne peut pas se produire avec in-memory,
-        // mais on vérifie que get_async retourne None pour un agent inexistant
+        // GIVEN a closed repository cannot happen with in-memory, but we check
+        // that get_async returns None for a non-existent agent
         let repo = open_test_repo();
 
         // WHEN

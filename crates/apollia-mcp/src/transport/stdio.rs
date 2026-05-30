@@ -29,7 +29,7 @@ const STDERR_TAIL_CAPACITY: usize = 50;
 ///   failures, npm/uvx install logs, and runtime warnings appear in the
 ///   parent process logs;
 /// - retains the last [`STDERR_TAIL_CAPACITY`] lines so the session layer
-///   can include them in `TransportError` messages on handshake timeouts —
+///   can include them in `TransportError` messages on handshake timeouts,
 ///   the single most useful piece of evidence when a subprocess starts but
 ///   never responds (PATH issue, wrong runtime, registry auth failure …).
 ///
@@ -82,7 +82,7 @@ impl StdioTransport {
             STDERR_TAIL_CAPACITY,
         )));
 
-        // Background drainer — required so that a chatty server cannot stall
+        // Background drainer: required so that a chatty server cannot stall
         // by filling the OS pipe buffer (typically 64 KiB on Linux/macOS) and
         // never getting drained. We tee into tracing for observability and
         // into `stderr_tail` so the session layer can surface the last few

@@ -2,7 +2,7 @@
 name = "apollia-cli"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — CLI binary (apollia-os)"
+description = "Apollia OS CLI binary (apollia-os)"
 license = "MIT OR Apache-2.0"
 
 [[bin]]
@@ -11,9 +11,9 @@ path = "src/main.rs"
 
 [features]
 default = ["cloud"]
-## Active les backends cloud (Anthropic, OpenAI-compatible, Vertex).
-## ADR-113 : les backends LLM/STT locaux vivent dans `apollia-runner` (sidecar) ;
-## la CLI parle au daemon, qui spawn et supervise le runner.
+## Enables the cloud backends (Anthropic, OpenAI-compatible, Vertex).
+## Local LLM and STT backends live in the `apollia-runner` sidecar crate;
+## the CLI talks to the daemon, which spawns and supervises the runner.
 cloud = ["apollia-llm/cloud"]
 
 [dependencies]

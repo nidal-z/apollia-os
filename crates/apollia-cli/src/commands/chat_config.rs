@@ -1,4 +1,4 @@
-//! `apollia-os chat-config` — manage chat libre defaults.
+//! `apollia-os chat-config`: manage chat libre defaults.
 //!
 //! Wraps [`ChatLibreConfigRepository`] directly against `governance.db` so
 //! the runtime does not need to be running. The Desktop equivalents are

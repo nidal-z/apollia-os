@@ -45,11 +45,10 @@ def _isolate_loggers() -> Any:
     yield
     # WHEN: teardown — remove every apollia.agent.* handler we installed.
     manager = logging.Logger.manager
-    for name in list(manager.loggerDict.keys()):
-        if name.startswith("apollia.agent."):
-            logger = logging.getLogger(name)
-            for handler in list(logger.handlers):
-                logger.removeHandler(handler)
+    for name in [n for n in manager.loggerDict if n.startswith("apollia.agent.")]:
+        logger = logging.getLogger(name)
+        while logger.handlers:
+            logger.removeHandler(logger.handlers[0])
 
 
 def test_info_record_pipes_to_ctx_log() -> None:

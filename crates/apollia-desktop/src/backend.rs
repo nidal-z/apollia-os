@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
 use apollia_aip::context::{
-    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy,
+    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
 };
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{
@@ -43,8 +43,8 @@ use pyo3::prelude::*;
 // ─── Agent loader ─────────────────────────────────────────────────────────────
 
 /// Compute the per-agent venv's site-packages directories, given the agent's
-/// installed `.py` path. Convention : the agent name matches the `.py` file
-/// stem (e.g. `chart-worker.py` → agent `chart-worker` → venv at
+/// installed `.py` path. By convention the agent name matches the `.py` file
+/// stem (e.g. `chart-worker.py` -> agent `chart-worker` -> venv at
 /// `~/.apollia/venvs/chart-worker/venv/`).
 fn venv_site_packages_for_agent_path(agent_py_path: &Path) -> Vec<PathBuf> {
     let agent_name = match agent_py_path.file_stem().and_then(|s| s.to_str()) {
@@ -62,7 +62,7 @@ fn venv_site_packages_for_agent_name(agent_name: &str) -> Vec<PathBuf> {
     apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
 }
 
-/// Real agent loader using AIPLoader + validate_agent (ADR-019).
+/// Real agent loader using AIPLoader + validate_agent.
 ///
 /// Injects the agent's per-package venv into `sys.path` so top-level imports
 /// of pip-installed packages (e.g. `matplotlib`, `openpyxl`) resolve at
@@ -186,30 +186,30 @@ struct AIPProductionBackend {
     /// `McpToolExecutor` per active MCP tool and inject it into the agent's
     /// dispatcher.
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
-    /// `manifest.supports_a2a` — propagated into the `RuntimeContext` so Python
+    /// `manifest.supports_a2a`, propagated into the `RuntimeContext` so Python
     /// agents can introspect their own A2A eligibility.
     supports_a2a: bool,
-    /// Type-erased A2A delegate (Director → Worker). `None` when the runtime
+    /// Type-erased A2A delegate (Director to Worker). `None` when the runtime
     /// registry/router were not available at factory construction time.
     a2a_delegate: Option<A2aDelegateFn>,
     /// A2A orchestrator exposed both as virtual `a2a:*` tools (via `ToolProxy.with_a2a`
     /// and `allowed_tools` augmentation) and through `ctx.a2a_invoke()` for Python agents.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Inter-agent mailbox — exposed as `ctx.mailbox` so agents can send/receive
+    /// Inter-agent mailbox, exposed as `ctx.mailbox` so agents can send/receive
     /// async messages without going through A2A skill delegation.
     mailbox: Option<AgentMailboxHandle>,
     /// Operator-supplied tools configuration (`[tools]` section of apollia.toml).
     /// Drives `web_search`, `web_read`, `http_allowlist`, and statically-disabled tools.
     tools_config: ToolsConfig,
-    /// Datasources YAML déclarées au manifest (ADR-103, LOT 5).
+    /// Datasources YAML declared in the manifest.
     datasources_declared: Vec<String>,
-    /// Templates Jinja2 déclarés au manifest (ADR-103, LOT 5).
+    /// Jinja2 templates declared in the manifest.
     templates_declared: Vec<String>,
-    /// Répertoire racine de l'agent — utilisé pour résoudre
-    /// `datasources/<name>.yaml` et `templates/<name>.j2` (ADR-103, LOT 5).
+    /// Agent root directory, used to resolve
+    /// `datasources/<name>.yaml` and `templates/<name>.j2`.
     agent_dir: Option<PathBuf>,
-    /// Secrets déclarés au manifest (`manifest.secrets`) — allowlist
-    /// `ctx.secrets.get()` (ADR-104, LOT 6).
+    /// Secrets declared in the manifest (`manifest.secrets`): the allowlist for
+    /// `ctx.secrets.get()`.
     secrets_declared: Vec<String>,
 }
 
@@ -258,18 +258,18 @@ struct BridgeRunner {
     /// manager, `None` for standalone task-mode runs (HITL relies on AIP
     /// `input_required` instead).
     pending_user_inputs: Option<PendingUserInputs>,
-    /// Handle vers le MCP client manager — utilisé pour construire un
-    /// `McpToolExecutor` par tool MCP enregistré et l'injecter dans le
-    /// `ToolDispatcher` de l'agent. `None` quand MCP n'est pas configuré.
+    /// Handle to the MCP client manager, used to build one
+    /// `McpToolExecutor` per registered MCP tool and inject it into the agent's
+    /// `ToolDispatcher`. `None` when MCP is not configured.
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
-    /// `manifest.supports_a2a` — exposed in `RuntimeContext`.
+    /// `manifest.supports_a2a`, exposed in `RuntimeContext`.
     supports_a2a: bool,
     /// Type-erased A2A delegate. `None` when registry/router were unavailable.
     a2a_delegate: Option<A2aDelegateFn>,
     /// Shared A2A orchestrator. When `Some`, `allowed_tools` is augmented with
     /// virtual `a2a:*` descriptors and the `ToolProxy` gets `.with_a2a(...)`.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Inter-agent mailbox handle — exposed as `ctx.mailbox`.
+    /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     mailbox: Option<AgentMailboxHandle>,
     /// Per-task user context (typically `{"profile": [(k, v), ...]}`). Populated
     /// only by the chat-agent runner so chat-mode Python agents see the same
@@ -277,15 +277,14 @@ struct BridgeRunner {
     user_context: Option<std::collections::HashMap<String, Vec<(String, String)>>>,
     /// Operator-supplied tools configuration (`[tools]` apollia.toml).
     tools_config: ToolsConfig,
-    /// Datasources YAML déclarées au manifest (ADR-103, LOT 5).
+    /// Datasources YAML declared in the manifest.
     datasources_declared: Vec<String>,
-    /// Templates Jinja2 déclarés au manifest (ADR-103, LOT 5).
+    /// Jinja2 templates declared in the manifest.
     templates_declared: Vec<String>,
-    /// Répertoire racine de l'agent — résolution `datasources/` et
-    /// `templates/` (ADR-103, LOT 5).
+    /// Agent root directory, used to resolve `datasources/` and
+    /// `templates/`.
     agent_dir: Option<PathBuf>,
-    /// Secrets déclarés au manifest — allowlist `ctx.secrets.get()`
-    /// (ADR-104, LOT 6).
+    /// Secrets declared in the manifest: the allowlist for `ctx.secrets.get()`.
     secrets_declared: Vec<String>,
 }
 
@@ -338,54 +337,24 @@ impl AgentRunner for BridgeRunner {
             // Augment allowed_tools with live A2A virtual skills (`a2a:*`).
             // Without this, even when ToolProxy gets `.with_a2a(...)`, the
             // ToolRegistry filter would reject the call as "unknown tool".
-            if let Some(ref invoker) = a2a_invoker {
-                let descriptors = A2AToolsProvider::new(Arc::clone(invoker))
-                    .build_tool_descriptors()
-                    .await;
-                for desc in descriptors {
-                    if !allowed_tools.iter().any(|n| n == &desc.name) {
-                        allowed_tools.push(desc.name);
-                    }
-                }
-            }
+            augment_allowed_tools_with_a2a(&mut allowed_tools, &a2a_invoker).await;
 
             // Merge operator-disabled (apollia.toml `[tools].disabled`) with
-            // governance.db runtime-disabled — either source disables the tool.
+            // governance.db runtime-disabled: either source disables the tool.
             let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
             // Build one McpToolExecutor per registered MCP tool so the agent's
             // ToolDispatcher can route `mcp:<server>/<tool>` invocations
             // through the MCP client manager. Without this, the registry
             // surfaces the tool to the agent's prompt but the dispatcher
             // returns UnknownTool at call time.
-            let mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> =
-                if let Some(handle) = &mcp_handle {
-                    let mut execs: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
-                    for status in handle.status().await {
-                        if !status.connected {
-                            continue;
-                        }
-                        let Some(detail) = handle.server_detail(&status.name).await else {
-                            continue;
-                        };
-                        for tool in detail.tools {
-                            execs.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
-                                handle.clone(),
-                                status.name.clone(),
-                                tool.local_name.clone(),
-                            )));
-                        }
-                    }
-                    execs
-                } else {
-                    Vec::new()
-                };
+            let mut extra_executors = build_mcp_executors(&mcp_handle).await;
 
             // Append connector executors (Google Workspace today; Microsoft
             // wires the same way once its executor module lands). When the
             // AuthManager hasn't initialised yet (no OAuth flow run, fresh
             // install), `build_google_executors` returns an empty Vec and
             // tool calls surface the "no Google account connected" error
-            // from the executors rather than `UnknownTool` — better UX.
+            // from the executors rather than `UnknownTool`, for better UX.
             let google_executors = crate::connectors_bridge::build_google_executors().await;
             extra_executors.extend(google_executors);
 
@@ -415,15 +384,15 @@ impl AgentRunner for BridgeRunner {
 
             let tool_proxy = match (tool_registry.as_ref(), audit_trail.as_ref()) {
                 (Some(registry), Some(audit)) => {
-                    let proxy = ToolProxy::new(
-                        registry.clone(),
-                        audit.clone(),
-                        Arc::new(DispatcherExecutor::new(dispatcher)),
+                    let proxy = ToolProxy::new(ToolProxyConfig {
+                        registry: registry.clone(),
+                        audit: audit.clone(),
+                        executor: Arc::new(DispatcherExecutor::new(dispatcher)),
                         allowed_tools,
-                        agent_id.clone(),
-                        task.task_id.clone(),
-                    )
-                    // ADR-088 — instrumentation tool_call_* sur l'EventBus.
+                        agent_id: agent_id.clone(),
+                        task_id: task.task_id.clone(),
+                    })
+                    // tool_call_* instrumentation on the EventBus.
                     .with_event_bus(event_bus.clone());
                     // Wire A2A so `ctx.tools.invoke("a2a:<skill>")` routes through
                     // the orchestrator. Without this, the registry would still
@@ -454,7 +423,7 @@ impl AgentRunner for BridgeRunner {
             });
 
             // Chat mode wiring: when the task carries a message_id, the
-            // runtime is invoked from the chat session manager — configure
+            // runtime is invoked from the chat session manager, so configure
             // the context so `ctx.emit_token()` routes tokens back to the
             // right SSE session.
             let chat_target = task
@@ -462,8 +431,8 @@ impl AgentRunner for BridgeRunner {
                 .clone()
                 .map(|mid| (task.context_id.clone(), mid));
 
-            // ADR-087 — Build a dedicated MemoryManager for the __user__
-            // namespace so we can expose ctx.profile alongside ctx.memory.
+            // Build a dedicated MemoryManager for the __user__ namespace so we
+            // can expose ctx.profile alongside ctx.memory.
             let profile_interface = {
                 let user_manager =
                     MemoryManager::new(&memory_base_dir, Some("__user__".to_string()), vec![]);
@@ -500,22 +469,21 @@ impl AgentRunner for BridgeRunner {
                 if let Some((session_id, message_id)) = chat_target {
                     ctx = ctx.with_chat_target(session_id, message_id);
                 }
-                // ADR-103 (LOT 5) — datasources YAML + templates Jinja2.
+                // Datasources YAML + Jinja2 templates.
                 ctx = ctx
                     .with_datasources(datasources_declared, agent_dir.as_deref())
                     .with_templates(templates_declared, agent_dir.as_deref());
-                // ADR-104 (LOT 6) — ctx.secrets read-only gated par le manifest.
-                // Le store est ouvert ici (et non capturé dans le BridgeRunner)
-                // pour éviter de tenir un Mutex à travers les awaits et pour
-                // ramasser proprement les changements de secrets effectués
-                // pendant la session.
+                // ctx.secrets is read-only and gated by the manifest. The store
+                // is opened here (not captured in the BridgeRunner) to avoid
+                // holding a Mutex across awaits and to pick up cleanly any
+                // secret changes made during the session.
                 let secret_store = open_secret_store(&default_data_dir());
                 ctx = ctx.with_secrets(apollia_aip::secrets::SecretsInterface::new(
                     secret_store,
                     secrets_declared,
                 ));
-                // ADR-088 — relier le contexte à la task pour que ctx.log()
-                // étiquette correctement les RuntimeEvent::AgentLog persistés.
+                // Bind the context to the task so ctx.log() correctly labels
+                // the persisted RuntimeEvent::AgentLog entries.
                 ctx = ctx.with_task_id(task.task_id.clone());
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
@@ -525,6 +493,53 @@ impl AgentRunner for BridgeRunner {
             bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
         })
     }
+}
+
+/// Add live A2A virtual skills (`a2a:*`) to the allowed-tools list.
+///
+/// Without this, even when `ToolProxy` gets `.with_a2a(...)`, the `ToolRegistry`
+/// filter would reject the call as "unknown tool".
+async fn augment_allowed_tools_with_a2a(
+    allowed_tools: &mut Vec<String>,
+    a2a_invoker: &Option<Arc<A2AInvoker>>,
+) {
+    let Some(invoker) = a2a_invoker else { return };
+    let descriptors = A2AToolsProvider::new(Arc::clone(invoker))
+        .build_tool_descriptors()
+        .await;
+    for desc in descriptors {
+        if !allowed_tools.iter().any(|n| n == &desc.name) {
+            allowed_tools.push(desc.name);
+        }
+    }
+}
+
+/// Build one `McpToolExecutor` per registered MCP tool so the agent's
+/// `ToolDispatcher` can route `mcp:<server>/<tool>` invocations through the MCP
+/// client manager. Returns an empty Vec when no MCP handle is wired.
+async fn build_mcp_executors(
+    mcp_handle: &Option<apollia_mcp::manager::McpClientManagerHandle>,
+) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
+    let mut execs: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
+    let Some(handle) = mcp_handle else {
+        return execs;
+    };
+    for status in handle.status().await {
+        if !status.connected {
+            continue;
+        }
+        let Some(detail) = handle.server_detail(&status.name).await else {
+            continue;
+        };
+        for tool in detail.tools {
+            execs.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
+                handle.clone(),
+                status.name.clone(),
+                tool.local_name.clone(),
+            )));
+        }
+    }
+    execs
 }
 
 impl ExecutionBackend for AIPProductionBackend {
@@ -593,13 +608,13 @@ pub struct ProductionBackendFactory {
     pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
     pub task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
     pub mcp_handle: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
-    /// Agent registry handle — required to build the A2A invoker so
+    /// Agent registry handle, required to build the A2A invoker so
     /// trigger-fired agents and manual fires can call `ctx.a2a_invoke(...)`
     /// on parity with Chat Libre.
     pub agent_registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
-    /// Task router handle — required to build the A2A delegate.
+    /// Task router handle, required to build the A2A delegate.
     pub task_router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
-    /// Inter-agent mailbox handle — exposed as `ctx.mailbox`.
+    /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
     /// Operator tools configuration (`[tools]` of apollia.toml).
     pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
@@ -678,12 +693,12 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let memory_namespace = validated.manifest.memory_namespace.clone();
             let user_memory_write = validated.manifest.user_memory_write;
             let supports_a2a = validated.manifest.supports_a2a;
-            // ADR-103 (LOT 5) — capture les déclarations + le dossier de
-            // l'agent pour brancher ctx.datasources / ctx.templates.
+            // Capture the declarations and the agent directory to wire up
+            // ctx.datasources / ctx.templates.
             let datasources_declared = validated.manifest.datasources.clone();
             let templates_declared = validated.manifest.templates.clone();
             let agent_dir = agent_path.parent().map(Path::to_path_buf);
-            // ADR-104 (LOT 6) — capture la liste secrets déclarés.
+            // Capture the list of declared secrets.
             let secrets_declared = validated.manifest.secrets.clone();
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
@@ -732,18 +747,18 @@ fn default_memory_dir() -> PathBuf {
     PathBuf::from(home).join(".apollia").join("memory")
 }
 
-/// Base de données apollia (`~/.apollia/`) — utilisée pour ouvrir le
-/// [`ToolCredentialStore`] partagé pour `ctx.secrets` (ADR-104, LOT 6).
+/// Apollia data directory (`~/.apollia/`), used to open the shared
+/// [`ToolCredentialStore`] backing `ctx.secrets`.
 fn default_data_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home).join(".apollia")
 }
 
-/// Ouvre le [`ToolCredentialStore`] partagé pour `ctx.secrets` (ADR-104, LOT 6).
+/// Opens the shared [`ToolCredentialStore`] backing `ctx.secrets`.
 ///
-/// Retourne `None` si la base de gouvernance n'existe pas encore ou si
-/// l'ouverture échoue — l'agent obtient alors `None` à chaque
-/// `ctx.secrets.get(key)` (sémantique non-fatale, ADR-104).
+/// Returns `None` if the governance database does not exist yet or if opening
+/// fails. The agent then gets `None` on every `ctx.secrets.get(key)`, which is
+/// a non-fatal semantic.
 fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredentialStore>>> {
     let db_path = data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME);
     if !db_path.exists() {
@@ -779,7 +794,7 @@ pub struct ProductionChatAgentRunner {
     pub audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
     pub task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
-    /// Chat manager's `ask_user` pending-input registry — populated after
+    /// Chat manager's `ask_user` pending-input registry, populated after
     /// `init_embedded()` returns so the native tool dispatcher can route
     /// `ask_user` invocations through the chat HITL loop.
     pub pending_user_inputs: Arc<std::sync::OnceLock<PendingUserInputs>>,
@@ -787,14 +802,14 @@ pub struct ProductionChatAgentRunner {
     /// BridgeRunner can inject McpToolExecutor instances into the
     /// dispatcher at run time.
     pub mcp_handle: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
-    /// Agent registry handle — required to build the A2A invoker so chat-agent
+    /// Agent registry handle, required to build the A2A invoker so chat-agent
     /// Python agents can call `ctx.a2a_invoke(...)` like task-mode agents.
     pub agent_registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
-    /// Task router handle — required to build the A2A delegate.
+    /// Task router handle, required to build the A2A delegate.
     pub task_router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
-    /// Inter-agent mailbox handle — exposed as `ctx.mailbox`.
+    /// Inter-agent mailbox handle, exposed as `ctx.mailbox`.
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
-    /// Global user memory repository — used to build `ctx.user_context`.
+    /// Global user memory repository, used to build `ctx.user_context`.
     pub user_memory: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>>,
     /// Operator tools configuration (`[tools]` apollia.toml).
     pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
@@ -841,11 +856,11 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
         let memory_namespace = validated.manifest.memory_namespace.clone();
         let user_memory_write = validated.manifest.user_memory_write;
         let supports_a2a = validated.manifest.supports_a2a;
-        // ADR-103 (LOT 5) — capture datasources/templates + dossier de l'agent.
+        // Capture datasources/templates and the agent directory.
         let datasources_declared = validated.manifest.datasources.clone();
         let templates_declared = validated.manifest.templates.clone();
         let agent_dir = install_path.parent().map(Path::to_path_buf);
-        // ADR-104 (LOT 6) — capture la liste des secrets déclarés.
+        // Capture the list of declared secrets.
         let secrets_declared = validated.manifest.secrets.clone();
         let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
 
@@ -869,8 +884,8 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .cloned()
             .unwrap_or_else(ToolsConfig::default);
 
-        // Build A2A delegate + invoker when registry+router are available —
-        // gives chat-agent Python agents the same A2A capabilities as task-mode
+        // Build A2A delegate + invoker when registry+router are available.
+        // Gives chat-agent Python agents the same A2A capabilities as task-mode
         // and Chat Libre.
         let (a2a_delegate, a2a_invoker) = match (
             self.agent_registry.get().cloned(),

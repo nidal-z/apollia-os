@@ -33,7 +33,7 @@ impl StoredToken {
 
 /// Token endpoint response (RFC 6749 §5.1 success + §5.2 error). All fields
 /// are optional so the same struct deserialises both success and error
-/// payloads — Google / Microsoft return `{"error":"…","error_description":"…"}`
+/// payloads. Google / Microsoft return `{"error":"…","error_description":"…"}`
 /// with HTTP 400 when something goes wrong, which previously failed to parse
 /// because `access_token` was required and absent. `into_stored` then enforces
 /// the success-vs-error distinction with a clear, surfaced message.
@@ -131,7 +131,7 @@ pub async fn exchange_code(
         ("client_id", provider.client_id.as_str()),
     ];
     // Append the client_secret when the provider config carries one. Google's
-    // Installed App type requires it at the token endpoint (non-standard) —
+    // Installed App type requires it at the token endpoint (non-standard);
     // Microsoft and other spec-compliant public clients leave this `None`.
     if let Some(secret) = provider.client_secret.as_deref() {
         params.push(("client_secret", secret));

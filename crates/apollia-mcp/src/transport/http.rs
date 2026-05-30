@@ -131,7 +131,7 @@ impl McpTransport for StreamableHttpTransport {
             }
         }
 
-        // Branch on Content-Type — modern MCP servers (Notion, Linear,
+        // Branch on Content-Type: modern MCP servers (Notion, Linear,
         // Stripe…) use `streamable-http` transport which can return EITHER:
         //   - `application/json` with a single JSON-RPC message body, OR
         //   - `text/event-stream` with one-or-more `data:` events, each
@@ -167,7 +167,7 @@ impl McpTransport for StreamableHttpTransport {
             }
             Ok(())
         } else if body.trim().is_empty() {
-            // Empty 200/202 reply to a JSON-RPC notification — nothing to dispatch.
+            // Empty 200/202 reply to a JSON-RPC notification: nothing to dispatch.
             Ok(())
         } else {
             self.response_tx
@@ -204,7 +204,7 @@ impl McpTransport for StreamableHttpTransport {
 /// - blank line terminates an event
 /// - lines starting with `:` are comments (ignored)
 ///
-/// For MCP we only care about the `data` payload of each event — the
+/// For MCP we only care about the `data` payload of each event; the
 /// `event_type` is not used by the JSON-RPC layer downstream. Multi-line
 /// `data:` continuations (rare in practice) are joined with `\n` per the
 /// SSE spec. Empty events (no `data:`) are dropped.
@@ -216,12 +216,12 @@ fn parse_sse_data_events(body: &str) -> Vec<String> {
         let line = raw_line.trim_end_matches('\r');
 
         if line.is_empty() {
-            // Blank line — flush current event.
+            // Blank line: flush current event.
             if !current.is_empty() {
                 events.push(std::mem::take(&mut current));
             }
         } else if line.starts_with(':') {
-            // SSE comment line — ignore.
+            // SSE comment line: ignore.
         } else if let Some(rest) = line.strip_prefix("data:") {
             // Per spec: a single leading space after the colon is consumed.
             let payload = rest.strip_prefix(' ').unwrap_or(rest);
@@ -230,7 +230,7 @@ fn parse_sse_data_events(body: &str) -> Vec<String> {
             }
             current.push_str(payload);
         }
-        // Other field lines (event:, id:, retry:) are ignored — the
+        // Other field lines (event:, id:, retry:) are ignored; the
         // JSON-RPC payload is fully self-describing.
     }
 
@@ -353,14 +353,14 @@ mod tests {
         )
         .expect("transport construction must succeed");
 
-        // First request — no session ID sent yet
+        // First request: no session ID sent yet
         transport
             .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
             .await
             .expect("first send must succeed");
         transport.recv().await.expect("first recv must succeed");
 
-        // Second request — session ID must be echoed
+        // Second request: session ID must be echoed
         transport
             .send(r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
             .await
@@ -503,13 +503,13 @@ mod tests {
         let body = transport.recv().await.expect("recv must succeed");
 
         // THEN the SSE wrapper is stripped and the JSON-RPC payload surfaces
-        // verbatim — the session layer can parse it without modification.
+        // verbatim, so the session layer can parse it without modification.
         assert_eq!(body, r#"{"jsonrpc":"2.0","id":1,"result":"ok"}"#);
     }
 
     #[tokio::test]
     async fn test_http_transport_empty_body_not_dispatched() {
-        // GIVEN a server that returns 202 Accepted with an empty body — the
+        // GIVEN a server that returns 202 Accepted with an empty body: the
         // typical reply to a JSON-RPC notification like `notifications/initialized`.
         let app = Router::new().route("/mcp", post(|| async { StatusCode::ACCEPTED }));
         let addr = start_server(app).await;
@@ -527,7 +527,7 @@ mod tests {
             .await
             .expect("send must succeed");
 
-        // THEN nothing is queued for recv — the dispatch loop never sees an
+        // THEN nothing is queued for recv: the dispatch loop never sees an
         // empty line that would fail JSON parsing.
         let timed = tokio::time::timeout(Duration::from_millis(100), transport.recv()).await;
         assert!(

@@ -1,4 +1,4 @@
-//! `EventPersistor` — actor SQLite append-only pour `runtime_events.db`.
+//! `EventPersistor`, actor SQLite append-only pour `runtime_events.db`.
 //!
 //! Pattern copié de `apollia_tools::audit::AuditTrailHandle` :
 //! - `tokio::sync::mpsc` borné en entrée, `tokio::task::spawn_blocking`
@@ -21,7 +21,7 @@ use crate::eventbus::EventBusSender;
 
 const CHANNEL_CAPACITY: usize = 1024;
 
-/// Schéma SQL inline — miroir de `migrations/006_runtime_events.sql`.
+/// Schéma SQL inline, miroir de `migrations/006_runtime_events.sql`.
 ///
 /// Inclus en `include_str!` aurait nécessité de réorganiser le crate
 /// `apollia-tools` ; on duplique le schéma ici de façon contrôlée jusqu'à
@@ -83,7 +83,7 @@ enum PersistorMessage {
     Shutdown,
 }
 
-/// Acteur interne — détient la `Connection` SQLite en exclusivité.
+/// Acteur interne, détient la `Connection` SQLite en exclusivité.
 struct EventPersistor {
     conn: rusqlite::Connection,
     receiver: mpsc::Receiver<PersistorMessage>,
@@ -250,7 +250,7 @@ pub fn spawn_runtime_events_subscriber(
 /// Mappe un `RuntimeEvent` vers un `RuntimeEventRecord` persistable.
 ///
 /// Retourne `None` pour les variantes qui ne participent pas (encore) au
-/// log d'événements. Le mapping s'élargit au fil des Lots — chaque ajout
+/// log d'événements. Le mapping s'élargit au fil des Lots, chaque ajout
 /// est une simple branche supplémentaire dans le `match`.
 fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
     let now_unix = chrono::Utc::now().timestamp();
@@ -329,7 +329,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             ts: now_iso,
             created_at_unix: now_unix,
         }),
-        // Mapping du LlmCallFailed *existant* (pré-Lot 2) — porte une
+        // Mapping du LlmCallFailed *existant* (pré-Lot 2), porte une
         // ErrorAnalysis structurée plus riche que les champs ad hoc qu'on
         // aurait redéfinis. Le payload conserve l'analyse complète pour
         // que l'UI puisse afficher `category`, `severity`, etc.
@@ -341,7 +341,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             error,
             analysis,
         } => {
-            // Sans task_id on ne sait pas où raccrocher l'événement —
+            // Sans task_id on ne sait pas où raccrocher l'événement -
             // ignorer (perdu vs `tracing::*` qui aura logué l'erreur).
             let task_id = task_id?;
             Some(RuntimeEventRecord {
@@ -473,7 +473,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
         } => Some(RuntimeEventRecord {
             event_id: uuid::Uuid::now_v7().to_string(),
             task_id: task_id.to_string(),
-            // L'agent_id du completed est celui du caller — il est
+            // L'agent_id du completed est celui du caller, il est
             // déduit du started via parent_event_id côté UI.
             agent_id: String::new(),
             parent_event_id: Some(parent_event_id),
@@ -535,7 +535,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             created_at_unix: now_unix,
         }),
 
-        // Variantes hors observability — ignorées.
+        // Variantes hors observability, ignorées.
         _ => None,
     }
 }
@@ -557,7 +557,7 @@ mod tests {
         // WHEN we open the persistor
         let handle = EventPersistorHandle::open(&db).await.expect("open");
 
-        // THEN the file is created and the schema is in place — verifiable
+        // THEN the file is created and the schema is in place, verifiable
         // via a direct rusqlite open: the `runtime_events` table must exist.
         let conn = rusqlite::Connection::open(&db).expect("reopen");
         let count: i64 = conn
@@ -572,7 +572,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    /// Lot 2 — chaîne tool_call_started → tool_call_completed avec
+    /// Lot 2, chaîne tool_call_started → tool_call_completed avec
     /// `parent_event_id` correctement reliés.
     #[tokio::test]
     async fn end_to_end_tool_call_pair_links_via_parent_event_id() {
@@ -640,7 +640,7 @@ mod tests {
         assert!(completed.payload_json.contains("example.com"));
     }
 
-    /// Lot 2 — Thought, Retry et ActionParseError persistent leur step_num.
+    /// Lot 2, Thought, Retry et ActionParseError persistent leur step_num.
     #[tokio::test]
     async fn end_to_end_thought_retry_parse_error_record_step_num() {
         let dir = tempdir().expect("tempdir");
@@ -761,7 +761,7 @@ mod tests {
             });
         }
 
-        // Drain by shutting down — flushes the queue.
+        // Drain by shutting down, flushes the queue.
         handle.shutdown().await;
         // Give the actor a moment to drain (shutdown() returns once the
         // message is enqueued, but the actor still needs to consume it).

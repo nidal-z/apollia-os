@@ -18,7 +18,7 @@ pub const MCP_STATIC_SECRET_SERVICE: &str = "apollia-mcp";
 
 /// Canonical secret resolver wired into every `McpSession::start` call.
 ///
-/// Stateless ZST — instantiate as `&DefaultMcpSecretResolver` anywhere a
+/// Stateless ZST: instantiate as `&DefaultMcpSecretResolver` anywhere a
 /// `&dyn SecretResolver` is expected. Bridges both placeholder kinds to
 /// their concrete storage layer:
 /// - `${APOLLIA_SECRET:KEY}` → OS keychain via
@@ -26,8 +26,8 @@ pub const MCP_STATIC_SECRET_SERVICE: &str = "apollia-mcp";
 /// - `${APOLLIA_OAUTH}` → [`apollia_auth::ensure_fresh_token`], which
 ///   transparently refreshes tokens with the singleflight lock.
 ///
-/// Removes the need for each caller to plumb its own resolver — there is
-/// exactly one production code path now (ADR-095 follow-up 2026-05-17).
+/// Removes the need for each caller to plumb its own resolver; there is
+/// exactly one production code path now.
 pub struct DefaultMcpSecretResolver;
 
 #[async_trait::async_trait]
@@ -57,7 +57,7 @@ impl SecretResolver for DefaultMcpSecretResolver {
 /// Implementors provide access to secrets keyed by the format
 /// `"{server_name}:{env_var}"` (e.g. `"notion:NOTION_API_KEY"`) and,
 /// optionally, an asynchronous resolver for MCP HTTP OAuth bearer tokens
-/// (ADR-095 Phase 3). The OAuth path has a default implementation that
+/// (OAuth Phase 3). The OAuth path has a default implementation that
 /// returns an explicit "not configured" error so headless / CLI minimal
 /// builds without an orchestrator don't need to plumb it.
 #[async_trait::async_trait]
@@ -92,8 +92,8 @@ pub struct McpConfig {
     ///
     /// When `true`, `discover_mcp_servers()` may be called at startup to
     /// find servers advertising `_apollia-mcp._tcp.local.` without manual
-    /// configuration. Disabled by default (Principle #4 — Fail fast: any
-    /// network-dependent feature must be explicitly opted into).
+    /// configuration. Disabled by default (fail fast: any network-dependent
+    /// feature must be explicitly opted into).
     #[serde(default)]
     pub mdns_discovery: bool,
 }
@@ -221,7 +221,7 @@ pub enum McpConfigError {
 
     /// An `${VAR}` placeholder in an env value has no corresponding environment variable.
     ///
-    /// `${APOLLIA_OAUTH}` is a special MCP OAuth marker — when unresolved it means no
+    /// `${APOLLIA_OAUTH}` is a special MCP OAuth marker; when unresolved it means no
     /// OAuth token is stored for the server yet. The display impl surfaces a more
     /// actionable hint for that case.
     #[error("{}", format_unresolved_env_var(server, var))]
@@ -255,7 +255,7 @@ fn format_unresolved_env_var(server: &str, var: &str) -> String {
 impl McpConfig {
     /// Load and validate `mcp.toml` from `path`.
     ///
-    /// Returns `Ok(McpConfig { servers: [] })` when the file does not exist —
+    /// Returns `Ok(McpConfig { servers: [] })` when the file does not exist;
     /// absent config is not an error (the runtime runs without MCP servers).
     pub fn load(path: &Path) -> Result<Self, McpConfigError> {
         if !path.exists() {
@@ -379,7 +379,7 @@ impl McpServerConfig {
     /// `${APOLLIA_SECRET:MY_KEY}` placeholders are resolved from the supplied
     /// `secret_store` using the keychain key `"{server_name}:{MY_KEY}"`.
     /// `${APOLLIA_OAUTH}` placeholders trigger an MCP HTTP OAuth bearer
-    /// lookup via [`SecretResolver::resolve_oauth_bearer`] (ADR-095) and
+    /// lookup via [`SecretResolver::resolve_oauth_bearer`] and
     /// expand to the full `"Bearer …"` header value.
     ///
     /// Returns a new map with all placeholders replaced by their resolved values.
@@ -403,13 +403,13 @@ impl McpServerConfig {
 /// identifier that should have been placed in `args` behind a launcher?
 ///
 /// We flag two well-known shapes:
-/// - `@scope/name` — scoped npm packages always start with `@`.
-/// - `name/sub` — bare slash-segmented identifiers that are *not* absolute or
+/// - `@scope/name`: scoped npm packages always start with `@`.
+/// - `name/sub`: bare slash-segmented identifiers that are *not* absolute or
 ///   relative filesystem paths (no leading `/`, `./`, `../`, no Windows drive
 ///   prefix). Real executables resolved from `PATH` don't contain slashes.
 ///
 /// Anything else (single tokens like `npx`, `uvx`, `mcp-server-time`, absolute
-/// paths) is accepted — we'd rather false-negative than reject a legitimate
+/// paths) is accepted; we'd rather false-negative than reject a legitimate
 /// custom command.
 fn looks_like_package_identifier(command: &str) -> bool {
     let cmd = command.trim();
@@ -420,7 +420,7 @@ fn looks_like_package_identifier(command: &str) -> bool {
     if cmd.starts_with('/') || cmd.starts_with("./") || cmd.starts_with("../") {
         return false;
     }
-    // Windows drive prefix (e.g. `C:\bin\foo.exe`) — also a legitimate path.
+    // Windows drive prefix (e.g. `C:\bin\foo.exe`), also a legitimate path.
     if cmd.len() >= 3
         && cmd.as_bytes()[1] == b':'
         && (cmd.as_bytes()[2] == b'\\' || cmd.as_bytes()[2] == b'/')
@@ -433,7 +433,7 @@ fn looks_like_package_identifier(command: &str) -> bool {
 
 /// Replace all `${VAR}` occurrences in `value`, dispatching to either the
 /// system environment, the static secret store (`APOLLIA_SECRET:` prefix), or
-/// the MCP OAuth bearer resolver (`APOLLIA_OAUTH`, ADR-095).
+/// the MCP OAuth bearer resolver (`APOLLIA_OAUTH`).
 async fn resolve_placeholders(
     value: &str,
     server_name: &str,
@@ -469,12 +469,12 @@ async fn resolve_placeholders(
 /// Resolve a single variable reference extracted from a `${…}` placeholder.
 ///
 /// Dispatch precedence:
-/// - `APOLLIA_OAUTH` — exact match, no suffix. Resolves the current MCP HTTP
+/// - `APOLLIA_OAUTH`: exact match, no suffix. Resolves the current MCP HTTP
 ///   OAuth bearer for this server via
 ///   [`SecretResolver::resolve_oauth_bearer`] and expands to the full
-///   `"Bearer …"` header value (ADR-095 §3).
-/// - `APOLLIA_SECRET:KEY` — static secret keyed by `"{server_name}:{KEY}"`.
-/// - anything else — resolved from the process environment via
+///   `"Bearer …"` header value.
+/// - `APOLLIA_SECRET:KEY`: static secret keyed by `"{server_name}:{KEY}"`.
+/// - anything else: resolved from the process environment via
 ///   [`std::env::var`].
 ///
 /// `secret_store` is required for both OAuth and static-secret resolution;
@@ -496,7 +496,7 @@ async fn resolve_single_var(
             }
         })?;
         // MCP HTTP OAuth always issues Bearer tokens (spec MUST). Prefix here
-        // so the placeholder is foolproof in the user-facing config — the
+        // so the placeholder is foolproof in the user-facing config: the
         // operator writes `Authorization = "${APOLLIA_OAUTH}"`, not
         // `"Bearer ${APOLLIA_OAUTH}"`.
         return Ok(format!("Bearer {}", token));
@@ -812,7 +812,7 @@ mod tests {
                 call_timeout_secs: 60,
                 tags: vec![],
             };
-            // WHEN / THEN — must accept all of these.
+            // WHEN / THEN: must accept all of these.
             assert!(
                 config.validate().is_ok(),
                 "command `{cmd}` should be accepted but was rejected",
@@ -949,7 +949,7 @@ mod tests {
         ));
     }
 
-    // ── ${APOLLIA_OAUTH} dispatch (ADR-095 Phase 3) ──────────────────────────
+    // ${APOLLIA_OAUTH} dispatch (OAuth Phase 3)
 
     #[tokio::test]
     async fn test_apollia_oauth_resolves_with_bearer_prefix() {
@@ -962,7 +962,7 @@ mod tests {
         );
         // WHEN
         let resolved = config.resolve_env(Some(&store)).await.unwrap();
-        // THEN the placeholder expands to the full `Bearer …` header value —
+        // THEN the placeholder expands to the full `Bearer …` header value:
         // the user writes only `${APOLLIA_OAUTH}`, no manual "Bearer " prefix.
         assert_eq!(resolved["Authorization"], "Bearer at-12345");
     }
@@ -974,7 +974,7 @@ mod tests {
             "linear",
             HashMap::from([("Authorization".to_string(), "${APOLLIA_OAUTH}".to_string())]),
         );
-        // WHEN / THEN — clear error, no panic
+        // WHEN / THEN: clear error, no panic
         assert!(matches!(
             config.resolve_env(None).await,
             Err(McpConfigError::UnresolvedEnvVar { .. })
@@ -1000,7 +1000,7 @@ mod tests {
     #[tokio::test]
     async fn test_default_oauth_resolver_returns_error() {
         // GIVEN a SecretResolver implementor that does NOT override
-        // resolve_oauth_bearer — it must fall back to the default impl which
+        // resolve_oauth_bearer; it must fall back to the default impl which
         // returns "not configured" so the runtime fails fast rather than
         // silently leaving the header literal.
         struct OnlyStatic;
@@ -1009,7 +1009,7 @@ mod tests {
             fn get_secret(&self, _key: &str) -> Result<String, String> {
                 Err("unused".into())
             }
-            // No resolve_oauth_bearer override — default impl in play.
+            // No resolve_oauth_bearer override; default impl in play.
         }
         let store = OnlyStatic;
         let config = server_with_env(

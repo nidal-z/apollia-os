@@ -1,14 +1,13 @@
 //! Tauri IPC commands for the onboarding permission proposals flow.
 //!
 //! Background: when the onboarding-agent finalises the user profile, it
-//! derives a list of permission rules from the answers (cf. ADR-086 annex)
-//! and serialises them to the memory key `onboarding.proposed_rules`.
+//! derives a list of permission rules from the answers and serialises them to
+//! the memory key `onboarding.proposed_rules`.
 //!
 //! The desktop reads that key and renders one approval card per proposal in
 //! the onboarding modal. On approval, this module persists the rule directly
-//! through `PrefixRuleEngine::add_rule` — bypassing the tool dispatcher,
-//! which would otherwise surface `NeedsApproval` as `PermissionDenied`
-//! (cf. plan v2 §1, `crates/apollia-tools/src/executor.rs:377-401`).
+//! through `PrefixRuleEngine::add_rule`, bypassing the tool dispatcher, which
+//! would otherwise surface `NeedsApproval` as `PermissionDenied`.
 //!
 //! Why bypass: `permission_rule_add` is itself HITL-gated. Calling it from
 //! a Tauri command triggered by an explicit user click would re-trigger the
@@ -17,7 +16,7 @@
 
 use std::path::{Path, PathBuf};
 
-use apollia_memory::semantic::SemanticMemory;
+use apollia_memory::semantic::{RememberInput, SemanticMemory};
 use apollia_memory::store::MemoryStore;
 use apollia_permissions::prefix_rule_engine::{
     PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
@@ -42,7 +41,7 @@ const NAMESPACE_CANDIDATES: [(&str, &str); 2] = [
 /// Minimal projection of one proposed permission rule for the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProposedRuleView {
-    /// Position in the persisted JSON list — used as the cursor for apply/dismiss.
+    /// Position in the persisted JSON list, used as the cursor for apply/dismiss.
     pub index: usize,
     pub tool_name: String,
     pub action: String,
@@ -57,7 +56,7 @@ pub struct ProposedRuleView {
 /// Reads the persisted proposal list from the agent's semantic memory.
 ///
 /// Returns an empty list when the key is absent or empty. Errors only on
-/// catastrophic disk / parse failures — a missing namespace is normal pre-finalize.
+/// catastrophic disk / parse failures; a missing namespace is normal pre-finalize.
 #[tauri::command]
 pub async fn list_proposed_permission_rules() -> Result<Vec<ProposedRuleView>, String> {
     let memory_dir = memory_dir();
@@ -186,14 +185,14 @@ fn write_proposed_rules(memory_dir: &Path, proposals: &[serde_json::Value]) -> R
         } else {
             let serialised = serde_json::to_string(proposals)
                 .map_err(|e| format!("failed to re-serialise proposals: {e}"))?;
-            sem.remember(
+            sem.remember(RememberInput {
                 namespace,
-                PROPOSED_RULES_KEY,
-                &serde_json::Value::String(serialised),
-                0.9,
-                Some(CREATOR),
-                None,
-            )
+                key: PROPOSED_RULES_KEY,
+                value: &serde_json::Value::String(serialised),
+                confidence: 0.9,
+                source: Some(CREATOR),
+                expires_at: None,
+            })
             .map_err(|e| format!("failed to persist truncated list: {e}"))?;
         }
         return Ok(());

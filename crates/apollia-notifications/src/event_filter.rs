@@ -25,11 +25,11 @@ pub const KNOWN_EVENT_NAMES: &[&str] = &[
     "chat.user_input_required",
 ];
 
-/// Extrait le texte de la première question depuis le JSON sérialisé du tool
-/// `ask_user` (`Vec<UserQuestion>`).
+/// Extracts the text of the first question from the serialized JSON of the
+/// `ask_user` tool (`Vec<UserQuestion>`).
 ///
-/// Retourne `None` si le JSON est invalide ou la liste vide. Utilisé pour
-/// remplir `output_preview` dans les notifications `chat.user_input_required`.
+/// Returns `None` if the JSON is invalid or the list is empty. Used to fill
+/// `output_preview` in `chat.user_input_required` notifications.
 fn first_question_preview(questions_json: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(questions_json).ok()?;
     let first = value.as_array()?.first()?;
@@ -41,7 +41,7 @@ fn first_question_preview(questions_json: &str) -> Option<String> {
 /// [`KNOWN_EVENT_NAMES`].
 ///
 /// The wildcard `"*"` is silently accepted without a warning.
-/// This function never blocks the caller — unknown events are non-fatal.
+/// This function never blocks the caller; unknown events are non-fatal.
 pub fn warn_unknown_events(events: &[String]) {
     for event in events {
         if event == "*" {
@@ -56,40 +56,40 @@ pub fn warn_unknown_events(events: &[String]) {
     }
 }
 
-/// Construit l'URL de reprise HITL depuis la base d'URL de l'API.
+/// Builds the HITL resume URL from the API base URL.
 ///
-/// `base_url` — ex : `http://127.0.0.1:7771` (sans slash final).
+/// `base_url`: e.g. `http://127.0.0.1:7771` (no trailing slash).
 fn build_resume_url(base_url: &str, task_id: &str) -> String {
     format!("{}/api/v1/tasks/{}/resume", base_url, task_id)
 }
 
-/// Construit l'URL d'inspection de tâche dans le dashboard.
+/// Builds the task inspection URL in the dashboard.
 ///
-/// `base_url` — ex : `http://127.0.0.1:7771` (sans slash final).
+/// `base_url`: e.g. `http://127.0.0.1:7771` (no trailing slash).
 fn build_inspect_url(base_url: &str, task_id: &str) -> String {
     format!("{}/dashboard#tasks/{}", base_url, task_id)
 }
 
-/// Construit l'URL du dashboard général (sans ancre de tâche).
+/// Builds the general dashboard URL (no task anchor).
 ///
-/// `base_url` — ex : `http://127.0.0.1:7771` (sans slash final).
+/// `base_url`: e.g. `http://127.0.0.1:7771` (no trailing slash).
 fn build_dashboard_url(base_url: &str) -> String {
     format!("{}/dashboard", base_url)
 }
 
-/// Transforme un [`RuntimeEvent`] en [`Notification`].
+/// Turns a [`RuntimeEvent`] into a [`Notification`].
 ///
-/// Fonction pure — pas d'effet de bord, testable sans infrastructure.
+/// Pure function: no side effects, testable without infrastructure.
 ///
-/// `base_url` — URL de base de l'API REST locale (ex : `http://127.0.0.1:7771`),
-/// utilisée pour construire les URLs de reprise HITL dans les métadonnées.
+/// `base_url`: base URL of the local REST API (e.g. `http://127.0.0.1:7771`),
+/// used to build the HITL resume URLs in the metadata.
 ///
-/// Les événements qui produisent une notification :
-/// - `TaskInputRequired`, `TaskCompleted` (succès et échec), `AgentDegraded`,
-///   `LlmModelFailed`, `TriggerError` — existants (Sprints 9-11)
-/// - `PipelineCompleted`, `PipelineFailed`, `PipelineSuspended` — ajoutés.
+/// The events that produce a notification:
+/// - `TaskInputRequired`, `TaskCompleted` (success and failure), `AgentDegraded`,
+///   `LlmModelFailed`, `TriggerError`
+/// - `PipelineCompleted`, `PipelineFailed`, `PipelineSuspended`
 ///
-/// Tous les autres retournent `None`.
+/// Everything else returns `None`.
 pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
     let dashboard_url = build_dashboard_url(base_url);
 
@@ -202,7 +202,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
             })
         }
 
-        // ── Pipeline events ────────────────────────────────────────────────
+        // --- Pipeline events -------------------------------------------------
         RuntimeEvent::PipelineCompleted {
             run_id,
             pipeline_id,
@@ -276,7 +276,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
             })
         }
 
-        // ── Chat events ────────────────────────────────────────────────────
+        // --- Chat events -----------------------------------------------------
         RuntimeEvent::ChatToolCallCompleted {
             session_id,
             tool_name,
@@ -385,7 +385,7 @@ mod tests {
 
     #[test]
     fn test_ac1_map_event_task_failed() {
-        // GIVEN — TaskCompleted avec success=false représente un échec
+        // GIVEN TaskCompleted with success=false represents a failure
         let event = RuntimeEvent::TaskCompleted {
             agent_id: AgentId::from("devis-agent"),
             task_id: TaskId::from("t-002"),
@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn test_ac2_map_event_unknown_returns_none() {
-        // GIVEN — TaskStarted n'est pas dans la liste des événements notifiables
+        // GIVEN TaskStarted is not in the list of notifiable events
         let event = RuntimeEvent::TaskStarted {
             agent_id: AgentId::from("agent-1"),
             task_id: TaskId::from("t-004"),
@@ -500,7 +500,7 @@ mod tests {
         assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
     }
 
-    // ── Pipeline notifications ────────────────────────────────────────────
+    // --- Pipeline notifications ------------------------------------------
 
     #[test]
     fn test_ac1_pipeline_completed_maps_to_info_notification() {
@@ -570,7 +570,7 @@ mod tests {
         assert_eq!(notif.task_id.as_deref(), Some("t-0051"));
     }
 
-    // ── Chat approval notification ────────────────────────────────────────
+    // --- Chat approval notification --------------------------------------
 
     #[test]
     fn test_chat_approval_required_maps_to_warning_notification() {
@@ -640,7 +640,7 @@ mod tests {
             output_preview: Some("output".into()),
             analysis: None,
         };
-        // WHEN / THEN — no notification for successful tool calls
+        // WHEN / THEN no notification for successful tool calls
         assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
     }
 
@@ -652,23 +652,23 @@ mod tests {
             message_id: "msg-005".into(),
             tool_name: "bash_executor".into(),
         };
-        // WHEN / THEN — no notification produced
+        // WHEN / THEN no notification produced
         assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
     }
 
     #[test]
     fn test_ac4_agent_ready_unchanged() {
-        // GIVEN — non-pipeline event : comportement inchangé (non-régression)
+        // GIVEN a non-pipeline event: behavior unchanged (no regression)
         let event = RuntimeEvent::AgentReady("agent-1".into());
-        // WHEN / THEN — aucune notification, pas de panic
+        // WHEN / THEN no notification, no panic
         let _result = map_event(DEFAULT_BASE_URL, &event);
     }
 
-    // ── URL dynamiques depuis la config ──────────────────────────────────
+    // --- Dynamic URLs from the config ------------------------------------
 
     #[test]
     fn test_default_config_produces_default_url() {
-        // GIVEN config par défaut (127.0.0.1:7771)
+        // GIVEN default config (127.0.0.1:7771)
         let event = RuntimeEvent::TaskInputRequired {
             task_id: TaskId::from("t-100"),
             prompt: "Valider ?".into(),
@@ -809,7 +809,7 @@ mod tests {
         };
         // WHEN
         let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
-        // THEN — la notification existe, mais sans preview ni context
+        // THEN the notification exists, but without preview or context
         assert_eq!(notif.event, "chat.user_input_required");
         assert_eq!(notif.severity, Severity::Warning);
         assert!(!notif.metadata.contains_key("output_preview"));
@@ -818,7 +818,7 @@ mod tests {
 
     #[test]
     fn test_different_base_urls_produce_different_resume_urls() {
-        // GIVEN deux configs différentes
+        // GIVEN two different configs
         let event = RuntimeEvent::TaskInputRequired {
             task_id: TaskId::from("t-999"),
             prompt: "Confirmer ?".into(),
@@ -827,7 +827,7 @@ mod tests {
         // WHEN
         let notif_a = map_event("http://127.0.0.1:7771", &event).expect("doit retourner Some (a)");
         let notif_b = map_event("http://127.0.0.1:8080", &event).expect("doit retourner Some (b)");
-        // THEN — les URLs de reprise sont différentes selon la config
+        // THEN the resume URLs differ depending on the config
         let url_a = notif_a
             .metadata
             .get("resume_url")

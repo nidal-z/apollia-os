@@ -1,4 +1,4 @@
-//! `apollia-os connector` subcommands — manage native SaaS connectors.
+//! `apollia-os connector` subcommands: manage native SaaS connectors.
 //!
 //! Operates directly on `apollia-auth::AuthManager` (multi-account keyring)
 //! and `apollia-connectors::{GoogleConnector, MicrosoftConnector}` without
@@ -33,7 +33,7 @@ pub enum ConnectorCommand {
     /// Probe the connector for an account by calling the userinfo endpoint.
     ///
     /// Returns the live identity claim and the scopes the upstream Authorization
-    /// Server reports as granted — the same shape used by `connector.check()`
+    /// Server reports as granted, the same shape used by `connector.check()`
     /// inside the runtime.
     Test {
         /// Provider id: `google` or `microsoft`.
@@ -44,7 +44,7 @@ pub enum ConnectorCommand {
 
     /// Revoke the stored token for `(provider, account)`.
     ///
-    /// Only the local keyring entry is cleared — the upstream Authorization
+    /// Only the local keyring entry is cleared, the upstream Authorization
     /// Server is not notified. Use the provider's web revocation page for a
     /// server-side revocation.
     Revoke {
@@ -84,7 +84,7 @@ pub enum ConnectorCommand {
     ///
     /// Operates on `~/.apollia/drive-prefs.toml` and is independent of the
     /// runtime. The `picked` sub-group lists folders captured via the Desktop
-    /// Picker — the CLI cannot pick (no UI) but can review and remove them.
+    /// Picker (the CLI cannot pick, no UI, but can review and remove them).
     Drive {
         /// Drive subcommand.
         #[command(subcommand)]
@@ -402,63 +402,78 @@ async fn run_test(provider: &str, account: &str, json: bool) -> i32 {
     };
 
     let account_id = AccountId::new(account.to_string());
-    match connector.check(&account_id).await {
-        Ok(report) => {
-            if json {
-                let body = serde_json::json!({
-                    "provider": provider_id.id(),
-                    "account": account,
-                    "ok": report.reachable,
-                    "reachable": report.reachable,
-                    "detail": report.detail,
-                    "granted_scopes": report.granted_scopes,
-                });
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&body).unwrap_or_default()
-                );
-            } else {
-                let glyph = if report.reachable { "*" } else { "x" };
-                println!(
-                    "  {glyph} {} / {} reachable={}",
-                    provider_id.id(),
-                    account,
-                    report.reachable
-                );
-                if !report.detail.is_empty() {
-                    println!("    detail: {}", report.detail);
-                }
-                if !report.granted_scopes.is_empty() {
-                    println!("    scopes ({}):", report.granted_scopes.len());
-                    for s in &report.granted_scopes {
-                        println!("      - {s}");
-                    }
-                }
-            }
-            if report.reachable {
-                exit_codes::SUCCESS
-            } else {
-                exit_codes::GENERAL_ERROR
-            }
-        }
-        Err(e) => {
-            if json {
-                let body = serde_json::json!({
-                    "provider": provider_id.id(),
-                    "account": account,
-                    "ok": false,
-                    "error": e.to_string(),
-                });
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&body).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: connector check failed: {e}");
-            }
-            exit_codes::GENERAL_ERROR
+    let report = match connector.check(&account_id).await {
+        Ok(report) => report,
+        Err(e) => return render_test_error(provider_id.id(), account, &e, json),
+    };
+    render_test_report(provider_id.id(), account, &report, json)
+}
+
+/// Renders a successful connector check report and returns the exit code.
+fn render_test_report(
+    provider: &str,
+    account: &str,
+    report: &apollia_connectors::HealthReport,
+    json: bool,
+) -> i32 {
+    if json {
+        let body = serde_json::json!({
+            "provider": provider,
+            "account": account,
+            "ok": report.reachable,
+            "reachable": report.reachable,
+            "detail": report.detail,
+            "granted_scopes": report.granted_scopes,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
+    } else {
+        render_test_report_text(provider, account, report);
+    }
+    if report.reachable {
+        exit_codes::SUCCESS
+    } else {
+        exit_codes::GENERAL_ERROR
+    }
+}
+
+/// Human-readable rendering of a connector check report.
+fn render_test_report_text(provider: &str, account: &str, report: &apollia_connectors::HealthReport) {
+    let glyph = if report.reachable { "*" } else { "x" };
+    println!(
+        "  {glyph} {} / {} reachable={}",
+        provider, account, report.reachable
+    );
+    if !report.detail.is_empty() {
+        println!("    detail: {}", report.detail);
+    }
+    if !report.granted_scopes.is_empty() {
+        println!("    scopes ({}):", report.granted_scopes.len());
+        for s in &report.granted_scopes {
+            println!("      - {s}");
         }
     }
+}
+
+/// Renders a failed connector check and returns the error exit code.
+fn render_test_error(provider: &str, account: &str, error: &dyn std::fmt::Display, json: bool) -> i32 {
+    if json {
+        let body = serde_json::json!({
+            "provider": provider,
+            "account": account,
+            "ok": false,
+            "error": error.to_string(),
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
+    } else {
+        eprintln!("Error: connector check failed: {error}");
+    }
+    exit_codes::GENERAL_ERROR
 }
 
 // ─── revoke ───────────────────────────────────────────────────────────────────
@@ -744,7 +759,7 @@ fn emit_set_ok(provider_id: &str, key: &str, cleared: bool, json: bool) {
 ///
 /// Returns the first and last two chars separated by `...` when the input is
 /// long enough, otherwise a fully redacted marker. Never used in `--json`
-/// output — the JSON shape exposes presence flags rather than the values.
+/// output: the JSON shape exposes presence flags rather than the values.
 fn mask_secret(s: &str) -> String {
     if s.is_empty() {
         return "<empty>".to_string();

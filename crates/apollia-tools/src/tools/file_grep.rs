@@ -14,7 +14,7 @@ use crate::sandbox_path::{SandboxPathError, SandboxRoot};
 ///
 /// Returns matching lines with file path, line number, and optional context.
 /// Supports filtering files by glob pattern. Uses the `regex` crate (no
-/// subprocess — pure Rust). Binary files are silently skipped.
+/// subprocess, pure Rust). Binary files are silently skipped.
 #[derive(Debug, Clone)]
 pub struct FileGrep {
     sandbox: SandboxRoot,
@@ -138,25 +138,25 @@ impl FileGrep {
             input.pattern.clone()
         };
 
-        // Compile regex before any I/O — invalid patterns are detected here.
+        // Compile regex before any I/O: invalid patterns are detected here.
         let regex = regex::Regex::new(&pattern_str)
             .map_err(|e| FileGrepError::InvalidRegex(e.to_string()))?;
 
         let sandbox_root = self.sandbox.path().to_path_buf();
         let glob_filter = input.glob.clone();
 
-        let output = tokio::task::spawn_blocking(move || {
-            grep_files(
-                &base,
-                &sandbox_root,
-                glob_filter.as_deref(),
-                &regex,
-                context_lines,
-                max_results,
-            )
-        })
-        .await
-        .map_err(|e| FileGrepError::IoError(e.to_string()))??;
+        let params = GrepParams {
+            base,
+            sandbox_root,
+            glob_filter,
+            regex,
+            context_lines,
+            max_results,
+        };
+
+        let output = tokio::task::spawn_blocking(move || grep_files(&params))
+            .await
+            .map_err(|e| FileGrepError::IoError(e.to_string()))??;
 
         Ok(output)
     }
@@ -276,75 +276,45 @@ fn collect_files(
     Ok(files)
 }
 
+/// Owned parameter bundle for [`grep_files`], built once on the async side and
+/// moved into the blocking search task.
+struct GrepParams {
+    base: std::path::PathBuf,
+    sandbox_root: std::path::PathBuf,
+    glob_filter: Option<String>,
+    regex: regex::Regex,
+    context_lines: usize,
+    max_results: usize,
+}
+
 /// Search each candidate file for lines matching `regex`.
 ///
 /// Binary files (non-UTF-8) are silently skipped and not included in `files_searched`.
 /// Collection stops once `max_results` matches are gathered and `truncated` is set to `true`.
-fn grep_files(
-    base: &Path,
-    sandbox_root: &Path,
-    glob_filter: Option<&str>,
-    regex: &regex::Regex,
-    context_lines: usize,
-    max_results: usize,
-) -> Result<FileGrepOutput, FileGrepError> {
-    let files = collect_files(base, sandbox_root, glob_filter)?;
+fn grep_files(params: &GrepParams) -> Result<FileGrepOutput, FileGrepError> {
+    let files = collect_files(
+        &params.base,
+        &params.sandbox_root,
+        params.glob_filter.as_deref(),
+    )?;
 
     let mut matches: Vec<GrepMatch> = Vec::new();
     let mut files_searched: u32 = 0;
     let mut truncated = false;
 
-    'file_loop: for file_path in &files {
+    for file_path in &files {
         let bytes = std::fs::read(file_path).map_err(|e| FileGrepError::IoError(e.to_string()))?;
 
         // Silently skip binary (non-UTF-8) files.
-        let content = match String::from_utf8(bytes) {
-            Ok(s) => s,
-            Err(_) => continue,
+        let Ok(content) = String::from_utf8(bytes) else {
+            continue;
         };
 
         files_searched += 1;
 
-        let lines: Vec<&str> = content.lines().collect();
-
-        for (i, line) in lines.iter().enumerate() {
-            if !regex.is_match(line) {
-                continue;
-            }
-
-            let context_before: Vec<String> = if context_lines > 0 {
-                let start = i.saturating_sub(context_lines);
-                lines[start..i].iter().map(|s| s.to_string()).collect()
-            } else {
-                Vec::new()
-            };
-
-            let context_after: Vec<String> = if context_lines > 0 {
-                let end = (i + 1 + context_lines).min(lines.len());
-                lines[(i + 1)..end].iter().map(|s| s.to_string()).collect()
-            } else {
-                Vec::new()
-            };
-
-            // strip_prefix is guaranteed to succeed: collect_files ensures all paths
-            // start with sandbox_root.
-            let relative_path = file_path
-                .strip_prefix(sandbox_root)
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_else(|_| file_path.to_string_lossy().into_owned());
-
-            matches.push(GrepMatch {
-                file: relative_path,
-                line_number: (i + 1) as u32,
-                content: line.to_string(),
-                context_before,
-                context_after,
-            });
-
-            if matches.len() >= max_results {
-                truncated = true;
-                break 'file_loop;
-            }
+        if grep_one_file(file_path, &content, params, &mut matches) {
+            truncated = true;
+            break;
         }
     }
 
@@ -353,6 +323,62 @@ fn grep_files(
         truncated,
         files_searched,
     })
+}
+
+/// Search a single file's `content` for matching lines, pushing each match onto
+/// `matches`. Returns `true` when `max_results` was reached (caller must stop).
+fn grep_one_file(
+    file_path: &Path,
+    content: &str,
+    params: &GrepParams,
+    matches: &mut Vec<GrepMatch>,
+) -> bool {
+    let lines: Vec<&str> = content.lines().collect();
+
+    for (i, line) in lines.iter().enumerate() {
+        if !params.regex.is_match(line) {
+            continue;
+        }
+
+        matches.push(build_match(file_path, &lines, i, params));
+
+        if matches.len() >= params.max_results {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Build a [`GrepMatch`] for the matching line at index `i` of `lines`.
+fn build_match(file_path: &Path, lines: &[&str], i: usize, params: &GrepParams) -> GrepMatch {
+    let context_before = extract_context(lines, i.saturating_sub(params.context_lines), i, params);
+    let after_end = (i + 1 + params.context_lines).min(lines.len());
+    let context_after = extract_context(lines, i + 1, after_end, params);
+
+    // strip_prefix is guaranteed to succeed: collect_files ensures all paths
+    // start with sandbox_root.
+    let relative_path = file_path
+        .strip_prefix(&params.sandbox_root)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| file_path.to_string_lossy().into_owned());
+
+    GrepMatch {
+        file: relative_path,
+        line_number: (i + 1) as u32,
+        content: lines[i].to_string(),
+        context_before,
+        context_after,
+    }
+}
+
+/// Collect lines `[start, end)` as owned strings, or an empty vector when no
+/// context was requested.
+fn extract_context(lines: &[&str], start: usize, end: usize, params: &GrepParams) -> Vec<String> {
+    if params.context_lines == 0 || start >= end {
+        return Vec::new();
+    }
+    lines[start..end].iter().map(|s| s.to_string()).collect()
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-//! MemoryStore — SQLite schema management and versioned migrations.
+//! MemoryStore: SQLite schema management and versioned migrations.
 //!
 //! A `MemoryStore` corresponds to a single `<namespace>.db` file.
 //! It owns the `rusqlite::Connection` and guarantees the schema is
@@ -372,7 +372,7 @@ mod tests {
         let path = temp_db_path();
         // WHEN
         let store = MemoryStore::open(&path).unwrap();
-        // THEN — all tables exist
+        // THEN: all tables exist
         let tables: Vec<String> = store
             .conn()
             .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -408,7 +408,7 @@ mod tests {
         // GIVEN
         let path = temp_db_path();
         let store = MemoryStore::open(&path).unwrap();
-        // WHEN — insert accented content
+        // WHEN: insert accented content
         store
             .conn()
             .execute(
@@ -416,7 +416,7 @@ mod tests {
                 ("reunion avec societe", "episodic", "test-id"),
             )
             .unwrap();
-        // THEN — search finds it
+        // THEN: search finds it
         let count: i64 = store
             .conn()
             .query_row(
@@ -463,10 +463,10 @@ mod tests {
         assert_eq!(version, SCHEMA_VERSION);
     }
 
-    // delete_entry_by_id — deletes episodic entry and FTS
+    // delete_entry_by_id deletes episodic entry and FTS
     #[test]
     fn test_delete_entry_by_id_episodic() {
-        // GIVEN — an episodic entry
+        // GIVEN: an episodic entry
         let path = temp_db_path();
         let store = MemoryStore::open(&path).unwrap();
         let id = "ep-test-001";
@@ -510,7 +510,7 @@ mod tests {
         assert_eq!(fts_count, 0);
     }
 
-    // delete_entry_by_id — returns false for nonexistent entry
+    // delete_entry_by_id returns false for nonexistent entry
     #[test]
     fn test_delete_entry_by_id_nonexistent() {
         // GIVEN

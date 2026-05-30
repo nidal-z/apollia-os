@@ -16,7 +16,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-/// Unique identifier for a shell session — one UUID per agent.
+/// Unique identifier for a shell session: one UUID per agent.
 pub type SessionId = Uuid;
 
 /// Output produced by a single command executed inside a [`ShellSession`].
@@ -84,7 +84,7 @@ enum ReadIoError {
 // ShellSession
 // ---------------------------------------------------------------------------
 
-/// Persistent login shell — one `/bin/sh -l` process kept alive between steps.
+/// Persistent login shell: one `/bin/sh -l` process kept alive between steps.
 ///
 /// Commands are sent via stdin and output is read until a unique UUID marker
 /// appears on stdout. The session is transparently restarted at the last-known
@@ -98,7 +98,7 @@ pub struct ShellSession {
     stdout: BufReader<ChildStdout>,
     stderr_buf: Arc<Mutex<String>>,
     stderr_drainer: JoinHandle<()>,
-    /// Last confirmed working directory — used to restart the shell at the right place.
+    /// Last confirmed working directory, used to restart the shell at the right place.
     cwd: String,
     /// Set when a previous exec left the shell in an undefined state.
     /// Cleared by the restart at the start of the next [`exec`] call.
@@ -138,11 +138,11 @@ impl ShellSession {
     ///
     /// # Errors
     ///
-    /// - [`PersistentBashError::SyntaxError`] — invalid shell syntax
-    /// - [`PersistentBashError::Timeout`] — command exceeded `timeout`
-    /// - [`PersistentBashError::Cancelled`] — `cancel` token was triggered
-    /// - [`PersistentBashError::SpawnFailed`] — shell restart after error failed
-    /// - [`PersistentBashError::Io`] — pipe I/O failure
+    /// - [`PersistentBashError::SyntaxError`]: invalid shell syntax
+    /// - [`PersistentBashError::Timeout`]: command exceeded `timeout`
+    /// - [`PersistentBashError::Cancelled`]: `cancel` token was triggered
+    /// - [`PersistentBashError::SpawnFailed`]: shell restart after error failed
+    /// - [`PersistentBashError::Io`]: pipe I/O failure
     pub async fn exec(
         &mut self,
         command: &str,
@@ -169,7 +169,7 @@ impl ShellSession {
         // `cd` and `export` affect the persistent session.
         // `</dev/null` prevents the command from consuming input from the shared stdin.
         // `pwd` after the command captures the updated working directory.
-        // NOTE: `exit N` will cause the shell to exit (EOF on stdout) — handled below.
+        // NOTE: `exit N` will cause the shell to exit (EOF on stdout), handled below.
         let script = format!(
             "eval {escaped} </dev/null; EXEC_CODE=$?; pwd; printf '%s\\n' {marker}:$EXEC_CODE\n"
         );
@@ -281,7 +281,7 @@ impl ShellSession {
                 .map_err(|e| ReadIoError::Io(e.to_string()))?;
 
             if n == 0 {
-                // EOF — the shell exited before printing the marker.
+                // EOF: the shell exited before printing the marker.
                 return Err(ReadIoError::Eof);
             }
 
@@ -438,7 +438,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     // ---------------------------------------------------------------------------
-    // Unit tests — shell_single_quote
+    // Unit tests: shell_single_quote
     // ---------------------------------------------------------------------------
 
     #[test]
@@ -466,12 +466,12 @@ mod tests {
     fn test_shell_single_quote_empty_command() {
         // GIVEN
         let result = shell_single_quote("");
-        // THEN: still wrapped — eval '' is a valid no-op
+        // THEN: still wrapped, eval '' is a valid no-op
         assert_eq!(result, "''");
     }
 
     // ---------------------------------------------------------------------------
-    // Integration tests — require /bin/sh
+    // Integration tests: require /bin/sh
     // ---------------------------------------------------------------------------
 
     #[tokio::test]

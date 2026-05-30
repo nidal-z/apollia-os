@@ -1,13 +1,13 @@
-//! ctx.templates — runtime Jinja2 template rendering.
+//! ctx.templates: runtime Jinja2 template rendering.
 //!
-//! Utilise [`minijinja`] (Apache-2.0, ~70 KB) pour rendre les templates Jinja2
-//! déclarés dans `@agent(templates=...)`. Les fichiers sont chargés depuis
-//! `<agent_dir>/templates/<name>.j2` (avec fallback `.jinja2` / `.jinja`)
-//! au démarrage de l'agent et compilés une seule fois.
+//! Uses [`minijinja`] (Apache-2.0, ~70 KB) to render the Jinja2 templates
+//! declared in `@agent(templates=...)`. Files are loaded from
+//! `<agent_dir>/templates/<name>.j2` (with `.jinja2` / `.jinja` fallbacks) at
+//! agent startup and compiled once.
 //!
-//! Le contexte est passé depuis Python sous forme de `dict` puis converti en
-//! `serde_json::Value` via `json.dumps` (évite la dépendance pythonize).
-//! Minijinja consomme directement `serde_json::Value` comme contexte.
+//! The context is passed from Python as a `dict`, then converted into a
+//! `serde_json::Value` via `json.dumps` (avoiding the pythonize dependency).
+//! Minijinja consumes `serde_json::Value` directly as context.
 
 use std::path::Path;
 
@@ -16,58 +16,57 @@ use pyo3::exceptions::{PyFileNotFoundError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-/// Erreurs internes de la couche templates (exposées en `PyErr` via mapping).
+/// Internal errors of the templates layer (mapped to `PyErr`).
 #[derive(Debug, thiserror::Error)]
 pub enum TemplatesError {
-    /// Template non déclaré au manifest.
+    /// Template not declared in the manifest.
     #[error("template '{0}' not declared in @agent(templates=...)")]
     NotDeclared(String),
-    /// Template déclaré mais introuvable / non compilé.
+    /// Template declared but not found / not compiled.
     #[error("template '{0}' not loaded (file missing)")]
     NotLoaded(String),
-    /// Rendu Jinja a échoué.
+    /// Jinja rendering failed.
     #[error("render failed for '{name}': {reason}")]
     RenderFailed {
-        /// Nom logique du template.
+        /// Logical template name.
         name: String,
-        /// Détail minijinja.
+        /// Minijinja detail.
         reason: String,
     },
 }
 
-/// Interface lecture-seule exposée à l'agent via `ctx.templates`.
+/// Read-only interface exposed to the agent via `ctx.templates`.
 ///
-/// Construit avec la liste déclarée. [`Self::load_from_dir`] compile et
-/// stocke chaque template dans un [`Environment`] partagé. L'agent
-/// appelle `ctx.templates.render("name", **context)` pour obtenir la chaîne
-/// rendue.
+/// Built with the declared list. [`Self::load_from_dir`] compiles and stores
+/// each template in a shared [`Environment`]. The agent calls
+/// `ctx.templates.render("name", **context)` to get the rendered string.
 #[pyclass(name = "TemplatesInterface", module = "apollia._native")]
 pub struct TemplatesInterface {
-    /// Environnement minijinja contenant tous les templates compilés.
-    /// `'static` car les sources sont owned (`add_template_owned`).
+    /// Minijinja environment holding all compiled templates.
+    /// `'static` because the sources are owned (`add_template_owned`).
     env: Environment<'static>,
-    /// Liste des templates autorisés au manifest. Toute clé non présente
-    /// déclenche `FileNotFoundError`.
+    /// List of templates allowed by the manifest. Any key not present
+    /// triggers `FileNotFoundError`.
     declared: Vec<String>,
 }
 
 #[pymethods]
 impl TemplatesInterface {
-    /// Rend le template `name` avec le contexte fourni en kwargs.
+    /// Renders the template `name` with the context provided as kwargs.
     ///
-    /// Le contexte Python est sérialisé vers JSON puis désérialisé en
-    /// `serde_json::Value` pour être consommé directement par minijinja.
+    /// The Python context is serialized to JSON then deserialized into a
+    /// `serde_json::Value` so minijinja can consume it directly.
     ///
-    /// # Exemple Python
+    /// # Python example
     /// ```python
     /// prompt = ctx.templates.render("system_prompt", role="analyst", tools=["search"])
     /// ```
     ///
-    /// # Erreurs Python
-    /// - `FileNotFoundError` si `name` n'est pas déclaré au manifest ou
-    ///   pas chargé en mémoire.
-    /// - `RuntimeError` en cas d'erreur de rendu Jinja (variable manquante,
-    ///   syntax error, etc.).
+    /// # Python errors
+    /// - `FileNotFoundError` if `name` is not declared in the manifest or
+    ///   not loaded in memory.
+    /// - `RuntimeError` on a Jinja render error (missing variable, syntax
+    ///   error, etc.).
     #[pyo3(signature = (name, **context))]
     fn render(
         &self,
@@ -81,7 +80,7 @@ impl TemplatesInterface {
             )));
         }
 
-        // Convertir le contexte Python → serde_json::Value via json.dumps.
+        // Convert the Python context to serde_json::Value via json.dumps.
         let ctx_value: serde_json::Value = match context {
             Some(d) if !d.is_empty() => {
                 let json_mod = py.import("json")?;
@@ -105,19 +104,19 @@ impl TemplatesInterface {
             .map_err(|e| PyRuntimeError::new_err(format!("template '{name}' render failed: {e}")))
     }
 
-    /// Liste les noms logiques des templates déclarés au manifest.
+    /// Lists the logical names of the templates declared in the manifest.
     fn list_names(&self) -> Vec<String> {
         self.declared.clone()
     }
 
-    /// `True` si le template est déclaré ET chargé avec succès en mémoire.
+    /// `True` if the template is declared AND successfully loaded in memory.
     fn has(&self, name: &str) -> bool {
         self.declared.iter().any(|d| d == name) && self.env.get_template(name).is_ok()
     }
 }
 
 impl TemplatesInterface {
-    /// Construit l'interface avec la liste déclarée du manifest.
+    /// Builds the interface with the manifest's declared list.
     pub fn new(declared: Vec<String>) -> Self {
         Self {
             env: Environment::new(),
@@ -125,15 +124,14 @@ impl TemplatesInterface {
         }
     }
 
-    /// Charge et compile tous les templates déclarés depuis
+    /// Loads and compiles all declared templates from
     /// `<agent_dir>/templates/<name>.{j2,jinja2,jinja}`.
     ///
-    /// Les erreurs de compilation sont logguées (`warn!`) mais non fatales —
-    /// l'agent obtient `FileNotFoundError` au premier `render()` du template
-    /// défaillant (Principe #4 : visibilité de l'erreur quand l'agent essaie
-    /// vraiment de l'utiliser).
+    /// Compile errors are logged (`warn!`) but not fatal: the agent gets a
+    /// `FileNotFoundError` on the first `render()` of the failing template
+    /// (error visibility when the agent actually tries to use it).
     ///
-    /// Retourne le nombre de templates chargés avec succès.
+    /// Returns the number of templates loaded successfully.
     pub fn load_from_dir(&mut self, agent_dir: &Path) -> usize {
         let dir = agent_dir.join("templates");
         let mut loaded = 0usize;
@@ -168,7 +166,7 @@ impl TemplatesInterface {
         loaded
     }
 
-    /// Injecte directement une source de template (tests unitaires).
+    /// Injects a template source directly (unit tests).
     #[cfg(test)]
     pub(crate) fn inject(&mut self, name: &str, source: &str) {
         if !self.declared.iter().any(|d| d == name) {
@@ -234,9 +232,9 @@ mod tests {
         });
     }
 
-    /// Vérifie le chemin de production : `load_from_dir` lit un vrai
-    /// fichier `.j2` depuis `<agent_dir>/templates/<name>.j2` et le rend
-    /// correctement avec un contexte Python.
+    /// Checks the production path: `load_from_dir` reads a real `.j2` file
+    /// from `<agent_dir>/templates/<name>.j2` and renders it correctly with a
+    /// Python context.
     #[test]
     fn test_load_from_dir_compiles_real_jinja() {
         // GIVEN a temp agent_dir containing templates/report.j2
@@ -269,7 +267,7 @@ mod tests {
         });
     }
 
-    /// Vérifie les fallbacks d'extension `.jinja2` et `.jinja`.
+    /// Checks the `.jinja2` and `.jinja` extension fallbacks.
     #[test]
     fn test_load_from_dir_extension_fallbacks() {
         let tmp = tempfile::tempdir().expect("temp dir");
@@ -286,7 +284,7 @@ mod tests {
         assert!(iface.has("b"));
     }
 
-    /// Un template manquant n'empêche pas la compilation des autres.
+    /// A missing template does not prevent the others from compiling.
     #[test]
     fn test_load_from_dir_missing_template_is_non_fatal() {
         let tmp = tempfile::tempdir().expect("temp dir");
@@ -310,7 +308,7 @@ mod tests {
         });
     }
 
-    /// Un template syntactically invalide est ignoré (warn!), pas un crash.
+    /// A syntactically invalid template is skipped (warn!), not a crash.
     #[test]
     fn test_load_from_dir_invalid_template_is_non_fatal() {
         let tmp = tempfile::tempdir().expect("temp dir");

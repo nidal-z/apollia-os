@@ -1,24 +1,24 @@
-//! Factory de [`ProjectRuntime`] depuis la configuration runtime.
+//! [`ProjectRuntime`] factory from the runtime configuration.
 //!
-//! Construit un [`ProjectRuntime`] avec les providers activés.
-//! Les providers Python doivent être ajoutés via [`ProjectRuntime::with_provider`]
-//! par l'appelant après la construction (nécessitent une initialisation Python).
+//! Builds a [`ProjectRuntime`] with the enabled providers.
+//! Python providers must be added via [`ProjectRuntime::with_provider`]
+//! by the caller after construction (they require Python initialization).
 
 use std::sync::Arc;
 
 use apollia_llm::LlmRouter;
 use apollia_workspace::{ProjectRuntime, ProviderEntry};
 
-/// Construit un [`ProjectRuntime`] depuis la liste de providers configurés.
+/// Build a [`ProjectRuntime`] from the list of configured providers.
 ///
-/// Providers supportés :
-/// - `type = "git"` → [`GitProvider`]
-/// - `type = "rules"` → [`RulesProvider`]
-/// - `type = "tree"` → [`TreeProvider`]
-/// - `type = "style"` → [`StyleProvider`] (nécessite un `LlmRouter`)
-/// - `type = "script"` → [`ScriptProvider`]
+/// Supported providers:
+/// - `type = "git"`: [`GitProvider`]
+/// - `type = "rules"`: [`RulesProvider`]
+/// - `type = "tree"`: [`TreeProvider`]
+/// - `type = "style"`: [`StyleProvider`] (requires an `LlmRouter`)
+/// - `type = "script"`: [`ScriptProvider`]
 ///
-/// Les providers de type `"python"` doivent être ajoutés séparément via
+/// Providers of type `"python"` must be added separately via
 /// [`ProjectRuntime::with_provider`].
 pub fn build_project_runtime(
     providers: &[ProviderEntry],

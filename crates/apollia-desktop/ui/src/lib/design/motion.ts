@@ -63,10 +63,10 @@ export const easing = {
  * settings. SSR-safe (returns false when `window` is undefined).
  */
 export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+  if (globalThis.window === undefined || typeof globalThis.matchMedia !== "function") {
     return false;
   }
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**

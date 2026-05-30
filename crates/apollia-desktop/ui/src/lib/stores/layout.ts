@@ -29,9 +29,9 @@ const MD_QUERY = "(min-width: 768px)";
 const LG_QUERY = "(min-width: 1024px)";
 
 function computeViewport(): Viewport {
-  if (typeof window === "undefined") return "lg";
-  if (window.matchMedia(LG_QUERY).matches) return "lg";
-  if (window.matchMedia(MD_QUERY).matches) return "md";
+  if (globalThis.window === undefined) return "lg";
+  if (globalThis.matchMedia(LG_QUERY).matches) return "lg";
+  if (globalThis.matchMedia(MD_QUERY).matches) return "md";
   return "sm";
 }
 
@@ -85,9 +85,9 @@ function savePreference(pref: SidebarPreference): void {
 
 /** Store read-only de la viewport courante, mis à jour via `matchMedia`. */
 const viewport: Readable<Viewport> = readable<Viewport>(computeViewport(), (set) => {
-  if (typeof window === "undefined") return;
-  const mdMql = window.matchMedia(MD_QUERY);
-  const lgMql = window.matchMedia(LG_QUERY);
+  if (globalThis.window === undefined) return;
+  const mdMql = globalThis.matchMedia(MD_QUERY);
+  const lgMql = globalThis.matchMedia(LG_QUERY);
   const update = () => set(computeViewport());
   mdMql.addEventListener("change", update);
   lgMql.addEventListener("change", update);
@@ -104,7 +104,7 @@ const drawerOpenInternal = writable(false);
 
 // Persist drawer open state under sm — `hidden` when closed, `open` when open.
 drawerOpenInternal.subscribe((open) => {
-  if (typeof window === "undefined") return;
+  if (globalThis.window === undefined) return;
   if (computeViewport() !== "sm") return;
   saveState("sm", open ? "open" : "hidden");
 });

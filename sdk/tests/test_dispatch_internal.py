@@ -116,7 +116,7 @@ def test_extract_payload_empty() -> None:
 
 @pytest.mark.asyncio
 async def test_dispatch_skill_happy_path() -> None:
-    async def handler(self: Any, path: str, ctx: Any) -> str:  # noqa: ARG001
+    async def handler(self: Any, path: str, ctx: Any) -> str:  # noqa: ARG001  # NOSONAR
         return f"read:{path}"
 
     agent = _build_agent_with_skill(
@@ -278,7 +278,7 @@ async def test_dispatch_skill_returns_dict() -> None:
 @pytest.mark.asyncio
 async def test_dispatch_message_happy_path() -> None:
     class Agent:
-        async def handle(self, message: str, history: list[dict[str, Any]], ctx: Any) -> str:
+        async def handle(self, message: str, history: list[dict[str, Any]], ctx: Any) -> str:  # NOSONAR
             assert isinstance(history, list)
             return f"echo:{message}"
 

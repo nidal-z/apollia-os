@@ -1,26 +1,26 @@
-//! Parser natural-language → schedule + agent.
+//! Parse natural language into schedule + agent.
 //!
-//! Fonction pure testable : prend une description en français ou en anglais
+//! Pure testable function: takes a French or English description
 //! ("Tous les matins à 8 h, demande à spec-assistant de résumer mes specs")
-//! et retourne un [`ParsedAutomation`] que l'UI mappe sur un
-//! [`TriggerSourceInput`] + agent cible.
+//! and returns a [`ParsedAutomation`] that the UI maps onto a
+//! [`TriggerSourceInput`] + target agent.
 //!
-//! Ce parseur est heuristique — il reconnaît les patterns courants (daily
-//! morning/evening, every N minutes, every Monday at HH[:MM], jour ISO). Si
-//! rien ne matche, il retourne `confidence = Low` et laisse une ambiguïté que
-//! l'UI demandera à l'opérateur de résoudre (ou déclenche un fallback LLM
-//! structuré côté orchestrateur — non implémenté ici, opt-in).
+//! This parser is heuristic: it recognizes the common patterns (daily
+//! morning/evening, every N minutes, every Monday at HH[:MM], ISO day). If
+//! nothing matches, it returns `confidence = Low` and leaves an ambiguity for
+//! the UI to ask the operator to resolve (or triggers a structured LLM
+//! fallback on the orchestrator side, not implemented here, opt-in).
 //!
-//! Toute la logique est en UTF-8 NFC, sans accès disque ni réseau, afin de
-//! pouvoir être snapshot-testée avec 20 inputs bilingues (cf. tests).
+//! All the logic is in UTF-8 NFC, with no disk or network access, so it can be
+//! snapshot-tested with 20 bilingual inputs (see tests).
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
-/// Confiance globale attribuée au résultat du parseur.
+/// Overall confidence assigned to the parser's result.
 ///
-/// L'UI gate step 2 du wizard : `Low` ouvre automatiquement un mode édition
-/// naturelle pour forcer l'opérateur à lever l'ambiguïté.
+/// The UI gates wizard step 2: `Low` automatically opens a natural-edit mode
+/// to force the operator to resolve the ambiguity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Confidence {
@@ -29,35 +29,35 @@ pub enum Confidence {
     Low,
 }
 
-/// Planification inférée.
+/// Inferred schedule.
 ///
-/// Reflet des variantes `TriggerSourceInput` côté desktop (cron / interval /
-/// oneshot). `file_watch` et `webhook` ne sont pas adressés par le parseur
-/// naturel : ils restent accessibles via le mode builder.
+/// Mirrors the `TriggerSourceInput` variants on the desktop side (cron /
+/// interval / oneshot). `file_watch` and `webhook` are not handled by the
+/// natural parser: they stay accessible via builder mode.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ParsedSchedule {
     Cron {
-        /// Expression cron standard 5 champs (min h dom mon dow).
+        /// Standard 5-field cron expression (min h dom mon dow).
         expr: String,
-        /// Label lisible côté opérateur (fr), ex. "Tous les jours à 08:00".
+        /// Operator-readable label (fr), e.g. "Tous les jours à 08:00".
         human_label_fr: String,
-        /// Équivalent anglais, ex. "Every day at 08:00".
+        /// English equivalent, e.g. "Every day at 08:00".
         human_label_en: String,
-        /// Prochaine exécution calculée à partir de `now_utc`.
+        /// Next run computed from `now_utc`.
         next_run_at: DateTime<Utc>,
     },
     Interval {
-        /// Durée au format humain (30s, 5m, 2h, 1d).
+        /// Duration in human format (30s, 5m, 2h, 1d).
         every: String,
-        /// Nombre de secondes équivalent pour vérification.
+        /// Equivalent number of seconds for verification.
         every_seconds: u64,
         human_label_fr: String,
         human_label_en: String,
         next_run_at: DateTime<Utc>,
     },
     OneShot {
-        /// Date-time ISO 8601 (`YYYY-MM-DDTHH:MM`).
+        /// ISO 8601 date-time (`YYYY-MM-DDTHH:MM`).
         fire_at: String,
         human_label_fr: String,
         human_label_en: String,
@@ -65,33 +65,33 @@ pub enum ParsedSchedule {
     },
 }
 
-/// Agent cible inféré, s'il existe.
+/// Inferred target agent, if any.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentMatch {
-    /// Identifiant ou nom de l'agent connu matché.
+    /// Identifier or name of the matched known agent.
     pub agent_id: String,
-    /// Raison du matching — utile pour debug et pour afficher "Nous avons
-    /// reconnu <X> parce que...".
+    /// Match reason, useful for debugging and to show "We recognized <X>
+    /// because...".
     pub reason: String,
 }
 
-/// Résultat complet du parseur.
+/// Complete parser result.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ParsedAutomation {
-    /// Planification — `None` si aucune n'a pu être détectée.
+    /// Schedule; `None` if none could be detected.
     pub schedule: Option<ParsedSchedule>,
-    /// Agent inféré s'il matche un agent connu, sinon `None`.
+    /// Inferred agent if it matches a known agent, otherwise `None`.
     pub agent: Option<AgentMatch>,
-    /// Payload extrait (partie "verbe + objet" de la demande) pour servir de
-    /// `input_template`. Ex. : "Résumer mes specs".
+    /// Extracted payload (the "verb + object" part of the request) to serve as
+    /// the `input_template`. E.g. "Résumer mes specs".
     pub payload: Option<String>,
-    /// Niveau de confiance global.
+    /// Overall confidence level.
     pub confidence: Confidence,
-    /// Ambiguïtés à résoudre côté UI avant d'activer l'automatisation.
+    /// Ambiguities for the UI to resolve before activating the automation.
     pub ambiguities: Vec<String>,
 }
 
-/// Normalise minuscule + retire accents pour le matching heuristique.
+/// Lowercase and strip accents for heuristic matching.
 fn fold(input: &str) -> String {
     input
         .to_lowercase()
@@ -108,88 +108,108 @@ fn fold(input: &str) -> String {
         .collect()
 }
 
-/// Extrait HH[:MM] depuis une expression comme "8 h", "8h30", "8:30", "08h00",
-/// "8 am", "20h", "at 9", "à 9". Retourne `(hour, minute)` 24h.
+/// Extracts HH[:MM] from an expression like "8 h", "8h30", "8:30", "08h00",
+/// "8 am", "20h", "at 9", "à 9". Returns `(hour, minute)` in 24h format.
 fn extract_time(folded: &str) -> Option<(u32, u32)> {
-    let bytes = folded.as_bytes();
+    extract_time_ampm(folded)
+        .or_else(|| extract_time_hh_mm(folded))
+        .or_else(|| extract_time_bare_hour(folded))
+}
 
-    // Pattern "N am/pm" (optionally glued).
-    for (suffix, offset) in [(" am", 12i32), ("am", 12), (" pm", 0), ("pm", 0)] {
-        let _ = offset;
-        if let Some(pos) = folded.find(suffix) {
-            let slice = &folded[..pos];
-            if let Some(last) = slice
-                .rsplit(|c: char| !c.is_ascii_digit())
-                .find(|s| !s.is_empty())
-            {
-                if let Ok(h) = last.parse::<u32>() {
-                    if h <= 12 {
-                        let hour24 = if suffix.trim() == "am" {
-                            if h == 12 {
-                                0
-                            } else {
-                                h
-                            }
-                        } else if h == 12 {
-                            12
-                        } else {
-                            h + 12
-                        };
-                        return Some((hour24, 0));
-                    }
-                }
+/// Pattern "N am/pm" (optionally glued).
+fn extract_time_ampm(folded: &str) -> Option<(u32, u32)> {
+    for suffix in [" am", "am", " pm", "pm"] {
+        let pos = match folded.find(suffix) {
+            Some(p) => p,
+            None => continue,
+        };
+        let slice = &folded[..pos];
+        let last = slice
+            .rsplit(|c: char| !c.is_ascii_digit())
+            .find(|s| !s.is_empty());
+        let h = match last.and_then(|s| s.parse::<u32>().ok()) {
+            Some(h) if h <= 12 => h,
+            _ => continue,
+        };
+        let hour24 = if suffix.trim() == "am" {
+            if h == 12 {
+                0
+            } else {
+                h
             }
-        }
+        } else if h == 12 {
+            12
+        } else {
+            h + 12
+        };
+        return Some((hour24, 0));
     }
+    None
+}
 
-    // Pattern "HHhMM" / "HH h MM" / "HH:MM".
+/// Pattern "HHhMM" / "HH h MM" / "HH:MM".
+fn extract_time_hh_mm(folded: &str) -> Option<(u32, u32)> {
+    let bytes = folded.as_bytes();
     for (i, &b) in bytes.iter().enumerate() {
         if b != b'h' && b != b':' {
             continue;
         }
-        // Find end of digits to the left (skipping one optional space for 'h').
-        let mut end = i;
-        if b == b'h' && end > 0 && bytes[end - 1] == b' ' {
-            end -= 1;
+        if let Some(hm) = parse_hh_mm_at_separator(bytes, i, b) {
+            return Some(hm);
         }
-        let mut lo = end;
-        while lo > 0 && bytes[lo - 1].is_ascii_digit() {
-            lo -= 1;
-        }
-        if lo == end {
-            continue;
-        }
-        let h: u32 = match std::str::from_utf8(&bytes[lo..end])
-            .ok()
-            .and_then(|s| s.parse().ok())
-        {
-            Some(h) if h <= 23 => h,
-            _ => continue,
-        };
-        // Minutes after.
-        let mut mo = i + 1;
-        while mo < bytes.len() && bytes[mo] == b' ' {
-            mo += 1;
-        }
-        let mut mend = mo;
-        while mend < bytes.len() && bytes[mend].is_ascii_digit() {
-            mend += 1;
-        }
-        let m: u32 = if mend > mo {
-            match std::str::from_utf8(&bytes[mo..mend])
-                .ok()
-                .and_then(|s| s.parse().ok())
-            {
-                Some(m) if m <= 59 => m,
-                _ => continue,
-            }
-        } else {
-            0
-        };
-        return Some((h, m));
     }
+    None
+}
 
-    // Pattern "at N" / "a N" (bare hour, 0-23).
+/// Tries to read an (hour, minutes) pair around the separator at index `i`
+/// (a `'h'` or a `':'`). Returns `None` if the digits to the left are absent
+/// or the hour/minutes are out of range.
+fn parse_hh_mm_at_separator(bytes: &[u8], i: usize, sep: u8) -> Option<(u32, u32)> {
+    // Find end of digits to the left (skipping one optional space for 'h').
+    let mut end = i;
+    if sep == b'h' && end > 0 && bytes[end - 1] == b' ' {
+        end -= 1;
+    }
+    let mut lo = end;
+    while lo > 0 && bytes[lo - 1].is_ascii_digit() {
+        lo -= 1;
+    }
+    if lo == end {
+        return None;
+    }
+    let h: u32 = std::str::from_utf8(&bytes[lo..end])
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .filter(|h| *h <= 23)?;
+    let m = extract_minutes_after(bytes, i + 1)?;
+    Some((h, m))
+}
+
+/// Reads the optional minutes just after index `from` (after the separator).
+/// Returns `Some(0)` if no digit, `None` if the minutes are out of range.
+fn extract_minutes_after(bytes: &[u8], from: usize) -> Option<u32> {
+    let mut mo = from;
+    while mo < bytes.len() && bytes[mo] == b' ' {
+        mo += 1;
+    }
+    let mut mend = mo;
+    while mend < bytes.len() && bytes[mend].is_ascii_digit() {
+        mend += 1;
+    }
+    if mend <= mo {
+        return Some(0);
+    }
+    match std::str::from_utf8(&bytes[mo..mend])
+        .ok()
+        .and_then(|s| s.parse().ok())
+    {
+        Some(m) if m <= 59 => Some(m),
+        _ => None,
+    }
+}
+
+/// Pattern "at N" / "a N" (bare hour, 0-23).
+fn extract_time_bare_hour(folded: &str) -> Option<(u32, u32)> {
     for prefix in [" at ", " a "] {
         if let Some(pos) = folded.find(prefix) {
             let rest = &folded[pos + prefix.len()..];
@@ -201,11 +221,10 @@ fn extract_time(folded: &str) -> Option<(u32, u32)> {
             }
         }
     }
-
     None
 }
 
-/// Extrait la durée depuis "toutes les N minutes / heures / secondes" ou
+/// Extracts the duration from "toutes les N minutes / heures / secondes" or
 /// "every N minutes / hours".
 fn extract_interval(folded: &str) -> Option<(u64, String)> {
     // Require a trigger verb so "every sunday" doesn't match "day".
@@ -222,50 +241,7 @@ fn extract_interval(folded: &str) -> Option<(u64, String)> {
     ];
     for (keys, mult, suffix) in PATTERNS {
         for key in *keys {
-            // Find keyword at word boundary (preceded by space, followed by
-            // non-letter or end).
-            let mut start = 0usize;
-            while let Some(rel) = folded[start..].find(key) {
-                let abs = start + rel;
-                let before_ok = abs == 0 || !folded.as_bytes()[abs - 1].is_ascii_alphabetic();
-                let after = abs + key.len();
-                let after_ok = after >= folded.len() || {
-                    let c = folded.as_bytes()[after];
-                    !c.is_ascii_alphabetic() || c == b's' // allow plural
-                };
-                if !(before_ok && after_ok) {
-                    start = abs + 1;
-                    continue;
-                }
-                // Require a number within the 12 preceding chars, else fallback
-                // to 1 when preceded by "toutes les"/"chaque"/"every".
-                let window_start = abs.saturating_sub(12);
-                let prefix = &folded[window_start..abs];
-                let last = prefix
-                    .rsplit(|c: char| !c.is_ascii_digit())
-                    .find(|s| !s.is_empty());
-                let n: u64 = match last.and_then(|s| s.parse().ok()) {
-                    Some(0) => {
-                        start = abs + 1;
-                        continue;
-                    }
-                    Some(n) => n,
-                    None => {
-                        // Accept bare "every minute" / "toutes les minutes" —
-                        // only for sub-hourly units since "every day / hour"
-                        // typically combine with a time-of-day (→ cron).
-                        let bare_ok = matches!(*key, "minute" | "seconde" | "second")
-                            && (prefix.contains("every")
-                                || prefix.contains("chaque")
-                                || prefix.contains("toutes les"));
-                        if bare_ok {
-                            1
-                        } else {
-                            start = abs + 1;
-                            continue;
-                        }
-                    }
-                };
+            if let Some(n) = interval_count_for_key(folded, key) {
                 return Some((n * mult, format!("{}{}", n, suffix)));
             }
         }
@@ -273,8 +249,58 @@ fn extract_interval(folded: &str) -> Option<(u64, String)> {
     None
 }
 
-/// Détecte "lundi/mardi/.../dimanche" ou "monday/tuesday/..." → dow cron (0–6,
-/// dimanche = 0).
+/// Looks for `key` at a word boundary in `folded` and returns the multiplier
+/// `n` that precedes it (or 1 as a bare fallback for sub-hourly units).
+/// Returns `None` if no valid occurrence is found.
+fn interval_count_for_key(folded: &str, key: &str) -> Option<u64> {
+    // Find keyword at word boundary (preceded by space, followed by
+    // non-letter or end).
+    let mut start = 0usize;
+    while let Some(rel) = folded[start..].find(key) {
+        let abs = start + rel;
+        let before_ok = abs == 0 || !folded.as_bytes()[abs - 1].is_ascii_alphabetic();
+        let after = abs + key.len();
+        let after_ok = after >= folded.len() || {
+            let c = folded.as_bytes()[after];
+            !c.is_ascii_alphabetic() || c == b's' // allow plural
+        };
+        if !(before_ok && after_ok) {
+            start = abs + 1;
+            continue;
+        }
+        // Require a number within the 12 preceding chars, else fallback
+        // to 1 when preceded by "toutes les"/"chaque"/"every".
+        let window_start = abs.saturating_sub(12);
+        let prefix = &folded[window_start..abs];
+        let last = prefix
+            .rsplit(|c: char| !c.is_ascii_digit())
+            .find(|s| !s.is_empty());
+        match last.and_then(|s| s.parse::<u64>().ok()) {
+            Some(0) => {
+                start = abs + 1;
+                continue;
+            }
+            Some(n) => return Some(n),
+            None if interval_bare_ok(key, prefix) => return Some(1),
+            None => {
+                start = abs + 1;
+                continue;
+            }
+        }
+    }
+    None
+}
+
+/// Accepts the bare "every minute" / "toutes les minutes", only for
+/// sub-hourly units, since "every day / hour" typically combine with a
+/// time-of-day (so cron).
+fn interval_bare_ok(key: &str, prefix: &str) -> bool {
+    matches!(key, "minute" | "seconde" | "second")
+        && (prefix.contains("every") || prefix.contains("chaque") || prefix.contains("toutes les"))
+}
+
+/// Detects "lundi/mardi/.../dimanche" or "monday/tuesday/..." into a dow cron
+/// (0-6, Sunday = 0).
 fn extract_dow(folded: &str) -> Option<(u32, &'static str, &'static str)> {
     const DAYS: &[(&str, &str, u32, &str, &str)] = &[
         ("lundi", "monday", 1, "lundi", "Monday"),
@@ -293,8 +319,8 @@ fn extract_dow(folded: &str) -> Option<(u32, &'static str, &'static str)> {
     None
 }
 
-/// Cherche un agent par nom/id dans une liste connue. Matching case-insensitive
-/// sur le nom brut et sur le nom "folded" (sans accents, minuscule).
+/// Looks up an agent by name/id in a known list. Case-insensitive matching on
+/// the raw name and on the "folded" name (no accents, lowercase).
 fn match_agent(folded: &str, known: &[String]) -> Option<AgentMatch> {
     // On fait un match descendant : on teste d'abord les noms les plus longs.
     let mut sorted = known.to_vec();
@@ -311,7 +337,7 @@ fn match_agent(folded: &str, known: &[String]) -> Option<AgentMatch> {
     None
 }
 
-/// Extrait un payload après "de " ou "to " ("… demande de résumer mes specs").
+/// Extracts a payload after "de " or "to " ("... demande de résumer mes specs").
 fn extract_payload(original: &str) -> Option<String> {
     let lower = original.to_lowercase();
     for sep in [" de ", " to ", " : ", ": "] {
@@ -325,14 +351,14 @@ fn extract_payload(original: &str) -> Option<String> {
     None
 }
 
-/// Calcule la prochaine occurrence d'un cron `min h * * dow?` (parsing limité
-/// à ce que le parseur émet). Retourne `now + 1min` en dernier recours.
+/// Computes the next occurrence of a cron `min h * * dow?` (parsing limited to
+/// what the parser emits). Returns `now + 1min` as a last resort.
 fn next_cron(now: DateTime<Utc>, hour: u32, minute: u32, dow: Option<u32>) -> DateTime<Utc> {
     let mut date: NaiveDate = now.date_naive();
     let time = NaiveTime::from_hms_opt(hour, minute, 0).unwrap_or(NaiveTime::MIN);
     for _ in 0..14 {
         if let Some(dow) = dow {
-            // 0 = Sunday, chrono weekday: Mon=0 .. Sun=6 → remap.
+            // 0 = Sunday, chrono weekday: Mon=0 .. Sun=6, so remap.
             let chrono_dow = match dow {
                 0 => 6,
                 n => n - 1,
@@ -352,7 +378,62 @@ fn next_cron(now: DateTime<Utc>, hour: u32, minute: u32, dow: Option<u32>) -> Da
     now + Duration::minutes(1)
 }
 
-/// Point d'entrée : parse la description libre en `ParsedAutomation`.
+/// Detects an interval schedule ("toutes les N minutes", "every 2 hours").
+fn parse_interval_schedule(folded: &str, now_utc: DateTime<Utc>) -> Option<ParsedSchedule> {
+    let (every_seconds, every) = extract_interval(folded)?;
+    if !(folded.contains("toutes les") || folded.contains("every") || folded.contains("chaque")) {
+        return None;
+    }
+    Some(ParsedSchedule::Interval {
+        every,
+        every_seconds,
+        human_label_fr: format!("Toutes les {}", humanize_interval_fr(every_seconds)),
+        human_label_en: format!("Every {}", humanize_interval_en(every_seconds)),
+        next_run_at: now_utc + Duration::seconds(every_seconds as i64),
+    })
+}
+
+/// Detects a cron schedule (time of day, optional weekday, or a shortcut
+/// "tous les matins / midi / soir / minuit").
+fn parse_cron_schedule(folded: &str, now_utc: DateTime<Utc>) -> Option<ParsedSchedule> {
+    let dow = extract_dow(folded);
+    let (hour, minute) = extract_time(folded).or_else(|| extract_time_of_day_word(folded))?;
+    let (expr, label_fr, label_en) = match dow {
+        Some((dow_num, fr_label, en_label)) => (
+            format!("{} {} * * {}", minute, hour, dow_num),
+            format!("Chaque {} à {:02}:{:02}", fr_label, hour, minute),
+            format!("Every {} at {:02}:{:02}", en_label, hour, minute),
+        ),
+        None => (
+            format!("{} {} * * *", minute, hour),
+            format!("Tous les jours à {:02}:{:02}", hour, minute),
+            format!("Every day at {:02}:{:02}", hour, minute),
+        ),
+    };
+    Some(ParsedSchedule::Cron {
+        expr,
+        human_label_fr: label_fr,
+        human_label_en: label_en,
+        next_run_at: next_cron(now_utc, hour, minute, dow.map(|(d, _, _)| d)),
+    })
+}
+
+/// Maps the "matin / midi / soir / minuit" shortcuts (and English) to an hour.
+fn extract_time_of_day_word(folded: &str) -> Option<(u32, u32)> {
+    if folded.contains("matin") || folded.contains("morning") {
+        Some((8, 0))
+    } else if folded.contains("midi") || folded.contains("noon") {
+        Some((12, 0))
+    } else if folded.contains("soir") || folded.contains("evening") {
+        Some((20, 0))
+    } else if folded.contains("minuit") || folded.contains("midnight") {
+        Some((0, 0))
+    } else {
+        None
+    }
+}
+
+/// Entry point: parses the free-form description into a `ParsedAutomation`.
 pub fn parse_automation(
     input: &str,
     now_utc: DateTime<Utc>,
@@ -363,59 +444,8 @@ pub fn parse_automation(
     let mut ambiguities = Vec::new();
 
     // ─── Schedule ────────────────────────────────────────────────────────
-    let schedule = if let Some((every_seconds, every)) = extract_interval(&folded) {
-        if folded.contains("toutes les") || folded.contains("every") || folded.contains("chaque") {
-            let label_fr = format!("Toutes les {}", humanize_interval_fr(every_seconds));
-            let label_en = format!("Every {}", humanize_interval_en(every_seconds));
-            Some(ParsedSchedule::Interval {
-                every: every.clone(),
-                every_seconds,
-                human_label_fr: label_fr,
-                human_label_en: label_en,
-                next_run_at: now_utc + Duration::seconds(every_seconds as i64),
-            })
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let schedule = schedule.or_else(|| {
-        // Try cron (time of day, optional day of week, optional "tous les matins").
-        let dow = extract_dow(&folded);
-        let mut time = extract_time(&folded);
-        if time.is_none() {
-            if folded.contains("matin") || folded.contains("morning") {
-                time = Some((8, 0));
-            } else if folded.contains("midi") || folded.contains("noon") {
-                time = Some((12, 0));
-            } else if folded.contains("soir") || folded.contains("evening") {
-                time = Some((20, 0));
-            } else if folded.contains("minuit") || folded.contains("midnight") {
-                time = Some((0, 0));
-            }
-        }
-        let (hour, minute) = time?;
-        let (expr, label_fr, label_en) = match dow {
-            Some((dow_num, fr_label, en_label)) => (
-                format!("{} {} * * {}", minute, hour, dow_num),
-                format!("Chaque {} à {:02}:{:02}", fr_label, hour, minute),
-                format!("Every {} at {:02}:{:02}", en_label, hour, minute),
-            ),
-            None => (
-                format!("{} {} * * *", minute, hour),
-                format!("Tous les jours à {:02}:{:02}", hour, minute),
-                format!("Every day at {:02}:{:02}", hour, minute),
-            ),
-        };
-        Some(ParsedSchedule::Cron {
-            expr,
-            human_label_fr: label_fr,
-            human_label_en: label_en,
-            next_run_at: next_cron(now_utc, hour, minute, dow.map(|(d, _, _)| d)),
-        })
-    });
+    let schedule =
+        parse_interval_schedule(&folded, now_utc).or_else(|| parse_cron_schedule(&folded, now_utc));
 
     if schedule.is_none() {
         ambiguities.push(
@@ -524,7 +554,7 @@ mod tests {
         ]
     }
 
-    // ── 20 snapshot inputs bilingues ──────────────────────────────────────
+    // 20 bilingual snapshot inputs
 
     #[test]
     fn parses_daily_morning_french() {
