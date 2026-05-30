@@ -72,28 +72,49 @@ pub struct NativeChatToolInvoker {
     // retained for backward compatibility with existing builder methods
     // (`with_hitl_support`, `with_ask_user_support`, …); their values are
     // ignored by `invoke()`. Will be removed in a follow-up refactor.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4 back-compat field, written by with_hitl_support/with_ask_user_support, removed in the follow-up invoker refactor"
+    )]
     sandbox_root: std::path::PathBuf,
     /// Original workspace path for risk classification (may differ from sandbox_root
     /// when sandbox_root has been resolved via fallback).
     workspace_path: Option<std::path::PathBuf>,
     /// EventBus sender for emitting `HitlFilesystemRequired` events.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4 back-compat field, written by with_hitl_support, removed in the follow-up invoker refactor"
+    )]
     event_bus: Option<crate::eventbus::EventBusSender>,
     /// Pending filesystem HITL approvals store.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4 back-compat field, written by with_hitl_support, removed in the follow-up invoker refactor"
+    )]
     pending_fs: Option<super::types::PendingFilesystemApprovals>,
     /// Session-level filesystem allow rules (shared Arc, not persisted).
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4 back-compat field, written by with_hitl_support, removed in the follow-up invoker refactor"
+    )]
     fs_allow_rules: Option<std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>>,
     /// Session identifier for HITL events.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4 back-compat field, written by with_hitl_support, removed in the follow-up invoker refactor"
+    )]
     session_id: Option<String>,
     /// Filesystem risk configuration (path lists for system/credential paths).
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4 back-compat field, written by with_hitl_support, removed in the follow-up invoker refactor"
+    )]
     risk_config: apollia_core::FilesystemRiskConfig,
     /// Pending user input registry for the `ask_user` tool.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4 back-compat field, written by with_ask_user_support, removed in the follow-up invoker refactor"
+    )]
     pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
     /// Generic fallback for any tool that isn't in the hardcoded native
     /// match. When present, MCP + connector + future-tool calls are all
@@ -202,7 +223,10 @@ impl NativeChatToolInvoker {
     /// Awaits user decision if the operation is Medium or above and not in allow rules.
     ///
     /// ADR-096 Phase 4, superseded by [`crate::chat::native_wrappers::HitlFilesystemGuard`].
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, kept as the reference implementation behind the invoke_* methods listed below until they are deleted"
+    )]
     async fn check_fs_hitl(
         &self,
         op: apollia_tools::FilesystemOp,
@@ -286,7 +310,10 @@ impl NativeChatToolInvoker {
     }
 
     /// Execute `bash_executor` with the given JSON arguments.
-    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(BashExecutor)
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, replaced by HitlFilesystemGuard(BashExecutor) via fallback_dispatcher"
+    )]
     async fn invoke_bash(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::bash_executor::{BashExecutor, BashInput};
 
@@ -325,7 +352,10 @@ impl NativeChatToolInvoker {
     // the dispatcher's permission engine in charge.
 
     /// Execute `file_write` with the given JSON arguments.
-    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(FileWrite)
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, replaced by HitlFilesystemGuard(FileWrite) via fallback_dispatcher"
+    )]
     async fn invoke_file_write(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
         use apollia_tools::FilesystemOp;
@@ -374,7 +404,10 @@ impl NativeChatToolInvoker {
     // `file_list` migrated, see Phase 2 ADR-096. Reached via fallback dispatcher.
 
     /// Execute `file_edit` with the given JSON arguments.
-    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(FileEdit)
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, replaced by HitlFilesystemGuard(FileEdit) via fallback_dispatcher"
+    )]
     async fn invoke_file_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
         use apollia_tools::FilesystemOp;
@@ -417,7 +450,10 @@ impl NativeChatToolInvoker {
     ///
     /// In libre chat mode, the URL's hostname is dynamically added to the allowlist
     /// since the user explicitly enabled this tool and tool calls are HITL-approved.
-    #[allow(dead_code)] // ADR-096 P4, replaced by DynamicAllowlistHttpFetch
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, replaced by DynamicAllowlistHttpFetch via fallback_dispatcher"
+    )]
     async fn invoke_http_fetch(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::http_fetch::{HttpFetch, HttpFetchInput};
 
@@ -437,7 +473,10 @@ impl NativeChatToolInvoker {
     /// Runs Python code in a dedicated `chat-libre` virtualenv at
     /// `~/.apollia/venvs/chat-libre/venv/`. The venv is lazily created on first
     /// invocation, no packages are pre-installed (the LLM can only use stdlib).
-    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(PythonExecutor)
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, replaced by HitlFilesystemGuard(PythonExecutor) via fallback_dispatcher"
+    )]
     async fn invoke_python(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::python_executor::{PythonExecutor, PythonInput};
 
@@ -483,7 +522,10 @@ impl NativeChatToolInvoker {
     /// Searches the user's local memory store (`~/.apollia/memory/user.db`) using
     /// FTS5 full-text search. The namespace is fixed to `"user"` in chat libre mode
     ///, agents have their own namespaced databases.
-    #[allow(dead_code)] // ADR-096 P4, dispatcher MemorySearchTool with per-session namespace
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, replaced by MemorySearchTool with per-session namespace via fallback_dispatcher"
+    )]
     async fn invoke_memory_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::memory_search::{MemorySearchInput, MemorySearchTool};
 
@@ -505,7 +547,10 @@ impl NativeChatToolInvoker {
     ///
     /// Applies a sequence of atomic cell operations to a Jupyter `.ipynb` notebook,
     /// writing the modified notebook back to disk. Only nbformat v4 is supported.
-    #[allow(dead_code)] // ADR-096 P4, replaced by HitlFilesystemGuard(NotebookEdit)
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, replaced by HitlFilesystemGuard(NotebookEdit) via fallback_dispatcher"
+    )]
     async fn invoke_notebook_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::notebook_edit::{NotebookEdit, NotebookEditInput};
 
@@ -520,7 +565,10 @@ impl NativeChatToolInvoker {
     ///
     /// Posts the questions to the [`PendingUserInputs`] registry and blocks until
     /// the UI delivers the answers through the oneshot channel.
-    #[allow(dead_code)] // ADR-096 P4, AskUserExecutor in dispatcher with session_id
+    #[allow(
+        dead_code,
+        reason = "ADR-096 P4, replaced by AskUserExecutor with session_id via fallback_dispatcher"
+    )]
     async fn invoke_ask_user(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::ask_user::AskUserExecutor;
 

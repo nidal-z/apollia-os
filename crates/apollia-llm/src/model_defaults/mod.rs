@@ -74,7 +74,10 @@ impl ModelDefaults {
 #[derive(Debug, Clone, Deserialize)]
 struct EmbeddedEntry {
     /// Human label for logs, e.g. `"Qwen3 (instruct)"`.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "deserialised from embedded.toml so the table round-trips, exposed once the defaults resolver logs the matched entry"
+    )]
     name: String,
     arch_pattern: String,
     #[serde(default)]

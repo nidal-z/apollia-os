@@ -110,7 +110,10 @@ struct DraftListResponse {
     /// Pagination token exposed by the upstream; not yet surfaced by this
     /// client, kept here to ensure it round-trips when added.
     #[serde(default)]
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "deserialised so the upstream round-trips cleanly, surfaced once the gmail client exposes paginated drafts"
+    )]
     next_page_token: Option<String>,
 }
 

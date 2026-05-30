@@ -1,106 +1,130 @@
-# Changelog — Apollia OS
+# Changelog
 
-Toutes les modifications notables sont documentées ici.
-Format : [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
-Versioning : [Semantic Versioning](https://semver.org/lang/fr/)
+All notable changes to Apollia OS are documented in this file.
 
----
+The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
+This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-### En cours
-- Sprint 8 — planification à venir
+## [0.1.0-preview] - 2026-06-03
 
----
+Initial public preview. Local-first Rust runtime for autonomous AI agents,
+single-maintainer source-available.
 
-## [0.1.0] — 2026-04-27
+### Added
 
-Premier release public. Runtime local complet, agent Python fonctionnel, CLI opérationnelle.
+**Runtime core**
 
-### Ajouté
+- Tokio-based agent runtime with `EventBus`, `AgentRegistry`, `TaskRouter`,
+  `ExecutionCoordinator`, `Supervisor`, and `ShutdownController` (graceful
+  drain).
+- `APIServer` (axum) on Unix socket and TCP port 7771.
+- REST: `POST /tasks`, `GET /tasks/:id`, `GET /agents`, `POST /agents`, and
+  related endpoints.
+- Server-sent events at `GET /tasks/:id/stream` for real-time progress.
+- ORIA orchestration engine: observer-driven classification (`Direct` vs
+  `Orchestrated`), tri-dimensional step budget (steps, tool calls, wall
+  clock), resilience layer with circuit breakers and exponential retry.
 
-**AIP Bridge (PyO3)**
-- Bridge Rust ↔ Python async via PyO3 + pyo3-async-runtimes
-- Duck typing : tout objet Python avec `manifest()` et `async run()` est AIP-compatible
-- `ToolProxy` : proxy Python pour l'invocation des outils Rust
-- `MemoryInterface` : interface Python vers le Memory Engine SQLite
-- `AIPBridge` : appels async Rust → Python (`call_run`, `call_on_start`, `call_on_stop`)
-- `AgentLoader` trait : découplage runtime / PyO3 (ADR-019)
+**PyO3 bridge (AIP)**
 
-**Runtime Core**
-- `EventBus` : broadcast Tokio pour les événements système
-- `AgentRegistry` : acteur Tokio gérant le cycle de vie des agents
-- `TaskRouter` : dispatch des tâches vers les `ExecutionCoordinator`
-- `ExecutionCoordinator` : gestion du semaphore de concurrence par agent
-- `Supervisor` : démarrage ordonné et watchdog des acteurs
-- `ShutdownController` : graceful shutdown SIGTERM/SIGINT avec drain 30s
-- `APIServer` : axum HTTP/REST sur Unix socket + TCP port 7771
-- Routes REST : `POST /tasks`, `GET /tasks/:id`, `DELETE /tasks/:id`
-- Routes REST : `GET /agents`, `POST /agents`, `GET /agents/:id`, `DELETE /agents/:id`
-- Server-Sent Events : `GET /tasks/:id/stream` pour le streaming temps réel
+- Native async Rust to Python bridge via `pyo3` and `pyo3-async-runtimes`.
+- Duck-typed agents: any Python object exposing `manifest()` and an async
+  `run()` is AIP-compatible.
+- `ToolProxy`, `MemoryInterface`, and `AIPBridge` exposing the Rust runtime
+  to Python.
+- `AgentLoader` trait decoupling the runtime from PyO3.
 
-**ORIA Engine**
-- `Observer` : classification `Direct` / `Orchestrated` + `ContextBundle`
-- `StepBudget` : enforcement tri-dimensionnel (steps, tool_calls, wall_clock)
-- `ORIAEngine` : exécution Mode Direct avec `tokio::select!` pour le timeout
-- `ResilienceLayer` : circuit breakers par outil + `RetryPolicy` backoff exponentiel avec jitter
+**LLM**
 
-**Tool Registry**
-- `ToolRegistry` : acteur Tokio catalogue d'outils
-- `ToolResolver` : validation des outils requis/optionnels au démarrage
-- `AuditTrail` : SQLite WAL, fire-and-forget, sha2 pour l'input hash
-- `BashExecutor` : Linux namespaces (`unshare`) + mode Dev macOS
-- `PythonExecutor` : venv isolation par agent, fichier temp UUID
-- `FileIo` : protection path traversal, glob matcher interne
+- LLM router with local quantized backend (`llama-cpp-2`), Anthropic, and
+  OpenAI providers.
+- Meta planner for next-step suggestions, plan caching, and orchestrated
+  decision points.
+- Token budget tracking per session with hard and soft limits.
 
-**Memory Engine**
-- `MemoryStore` : schéma SQLite + migrations automatiques
-- `EpisodicMemory` : événements avec importance et timestamp
-- `SemanticMemory` : faits structurés avec confiance
-- `ProceduralMemory` : procédures pas à pas avec déclencheurs
-- `MemorySearch` : FTS5 + BM25 cross-backend
-- `MemoryManager` : namespace isolation, lazy store opening, access levels
+**Tools**
+
+- Tool registry actor with at-startup resolution of required and optional
+  tools.
+- Native tools: `bash_executor` (Linux namespaces, macOS dev mode),
+  `python_executor` (per-agent venv isolation), file IO suite
+  (`file_read`, `file_write`, `file_edit`, `file_glob`, `file_grep`),
+  `web_search`, `web_read`, `http_fetch`, `memory_search`, `notebook_*`.
+- Audit trail with SQLite WAL, fire-and-forget logging, SHA-2 input hashes.
+- HITL approval store with permission rules scoped to session, project, or
+  agent.
+
+**Memory**
+
+- Multi-layer memory: episodic (events + importance), semantic (facts +
+  confidence), procedural (procedures + triggers).
+- SQLite with FTS5 and BM25 for full-text search across layers.
+- Namespace isolation, lazy store opening, access-level enforcement.
+
+**MCP**
+
+- Full Model Context Protocol support: 18-entry catalog with curated
+  servers, stdio and HTTP transports.
+- Custom MCP server installation through the desktop UI or CLI.
+- OAuth orchestration for MCP servers that require it.
+
+**Connectors**
+
+- Google: Gmail, Calendar, Drive (workspace), Sheets, Tasks, Docs, Forms,
+  Slides, YouTube.
+- Microsoft: Outlook mail, Outlook calendar, OneDrive.
+
+**Triggers and notifications**
+
+- Trigger engine: cron, interval, oneshot, file watch, webhook sources.
+- Notification engine with desktop and webhook channels, per-budget alerts.
+
+**Desktop**
+
+- Tauri 2 application sharing the runtime and Python interpreter with the
+  CLI.
+- Svelte 5 frontend with TypeScript, Vite, Tailwind, Bits UI.
+- Built-in onboarding agent and Apollia coach.
 
 **CLI**
-- `apollia-os start/stop/status/run` — niveau 1 (opérations quotidiennes)
-- `apollia-os agent list/start/stop/info` — gestion des agents
-- `apollia-os task list/status/cancel` — gestion des tâches
-- `apollia-os tools list/describe` — exploration du Tool Registry
-- `apollia-os memory inspect` — inspection du Memory Engine
-- `apollia-os audit list/stats` — audit trail
-- `RuntimeClient` HTTP sur Unix socket pour tous les appels
-- Exit codes POSIX : 0 succès, 1 usage, 2 runtime, 3 task failed, 4 timeout, 5 canceled
-- `--json` global sur toutes les commandes
 
-**Core**
-- `AgentManifest`, `AgentSkill` — identité et capacités déclarées
-- `AIPTask`, `AIPInput`, `AIPPart`, `AIPResult` — contrat de communication
-- `ProcessState` — machine d'état processus agent (alignée ACP)
-- `TaskStatus` — machine d'état tâche (alignée A2A)
-- `StepBudgetConfig` — configuration des garde-fous
+- `apollia-os` binary at near-parity with the Desktop (40+ subcommands).
+- `--json` and `--quiet` global flags on every command.
+- POSIX exit codes: 0 success, 1 usage, 2 runtime, 3 task failed, 4 timeout,
+  5 canceled.
+- End-to-end smoke suite (`tests/cli/cli-e2e.sh`): 271 assertions across a
+  daemon-off phase and a daemon-on phase.
 
-**Tests**
-- 346 tests (342 sans python-tests) — unitaires + intégration + E2E
-- Suite E2E : resilience, shutdown, budget, hello-agent
-- CI GitHub Actions : Ubuntu, fmt + clippy + test + python-tests
+**SDK**
 
-### Agents d'exemple
-- `agents/hello_agent.py` — agent minimal (manifest + run)
-- `agents/devis_agent.py` — agent avec outils et mémoire
+- Python `apollia` package: `@agent`, `@skill`, `@on_message`,
+  `@orchestrated` decorators.
+- Context Protocols: `ctx.llm`, `ctx.memory`, `ctx.a2a`, `ctx.tools`,
+  `ctx.notify`, `ctx.logger`.
+- Testing helpers and mock proxies for unit testing agents in isolation.
 
----
+**Build and packaging**
 
-## [0.0.1] — 2026-01 (internal)
+- Workspace MSRV: Rust 1.84.
+- Cross-compilation hints in `Cross.toml`.
+- `deny.toml` for license, banned crates, and advisory checks.
+- Cargo audit and Cargo deny green at release time.
 
-Fondations du workspace Rust. Non publié.
+**Documentation**
 
-### Ajouté
-- Workspace Cargo 7 crates
-- Types fondamentaux `apollia-core`
-- CI `cargo fmt + clippy + test`
+- Public book (mdBook) with capstone E2E walkthrough.
+- Operator help corpus.
+- Architecture Decision Records.
+- `AGENTS.md` rulebook for AI coding assistants working in the repo.
 
----
+### Security
 
-[Unreleased]: https://github.com/nidal-z/apollia-os/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/nidal-z/apollia-os/releases/tag/v0.1.0
-[0.0.1]: https://github.com/nidal-z/apollia-os/releases/tag/v0.0.1
+- No known vulnerabilities at release time (`cargo audit` clean).
+- Documented advisory exceptions in `deny.toml` for transitive dependencies
+  awaiting upstream patches.
+- Private vulnerability reporting via GitHub Security Advisories.
+
+[Unreleased]: https://github.com/nidalzoumita/apollia-os/compare/v0.1.0-preview...HEAD
+[0.1.0-preview]: https://github.com/nidalzoumita/apollia-os/releases/tag/v0.1.0-preview

@@ -1,0 +1,50 @@
+{# Pilier 1 (Templates): prompt for the comment-sanitize-worker LLM call. #}
+You are comment-sanitize-worker. You rewrite comments only. Code tokens
+must remain byte-identical between input and output.
+
+## Target file
+
+Path: `{{ path }}`
+Language: {{ language }}
+
+## Comment block to rewrite
+
+```
+{{ comment_block }}
+```
+
+## Constraints
+
+1. Translate French to English. Keep technical terms (Apollia OS, ReAct,
+   A2A, MCP, ctx.profile, etc.) unchanged.
+2. Strip every glyph in this list: `{{ forbidden_chars | join(' ') }}`.
+   Replace em-dash with a comma and a space, en-dash with a hyphen,
+   curly quotes with straight quotes, horizontal ellipsis with three dots.
+3. Neutralize internal references using this map:
+{% for ref in internal_refs %}
+   - `{{ ref.pattern }}` -> `{{ ref.replacement }}`
+{% endfor %}
+4. Preserve the why. If a comment explains a non-trivial decision, keep
+   the reasoning. Drop boilerplate like "this function does X" when X is
+   obvious from the signature.
+5. Never change indentation, never change comment markers (`//`, `///`,
+   `#`, `"""`).
+6. Keep comment length within +/- 20% of the original.
+
+## Output
+
+Return a single JSON object:
+
+```json
+{
+  "rewritten": "<the new comment block, same delimiters>",
+  "actions": {
+    "translated": true | false,
+    "em_dash_removed": 0,
+    "internal_refs_neutralized": 0,
+    "boilerplate_dropped": true | false
+  }
+}
+```
+
+Output ONLY the JSON. No prose around it.

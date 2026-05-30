@@ -11,6 +11,5 @@ use super::client::RunnerClient;
 /// only what the proxy needs: the cloneable HTTP client and the port.
 pub(super) struct RunnerInnerHandle {
     pub(super) client: RunnerClient,
-    #[allow(dead_code)]
     pub(super) port: u16,
 }

@@ -18,7 +18,10 @@ use super::lifecycle_inner::RunnerInnerHandle;
 const HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 
 /// Health poll interval.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "reserved for the periodic health-check task scheduled in a follow-up to runner_supervisor"
+)]
 const HEALTH_POLL_INTERVAL_SECS: u64 = 30;
 
 /// Supervisor of the runner child process.

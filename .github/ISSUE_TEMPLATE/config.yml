@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage question or general discussion
+    url: https://github.com/nidalzoumita/apollia-os/discussions/categories/q-a
+    about: |
+      For questions about how to use Apollia OS, configuration, or general
+      troubleshooting, please use Discussions Q&A rather than an issue.
+  - name: Security vulnerability
+    url: https://github.com/nidalzoumita/apollia-os/security/advisories/new
+    about: |
+      Please report security vulnerabilities privately through GitHub Security
+      Advisories rather than as a public issue.
+  - name: Documentation site
+    url: https://apollia.fr
+    about: |
+      The project website with the public book, examples, and contact
+      information.

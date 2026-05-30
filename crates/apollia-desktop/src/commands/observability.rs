@@ -653,7 +653,10 @@ fn scan_runtime_events(
 }
 
 /// Kept for potential backward compatibility; no longer used.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "kept as rollback target for the timeline event normalisation pipeline, exercised by the inline tests below"
+)]
 fn classify_event_type(raw: &str) -> String {
     match raw {
         "task_transition" | "task_completed" => "task".to_string(),
@@ -666,7 +669,10 @@ fn classify_event_type(raw: &str) -> String {
 }
 
 /// Builds a human-readable summary from a raw timeline event.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "kept as rollback target for the timeline event normalisation pipeline, exercised by the inline tests below"
+)]
 fn build_event_summary(event_type: &str, event: &serde_json::Value, agent_id: &str) -> String {
     match event_type {
         "task_transition" => {

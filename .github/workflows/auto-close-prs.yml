@@ -1,0 +1,50 @@
+name: Auto-close external PRs
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  close:
+    if: github.event.pull_request.user.login != github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment, label, close
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const number = context.payload.pull_request.number;
+
+            const body = [
+              "Thanks for opening this pull request.",
+              "",
+              "Apollia OS is currently a single-maintainer, source-available preview.",
+              "Pull requests are auto-closed by policy so external contributors do not",
+              "get stuck waiting for a review that will not come.",
+              "",
+              "If you have a concrete bug or feature idea, please open an issue instead:",
+              "  - Bug: https://github.com/" + owner + "/" + repo + "/issues/new?template=bug_report.md",
+              "  - Feature: https://github.com/" + owner + "/" + repo + "/issues/new?template=feature_request.md",
+              "",
+              "For usage questions, please use Discussions Q&A.",
+              "",
+              "Thanks again for your interest in the project."
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: number, body
+            });
+
+            await github.rest.issues.addLabels({
+              owner, repo, issue_number: number, labels: ["wontfix-policy"]
+            });
+
+            await github.rest.pulls.update({
+              owner, repo, pull_number: number, state: "closed"
+            });

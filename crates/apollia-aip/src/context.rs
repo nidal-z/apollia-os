@@ -363,7 +363,10 @@ pub struct ToolProxyConfig {
 
 // The methods in this block are called from Python via PyO3 (not from Rust),
 // so the Rust compiler wrongly considers them dead code.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "PyO3-exposed surface, called from Python at runtime so the Rust compiler cannot see the call sites"
+)]
 impl ToolProxy {
     /// Creates a new ToolProxy for an agent.
     ///

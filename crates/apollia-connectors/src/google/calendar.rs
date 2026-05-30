@@ -135,7 +135,10 @@ struct EventList {
     #[serde(default)]
     items: Vec<Event>,
     #[serde(default)]
-    #[allow(dead_code)] // exposed in a future paginated API
+    #[allow(
+        dead_code,
+        reason = "deserialised so the upstream round-trips cleanly, surfaced once the public paginated calendar API ships"
+    )]
     next_page_token: Option<String>,
 }
 

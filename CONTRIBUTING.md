@@ -1,123 +1,68 @@
-# Contribuer à Apollia OS
+# Contributing to Apollia OS
 
----
+Thank you for your interest in Apollia OS. Please read this short page
+before opening anything.
 
-## Prérequis
+Apollia OS is currently a **single-maintainer, source-available preview**.
+The contribution model reflects that. The short version: **issues yes,
+pull requests no**.
 
-| Outil | Version | Installation |
-|---|---|---|
-| Rust | stable (1.75+) | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| Python | 3.11+ | `python.org` ou `brew install python@3.13` (macOS) |
-| SQLite | 3.35+ (FTS5 activé) | Inclus dans la plupart des distributions |
+## Reporting a bug
 
-Vérifier :
+If something does not work as documented, please open an issue using the
+[bug report template](.github/ISSUE_TEMPLATE/bug_report.md).
 
-```bash
-rustc --version   # >= 1.75
-python3 --version # >= 3.11
-sqlite3 --version # >= 3.35 (FTS5 requis)
-```
+Include:
 
----
+- What you tried (command, configuration, exact UI steps).
+- What you expected to happen.
+- What actually happened, with logs or screenshots.
+- Your platform: OS, Apollia version (`apollia-os --version`), Rust toolchain
+  if you built from source.
 
-## Build
+Good reproduction steps are the single most valuable thing you can give.
 
-```bash
-git clone https://github.com/nidal-z/apollia-os.git
-cd apollia-os
+## Requesting a feature
 
-# Build complet du workspace
-cargo build --workspace
+Open an issue using the
+[feature request template](.github/ISSUE_TEMPLATE/feature_request.md).
+Describe the problem you are trying to solve, not just the solution you have
+in mind. The maintainer may refine the shape before any work happens.
 
-# Sur macOS, PyO3 requiert de pointer vers un Python explicite
-export PYO3_PYTHON=/opt/homebrew/bin/python3.13
-cargo build --workspace
-```
+## Asking a question
 
----
+Usage questions, configuration help, "how do I do X", and general discussion
+belong in
+[Discussions Q&A](https://github.com/nidalzoumita/apollia-os/discussions/categories/q-a).
+They are not bugs and not feature requests, so please do not open issues
+for them.
 
-## Tests
+## Reporting a security vulnerability
 
-```bash
-# Tests unitaires et d'intégration (sans Python réel)
-cargo test --workspace
+Please report security vulnerabilities **privately** through
+[GitHub Security Advisories](https://github.com/nidalzoumita/apollia-os/security/advisories/new)
+rather than as a public issue. The maintainer will respond and coordinate
+disclosure.
 
-# Tests exercant la chaîne Python complète
-PYO3_PYTHON=/opt/homebrew/bin/python3.13 \
-  cargo test --workspace --features python-tests
+## Why pull requests are auto-closed
 
-# Tests d'une crate spécifique
-cargo test -p apollia-runtime
+Apollia OS is maintained by a single person. Reviewing a pull request well
+takes time, and accepting an external contribution implies a commitment to
+maintain it. Rather than leave PRs in limbo, the project is explicit: an
+automated workflow closes incoming PRs with a polite message that points
+back to issues.
 
-# Avec logs
-cargo test -p apollia-runtime -- --nocapture
-```
+This is not a personal rejection. If you have a good idea, please open an
+issue describing it. If the maintainer agrees and has bandwidth, the
+implementation will follow on the maintainer's side, with credit in the
+changelog where applicable.
 
-Les tests doivent tous passer avant chaque commit. `cargo clippy --workspace -- -D warnings` ne doit produire aucun warning.
+If you need a contribution path that does accept external PRs, several other
+agent runtimes welcome them. This project will not, at least for the
+v0.1.x line.
 
----
+## Code of Conduct
 
-## Conventions de commit
-
-Commits conventionnels obligatoires, scope = nom de la crate :
-
-```
-feat(apollia-core): add AgentManifest type
-fix(apollia-runtime): prevent duplicate agent registration
-refactor(apollia-tools): extract sandbox logic to module
-test(apollia-memory): add FTS5 search regression test
-docs(apollia-aip): document ToolProxy Python API
-chore(workspace): update tokio to 1.36
-```
-
-**Règles :**
-- Un commit = une story ou une sous-tâche logique
-- Jamais de commit avec `cargo test` qui échoue
-- Jamais de `unwrap()` en code de production (uniquement dans les tests)
-- Zéro `todo!()` avant de committer
-
----
-
-## Branches
-
-```
-feature/<STORY-NNN>-short-description
-bugfix/<STORY-NNN>-description
-refactor/<STORY-NNN>-description
-```
-
----
-
-## Règles de code Rust
-
-- `thiserror` pour toutes les erreurs dans les crates du workspace — `anyhow` interdit
-- Pattern acteur Tokio : `mpsc::channel` + Handle clonable — jamais `Arc<Mutex<T>>` cross-acteurs
-- `tracing::info!(champ = %val, "event")` — jamais de format string dans les logs
-- Docstring `///` sur chaque struct, enum, fn publique
-
----
-
-## Décisions architecturales (ADR)
-
-Toute décision significative doit être documentée dans un ADR :
-
-```bash
-# Utiliser le template
-cp docs/adr/ADR-Template.md docs/adr/ADR-NNN-titre-kebab.md
-```
-
-Voir [docs/adr/](docs/adr/) pour les 19 ADR existants et le template.
-
----
-
-## Reporter un bug ou proposer une feature
-
-Ouvrir une [issue GitHub](https://github.com/nidal-z/apollia-os/issues) avec :
-- Pour un bug : version, OS, commandes exactes, output complet
-- Pour une feature : cas d'usage, comportement attendu, impact sur l'architecture
-
----
-
-## Licence
-
-En contribuant, vous acceptez que votre code soit distribué sous la licence Apache-2.0 du projet.
+All participation in this project, in issues, Discussions, and any other
+space tied to the repository, is governed by the
+[Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).

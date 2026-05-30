@@ -471,13 +471,15 @@ tests/                   # End-to-end integration tests
 
 ## Contributing
 
-1. Read [docs/Architecture-Principes.md](docs/Architecture-Principes.md) — eight non-negotiable principles.
-2. Read [CLAUDE.md](CLAUDE.md) for Rust, Git, and testing conventions.
-3. Create a branch: `feature/<STORY-NNN>-short-description`
-4. Run `cargo test --workspace` and `cargo clippy --workspace -- -D warnings` before committing.
-5. Open a pull request against `main`.
+Apollia OS is a single-maintainer, source-available preview. **Issues are
+welcome, pull requests are auto-closed by policy.** See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the full rationale and the right
+channel for each kind of feedback.
 
-Bug reports and feature requests: open a [GitHub issue](https://github.com/nidal-z/apollia-os/issues).
+- Found a bug? [Open an issue](https://github.com/nidalzoumita/apollia-os/issues/new?template=bug_report.md).
+- Have a feature idea? [Open an issue](https://github.com/nidalzoumita/apollia-os/issues/new?template=feature_request.md).
+- Usage question? [Discussions Q&A](https://github.com/nidalzoumita/apollia-os/discussions/categories/q-a).
+- Security vulnerability? [Private advisory](https://github.com/nidalzoumita/apollia-os/security/advisories/new).
 
 ---
 

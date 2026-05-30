@@ -1,0 +1,13 @@
+# Apollia OS, "hello" example agent.
+# Minimal `@on_message` echo. Intended as a copy-paste starting point.
+
+[agent]
+name = "hello"
+version = "0.1.0"
+description = "Echoes back whatever message you send. Useful as a smoke test and as the smallest possible Apollia agent."
+license = "MIT OR Apache-2.0"
+entry = "agent.py"
+
+[runtime]
+execution_mode = "direct"
+supports_a2a = false

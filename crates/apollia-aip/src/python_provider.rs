@@ -18,7 +18,10 @@ pub struct PythonProvider {
     /// Provider name, read from `manifest()["name"]` at construction.
     name: String,
     /// Short description, read from `manifest()["description"]`. Stored for future introspection.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "captured at load time so introspection APIs can expose provider descriptions without re-importing the Python module"
+    )]
     description: String,
     /// Display priority, read from `manifest()["priority"]` (default 50).
     priority: u8,

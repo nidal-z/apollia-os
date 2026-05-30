@@ -1,0 +1,122 @@
+# manifest.toml for sanitize-codebase v0.1.0 (Phase 2 release v0.1.0-preview)
+#
+# Director L2 miroir du sanitize Claude. Boucle fichier-par-fichier,
+# pilotée par interval trigger, persistance SQLite du manifest de
+# progression. LLM local quantifie via llama-cpp-2.
+#
+# 4 piliers obligatoires :
+#   - Pilier 1 (Templates) : templates/ Jinja2 + schemas/ TypedDict.
+#   - Pilier 2 (Steps)     : state machine 8 etapes dans schemas/state.py.
+#   - Pilier 3 (Datasources): datasources/ YAML (matrice Sonar par langage,
+#                             pool fichiers, exclusions).
+#   - Pilier 4 (Memoire)   : namespace "sanitize-codebase", cles
+#                             file:{path}, seen:{sha}, procedural.
+
+[package]
+name = "sanitize-codebase"
+version = "0.1.0"
+description = "Director L2 Apollia OS qui reproduit le sanitize Claude en local: traduction de commentaires FR vers EN, retrait d em-dash, neutralisation des refs internes, fix des issues Sonar. Le heros du storytelling Apollia traduit son propre code pour 0 euro."
+author = "Apollia OS"
+license = "MIT"
+
+# --------------------------------------------------------------------
+# Agents declares dans ce package
+# --------------------------------------------------------------------
+
+[[agents]]
+name             = "sanitize-codebase-director"
+entry            = "sanitize-codebase-director.py"
+role             = "director"
+agent_type       = "user"
+execution_mode   = "direct"
+memory_namespace = "sanitize-codebase"
+supports_a2a     = true
+max_concurrent_tasks = 1
+tools_required   = ["file_read", "file_write", "bash_executor"]
+tools_optional   = [
+    "a2a:sanitize.clean_file",
+    "a2a:sanitize.translate_comments",
+]
+user_memory_write = false
+dangerous_tools_allowed = true
+step_budget = { max_steps = 50, max_tool_calls = 200, wall_clock_secs = 1800 }
+packages = ["jinja2", "pyyaml"]
+tags = ["sanitize", "self-refactor", "i18n", "sonar", "release-v0.1.0"]
+
+[[agents.skills]]
+id           = "sanitize.run_batch"
+name         = "Sanitize batch"
+description  = "Pick up to N files from the manifest, dispatch sonar then comment workers, gate via build/lint."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents]]
+name             = "sonar-cleanup-worker"
+entry            = "workers/sonar-cleanup-worker.py"
+role             = "worker"
+agent_type       = "user"
+execution_mode   = "direct"
+memory_namespace = "sanitize-codebase"
+supports_a2a     = true
+max_concurrent_tasks = 2
+tools_required   = ["file_read", "file_write", "bash_executor"]
+tools_optional   = [
+    "mcp:sonarqube/search_issues",
+    "mcp:sonarqube/show_issue",
+]
+step_budget = { max_steps = 30, max_tool_calls = 80, wall_clock_secs = 900 }
+tags = ["worker", "sonar", "lint", "refactor"]
+
+[[agents.skills]]
+id           = "sanitize.clean_file"
+name         = "Clean a file from Sonar issues"
+description  = "Query SonarQube for issues on the file, apply behavior preserving edits, gate via the language harness (cargo / ruff / pnpm)."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents]]
+name             = "comment-sanitize-worker"
+entry            = "workers/comment-sanitize-worker.py"
+role             = "worker"
+agent_type       = "user"
+execution_mode   = "direct"
+memory_namespace = "sanitize-codebase"
+supports_a2a     = true
+max_concurrent_tasks = 2
+tools_required   = ["file_read", "file_write"]
+step_budget = { max_steps = 20, max_tool_calls = 40, wall_clock_secs = 600 }
+tags = ["worker", "comments", "i18n", "fr-en"]
+
+[[agents.skills]]
+id           = "sanitize.translate_comments"
+name         = "Translate and normalize comments"
+description  = "Rewrite comments in EN, strip em-dash, neutralize internal refs (ADR-NNN, STORY-NNN), preserve the why. Touches only comment lines, code tokens identical."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+# --------------------------------------------------------------------
+# Outils actives pour ce package
+# --------------------------------------------------------------------
+
+[tools]
+file_read     = { enabled = true }
+file_write    = { enabled = true }
+bash_executor = { enabled = true, dangerous = true }
+
+# MCP SonarQube : branche via ~/.apollia/apollia.toml [[mcp.servers]]
+# name = "sonarqube" (cf. SETUP.md).
+
+# --------------------------------------------------------------------
+# Triggers
+# --------------------------------------------------------------------
+
+[[triggers]]
+id             = "sanitize-interval"
+agent          = "sanitize-codebase-director"
+enabled        = false   # toggle to true once SonarQube + local LLM are wired
+on_busy        = "skip"
+input_template = "Run the next sanitize batch"
+
+[triggers.source]
+type     = "interval"
+every    = "10m"

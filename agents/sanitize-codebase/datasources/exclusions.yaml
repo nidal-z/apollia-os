@@ -1,0 +1,37 @@
+# Pilier 3 — Datasource: hard exclusions and internal references map.
+#
+# 1) `do_not_touch` paths are skipped outright by the director.
+# 2) `internal_refs` is the regex map the comment worker uses to neutralize
+#    references that have no public meaning once the repo goes public.
+# 3) `forbidden_chars` lists glyphs that must be replaced (anti-AI markers).
+
+do_not_touch:
+  - "agents/sanitize-codebase/**"             # never sanitize ourselves
+  - "docs/internal/**"                         # gitignored, internal-only
+  - "docs/specs/**"                            # gitignored
+  - "CHANGELOG.md"                             # human-curated
+  - "**/Cargo.lock"
+  - "**/pnpm-lock.yaml"
+  - "**/.apollia/**"                           # runtime state
+  - "target/**"
+  - "node_modules/**"
+  - "**/__pycache__/**"
+
+internal_refs:
+  # regex -> replacement template ({m} is the full match)
+  - { pattern: "ADR-\\d{3,4}",        replacement: "(internal ADR)" }
+  - { pattern: "STORY-\\d{3,4}",      replacement: "(internal story)" }
+  - { pattern: "US-SP\\d+-\\d+",      replacement: "(internal task)" }
+  - { pattern: "sprint-\\d+",         replacement: "(internal sprint)" }
+  - { pattern: "docs/internal/[^\\s)]*", replacement: "(internal doc)" }
+  - { pattern: "Principe\\s+\\d+",    replacement: "(internal principle)" }
+  - { pattern: "M\\d[a-z]?\\s+(release|sprint)", replacement: "(internal milestone)" }
+
+forbidden_chars:
+  - { char: "—", replacement: ", " }    # em-dash -> ", "
+  - { char: "–", replacement: "-" }     # en-dash -> "-"
+  - { char: "‘", replacement: "'" }     # left single quote
+  - { char: "’", replacement: "'" }     # right single quote
+  - { char: "“", replacement: "\"" }    # left double quote
+  - { char: "”", replacement: "\"" }    # right double quote
+  - { char: "…", replacement: "..." }   # horizontal ellipsis
