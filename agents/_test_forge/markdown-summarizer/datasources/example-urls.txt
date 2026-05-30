@@ -1,7 +1,0 @@
-# Exemples d'URLs pour tester l'agent
-# Format : une URL par ligne, lignes vides et # ignorés
-# L'agent ne lit pas ce fichier directement — c'est juste pour ton usage manuel.
-
-https://www.anthropic.com/news/claude-3-5-sonnet
-https://blog.rust-lang.org/
-https://news.ycombinator.com/

@@ -15,11 +15,20 @@
 apollia.toml.local
 models/
 
-# Python
+# Python virtualenvs and tooling caches
 .venv/
+.venv-agents/
 __pycache__/
 *.egg-info/
 *.pyc
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
 
 # Desktop build artifacts — staged by scripts/bundle-cli.sh before Tauri build
 crates/apollia-desktop/resources/
@@ -63,3 +72,16 @@ demo/
 # SonarQube local scan artifacts (pre-launch sanitize, chantier G)
 /.sonar/
 /.scannerwork/
+
+# Private agents kept out of the public repo (per REPO-STATE D-G).
+# Sources of truth live in /Users/<user>/dev/apollia-os-private/agents-internal/.
+# These patterns are belt-and-suspenders: the physical move keeps them off
+# the working tree, the entries below catch accidental re-introduction.
+/agents/_test_forge/
+/agents/archive-worker/
+/agents/chart-worker/
+/agents/docx-worker/
+/agents/pdf-worker/
+/agents/veille-ia/
+/agents/xlsx-worker/
+/agents/sanitize-codebase/
