@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — HITL Flow complet (approve / reject) — Apollia OS
+title Séquence - HITL Flow complet (approve / reject) - Apollia OS
 
 actor "User / CLI" as user #3a3a3a/white
 participant "APIServer\n(axum)" as api #1a1a2e/e0e0ff
@@ -18,7 +18,7 @@ participant "EventBus" as bus #2a3a4a/cce5ff
 participant "NotificationEngine" as notif #4a3728/f5e6d3
 participant "ResumeHandler" as resume #1a1a2e/e0e0ff
 
-== Phase 1 — Exécution normale ==
+== Phase 1 - Exécution normale ==
 
 user -> api : POST /api/v1/tasks\n{agent_name, input}
 api -> oria : execute_direct(task, ctx)
@@ -30,7 +30,7 @@ note right of agent
   nécessite validation humaine.
 end note
 
-== Phase 2 — Suspension HITL ==
+== Phase 2 - Suspension HITL ==
 
 agent --> oria : AIPResult {\n  status: InputRequired,\n  prompt: "Confirmer l'envoi ?",\n  context: {amount: 5100}\n}
 
@@ -46,7 +46,7 @@ note right of oria
   (pas de tick pendant l'attente).
 end note
 
-== Phase 3 — Notification ==
+== Phase 3 - Notification ==
 
 bus -> notif : TaskInputRequired event
 notif -> notif : map_event() → Notification {\n  event: "task.input_required",\n  message: "Confirmer l'envoi ?",\n  severity: Warning\n}
@@ -59,7 +59,7 @@ group Canal Webhook (si configuré)
   notif -> notif : WebhookChannel.send()\nPOST https://hooks.example.com\n{event, task_id, message, resume_url}
 end
 
-== Phase 4a — Approbation ==
+== Phase 4a - Approbation ==
 
 user -> api : POST /api/v1/tasks/{id}/resume\n{ approved: true, reason: null }
 
@@ -77,7 +77,7 @@ oria -> agent : agent.run(task, ctx)\n(is_resumed=True)
 agent --> oria : AIPResult { status: Completed, ... }
 oria -> bus : publish(TaskCompleted { task_id, success: true })
 
-== Phase 4b — Rejet (alternative) ==
+== Phase 4b - Rejet (alternative) ==
 
 alt Rejet
   user -> api : POST /api/v1/tasks/{id}/resume\n{ approved: false, reason: "Budget insuffisant" }
@@ -89,7 +89,7 @@ alt Rejet
   oria -> bus : publish(TaskCompleted { task_id, success: false })
 end
 
-== Phase 4c — Timeout (automatique) ==
+== Phase 4c - Timeout (automatique) ==
 
 alt Timeout (> input_required_timeout, défaut 24h)
   note over oria

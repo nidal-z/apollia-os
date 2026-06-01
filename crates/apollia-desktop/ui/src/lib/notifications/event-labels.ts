@@ -3,7 +3,7 @@
  * surfaced in the UI (the 6 globally-toggleable events).
  *
  * The runtime engine maps more than 6 RuntimeEvents, but the global picker
- * intentionally narrows the surface — the others (`pipeline.*`, `chat.*`)
+ * intentionally narrows the surface - the others (`pipeline.*`, `chat.*`)
  * are reserved for v3.
  *
  * Keep this list in sync with `GlobalEventsEditor.svelte#ALL_EVENT_TYPES`.

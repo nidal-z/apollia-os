@@ -6,7 +6,7 @@
  * and restores focus to the previously-focused element on teardown.
  *
  * The action is intentionally minimal: it does NOT close the surface
- * on Escape — owners keep that responsibility because dismissal often
+ * on Escape - owners keep that responsibility because dismissal often
  * requires custom logic (toast, "always reject", confirm input, …).
  */
 
@@ -94,7 +94,7 @@ export function focusTrap(node: HTMLElement, options: FocusTrapOptions = {}) {
     destroy() {
       node.removeEventListener("keydown", handleKeydown);
       // Restore previously-focused element only when it is still attached
-      // to the document — stale references would noop and steal focus.
+      // to the document - stale references would noop and steal focus.
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
       previouslyFocused = null;
     },

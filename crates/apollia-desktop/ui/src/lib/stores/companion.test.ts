@@ -18,7 +18,7 @@ beforeEach(() => {
 
 // ── toggleCompanion ───────────────────────────────────────────────────────────
 
-describe("companionStore — toggleCompanion", () => {
+describe("companionStore - toggleCompanion", () => {
   test("flips enabled and visible from false to true", () => {
     // GIVEN companion disabled (enabled=false, visible=false)
     const before = get(companionStore);
@@ -63,7 +63,7 @@ describe("companionStore — toggleCompanion", () => {
 
 // ── toggleVisibility ──────────────────────────────────────────────────────────
 
-describe("companionStore — toggleVisibility", () => {
+describe("companionStore - toggleVisibility", () => {
   test("flips visible without changing enabled", () => {
     // GIVEN companion enabled and visible
     companionStore.toggleCompanion(); // enabled=true, visible=true
@@ -95,7 +95,7 @@ describe("companionStore — toggleVisibility", () => {
 
 // ── updateContext ─────────────────────────────────────────────────────────────
 
-describe("companionStore — updateContext", () => {
+describe("companionStore - updateContext", () => {
   test("stores fetched context text and updates currentRoute", async () => {
     // GIVEN
     mockedInvoke.mockImplementation((cmd: string) => {
@@ -155,7 +155,7 @@ describe("companionStore — updateContext", () => {
 
 // ── initFromMemory ────────────────────────────────────────────────────────────
 
-describe("companionStore — initFromMemory", () => {
+describe("companionStore - initFromMemory", () => {
   test("enables and shows companion when get_companion_enabled returns true", async () => {
     mockedInvoke.mockImplementation((cmd: string) => {
       if (cmd === "get_companion_enabled") return Promise.resolve(true);
@@ -197,7 +197,7 @@ describe("companionStore — initFromMemory", () => {
     // GIVEN IPC fails
     mockedInvoke.mockRejectedValue(new Error("IPC error"));
 
-    // WHEN / THEN — no error thrown, companion remains disabled
+    // WHEN / THEN - no error thrown, companion remains disabled
     await expect(companionStore.initFromMemory()).resolves.toBeUndefined();
     expect(get(companionStore).enabled).toBe(false);
   });

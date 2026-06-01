@@ -36,7 +36,7 @@ pub fn spawn_resilience_subscriber(
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                     tracing::warn!(
                         skipped = n,
-                        "resilience subscriber lagged — circuit snapshot may briefly diverge"
+                        "resilience subscriber lagged - circuit snapshot may briefly diverge"
                     );
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {

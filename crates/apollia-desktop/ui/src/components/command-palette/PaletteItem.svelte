@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * App-level palette row. Thin wrapper over the headless
-   * `CommandItem` primitive — exposed so future iterations can customise
+   * `CommandItem` primitive - exposed so future iterations can customise
    * the row (session avatars, recency hints) without touching the
    * generic primitive.
    */

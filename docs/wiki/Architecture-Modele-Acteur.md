@@ -1,11 +1,11 @@
-# Architecture — Modèle Acteur Tokio — Apollia OS
+# Architecture - Modèle Acteur Tokio - Apollia OS
 
 > Comment le Runtime Core est structuré en acteurs Tokio indépendants, et pourquoi ce modèle garantit l'absence d'état partagé.
-> Public cible : contributeur Rust, architecte. Les développeurs Python peuvent lire cette page pour comprendre l'architecture — les concepts Rust sont expliqués ci-dessous.
+> Public cible : contributeur Rust, architecte. Les développeurs Python peuvent lire cette page pour comprendre l'architecture - les concepts Rust sont expliqués ci-dessous.
 
 **Concepts Rust pour les non-Rustaceans :**
 - **Tokio** : le runtime asynchrone de Rust (équivalent de `asyncio` en Python). Il exécute des tâches concurrentes sur un pool de threads.
-- **`mpsc`** (Multiple Producer, Single Consumer) : un canal de messages — plusieurs expéditeurs, un seul récepteur. C'est comme une file d'attente thread-safe.
+- **`mpsc`** (Multiple Producer, Single Consumer) : un canal de messages - plusieurs expéditeurs, un seul récepteur. C'est comme une file d'attente thread-safe.
 - **`Arc<Mutex<T>>`** : un pattern pour partager des données entre threads (Arc = pointeur partagé, Mutex = verrou). Apollia OS l'évite entre acteurs car les verrous créent des contentions et des deadlocks potentiels. À la place, chaque acteur possède ses données et communique par messages.
 - **Handle** : une poignée légère (clonable) qui contient un `mpsc::Sender` pour envoyer des messages à un acteur. C'est l'API publique d'un acteur.
 
@@ -30,7 +30,7 @@ Ce modèle s'inspire du [pattern acteur documenté par Alice Ryhl](https://ryhl.
 **Messages entrants :** `Publish(RuntimeEvent)`, `Subscribe` (retourne un `Receiver`).
 
 ```rust
-// Événements représentatifs (liste simplifiée — voir events.rs pour les 30+ variants)
+// Événements représentatifs (liste simplifiée - voir events.rs pour les 30+ variants)
 RuntimeEvent::TaskStarted { task_id, agent_id }
 RuntimeEvent::TaskCompleted { task_id, output, success }
 RuntimeEvent::StepExecuted { task_id, step, tool }
@@ -68,8 +68,8 @@ STOPPING → STOPPED
 **Messages entrants :** `Submit { agent_id, input, delegation_chain, reply }`, `GetStatus`, `Cancel`, `GetActiveTasks`, `RegisterCoordinator`, `UnregisterCoordinator`, `Shutdown`.
 
 **API publique (TaskRouterHandle) :**
-- `submit(agent_id, input)` — soumission racine, `delegation_chain` vide
-- `submit_with_chain(agent_id, input, delegation_chain)` — délégation A2A, chaîne propagée depuis la tâche appelante (appelé par `delegate_inner` après `validate_chain`)
+- `submit(agent_id, input)` - soumission racine, `delegation_chain` vide
+- `submit_with_chain(agent_id, input, delegation_chain)` - délégation A2A, chaîne propagée depuis la tâche appelante (appelé par `delegate_inner` après `validate_chain`)
 
 **Comportement :**
 - Vérifie `ProcessState` via `AgentRegistryHandle` avant dispatch
@@ -85,7 +85,7 @@ STOPPING → STOPPED
 **État interne :** `Semaphore` (capacité = `max_concurrent_tasks`).
 
 **Comportement :**
-- `submit_task` : `try_acquire_owned` non-bloquant — retourne `CapacityExceeded` si plein
+- `submit_task` : `try_acquire_owned` non-bloquant - retourne `CapacityExceeded` si plein
 - `tokio::spawn` : la permit est movée dans la closure, droppée à la fin de la tâche
 - Émet `TaskCompleted` ou `TaskFailed` via EventBus (fire-and-forget)
 
@@ -99,7 +99,7 @@ STOPPING → STOPPED
 - TCP `0.0.0.0:7771` via `axum::serve`
 - Unix socket `/tmp/apollia.sock` via `hyper-util` boucle accept manuelle (ADR-017)
 
-**Shutdown :** via `watch::channel` — `graceful_shutdown` signal propre.
+**Shutdown :** via `watch::channel` - `graceful_shutdown` signal propre.
 
 ### 6. Supervisor
 
@@ -114,9 +114,9 @@ EventBus → AgentRegistry → TaskRouter → APIServer
 
 | Acteur | Policy | Raison |
 |---|---|---|
-| EventBus | Always | Critique — canal central |
-| AgentRegistry | Always | Critique — état des agents |
-| TaskRouter | Always | Critique — dispatch |
+| EventBus | Always | Critique - canal central |
+| AgentRegistry | Always | Critique - état des agents |
+| TaskRouter | Always | Critique - dispatch |
 | APIServer | OnFailure | Redémarrable en cas de bind error |
 
 **Rollback :** si l'APIServer échoue au démarrage, tous les acteurs précédemment démarrés sont arrêtés en ordre inverse.
@@ -140,12 +140,12 @@ EventBus → AgentRegistry → TaskRouter → APIServer
 
 **Rôle :** gérer la messagerie inter-agents (agent-to-agent communication).
 
-**État interne :** `HashMap<String, VecDeque<AgentMessage>>` — file de messages par agent (max 100 par agent).
+**État interne :** `HashMap<String, VecDeque<AgentMessage>>` - file de messages par agent (max 100 par agent).
 
 **Messages entrants :** `Send(from, to, payload)`, `Receive(agent_name, timeout)`, `PendingCount(agent_name)`, `ListMessages(agent_name, limit)`, `Shutdown`.
 
 **Comportement :**
-- `send` : ajoute un message à la file de l'agent destinataire — erreur `MailboxError::QueueFull` si la file atteint 100 messages
+- `send` : ajoute un message à la file de l'agent destinataire - erreur `MailboxError::QueueFull` si la file atteint 100 messages
 - `receive` : retourne le plus ancien message non-lu pour un agent (FIFO), avec timeout optionnel
 - Émet `RuntimeEvent::AgentMessageSent` sur EventBus après chaque envoi
 
@@ -208,10 +208,10 @@ impl EventPersistorHandle {
 
 ## Pattern Handle
 
-Chaque acteur expose un `Handle` clonable — c'est l'unique interface publique vers l'acteur.
+Chaque acteur expose un `Handle` clonable - c'est l'unique interface publique vers l'acteur.
 
 ```rust
-// Pattern standard — AgentRegistry comme exemple
+// Pattern standard - AgentRegistry comme exemple
 pub struct AgentRegistry {
     agents: HashMap<AgentId, AgentRecord>,
     name_index: HashMap<String, AgentId>,
@@ -243,7 +243,7 @@ impl Clone for AgentRegistryHandle {
 }
 ```
 
-Le `Handle` est `Clone + Send + Sync`. Il peut être partagé librement entre threads, entre handlers axum, entre tâches Tokio — sans jamais exposer l'état interne de l'acteur.
+Le `Handle` est `Clone + Send + Sync`. Il peut être partagé librement entre threads, entre handlers axum, entre tâches Tokio - sans jamais exposer l'état interne de l'acteur.
 
 ---
 
@@ -286,12 +286,12 @@ Supervisor::watch() → attend ShutdownRequested ou FatalError
 ## Règle absolue : zéro état partagé entre acteurs
 
 ```rust
-// ❌ INTERDIT — Arc<Mutex<T>> entre acteurs
+// ❌ INTERDIT - Arc<Mutex<T>> entre acteurs
 struct BadRouter {
     registry: Arc<Mutex<AgentRegistry>>,  // accès direct à l'état interne
 }
 
-// ✅ CORRECT — communication par Handle (messages)
+// ✅ CORRECT - communication par Handle (messages)
 struct TaskRouter {
     registry: AgentRegistryHandle,  // passe par mpsc, jamais directement
 }
@@ -303,11 +303,11 @@ Cette règle est vérifiable à la compilation : `AgentRegistry` (l'acteur) n'es
 
 ## Voir aussi
 
-- [Architecture Principes](./Architecture-Principes) — Principe #5 : Un acteur, une responsabilité
-- [Briques Runtime Core](./Briques-Runtime-Core) — détail des composants Runtime
-- [ADR-011](../adr/ADR-011-agentid-taskid-string-aliases-dans-core) — AgentId / TaskId comme string aliases
-- [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) — Unix socket avec hyper-util
-- [Briques Chat](./Briques-Chat) — détail du sous-système de chat
-- [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline) — Chat hybride : sessions, streaming, HITL inline
-- [ADR-035](../adr/ADR-035-per-step-observation-orchestrated) — Per-step observation en mode Orchestré
-- [ADR-036](../adr/ADR-036-plan-cache-strategy) — Stratégie de cache de plans
+- [Architecture Principes](./Architecture-Principes) - Principe #5 : Un acteur, une responsabilité
+- [Briques Runtime Core](./Briques-Runtime-Core) - détail des composants Runtime
+- [ADR-011](../adr/ADR-011-agentid-taskid-string-aliases-dans-core) - AgentId / TaskId comme string aliases
+- [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) - Unix socket avec hyper-util
+- [Briques Chat](./Briques-Chat) - détail du sous-système de chat
+- [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline) - Chat hybride : sessions, streaming, HITL inline
+- [ADR-035](../adr/ADR-035-per-step-observation-orchestrated) - Per-step observation en mode Orchestré
+- [ADR-036](../adr/ADR-036-plan-cache-strategy) - Stratégie de cache de plans

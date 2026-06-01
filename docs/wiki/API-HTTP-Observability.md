@@ -1,20 +1,20 @@
-# API HTTP — Observability (Audit, Timeline, STT, MCP) — Apollia OS
+# API HTTP - Observability (Audit, Timeline, STT, MCP) - Apollia OS
 
 > Référence des endpoints REST liés à **l'audit trail, la timeline, les approbations HITL, le profil / la mémoire utilisateur, le dashboard, STT et MCP**.
 > Public cible : développeur intégrant Apollia OS dans un système externe.
 >
 > Cette page fait partie d'un découpage en trois :
-> - [API-HTTP-Agents](./API-HTTP-Agents) — agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
-> - [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications
-> - **API-HTTP-Observability** (cette page) — audit, timeline, approvals, user memory, dashboard, STT, MCP
+> - [API-HTTP-Agents](./API-HTTP-Agents) - agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
+> - [API-HTTP-Workspace](./API-HTTP-Workspace) - triggers, webhooks, notifications
+> - **API-HTTP-Observability** (cette page) - audit, timeline, approvals, user memory, dashboard, STT, MCP
 
 ---
 
 ## Vue d'ensemble
 
 L'API HTTP locale est exposée sur deux transports :
-- **Unix socket** : `/tmp/apollia.sock` — recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (ADR-051)
+- **Unix socket** : `/tmp/apollia.sock` - recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
+- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-051)
 
 Tous les endpoints retournent du JSON.
 
@@ -43,7 +43,7 @@ Le token est généré au premier démarrage et stocké dans `~/.apollia/api-tok
 Dernières invocations d'outils enregistrées dans l'audit trail. Utile pour debug et conformité.
 
 **Query params :**
-- `limit` (optionnel, défaut: 20, max: 500) — nombre d'événements à retourner
+- `limit` (optionnel, défaut: 20, max: 500) - nombre d'événements à retourner
 
 **Réponse 200 :**
 ```json
@@ -93,7 +93,7 @@ Statistiques agrégées de l'audit trail (toute l'histoire, pas de fenêtre de t
 
 ---
 
-## Observabilité — Timeline
+## Observabilité - Timeline
 
 ### GET /api/v1/tasks/:id/timeline
 
@@ -184,7 +184,7 @@ L'agrégation est faite côté serveur dans un seul `spawn_blocking` (5 lectures
 **Troncature des previews :** `input_preview` est limité à 200 caractères, `output_preview` à 500 caractères (avec `...` en suffixe).
 
 **Erreurs :**
-- `404` — tâche introuvable
+- `404` - tâche introuvable
 
 ---
 
@@ -209,7 +209,7 @@ Liste toutes les tâches actuellement suspendues en attente d'une approbation hu
 
 Retourne `[]` si aucune tâche n'est en attente ou si HITL n'est pas configuré.
 
-> La reprise d'une tâche suspendue se fait via `POST /api/v1/tasks/:id/resume` — voir [API-HTTP-Agents](./API-HTTP-Agents).
+> La reprise d'une tâche suspendue se fait via `POST /api/v1/tasks/:id/resume` - voir [API-HTTP-Agents](./API-HTTP-Agents).
 
 ---
 
@@ -218,8 +218,8 @@ Retourne `[]` si aucune tâche n'est en attente ou si HITL n'est pas configuré.
 Historique des approbations résolues (approuvées ou rejetées).
 
 **Query params :**
-- `limit` (optionnel, défaut: 20) — nombre d'entrées
-- `days` (optionnel, défaut: 7) — fenêtre temporelle en jours
+- `limit` (optionnel, défaut: 20) - nombre d'entrées
+- `days` (optionnel, défaut: 7) - fenêtre temporelle en jours
 
 **Réponse 200 :**
 ```json
@@ -280,7 +280,7 @@ Retourne le profil utilisateur agrégé depuis les trois catégories de mémoire
 
 ### PUT /api/v1/user/profile
 
-Met à jour le profil utilisateur (upsert, fusion par catégorie — les champs absents ne sont pas supprimés).
+Met à jour le profil utilisateur (upsert, fusion par catégorie - les champs absents ne sont pas supprimés).
 
 **Corps :**
 ```json
@@ -314,8 +314,8 @@ Tous les champs sont optionnels. Seules les catégories fournies sont fusionnée
 Liste les entrées de mémoire utilisateur brutes avec filtres optionnels.
 
 **Query params :**
-- `category` (optionnel) — `preferences`, `habits`, ou `context`
-- `limit` (optionnel, défaut: 100) — nombre maximum d'entrées
+- `category` (optionnel) - `preferences`, `habits`, ou `context`
+- `limit` (optionnel, défaut: 100) - nombre maximum d'entrées
 
 **Réponse 200 :**
 ```json
@@ -340,8 +340,8 @@ Liste les entrées de mémoire utilisateur brutes avec filtres optionnels.
 Sources possibles : `user_explicit`, `agent_inferred`.
 
 **Erreurs :**
-- `422` — valeur `category` invalide (n'est pas `preferences`, `habits`, ou `context`)
-- `503` — mémoire utilisateur non configurée
+- `422` - valeur `category` invalide (n'est pas `preferences`, `habits`, ou `context`)
+- `503` - mémoire utilisateur non configurée
 
 ---
 
@@ -352,8 +352,8 @@ Supprime une entrée de mémoire par clé (toutes les catégories sont scrutées
 **Réponse 204 :** suppression réussie.
 
 **Erreurs :**
-- `404` — clé introuvable dans aucune catégorie
-- `503` — mémoire utilisateur non configurée
+- `404` - clé introuvable dans aucune catégorie
+- `503` - mémoire utilisateur non configurée
 
 ---
 
@@ -382,7 +382,7 @@ curl -N -H "Accept: text/event-stream" \
 
 ---
 
-## STT — Speech-to-Text
+## STT - Speech-to-Text
 
 7 endpoints pour la transcription audio locale et la gestion de la configuration STT. Les endpoints de transcription retournent `503` si le moteur STT est absent (`stt.enabled = false` ou modèle non chargé).
 
@@ -426,16 +426,16 @@ Transcrire un fichier audio envoyé en multipart.
 ```
 
 **Erreurs :**
-- `400` — format audio non supporté ou fichier vide
-- `503` — moteur STT absent
+- `400` - format audio non supporté ou fichier vide
+- `503` - moteur STT absent
 
 ### GET /api/v1/stt/transcriptions
 
 Historique des transcriptions.
 
 **Query params :**
-- `limit` (optionnel, défaut: 50) — nombre de résultats
-- `offset` (optionnel, défaut: 0) — pagination
+- `limit` (optionnel, défaut: 50) - nombre de résultats
+- `offset` (optionnel, défaut: 0) - pagination
 
 **Réponse 200 :**
 ```json
@@ -461,7 +461,7 @@ Supprimer une transcription.
 
 **Réponse 204 :** suppression réussie.
 
-**Erreurs :** `503` — moteur STT absent.
+**Erreurs :** `503` - moteur STT absent.
 
 ### GET /api/v1/stt/models
 
@@ -473,7 +473,7 @@ Lister les fichiers modèles `.bin` disponibles dans `~/.apollia/models/`.
   "models": [
     {
       "name": "whisper-large-v3-fr-q5_0",
-      "path": "/Users/nidal/.apollia/models/whisper-large-v3-fr-q5_0.bin",
+      "path": "~/.apollia/models/whisper-large-v3-fr-q5_0.bin",
       "size_mb": 956.2
     }
   ]
@@ -630,26 +630,26 @@ Met à jour le flag `requires_approval` d'un serveur MCP sans redémarrer la ses
 **Réponse 200 :** `McpServerStatus` mis à jour (même format que `GET /api/v1/mcp/servers`).
 
 **Erreurs :**
-- `404` — serveur introuvable
-- `503` — MCP non configuré
+- `404` - serveur introuvable
+- `503` - MCP non configuré
 
 ---
 
 ## Codes d'erreur HTTP
 
-Voir [API-HTTP-Agents — Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-http) pour le tableau complet.
+Voir [API-HTTP-Agents - Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-http) pour le tableau complet.
 
 ---
 
 ## Voir aussi
 
-- [API-HTTP-Agents](./API-HTTP-Agents) — agents, tasks, LLM, tools, a2a, sessions
-- [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications
-- [Dashboard Observabilité](./Dashboard-Observabilite) — dashboard embarqué
-- [Briques STT](./Briques-STT) — moteur Speech-to-Text embarqué
-- [Briques MCP](./Briques-MCP) — spécification crate apollia-mcp
-- [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) — configuration mcp.toml, exemples serveurs MCP
-- [Briques User Memory](./Briques-User-Memory) — mémoire utilisateur
-- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) — observabilité complète, timeline, troncature
-- [ADR-041](../adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) — décisions moteur STT (whisper-rs, trait SttBackend)
-- [ADR-044](../adr/ADR-044-client-mcp.md) — décisions client MCP (transport stdio, McpClientManager, HITL)
+- [API-HTTP-Agents](./API-HTTP-Agents) - agents, tasks, LLM, tools, a2a, sessions
+- [API-HTTP-Workspace](./API-HTTP-Workspace) - triggers, webhooks, notifications
+- [Dashboard Observabilité](./Dashboard-Observabilite) - dashboard embarqué
+- [Briques STT](./Briques-STT) - moteur Speech-to-Text embarqué
+- [Briques MCP](./Briques-MCP) - spécification crate apollia-mcp
+- [MCP - Guide utilisateur](./MCP-Guide-Utilisateur) - configuration mcp.toml, exemples serveurs MCP
+- [Briques User Memory](./Briques-User-Memory) - mémoire utilisateur
+- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) - observabilité complète, timeline, troncature
+- [ADR-041](../adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) - décisions moteur STT (whisper-rs, trait SttBackend)
+- [ADR-044](../adr/ADR-044-client-mcp.md) - décisions client MCP (transport stdio, McpClientManager, HITL)

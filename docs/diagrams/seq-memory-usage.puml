@@ -6,7 +6,7 @@ skinparam defaultFontSize 11
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Séquence — Memory Usage (record + search) — Apollia OS
+title Séquence - Memory Usage (record + search) - Apollia OS
 
 participant "Agent Python" as agent #2d4a22/d4edda
 participant "MemoryInterface\n(PyO3 #[pyclass])" as iface #1a1a2e/e0e0ff
@@ -14,16 +14,16 @@ participant "MemoryManager\n(Rust)" as mgr #1a1a2e/e0e0ff
 participant "MemoryStore\n(SQLite)" as store #2a3a4a/cce5ff
 participant "FTS5 Index\n(memory_fts)" as fts #2a3a4a/cce5ff
 
-== ctx.memory.record() — Stocker un épisode ==
+== ctx.memory.record() - Stocker un épisode ==
 
-agent -> iface : await ctx.memory.record(\n  "Client Acme — 10 licences Figma",\n  importance=0.8,\n  task_id="t-abc123"\n)
+agent -> iface : await ctx.memory.record(\n  "Client Acme - 10 licences Figma",\n  importance=0.8,\n  task_id="t-abc123"\n)
 
 iface -> iface : spawn_blocking\n(opération SQLite sync\ndans thread dédié)
 
 iface -> mgr : record_inner(content, 0.8, task_id)
 mgr -> mgr : check_write_access()\n(ReadWrite requis)
 mgr -> store : store(namespace)
-note right of store : lazy open —\nSQLite ouvert au\npremier accès
+note right of store : lazy open -\nSQLite ouvert au\npremier accès
 
 store -> store : INSERT INTO episodic_memories\n(id, namespace, content,\n importance, task_id, created_at)
 store -> fts : INSERT INTO memory_fts\n(id, namespace, content, type)
@@ -32,7 +32,7 @@ store --> mgr : memory_id (UUID)
 mgr --> iface : Ok(memory_id)
 iface --> agent : "mem-uuid-xyz"
 
-== ctx.memory.search() — Recherche full-text ==
+== ctx.memory.search() - Recherche full-text ==
 
 agent -> iface : await ctx.memory.search(\n  "licences Figma",\n  limit=5\n)
 
@@ -54,7 +54,7 @@ store --> mgr : Vec<MemorySearchResult>
 mgr --> iface : Ok(results)
 iface --> agent : [\n  {"content": "...", "score": 0.92, "type": "episodic"},\n  {"content": "...", "score": 0.71, "type": "semantic"}\n]
 
-== ctx.memory.recall_entry() — Métadonnées complètes (Sprint 40) ==
+== ctx.memory.recall_entry() - Métadonnées complètes (Sprint 40) ==
 
 agent -> iface : await ctx.memory.recall_entry(\n  "client.dupont_sa.budget_max"\n)
 
@@ -69,7 +69,7 @@ store --> mgr : Option<SemanticEntry>
 mgr --> iface : Ok(entry_or_none)
 iface --> agent : {"key": "...", "value": "15000",\n  "confidence": 1.0, "source": "agent:crm",\n  "updated_at": "2026-03-05T14:30:00Z",\n  "expires_at": null}
 
-== ctx.memory.recall_all() — Lister le namespace (Sprint 40) ==
+== ctx.memory.recall_all() - Lister le namespace (Sprint 40) ==
 
 agent -> iface : await ctx.memory.recall_all(\n  limit=50\n)
 

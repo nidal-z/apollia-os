@@ -1,4 +1,4 @@
-# ADR-033 — Config opérateur SQLite, authentification HMAC-SHA256 webhooks, hot reload sans restart
+# ADR-033 - Config opérateur SQLite, authentification HMAC-SHA256 webhooks, hot reload sans restart
 
 **Date :** 2026-03-08 (triggers) / 2026-03-20 (config SQLite)
 **Statut :** Accepté
@@ -13,14 +13,14 @@
 
 `apollia.toml` mélange deux types de configuration aux cycles de vie et publics différents :
 
-1. **Config structurelle** — ports, chemins, feature flags, backends LLM. Change au déploiement, éditée par un développeur. Cycle de vie lent (jours/semaines).
-2. **Config opérationnelle** — triggers, pipelines, canaux de notification. Change en opération courante, éditée par un opérateur. Cycle de vie rapide (heures/jours).
+1. **Config structurelle** - ports, chemins, feature flags, backends LLM. Change au déploiement, éditée par un développeur. Cycle de vie lent (jours/semaines).
+2. **Config opérationnelle** - triggers, pipelines, canaux de notification. Change en opération courante, éditée par un opérateur. Cycle de vie rapide (heures/jours).
 
 Trois problèmes découlent de ce mélange : complexité opérateur (édition TOML requise), hot-reload fragile (re-parse du TOML sans validation interactive), séparation des concerns floue (ADR-029 avait rendu les settings lecture seule pour éviter la corruption TOML).
 
 ### Triggers : authentification et hot reload (Sprint 9)
 
-Le runtime expose un endpoint `POST /webhooks/{id}` accessible depuis l'extérieur. Sans authentification, n'importe quel process peut déclencher des agents arbitrairement. Par ailleurs, les schedules/secrets changent en opération — un restart complet implique un downtime de tous les agents en cours d'exécution.
+Le runtime expose un endpoint `POST /webhooks/{id}` accessible depuis l'extérieur. Sans authentification, n'importe quel process peut déclencher des agents arbitrairement. Par ailleurs, les schedules/secrets changent en opération - un restart complet implique un downtime de tous les agents en cours d'exécution.
 
 **Contraintes communes :**
 - Principe #1 (Local-first) : zéro appel réseau pour la config
@@ -31,7 +31,7 @@ Le runtime expose un endpoint `POST /webhooks/{id}` accessible depuis l'extérie
 
 ## Décisions
 
-### 1 — Config opérationnelle en SQLite, config structurelle en TOML
+### 1 - Config opérationnelle en SQLite, config structurelle en TOML
 
 `apollia.toml` = config structurelle uniquement (runtime, memory, tools, budget, llm, agents). Lecture seule dans l'app desktop (ADR-029 inchangé). Nécessite un redémarrage.
 
@@ -54,13 +54,13 @@ Pas de watch, pas de polling, pas de cache invalidation. L'API handler est le se
 
 | Question | Décision | Justification |
 |---|---|---|
-| Pattern de notification acteurs | Option A — handler → SQLite → Handle.reload() | Plus simple que EventBus ou watch file |
+| Pattern de notification acteurs | Option A - handler → SQLite → Handle.reload() | Plus simple que EventBus ou watch file |
 | Granularité API | CRUD par domaine (triggers, notifications) | Cohérent avec les routes existantes |
 | Organisation DBs | Une DB par sous-système | Déjà le cas, cohérent avec l'architecture |
 | Repositories dans AppState | `Arc<Mutex<Repository>>` | rusqlite Connection n'est pas Sync, mutations rares |
 | Validation métier | Dans les crates domaine | apollia-triggers, apollia-notifications |
 
-### 2 — HMAC-SHA256 avec comparaison constante-time pour les webhooks
+### 2 - HMAC-SHA256 avec comparaison constante-time pour les webhooks
 
 HMAC-SHA256 est le seul mécanisme d'authentification des webhooks. Le secret est déclaré dans `apollia.toml` et n'est jamais exposé dans les logs ou les réponses HTTP. La comparaison de la signature utilise `constant_time_eq` pour éliminer les timing attacks.
 
@@ -68,7 +68,7 @@ Le format suit le standard GitHub Webhooks : `X-Apollia-Signature: sha256=<hex>`
 
 Ordre de vérification strict : `503` (TriggerEngine indisponible) → `404` (trigger inconnu) → `401` (signature absente ou invalide) → `200`. Le `404` est retourné avant le `401` pour ne pas confirmer l'existence d'un trigger sans authentification.
 
-### 3 — Hot reload par abort+respawn des JoinHandle avec timeout 2s
+### 3 - Hot reload par abort+respawn des JoinHandle avec timeout 2s
 
 `TriggerEngineHandle::reload(new_definitions)` :
 1. Donne 2 secondes à chaque `JoinHandle<()>` actif pour se terminer proprement (`tokio::time::timeout(2s, handle).await`) avant un drop forcé.
@@ -76,7 +76,7 @@ Ordre de vérification strict : `503` (TriggerEngine indisponible) → `404` (tr
 3. Respawn uniquement les sources dont `enabled = true`.
 4. Émet `TriggersReloaded { count }` sur l'EventBus.
 
-En cas d'erreur au reload, les triggers actuels continuent de fonctionner — le runtime répond `422 Unprocessable Entity`.
+En cas d'erreur au reload, les triggers actuels continuent de fonctionner - le runtime répond `422 Unprocessable Entity`.
 
 ---
 
@@ -111,7 +111,7 @@ Ne fonctionne pas sur Windows. Pas de retour immédiat sur le résultat. Rompt l
 
 **Négatives / Compromis :**
 - `apollia.toml` perd ses sections triggers/pipelines/notifications (warning au boot si ancien fichier)
-- `Arc<Mutex<>>` pour les repositories dans AppState — pas un acteur Tokio pur, justifié par rusqlite
+- `Arc<Mutex<>>` pour les repositories dans AppState - pas un acteur Tokio pur, justifié par rusqlite
 - Full-replace au reload : une source inchangée est quand même stoppée et respawnée (impact minimal pour Cron/Interval)
 - La validation métier doit être dupliquée côté client JavaScript pour le feedback live
 
@@ -123,17 +123,17 @@ Ne fonctionne pas sur Windows. Pas de retour immédiat sur le résultat. Rompt l
 
 ## Principes architecturaux impactés
 
-- Principe #1 — Local-first : **Renforcé** — SQLite local, CRUD sans cloud
-- Principe #2 — Zéro dépendance externe : **Respecté** — rusqlite bundled, `constant_time_eq` in workspace
-- Principe #4 — Fail fast : **Renforcé** — validation au write time avec feedback 422
-- Principe #5 — Un acteur, une responsabilité : **Respecté** — chaque engine gère son reload, les repositories sont passifs
-- Principe #8 — CLI humaine, API machine : **Renforcé** — `apollia-os trigger reload` est explicite
+- Principe #1 - Local-first : **Renforcé** - SQLite local, CRUD sans cloud
+- Principe #2 - Zéro dépendance externe : **Respecté** - rusqlite bundled, `constant_time_eq` in workspace
+- Principe #4 - Fail fast : **Renforcé** - validation au write time avec feedback 422
+- Principe #5 - Un acteur, une responsabilité : **Respecté** - chaque engine gère son reload, les repositories sont passifs
+- Principe #8 - CLI humaine, API machine : **Renforcé** - `apollia-os trigger reload` est explicite
 
 ---
 
 ## Liens
 
 - Stories : STORY-065 → STORY-078 (Sprint 9) + STORY-184 → STORY-197 (Sprint 17)
-- ADR-002 — SQLite comme seul moteur de persistance (cohérent)
-- ADR-029 — Settings lecture seule (reste valide pour le TOML structurel)
-- ADR-032 — Agent install persistence (même pattern SQLite + reload)
+- ADR-002 - SQLite comme seul moteur de persistance (cohérent)
+- ADR-029 - Settings lecture seule (reste valide pour le TOML structurel)
+- ADR-032 - Agent install persistence (même pattern SQLite + reload)

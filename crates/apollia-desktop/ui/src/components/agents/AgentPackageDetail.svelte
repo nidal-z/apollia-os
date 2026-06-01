@@ -55,7 +55,7 @@
       {#if pkg.root_missing}
         <div class="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
           <AlertTriangle size={14} />
-          <span>Dossier source introuvable — agents désactivés</span>
+          <span>Dossier source introuvable - agents désactivés</span>
         </div>
       {/if}
 

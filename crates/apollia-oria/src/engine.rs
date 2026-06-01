@@ -118,7 +118,7 @@ pub enum ORIAError {
     PlanFailed(#[from] ReasonerError),
 
     /// The approval oneshot channel was closed before a response (runtime shutdown).
-    #[error("approval channel closed before human response — runtime may be shutting down")]
+    #[error("approval channel closed before human response - runtime may be shutting down")]
     ApprovalChannelClosed,
 }
 
@@ -131,7 +131,7 @@ struct NoopToolProxy;
 impl ToolProxyTrait for NoopToolProxy {
     async fn invoke(&self, tool_name: &str, _input: &serde_json::Value) -> Result<String, String> {
         Err(format!(
-            "No tool proxy configured — cannot invoke '{tool_name}'"
+            "No tool proxy configured - cannot invoke '{tool_name}'"
         ))
     }
 }
@@ -464,7 +464,7 @@ impl ORIAEngine {
                 // Will be connected in a follow-up story.
                 AIPResult::failed(
                     "DIRECT_MODE_NOT_AVAILABLE_VIA_AIP_AGENT",
-                    "Direct mode requires an AgentRunner — use execute_direct() directly",
+                    "Direct mode requires an AgentRunner - use execute_direct() directly",
                 )
             }
             ExecutionMode::Orchestrated => {
@@ -820,7 +820,7 @@ impl ORIAEngine {
         let repo = match PlanRepository::new(db_path) {
             Ok(r) => r,
             Err(e) => {
-                tracing::error!(error = %e, "Failed to open PlanRepository — falling back to :memory:");
+                tracing::error!(error = %e, "Failed to open PlanRepository - falling back to :memory:");
                 PlanRepository::new(":memory:").expect("in-memory SQLite must always succeed")
             }
         };
@@ -889,7 +889,7 @@ impl ORIAEngine {
                 tracing::warn!(
                     task_id = %task.task_id,
                     error = %e,
-                    "failed to persist input_required — continuing without DB record"
+                    "failed to persist input_required - continuing without DB record"
                 );
             }
 
@@ -903,7 +903,7 @@ impl ORIAEngine {
                 tracing::warn!(
                     task_id = %task.task_id,
                     error = %e,
-                    "failed to persist suspended_at — continuing without timing record"
+                    "failed to persist suspended_at - continuing without timing record"
                 );
             }
         }
@@ -919,7 +919,7 @@ impl ORIAEngine {
         tracing::info!(
             task_id = %task.task_id,
             %prompt,
-            "task suspended — waiting for human approval"
+            "task suspended - waiting for human approval"
         );
 
         // register on PendingApprovals: if not configured, degrade gracefully
@@ -928,7 +928,7 @@ impl ORIAEngine {
             None => {
                 tracing::warn!(
                     task_id = %task.task_id,
-                    "PendingApprovals not configured — returning InputRequired without suspension"
+                    "PendingApprovals not configured - returning InputRequired without suspension"
                 );
                 return Ok(AIPResult::input_required(&prompt, context));
             }
@@ -942,7 +942,7 @@ impl ORIAEngine {
         tracing::info!(
             task_id = %task.task_id,
             approved = response.approved,
-            "human approval received — resuming task"
+            "human approval received - resuming task"
         );
 
         // rejection: AIPResult::failed without calling run()

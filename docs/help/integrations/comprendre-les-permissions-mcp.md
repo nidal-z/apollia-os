@@ -66,4 +66,4 @@ Les serveurs MCP ont trois capabilities qui passent par votre boîte de récepti
 - **Un outil sensible s'exécute sans demande** : vous avez créé une always-accept rule en cochant la case un jour. Allez la révoquer.
 - **`local_only` bloque mon MCP local** : vérifiez que votre MCP est bien en transport `stdio`. Un MCP en `http://localhost:...` est quand même bloqué (le profil filtre par transport, pas par host).
 
-> **Référence technique :** [Briques-Tool-Registry](https://github.com/nidal-z/apollia-os/wiki/Briques-Tool-Registry) , gouvernance complète, audit trail, format des règles dans `governance.db`.
+> **Référence technique :** [Briques-Tool-Registry](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Tool-Registry) , gouvernance complète, audit trail, format des règles dans `governance.db`.

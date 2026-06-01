@@ -1,4 +1,4 @@
-//! [`RulesProvider`] — fournit le fichier de règles projet.
+//! [`RulesProvider`] - fournit le fichier de règles projet.
 //!
 //! Cherche un fichier de règles (par défaut `APOLLIA.md`) en remontant la
 //! hiérarchie de répertoires depuis le CWD. Le contenu est injecté tel quel

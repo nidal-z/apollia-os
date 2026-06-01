@@ -111,4 +111,4 @@ Les approbations MCP (acceptations HITL durables) sont stockées séparément da
 - **`NoRefreshToken`** : reconnectez le compte, le scope `offline_access` a été oublié.
 - **Refresh boucle 401** : déconnectez puis reconnectez le compte, le refresh token a été révoqué côté provider.
 
-> **Référence technique :** [Briques-Auth](https://github.com/nidal-z/apollia-os/wiki/Briques-Auth) , stockage trousseau, refresh proactif, audit governance.db.
+> **Référence technique :** [Briques-Auth](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Auth) , stockage trousseau, refresh proactif, audit governance.db.

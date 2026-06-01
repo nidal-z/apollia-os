@@ -1,4 +1,4 @@
-"""``@orchestrated`` decorator — mark an agent as ORIA-orchestrated.
+"""``@orchestrated`` decorator - mark an agent as ORIA-orchestrated.
 
 ``@orchestrated`` is mutually exclusive with ``@skill`` and
 ``@on_message`` on the same class; the consistency check is enforced

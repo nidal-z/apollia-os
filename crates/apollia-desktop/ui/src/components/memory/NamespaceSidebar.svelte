@@ -16,9 +16,9 @@
 
   export interface NamespaceItem {
     name: string;
-    /** Total entries (toutes types confondus). Optionnel — affiché si défini. */
+    /** Total entries (toutes types confondus). Optionnel - affiché si défini. */
     count?: number;
-    /** Catégorie pour le filtre — calculée par le caller. */
+    /** Catégorie pour le filtre - calculée par le caller. */
     category: NamespaceCategory;
     /** Label humain optionnel (ex: nom de l'agent, nom du projet) à afficher en lieu et place du nom raw. */
     displayName?: string;
@@ -27,7 +27,7 @@
   interface Props {
     namespaces: NamespaceItem[];
     selected: string;
-    /** Loading state — affiche un placeholder. */
+    /** Loading state - affiche un placeholder. */
     loading?: boolean;
     onselect: (namespace: string) => void;
   }
@@ -140,7 +140,7 @@
        />
     </div>
 
-    <!-- Category filter — segmented control horizontal scroll -->
+    <!-- Category filter - segmented control horizontal scroll -->
     <div
       class="inline-flex w-full items-center gap-0.5 p-0.5 rounded-md bg-muted/40 border border-border/40 overflow-x-auto"
       role="tablist"

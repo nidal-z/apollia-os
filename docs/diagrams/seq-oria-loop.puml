@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — ORIA Engine (Mode Direct & Orchestré) — Apollia OS
+title Séquence - ORIA Engine (Mode Direct & Orchestré) - Apollia OS
 
 participant "ExecutionCoord." as coord #1a1a2e/e0e0ff
 participant "Observer" as obs #1a1a2e/e0e0ff
@@ -55,7 +55,7 @@ alt Mode Direct (tâche courte, outils simples)
     coord -> budget : decrement(steps=1, tool_calls=N)
   end
 
-else Mode Orchestré (tâche complexe, multi-étapes — ADR-022 Option B)
+else Mode Orchestré (tâche complexe, multi-étapes - ADR-022 Option B)
 
   obs --> coord : Orchestrated
 

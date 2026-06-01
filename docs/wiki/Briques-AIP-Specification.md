@@ -1,4 +1,4 @@
-# Briques — AIP Specification — Apollia OS
+# Briques - AIP Specification - Apollia OS
 
 > Spécification complète de l'Agent Interface Protocol : contrat duck typing, types de données, RuntimeContext et exemples fonctionnels.
 > Public cible : développeur d'agent Python, contributeur Rust
@@ -15,7 +15,7 @@ L'AIP définit quatre composants : le `AgentManifest` (identité et capacités),
 
 ---
 
-## Composant 1 — AgentManifest
+## Composant 1 - AgentManifest
 
 La carte d'identité de l'agent. Retournée par `manifest()` sous forme de dict Python ou d'objet sérialisable en JSON. Le runtime la convertit en `AgentManifest` Rust via serde_json à l'état `INITIALIZING`.
 
@@ -25,42 +25,42 @@ La carte d'identité de l'agent. Retournée par `manifest()` sous forme de dict 
 def manifest(self):
     return {
         # Obligatoires
-        "name": "mon-agent",           # str — identifiant unique dans le runtime
-        "version": "1.0.0",            # str — semver
-        "description": "...",          # str — description humaine
+        "name": "mon-agent",           # str - identifiant unique dans le runtime
+        "version": "1.0.0",            # str - semver
+        "description": "...",          # str - description humaine
 
         # Outils (validation fail-fast à INITIALIZING)
-        "tools_required": ["file_io"], # list[str] — absent = agent ne démarre pas
-        "tools_optional": ["mcp:fs"],  # list[str] — absent = état DEGRADED, pas fatal
+        "tools_required": ["file_io"], # list[str] - absent = agent ne démarre pas
+        "tools_optional": ["mcp:fs"],  # list[str] - absent = état DEGRADED, pas fatal
 
         # Mémoire
-        "memory_namespace": "mon-ns",  # str | None — None = pas de mémoire persistante
-        "shared_memory_namespaces": [], # list[str] — namespaces partagés en lecture
+        "memory_namespace": "mon-ns",  # str | None - None = pas de mémoire persistante
+        "shared_memory_namespaces": [], # list[str] - namespaces partagés en lecture
 
         # Concurrence et budget
-        "max_concurrent_tasks": 1,     # int — défaut: 1
-        "step_budget": {               # dict | None — None = défauts runtime
-            "max_steps": 40,           # int — défaut runtime: 30
-            "max_tool_calls": 80,      # int — défaut runtime: 60
-            "wall_clock_timeout_secs": 900  # int — défaut bridge: 300
+        "max_concurrent_tasks": 1,     # int - défaut: 1
+        "step_budget": {               # dict | None - None = défauts runtime
+            "max_steps": 40,           # int - défaut runtime: 30
+            "max_tool_calls": 80,      # int - défaut runtime: 60
+            "wall_clock_timeout_secs": 900  # int - défaut bridge: 300
         },
 
         # Réseau
-        "network_allowlist": None,     # list[str] | None — None = pas de réseau
+        "network_allowlist": None,     # list[str] | None - None = pas de réseau
 
         # Sécurité
-        "dangerous_tools_allowed": False,  # bool — défaut: False
-        "tools_requiring_approval": [],    # list[str] — outils nécessitant approbation humaine (Mode Orchestré)
+        "dangerous_tools_allowed": False,  # bool - défaut: False
+        "tools_requiring_approval": [],    # list[str] - outils nécessitant approbation humaine (Mode Orchestré)
 
         # LLM backend *(ADR-047)*
-        "llm_backend": None,           # str | None — nom d'un backend dans system.db ; None = défaut runtime
+        "llm_backend": None,           # str | None - nom d'un backend dans system.db ; None = défaut runtime
 
         # Protocoles
-        "supports_streaming": False,   # bool — SSE si True
-        "supports_a2a": False,         # bool — AgentCard A2A si True
+        "supports_streaming": False,   # bool - SSE si True
+        "supports_a2a": False,         # bool - AgentCard A2A si True
 
         # Dépendances Python *(Worker Agents)*
-        "packages": [],                # list[str] — pip packages installés au INITIALIZING
+        "packages": [],                # list[str] - pip packages installés au INITIALIZING
                                        # Syntaxe pip standard : "openpyxl>=3.1.0", "pandas==2.1.4"
                                        # Installés une seule fois via PythonExecutor::setup_venv()
 
@@ -69,24 +69,24 @@ def manifest(self):
         "skills": [],                  # list[AgentSkill dict]
 
         # Mémoire utilisateur globale (opt-in, agents système uniquement)
-        "user_memory_write": False,    # bool — défaut: False. Autorise ctx.memory.remember_user()
+        "user_memory_write": False,    # bool - défaut: False. Autorise ctx.memory.remember_user()
                                        # Réservé aux agents qui possèdent légitimement le profil
                                        # utilisateur (ex. onboarding-agent). La lecture __user__
                                        # via recall() est toujours disponible sans opt-in.
 
-        # Rôle sémantique (contrat v2 — utilisé par l'UI pour catégoriser)
-        "agent_type": "assistant",     # str | None — "worker" | "assistant" | "system" | None
+        # Rôle sémantique (contrat v2 - utilisé par l'UI pour catégoriser)
+        "agent_type": "assistant",     # str | None - "worker" | "assistant" | "system" | None
 
-        # Documentation utilisateur (contrat v2 — optionnel, recommandé pour les assistants)
-        "examples": [                  # list[str] — prompts illustrant les usages typiques
+        # Documentation utilisateur (contrat v2 - optionnel, recommandé pour les assistants)
+        "examples": [                  # list[str] - prompts illustrant les usages typiques
             "Crée une spec pour un système d'auth JWT",
             "Quelles sont les specs en attente ?",
         ],
-        "limitations": [               # list[str] — ce que l'agent ne fait pas
+        "limitations": [               # list[str] - ce que l'agent ne fait pas
             "Ne génère jamais de code",
             "Requiert une description fonctionnelle pour démarrer",
         ],
-        "setup_notes": "...",          # str | None — prérequis de configuration (None = aucun)
+        "setup_notes": "...",          # str | None - prérequis de configuration (None = aucun)
     }
 ```
 
@@ -94,25 +94,25 @@ def manifest(self):
 
 | Champ | Obligatoire | Défaut | Effet si absent |
 |---|---|---|---|
-| `name` | oui | — | Erreur démarrage |
-| `version` | oui | — | Erreur démarrage |
-| `description` | oui | — | Erreur démarrage |
+| `name` | oui | - | Erreur démarrage |
+| `version` | oui | - | Erreur démarrage |
+| `description` | oui | - | Erreur démarrage |
 | `tools_required` | oui | `[]` | Erreur démarrage |
 | `tools_optional` | non | `[]` | Ignoré |
 | `memory_namespace` | non | `None` | `ctx.memory` est `None` |
 | `max_concurrent_tasks` | non | `1` | 1 tâche à la fois |
-| `step_budget` | non | `None` | Défauts bridge (30 steps, 60 calls, 300s wall-clock) — dépassement → tâche `failed` avec `WallClockTimeout` |
+| `step_budget` | non | `None` | Défauts bridge (30 steps, 60 calls, 300s wall-clock) - dépassement → tâche `failed` avec `WallClockTimeout` |
 | `dangerous_tools_allowed` | non | `False` | Outils dangereux bloqués |
 | `tools_requiring_approval` | non | `[]` | Aucun outil ne nécessite d'approbation |
 | `supports_a2a` | non | `False` | Pas de AgentCard A2A |
 | `llm_backend` | non | `None` | Backend LLM par défaut du runtime |
-| `packages` | non | `[]` | Aucune dépendance pip — venv Python standard |
-| `agent_type` | non | `None` | Catégorie inconnue — l'UI affiche une entrée neutre |
-| `examples` | non | `[]` | Aucun exemple — section quick-start masquée dans l'UI |
-| `limitations` | non | `[]` | Aucune limitation déclarée — section masquée dans l'UI |
-| `setup_notes` | non | `None` | Aucun prérequis — section masquée dans l'UI |
-| `user_memory_write` | non | `False` | Opt-in pour écrire dans `__user__` via `ctx.memory.remember_user()`. Réservé aux agents système (ex. `onboarding-agent`). La lecture de `__user__` via `recall()` est inconditionnelle — pas d'opt-in requis. |
-| `agent_class` | — | `None` | **Renseigné par le runtime — ne pas déclarer dans `manifest()`.** Extrait automatiquement de `agent.__class__.__name__` par le validateur AIP. `None` uniquement pour les agents construits hors PyO3 (fixtures de test). Affiché comme badge dans l'UI (ex : `"ReActAgent"` → *Direct*, `"OrchestratedAgent"` → *Orchestrated*). |
+| `packages` | non | `[]` | Aucune dépendance pip - venv Python standard |
+| `agent_type` | non | `None` | Catégorie inconnue - l'UI affiche une entrée neutre |
+| `examples` | non | `[]` | Aucun exemple - section quick-start masquée dans l'UI |
+| `limitations` | non | `[]` | Aucune limitation déclarée - section masquée dans l'UI |
+| `setup_notes` | non | `None` | Aucun prérequis - section masquée dans l'UI |
+| `user_memory_write` | non | `False` | Opt-in pour écrire dans `__user__` via `ctx.memory.remember_user()`. Réservé aux agents système (ex. `onboarding-agent`). La lecture de `__user__` via `recall()` est inconditionnelle - pas d'opt-in requis. |
+| `agent_class` | - | `None` | **Renseigné par le runtime - ne pas déclarer dans `manifest()`.** Extrait automatiquement de `agent.__class__.__name__` par le validateur AIP. `None` uniquement pour les agents construits hors PyO3 (fixtures de test). Affiché comme badge dans l'UI (ex : `"ReActAgent"` → *Direct*, `"OrchestratedAgent"` → *Orchestrated*). |
 
 ### tools_requiring_approval
 
@@ -138,32 +138,32 @@ Règles d'application :
 - Une liste vide (défaut) signifie qu'aucun outil ne nécessite d'approbation.
 - L'outil doit également figurer dans `tools_required` ou `tools_optional` pour être résolu par le runtime.
 
-### examples, limitations, setup_notes — Documentation utilisateur (contrat v2)
+### examples, limitations, setup_notes - Documentation utilisateur (contrat v2)
 
 Trois champs optionnels permettant aux développeurs d'agents de documenter leur agent directement dans le manifest, sans fichier externe susceptible de dériver de l'implémentation. L'UI Apollia les affiche dans le panneau détail de l'agent.
 
-**Philosophie de conception :** aucun framework existant (MCP, LangChain, OpenAI Assistants, CrewAI) ne propose ces trois champs de manière structurée — ils utilisent soit un champ `description` libre, soit des fichiers de documentation séparés. Apollia adopte une approche déclarative et colocalisée avec le code.
+**Philosophie de conception :** aucun framework existant (MCP, LangChain, OpenAI Assistants, CrewAI) ne propose ces trois champs de manière structurée - ils utilisent soit un champ `description` libre, soit des fichiers de documentation séparés. Apollia adopte une approche déclarative et colocalisée avec le code.
 
 | Champ | Type | Rôle UI |
 |---|---|---|
-| `examples` | `list[str]` | Quick-start chips cliquables — masqués si liste vide |
-| `limitations` | `list[str]` | Panneau détail — masqués si liste vide |
-| `setup_notes` | `str \| None` | Bannière de configuration — masquée si `None` |
+| `examples` | `list[str]` | Quick-start chips cliquables - masqués si liste vide |
+| `limitations` | `list[str]` | Panneau détail - masqués si liste vide |
+| `setup_notes` | `str \| None` | Bannière de configuration - masquée si `None` |
 
 **Guidelines rédactionnelles :**
 
 ```python
 "examples": [
     # 2 à 5 entrées. Formulées comme de vraies requêtes utilisateur.
-    # Concrètes et spécifiques — éviter les formulations génériques.
+    # Concrètes et spécifiques - éviter les formulations génériques.
     "Crée une spec pour un système d'auth JWT avec refresh tokens",
     "Quelles sont les specs en attente dans ce projet ?",
 ],
 
 "limitations": [
     # 2 à 4 entrées. Formulées à l'infinitif ou à la première personne.
-    # Uniquement les limites non-évidentes — pas "ne peut pas voler".
-    "Ne génère jamais de code — uniquement des specs structurées",
+    # Uniquement les limites non-évidentes - pas "ne peut pas voler".
+    "Ne génère jamais de code - uniquement des specs structurées",
     "Requiert une description fonctionnelle pour démarrer",
 ],
 
@@ -176,9 +176,9 @@ Trois champs optionnels permettant aux développeurs d'agents de documenter leur
 ),
 ```
 
-**Recommandation :** ces champs sont optionnels mais fortement recommandés pour les agents `agent_type: "assistant"`. Les workers peuvent les laisser vides — leur interface est suffisamment simple.
+**Recommandation :** ces champs sont optionnels mais fortement recommandés pour les agents `agent_type: "assistant"`. Les workers peuvent les laisser vides - leur interface est suffisamment simple.
 
-### agent_type — Rôle sémantique (contrat v2)
+### agent_type - Rôle sémantique (contrat v2)
 
 Distingue le rôle d'un agent dans le système. Ce champ est utilisé par l'UI pour catégoriser les agents, indépendamment de `supports_a2a` (qui est `true` pour les deux populations).
 
@@ -186,15 +186,15 @@ Distingue le rôle d'un agent dans le système. Ce champ est utilisé par l'UI p
 |---|---|---|
 | `"worker"` | Agent opérationnel | Appelé par des agents via A2A, stateless, `execution_mode: "direct"` |
 | `"assistant"` | Interlocuteur humain | Multi-tour, orchestre des workers, `execution_mode: "auto"` |
-| `"system"` | Infrastructure interne | Onboarding, supervision — non exposé dans l'UI principale |
-| `None` | Non déclaré | Agents antérieurs au contrat v2 — l'UI affiche une entrée neutre |
+| `"system"` | Infrastructure interne | Onboarding, supervision - non exposé dans l'UI principale |
+| `None` | Non déclaré | Agents antérieurs au contrat v2 - l'UI affiche une entrée neutre |
 
 **Pourquoi ne pas utiliser `supports_a2a` ?** Les workers reçoivent des appels A2A (ils sont la cible). Les assistants émettent des appels A2A (ils sont l'émetteur). Les deux ont donc `supports_a2a: true`, ce qui ne permet pas de les distinguer.
 
 **Pourquoi ne pas utiliser `execution_mode` ?** `execution_mode` est une instruction interne à ORIA (comment le réacteur exécute l'agent). `agent_type` est une information de découverte pour l'UI et le routage. Ce sont deux préoccupations orthogonales.
 
 ```python
-# Worker — appelé par des agents
+# Worker - appelé par des agents
 def manifest(self):
     return {
         "execution_mode": "direct",
@@ -203,7 +203,7 @@ def manifest(self):
         ...
     }
 
-# Assistant — interlocuteur humain
+# Assistant - interlocuteur humain
 def manifest(self):
     return {
         "execution_mode": "auto",
@@ -213,7 +213,7 @@ def manifest(self):
     }
 ```
 
-### packages — Dépendances pip (Worker Agents)
+### packages - Dépendances pip (Worker Agents)
 
 Liste les paquets pip à installer dans le venv Python isolé de l'agent. Le runtime les installe une seule fois à l'état `INITIALIZING` via `PythonExecutor::setup_venv`. Si un paquet manque ou échoue à l'installation, l'agent passe en `STOPPED`.
 
@@ -225,7 +225,7 @@ def manifest(self):
         "description": "Analyse des fichiers Excel",
         "tools_required": ["file_io"],
 
-        # Dépendances pip — syntaxe pip standard
+        # Dépendances pip - syntaxe pip standard
         "packages": [
             "openpyxl>=3.1.0",
             "pandas==2.1.4",
@@ -235,8 +235,8 @@ def manifest(self):
 ```
 
 Règles d'application :
-- Syntaxe pip standard (`"nom"`, `"nom>=version"`, `"nom==version"`) — toute contrainte pip acceptée.
-- Installés dans un venv Python **isolé par agent** — pas de conflit entre agents.
+- Syntaxe pip standard (`"nom"`, `"nom>=version"`, `"nom==version"`) - toute contrainte pip acceptée.
+- Installés dans un venv Python **isolé par agent** - pas de conflit entre agents.
 - Liste vide (défaut) : aucune installation, démarrage immédiat.
 - Principalement utilisé par les **Worker Agents** déclarés dans le registre communautaire.
 
@@ -256,32 +256,32 @@ Utilisée si `supports_a2a: True` pour construire automatiquement la AgentCard :
 
 ---
 
-## Composant 2 — AIPTask
+## Composant 2 - AIPTask
 
 Ce que le runtime envoie à l'agent via `run(task, ctx)`. En Python, `task` est un dict JSON.
 
 ```python
 async def run(self, task, ctx):
     # Champs de base
-    task_id    = task["task_id"]           # str — UUID généré par le runtime
-    context_id = task["context_id"]        # str — groupe de tâches liées
-    parts      = task["input"]["parts"]    # list[dict] — AIPPart
-    history    = task.get("history", [])   # list[dict] — messages précédents
+    task_id    = task["task_id"]           # str - UUID généré par le runtime
+    context_id = task["context_id"]        # str - groupe de tâches liées
+    parts      = task["input"]["parts"]    # list[dict] - AIPPart
+    history    = task.get("history", [])   # list[dict] - messages précédents
     timeout    = task.get("timeout_seconds")  # int | None
 
-    # Champs HITL — Human-in-the-Loop
-    is_resumed     = task["is_resumed"]        # bool — True si reprise après approbation
-    input_response = task["input_response"]    # InputResponse | None — None au premier appel
+    # Champs HITL - Human-in-the-Loop
+    is_resumed     = task["is_resumed"]        # bool - True si reprise après approbation
+    input_response = task["input_response"]    # InputResponse | None - None au premier appel
 
-    # Champ A2A — géré par le runtime, ne pas modifier
+    # Champ A2A - géré par le runtime, ne pas modifier
     delegation_chain = task.get("delegation_chain", [])
-    # list[str] — IDs des agents parents dans la chaîne de délégation A2A.
+    # list[str] - IDs des agents parents dans la chaîne de délégation A2A.
     # Vide pour une tâche racine (soumise via CLI, trigger ou REST).
     # Étendu automatiquement par le runtime à chaque délégation via ctx.delegate().
-    # L'agent n'a pas à lire ni modifier ce champ — il est injecté et validé par le runtime.
+    # L'agent n'a pas à lire ni modifier ce champ - il est injecté et validé par le runtime.
 ```
 
-### Champs HITL — is_resumed et input_response
+### Champs HITL - is_resumed et input_response
 
 Ces deux champs permettent à un agent de distinguer un premier appel d'une reprise après décision humaine.
 
@@ -297,12 +297,12 @@ Injectée automatiquement dans `run.__globals__` par le bridge Rust. Aucun impor
 ```python
 class InputResponse:
     approved:     bool           # True si l'humain a approuvé, False si rejeté
-    reason:       str | None     # Raison transmise par l'humain — None si approuvé
+    reason:       str | None     # Raison transmise par l'humain - None si approuvé
     context:      dict           # Contexte JSON sérialisé par l'agent au moment du suspend
     responded_at: str            # Horodatage ISO 8601 de la décision humaine
 ```
 
-L'attribut `context` est restitué tel quel depuis SQLite — il contient exactement ce que l'agent avait passé à `AIPResult.input_required(prompt, context)` lors de la suspension.
+L'attribut `context` est restitué tel quel depuis SQLite - il contient exactement ce que l'agent avait passé à `AIPResult.input_required(prompt, context)` lors de la suspension.
 
 ### Structure AIPPart
 
@@ -337,11 +337,11 @@ async def run(self, task, ctx):
 
 ---
 
-## Composant 3 — AIPResult
+## Composant 3 - AIPResult
 
 Ce que l'agent retourne. Peut être un dict Python ou l'une des classes factory injectées par le bridge.
 
-### Classe AIPResult — factory methods
+### Classe AIPResult - factory methods
 
 La classe `AIPResult` est injectée automatiquement dans `run.__globals__` par le bridge Rust. **Aucun import requis.** Elle expose trois factory methods :
 
@@ -371,7 +371,7 @@ Suspend la tâche et notifie l'utilisateur sur les canaux configurés.
 Le runtime :
 1. Persiste `prompt` et `context` dans SQLite
 2. Passe la tâche en `status = input_required`
-3. Notifie l'utilisateur (canaux configurés —)
+3. Notifie l'utilisateur (canaux configurés -)
 4. À la reprise, restitue `context` dans `task["input_response"].context`
 
 ### Format dict (compatible rétrograde)
@@ -381,9 +381,9 @@ Il reste possible de retourner un dict Python brut :
 ```python
 # Résultat minimal
 return {
-    "task_id": task["task_id"],      # str — obligatoire
-    "status": "completed",           # str — voir TaskStatus
-    "output": [                      # list[AIPPart] — résultat
+    "task_id": task["task_id"],      # str - obligatoire
+    "status": "completed",           # str - voir TaskStatus
+    "output": [                      # list[AIPPart] - résultat
         {"type": "text", "text": "Résultat..."}
     ],
 }
@@ -398,7 +398,7 @@ return {
     }
 }
 
-# Human-in-the-loop (format bas niveau — préférer AIPResult.input_required())
+# Human-in-the-loop (format bas niveau - préférer AIPResult.input_required())
 return {
     "status": "input_required",
     "output": [],
@@ -420,30 +420,30 @@ return {
 
 ---
 
-## Composant 4 — RuntimeContext
+## Composant 4 - RuntimeContext
 
 Le deuxième argument de `run()`. Injecté par le runtime. Donne accès à tous les services.
 
 ```python
 async def run(self, task, ctx):
-    # ctx.tools — ToolProxy (toujours disponible)
+    # ctx.tools - ToolProxy (toujours disponible)
     result = await ctx.tools.call("file_io", {"action": "list", "path": "."})
 
-    # ctx.memory — MemoryInterface | None (None si pas de memory_namespace)
+    # ctx.memory - MemoryInterface | None (None si pas de memory_namespace)
     if ctx.memory:
         await ctx.memory.record("Tâche reçue", importance=0.5,
                                 task_id=task["task_id"])
 
-    # ctx.log — logs structurés via le runtime
+    # ctx.log - logs structurés via le runtime
     ctx.log("info", f"processing task {task['task_id']}")
 
-    # ctx.step_budget — lecture seule (StepBudgetView)
+    # ctx.step_budget - lecture seule (StepBudgetView)
     remaining = ctx.step_budget.steps_remaining
     if remaining < 3:
         ctx.log("warn", f"budget low: {remaining} steps remaining")
 ```
 
-### ctx.tools — ToolProxy
+### ctx.tools - ToolProxy
 
 ```python
 # Appeler un outil
@@ -457,7 +457,7 @@ available = ctx.tools.list_tools()  # list[str]
 count = ctx.tools.tool_call_count()  # int
 ```
 
-### ctx.memory — MemoryInterface
+### ctx.memory - MemoryInterface
 
 Disponible uniquement si `memory_namespace` est défini dans le manifest. `None` sinon.
 
@@ -489,7 +489,7 @@ if ctx.memory:
     await ctx.memory.forget(memory_id)
 ```
 
-### ctx.tools.describe — Introspection d'outils
+### ctx.tools.describe - Introspection d'outils
 
 ```python
 # Obtenir le schéma complet d'un outil
@@ -500,7 +500,7 @@ if schema:
     input_fields = schema["input_schema"]["properties"]
 ```
 
-### ctx.emit_thought / emit_retry / emit_action_parse_error — Trace ReAct
+### ctx.emit_thought / emit_retry / emit_action_parse_error - Trace ReAct
 
 Trois méthodes d'observabilité qui poussent un événement typé sur la
 trace event-sourced (ADR-088). Utilisées par le SDK ReAct (`react.py`)
@@ -518,10 +518,10 @@ ctx.emit_action_parse_error(step_num: int, raw_content: str,
 
 `cause` accepte les chaînes normalisées : `"action_parse_error"`,
 `"tool_error"`, `"llm_error"`, `"other"`. Les autres agents Python
-utilisent rarement ces méthodes directement — c'est `BaseReActAgent` qui
+utilisent rarement ces méthodes directement - c'est `BaseReActAgent` qui
 les appelle au bon endroit dans la boucle.
 
-### ctx.send / ctx.receive — Messagerie inter-agents
+### ctx.send / ctx.receive - Messagerie inter-agents
 
 ```python
 # Envoyer un message à un autre agent
@@ -529,7 +529,7 @@ await ctx.send("agent-b", {"type": "data", "content": "résultat partiel"})
 
 # Recevoir un message (avec timeout)
 msg = await ctx.receive(timeout=5.0)
-# msg : dict | None — contient "from", "payload", "sent_at"
+# msg : dict | None - contient "from", "payload", "sent_at"
 if msg:
     data = msg["payload"]
 ```
@@ -540,27 +540,27 @@ if msg:
 - L'agent destinataire doit être démarré (pas de persistance hors-mémoire)
 - L'`AgentMailbox` est un acteur Tokio séparé du `TaskRouter`
 
-### ctx.delegate — Délégation A2A
+### ctx.delegate - Délégation A2A
 
-Délègue une tâche à un Worker Agent identifié par son `skill_id`. Méthode A2A de bas niveau — expose directement la fonction `A2aDelegateFn` injectée par le runtime.
+Délègue une tâche à un Worker Agent identifié par son `skill_id`. Méthode A2A de bas niveau - expose directement la fonction `A2aDelegateFn` injectée par le runtime.
 
 ```python
 # Déléguer une tâche à un Worker Agent
 result = await ctx.delegate(
-    skill_id="generate-quote",              # str — ID de la compétence du worker
-    payload={"client": "Acme", "amount": 5000},  # dict — données d'entrée JSON
-    timeout_secs=120                        # int | None — défaut: 120s
+    skill_id="generate-quote",              # str - ID de la compétence du worker
+    payload={"client": "Acme", "amount": 5000},  # dict - données d'entrée JSON
+    timeout_secs=120                        # int | None - défaut: 120s
 )
 # result : dict avec les clés task_id, agent_name, output
-task_id    = result["task_id"]    # str — UUID de la tâche déléguée
-agent_name = result["agent_name"] # str — nom de l'agent qui a exécuté
-output     = result["output"]     # list[dict] — AIPPart[] — résultat de la tâche
+task_id    = result["task_id"]    # str - UUID de la tâche déléguée
+agent_name = result["agent_name"] # str - nom de l'agent qui a exécuté
+output     = result["output"]     # list[dict] - AIPPart[] - résultat de la tâche
 ```
 
 | Paramètre | Type | Obligatoire | Défaut | Description |
 |---|---|---|---|---|
-| `skill_id` | `str` | oui | — | Identifiant de la compétence du Worker Agent cible |
-| `payload` | `dict` | oui | — | Données d'entrée JSON sérialisables |
+| `skill_id` | `str` | oui | - | Identifiant de la compétence du Worker Agent cible |
+| `payload` | `dict` | oui | - | Données d'entrée JSON sérialisables |
 | `timeout_secs` | `int \| None` | non | `120` | Timeout en secondes |
 
 **Prérequis :**
@@ -568,12 +568,12 @@ output     = result["output"]     # list[dict] — AIPPart[] — résultat de la
 - La fonction de délégation A2A doit être disponible dans le contexte d'exécution (injectée uniquement pour les Director Agents en Mode Orchestré)
 
 **Erreurs :**
-- `RuntimeError: "A2A delegation requires supports_a2a: true in manifest"` — manifest incorrect
-- `RuntimeError: "A2A delegation not available in this runtime context"` — contexte non-orchestré
-- `RuntimeError: "A2A cycle: agent <id> already in delegation chain"` — cycle détecté (l'agent cible est déjà dans la chaîne, ou l'agent se délègue à lui-même)
-- `RuntimeError: "A2A max hops exceeded: limit is 5"` — profondeur de délégation maximale atteinte (défaut : 5 niveaux)
+- `RuntimeError: "A2A delegation requires supports_a2a: true in manifest"` - manifest incorrect
+- `RuntimeError: "A2A delegation not available in this runtime context"` - contexte non-orchestré
+- `RuntimeError: "A2A cycle: agent <id> already in delegation chain"` - cycle détecté (l'agent cible est déjà dans la chaîne, ou l'agent se délègue à lui-même)
+- `RuntimeError: "A2A max hops exceeded: limit is 5"` - profondeur de délégation maximale atteinte (défaut : 5 niveaux)
 
-### ctx.user_context — Contexte utilisateur global
+### ctx.user_context - Contexte utilisateur global
 
 Propriété (pas une méthode) qui expose les entrées de mémoire utilisateur injectées en **mode chat uniquement**. `None` en mode task.
 
@@ -597,15 +597,15 @@ async def run(self, task, ctx):
 - `context` : contexte situationnel (ex: `("projet_courant", "apollia-os")`)
 
 **Règles d'application :**
-- Disponible uniquement en **mode chat** (`ChatSession`) — `None` sinon
+- Disponible uniquement en **mode chat** (`ChatSession`) - `None` sinon
 - Chargé depuis le namespace mémoire `__user__` via `recall_all()` au démarrage de la session
-- L'agent décide quoi en faire — jamais d'injection automatique dans le prompt (Principe #6)
+- L'agent décide quoi en faire - jamais d'injection automatique dans le prompt (Principe #6)
 - `None` si la mémoire utilisateur est vide ou si le mode ne supporte pas ce contexte
 
-### ctx.step_budget — StepBudgetView
+### ctx.step_budget - StepBudgetView
 
 ```python
-# Lecture seule — l'agent ne peut pas modifier le budget
+# Lecture seule - l'agent ne peut pas modifier le budget
 remaining_steps = ctx.step_budget.steps_remaining      # int
 remaining_calls = ctx.step_budget.tool_calls_remaining  # int
 elapsed_secs    = ctx.step_budget.elapsed_seconds       # float
@@ -730,7 +730,7 @@ class DevisAgent:
 
     async def run(self, task, ctx):
         if not task["is_resumed"]:
-            # Premier appel — générer le devis, puis demander confirmation
+            # Premier appel - générer le devis, puis demander confirmation
             amount = task["input"]["parts"][0].get("data", {}).get("amount", 0)
             email  = task["input"]["parts"][0].get("data", {}).get("email", "")
 
@@ -740,7 +740,7 @@ class DevisAgent:
                 context={"amount": amount, "email": email}
             )
 
-        # Reprise — la décision humaine est disponible
+        # Reprise - la décision humaine est disponible
         ir = task["input_response"]
         if ir.approved:
             email  = ir.context["email"]
@@ -748,7 +748,7 @@ class DevisAgent:
             # Envoyer le devis via l'outil smtp
             await ctx.tools.call("smtp", {
                 "to": email,
-                "subject": f"Votre devis — {amount} €",
+                "subject": f"Votre devis - {amount} €",
                 "body": "Veuillez trouver ci-joint votre devis."
             })
             return AIPResult.completed(f"Devis envoyé avec succès à {email}")
@@ -774,7 +774,7 @@ apollia-os task resume <task-id> --approve
 
 ---
 
-## Types Rust — HITL
+## Types Rust - HITL
 
 Les types Rust correspondants sont définis dans `apollia-core/src/result.rs` et `apollia-core/src/task.rs`.
 
@@ -794,7 +794,7 @@ pub struct InputRequiredData {
 pub struct InputResponseData {
     /// true si l'utilisateur a approuvé, false si rejeté.
     pub approved: bool,
-    /// Raison transmise par l'humain — None si approuvé.
+    /// Raison transmise par l'humain - None si approuvé.
     pub reason: Option<String>,
     /// Contexte JSON sérialisé par l'agent, restitué intégralement.
     pub context: serde_json::Value,
@@ -832,18 +832,18 @@ Après désérialisation du manifest, deux contrôles sémantiques supplémentai
 **Semver obligatoire sur `version` :** `version` doit respecter le format `MAJOR.MINOR.PATCH` (semver strict). Les valeurs `"v1"`, `"latest"`, `"1.0"`, `"🚀"` génèrent une erreur `InvalidVersion` avec le message :
 
 ```
-version '🚀' is not valid semver — use '1.0.0'
+version '🚀' is not valid semver - use '1.0.0'
 ```
 
 **Détection de typo dans `tools_required` :** chaque nom d'outil est comparé aux 13 noms d'outils natifs connus. Si un nom est absent de la liste native mais proche par distance de Levenshtein (≤ max(2, len/3)) ou préfixe commun ≥ 4 caractères, une erreur `UnknownTool` est émise avec suggestion :
 
 ```
-tool 'bash_explorr' not found — did you mean 'bash_executor'?
+tool 'bash_explorr' not found - did you mean 'bash_executor'?
 ```
 
-Les noms non-natifs suffisamment distincts (outils MCP, dispatchers custom) passent sans erreur — la validation ne bloque que les typos vraisemblables.
+Les noms non-natifs suffisamment distincts (outils MCP, dispatchers custom) passent sans erreur - la validation ne bloque que les typos vraisemblables.
 
-**Extraction de `agent_class` :** après les deux contrôles ci-dessus, le validateur estampe `manifest.agent_class` depuis `agent.__class__.__name__`. Ce champ ne doit pas être déclaré dans `manifest()` — il est toujours écrasé par le runtime.
+**Extraction de `agent_class` :** après les deux contrôles ci-dessus, le validateur estampe `manifest.agent_class` depuis `agent.__class__.__name__`. Ce champ ne doit pas être déclaré dans `manifest()` - il est toujours écrasé par le runtime.
 
 ---
 
@@ -851,10 +851,10 @@ Les noms non-natifs suffisamment distincts (outils MCP, dispatchers custom) pass
 
 Le SDK Python (`pip install -e./sdk`) fournit des type stubs PEP 561 pour toutes les classes PyO3 injectées par le runtime :
 
-- `RuntimeContext` — `sdk/apollia/stubs/context.pyi`
-- `ToolProxy` — `sdk/apollia/stubs/tools.pyi`
-- `LlmProxy` — `sdk/apollia/stubs/llm.pyi`
-- `MemoryInterface` — `sdk/apollia/stubs/memory.pyi`
+- `RuntimeContext` - `sdk/apollia/stubs/context.pyi`
+- `ToolProxy` - `sdk/apollia/stubs/tools.pyi`
+- `LlmProxy` - `sdk/apollia/stubs/llm.pyi`
+- `MemoryInterface` - `sdk/apollia/stubs/memory.pyi`
 
 Ces stubs activent l'autocomplete IDE et la validation `mypy` pour les agents Python. Le SDK propose également des classes de base optionnelles (`BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent`) et une infrastructure de test avec `MockContext`. Voir [Agents SDK Guide](./Agents-SDK-Guide) et [ADR-037](../adr/ADR-037-python-sdk-packaging).
 
@@ -862,10 +862,10 @@ Ces stubs activent l'autocomplete IDE et la validation `mypy` pour les agents Py
 
 ## Voir aussi
 
-- [Agents SDK Guide](./Agents-SDK-Guide) — SDK Python complet (classes de base, mocks, scaffolding)
-- [Agents Quickstart](./Agents-Quickstart) — démarrer en 5 minutes
-- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — référence complète des services
-- [Architecture Vue d'ensemble](./Architecture-Vue-Ensemble) — AIP dans le contexte global
-- [ADR-003](../adr/ADR-003-duck-typing-aip) — pourquoi duck typing plutôt que classe de base
-- [ADR-014](../adr/ADR-014-bridge-spawn-blocking-asyncio-run) — bridge async Rust → Python
-- [ADR-037](../adr/ADR-037-python-sdk-packaging) — packaging Python SDK
+- [Agents SDK Guide](./Agents-SDK-Guide) - SDK Python complet (classes de base, mocks, scaffolding)
+- [Agents Quickstart](./Agents-Quickstart) - démarrer en 5 minutes
+- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) - référence complète des services
+- [Architecture Vue d'ensemble](./Architecture-Vue-Ensemble) - AIP dans le contexte global
+- [ADR-003](../adr/ADR-003-duck-typing-aip) - pourquoi duck typing plutôt que classe de base
+- [ADR-014](../adr/ADR-014-bridge-spawn-blocking-asyncio-run) - bridge async Rust → Python
+- [ADR-037](../adr/ADR-037-python-sdk-packaging) - packaging Python SDK

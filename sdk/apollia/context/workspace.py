@@ -1,4 +1,4 @@
-"""ctx.workspace — workspace context (APOLLIA.md, git, sections)."""
+"""ctx.workspace - workspace context (APOLLIA.md, git, sections)."""
 
 from __future__ import annotations
 

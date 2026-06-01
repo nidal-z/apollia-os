@@ -1,4 +1,4 @@
--- Migration 003 — trigger_history et trigger_state
+-- Migration 003 - trigger_history et trigger_state
 -- Idempotente : utilise CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
 
 CREATE TABLE IF NOT EXISTS trigger_history (

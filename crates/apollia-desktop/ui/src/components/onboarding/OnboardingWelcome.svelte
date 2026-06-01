@@ -1,13 +1,13 @@
 <script lang="ts">
   /**
-   * Onboarding step 1 — Welcome screen.
+   * Onboarding step 1 - Welcome screen.
    *
    * Static intro card that introduces Apollia and triggers the step machine.
    * Designed to fit inside the shared {@link OnboardingModal} overlay (no
    * own backdrop or fixed positioning).
    *
    * Includes a top-right language toggle so the user can switch FR/EN
-   * before any screen of the wizard is filled — once a profile is set the
+   * before any screen of the wizard is filled - once a profile is set the
    * locale is harder to change without re-entering the welcome page.
    */
   import { ShieldCheck, Cpu, Sparkles, Languages } from "lucide-svelte";

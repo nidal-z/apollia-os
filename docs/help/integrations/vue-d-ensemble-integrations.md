@@ -65,4 +65,4 @@ Vous pouvez aussi ajouter vos propres serveurs ou modifier le catalogue.
 - **Le bouton Connecter d'un connecteur natif est grisé** : votre profil de souveraineté est `local_only`, voir la section précédente.
 - **Vous voyez "Section en cours de refonte"** : votre application est antérieure à la v0.1.0, mettez à jour.
 
-> **Référence technique :** [Briques-Tool-Registry](https://github.com/nidal-z/apollia-os/wiki/Briques-Tool-Registry) , architecture du Tool Registry, scoping, gouvernance des outils.
+> **Référence technique :** [Briques-Tool-Registry](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Tool-Registry) , architecture du Tool Registry, scoping, gouvernance des outils.

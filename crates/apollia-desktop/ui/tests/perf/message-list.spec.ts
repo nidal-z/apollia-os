@@ -8,7 +8,7 @@ import { test, expect } from "@playwright/test";
  * Target: average FPS ≥ 55 on a mid-tier CPU.  The test uses
  * `requestAnimationFrame` sampling to compute frame durations.
  */
-test.describe("chat message list — 500 messages", () => {
+test.describe("chat message list - 500 messages", () => {
   test("sustains ≥ 55 fps while scrolling", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {

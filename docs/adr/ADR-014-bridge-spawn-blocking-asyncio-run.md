@@ -1,4 +1,4 @@
-# ADR-014 — Bridge AIP utilise spawn_blocking + asyncio.run() au lieu de into_future
+# ADR-014 - Bridge AIP utilise spawn_blocking + asyncio.run() au lieu de into_future
 
 **Date :** 2026-03-06
 **Statut :** Accepté
@@ -24,7 +24,7 @@ Nous utilisons `tokio::task::spawn_blocking` + `asyncio.run()` pour executer les
 
 Le pattern est :
 1. Cloner les references Python (`Py<PyAny>`) necessaires (Send-safe)
-2. `tokio::task::spawn_blocking(move || { ... })` — deplace l'execution vers le blocking thread pool
+2. `tokio::task::spawn_blocking(move || { ... })` - deplace l'execution vers le blocking thread pool
 3. Dans le closure : `Python::with_gil` → appeler la methode → obtenir la coroutine → `asyncio.run(coroutine)` → extraire le resultat
 4. `.await` le `JoinHandle` depuis le contexte async Rust
 
@@ -35,17 +35,17 @@ Ce pattern garantit :
 
 ## Alternatives considerees
 
-### Option A — `into_future` avec custom test harness (rejetee)
+### Option A - `into_future` avec custom test harness (rejetee)
 
 **Pour :** Integration native pyo3-async-runtimes, zero overhead thread pool, partage du meme event loop entre appels
 **Contre :** Necessite un custom test harness incompatible avec `#[tokio::test]`, initialisation globale complexe, complexite disproportionnee pour Sprint 4. Migration possible plus tard quand le runtime initialisera l'event loop asyncio au demarrage.
 
-### Option B — `asyncio.run()` synchrone dans `Python::with_gil` sans `spawn_blocking` (rejetee)
+### Option B - `asyncio.run()` synchrone dans `Python::with_gil` sans `spawn_blocking` (rejetee)
 
 **Pour :** Simple, pas de thread supplementaire
 **Contre :** Bloque le worker Tokio pendant toute l'execution Python. Viole AC-6 (GIL relache pendant l'execution) et bloque les autres taches async du runtime.
 
-### Option retenue — `spawn_blocking` + `asyncio.run()`
+### Option retenue - `spawn_blocking` + `asyncio.run()`
 
 **Pour :** Non-bloquant pour Tokio, fonctionne avec `#[tokio::test]`, zero initialisation complexe, GIL isole sur le blocking thread pool
 **Compromis acceptes :** Un thread du blocking pool est monopolise par appel Python. `asyncio.run()` cree un nouvel event loop a chaque appel (overhead negligeable pour des appels agent).
@@ -68,7 +68,7 @@ Ce pattern garantit :
 
 ## Principes architecturaux impactes
 
-- Principe #5 — Un acteur, une responsabilite : Respecte — le bridge ne gere que l'appel Python, l'event loop est delegue a `asyncio.run()`
+- Principe #5 - Un acteur, une responsabilite : Respecte - le bridge ne gere que l'appel Python, l'event loop est delegue a `asyncio.run()`
 
 ## Liens
 

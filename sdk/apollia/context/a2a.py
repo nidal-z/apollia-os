@@ -1,4 +1,4 @@
-"""ctx.a2a — unified Agent-to-Agent invocation."""
+"""ctx.a2a - unified Agent-to-Agent invocation."""
 
 from __future__ import annotations
 

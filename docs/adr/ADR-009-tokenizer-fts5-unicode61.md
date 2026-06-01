@@ -1,4 +1,4 @@
-# ADR-009 — Tokenizer FTS5 `unicode61` pour la recherche mémorielle
+# ADR-009 - Tokenizer FTS5 `unicode61` pour la recherche mémorielle
 
 **Date :** 2026-03
 **Statut :** Accepté
@@ -17,26 +17,26 @@ Nous utilisons le tokenizer `unicode61` pour toutes les tables FTS5 de `apollia-
 
 ## Alternatives considérées
 
-### Option A — Tokenizer `simple` (rejetée)
+### Option A - Tokenizer `simple` (rejetée)
 **Pour :** Défaut SQLite, aucune configuration.
 **Contre :** Ne gère pas les accents. "réunion" ne retrouve pas "reunion". Inacceptable pour une cible francophone.
 
-### Option B — Tokenizer `porter` (rejetée)
-**Pour :** Stemming — "running" retrouve "run".
+### Option B - Tokenizer `porter` (rejetée)
+**Pour :** Stemming - "running" retrouve "run".
 **Contre :** Algorithme de stemming anglais uniquement. Inapplicable au français. "réunion" toujours problématique.
 
-### Option C — Tokenizer ICU custom (rejetée)
+### Option C - Tokenizer ICU custom (rejetée)
 **Pour :** Gestion Unicode complète, multi-langue, stemming par langue.
 **Contre :** Dépendance externe (libicu). Viole Principe #2. Compilation complexe. Over-engineered pour les besoins PME.
 
-### Option retenue — `unicode61`
+### Option retenue - `unicode61`
 **Pour :** Inclus nativement dans SQLite. Normalise les diacritiques. Zéro dépendance supplémentaire.
 **Compromis acceptés :** Légèrement plus lent que `simple` à l'indexation. Non significatif pour les volumes PME (< 100k épisodes).
 
 ## Conséquences
 
 **Positives :**
-- "réunion" retrouve "reunion", "société" retrouve "societe" — nativement.
+- "réunion" retrouve "reunion", "société" retrouve "societe" - nativement.
 - Zéro dépendance externe : `unicode61` est dans SQLite bundlé.
 - BM25 scoring reste fiable avec `unicode61`.
 
@@ -50,8 +50,8 @@ Nous utilisons le tokenizer `unicode61` pour toutes les tables FTS5 de `apollia-
 
 ## Principes architecturaux impactés
 
-- Principe #2 — Zéro dépendance externe : `unicode61` est natif SQLite.
-- Principe #1 — Local-first : Recherche plein texte entièrement locale.
+- Principe #2 - Zéro dépendance externe : `unicode61` est natif SQLite.
+- Principe #1 - Local-first : Recherche plein texte entièrement locale.
 
 ## Liens
 

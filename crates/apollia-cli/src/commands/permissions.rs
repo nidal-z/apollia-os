@@ -164,7 +164,7 @@ fn run_list(scope_filter: Option<&str>, tool_filter: Option<&str>, json: bool) -
     } else {
         print_rules_table(&filtered);
         println!(
-            "  (session-scoped rules live in the runtime memory — not listable from the CLI)"
+            "  (session-scoped rules live in the runtime memory - not listable from the CLI)"
         );
     }
     exit_codes::SUCCESS
@@ -265,7 +265,7 @@ fn run_revoke(
     if raw_id.starts_with('s') || raw_id.starts_with('S') {
         return emit_error(
             format!(
-                "{raw_id} denotes a session rule living in the runtime memory — \
+                "{raw_id} denotes a session rule living in the runtime memory - \
                  use the desktop app or restart the daemon to remove it"
             ),
             json,
@@ -441,7 +441,7 @@ fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
         } else {
             for e in &entries {
                 let ts = format_unix_datetime(e.decided_at);
-                let agent = e.agent.as_deref().unwrap_or("—");
+                let agent = e.agent.as_deref().unwrap_or("-");
                 println!(
                     "  {:<19} {:<18} {:<28} {}",
                     ts, e.tool_name, e.decision, agent
@@ -628,7 +628,7 @@ fn parse_scope_filter(raw: &str) -> Result<PermissionScope, String> {
         "project" => Ok(PermissionScope::Project),
         "global" => Ok(PermissionScope::Global),
         other => Err(format!(
-            "scope inconnu '{other}' — attendu : session | project | global"
+            "scope inconnu '{other}' - attendu : session | project | global"
         )),
     }
 }
@@ -651,7 +651,7 @@ fn confirm(prompt: &str, yes: bool, json: bool) -> bool {
         return true;
     }
     if json || !io::stdin().is_terminal() {
-        eprintln!("Error: interactive confirmation required — re-run with --yes for scripts");
+        eprintln!("Error: interactive confirmation required - re-run with --yes for scripts");
         return false;
     }
     print!("{prompt}");

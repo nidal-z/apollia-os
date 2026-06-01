@@ -69,19 +69,19 @@
     try {
       const fresh = await invoke<OauthClientIdStatus[]>("oauth_list_client_ids");
       statuses = fresh;
-      // Seed drafts from the override file, not from the effective value —
+      // Seed drafts from the override file, not from the effective value -
       // we want users to see "empty input means: no override, fall back to
       // the next step of the resolution chain" rather than pre-filling
       // their input with a value they did not choose.
       drafts = Object.fromEntries(
         fresh.map((s) => [s.provider, s.override_client_id ?? ""]),
       );
-      // Secret drafts always start empty — we never echo the stored secret
+      // Secret drafts always start empty - we never echo the stored secret
       // back to the UI (write-only). The "Configured ✓" badge tells the user
       // whether one is set; pasting again replaces it.
       secretDrafts = Object.fromEntries(fresh.map((s) => [s.provider, ""]));
 
-      // Drive folder list — only meaningful when at least one Google account
+      // Drive folder list - only meaningful when at least one Google account
       // is connected. Empty when none, in which case the UI hides the block.
       try {
         const folders = await invoke<DriveFolderStatus[]>("oauth_list_drive_folders");
@@ -111,7 +111,7 @@
         driveFolderDrafts = {};
         pickedFoldersByAccount = {};
       }
-      // API key drafts always start empty (write-only — never echoed back).
+      // API key drafts always start empty (write-only - never echoed back).
       apiKeyDrafts = Object.fromEntries(fresh.map((s) => [s.provider, ""]));
     } catch (e) {
       error = formatError(e);
@@ -312,7 +312,7 @@
       avec PKCE. Côté Microsoft (« public client » conforme à la spec) un
       simple <code>client_id</code> suffit. Côté Google, leur type « Installed
       app / Desktop app » exige aussi un <code>client_secret</code> au token
-      endpoint — c'est non-standard, Google documente lui-même que ce secret
+      endpoint - c'est non-standard, Google documente lui-même que ce secret
       « n'est pas traité comme un secret » pour les apps natives. Vous le
       retrouvez à côté du Client ID dans la console Google Cloud.
     </p>
@@ -378,7 +378,7 @@
             </div>
           {:else}
             <div class="text-[11px] text-destructive">
-              Aucun client_id résolu — le bouton « Connecter » échouera avec
+              Aucun client_id résolu - le bouton « Connecter » échouera avec
               <code>oauth_client_not_configured</code>.
             </div>
           {/if}
@@ -423,7 +423,7 @@
                   <div class="text-[11px] {status.has_client_secret ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'}">
                     {status.has_client_secret
                       ? `Configuré (${sourceLabel(status.client_secret_source)})`
-                      : "Non configuré — l'échange de token échouera avec « client_secret is missing »"}
+                      : "Non configuré - l'échange de token échouera avec « client_secret is missing »"}
                   </div>
                 </div>
                 {#if status.has_client_secret}
@@ -485,7 +485,7 @@
                   <div class="text-[11px] {status.has_api_key ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}">
                     {status.has_api_key
                       ? `Configurée (${sourceLabel(status.api_key_source)})`
-                      : "Non configurée — le bouton « Ajouter via Picker » échouera tant qu'elle est vide"}
+                      : "Non configurée - le bouton « Ajouter via Picker » échouera tant qu'elle est vide"}
                   </div>
                 </div>
                 {#if status.has_api_key}
@@ -546,7 +546,7 @@
                 Apollia opère dans : (1) un <em>dossier racine</em> qu'elle crée
                 automatiquement (défaut <code>Apollia</code>) ; (2) tout
                 dossier que vous lui désignez via le <em>sélecteur Google
-                Drive</em> ci-dessous. Pas de scope restreint, pas de CASA —
+                Drive</em> ci-dessous. Pas de scope restreint, pas de CASA -
                 Google étend l'accès <code>drive.file</code> au dossier que
                 vous picker.
               </p>
@@ -565,7 +565,7 @@
                       Effectif :
                       {#if folder.folder_path === ""}
                         <code>(racine de votre Drive)</code>
-                        <span class="text-foreground/70">— choix explicite</span>
+                        <span class="text-foreground/70">- choix explicite</span>
                       {:else}
                         <code>{folder.effective_folder_path}</code>
                         {#if folder.folder_path === null}
@@ -622,11 +622,11 @@
                       directement. <strong>Défaut</strong> restaure le sous-dossier
                       <code>Apollia</code>. Note Google : le scope <code>drive.file</code>
                       n'expose à Apollia que les fichiers qu'elle a créés (ou que vous lui
-                      avez ouverts via le sélecteur) — pas l'ensemble de votre Drive.
+                      avez ouverts via le sélecteur) - pas l'ensemble de votre Drive.
                     </p>
                   </div>
 
-                  <!-- Picked folders (Google Picker) — DISABLED v0.1.0 -->
+                  <!-- Picked folders (Google Picker) - DISABLED v0.1.0 -->
                   <!--
                     Le sélecteur Google charge sa propre iframe qui 401 silencieusement
                     quand l'api_key ne passe pas les restrictions Google Cloud

@@ -1,4 +1,4 @@
-# Worker Agent Pattern — Guide pour builders
+# Worker Agent Pattern - Guide pour builders
 
 > Ce guide est la référence pour créer un Worker Agent Apollia OS de A à Z.
 > Il couvre le concept, les critères de décision, l'anatomie, le guide pas-à-pas,
@@ -8,7 +8,7 @@
 
 ## 1. Qu'est-ce qu'un Worker Agent ?
 
-Un **Worker Agent** est un agent spécialisé dont l'expertise de domaine est **compilée dans le code Python** — pas injectée en contexte LLM à l'exécution.
+Un **Worker Agent** est un agent spécialisé dont l'expertise de domaine est **compilée dans le code Python** - pas injectée en contexte LLM à l'exécution.
 
 L'expertise prend la forme d'un `SYSTEM_PROMPT` constant contenant :
 - Les guardrails non-contournables (ce que l'agent ne doit **jamais** faire)
@@ -23,11 +23,11 @@ Un Worker Agent hérite de `WorkerAgent` (qui étend `BaseReActAgent`) et expose
 
 | Propriété | Agent générique (ORIA Direct) | Worker Agent |
 |---|---|---|
-| Expertise de domaine | Injectée dans le contexte à runtime | Compilée dans `SYSTEM_PROMPT` — toujours présente |
-| Guardrails | Dans le prompt de la tâche ou `run()` | Dans `SYSTEM_PROMPT` — impossible à oublier |
-| Compatibilité modèles légers | Dégradée (hallucinations API, guardrails oubliés) | Robuste — testé avec modèles 7B+ |
+| Expertise de domaine | Injectée dans le contexte à runtime | Compilée dans `SYSTEM_PROMPT` - toujours présente |
+| Guardrails | Dans le prompt de la tâche ou `run()` | Dans `SYSTEM_PROMPT` - impossible à oublier |
+| Compatibilité modèles légers | Dégradée (hallucinations API, guardrails oubliés) | Robuste - testé avec modèles 7B+ |
 | Dépendances pip | Non supportées nativement | Déclarées dans `manifest["packages"]`, installées automatiquement |
-| Réutilisabilité A2A | Optionnelle | Première classe — `supports_a2a: True` natif |
+| Réutilisabilité A2A | Optionnelle | Première classe - `supports_a2a: True` natif |
 | Cas d'usage | Logique métier générale, orchestration | Domaine spécialisé (formats de fichier, API spécifique, langages) |
 
 ### Pourquoi "compiler" l'expertise ?
@@ -45,23 +45,23 @@ Sur les modèles frontier (Claude, GPT-4o), le LLM improvise correctement même 
 
 ## 2. Quand créer un Worker Agent ?
 
-→ Voir aussi la [Matrice de décision — Capabilities](Decision-Matrix-Capabilities.md) pour l'arbre de décision complet.
+→ Voir aussi la [Matrice de décision - Capabilities](Decision-Matrix-Capabilities.md) pour l'arbre de décision complet.
 
 Créer un Worker Agent si **au moins 2 des 3 conditions** suivantes sont réunies :
 
-### Condition 1 — Séquence non-triviale
+### Condition 1 - Séquence non-triviale
 
 La tâche impose un ordre d'opérations critique que le LLM oublie régulièrement.
 
 > Exemple positif : lecture d'un `.xlsx` → inspection des feuilles → calcul → `wb.save`. Chaque étape dépend de la précédente avec des contraintes `openpyxl` précises. Sur un modèle 7B, l'ordre peut être inversé et `save` oublié.
 
-### Condition 2 — Guardrail critique
+### Condition 2 - Guardrail critique
 
 Il existe une façon dangereuse ou silencieusement incorrecte de faire la tâche que le LLM emprunte naturellement.
 
-> Exemple positif : "Ne jamais modifier un `.xlsx` avec `bash_executor` — le format est une archive ZIP et toute écriture directe corrompt le fichier silencieusement." Cette règle dans un `SYSTEM_PROMPT` constant ne peut pas être ignorée.
+> Exemple positif : "Ne jamais modifier un `.xlsx` avec `bash_executor` - le format est une archive ZIP et toute écriture directe corrompt le fichier silencieusement." Cette règle dans un `SYSTEM_PROMPT` constant ne peut pas être ignorée.
 
-### Condition 3 — Pattern d'erreur domaine récurrent
+### Condition 3 - Pattern d'erreur domaine récurrent
 
 Le domaine produit des exceptions spécifiques avec des causes non-évidentes pour le LLM.
 
@@ -109,7 +109,7 @@ Un fichier Worker Agent complet contient 4 éléments dans cet ordre :
 
 ```python
 # 1. Docstring module
-"""mon-worker — description courte de l'agent."""
+"""mon-worker - description courte de l'agent."""
 
 # 2. Constante SYSTEM_PROMPT
 SYSTEM_PROMPT: str = """..."""
@@ -125,10 +125,10 @@ class MonWorkerAgent(WorkerAgent):
     TEMPERATURE = 0.1
     ...
 
-agent = MonWorkerAgent()   # obligatoire — le runtime lit cet attribut
+agent = MonWorkerAgent()   # obligatoire - le runtime lit cet attribut
 ```
 
-### Manifest — tous les champs
+### Manifest - tous les champs
 
 ```python
 def manifest() -> dict[str, Any]:
@@ -144,7 +144,7 @@ def manifest() -> dict[str, Any]:
         # Outils
         "tools_required": ["python_executor", "file_read"],  # échec si absent
         "tools_optional": ["file_write", "file_list"],       # dégradé si absent
-        "tools_requiring_approval": [],                      # HITL — liste vide si aucun
+        "tools_requiring_approval": [],                      # HITL - liste vide si aucun
 
         # Dépendances Python
         "packages": ["ma-lib>=1.0.0"], # installés dans le venv de l'agent
@@ -169,10 +169,10 @@ def manifest() -> dict[str, Any]:
 {
     "id": "analyze-csv",        # snake-case, unique dans l'ensemble des agents déployés
     "name": "Analyser un CSV",  # lisible, affiché dans l'UI et le CLI
-    "description": "...",       # phrase complète — utilisée par le router pour le matching
+    "description": "...",       # phrase complète - utilisée par le router pour le matching
     "input_modes": ["text"],    # modes supportés en entrée : "text", "file", "json"
     "output_modes": ["text"],   # modes supportés en sortie : "text", "json"
-    # input_schema est optionnel — documente les paramètres nommés
+    # input_schema est optionnel - documente les paramètres nommés
     "input_schema": {
         "file_path": {
             "type": "string",
@@ -192,7 +192,7 @@ Un SYSTEM_PROMPT de Worker Agent suit une structure fixe en 4 sections :
 Guardrails introduits par JAMAIS / TOUJOURS + RAISON immédiate
 
 ## IMPORTS STANDARDS (si librairie tierce)
-Blocs d'imports exacts — évite les hallucinations de noms de modules
+Blocs d'imports exacts - évite les hallucinations de noms de modules
 
 ## PATTERNS OBLIGATOIRES
 2–4 snippets Python pour les opérations les plus courantes
@@ -212,26 +212,26 @@ Pour les erreurs domaine non-génériques, utiliser `domain_error` plutôt qu'un
 # Dans le SYSTEM_PROMPT :
 # - FileNotFoundError → domain_error("file_not_found", "Fichier introuvable : {path}")
 # - Chiffrement PDF → domain_error("password_protected", "PDF protégé")
-# - OCR nécessaire  → domain_error("scanned_pdf", "PDF scanné — OCR non supporté")
+# - OCR nécessaire  → domain_error("scanned_pdf", "PDF scanné - OCR non supporté")
 ```
 
-Les codes (`"file_not_found"`, `"password_protected"`, etc.) sont stables — ils peuvent être interceptés par un Director Agent via la réponse structurée.
+Les codes (`"file_not_found"`, `"password_protected"`, etc.) sont stables - ils peuvent être interceptés par un Director Agent via la réponse structurée.
 
 ---
 
 ## 4. Guide pas-à-pas
 
-### Étape 1 — Générer le squelette
+### Étape 1 - Générer le squelette
 
 ```bash
 apollia new mon-agent --type worker
 ```
 
 Crée automatiquement :
-- `agents/mon-agent.py` — squelette Worker Agent avec placeholders
-- `agents/tests/test_mon_agent.py` — tests de démarrage (manifest + guardrails)
+- `agents/mon-agent.py` - squelette Worker Agent avec placeholders
+- `agents/tests/test_mon_agent.py` - tests de démarrage (manifest + guardrails)
 
-### Étape 2 — Personnaliser le manifest
+### Étape 2 - Personnaliser le manifest
 
 Ouvrir `agents/mon-agent.py` et remplir :
 
@@ -262,7 +262,7 @@ def manifest() -> dict[str, Any]:
 - `file_edit` → modification partielle (ne pas écraser le fichier entier)
 - `bash_executor` → uniquement si aucune librairie Python n'est disponible (code-worker)
 
-### Étape 3 — Rédiger le SYSTEM_PROMPT
+### Étape 3 - Rédiger le SYSTEM_PROMPT
 
 C'est l'étape la plus importante. Pour chaque guardrail :
 
@@ -303,15 +303,15 @@ SYSTEM_PROMPT: str = """Tu es mon-agent, un agent expert de [domaine].
 """
 ```
 
-### Étape 4 — Implémenter run
+### Étape 4 - Implémenter run
 
 Dans la grande majorité des cas, le pattern hérité suffit sans modification :
 
 ```python
 class MonAgentAgent(WorkerAgent):
     SYSTEM_PROMPT = SYSTEM_PROMPT
-    MAX_STEPS = 8      # ajuster selon la complexité — voir section 6
-    TEMPERATURE = 0.1  # garder bas — voir section 6
+    MAX_STEPS = 8      # ajuster selon la complexité - voir section 6
+    TEMPERATURE = 0.1  # garder bas - voir section 6
 
     def manifest(self) -> dict[str, Any]:
         return manifest()
@@ -333,7 +333,7 @@ agent = MonAgentAgent()
 
 Surcharger `run()` uniquement si une logique de pré/post-traitement est nécessaire avant le ReAct loop (ex. validation du format du fichier d'entrée, enrichissement de la tâche).
 
-### Étape 5 — Écrire les tests
+### Étape 5 - Écrire les tests
 
 Trois tests minimaux à implémenter dans `agents/tests/test_mon_agent.py` :
 
@@ -390,7 +390,7 @@ async def test_happy_path():
     assert tools.called_with("python_executor")
 ```
 
-### Étape 6 — Démarrer et tester en live
+### Étape 6 - Démarrer et tester en live
 
 ```bash
 # Démarrer l'agent
@@ -456,7 +456,7 @@ pytest agents/tests/test_mon-agent.py -v
 
 ## 6. Bonnes pratiques
 
-### Guardrails — ce qui les rend efficaces
+### Guardrails - ce qui les rend efficaces
 
 Un guardrail efficace combine trois éléments :
 
@@ -468,7 +468,7 @@ Un guardrail efficace combine trois éléments :
 
 | Guardrail faible | Guardrail efficace |
 |---|---|
-| "Évite bash si possible" | "N'utilise JAMAIS bash_executor sur un `.xlsx`. RAISON : `.xlsx` est une archive ZIP — bash corrompt l'archive silencieusement." |
+| "Évite bash si possible" | "N'utilise JAMAIS bash_executor sur un `.xlsx`. RAISON : `.xlsx` est une archive ZIP - bash corrompt l'archive silencieusement." |
 | "Sauvegarde après modification" | "Appelle TOUJOURS `wb.save(path)` après modification. RAISON : sans `save`, les changements ne sont jamais écrits sur disque." |
 | "Attention aux CSVs encodés" | "Essaie TOUJOURS UTF-8 puis latin-1 si UnicodeDecodeError. RAISON : les CSVs Excel Windows français sont en latin-1, pas UTF-8." |
 
@@ -479,7 +479,7 @@ def test_guardrail_bash_forbidden():
     assert "JAMAIS bash" in mod.SYSTEM_PROMPT or "JAMAIS bash_executor" in mod.SYSTEM_PROMPT
 ```
 
-### MAX\_STEPS — calibrer le budget de l'agent
+### MAX\_STEPS - calibrer le budget de l'agent
 
 `MAX_STEPS` est le nombre maximal d'itérations du ReAct loop avant abandon forcé. Une valeur trop basse tronque les tâches complexes ; trop haute laisse l'agent boucler.
 
@@ -491,33 +491,33 @@ def test_guardrail_bash_forbidden():
 
 Tous les agents built-in utilisent `MAX_STEPS = 8` sauf `code-worker` (`MAX_STEPS = 10`) qui inclut une étape de vérification syntaxe/compilation.
 
-### TEMPERATURE — favoriser le déterminisme
+### TEMPERATURE - favoriser le déterminisme
 
 Les Worker Agents opèrent sur des formats structurés où la variabilité est un défaut. Utiliser des valeurs basses :
 
 | Valeur | Usage |
 |---|---|
 | `0.0` | Opérations purement déterministes (calcul, extraction, validation) |
-| `0.1` | Valeur par défaut pour les Workers — permet une légère adaptation sans variabilité excessive |
+| `0.1` | Valeur par défaut pour les Workers - permet une légère adaptation sans variabilité excessive |
 | `0.2` | Maximum recommandé pour un Worker Agent |
-| `> 0.2` | Déconseillé — la variabilité peut faire ignorer les guardrails sur modèles légers |
+| `> 0.2` | Déconseillé - la variabilité peut faire ignorer les guardrails sur modèles légers |
 
-### Packages pip — bonnes pratiques
+### Packages pip - bonnes pratiques
 
 ```python
-"packages": ["openpyxl>=3.1.0"],          # version minimale — pas de lock
+"packages": ["openpyxl>=3.1.0"],          # version minimale - pas de lock
 "packages": ["pandas>=2.0.0"],             # spécifier la version majeure minimum
 "packages": ["requests>=2.31.0", "lxml"],  # plusieurs packages possibles
 "packages": [],                            # si aucune dépendance tierce (code-worker)
 ```
 
 Règles :
-- Utiliser `>=` — ne pas bloquer les mises à jour de sécurité
+- Utiliser `>=` - ne pas bloquer les mises à jour de sécurité
 - Ne déclarer que les packages **non-inclus** dans la stdlib Python
 - Si l'installation échoue, l'agent démarre en état `DEGRADED` (non bloquant)
-- Licence : vérifier la compatibilité avant d'ajouter un package (ex. PyMuPDF est AGPL — préférer `pdfplumber` MIT)
+- Licence : vérifier la compatibilité avant d'ajouter un package (ex. PyMuPDF est AGPL - préférer `pdfplumber` MIT)
 
-### Tests — couverture minimale
+### Tests - couverture minimale
 
 | Type de test | Ce qu'il vérifie | Outil |
 |---|---|---|
@@ -534,12 +534,12 @@ Les tests domaine avec de **vrais fichiers** utilisent les fixtures de `conftest
 
 ---
 
-## 7. A2A — rendre son agent composable
+## 7. A2A - rendre son agent composable
 
 ### Déclarer la compatibilité A2A dans le manifest
 
 ```python
-"supports_a2a": True,    # obligatoire — False → invisible au router A2A
+"supports_a2a": True,    # obligatoire - False → invisible au router A2A
 "skills": [
     {
         "id": "analyze-csv",            # ← utilisé pour le routing : ctx.delegate("analyze-csv", ...)
@@ -555,12 +555,12 @@ Les tests domaine avec de **vrais fichiers** utilisent les fixtures de `conftest
 
 | Champ | Type | Rôle |
 |---|---|---|
-| `id` | `str` | Identifiant machine utilisé par `ctx.delegate(skill_id,...)` — doit être unique dans l'ensemble des agents déployés |
+| `id` | `str` | Identifiant machine utilisé par `ctx.delegate(skill_id,...)` - doit être unique dans l'ensemble des agents déployés |
 | `name` | `str` | Libellé lisible affiché dans l'UI, la CLI, et les logs |
-| `description` | `str` | Phrase complète utilisée par le router A2A pour le matching sémantique — être précis sur les inputs/outputs |
+| `description` | `str` | Phrase complète utilisée par le router A2A pour le matching sémantique - être précis sur les inputs/outputs |
 | `input_modes` | `list[str]` | Modes d'entrée supportés (`"text"` = description textuelle, `"file"` = chemin de fichier, `"json"` = payload structuré) |
 | `output_modes` | `list[str]` | Modes de sortie produits |
-| `input_schema` | `dict` (optionnel) | Schéma des paramètres nommés — aide le Director à construire le payload |
+| `input_schema` | `dict` (optionnel) | Schéma des paramètres nommés - aide le Director à construire le payload |
 
 ### Appel depuis un Director Agent
 
@@ -595,8 +595,8 @@ En composition A2A, le trust model appliqué à la mémoire est :
 
 | Opération | Portée |
 |---|---|
-| Lecture mémoire | **Globale** — un Worker Agent invoqué via A2A peut lire les entrées de n'importe quel namespace |
-| Écriture mémoire | **Namespace propre uniquement** — un Worker Agent ne peut écrire que dans `manifest["memory_namespace"]` |
+| Lecture mémoire | **Globale** - un Worker Agent invoqué via A2A peut lire les entrées de n'importe quel namespace |
+| Écriture mémoire | **Namespace propre uniquement** - un Worker Agent ne peut écrire que dans `manifest["memory_namespace"]` |
 
 Ce modèle permet au Director de partager du contexte en mémoire avec le Worker (lecture), sans que le Worker puisse polluer l'espace mémoire d'autres agents (écriture isolée).
 
@@ -604,12 +604,12 @@ Ce modèle permet au Director de partager du contexte en mémoire avec le Worker
 
 | Situation | Erreur |
 |---|---|
-| Skill non trouvé | `RuntimeError: skill 'X' not found — available: [...]` |
-| Skill déclaré par 2+ agents actifs | `RuntimeError: ambiguous skill 'X' — declared by: [A, B]` |
+| Skill non trouvé | `RuntimeError: skill 'X' not found - available: [...]` |
+| Skill déclaré par 2+ agents actifs | `RuntimeError: ambiguous skill 'X' - declared by: [A, B]` |
 | Timeout dépassé | `RuntimeError: delegation timed out after N seconds` |
 | `supports_a2a: False` dans manifest | `RuntimeError: A2A delegation requires supports_a2a: true` |
 
-### CLI — lister les agents A2A disponibles
+### CLI - lister les agents A2A disponibles
 
 ```bash
 apollia-os agent list --supports-a2a
@@ -642,7 +642,7 @@ apollia-os agent list --supports-a2a
 
 ---
 
-## 8. Exemples — les 6 agents disponibles
+## 8. Exemples - les 6 agents disponibles
 
 ### 8.1 Agents bundled (distribués avec le runtime)
 
@@ -681,7 +681,7 @@ Pour créer un agent communautaire : voir [Community Agent Registry](./Community
 
 ### `excel-worker`
 
-Spécialité : manipulation de classeurs Excel via openpyxl. Guardrail central : n'utilise jamais `bash_executor` pour lire ou modifier un `.xlsx` (un `.xlsx` est une archive ZIP — bash corromprait silencieusement l'archive). Inspecte toujours `wb.sheetnames` avant d'accéder à une feuille.
+Spécialité : manipulation de classeurs Excel via openpyxl. Guardrail central : n'utilise jamais `bash_executor` pour lire ou modifier un `.xlsx` (un `.xlsx` est une archive ZIP - bash corromprait silencieusement l'archive). Inspecte toujours `wb.sheetnames` avant d'accéder à une feuille.
 
 ```bash
 apollia-os agent start agents/bundled/excel-worker.py
@@ -690,7 +690,7 @@ apollia-os agent run excel-worker "Analyse la feuille Ventes de /data/rapport.xl
 
 ### `csv-data-worker`
 
-Spécialité : analyse et transformation de CSVs via pandas. Gère automatiquement la détection d'encodage (UTF-8, latin-1, utf-8-sig) et de séparateur (`,` ou `;`). Guardrail central : inspecter `df.dtypes` avant tout calcul numérique — une colonne lue comme `object` ne peut pas être sommée directement.
+Spécialité : analyse et transformation de CSVs via pandas. Gère automatiquement la détection d'encodage (UTF-8, latin-1, utf-8-sig) et de séparateur (`,` ou `;`). Guardrail central : inspecter `df.dtypes` avant tout calcul numérique - une colonne lue comme `object` ne peut pas être sommée directement.
 
 ```bash
 apollia-os agent start agents/bundled/csv-data-worker.py
@@ -699,7 +699,7 @@ apollia-os agent run csv-data-worker "Calcule le total de la colonne CA dans /da
 
 ### `pdf-worker`
 
-Spécialité : extraction de texte, métadonnées et tableaux depuis des PDFs via pdfplumber (licence MIT). Gère les PDFs multi-pages (chunking auto au-delà de 50 pages), détecte les PDFs protégés par mot de passe (erreur structurée `password_protected`) et les PDFs scannés (erreur `scanned_pdf` — OCR non supporté en V1).
+Spécialité : extraction de texte, métadonnées et tableaux depuis des PDFs via pdfplumber (licence MIT). Gère les PDFs multi-pages (chunking auto au-delà de 50 pages), détecte les PDFs protégés par mot de passe (erreur structurée `password_protected`) et les PDFs scannés (erreur `scanned_pdf` - OCR non supporté en V1).
 
 ```bash
 apollia-os agent start agents/bundled/pdf-worker.py
@@ -708,7 +708,7 @@ apollia-os agent run pdf-worker "Extrais le texte des pages 1 à 10 de /data/con
 
 ### `code-worker`
 
-Spécialité : génération, refactoring et revue de code source Python et Rust. N'utilise pas de packages pip — s'appuie sur `bash_executor`, `file_read`, `file_write`, `file_edit`. Guardrail central : toujours lire un fichier avant de l'écrire (`file_read` → `file_write`). Vérifie la syntaxe Python (`ast.parse`) et la compilation Rust (`cargo check`) après toute génération. Revue structurée en LGTM / SUGGESTION / ISSUE.
+Spécialité : génération, refactoring et revue de code source Python et Rust. N'utilise pas de packages pip - s'appuie sur `bash_executor`, `file_read`, `file_write`, `file_edit`. Guardrail central : toujours lire un fichier avant de l'écrire (`file_read` → `file_write`). Vérifie la syntaxe Python (`ast.parse`) et la compilation Rust (`cargo check`) après toute génération. Revue structurée en LGTM / SUGGESTION / ISSUE.
 
 ```bash
 apollia-os agent start agents/bundled/code-worker.py
@@ -717,7 +717,7 @@ apollia-os agent run code-worker "Génère une classe Python pour valider des ad
 
 ### `sql-worker` (communautaire)
 
-Spécialité : interrogation de bases SQLite locales. SELECT uniquement par défaut — INSERT/UPDATE/DELETE nécessitent `dangerous_tools_allowed: True` dans le manifest. Guardrail central : paramétrage `?` obligatoire pour toutes les requêtes (protection contre l'injection SQL), jamais de f-string dans les requêtes. Timeout 30s par requête, validation existence + intégrité du fichier SQLite à la connexion.
+Spécialité : interrogation de bases SQLite locales. SELECT uniquement par défaut - INSERT/UPDATE/DELETE nécessitent `dangerous_tools_allowed: True` dans le manifest. Guardrail central : paramétrage `?` obligatoire pour toutes les requêtes (protection contre l'injection SQL), jamais de f-string dans les requêtes. Timeout 30s par requête, validation existence + intégrité du fichier SQLite à la connexion.
 
 ```bash
 apollia-os agent install agents/community/sql-worker.py
@@ -744,7 +744,7 @@ apollia-os agent run browser-worker "Prends une capture d'écran de https://exam
 
 ### `email-worker` (communautaire)
 
-Spécialité : envoi et lecture d'emails via SMTP/IMAP. Skills A2A : `send-email` (HITL — approbation opérateur requise), `read-inbox`. Packages pip : stdlib Python (`smtplib`, `imaplib`). Guardrail central : `send-email` est une action HITL non-contournable — aucun email n'est envoyé sans confirmation explicite. Validation des adresses email avant soumission.
+Spécialité : envoi et lecture d'emails via SMTP/IMAP. Skills A2A : `send-email` (HITL - approbation opérateur requise), `read-inbox`. Packages pip : stdlib Python (`smtplib`, `imaplib`). Guardrail central : `send-email` est une action HITL non-contournable - aucun email n'est envoyé sans confirmation explicite. Validation des adresses email avant soumission.
 
 ```bash
 apollia-os agent install https://github.com/apollia-os/email-worker.git
@@ -753,7 +753,7 @@ apollia-os agent run email-worker "Envoie un rapport hebdomadaire à admin@acme.
 
 ### `slack-worker` (communautaire)
 
-Spécialité : intégration Slack — envoi de messages et lecture de canaux. Skills A2A : `send-message` (HITL), `read-channel`. Packages pip : `slack-sdk`. Guardrail central : `send-message` est une action HITL — confirmation opérateur avant envoi. `read-channel` en lecture seule, aucune modification de canal. Token Slack lu depuis `SLACK_BOT_TOKEN` (jamais hardcodé).
+Spécialité : intégration Slack - envoi de messages et lecture de canaux. Skills A2A : `send-message` (HITL), `read-channel`. Packages pip : `slack-sdk`. Guardrail central : `send-message` est une action HITL - confirmation opérateur avant envoi. `read-channel` en lecture seule, aucune modification de canal. Token Slack lu depuis `SLACK_BOT_TOKEN` (jamais hardcodé).
 
 ```bash
 apollia-os agent install https://github.com/apollia-os/slack-worker.git
@@ -779,10 +779,10 @@ apollia-os agent run slack-worker "Résume les messages #sales de cette semaine"
 
 ## Références
 
-- [Matrice de décision — Capabilities](Decision-Matrix-Capabilities.md)
-- [ADR-048 — Worker Agents : expertise de domaine compilée](../adr/ADR-048-worker-agents-expertise-domaine.md)
-- [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
-- [ADR-050 — Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+- [Matrice de décision - Capabilities](Decision-Matrix-Capabilities.md)
+- [ADR-048 - Worker Agents : expertise de domaine compilée](../adr/ADR-048-worker-agents-expertise-domaine.md)
+- [ADR-049 - Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
+- [ADR-050 - Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
 - [Community Agent Registry](Community-Agent-Registry.md)
 - [Benchmark : Worker Agent vs generic-agent](../benchmarks/worker-agent-benchmark.md)
 - [Guide SDK Agent](Agents-SDK-Guide.md)

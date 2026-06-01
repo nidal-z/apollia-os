@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Onboarding step 3 — AI Setup.
+   * Onboarding step 3 - AI Setup.
    *
    * Configures the local LLM (llama.cpp + GGUF) and the optional STT engine
    * (whisper.cpp). Scans `~/.apollia/models/` and `~/Downloads/` for
@@ -260,7 +260,7 @@
 
   // Hotkey capture is delegated to the shared `HotkeyCaptureDialog`
   // (`crates/apollia-desktop/ui/src/components/settings/HotkeyCaptureDialog.svelte`)
-  // which uses `event.code` rather than `event.key` — this fixes macOS
+  // which uses `event.code` rather than `event.key` - this fixes macOS
   // Option+key (which would otherwise yield Greek/accented characters
   // because Option produces Unicode dead-keys) and properly captures Space.
   function startHotkeyCapture(): void {
@@ -311,7 +311,7 @@
 
   /**
    * The continue button should only enable once the runtime can actually
-   * answer the agent's first turn — i.e. either the local LLM was wired up
+   * answer the agent's first turn - i.e. either the local LLM was wired up
    * during this session, or a backend (cloud or pre-existing local) is
    * already registered in the runtime.
    */
@@ -482,7 +482,7 @@
   /**
    * Extract `org/repo` from a HuggingFace direct-file URL.
    * Format observé : `https://huggingface.co/{org}/{repo}/resolve/{ref}/{path}`.
-   * Retourne `null` pour toute URL non-HF — le backend traite alors le
+   * Retourne `null` pour toute URL non-HF - le backend traite alors le
    * download sans auto-persistance des sampling defaults.
    */
   function extractHfRepoId(url: string): string | null {

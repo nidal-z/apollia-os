@@ -37,7 +37,7 @@ export default defineConfig({
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'fr_FR' }],
     ['meta', { property: 'og:site_name', content: 'Apollia · centre d\'aide' }],
-    // Google Search Console — propriété URL-prefix `https://help.apollia.fr`.
+    // Google Search Console - propriété URL-prefix `https://help.apollia.fr`.
     // Décommenter et remplacer le token après avoir ajouté la propriété dans GSC.
     // ['meta', { name: 'google-site-verification', content: 'REPLACE_WITH_GSC_TOKEN_FOR_HELP' }],
   ],
@@ -48,7 +48,7 @@ export default defineConfig({
       { text: 'Accueil', link: '/' },
       { text: 'Apprendre (builder)', link: BOOK_URL },
       { text: 'Référence (docs)', link: DOCS_URL },
-      { text: 'GitHub', link: 'https://github.com/nidal-z/apollia-os' },
+      { text: 'GitHub', link: 'https://github.com/Apollia-OS/apollia-os' },
     ],
     sidebar,
     outline: { level: [2, 3], label: 'Dans cette page' },
@@ -56,11 +56,11 @@ export default defineConfig({
     lastUpdated: { text: 'Mis à jour le' },
     search: { provider: 'local' },
     editLink: {
-      pattern: 'https://github.com/nidal-z/apollia-os/edit/main/help/:path',
+      pattern: 'https://github.com/Apollia-OS/apollia-os/edit/main/help/:path',
       text: 'Améliorer cette page',
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/nidal-z/apollia-os' },
+      { icon: 'github', link: 'https://github.com/Apollia-OS/apollia-os' },
     ],
     footer: {
       message: 'Centre d\'aide opérateur d\'Apollia OS.',

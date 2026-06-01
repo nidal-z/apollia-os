@@ -1,6 +1,6 @@
-# apollia-workspace — Contexte Workspace et ContextProvider
+# apollia-workspace - Contexte Workspace et ContextProvider
 
-> *Collecte automatique du contexte situationnel du projet courant — injecté dans le system prompt de chaque agent.*
+> *Collecte automatique du contexte situationnel du projet courant - injecté dans le system prompt de chaque agent.*
 
 ---
 
@@ -49,7 +49,7 @@ pub struct ContextSection {
 
 ### Niveaux d'extension
 
-**Niveau 1 — Rust natif :** Implémenter `ContextProvider` dans une crate du workspace. Le provider est enregistré au démarrage du runtime.
+**Niveau 1 - Rust natif :** Implémenter `ContextProvider` dans une crate du workspace. Le provider est enregistré au démarrage du runtime.
 
 ```rust
 pub struct GitWorkspaceProvider { pub cwd: PathBuf }
@@ -68,7 +68,7 @@ impl ContextProvider for GitWorkspaceProvider {
 }
 ```
 
-**Niveau 2 — Duck-typing Python :** Un agent Python peut exposer `context_providers` retournant une liste de callables async.
+**Niveau 2 - Duck-typing Python :** Un agent Python peut exposer `context_providers` retournant une liste de callables async.
 
 ```python
 class MonAgent:
@@ -82,7 +82,7 @@ class MonAgent:
         }
 ```
 
-**Niveau 3 — Script stdin/stdout JSON :** Pour les providers externes, un script est lancé en subprocess. Il reçoit un JSON de contexte sur stdin et retourne un `ContextSection` JSON sur stdout.
+**Niveau 3 - Script stdin/stdout JSON :** Pour les providers externes, un script est lancé en subprocess. Il reçoit un JSON de contexte sur stdin et retourne un `ContextSection` JSON sur stdout.
 
 ```bash
 # Input stdin : {"cwd": "/path/to/project", "session_id": "s-001"}
@@ -124,7 +124,7 @@ impl WorkspaceAssembler {
 
 ### 4.1 `GitContextCollector`
 
-Collecte les informations git via subprocess `git` (pas de `libgit2` — voir ADR-056) :
+Collecte les informations git via subprocess `git` (pas de `libgit2` - voir ADR-056) :
 
 ```rust
 pub struct GitContextCollector { pub cwd: PathBuf }
@@ -228,14 +228,14 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
 
 ---
 
-## 7. `APOLLIA.md` — Personnalisation par projet
+## 7. `APOLLIA.md` - Personnalisation par projet
 
 `APOLLIA.md` est le mécanisme de personnalisation du comportement de l'agent par projet. Il suit la même convention que `CLAUDE.md` dans l'écosystème Claude Code.
 
 **Cas d'usage typiques :**
 
 ```markdown
-# APOLLIA.md — Projet Mon-API
+# APOLLIA.md - Projet Mon-API
 
 Répondre toujours en français.
 Utiliser des noms de variables explicites (pas de `x`, `tmp`, `data`).
@@ -282,16 +282,16 @@ apollia-os workspace show
 | Subprocess `git` (rejet `git2`) | Zéro dépendance C, binary size +0 MB, fail-silent si git absent (ADR-056) |
 | TTL 30s | Évite les I/O répétées sur les sessions longues sans staleness significative |
 | Timeout global 2s | La collecte ne bloque jamais l'exécution d'une tâche |
-| `ContextProvider` trait (rejet implémentation concrète unique) | Extensibilité Rust/Python/script — 3 niveaux d'extension (ADR-060) |
+| `ContextProvider` trait (rejet implémentation concrète unique) | Extensibilité Rust/Python/script - 3 niveaux d'extension (ADR-060) |
 | `is_applicable` sur le trait | Évite les appels inutiles (ex. git hors repo) |
-| APOLLIA.md priorité CWD > parents > $HOME | Convention identique à CLAUDE.md — comportement attendu par les développeurs |
-| Exclusions arborescence | `.git/`, `node_modules/`, `target/` exclus par défaut — tokens économisés |
+| APOLLIA.md priorité CWD > parents > $HOME | Convention identique à CLAUDE.md - comportement attendu par les développeurs |
+| Exclusions arborescence | `.git/`, `node_modules/`, `target/` exclus par défaut - tokens économisés |
 
 ---
 
 ---
 
-## 10. CommandLoader — Chargement des slash commands custom
+## 10. CommandLoader - Chargement des slash commands custom
 
 , `apollia-workspace` fournit `CommandLoader` pour charger les commandes slash custom depuis le disque.
 
@@ -325,7 +325,7 @@ Vérifie : correctness, performance, sécurité.
 - `list()` retourne les commandes triées alphabétiquement
 - Hot reload via `FileTimestampCache` si les fichiers `.md` sont modifiés
 
-> **Voir aussi :** [Briques CLI — Slash commands custom](./Briques-CLI.md#slash-commands-custom--apollia_commands-story-493)
+> **Voir aussi :** [Briques CLI - Slash commands custom](./Briques-CLI.md#slash-commands-custom--apollia_commands-story-493)
 
 ---
 
@@ -340,7 +340,7 @@ Vérifie : correctness, performance, sécurité.
 2. Fallback → CWD du processus runtime               (si pas de projet)
 ```
 
-Le `workspace_path` est immutable pendant la durée de la session — un changement de projet nécessite une nouvelle session.
+Le `workspace_path` est immutable pendant la durée de la session - un changement de projet nécessite une nouvelle session.
 
 ### Impact sur les outils natifs
 
@@ -354,13 +354,13 @@ Le `workspace_path` est immutable pendant la durée de la session — un changem
 
 Le `NativeChatToolInvoker` (refactoré) reçoit le `workspace_path` à l'initialisation de chaque session, au lieu d'un CWD global hardcodé. Les 5 call sites identifiés (`a2a_tools.rs`, `routes_chat.rs`, etc.) passent désormais le chemin du projet.
 
-> **Voir aussi :** [Sécurité Sandbox Isolation — Autonomie filesystem](./Securite-Sandbox-Isolation.md#autonomie-filesystem---adr-069)
+> **Voir aussi :** [Sécurité Sandbox Isolation - Autonomie filesystem](./Securite-Sandbox-Isolation.md#autonomie-filesystem---adr-069)
 
 ---
 
 ## Voir aussi
 
-- [Briques ORIA Engine — Workspace Context](./Briques-ORIA-Engine.md#workspace-context) — injection dans le system prompt
-- [ADR-056](../adr/ADR-056-workspace-context-assembly.md) — Workspace Context Assembly
-- [ADR-060](../adr/ADR-060-context-provider-trait.md) — ContextProvider trait
-- [Briques LLM Backend](./Briques-LLM-Backend.md) — TokenBudget et Prompt Caching
+- [Briques ORIA Engine - Workspace Context](./Briques-ORIA-Engine.md#workspace-context) - injection dans le system prompt
+- [ADR-056](../adr/ADR-056-workspace-context-assembly.md) - Workspace Context Assembly
+- [ADR-060](../adr/ADR-060-context-provider-trait.md) - ContextProvider trait
+- [Briques LLM Backend](./Briques-LLM-Backend.md) - TokenBudget et Prompt Caching

@@ -6,7 +6,7 @@
   let isRecording = $state(true);
   let hotkey = $state("…");
 
-  // Voice visualizer — time-domain waveform split into segments.
+  // Voice visualizer - time-domain waveform split into segments.
   // 80 bars with flex:1 fill the full window width at ~2px each.
   const BAR_COUNT = 80;
   let bars = $state<number[]>(Array(BAR_COUNT).fill(0.08));
@@ -19,7 +19,7 @@
 
   async function startVisualizer() {
     // Start fallback immediately so bars are always animated.
-    // getUserMedia can hang forever in Tauri overlay windows — never reaching the catch.
+    // getUserMedia can hang forever in Tauri overlay windows - never reaching the catch.
     animateFallback();
 
     try {
@@ -29,7 +29,7 @@
           setTimeout(() => reject(new Error("mic_timeout")), 800)
         ),
       ]);
-      // Mic access granted — cancel fallback and switch to real audio input.
+      // Mic access granted - cancel fallback and switch to real audio input.
       if (animFrameId !== null) {
         cancelAnimationFrame(animFrameId);
         animFrameId = null;
@@ -42,7 +42,7 @@
       audioCtx.createMediaStreamSource(stream).connect(analyser);
       tickVisualizer();
     } catch {
-      // Fallback animation is already running — nothing to do.
+      // Fallback animation is already running - nothing to do.
     }
   }
 
@@ -164,7 +164,7 @@
     }
   }
 
-  /* ── Container — fills the transparent Tauri window ── */
+  /* ── Container - fills the transparent Tauri window ── */
   .overlay {
     display: flex;
     flex-direction: column;
@@ -182,7 +182,7 @@
     -webkit-user-select: none;
   }
 
-  /* ── Visualizer — fixed height so bar % heights resolve ── */
+  /* ── Visualizer - fixed height so bar % heights resolve ── */
   .visualizer {
     display: flex;
     align-items: center;

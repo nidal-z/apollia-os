@@ -23,7 +23,7 @@ diagrams:
         java -jar ~/.local/bin/plantuml.jar -tsvg -o "$(pwd)/book/src/appendix-a-diagrams/" docs/diagrams/*.puml && \
         echo "✅ SVGs générés depuis plantuml.jar"; \
     else \
-        echo "⚠️  plantuml non trouvé — installez-le avec: brew install plantuml"; \
+        echo "⚠️  plantuml non trouvé - installez-le avec: brew install plantuml"; \
         echo "   Les SVGs existants sont conservés."; \
     fi
 

@@ -1,10 +1,10 @@
-# Sprint Index — Apollia OS
+# Sprint Index - Apollia OS
 
 > État courant de tous les sprints. Mettre à jour après chaque story créée ou terminée.
 
 ---
 
-## Sprint 0 — Fondations (semaines 1-2)
+## Sprint 0 - Fondations (semaines 1-2)
 **Objectif :** Workspace Rust qui compile, tous les types de base définis.
 **Livrable démo-able :** `cargo build --workspace` sans erreur.
 
@@ -18,7 +18,7 @@
 
 ---
 
-## Sprint 1 — EventBus + AgentRegistry (semaines 3-4)
+## Sprint 1 - EventBus + AgentRegistry (semaines 3-4)
 **Objectif :** Deux premiers acteurs Tokio fonctionnels.
 **Livrable démo-able :** Test d'intégration EventBus + Registry avec transitions ProcessState.
 
@@ -31,7 +31,7 @@
 
 ---
 
-## Sprint 2 — Tool Registry + Outils natifs (semaines 5-7)
+## Sprint 2 - Tool Registry + Outils natifs (semaines 5-7)
 **Objectif :** bash_executor sandboxé avec audit trail.
 **Livrable démo-able :** `bash_executor.run("echo hello")` → stdout tracé dans SQLite.
 
@@ -47,7 +47,7 @@
 
 ---
 
-## Sprint 3 — Memory Engine (semaines 8-10)
+## Sprint 3 - Memory Engine (semaines 8-10)
 **Objectif :** Persistance souveraine FTS5 fonctionnelle.
 **Livrable démo-able :** `memory.search("devis Dupont")` retourne 3 résultats classés BM25.
 
@@ -63,7 +63,7 @@
 
 ---
 
-## Sprint 4 — Bridge PyO3 + ORIA Direct (semaines 11-14)
+## Sprint 4 - Bridge PyO3 + ORIA Direct (semaines 11-14)
 **Objectif :** Agent Python s'exécute dans le runtime Rust.
 **Livrable démo-able :** `apollia-os run hello-agent "Bonjour"` → résultat affiché.
 
@@ -81,7 +81,7 @@
 
 ---
 
-## Sprint 5 — APIServer + CLI complète (semaines 15-17)
+## Sprint 5 - APIServer + CLI complète (semaines 15-17)
 **Objectif :** Runtime opérable sans modifier le code.
 **Livrable démo-able :** start/stop/status/run/audit fonctionnels.
 
@@ -98,7 +98,7 @@
 
 ---
 
-## Sprint 6 — Hardening + Agent de démo (semaines 18-20)
+## Sprint 6 - Hardening + Agent de démo (semaines 18-20)
 **Objectif :** Démo client réelle. Agent devis-generator opérationnel.
 **Livrable démo-able :** Démo PME live, tout local, zéro cloud.
 

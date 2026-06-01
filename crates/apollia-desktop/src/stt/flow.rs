@@ -180,7 +180,7 @@ impl SttFlow {
             Some(data) => data,
             None => {
                 self.signal_stop();
-                tracing::warn!("no active buffer — recording may have failed to start");
+                tracing::warn!("no active buffer - recording may have failed to start");
                 return;
             }
         };
@@ -211,7 +211,7 @@ impl SttFlow {
         if trimmed.len() < MIN_SAMPLES {
             tracing::info!(
                 samples = trimmed.len(),
-                "audio too short (< 100 ms) — skipping transcription"
+                "audio too short (< 100 ms) - skipping transcription"
             );
             return;
         }
@@ -222,7 +222,7 @@ impl SttFlow {
             tracing::warn!(
                 samples = trimmed.len(),
                 max_samples,
-                "audio exceeds max_recording_sec — truncating"
+                "audio exceeds max_recording_sec - truncating"
             );
             &trimmed[..max_samples]
         } else {
@@ -247,7 +247,7 @@ impl SttFlow {
         };
 
         if transcript.full_text.trim().is_empty() {
-            tracing::info!("transcription result is empty — no output");
+            tracing::info!("transcription result is empty - no output");
             return;
         }
 

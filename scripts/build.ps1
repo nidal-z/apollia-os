@@ -1,4 +1,4 @@
-# scripts/build.ps1 — Build dispatcher PowerShell pour apollia-os (Windows natif).
+# scripts/build.ps1 - Build dispatcher PowerShell pour apollia-os (Windows natif).
 #
 # Équivalent de scripts/build.sh pour les devs qui ne veulent pas passer par
 # Git Bash / WSL. La table de presets est identique.

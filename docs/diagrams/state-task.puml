@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title TaskState — Lifecycle Tâche — Apollia OS
+title TaskState - Lifecycle Tâche - Apollia OS
 
 [*] --> submitted : POST /api/v1/tasks\nou apollia-os run
 
@@ -14,7 +14,7 @@ submitted --> working : agent ACTIVE\nExecutionCoordinator dispatch
 
 working --> completed : AIPResult.completed()
 working --> failed : AIPResult.failed()\nou erreur non-récupérable
-working --> input_required : AIPResult.input_required()\nHITL — approbation requise
+working --> input_required : AIPResult.input_required()\nHITL - approbation requise
 working --> canceled : DELETE /api/v1/tasks/{id}\nou StepBudget timeout
 
 input_required --> working : POST /api/v1/tasks/{id}/resume\n{ approved: true }
@@ -39,7 +39,7 @@ note right of working
 end note
 
 note right of input_required
-  Tâche suspendue — oneshot channel ouvert.
+  Tâche suspendue - oneshot channel ouvert.
   Prompt + context persistés en SQLite.
   NotificationEngine → desktop / webhook.
   TimeoutWatcher scan toutes les 60s.

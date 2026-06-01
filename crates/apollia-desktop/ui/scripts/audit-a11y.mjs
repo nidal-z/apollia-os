@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /*
- * Lightweight accessibility audit (US-SP42-007 — D.49 / E.48 / F.76).
+ * Lightweight accessibility audit (US-SP42-007 - D.49 / E.48 / F.76).
  *
  * Rules:
  *   1. Every `<button …>` that contains only a lucide-svelte icon
  *      (e.g. `<X size={…} />`) must expose `aria-label`,
- *      `aria-labelledby`, or `title` — otherwise assistive tech
+ *      `aria-labelledby`, or `title` - otherwise assistive tech
  *      reads "Button" with no context.
  *   2. Every `<input … />` / `<select … />` / `<textarea … />`
  *      must be wrapped in a `<label for>` / `aria-labelledby` /
  *      `aria-label` association.
  *
  * Invoked via `node scripts/audit-a11y.mjs`. Exits 1 when any rule
- * reports a violation — suitable for a pre-commit hook.
+ * reports a violation - suitable for a pre-commit hook.
  *
- * NOTE: Regex-based, no Svelte AST — intentionally conservative to
+ * NOTE: Regex-based, no Svelte AST - intentionally conservative to
  * keep the dev-loop fast. False positives can be silenced with a
  * `data-a11y-ignore="reason"` attribute on the offending tag.
  */
@@ -39,7 +39,7 @@ async function* walk(dir) {
 /** Check if a <button …> contains only an icon (lucide self-closing tag). */
 function buttonIsIconOnly(openTag, innerText) {
   // A translation call anywhere inside the button means the button
-  // renders visible text — not icon-only.
+  // renders visible text - not icon-only.
   if (/\$t\s*\(/.test(innerText)) return false;
 
   const stripped = innerText
@@ -86,11 +86,11 @@ for await (const file of walk(ROOT)) {
 }
 
 if (violations.length > 0) {
-  console.error("A11y audit — violations found:\n");
+  console.error("A11y audit - violations found:\n");
   for (const v of violations) console.error(`  ✗ ${v}`);
   console.error(`\nTotal: ${violations.length} violation(s).`);
   console.error("Fix by adding aria-label={$t('…')} (preferred) or title=\"…\".");
   process.exit(1);
 }
 
-console.log("A11y audit — 0 violations. ✓");
+console.log("A11y audit - 0 violations. ✓");

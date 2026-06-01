@@ -139,7 +139,7 @@ pub async fn uninstall_cli() -> Result<(), String> {
 
     if !target.is_symlink() {
         return Err(format!(
-            "{} is not a symlink — refusing to delete",
+            "{} is not a symlink - refusing to delete",
             target.display()
         ));
     }

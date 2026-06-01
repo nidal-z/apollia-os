@@ -1,4 +1,4 @@
-# Rust Patterns — Apollia OS
+# Rust Patterns - Apollia OS
 
 > Patterns attendus par brique. Claude Code doit s'y conformer sans dévier.
 
@@ -9,7 +9,7 @@
 ### Gestion d'erreurs
 
 ```rust
-// TOUJOURS thiserror dans les libs — jamais anyhow
+// TOUJOURS thiserror dans les libs - jamais anyhow
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -18,7 +18,7 @@ pub enum AgentRegistryError {
     NotFound(String),
     #[error("Transition d'état invalide : {from:?} → {to:?}")]
     InvalidTransition { from: ProcessState, to: ProcessState },
-    #[error("Acteur mort — canal fermé")]
+    #[error("Acteur mort - canal fermé")]
     ActorDead,
 }
 
@@ -30,7 +30,7 @@ pub enum AgentRegistryError {
 ```rust
 use tracing::{info, warn, error, debug, instrument};
 
-// TOUJOURS des champs nommés — jamais de format string
+// TOUJOURS des champs nommés - jamais de format string
 tracing::info!(agent_id = %id, state = ?new_state, "Transition ProcessState");
 // PAS : tracing::info!("Agent {} passe à {:?}", id, new_state);
 
@@ -140,7 +140,7 @@ impl ProcessState {
 ### Pattern acteur Tokio complet
 
 ```rust
-// registry.rs — exemple complet AgentRegistry
+// registry.rs - exemple complet AgentRegistry
 
 use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
@@ -156,7 +156,7 @@ pub struct AgentEntry {
     pub process_state: ProcessState,
 }
 
-// Messages internes — enum privé
+// Messages internes - enum privé
 enum RegistryMessage {
     Register {
         manifest: AgentManifest,
@@ -182,7 +182,7 @@ struct AgentRegistry {
     bus: EventBusSender,
 }
 
-// Handle clonable — interface publique
+// Handle clonable - interface publique
 #[derive(Clone)]
 pub struct AgentRegistryHandle {
     tx: mpsc::Sender<RegistryMessage>,
@@ -247,7 +247,7 @@ impl AgentRegistryHandle {
 
 ## apollia-tools
 
-### Outil natif — trait Tool
+### Outil natif - trait Tool
 
 ```rust
 use async_trait::async_trait;
@@ -492,7 +492,7 @@ pub enum Commands {
     // ...
 }
 
-// Output helper — respecte --json et --quiet
+// Output helper - respecte --json et --quiet
 pub fn print_output<T: serde::Serialize>(
     value: &T,
     json: bool,

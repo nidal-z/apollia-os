@@ -1,9 +1,9 @@
-# ADR-080 — Model Hub : intégration HuggingFace via token optionnel, zéro redistribution
+# ADR-080 - Model Hub : intégration HuggingFace via token optionnel, zéro redistribution
 
 **Date :** 2026-04-24
 **Statut :** Accepté
 **Décideur :** Nidal (solo)
-**Sprint :** Sprint 43 — LLM Backend Management + Model Hub
+**Sprint :** Sprint 43 - LLM Backend Management + Model Hub
 
 ---
 
@@ -32,12 +32,12 @@ notre infrastructure vs utiliser HF comme CDN.
 **Zéro registre statique.** Les métadonnées de modèles (liste de fichiers, tailles, paramètres de
 génération, tags, licence) sont lues directement depuis l'API HF publique :
 
-- `GET https://huggingface.co/api/models?filter=gguf&sort=downloads&search={q}` — recherche
-- `GET https://huggingface.co/api/models/{repo_id}` — métadonnées complètes
-- `GET https://huggingface.co/{repo_id}/resolve/main/generation_config.json` — params de génération
+- `GET https://huggingface.co/api/models?filter=gguf&sort=downloads&search={q}` - recherche
+- `GET https://huggingface.co/api/models/{repo_id}` - métadonnées complètes
+- `GET https://huggingface.co/{repo_id}/resolve/main/generation_config.json` - params de génération
 
 Les paramètres de génération (`temperature`, `top_k`, `top_p`, `repetition_penalty`, `max_new_tokens`)
-sont lus directement depuis `generation_config.json` de chaque repo — toujours à jour, zéro maintenance.
+sont lus directement depuis `generation_config.json` de chaque repo - toujours à jour, zéro maintenance.
 
 Les métadonnées sont mises en cache dans `system.db` (table `model_metadata`) avec TTL 24h pour
 éviter les re-fetch inutiles.
@@ -56,7 +56,7 @@ comme Llama 3.1 Meta ou Mistral Large) :
   2. Lien vers `huggingface.co/settings/tokens` pour créer un token
   3. Champ copier-coller du token
 
-### 3. HF comme CDN direct — zéro redistribution
+### 3. HF comme CDN direct - zéro redistribution
 
 Les fichiers GGUF sont téléchargés **directement depuis HuggingFace** :
 ```

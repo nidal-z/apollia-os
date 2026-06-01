@@ -170,9 +170,9 @@ const MATRIX: MatrixRow[] = [
   },
 ];
 
-// ─── Matrix sweep — card dispatch ────────────────────────────────────────────
+// ─── Matrix sweep - card dispatch ────────────────────────────────────────────
 
-describe("visual matrix — card dispatch", () => {
+describe("visual matrix - card dispatch", () => {
   // GIVEN each row of the spec matrix
   // WHEN the card is selected for operator then builder mode
   // THEN the correct component is chosen based on status × mode
@@ -186,9 +186,9 @@ describe("visual matrix — card dispatch", () => {
   );
 });
 
-// ─── Matrix sweep — display metadata completeness ────────────────────────────
+// ─── Matrix sweep - display metadata completeness ────────────────────────────
 
-describe("visual matrix — display metadata completeness", () => {
+describe("visual matrix - display metadata completeness", () => {
   // GIVEN each row of the spec matrix
   // WHEN resolveToolDisplay is called
   // THEN icon, labelKey, descriptionKey are present and templateParams are strings
@@ -210,7 +210,7 @@ describe("visual matrix — display metadata completeness", () => {
 
   // GIVEN each row of the spec matrix
   // WHEN templateParams are inspected
-  // THEN all values are plain strings — no raw JSON objects exposed in operator mode
+  // THEN all values are plain strings - no raw JSON objects exposed in operator mode
   test.each(MATRIX)(
     "$tool_name [$status]: templateParams values are all strings",
     ({ tool_name, status, input }) => {
@@ -223,7 +223,7 @@ describe("visual matrix — display metadata completeness", () => {
     },
   );
 
-  // GIVEN each executed native tool (MCP excluded — no outputSummaryKey by design)
+  // GIVEN each executed native tool (MCP excluded - no outputSummaryKey by design)
   // WHEN resolveToolDisplay is called
   // THEN outputSummaryKey is non-null for all 10 native tools
   const NATIVE_EXECUTED: Array<[string, Record<string, unknown>]> = [
@@ -249,9 +249,9 @@ describe("visual matrix — display metadata completeness", () => {
   );
 });
 
-// ─── Matrix sweep — i18n key resolution (EN + FR) ───────────────────────────
+// ─── Matrix sweep - i18n key resolution (EN + FR) ───────────────────────────
 
-describe("visual matrix — i18n key resolution", () => {
+describe("visual matrix - i18n key resolution", () => {
   // GIVEN each row of the spec matrix
   // WHEN labelKey and descriptionKey are resolved against EN and FR
   // THEN both languages return non-empty string values for every combination
@@ -296,9 +296,9 @@ describe("visual matrix — i18n key resolution", () => {
   );
 });
 
-// ─── AC-3 — Real-time mode switch ────────────────────────────────────────────
+// ─── AC-3 - Real-time mode switch ────────────────────────────────────────────
 
-describe("visual matrix — mode switch (AC-3)", () => {
+describe("visual matrix - mode switch (AC-3)", () => {
   const NATIVE_TOOLS = [
     "file_read",
     "file_write",
@@ -339,7 +339,7 @@ describe("visual matrix — mode switch (AC-3)", () => {
   test("mode is the sole determinant of card type for a given status", () => {
     // GIVEN two different executed tools
     // WHEN compared across modes
-    // THEN card selection depends only on mode — tool identity is irrelevant to routing
+    // THEN card selection depends only on mode - tool identity is irrelevant to routing
     const callA = makeCall("file_read", "executed");
     const callB = makeCall("memory_search", "executed");
     expect(selectCard(callA, "operator")).toBe(selectCard(callB, "operator"));
@@ -359,9 +359,9 @@ describe("visual matrix — mode switch (AC-3)", () => {
   });
 });
 
-// ─── AC-4 — MCP tool display ─────────────────────────────────────────────────
+// ─── AC-4 - MCP tool display ─────────────────────────────────────────────────
 
-describe("visual matrix — MCP tool display (AC-4)", () => {
+describe("visual matrix - MCP tool display (AC-4)", () => {
   test("mcp:notion/create_page returns Plug icon", () => {
     // GIVEN the MCP tool mcp:notion/create_page
     // WHEN resolveToolDisplay is called
@@ -417,9 +417,9 @@ describe("visual matrix — MCP tool display (AC-4)", () => {
   });
 });
 
-// ─── AC-5 — Long path truncation ─────────────────────────────────────────────
+// ─── AC-5 - Long path truncation ─────────────────────────────────────────────
 
-describe("visual matrix — long path truncation (AC-5)", () => {
+describe("visual matrix - long path truncation (AC-5)", () => {
   const LONG_PATH = "very/long/nested/path/to/some/deeply/nested/file.rs";
 
   test("path exceeding 50 chars is truncated", () => {
@@ -457,9 +457,9 @@ describe("visual matrix — long path truncation (AC-5)", () => {
   });
 });
 
-// ─── AC-6 — FR translation quality ───────────────────────────────────────────
+// ─── AC-6 - FR translation quality ───────────────────────────────────────────
 
-describe("visual matrix — FR translation quality (AC-6)", () => {
+describe("visual matrix - FR translation quality (AC-6)", () => {
   const ALL_TOOLS: Array<[string, Record<string, unknown>]> = [
     ["file_read", { path: "src/main.rs" }],
     ["file_write", { path: "out.txt" }],
@@ -497,7 +497,7 @@ describe("visual matrix — FR translation quality (AC-6)", () => {
   test("FR and EN labels are distinct for file_read (actual translation)", () => {
     // GIVEN file_read
     // WHEN FR and EN labels are compared
-    // THEN they differ — FR is a real translation, not a copy of EN
+    // THEN they differ - FR is a real translation, not a copy of EN
     const call = makeCall("file_read", "executed", { path: "src/main.rs" });
     const { labelKey } = resolveToolDisplay(call);
     expect(resolveKey(en as I18nJson, labelKey)).not.toBe(
@@ -508,7 +508,7 @@ describe("visual matrix — FR translation quality (AC-6)", () => {
   test("FR and EN descriptions are distinct for file_read (actual translation)", () => {
     // GIVEN file_read
     // WHEN FR and EN descriptions are compared
-    // THEN they differ — FR is "Lecture de {path}", not "Reading {path}"
+    // THEN they differ - FR is "Lecture de {path}", not "Reading {path}"
     const call = makeCall("file_read", "executed", { path: "src/main.rs" });
     const { descriptionKey } = resolveToolDisplay(call);
     expect(resolveKey(en as I18nJson, descriptionKey)).not.toBe(

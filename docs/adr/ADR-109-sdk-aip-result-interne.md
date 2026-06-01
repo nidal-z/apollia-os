@@ -1,4 +1,4 @@
-# ADR-109 — `AIPResult` devient interne au SDK
+# ADR-109 - `AIPResult` devient interne au SDK
 
 **Date :** 2026-05-19
 **Statut :** Accepté
@@ -19,16 +19,16 @@ sérialisé en dict.
 **État observé au 2026-05-19** :
 
 - Le bridge Rust contient ~70 LOC de source Python en const
-  (`AIP_TYPES_PY`) — du code Python embedded dans un .rs, qui n'est
+  (`AIP_TYPES_PY`) - du code Python embedded dans un .rs, qui n'est
   ni testé ni linté côté Python.
 - À chaque invocation, le bridge exécute ce code Python pour créer la
   classe, l'injecte dans `run.__globals__` (~10 LOC bridge.rs:295-310).
-- Côté agent, `AIPResult` est un symbole **non importé** — l'IDE le
+- Côté agent, `AIPResult` est un symbole **non importé** - l'IDE le
   flag comme `undefined`, l'auteur ajoute `# noqa` partout (vu
   ~340 occurrences dans le repo, cf. ADR-100).
 - `AIPResult` était nécessaire historiquement parce que le bridge ne
   pouvait pas désérialiser tout shape de dict en `Result<AIPResult,
-  _>` côté Rust — la classe Python forçait une discipline.
+  _>` côté Rust - la classe Python forçait une discipline.
 - Avec ADR-100 (exceptions au boundary) + ADR-099 (signature
   inference), le boundary devient le seul endroit qui formate
   l'AIPResult. L'agent ne le construit plus jamais directement.
@@ -92,24 +92,24 @@ Changements concrets :
    - Code d'injection dans `call_run()` (`bridge.rs:295-310`) supprimé.
    - Le bridge ne fait plus que la désérialisation `dict → AIPResult`.
 2. **Ajout côté SDK** :
-   - `sdk/apollia/_internal/aip_result.py` (~80 LOC) — fonctions
+   - `sdk/apollia/_internal/aip_result.py` (~80 LOC) - fonctions
      `_to_aip_result_dict(value)`, `_to_input_required(exc)`,
      `_to_failed(exc)`, `_to_failed_unhandled(exc)`.
-   - `sdk/apollia/_internal/dispatch.py` (~100 LOC) — boundary qui
+   - `sdk/apollia/_internal/dispatch.py` (~100 LOC) - boundary qui
      wrap le handler dans le try/except et appelle les helpers
      ci-dessus.
-3. **Pas exposé en public** — `AIPResult` n'est pas importable depuis
+3. **Pas exposé en public** - `AIPResult` n'est pas importable depuis
    `apollia.*`. Le seul interface public reste les exceptions
    (`apollia.errors`) et le dict de retour.
-4. **Compatibilité Rust** — le shape JSON du dict reste celui de
+4. **Compatibilité Rust** - le shape JSON du dict reste celui de
    `AIPResult` (status, data, code, message, details, prompt, context).
    Le bridge `serde_json::from_value` continue à fonctionner.
-5. **Documentation** — book v1 mentionne que l'auteur retourne un dict
+5. **Documentation** - book v1 mentionne que l'auteur retourne un dict
    ou lève. Plus aucune mention d'`AIPResult` côté agent.
 
 ## Alternatives considérées
 
-### Option A — Garder `AIPResult` exposé mais ajouter une version
+### Option A - Garder `AIPResult` exposé mais ajouter une version
 importable (`from apollia import AIPResult`) (rejetée)
 
 **Pour :** rétrocompat partielle.
@@ -117,21 +117,21 @@ importable (`from apollia import AIPResult`) (rejetée)
 Confusion garantie. L'auteur continue à voir `AIPResult` partout,
 contraire à l'esprit ADR-100.
 
-### Option B — Garder l'injection `run.__globals__` mais retirer
+### Option B - Garder l'injection `run.__globals__` mais retirer
 l'usage dans les agents (rejetée)
 
 **Pour :** zéro modif bridge Rust.
 **Contre :** laisse du code mort dans le bridge. Maintient le foreign
 symbol injecté → IDE warning persistant.
 
-### Option C — `AIPResult` exposé comme type sealed (NewType / Final)
+### Option C - `AIPResult` exposé comme type sealed (NewType / Final)
 documenté "interne" (rejetée)
 
 **Pour :** typage stricter.
 **Contre :** demi-mesure. Si c'est interne, autant le rendre
 inaccessible.
 
-### Option retenue — Pure suppression de l'API publique + interne SDK
+### Option retenue - Pure suppression de l'API publique + interne SDK
 
 **Pour :** cohérent avec ADR-100 (agent ne voit plus AIPResult), bridge
 Rust simplifié (-70 LOC), code Python embedded éliminé du .rs, l'IDE
@@ -147,8 +147,8 @@ construisait `AIPResult.completed(...)` (mécanique : remplacer par
 - Bridge Rust simplifié : ~70 LOC de Python embedded supprimées,
   ~30 LOC de logique injection supprimées.
 - Le SDK Python devient le seul propriétaire du shape `AIPResult` côté
-  Python — testable, refactorable indépendamment.
-- Plus de symbole magique côté agent — fin des `# noqa` et IDE warnings.
+  Python - testable, refactorable indépendamment.
+- Plus de symbole magique côté agent - fin des `# noqa` et IDE warnings.
 - Cohérence avec ADR-100 : l'agent retourne `dict` ou lève. Le
   formatage `AIPResult` est invisible.
 - Migration : un script `apollia migrate-aip-result` peut faire les
@@ -179,18 +179,18 @@ construisait `AIPResult.completed(...)` (mécanique : remplacer par
 
 ## Principes architecturaux impactés
 
-- **Principe #3 — Contrat minimal** : poussé au max. L'agent retourne
+- **Principe #3 - Contrat minimal** : poussé au max. L'agent retourne
   son dict métier, point.
-- **Principe #5 — Un acteur, une responsabilité** : le boundary est le
+- **Principe #5 - Un acteur, une responsabilité** : le boundary est le
   seul endroit qui formate `AIPResult`. Plus de "qui formate quoi" à
   chercher.
-- **Principe #2 — Zéro dépendance externe** : préservé. Le bridge Rust
+- **Principe #2 - Zéro dépendance externe** : préservé. Le bridge Rust
   ne contient plus de code Python embedded difficile à maintenir.
 
 ## Liens
 
-- ADR-100 — Exceptions au boundary (cousin direct)
-- ADR-099 — Signature inference (le boundary utilise le schéma output
+- ADR-100 - Exceptions au boundary (cousin direct)
+- ADR-099 - Signature inference (le boundary utilise le schéma output
   pour valider le dict retourné)
-- ADR-098 — Decorator-first (le décorateur installe le boundary)
-- ADR-014 — Bridge PyO3 async (modifié : suppression `AIP_TYPES_PY`)
+- ADR-098 - Decorator-first (le décorateur installe le boundary)
+- ADR-014 - Bridge PyO3 async (modifié : suppression `AIP_TYPES_PY`)

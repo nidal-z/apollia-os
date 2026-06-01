@@ -23,7 +23,7 @@ Strictness:
 - Extra payload fields are rejected when ``additionalProperties`` is
   ``False`` (the default for inferred schemas).
 - Validation accepts both the compact ``nullable: true`` form and the
-  legacy ``"type": ["X", "null"]`` form for null acceptance — this keeps
+  legacy ``"type": ["X", "null"]`` form for null acceptance - this keeps
   hand-crafted schemas working.
 """
 
@@ -55,7 +55,7 @@ from types import UnionType as _UnionType
 
 # ``typing.NotRequired`` / ``typing.Required`` (Python 3.11+) are special forms
 # that wrap a TypedDict field type. They carry no runtime schema information of
-# their own — they only signal that the key is optional/required, which is
+# their own - they only signal that the key is optional/required, which is
 # already exposed via ``TypedDict.__required_keys__`` / ``__optional_keys__``.
 # We unwrap them at the TypedDict-introspection layer so the SDK can produce a
 # structural schema for the inner type ``T``.
@@ -108,7 +108,7 @@ def _scalar_schema(tp: Any) -> dict[str, Any] | None:
     if tp is str:
         return {"type": "string"}
     if tp is bool:
-        # bool is a subclass of int — check it FIRST.
+        # bool is a subclass of int - check it FIRST.
         return {"type": "boolean"}
     if tp is int:
         return {"type": "integer"}
@@ -152,7 +152,7 @@ def _typeddict_schema(tp: type) -> dict[str, Any]:
     except Exception:
         hints = dict(getattr(tp, "__annotations__", {}))
     for name, ann in hints.items():
-        # Unwrap typing.NotRequired[T] / typing.Required[T] — the required-ness
+        # Unwrap typing.NotRequired[T] / typing.Required[T] - the required-ness
         # is tracked separately via ``__required_keys__`` / ``__optional_keys__``;
         # the underlying T is what defines the field's schema.
         if get_origin(ann) in (_NotRequired, _Required):
@@ -334,7 +334,7 @@ def annotation_to_schema(annotation: Any) -> dict[str, Any]:
     is_opt, inner = _is_optional(annotation)
     if is_opt:
         inner_schema = annotation_to_schema(inner)
-        # Compact ``nullable: true`` form — more widely understood by LLMs
+        # Compact ``nullable: true`` form - more widely understood by LLMs
         # than the JSON-Schema-draft ``"type": ["X", "null"]`` array form,
         # and less verbose in the tool descriptor.
         new_schema = dict(inner_schema)
@@ -669,7 +669,7 @@ def validate_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[st
     - Missing required fields raise :class:`PayloadError` with ``field``.
     - Extra fields raise :class:`PayloadError` when
       ``additionalProperties`` is ``False`` (the default).
-    - Type mismatches raise :class:`PayloadError` — no implicit
+    - Type mismatches raise :class:`PayloadError` - no implicit
       string-to-number coercion.
     - Returns a shallow copy of ``payload`` suitable for ``**call``.
     """

@@ -129,7 +129,7 @@ export async function startPackage(
     }
   }
 
-  // 2. Workers, puis 3. Assistants / director — en deux passes ordonnées.
+  // 2. Workers, puis 3. Assistants / director - en deux passes ordonnées.
   const isRunning = (a: AgentListItem) =>
     a.runtime_status === "active" || a.runtime_status === "degraded";
 

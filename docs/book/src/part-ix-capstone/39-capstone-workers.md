@@ -35,7 +35,7 @@ class SignalEntry(TypedDict):
     summary: str
 
 
-# Sources de news fiables — codées en constante pour rester mono-fichier.
+# Sources de news fiables - codées en constante pour rester mono-fichier.
 TRUSTED_NEWS_DOMAINS = (
     "lesechos.fr",
     "latribune.fr",
@@ -267,7 +267,7 @@ def _render_brief(payload: BriefPayload) -> str:
     lines.append("")
     lines.append("## Historique récent")
     for entry in payload["crm_history"]:
-        lines.append(f"- {entry['date']} : {entry['type']} — {entry['summary']}.")
+        lines.append(f"- {entry['date']} : {entry['type']} - {entry['summary']}.")
     return "\n".join(lines)
 
 

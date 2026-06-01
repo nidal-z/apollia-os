@@ -1,6 +1,6 @@
-# Speech-to-Text — Moteur STT embarque (apollia-stt)
+# Speech-to-Text - Moteur STT embarque (apollia-stt)
 
-> *Transcription vocale locale in-process via whisper.cpp — zero donnee audio ne quitte la machine, dictee universelle par hotkey global.*
+> *Transcription vocale locale in-process via whisper.cpp - zero donnee audio ne quitte la machine, dictee universelle par hotkey global.*
 
 ---
 
@@ -22,7 +22,7 @@
 | `stt-metal` | `--features stt-metal` | macOS Apple Silicon (M1+) |
 | `stt-cuda` | `--features stt-cuda` | GPU NVIDIA + CUDA toolkit |
 
-Les feature flags suivent le meme pattern que `apollia-llm` (ADR-020). Le modele `.bin` (format GGML) est un fichier de donnees dans `~/.apollia/models/` — jamais compile dans le binaire.
+Les feature flags suivent le meme pattern que `apollia-llm` (ADR-020). Le modele `.bin` (format GGML) est un fichier de donnees dans `~/.apollia/models/` - jamais compile dans le binaire.
 
 **Decision architecturale (ADR-041) :** whisper-rs (whisper.cpp FFI) est le backend V1. La roadmap prevoit candle-whisper (inference Rust native) en V2, et Voxtral (modele Mistral specialise audio) en V3. Le trait `SttBackend` permet cette evolution sans casser l'API.
 
@@ -60,7 +60,7 @@ pub trait SttBackend: Send + Sync {
 
 **Choix de design :** le trait est **synchrone** par conception. L'inference STT est CPU/GPU-bound, pas I/O-bound. L'appelant (`SttEngine`) wrappe les appels dans `tokio::task::spawn_blocking` pour ne pas bloquer le runtime Tokio.
 
-L'implementation par defaut `WhisperCppBackend` charge un modele GGML depuis le disque via `WhisperCppBackend::load(model_path)`. Le chargement verifie l'existence du fichier avant de tenter le load (Principe #4 — Fail fast).
+L'implementation par defaut `WhisperCppBackend` charge un modele GGML depuis le disque via `WhisperCppBackend::load(model_path)`. Le chargement verifie l'existence du fichier avant de tenter le load (Principe #4 - Fail fast).
 
 ```rust
 pub struct WhisperCppBackend { /* ... */ }
@@ -277,7 +277,7 @@ impl SttEngineHandle {
         event_bus: EventBusSender,
     ) -> Self;
 
-    /// Transcription asynchrone — l'inference tourne dans `spawn_blocking`.
+    /// Transcription asynchrone - l'inference tourne dans `spawn_blocking`.
     pub async fn transcribe(
         &self,
         audio: Vec<f32>,
@@ -288,7 +288,7 @@ impl SttEngineHandle {
     /// Status courant du moteur.
     pub async fn status(&self) -> Option<SttStatus>;
 
-    /// Arret gracieux — appelle `backend.unload()` puis quitte.
+    /// Arret gracieux - appelle `backend.unload()` puis quitte.
     pub async fn shutdown(&self);
 }
 ```
@@ -319,7 +319,7 @@ pub struct SttStatus {
 
 ### Integration Supervisor (Phase 15)
 
-Le `SttEngine` est demarre en **Phase 15** du Supervisor — conditionnellement :
+Le `SttEngine` est demarre en **Phase 15** du Supervisor - conditionnellement :
 
 1. Si `stt_config` est `None` ou `stt.enabled = false` → Phase 15 skippee, `stt_engine = None`.
 2. Si le fichier modele est absent → log error, `stt_engine = None`, runtime continue.
@@ -395,7 +395,7 @@ Injection de texte via le presse-papier systeme + simulation de raccourci Coller
 
 ```rust
 /// Injecte du texte a la position du curseur via clipboard + paste simule.
-/// Fonction bloquante — appeler depuis `spawn_blocking`.
+/// Fonction bloquante - appeler depuis `spawn_blocking`.
 pub fn inject(text: &str, restore: bool) -> Result<(), ClipboardError>;
 ```
 
@@ -414,7 +414,7 @@ impl SttFlow {
 }
 ```
 
-Le flux audio tourne sur un thread OS dedie (affinite Core Audio sur macOS — `cpal::Stream` n'est pas `Send`). Le `CaptureBuffer` partage est draine depuis le contexte async.
+Le flux audio tourne sur un thread OS dedie (affinite Core Audio sur macOS - `cpal::Stream` n'est pas `Send`). Le `CaptureBuffer` partage est draine depuis le contexte async.
 
 Les enregistrements de moins de 100 ms (1600 echantillons a 16 kHz) sont ignores. Les enregistrements depassant `max_recording_sec` sont tronques.
 
@@ -453,9 +453,9 @@ Positionnement : centre-bas de l'ecran principal (350x80 px logiques, marge de 4
 
 ### 8.6. Evenements Tauri (event bridge)
 
-- `stt-transcribed` — fast path vers le frontend (contient le texte transcrit).
-- `stt-recording-started` / `stt-recording-stopped` — pilotent l'overlay et les stores Svelte.
-- `stt-overlay-config` — envoie la configuration hotkey a la fenetre overlay.
+- `stt-transcribed` - fast path vers le frontend (contient le texte transcrit).
+- `stt-recording-started` / `stt-recording-stopped` - pilotent l'overlay et les stores Svelte.
+- `stt-overlay-config` - envoie la configuration hotkey a la fenetre overlay.
 
 ---
 
@@ -467,9 +467,9 @@ Positionnement : centre-bas de l'ecran principal (350x80 px logiques, marge de 4
 
 ### Stores
 
-- `sttStatus` — etat courant du moteur STT (polling ou event-driven).
-- `transcriptions` — liste des transcriptions recentes.
-- `isRecording` — flag booleen pilote par les evenements `stt-recording-started/stopped`.
+- `sttStatus` - etat courant du moteur STT (polling ou event-driven).
+- `transcriptions` - liste des transcriptions recentes.
+- `isRecording` - flag booleen pilote par les evenements `stt-recording-started/stopped`.
 
 ### Composants
 
@@ -481,7 +481,7 @@ Positionnement : centre-bas de l'ecran principal (350x80 px logiques, marge de 4
 
 ### Settings
 
-Section STT dans la page Parametres — affichage read-only de la configuration courante (conforme ADR-029 : la configuration structurelle est dans `apollia.toml`, pas editable depuis l'UI).
+Section STT dans la page Parametres - affichage read-only de la configuration courante (conforme ADR-029 : la configuration structurelle est dans `apollia.toml`, pas editable depuis l'UI).
 
 ---
 
@@ -551,7 +551,7 @@ trigger_mode = "toggle"        # "toggle" | "push_to_talk"
 | Trait synchrone `SttBackend` | L'inference STT est CPU/GPU-bound, pas I/O-bound. L'appelant wrappe dans `spawn_blocking`. Simplifie les implementations de backends. |
 | Feature flags pour backends | Meme pattern que `apollia-llm` (ADR-020). Permet de compiler sans whisper.cpp pour les environnements sans C++ toolchain. |
 | whisper-rs V1, candle V2, Voxtral V3 (ADR-041) | whisper.cpp est le moteur le plus mature et performant. candle-whisper eliminera la dependance C++ FFI. Voxtral explorera les modeles audio next-gen. |
-| Thread OS dedie pour `cpal::Stream` | Core Audio sur macOS impose une affinite de thread — `cpal::Stream` n'est pas `Send`. Le buffer partage `Arc<Mutex<Vec<f32>>>` permet la communication cross-thread. |
+| Thread OS dedie pour `cpal::Stream` | Core Audio sur macOS impose une affinite de thread - `cpal::Stream` n'est pas `Send`. Le buffer partage `Arc<Mutex<Vec<f32>>>` permet la communication cross-thread. |
 | Resample rubato sinc | Qualite superieure aux algorithmes lineaires pour la conversion 48 kHz → 16 kHz. Le surcout CPU est negligeable face a l'inference. |
 | `SttRepository` separe dans l'`AppState` | SQLite WAL supporte les lecteurs concurrents. Le Supervisor ouvre deux connexions : une pour l'acteur (ecriture), une pour les routes API (lecture). |
 | Degradation gracieuse dans le Supervisor | Modele absent ou chargement echoue → `stt_engine = None`, runtime continue. Aucun panic, routes API retournent 503. Conforme Principe #4 (Fail fast au demarrage pour les erreurs detectables). |
@@ -561,18 +561,18 @@ trigger_mode = "toggle"        # "toggle" | "push_to_talk"
 
 ## 13. Diagrammes de reference
 
-- [Architecture Vue d'Ensemble](./Architecture-Vue-Ensemble) — positionnement de `apollia-stt` dans le workspace
-- [Briques Runtime Core](./Briques-Runtime-Core) — Supervisor Phase 15, integration acteur
-- [Briques Desktop](./Briques-Desktop) — integration Tauri, hotkey, overlay
-- [Config apollia.toml](./Config-apollia-toml) — section `[stt]`
-- [Briques CLI](./Briques-CLI) — sous-commande `apollia-os stt`
-- [API-HTTP-Observability](./API-HTTP-Observability#stt-speech-to-text---28) — routes `/api/v1/stt/*`
+- [Architecture Vue d'Ensemble](./Architecture-Vue-Ensemble) - positionnement de `apollia-stt` dans le workspace
+- [Briques Runtime Core](./Briques-Runtime-Core) - Supervisor Phase 15, integration acteur
+- [Briques Desktop](./Briques-Desktop) - integration Tauri, hotkey, overlay
+- [Config apollia.toml](./Config-apollia-toml) - section `[stt]`
+- [Briques CLI](./Briques-CLI) - sous-commande `apollia-os stt`
+- [API-HTTP-Observability](./API-HTTP-Observability#stt-speech-to-text---28) - routes `/api/v1/stt/*`
 
 ---
 
 ## Voir aussi
 
-- [Briques LLM Backend](./Briques-LLM-Backend) — pattern similaire (trait + feature flags + Supervisor integration)
-- [Config apollia.toml](./Config-apollia-toml) — section `[stt]` complete
-- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — `apollia-os stt status/transcribe`
-- [Architecture Principes](./Architecture-Principes) — Principes #1 (Local-first), #4 (Fail fast), #5 (Un acteur, une responsabilite)
+- [Briques LLM Backend](./Briques-LLM-Backend) - pattern similaire (trait + feature flags + Supervisor integration)
+- [Config apollia.toml](./Config-apollia-toml) - section `[stt]` complete
+- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) - `apollia-os stt status/transcribe`
+- [Architecture Principes](./Architecture-Principes) - Principes #1 (Local-first), #4 (Fail fast), #5 (Un acteur, une responsabilite)

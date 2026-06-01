@@ -25,7 +25,7 @@ async function installTauriStub(
       ],
       get_companion_context: () => "Contextual help.",
       create_companion_session: () =>
-        // NOSONAR typescript:S2004 — Tauri stub deliberately mirrors the runtime
+        // NOSONAR typescript:S2004 - Tauri stub deliberately mirrors the runtime
         // call chain (handler → Promise → delayed resolve) for fidelity.
         new Promise((resolve) => {
           setTimeout(() => resolve({ session_id: "sess-1" }), delay); // NOSONAR typescript:S2004
@@ -41,7 +41,7 @@ async function installTauriStub(
   }, opts.sessionDelayMs ?? 50);
 }
 
-test.describe("Companion — drag & snap", () => {
+test.describe("Companion - drag & snap", () => {
   test("snaps to right edge when released <20 px away", async ({ page }) => {
     await installTauriStub(page);
     await page.goto("/");
@@ -66,7 +66,7 @@ test.describe("Companion — drag & snap", () => {
   });
 });
 
-test.describe("Companion — error state", () => {
+test.describe("Companion - error state", () => {
   test("timeout surfaces CompanionErrorState with the 3 action buttons", async ({
     page,
   }) => {
@@ -99,7 +99,7 @@ test.describe("Companion — error state", () => {
   });
 });
 
-test.describe("Companion — geometry persistence", () => {
+test.describe("Companion - geometry persistence", () => {
   test("position is restored from localStorage.companionGeometry", async ({
     page,
   }) => {
@@ -127,7 +127,7 @@ test.describe("Companion — geometry persistence", () => {
   });
 });
 
-test.describe("Companion — restore pulse", () => {
+test.describe("Companion - restore pulse", () => {
   test("restore button pulses on first mount and stops after click", async ({
     page,
   }) => {

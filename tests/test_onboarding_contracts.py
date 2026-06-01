@@ -281,7 +281,7 @@ class TestContractLanguageDetection:
         """Language must be persisted even if LLM call fails."""
         agent = OnboardingAgent()
         ctx = MockContext.create(
-            llm_responses=[],  # empty — will raise IndexError
+            llm_responses=[],  # empty - will raise IndexError
             memory=True,
         )
         with pytest.raises(IndexError):

@@ -1,9 +1,9 @@
-# ADR-054 — Consolidation mémoire épisodique : report justifié post-v1
+# ADR-054 - Consolidation mémoire épisodique : report justifié post-v1
 
 **Date :** 2026-04-03
 **Statut :** Accepté
 **Décideur :** Nidal (solo)
-**Sprint :** 34 — Beta Hardening
+**Sprint :** 34 - Beta Hardening
 
 ---
 
@@ -15,7 +15,7 @@ les épisodes similaires s'accumulent, les patterns récurrents ne sont pas rés
 SQLite grossit linéairement avec le temps.
 
 La littérature sur les agents autonomes (MemGPT, Letta, etc.) propose des mécanismes de consolidation
-automatique — résumé LLM des épisodes anciens, extraction de faits vers la mémoire sémantique,
+automatique - résumé LLM des épisodes anciens, extraction de faits vers la mémoire sémantique,
 fusion des épisodes redondants. Ces approches sont techniquement intéressantes mais introduisent
 plusieurs risques pour Apollia OS en beta :
 
@@ -26,11 +26,11 @@ plusieurs risques pour Apollia OS en beta :
 2. **Comportement imprévisible** : un agent qui retrouve ses souvenirs consolidés peut avoir un
    comportement différent d'un agent sans consolidation. Difficile à débugger, impossible à reproduire.
 
-3. **Risque de perte de données** : la consolidation par résumé LLM est destructive — les épisodes
+3. **Risque de perte de données** : la consolidation par résumé LLM est destructive - les épisodes
    originaux sont perdus au profit d'un résumé. Une erreur de consolidation (hallucination, troncature)
    ne peut pas être annulée.
 
-4. **Violation du Principe #6** : "Mémoire à initiative de l'agent" — la consolidation automatique
+4. **Violation du Principe #6** : "Mémoire à initiative de l'agent" - la consolidation automatique
    injecte de la mémoire sans que l'agent en ait fait la demande.
 
 STORY-448 a investigué ce sujet pendant le Sprint 34 et a conclu que la consolidation automatique
@@ -80,9 +80,9 @@ La consolidation automatique est différée à post-v1. Le design retenu respect
 }
 ```
 
-- `enabled` : désactivé par défaut — l'agent déclare explicitement vouloir la consolidation.
+- `enabled` : désactivé par défaut - l'agent déclare explicitement vouloir la consolidation.
 - `interval` : fréquence minimale entre deux consolidations (ex. `"6h"`, `"24h"`, `"7d"`).
-- `min_episodes` : seuil de déclenchement — aucune consolidation si la base contient moins d'épisodes.
+- `min_episodes` : seuil de déclenchement - aucune consolidation si la base contient moins d'épisodes.
 
 **API runtime (post-v1) :**
 
@@ -98,7 +98,7 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
         ctx.log.info("memory_consolidated", episodes_merged=consolidated)
 ```
 
-Le runtime expose `ctx.memory.consolidate()` — l'agent contrôle quand consolider, avec quels paramètres, et peut inspecter le résultat. Aucun processus background ne se déclenche sans cet appel explicite.
+Le runtime expose `ctx.memory.consolidate()` - l'agent contrôle quand consolider, avec quels paramètres, et peut inspecter le résultat. Aucun processus background ne se déclenche sans cet appel explicite.
 
 Les conditions d'implémentation requises avant livraison :
 - Préservation des épisodes originaux pendant une période de rétention configurable avant suppression
@@ -113,41 +113,41 @@ Les conditions d'implémentation requises avant livraison :
 |---|---|
 | **Consolidation automatique par LLM (type MemGPT)** | Coût LLM non maîtrisé, comportement imprévisible, risque de perte de données. Viole Principe #6 (mémoire à initiative de l'agent). |
 | **Consolidation par règles (sans LLM)** | Peut être implémenté sans coût LLM, mais "règles" = heuristiques fragiles qui deviennent vite des cas particuliers. Complexité sans bénéfice clair pour la beta. |
-| **Limit dur sur la taille de la base** | Reject FIFO des épisodes anciens si la base dépasse N Mo. Trop brutal — les épisodes importants peuvent être les plus anciens (configuration initiale, décisions critiques). |
-| **Consolidation manuelle par l'agent** | L'agent peut déjà appeler `ctx.memory.record()` pour synthétiser. C'est le Principe #6 appliqué — à documenter comme pattern recommandé, pas à automatiser. |
+| **Limit dur sur la taille de la base** | Reject FIFO des épisodes anciens si la base dépasse N Mo. Trop brutal - les épisodes importants peuvent être les plus anciens (configuration initiale, décisions critiques). |
+| **Consolidation manuelle par l'agent** | L'agent peut déjà appeler `ctx.memory.record()` pour synthétiser. C'est le Principe #6 appliqué - à documenter comme pattern recommandé, pas à automatiser. |
 
 ---
 
 ## Conséquences
 
 **Positives :**
-- Comportement prévisible et débuggable — la mémoire ne change pas sans action explicite.
-- Zéro coût LLM caché — aucun appel LLM non initié par l'agent.
-- Données souveraines — les épisodes originaux ne sont jamais détruits automatiquement.
+- Comportement prévisible et débuggable - la mémoire ne change pas sans action explicite.
+- Zéro coût LLM caché - aucun appel LLM non initié par l'agent.
+- Données souveraines - les épisodes originaux ne sont jamais détruits automatiquement.
 - Troncature `STEP_MEMORY_OUTPUT_MAX_CHARS = 200` limite la croissance sans heuristiques complexes.
 
 **Négatives / Compromis :**
 - Dette technique acceptée : la base épisodique croît linéairement pour les agents long-running.
   Pour un agent CRM actif 1 an, la base peut atteindre plusieurs centaines de Mo.
-- Pas de "mémoire intelligente" pour la beta — les agents doivent gérer explicitement leur historique.
+- Pas de "mémoire intelligente" pour la beta - les agents doivent gérer explicitement leur historique.
   C'est un compromis voulu pour la cible PME simple.
 
 **Neutres / À surveiller :**
 - Mesurer la taille des bases épisodiques des agents bundled après 30 jours d'usage en beta.
   Si > 50 Mo, reconsidérer la priorité de la consolidation post-v1.
-- Documenter le pattern "consolidation à initiative agent" dans le wiki — `ctx.memory.record()`
+- Documenter le pattern "consolidation à initiative agent" dans le wiki - `ctx.memory.record()`
   peut être utilisé pour synthétiser des épisodes passés avant de les purger.
 
 ---
 
 ## Principes architecturaux impactés
 
-- **Principe #6 — Mémoire à initiative de l'agent** : Aucune injection automatique de contexte
+- **Principe #6 - Mémoire à initiative de l'agent** : Aucune injection automatique de contexte
   mémoriel, aucune consolidation automatique. La mémoire évolue uniquement sur appel explicite
   de `ctx.memory.*`. Renforcé.
-- **Principe #7 — Garde-fous non-négociables** : La troncature `STEP_MEMORY_OUTPUT_MAX_CHARS`
+- **Principe #7 - Garde-fous non-négociables** : La troncature `STEP_MEMORY_OUTPUT_MAX_CHARS`
   borne la taille des épisodes sans action de l'agent. C'est le seul garde-fou automatique
-  acceptable — il ne modifie pas la sémantique des données, seulement leur volume. Conforme.
+  acceptable - il ne modifie pas la sémantique des données, seulement leur volume. Conforme.
 
 ---
 
@@ -155,6 +155,6 @@ Les conditions d'implémentation requises avant livraison :
 
 - Story d'implémentation : STORY-448 (Sprint 34)
 - Constante documentée dans : `docs/wiki/Briques-Memory-Engine.md` §7
-- Config exposée dans : `crates/apollia-core/src/config.rs` — section `[memory]`
+- Config exposée dans : `crates/apollia-core/src/config.rs` - section `[memory]`
 - ADR Memory fondateur : [ADR-007](ADR-007-memoire-initiative-agent.md)
 - ADR observabilité timeline : [ADR-026](ADR-026-observabilite-complete-persistance-timeline-troncature.md)

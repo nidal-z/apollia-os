@@ -1,4 +1,4 @@
-//! E2E test — first-launch onboarding skip flow.
+//! E2E test - first-launch onboarding skip flow.
 
 /// Verifies that the onboarding skip flow completes successfully:
 /// 1. The runtime is healthy before the flow begins.
@@ -8,7 +8,7 @@
 /// A 503 from the user-profile endpoint is treated as a pass: user memory is
 /// an optional subsystem and its absence does not impair runtime operation.
 #[tokio::test]
-#[ignore = "E2E test — requires running runtime and desktop app"]
+#[ignore = "E2E test - requires running runtime and desktop app"]
 async fn test_onboarding_first_launch_skip_to_dashboard() {
     super::with_retry(|| async {
         let client = super::http_client()?;
@@ -33,7 +33,7 @@ async fn test_onboarding_first_launch_skip_to_dashboard() {
             .await?;
 
         let profile_status = profile_resp.status();
-        // 503 = user memory not configured (optional subsystem) — acceptable.
+        // 503 = user memory not configured (optional subsystem) - acceptable.
         if profile_status.is_server_error() && profile_status.as_u16() != 503 {
             return Err(format!(
                 "unexpected server error {} from PUT /api/v1/user/profile",

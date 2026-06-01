@@ -436,8 +436,8 @@ mod tests {
         // The error case (PythonUnavailable) is covered implicitly by make_executor! in other tests.
         let result = PythonExecutor::new("test-agent-ac2", &test_venv_dir());
         match result {
-            Ok(_) => { /* python3 present — construction succeeded as expected */ }
-            Err(PythonExecutorError::PythonUnavailable) => { /* python3 absent — also valid */ }
+            Ok(_) => { /* python3 present - construction succeeded as expected */ }
+            Err(PythonExecutorError::PythonUnavailable) => { /* python3 absent - also valid */ }
             Err(e) => panic!("unexpected error: {:?}", e),
         }
     }

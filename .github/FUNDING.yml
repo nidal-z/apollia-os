@@ -1,0 +1,7 @@
+# Funding rails for Apollia OS. Renders the "Sponsor" button on the repo.
+# Ref: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+# Confirm the three handles below before going public.
+github: [Apollia-OS]
+patreon: apollia
+ko_fi: apollia
+custom: ["https://apollia.fr/soutenir"]

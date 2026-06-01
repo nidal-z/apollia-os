@@ -1,4 +1,4 @@
-# ADR-062 — MCP Server Mode
+# ADR-062 - MCP Server Mode
 
 **Date :** 2026-04-04
 **Statut :** Accepté
@@ -13,7 +13,7 @@ Apollia OS est actuellement un **client MCP** : il se connecte à des serveurs M
 
 **Cas d'usage :** un IDE (VS Code, Cursor) ou un autre agent IA peut appeler les outils d'Apollia OS via le protocole MCP. Cela permet d'intégrer Apollia dans des workflows existants sans modifier le client.
 
-**Exemple concret :** VS Code avec l'extension MCP peut appeler `submit_task` sur Apollia et recevoir les résultats — l'IDE pilote Apollia comme un outil parmi d'autres.
+**Exemple concret :** VS Code avec l'extension MCP peut appeler `submit_task` sur Apollia et recevoir les résultats - l'IDE pilote Apollia comme un outil parmi d'autres.
 
 ---
 
@@ -64,7 +64,7 @@ Le runtime peut être configuré pour démarrer le serveur MCP en plus du serveu
 enabled = true       # Démarre le mode serveur MCP stdio
 ```
 
-Le serveur MCP stdio est géré par un acteur Tokio dédié (`McpServerActor`) — conforme Principe #5.
+Le serveur MCP stdio est géré par un acteur Tokio dédié (`McpServerActor`) - conforme Principe #5.
 
 ### Rejet du transport SSE en priorité
 
@@ -81,18 +81,18 @@ Le transport HTTP/SSE sera implémenté dans un sprint futur avec des garde-fous
 
 **Positives :**
 - Apollia s'intègre dans tout IDE ou agent supportant MCP (VS Code, Cursor, Claude Desktop)
-- Aucune modification du client nécessaire — protocole MCP standard
-- Le mode stdio est local-only par construction — conforme Principe #1
+- Aucune modification du client nécessaire - protocole MCP standard
+- Le mode stdio est local-only par construction - conforme Principe #1
 
 **Négatives / Compromis :**
-- `submit_task` en mode synchrone bloque jusqu'à la completion — les tâches longues (analyse de repo) peuvent dépasser le timeout du client MCP. `timeout_secs` configurable comme mitigation.
+- `submit_task` en mode synchrone bloque jusqu'à la completion - les tâches longues (analyse de repo) peuvent dépasser le timeout du client MCP. `timeout_secs` configurable comme mitigation.
 
 ---
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : Transport stdio = local uniquement. Conforme.
-- **Principe #5 — Un acteur, une responsabilité** : `McpServerActor` gère uniquement le serveur MCP. Conforme.
+- **Principe #1 - Local-first** : Transport stdio = local uniquement. Conforme.
+- **Principe #5 - Un acteur, une responsabilité** : `McpServerActor` gère uniquement le serveur MCP. Conforme.
 
 ---
 

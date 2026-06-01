@@ -1,4 +1,4 @@
-"""ctx.profile — canonical user profile (ADR-087)."""
+"""ctx.profile - canonical user profile (ADR-087)."""
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 /**
- * Metadata for each top-level route — used by the Topbar breadcrumbs
+ * Metadata for each top-level route - used by the Topbar breadcrumbs
  * and back/forward tooltips.
  *
  * - `labelKey`   : i18n key rendered in the breadcrumb segment.

@@ -1,4 +1,4 @@
-# ADR-087 — Profil utilisateur canonique avec schéma déclaratif
+# ADR-087 - Profil utilisateur canonique avec schéma déclaratif
 
 **Date :** 2026-05-11
 **Statut :** Accepté
@@ -19,7 +19,7 @@ incohérentes.
   `__user__` en production.
 - **3 agents** consomment ces clés (`veille-ia`, `markdown-summarizer`,
   `code-review-multi`) via `ctx.memory.recall("user.X")` + un helper
-  `_load_user_context()` qui hardcode la liste des clés à lire — la convention
+  `_load_user_context()` qui hardcode la liste des clés à lire - la convention
   `user.*` n'est documentée nulle part de manière centrale.
 - Le backend Rust expose pourtant un modèle complexe :
   `UserMemoryCategory { Profile, Preferences, Habits, Context }` (la variante
@@ -30,7 +30,7 @@ incohérentes.
 - L'UI desktop expose **deux entrées d'édition concurrentes** :
   - `routes/Memory.svelte` tab `user_memory` avec `UserMemoryDashboard.svelte`
     (3 chips Préférences/Habitudes/Contexte, confidence bars, source badges,
-    validated badges) — labels différenciés operator/builder pour un contenu
+    validated badges) - labels différenciés operator/builder pour un contenu
     identique.
   - `routes/settings/Profile.svelte` *déjà* form-based, qui ré-implémente un
     schéma déclaratif (`KEY_CATEGORY` + `SENSITIVE_KEYS`) en TypeScript.
@@ -49,33 +49,33 @@ builder qui ne change que des étiquettes.
 Rust central (`crates/apollia-memory/src/profile_schema.rs`), exposé via
 `ctx.profile.*` au SDK Python, et édité depuis une seule page
 `Paramètres → Profil` côté UI. Comme Apollia OS n'a pas encore d'utilisateurs
-en production, aucun code legacy / rétrocompat / migration n'est conservé —
+en production, aucun code legacy / rétrocompat / migration n'est conservé -
 c'est la V1 du profil.**
 
 Concrètement :
 
-1. **Schéma déclaratif central** — une const `PROFILE_SCHEMA: &[ProfileField]`
+1. **Schéma déclaratif central** - une const `PROFILE_SCHEMA: &[ProfileField]`
    liste les ~15 champs canoniques (Tier 1 + Tier 2), regroupés en 4 sections
    d'affichage (`Identity`, `Work`, `Preferences`, `Constraints`), avec un flag
    `sensitive: bool` qui déclenche un avertissement "relance l'onboarding".
-2. **Storage** — la table `semantic_memories` namespace `__user__` est
-   conservée (aucun changement de schéma SQL). Les clés sont **plates** —
+2. **Storage** - la table `semantic_memories` namespace `__user__` est
+   conservée (aucun changement de schéma SQL). Les clés sont **plates** -
    pas de préfixe `user.`, pas de préfixe catégorie. Les états internes
    d'onboarding utilisent un préfixe `__` qui les masque automatiquement du
    listing profil (`get_internal`/`set_internal`).
-3. **API SDK Python `ctx.profile`** — propriétés `.name`/`.role`/...,
+3. **API SDK Python `ctx.profile`** - propriétés `.name`/`.role`/...,
    méthodes `.get(key)`/`.has(key)`/`.all()`/`.set(key, value)`/`.update(dict)`.
    Gating manifeste `user_memory_write: true` pour l'écriture, lecture
    inconditionnelle.
-4. **Provenance simplifiée** — `WrittenBy { Onboarding, User, Agent(name) }`
+4. **Provenance simplifiée** - `WrittenBy { Onboarding, User, Agent(name) }`
    (3 variantes). Plus de score `confidence` exposé, plus de badge `validated`
-   — la confiance reste à 1.0 en colonne SQL.
-5. **UI unique** — `Paramètres → Profil` (`routes/settings/Profile.svelte`)
+   - la confiance reste à 1.0 en colonne SQL.
+5. **UI unique** - `Paramètres → Profil` (`routes/settings/Profile.svelte`)
    est la seule surface d'édition. Le tab `user_memory` de
    `routes/Memory.svelte` est supprimé (avec `UserMemoryDashboard.svelte` et
    `MemoryRow.svelte`). La page Mémoire conserve uniquement le namespace
    explorer pour le debug.
-6. **Suppression des anciennes API** — `MemoryInterface.remember_user`,
+6. **Suppression des anciennes API** - `MemoryInterface.remember_user`,
    `recall("user.X")` fallback vers `__user__`, `UserMemoryCategory`,
    `UserMemorySource`, `UserMemoryEntry`, `store(category, …)`,
    `recall(category, limit)`, `recall_by_key`, `update_confidence`,
@@ -85,19 +85,19 @@ Concrètement :
 
 ## Alternatives considérées
 
-### Option A — Profil JSON unique typé (rejetée)
+### Option A - Profil JSON unique typé (rejetée)
 **Pour :** typage strict côté Rust (struct `UserProfile` sérialisée en blob),
   auto-complétion IDE pour les agents.
 **Contre :** rupture totale du contrat actuel (plus de fallback `recall("user.X")`
   sans wrapper lourd), aucune extensibilité par les agents (chaque nouveau champ
   requiert recompilation), migration mapping plus complexe. Effort ~6j.
 
-### Option B — Profil typé + zone "notes libres" séparée (rejetée)
+### Option B - Profil typé + zone "notes libres" séparée (rejetée)
 **Pour :** sépare le canonique du libre, scalable.
 **Contre :** réintroduit deux concepts (`ctx.profile.*` + `ctx.user_notes.*`),
   plus de surface API à maintenir, plus de complexité UI (2 sections). Effort ~5-6j.
 
-### Option retenue — Profil canonique + schéma déclaratif central (Piste B du plan)
+### Option retenue - Profil canonique + schéma déclaratif central (Piste B du plan)
 **Pour :** schéma déclaratif central résout la convention floue actuelle, UI
   cible déjà préparée (`settings/Profile.svelte` existe), aucun ADR à
   superseder, surface API drastiquement réduite. Apollia OS n'ayant pas
@@ -105,8 +105,8 @@ Concrètement :
   sans dette legacy (pas de migration, pas de rétrocompat, pas de wrappers
   dépréciés). Effort ~4 j.
 **Compromis acceptés :** ajouter un champ canonique nécessite une recompilation
-  Rust (les agents peuvent toujours écrire en clé libre — visibles dans la
-  section "Autres entrées" — mais la promotion en champ canonique reste un acte
+  Rust (les agents peuvent toujours écrire en clé libre - visibles dans la
+  section "Autres entrées" - mais la promotion en champ canonique reste un acte
   explicite). Tout client qui dépendait des anciennes API (`remember_user`,
   `recall("user.X")`, routes HTTP `/api/v1/user/*`, etc.) doit migrer vers
   `ctx.profile.*`.
@@ -129,11 +129,11 @@ Concrètement :
 - L'ajout d'un champ Tier 3 nécessite : update `PROFILE_SCHEMA` Rust + i18n
   labels + (optionnel) extension onboarding-agent. Compense partiellement la
   flexibilité libre actuelle.
-- Confidence et validated badge disparaissent de l'UI — si un besoin de
+- Confidence et validated badge disparaissent de l'UI - si un besoin de
   scoring ré-émerge, il faudra réintroduire un mécanisme (la colonne SQL reste,
   donc rétro-faisable).
 - `_load_user_context()` dans les 3 agents consommateurs reste sur l'ancienne
-  API par rétrocompat — refactor vers `ctx.profile.all()` est optionnel
+  API par rétrocompat - refactor vers `ctx.profile.all()` est optionnel
   post-release.
 
 **À surveiller :**
@@ -145,23 +145,23 @@ Concrètement :
 
 ## Principes architecturaux impactés
 
-- **Principe #6 — Mémoire à initiative de l'agent** : conservé. Aucune injection
+- **Principe #6 - Mémoire à initiative de l'agent** : conservé. Aucune injection
   automatique. `ctx.profile` est consulté explicitement par l'agent quand il en
   a besoin (comme `ctx.memory.recall` aujourd'hui).
-- **Principe #3 — Contrat minimal** : renforcé. Une API typée et explicite
+- **Principe #3 - Contrat minimal** : renforcé. Une API typée et explicite
   (`ctx.profile.name`) remplace une convention floue (`recall("user.name")`).
-- **Principe #8 — CLI humaine, API machine** : l'UX est simplifiée
+- **Principe #8 - CLI humaine, API machine** : l'UX est simplifiée
   (`Paramètres → Profil` = formulaire form-based humain) et l'API agent est
   plus expressive.
 
 ## Liens
 
-- ADR-007 — Mémoire à initiative de l'agent (préservé)
-- ADR-038 — Mémoire utilisateur globale (**amendé** par cet ADR — fallback
+- ADR-007 - Mémoire à initiative de l'agent (préservé)
+- ADR-038 - Mémoire utilisateur globale (**amendé** par cet ADR - fallback
   `recall("user.X")` conservé, le reste évolue)
-- ADR-040 — Onboarding comme agent conversationnel (l'agent migre vers
+- ADR-040 - Onboarding comme agent conversationnel (l'agent migre vers
   `ctx.profile.set(...)`)
-- ADR-086 — Permissions agent-driven : `governance.db` source unique
-  (l'onboarding-agent lit toujours le profil pour proposer ses règles —
+- ADR-086 - Permissions agent-driven : `governance.db` source unique
+  (l'onboarding-agent lit toujours le profil pour proposer ses règles -
   via `ctx.profile.*` ou `recall("user.*")` rétrocompat)
 - Plan d'implémentation : `~/.claude/plans/j-ai-besoin-de-repenser-expressive-cat.md`

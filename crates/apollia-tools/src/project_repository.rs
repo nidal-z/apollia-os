@@ -15,10 +15,10 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-/// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
+/// SQL de migration embarqué - appliqué idempotentiellement à chaque ouverture.
 const MIGRATION_SQL: &str = include_str!("../migrations/008_projects.sql");
 
-/// Migration 009 — table de jointure project_agents.
+/// Migration 009 - table de jointure project_agents.
 const MIGRATION_009_SQL: &str = include_str!("../migrations/009_project_agents.sql");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ pub enum ProjectRepositoryError {
 /// `008_projects.sql` est appliquée à [`open`](Self::open).
 /// Le mode WAL est activé pour la concurrence lecture/écriture.
 ///
-/// Clonable via `Arc` — chaque clone partage la même connexion.
+/// Clonable via `Arc` - chaque clone partage la même connexion.
 #[derive(Clone)]
 pub struct ProjectRepository {
     conn: Arc<Mutex<Connection>>,
@@ -463,7 +463,7 @@ impl ProjectRepository {
             if updated > 0 {
                 return Ok(id.to_owned());
             }
-            // Fall through to INSERT if the id was unknown — keeps callers
+            // Fall through to INSERT if the id was unknown - keeps callers
             // resilient if a stale id is passed (e.g. after a delete).
         }
 
@@ -520,7 +520,7 @@ impl ProjectRepository {
             .lock()
             .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
 
-        // Template "Développement Git" — providers git + rules + tree
+        // Template "Développement Git" - providers git + rules + tree
         let git_providers = serde_json::json!([
             {"provider_type": "git",   "name": "Git Status",    "enabled": true, "priority": 10},
             {"provider_type": "rules", "name": "Project Rules",  "enabled": true, "priority": 20},
@@ -541,7 +541,7 @@ impl ProjectRepository {
             ],
         )?;
 
-        // Template "Vide" — aucun provider
+        // Template "Vide" - aucun provider
         conn.execute(
             "INSERT OR IGNORE INTO project_templates
                 (id, name, description, providers_config_json, is_builtin, created_at)
@@ -549,7 +549,7 @@ impl ProjectRepository {
             params![
                 "builtin-empty",
                 "Vide",
-                "Projet sans contexte workspace — à configurer manuellement.",
+                "Projet sans contexte workspace - à configurer manuellement.",
                 "[]",
                 now,
             ],
@@ -769,7 +769,7 @@ impl ProjectRepository {
 
 fn uuid() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    // Lightweight UUID v4-like string — no external dep beyond std.
+    // Lightweight UUID v4-like string - no external dep beyond std.
     let t = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -970,7 +970,7 @@ mod tests {
         // WHEN reopened (migration replayed)
         drop(repo);
         // Migration is embedded in open(), so re-applying on the same path must succeed.
-        // For :memory: this means a fresh DB — but tests above already verify idempotency
+        // For :memory: this means a fresh DB - but tests above already verify idempotency
         // via seed_builtin_templates. This test just ensures open() itself is safe.
         ProjectRepository::open(path).expect("open 2");
     }

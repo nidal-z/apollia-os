@@ -612,7 +612,7 @@ impl ToolInvoker for NativeChatToolInvoker {
             Some(invoker) => invoker.invoke(tool_name, arguments).await,
             None => Err(format!(
                 "unknown tool: {tool_name} \
-                 (no dispatcher attached — invoker built outside chat manager)"
+                 (no dispatcher attached - invoker built outside chat manager)"
             )),
         }
     }
@@ -641,7 +641,7 @@ détails techniques internes (chemins système, noms d'outils, limitations techn
 problème à l'utilisateur.
 - **Limites honnêtes** : si une tâche dépasse réellement les capacités de tes outils disponibles, \
 dis-le clairement et propose ce que tu peux faire. Ne refuse jamais d'utiliser un outil qui figure \
-dans ta liste — vérifie d'abord ta liste avant de déclarer une capacité absente.
+dans ta liste - vérifie d'abord ta liste avant de déclarer une capacité absente.
 
 ## Principes d'utilisation des outils
 
@@ -657,7 +657,7 @@ chemin, identifiant). Si une information requise est absente, demande-la explici
 l'utilisateur avant d'appeler l'outil. Utiliser un placeholder comme `YOUR_API_KEY` ou \
 `<TOKEN>` dans un appel réel est interdit.
 6. **Résolution d'identifiants par nom** : quand l'utilisateur référence un fichier, document, \
-feuille, présentation ou dossier par son **titre** sans fournir d'ID, **NE DEMANDE PAS l'ID** — \
+feuille, présentation ou dossier par son **titre** sans fournir d'ID, **NE DEMANDE PAS l'ID** - \
 recherche-le toi-même via un outil de listing approprié (`gdrive.find_by_name` pour Google Drive, \
 ou son équivalent), puis enchaîne l'opération demandée. Demander un ID alphanumérique à un \
 utilisateur est une mauvaise expérience que tu dois éviter.
@@ -675,7 +675,7 @@ spreadsheet. Quand le nom contient un espace, encadre-le de guillemets simples :
 `'Feuille 1'!A1:C1`. Si tu n'es pas certain du nom de l'onglet, appelle `gsheets.list_sheets` \
 avant d'écrire.
 
-## Pattern d'enchaînement obligatoire — Google par titre
+## Pattern d'enchaînement obligatoire - Google par titre
 
 Quand l'utilisateur référence un asset Google par son **titre** (jamais par un ID alphanumérique), \
 tu DOIS enchaîner SANS DEMANDE INTERMÉDIAIRE :
@@ -691,7 +691,7 @@ spreadsheet_id depuis `matches[0].id`.
 Même pattern pour `gdocs.*` (`gdrive.find_by_name(mime_type_filter=\"document\")` puis \
 `gdocs.read_text` / `gdocs.append_text`), `gslides.*` (`mime_type_filter=\"presentation\"`), \
 et tout autre asset Google identifié par titre. **Demander l'ID alphanumérique à \
-l'utilisateur est un échec — tu as les outils pour le résoudre seul.**
+l'utilisateur est un échec - tu as les outils pour le résoudre seul.**
 ";
 
 /// Response produced by a complete chat exchange.
@@ -1770,7 +1770,7 @@ fn truncate_tool_output(s: &str) -> String {
     // Fallback: raw truncation
     let truncated = truncate_to(s, TOOL_OUTPUT_MAX_LEN);
     format!(
-        "{truncated}\n\n[Output truncated — {total} chars total. \
+        "{truncated}\n\n[Output truncated - {total} chars total. \
          Refine the command to produce less output.]",
         total = s.len()
     )
@@ -1810,7 +1810,7 @@ fn compact_json_stdout(s: &str) -> Option<String> {
     let result = val.to_string();
     if kept.len() < total_lines {
         return Some(format!(
-            "{result}\n\n[Output filtered — showing {kept}/{total} lines, \
+            "{result}\n\n[Output filtered - showing {kept}/{total} lines, \
              user paths prioritized. Refine the command for more precise results.]",
             kept = kept.len(),
             total = total_lines,

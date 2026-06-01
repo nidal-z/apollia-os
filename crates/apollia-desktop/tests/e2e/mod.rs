@@ -43,7 +43,7 @@ pub fn expand_home(path: &str) -> String {
 
 /// Reads the API Bearer token from `~/.apollia/api-token`.
 ///
-/// Returns an error if the file is absent or empty — which indicates the
+/// Returns an error if the file is absent or empty - which indicates the
 /// runtime has not started or the data directory is misconfigured.
 pub fn read_api_token() -> Result<String, Box<dyn std::error::Error>> {
     let token_path = expand_home("~/.apollia/api-token");

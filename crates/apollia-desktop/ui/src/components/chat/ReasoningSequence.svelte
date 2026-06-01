@@ -84,7 +84,7 @@
     try {
       sessionStorage.setItem(storageKey, String(visibleCount));
     } catch {
-      // quota / private mode — ignore.
+      // quota / private mode - ignore.
     }
   }
 

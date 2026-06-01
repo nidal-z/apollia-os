@@ -8,7 +8,7 @@
 
   interface Props {
     text: string;
-    /** Stream status — `streaming` shows the cursor, `interrupted` shows an inline marker. */
+    /** Stream status - `streaming` shows the cursor, `interrupted` shows an inline marker. */
     status?: "streaming" | "interrupted" | "done";
   }
 

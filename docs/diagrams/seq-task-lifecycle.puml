@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Task Lifecycle Complet — Apollia OS
+title Séquence - Task Lifecycle Complet - Apollia OS
 
 actor "User / CLI" as user #3a3a3a/white
 participant "APIServer\n(axum)" as api #1a1a2e/e0e0ff

@@ -216,7 +216,7 @@ async fn run_transcribe(
     if let Ok(status) = client.stt_status().await {
         if status["enabled"].as_bool() == Some(false) {
             return emit_stt_error(
-                "STT is disabled in apollia.toml — set stt.enabled = true to use transcription",
+                "STT is disabled in apollia.toml - set stt.enabled = true to use transcription",
                 json,
             );
         }

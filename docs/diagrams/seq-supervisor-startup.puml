@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Démarrage ordonné Supervisor (16 phases) — Apollia OS
+title Séquence - Démarrage ordonné Supervisor (16 phases) - Apollia OS
 
 participant "CLI\n(apollia-os start)" as cli #3a3a3a/ffffff
 participant "Supervisor" as sup #1a1a2e/e0e0ff
@@ -28,12 +28,12 @@ cli -> sup : Supervisor::start(config, agent_loader)
 ' Phase 1
 sup -> bus : EventBus::new()\n→ (event_sender, startup_rx)
 bus --> sup : EventBusSender [broadcast cap=1024]
-note right of sup : ✔ Phase 1 — EventBus prêt
+note right of sup : ✔ Phase 1 - EventBus prêt
 
 ' Phase 2
 sup -> reg : AgentRegistry::spawn(event_sender)
 reg --> sup : AgentRegistryHandle
-note right of sup : ✔ Phase 2 — AgentRegistry prêt
+note right of sup : ✔ Phase 2 - AgentRegistry prêt
 
 ' Phase 3
 sup -> tools : ToolRegistryHandle::start()
@@ -41,9 +41,9 @@ tools --> sup : ToolRegistryHandle
 sup -> tools : register(BashExecutor, PythonExecutor)
 sup -> tools : register(file_read, file_write,\n  file_edit, file_list, file_glob, file_grep)
 sup -> tools : register(http_fetch, memory_search)
-note right of sup : ✔ Phase 3 — ToolRegistry prêt\n(10 outils natifs enregistrés)
+note right of sup : ✔ Phase 3 - ToolRegistry prêt\n(10 outils natifs enregistrés)
 
-' Phase 3b — MCP (Sprint 26, ADR-044)
+' Phase 3b - MCP (Sprint 26, ADR-044)
 alt mcp.toml présent dans data_dir
   sup -> mcp : McpClientManagerHandle::start(\n  McpConfig::load(mcp.toml),\n  tool_registry\n)
   mcp -> mcp : itérer sur [[servers]]
@@ -55,12 +55,12 @@ alt mcp.toml présent dans data_dir
     note right of mcp : Serveur en erreur → warn! + skip\nles autres serveurs continuent
   end
   mcp --> sup : McpClientManagerHandle
-  note right of sup : ✔ Phase 3b — McpClientManager prêt\n(M serveurs, K outils MCP enregistrés)
+  note right of sup : ✔ Phase 3b - McpClientManager prêt\n(M serveurs, K outils MCP enregistrés)
 else mcp.toml absent
-  note right of sup : ⚠ Phase 3b — MCP désactivé\n(mcp.toml absent — aucun serveur configuré)
+  note right of sup : ⚠ Phase 3b - MCP désactivé\n(mcp.toml absent - aucun serveur configuré)
 end
 
-' Phase 4 — optionnelle
+' Phase 4 - optionnelle
 alt [llm] configuré dans apollia.toml
   sup -> llm : LlmRouter::from_config_with_bus(\n  llm_config, event_sender\n)
   llm -> bus : send(LlmModelLoading { backend, model_path })
@@ -69,7 +69,7 @@ alt [llm] configuré dans apollia.toml
     llm -> llm : load .gguf in-process
     alt fichier absent
       llm -> bus : send(LlmModelFailed { backend, reason })
-      note right of llm : ⚠ warning — backend ignoré\nruntime continue
+      note right of llm : ⚠ warning - backend ignoré\nruntime continue
     else succès
       llm -> bus : send(LlmModelReady { backend, model_id })
     end
@@ -77,73 +77,73 @@ alt [llm] configuré dans apollia.toml
     llm -> llm : vérifier api_key_env présent
     alt clé absente
       llm -> bus : send(LlmModelFailed { backend, reason })
-      note right of llm : ⚠ warning — backend ignoré
+      note right of llm : ⚠ warning - backend ignoré
     else clé présente
       llm -> bus : send(LlmModelReady { backend, model_id })
     end
   end
 
   llm --> sup : Ok(Arc<LlmRouter>)
-  note right of sup : ✔ Phase 4 — LlmRouter prêt\n(N backends actifs)
+  note right of sup : ✔ Phase 4 - LlmRouter prêt\n(N backends actifs)
 
 else aucun [llm] dans apollia.toml
-  note right of sup : ⚠ Phase 4 — LlmRouter absent\nctx.llm = None pour tous les agents
+  note right of sup : ⚠ Phase 4 - LlmRouter absent\nctx.llm = None pour tous les agents
 end
 
 ' Phase 5
 sup -> router : TaskRouter::spawn(\n  registry_handle,\n  event_sender, cap=256\n)
 router --> sup : TaskRouterHandle
-note right of sup : ✔ Phase 5 — TaskRouter prêt
+note right of sup : ✔ Phase 5 - TaskRouter prêt
 
 ' Phase 6
 sup -> api : APIServer::new(api_config, AppState {\n  registry, router, tools,\n  llm_router, agent_loader,\n  trigger_engine, notification_config\n})
 api -> api : bind Unix socket\nbind TCP :7771
 api --> sup : APIServerHandle
-note right of sup : ✔ Phase 6 — APIServer prêt\n/tmp/apollia.sock · :7771
+note right of sup : ✔ Phase 6 - APIServer prêt\n/tmp/apollia.sock · :7771
 
-' Phase 7 — triggers depuis SQLite (Sprint 17, ADR-033)
+' Phase 7 - triggers depuis SQLite (Sprint 17, ADR-033)
 sup -> sup : TriggerDefinitionRepository::open(\n  data_dir/triggers_def.db\n)
 sup -> sup : charger définitions SQLite\n(defs invalides → warn!, skip)
 sup -> trig : TriggerEngine::start(\n  defs_from_sqlite, event_sender\n)
 trig -> trig : spawn sources\n(cron, interval, oneshot,\nfile_watch, webhook)
 trig --> sup : TriggerEngineHandle
-note right of sup : ✔ Phase 7 — TriggerEngine prêt\n(N triggers actifs)\nRepository → Arc<Mutex<>> dans AppState
+note right of sup : ✔ Phase 7 - TriggerEngine prêt\n(N triggers actifs)\nRepository → Arc<Mutex<>> dans AppState
 
-' Phase 8 — optionnelle (Sprint 9 Dashboard, géré via APIServer)
-note right of sup : ✔ Phase 8 — Dashboard HTMX\nembarqué dans APIServer\n(GET /dashboard)
+' Phase 8 - optionnelle (Sprint 9 Dashboard, géré via APIServer)
+note right of sup : ✔ Phase 8 - Dashboard HTMX\nembarqué dans APIServer\n(GET /dashboard)
 
-' Phase 9 — notifications depuis SQLite (Sprint 17, ADR-033)
+' Phase 9 - notifications depuis SQLite (Sprint 17, ADR-033)
 sup -> sup : NotificationConfigRepository::open(\n  data_dir/notifications.db\n)
 alt canaux configurés dans SQLite
   sup -> notif : NotificationEngine::new(\n  config_from_sqlite, channels, event_sender\n)
   notif -> notif : build_channels()\n(desktop, webhook)
   notif -> bus : subscribe()
-  note right of sup : ✔ Phase 9 — NotificationEngine prêt\n(M canaux actifs)\nRepository → Arc<Mutex<>> dans AppState
+  note right of sup : ✔ Phase 9 - NotificationEngine prêt\n(M canaux actifs)\nRepository → Arc<Mutex<>> dans AppState
 else base SQLite vide
-  note right of sup : ⚠ Phase 9 — NotificationEngine absent\naucune notification envoyée
+  note right of sup : ⚠ Phase 9 - NotificationEngine absent\naucune notification envoyée
 end
 
-' Phase 13 — Chat (Sprint 18, ADR-034)
+' Phase 13 - Chat (Sprint 18, ADR-034)
 sup -> chat : ChatSessionManager::spawn(\n  event_sender, llm_router,\n  tool_registry, agent_loader,\n  runtime_budget\n)
 chat -> chat : ChatSessionRepository::open(\n  data_dir/chat.db\n)
 chat -> chat : restore authorized_tools\nfrom SQLite
 chat --> sup : ChatSessionManagerHandle
-note right of sup : ✔ Phase 13 — ChatSessionManager prêt\n(chat.db ouvert, autorisations restaurées)
+note right of sup : ✔ Phase 13 - ChatSessionManager prêt\n(chat.db ouvert, autorisations restaurées)
 
-' Phase 15 — STT (Sprint 24, ADR-041)
+' Phase 15 - STT (Sprint 24, ADR-041)
 alt stt.enabled = true dans apollia.toml
   sup -> sup : SttRepository::open(\n  data_dir/stt.db\n) [spawn_blocking]
   sup -> sup : try_load_backend()\n  WhisperCppBackend::load(model_path)\n  [spawn_blocking]
   alt modèle absent ou chargement échoué
-    note right of sup : ⚠ Phase 15 — SttEngine absent\nSTT désactivé (aucun panic)
+    note right of sup : ⚠ Phase 15 - SttEngine absent\nSTT désactivé (aucun panic)
   else succès
     sup -> stt : SttEngineHandle::start(\n  backend, repository, event_sender\n)
     stt -> bus : send(SttModelLoaded { backend, model_path })
     stt --> sup : SttEngineHandle
-    note right of sup : ✔ Phase 15 — SttEngine prêt\n(modèle chargé, repository ouvert)
+    note right of sup : ✔ Phase 15 - SttEngine prêt\n(modèle chargé, repository ouvert)
   end
 else stt.enabled = false
-  note right of sup : ⚠ Phase 15 — STT désactivé\n(config stt.enabled = false)
+  note right of sup : ⚠ Phase 15 - STT désactivé\n(config stt.enabled = false)
 end
 
 ' AllReady

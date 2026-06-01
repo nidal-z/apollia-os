@@ -1,4 +1,4 @@
-# ADR-010 — Pivot du SaaS Python vers le Runtime Rust open-source
+# ADR-010 - Pivot du SaaS Python vers le Runtime Rust open-source
 
 **Date :** 2026-03
 **Statut :** Accepté (décision fondatrice)
@@ -11,7 +11,7 @@
 
 Apollia existait initialement comme un SaaS full-stack (FastAPI + SvelteKit) pour la gestion d'agents IA pour les PME. Après 8 mois de développement, l'analyse révèle : marché SaaS multi-agent très encombré (AutoGen, CrewAI, LangGraph, n8n cloud), cycle de vente long avec les PME, ressources insuffisantes pour concurrencer les plateformes bien financées sur le segment SaaS, et difficulté à différencier un SaaS généraliste.
 
-En revanche, le noyau technique d'Apollia (ORIA, sandbox, mémoire souveraine) représente une valeur architecturale réelle et unique — particulièrement le principe "local-first, zéro cloud". Ce noyau peut être extrait et distribué comme infrastructure open-source.
+En revanche, le noyau technique d'Apollia (ORIA, sandbox, mémoire souveraine) représente une valeur architecturale réelle et unique - particulièrement le principe "local-first, zéro cloud". Ce noyau peut être extrait et distribué comme infrastructure open-source.
 
 ## Décision
 
@@ -19,19 +19,19 @@ Nous arrêtons le développement SaaS full-stack. Nous extrayons le noyau techni
 
 ## Alternatives considérées
 
-### Option A — Continuer le SaaS Python (rejetée)
+### Option A - Continuer le SaaS Python (rejetée)
 **Pour :** Infrastructure existante, retour sur investissement potentiel.
 **Contre :** Marché encombré. Cycle de vente long PME. Ressources insuffisantes pour rivaliser. Différenciation faible vs. les plateformes bien financées.
 
-### Option B — SaaS avec runtime Python (rejetée)
+### Option B - SaaS avec runtime Python (rejetée)
 **Pour :** Cohérence de stack, vitesse de développement.
 **Contre :** Viole les principes #1 (données en cloud) et #2 (dépendances système Python). Reproductions des problèmes du SaaS précédent.
 
-### Option C — Open-source le SaaS complet (rejetée)
+### Option C - Open-source le SaaS complet (rejetée)
 **Pour :** Community-led development, adoption large.
 **Contre :** Trop complexe à opérer pour la communauté (stack complète FastAPI + SvelteKit + agents). La valeur est dans le runtime, pas dans le frontend.
 
-### Option retenue — Runtime Rust open-source
+### Option retenue - Runtime Rust open-source
 **Pour :** Différenciation technique réelle (local-first, binaire unique). Adopté sans friction par les développeurs d'agents existants. Modèle viable solo en 8-10h/semaine.
 **Compromis acceptés :** Abandon de 8 mois de code SaaS. La valeur architecturale (ORIA, mémoire, sandbox) est conservée. Nouveau modèle économique à construire.
 
@@ -55,11 +55,11 @@ Nous arrêtons le développement SaaS full-stack. Nous extrayons le noyau techni
 ## Principes architecturaux impactés
 
 - Tous les 8 principes sont directement issus de cette décision fondatrice.
-- Principe #1 — Local-first : raison d'être du pivot.
-- Principe #2 — Zéro dépendance externe : différenciateur vs. SaaS cloud.
+- Principe #1 - Local-first : raison d'être du pivot.
+- Principe #2 - Zéro dépendance externe : différenciateur vs. SaaS cloud.
 
 ## Liens
 
-- Story associée : STORY-001 (Init workspace Cargo — première concrétisation du pivot)
+- Story associée : STORY-001 (Init workspace Cargo - première concrétisation du pivot)
 - Documentation associée : `docs/Vision-Pivot-et-Renouveau.md`
 - ADR précédent sur le même sujet : aucun (décision fondatrice)

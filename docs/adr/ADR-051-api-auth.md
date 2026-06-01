@@ -1,9 +1,9 @@
-# ADR-051 — Authentification API REST TCP : token statique + restriction loopback
+# ADR-051 - Authentification API REST TCP : token statique + restriction loopback
 
 **Date :** 2026-04-03
 **Statut :** Accepté
 **Décideur :** Nidal (solo)
-**Sprint :** 34 — Beta Hardening
+**Sprint :** 34 - Beta Hardening
 
 ---
 
@@ -16,9 +16,9 @@ courant peut atteindre ce port.
 
 Avant d'entrer en beta publique, ce vecteur doit être fermé. Deux surfaces d'accès coexistent :
 
-- **Socket Unix** (`~/.apollia/runtime.sock`) — accès par permissions filesystem, réservé aux
+- **Socket Unix** (`~/.apollia/runtime.sock`) - accès par permissions filesystem, réservé aux
   processus sous le même UID. Pas d'authentification supplémentaire requise.
-- **TCP `:7771`** — liaison réseau, accessible à tous les processus locaux et, si mal configuré,
+- **TCP `:7771`** - liaison réseau, accessible à tous les processus locaux et, si mal configuré,
   au réseau local. C'est la surface à sécuriser.
 
 Le Principe #1 (Local-first) exclut tout mécanisme nécessitant un serveur distant pour la
@@ -36,7 +36,7 @@ au premier démarrage du runtime via `rand::rngs::OsRng`.
 
 Le token est stocké dans `~/.apollia/api-token` avec permissions `0600` (lecture/écriture
 propriétaire uniquement). Le runtime refuse de démarrer si le fichier est lisible en groupe ou en
-world (`0640`, `0644`, etc.) — Principe #4.
+world (`0640`, `0644`, etc.) - Principe #4.
 
 ```
 ~/.apollia/api-token   # 64 hex chars + newline, chmod 0600
@@ -56,7 +56,7 @@ temps constant via `subtle::ConstantTimeEq` pour éviter les timing attacks).
 
 ### 3. Restriction loopback par défaut
 
-TCP `:7771` est bindé sur `127.0.0.1` par défaut — jamais sur `0.0.0.0`. La config expose
+TCP `:7771` est bindé sur `127.0.0.1` par défaut - jamais sur `0.0.0.0`. La config expose
 `api.bind` pour les cas avancés (VMs, conteneurs) mais la documentation avertit explicitement
 des risques d'exposition réseau.
 
@@ -85,7 +85,7 @@ doivent lire le token manuellement.
 | **OAuth2 / JWT** | Trop complexe pour une beta locale mono-utilisateur. Nécessite un serveur d'autorisation ou une clé secrète partagée avec complexité de renouvellement. |
 | **mTLS (mutual TLS)** | Overhead d'infrastructure (CA locale, certificats clients). Aucun avantage sur le token statique pour un contexte mono-utilisateur. |
 | **Aucune authentification** | Vecteur d'attaque par toute application locale (XSS via navigateur sur localhost, autres processus malveillants). Inacceptable pour beta publique. |
-| **Token par session** | Complexité de gestion de session non justifiée. Le runtime est un processus singleton — pas de multi-session à gérer. |
+| **Token par session** | Complexité de gestion de session non justifiée. Le runtime est un processus singleton - pas de multi-session à gérer. |
 | **Restriction par PID/UID** | Dépend des APIs OS non portables. Ne fonctionne pas pour les clients réseau légitimes (tests, intégrations CI). |
 
 ---
@@ -96,28 +96,28 @@ doivent lire le token manuellement.
 - Sécurité locale suffisante pour une beta mono-utilisateur sans infrastructure externe.
 - Comparaison à temps constant → pas de timing attack sur le token.
 - Backward-compatible : les clients existants via socket Unix ne sont pas affectés.
-- Simple à auditer — 64 hex chars dans un fichier, un middleware axum, un en-tête HTTP.
+- Simple à auditer - 64 hex chars dans un fichier, un middleware axum, un en-tête HTTP.
 
 **Négatives / Compromis :**
-- Pas de rotation automatique — un token compromis persiste jusqu'à intervention manuelle.
+- Pas de rotation automatique - un token compromis persiste jusqu'à intervention manuelle.
 - Les clients TCP existants (scripts de test, outils tiers) doivent être mis à jour pour inclure
   l'en-tête `Authorization`.
 - Si le fichier `~/.apollia/api-token` est copié/volé avec la config, le token est compromis.
 
 **Neutres / À surveiller :**
 - Pour une version multi-utilisateur (post-v1), un système de scopes par token sera nécessaire.
-- Le token n'expire pas — à documenter explicitement dans la page de sécurité du wiki.
+- Le token n'expire pas - à documenter explicitement dans la page de sécurité du wiki.
 
 ---
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : Zéro endpoint distant pour la vérification du token. Le fichier
+- **Principe #1 - Local-first** : Zéro endpoint distant pour la vérification du token. Le fichier
   `~/.apollia/api-token` est la source de vérité, stockée sur disque local. Conforme.
-- **Principe #4 — Fail fast** : Permissions incorrectes sur `api-token` → erreur au démarrage,
+- **Principe #4 - Fail fast** : Permissions incorrectes sur `api-token` → erreur au démarrage,
   pas en cours d'exécution. Token absent → erreur au démarrage. Requête sans token → `401`
   immédiat. Renforcé.
-- **Principe #8 — CLI humaine, API machine** : `apollia-os config show-token` affiche le token
+- **Principe #8 - CLI humaine, API machine** : `apollia-os config show-token` affiche le token
   en clair pour les intégrations. `apollia-os config rotate-token` pour la rotation. Conforme.
 
 ---
@@ -126,5 +126,5 @@ doivent lire le token manuellement.
 
 - Story d'implémentation : STORY-428 (Sprint 34)
 - Middleware implémenté dans : `crates/apollia-runtime/src/api/middleware.rs`
-- Config exposée dans : `crates/apollia-core/src/config.rs` — section `[api]`
+- Config exposée dans : `crates/apollia-core/src/config.rs` - section `[api]`
 - ADR observabilité (loopback) : [ADR-006](ADR-006-rest-json-api-locale.md)

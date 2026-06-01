@@ -2,7 +2,7 @@
 
 Provides robust extraction of JSON, code blocks, and XML tags from LLM
 responses, plus safe truncation.  All public functions handle empty or
-malformed input gracefully — they return a sensible default instead of
+malformed input gracefully - they return a sensible default instead of
 raising.
 """
 
@@ -24,7 +24,7 @@ ACTION_FINAL_ANSWER: str = "final_answer"
 # ---------------------------------------------------------------------------
 
 # Matches a JSON object inside an optional ```json ... ``` fence.
-# NOSONAR S5857 — lazy quantifier is needed to handle nested JSON objects;
+# NOSONAR S5857 - lazy quantifier is needed to handle nested JSON objects;
 # the `[^}]*` alternative would break matching of fenced nested objects.
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)  # NOSONAR
 
@@ -47,7 +47,7 @@ class ActionParseError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Public API — general-purpose parsing
+# Public API - general-purpose parsing
 # ---------------------------------------------------------------------------
 
 
@@ -95,7 +95,7 @@ def extract_json(content: str) -> dict[str, Any]:
     3. Find the outermost ``{ … }`` span.
     4. Attempt a heuristic repair of common LLM mistakes
        (unescaped quotes inside long ``content`` / ``new_text`` /
-       ``old_text`` fields — classic failure when the LLM emits
+       ``old_text`` fields - classic failure when the LLM emits
        multi-line markdown inside a JSON string).
 
     Returns:
@@ -113,24 +113,24 @@ def extract_json(content: str) -> dict[str, Any]:
     if not text:
         return {}
 
-    # Strategy 1 — full content is already valid JSON.
+    # Strategy 1 - full content is already valid JSON.
     result = _try_load_dict(text)
     if result is not None:
         return result
 
-    # Strategy 2 — JSON is inside a fenced block.
+    # Strategy 2 - JSON is inside a fenced block.
     result = _try_fenced_json(text)
     if result is not None:
         return result
 
-    # Strategy 3 — find outermost braces.
+    # Strategy 3 - find outermost braces.
     candidate = _outermost_braces(text)
     if candidate is not None:
         result = _try_load_dict(candidate)
         if result is not None:
             return result
 
-    # Strategy 4 — heuristic repair of long-string fields whose inner
+    # Strategy 4 - heuristic repair of long-string fields whose inner
     # quotes weren't escaped by the LLM.
     for target in (text, candidate):
         if not target:
@@ -143,7 +143,7 @@ def extract_json(content: str) -> dict[str, Any]:
 
 
 # Fields commonly holding long multi-line content that LLMs fail to
-# escape properly. Order matters — more specific first.
+# escape properly. Order matters - more specific first.
 _LONG_STRING_FIELDS: tuple[str, ...] = (
     "content",  # file_write
     "new_text",  # file_edit
@@ -166,7 +166,7 @@ def _repair_unescaped_quotes_in_long_strings(text: str) -> str | None:
     followed by ``,`` or ``}``  / ``]`` at the top level.
 
     Returns the repaired text, or ``None`` if no repairable pattern was
-    found. The repair is best-effort — if it doesn't produce valid JSON
+    found. The repair is best-effort - if it doesn't produce valid JSON
     the caller will simply fall back.
     """
     repaired = text
@@ -206,7 +206,7 @@ def _find_string_close(text: str, open_quote_pos: int) -> int | None:
 
     Scans forward, ignoring ``\\"`` escapes. The closing is the first
     ``"`` followed (possibly after whitespace) by ``,``, ``}``, or ``]``
-    — any other following character means we're still inside the value
+    - any other following character means we're still inside the value
     and the LLM forgot to escape this ``"``.
     """
     i = open_quote_pos + 1
@@ -357,7 +357,7 @@ def validate_action(data: dict[str, Any]) -> dict[str, Any]:
         {"thought": "…", "action": "tool_call",    "tool": "name", "args": {…}}
         {"thought": "…", "action": "final_answer", "text": "…"}
 
-    Shorthand (common LLM shortcut) — ``action`` carries the tool name
+    Shorthand (common LLM shortcut) - ``action`` carries the tool name
     directly, there is no ``tool`` field::
 
         {"thought": "…", "action": "ask_user", "args": {…}}
@@ -366,7 +366,7 @@ def validate_action(data: dict[str, Any]) -> dict[str, Any]:
     nor ``final_answer``, and ``tool`` is absent), the input is rewritten
     to the canonical form with ``action="tool_call"`` and ``tool=<shorthand
     action value>``. This guard exists because LLMs frequently collapse
-    the two fields — strict validation would crash the ReAct loop on an
+    the two fields - strict validation would crash the ReAct loop on an
     otherwise valid tool call.
 
     Raises:

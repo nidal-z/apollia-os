@@ -7,7 +7,7 @@ skinparam defaultFontSize 12
 skinparam defaultFontName "Helvetica"
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence Onboarding v2.1 (ADR-086) — Flux complet — Apollia OS
+title Séquence Onboarding v2.1 (ADR-086) - Flux complet - Apollia OS
 
 participant "Desktop (UI)" as ui #2d4a22
 participant "Supervisor" as sup #1a1a2e
@@ -16,7 +16,7 @@ participant "MemoryInterface" as mem #2a3a4a
 participant "ToolRegistry\n(permission_rule_add)" as tools #2a3a4a
 participant "User" as user #2d4a22
 
-== Étape 1 — Détection premier lancement ==
+== Étape 1 - Détection premier lancement ==
 
 sup -> mem : recall("onboarding.completed_at")
 mem --> sup : None (mémoire vide)
@@ -24,26 +24,26 @@ sup -> sup : emit RuntimeEvent::\nOnboardingRequired
 
 sup -> ui : RuntimeEvent::OnboardingRequired
 
-== Étape 2 — Desktop ouvre la modal ==
+== Étape 2 - Desktop ouvre la modal ==
 
 ui -> ui : open OnboardingModal
 ui -> user : affiche modal d'onboarding
 
-== Étapes 3-6 — Boucle conversationnelle (≤ 4 turns) ==
+== Étapes 3-6 - Boucle conversationnelle (≤ 4 turns) ==
 
 note over agent
   ≤ 4 turns, < 2 minutes
   Tier 1 keys collectées progressivement
 end note
 
-group Turn 1-2 — Questions légères
+group Turn 1-2 - Questions légères
 
 user -> ui : message utilisateur (Turn 1)
 ui -> agent : converse(user_message, history=[])
 agent -> agent : LLM.complete(messages)
 
 note right of agent #d4f0d4
-  Turn 1 — Identité :
+  Turn 1 - Identité :
   [REMEMBER user.name=Prénom]
   [REMEMBER user.role=description]
 end note
@@ -61,14 +61,14 @@ ui --> user : affiche réponse
 
 end
 
-group Turn 3-4 — Questions sensibles
+group Turn 3-4 - Questions sensibles
 
 user -> ui : message utilisateur (Turn 3)
 ui -> agent : converse(user_message, history)
 agent -> agent : LLM.complete(messages)
 
 note right of agent #d4f0d4
-  Turn 3 — Supervision :
+  Turn 3 - Supervision :
   [REMEMBER user.agents.hitl=always|critical-only|never]
 end note
 
@@ -81,7 +81,7 @@ ui -> agent : converse(user_message, history)
 agent -> agent : LLM.complete(messages)
 
 note right of agent #d4f0d4
-  Turn 4 — Souveraineté :
+  Turn 4 - Souveraineté :
   [REMEMBER user.constraints.sovereignty=local-only|...]
   [PROFILE operator|builder]
   [SUGGEST email-triage]
@@ -92,7 +92,7 @@ agent -> agent : _all_gate_keys_present() ?\n→ user.name et user.role présent
 
 end
 
-== Étape 7 — Idempotence check (phase 2 permissions) ==
+== Étape 7 - Idempotence check (phase 2 permissions) ==
 
 agent -> tools : permission_rule_list(\n  {"created_by": "onboarding-agent"}\n)
 tools --> agent : rules=[] (aucune règle existante)
@@ -102,7 +102,7 @@ note right of agent #d4f0d4
   existent déjà, on ne re-propose rien.
 end note
 
-== Étape 8 — Proposition des règles HITL-gated ==
+== Étape 8 - Proposition des règles HITL-gated ==
 
 agent -> mem : recall("user.constraints.sovereignty")
 mem --> agent : "local-only"
@@ -123,7 +123,7 @@ user -> ui : [Approuver]
 ui -> tools : confirmed
 tools --> agent : Ok (règle écrite dans governance.db)
 
-== Étape 9 — Complétion onboarding ==
+== Étape 9 - Complétion onboarding ==
 
 agent -> mem : remember("onboarding.profile_type", "operator")
 agent -> mem : remember("onboarding.version", "2.1")
@@ -131,7 +131,7 @@ agent -> mem : remember("onboarding.suggested_agents", '["email-triage"]')
 agent -> mem : remember("onboarding.completed_at", "2026-05-01T...")
 
 note right of mem #d4f0d4
-  completed_at LAST — signal de complétion
+  completed_at LAST - signal de complétion
   observé par le desktop (onboarding.rs)
 end note
 

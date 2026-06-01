@@ -1,4 +1,4 @@
-//! Integration tests — route `POST /webhooks/:id`.
+//! Integration tests - route `POST /webhooks/:id`.
 //!
 //! Couvre 3 scénarios : POST valide (HMAC correct), POST invalide (signature erronée),
 //! et POST trigger inconnu (404).
@@ -34,7 +34,7 @@ use apollia_triggers::{
 
 /// Mock [`TaskSubmitter`] qui compte les appels à `submit()`.
 ///
-/// `pending_count` retourne toujours 0 (agent libre) dans les tests webhook —
+/// `pending_count` retourne toujours 0 (agent libre) dans les tests webhook -
 /// le but est de vérifier que le handler HTTP atteint (ou non) la soumission.
 struct MockTaskSubmitter {
     submit_count: Arc<AtomicU32>,
@@ -72,7 +72,7 @@ impl TaskSubmitter for MockTaskSubmitter {
 
 // ─── MockBackend ──────────────────────────────────────────────────────────
 
-/// Backend d'exécution minimal — jamais appelé dans les tests webhook.
+/// Backend d'exécution minimal - jamais appelé dans les tests webhook.
 #[derive(Clone)]
 struct MockBackend;
 
@@ -255,7 +255,7 @@ async fn http_post_webhook(
 /// POST avec signature HMAC valide → HTTP 200 + 1 submit().
 #[tokio::test]
 async fn test_ac3_valid_webhook_returns_200() {
-    // GIVEN — serveur avec trigger webhook "crm-sync" (secret "test-secret")
+    // GIVEN - serveur avec trigger webhook "crm-sync" (secret "test-secret")
     let def = webhook_def("crm-sync", "test-secret");
     let (state, submit_count) = build_webhook_state(vec![def]).await;
     let (_handle, port, _socket) = start_test_server(state).await;
@@ -263,7 +263,7 @@ async fn test_ac3_valid_webhook_returns_200() {
     let body = b"{\"event\": \"lead_created\"}";
     let sig = compute_hmac("test-secret", body);
 
-    // WHEN — POST valide avec signature HMAC correcte
+    // WHEN - POST valide avec signature HMAC correcte
     let status = http_post_webhook(
         port,
         "/webhooks/crm-sync",
@@ -275,10 +275,10 @@ async fn test_ac3_valid_webhook_returns_200() {
     )
     .await;
 
-    // THEN — HTTP 200 retourné immédiatement
+    // THEN - HTTP 200 retourné immédiatement
     assert_eq!(status, 200, "expected HTTP 200 for valid webhook POST");
 
-    // ET — 1 submit() effectué dans le TriggerEngine (fire-and-forget, poll avec timeout)
+    // ET - 1 submit() effectué dans le TriggerEngine (fire-and-forget, poll avec timeout)
     let submitted = tokio::time::timeout(Duration::from_secs(1), async {
         loop {
             if submit_count.load(Ordering::SeqCst) >= 1 {
@@ -298,16 +298,16 @@ async fn test_ac3_valid_webhook_returns_200() {
 /// POST avec signature invalide → HTTP 401 + zéro submit().
 #[tokio::test]
 async fn test_ac4_invalid_signature_returns_401() {
-    // GIVEN — même serveur avec trigger webhook "crm-sync"
+    // GIVEN - même serveur avec trigger webhook "crm-sync"
     let def = webhook_def("crm-sync", "test-secret");
     let (state, submit_count) = build_webhook_state(vec![def]).await;
     let (_handle, port, _socket) = start_test_server(state).await;
 
     let body = b"{\"event\": \"lead_created\"}";
-    // Signature incorrecte — 64 zéros hexadécimaux
+    // Signature incorrecte - 64 zéros hexadécimaux
     let bad_sig = "sha256=0000000000000000000000000000000000000000000000000000000000000000";
 
-    // WHEN — POST avec signature invalide
+    // WHEN - POST avec signature invalide
     let status = http_post_webhook(
         port,
         "/webhooks/crm-sync",
@@ -319,7 +319,7 @@ async fn test_ac4_invalid_signature_returns_401() {
     )
     .await;
 
-    // THEN — HTTP 401 retourné, aucune soumission
+    // THEN - HTTP 401 retourné, aucune soumission
     assert_eq!(
         status, 401,
         "expected HTTP 401 for invalid webhook signature"
@@ -336,7 +336,7 @@ async fn test_ac4_invalid_signature_returns_401() {
 /// Extra : POST sur un trigger inconnu → HTTP 404 + zéro submit().
 #[tokio::test]
 async fn test_webhook_unknown_trigger_returns_404() {
-    // GIVEN — serveur avec trigger "crm-sync" uniquement
+    // GIVEN - serveur avec trigger "crm-sync" uniquement
     let def = webhook_def("crm-sync", "test-secret");
     let (state, submit_count) = build_webhook_state(vec![def]).await;
     let (_handle, port, _socket) = start_test_server(state).await;
@@ -344,7 +344,7 @@ async fn test_webhook_unknown_trigger_returns_404() {
     let body = b"{}";
     let sig = compute_hmac("test-secret", body);
 
-    // WHEN — POST sur un ID de trigger inexistant
+    // WHEN - POST sur un ID de trigger inexistant
     let status = http_post_webhook(
         port,
         "/webhooks/nonexistent-trigger",
@@ -353,7 +353,7 @@ async fn test_webhook_unknown_trigger_returns_404() {
     )
     .await;
 
-    // THEN — HTTP 404 retourné, aucune soumission
+    // THEN - HTTP 404 retourné, aucune soumission
     assert_eq!(status, 404, "expected HTTP 404 for unknown webhook trigger");
     assert_eq!(
         submit_count.load(Ordering::SeqCst),

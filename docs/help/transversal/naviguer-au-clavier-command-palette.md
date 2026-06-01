@@ -12,11 +12,11 @@
 
    ![command palette ouverte au centre de l'écran, champ de recherche en haut, suggestions groupées en dessous](../_screenshots/transversal-naviguer-au-clavier-command-palette-1.png)
 
-   > **Note :** il n'y a qu'un seul raccourci d'ouverture. Cmd+K (ou Ctrl+K) couvre tous les cas — page, action, raccourci. Tapez quelques lettres pour réduire la liste.
+   > **Note :** il n'y a qu'un seul raccourci d'ouverture. Cmd+K (ou Ctrl+K) couvre tous les cas - page, action, raccourci. Tapez quelques lettres pour réduire la liste.
 
 2. Tapez quelques lettres de ce que vous cherchez. La liste se filtre en temps réel. Exemple en tapant **agent** : *Agents* (page), *Créer un agent*, *Démarrer tous les agents*, *Arrêter tous les agents*.
 
-   Les entrées sont **groupées par catégorie** (Pages, Actions, Sessions récentes, Modèles de chat, Slash commands…) — les sections changent selon la page courante.
+   Les entrées sont **groupées par catégorie** (Pages, Actions, Sessions récentes, Modèles de chat, Slash commands…) - les sections changent selon la page courante.
 
 3. Utilisez les flèches **Haut** et **Bas** pour parcourir les résultats. La ligne sélectionnée est mise en évidence.
 
@@ -38,14 +38,14 @@ Pour parcourir tous les raccourcis (globaux, navigation, chat, paramètres, comp
 
 ## Quelques raccourcis utiles
 
-- **Cmd+K / Ctrl+K** — ouvrir la command palette.
-- **?** — afficher la cheatsheet contextuelle.
-- **Cmd+B / Ctrl+B** — replier / déplier la sidebar.
-- **Cmd+[ / Ctrl+[** — page précédente (navigation historique).
-- **Cmd+] / Ctrl+]** — page suivante.
-- **Cmd+/ / Ctrl+/** — basculer l'affichage de l'**Aide Apollia** (le Companion).
-- **Cmd+Enter / Ctrl+Enter** — envoyer le message courant (dans un chat).
-- **Échap** — fermer le dialog / chat-input courant.
+- **Cmd+K / Ctrl+K** - ouvrir la command palette.
+- **?** - afficher la cheatsheet contextuelle.
+- **Cmd+B / Ctrl+B** - replier / déplier la sidebar.
+- **Cmd+[ / Ctrl+[** - page précédente (navigation historique).
+- **Cmd+] / Ctrl+]** - page suivante.
+- **Cmd+/ / Ctrl+/** - basculer l'affichage de l'**Aide Apollia** (le Companion).
+- **Cmd+Enter / Ctrl+Enter** - envoyer le message courant (dans un chat).
+- **Échap** - fermer le dialog / chat-input courant.
 
 ## Vérification
 
@@ -55,4 +55,4 @@ La palette s'ouvre instantanément avec **Cmd+K** / **Ctrl+K**, et l'action choi
 
 - **Cmd+K n'ouvre rien** : un autre logiciel (Slack, Notion, navigateur…) intercepte peut-être la combinaison en premier. Cliquez d'abord dans la fenêtre d'Apollia pour qu'elle reçoive le focus, puis ré-essayez. Si le problème persiste, l'autre logiciel doit être quitté ou son raccourci changé.
 - **L'action recherchée n'apparaît pas** : certaines entrées sont **contextuelles**. Par exemple, *Sessions récentes* / *Modèles de chat* / *Slash commands* n'apparaissent que si vous êtes sur la page **Chat**. Naviguez d'abord vers la page correspondante puis rouvrez la palette.
-- **Je veux personnaliser un raccourci** : non disponible pour le moment — la page **Paramètres → Raccourcis** est en lecture seule. Les conventions natives (Cmd / Ctrl) sont respectées partout.
+- **Je veux personnaliser un raccourci** : non disponible pour le moment - la page **Paramètres → Raccourcis** est en lecture seule. Les conventions natives (Cmd / Ctrl) sont respectées partout.

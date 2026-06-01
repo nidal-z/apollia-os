@@ -19,7 +19,7 @@
   interface Props {
     session: ChatSessionDetail | null;
     onupdated: () => void;
-    /** Optional close hook — only invoked when the parent wants the panel dismissed after save. */
+    /** Optional close hook - only invoked when the parent wants the panel dismissed after save. */
     onclose?: () => void;
     /** Show the header bar. Drawers embedded in tabs set this to false. */
     showHeader?: boolean;
@@ -203,7 +203,7 @@
       {/if}
     </Card>
 
-    <!-- LLM provider error — inline feedback for required validation. -->
+    <!-- LLM provider error - inline feedback for required validation. -->
     {#if llmBackendError}
       <p
         class="text-[10px] text-destructive -mt-2"
@@ -238,7 +238,7 @@
       </FormField>
     </Card>
 
-    <!-- Step budget — client-side persistence until runtime wiring lands. -->
+    <!-- Step budget - client-side persistence until runtime wiring lands. -->
     <Card class="p-3.5">
       <FormField
         id="config-step-budget"

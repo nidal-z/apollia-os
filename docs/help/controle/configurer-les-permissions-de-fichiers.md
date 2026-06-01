@@ -1,6 +1,6 @@
 # Gérer les autorisations d'outils
 
-> Pour les operators qui veulent visualiser, filtrer ou révoquer les autorisations accordées aux outils d'un agent — sans attendre qu'une action déclenche une nouvelle carte d'approbation.
+> Pour les operators qui veulent visualiser, filtrer ou révoquer les autorisations accordées aux outils d'un agent - sans attendre qu'une action déclenche une nouvelle carte d'approbation.
 
 ## Prérequis
 
@@ -40,7 +40,7 @@ Une fois révoquée, l'outil concerné redemandera une approbation manuelle à l
 
 ## Sessions actives
 
-La section **Sessions actives** liste les outils auto-approuvés via « Pour cette session » dans les conversations de chat en cours. Ces autorisations sont **in-memory uniquement** — elles disparaissent à la fermeture de la session et ne sont pas persistées.
+La section **Sessions actives** liste les outils auto-approuvés via « Pour cette session » dans les conversations de chat en cours. Ces autorisations sont **in-memory uniquement** - elles disparaissent à la fermeture de la session et ne sont pas persistées.
 
 Chaque entrée indique le nom de l'outil, la session concernée (titre ou identifiant court), le mode (*Apollia Chat*, *Agent*, *Companion*) et un badge *Session* orange. Cliquez sur **Révoquer** pour retirer l'autorisation immédiatement. L'outil demandera de nouveau confirmation lors du prochain appel dans cette session.
 
@@ -50,16 +50,16 @@ Chaque entrée indique le nom de l'outil, la session concernée (titre ou identi
 
 1. Cliquez sur le bouton rouge **Tout révoquer** en haut à droite.
 2. Choisissez la portée à purger :
-   - *Ce projet* — supprime les règles liées au projet courant
-   - *Chat / agent* — supprime les règles liées à l'agent Apollia Chat et aux agents Python
-   - *Partout* — supprime les règles globales
-   - *Toutes portées* — supprime toutes les règles persistées
+   - *Ce projet* - supprime les règles liées au projet courant
+   - *Chat / agent* - supprime les règles liées à l'agent Apollia Chat et aux agents Python
+   - *Partout* - supprime les règles globales
+   - *Toutes portées* - supprime toutes les règles persistées
 3. Vérifiez le nombre de règles concernées affiché dans la boîte de dialogue, puis cliquez sur **Révoquer**.
    `[SCREENSHOT: dialog "Tout révoquer", sélecteur de portée, compteur de règles concernées, bouton Révoquer]`
 
 ## Règles du chat (Apollia Chat)
 
-La section **Chat — Apollia** liste les outils auto-approuvés pour toutes les sessions du chat libre. Ces règles sont créées via **"Toujours autoriser"** dans le chat et persistent d'une session à l'autre. Révoquez-les individuellement ici pour que l'outil redemande confirmation lors de la prochaine invocation depuis le chat.
+La section **Chat - Apollia** liste les outils auto-approuvés pour toutes les sessions du chat libre. Ces règles sont créées via **"Toujours autoriser"** dans le chat et persistent d'une session à l'autre. Révoquez-les individuellement ici pour que l'outil redemande confirmation lors de la prochaine invocation depuis le chat.
 
 ## Consulter l'audit récent
 
@@ -69,6 +69,6 @@ En bas de la page, la section **Audit récent** (lecture seule) liste les 20 der
 
 - **Aucune autorisation affichée** : aucune règle persistée n'existe pour les filtres sélectionnés. Réinitialisez les filtres ou exécutez un agent et accordez une autorisation persistée via la carte d'approbation.
 - **La règle revient après révocation** : un autre agent (ou une configuration globale) crée la même règle automatiquement. Vérifiez vos agents ou contactez le support.
-- **Le bouton "Tout révoquer" est grisé** : la liste est vide — il n'y a rien à révoquer pour les filtres actuels.
+- **Le bouton "Tout révoquer" est grisé** : la liste est vide - il n'y a rien à révoquer pour les filtres actuels.
 
-> **Référence technique :** [Securite-Guardrails](https://github.com/nidal-z/apollia-os/wiki/Securite-Guardrails)
+> **Référence technique :** [Securite-Guardrails](https://github.com/Apollia-OS/apollia-os/wiki/Securite-Guardrails)

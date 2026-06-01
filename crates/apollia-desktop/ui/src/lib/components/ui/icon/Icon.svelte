@@ -1,10 +1,10 @@
 <script lang="ts">
   /**
-   * Icon — thin wrapper that applies a canonical tone to a lucide icon.
+   * Icon - thin wrapper that applies a canonical tone to a lucide icon.
    *
    * Replaces inline `class="text-gray-500"` / `text-muted-foreground` /
    * `text-destructive` drifting across the codebase (F.72). The consumer
-   * passes the icon component — this wrapper only owns the tone, size
+   * passes the icon component - this wrapper only owns the tone, size
    * and accessible label.
    */
   import { cn } from "$lib/utils";
@@ -17,7 +17,7 @@
     tone?: Tone;
     size?: number;
     class?: string;
-    /** Accessible label — omit when the icon is purely decorative. */
+    /** Accessible label - omit when the icon is purely decorative. */
     label?: string;
   }
 

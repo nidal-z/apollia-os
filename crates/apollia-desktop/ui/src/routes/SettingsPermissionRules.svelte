@@ -27,7 +27,7 @@
   let confirmingAll = $state(false);
   let confirmText = $state("");
 
-  // ADR-086 — filtre rapide par auteur. Permet à l'opérateur de retrouver
+  // ADR-086 - filtre rapide par auteur. Permet à l'opérateur de retrouver
   // les règles posées par l'onboarding-agent vs ses propres règles HITL vs
   // celles importées du config.
   let creatorFilter = $state<string>("all");
@@ -123,7 +123,7 @@
             <th class="px-3 py-2">{$t("permissions.rules.col_tool")}</th>
             <th class="px-3 py-2">{$t("permissions.rules.col_scope")}</th>
             <th class="px-3 py-2">{$t("permissions.rules.col_agent")}</th>
-            <!-- ADR-086 — colonne auteur (created_by) -->
+            <!-- ADR-086 - colonne auteur (created_by) -->
             <th class="px-3 py-2" title="Auteur ayant créé la règle (HITL, agent, config…)">
               Auteur
             </th>
@@ -143,8 +143,8 @@
             <tr class="border-t border-border">
               <td class="px-3 py-2 font-mono text-[12px]">{rule.tool}</td>
               <td class="px-3 py-2">{scopeLabel(rule.scope)}</td>
-              <td class="px-3 py-2 text-muted-foreground">{rule.agent_id ?? "—"}</td>
-              <td class="px-3 py-2 text-muted-foreground font-mono text-[11px]">{rule.created_by ?? "—"}</td>
+              <td class="px-3 py-2 text-muted-foreground">{rule.agent_id ?? "-"}</td>
+              <td class="px-3 py-2 text-muted-foreground font-mono text-[11px]">{rule.created_by ?? "-"}</td>
               <td class="px-3 py-2 text-muted-foreground">{formatDate(rule.created_at)}</td>
               <td class="px-3 py-2 text-right">
                 <Button

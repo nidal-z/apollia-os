@@ -1,4 +1,4 @@
-# ADR-066 — Memory Export/Import : Format JSON Gzip
+# ADR-066 - Memory Export/Import : Format JSON Gzip
 
 **Date :** 2026-04-04
 **Statut :** Accepté
@@ -14,7 +14,7 @@ Apollia OS doit permettre l'export et l'import de la mémoire des agents pour :
 - **Backup** : sauvegarde locale conforme Principe #1
 - **Partage** : transfert de mémoire entre instances (ex. staging → production)
 
-La mémoire comprend les trois types : épisodique, sémantique, procédurale — stockés dans `~/.apollia/memory.db` (SQLite + FTS5).
+La mémoire comprend les trois types : épisodique, sémantique, procédurale - stockés dans `~/.apollia/memory.db` (SQLite + FTS5).
 
 ---
 
@@ -53,36 +53,36 @@ apollia-os memory export --output ~/backup/memory.jsonl.gz
 # Export d'un namespace spécifique
 apollia-os memory export --namespace agent-devis
 
-# Import (merge — pas de remplacement)
+# Import (merge - pas de remplacement)
 apollia-os memory import ~/backup/memory.jsonl.gz
 
-# Import avec remplacement (destructif — demande confirmation)
+# Import avec remplacement (destructif - demande confirmation)
 apollia-os memory import --replace ~/backup/memory.jsonl.gz
 ```
 
 ### Import = Merge par défaut
 
-L'import fusionne les données importées avec les données existantes. Les conflits (même `id` épisodique) sont résolus par `created_at` — la plus récente gagne. Ce comportement est documenté.
+L'import fusionne les données importées avec les données existantes. Les conflits (même `id` épisodique) sont résolus par `created_at` - la plus récente gagne. Ce comportement est documenté.
 
 ---
 
 ## Conséquences
 
 **Positives :**
-- JSONL : lisible par n'importe quel outil (`zcat | jq`) — pas de format propriétaire
+- JSONL : lisible par n'importe quel outil (`zcat | jq`) - pas de format propriétaire
 - Gzip : ratio de compression ~10× sur les données textuelles (typique pour la mémoire d'agent)
 - Migration de schéma versionnée : les imports futurs resteront compatibles
 
 **Négatives / Compromis :**
-- JSONL ne préserve pas les index FTS5 — l'import reconstruit l'index. Sur les grandes bases (>100K entrées), la reconstruction peut prendre quelques secondes.
-- Pas de chiffrement de l'export — les fichiers exportés contiennent des données potentiellement sensibles. L'utilisateur est responsable de la sécurité du fichier d'export.
+- JSONL ne préserve pas les index FTS5 - l'import reconstruit l'index. Sur les grandes bases (>100K entrées), la reconstruction peut prendre quelques secondes.
+- Pas de chiffrement de l'export - les fichiers exportés contiennent des données potentiellement sensibles. L'utilisateur est responsable de la sécurité du fichier d'export.
 
 ---
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : L'export est un fichier local. Pas d'upload automatique. Conforme.
-- **Principe #4 — Fail fast** : Version incompatible → erreur immédiate avec message clair. Conforme.
+- **Principe #1 - Local-first** : L'export est un fichier local. Pas d'upload automatique. Conforme.
+- **Principe #4 - Fail fast** : Version incompatible → erreur immédiate avec message clair. Conforme.
 
 ---
 

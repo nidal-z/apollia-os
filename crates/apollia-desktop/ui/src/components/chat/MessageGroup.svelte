@@ -7,7 +7,7 @@
   interface Props {
     group: MessageGroup;
     sessionId: string;
-    /** Display name for the assistant side — falls back to a generic label. */
+    /** Display name for the assistant side - falls back to a generic label. */
     agentName?: string | null;
     /** "compact" propagates to bubbles for embedded contexts. */
     variant?: "default" | "compact";
@@ -22,7 +22,7 @@
 
   const isUser = $derived(group.role === "user");
 
-  // System / tool messages stay standalone — no header, plain bubbles.
+  // System / tool messages stay standalone - no header, plain bubbles.
   const showHeader = $derived(group.role === "user" || group.role === "assistant");
 
   const displayName = $derived.by(() => {

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Topbar breadcrumb — V3 Operator format: "Apollia / [page]".
+   * Topbar breadcrumb - V3 Operator format: "Apollia / [page]".
    *
    * The "Apollia" prefix is static and clickable (routes to home for the
    * current UI mode). A status dot is rendered next to it to surface the

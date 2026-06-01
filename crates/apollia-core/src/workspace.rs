@@ -24,7 +24,7 @@ use std::time::Instant;
 ///
 /// ## Fail-silent
 /// La méthode [`collect`](WorkspaceProvider::collect) ne doit jamais propager
-/// d'erreur — retourner [`WorkspaceSlice::with_error`] à la place.
+/// d'erreur - retourner [`WorkspaceSlice::with_error`] à la place.
 /// L'agent continue même si un provider échoue ou dépasse son timeout.
 #[async_trait::async_trait]
 pub trait WorkspaceProvider: Send + Sync {
@@ -56,7 +56,7 @@ pub trait WorkspaceProvider: Send + Sync {
 
     /// Retourne `true` si ce provider est applicable dans `cwd`.
     ///
-    /// Un provider retournant `false` n'est pas appelé — aucun overhead, aucune erreur.
+    /// Un provider retournant `false` n'est pas appelé - aucun overhead, aucune erreur.
     fn is_applicable(&self, cwd: &Path) -> bool {
         let _ = cwd;
         true
@@ -64,13 +64,13 @@ pub trait WorkspaceProvider: Send + Sync {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WorkspaceSlice — ce qu'un provider produit
+// WorkspaceSlice - ce qu'un provider produit
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Tranche éphémère de contexte produite par un [`WorkspaceProvider`].
 ///
 /// Injectée dans le system prompt de l'agent au démarrage de la session.
-/// Non persistée — recollectée à chaque démarrage de tâche (modulo cache TTL).
+/// Non persistée - recollectée à chaque démarrage de tâche (modulo cache TTL).
 #[derive(Clone)]
 pub struct WorkspaceSlice {
     /// Identifiant du provider source.
@@ -110,7 +110,7 @@ impl WorkspaceSlice {
         }
     }
 
-    /// Construit une tranche vide — aucun contenu à injecter.
+    /// Construit une tranche vide - aucun contenu à injecter.
     ///
     /// Retourné quand le provider n'est pas applicable ou que la source est vide.
     pub fn empty(source: &str) -> Self {
@@ -141,7 +141,7 @@ impl WorkspaceSlice {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WorkspaceSnapshot — agrégation de toutes les tranches
+// WorkspaceSnapshot - agrégation de toutes les tranches
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Snapshot complet du workspace, agrégant toutes les tranches produites

@@ -1,4 +1,4 @@
-//! Tests e2e — boucle ReAct via `ToolCallHelper`.
+//! Tests e2e - boucle ReAct via `ToolCallHelper`.
 //!
 //! Vérifie le comportement de la boucle ReAct depuis l'API publique de `apollia-llm` :
 //! - arrêt immédiat sur `FinishReason::Stop` ;
@@ -7,7 +7,7 @@
 //! - garde-fou `StepBudget` épuisé ;
 //! - absorption des erreurs d'outil comme résultat texte.
 //!
-//! Aucune dépendance Python — utilise uniquement des mocks Rust.
+//! Aucune dépendance Python - utilise uniquement des mocks Rust.
 
 use std::pin::Pin;
 use std::sync::{
@@ -177,7 +177,7 @@ impl CompletionModel for MockReActModel {
 // Mock CompletionModel : toujours ToolCalls (infini)
 // ─────────────────────────────────────────────
 
-/// Mock LLM qui retourne toujours `FinishReason::ToolCalls` — pour tester le garde-fou.
+/// Mock LLM qui retourne toujours `FinishReason::ToolCalls` - pour tester le garde-fou.
 struct MockInfiniteToolCallModel {
     call_count: Arc<AtomicU32>,
 }

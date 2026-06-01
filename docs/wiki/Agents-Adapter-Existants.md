@@ -1,4 +1,4 @@
-# Agents — Adapter des Agents Existants — Apollia OS
+# Agents - Adapter des Agents Existants - Apollia OS
 
 > Comment intégrer un agent LangGraph, CrewAI ou AutoGen existant dans Apollia OS avec un minimum d'adaptation.
 > Public cible : développeur Python intermédiaire avec un agent existant
@@ -23,7 +23,7 @@ class AgentAdapter:
     """Couche d'adaptation AIP autour d'un agent existant."""
 
     def __init__(self):
-        # Initialisation lazy — l'agent sous-jacent est créé dans on_start()
+        # Initialisation lazy - l'agent sous-jacent est créé dans on_start()
         self._underlying_agent = None
 
     def manifest(self):
@@ -68,7 +68,7 @@ agent = AgentAdapter()
 ### Agent ReAct LangGraph existant
 
 ```python
-# Avant adaptation — agent LangGraph standalone
+# Avant adaptation - agent LangGraph standalone
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 
@@ -163,7 +163,7 @@ agent = LangGraphAdapter()
 ### Crew existante
 
 ```python
-# Avant adaptation — CrewAI standalone
+# Avant adaptation - CrewAI standalone
 from crewai import Agent, Task, Crew
 
 researcher = Agent(role="Researcher", ...)
@@ -223,7 +223,7 @@ class CrewAIAdapter:
             tasks=[research_task, write_task]
         )
 
-        # CrewAI est synchrone — exécuter dans un thread séparé
+        # CrewAI est synchrone - exécuter dans un thread séparé
         result = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: crew.kickoff(inputs={"topic": topic})
@@ -303,7 +303,7 @@ agent = AutoGenAdapter()
 
 **Initialisation lazy dans `on_start()` (optionnel)**
 
-> `on_start(ctx)` et `on_stop()` sont des hooks **optionnels** — seuls `manifest()` et `run(task, ctx)` sont requis par le contrat AIP (voir ADR-003). Le runtime appelle `on_start()` si la méthode existe, sinon il passe directement à `ACTIVE`.
+> `on_start(ctx)` et `on_stop()` sont des hooks **optionnels** - seuls `manifest()` et `run(task, ctx)` sont requis par le contrat AIP (voir ADR-003). Le runtime appelle `on_start()` si la méthode existe, sinon il passe directement à `ACTIVE`.
 
 Les agents avec des modèles LLM lourds à charger doivent être initialisés dans `on_start()`, pas dans `__init__()`. `on_start()` reçoit le `RuntimeContext` complet et est appelé quand l'agent passe à `ACTIVE`.
 
@@ -323,7 +323,7 @@ Toujours catcher les exceptions du framework sous-jacent et retourner un `AIPRes
 
 ## Voir aussi
 
-- [Briques AIP Specification](./Briques-AIP-Specification) — contrat complet AIPTask, AIPResult
-- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — `ctx.memory`, `ctx.tools`
-- [Agents Bonnes Pratiques](./Agents-Bonnes-Pratiques) — StepBudget avec agents LLM
-- [ADR-003](../adr/ADR-003-duck-typing-aip) — pourquoi duck typing rend l'adaptation facile
+- [Briques AIP Specification](./Briques-AIP-Specification) - contrat complet AIPTask, AIPResult
+- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) - `ctx.memory`, `ctx.tools`
+- [Agents Bonnes Pratiques](./Agents-Bonnes-Pratiques) - StepBudget avec agents LLM
+- [ADR-003](../adr/ADR-003-duck-typing-aip) - pourquoi duck typing rend l'adaptation facile

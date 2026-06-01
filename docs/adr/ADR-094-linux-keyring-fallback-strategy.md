@@ -1,7 +1,7 @@
-# ADR-094 — Linux keyring fallback strategy
+# ADR-094 - Linux keyring fallback strategy
 
 **Date :** 2026-05-12
-**Statut :** Proposé — décision à finaliser **avant le premier commit M1**
+**Statut :** Proposé - décision à finaliser **avant le premier commit M1**
 **Sprint :** Pré-implémentation (chantier Connecteurs & MCP v0.1.0)
 
 ---
@@ -16,11 +16,11 @@ Pour la cible power user v0.1.0 (qui inclut explicitement les Linux server headl
 
 ## Décision
 
-**À finaliser avant le premier commit M1.** Choix entre Option A et Option B ci-dessous. Décision provisoire : **Option A (age symétrique avec passphrase user)** — à confirmer après prototype rapide.
+**À finaliser avant le premier commit M1.** Choix entre Option A et Option B ci-dessous. Décision provisoire : **Option A (age symétrique avec passphrase user)** - à confirmer après prototype rapide.
 
 ## Alternatives considérées
 
-### Option A — `age` symétrique avec passphrase user (provisoirement retenue)
+### Option A - `age` symétrique avec passphrase user (provisoirement retenue)
 **Pour :**
 - Zéro dépendance système (`age` est pure Rust, lib `rage`).
 - Fonctionne identiquement sur tout Linux (server, container, desktop sans keyring).
@@ -29,9 +29,9 @@ Pour la cible power user v0.1.0 (qui inclut explicitement les Linux server headl
 
 **Contre :**
 - Exige une passphrase à saisir au démarrage du runtime (mais : caching session via `apollia-runtime` acteur dédié possible, prompt une fois par session).
-- Si l'utilisateur oublie la passphrase, tokens perdus (mitigation : la passphrase est OPTIONNELLE — si vide, on bascule sur chiffrement symétrique avec clé dérivée du user UID + machine-id ; faible mais > rien).
+- Si l'utilisateur oublie la passphrase, tokens perdus (mitigation : la passphrase est OPTIONNELLE - si vide, on bascule sur chiffrement symétrique avec clé dérivée du user UID + machine-id ; faible mais > rien).
 
-### Option B — `system-keyring-with-prompt` D-Bus user session
+### Option B - `system-keyring-with-prompt` D-Bus user session
 **Pour :**
 - Pas de passphrase utilisateur.
 - Cohérent avec macOS/Windows (toujours keyring).
@@ -41,7 +41,7 @@ Pour la cible power user v0.1.0 (qui inclut explicitement les Linux server headl
 - Setup différent par distro (Ubuntu Server, Alpine, Debian minimal…). Dette doc + support.
 - Solution "ça marche peut-être", anti fail-fast (principe #4).
 
-### Option C — Fichier en clair (rejetée)
+### Option C - Fichier en clair (rejetée)
 **Pour :** trivial.
 **Contre :** **inacceptable** (tokens OAuth en clair sur disque = vulnérabilité critique).
 
@@ -61,12 +61,12 @@ Pour la cible power user v0.1.0 (qui inclut explicitement les Linux server headl
 
 ## Principes architecturaux impactés
 
-- Principe #1 — Local-first : ✅ tokens chiffrés au repos sur disque local.
-- Principe #2 — Zéro dépendance externe : ✅ `age` est pure Rust embarquée.
-- Principe #4 — Fail fast : si passphrase incorrecte, erreur explicite immédiate au boot, pas de fallback silencieux.
+- Principe #1 - Local-first : ✅ tokens chiffrés au repos sur disque local.
+- Principe #2 - Zéro dépendance externe : ✅ `age` est pure Rust embarquée.
+- Principe #4 - Fail fast : si passphrase incorrecte, erreur explicite immédiate au boot, pas de fallback silencieux.
 
 ## Liens
 
-- ADR-064 — OAuth2 PKCE keyring (étendu)
-- ADR-088 — Architecture hybride
+- ADR-064 - OAuth2 PKCE keyring (étendu)
+- ADR-088 - Architecture hybride
 - Plan : §5.5

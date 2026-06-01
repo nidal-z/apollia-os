@@ -1,4 +1,4 @@
-//! Integration tests — CRUD API → SQLite → reload acteur.
+//! Integration tests - CRUD API → SQLite → reload acteur.
 //!
 //! Tests the full cycle: create/update/delete via HTTP REST, verify persistence
 //! in SQLite, and confirm that actors (TriggerEngine, NotificationEngine) reload
@@ -305,7 +305,7 @@ fn parse_http_response(raw: &[u8]) -> (u16, serde_json::Value) {
     (status, json)
 }
 
-/// Cleanup helper — shutdown server and remove socket.
+/// Cleanup helper - shutdown server and remove socket.
 async fn cleanup(handle: APIServerHandle, socket_path: &Path) {
     handle.shutdown();
     tokio::time::sleep(Duration::from_millis(30)).await;

@@ -43,9 +43,9 @@ pub struct AgentManifest {
     pub version: String,
     /// Description humaine de l'agent.
     pub description: String,
-    /// Outils requis — résolution fail-fast à l'état INITIALIZING.
+    /// Outils requis - résolution fail-fast à l'état INITIALIZING.
     pub tools_required: Vec<String>,
-    /// Outils optionnels — absent → état DEGRADED, pas d'erreur fatale.
+    /// Outils optionnels - absent → état DEGRADED, pas d'erreur fatale.
     #[serde(default)]
     pub tools_optional: Vec<String>,
     /// Indique si l'agent supporte le mode streaming (défaut: false).
@@ -76,7 +76,7 @@ pub struct AgentManifest {
     #[serde(default)]
     pub network_allowlist: Option<Vec<String>>,
     /// Autorise explicitement l'utilisation d'outils marqués `dangerous=true`.
-    /// `false` par défaut — les outils dangereux sont bloqués sauf opt-in explicite.
+    /// `false` par défaut - les outils dangereux sont bloqués sauf opt-in explicite.
     #[serde(default)]
     pub dangerous_tools_allowed: bool,
     /// Tags libres pour le routage et la découverte.
@@ -104,7 +104,7 @@ pub struct AgentManifest {
     ///
     /// Déclarés par l'agent dans son `manifest()`. Le runtime refuse d'exécuter un step
     /// utilisant ces outils sans approbation explicite.
-    /// Vide par défaut — aucun outil ne nécessite d'approbation.
+    /// Vide par défaut - aucun outil ne nécessite d'approbation.
     #[serde(default)]
     pub tools_requiring_approval: Vec<String>,
     /// Nom du backend LLM à utiliser pour cet agent.
@@ -118,7 +118,7 @@ pub struct AgentManifest {
     ///
     /// Syntaxe pip standard : `"openpyxl>=3.1.0"`, `"pandas==2.1.4"`, `"requests"`.
     /// Installés une seule fois au `INITIALIZING` via `PythonExecutor::setup_venv()`.
-    /// Vide par défaut — agents sans dépendances Python tierces.
+    /// Vide par défaut - agents sans dépendances Python tierces.
     #[serde(default)]
     pub packages: Vec<String>,
     /// Per-agent memory retention policy (`None` = global `[memory]` defaults apply).
@@ -129,10 +129,10 @@ pub struct AgentManifest {
     pub memory_config: Option<MemoryConfig>,
     /// Rôle sémantique de l'agent dans le système.
     ///
-    /// - `"worker"`    : agent opérationnel, appelé par d'autres agents via A2A — stateless.
+    /// - `"worker"`    : agent opérationnel, appelé par d'autres agents via A2A - stateless.
     /// - `"assistant"` : interlocuteur humain, multi-tour, orchestre des workers.
     /// - `"system"`    : infrastructure interne (onboarding, supervision…).
-    /// - `None`        : non déclaré — agents antérieurs au contrat v2.
+    /// - `None`        : non déclaré - agents antérieurs au contrat v2.
     ///
     /// L'UI utilise ce champ pour catégoriser les agents. `supports_a2a` étant
     /// vrai pour les deux populations, il ne suffit pas à les distinguer.
@@ -149,13 +149,13 @@ pub struct AgentManifest {
     // Philosophie : déclaratif, colocalisé avec le code, sans prose libre.
     // Référence comparative : Microsoft Copilot (conversation_starters),
     // Hugging Face Model Card (intended use, limitations), MCP (description).
-    // Aucun standard existant ne propose ces trois champs de manière structurée —
+    // Aucun standard existant ne propose ces trois champs de manière structurée -
     // c'est un différenciant Apollia.
     /// Exemples de prompts illustrant les usages typiques de l'agent.
     ///
     /// Affichés dans l'UI comme des « quick-start chips » cliquables.
     /// Guideline : 2 à 5 exemples, formulés comme de vraies requêtes utilisateur.
-    /// Vide par défaut — les agents sans exemples n'affichent pas cette section.
+    /// Vide par défaut - les agents sans exemples n'affichent pas cette section.
     #[serde(default)]
     pub examples: Vec<String>,
 
@@ -163,7 +163,7 @@ pub struct AgentManifest {
     ///
     /// Affichées dans le panneau détail pour définir des attentes réalistes.
     /// Guideline : 2 à 4 points, formulés à la première personne ou à l'infinitif.
-    /// Vide par défaut — les agents sans limitations déclarées n'affichent pas
+    /// Vide par défaut - les agents sans limitations déclarées n'affichent pas
     /// cette section.
     #[serde(default)]
     pub limitations: Vec<String>,
@@ -172,9 +172,9 @@ pub struct AgentManifest {
     ///
     /// Affichée dans l'UI uniquement quand non-`None`. Doit indiquer clairement
     /// ce que l'utilisateur doit mettre en place (fichiers, outils, agents
-    /// complémentaires, permissions). Proscrire les listes — un paragraphe court
+    /// complémentaires, permissions). Proscrire les listes - un paragraphe court
     /// suffit.
-    /// `None` signifie : aucun prérequis — l'agent démarre immédiatement.
+    /// `None` signifie : aucun prérequis - l'agent démarre immédiatement.
     #[serde(default)]
     pub setup_notes: Option<String>,
 
@@ -189,7 +189,7 @@ pub struct AgentManifest {
     pub agent_class: Option<String>,
 
     /// Autorise l'agent à écrire dans le namespace global `__user__` via
-    /// `ctx.memory.remember_user()`. Faux par défaut — la lecture, elle,
+    /// `ctx.memory.remember_user()`. Faux par défaut - la lecture, elle,
     /// est toujours disponible via le fallback `recall()`.
     ///
     /// Réservé aux agents système qui possèdent légitimement le profil
@@ -203,7 +203,7 @@ pub struct AgentManifest {
     /// Le runtime charge ces fichiers au boot et les expose via `ctx.datasources.get(name)`.
     /// Une datasource non déclarée déclenche `FileNotFoundError` côté Python
     /// même si le fichier existe sur disque (principe least-privilege, ADR-103).
-    /// Vide par défaut — agents sans datasources.
+    /// Vide par défaut - agents sans datasources.
     #[serde(default)]
     pub datasources: Vec<String>,
 
@@ -212,7 +212,7 @@ pub struct AgentManifest {
     /// Chaque nom doit correspondre à un fichier `<agent_dir>/templates/<name>.{j2,jinja2,jinja}`.
     /// Le runtime compile ces templates au boot et les expose via
     /// `ctx.templates.render(name, **context)` (ADR-103).
-    /// Vide par défaut — agents sans templates.
+    /// Vide par défaut - agents sans templates.
     #[serde(default)]
     pub templates: Vec<String>,
 
@@ -227,9 +227,9 @@ pub struct AgentManifest {
     /// même si la valeur existe en base. Conséquence directe du principe
     /// least-privilege (ADR-104).
     ///
-    /// **Lecture seule** : l'agent ne peut pas écrire un secret — les ops les
+    /// **Lecture seule** : l'agent ne peut pas écrire un secret - les ops les
     /// gèrent via `apollia-os tools secret set ...` ou l'UI desktop.
-    /// Vide par défaut — agents sans secrets configurés.
+    /// Vide par défaut - agents sans secrets configurés.
     #[serde(default)]
     pub secrets: Vec<String>,
 }
@@ -256,7 +256,7 @@ pub struct AgentSkill {
     /// Modes de sortie supportés (ex: ["text", "file"]). Vide par défaut.
     #[serde(default)]
     pub output_modes: Vec<String>,
-    /// Exemples de payloads valides — propagés au tool descriptor LLM-facing
+    /// Exemples de payloads valides - propagés au tool descriptor LLM-facing
     /// pour aider les modèles mid-market / petits à construire un appel correct
     /// au premier coup. Stocké comme `Vec<Value>` (chaque entrée est un objet
     /// JSON). Vide par défaut.
@@ -269,7 +269,7 @@ pub struct AgentSkill {
     /// "required": true|false } }`. Converti côté runtime en JSON Schema
     /// canonique au moment d'exposer le skill au LLM (cf.
     /// `crates/apollia-runtime/src/chat/a2a_tools.rs`). `None` = pas de
-    /// contrat publié (le caller doit deviner — anti-pattern, gate Phase E
+    /// contrat publié (le caller doit deviner - anti-pattern, gate Phase E
     /// de `apollia-worker-forge`).
     #[serde(default)]
     pub input_schema: Option<serde_json::Value>,

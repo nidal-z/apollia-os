@@ -67,7 +67,7 @@ const STATIC_MAPPINGS: &[(&str, &[&str], u8, &[&str])] = &[
         &["external_a2a", "network"],
         7,
         &[
-            "This calls an external agent — data may leave the machine.",
+            "This calls an external agent - data may leave the machine.",
             "Check the target worker's identity.",
         ],
     ),
@@ -81,13 +81,13 @@ const STATIC_MAPPINGS: &[(&str, &[&str], u8, &[&str])] = &[
         "network:post",
         &["network", "write"],
         6,
-        &["Outbound network write — verify the endpoint."],
+        &["Outbound network write - verify the endpoint."],
     ),
     (
         "network:get",
         &["network"],
         3,
-        &["Read-only network fetch — low risk."],
+        &["Read-only network fetch - low risk."],
     ),
     // ── Generic tool call ──
     (

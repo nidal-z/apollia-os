@@ -39,4 +39,4 @@ Apollia distingue trois cas d'usage. Choisissez selon ce que vous voulez :
 - **Pas de réponse dans le chat malgré pastille verte** : voir [Le fournisseur d'IA ne répond pas](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
 - **Vous voulez basculer sur un autre backend par défaut** : cliquez sur **Définir par défaut** dans la carte du backend voulu.
 
-> **Référence technique :** [Briques-LLM-Backend](https://github.com/nidal-z/apollia-os/wiki/Briques-LLM-Backend) , table complète des fournisseurs supportés, paramètres avancés, routing, fallback.
+> **Référence technique :** [Briques-LLM-Backend](https://github.com/Apollia-OS/apollia-os/wiki/Briques-LLM-Backend) , table complète des fournisseurs supportés, paramètres avancés, routing, fallback.

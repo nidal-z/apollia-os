@@ -20,7 +20,7 @@ interface FakeKeyEvent {
 }
 
 function evt(init: FakeKeyEvent): KeyboardEvent {
-  // Cast through unknown — `chordMatches` only reads the listed fields.
+  // Cast through unknown - `chordMatches` only reads the listed fields.
   return init as unknown as KeyboardEvent;
 }
 

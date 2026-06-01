@@ -6,7 +6,7 @@ skinparam defaultFontSize 11
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Séquence — Tool Call MCP (McpToolExecutor) — Apollia OS
+title Séquence - Tool Call MCP (McpToolExecutor) - Apollia OS
 
 participant "Agent Python" as agent #2d4a22/d4edda
 participant "ToolDispatcher" as dispatcher #1a1a2e/e0e0ff
@@ -18,7 +18,7 @@ participant "PendingApprovals" as hitl #2a3a4a/cce5ff
 
 note over manager, mcp_s
   Session démarrée à la première invocation (lazy start).
-  Transport : stdio — subprocess local géré par le runtime.
+  Transport : stdio - subprocess local géré par le runtime.
   Protocole : JSON-RPC 2.0, corrélation requête/réponse par id.
 end note
 

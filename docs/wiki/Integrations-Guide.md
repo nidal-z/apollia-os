@@ -52,7 +52,7 @@ Le wizard guide la configuration en 5 étapes :
 | 1. Présentation | Description du connecteur, niveau de confiance, disclaimer de sécurité (première fois uniquement) |
 | 2. Prérequis | Vérification que la commande (`npx`, `uvx`, etc.) est disponible sur la machine |
 | 3. Paramètres | Champs de configuration spécifiques au connecteur (chemin de base de données, URL, etc.) |
-| 4. Authentification | Saisie des tokens et clés API — stockés dans le keychain OS, jamais dans mcp.toml |
+| 4. Authentification | Saisie des tokens et clés API - stockés dans le keychain OS, jamais dans mcp.toml |
 | 5. Test & Confirmation | Test de connexion en direct, liste des outils découverts, confirmation |
 
 À la confirmation, le serveur démarre immédiatement et apparaît dans vos connexions.
@@ -80,7 +80,7 @@ Cliquez sur la card ou sur le menu `...` pour accéder aux actions :
 | **Modifier** | Ouvre le wizard en mode édition pour mettre à jour les paramètres ou les secrets |
 | **Déconnecter** | Arrête le processus et supprime la configuration de `mcp.toml` |
 
-> **Note :** La déconnexion supprime aussi les secrets associés du keychain OS. Cette action est irréversible — les tokens devront être re-saisis lors d'une reconnexion.
+> **Note :** La déconnexion supprime aussi les secrets associés du keychain OS. Cette action est irréversible - les tokens devront être re-saisis lors d'une reconnexion.
 
 ### 3.3 Niveaux d'approbation
 
@@ -102,7 +102,7 @@ Chaque serveur MCP dans le catalogue est étiqueté avec un niveau de confiance 
 |---|---|---|---|
 | `verified_official` | Official | Vert | Serveur maintenu par l'organisation officielle du service (ex. : Notion Inc. pour Notion MCP) |
 | `community_verified` | Verified | Bleu | Serveur tiers audité et vérifié par l'équipe MCP Registry |
-| `community` | Community | Jaune | Serveur communautaire publié sans audit formel — à inspecter avant usage en production |
+| `community` | Community | Jaune | Serveur communautaire publié sans audit formel - à inspecter avant usage en production |
 | `custom` | Custom | Gris | Serveur configuré manuellement, non répertorié dans le registry |
 
 > Les niveaux `community` et `custom` ne signifient pas que le serveur est malveillant, mais que sa sécurité n'a pas été vérifiée par un tiers. Lisez le code source ou l'audit du publisher avant de le connecter à des données sensibles.
@@ -117,7 +117,7 @@ Les tokens et clés API saisis dans le wizard ne sont **jamais écrits en clair*
 | Linux | Secret Service via D-Bus (`org.freedesktop.secrets`) |
 | Windows | Windows Credential Manager |
 
-La clé utilisée dans le keychain suit le format `{server_name}:{env_var_name}` — par exemple `notion:NOTION_API_KEY`.
+La clé utilisée dans le keychain suit le format `{server_name}:{env_var_name}` - par exemple `notion:NOTION_API_KEY`.
 
 Dans `mcp.toml`, la valeur correspondante est écrite comme `${APOLLIA_SECRET:NOTION_API_KEY}`. Au démarrage du runtime, `resolve_env` détecte ce préfixe et lit la valeur depuis le keychain.
 
@@ -133,7 +133,7 @@ security find-generic-password -s "apollia-mcp" -a "notion:NOTION_API_KEY" -w
 secret-tool lookup service apollia-mcp username "notion:NOTION_API_KEY"
 ```
 
-**Limitation Linux :** si le service D-Bus `org.freedesktop.secrets` est absent (containers, serveurs headless), le keychain est indisponible. Dans ce cas, un fichier chiffré local est utilisé en fallback — voir `~/.apollia/secrets.enc`.
+**Limitation Linux :** si le service D-Bus `org.freedesktop.secrets` est absent (containers, serveurs headless), le keychain est indisponible. Dans ce cas, un fichier chiffré local est utilisé en fallback - voir `~/.apollia/secrets.enc`.
 
 ### 4.3 Niveaux d'approbation
 
@@ -166,16 +166,16 @@ Les deux mécanismes sont cumulatifs : si l'un ou l'autre est actif, l'approbati
 
 Avant le **premier ajout** de connexion MCP, un dialog de sécurité s'affiche. Il rappelle que :
 
-1. **Vos données vont transiter** — les outils MCP sont des processus tiers qui reçoivent des données depuis vos agents.
-2. **Faites confiance au publisher** — vérifiez l'identité et la réputation du maintainer du serveur.
-3. **Vous êtes responsable** — l'usage des API tierces (quotas, CGU, coûts) reste sous votre responsabilité.
-4. **Votre contrôle** — vous pouvez inspecter l'historique des appels, imposer des approbations, ou déconnecter à tout moment.
+1. **Vos données vont transiter** - les outils MCP sont des processus tiers qui reçoivent des données depuis vos agents.
+2. **Faites confiance au publisher** - vérifiez l'identité et la réputation du maintainer du serveur.
+3. **Vous êtes responsable** - l'usage des API tierces (quotas, CGU, coûts) reste sous votre responsabilité.
+4. **Votre contrôle** - vous pouvez inspecter l'historique des appels, imposer des approbations, ou déconnecter à tout moment.
 
-Le consentement est enregistré localement dans le `localStorage` du frontend sous la clé `apollia-mcp-disclaimer-accepted`. Ce dialog ne s'affiche qu'**une seule fois** — pour le réafficher, videz le localStorage (DevTools → Application → Local Storage) ou réinitialisez les préférences dans les paramètres.
+Le consentement est enregistré localement dans le `localStorage` du frontend sous la clé `apollia-mcp-disclaimer-accepted`. Ce dialog ne s'affiche qu'**une seule fois** - pour le réafficher, videz le localStorage (DevTools → Application → Local Storage) ou réinitialisez les préférences dans les paramètres.
 
 ---
 
-## 5. Mode Builder — Serveurs MCP
+## 5. Mode Builder - Serveurs MCP
 
 Le mode Builder est destiné aux développeurs d'agents qui ont besoin de contrôle fin sur les processus MCP actifs.
 
@@ -214,7 +214,7 @@ En mode offline, le browser affiche le cache local avec un indicateur de date de
 
 Pour les utilisateurs avancés, `mcp.toml` peut toujours être édité directement dans `~/.apollia/mcp.toml`. Les modifications sont rechargées à chaud sans redémarrer le runtime.
 
-Référence complète du format : [MCP — Guide utilisateur](./MCP-Guide-Utilisateur).
+Référence complète du format : [MCP - Guide utilisateur](./MCP-Guide-Utilisateur).
 
 Pour utiliser un secret stocké dans le keychain plutôt qu'une variable d'environnement shell :
 
@@ -251,7 +251,7 @@ which npx   # doit retourner un chemin
 which uvx   # doit retourner un chemin
 ```
 
-Si la commande est absente, installez Node.js (pour `npx`) ou `uv` (pour `uvx`) — voir [MCP — Guide utilisateur §2](./MCP-Guide-Utilisateur#2-prérequis).
+Si la commande est absente, installez Node.js (pour `npx`) ou `uv` (pour `uvx`) - voir [MCP - Guide utilisateur §2](./MCP-Guide-Utilisateur#2-prérequis).
 
 ### 6.3 Le test de connexion échoue à l'étape 5
 
@@ -273,7 +273,7 @@ DevTools (F12) → Application → Local Storage → apollia-mcp-disclaimer-acce
 
 ## Voir aussi
 
-- [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) — configuration manuelle via `mcp.toml`, référence des champs, API REST
-- [Sécurité — Local-First](./Securite-Local-First) — principes de souveraineté des données
-- [Briques Desktop](./Briques-Desktop) — architecture de l'application desktop Tauri
-- [API-HTTP-Observability](./API-HTTP-Observability#mcp--adr-044) — routes REST MCP (`/api/v1/mcp/`)
+- [MCP - Guide utilisateur](./MCP-Guide-Utilisateur) - configuration manuelle via `mcp.toml`, référence des champs, API REST
+- [Sécurité - Local-First](./Securite-Local-First) - principes de souveraineté des données
+- [Briques Desktop](./Briques-Desktop) - architecture de l'application desktop Tauri
+- [API-HTTP-Observability](./API-HTTP-Observability#mcp--adr-044) - routes REST MCP (`/api/v1/mcp/`)

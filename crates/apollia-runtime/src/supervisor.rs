@@ -464,7 +464,7 @@ impl Supervisor {
         let repo = match McpServerRepository::open(&mcp_db_path) {
             Ok(repo) => repo,
             Err(e) => {
-                warn!(error = %e, "failed to open mcp.db — continuing without MCP");
+                warn!(error = %e, "failed to open mcp.db - continuing without MCP");
                 return (None, None);
             }
         };
@@ -498,7 +498,7 @@ impl Supervisor {
     ) -> Result<Option<NotificationEngineHandle>, SupervisorError> {
         let Some(notif_config) = notif_config else {
             tracing::info!(
-                "Supervisor: aucun canal de notification en base — NotificationEngine désactivé"
+                "Supervisor: aucun canal de notification en base - NotificationEngine désactivé"
             );
             return Ok(None);
         };
@@ -542,7 +542,7 @@ impl Supervisor {
                 warn!(
                     error = %e,
                     path = %db_path.display(),
-                    "EventPersistor failed to open — runtime_events persistence disabled"
+                    "EventPersistor failed to open - runtime_events persistence disabled"
                 );
             }
         }
@@ -567,7 +567,7 @@ impl Supervisor {
                 Some(repo)
             }
             Err(e) => {
-                warn!(error = %e, "LlmCallRepository failed to open — LLM call persistence disabled");
+                warn!(error = %e, "LlmCallRepository failed to open - LLM call persistence disabled");
                 None
             }
         }
@@ -588,7 +588,7 @@ impl Supervisor {
         Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
     ) {
         let Some(cfg) = stt_cfg.filter(|c| c.enabled) else {
-            info!("Supervisor: STT disabled in config — Phase 15 skipped");
+            info!("Supervisor: STT disabled in config - Phase 15 skipped");
             return (None, None);
         };
         info!("Supervisor: starting SttEngine");
@@ -597,7 +597,7 @@ impl Supervisor {
         if !model_path.exists() {
             error!(
                 path = %model_path.display(),
-                "STT model file not found — SttEngine disabled"
+                "STT model file not found - SttEngine disabled"
             );
             return (None, None);
         }
@@ -606,7 +606,7 @@ impl Supervisor {
         let repository = match apollia_stt::SttRepository::open(&repo_path) {
             Ok(repository) => repository,
             Err(e) => {
-                error!(error = %e, "SttRepository failed to open — SttEngine disabled");
+                error!(error = %e, "SttRepository failed to open - SttEngine disabled");
                 return (None, None);
             }
         };
@@ -654,7 +654,7 @@ impl Supervisor {
         let repo = match LlmBackendRepository::open(system_db_path) {
             Ok(repo) => repo,
             Err(e) => {
-                warn!(error = %e, "failed to open system.db — LLM disabled");
+                warn!(error = %e, "failed to open system.db - LLM disabled");
                 return (None, None);
             }
         };
@@ -683,7 +683,7 @@ impl Supervisor {
                 (Some(Arc::new(router)), Some(repo))
             }
             Err(e) => {
-                warn!(error = %e, "LlmRouter failed to initialize — continuing without LLM");
+                warn!(error = %e, "LlmRouter failed to initialize - continuing without LLM");
                 (None, Some(repo))
             }
         }
@@ -701,7 +701,7 @@ impl Supervisor {
         if !existing.is_empty() {
             return;
         }
-        info!("Supervisor: no LLM backends in system.db — migrating from apollia.toml");
+        info!("Supervisor: no LLM backends in system.db - migrating from apollia.toml");
         for db_cfg in llm_cfg.to_db_configs() {
             let backend_name = db_cfg.name.clone();
             let is_default = db_cfg.is_default;
@@ -757,7 +757,7 @@ impl Supervisor {
         let agents = match repo.list_enabled() {
             Ok(agents) => agents,
             Err(e) => {
-                warn!(error = %e, "Failed to list installed agents — skipping auto-load");
+                warn!(error = %e, "Failed to list installed agents - skipping auto-load");
                 return;
             }
         };
@@ -879,7 +879,7 @@ impl Supervisor {
                 warn!(
                     agent = %manifest.name,
                     error = %e,
-                    "failed to create PythonExecutor for venv — agent will start in DEGRADED state"
+                    "failed to create PythonExecutor for venv - agent will start in DEGRADED state"
                 );
                 return Some(e.to_string());
             }
@@ -897,7 +897,7 @@ impl Supervisor {
                 warn!(
                     agent = %manifest.name,
                     error = %e,
-                    "package installation failed — agent will start in DEGRADED state"
+                    "package installation failed - agent will start in DEGRADED state"
                 );
                 Some(e.to_string())
             }
@@ -1023,7 +1023,7 @@ impl Supervisor {
         .await;
         tracing::info!(
             active = enabled_count,
-            "✔ TriggerEngine — {} trigger(s) actif(s)",
+            "✔ TriggerEngine - {} trigger(s) actif(s)",
             enabled_count
         );
         let _ = event_sender.send(RuntimeEvent::TriggersReloaded {
@@ -1170,7 +1170,7 @@ impl Supervisor {
                     Some(handle)
                 }
                 Err(e) => {
-                    warn!(error = %e, "ChatSessionManager failed to start — chat disabled");
+                    warn!(error = %e, "ChatSessionManager failed to start - chat disabled");
                     None
                 }
             };
@@ -1188,7 +1188,7 @@ impl Supervisor {
                 Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
             }
             Err(e) => {
-                warn!(error = %e, "SttConfigRepository failed to open — STT config disabled");
+                warn!(error = %e, "SttConfigRepository failed to open - STT config disabled");
                 None
             }
         };
@@ -1425,7 +1425,7 @@ fn open_trigger_persistence(data_dir: &std::path::Path) -> Option<TriggerPersist
             Some(p)
         }
         Err(e) => {
-            warn!(error = %e, "TriggerPersistence failed to open — trigger history disabled");
+            warn!(error = %e, "TriggerPersistence failed to open - trigger history disabled");
             None
         }
     }
@@ -1439,7 +1439,7 @@ async fn open_audit_trail(data_dir: &std::path::Path) -> Option<AuditTrailHandle
             Some(handle)
         }
         Err(e) => {
-            warn!(error = %e, "AuditTrail failed to open — audit disabled");
+            warn!(error = %e, "AuditTrail failed to open - audit disabled");
             None
         }
     }
@@ -1453,7 +1453,7 @@ async fn open_task_repository(data_dir: &std::path::Path) -> Option<Arc<TaskRepo
             Some(Arc::new(repo))
         }
         Err(e) => {
-            warn!(error = %e, "TaskRepository failed to open — HITL disabled");
+            warn!(error = %e, "TaskRepository failed to open - HITL disabled");
             None
         }
     }
@@ -1469,7 +1469,7 @@ fn open_user_memory(
             Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
         }
         Err(e) => {
-            warn!(error = %e, "UserMemoryRepository failed to open — user memory disabled");
+            warn!(error = %e, "UserMemoryRepository failed to open - user memory disabled");
             None
         }
     }
@@ -1485,7 +1485,7 @@ fn open_plan_cache(
             Some(Arc::new(std::sync::Mutex::new(repo)))
         }
         Err(e) => {
-            warn!(error = %e, "PlanCacheRepository failed to open — plan caching disabled");
+            warn!(error = %e, "PlanCacheRepository failed to open - plan caching disabled");
             None
         }
     }
@@ -1502,7 +1502,7 @@ fn open_sidechain_logger(data_dir: &std::path::Path) -> Option<crate::a2a::Sidec
             )))
         }
         Err(e) => {
-            warn!(error = %e, "SidechainRepository failed to open — sidechain logging disabled");
+            warn!(error = %e, "SidechainRepository failed to open - sidechain logging disabled");
             None
         }
     }
@@ -1523,7 +1523,7 @@ fn open_project_repository(
             Some(std::sync::Arc::new(repo))
         }
         Err(e) => {
-            warn!(error = %e, "ProjectRepository failed to open — projects disabled");
+            warn!(error = %e, "ProjectRepository failed to open - projects disabled");
             None
         }
     }
@@ -1603,17 +1603,17 @@ fn emit_onboarding_if_needed(
     let repo = match um.lock() {
         Ok(repo) => repo,
         Err(e) => {
-            warn!(error = %e, "user memory lock poisoned — skipping onboarding check");
+            warn!(error = %e, "user memory lock poisoned - skipping onboarding check");
             return;
         }
     };
     match repo.is_empty() {
         Ok(true) => {
             let _ = event_sender.send(RuntimeEvent::OnboardingRequired);
-            info!("first launch detected — onboarding required");
+            info!("first launch detected - onboarding required");
         }
-        Ok(false) => info!("user memory populated — skipping onboarding"),
-        Err(e) => warn!(error = %e, "failed to check user memory for onboarding — skipping"),
+        Ok(false) => info!("user memory populated - skipping onboarding"),
+        Err(e) => warn!(error = %e, "failed to check user memory for onboarding - skipping"),
     }
 }
 
@@ -1643,7 +1643,7 @@ fn migrate_mcp_from_toml(repo: &McpServerRepository, mcp_config_path: &std::path
     let existing = match repo.list() {
         Ok(v) => v,
         Err(e) => {
-            warn!(error = %e, "failed to check mcp.db for migration — skipping");
+            warn!(error = %e, "failed to check mcp.db for migration - skipping");
             return;
         }
     };
@@ -1659,7 +1659,7 @@ fn migrate_mcp_from_toml(repo: &McpServerRepository, mcp_config_path: &std::path
             count = n,
             "imported MCP servers from mcp.toml (one-time migration)"
         ),
-        Err(e) => warn!(error = %e, "MCP migration from mcp.toml failed — skipping"),
+        Err(e) => warn!(error = %e, "MCP migration from mcp.toml failed - skipping"),
     }
 }
 
@@ -1706,7 +1706,7 @@ async fn start_mcp_manager(
             Some(handle)
         }
         Err(e) => {
-            warn!(error = %e, "MCP Phase 3b failed — continuing without MCP");
+            warn!(error = %e, "MCP Phase 3b failed - continuing without MCP");
             None
         }
     }
@@ -1733,7 +1733,7 @@ fn validate_installed_packages(
             warn!(
                 package = %pkg.name,
                 path = %pkg.root_path.display(),
-                "Phase 10.6: package root_path missing — disabling agents"
+                "Phase 10.6: package root_path missing - disabling agents"
             );
             let agent_names = pkg_repo
                 .list_agents_for_package(&pkg.name)
@@ -1892,7 +1892,7 @@ fn seed_default_desktop_channel_if_needed(
         Ok(Some(_)) => return, // already seeded, leave the user's setup alone
         Ok(None) => {}
         Err(e) => {
-            warn!(error = %e, "seed default desktop channel: marker read failed — skipping");
+            warn!(error = %e, "seed default desktop channel: marker read failed - skipping");
             return;
         }
     }
@@ -1902,7 +1902,7 @@ fn seed_default_desktop_channel_if_needed(
     let channels = match notif_repo.list_channels() {
         Ok(rows) => rows,
         Err(e) => {
-            warn!(error = %e, "seed default desktop channel: list_channels failed — skipping");
+            warn!(error = %e, "seed default desktop channel: list_channels failed - skipping");
             return;
         }
     };
@@ -1938,7 +1938,7 @@ fn seed_default_desktop_channel_if_needed(
         updated_at: String::new(),
     };
     if let Err(e) = notif_repo.insert_channel(&row) {
-        warn!(error = %e, "seed default desktop channel: insert failed — skipping marker");
+        warn!(error = %e, "seed default desktop channel: insert failed - skipping marker");
         return;
     }
 
@@ -1946,7 +1946,7 @@ fn seed_default_desktop_channel_if_needed(
     if let Err(e) = um.set_internal(SEEDED_DESKTOP_CHANNEL_MARKER, "true") {
         warn!(
             error = %e,
-            "seed default desktop channel: marker write failed — channel inserted but re-seed possible on next boot"
+            "seed default desktop channel: marker write failed - channel inserted but re-seed possible on next boot"
         );
     }
     info!("Supervisor: seeded default desktop notification channel");

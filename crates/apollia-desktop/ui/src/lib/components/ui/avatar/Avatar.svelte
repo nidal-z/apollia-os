@@ -1,7 +1,7 @@
 <script lang="ts" module>
   export type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 
-  /** Deterministic hue in [0, 360) derived from `name` — kept centralised so
+  /** Deterministic hue in [0, 360) derived from `name` - kept centralised so
    * sibling decorations (status dots, badges) can stay in sync. */
   export function avatarHue(name: string): number {
     if (!name) return 220;

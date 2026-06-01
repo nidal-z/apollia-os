@@ -38,7 +38,7 @@ pub enum AIPValidationError {
     /// decorator was not applied.
     #[error(
         "agent missing required attribute '__apollia_manifest__' \
-         — apply the @agent decorator from apollia"
+         - apply the @agent decorator from apollia"
     )]
     MissingManifest,
 
@@ -46,7 +46,7 @@ pub enum AIPValidationError {
     /// decorator was not applied.
     #[error(
         "agent missing required attribute '__apollia_dispatch__' \
-         — apply the @agent decorator from apollia"
+         - apply the @agent decorator from apollia"
     )]
     MissingRun,
 
@@ -59,7 +59,7 @@ pub enum AIPValidationError {
     InvalidManifest(String),
 
     /// `manifest.version` is not valid semver (`MAJOR.MINOR.PATCH`).
-    #[error("version '{value}' is not valid semver — use '1.0.0'")]
+    #[error("version '{value}' is not valid semver - use '1.0.0'")]
     InvalidVersion {
         /// Raw value provided in the manifest.
         value: String,
@@ -67,7 +67,7 @@ pub enum AIPValidationError {
 
     /// `tools_required` references a name that looks like a typo of a known
     /// native tool (Levenshtein distance ≤ 2 to a known name).
-    #[error("tool '{name}' not found — did you mean '{suggestion}'?")]
+    #[error("tool '{name}' not found - did you mean '{suggestion}'?")]
     UnknownTool {
         /// The unknown tool name as declared by the agent.
         name: String,

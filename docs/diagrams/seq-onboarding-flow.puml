@@ -4,7 +4,7 @@ skinparam backgroundColor #FEFEFE
 skinparam sequenceArrowThickness 1.5
 skinparam sequenceParticipantBorderColor #333333
 
-title Flux d'onboarding v2.1 (ADR-086) — Apollia OS
+title Flux d'onboarding v2.1 (ADR-086) - Apollia OS
 
 actor User
 participant "Supervisor" as Sup
@@ -27,7 +27,7 @@ alt Configurer
   UI -> Chat : create_session(mode=Agent,\nagent="onboarding-agent")
   Chat --> UI : SessionInfo { session_id }
 
-  loop ≤ 4 turns — collecte 4 clés Tier 1
+  loop ≤ 4 turns - collecte 4 clés Tier 1
     User -> UI : message
     UI -> Chat : send_message(session_id, content)
     Chat -> Agent : converse(ctx, user_message, history)
@@ -46,13 +46,13 @@ alt Configurer
     UI --> User : affichage (tags retirés)
   end
 
-  == Phase 2 — Écriture clés meta + règles de permissions (ADR-086) ==
+  == Phase 2 - Écriture clés meta + règles de permissions (ADR-086) ==
 
   Agent -> Mem : remember("onboarding.profile_type", "operator|builder")
   Agent -> Mem : remember("onboarding.version", "2.1")
   Agent -> Mem : remember("onboarding.suggested_agents", "[...]")
 
-  Agent -> Tools : permission_rule_list()\n(idempotence — vérifier si règles existent déjà)
+  Agent -> Tools : permission_rule_list()\n(idempotence - vérifier si règles existent déjà)
   Tools --> Agent : Vec<PrefixRule>
 
   loop pour chaque règle dérivée du profil (sovereignty + hitl)
@@ -61,12 +61,12 @@ alt Configurer
       Appel HITL-gated :
       le dialog desktop demande confirmation.
       L'utilisateur valide ou refuse chaque règle.
-      (ADR-086 — agent never bypasses HITL)
+      (ADR-086 - agent never bypasses HITL)
     end note
     Tools --> Agent : Ok(rule_id) | UserDenied
   end
 
-  Agent -> Mem : remember("onboarding.completed_at", "<ISO-8601>")\n(signal desktop — gate completion)
+  Agent -> Mem : remember("onboarding.completed_at", "<ISO-8601>")\n(signal desktop - gate completion)
   Mem --> Agent : ok
 
   UI -> UI : clé onboarding.completed_at détectée\n→ animation confetti · gate débloquée

@@ -1,4 +1,4 @@
-# ADR-063 — Binary Feedback RLHF
+# ADR-063 - Binary Feedback RLHF
 
 **Date :** 2026-04-04
 **Statut :** Accepté
@@ -55,7 +55,7 @@ CREATE TABLE rlhf_feedback (
 
 L'option de présenter 3 ou 4 alternatives est rejetée car :
 1. **Cognitive load** : au-delà de 2 options, le temps de décision de l'utilisateur augmente exponentiellement (Loi de Hick)
-2. **Coût LLM** : N alternatives = N appels parallèles — 3+ alternatives triplent le coût du step de planification
+2. **Coût LLM** : N alternatives = N appels parallèles - 3+ alternatives triplent le coût du step de planification
 3. **Signal RLHF dégradé** : le choix parmi N > 2 options produit un signal moins exploitable qu'un choix binaire
 
 Un feedback binaire A/B produit le signal le plus net pour calibrer la température.
@@ -67,18 +67,18 @@ Un feedback binaire A/B produit le signal le plus net pour calibrer la températ
 **Positives :**
 - `tokio::join!` génère les deux plans sans latence additionnelle (parallèles)
 - Le log SQLite permet d'analyser les préférences agrégées sans service externe
-- Désactivé par défaut — zéro impact sur les utilisateurs non intéressés
+- Désactivé par défaut - zéro impact sur les utilisateurs non intéressés
 
 **Négatives / Compromis :**
 - Double appel LLM → coût doublé sur les sessions avec RLHF activé
-- Le feedback n'est pas exploité automatiquement en V1 — c'est un log pour analyse manuelle. L'application automatique (ajustement dynamique de température) est différée.
+- Le feedback n'est pas exploité automatiquement en V1 - c'est un log pour analyse manuelle. L'application automatique (ajustement dynamique de température) est différée.
 
 ---
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : Le log SQLite est local. Pas d'envoi à Anthropic ni à un service tiers. Conforme.
-- **Principe #4 — Fail fast** : Si l'un des deux appels LLM échoue, `tokio::join!` retourne l'erreur immédiatement — pas de fallback silencieux sur un seul plan. Conforme.
+- **Principe #1 - Local-first** : Le log SQLite est local. Pas d'envoi à Anthropic ni à un service tiers. Conforme.
+- **Principe #4 - Fail fast** : Si l'un des deux appels LLM échoue, `tokio::join!` retourne l'erreur immédiatement - pas de fallback silencieux sur un seul plan. Conforme.
 
 ---
 
@@ -86,4 +86,4 @@ Un feedback binaire A/B produit le signal le plus net pour calibrer la températ
 
 - Story d'implémentation : STORY-471 (Sprint 36)
 - Implémenté dans : `crates/apollia-oria/src/feedback.rs`
-- Référence : Kaplan et al. 2020 — https://arxiv.org/abs/2001.08361
+- Référence : Kaplan et al. 2020 - https://arxiv.org/abs/2001.08361

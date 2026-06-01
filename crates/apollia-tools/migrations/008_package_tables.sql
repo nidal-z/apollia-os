@@ -6,7 +6,7 @@
 -- installed_packages : source de vérité des packages installés.
 -- package_agents     : lien package ↔ agent (ON DELETE CASCADE).
 --
--- Les agents restent dans installed_agents — source de vérité unique pour Phase 11.
+-- Les agents restent dans installed_agents - source de vérité unique pour Phase 11.
 
 CREATE TABLE IF NOT EXISTS installed_packages (
     name          TEXT PRIMARY KEY,

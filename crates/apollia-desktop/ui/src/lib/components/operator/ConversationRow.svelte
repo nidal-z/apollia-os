@@ -22,12 +22,12 @@
     live?: boolean;
     onclick?: (e: MouseEvent) => void;
     /**
-     * Optional rename action — submits the new title from the inline editor.
+     * Optional rename action - submits the new title from the inline editor.
      * Providing this callback enables both the kebab menu "Renommer" entry
      * and double-click inline editing on the title.
      */
     onrename?: (newTitle: string) => void;
-    /** Optional delete action — shows a kebab menu when provided. */
+    /** Optional delete action - shows a kebab menu when provided. */
     ondelete?: () => void;
     /** Project this conversation is linked to (displayed as a small chip). */
     projectLabel?: string;
@@ -56,13 +56,13 @@
   let menuOpen = $state(false);
   let menuRoot = $state<HTMLDivElement | undefined>(undefined);
 
-  // Inline edit state — entered via double-click on the title or the
+  // Inline edit state - entered via double-click on the title or the
   // kebab "Renommer" entry. Enter/blur commits, Escape cancels.
   let editing = $state(false);
   let editValue = $state("");
   let editInput = $state<HTMLInputElement | undefined>(undefined);
 
-  // Inline delete-confirmation state — gating misclicks. The destructive
+  // Inline delete-confirmation state - gating misclicks. The destructive
   // action only runs when the user explicitly clicks "Confirmer". The
   // "Confirmer" button lives in a stable strip that is NOT torn down by
   // the click that opens it (unlike the kebab menu), so the callback can
@@ -114,7 +114,7 @@
 
   // NOTE: do NOT call `ev.stopPropagation()` / `ev.preventDefault()` in any
   // of the menu-related handlers below. Svelte 5's listener attachment for
-  // freshly-mounted elements interacts badly with stopped clicks here — it
+  // freshly-mounted elements interacts badly with stopped clicks here - it
   // produced an intermittent "1 click in 2" failure on the menu items.
   // The row-level `onRowClick` already filters out clicks whose target lives
   // inside `menuRoot`, so propagation is harmless.
@@ -134,7 +134,7 @@
     confirmingDelete = true;
   }
 
-  /** Confirmation popover "Confirmer" — actually fires the delete callback. */
+  /** Confirmation popover "Confirmer" - actually fires the delete callback. */
   function handleDeleteConfirm(): void {
     ondelete?.();
   }
@@ -163,7 +163,7 @@
   function handleDocumentClick(ev: MouseEvent): void {
     if (!menuOpen) return;
     if (!menuRoot) return;
-    // Use composedPath() instead of contains(target) — when a click on a
+    // Use composedPath() instead of contains(target) - when a click on a
     // menu item triggers a Svelte re-render that unmounts the clicked
     // element (e.g. clicking "Supprimer" flips `confirmingDelete=true`,
     // which unmounts the menu popover containing the Supprimer button),

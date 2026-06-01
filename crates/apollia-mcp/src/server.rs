@@ -241,7 +241,7 @@ impl McpStdioServer {
             return jsonrpc_error(
                 id,
                 -32000,
-                "submit_task requires a runtime — start with --with-runtime",
+                "submit_task requires a runtime - start with --with-runtime",
             );
         };
 

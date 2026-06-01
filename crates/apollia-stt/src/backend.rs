@@ -1,4 +1,4 @@
-//! Trait [`SttBackend`] — interface commune pour tous les moteurs STT.
+//! Trait [`SttBackend`] - interface commune pour tous les moteurs STT.
 //!
 //! Le trait est **object-safe** (`Box<dyn SttBackend>`) et **synchrone** :
 //! l'appelant est responsable de wrapper les appels dans `spawn_blocking`
@@ -22,9 +22,9 @@ pub trait SttBackend: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `audio` — Échantillons PCM f32 normalisés [-1.0, 1.0], mono.
-    /// * `sample_rate` — Fréquence d'échantillonnage en Hz (typiquement 16000).
-    /// * `language_hint` — Code langue ISO 639-1 optionnel (ex: `"fr"`, `"en"`).
+    /// * `audio` - Échantillons PCM f32 normalisés [-1.0, 1.0], mono.
+    /// * `sample_rate` - Fréquence d'échantillonnage en Hz (typiquement 16000).
+    /// * `language_hint` - Code langue ISO 639-1 optionnel (ex: `"fr"`, `"en"`).
     ///
     /// # Erreurs
     ///

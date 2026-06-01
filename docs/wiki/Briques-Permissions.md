@@ -1,8 +1,8 @@
-# apollia-permissions — Moteur de Permissions 3 Couches
+# apollia-permissions - Moteur de Permissions 3 Couches
 
 > *Evaluation ordonnée de chaque invocation d'outil : SafeList → PrefixRuleEngine → InjectionDetector. Réduction du bruit HITL sur les commandes sûres, blocage automatique des injections.*
 >
-> **Référence technique :** [Décision ADR-061](https://github.com/nidal-z/apollia-os/wiki/Decisions-Log)
+> **Référence technique :** [Décision ADR-061](https://github.com/Apollia-OS/apollia-os/wiki/Decisions-Log)
 
 ---
 
@@ -17,19 +17,19 @@
 ```
 apollia-tools (ToolRegistry::invoke)
   └── apollia-permissions (PermissionEngine::decide)
-        ├── InjectionDetector (couche 3 — priorité absolue)
-        ├── SafeList          (couche 1 — config opérateur)
-        ├── PrefixRuleEngine  (couche 2 — règles SQLite)
+        ├── InjectionDetector (couche 3 - priorité absolue)
+        ├── SafeList          (couche 1 - config opérateur)
+        ├── PrefixRuleEngine  (couche 2 - règles SQLite)
         └── PermissionAuditLog (log immuable)
 ```
 
-> **Référence technique :** [Sécurité — Guardrails](./Securite-Guardrails.md)
+> **Référence technique :** [Sécurité - Guardrails](./Securite-Guardrails.md)
 
 ---
 
-## 2. Les 3 couches — Ordre d'évaluation
+## 2. Les 3 couches - Ordre d'évaluation
 
-### Couche 3 — InjectionDetector (priorité absolue)
+### Couche 3 - InjectionDetector (priorité absolue)
 
 Analyse structurelle du shell, pas regex naïf. S'active **en premier** quelle que soit la configuration.
 
@@ -38,10 +38,10 @@ pub struct StructuralInjectionDetector;
 
 impl StructuralInjectionDetector {
     pub fn is_injection(command: &str) -> bool {
-        Self::has_command_substitution(command)    // POSIX §2.6.3 — $() et backtick
-            || Self::has_process_substitution(command) // bash §3.5.6 — >() et <()
-            || Self::pipes_into_interpreter(command)   // CWE-78 — | bash, | sh, | python
-            || Self::has_unsafe_eval(command)          // ShellCheck SC2046 — eval $VAR
+        Self::has_command_substitution(command)    // POSIX §2.6.3 - $() et backtick
+            || Self::has_process_substitution(command) // bash §3.5.6 - >() et <()
+            || Self::pipes_into_interpreter(command)   // CWE-78 - | bash, | sh, | python
+            || Self::has_unsafe_eval(command)          // ShellCheck SC2046 - eval $VAR
     }
 }
 ```
@@ -49,15 +49,15 @@ impl StructuralInjectionDetector {
 **Contexte de quoting respecté :** `echo '$(not_executed)'` → `false` (single-quote POSIX §2.2.2).
 
 Patterns détectés :
-- `$(...)` — substitution de commande
-- `` `...` `` — backtick (ShellCheck SC2006)
-- `>(...)`, `<(...)` — process substitution bash
+- `$(...)` - substitution de commande
+- `` `...` `` - backtick (ShellCheck SC2006)
+- `>(...)`, `<(...)` - process substitution bash
 - `| bash`, `| sh`, `| zsh`, `| python`, `| python3`, `| ruby`, `| perl`
-- `eval $VAR` — eval avec variable non-quotée (ShellCheck SC2046)
+- `eval $VAR` - eval avec variable non-quotée (ShellCheck SC2046)
 
 Depuis l'analyse est **structurelle** : elle tient compte du contexte de quoting et des cas multi-lignes que les regex naïfs ratent.
 
-### Couche 1 — SafeList
+### Couche 1 - SafeList
 
 Liste des commandes auto-approuvées, configurée par l'opérateur dans `apollia.toml`. **Vide par défaut.**
 
@@ -76,7 +76,7 @@ Principe : seules les commandes **lecture-seule**, sans accès réseau, sans éc
 
 ```toml
 [permissions]
-# La liste est VIDE par défaut — l'opérateur définit explicitement ce qui est sûr.
+# La liste est VIDE par défaut - l'opérateur définit explicitement ce qui est sûr.
 # Exemples (décommenter selon l'environnement) :
 # safe_commands = [
 #   "bash_executor(git status)",
@@ -86,7 +86,7 @@ Principe : seules les commandes **lecture-seule**, sans accès réseau, sans éc
 safe_commands = []
 ```
 
-### Couche 2 — PrefixRuleEngine
+### Couche 2 - PrefixRuleEngine
 
 Règles persistées en SQLite, mutables à chaud. Créées via le bouton **"Toujours autoriser"** de l'interface HITL desktop.
 
@@ -118,7 +118,7 @@ impl PrefixRuleEngine {
     pub fn check_with_scope(&self, tool_name: &str, first_arg: Option<&str>, ctx: &ScopeContext, session_rules: &[PrefixRule]) -> Result<Option<(i64, RuleAction)>, PermissionError> { ... }
     pub fn add_rule(&mut self, rule: &PrefixRule) -> Result<i64, PermissionError> { ... }
     pub fn list_rules(&self) -> Result<Vec<PrefixRule>, PermissionError> { ... }
-    /// Filtre par scope et chemin projet (Session retourne toujours vide — règles mémoire-uniquement).
+    /// Filtre par scope et chemin projet (Session retourne toujours vide - règles mémoire-uniquement).
     pub fn list_rules_filtered(&self, scope: Option<PermissionScope>, project_path: Option<&Path>) -> Result<Vec<PrefixRule>, PermissionError> { ... }
     /// Supprime toutes les règles persistées correspondant à *scope*.
     /// Pour `Project`, `project_path = None` supprime toutes les règles projet.
@@ -146,7 +146,7 @@ Exemple : règle `bash_executor(git:*)` → auto-approuve toutes les commandes `
 /// Portée d'une règle de permission.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PermissionScope {
-    Session,    // mémoire uniquement — disparaît à l'arrêt du process
+    Session,    // mémoire uniquement - disparaît à l'arrêt du process
     Project,    // persisté SQLite, filtré par chemin canonique du projet
     Agent,      // persisté SQLite, filtré par agent_id (ex. "apollia:chat")
     #[default]
@@ -166,7 +166,7 @@ pub struct ScopeContext {
 
 ---
 
-## 3. `PermissionEngine` — Point d'entrée
+## 3. `PermissionEngine` - Point d'entrée
 
 ```rust
 pub struct PermissionEngine {
@@ -243,7 +243,7 @@ La table `permission_audit` est **append-only** : des triggers SQLite (`no_updat
 Ces tables résident dans `~/.apollia/governance.db` (base consolidée gérée par `GovernanceDb` dans `apollia-tools`). Au premier démarrage, une éventuelle ancienne `permissions.db` est migrée automatiquement et renommée `permissions.db.bak`.
 
 ```sql
--- Règles préfixe (couche 2) — scope-aware
+-- Règles préfixe (couche 2) - scope-aware
 CREATE TABLE IF NOT EXISTS permission_rules (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     tool_name    TEXT NOT NULL,
@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS permission_rules (
 );
 CREATE INDEX IF NOT EXISTS idx_rules_tool ON permission_rules(tool_name);
 
--- Audit log (immuable — triggers no_update_audit / no_delete_audit)
+-- Audit log (immuable - triggers no_update_audit / no_delete_audit)
 CREATE TABLE IF NOT EXISTS permission_audit (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     tool_name   TEXT NOT NULL,
@@ -278,7 +278,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_tool ON permission_audit(tool_name, decided
 
 ```toml
 [permissions]
-# Commandes auto-approuvées sans HITL (vide par défaut — moindre privilège)
+# Commandes auto-approuvées sans HITL (vide par défaut - moindre privilège)
 safe_commands = []
 
 # TTL des règles préfixe SQLite
@@ -312,7 +312,7 @@ pub enum PermissionError {
 
 ---
 
-## 8. ADR-086 — Source unique `governance.db` & permissions agent-driven
+## 8. ADR-086 - Source unique `governance.db` & permissions agent-driven
 
 Depuis ADR-086, `~/.apollia/governance.db` est la **source de vérité unique** lue par
 `PermissionEngine.decide()` à chaque invocation. Tous les producteurs convergent vers

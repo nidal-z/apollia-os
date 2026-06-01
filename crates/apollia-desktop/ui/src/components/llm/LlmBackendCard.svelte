@@ -83,8 +83,8 @@
     const modelName = prettifyModelName(backend.model || backend.name);
     const status = backend.enabled ? $t("llm.running") : $t("llm.status_error");
     return isLocal
-      ? `${$t("llm.local_ai")} (${modelName}) — ${status}`
-      : `${modelName} — ${status}`;
+      ? `${$t("llm.local_ai")} (${modelName}) - ${status}`
+      : `${modelName} - ${status}`;
   });
 
   const humanizedCost = $derived.by(() => {

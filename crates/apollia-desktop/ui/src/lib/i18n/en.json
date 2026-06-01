@@ -3,9 +3,9 @@
     "title": "Next steps",
     "refresh": "Refresh",
     "dismiss": "Dismiss suggestion",
-    "empty": "No suggestion right now — try again after a few actions.",
+    "empty": "No suggestion right now - try again after a few actions.",
     "error": "Could not load suggestions. Try refreshing.",
-    "fallback_hint": "LLM offline — showing generic suggestions.",
+    "fallback_hint": "LLM offline - showing generic suggestions.",
     "feedback_label": "Was this suggestion useful?",
     "feedback_useful": "Useful",
     "feedback_not_useful": "Not useful",
@@ -81,7 +81,7 @@
       "connecting": "Connecting to agent…",
       "creating": "Creating session…",
       "ready": "Ready",
-      "input_disabled_hint": "Session starting — input will unlock once ready.",
+      "input_disabled_hint": "Session starting - input will unlock once ready.",
       "timeout_toast_title": "Session is taking longer than expected"
     },
     "error": {
@@ -219,7 +219,7 @@
     },
     "mode": {
       "chip_aria": "Current mode: {mode}. Open mode switcher.",
-      "chip_tooltip": "Mode: {current} — click to switch to {other}",
+      "chip_tooltip": "Mode: {current} - click to switch to {other}",
       "operator": {
         "label": "Operator",
         "description": "Simplified view: run and monitor assistants."
@@ -248,7 +248,7 @@
       "reconnecting": "Reconnecting…",
       "offline": "Offline",
       "reconnecting_title": "Reconnecting to runtime",
-      "reconnecting_detail": "The runtime event stream dropped — retrying automatically.",
+      "reconnecting_detail": "The runtime event stream dropped - retrying automatically.",
       "offline_title": "Runtime offline",
       "offline_detail": "The runtime is unreachable. Retry the connection or inspect the logs."
     },
@@ -261,7 +261,7 @@
     "status": {
       "ok": "Runtime connected · LLM provider available",
       "no_llm": "Runtime connected · no LLM provider configured",
-      "runtime_down": "Runtime offline — reconnecting"
+      "runtime_down": "Runtime offline - reconnecting"
     },
     "search_aria": "Search and command palette"
   },
@@ -282,11 +282,11 @@
     },
     "community": {
       "label": "Community",
-      "tooltip": "Maintained by the community — reliability verified by contributors"
+      "tooltip": "Maintained by the community - reliability verified by contributors"
     },
     "unverified": {
       "label": "Unverified",
-      "tooltip": "This connector has not been validated — use with caution"
+      "tooltip": "This connector has not been validated - use with caution"
     },
     "unknown": {
       "label": "Unknown trust",
@@ -297,8 +297,8 @@
     "add_connection": "Add connection",
     "capabilities": {
       "scope_policy_title": "What Apollia can do with this account",
-      "scope_policy_body_google": "Apollia v0.1.0 ships with free-tier Google OAuth scopes only (no CASA Tier 2 audit, which costs ~$5-15k/year). Your agents can: send emails, manage drafts, read and write your calendar, create/read/write files in the Apollia folder (configurable path), **plus any folder you designate via Google Drive Picker** (Settings → Integrations → \"Add via Google\" button). They still cannot: read your inbox, search emails, or automatically browse your entire Drive (you must explicitly designate areas to expose). To go further: (a) **Expert Mode** below — register your own Google Cloud OAuth app with the scopes you want (Testing mode bypasses CASA).",
-      "scope_policy_body_microsoft": "Apollia v0.1.0 ships with delegated Microsoft Graph scopes. Microsoft is more permissive than Google for free-tier — your agents can read your Outlook mail and your whole OneDrive in addition to the write operations.",
+      "scope_policy_body_google": "Apollia v0.1.0 ships with free-tier Google OAuth scopes only (no CASA Tier 2 audit, which costs ~$5-15k/year). Your agents can: send emails, manage drafts, read and write your calendar, create/read/write files in the Apollia folder (configurable path), **plus any folder you designate via Google Drive Picker** (Settings → Integrations → \"Add via Google\" button). They still cannot: read your inbox, search emails, or automatically browse your entire Drive (you must explicitly designate areas to expose). To go further: (a) **Expert Mode** below - register your own Google Cloud OAuth app with the scopes you want (Testing mode bypasses CASA).",
+      "scope_policy_body_microsoft": "Apollia v0.1.0 ships with delegated Microsoft Graph scopes. Microsoft is more permissive than Google for free-tier - your agents can read your Outlook mail and your whole OneDrive in addition to the write operations.",
       "group_gmail": "Gmail",
       "group_gcal": "Google Calendar",
       "group_gdrive": "Google Drive",
@@ -328,13 +328,13 @@
         "gdrive_workspace_read": "Read a file Apollia previously wrote",
         "gdrive_workspace_write": "Create or replace a file (requires approval)",
         "gdrive_workspace_share": "Share an Apollia-created file with someone (requires approval)",
-        "gdrive_workspace_detail": "Apollia operates in: (1) the Apollia root folder chosen at connection time (default `Drive/Apollia/`); (2) any folder you designate via Google Drive Picker (Settings → Integrations). No restricted scope, no CASA — Google extends `drive.file` access to picked folders.",
+        "gdrive_workspace_detail": "Apollia operates in: (1) the Apollia root folder chosen at connection time (default `Drive/Apollia/`); (2) any folder you designate via Google Drive Picker (Settings → Integrations). No restricted scope, no CASA - Google extends `drive.file` access to picked folders.",
         "gdrive_picker": "Designate any Drive folder via the Google picker",
         "gdrive_picker_detail": "\"Add via Google\" button in Settings → Integrations. You pick a folder (including My Drive root), Apollia gains `drive.file` access to it and its descendants. No CASA, no restricted scope.",
         "gdrive_full": "Auto-list every Drive file (without picking anything first)",
         "gdrive_full_detail": "Requires Google's restricted `drive.readonly` scope. Expert Mode only (your own OAuth app in Testing mode = no CASA). The Google picker above covers most use cases without this overhead.",
         "gdrive_write_anywhere": "Write or edit files without picking them first",
-        "gdrive_write_anywhere_detail": "Requires the restricted `drive` scope. Expert Mode only. For concrete needs, designate your folders via the Google picker — Apollia can then write inside them normally.",
+        "gdrive_write_anywhere_detail": "Requires the restricted `drive` scope. Expert Mode only. For concrete needs, designate your folders via the Google picker - Apollia can then write inside them normally.",
         "gsheets_create": "Create a Google Sheet (requires approval)",
         "gsheets_read_values": "Read cells from a Sheet (A1 notation)",
         "gsheets_write_values": "Write/append rows in a Sheet (requires approval)",
@@ -345,17 +345,17 @@
         "gdocs_detail": "Same as Sheets: only Docs created by Apollia or picked via the selector are accessible. `documents` scope, free.",
         "gslides_create": "Create a Google Slides deck (requires approval)",
         "gslides_append_slide": "Append a slide with a text block (requires approval)",
-        "gslides_detail": "Basic creation for v0.1 — fine editing (layout, images, etc.) will come later. `presentations` scope, free.",
+        "gslides_detail": "Basic creation for v0.1 - fine editing (layout, images, etc.) will come later. `presentations` scope, free.",
         "gtasks_list": "List your tasks and task lists",
         "gtasks_create": "Create a task (requires approval)",
         "gtasks_complete": "Mark a task as completed (requires approval)",
         "gtasks_delete": "Delete a task (confirmation phrase required)",
-        "gtasks_detail": "Full Google Tasks access. Unlike Drive, the `tasks` scope is not per-resource gated — Apollia sees all your lists.",
+        "gtasks_detail": "Full Google Tasks access. Unlike Drive, the `tasks` scope is not per-resource gated - Apollia sees all your lists.",
         "gforms_create": "Create a Google Form (requires approval)",
         "gforms_detail": "Empty form creation for v0.1 (question editing coming later). `forms.body` scope, free.",
         "youtube_search": "Search YouTube videos",
         "youtube_video_details": "Fetch a video's metadata (views, duration, description)",
-        "youtube_detail": "Read-only YouTube — no channel management, no uploads. `youtube.readonly` scope, free.",
+        "youtube_detail": "Read-only YouTube - no channel management, no uploads. `youtube.readonly` scope, free.",
         "outlook_send": "Send emails on your behalf",
         "outlook_read": "Read your inbox",
         "outlook_cal_read": "List your calendar events",
@@ -363,7 +363,7 @@
         "onedrive_read": "Read files from your whole OneDrive",
         "onedrive_write": "Create/update files in your OneDrive (requires approval)"
       },
-      "expert_mode_hint": "Expert Mode (recommended to extend permissions): 1) Go to console.cloud.google.com, create a project, then an OAuth app of type \"Desktop app\". 2) On the consent screen, add the restricted scopes you want (`gmail.readonly`, `drive.readonly`, `drive` for full read+write, etc.). 3) Keep the app in \"Testing\" mode (not \"In production\") and add yourself as a test user — Testing mode lets you use restricted scopes WITHOUT going through the CASA Tier 2 audit (~$5-15k/year). 4) Paste the Client ID + Client secret into Settings → Integrations → Expert Mode. Apollia switches to your app and your agents get the extended scopes."
+      "expert_mode_hint": "Expert Mode (recommended to extend permissions): 1) Go to console.cloud.google.com, create a project, then an OAuth app of type \"Desktop app\". 2) On the consent screen, add the restricted scopes you want (`gmail.readonly`, `drive.readonly`, `drive` for full read+write, etc.). 3) Keep the app in \"Testing\" mode (not \"In production\") and add yourself as a test user - Testing mode lets you use restricted scopes WITHOUT going through the CASA Tier 2 audit (~$5-15k/year). 4) Paste the Client ID + Client secret into Settings → Integrations → Expert Mode. Apollia switches to your app and your agents get the extended scopes."
     },
     "hero": {
       "title": "Connections",
@@ -403,7 +403,7 @@
     },
     "error": {
       "title": "Error details",
-      "unknown": "Unknown error — check the logs.",
+      "unknown": "Unknown error - check the logs.",
       "retry": "Retry",
       "view_logs": "View logs",
       "consult_docs": "Consult docs"
@@ -497,7 +497,7 @@
       }
     },
     "disclaimer": {
-      "title": "External connections — Read before continuing",
+      "title": "External connections - Read before continuing",
       "step_title": "What you need to know before connecting",
       "step_subtitle": "Check each item to confirm your understanding.",
       "items": {
@@ -568,7 +568,7 @@
     },
     "connectors": {
       "figma": {
-        "auth_help": "Figma's remote MCP server (mcp.figma.com) is only open to clients on the Figma MCP Catalog (Claude.ai, Cursor, Windsurf, …). Apollia is on the waitlist — we'll switch to the remote endpoint as soon as we're approved.\n\nIn the meantime, this connector relies on Figma's LOCAL Dev Mode MCP server, bundled with Figma Desktop. Heads up: Dev Mode (and therefore its MCP server) requires a paid Figma plan (Professional or higher). If you're on the free plan, this connector won't work yet — wait for Apollia's approval on the remote Catalog.\n\nIf you have a paid plan:\n\n1. Install Figma Desktop and sign in.\n2. Open any file and toggle Dev Mode.\n3. Enable “Dev Mode MCP Server” in Preferences.\n4. Leave Figma Desktop running — your session provides identity, no OAuth needed."
+        "auth_help": "Figma's remote MCP server (mcp.figma.com) is only open to clients on the Figma MCP Catalog (Claude.ai, Cursor, Windsurf, …). Apollia is on the waitlist - we'll switch to the remote endpoint as soon as we're approved.\n\nIn the meantime, this connector relies on Figma's LOCAL Dev Mode MCP server, bundled with Figma Desktop. Heads up: Dev Mode (and therefore its MCP server) requires a paid Figma plan (Professional or higher). If you're on the free plan, this connector won't work yet - wait for Apollia's approval on the remote Catalog.\n\nIf you have a paid plan:\n\n1. Install Figma Desktop and sign in.\n2. Open any file and toggle Dev Mode.\n3. Enable “Dev Mode MCP Server” in Preferences.\n4. Leave Figma Desktop running - your session provides identity, no OAuth needed."
       }
     },
     "wizard": {
@@ -584,14 +584,14 @@
       "encrypted_locally": "Encrypted and stored locally",
       "test_retry": "Retry",
       "test_err": {
-        "unauthorized": "Authentication refused — check your API key.",
+        "unauthorized": "Authentication refused - check your API key.",
         "oauth_required": "This server requires OAuth authentication. Go back to the previous step and use the \"Sign in\" button.",
-        "forbidden": "Access forbidden — your key doesn't have the required rights.",
-        "not_found": "Service not found — check the URL or server name.",
-        "network": "Network error — the service did not respond in time.",
+        "forbidden": "Access forbidden - your key doesn't have the required rights.",
+        "not_found": "Service not found - check the URL or server name.",
+        "network": "Network error - the service did not respond in time.",
         "handshake_timeout": "The server started but did not reply to the MCP handshake. Common causes: wrong URL, npm/pypi package still downloading (try again), or a server that is not MCP-compliant.",
         "transport_closed": "The server closed the connection before the handshake completed. Common causes: package not found on npm/pypi (check the identifier), remote URL unreachable (DNS/firewall), or missing local command.",
-        "command_missing": "Command not found — the package is probably not installed.",
+        "command_missing": "Command not found - the package is probably not installed.",
         "generic": "The connection failed. Check your credentials and try again.",
         "raw_details": "Show technical details",
         "fix_auth": "Fix authentication",
@@ -605,7 +605,7 @@
         "examples_subtitle": "A few usage examples to get started.",
         "loading": "Generating suggestions…",
         "error": "Suggestions are not available right now.",
-        "empty": "No suggestions — explore the tools from the chat.",
+        "empty": "No suggestions - explore the tools from the chat.",
         "try": "Try"
       },
       "step_progress": "Setup progress",
@@ -628,7 +628,7 @@
       "oauth_required_body": "This server uses standard OAuth 2.1 authentication. You'll be redirected to the provider's sign-in page to authorise Apollia, then brought back here.",
       "oauth_scope_selector_title": "Requested permissions",
       "oauth_scope_selector_hint": "Uncheck any permission you don't want to grant. All permissions advertised by the server are selected by default.",
-      "oauth_scope_selector_empty": "The server doesn't publish a list of available permissions — default permissions will be requested.",
+      "oauth_scope_selector_empty": "The server doesn't publish a list of available permissions - default permissions will be requested.",
       "oauth_signin_button": "Sign in to {provider}",
       "oauth_signin_in_progress": "Signing in…",
       "oauth_signin_success": "Signed in as {identity}",
@@ -663,7 +663,7 @@
       "approval_readonly_desc": "Only read operations are permitted.",
       "confirm_button": "Add connection",
       "adding": "Adding…",
-      "test_unavailable": "Connection test is unavailable — no configuration found for this server.",
+      "test_unavailable": "Connection test is unavailable - no configuration found for this server.",
       "no_package_title": "Server not configurable",
       "no_package_body": "This server has no installable package and no remote endpoint. It cannot be added automatically."
     },
@@ -679,7 +679,7 @@
       "no_activity": "No activity yet",
       "test_button": "Test",
       "test_testing": "Testing…",
-      "test_ok": "Connection OK — {count} tools",
+      "test_ok": "Connection OK - {count} tools",
       "test_failed": "Test failed",
       "reconnect_button": "Reconnect",
       "reconnecting": "Reconnecting…",
@@ -720,7 +720,7 @@
     "ready": "Ready",
     "workers_section": "Worker agents",
     "manage": "Manage",
-    "digest_hero_title": "Today — {date}",
+    "digest_hero_title": "Today - {date}",
     "week_tasks_count": "Tasks this week ({n})",
     "week_pending_suffix": "{m} pending",
     "digest_loading": "Generating your daily digest...",
@@ -734,7 +734,7 @@
     "fact_insights": "Insights:",
     "fact_automations_failed": "Automations failed:",
     "pending_actions_title": "Pending actions",
-    "pending_actions_empty": "Nothing waiting on you — you're clear.",
+    "pending_actions_empty": "Nothing waiting on you - you're clear.",
     "pending_actions_see_all": "See inbox ({n})",
     "completed_today_title": "Completed today",
     "completed_today_empty": "No completed tasks yet for this range.",
@@ -744,16 +744,16 @@
     "range_all": "All",
     "my_assistants_title": "Your assistants",
     "my_assistants_empty": "No assistants installed yet.",
-    "worker_badge_tooltip": "{skills} A2A skills shared — used {calls} times today",
-    "worker_badge_tooltip_idle": "{skills} A2A skills shared — unused today",
+    "worker_badge_tooltip": "{skills} A2A skills shared - used {calls} times today",
+    "worker_badge_tooltip_idle": "{skills} A2A skills shared - unused today",
     "worker_sheet_title": "What is an A2A worker?",
     "worker_sheet_intro": "These assistants can collaborate automatically.",
     "worker_sheet_what_title": "What",
-    "worker_sheet_what_body": "An A2A worker is an assistant that can be called by other assistants to delegate sub-tasks — without going through you.",
+    "worker_sheet_what_body": "An A2A worker is an assistant that can be called by other assistants to delegate sub-tasks - without going through you.",
     "worker_sheet_when_title": "When you see the badge",
     "worker_sheet_when_body": "It means this assistant exposes skills that other agents can invoke. You stay in control: every call stays local and appears in the activity log.",
     "next_steps_title": "What Apollia suggests next",
-    "next_steps_empty": "Run a few tasks — suggestions will appear here.",
+    "next_steps_empty": "Run a few tasks - suggestions will appear here.",
     "cold_start_title": "Welcome! Your day is just starting.",
     "cold_start_subtitle": "Try opening a chat or browse your assistants.",
     "browse_agents": "Browse my assistants"
@@ -912,8 +912,8 @@
     "step_observation_operator": "Memory recorded",
     "step_observation_builder": "Step observation persisted",
     "cache_hit_operator": "Cached plan reused",
-    "cache_hit_builder": "Plan cache hit — skipped LLM planning",
-    "cache_hit_tooltip": "Identical plan found in cache — direct execution without re-planning",
+    "cache_hit_builder": "Plan cache hit - skipped LLM planning",
+    "cache_hit_tooltip": "Identical plan found in cache - direct execution without re-planning",
     "tool_output_label": "Output",
     "no_tool_details": "No details available."
   },
@@ -946,7 +946,7 @@
       "session": "Session"
     },
     "activity": {
-      "empty": "All clear — no recent incidents.",
+      "empty": "All clear - no recent incidents.",
       "empty_desc": "This tab lists only failures, degradations and LLM incidents from the last 14 days. For overall activity (tasks launched, triggers fired successfully), open Observability → Timeline.",
       "empty_cta": "Open Observability",
       "see_logs": "View logs",
@@ -1027,7 +1027,7 @@
     "toast": {
       "accepted": "Action approved",
       "rejected": "Action rejected",
-      "always_accepted": "Rule saved — future calls auto-approved",
+      "always_accepted": "Rule saved - future calls auto-approved",
       "ask_user_replied": "Answers sent to the agent",
       "bulk_approved": "{count} actions approved",
       "bulk_rejected": "{count} actions rejected"
@@ -1046,7 +1046,7 @@
     "rejecting": "Rejecting...",
     "reject_reason_placeholder": "Reason for rejection...",
     "reject_reason_min": "{min} characters minimum",
-    "always_allow_success": "Rule saved — will auto-approve in future",
+    "always_allow_success": "Rule saved - will auto-approve in future",
     "always_allow_error": "Failed to save rule",
     "type_bash": "Command",
     "type_file_edit": "Edit file",
@@ -1067,7 +1067,7 @@
     "arguments_label": "Arguments",
     "input_label": "Input",
     "preview": {
-      "lazy_hint": "Preview not calculated yet — click to load",
+      "lazy_hint": "Preview not calculated yet - click to load",
       "load": "Load preview",
       "loading": "Loading preview…"
     },
@@ -1115,11 +1115,11 @@
         "all_always": {
           "label": "Everything (all agents, all tools)",
           "help": "Disables all approval prompts. Only for fully trusted environments.",
-          "example": "Use with extreme caution — agents will run without any approval gate.",
+          "example": "Use with extreme caution - agents will run without any approval gate.",
           "danger": "This disables all approval prompts system-wide.",
           "confirm_title": "Disable all approvals?",
           "confirm_body": "This will auto-approve every action from every agent. You can re-enable individual rules in Settings → Permission rules.",
-          "confirm_action": "Confirm — disable all prompts"
+          "confirm_action": "Confirm - disable all prompts"
         }
       }
     },
@@ -1172,7 +1172,7 @@
     "unknown_agent": "Unknown agent",
     "type_task": "Task",
     "type_chat": "Chat",
-    "chat_tools_title": "Chat — Tool Approvals",
+    "chat_tools_title": "Chat - Tool Approvals",
     "chat_no_pending": "No pending chat tool approvals",
     "chat_session_label": "Session",
     "chat_open_session": "Open session",
@@ -1269,8 +1269,8 @@
     "view_history": "View history",
     "advanced_link": "Open the advanced builder view",
     "target_prefix": "Assistant",
-    "paused_hint": "Paused — enable it in the advanced view to run on schedule.",
-    "fired_toast": "Automation started — task {taskId}",
+    "paused_hint": "Paused - enable it in the advanced view to run on schedule.",
+    "fired_toast": "Automation started - task {taskId}",
     "custom_tooltip": "Custom schedule defined in builder mode: {expr}",
     "last_run_failed": "Last run failed",
     "success_stat": "Success {rate}% ({fires}/{total})",
@@ -1314,7 +1314,7 @@
       "refine_label": "Refine in plain language",
       "refine_placeholder": "E.g. actually 9am",
       "agent_intro": "Pick the assistant that this trigger will launch. A trigger fires one assistant at a time.",
-      "agent_not_matched_hint": "Apollia didn't recognize an assistant in your description — pick one below.",
+      "agent_not_matched_hint": "Apollia didn't recognize an assistant in your description - pick one below.",
       "agent_pick": "Pick an assistant",
       "agent_select_aria": "Target assistant",
       "agent_inferred": "Recognized automatically: {agent}",
@@ -1340,7 +1340,7 @@
     "reloading": "Reloading...",
     "reload_success": "Configuration reloaded ({count} active triggers)",
     "reload_error": "Reload error: {message}",
-    "fired_toast": "Trigger fired — task {taskId}",
+    "fired_toast": "Trigger fired - task {taskId}",
     "empty_title": "No triggers configured",
     "empty_subtitle": "Triggers let your assistants run automatically. Configure them in apollia.toml.",
     "agent_label": "Agent",
@@ -1451,7 +1451,7 @@
     "interval_unit_days": "days",
     "interval_custom": "Custom interval",
     "advanced_section": "Advanced settings",
-    "field_id_auto": "Auto-generated — customize below",
+    "field_id_auto": "Auto-generated - customize below",
     "empty_subtitle_operator": "Triggers let your assistants run automatically. Create your first trigger below."
   },
   "memory": {
@@ -1509,7 +1509,7 @@
       "permissions_label_operator": "Permissions",
       "permissions_label_builder": "Required Permissions",
       "empty_operator": "Schema not available for this tool",
-      "empty_builder": "ToolDescriptor not found — tool may not expose introspection",
+      "empty_builder": "ToolDescriptor not found - tool may not expose introspection",
       "no_schema": "Not defined",
       "no_permissions": "No permissions required"
     },
@@ -1785,14 +1785,14 @@
     "kpi_top_backend": "Top backend",
     "kpi_backends": "Active backends",
     "audit_purpose_title": "Why this trail?",
-    "audit_purpose_body": "Every tool invoked by an agent — file write, web request, MCP action, shell command — is traced here, immutable. Use cases: internal control, post-incident investigation, compliance, verifying an agent's actual scope of action.",
+    "audit_purpose_body": "Every tool invoked by an agent - file write, web request, MCP action, shell command - is traced here, immutable. Use cases: internal control, post-incident investigation, compliance, verifying an agent's actual scope of action.",
     "audit_kpi_entries": "Entries shown",
     "audit_kpi_tools": "Distinct tools",
     "audit_kpi_failures": "Failures",
     "audit_kpi_avg_duration": "Avg duration",
     "audit_status_ok": "OK",
     "audit_status_error": "Error",
-    "audit_status_unknown": "—",
+    "audit_status_unknown": "-",
     "tool_filter": "Tool:",
     "agent_filter": "Agent:",
     "all_tools": "All tools",
@@ -1838,7 +1838,7 @@
     "save_toast_error": "Save failed: {error}",
     "save_status_saved": "Saved",
     "save_status_saving": "Saving…",
-    "save_status_retry": "Save failed — retry",
+    "save_status_retry": "Save failed - retry",
     "nav": {
       "aria_label": "Settings sections",
       "cluster_personalization": "Personalization",
@@ -1863,7 +1863,7 @@
     },
     "observability": {
       "title": "Observability",
-      "subtitle": "Control what is captured about agent execution. All captures are local — nothing is uploaded.",
+      "subtitle": "Control what is captured about agent execution. All captures are local - nothing is uploaded.",
       "capture_thoughts": "Agent thoughts (ReAct reasoning)",
       "capture_thoughts_desc": "Persist the LLM 'thought' field at each ReAct turn.",
       "capture_llm_prompts": "LLM prompts (full content)",
@@ -1977,7 +1977,7 @@
     "read_only_notice": "Changes require a restart",
     "readonly_banner": "Read-only configuration. To modify, edit {file} and restart the runtime.",
     "loading_config": "Loading configuration...",
-    "file_not_found": "file not found — showing defaults",
+    "file_not_found": "file not found - showing defaults",
     "see_llm": "See LLM backends",
     "see_details": "See details",
     "operational_redirect_banner": "Triggers and notifications are configured from their dedicated views in the sidebar.",
@@ -2065,7 +2065,7 @@
         "captured": "Captured: {combo}",
         "updated_toast": "Hotkey updated to {combo}",
         "cancelled_toast": "Capture cancelled",
-        "timeout_toast": "No key pressed — capture cancelled"
+        "timeout_toast": "No key pressed - capture cancelled"
       },
       "status_refresh": "Refresh",
       "status_updated": "Updated {relative}",
@@ -2098,7 +2098,7 @@
     "stt_hotkey": "Hotkey",
     "stt_hotkey_recording": "Press the combination...",
     "stt_hotkey_placeholder": "Click to record",
-    "stt_hotkey_hint": "Press the desired key combination — Escape to cancel.",
+    "stt_hotkey_hint": "Press the desired key combination - Escape to cancel.",
     "stt_clipboard_mode": "Clipboard mode",
     "stt_clipboard_restore": "Restore clipboard after injection",
     "stt_silence_threshold": "Silence threshold",
@@ -2185,8 +2185,8 @@
       "scan": "Scan",
       "scan_empty": "No .gguf files found in ~/.apollia/models, ~/Downloads, or ~/.cache/lm-studio.",
       "recommended": "Recommended",
-      "multipart_first": "Multi-part model ({total} files) — all parts must be in the same folder.",
-      "multipart_corrected": "Part {part}/{total} selected — path corrected to the first part automatically.",
+      "multipart_first": "Multi-part model ({total} files) - all parts must be in the same folder.",
+      "multipart_corrected": "Part {part}/{total} selected - path corrected to the first part automatically.",
       "err_required": "Required",
       "err_invalid_name": "Use lowercase letters, digits, _ or -",
       "err_invalid_url": "Must be a valid http(s) URL",
@@ -2259,11 +2259,11 @@
       "card": {
         "gated": "Gated",
         "embedding_only": "Embedding only",
-        "embedding_only_title": "Not a text-generation model — incompatible with llama.cpp",
+        "embedding_only_title": "Not a text-generation model - incompatible with llama.cpp",
         "no_gguf": "No GGUF",
         "no_gguf_title": "No GGUF files found in this repository",
         "arch_unknown": "Arch. unknown",
-        "arch_unknown_title": "Architecture not yet confirmed in llama.cpp — may or may not work",
+        "arch_unknown_title": "Architecture not yet confirmed in llama.cpp - may or may not work",
         "downloads_count": "↓ {count}k downloads",
         "gguf_files_count": "{count} GGUF files"
       },
@@ -2279,9 +2279,9 @@
         "variants_other": "{count} variants",
         "parts": "{count} parts",
         "compat_fits": "Fits in memory",
-        "compat_might_fit": "Might fit — tight",
+        "compat_might_fit": "Might fit - tight",
         "compat_too_large": "Too large for your machine",
-        "vision_projector": "Vision projector — required for multimodal inference",
+        "vision_projector": "Vision projector - required for multimodal inference",
         "download": "Download",
         "files_count": "{count} files",
         "no_gguf_in_repo": "No GGUF files found in this repository."
@@ -2380,7 +2380,7 @@
     "sending": "Sending...",
     "send": "Send",
     "waiting_approval": "Waiting for approval",
-    "running_status": "Running — {status}",
+    "running_status": "Running - {status}",
     "running_status_operator": "Working...",
     "completed": "Completed",
     "failed": "Failed",
@@ -2415,7 +2415,7 @@
         },
         "dashboard_activity": {
           "title": "Recent activity feed",
-          "message": "This feed shows recent events from all your agents — actions taken, approvals requested, and more."
+          "message": "This feed shows recent events from all your agents - actions taken, approvals requested, and more."
         },
         "agents_grid": {
           "title": "Your agent fleet",
@@ -2424,7 +2424,7 @@
         "agents_start": {
           "title": "Start your first agent",
           "message": "This agent is paused. Click the glowing Start button to activate it and see the runtime in action.",
-          "success": "Agent started! Notice the Chat button that just appeared on its card — you can use it to talk directly to this agent."
+          "success": "Agent started! Notice the Chat button that just appeared on its card - you can use it to talk directly to this agent."
         },
         "chat_discover": {
           "title": "Start a conversation",
@@ -2441,7 +2441,7 @@
         },
         "triggers_overview": {
           "title": "Automate with triggers",
-          "message": "Triggers let your agents run on schedules or react to events — no manual intervention needed."
+          "message": "Triggers let your agents run on schedules or react to events - no manual intervention needed."
         },
         "triggers_detail": {
           "title": "Your trigger list",
@@ -2449,7 +2449,7 @@
         },
         "approvals": {
           "title": "Human-in-the-loop approvals",
-          "message": "This is where your agents ask for permission before acting. When an agent runs a sensitive action (file write, external API call...), an approval card appears with details. You approve or reject in one click. The queue is empty right now — that's a good sign!"
+          "message": "This is where your agents ask for permission before acting. When an agent runs a sensitive action (file write, external API call...), an approval card appears with details. You approve or reject in one click. The queue is empty right now - that's a good sign!"
         },
         "notifications_overview": {
           "title": "Stay informed",
@@ -2462,7 +2462,7 @@
         },
         "observability_tabs": {
           "title": "Three views of your system",
-          "message": "Observability offers Timeline, LLM Costs, and Audit Trail — each giving a different lens on your agents' activity."
+          "message": "Observability offers Timeline, LLM Costs, and Audit Trail - each giving a different lens on your agents' activity."
         },
         "observability_timeline": {
           "title": "Real-time timeline",
@@ -2477,13 +2477,13 @@
       "bld": {
         "dashboard": {
           "title": "Your architecture at a glance",
-          "message": "This is your workspace. You'll build and run agents from here — each agent is a Python module with a manifest() and run() contract."
+          "message": "This is your workspace. You'll build and run agents from here - each agent is a Python module with a manifest() and run() contract."
         },
         "agents": {
           "title": "Start csv-data-worker",
           "message": "Click Start to activate this demo agent. Watch how the runtime boots the Python module and registers it.",
           "success": "Agent active! The runtime has loaded the manifest and started the run() loop.",
-          "already_active": "This agent is already running — the runtime detected it automatically."
+          "already_active": "This agent is already running - the runtime detected it automatically."
         },
         "agent_detail": {
           "title": "The agent manifest",
@@ -2492,7 +2492,7 @@
         "memory": {
           "title": "Query agent memory",
           "message": "Agents write to memory at their own initiative. Search the 'onboarding-agent' namespace to see what csv-data-worker stored.",
-          "success": "Memory results loaded — you can see what the agent persisted during its run."
+          "success": "Memory results loaded - you can see what the agent persisted during its run."
         },
         "chat": {
           "title": "Chat with your agent",
@@ -2501,7 +2501,7 @@
         },
         "integrations": {
           "title": "MCP integrations",
-          "message": "Connect external tools via MCP servers. Your agents call these tools through the native client — no Python dependencies required."
+          "message": "Connect external tools via MCP servers. Your agents call these tools through the native client - no Python dependencies required."
         },
         "triggers": {
           "title": "Trigger types",
@@ -2509,7 +2509,7 @@
         },
         "pipelines": {
           "title": "DAG pipelines",
-          "message": "Wire agents together in directed acyclic graphs. Fan-out, fan-in, conditional branches — all handled by the pipeline engine."
+          "message": "Wire agents together in directed acyclic graphs. Fan-out, fan-in, conditional branches - all handled by the pipeline engine."
         },
         "observability": {
           "title": "Observability",
@@ -2519,7 +2519,7 @@
           "title": "You're ready to build",
           "message": "You know the architecture. Create your first agent with manifest() + run(), install it, and let the runtime handle the rest."
         },
-        "timeout_skip": "Take your time — you can replay any step from the progress bar.",
+        "timeout_skip": "Take your time - you can replay any step from the progress bar.",
         "step_1": "Your workspace. Every agent is a Python module with a manifest() + run() contract.",
         "step_2": "Start csv-data-worker. Watch how the runtime loads the module and registers it.",
         "step_3": "Every agent exposes manifest() for metadata and run() as the main loop.",
@@ -2527,7 +2527,7 @@
         "step_5": "Send this message to see how an agent handles a memory-related query.",
         "step_6": "Connect external tools via MCP. Your agents call them with no Python dependencies.",
         "step_7": "Cron, interval, file-watch, webhook. Each trigger fires run() automatically.",
-        "step_8": "Wire agents in DAG graphs. Fan-out, fan-in, conditions — pipeline engine.",
+        "step_8": "Wire agents in DAG graphs. Fan-out, fan-in, conditions - pipeline engine.",
         "step_9": "Every tool call, memory write, and LLM token is logged in the audit trail.",
         "step_10": "You know the architecture. Create your first agent with manifest() + run()."
       }
@@ -2591,7 +2591,7 @@
     "bm25": "Relevance scoring algorithm for search results"
   },
   "mac_sandbox": {
-    "title": "macOS — tools run without sandbox.",
+    "title": "macOS - tools run without sandbox.",
     "body": "Linux namespace isolation is not available on macOS. Agent tool calls (bash, file I/O) execute directly in your user session. Only run agents you trust, and review their tool permissions in the manifest."
   },
   "chat": {
@@ -2646,7 +2646,7 @@
     "select_mode": "Mode",
     "select_agent": "Agent",
     "select_tools": "Available tools",
-    "tools_optional": "Optional — select tools to make available",
+    "tools_optional": "Optional - select tools to make available",
     "system_prompt": "Instructions",
     "system_prompt_placeholder": "Instructions for the LLM...",
     "pick_type": "New conversation",
@@ -2718,7 +2718,7 @@
     },
     "rate_limit": {
       "too_fast": "Slow down…",
-      "too_many": "Too many messages — take a breath"
+      "too_many": "Too many messages - take a breath"
     },
     "template": {
       "dev_review": {
@@ -2792,8 +2792,8 @@
     "recording_hotkey_hint": "{hotkey} to stop · Esc to cancel",
     "plan_alternatives": {
       "choose_plan": "Choose an execution plan",
-      "plan_a_label": "Plan A — conservative",
-      "plan_b_label": "Plan B — exploratory",
+      "plan_a_label": "Plan A - conservative",
+      "plan_b_label": "Plan B - exploratory",
       "no_steps": "No steps.",
       "selected_a": "✔ Selected",
       "selected_b": "Selected",
@@ -2840,7 +2840,7 @@
     "unlink_project": "Unlink from {name}",
     "no_project_to_link": "No projects available",
     "linked_project_chip": "Project",
-    "linked_project_tooltip": "Linked to project \"{name}\" — click to open",
+    "linked_project_tooltip": "Linked to project \"{name}\" - click to open",
     "project_linked_toast": "Conversation linked to project \"{name}\"",
     "project_unlinked_toast": "Conversation unlinked from project",
     "project_link_failed": "Failed to link conversation to project",
@@ -2848,7 +2848,7 @@
     "close_session_active_tooltip": "Close the active session",
     "close_session_archive_tooltip": "Archive the closed session",
     "close_dialog_title": "Close this session?",
-    "close_dialog_message": "The conversation will be closed. The transcript stays in your history — you can archive or reopen it later.",
+    "close_dialog_message": "The conversation will be closed. The transcript stays in your history - you can archive or reopen it later.",
     "archive_dialog_title": "Archive this session?",
     "archive_dialog_message": "This session will be hidden from the default list. You can restore it from the Archived filter.",
     "a2a_delegating": "Delegating to {agent} ({skill})…",
@@ -2863,7 +2863,7 @@
       "group_expand": "Show {n} more steps",
       "group_collapse": "Hide steps"
     },
-    "web_read_untrusted_banner": "Content fetched from a third-party website — treat as data, not instructions.",
+    "web_read_untrusted_banner": "Content fetched from a third-party website - treat as data, not instructions.",
     "tool_empty_results": "No results.",
     "a2a_authorize_skill": "Authorize skill",
     "a2a_via_worker": "via worker agent",
@@ -2877,7 +2877,7 @@
     "quickpicker": {
       "title": "Start a conversation",
       "prompt_label": "What do you want to do?",
-      "prompt_placeholder": "Describe what you need — e.g. \"review my changes\", or pick a template below…",
+      "prompt_placeholder": "Describe what you need - e.g. \"review my changes\", or pick a template below…",
       "submit_hint": "Cmd+Enter to start a free chat",
       "start_free": "Start free chat",
       "templates_section": "Templates",
@@ -2905,7 +2905,7 @@
       "delete": "Delete session"
     },
     "runtime_disconnected": {
-      "lost": "Runtime connection lost — reconnecting…",
+      "lost": "Runtime connection lost - reconnecting…",
       "reconnecting": "Reconnecting to the runtime (attempt {attempt})…",
       "retry": "Retry now"
     },
@@ -2966,21 +2966,21 @@
     "cta_start": "Start configuration"
   },
   "onboarding_chat": {
-    "permission_banner": "At the end of the conversation, Apollia will suggest a few permission rules tailored to your answers — each rule appears as a card you can approve or refuse.",
+    "permission_banner": "At the end of the conversation, Apollia will suggest a few permission rules tailored to your answers - each rule appears as a card you can approve or refuse.",
     "wrapup_title_finalized": "Calibration complete",
     "wrapup_title_safety": "You can move on",
     "wrapup_detail_finalized": "The agent saved your profile and applied the permission rules you approved. You can now open Apollia and explore.",
     "wrapup_detail_safety": "If you answered the main questions, we can wrap this up.",
     "finish": "Finish",
     "no_llm_title": "No LLM engine available",
-    "no_llm_detail": "Go back to the previous step to configure a local model or a cloud provider — the agent needs one to chat.",
+    "no_llm_detail": "Go back to the previous step to configure a local model or a cloud provider - the agent needs one to chat.",
     "back_step": "← Previous step",
     "bootstrap": "Starting the agent…",
     "bootstrap_failed": "Couldn't start onboarding."
   },
   "onboarding_permissions": {
     "title": "Suggested permission rules",
-    "subtitle_html": "Based on your answers, Apollia suggests the rules below. Apply the ones you want, dismiss the rest — you can always edit them under <strong>Settings → Permissions</strong>.",
+    "subtitle_html": "Based on your answers, Apollia suggests the rules below. Apply the ones you want, dismiss the rest - you can always edit them under <strong>Settings → Permissions</strong>.",
     "loading": "Loading…",
     "empty": "No rules left.",
     "apply": "Apply",
@@ -3001,7 +3001,7 @@
     "hotkey_save": "Save",
     "hotkey_saving": "…",
     "hotkey_hint": "Triggers voice dictation from anywhere in the app. Combine at least one modifier key (Ctrl, Alt, Shift, Meta) with a regular key.",
-    "hotkey_invalid": "Invalid combination — use at least one modifier.",
+    "hotkey_invalid": "Invalid combination - use at least one modifier.",
     "test_start": "Test now",
     "test_stop": "Speak… (click to stop)",
     "test_empty": "(empty transcription)",
@@ -3106,7 +3106,7 @@
       "research": {
         "label_operator": "Research",
         "label_builder": "Web Research",
-        "desc_operator": "Search the web and read articles — tick the tools below to enable for this chat"
+        "desc_operator": "Search the web and read articles - tick the tools below to enable for this chat"
       },
       "memory": {
         "label_operator": "Memory",
@@ -3118,62 +3118,62 @@
       "file_read": {
         "label_operator": "Read files",
         "desc_operator": "View the content of any file in your workspace",
-        "desc_builder": "file_read — offset/limit pagination — SandboxProfile::ReadOnly"
+        "desc_builder": "file_read - offset/limit pagination - SandboxProfile::ReadOnly"
       },
       "file_write": {
         "label_operator": "Create files",
         "desc_operator": "Save new files or overwrite existing ones",
-        "desc_builder": "file_write — atomic write — SandboxProfile::Restricted"
+        "desc_builder": "file_write - atomic write - SandboxProfile::Restricted"
       },
       "file_edit": {
         "label_operator": "Edit files",
         "desc_operator": "Make precise text changes inside existing files",
-        "desc_builder": "file_edit — search-and-replace, replace_all flag — SandboxProfile::Restricted"
+        "desc_builder": "file_edit - search-and-replace, replace_all flag - SandboxProfile::Restricted"
       },
       "file_list": {
         "label_operator": "Browse folders",
         "desc_operator": "List files and subfolders in a directory",
-        "desc_builder": "file_list — recursive depth, hidden filter — SandboxProfile::ReadOnly"
+        "desc_builder": "file_list - recursive depth, hidden filter - SandboxProfile::ReadOnly"
       },
       "file_glob": {
         "label_operator": "Find files by name",
         "desc_operator": "Search for files matching a pattern (e.g. *.txt)",
-        "desc_builder": "file_glob — glob pattern, sorted by mtime — SandboxProfile::ReadOnly"
+        "desc_builder": "file_glob - glob pattern, sorted by mtime - SandboxProfile::ReadOnly"
       },
       "file_grep": {
         "label_operator": "Search inside files",
         "desc_operator": "Find text or code patterns across your files",
-        "desc_builder": "file_grep — regex, context_lines, max_results — SandboxProfile::ReadOnly"
+        "desc_builder": "file_grep - regex, context_lines, max_results - SandboxProfile::ReadOnly"
       },
       "bash_executor": {
         "label_operator": "Terminal commands",
-        "desc_operator": "Execute shell commands — each run requires your approval",
-        "desc_builder": "bash_executor — timeout_secs, working_dir — SandboxProfile::Full — dangerous"
+        "desc_operator": "Execute shell commands - each run requires your approval",
+        "desc_builder": "bash_executor - timeout_secs, working_dir - SandboxProfile::Full - dangerous"
       },
       "python_executor": {
         "label_operator": "Python scripts",
         "desc_operator": "Run Python code in an isolated environment",
-        "desc_builder": "python_executor — per-agent venv, timeout_secs — SandboxProfile::Full — dangerous"
+        "desc_builder": "python_executor - per-agent venv, timeout_secs - SandboxProfile::Full - dangerous"
       },
       "http_fetch": {
         "label_operator": "Web requests",
         "desc_operator": "Retrieve data from external websites or APIs",
-        "desc_builder": "http_fetch — allowlist-enforced, 1 MB cap, GET/POST — SandboxProfile::Network"
+        "desc_builder": "http_fetch - allowlist-enforced, 1 MB cap, GET/POST - SandboxProfile::Network"
       },
       "web_search": {
         "label_operator": "Web search",
         "desc_operator": "Search the web (DuckDuckGo by default, Brave if an API key is set)",
-        "desc_builder": "web_search — pluggable backends (DDG/Brave), opt-in via [tools].web_search — ADR-072"
+        "desc_builder": "web_search - pluggable backends (DDG/Brave), opt-in via [tools].web_search - ADR-072"
       },
       "web_read": {
         "label_operator": "Read an article",
         "desc_operator": "Fetch a URL and extract the readable article text",
-        "desc_builder": "web_read — dom_smoothie Readability, 5 MB cap, SSRF-guarded — ADR-072"
+        "desc_builder": "web_read - dom_smoothie Readability, 5 MB cap, SSRF-guarded - ADR-072"
       },
       "memory_search": {
         "label_operator": "Search memory",
         "desc_operator": "Look up information the agent has saved previously",
-        "desc_builder": "memory_search — FTS5 BM25, namespace-scoped, limit — SandboxProfile::ReadOnly"
+        "desc_builder": "memory_search - FTS5 BM25, namespace-scoped, limit - SandboxProfile::ReadOnly"
       }
     },
     "select": {
@@ -3334,7 +3334,7 @@
   "tours": {
     "first_chat": {
       "step_1_title": "Type a message",
-      "step_1_body": "Ask a question in plain language — the agent replies locally, without leaving your machine.",
+      "step_1_body": "Ask a question in plain language - the agent replies locally, without leaving your machine.",
       "step_2_title": "Send the message",
       "step_2_body": "Hit send (or press Enter) to dispatch your prompt to the selected agent.",
       "step_3_title": "Watch the reasoning",
@@ -3346,7 +3346,7 @@
       "step_2_title": "Pick a trigger",
       "step_2_body": "Choose when it runs: on a schedule, a file change, a webhook or a keyword.",
       "step_3_title": "Save and try it",
-      "step_3_body": "Save the automation — it appears in your list and can be launched or edited anytime."
+      "step_3_body": "Save the automation - it appears in your list and can be launched or edited anytime."
     },
     "first_memory": {
       "step_1_title": "Browse your memory",
@@ -3405,7 +3405,7 @@
     "no_instructions": "No instructions",
     "no_providers": "No context providers configured",
     "no_documents": "No documents attached",
-    "snapshot_empty": "No context collected — check that providers are enabled and applicable",
+    "snapshot_empty": "No context collected - check that providers are enabled and applicable",
     "name_required": "Project name is required",
     "field_name": "Name",
     "field_name_placeholder": "My project",
@@ -3589,13 +3589,13 @@
   "empty_states": {
     "agents": {
       "title": "Your first assistant is one install away",
-      "description": "Install a Python agent file or spin one up from a template. Apollia runs it locally, in its own sandbox — no cloud round-trip.",
+      "description": "Install a Python agent file or spin one up from a template. Apollia runs it locally, in its own sandbox - no cloud round-trip.",
       "primary_cta": "Install an agent",
       "secondary_cta": "Start from a template"
     },
     "tasks": {
       "title": "Your task feed is wide open",
-      "description": "When an agent runs, its tasks land here — completions, failures, approvals, everything tracked and replayable.",
+      "description": "When an agent runs, its tasks land here - completions, failures, approvals, everything tracked and replayable.",
       "primary_cta": "Dispatch a task",
       "secondary_cta_operator": "Browse assistants"
     },
@@ -3613,19 +3613,19 @@
     },
     "chat": {
       "title": "Start a conversation with your agents",
-      "description": "Ask a question, brainstorm, or hand off a task. Every message stays on your machine — local-first by design.",
+      "description": "Ask a question, brainstorm, or hand off a task. Every message stays on your machine - local-first by design.",
       "primary_cta": "Start a new chat",
       "secondary_cta": "See installed agents"
     },
     "notifications": {
-      "title": "Silence is golden — until it isn't",
+      "title": "Silence is golden - until it isn't",
       "description": "Add a desktop or webhook channel so your agents can reach you when they need attention or finish a long run.",
       "primary_cta": "Add a channel",
       "secondary_cta": "See notification events"
     },
     "integrations": {
       "title": "Connect your first tool",
-      "description": "Apollia speaks MCP — browse the registry or plug in a custom server to extend your agents with file systems, APIs, and more.",
+      "description": "Apollia speaks MCP - browse the registry or plug in a custom server to extend your agents with file systems, APIs, and more.",
       "primary_cta": "Add a connection",
       "secondary_cta": "Browse the registry"
     }

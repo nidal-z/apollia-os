@@ -1,4 +1,4 @@
-# ADR-NNN — Titre court et concret
+# ADR-NNN - Titre court et concret
 
 **Date :** YYYY-MM-DD
 **Statut :** Proposé | Accepté | Remplacé par ADR-NNN | Déprécié
@@ -19,15 +19,15 @@
 
 ## Alternatives considérées
 
-### Option A — [Nom] (rejetée)
+### Option A - [Nom] (rejetée)
 **Pour :** [avantages]
 **Contre :** [raison du rejet]
 
-### Option B — [Nom] (rejetée)
+### Option B - [Nom] (rejetée)
 **Pour :** [avantages]
 **Contre :** [raison du rejet]
 
-### Option retenue — [Nom]
+### Option retenue - [Nom]
 **Pour :** [avantages qui ont emporté la décision]
 **Compromis acceptés :** [ce qu'on sacrifie]
 
@@ -44,7 +44,7 @@
 
 ## Principes architecturaux impactés
 
-- Principe #N — [nom] : [alignement ou écart]
+- Principe #N - [nom] : [alignement ou écart]
 
 ## Liens
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# scripts/build.sh — Build dispatcher pour apollia-os (CLI binary).
+# scripts/build.sh - Build dispatcher pour apollia-os (CLI binary).
 #
 # Compile le binaire `apollia-os` avec le bon couple <target Rust> + <features>
 # pour chaque combinaison OS/architecture/accélérateur. Utilise les features
@@ -11,7 +11,7 @@
 #
 # Presets (cf. BUILD.md pour la matrice complète) :
 #
-#   macos-silicon        # Apple Silicon (M1+) — Metal + Accelerate
+#   macos-silicon        # Apple Silicon (M1+) - Metal + Accelerate
 #
 #   linux-x86-cpu        # Linux x86_64, CPU only
 #   linux-x86-cuda       # Linux x86_64 + NVIDIA CUDA
@@ -25,7 +25,7 @@
 #   windows-x86-rocm     # Windows x86_64 + AMD HIP SDK (Radeon Pro / MI uniquement)
 #   windows-x86-vulkan   # Windows x86_64 + Vulkan (fallback cross-vendor)
 #   windows-arm-cpu      # Windows aarch64 (Snapdragon X), CPU only
-#   windows-arm-cuda     # Windows aarch64 + CUDA — THÉORIQUE : aucun driver
+#   windows-arm-cuda     # Windows aarch64 + CUDA - THÉORIQUE : aucun driver
 #                          NVIDIA discrete pour Windows-on-ARM aujourd'hui.
 #                          Le preset existe pour Jetson/Orin sous WSL/cross-build.
 #
@@ -125,7 +125,7 @@ features=$(echo "$row" | awk -F'|' '{print $3}')
 # - Pure CPU presets (-cpu, -vulkan) sont cross-compilables depuis n'importe
 #   quel host avec `cross` (Linux targets) ou `cargo-xwin` (Windows targets).
 # - Presets GPU (-cuda, -rocm) requièrent le SDK propriétaire (CUDA Toolkit,
-#   HIP SDK) — qui n'est PAS disponible sur macOS. Build natif obligatoire.
+#   HIP SDK) - qui n'est PAS disponible sur macOS. Build natif obligatoire.
 # - Vulkan : SPIR-V shaders compilent depuis n'importe où mais le link Vulkan
 #   nécessite le loader runtime de la plateforme cible. `cross` gère ça pour
 #   Linux ; `cargo-xwin` ne le gère pas par défaut → on accepte mais on warn.
@@ -156,7 +156,7 @@ if $is_cross; then
                 *)
                     echo "ERROR: '$preset' requires a native Linux host with the GPU
        SDK installed (CUDA Toolkit / ROCm). Cross-compile from $host_os is
-       not supported — the SDK doesn't run on macOS/Windows.
+       not supported - the SDK doesn't run on macOS/Windows.
        → Use GitHub Actions (.github/workflows/release-cli-binaries.yml)
          or SSH into a Linux machine." >&2
                     exit 1
@@ -176,7 +176,7 @@ if $is_cross; then
             esac
             ;;
         linux-*)
-            # CPU or Vulkan — cross-compile via `cross` (Docker).
+            # CPU or Vulkan - cross-compile via `cross` (Docker).
             if ! command -v cross >/dev/null 2>&1; then
                 echo "ERROR: cross-compile Linux target from $host_os requires 'cross'.
        Install:
@@ -193,7 +193,7 @@ if $is_cross; then
             runner="cross"
             ;;
         windows-*)
-            # CPU or Vulkan — cross-compile via `cargo-xwin` (fetches MSVC SDK).
+            # CPU or Vulkan - cross-compile via `cargo-xwin` (fetches MSVC SDK).
             if ! command -v cargo-xwin >/dev/null 2>&1 \
                 && ! cargo --list 2>/dev/null | grep -q xwin; then
                 echo "ERROR: cross-compile Windows target from $host_os requires 'cargo-xwin'.
@@ -222,7 +222,7 @@ if [ "$preset" = "windows-arm-cuda" ]; then
     echo "WARNING: NVIDIA does NOT ship CUDA drivers for Windows-on-ARM
          (Snapdragon X, etc.). This preset only makes sense if you are
          cross-building from Windows-on-ARM toward a Jetson/Orin Linux
-         target via WSL — most likely you want 'linux-arm-cuda' instead.
+         target via WSL - most likely you want 'linux-arm-cuda' instead.
          Continuing anyway in 5s. Ctrl-C to abort." >&2
     sleep 5
 fi

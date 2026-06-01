@@ -24,7 +24,7 @@ function looksLikeJson(value: string): boolean {
 
 // ─── Title behaviour ──────────────────────────────────────────────────────────
 
-describe("OperatorApprovalCard — title", () => {
+describe("OperatorApprovalCard - title", () => {
   test("labelKey does not contain the raw tool_name", () => {
     // GIVEN a tool call for file_grep in pending status
     const call = makeCall("file_grep", { pattern: "TODO" });
@@ -46,9 +46,9 @@ describe("OperatorApprovalCard — title", () => {
   });
 });
 
-// ─── Human description — no JSON ─────────────────────────────────────────────
+// ─── Human description - no JSON ─────────────────────────────────────────────
 
-describe("OperatorApprovalCard — human description without JSON", () => {
+describe("OperatorApprovalCard - human description without JSON", () => {
   test("http_fetch POST exposes hostname, not raw URL object", () => {
     // GIVEN a POST call to a JSON API
     const call = makeCall("http_fetch", {
@@ -98,7 +98,7 @@ describe("OperatorApprovalCard — human description without JSON", () => {
     expect(display.descriptionKey).toBe("tools.descriptions.memory_search_ns");
   });
 
-  test("unknown tool exposes empty templateParams — no raw input leaks", () => {
+  test("unknown tool exposes empty templateParams - no raw input leaks", () => {
     // GIVEN an unknown tool with complex nested input that should not appear in params
     const call = makeCall("exotic_tool", {
       nested: { deep: true },
@@ -106,7 +106,7 @@ describe("OperatorApprovalCard — human description without JSON", () => {
     });
     // WHEN
     const display = resolveToolDisplay(call);
-    // THEN templateParams are empty — no raw JSON injected into the description
+    // THEN templateParams are empty - no raw JSON injected into the description
     expect(display.templateParams).toEqual({});
     expect(display.icon).toBe(Terminal);
   });
@@ -114,7 +114,7 @@ describe("OperatorApprovalCard — human description without JSON", () => {
 
 // ─── Tool icon resolution ────────────────────────────────────────────────────
 
-describe("OperatorApprovalCard — tool icon", () => {
+describe("OperatorApprovalCard - tool icon", () => {
   test("http_fetch uses the Globe icon", () => {
     // GIVEN an http_fetch call
     const call = makeCall("http_fetch", { url: "https://example.com", method: "GET" });
@@ -136,7 +136,7 @@ describe("OperatorApprovalCard — tool icon", () => {
 
 // ─── Tauri command parameters ─────────────────────────────────────────────────
 
-describe("OperatorApprovalCard — authorize command shape", () => {
+describe("OperatorApprovalCard - authorize command shape", () => {
   test("authorize payload mirrors ApprovalCard: toolName from toolCall.tool_name", () => {
     // GIVEN a pending tool call
     const toolCall = makeCall("file_write", { path: "out.txt", content: "hello" });

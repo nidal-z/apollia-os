@@ -1,4 +1,4 @@
-//! Integration tests — ResilienceLayer circuit breaker.
+//! Integration tests - ResilienceLayer circuit breaker.
 //!
 //! Tests the circuit breaker lifecycle at the workspace integration level:
 //! Closed → Open (on threshold) → HalfOpen (after cooldown) → Closed (on probe success).
@@ -73,7 +73,7 @@ async fn test_circuit_breaker_half_open_after_cooldown() {
     assert_eq!(layer.get("test_tool").unwrap().state(), &CircuitState::Open);
 
     // Verify it rejects calls while Open (cooldown not yet elapsed)
-    // Note: may or may not be elapsed within 1ms — just verify it's either Open or HalfOpen
+    // Note: may or may not be elapsed within 1ms - just verify it's either Open or HalfOpen
     // (timing-sensitive: sleep 5ms to reliably elapse the 1ms cooldown)
     tokio::time::sleep(Duration::from_millis(5)).await;
 

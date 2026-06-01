@@ -70,4 +70,4 @@ Vous pouvez connecter plusieurs comptes Google. Chaque compte apparaît dans la 
 
 Sur la carte Google Workspace, cliquez sur **Déconnecter** à côté du compte concerné. Le token est immédiatement supprimé du trousseau local. Pour révoquer également côté Google, allez sur https://myaccount.google.com/permissions et retirez l'application Apollia.
 
-> **Référence technique :** [Briques-Auth](https://github.com/nidal-z/apollia-os/wiki/Briques-Auth) , scopes complets, refresh proactif, multi-comptes, stockage trousseau.
+> **Référence technique :** [Briques-Auth](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Auth) , scopes complets, refresh proactif, multi-comptes, stockage trousseau.

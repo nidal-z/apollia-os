@@ -86,7 +86,7 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
         } else {
             warn!(
                 project_id = %pid_for_log,
-                "project context: built block is empty — \
+                "project context: built block is empty - \
                  no instructions, documents, or applicable provider sections; \
                  check provider configuration and workspace_path"
             );

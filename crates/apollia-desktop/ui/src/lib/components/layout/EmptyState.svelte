@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * EmptyState — canonical empty-state surface.
+   * EmptyState - canonical empty-state surface.
    *
    * Narrative, engaging empty state: gradient illustration, display-sm title,
    * body description, primary + optional secondary CTA, optional trailing slot
@@ -14,19 +14,19 @@
   import { duration, prefersReducedMotion } from "$lib/design/motion";
 
   interface Props {
-    /** Lucide icon — renders inside the default gradient illustration. Ignored when `illustration` is passed. */
+    /** Lucide icon - renders inside the default gradient illustration. Ignored when `illustration` is passed. */
     icon?: typeof Icon;
-    /** Headline — rendered at `text-display-sm`. */
+    /** Headline - rendered at `text-display-sm`. */
     title: string;
     /** 1–2 sentences explaining the state and what the user can do next. */
     description?: string;
-    /** Primary CTA label — paired with `onPrimary`. */
+    /** Primary CTA label - paired with `onPrimary`. */
     primaryLabel?: string;
     primaryAction?: () => void;
-    /** Secondary CTA label — paired with `onSecondary`. Rendered as ghost button. */
+    /** Secondary CTA label - paired with `onSecondary`. Rendered as ghost button. */
     secondaryLabel?: string;
     secondaryAction?: () => void;
-    /** Used for `data-testid="empty-state-${page}"` — lets E2E tests target this instance. */
+    /** Used for `data-testid="empty-state-${page}"` - lets E2E tests target this instance. */
     page?: string;
     /** Override the default icon-in-gradient illustration. */
     illustration?: Snippet;
@@ -57,7 +57,7 @@
   data-testid={page ? `empty-state-${page}` : "empty-state"}
   in:fly={{ y: flyY, duration: flyDuration, easing: cubicOut }}
 >
-  <!-- Accent wash — tints the background with the brand gradient. -->
+  <!-- Accent wash - tints the background with the brand gradient. -->
   <div class="pointer-events-none absolute inset-0 bg-gradient-accent opacity-70" aria-hidden="true"></div>
 
   {#if trailing}

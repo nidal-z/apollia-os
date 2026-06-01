@@ -1,10 +1,10 @@
-//! Tests d'intégration E2E — distribution des agents bundled.
+//! Tests d'intégration E2E - distribution des agents bundled.
 //!
 //! Valide le flux complet de distribution via SupervisorConfig::bundled_agents_path :
 //! auto-installation des agents bundled au premier boot,
 //! et idempotence (agent déjà présent en DB non ré-installé).
 //!
-//! Pas de Python requis — utilise StubAgentLoader et InstantBackend.
+//! Pas de Python requis - utilise StubAgentLoader et InstantBackend.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -244,7 +244,7 @@ async fn test_bundled_agents_skip_existing() {
     assert_eq!(
         agents.len(),
         4,
-        "4 agents au total — excel-worker non dupliqué, trouvé : {:?}",
+        "4 agents au total - excel-worker non dupliqué, trouvé : {:?}",
         agents.iter().map(|a| &a.manifest.name).collect::<Vec<_>>()
     );
 

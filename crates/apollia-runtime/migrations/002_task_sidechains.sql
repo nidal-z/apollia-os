@@ -1,4 +1,4 @@
--- Sidechain logging — A2A task delegation traceability.
+-- Sidechain logging - A2A task delegation traceability.
 
 CREATE TABLE IF NOT EXISTS task_sidechains (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

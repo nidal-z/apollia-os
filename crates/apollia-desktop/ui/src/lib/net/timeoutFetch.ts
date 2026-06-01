@@ -1,5 +1,5 @@
 /**
- * `timeoutFetch` — a thin wrapper over the Fetch API that aborts the request
+ * `timeoutFetch` - a thin wrapper over the Fetch API that aborts the request
  * after a configurable timeout (default 10 000 ms) using an `AbortController`.
  *
  * Used by onboarding flows (and elsewhere) to avoid indefinite hangs on
@@ -30,7 +30,7 @@ export class TimeoutError extends Error {
  * - Resolves with the `Response` if it arrives before `ms` elapses.
  * - Rejects with {@link TimeoutError} if the timeout fires first.
  * - If the caller supplies its own `signal` in `opts`, we compose abort
- *   reasons — whichever aborts first wins.
+ *   reasons - whichever aborts first wins.
  */
 export async function timeoutFetch(
   url: string,

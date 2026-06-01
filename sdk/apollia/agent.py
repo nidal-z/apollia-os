@@ -1,4 +1,4 @@
-"""``@agent`` decorator — declare a class as an Apollia agent.
+"""``@agent`` decorator - declare a class as an Apollia agent.
 
 The decorator:
 
@@ -57,7 +57,7 @@ def _check_init_takes_no_required_args(cls: type) -> None:
     """Ensure ``cls()`` can be called with no arguments.
 
     Inspects the class signature (which resolves ``__init__`` through the
-    MRO). Built-ins / un-introspectable callables are skipped — the
+    MRO). Built-ins / un-introspectable callables are skipped - the
     subsequent ``cls()`` call will surface the real error.
     """
     try:
@@ -135,7 +135,7 @@ def agent(  # noqa: PLR0913  # NOSONAR S107: public decorator API surface
        ``@on_message`` (via :func:`build_manifest`).
     5. Validates at most one ``@on_message`` method (via
        :func:`find_on_message_handler`).
-    6. Validates the agent has at least one entry point — i.e. ``@skill``,
+    6. Validates the agent has at least one entry point - i.e. ``@skill``,
        ``@on_message`` or ``@orchestrated``.
     7. Builds the manifest via :func:`build_manifest` and caches it as
        ``cls.__apollia_manifest__``.
@@ -203,7 +203,7 @@ def agent(  # noqa: PLR0913  # NOSONAR S107: public decorator API surface
 
         if not (has_skill or has_on_message or has_orchestrated):
             raise AgentConfigError(
-                f"@agent {name_v!r}: class {cls.__name__} has no handler — "
+                f"@agent {name_v!r}: class {cls.__name__} has no handler - "
                 "declare at least one @skill, @on_message or @orchestrated"
             )
 
@@ -247,7 +247,7 @@ def agent(  # noqa: PLR0913  # NOSONAR S107: public decorator API surface
         except TypeError as exc:
             raise AgentConfigError(
                 f"@agent {name_v!r}: cannot instantiate {cls.__name__}() with "
-                f"no arguments — {exc}"
+                f"no arguments - {exc}"
             ) from exc
 
         expose_to_module(cls, instance)

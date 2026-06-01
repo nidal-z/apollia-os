@@ -15,7 +15,7 @@
   import { Button } from "$lib/components/ui/button";
   import { TabBar } from "$lib/components/ui/tabs";
 
-  // ADR-087 — the per-user profile is edited from `Paramètres → Profil`.
+  // ADR-087 - the per-user profile is edited from `Paramètres → Profil`.
   // This page is the namespace explorer only (sidebar with classified
   // namespaces + entries list + detail sheet).  Selecting `__user__` shows
   // a banner redirecting to the Profile settings page.
@@ -250,7 +250,7 @@
         <div class="px-6 pt-4 pb-2 flex items-center gap-4 flex-wrap border-b border-border/30">
           <div class="flex items-center gap-1.5 text-[11.5px] text-muted-foreground min-w-0">
             <Database size={11} class="shrink-0" />
-            <span class="font-mono truncate" title={selectedNamespace}>{selectedNamespace || "—"}</span>
+            <span class="font-mono truncate" title={selectedNamespace}>{selectedNamespace || "-"}</span>
             {#if searching}
               <span class="ml-2 inline-flex items-center gap-1 text-info">
                 <Search size={10} />

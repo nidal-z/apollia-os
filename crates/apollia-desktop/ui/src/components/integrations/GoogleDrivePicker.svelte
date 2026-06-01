@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Google Drive Picker dialog — lets the user designate folders Apollia
+   * Google Drive Picker dialog - lets the user designate folders Apollia
    * agents can read/write. Uses the official Google Picker JS widget so
    * we stay within the free-tier `drive.file` scope (no CASA needed).
    *
@@ -42,7 +42,7 @@
   let bootError = $state<string | null>(null);
   let picking = $state(false);
   /**
-   * The Picker's own iframe is opaque — if Google rejects the api_key it
+   * The Picker's own iframe is opaque - if Google rejects the api_key it
    * silently 401s in the browser console without calling our callback.
    * We surface a manual escape hatch after a delay so the user isn't
    * stuck on a blank page.
@@ -50,7 +50,7 @@
   let pickerLikelyStuck = $state(false);
   let stuckTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Google JS globals — loaded lazily. Marked any to keep this file
+  /** Google JS globals - loaded lazily. Marked any to keep this file
    *  drop-in without typing the whole gapi surface. */
   type WindowWithGapi = Window & {
     gapi?: { load: (name: string, cb: () => void) => void };
@@ -119,7 +119,7 @@
         .addView(folderView)
         .addView(sharedView)
         .setCallback(async (data: any) => {
-          // Any callback means the Picker isn't stuck — clear the watchdog.
+          // Any callback means the Picker isn't stuck - clear the watchdog.
           if (stuckTimer) {
             clearTimeout(stuckTimer);
             stuckTimer = null;

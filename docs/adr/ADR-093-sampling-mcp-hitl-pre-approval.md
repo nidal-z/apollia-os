@@ -1,4 +1,4 @@
-# ADR-093 — `sampling` MCP avec HITL pré-approval
+# ADR-093 - `sampling` MCP avec HITL pré-approval
 
 **Date :** 2026-05-12
 **Statut :** Proposé
@@ -28,15 +28,15 @@ Nous implémentons `sampling/createMessage` en routant via `apollia-llm::LlmRout
 
 ## Alternatives considérées
 
-### Option A — Sampling sans HITL (rejetée)
+### Option A - Sampling sans HITL (rejetée)
 **Pour :** zéro friction UX.
 **Contre :** **viole les recommandations spec MCP**. Permet à un serveur malveillant de pomper le LLM. Aucune visibilité utilisateur.
 
-### Option B — HITL post-call (approuver le résultat avant retour serveur) (rejetée)
+### Option B - HITL post-call (approuver le résultat avant retour serveur) (rejetée)
 **Pour :** utilisateur voit le contenu réel échangé.
 **Contre :** trop tard pour empêcher l'appel LLM (coût déjà engagé). UX confuse (qu'approuve-t-on exactement ?).
 
-### Option retenue — HITL pré-approval + rate limiting
+### Option retenue - HITL pré-approval + rate limiting
 **Pour :** alignement spec MCP (consent explicite). Économise le LLM call en cas de refus. Rate limit empêche DoS budget.
 **Compromis acceptés :** friction UX (un sampling = un prompt à approuver). Acceptable v0.1.0 pour la cible power user.
 
@@ -45,7 +45,7 @@ Nous implémentons `sampling/createMessage` en routant via `apollia-llm::LlmRout
 **Positives :**
 - Aligné spec MCP (consent explicite sur prompt + results).
 - Économies LLM en cas de refus.
-- Réutilise `HITLCard` existant — zéro nouveau composant UI.
+- Réutilise `HITLCard` existant - zéro nouveau composant UI.
 - Rate limiting empêche burst malveillant.
 
 **Négatives / Compromis :**
@@ -57,12 +57,12 @@ Nous implémentons `sampling/createMessage` en routant via `apollia-llm::LlmRout
 
 ## Principes architecturaux impactés
 
-- Principe #1 — Local-first : sampling reste local (via `LlmRouter`).
-- Principe #7 — Garde-fous non-négociables : HITL pré-approval + rate limit.
+- Principe #1 - Local-first : sampling reste local (via `LlmRouter`).
+- Principe #7 - Garde-fous non-négociables : HITL pré-approval + rate limit.
 
 ## Liens
 
-- ADR-023 — HITL is resumed input/response (réutilisé)
-- ADR-082 — Tool Governance
-- Spec MCP 2025-11-25 — Section sampling consent
+- ADR-023 - HITL is resumed input/response (réutilisé)
+- ADR-082 - Tool Governance
+- Spec MCP 2025-11-25 - Section sampling consent
 - Plan : §3.5, §8.4

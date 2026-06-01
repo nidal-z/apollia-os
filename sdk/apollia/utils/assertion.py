@@ -27,7 +27,7 @@ Example
     )
     # → "[conf:high]Earth has one natural satellite[cite:nasa-2024][/conf]"
 
-The helper never emits LLM calls and never escapes its input — callers are
+The helper never emits LLM calls and never escapes its input - callers are
 responsible for passing plain text (no raw ``[conf:…]`` markers).
 """
 
@@ -82,7 +82,7 @@ class Citation:
 
 @dataclass(frozen=True)
 class AssertionSpec:
-    """Raw assertion spec — mirrors the Rust ``Assertion`` struct."""
+    """Raw assertion spec - mirrors the Rust ``Assertion`` struct."""
 
     text: str
     level: ConfidenceLevel

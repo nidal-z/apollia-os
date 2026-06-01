@@ -2,7 +2,7 @@
 /target/
 **/*.rs.bk
 
-# Cargo.lock — omis pour les binaires (conservé pour les libs)
+# Cargo.lock - omis pour les binaires (conservé pour les libs)
 # Cargo.lock
 
 # Environnement
@@ -30,7 +30,7 @@ htmlcov/
 .tox/
 .nox/
 
-# Desktop build artifacts — staged by scripts/bundle-cli.sh before Tauri build
+# Desktop build artifacts - staged by scripts/bundle-cli.sh before Tauri build
 crates/apollia-desktop/resources/
 crates/apollia-desktop/python/
 crates/apollia-desktop/apollia-os
@@ -55,11 +55,16 @@ lcov.info
 docs/internal/STORIES/
 docs/internal/
 docs/specs/
+# mdBook build output (generated, never committed)
+docs/target/
+# Archived legacy book + gettext translation catalogs (excluded from public repo)
+docs/book/_legacy/
+docs/book/po/
 
 # Claude
 .claude/
 CLAUDE.md
-# Dossier de démonstration — fichiers locaux non versionnés
+# Dossier de démonstration - fichiers locaux non versionnés
 demo/
 
 # Python bundle cache (packaging)

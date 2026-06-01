@@ -225,7 +225,7 @@
 
 {:else if event.kind === "tool_call_completed"}
   {#if completion === null}
-    <!-- Rendu seul si pas paired avec son started (cas exceptionnel —
+    <!-- Rendu seul si pas paired avec son started (cas exceptionnel -
          normalement ExecutionTrace fait le pairing en amont). -->
     {@const toolName = String(event.payload.tool_name ?? "")}
     {@const success = Boolean(event.payload.success)}
@@ -253,7 +253,7 @@
         {#if skin === "operator"}
           The agent tried to use {toolName} but it was blocked.
         {:else}
-          <span class="font-mono">{toolName}</span> denied — {reason}
+          <span class="font-mono">{toolName}</span> denied - {reason}
           {#if event.payload.detail}
             <span class="text-muted-foreground"> ({String(event.payload.detail)})</span>
           {/if}
@@ -372,7 +372,7 @@
   {/if}
 
 {:else}
-  <!-- Forward-compat : kinds inconnus (variants futurs) — affichage minimal en builder -->
+  <!-- Forward-compat : kinds inconnus (variants futurs) - affichage minimal en builder -->
   {#if skin === "builder"}
     <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-muted-foreground" data-testid="trace-event" data-kind={event.kind}>
       <MessageSquare size={11} class="shrink-0" />

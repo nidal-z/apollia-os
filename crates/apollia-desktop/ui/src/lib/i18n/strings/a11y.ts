@@ -1,5 +1,5 @@
 /**
- * Accessibility strings — icon-only aria-labels and screen-reader hints.
+ * Accessibility strings - icon-only aria-labels and screen-reader hints.
  *
  * Any `aria-label`, `title`, or `alt` attribute on an icon-only control must
  * pull from this catalog. Adding an

@@ -1,7 +1,7 @@
 """Public types for Apollia agents.
 
-This module exposes the ``Ctx`` Protocol — the unique surface an agent
-sees at runtime — plus the multi-modal content types and the
+This module exposes the ``Ctx`` Protocol - the unique surface an agent
+sees at runtime - plus the multi-modal content types and the
 small set of helpers used to build vision messages.
 
 Legacy ``AIPResult`` is kept here for backward compatibility with the
@@ -139,7 +139,7 @@ def image_from_url(url: str) -> ImageContent:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Ctx Protocol — the unique surface the agent sees
+# Ctx Protocol - the unique surface the agent sees
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -178,7 +178,7 @@ class Ctx(Protocol):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Legacy AIPResult (kept for backward compatibility — see module docstring)
+# Legacy AIPResult (kept for backward compatibility - see module docstring)
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -190,9 +190,9 @@ class AIPResult:
     outcome of a task execution.  Three factory methods cover the common
     cases:
 
-    * :meth:`completed` — successful execution
-    * :meth:`failed` — error with structured info
-    * :meth:`input_required` — HITL pause awaiting user input
+    * :meth:`completed` - successful execution
+    * :meth:`failed` - error with structured info
+    * :meth:`input_required` - HITL pause awaiting user input
     """
 
     status: str

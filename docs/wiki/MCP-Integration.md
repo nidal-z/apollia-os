@@ -1,4 +1,4 @@
-# MCP — Intégration — Apollia OS
+# MCP - Intégration - Apollia OS
 
 > Comment Apollia OS s'aligne avec le Model Context Protocol (MCP) et comment l'utiliser pour consommer des serveurs MCP depuis vos agents.
 > Public cible : développeur d'agent, intégrateur
@@ -18,11 +18,11 @@ Chaque outil dans le Tool Registry d'Apollia OS est décrit par un `ToolDescript
 ```rust
 // apollia-tools/src/descriptor.rs
 pub struct ToolDescriptor {
-    pub name: String,              // identifiant unique — même convention que MCP
+    pub name: String,              // identifiant unique - même convention que MCP
     pub version: String,           // semver
     pub description: String,       // texte humain pour le LLM
     pub kind: ToolKind,            // Native | Mcp | Custom
-    pub input_schema: serde_json::Value,   // JSON Schema — compatible MCP
+    pub input_schema: serde_json::Value,   // JSON Schema - compatible MCP
     pub output_schema: Option<serde_json::Value>, // JSON Schema optionnel
     pub sandbox_profile: SandboxProfile,
     pub tags: Vec<String>,
@@ -30,7 +30,7 @@ pub struct ToolDescriptor {
 }
 ```
 
-La différence principale : Apollia OS ajoute `sandbox_profile` et `dangerous` — des métadonnées de sécurité absentes de MCP.
+La différence principale : Apollia OS ajoute `sandbox_profile` et `dangerous` - des métadonnées de sécurité absentes de MCP.
 
 ---
 
@@ -71,13 +71,13 @@ requires_approval = true
 BRAVE_API_KEY = "${BRAVE_API_KEY}"
 ```
 
-Voir [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) pour la référence complète des champs.
+Voir [MCP - Guide utilisateur](./MCP-Guide-Utilisateur) pour la référence complète des champs.
 
 ### Appeler un outil MCP depuis l'agent
 
 ```python
 async def run(self, task, ctx):
-    # Identique à un outil natif — le runtime gère le transport MCP
+    # Identique à un outil natif - le runtime gère le transport MCP
     result = await ctx.tools.call("mcp:filesystem", {
         "action": "read_file",
         "path": "/data/rapport.pdf"
@@ -88,7 +88,7 @@ async def run(self, task, ctx):
     mcp_tools = [t for t in tools if t["name"].startswith("mcp:")]
 ```
 
-> Le préfixe `mcp:` est ajouté automatiquement par le runtime. Les outils MCP passent par le même `ResilienceLayer` et `AuditTrail` que les outils natifs. Voir [Tool Registry — MCP](./Briques-Tool-Registry) pour l'architecture interne.
+> Le préfixe `mcp:` est ajouté automatiquement par le runtime. Les outils MCP passent par le même `ResilienceLayer` et `AuditTrail` que les outils natifs. Voir [Tool Registry - MCP](./Briques-Tool-Registry) pour l'architecture interne.
 
 ---
 
@@ -127,7 +127,7 @@ Page **Intégrations** → onglet MCP → bouton "Ajouter un serveur" ou icône 
 
 Le `McpConfigWriter` valide la configuration (échec si le serveur existe déjà ou n'est pas trouvé), met à jour `mcp.toml`, et notifie le `McpClientManager` qui connecte/déconnecte le transport en temps réel.
 
-> Voir aussi [Tool Registry — MCP](./Briques-Tool-Registry) pour l'architecture interne (`McpClientManager`, `McpToolExecutor`).
+> Voir aussi [Tool Registry - MCP](./Briques-Tool-Registry) pour l'architecture interne (`McpClientManager`, `McpToolExecutor`).
 
 ---
 
@@ -154,6 +154,6 @@ Un agent Apollia OS avec `supports_a2a: True` génère automatiquement une Agent
 
 ## Voir aussi
 
-- [A2A ACP Alignement](./A2A-ACP-Alignement) — alignement avec les autres standards
-- [Architecture Protocoles Standards](./Architecture-Protocoles-Standards) — vision globale de l'alignement
-- [Briques Tool Registry](./Briques-Tool-Registry) — Tool Registry complet
+- [A2A ACP Alignement](./A2A-ACP-Alignement) - alignement avec les autres standards
+- [Architecture Protocoles Standards](./Architecture-Protocoles-Standards) - vision globale de l'alignement
+- [Briques Tool Registry](./Briques-Tool-Registry) - Tool Registry complet

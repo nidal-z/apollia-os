@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Operator route `/automations` — table-style overview of every rule that
+   * Operator route `/automations` - table-style overview of every rule that
    * starts an assistant automatically (cron, interval, file-watch, webhook).
    *
    * The underlying backend entity is a "trigger". The operator vocabulary
@@ -91,7 +91,7 @@
   async function handleRefresh() {
     refreshing = true;
     try {
-      // Trigger store auto-refreshes via SSE — manual refresh is a no-op
+      // Trigger store auto-refreshes via SSE - manual refresh is a no-op
       // hint to the user. Add real reload call here if/when exposed.
       await new Promise((r) => setTimeout(r, 250));
     } finally {

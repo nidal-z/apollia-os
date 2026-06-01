@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# reset-data.sh — Remet ~/.apollia/ dans l'état d'une installation fraîche.
+# reset-data.sh - Remet ~/.apollia/ dans l'état d'une installation fraîche.
 #
 # Usage :
 #   ./scripts/reset-data.sh          # Reset complet (conserve models/)
@@ -7,7 +7,7 @@
 #   ./scripts/reset-data.sh --keep-config  # Conserve apollia.toml
 #
 # Conservé par défaut :
-#   - models/  (GGUF/Whisper — téléchargements lourds)
+#   - models/  (GGUF/Whisper - téléchargements lourds)
 #
 # Supprimé :
 #   - Toutes les bases SQLite (17 DBs + WAL + SHM)
@@ -43,7 +43,7 @@ if [ ! -d "$APOLLIA_DIR" ]; then
 fi
 
 echo "╔══════════════════════════════════════════╗"
-echo "║  Apollia OS — Reset données locales      ║"
+echo "║  Apollia OS - Reset données locales      ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
@@ -139,7 +139,7 @@ if [ "$REMOVE_MODELS" = true ]; then
 else
   if [ -d "$APOLLIA_DIR/models" ]; then
     SIZE=$(du -sh "$APOLLIA_DIR/models" 2>/dev/null | cut -f1)
-    echo "     models/ conservé ($SIZE) — utiliser --all pour supprimer"
+    echo "     models/ conservé ($SIZE) - utiliser --all pour supprimer"
   else
     echo "     aucun modèle"
   fi

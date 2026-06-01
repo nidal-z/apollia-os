@@ -1,4 +1,4 @@
-# A2A / ACP — Alignement — Apollia OS
+# A2A / ACP - Alignement - Apollia OS
 
 > Comment Apollia OS s'aligne avec Agent-to-Agent (Google A2A) et Agent Communication Protocol (ACP).
 > Public cible : architecte, développeur d'agent
@@ -13,7 +13,7 @@ Pour le détail complet des choix d'alignement : [Architecture Protocoles Standa
 
 ---
 
-## Agent-to-Agent (A2A) — Google, 2025
+## Agent-to-Agent (A2A) - Google, 2025
 
 ### Ce qu'Apollia OS implémente
 
@@ -60,22 +60,22 @@ curl http://localhost:7771/.well-known/agent.json
 
 > **Convention de nommage :** Le manifest Python utilise `snake_case` (`input_modes`, `output_modes`). L'AgentCard JSON exposé via A2A utilise `camelCase` (`inputModes`, `outputModes`) conformément à la spec A2A. La conversion est automatique lors de la sérialisation.
 
-L'agent n'écrit pas de code A2A — il déclare ses capacités dans le manifest, Apollia OS fait le reste.
+L'agent n'écrit pas de code A2A - il déclare ses capacités dans le manifest, Apollia OS fait le reste.
 
-### Routing A2A V1 — livré
+### Routing A2A V1 - livré
 
-**A2AInvoker** — orchestrateur de haut niveau dans `apollia-runtime/src/a2a/` :
+**A2AInvoker** - orchestrateur de haut niveau dans `apollia-runtime/src/a2a/` :
 
 ```python
-# Depuis un Director Agent — invoquer un Worker par skill_id
+# Depuis un Director Agent - invoquer un Worker par skill_id
 result = await ctx.a2a_invoke("read-excel", {"text": "Lis ventes.xlsx"})
 ```
 
 Flux : `SkillIndex.resolve(skill_id)` → validation état `Active` → construction contexte A2A (trust model) → délégation via `TaskRouter` avec timeout 120s → résultat `A2AInvocationResult`.
 
-**SkillIndex** — index inversé `skill_id → agent_name` intégré à l'`AgentRegistry` :
+**SkillIndex** - index inversé `skill_id → agent_name` intégré à l'`AgentRegistry` :
 - Alimenté automatiquement lors des `register` / `unregister` (agents avec `supports_a2a: True`)
-- Conflit de skill_id détecté au `register` — pas au runtime (Principe #4 — fail fast)
+- Conflit de skill_id détecté au `register` - pas au runtime (Principe #4 - fail fast)
 - `A2AError::SkillNotFound` inclut la liste des skills disponibles si résolution échoue
 
 **Trust model A2A** (ADR-049) :
@@ -94,13 +94,13 @@ Flux : `SkillIndex.resolve(skill_id)` → validation état `Active` → construc
 | `POST /api/v1/a2a/invoke` | Invocation haut-niveau avec garde-fous (via `A2AInvoker`) |
 
 ```bash
-# CLI — lister uniquement les agents A2A
+# CLI - lister uniquement les agents A2A
 $ apollia-os agent list --supports-a2a
 ```
 
-Décision architecturale : [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
+Décision architecturale : [ADR-049 - Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
 
-### Garde-fous A2A — livré
+### Garde-fous A2A - livré
 
 L'`A2AInvoker` applique trois garde-fous automatiques configurables via `A2AConfig` :
 
@@ -121,9 +121,9 @@ chain_timeout_secs = 300
 
 Chaque déclenchement de garde-fou émet un `RuntimeEvent::A2AGuardTriggered` sur l'EventBus avec `guard_type`, `caller`, `skill_id` et `detail`.
 
-Décision architecturale : [ADR-050 — Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+Décision architecturale : [ADR-050 - Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
 
-### A2AToolsProvider — Workers comme outils ORIA — livré
+### A2AToolsProvider - Workers comme outils ORIA - livré
 
 `A2AToolsProvider` injecte dynamiquement les skills A2A comme des outils virtuels préfixés `a2a:` dans la boucle ReAct des agents ORIA :
 
@@ -166,11 +166,11 @@ impl A2AToolsProvider {
 }
 ```
 
-### Erreurs A2A — Référence complète
+### Erreurs A2A - Référence complète
 
 Il existe deux enums d'erreur distincts selon la couche d'invocation :
 
-#### `A2AError` — Invocateur haut niveau (`invoker.rs`)
+#### `A2AError` - Invocateur haut niveau (`invoker.rs`)
 
 Retourné par `A2AInvoker::invoke` et `POST /api/v1/a2a/invoke`. Applique les garde-fous avant délégation.
 
@@ -188,45 +188,45 @@ Retourné par `A2AInvoker::invoke` et `POST /api/v1/a2a/invoke`. Applique les ga
 **Exemples JSON :**
 
 ```json
-// SkillNotFound — 404
+// SkillNotFound - 404
 {
-  "error": "skill 'read-excel' not found — available: [\"send-email\", \"parse-pdf\"]",
+  "error": "skill 'read-excel' not found - available: [\"send-email\", \"parse-pdf\"]",
   "skill_id": "read-excel",
   "available_skills": ["send-email", "parse-pdf"]
 }
 
-// AgentNotActive — 503
+// AgentNotActive - 503
 {
   "error": "agent 'excel-reader' is not active (state: Degraded)"
 }
 
-// Timeout — 504
+// Timeout - 504
 {
   "error": "A2A invocation timed out after 120s (skill: read-excel, agent: excel-reader)"
 }
 
-// ExecutionFailed — 502
+// ExecutionFailed - 502
 {
   "error": "agent 'excel-reader' execution failed: file not found: ventes.xlsx"
 }
 
-// MaxDepthExceeded — 429
+// MaxDepthExceeded - 429
 {
   "error": "a2a max depth 3 exceeded (current: 4, caller: director, skill: read-excel)"
 }
 
-// SelfInvocation — 429
+// SelfInvocation - 429
 {
   "error": "agent 'director' cannot invoke itself via skill 'summarize'"
 }
 
-// ChainTimeoutExceeded — 429
+// ChainTimeoutExceeded - 429
 {
   "error": "a2a chain timeout exceeded (caller: director, skill: parse-pdf)"
 }
 ```
 
-#### `A2aError` — Délégation bas niveau (`mod.rs`)
+#### `A2aError` - Délégation bas niveau (`mod.rs`)
 
 Retourné par `delegate_inner` et `POST /api/v1/a2a/delegate`. Couche sans garde-fous.
 
@@ -242,32 +242,32 @@ Retourné par `delegate_inner` et `POST /api/v1/a2a/delegate`. Couche sans garde
 **Exemples JSON :**
 
 ```json
-// SkillNotFound — 404
+// SkillNotFound - 404
 {
   "error": "no active agent declares skill 'read-excel' (available: send-email, parse-pdf)",
   "skill_id": "read-excel",
   "available_skills": ["send-email", "parse-pdf"]
 }
 
-// AmbiguousSkill — 409
+// AmbiguousSkill - 409
 {
   "error": "skill 'parse-pdf' is declared by multiple agents: excel-reader, pdf-agent",
   "skill_id": "parse-pdf",
   "conflicting_agents": ["excel-reader", "pdf-agent"]
 }
 
-// WorkerFailed — 502
+// WorkerFailed - 502
 {
   "error": "worker agent failed: budget exhausted: 10/10 steps used"
 }
 
-// Timeout — 504
+// Timeout - 504
 {
   "error": "delegation timed out after 120s"
 }
 ```
 
-> **Quelle surface utiliser ?** `POST /api/v1/a2a/invoke` (haut niveau) pour les intégrations externes — il applique les garde-fous. `POST /api/v1/a2a/delegate` (bas niveau) pour les scripts et les tests unitaires — pas de garde-fous, délégation directe.
+> **Quelle surface utiliser ?** `POST /api/v1/a2a/invoke` (haut niveau) pour les intégrations externes - il applique les garde-fous. `POST /api/v1/a2a/delegate` (bas niveau) pour les scripts et les tests unitaires - pas de garde-fous, délégation directe.
 
 ### Ce qui n'est pas encore implémenté
 
@@ -276,7 +276,7 @@ Retourné par `delegate_inner` et `POST /api/v1/a2a/delegate`. Couche sans garde
 
 ---
 
-## Agent Communication Protocol (ACP) — IBM Research
+## Agent Communication Protocol (ACP) - IBM Research
 
 ### Ce qu'Apollia OS implémente
 
@@ -292,7 +292,7 @@ Le cycle de vie du processus agent est directement aligné sur ACP :
 | `STOPPING` | `stopping` |
 | `STOPPED` | `stopped` |
 
-C'est le modèle de lifecycle d'agent le plus complet disponible — cinq états distincts qui couvrent les cas de dégradation partielle.
+C'est le modèle de lifecycle d'agent le plus complet disponible - cinq états distincts qui couvrent les cas de dégradation partielle.
 
 ### Ce qui n'est pas encore implémenté
 
@@ -303,20 +303,20 @@ C'est le modèle de lifecycle d'agent le plus complet disponible — cinq états
 
 ## Philosophie d'alignement
 
-Apollia OS ne prétend pas implémenter complètement A2A ou ACP — ces standards évoluent encore rapidement. La stratégie est d'être **aligné sur les structures de données et les sémantiques** sans dépendre des SDKs ou des bibliothèques officielles.
+Apollia OS ne prétend pas implémenter complètement A2A ou ACP - ces standards évoluent encore rapidement. La stratégie est d'être **aligné sur les structures de données et les sémantiques** sans dépendre des SDKs ou des bibliothèques officielles.
 
-Cela signifie que la migration vers A2A ou ACP complets, si et quand ces standards se stabilisent, sera un exercice d'ajout de routes et de formatage — pas une réécriture architecturale.
+Cela signifie que la migration vers A2A ou ACP complets, si et quand ces standards se stabilisent, sera un exercice d'ajout de routes et de formatage - pas une réécriture architecturale.
 
 ---
 
 ## Voir aussi
 
-- [Architecture Protocoles Standards](./Architecture-Protocoles-Standards) — analyse complète des trois protocoles
-- [Briques AIP Specification](./Briques-AIP-Specification) — AIPTask et AIPResult détaillés
-- [Architecture Machines d'État](./Architecture-Machines-Etat) — ProcessState et TaskState
-- [Worker Agent Pattern](./Worker-Agent-Pattern) — créer un Worker invocable via A2A
-- [Matrice de décision — Capabilities](./Decision-Matrix-Capabilities) — quand utiliser A2A vs MCP vs Worker
-- [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
-- [ADR-050 — Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
-- [Sécurité Guardrails](./Securite-Guardrails) — garde-fous A2A détaillés
-- [Community Agent Registry](./Community-Agent-Registry) — registre communautaire
+- [Architecture Protocoles Standards](./Architecture-Protocoles-Standards) - analyse complète des trois protocoles
+- [Briques AIP Specification](./Briques-AIP-Specification) - AIPTask et AIPResult détaillés
+- [Architecture Machines d'État](./Architecture-Machines-Etat) - ProcessState et TaskState
+- [Worker Agent Pattern](./Worker-Agent-Pattern) - créer un Worker invocable via A2A
+- [Matrice de décision - Capabilities](./Decision-Matrix-Capabilities) - quand utiliser A2A vs MCP vs Worker
+- [ADR-049 - Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
+- [ADR-050 - Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+- [Sécurité Guardrails](./Securite-Guardrails) - garde-fous A2A détaillés
+- [Community Agent Registry](./Community-Agent-Registry) - registre communautaire

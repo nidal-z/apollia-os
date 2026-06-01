@@ -4,7 +4,7 @@
    * with Settings, Keyboard shortcuts, Reset Onboarding, About, Quit.
    *
    * NOTE: there is no dedicated `DropdownMenu` primitive in the codebase
-   * yet — the shared `Popover` already supports the required semantics
+   * yet - the shared `Popover` already supports the required semantics
    * (portal, transition, keyboard dismissal) and is used here.
    */
   import { t } from "svelte-i18n";
@@ -42,7 +42,7 @@
   }
 
   function showAbout() {
-    // Minimal about surface — a full dialog can land later (-xxx).
+    // Minimal about surface - a full dialog can land later (-xxx).
     alert(`${$t('userMenu.about_title')}\n\nApollia OS`);
     close();
   }

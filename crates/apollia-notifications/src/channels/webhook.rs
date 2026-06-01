@@ -371,7 +371,7 @@ impl NotificationChannel for WebhookChannel {
             let body_excerpt = match resp.text().await {
                 Ok(text) if !text.is_empty() => {
                     let trimmed: String = text.chars().take(200).collect();
-                    format!(" — {trimmed}")
+                    format!(" - {trimmed}")
                 }
                 _ => String::new(),
             };

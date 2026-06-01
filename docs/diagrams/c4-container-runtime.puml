@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Container — Workspace (16 crates) — Apollia OS
+title C4 Container - Workspace (16 crates) - Apollia OS
 
 actor "Opérateur" as ops #3a3a3a/white
 actor "Développeur" as dev #3a3a3a/white
@@ -131,7 +131,7 @@ desktop --> stt : SttFlow\n(hotkey → record → transcribe)
 runtime --> stt : SttEngine actor\n(Phase 15)
 stt --> sqlite : stt_transcriptions\nstt.db
 desktop --> mcp_registry : RegistryClient\n(HTTP GET /v0.1/servers, cache local)
-desktop --> keychain : SecretStore\n(keyring crate — store/load secrets)
+desktop --> keychain : SecretStore\n(keyring crate - store/load secrets)
 mcp_crate --> keychain : resolve_env()\n(APOLLIA_SECRET: → keychain read)
 
 @enduml

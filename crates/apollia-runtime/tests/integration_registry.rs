@@ -66,7 +66,7 @@ async fn test_ac1_cycle_de_vie_complet() {
     let (bus_tx, mut bus_rx) = EventBus::new();
     let registry = AgentRegistry::spawn(bus_tx);
 
-    // WHEN — cycle complet
+    // WHEN - cycle complet
     let id = registry
         .register(make_manifest("agent-lifecycle"))
         .await
@@ -93,7 +93,7 @@ async fn test_ac1_cycle_de_vie_complet() {
         .unwrap();
     registry.unregister(id.as_str()).await.unwrap();
 
-    // THEN — 7 événements dans l'ordre exact
+    // THEN - 7 événements dans l'ordre exact
     let events = collect_events(&mut bus_rx, 7, 200).await;
     assert_eq!(
         events.len(),
@@ -120,7 +120,7 @@ async fn test_ac2_agents_simultanes() {
     let r2 = registry.clone();
     let r3 = registry.clone();
 
-    // WHEN — 3 registrations concurrentes
+    // WHEN - 3 registrations concurrentes
     let (id1, id2, id3) = tokio::join!(
         registry.register(make_manifest("agent-a")),
         r2.register(make_manifest("agent-b")),
@@ -129,11 +129,11 @@ async fn test_ac2_agents_simultanes() {
 
     assert!(id1.is_ok() && id2.is_ok() && id3.is_ok());
 
-    // THEN — list_agents retourne exactement 3 entrées
+    // THEN - list_agents retourne exactement 3 entrées
     let agents = registry.list_agents().await.unwrap();
     assert_eq!(agents.len(), 3);
 
-    // ET — le bus a reçu 3 événements AgentRegistered
+    // ET - le bus a reçu 3 événements AgentRegistered
     let events = collect_events(&mut bus_rx, 3, 200).await;
     assert_eq!(events.len(), 3);
     assert!(events
@@ -159,22 +159,22 @@ async fn test_ac3_transition_invalide_preserve_etat() {
     // Vider les 2 événements déjà publiés (AgentRegistered + AgentReady)
     collect_events(&mut bus_rx, 2, 100).await;
 
-    // WHEN — transition invalide Active → Initializing
+    // WHEN - transition invalide Active → Initializing
     let result = registry
         .update_state(id.as_str(), ProcessState::Initializing)
         .await;
 
-    // THEN — erreur InvalidTransition retournée
+    // THEN - erreur InvalidTransition retournée
     assert!(matches!(
         result.unwrap_err(),
         apollia_runtime::AgentRegistryError::InvalidTransition { .. }
     ));
 
-    // ET — l'état est toujours Active
+    // ET - l'état est toujours Active
     let entry = registry.get_agent(id.as_str()).await.unwrap().unwrap();
     assert!(matches!(entry.process_state, ProcessState::Active));
 
-    // ET — aucun événement supplémentaire publié
+    // ET - aucun événement supplémentaire publié
     let extra_events = collect_events(&mut bus_rx, 1, 50).await;
     assert!(extra_events.is_empty());
 }

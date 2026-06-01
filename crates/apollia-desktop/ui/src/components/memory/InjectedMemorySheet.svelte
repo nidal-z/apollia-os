@@ -12,7 +12,7 @@
     turnId: string | null;
     /** Handler for closing the sheet. */
     onclose: () => void;
-    /** Called when the user clicks an entry — typically opens InsightsPanel. */
+    /** Called when the user clicks an entry - typically opens InsightsPanel. */
     onentryselect?: (entry: InjectedEntry) => void;
   }
 
@@ -95,7 +95,7 @@
         L'agent n'a injecté aucune mémoire pour ce tour.
       </p>
       <p class="mt-2 text-[10px] text-muted-foreground/50">
-        Principe&nbsp;6 — la mémoire n'est jamais injectée automatiquement.
+        Principe&nbsp;6 - la mémoire n'est jamais injectée automatiquement.
       </p>
     {:else}
       <ul class="flex flex-col gap-2">

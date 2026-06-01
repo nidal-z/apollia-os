@@ -1,5 +1,5 @@
 /**
- * Tool catalog — single source of truth for tool metadata used in the
+ * Tool catalog - single source of truth for tool metadata used in the
  * tool selection UI (Chat picker + ChatConfigPanel).
  *
  * Covers all 10 native tools and provides operator-friendly and
@@ -23,12 +23,12 @@ import {
   BookOpen,
   Compass,
 } from "lucide-svelte";
-// NOSONAR typescript:S1874 — Svelte 4 ComponentType retained for lucide-svelte compat
+// NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 
 /**
  * Local alias for Svelte 4 `ComponentType`. Retained for lucide-svelte type
- * compatibility — Svelte 5's `Component` does not match lucide-svelte's
+ * compatibility - Svelte 5's `Component` does not match lucide-svelte's
  * exported icon signatures. Centralizes suppression of the deprecation lint.
  */
 // NOSONAR typescript:S1874
@@ -40,7 +40,7 @@ type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874
 
 export type ToolGroupId = "files" | "execution" | "network" | "research" | "memory";
 
-/** Metadata for a logical tool group — used in operator-mode UI. */
+/** Metadata for a logical tool group - used in operator-mode UI. */
 export interface ToolGroupMeta {
   id: ToolGroupId;
   /** Group icon (shown in the picker chip and config panel header). */
@@ -219,7 +219,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     dangerous: false,
     defaultEnabled: false,
   },
-  // ── Research (web tools — ADR-072) ─────────
+  // ── Research (web tools - ADR-072) ─────────
   {
     id: "web_search",
     icon: Compass,
@@ -280,7 +280,7 @@ export function getGroupState(
 
 /**
  * Toggle a group: if all tools are enabled, disable all; otherwise enable all.
- * Returns a new Set — does not mutate the input.
+ * Returns a new Set - does not mutate the input.
  */
 export function toggleGroup(
   group: ToolGroupMeta,

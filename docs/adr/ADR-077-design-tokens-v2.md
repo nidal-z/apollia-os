@@ -1,9 +1,9 @@
-# ADR-077 — Design tokens v2 : elevation, warmth dark, rim lights
+# ADR-077 - Design tokens v2 : elevation, warmth dark, rim lights
 
 **Date :** 2026-04-19
 **Statut :** Accepté
 **Décideur :** Nidal (solo)
-**Sprint :** 42 — Frontend redressement (US-SP42-004)
+**Sprint :** 42 - Frontend redressement (US-SP42-004)
 
 ---
 
@@ -11,27 +11,27 @@
 
 L'audit design Sprint 42 (findings F.19, F.20, F.33, F.34, F.41, F.55, F.56,
 F.74, F.75, A.1.10, A.3.1) a relevé que le système de tokens hérité de
-Sprint 34 — une palette HSL plate + `box-shadow` hardcodés disséminés dans
-les composants — produisait :
+Sprint 34 - une palette HSL plate + `box-shadow` hardcodés disséminés dans
+les composants - produisait :
 
 1. **Surfaces plates.** Cards, modals et CTAs utilisaient un unique
    `box-shadow` fixé à `0 2px 8px…`, sans hiérarchie d'élévation. Rien ne
    distinguait visuellement une ligne de table d'un menu flottant ou d'un
    modal hero (F.19, F.20).
 2. **Dark "black on black".** `.glass-inset` en dark : `rgba(255, 255, 255,
-   0.05)` — invisible (F.55). Le fond `--background: 240 12% 9%` est neutre
+   0.05)` - invisible (F.55). Le fond `--background: 240 12% 9%` est neutre
    froid, ce qui contraste mal avec l'identité blue/violet (F.33, F.34).
 3. **Identité primary diluée.** Cinq CTAs clés (Dashboard empty state, Chat
    send, Agent start, Wizard next, Trigger fire) utilisaient `bg-primary`
-   générique Tailwind sans promotion visuelle — indiscernables d'un bouton
+   générique Tailwind sans promotion visuelle - indiscernables d'un bouton
    secondary (F.41, A.1.10).
 4. **Box-shadows dupliqués.** Grep `box-shadow:` dans `ui/src/**/*.svelte`
    retournait **48 occurrences hardcodées** (48 valeurs indépendantes). Toute
    évolution de la marque exigeait 48 éditions et aucune garantie de
    cohérence.
-5. **Backdrop modal uniforme** — même `rgba(0,0,0,.45)` light et dark ;
+5. **Backdrop modal uniforme** - même `rgba(0,0,0,.45)` light et dark ;
    invisible en dark warm, quasi noir plein en light (F.56).
-6. **Glass-border identique** en light et dark — perdait tout contraste dans
+6. **Glass-border identique** en light et dark - perdait tout contraste dans
    l'un ou l'autre mode (F.74, F.75).
 
 La décision doit être prise maintenant : Sprint 42 a pour vocation de
@@ -46,7 +46,7 @@ l'ancien système, creusant la dette.
 Introduire **Design tokens v2** dans `crates/apollia-desktop/ui/src/app.css`
 comme **source unique de vérité** pour toutes les ombres, surfaces, et
 expositions du primary. La règle devient : **aucun `box-shadow:` ne peut
-être hardcodé dans un fichier `.svelte`** — toute ombre passe par `var(...)`.
+être hardcodé dans un fichier `.svelte`** - toute ombre passe par `var(...)`.
 
 Cinq décisions précises :
 
@@ -54,12 +54,12 @@ Cinq décisions précises :
 
 `--shadow-elev-0` à `--shadow-elev-4`. Chaque niveau combine :
 - 2 layers `box-shadow` externes (près + loin) pour la profondeur.
-- 1 layer `inset 0 1px 0` (rim light) pour simuler un reflet bord supérieur —
+- 1 layer `inset 0 1px 0` (rim light) pour simuler un reflet bord supérieur -
   crucial pour la sensation "matériau" (F.19, F.20).
 
 Le rim est **warm-tinted** :
 - Light : `rgba(255, 252, 240, .5)` à `.8` (cream-white).
-- Dark : `hsl(32 30% 70% / .10)` à `.18` (bronze-white) — résout le
+- Dark : `hsl(32 30% 70% / .10)` à `.18` (bronze-white) - résout le
   "black on black" en dark (F.55).
 
 Chaque niveau redéclaré en `.dark` avec opacités adaptées (niveau 4 dark
@@ -78,7 +78,7 @@ des hiérarchies de profondeur (A.3.1).
 
 ### 3. Primary utilities explicites
 
-Trois classes CSS — également exposées comme variants Button — :
+Trois classes CSS - également exposées comme variants Button - :
 - `.bg-primary-solid` : fond plein + `shadow-primary-sm/md` au hover.
 - `.bg-primary-gradient` : gradient 135° primary→secondary + élévation.
 - `.border-primary-subtle` : bordure primary `25 %` → `50 %` au hover.
@@ -142,10 +142,10 @@ Classe `.app-backdrop` (et `.app-backdrop-subtle` pour les popovers).
 
 - Refactor invasif : 15 fichiers `.svelte` (essentiellement `components/onboarding/*`)
   ont leurs shadows reconvertis vers tokens. Régressions pixel-perfect
-  possibles sur les animations `logo-pulse`, `rail-pulse` — mitigation :
+  possibles sur les animations `logo-pulse`, `rail-pulse` - mitigation :
   tokens `--logo-shadow-rest/active` et `--rail-dot-rest/pulse` scoped à
   leur composant pour préserver l'intention.
-- Variant `default` du Button ambigu vs `primary-solid` — les deux ciblent
+- Variant `default` du Button ambigu vs `primary-solid` - les deux ciblent
   le primary. Décision : laisser `default` pour rétro-compat sur les boutons
   secondaires-semi-promus, la doc indique quand préférer `primary-solid`.
 - Pas de couverture e2e automatique du rendu visuel : la route `#design`
@@ -154,7 +154,7 @@ Classe `.app-backdrop` (et `.app-backdrop-subtle` pour les popovers).
 ### Neutres
 
 - Les fichiers `OnboardingWelcome.svelte`, `TourProgressRail.svelte` gardent
-  des CSS vars locales (`--logo-shadow-rest`, `--rail-dot-rest`) — c'est
+  des CSS vars locales (`--logo-shadow-rest`, `--rail-dot-rest`) - c'est
   accepté car ces animations sont spécifiques et ne gagnent pas à être
   hissées en tokens globaux.
 - `apollia-desktop/ui/src/lib/design/tokens.ts` expose les tokens en

@@ -1,4 +1,4 @@
-# ADR-032 — Agent Install, Bundle Format & Package System
+# ADR-032 - Agent Install, Bundle Format & Package System
 
 **Date :** 2026-03-17 (install) / 2026-04-17 (bundle format) / 2026-04-24 (package system)
 **Statut :** Accepté
@@ -25,7 +25,7 @@ Installer un groupe d'agents liés (director + workers) requiert N commandes `ag
 
 ## Décisions
 
-### 1 — Install & persistance dans `~/.apollia/agents/`
+### 1 - Install & persistance dans `~/.apollia/agents/`
 
 Modèle "agent install" avec copie locale et persistance SQLite :
 
@@ -80,17 +80,17 @@ CREATE TABLE IF NOT EXISTS installed_agents (
 );
 ```
 
-### 2 — Format « agent bundle » : dossier standardisé
+### 2 - Format « agent bundle » : dossier standardisé
 
 ```
 my-agent/
-├── manifest.toml            ← OBLIGATOIRE — méta-fichier statique
-├── agent.py                 ← OBLIGATOIRE — point d'entrée (manifest() + run())
-├── lib/                     ← OPTIONNEL — modules locaux importables
+├── manifest.toml            ← OBLIGATOIRE - méta-fichier statique
+├── agent.py                 ← OBLIGATOIRE - point d'entrée (manifest() + run())
+├── lib/                     ← OPTIONNEL - modules locaux importables
 │   ├── __init__.py
 │   └── *.py
-├── assets/                  ← OPTIONNEL — ressources read-only
-├── requirements.txt         ← OPTIONNEL — deps pip (informatif v0.1.0)
+├── assets/                  ← OPTIONNEL - ressources read-only
+├── requirements.txt         ← OPTIONNEL - deps pip (informatif v0.1.0)
 └── README.md                ← OPTIONNEL
 ```
 
@@ -100,7 +100,7 @@ my-agent/
 3. Les modules locaux vivent **exclusivement** dans `lib/`. Import : `from lib import helpers`. Les imports à la racine (`from shared import …`) sont **interdits**.
 4. Les ressources read-only vivent **exclusivement** dans `assets/`.
 
-**`manifest.toml` — méta-fichier statique :**
+**`manifest.toml` - méta-fichier statique :**
 
 ```toml
 [agent]
@@ -135,7 +135,7 @@ filesystem = "workspace"   # "workspace" | "home" | "none"
 
 **Conflit / mise à jour :** version ≤ existante → remplacement (backup `<name>.bak/`). Version > existante → rejet avec message « downgrade refusé ».
 
-### 3 — Système de packages : `agent.toml` multi-agents
+### 3 - Système de packages : `agent.toml` multi-agents
 
 Un **Agent Package** est un dossier auto-contenu décrit par un fichier `agent.toml` :
 
@@ -174,7 +174,7 @@ packages = ["httpx>=0.27"]
 ```
 
 **Invariants :**
-- `[package].name` unique dans le runtime — conflit → erreur fail-fast
+- `[package].name` unique dans le runtime - conflit → erreur fail-fast
 - Chaque `[[agents]].entry` doit exister et passer le duck-typing AIP
 - Les `[[triggers]].agent` référencent un `[[agents]].name` déclaré
 
@@ -203,8 +203,8 @@ CREATE TABLE IF NOT EXISTS package_agents (
 | `install` | Validation fail-fast, copie, UPSERT idempotent, injection triggers |
 | `uninstall` | Supprime tous les agents du package et les triggers injectés |
 | Re-install | UPSERT : pas de doublon, triggers mis à jour |
-| Agents sans package | Fonctionnent exactement comme avant — rétrocompatibilité totale |
-| Boot (Phase 10.6) | Validation légère de `root_path` — si manquant, agents désactivés |
+| Agents sans package | Fonctionnent exactement comme avant - rétrocompatibilité totale |
+| Boot (Phase 10.6) | Validation légère de `root_path` - si manquant, agents désactivés |
 
 Les triggers déclarés dans `agent.toml` sont injectés en base via `parse_triggers_from_toml_str()` (existant dans `apollia-triggers::toml_config`).
 
@@ -237,7 +237,7 @@ Crée du couplage entre des agents non liés et rend la distribution impossible.
 ## Conséquences
 
 **Positives :**
-- Cohérence complète du modèle de persistance — tous les artefacts dans `~/.apollia/`
+- Cohérence complète du modèle de persistance - tous les artefacts dans `~/.apollia/`
 - UX fluide : installer une fois, oublier pour toujours
 - Format auto-descriptif : `manifest.toml` indexable par un marketplace futur sans outillage Python
 - Versioning propre : `[agent].version` + SHA256 permettent la détection d'updates
@@ -259,17 +259,17 @@ Crée du couplage entre des agents non liés et rend la distribution impossible.
 
 ## Principes architecturaux impactés
 
-- Principe #1 — **Local-first** : tout vit dans `~/.apollia/`, zéro dépendance externe
-- Principe #2 — **Zéro dépendance externe** : format TOML + arborescence standard Python, aucune dépendance nouvelle
-- Principe #3 — **Contrat minimal** : 2 fichiers obligatoires, `manifest()` + `run()` inchangés
-- Principe #4 — **Fail fast** : bundle invalide → rejet à l'install avec message explicite, pas d'état partiel
+- Principe #1 - **Local-first** : tout vit dans `~/.apollia/`, zéro dépendance externe
+- Principe #2 - **Zéro dépendance externe** : format TOML + arborescence standard Python, aucune dépendance nouvelle
+- Principe #3 - **Contrat minimal** : 2 fichiers obligatoires, `manifest()` + `run()` inchangés
+- Principe #4 - **Fail fast** : bundle invalide → rejet à l'install avec message explicite, pas d'état partiel
 
 ---
 
 ## Liens
 
 - Stories : STORY-177 → STORY-183 (Sprint 16), Bloc 1.5 LAUNCH-BACKLOG, Sprint 43
-- ADR-019 — AgentLoader trait (découplage runtime / PyO3)
-- ADR-055 — Community registry (marketplace futur, dépend de ce format)
-- ADR-061 — Permission Engine 3 layers (dépend de `[agent.permissions]`)
+- ADR-019 - AgentLoader trait (découplage runtime / PyO3)
+- ADR-055 - Community registry (marketplace futur, dépend de ce format)
+- ADR-061 - Permission Engine 3 layers (dépend de `[agent.permissions]`)
 - Fichiers : `crates/apollia-tools/src/agent_repository.rs`, `crates/apollia-aip/src/loader.rs`, `crates/apollia-desktop/src/commands/agents.rs`

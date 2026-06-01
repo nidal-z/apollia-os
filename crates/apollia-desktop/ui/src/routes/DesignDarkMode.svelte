@@ -3,8 +3,8 @@
    * Dark-mode showcase.
    *
    * Dev-only page (not linked from the sidebar). Reached via the URL hash
-   * `#design-dark-mode`. Exposes the key primitives — badges, surfaces,
-   * inputs, glass tokens — so contrast/warmth regressions in dark mode
+   * `#design-dark-mode`. Exposes the key primitives - badges, surfaces,
+   * inputs, glass tokens - so contrast/warmth regressions in dark mode
    * can be caught visually without spinning up each production page.
    */
   import { Separator } from "$lib/components/ui/separator";
@@ -133,11 +133,11 @@
       Text tokens (WCAG AA)
     </h2>
     <div class="glass-card glass-border rounded-xl p-5 space-y-1.5">
-      <p class="text-foreground">Foreground — primary prose</p>
-      <p class="text-muted-a11y">Muted — secondary prose</p>
-      <p class="text-success-a11y">Success — verified ≥ 4.5:1</p>
-      <p class="text-warning-a11y">Warning — verified ≥ 4.5:1</p>
-      <p class="text-danger-a11y">Danger — verified ≥ 4.5:1</p>
+      <p class="text-foreground">Foreground - primary prose</p>
+      <p class="text-muted-a11y">Muted - secondary prose</p>
+      <p class="text-success-a11y">Success - verified ≥ 4.5:1</p>
+      <p class="text-warning-a11y">Warning - verified ≥ 4.5:1</p>
+      <p class="text-danger-a11y">Danger - verified ≥ 4.5:1</p>
     </div>
   </section>
 </div>

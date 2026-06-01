@@ -9,7 +9,7 @@
 #   3. Build the Svelte frontend (ui/ → ui/dist/).
 #
 # The Tauri build (cargo tauri build) runs AFTER this script, so the desktop
-# binary (apollia-desktop) is built separately by Tauri itself — we export
+# binary (apollia-desktop) is built separately by Tauri itself - we export
 # PYO3_PYTHON so both binaries link against the same libpython.
 #
 # Post-build Mach-O / ELF patching of apollia-desktop is done by Tauri's
@@ -27,12 +27,12 @@ STAGING="${DESKTOP_DIR}"
 
 mkdir -p "$STAGING"
 
-# ── Step 1 — Python bundle ────────────────────────────────────────────────────
+# ── Step 1 - Python bundle ────────────────────────────────────────────────────
 
 echo "==> Building Python bundle for target ${TARGET}..."
 "${REPO_ROOT}/packaging/build-python-bundle.sh" "$TARGET" "${REPO_ROOT}/target/python-bundle/${TARGET}"
 
-# Copy (or re-copy) the result into resources/python/ — overwrite freely, Tauri
+# Copy (or re-copy) the result into resources/python/ - overwrite freely, Tauri
 # will pick up whatever's here.
 rm -rf "${STAGING}/python"
 cp -R "${REPO_ROOT}/target/python-bundle/${TARGET}/python" "${STAGING}/python"
@@ -45,17 +45,17 @@ export RUSTFLAGS="${RUSTFLAGS:-} -L ${STAGING}/python/lib"
 echo "==> PYO3_PYTHON=${PYO3_PYTHON}"
 echo "==> RUSTFLAGS=${RUSTFLAGS}"
 
-# ── Step 2 — CLI binary (apollia-os) ──────────────────────────────────────────
+# ── Step 2 - CLI binary (apollia-os) ──────────────────────────────────────────
 
 echo "==> Building apollia-cli for target ${TARGET}..."
 # For universal2 on macOS, Tauri cargo-tauri runs cargo with `--target universal-apple-darwin`
-# which is NOT a real target — we need to build both arches and lipo them.
+# which is NOT a real target - we need to build both arches and lipo them.
 case "$TARGET" in
     universal-apple-darwin)
         for arch_triple in aarch64-apple-darwin x86_64-apple-darwin; do
             echo "  -> $arch_triple"
             # Each arch needs its own PYO3_PYTHON pointing at the lipo'd universal
-            # Python — same file, since the universal Python dylib contains both.
+            # Python - same file, since the universal Python dylib contains both.
             cargo build -p apollia-cli --release \
                 --target "$arch_triple" \
                 --manifest-path "${REPO_ROOT}/Cargo.toml"
@@ -77,7 +77,7 @@ esac
 
 echo "==> CLI binary staged at ${STAGING}/apollia-os"
 
-# ── Step 2b — Runners (ADR-113 sidecars) ──────────────────────────────────────
+# ── Step 2b - Runners (ADR-113 sidecars) ──────────────────────────────────────
 # `APOLLIA_DESKTOP_RUNNERS` selects which runner backends to build and stage
 # alongside the daemon. Examples :
 #   APOLLIA_DESKTOP_RUNNERS=cpu                # CPU only (minimal)
@@ -123,7 +123,7 @@ for backend in $RUNNERS; do
     echo "    staged $(basename "$dst")"
 done
 
-# ── Step 3 — Frontend ─────────────────────────────────────────────────────────
+# ── Step 3 - Frontend ─────────────────────────────────────────────────────────
 
 echo "==> Building Svelte frontend..."
 cd "${DESKTOP_DIR}/ui" && npm run build

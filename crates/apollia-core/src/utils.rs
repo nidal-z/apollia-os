@@ -18,7 +18,7 @@ fn floor_char_boundary(s: &str, index: usize) -> usize {
 /// déclarations, la fin contient les résultats récents. Le milieu supprimé est
 /// remplacé par un message indiquant le nombre de lignes perdues.
 ///
-/// `max_chars` est exprimé en bytes UTF-8 — proxy raisonnable pour les outputs
+/// `max_chars` est exprimé en bytes UTF-8 - proxy raisonnable pour les outputs
 /// d'outils qui sont du texte ASCII ou UTF-8 basique. Les découpages respectent
 /// toujours les frontières de caractères UTF-8 valides.
 ///

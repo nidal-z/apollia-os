@@ -1,4 +1,4 @@
-# Apollia OS — Context for AI Agents
+# Apollia OS - Context for AI Agents
 
 > This file is intended for AI coding agents (Claude Code, Cursor, Copilot, etc.) working on the
 > Apollia OS codebase. It provides a dense, accurate description of the project so that context
@@ -11,14 +11,14 @@
 Apollia OS is an **open-source Rust runtime for executing autonomous AI agents locally and
 sovereignly**. It bridges any Python agent (LangGraph, CrewAI, custom) with a production-grade
 runtime that handles tool execution, memory, permissions, LLM routing, pipelines, HITL approval,
-and observability — without any cloud dependency.
+and observability - without any cloud dependency.
 
 The key differentiator is **ReAct autonomous agents** (not deterministic LLM pipelines): agents
 observe → reason → act in a loop bounded by a StepBudget, with the runtime enforcing guardrails.
 
 **Author:** Nidal (CTO & Co-founder Apollia), solo development, evenings/weekends.
 **Language distribution:** ~70% Rust, ~20% Svelte/TypeScript, ~10% Python (SDK + agents).
-**Current phase:** Beta preparation — fact-checking sprint validating API contracts.
+**Current phase:** Beta preparation - fact-checking sprint validating API contracts.
 
 ---
 
@@ -29,7 +29,7 @@ apollia-v2/
 ├── crates/                 ← All Rust crates (workspace)
 │   ├── apollia-aip/        ← PyO3 bridge: exposes RuntimeContext to Python agents
 │   ├── apollia-auth/       ← OAuth2 PKCE, keyring token storage
-│   ├── apollia-cli/        ← CLI binary (clap v4, 13 subcommands)
+│   ├── apollia-cli/        ← CLI binary (clap v4, 40+ subcommands)
 │   ├── apollia-core/       ← Shared types: AgentId, TaskId, StepBudget, errors
 │   ├── apollia-desktop/    ← Tauri v2 desktop app (Svelte 5 frontend, ~114 IPC commands)
 │   ├── apollia-llm/        ← LLM router: llama.cpp local + Anthropic/OpenAI/Ollama/Bedrock/Vertex
@@ -63,7 +63,7 @@ apollia-v2/
 │
 ├── agents/                 ← Bundled Python agents (spec, dev, review, document assistants)
 ├── tests/integration/      ← Rust integration tests (E2E scenarios)
-├── CLAUDE.md               ← Instructions for Claude Code (read this first)
+├── AGENTS.md               ← Rulebook for AI coding assistants (read this first)
 └── llm.txt                 ← This file
 ```
 
@@ -75,7 +75,7 @@ apollia-v2/
 
 The runtime uses a strict **Tokio actor pattern**:
 - Each subsystem is a separate actor with its own `mpsc::channel`
-- No `Arc<Mutex<T>>` shared across actors — everything goes through message passing
+- No `Arc<Mutex<T>>` shared across actors - everything goes through message passing
 - The `Supervisor` starts actors in order and monitors them
 
 **Actor startup order:**
@@ -131,9 +131,9 @@ max_tool_calls = 60      # default
 wall_clock_secs = 600    # default (NOT wall_clock_timeout_secs)
 ```
 
-The runtime enforces this budget — it cannot be bypassed by agent code.
+The runtime enforces this budget - it cannot be bypassed by agent code.
 
-### Agent Contract (AIP — Agent Interface Protocol)
+### Agent Contract (AIP - Agent Interface Protocol)
 
 Minimal duck-typing contract (ADR-003):
 
@@ -160,18 +160,18 @@ No base class required. `manifest()` + `async run()` are the only contract.
 
 ### Rust
 
-- **Errors:** `thiserror` everywhere — `anyhow` is FORBIDDEN in workspace crates
-- **Unwrap:** zero `unwrap()` in production code — only in `#[cfg(test)]`
-- **Actors:** `mpsc::channel` + clonable handle — never `Arc<Mutex<T>>` cross-actor
-- **Logging:** `tracing::info!(field = %val, "event")` — no format strings in log macros
+- **Errors:** `thiserror` everywhere - `anyhow` is FORBIDDEN in workspace crates
+- **Unwrap:** zero `unwrap()` in production code - only in `#[cfg(test)]`
+- **Actors:** `mpsc::channel` + clonable handle - never `Arc<Mutex<T>>` cross-actor
+- **Logging:** `tracing::info!(field = %val, "event")` - no format strings in log macros
 - **Docs:** `///` on every public struct, enum, fn
 
 ### Python SDK
 
-- Stubs live in `sdk/apollia/stubs/` — these are the source of truth for Python API
+- Stubs live in `sdk/apollia/stubs/` - these are the source of truth for Python API
 - `AIPTask` fields: `task_id`, `agent_id`, `input`, `project_id`, `message_id`, `timeout_seconds`
 - `AIPResult` fields: `output`, `success`, `error`, `metadata`, `step_count`, `tool_calls`
-- `recall_procedure()` returns `list[dict]` with keys `trigger`, `steps`, `created_at` — never `None`
+- `recall_procedure()` returns `list[dict]` with keys `trigger`, `steps`, `created_at` - never `None`
 
 ### Git Commits
 
@@ -208,7 +208,7 @@ Available via `ctx.tools.call(name, params)`:
 | `http_fetch` | HTTP GET/POST requests |
 | `web_search` | Web search (DuckDuckGo default, Brave opt-in) |
 | `web_read` | Fetch and extract readable text from URL |
-| `ask_user` | HITL prompt — pauses task for human input |
+| `ask_user` | HITL prompt - pauses task for human input |
 | `notebook_read` | Read Jupyter notebook cells |
 | `notebook_edit` | Edit a specific notebook cell |
 | `memory_search` | Search agent memory (shortcut for `ctx.memory.recall`) |
@@ -222,7 +222,7 @@ Three layers (all in SQLite FTS5):
 - **Semantic:** searchable knowledge fragments
 - **Procedural:** `learn_procedure(trigger, steps)` / `recall_procedure(trigger)`
 
-Memory is **always at agent initiative** (ADR-007) — the runtime never auto-injects.
+Memory is **always at agent initiative** (ADR-007) - the runtime never auto-injects.
 Namespace convention: `{project_id}:{manifest_namespace}` (ADR-056).
 
 ---
@@ -270,11 +270,11 @@ Global flags: `--json` · `--socket PATH` · `-q/--quiet` · `-v/--verbose` · `
 **Stack:** Tauri v2 + Svelte 5 (runes) + Tailwind 3.4 + lucide-svelte + bits-ui
 
 **Key paths:**
-- `crates/apollia-desktop/ui/src/` — Svelte frontend
-- `crates/apollia-desktop/ui/src/app.css` — all CSS custom properties (HSL tokens, dark mode)
-- `crates/apollia-desktop/ui/src/lib/design/tokens.ts` — TypeScript design tokens
-- `crates/apollia-desktop/src/commands/` — Tauri IPC command handlers (Rust)
-- `crates/apollia-desktop/src/main.rs` — Tauri app entry point
+- `crates/apollia-desktop/ui/src/` - Svelte frontend
+- `crates/apollia-desktop/ui/src/app.css` - all CSS custom properties (HSL tokens, dark mode)
+- `crates/apollia-desktop/ui/src/lib/design/tokens.ts` - TypeScript design tokens
+- `crates/apollia-desktop/src/commands/` - Tauri IPC command handlers (Rust)
+- `crates/apollia-desktop/src/main.rs` - Tauri app entry point
 
 **Design system:** Warm cream light mode (`--background: 38 28% 90%`) + warm charcoal dark mode
 (`--background: 28 8% 9%`). Primary blue `#3435f5`. Glass morphism layers. Rim light accents.
@@ -321,23 +321,17 @@ Default locale: system → FR fallback.
 | All ADRs | `docs/adr/` (ADR-001 to ADR-082) |
 | ADR summary | `docs/wiki/Decisions-Log.md` |
 | Pedagogical book | `docs/book/src/` (build: `mdbook build docs/book/`) |
-| Sprint history | `docs/internal/STORIES/sprint-index.md` |
-| Launch backlog | `docs/internal/LAUNCH-BACKLOG.md` |
 
 ---
 
-## Current State (2026-04-27)
+## Current State
 
-**Active work:** Fact-checking sprint (23 stories validating API contracts between Python SDK
-stubs, Rust PyO3 bindings, and Desktop IPC handlers). ~40% complete.
+**Status:** v0.1.0-preview. Single-maintainer, source-available. Local-first
+Rust runtime for autonomous AI agents.
 
-**Last feature sprint:** Sprint 40 — Context Bootstrapping & SDK 0.3.0 ✅
-
-**Next planned:** Sprint 43 — Tool Governance & CLI (apollia tools/permissions subcommands,
-governance.db, 3-button HITL scopes).
-
-**ADR count:** 70 active (82 originaux, 12 fusionnés et supprimés). Last: ADR-082 — Tool Governance Architecture (unified
-governance.db, ToolRegistry scope-aware, 3-scope HITL).
+**ADR count:** 70 active (numbered ADR-001 to ADR-082; superseded ones merged or
+removed). Latest: ADR-082, Tool Governance Architecture (unified governance.db,
+scope-aware ToolRegistry, 3-scope HITL).
 
 **Known stubs (not yet live):**
 - `ctx.step_budget.tool_calls_remaining` → always returns `-1`
@@ -349,7 +343,7 @@ governance.db, ToolRegistry scope-aware, 3-scope HITL).
 ## Working in This Codebase
 
 **Before starting any task:**
-1. Read `CLAUDE.md` — non-negotiable rules (error handling, actor pattern, commits)
+1. Read `AGENTS.md` - non-negotiable rules (error handling, actor pattern, commits)
 2. Check `docs/internal/STORIES/sprint-index.md` for current work context
 3. For any new architectural decision, create an ADR in `docs/adr/`
 

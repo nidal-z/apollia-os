@@ -10,11 +10,11 @@
     height?: string;
     /**
      * Canonical skeleton shape.
-     * - `plain`   — bare pulsing rect (legacy default).
-     * - `text`    — single line of text, 1rem tall.
-     * - `card`    — block sized like a card header.
-     * - `table-row` — full-width row, ~2.5rem tall.
-     * - `avatar`  — circular, 2.25rem default.
+     * - `plain`   - bare pulsing rect (legacy default).
+     * - `text`    - single line of text, 1rem tall.
+     * - `card`    - block sized like a card header.
+     * - `table-row` - full-width row, ~2.5rem tall.
+     * - `avatar`  - circular, 2.25rem default.
      */
     variant?: Variant;
   }

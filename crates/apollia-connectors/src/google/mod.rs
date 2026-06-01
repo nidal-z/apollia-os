@@ -362,7 +362,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "List the contents of the Apollia workspace inside the user's Drive — the workspace anchor is set in Settings → Intégrations → \"Dossier racine\".\n\n**Default behaviour (no args)**: lists files in the configured workspace folder. If the folder doesn't exist yet on Drive, returns `[]` with a hint. When the user set the root to \"\" (literal Drive root), lists everything at My Drive root.\n\n**Overrides**: `folder_id` lists a specific Drive folder by id; `all: true` ignores the workspace and returns every file Apollia has access to (own + Picker grants). Use `all: true` when the user explicitly asks to see everything across Drive.\n\nUnder `drive.file` OAuth scope, Apollia never sees files it didn't create or wasn't granted via Picker.\n\nInputs: folder_id (optional string), all (optional bool, default false), page_size (optional integer, default 50, max 100).\nApproval: not required.\nSide effects: none.",
+        description: "List the contents of the Apollia workspace inside the user's Drive - the workspace anchor is set in Settings → Intégrations → \"Dossier racine\".\n\n**Default behaviour (no args)**: lists files in the configured workspace folder. If the folder doesn't exist yet on Drive, returns `[]` with a hint. When the user set the root to \"\" (literal Drive root), lists everything at My Drive root.\n\n**Overrides**: `folder_id` lists a specific Drive folder by id; `all: true` ignores the workspace and returns every file Apollia has access to (own + Picker grants). Use `all: true` when the user explicitly asks to see everything across Drive.\n\nUnder `drive.file` OAuth scope, Apollia never sees files it didn't create or wasn't granted via Picker.\n\nInputs: folder_id (optional string), all (optional bool, default false), page_size (optional integer, default 50, max 100).\nApproval: not required.\nSide effects: none.",
     },
     OperationSpec {
         id: "gdrive.find_by_name",
@@ -372,7 +372,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Resolve a Drive file, folder, document, spreadsheet, or presentation by its **title** (exact or fuzzy substring match). Returns matching items with their ids.\n\n**ALWAYS call this BEFORE asking the user for an ID.** When the user references a Google asset by name (\"the Apollia Test sheet\", \"my Demo presentation\"), use this tool to look up the id, then call the operation they actually want. Do NOT ask the user for the alphanumeric id — that's a bad user experience.\n\nInputs: name (string, required), mime_type_filter (optional string: 'spreadsheet', 'document', 'presentation', 'folder', or a raw Drive mime type), exact (optional bool, default false → case-insensitive `contains`).\nApproval: not required.\nSide effects: none.",
+        description: "Resolve a Drive file, folder, document, spreadsheet, or presentation by its **title** (exact or fuzzy substring match). Returns matching items with their ids.\n\n**ALWAYS call this BEFORE asking the user for an ID.** When the user references a Google asset by name (\"the Apollia Test sheet\", \"my Demo presentation\"), use this tool to look up the id, then call the operation they actually want. Do NOT ask the user for the alphanumeric id - that's a bad user experience.\n\nInputs: name (string, required), mime_type_filter (optional string: 'spreadsheet', 'document', 'presentation', 'folder', or a raw Drive mime type), exact (optional bool, default false → case-insensitive `contains`).\nApproval: not required.\nSide effects: none.",
     },
     // ─── Picker-aware ops (post Google Drive Picker integration) ───────
     //
@@ -428,7 +428,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AlwaysRequireApproval,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Create a new Google Sheet with the given title. The sheet is owned by the connected Google account.\n\nThe response includes `default_sheet_title` (the title of the first tab, e.g. `Sheet1` or `Feuille 1` depending on the user's locale) — use this when constructing an A1 `range` afterwards; do NOT use the spreadsheet title.\n\nInputs: title (string).\nApproval: required.\nSide effects: creates a new spreadsheet visible in the user's Drive.",
+        description: "Create a new Google Sheet with the given title. The sheet is owned by the connected Google account.\n\nThe response includes `default_sheet_title` (the title of the first tab, e.g. `Sheet1` or `Feuille 1` depending on the user's locale) - use this when constructing an A1 `range` afterwards; do NOT use the spreadsheet title.\n\nInputs: title (string).\nApproval: required.\nSide effects: creates a new spreadsheet visible in the user's Drive.",
     },
     OperationSpec {
         id: "gsheets.list_sheets",
@@ -438,7 +438,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "List the tabs (sheets) inside a spreadsheet. Use this to discover the tab title before constructing an A1 range — the spreadsheet title (visible in the browser tab) is NOT the same as a sheet title.\n\n**Prerequisite**: if you only know the spreadsheet by name (e.g. \"Apollia Test\"), call `gdrive.find_by_name(name=..., mime_type_filter=\"spreadsheet\")` first to resolve the id. NEVER ask the user for the alphanumeric id.\n\nInputs: spreadsheet_id (string).\nApproval: not required.\nSide effects: none.",
+        description: "List the tabs (sheets) inside a spreadsheet. Use this to discover the tab title before constructing an A1 range - the spreadsheet title (visible in the browser tab) is NOT the same as a sheet title.\n\n**Prerequisite**: if you only know the spreadsheet by name (e.g. \"Apollia Test\"), call `gdrive.find_by_name(name=..., mime_type_filter=\"spreadsheet\")` first to resolve the id. NEVER ask the user for the alphanumeric id.\n\nInputs: spreadsheet_id (string).\nApproval: not required.\nSide effects: none.",
     },
     OperationSpec {
         id: "gsheets.read_values",
@@ -458,7 +458,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AlwaysRequireApproval,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Append rows at the bottom of a Google Sheet range.\n\n**Prerequisite**: if you only know the spreadsheet by name, call `gdrive.find_by_name(name=..., mime_type_filter=\"spreadsheet\")` first to resolve the id. NEVER ask the user for the alphanumeric id.\n\n**Range format**: same rule as `gsheets.read_values` — use the tab title, single-quote if it contains spaces. Call `gsheets.list_sheets` if you only know the spreadsheet id.\n\nInputs: spreadsheet_id (string), range (string), values (array of arrays).\nApproval: required.\nSide effects: appends rows; sheet auto-extends.",
+        description: "Append rows at the bottom of a Google Sheet range.\n\n**Prerequisite**: if you only know the spreadsheet by name, call `gdrive.find_by_name(name=..., mime_type_filter=\"spreadsheet\")` first to resolve the id. NEVER ask the user for the alphanumeric id.\n\n**Range format**: same rule as `gsheets.read_values` - use the tab title, single-quote if it contains spaces. Call `gsheets.list_sheets` if you only know the spreadsheet id.\n\nInputs: spreadsheet_id (string), range (string), values (array of arrays).\nApproval: required.\nSide effects: appends rows; sheet auto-extends.",
     },
     OperationSpec {
         id: "gsheets.update_values",
@@ -468,7 +468,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AlwaysRequireApproval,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Overwrite values inside a Google Sheet range.\n\n**Prerequisite**: if you only know the spreadsheet by name, call `gdrive.find_by_name(name=..., mime_type_filter=\"spreadsheet\")` first to resolve the id. NEVER ask the user for the alphanumeric id.\n\n**Range format**: same rule as `gsheets.read_values` — `<tab_title>!A1:C1`, single-quote tab titles containing spaces (e.g. `'Feuille 1'!A1:C1`). Do NOT use the spreadsheet title here. Call `gsheets.list_sheets` if unsure.\n\nInputs: spreadsheet_id (string), range (string), values (array of arrays).\nApproval: required.\nSide effects: overwrites cells in the range.",
+        description: "Overwrite values inside a Google Sheet range.\n\n**Prerequisite**: if you only know the spreadsheet by name, call `gdrive.find_by_name(name=..., mime_type_filter=\"spreadsheet\")` first to resolve the id. NEVER ask the user for the alphanumeric id.\n\n**Range format**: same rule as `gsheets.read_values` - `<tab_title>!A1:C1`, single-quote tab titles containing spaces (e.g. `'Feuille 1'!A1:C1`). Do NOT use the spreadsheet title here. Call `gsheets.list_sheets` if unsure.\n\nInputs: spreadsheet_id (string), range (string), values (array of arrays).\nApproval: required.\nSide effects: overwrites cells in the range.",
     },
     // ─── Docs ──────────────────────────────────────────────────────────
     OperationSpec {
@@ -678,7 +678,7 @@ mod tests {
             for scope in op.scopes_required {
                 assert!(
                     !restricted.contains(scope),
-                    "operation {} requires restricted scope {} — must be deferred to Expert Mode",
+                    "operation {} requires restricted scope {} - must be deferred to Expert Mode",
                     op.id,
                     scope
                 );

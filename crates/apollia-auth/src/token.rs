@@ -55,7 +55,7 @@ impl TokenResponse {
             let desc = self.error_description.unwrap_or_default();
             let uri = self
                 .error_uri
-                .map(|u| format!(" — see {u}"))
+                .map(|u| format!(" - see {u}"))
                 .unwrap_or_default();
             return Err(AuthError::TokenExchangeFailed(format!(
                 "{err}: {desc}{uri}"
@@ -64,7 +64,7 @@ impl TokenResponse {
 
         let access_token = self.access_token.ok_or_else(|| {
             AuthError::TokenExchangeFailed(
-                "token endpoint returned neither `access_token` nor `error` — \
+                "token endpoint returned neither `access_token` nor `error` - \
                  unrecognised provider response"
                     .into(),
             )

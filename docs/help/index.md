@@ -7,7 +7,7 @@ hero:
   tagline: Guides pas-à-pas pour configurer, automatiser et contrôler votre IA au quotidien.
   actions:
     - theme: brand
-      text: Premiers pas — configurer votre profil
+      text: Premiers pas - configurer votre profil
       link: /installation/configurer-votre-profil
     - theme: alt
       text: Connecter un fournisseur d'IA
@@ -39,7 +39,7 @@ features:
     link: /observabilite/lire-le-digest-quotidien
   - icon: 🔧
     title: Si ça coince
-    details: Diagnostic des cas fréquents — IA muette, agent bloqué, action refusée, dictée KO.
+    details: Diagnostic des cas fréquents - IA muette, agent bloqué, action refusée, dictée KO.
     link: /troubleshooting/le-fournisseur-d-ia-ne-repond-pas
 ---
 
@@ -47,10 +47,10 @@ features:
 
 Chaque page suit le même format :
 
-- **Prérequis** — ce qu'il faut avoir avant de commencer.
-- **Étapes** — actions UI numérotées avec captures.
-- **Vérification** — comment confirmer que ça a marché.
-- **Si ça ne marche pas** — les cas d'erreur fréquents.
+- **Prérequis** - ce qu'il faut avoir avant de commencer.
+- **Étapes** - actions UI numérotées avec captures.
+- **Vérification** - comment confirmer que ça a marché.
+- **Si ça ne marche pas** - les cas d'erreur fréquents.
 
 Si une page mentionne un concept technique, le lien renvoie soit vers le **book** (apprendre comment ça fonctionne) soit vers la **référence** (spec exhaustive). Jamais les deux : un seul saut, vers le bon endroit.
 
@@ -58,5 +58,5 @@ Si une page mentionne un concept technique, le lien renvoie soit vers le **book*
 
 Le centre d'aide est conçu pour utiliser l'application. Si vous voulez **créer** des agents Python ou comprendre l'architecture interne, dirigez-vous vers :
 
-- [book.apollia.fr](https://book.apollia.fr) — apprendre à construire des agents (cours progressif)
-- [docs.apollia.fr](https://docs.apollia.fr) — référence technique exhaustive (briques, API, configs)
+- [book.apollia.fr](https://book.apollia.fr) - apprendre à construire des agents (cours progressif)
+- [docs.apollia.fr](https://docs.apollia.fr) - référence technique exhaustive (briques, API, configs)

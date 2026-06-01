@@ -384,7 +384,7 @@
 </script>
 
 <!--
-  V3 Operator Settings — three-column shell.
+  V3 Operator Settings - three-column shell.
   - Outer rail/topbar lives outside this route.
   - Left sub-nav (240px): grouped tabs with section headers.
   - Right content: per-tab PageHeader + lazy-loaded sub-route component.
@@ -556,7 +556,7 @@
         </div>
       {/if}
 
-      <!-- Scrollable tab body — sub-routes own their cards/forms. -->
+      <!-- Scrollable tab body - sub-routes own their cards/forms. -->
       <div
         bind:this={scrollContainer}
         data-settings-scroll

@@ -1255,7 +1255,7 @@ mod tests {
         let json = body_json(resp).await;
         assert_eq!(
             json["state"], "active",
-            "agent with only A2A optional deps must be Active, not Degraded — got: {json}"
+            "agent with only A2A optional deps must be Active, not Degraded - got: {json}"
         );
 
         tool_registry.shutdown().await;

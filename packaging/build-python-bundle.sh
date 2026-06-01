@@ -51,12 +51,12 @@ if [[ -d "${PYTHON_DIR}/Lib/site-packages" ]]; then
 else
     SITE_PACKAGES="${PYTHON_DIR}/lib/python3.13/site-packages"
 fi
-# Tests directories of installed packages — safe to drop, shaves ~20 MB.
+# Tests directories of installed packages - safe to drop, shaves ~20 MB.
 find "$SITE_PACKAGES" -type d -name "tests" -prune -exec rm -rf {} + 2>/dev/null || true
-# Compiled bytecode — Python will regenerate on first import.
+# Compiled bytecode - Python will regenerate on first import.
 find "$PYTHON_DIR" -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
 find "$PYTHON_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
-# pandas ships internal tests — ~30 MB.
+# pandas ships internal tests - ~30 MB.
 find "${SITE_PACKAGES}/pandas" -type d \( -name "tests" -o -name "_tests" \) -prune -exec rm -rf {} + 2>/dev/null || true
 
 echo "==> Step 4/4: rewrite library paths for bundle-relative resolution"
@@ -88,7 +88,7 @@ case "$TARGET" in
     *-unknown-linux-gnu)
         # python-build-standalone uses $ORIGIN/../lib for the interpreter's RPATH
         # which is already relative. The PyO3-built binaries will have their RPATH
-        # set to point into the bundle — handled by after-bundle.sh at pack time.
+        # set to point into the bundle - handled by after-bundle.sh at pack time.
         echo "    Linux: using python-build-standalone's default \$ORIGIN RPATH"
         ;;
     *-pc-windows-msvc)
@@ -98,7 +98,7 @@ case "$TARGET" in
         #      d'exécuter apollia-os.exe, OU
         #   2. python313.dll copiée à côté de apollia-os.exe à l'install (option
         #      retenue pour zero-config, faite par le job CI au repackaging).
-        # Pas de rewrite d'install_name à faire ici — Windows utilise la
+        # Pas de rewrite d'install_name à faire ici - Windows utilise la
         # résolution DLL standard via PATH/dossier exécutable.
         echo "    Windows: python.exe + python313.dll resolved via launcher PATH"
         ;;
@@ -106,6 +106,6 @@ esac
 
 TOTAL_SIZE=$(du -sh "$PYTHON_DIR" | cut -f1)
 echo "==> Python bundle ready at $PYTHON_DIR (${TOTAL_SIZE})"
-# Markdownify n'est plus dans requirements-bundled.txt — réduit la liste de validation.
+# Markdownify n'est plus dans requirements-bundled.txt - réduit la liste de validation.
 "$PYTHON_BIN" -c 'import pandas, openpyxl, pypdf, httpx, bs4; print("  bundled modules import OK")' \
     || echo "warning: some bundled modules failed to import (Windows wheel mismatch?)" >&2

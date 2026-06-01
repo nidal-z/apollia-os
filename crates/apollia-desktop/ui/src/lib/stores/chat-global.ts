@@ -26,7 +26,7 @@ export {
 // ─── Global chat approval state ──────────────────────────────────────────────
 
 /**
- * Global pending chat tool approvals — populated by the SSE event dispatcher
+ * Global pending chat tool approvals - populated by the SSE event dispatcher
  * so they remain visible even when the user is not on the Chat page.
  */
 export const pendingChatApprovals = writable<PendingChatApproval[]>([]);
@@ -77,7 +77,7 @@ export function getPendingChatApprovalForSession(
 // ─── Global ask_user / user-input state ──────────────────────────────────────
 
 /**
- * Global pending ask_user requests — populated by the SSE event dispatcher
+ * Global pending ask_user requests - populated by the SSE event dispatcher
  * so they remain visible even when the user navigates away from the chat page.
  */
 export const pendingUserInputs = writable<PendingUserInputView[]>([]);

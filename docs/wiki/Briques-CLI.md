@@ -1,4 +1,4 @@
-# Apollia CLI — Interface d'Administration et de Debug
+# Apollia CLI - Interface d'Administration et de Debug
 
 > *La CLI est la première impression d'Apollia OS. Elle doit être utilisable par un admin PME non-développeur et scriptable par un ingénieur DevOps.*
 
@@ -8,7 +8,7 @@
 
 ### 1.1 Pattern de commandes
 
-**Pattern retenu : `apollia-os <noun> <verb>`** — cohérent avec `docker container create`, `kubectl get pods`. Choix structurel maintenu sans exception dans toute la CLI.
+**Pattern retenu : `apollia-os <noun> <verb>`** - cohérent avec `docker container create`, `kubectl get pods`. Choix structurel maintenu sans exception dans toute la CLI.
 
 **Règles issues des meilleures pratiques CLI 2025 :**
 - Sorties humaines par défaut (tableaux colorés), machine avec `--json` sur toutes les commandes
@@ -26,7 +26,7 @@ Niveau 3 (debug) : --verbose · --debug · --raw
 
 ---
 
-## 2. Niveau 1 — Commandes quotidiennes
+## 2. Niveau 1 - Commandes quotidiennes
 
 ### `apollia-os start`
 
@@ -50,7 +50,7 @@ $ apollia-os start
   ✔ AgentRegistry    prêt
   ✔ Tool Registry    6 outils chargés
   ✔ Memory Engine    prêt (FTS5, embedding désactivé)
-  ⚠ LlmRouter        aucun backend configuré — ctx.llm sera None pour tous les agents
+  ⚠ LlmRouter        aucun backend configuré - ctx.llm sera None pour tous les agents
   ✔ TaskRouter       prêt
   ✔ APIServer        écoute sur /tmp/apollia.sock · localhost:7771
   ─────────────────────────────────────────────────
@@ -69,8 +69,8 @@ $ apollia-os start
 $ apollia-os stop
   Apollia OS arrêt en cours...
   → Drain des tâches en cours (timeout: 30s)
-    ✔ agent "devis-generator"  — tâche t-001 terminée (2.1s)
-    ✔ agent "crm-qualifier"    — aucune tâche active
+    ✔ agent "devis-generator"  - tâche t-001 terminée (2.1s)
+    ✔ agent "crm-qualifier"    - aucune tâche active
   → Fermeture connexions MCP · Flush SQLite
   ✔ Arrêt propre en 3.2s
 
@@ -117,7 +117,7 @@ En Mode Orchestré, `apollia-os run` affiche le plan généré, la progression s
 # Mode Direct (comportement inchangé)
 $ apollia-os run devis-generator "Génère un devis pour Dupont SA, 5 jours, 850€/jour"
 
-# Mode Orchestré — affichage plan + steps temps réel
+# Mode Orchestré - affichage plan + steps temps réel
 $ apollia-os run analyse-contrat "Analyse ce contrat et extrait les clauses clés"
 
   Plan généré (3 étapes) :
@@ -152,7 +152,7 @@ $ apollia-os run devis-generator "..." --detach     # Fire and forget (flag rée
 
 ---
 
-## 3. Niveau 2 — Gestion complète
+## 3. Niveau 2 - Gestion complète
 
 ### `apollia-os agent <verb>`
 
@@ -193,8 +193,8 @@ $ apollia-os agent info devis-generator
 
 $ apollia-os agent logs rapport-hebdo
   2026-04-26T10:00:01Z [INFO] Task t-0042 started
-  2026-04-26T10:00:02Z [INFO] Step 1/3 — file_io read
-  2026-04-26T10:00:04Z [INFO] Step 2/3 — llm summarize
+  2026-04-26T10:00:02Z [INFO] Step 1/3 - file_io read
+  2026-04-26T10:00:04Z [INFO] Step 2/3 - llm summarize
   2026-04-26T10:00:06Z [INFO] Task t-0042 completed
 
 $ apollia-os agent logs rapport-hebdo --last 20
@@ -219,7 +219,7 @@ $ apollia-os agent validate ./mon-agent.py
   Version     : 0.1.0
   Required tools : file_io, python_executor
   Optional tools : http_client
-  ⚠ Optional tools not checked — agent may start in DEGRADED mode if absent
+  ⚠ Optional tools not checked - agent may start in DEGRADED mode if absent
 
 # Manifest invalide → exit 1 avec erreur précise
 $ apollia-os agent validate ./broken-agent.py
@@ -250,7 +250,7 @@ $ apollia-os agent install agents/community/git-worker.py --skip-tests
 $ apollia-os agent install agents/community/my-admin-agent.py
   → Validation du manifest...
   ✔ Manifest valide
-  ⚠ L'agent déclare dangerous_tools_allowed: true — approbation requise
+  ⚠ L'agent déclare dangerous_tools_allowed: true - approbation requise
   Confirmer l'installation ? [o/N]
 ```
 
@@ -290,7 +290,7 @@ $ apollia-os task resume t-042 --reject --reason "Budget insuffisant"
   ✔ Tâche t-042 terminée (rejetée : Budget insuffisant)
 
 # Inspecter le plan d'exécution d'une tâche orchestrée
-# Lit directement ~/.apollia/plans.db — ne nécessite pas un runtime démarré
+# Lit directement ~/.apollia/plans.db - ne nécessite pas un runtime démarré
 $ apollia-os task inspect t-abc123
 
   Tâche       : t-abc123
@@ -314,16 +314,16 @@ $ apollia-os task inspect t-abc123 --json
 
 ### `apollia-os tools <verb>`
 
-Gouvernance locale des outils natifs. Les commandes `list()`, `enable`, `disable`, `config`, `reload()` et `credentials` opèrent directement sur `governance.db` et `apollia.toml` — sans nécessiter un runtime démarré. `describe()` seule interroge le runtime via `GET /api/v1/tools/<name>`.
+Gouvernance locale des outils natifs. Les commandes `list()`, `enable`, `disable`, `config`, `reload()` et `credentials` opèrent directement sur `governance.db` et `apollia.toml` - sans nécessiter un runtime démarré. `describe()` seule interroge le runtime via `GET /api/v1/tools/<name>`.
 
 ```bash
 # État de chaque outil (actif, backend configuré, credentials)
 $ apollia-os tools list
   NOM              ACTIF   BACKEND                CREDENTIALS
-  web_search       ✓       DuckDuckGo (auto)      —
-  web_read         ✓       dom_smoothie           —
-  bash_executor    ✓       —                      —
-  python_executor  ✗       —                      —
+  web_search       ✓       DuckDuckGo (auto)      -
+  web_read         ✓       dom_smoothie           -
+  bash_executor    ✓       -                      -
+  python_executor  ✗       -                      -
 
 $ apollia-os tools list --json
 
@@ -352,7 +352,7 @@ $ apollia-os tools credentials set web_search brave.api_key
 $ apollia-os tools credentials delete web_search brave.api_key
   ✔ Credential supprimée
 $ apollia-os tools credentials test web_search
-  ✔ brave.api_key — valide (réponse 187ms)
+  ✔ brave.api_key - valide (réponse 187ms)
 
 # Descripteur d'un outil enregistré dans le runtime (nécessite runtime démarré)
 $ apollia-os tools describe bash_executor
@@ -360,7 +360,7 @@ $ apollia-os tools describe bash_executor
 
 ### `apollia-os permissions <verb>`
 
-Gestion des règles de permissions persistées. Opère directement sur `governance.db` — **pas besoin d'un runtime démarré**. Les règles de portée `session` vivent uniquement en mémoire du daemon ; elles ne sont pas listables ni révocables depuis cette commande.
+Gestion des règles de permissions persistées. Opère directement sur `governance.db` - **pas besoin d'un runtime démarré**. Les règles de portée `session` vivent uniquement en mémoire du daemon ; elles ne sont pas listables ni révocables depuis cette commande.
 
 ```bash
 # Lister toutes les règles persistées (project + global)
@@ -368,7 +368,7 @@ $ apollia-os permissions list
   ID    OUTIL             PORTÉE    ARGUMENT               EXPIRATION     CRÉÉ LE
   1     file_write        project   /tmp/ @ /mon/projet    permanente     2026-04-25
   2     web_search        global    (tous)                 permanente     2026-04-22
-  (les règles 'session' vivent en mémoire du runtime — non listables depuis la CLI)
+  (les règles 'session' vivent en mémoire du runtime - non listables depuis la CLI)
 
 # Filtres disponibles
 $ apollia-os permissions list --scope global
@@ -421,7 +421,7 @@ $ apollia-os permissions audit --json
 | Portée | Persistance | Révocable depuis CLI |
 |---|---|---|
 | `global` | `governance.db` (table `permission_rules`) | ✅ |
-| `project` | `governance.db` — lié à un `project_path` | ✅ |
+| `project` | `governance.db` - lié à un `project_path` | ✅ |
 | `session` | Mémoire du daemon uniquement | ❌ (redémarrage ou app desktop) |
 
 ### `apollia-os memory <verb>`
@@ -485,7 +485,7 @@ $ apollia-os audit stats
   Tâches     : 89 terminées, 3 échouées (96.7% succès)
   Temps moy  : 2.8s
   Outil +    : python_executor (34 appels)
-  Outil —    : http_client (2 timeouts)
+  Outil -    : http_client (2 timeouts)
 ```
 
 ### `apollia-os llm <verb>`
@@ -506,19 +506,19 @@ $ apollia-os llm status --json
 
 # Mesurer la latence d'un backend
 $ apollia-os llm ping
-  ✔ gpt-4o-mini (défaut) — 234ms
+  ✔ gpt-4o-mini (défaut) - 234ms
 $ apollia-os llm ping anthropic
-  ✔ anthropic — 187ms
+  ✔ anthropic - 187ms
 $ apollia-os llm ping local
-  ✔ local (embedded) — 1 243ms
+  ✔ local (embedded) - 1 243ms
 
 # Si la clé API est absente :
 $ apollia-os llm ping anthropic
-  ✗ anthropic — ANTHROPIC_API_KEY absent (exit code 2)
+  ✗ anthropic - ANTHROPIC_API_KEY absent (exit code 2)
 
 # Envoyer un prompt direct et afficher la réponse
 $ apollia-os llm chat "Résume les avantages du local-first en 3 points"
-  1. Pas de latence réseau — réponse instantanée
+  1. Pas de latence réseau - réponse instantanée
   2. Confidentialité totale des données
   3. Fonctionnement hors ligne garanti
 
@@ -529,7 +529,7 @@ $ apollia-os llm chat "test" --json
 
 ### `apollia-os model <verb>`
 
-Gestion des fichiers modèles locaux `.gguf`. Ne nécessite **pas** un runtime démarré — lecture directe du filesystem.
+Gestion des fichiers modèles locaux `.gguf`. Ne nécessite **pas** un runtime démarré - lecture directe du filesystem.
 
 ```bash
 # Lister les modèles disponibles dans ~/.apollia/models/
@@ -556,7 +556,7 @@ Lance l'onboarding conversationnel ou re-déclenche un onboarding partiel sur un
 **Fichier** : `crates/apollia-cli/src/commands/onboard.rs`
 
 ```bash
-# Onboarding complet — conversation naturelle sur les 5 domaines
+# Onboarding complet - conversation naturelle sur les 5 domaines
 $ apollia-os onboard
   -> Onboarding task abc123 submitted
   ... conversation ...
@@ -649,7 +649,7 @@ $ apollia-os notify test
 $ apollia-os notify list
   CANAUX CONFIGURÉS
   desktop          desktop    activé
-  slack-webhook    webhook    activé — events: task.input_required, task.failed
+  slack-webhook    webhook    activé - events: task.input_required, task.failed
 
 # Historique des 20 dernières notifications
 $ apollia-os notify logs
@@ -661,7 +661,7 @@ $ apollia-os notify logs --last 50
 
 ---
 
-## 4. Niveau 3 — Debug
+## 4. Niveau 3 - Debug
 
 ```bash
 # Debug complet d'une exécution
@@ -694,7 +694,7 @@ $ apollia-os health
 ```
 --json          Sortie JSON sur stdout (désactive couleurs et progress)
 --socket PATH   Socket Unix alternatif (défaut: /tmp/apollia.sock)
--q / --quiet    Affiche uniquement succès/erreur — aucun détail (--json prioritaire)
+-q / --quiet    Affiche uniquement succès/erreur - aucun détail (--json prioritaire)
 -v / --verbose  Affiche les détails supplémentaires (durées, steps count)
 --debug         Logs internes + traces ORIA sur stderr (équivalent RUST_LOG=debug)
 --no-color      Désactive les couleurs ANSI même si stdout est un TTY
@@ -710,7 +710,7 @@ $ apollia-os health
 2   Erreur runtime (runtime non démarré, connexion refusée)
 3   Tâche échouée (run --wait avec tâche en échec)
 4   Timeout (--timeout dépassé)
-5   Interrompu (Ctrl+C / SIGINT — le shutdown gracieux s'exécute, puis exit 5)
+5   Interrompu (Ctrl+C / SIGINT - le shutdown gracieux s'exécute, puis exit 5)
 ```
 
 Usage en script :
@@ -723,11 +723,11 @@ apollia-os run devis-generator "..." --wait || {
 
 ---
 
-## 7. Onboarding — Premier lancement
+## 7. Onboarding - Premier lancement
 
 ```bash
 $ apollia-os
-  Apollia OS v0.1.0 — Runtime d'agents IA autonomes souverains
+  Apollia OS v0.1.0 - Runtime d'agents IA autonomes souverains
 
   DÉMARRAGE RAPIDE
     apollia-os start                      Démarrer le runtime
@@ -754,7 +754,7 @@ $ apollia-os
 
 ---
 
-## 8. Implémentation — Stack Rust
+## 8. Implémentation - Stack Rust
 
 ```toml
 # Cargo.toml (apollia-cli)
@@ -775,13 +775,13 @@ colored = "2"
 
 | Décision | Justification |
 |---|---|
-| Pattern `noun verb` homogène | Cohérent avec docker/kubectl — pas d'apprentissage supplémentaire |
+| Pattern `noun verb` homogène | Cohérent avec docker/kubectl - pas d'apprentissage supplémentaire |
 | 4 commandes de niveau 1 | Admin PME peut opérer sans connaître l'architecture |
 | `--json` global | Scriptabilité totale sans compromis sur la lisibilité humaine |
 | TTY auto-détection | Couleurs en terminal, texte brut dans les pipes |
 | Codes de sortie standards | Intégration bash/CI sans traitement spécial |
-| `apollia-os agent validate` | Fail fast avant démarrage — économise du temps de debug |
-| `apollia-os memory export` | Souveraineté — l'admin peut extraire toute la mémoire |
+| `apollia-os agent validate` | Fail fast avant démarrage - économise du temps de debug |
+| `apollia-os memory export` | Souveraineté - l'admin peut extraire toute la mémoire |
 | Onboarding sans `--help` obligatoire | `apollia-os` seul explique les commandes |
 
 ---
@@ -802,7 +802,7 @@ $ apollia auth login anthropic
 $ apollia auth status
   PROVIDER    ÉTAT              EXPIRE
   anthropic   ✔ configuré       2026-05-04T10:32:00Z
-  openai      ○ non configuré   —
+  openai      ○ non configuré   -
   vertex      ✔ configuré       2026-04-20T08:00:00Z
 
 # Logout
@@ -877,7 +877,7 @@ $ apollia memory import --agent crm-agent --input backup.apollia-mem.gz
   ✔ 42 épisodes importés (mode merge)
 
 $ apollia memory import --agent crm-agent --input backup.apollia-mem.gz --replace
-  ✔ 42 épisodes importés (mode replace — namespace réinitialisé)
+  ✔ 42 épisodes importés (mode replace - namespace réinitialisé)
 
 # Purge configurable par type
 $ apollia memory purge --agent crm-agent --older-than 7 --type episodic
@@ -897,7 +897,7 @@ $ apollia mcp-server                # 9 outils natifs
 $ apollia mcp-server --with-runtime # + outil submit_task
 ```
 
-> **Voir aussi :** [Briques MCP — Mode Serveur](./Briques-MCP.md#12-mode-serveur-mcp--)
+> **Voir aussi :** [Briques MCP - Mode Serveur](./Briques-MCP.md#12-mode-serveur-mcp--)
 
 ### `apollia workspace`
 
@@ -958,7 +958,7 @@ $ apollia run --disallowed-tools bash_executor,file_write "Réponds à ma questi
 
 L'historique du REPL `apollia chat` est persisté dans `~/.apollia/repl_history` (format readline, max 10 000 entrées). Flèches haut/bas et Ctrl-R fonctionnent entre les sessions.
 
-### `/fork` — Conversation forking
+### `/fork` - Conversation forking
 
 ```
 /fork             → fork depuis maintenant (copie tout l'historique)
@@ -970,7 +970,7 @@ L'historique du REPL `apollia chat` est persisté dans `~/.apollia/repl_history`
 $ apollia chat --list   # Affiche l'arborescence parent → enfants
 ```
 
-### Slash commands custom — `APOLLIA_COMMANDS`
+### Slash commands custom - `APOLLIA_COMMANDS`
 
 Définissez des commandes réutilisables dans `.apollia/commands/*.md` :
 

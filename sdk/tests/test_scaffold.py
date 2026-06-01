@@ -163,7 +163,7 @@ class TestScaffoldWorkerAgent:
     ) -> None:
         """The generated agent file compiles as valid Python.
 
-        We intentionally do not import the module here — that would pull
+        We intentionally do not import the module here - that would pull
         in the `apollia` runtime which expects a real PyO3 context. The
         compile + structural checks above are sufficient at scaffold time.
         """

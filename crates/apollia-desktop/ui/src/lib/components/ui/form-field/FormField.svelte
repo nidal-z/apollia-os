@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * FormField — canonical wrapper for label + control + helper/error text.
+   * FormField - canonical wrapper for label + control + helper/error text.
    *
    * Structure :
    *   <FormField label="..." id="..." hint="..." error="..." required>
@@ -17,7 +17,7 @@
   interface Props {
     /** Visible label. Pass empty string to render no label. */
     label?: string;
-    /** Stable id — used by the inner control + label `for` + describedby. */
+    /** Stable id - used by the inner control + label `for` + describedby. */
     id?: string;
     /** Helper text rendered under the control (muted). */
     hint?: string;

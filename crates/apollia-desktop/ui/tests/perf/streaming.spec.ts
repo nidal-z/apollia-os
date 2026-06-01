@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * Streams 10 000 synthetic tokens through the StreamingMessage path and
  * measures the p95 frame time.  Target: p95 ≤ 18 ms (≥ 55 fps sustained).
  */
-test.describe("chat streaming — 10k tokens", () => {
+test.describe("chat streaming - 10k tokens", () => {
   test("keeps p95 frame time ≤ 18 ms", async ({ page }) => {
     await page.goto("/");
 

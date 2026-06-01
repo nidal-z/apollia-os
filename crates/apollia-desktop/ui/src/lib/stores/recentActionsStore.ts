@@ -3,7 +3,7 @@
  *
  * Persists the last 10 action ids executed from the palette so the
  * "Recently used" header can surface them when the input is empty.
- * The queue is bounded and deduplicated on push — touching an action
+ * The queue is bounded and deduplicated on push - touching an action
  * moves it to the front rather than creating a duplicate entry.
  */
 import { writable, get } from "svelte/store";
@@ -29,7 +29,7 @@ function persist(values: string[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
   } catch {
-    /* quota — ignore */
+    /* quota - ignore */
   }
 }
 

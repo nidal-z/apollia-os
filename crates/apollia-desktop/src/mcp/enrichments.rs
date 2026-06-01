@@ -318,7 +318,7 @@ mod tests {
         for e in &enrichments {
             assert!(
                 e.cost_model.is_some(),
-                "entry {} is missing cost_model — required since ADR-091",
+                "entry {} is missing cost_model - required since ADR-091",
                 e.package_identifier
             );
         }

@@ -3,8 +3,8 @@
    * Top-level command palette orchestrator.
    *
    * Composes:
-   *   - `commandPaletteOpen`     — dialog visibility
-   *   - `paletteGroups` derived  — pages / actions / sessions / settings / help
+   *   - `commandPaletteOpen`     - dialog visibility
+   *   - `paletteGroups` derived  - pages / actions / sessions / settings / help
    *
    * The actual dialog chrome is delegated to the existing headless
    * `<Command>` primitive so we keep fuzzy search, keyboard navigation
@@ -34,7 +34,7 @@
   const placeholder = $derived($t("commandPalette.placeholder.all"));
 
   function onExecute(id: string): void {
-    // Telemetry hook — observability pipeline picks this up via console.
+    // Telemetry hook - observability pipeline picks this up via console.
     // eslint-disable-next-line no-console
     console.debug("[command-palette] executed", id);
   }

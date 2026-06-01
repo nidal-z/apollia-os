@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Chat Libre (boucle ReAct + streaming + mémoire) — Apollia OS
+title Séquence - Chat Libre (boucle ReAct + streaming + mémoire) - Apollia OS
 
 actor "User / Browser" as user #3a3a3a/white
 participant "APIServer\n(axum)" as api #1a1a2e/e0e0ff
@@ -21,7 +21,7 @@ participant "EventBus" as bus #2a3a4a/cce5ff
 database "chat.db" as db #2a3a4a/cce5ff
 database "user_memory.db" as umdb #2a6a3a/c5f5c5
 
-== Phase 1 — Création de session ==
+== Phase 1 - Création de session ==
 
 user -> api : POST /api/v1/sessions\n{mode: "libre", tools: [...]}
 api -> csm : CreateSession
@@ -30,7 +30,7 @@ csm -> bus : publish(ChatSessionCreated {\n  session_id, mode: "libre"\n})
 csm --> api : SessionInfo {id, mode, status: Active}
 api --> user : 201 {session_id}
 
-== Phase 1b — Cross-session recall (premier message) ==
+== Phase 1b - Cross-session recall (premier message) ==
 
 user -> api : POST /api/v1/sessions/:id/messages\n{content: "..."}
 api -> csm : SendMessage {session_id, content}
@@ -44,12 +44,12 @@ end note
 csm -> db : SELECT FROM chat_sessions_fts\nMATCH ? LIMIT 3
 db --> csm : past sessions (summary, date)
 
-== Phase 2 — Envoi de message ==
+== Phase 2 - Envoi de message ==
 
 csm -> db : INSERT chat_messages\n(role=user)
 csm -> bus : publish(ChatMessageSent {\n  session_id, message_id\n})
 
-== Phase 2b — User Memory injection ==
+== Phase 2b - User Memory injection ==
 
 csm -> agent : execute(session, message)
 agent -> agent : build_system_prompt(\n  base_prompt\n)
@@ -64,7 +64,7 @@ note right of agent
   + grouped entries by category
 end note
 
-== Phase 2c — Context window + Summary ==
+== Phase 2c - Context window + Summary ==
 
 agent -> agent : build_llm_messages(\n  effective_prompt,\n  history, user_message,\n  summary, window_size=20\n)
 
@@ -113,7 +113,7 @@ loop Boucle ReAct (max StepBudget iterations)
         La boucle ReAct continue.
       end note
 
-    else Outil non autorisé — HITL
+    else Outil non autorisé - HITL
       agent -> bus : publish(ChatApprovalRequired {\n  session_id, tool_name, args\n})
       agent -> agent : await PendingChatApprovals\n.register(session_id, tool_name)
       note right of agent
@@ -147,7 +147,7 @@ agent -> db : INSERT chat_messages\n(role=assistant, content)
 csm --> api : Ok(message_id)
 api --> user : 200 {message_id}
 
-== Phase 4 — Fermeture et extraction mémoire ==
+== Phase 4 - Fermeture et extraction mémoire ==
 
 user -> api : DELETE /api/v1/sessions/:id
 api -> csm : CloseSession

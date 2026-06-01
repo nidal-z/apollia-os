@@ -1,4 +1,4 @@
-/** Projects zone — list, detail, workspace, chat/agent links. */
+/** Projects zone - list, detail, workspace, chat/agent links. */
 export const PROJECTS_KEYS = {
   root: "projects",
   title: "projects.title",

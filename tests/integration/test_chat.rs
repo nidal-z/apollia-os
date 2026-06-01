@@ -1,4 +1,4 @@
-//! Integration tests — chat subsystem end-to-end.
+//! Integration tests - chat subsystem end-to-end.
 //!
 //! Tests the complete chat flow: HTTP API → ChatSessionManager →
 //! BuiltInChatAgent (mock LLM) → EventBus → response.
@@ -687,7 +687,7 @@ async fn test_chat_libre_always_accept() {
     // Wait for session to return to Active state before next exchange
     tokio::time::sleep(Duration::from_millis(300)).await;
 
-    // Exchange 2: send message — tool should be auto-accepted (no ChatApprovalRequired)
+    // Exchange 2: send message - tool should be auto-accepted (no ChatApprovalRequired)
     let _ = http_post(
         port,
         &format!("/api/v1/sessions/{session_id}/messages"),
@@ -695,7 +695,7 @@ async fn test_chat_libre_always_accept() {
     )
     .await;
 
-    // Wait for the response to complete — should NOT see ChatApprovalRequired
+    // Wait for the response to complete - should NOT see ChatApprovalRequired
     let events2 = collect_events_until(
         &mut event_rx,
         |e| matches!(e, RuntimeEvent::ChatResponseCompleted { .. }),

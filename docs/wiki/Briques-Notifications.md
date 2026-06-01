@@ -1,4 +1,4 @@
-# Notifications Engine — Alertes découplées pour les agents
+# Notifications Engine - Alertes découplées pour les agents
 
 > *La crate `apollia-notifications` centralise la logique de notification d'Apollia OS : un `NotificationEngine` s'abonne à l'EventBus et dispatche 6 événements critiques vers des canaux configurables (desktop natif OS, webhooks HTTP), sans jamais bloquer le runtime. (ADR-033), les canaux et événements se gèrent via API REST CRUD et application desktop.*
 
@@ -6,7 +6,7 @@
 
 ## 1. Vue d'ensemble
 
-> **Note :** Deux nouvelles fonctionnalités — `InactivityWatcher` et `TerminalChannel` pour les notifications dans le terminal, plus `handle_budget_update` pour les alertes seuil coût LLM.
+> **Note :** Deux nouvelles fonctionnalités - `InactivityWatcher` et `TerminalChannel` pour les notifications dans le terminal, plus `handle_budget_update` pour les alertes seuil coût LLM.
 
 
 
@@ -15,7 +15,7 @@ Le `NotificationEngine` est un acteur de fond démarré en **position 9** dans l
 ```
 apollia.toml [notifications]
          │
-         ▼ build_channels() — validation + instanciation
+         ▼ build_channels() - validation + instanciation
  ┌──────────────────────────┐
  │   NotificationEngine     │ ← acteur de fond, position 9 Supervisor
  │   (s'abonne à EventBus)  │
@@ -30,7 +30,7 @@ apollia.toml [notifications]
             │ Notification { event, message, severity, metadata }
             │
      ┌──────▼──────────────────────────────────────────────────┐
-     │  dispatch_notif() — itère sur les canaux configurés      │
+     │  dispatch_notif() - itère sur les canaux configurés      │
      │                                                          │
      │  ┌─────────────────┐   ┌──────────────────────────────┐ │
      │  │  DesktopChannel │   │  WebhookChannel              │ │
@@ -53,7 +53,7 @@ apollia.toml [notifications]
 
 ## 2. Interface publique Rust
 
-### 2.1 `Notification` — structure centrale
+### 2.1 `Notification` - structure centrale
 
 ```rust
 // apollia-notifications/src/engine.rs
@@ -79,7 +79,7 @@ pub struct Notification {
 }
 ```
 
-### 2.2 `NotificationChannel` — trait des canaux
+### 2.2 `NotificationChannel` - trait des canaux
 
 ```rust
 // apollia-notifications/src/engine.rs
@@ -95,12 +95,12 @@ pub trait NotificationChannel: Send + Sync {
     fn accepts(&self, event: &str, config: &NotificationConfig) -> bool;
 
     /// Envoie la notification via ce canal.
-    /// En cas d'erreur, retourner un NotifError — l'engine logge et continue.
+    /// En cas d'erreur, retourner un NotifError - l'engine logge et continue.
     async fn send(&self, notif: &Notification) -> Result<(), NotifError>;
 }
 ```
 
-### 2.3 `NotifError` — erreurs de canal
+### 2.3 `NotifError` - erreurs de canal
 
 ```rust
 // apollia-notifications/src/engine.rs
@@ -116,17 +116,17 @@ pub enum NotifError {
     /// Erreur interne du canal (sérialisation, état incohérent, etc.).
     #[error("erreur interne : {0}")]
     Internal(String),
-    /// URL du webhook malformée — parsing impossible.
+    /// URL du webhook malformée - parsing impossible.
     #[error("URL webhook invalide : {0}")]
     InvalidUrl(String),
-    /// Garde anti-SSRF a refusé l'envoi — URL pointant sur loopback, RFC 1918,
+    /// Garde anti-SSRF a refusé l'envoi - URL pointant sur loopback, RFC 1918,
     /// link-local, ou domaine interne (`.local`, `.internal`, `localhost`, metadata cloud).
     #[error("SSRF bloqué : {0}")]
     Ssrf(String),
 }
 ```
 
-### 2.4 `Severity` — sévérité d'une notification
+### 2.4 `Severity` - sévérité d'une notification
 
 , `Severity` est étendu à **5 niveaux** avec `PartialOrd`/`Ord` pour le filtrage par seuil minimum.
 
@@ -136,11 +136,11 @@ pub enum NotifError {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Severity {
     #[default]
-    Debug = 0,    // Trace fine — développement uniquement.
-    Info = 1,     // Information — événement non bloquant.
-    Warning = 2,  // Avertissement — intervention recommandée.
-    Error = 3,    // Erreur — intervention requise.
-    Critical = 4, // Critique — panne ou perte de données imminente.
+    Debug = 0,    // Trace fine - développement uniquement.
+    Info = 1,     // Information - événement non bloquant.
+    Warning = 2,  // Avertissement - intervention recommandée.
+    Error = 3,    // Erreur - intervention requise.
+    Critical = 4, // Critique - panne ou perte de données imminente.
 }
 
 impl Severity {
@@ -150,12 +150,12 @@ impl Severity {
 
 **Ordre garanti :** `Debug < Info < Warning < Error < Critical`
 
-### 2.4.1 Filtrage par canal — `min_severity`
+### 2.4.1 Filtrage par canal - `min_severity`
 
 Chaque canal peut déclarer un seuil minimum. Une notification dont la sévérité est **strictement inférieure** au seuil du canal est ignorée silencieusement.
 
 ```toml
-# apollia.toml — configuration des canaux
+# apollia.toml - configuration des canaux
 [[notifications.channels]]
 id = "desktop"
 kind = "desktop"
@@ -187,7 +187,7 @@ impl ChannelConfig {
 }
 ```
 
-### 2.5 `NotificationEngine` — moteur principal
+### 2.5 `NotificationEngine` - moteur principal
 
 ```rust
 // apollia-notifications/src/engine.rs
@@ -206,7 +206,7 @@ impl NotificationEngine {
         event_bus: EventBusSender,
     ) -> Self;
 
-    /// Boucle principale — à lancer via tokio::spawn(engine.run()).
+    /// Boucle principale - à lancer via tokio::spawn(engine.run()).
     /// Se termine proprement quand l'EventBus est fermé (RecvError::Closed).
     /// Les erreurs Lagged (bus saturé) sont loggées en warn! sans interruption.
     pub async fn run(self);
@@ -245,7 +245,7 @@ pub enum NotificationConfigError {
 }
 ```
 
-**Schema SQLite** (`~/.apollia/notifications.db` — 3 tables) :
+**Schema SQLite** (`~/.apollia/notifications.db` - 3 tables) :
 - `notification_channels` (id, channel_type, enabled, config_json, events_json, created_at, updated_at)
 - `notification_global_events` (event_name TEXT PK)
 - `notification_logs` (id, event_name, task_id, agent_id, sent_at, channels, error) + index sur `sent_at`
@@ -313,17 +313,17 @@ La fonction `event_filter::map_event` est pure : mêmes entrées, mêmes sorties
 | `RuntimeEvent` | Nom de notification | Sévérité | Métadonnées clés |
 |---|---|---|---|
 | `TaskInputRequired { task_id, prompt,.. }` | `task.input_required` | `Warning` | `resume_url`, `inspect_url` |
-| `TaskCompleted { success: false,.. }` | `task.failed` | `Error` | — |
-| `TaskCompleted { success: true,.. }` | `task.completed` | `Info` | — |
-| `AgentDegraded { agent_id, reason }` | `agent.degraded` | `Warning` | — |
+| `TaskCompleted { success: false,.. }` | `task.failed` | `Error` | - |
+| `TaskCompleted { success: true,.. }` | `task.completed` | `Info` | - |
+| `AgentDegraded { agent_id, reason }` | `agent.degraded` | `Warning` | - |
 | `LlmModelFailed { backend, reason }` | `llm.backend_down` | `Error` | `backend` |
 | `TriggerError { trigger_id, error }` | `trigger.error` | `Error` | `trigger_id` |
 | `ChatApprovalRequired { session_id, tool_name,.. }` | `chat.approval_required` | `Warning` | `session_id`, `tool_name` |
 
-**Tous les autres `RuntimeEvent`** (`AgentRegistered`, `TaskStarted`, `AllReady`, etc.) retournent `None` — aucune notification n'est émise.
+**Tous les autres `RuntimeEvent`** (`AgentRegistered`, `TaskStarted`, `AllReady`, etc.) retournent `None` - aucune notification n'est émise.
 
 Les métadonnées HITL de `task.input_required` contiennent :
-- `resume_url` : `http://<api.bind>:<api.port>/api/v1/tasks/{id}/resume` (construit dynamiquement depuis la config — plus de `localhost:7771` hardcodé)
+- `resume_url` : `http://<api.bind>:<api.port>/api/v1/tasks/{id}/resume` (construit dynamiquement depuis la config - plus de `localhost:7771` hardcodé)
 - `inspect_url` : `http://<api.bind>:<api.port>/dashboard#tasks/{id}`
 
 Les métadonnées de `chat.approval_required` contiennent :
@@ -334,7 +334,7 @@ Les métadonnées de `chat.approval_required` contiennent :
 ### Logique de filtrage par canal
 
 ```rust
-// apollia-notifications/src/config.rs — channel_accepts_event()
+// apollia-notifications/src/config.rs - channel_accepts_event()
 
 // canal disabled          → false (toujours)
 // events = None           → true si event dans la liste globale
@@ -344,7 +344,7 @@ Les métadonnées de `chat.approval_required` contiennent :
 
 ---
 
-## 4. Gestion des notifications — CRUD SQLite
+## 4. Gestion des notifications - CRUD SQLite
 
 (ADR-033), les canaux de notification et les événements globaux sont persistés en SQLite (`~/.apollia/notifications.db`) et se gèrent via l'API REST ou l'application desktop. La section `[notifications]` de `apollia.toml` n'est plus utilisée.
 
@@ -442,7 +442,7 @@ impl Default for DesktopChannel {
 **Actions HITL sur Linux (`task.input_required`) :**
 
 ```
-Notification OS : "Apollia OS — <agent>"
+Notification OS : "Apollia OS - <agent>"
   ┌────────────────────────────────────────┐
   │ Confirmer l'envoi ?                    │
   │                                        │
@@ -481,7 +481,7 @@ pub struct WebhookChannelConfig {
 pub struct WebhookChannel {
     config: WebhookChannelConfig,
     client: Client,      // reqwest::Client, timeout 5s
-    ssrf_guard: bool,    // activé par défaut — bloque les URL internes avant tout I/O
+    ssrf_guard: bool,    // activé par défaut - bloque les URL internes avant tout I/O
 }
 
 impl WebhookChannel {
@@ -489,7 +489,7 @@ impl WebhookChannel {
     /// Le garde anti-SSRF est activé par défaut.
     pub fn new(config: WebhookChannelConfig) -> Self;
 
-    /// Désactive le garde anti-SSRF (usage test uniquement — ne pas appeler en production).
+    /// Désactive le garde anti-SSRF (usage test uniquement - ne pas appeler en production).
     pub fn with_ssrf_guard(self, enabled: bool) -> Self;
 }
 ```
@@ -517,7 +517,7 @@ impl WebhookChannel {
 | `Content-Type` | `application/json` (positionné par reqwest `.json`) |
 | `X-Apollia-Event` | nom de l'événement (ex: `task.failed`) |
 | `User-Agent` | `apollia-os/<version>` |
-| `X-Apollia-Signature` | `sha256=<hmac-hex>` — présent uniquement si `hmac_secret` configuré (voir §6.1) |
+| `X-Apollia-Signature` | `sha256=<hmac-hex>` - présent uniquement si `hmac_secret` configuré (voir §6.1) |
 
 ### 6.0 Garde anti-SSRF
 
@@ -531,7 +531,7 @@ Avant tout envoi HTTP, `WebhookChannel` vérifie que l'URL cible pointe vers un 
 
 Un opérateur qui configure par erreur une URL pointant sur `10.0.0.1` ou l'endpoint de metadata AWS (`169.254.169.254`) verra la notification échouer avec `NotifError::Ssrf(...)`. L'engine logge en `warn!` et continue le dispatch vers les autres canaux.
 
-La validation est au niveau du nom d'hôte déclaré dans l'URL — le cas DNS rebinding (hôte public au check, adresse privée à la connexion) n'est pas couvert en v0.1.
+La validation est au niveau du nom d'hôte déclaré dans l'URL - le cas DNS rebinding (hôte public au check, adresse privée à la connexion) n'est pas couvert en v0.1.
 
 ### 6.1 Signature HMAC-SHA256 des webhooks sortants
 
@@ -572,7 +572,7 @@ def verify_apollia_signature(payload_bytes: bytes, secret: str, header: str) -> 
     return hmac.compare_digest(expected, header)
 ```
 
-Si `hmac_secret` est absent ou vide, aucun header `X-Apollia-Signature` n'est ajouté — comportement identique aux versions précédentes.
+Si `hmac_secret` est absent ou vide, aucun header `X-Apollia-Signature` n'est ajouté - comportement identique aux versions précédentes.
 
 **Gestion des erreurs :**
 
@@ -591,7 +591,7 @@ app = Flask(__name__)
 def receive():
     event = request.headers.get("X-Apollia-Event")
     payload = request.get_json()
-    print(f"[{event}] task={payload.get('task_id')} — {payload.get('message')}")
+    print(f"[{event}] task={payload.get('task_id')} - {payload.get('message')}")
     return "", 200
 ```
 
@@ -628,8 +628,8 @@ Si la base est vide (aucun canal), aucun engine n'est démarré. Si un canal web
 | Webhook timeout (5s) | `Err(NotifError::WebhookFailed(_))` → `warn!` |
 | Webhook réponse non-2xx | `Err(NotifError::WebhookFailed("HTTP NNN"))` → `warn!` |
 | EventBus saturé (Lagged) | `warn!(skipped = N,...)`, boucle continue sans interruption |
-| EventBus fermé (arrêt runtime) | `break` — engine se termine proprement, aucun panic |
-| Base SQLite vide (aucun canal) | Engine non démarré — aucun coût, aucune erreur |
+| EventBus fermé (arrêt runtime) | `break` - engine se termine proprement, aucun panic |
+| Base SQLite vide (aucun canal) | Engine non démarré - aucun coût, aucune erreur |
 | Webhook sans `url` en CRUD | `NotificationConfigError::ValidationError` → HTTP 422 |
 | URL webhook vers hôte privé (RFC 1918, loopback) | `NotifError::Ssrf(_)` → `warn!`, dispatch continue |
 | URL webhook malformée | `NotifError::InvalidUrl(_)` → `warn!`, dispatch continue |
@@ -638,7 +638,7 @@ Si la base est vide (aucun canal), aucun engine n'est démarré. Si un canal web
 
 ---
 
-## 9. InactivityWatcher — Surveillance de l'inactivité
+## 9. InactivityWatcher - Surveillance de l'inactivité
 
 `InactivityWatcher` détecte quand le runtime est inactif pendant une tâche active et envoie une notification pour rappeler l'opérateur.
 
@@ -671,12 +671,12 @@ inactivity_timeout_secs = 30
 
 ---
 
-## 10. TerminalChannel — Notifications dans le terminal
+## 10. TerminalChannel - Notifications dans le terminal
 
 Nouveau canal de notification qui écrit directement dans le terminal de l'opérateur via des séquences OSC standard.
 
 ```rust
-/// Canal terminal — détecte l'émulateur et envoie la séquence OSC appropriée.
+/// Canal terminal - détecte l'émulateur et envoie la séquence OSC appropriée.
 pub struct TerminalChannel {
     kind: TerminalKind,
     min_severity: NotificationSeverity,
@@ -684,9 +684,9 @@ pub struct TerminalChannel {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TerminalKind {
-    ITerm2,       // OSC 9  — détecté via TERM_PROGRAM="iTerm.app"
-    GnomeVte,     // OSC 777 — détecté via VTE_VERSION
-    BellFallback, // \x07   — terminal inconnu
+    ITerm2,       // OSC 9  - détecté via TERM_PROGRAM="iTerm.app"
+    GnomeVte,     // OSC 777 - détecté via VTE_VERSION
+    BellFallback, // \x07   - terminal inconnu
 }
 
 impl TerminalChannel {
@@ -695,9 +695,9 @@ impl TerminalChannel {
 }
 ```
 
-**Écriture sur stderr** (pas stdout — ne perturbe pas les scripts).
+**Écriture sur stderr** (pas stdout - ne perturbe pas les scripts).
 
-**Filtre par sévérité :** `min_severity: Info | Warning | Error` — configurable par canal.
+**Filtre par sévérité :** `min_severity: Info | Warning | Error` - configurable par canal.
 
 Config :
 ```toml
@@ -714,13 +714,13 @@ min_severity = "info"
 
 ```rust
 impl NotificationEngine {
-    /// Edge trigger — notifie uniquement au passage de false → true.
+    /// Edge trigger - notifie uniquement au passage de false → true.
     pub async fn handle_budget_update(&mut self, event: &RuntimeEvent) {
         if let RuntimeEvent::TokenBudgetUpdated { session_cost_usd, threshold_usd, threshold_exceeded, .. } = event {
             if *threshold_exceeded && !self.cost_threshold_already_notified {
                 self.cost_threshold_already_notified = true;
                 self.publish(Notification {
-                    title: "Apollia — Seuil coût LLM dépassé".into(),
+                    title: "Apollia - Seuil coût LLM dépassé".into(),
                     body: format!("Coût session : ${:.3} (seuil : ${:.3})", session_cost_usd, threshold_usd),
                     severity: NotificationSeverity::Warning,
                     kind: NotificationKind::CostAlert,
@@ -735,7 +735,7 @@ impl NotificationEngine {
 
 **Edge trigger** (pas level trigger) : une seule notification par dépassement, pas de spam.
 
-> **Voir aussi :** [Briques LLM Backend — TokenBudgetUpdated](./Briques-LLM-Backend.md#tokenbudgetupdated--event-enrichi-story-473)
+> **Voir aussi :** [Briques LLM Backend - TokenBudgetUpdated](./Briques-LLM-Backend.md#tokenbudgetupdated--event-enrichi-story-473)
 
 ---
 

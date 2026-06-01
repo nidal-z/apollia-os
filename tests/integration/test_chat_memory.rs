@@ -1,4 +1,4 @@
-//! Integration tests — Sprint 22 chat memory subsystem.
+//! Integration tests - Sprint 22 chat memory subsystem.
 //!
 //! Validates the end-to-end interactions between `apollia-memory`,
 //! `apollia-runtime` (chat), and `apollia-llm` (mock) for user memory

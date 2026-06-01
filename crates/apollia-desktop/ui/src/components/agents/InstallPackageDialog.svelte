@@ -234,7 +234,7 @@
         </div>
         <div>
           <p class="font-medium text-sm">{preview.name}</p>
-          <p class="text-xs text-muted-foreground">v{preview.version} · {preview.author || "—"}</p>
+          <p class="text-xs text-muted-foreground">v{preview.version} · {preview.author || "-"}</p>
         </div>
         <div class="ml-auto">
           {#if preview.valid}

@@ -1,5 +1,5 @@
 /**
- * Wizard client — thin wrapper around the `meta_parse_automation` Tauri IPC
+ * Wizard client - thin wrapper around the `meta_parse_automation` Tauri IPC
  *
  *
  * Keeps the backend contract (`ParsedAutomation`) localized and exposes a

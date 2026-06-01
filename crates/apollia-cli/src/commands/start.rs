@@ -55,7 +55,7 @@ pub enum StartError {
         reason: String,
     },
     /// A runtime is already listening on the requested port or socket.
-    #[error("runtime already running on {address} — use `apollia-os stop` first")]
+    #[error("runtime already running on {address} - use `apollia-os stop` first")]
     AlreadyRunning { address: String },
     /// API token could not be loaded or generated while `require_token = true`.
     #[error("failed to load or generate API token: {0}")]
@@ -119,7 +119,7 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
             tracing::warn!(
                 target: "apollia.aip.secrets",
                 error = %e,
-                "failed to open ToolCredentialStore for ctx.secrets — agent will see None for all keys"
+                "failed to open ToolCredentialStore for ctx.secrets - agent will see None for all keys"
             );
             None
         }
@@ -193,7 +193,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             .event_bus
             .get()
             .cloned()
-            .ok_or("event bus not initialized — chat agent called before runtime ready")?;
+            .ok_or("event bus not initialized - chat agent called before runtime ready")?;
         let llm_router = self.llm_router.get().cloned().flatten();
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
@@ -216,7 +216,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
 
         let memory_base_dir = self.data_dir.join("memory");
         let snapshot = load_governance_snapshot(&self.data_dir).unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "governance snapshot unavailable — defaulting to all tools enabled");
+            tracing::warn!(error = %e, "governance snapshot unavailable - defaulting to all tools enabled");
             Default::default()
         });
         let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
@@ -262,7 +262,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             _ => {
                 tracing::warn!(
                     agent = %agent_name,
-                    "A2A delegate/invoker not available for chat-agent runner — registry or router not yet initialized"
+                    "A2A delegate/invoker not available for chat-agent runner - registry or router not yet initialized"
                 );
                 (None, None)
             }
@@ -478,7 +478,7 @@ struct NoopToolInvoker;
 impl ToolInvoker for NoopToolInvoker {
     async fn invoke(&self, name: &str, _args: &serde_json::Value) -> Result<String, String> {
         Err(format!(
-            "tool '{name}' invocation via LLM loop not wired — use ctx.tools directly"
+            "tool '{name}' invocation via LLM loop not wired - use ctx.tools directly"
         ))
     }
 }
@@ -540,7 +540,7 @@ fn wire_engine_with_llm(
     let Some(router_arc) = llm_router else {
         tracing::warn!(
             agent = %agent_id,
-            "no llm router configured — orchestrated execution will fail \
+            "no llm router configured - orchestrated execution will fail \
              with NO_LLM if invoked"
         );
         return engine;
@@ -559,7 +559,7 @@ fn wire_engine_with_llm(
             tracing::warn!(
                 agent = %agent_id,
                 error = %err,
-                "no precise LLM backend resolved — orchestrated \
+                "no precise LLM backend resolved - orchestrated \
                  execution will fail with NO_LLM if invoked"
             );
             engine = engine.with_llm_router(owned_router);
@@ -744,7 +744,7 @@ impl AgentRunner for BridgeRunner {
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| memory_base_dir.clone());
             let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "governance snapshot unavailable — defaulting to all tools enabled");
+                tracing::warn!(error = %e, "governance snapshot unavailable - defaulting to all tools enabled");
                 Default::default()
             });
             let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
@@ -792,7 +792,7 @@ impl AgentRunner for BridgeRunner {
                 _ => {
                     tracing::warn!(
                         agent = %agent_id,
-                        "ToolProxy not available — tool registry or audit trail missing; \
+                        "ToolProxy not available - tool registry or audit trail missing; \
                          agent will use its own fallback for tool calls"
                     );
                     None
@@ -1034,7 +1034,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             None => {
                 tracing::debug!(
                     agent = %agent_id,
-                    "factory invoked before runtime handles are populated — \
+                    "factory invoked before runtime handles are populated - \
                      emitting placeholder NoopBackend, will be rewired post-start"
                 );
                 return DynBackend::new(NoopBackend);
@@ -1069,7 +1069,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             _ => {
                 tracing::warn!(
                     agent = %agent_id,
-                    "A2A delegate/invoker not available — registry or router not yet initialized"
+                    "A2A delegate/invoker not available - registry or router not yet initialized"
                 );
                 (None, None)
             }
@@ -1129,7 +1129,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                     agent = %agent_id,
                     path = %agent_path.display(),
                     error = %e,
-                    "failed to load agent Python module — falling back to NoopBackend"
+                    "failed to load agent Python module - falling back to NoopBackend"
                 );
                 DynBackend::new(NoopBackend)
             }
@@ -1302,7 +1302,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
                 Some(repo)
             }
             Err(e) => {
-                tracing::warn!(error = %e, "AgentRepository failed to open — auto-load disabled");
+                tracing::warn!(error = %e, "AgentRepository failed to open - auto-load disabled");
                 None
             }
         }
@@ -1318,7 +1318,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         match apollia_tools::PackageRepository::open(&db_path) {
             Ok(repo) => Some(repo),
             Err(e) => {
-                tracing::warn!(error = %e, "PackageRepository failed to open — Phase 10.6 disabled");
+                tracing::warn!(error = %e, "PackageRepository failed to open - Phase 10.6 disabled");
                 None
             }
         }
@@ -1549,7 +1549,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 fn load_start_config(
 ) -> Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError> {
     let Some(path) = find_config_file() else {
-        tracing::info!("no apollia.toml found — starting with defaults");
+        tracing::info!("no apollia.toml found - starting with defaults");
         return Ok((None, None));
     };
     tracing::info!(config = %path.display(), "loading config");
@@ -1591,7 +1591,7 @@ async fn rewire_auto_loaded_agents(
     let installed = match repo.list_enabled() {
         Ok(rows) => rows,
         Err(e) => {
-            tracing::warn!(error = %e, "rewire: failed to list installed agents — skipping");
+            tracing::warn!(error = %e, "rewire: failed to list installed agents - skipping");
             return;
         }
     };
@@ -1756,7 +1756,7 @@ mod tests {
 
         assert!(
             !wired.has_reasoner(),
-            "an empty LlmRouter must not produce a Reasoner — \
+            "an empty LlmRouter must not produce a Reasoner - \
              would yield NO_LLM at runtime"
         );
     }
@@ -1812,7 +1812,7 @@ class A:
 
     async def __apollia_dispatch__(self, task, ctx):
         # Reaching this means AIPProductionBackend routed the task to
-        # execute_direct (which goes through __apollia_dispatch__) — i.e.
+        # execute_direct (which goes through __apollia_dispatch__) - i.e.
         # BUG-004 mode 1 has regressed.
         return {
             "task_id": task.get("task_id", ""),

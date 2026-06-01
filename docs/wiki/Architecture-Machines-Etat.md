@@ -1,4 +1,4 @@
-# Architecture — Machines d'État — Apollia OS
+# Architecture - Machines d'État - Apollia OS
 
 > Les deux machines d'état indépendantes d'Apollia OS : ProcessState (agent) et TaskState (tâche), leurs transitions valides, et la règle d'or qui les distingue.
 > Public cible : développeur d'agent, contributeur Rust
@@ -16,7 +16,7 @@ Un agent peut être `ACTIVE` (ProcessState) tout en traitant une tâche `working
 
 ---
 
-## ProcessState — Machine d'état du processus
+## ProcessState - Machine d'état du processus
 
 ```
 INITIALIZING ──────────────► ACTIVE ──────────────► STOPPING ──► STOPPED
@@ -41,7 +41,7 @@ INITIALIZING ──────────────► ACTIVE ────�
 
 ### Signification de chaque état
 
-**`INITIALIZING`** : phase de démarrage. Le runtime résout les outils, ouvre la base SQLite, appelle `on_start()` si défini. Aucune tâche n'est acceptée. Toute erreur détectable ici est détectée ici (Principe #4 — Fail Fast).
+**`INITIALIZING`** : phase de démarrage. Le runtime résout les outils, ouvre la base SQLite, appelle `on_start()` si défini. Aucune tâche n'est acceptée. Toute erreur détectable ici est détectée ici (Principe #4 - Fail Fast).
 
 **`ACTIVE`** : l'agent est opérationnel. Il accepte les nouvelles tâches jusqu'à sa limite de concurrence (`max_concurrent_tasks`).
 
@@ -72,7 +72,7 @@ $ apollia-os agent info hello-agent
 
 ---
 
-## TaskState — Machine d'état des tâches
+## TaskState - Machine d'état des tâches
 
 Alignée sur A2A TaskState (Google Agent-to-Agent Protocol).
 
@@ -97,8 +97,8 @@ submitted ──► working ──► completed
 | `working` | `failed` | Agent retourne `AIPResult.failed` ou exception Python |
 | `working` | `failed` | `StepBudget` épuisé (steps, tool_calls, ou wall_clock) |
 | `working` | `canceled` | `apollia-os task cancel` + signal à l'agent |
-| `working` | `input_required` | Agent retourne `AIPResult.input_required(prompt, context)` — HITL |
-| `input_required` | `working` | `POST /api/v1/tasks/{id}/resume { approved: true }` — ORIA rappelle `agent.run` |
+| `working` | `input_required` | Agent retourne `AIPResult.input_required(prompt, context)` - HITL |
+| `input_required` | `working` | `POST /api/v1/tasks/{id}/resume { approved: true }` - ORIA rappelle `agent.run` |
 | `input_required` | `failed` | `POST /api/v1/tasks/{id}/resume { approved: false }` → `AIPResult::failed("REJECTED")` |
 | `input_required` | `canceled` | `TimeoutWatcher` (scan 60s, expire après `input_required_timeout`, défaut 24h) |
 
@@ -136,7 +136,7 @@ data: {"event":"TaskCompleted","task_id":"t-def456","status":"completed"}
 
 ## La règle d'or
 
-**Pourquoi cette règle existe :** les deux machines d'état sont indépendantes mais doivent rester cohérentes. Un agent `DEGRADED` (ex: outil optionnel manquant) peut encore traiter des tâches — il fonctionne en mode dégradé, pas arrêté. Un agent `STOPPING` attend que ses tâches en cours finissent (drain gracieux). Un agent `STOPPED` ne peut avoir aucune tâche active.
+**Pourquoi cette règle existe :** les deux machines d'état sont indépendantes mais doivent rester cohérentes. Un agent `DEGRADED` (ex: outil optionnel manquant) peut encore traiter des tâches - il fonctionne en mode dégradé, pas arrêté. Un agent `STOPPING` attend que ses tâches en cours finissent (drain gracieux). Un agent `STOPPED` ne peut avoir aucune tâche active.
 
 **`input_required` et HITL :** quand une tâche passe en `input_required`, elle est **pausée** (pas verrouillée, pas terminée). L'agent ne s'exécute plus pour cette tâche. L'opérateur doit fournir une réponse via `apollia-os task resume <id>` ou l'API REST, puis le runtime relance `run()` avec `task["is_resumed"] = True` et la réponse dans `task["input_response"]`.
 
@@ -198,7 +198,7 @@ pub enum TaskStatus {
 
 ## Voir aussi
 
-- [Architecture Vue d'ensemble](./Architecture-Vue-Ensemble) — les deux machines d'état expliquées dans leur contexte
-- [Architecture Modèle Acteur](./Architecture-Modele-Acteur) — AgentRegistry et TaskRouter
-- [Briques ORIA Engine](./Briques-ORIA-Engine) — StepBudget et les transitions TaskState
-- [ADR-004](../adr/ADR-004-deux-modes-execution-oria) — pourquoi deux machines d'état séparées
+- [Architecture Vue d'ensemble](./Architecture-Vue-Ensemble) - les deux machines d'état expliquées dans leur contexte
+- [Architecture Modèle Acteur](./Architecture-Modele-Acteur) - AgentRegistry et TaskRouter
+- [Briques ORIA Engine](./Briques-ORIA-Engine) - StepBudget et les transitions TaskState
+- [ADR-004](../adr/ADR-004-deux-modes-execution-oria) - pourquoi deux machines d'état séparées

@@ -5,7 +5,7 @@
   JSON output and truncates it to MAX_PREVIEW_LENGTH characters. Falls back to
   the first line of raw text for non-JSON output.
 
-  Smart output renderer — preview variant
+  Smart output renderer - preview variant
 -->
 <script lang="ts">
   import { cn } from "$lib/utils";
@@ -44,7 +44,7 @@
         }
       }
     } catch {
-      // Not JSON — fall through to plain text handling
+      // Not JSON - fall through to plain text handling
     }
 
     const firstLine = raw.split("\n")[0] ?? raw;

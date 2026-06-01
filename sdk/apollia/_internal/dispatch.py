@@ -231,7 +231,7 @@ async def dispatch_task(
        :func:`dispatch_message` with the first text part.
     3. Else ⇒ ``AIPResult.failed("NO_HANDLER", ...)``.
 
-    Exceptions are always trapped — the returned dict is guaranteed to
+    Exceptions are always trapped - the returned dict is guaranteed to
     be a valid ``AIPResult``.
     """
     logger = _logger_from_ctx(ctx)

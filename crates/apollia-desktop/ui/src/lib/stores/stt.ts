@@ -28,7 +28,7 @@ export async function refreshSttStatus(): Promise<void> {
     const result: SttStatus = await invoke("get_stt_status");
     sttStatus.set(result);
   } catch {
-    // runtime or STT engine not ready yet — keep current state
+    // runtime or STT engine not ready yet - keep current state
   }
 }
 
@@ -40,7 +40,7 @@ export async function refreshTranscriptions(): Promise<void> {
     });
     transcriptions.set(result);
   } catch {
-    // runtime not ready yet — keep current state
+    // runtime not ready yet - keep current state
   }
 }
 

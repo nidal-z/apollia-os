@@ -693,7 +693,7 @@ fn run_templates_list(db: Option<&Path>, json: bool) -> i32 {
                     serde_json::to_string_pretty(&templates).unwrap_or_default()
                 );
             } else if templates.is_empty() {
-                println!("  (no templates — run `apollia-os project templates seed-builtins`)");
+                println!("  (no templates - run `apollia-os project templates seed-builtins`)");
             } else {
                 println!("  {:<24} {:<10} {}", "ID", "KIND", "NAME");
                 for t in &templates {

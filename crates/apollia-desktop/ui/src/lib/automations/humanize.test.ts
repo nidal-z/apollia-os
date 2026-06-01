@@ -6,7 +6,7 @@ import {
   computeSuccessRate,
 } from "./humanize";
 
-describe("humanizeSchedule — cron", () => {
+describe("humanizeSchedule - cron", () => {
   // GIVEN standard cron expressions WHEN humanized THEN operator sentences.
   it("recognises every minute", () => {
     expect(humanizeSchedule("cron", "* * * * *", "en").label).toBe("Every minute");
@@ -70,7 +70,7 @@ describe("humanizeSchedule — cron", () => {
   });
 });
 
-describe("humanizeSchedule — interval", () => {
+describe("humanizeSchedule - interval", () => {
   it("humanizes seconds", () => {
     expect(humanizeSchedule("interval", "30s", "en").label).toBe("Every 30 seconds");
     expect(humanizeSchedule("interval", "30s", "fr").label).toBe("Toutes les 30 secondes");
@@ -91,7 +91,7 @@ describe("humanizeSchedule — interval", () => {
   });
 });
 
-describe("humanizeSchedule — file_watch & webhook & oneshot", () => {
+describe("humanizeSchedule - file_watch & webhook & oneshot", () => {
   it("describes a file watcher", () => {
     expect(humanizeSchedule("file_watch", "~/Documents/specs", "en").label).toBe(
       "When ~/Documents/specs changes",

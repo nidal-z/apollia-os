@@ -38,7 +38,7 @@ const EXTRACTION_TIMEOUT: Duration = Duration::from_secs(30);
 const EXTRACTION_COOLDOWN: Duration = Duration::from_secs(3600);
 
 /// Prompt sent to the LLM to extract user information from a conversation.
-const EXTRACTION_PROMPT: &str = r#"Analyze this conversation and extract durable user information — things that will still be true in future conversations.
+const EXTRACTION_PROMPT: &str = r#"Analyze this conversation and extract durable user information - things that will still be true in future conversations.
 
 Return ONLY a JSON object:
 {
@@ -49,8 +49,8 @@ Return ONLY a JSON object:
 
 Rules:
 - Only include information explicitly stated or strongly implied by the user.
-- Focus on stable traits: role, expertise, tools, preferences, domain — not ephemeral task details.
-- Use concise, specific keys (e.g. "preferred_language", "ide", "expertise_level") — not generic ones.
+- Focus on stable traits: role, expertise, tools, preferences, domain - not ephemeral task details.
+- Use concise, specific keys (e.g. "preferred_language", "ide", "expertise_level") - not generic ones.
 - Skip information that is obvious from the system context (OS, working directory).
 - If nothing durable can be extracted for a category, use an empty array.
 - Do not invent or assume information not present in the conversation."#;
@@ -223,7 +223,7 @@ impl UserMemoryExtractor {
         for &entry in entries {
             match repo.get(&entry.key) {
                 Ok(Some(existing)) if existing.value == entry.value => {
-                    tracing::debug!(key = %entry.key, "duplicate skipped — same value");
+                    tracing::debug!(key = %entry.key, "duplicate skipped - same value");
                 }
                 Ok(Some(existing))
                     if matches!(existing.written_by, WrittenBy::Onboarding | WrittenBy::User) =>

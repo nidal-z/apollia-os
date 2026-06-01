@@ -1,4 +1,4 @@
-"""Tests for apollia.testing.assertions — assertion helpers for agent tests."""
+"""Tests for apollia.testing.assertions - assertion helpers for agent tests."""
 
 from __future__ import annotations
 

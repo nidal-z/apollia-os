@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence Agent Install — Bundled & Community — Apollia OS
+title Séquence Agent Install - Bundled & Community - Apollia OS
 
 participant "Supervisor" as sup #1a1a2e
 participant "Filesystem" as fs #3a3a3a
@@ -14,7 +14,7 @@ participant "AIP Bridge\n(PyO3)" as aip #1a1a2e
 participant "VenvManager" as venv #1a1a2e
 participant "SkillIndex" as skills #1a1a2e
 
-== Flow 1 : Bundled Agents — First Boot ==
+== Flow 1 : Bundled Agents - First Boot ==
 
 sup -> fs : read agents/bundled/manifest.json
 fs --> sup : manifest {\n  agents: [\n    "excel-worker",\n    "csv-worker",\n    "pdf-worker",\n    "code-worker"\n  ]\n}
@@ -46,7 +46,7 @@ end note
 participant "User (CLI)" as user #3a3a3a
 participant "Validator" as val #1a1a2e
 
-== Flow 2 : Community Agent — Manual Install ==
+== Flow 2 : Community Agent - Manual Install ==
 
 user -> sup : apollia-os agent install\n  /path/to/agent
 sup -> val : validate_community_agent(path)

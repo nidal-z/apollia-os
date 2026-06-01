@@ -317,7 +317,7 @@
     >
       <option value="">
         Modèle par défaut{defaultBackend
-          ? ` (${defaultBackend.name} — ${defaultBackend.model})`
+          ? ` (${defaultBackend.name} - ${defaultBackend.model})`
           : ""}
       </option>
       {#each availableBackends as b (b.name)}

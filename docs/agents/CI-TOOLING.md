@@ -359,7 +359,7 @@ workspace-wide.
 
 ```sh
 # Clone
-git clone git@github.com:nidal-z/apollia-os.git
+git clone git@github.com:Apollia-OS/apollia-os.git
 cd apollia-os
 
 # Toolchain (rust-toolchain.toml handles the Rust side)

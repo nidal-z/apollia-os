@@ -1,4 +1,4 @@
-# Dark mode audit — chat surface (US-SP42-035, B.54)
+# Dark mode audit - chat surface (US-SP42-035, B.54)
 
 **Scope** : `src/components/chat/*.svelte` (27 composants identifiés).
 **Date** : 2026-04-19.
@@ -37,7 +37,7 @@ Les tokens de référence (`--primary`, `--card`, `--foreground`, `--border`, `-
 | 20 | `ChatConversationHeader.svelte` | ✅ | tokens purs |
 | 21 | `ChatInput.svelte` | ✅ | tokens purs |
 | 22 | `ChatMessageBubble.svelte` | ✅ | corrigé US-SP42-035 : `border-border/40` côté agent (ex-`border-neutral/10`) |
-| 23 | `ChatSessionCard.svelte` | ⚠️ | `bg-amber-500 text-white` sur le badge "fork" (l.231) — volontaire pour contraste max sur glass, acceptable en dark |
+| 23 | `ChatSessionCard.svelte` | ⚠️ | `bg-amber-500 text-white` sur le badge "fork" (l.231) - volontaire pour contraste max sur glass, acceptable en dark |
 | 24 | `ChatSessionsSidebar.svelte` | ✅ | tokens purs |
 | 25 | `ChatShell.svelte` | ✅ | tokens purs |
 | 26 | `CloseSessionDialog.svelte` | ✅ | tokens purs |
@@ -76,16 +76,16 @@ Les tokens de référence (`--primary`, `--card`, `--foreground`, `--border`, `-
 
 ## Correctifs appliqués dans cette story
 
-1. `ChatMessageBubble.svelte:50` — `border-neutral/10` → `border-border/40` (bordures visibles en dark).
-2. `ChatConversation.svelte` — streaming bubble extrait dans `StreamingMessage.svelte` avec `border-border/40`.
+1. `ChatMessageBubble.svelte:50` - `border-neutral/10` → `border-border/40` (bordures visibles en dark).
+2. `ChatConversation.svelte` - streaming bubble extrait dans `StreamingMessage.svelte` avec `border-border/40`.
 
 ## Non-correctifs (acceptés)
 
-- `ChatSessionCard.svelte:231` — badge "fork" en `bg-amber-500 text-white` : contrast 7.5:1 sur les deux thèmes, lisibilité prioritaire sur l'harmonie tokenisée.
+- `ChatSessionCard.svelte:231` - badge "fork" en `bg-amber-500 text-white` : contrast 7.5:1 sur les deux thèmes, lisibilité prioritaire sur l'harmonie tokenisée.
 
 ## Reste-à-faire
 
-- Captures automatisées Playwright (light + dark) : reportées à un sprint dédié (US-SP42-036 proposée — setup infra Playwright commun).
+- Captures automatisées Playwright (light + dark) : reportées à un sprint dédié (US-SP42-036 proposée - setup infra Playwright commun).
 - Audit a11y spécifique contrast-ratio (WCAG AA) sur les zones semi-transparentes `glass-surface`.
 
 ## Méthodologie de reproduction

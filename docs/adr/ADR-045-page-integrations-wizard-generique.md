@@ -1,4 +1,4 @@
-# ADR-045 — Page Intégrations : wizard générique piloté par les metadata MCP Registry
+# ADR-045 - Page Intégrations : wizard générique piloté par les metadata MCP Registry
 
 **Date :** 2026-08-01
 **Statut :** Accepté
@@ -25,9 +25,9 @@ La question centrale est : comment implémenter le wizard de configuration ?
 
 **Contraintes structurantes :**
 
-1. **Principe #1 — Local-first** : les secrets ne quittent pas la machine ; le wizard doit
+1. **Principe #1 - Local-first** : les secrets ne quittent pas la machine ; le wizard doit
    fonctionner hors ligne (cache local du registry).
-2. **Principe #2 — Zéro dépendance externe** : le binaire ne doit pas nécessiter d'accès
+2. **Principe #2 - Zéro dépendance externe** : le binaire ne doit pas nécessiter d'accès
    réseau obligatoire pour fonctionner.
 3. **Échelle** : le MCP Registry référence aujourd'hui 16 000+ serveurs. Un composant
    spécifique par connecteur est impossible à maintenir.
@@ -49,7 +49,7 @@ référencés dans `mcp.toml` par le préfixe `APOLLIA_SECRET:<service>/<key>`.
 
 ## Alternatives considérées
 
-### Option A — Wizard par connecteur (rejetée)
+### Option A - Wizard par connecteur (rejetée)
 
 Un composant Svelte dédié par service (ex. `NotionWizard.svelte`, `SlackWizard.svelte`).
 
@@ -69,7 +69,7 @@ Un composant Svelte dédié par service (ex. `NotionWizard.svelte`, `SlackWizard
 
 Rejetée : coût de maintenance incompatible avec une équipe solo.
 
-### Option B — Pas de wizard, édition assistée de mcp.toml (rejetée)
+### Option B - Pas de wizard, édition assistée de mcp.toml (rejetée)
 
 Afficher un éditeur TOML enrichi (coloration syntaxique, validation de schéma) dans l'UI.
 
@@ -87,7 +87,7 @@ Afficher un éditeur TOML enrichi (coloration syntaxique, validation de schéma)
 
 Rejetée : ne résout pas le problème d'accessibilité qui motive ce sprint.
 
-### Option C — Wizard générique piloté par metadata + enrichissements builtin (retenue)
+### Option C - Wizard générique piloté par metadata + enrichissements builtin (retenue)
 
 Un seul composant wizard lit les metadata du MCP Registry et affiche les champs
 dynamiquement. Pour les 6 connecteurs les plus courants (Notion, Slack, GitHub, Linear,
@@ -118,7 +118,7 @@ des liens vers la documentation officielle, et des valeurs par défaut pertinent
 - Un utilisateur Operator peut ajouter Notion, Slack ou tout autre serveur MCP en
   3 minutes sans ouvrir un terminal.
 - L'ajout d'un nouveau connecteur au catalogue ne nécessite aucune modification du
-  code Apollia — uniquement une entrée dans le MCP Registry officiel.
+  code Apollia - uniquement une entrée dans le MCP Registry officiel.
 - Les secrets sont isolés dans le keychain OS ; `mcp.toml` ne contient jamais de
   valeurs sensibles en clair.
 - Le mode offline est garanti par le cache local du registry (TTL 24h par défaut).
@@ -145,21 +145,21 @@ des liens vers la documentation officielle, et des valeurs par défaut pertinent
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : respecté — secrets dans le keychain OS (jamais dans
+- **Principe #1 - Local-first** : respecté - secrets dans le keychain OS (jamais dans
   le cloud), cache local du registry, mode offline garanti.
-- **Principe #2 — Zéro dépendance externe** : respecté en mode offline grâce au cache ;
+- **Principe #2 - Zéro dépendance externe** : respecté en mode offline grâce au cache ;
   la dépendance réseau vers le registry est optionnelle et à la seule initiative de
   l'utilisateur (rafraîchissement du catalogue).
-- **Principe #4 — Fail fast** : le wizard teste la connexion au serveur MCP (step 4 sur 5)
+- **Principe #4 - Fail fast** : le wizard teste la connexion au serveur MCP (step 4 sur 5)
   avant de confirmer l'ajout ; les erreurs de configuration sont détectées immédiatement.
-- **Principe #8 — CLI humaine, API machine** : le wizard délègue toutes les mutations
+- **Principe #8 - CLI humaine, API machine** : le wizard délègue toutes les mutations
   à l'API REST existante (`POST /mcp/servers`, `DELETE /mcp/servers/:id`) ; aucune logique
   métier n'est dupliquée côté frontend.
 
 ## Liens
 
 - ADR précédent sur MCP : ADR-044 (client MCP, architecture et transport)
-- ADR connexe : ADR-027 (desktop Tauri — processus unique, runtime embarqué)
+- ADR connexe : ADR-027 (desktop Tauri - processus unique, runtime embarqué)
 - ADR connexe : ADR-028 (frontend Svelte, UX-first)
 - Stories : STORY-345 (cette ADR), STORY-346 (registry client), STORY-347 (secret store),
   STORY-349 (resolve_env APOLLIA_SECRET:), STORY-357 (ConnectorWizard)

@@ -1,4 +1,4 @@
-Apollia OS — runners staging directory (ADR-113)
+Apollia OS - runners staging directory (ADR-113)
 
 Ce dossier est rempli par scripts/bundle-cli.sh pendant le bundle Tauri.
 Les binaires `apollia-runner-{cpu,metal,cuda,rocm,vulkan}[.exe]` sont copiés

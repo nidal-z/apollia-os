@@ -2,9 +2,9 @@
   /**
    * Dense row for the operator Automations table.
    *
-   * Matches the visual pattern of `TaskRow` / `MemoryRow` — single line with
+   * Matches the visual pattern of `TaskRow` / `MemoryRow` - single line with
    * column-aligned cells and a hover-revealed action menu. No glass-card,
-   * no gradient bars — only V3 surface tokens.
+   * no gradient bars - only V3 surface tokens.
    */
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
@@ -91,7 +91,7 @@
   }
 
   const lastRunLabel = $derived(
-    trigger.last_fired ? formatRelative(trigger.last_fired) : "—",
+    trigger.last_fired ? formatRelative(trigger.last_fired) : "-",
   );
 
   const humanTitle = $derived(

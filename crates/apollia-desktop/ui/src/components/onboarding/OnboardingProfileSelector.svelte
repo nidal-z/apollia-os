@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Onboarding step 2 — Profile selector.
+   * Onboarding step 2 - Profile selector.
    *
    * Two-card chooser (operator vs builder). The selection is persisted via
    * `set_onboarding_profile`, mirrored into the local {@link uiMode} store
@@ -77,7 +77,7 @@
       </div>
       <h3 class="card-title">Opérateur</h3>
       <p class="card-desc">
-        Tu veux des agents qui exécutent des tâches concrètes pour toi —
+        Tu veux des agents qui exécutent des tâches concrètes pour toi -
         emails, veille, synthèses, automatisations.
       </p>
       <ul class="card-bullets">

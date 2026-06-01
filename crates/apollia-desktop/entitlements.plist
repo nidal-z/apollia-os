@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD PropertyList-1.0.dtd">
 <!--
-  Apollia OS — hardened runtime entitlements (ADR-073).
+  Apollia OS - hardened runtime entitlements (ADR-073).
 
   PyO3 embeds a Python interpreter that executes dynamically compiled bytecode
   and loads `libpython3.13.dylib` shipped from python-build-standalone (signed

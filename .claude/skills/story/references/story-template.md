@@ -1,4 +1,4 @@
-# Template — User Story Apollia OS
+# Template - User Story Apollia OS
 
 > Copier ce template pour chaque nouvelle story. Supprimer les commentaires `<!-- -->` avant de livrer.
 
@@ -40,7 +40,7 @@ afin que le runtime échoue clairement au démarrage si un outil est absent.
      quel principe architectural elle implémente. -->
 
 **Principe(s) architectural(aux) concerné(s) :**
-- Principe #N — [nom du principe]
+- Principe #N - [nom du principe]
 
 **Position dans l'architecture :**
 ```
@@ -54,7 +54,7 @@ Runtime Core
 
 ## Critères d'Acceptation
 
-### AC-1 — [Nom du cas principal]
+### AC-1 - [Nom du cas principal]
 
 ```
 ÉTANT DONNÉ [état initial]
@@ -62,7 +62,7 @@ QUAND [action]
 ALORS [résultat vérifiable]
 ```
 
-### AC-2 — [Cas d'erreur principal]
+### AC-2 - [Cas d'erreur principal]
 
 ```
 ÉTANT DONNÉ [état d'erreur]
@@ -70,7 +70,7 @@ QUAND [action qui devrait échouer]
 ALORS [erreur retournée avec le bon type]
 ```
 
-### AC-3 — [Cas limite si pertinent]
+### AC-3 - [Cas limite si pertinent]
 
 ```
 ÉTANT DONNÉ [cas limite]

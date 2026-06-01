@@ -81,7 +81,7 @@ const EXPECTED_STATUS_KEYS = ["pending", "authorized", "executed", "refused"];
 
 // ─── EN completeness ──────────────────────────────────────────────────────────
 
-describe("i18n tools — EN completeness", () => {
+describe("i18n tools - EN completeness", () => {
   test("tools.labels has all 11 native tool keys", () => {
     // GIVEN en.json loaded
     // WHEN checking tools.labels
@@ -147,7 +147,7 @@ describe("i18n tools — EN completeness", () => {
 
 // ─── FR completeness ──────────────────────────────────────────────────────────
 
-describe("i18n tools — FR completeness", () => {
+describe("i18n tools - FR completeness", () => {
   test("tools.labels has all 11 native tool keys", () => {
     const labels = getSection(fr as unknown as JsonObject, "tools", "labels");
     for (const key of EXPECTED_LABELS) {
@@ -207,7 +207,7 @@ function collectLeaves(obj: JsonObject, prefix = ""): string[] {
   return keys;
 }
 
-describe("i18n tools — EN/FR key parity", () => {
+describe("i18n tools - EN/FR key parity", () => {
   test("every tools.* key in EN has an equivalent in FR", () => {
     // GIVEN en.json and fr.json loaded
     // WHEN comparing all tools.* leaf keys

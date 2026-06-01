@@ -1,6 +1,6 @@
-# Agents — ContextBootstrap Guide
+# Agents - ContextBootstrap Guide
 
-> **Référence technique** — signatures de la classe abstraite `ContextBootstrap` et table des implémentations livrées dans le SDK. Pour le **pattern d'usage** dans un agent, voir [book ch05-04](../../book/src/ch05-04-context-bootstrap.md).
+> **Référence technique** - signatures de la classe abstraite `ContextBootstrap` et table des implémentations livrées dans le SDK. Pour le **pattern d'usage** dans un agent, voir [book ch05-04](../../book/src/ch05-04-context-bootstrap.md).
 >
 > Audit : page conservée en spec (audit B1.6). Sections narratives historiques traitées par filtrage CI à venir.
 
@@ -18,7 +18,7 @@
 
 ### Le problème
 
-Les agents chargeaient leurs règles projet via `file_read("APOLLIA.md")` à chaque session — même quand rien n'avait changé. Ce pattern ad-hoc :
+Les agents chargeaient leurs règles projet via `file_read("APOLLIA.md")` à chaque session - même quand rien n'avait changé. Ce pattern ad-hoc :
 - Gaspille des tokens LLM à chaque démarrage
 - N'a aucune détection de péremption (si APOLLIA.md change, le cache mémoire reste stale)
 - Duplique la logique de chargement dans chaque agent
@@ -26,12 +26,12 @@ Les agents chargeaient leurs règles projet via `file_read("APOLLIA.md")` à cha
 ### La solution : `ContextBootstrap`
 
 `ContextBootstrap` est un protocole SDK (classe abstraite Python) qui standardise :
-1. **Exploration** — découverte du contexte projet (règles, architecture, stack technique)
-2. **Persistance** — stockage du snapshot en mémoire sémantique SQLite
-3. **Péremption** — détection automatique du changement (commit hash, timestamp, etc.)
-4. **Réutilisation** — snapshot rechargé gratuitement en session N+1 si pas périmé
+1. **Exploration** - découverte du contexte projet (règles, architecture, stack technique)
+2. **Persistance** - stockage du snapshot en mémoire sémantique SQLite
+3. **Péremption** - détection automatique du changement (commit hash, timestamp, etc.)
+4. **Réutilisation** - snapshot rechargé gratuitement en session N+1 si pas périmé
 
-Le runtime n'injecte jamais le bootstrap — c'est l'agent qui le déclenche dans `run()` (Principe #6).
+Le runtime n'injecte jamais le bootstrap - c'est l'agent qui le déclenche dans `run()` (Principe #6).
 
 ### Workspace vs Bootstrap
 
@@ -45,7 +45,7 @@ Le runtime n'injecte jamais le bootstrap — c'est l'agent qui le déclenche dan
 
 ---
 
-## 1. Le protocole — 2 méthodes à implémenter
+## 1. Le protocole - 2 méthodes à implémenter
 
 ```python
 from apollia.bootstrap import ContextBootstrap
@@ -59,7 +59,7 @@ class MyBootstrap(ContextBootstrap):
 
     async def run_bootstrap(self, ctx) -> dict:
         """Explorer le domaine, construire un snapshot, appeler self.persist().
-        Doit être idempotent — appels multiples = même état.
+        Doit être idempotent - appels multiples = même état.
         """
         ...
 ```
@@ -83,7 +83,7 @@ bootstrap.status      # "complete" | "partial" | "missing"
 
 ---
 
-## 2. `ProjectContextBootstrap` — Base partagée agents dev
+## 2. `ProjectContextBootstrap` - Base partagée agents dev
 
 Pour les agents du pipeline de développement (spec, dev, review), une classe concrète `ProjectContextBootstrap` implémente les scopes communs :
 
@@ -161,7 +161,7 @@ class DevContextBootstrap(ProjectContextBootstrap):
 
 ### `ReviewContextBootstrap`
 
-Aucun extra scope — le snapshot de base (rules + tech stack) suffit pour la validation.
+Aucun extra scope - le snapshot de base (rules + tech stack) suffit pour la validation.
 
 ```python
 # agents/assistants/review-assistant.py
@@ -252,7 +252,7 @@ from apollia.bootstrap import ContextBootstrap
 import time
 
 class AccountingBootstrap(ContextBootstrap):
-    """Bootstrap pour agents comptables — staleness par TTL 7 jours."""
+    """Bootstrap pour agents comptables - staleness par TTL 7 jours."""
 
     _MAX_AGE = 7 * 24 * 3600
 
@@ -302,8 +302,8 @@ class AccountingBootstrap(ContextBootstrap):
 
 ## Voir aussi
 
-- [Agents SDK Guide](./Agents-SDK-Guide) — référence complète du SDK Python
-- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — référence `ctx.*`
-- [Briques Memory Engine](./Briques-Memory-Engine) — architecture mémoire sous-jacente
-- [ADR-070](../adr/ADR-070-memory-namespace-project-scoped.md) — Memory namespace project-scoped
-- [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) — ContextBootstrap convention
+- [Agents SDK Guide](./Agents-SDK-Guide) - référence complète du SDK Python
+- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) - référence `ctx.*`
+- [Briques Memory Engine](./Briques-Memory-Engine) - architecture mémoire sous-jacente
+- [ADR-070](../adr/ADR-070-memory-namespace-project-scoped.md) - Memory namespace project-scoped
+- [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) - ContextBootstrap convention

@@ -1,6 +1,6 @@
-# apollia-llm — Moteur LLM Embarqué et Clients Cloud
+# apollia-llm - Moteur LLM Embarqué et Clients Cloud
 
-> *Inférence locale in-process ou cloud via HTTP — même interface, même traçabilité, zéro dépendance externe obligatoire.*
+> *Inférence locale in-process ou cloud via HTTP - même interface, même traçabilité, zéro dépendance externe obligatoire.*
 
 ---
 
@@ -16,9 +16,9 @@
 
 (ADR-047), la configuration des backends est **persistée dans SQLite** (`~/.apollia/system.db`) via `LlmBackendRepository` dans `apollia-core`. Le `LlmRouter` charge les backends au démarrage depuis ce registre. Chaque agent peut déclarer le backend qu'il souhaite utiliser via le champ `llm_backend` de son manifest.
 
-**Principe fondamental :** le modèle `.gguf` n'est jamais compilé dans le binaire — c'est un fichier de données dans `~/.apollia/models/`. Le moteur d'inférence est compilé via `[feature = "local"]`. Les clients cloud sont compilés via `[feature = "cloud"]` (activé par défaut).
+**Principe fondamental :** le modèle `.gguf` n'est jamais compilé dans le binaire - c'est un fichier de données dans `~/.apollia/models/`. Le moteur d'inférence est compilé via `[feature = "local"]`. Les clients cloud sont compilés via `[feature = "cloud"]` (activé par défaut).
 
-**Principe fondamental :** le modèle `.gguf` n'est jamais compilé dans le binaire — c'est un fichier de données dans `~/.apollia/models/`. Le moteur d'inférence est compilé via `[feature = "local"]`. Les clients cloud sont compilés via `[feature = "cloud"]` (activé par défaut).
+**Principe fondamental :** le modèle `.gguf` n'est jamais compilé dans le binaire - c'est un fichier de données dans `~/.apollia/models/`. Le moteur d'inférence est compilé via `[feature = "local"]`. Les clients cloud sont compilés via `[feature = "cloud"]` (activé par défaut).
 
 ---
 
@@ -134,7 +134,7 @@ pub enum LlmError {
 
 ---
 
-## 4. LlmBackendRepository — Registre SQLite *(ADR-047)*
+## 4. LlmBackendRepository - Registre SQLite *(ADR-047)*
 
 La configuration des backends LLM est désormais persistée dans `~/.apollia/system.db` (table `llm_backends`). `LlmBackendRepository` est défini dans `apollia-core` et suit le même pattern que `TriggerDefinitionRepository`.
 
@@ -210,7 +210,7 @@ Les secrets `${VAR}` sont résolus au démarrage depuis les variables d'environn
 
 ---
 
-## 5. LlmRouter — Multi-backend
+## 5. LlmRouter - Multi-backend
 
 Le `LlmRouter` est le point d'entrée unique pour les requêtes LLM. Il charge les backends depuis `LlmBackendRepository` au démarrage.
 
@@ -237,7 +237,7 @@ impl LlmRouter {
 
 ---
 
-## 6. EmbeddedBackend — Feature `local`
+## 6. EmbeddedBackend - Feature `local`
 
 Inférence in-process via `llama.cpp` (ADR-042). Le modèle `.gguf` est chargé depuis `~/.apollia/models/`.
 
@@ -253,8 +253,8 @@ La configuration du backend est dans `system.db` (voir section 4). Exemple de `c
 ```rust
 pub enum AcceleratorDevice {
     Cpu,
-    Cuda,   // [feature = "local-cuda"]  — nécessite GPU NVIDIA
-    Metal,  // [feature = "local-metal"] — nécessite macOS Apple Silicon
+    Cuda,   // [feature = "local-cuda"]  - nécessite GPU NVIDIA
+    Metal,  // [feature = "local-metal"] - nécessite macOS Apple Silicon
 }
 ```
 
@@ -263,20 +263,20 @@ pub enum AcceleratorDevice {
 | Feature | Activation | Prérequis | État |
 |---|---|---|---|
 | `local-cpu` | Inclus dans `local` | Aucun | ✅ Disponible |
-| `local-metal` | `--features local-metal` | macOS Apple Silicon (M1+) | ✅ Disponible — `objc2-metal 0.3.2` sur crates.io |
-| `local-accelerate` | `--features local-accelerate` | macOS (CPU BLAS vectorisé) | ✅ Disponible — plus rapide que CPU pur sans GPU |
-| `local-cuda` | `--features local-cuda` | GPU NVIDIA + CUDA toolkit | ⚠️ Déclaré — non testé (pas de GPU NVIDIA en CI) |
+| `local-metal` | `--features local-metal` | macOS Apple Silicon (M1+) | ✅ Disponible - `objc2-metal 0.3.2` sur crates.io |
+| `local-accelerate` | `--features local-accelerate` | macOS (CPU BLAS vectorisé) | ✅ Disponible - plus rapide que CPU pur sans GPU |
+| `local-cuda` | `--features local-cuda` | GPU NVIDIA + CUDA toolkit | ⚠️ Déclaré - non testé (pas de GPU NVIDIA en CI) |
 
-> **Fail-fast (Principe #4) :** Si `device = "cuda"` ou `device = "metal"` mais que la feature correspondante n'est pas compilée, `EmbeddedBackend::load` retourne `LlmError::DeviceNotAvailable { device, hint }` au démarrage — jamais de panic silencieux.
+> **Fail-fast (Principe #4) :** Si `device = "cuda"` ou `device = "metal"` mais que la feature correspondante n'est pas compilée, `EmbeddedBackend::load` retourne `LlmError::DeviceNotAvailable { device, hint }` au démarrage - jamais de panic silencieux.
 
 **Compiler avec Metal (Apple Silicon) :**
 
 ```bash
-# Build standard — fonctionne sans Xcode complet
+# Build standard - fonctionne sans Xcode complet
 # MISTRALRS_METAL_PRECOMPILE=0 est défini par défaut dans .cargo/config.toml
 cargo build --release --features local-metal
 
-# Combiner avec Accelerate (BLAS vectorisé Apple) — recommandé sur Apple Silicon
+# Combiner avec Accelerate (BLAS vectorisé Apple) - recommandé sur Apple Silicon
 cargo build --release --features local-metal,local-accelerate
 ```
 
@@ -291,7 +291,7 @@ MISTRALRS_METAL_PRECOMPILE=1 cargo build --release --features local-metal
 
 Les modèles LLM volumineux (>30 GB quantisés, ex : Llama-70B, Mixtral-8x22B, DeepSeek-V3) sont distribués en plusieurs fichiers GGUF. Apollia supporte deux modes de chargement, mutuellement exclusifs.
 
-#### Mode standard — auto-détection du pattern `-NNNNN-of-NNNNN`
+#### Mode standard - auto-détection du pattern `-NNNNN-of-NNNNN`
 
 Le pattern officiel llama.cpp est `<prefix>-NNNNN-of-MMMMM.gguf` (5 chiffres zero-padded, `NNNNN` = index 1-based, `MMMMM` = total). HuggingFace, Ollama et `llama-quantize --split` produisent directement ce format.
 
@@ -308,7 +308,7 @@ device       = "metal"
 
 `EmbeddedBackend::load` valide au démarrage que les `MMMMM` shards attendus existent dans le même dossier que le premier. llama.cpp charge ensuite automatiquement les shards suivants via `llama_load_model_from_file`.
 
-#### Mode custom — liste explicite de chemins
+#### Mode custom - liste explicite de chemins
 
 Pour les naming schemes qui ne suivent pas le pattern standard (forks, conversions communautaires) :
 
@@ -327,7 +327,7 @@ device       = "cpu"
 
 L'ordre de la liste est respecté tel quel et passé à `llama_model_load_from_splits` via FFI direct (`llama-cpp-sys-2`). Apollia valide l'existence de chaque chemin avant l'appel FFI.
 
-> **Exclusivité.** `model_path` et `model_paths` sont mutuellement exclusifs. Exactement un des deux doit être renseigné ; la violation de cette règle déclenche `LlmError::ConfigConflict` au démarrage (Principe #4 — Fail fast).
+> **Exclusivité.** `model_path` et `model_paths` sont mutuellement exclusifs. Exactement un des deux doit être renseigné ; la violation de cette règle déclenche `LlmError::ConfigConflict` au démarrage (Principe #4 - Fail fast).
 
 #### Erreurs possibles
 
@@ -345,7 +345,7 @@ Affichage humain :
 
 ```
 $ apollia model list
-  Models directory: /Users/nidal/.apollia/models
+  Models directory: ~/.apollia/models
 
   NAME                                             LAYOUT                       SIZE
   Llama-70B-Instruct-Q5_K_M                        3 shards                     49152.0 MB
@@ -380,26 +380,26 @@ Sortie JSON (`apollia model list --json`) :
       "size_mb":    5800.0
     }
   ],
-  "directory": "/Users/nidal/.apollia/models"
+  "directory": "~/.apollia/models"
 }
 ```
 
-Décision architecturale : voir [ADR-075 — Chargement de modèles GGUF multi-fichiers](../adr/ADR-075-gguf-multi-file-loading.md).
+Décision architecturale : voir [ADR-075 - Chargement de modèles GGUF multi-fichiers](../adr/ADR-075-gguf-multi-file-loading.md).
 
 ### 6.1 Sampler stochastique avec seed dynamique
 
-Le backend embedded n'utilise jamais `LlamaSampler::greedy()` par défaut — un sampler purement déterministe rendrait les sorties parfaitement reproductibles entre appels (deux runs donnent token-pour-token la même réponse), ce qui est antithétique avec l'usage agentique attendu.
+Le backend embedded n'utilise jamais `LlamaSampler::greedy()` par défaut - un sampler purement déterministe rendrait les sorties parfaitement reproductibles entre appels (deux runs donnent token-pour-token la même réponse), ce qui est antithétique avec l'usage agentique attendu.
 
 `build_tail_sampler(temperature, top_p, top_k, seed)` construit la chaîne de sampling :
 
 | `req.temperature` | Comportement |
 |---|---|
-| `Some(0.0)` | `LlamaSampler::greedy()` strict — argmax pur, déterministe, ignore `seed`. Opt-in explicite quand l'opérateur veut du replay token-pour-token. |
+| `Some(0.0)` | `LlamaSampler::greedy()` strict - argmax pur, déterministe, ignore `seed`. Opt-in explicite quand l'opérateur veut du replay token-pour-token. |
 | `None` ou `Some(t > 0)` | Chaîne `top_k(40) → top_p(0.95, min_keep=1) → temp(t) → dist(seed)`. |
 
 `top_p` et `top_k` proviennent de la résolution `model_defaults` (override utilisateur > table embarquée). Quand un champ reste `None`, retombée sur les constantes `DEFAULT_TOP_P = 0.95`, `DEFAULT_TOP_K = 40`.
 
-**Seed.** Quand `req.seed` est `Some(n)` (champ ajouté dans `CompletionRequest`), la séquence est rejouable. Sans seed fournie, on dérive une graine de l'horloge nanoseconde (`SystemTime::now().as_nanos()`) — chaque run diverge. La graine effective est tracée à `debug` pour permettre le replay manuel :
+**Seed.** Quand `req.seed` est `Some(n)` (champ ajouté dans `CompletionRequest`), la séquence est rejouable. Sans seed fournie, on dérive une graine de l'horloge nanoseconde (`SystemTime::now().as_nanos()`) - chaque run diverge. La graine effective est tracée à `debug` pour permettre le replay manuel :
 
 ```
 DEBUG apollia_llm::backends::embedded: embedded sampler stochastique
@@ -426,8 +426,8 @@ let top_k = resolved.top_k;
 
 **Précédence de la résolution** :
 
-1. `~/.apollia/models/sampling-defaults.json` — overrides utilisateur (auto-rempli au download HF).
-2. `embedded.toml` — table curated shippée (Qwen3, Llama 3, Mistral, Phi-3, Gemma, DeepSeek…).
+1. `~/.apollia/models/sampling-defaults.json` - overrides utilisateur (auto-rempli au download HF).
+2. `embedded.toml` - table curated shippée (Qwen3, Llama 3, Mistral, Phi-3, Gemma, DeepSeek…).
 3. Constantes globales `DEFAULT_TEMPERATURE = 0.7`, `DEFAULT_TOP_P = 0.95`, `DEFAULT_TOP_K = 40`.
 
 Voir [LLM-Sampling-Defaults](./LLM-Sampling-Defaults) pour le détail complet du module, le format des overrides, l'auto-fetch HF au téléchargement et la matrice de modèles couverts.
@@ -453,7 +453,7 @@ fn resolve_default_max_tokens(model: &LlamaModel) -> u32 {
 
 Constantes : `FALLBACK_MAX_TOKENS = 2048`, `AUTO_MAX_TOKENS_CEILING = 16_384`.
 
-**Justification.** Les modèles thinking (Qwen3, DeepSeek-R1) consomment 1 à 4K tokens en raisonnement avant la moindre sortie utile. Un budget plat de 2048 tokens tronquait régulièrement la réponse au milieu du bloc `<think>…</think>` — le runtime ne voyait alors aucun JSON et remontait `Réponse du modèle incompréhensible`. Le calcul `n_ctx_train / 2` laisse au moins autant de place pour le prompt que pour la réponse, et le plafond 16K évite de saturer le KV-cache Metal/CUDA.
+**Justification.** Les modèles thinking (Qwen3, DeepSeek-R1) consomment 1 à 4K tokens en raisonnement avant la moindre sortie utile. Un budget plat de 2048 tokens tronquait régulièrement la réponse au milieu du bloc `<think>…</think>` - le runtime ne voyait alors aucun JSON et remontait `Réponse du modèle incompréhensible`. Le calcul `n_ctx_train / 2` laisse au moins autant de place pour le prompt que pour la réponse, et le plafond 16K évite de saturer le KV-cache Metal/CUDA.
 
 `clamp_ctx_size(model, prompt + max_tokens)` borne `n_ctx` :
 
@@ -466,7 +466,7 @@ L'agent qui a vraiment besoin d'un budget plus élevé peut passer `req.max_toke
 
 ---
 
-## 7. OpenAICompatibleClient — Feature `cloud`
+## 7. OpenAICompatibleClient - Feature `cloud`
 
 Client HTTP via `async-openai`. Compatible avec tout endpoint OpenAI-like (OpenAI, Azure OpenAI, Ollama avec API OpenAI, etc.).
 
@@ -483,9 +483,9 @@ Heuristique de sélection : si `api_url` contient `anthropic.com`, `AnthropicCli
 
 ---
 
-## 8. AnthropicClient — Feature `cloud`
+## 8. AnthropicClient - Feature `cloud`
 
-Client HTTP natif via `reqwest` (sans SDK Anthropic officiel — format natif Messages API).
+Client HTTP natif via `reqwest` (sans SDK Anthropic officiel - format natif Messages API).
 
 ```toml
 [[llm.backends]]
@@ -500,7 +500,7 @@ Calcul du coût estimé (`cost_usd`) disponible pour les modèles haiku/sonnet/o
 
 ---
 
-## 9. Observabilité — EventBus
+## 9. Observabilité - EventBus
 
 Après chaque appel `complete_with_observability`, Apollia OS émet automatiquement sur l'EventBus :
 
@@ -557,7 +557,7 @@ impl LlmCallRepository {
 }
 ```
 
-**Intégration EventBus :** `spawn_subscriber` souscrit à `RuntimeEvent::LlmCallCompleted` et persiste via `spawn_blocking`. Si `ObservabilityConfig.debug_log_prompt` est `false` (défaut), le champ `prompt_text` est `NULL` — conforme RGPD.
+**Intégration EventBus :** `spawn_subscriber` souscrit à `RuntimeEvent::LlmCallCompleted` et persiste via `spawn_blocking`. Si `ObservabilityConfig.debug_log_prompt` est `false` (défaut), le champ `prompt_text` est `NULL` - conforme RGPD.
 
 **Agrégation des coûts :** `costs_by_backend_model_since` retourne les coûts agrégés par backend et modèle depuis une date donnée, utilisé par la Timeline API et le dashboard.
 
@@ -620,7 +620,7 @@ Sources officielles :
 
 ---
 
-## 12. ToolCallHelper — Boucle ReAct automatique
+## 12. ToolCallHelper - Boucle ReAct automatique
 
 `ToolCallHelper` implémente la boucle ReAct complète pour les agents qui veulent déléguer le raisonnement outil-par-outil au LLM.
 
@@ -649,7 +649,7 @@ pub trait ToolInvoker: Send + Sync {
 La boucle `run_tools()` :
 1. Appelle `model.complete` avec les outils disponibles
 2. Si `finish_reason == ToolCalls` → exécute les outils via `invoker.invoke`
-3. **Erreurs d'outil absorbées** : `invoker.invoke` retourne `Result<String, String>` — une erreur devient un message `Role::Tool` avec le texte d'erreur (jamais fatale pour la boucle)
+3. **Erreurs d'outil absorbées** : `invoker.invoke` retourne `Result<String, String>` - une erreur devient un message `Role::Tool` avec le texte d'erreur (jamais fatale pour la boucle)
 4. Ajoute les résultats comme messages `Role::Tool`
 5. Répète jusqu'à `finish_reason == Stop` ou `max_iterations` atteint → `LlmError::MaxIterationsReached`
 6. Si `budget_view.is_exhausted` → `LlmError::BudgetExceeded` immédiat
@@ -708,9 +708,9 @@ let router = LlmRouter::with_backends(
 
 `AnthropicClient` envoie systématiquement l'en-tête `anthropic-beta: prompt-caching-2024-07-31` et pose trois breakpoints `cache_control: { type: "ephemeral" }` dans chaque requête :
 
-1. **System prompt** — stable pour toute la session
-2. **Liste des outils (`tools`)** — change rarement
-3. **3ème message depuis la fin** — breakpoint glissant, maximise le hit-rate sur l'historique stable
+1. **System prompt** - stable pour toute la session
+2. **Liste des outils (`tools`)** - change rarement
+3. **3ème message depuis la fin** - breakpoint glissant, maximise le hit-rate sur l'historique stable
 
 **Champs ajoutés dans `TokenUsage` :**
 
@@ -743,7 +743,7 @@ pub struct RetryPolicy {
     pub max_attempts: u32,    // Défaut : 3
     pub base_delay_ms: u64,   // Défaut : 500ms
     pub max_delay_ms: u64,    // Défaut : 30 000ms
-    pub jitter: bool,         // Défaut : true — évite les retry storms
+    pub jitter: bool,         // Défaut : true - évite les retry storms
 }
 ```
 
@@ -793,13 +793,13 @@ pub struct TokenBudget {
     pub cache_read_tokens: u64,
     pub cache_write_tokens: u64,
     pub total_cost_usd: f64,
-    pub ttft_ms: Option<u64>,    // Time To First Token — uniquement en mode streaming
+    pub ttft_ms: Option<u64>,    // Time To First Token - uniquement en mode streaming
     pub wall_ms: u64,            // Durée totale de la tâche
 }
 
 impl TokenBudget {
     /// Résumé formaté pour la CLI.
-    /// Ex: "Tokens: 1 234 input / 456 output / 789 cache-read — $0.0023 USD (TTFT: 312ms, wall: 4.2s)"
+    /// Ex: "Tokens: 1 234 input / 456 output / 789 cache-read - $0.0023 USD (TTFT: 312ms, wall: 4.2s)"
     pub fn format_summary(&self) -> String;
 }
 ```
@@ -807,7 +807,7 @@ impl TokenBudget {
 **Affichage CLI en fin de tâche :**
 ```
 ✓ Tâche terminée en 4.2s
-  Tokens: 1 234 input / 456 output / 789 cache-read — $0.0023 USD (TTFT: 312ms, wall: 4.2s)
+  Tokens: 1 234 input / 456 output / 789 cache-read - $0.0023 USD (TTFT: 312ms, wall: 4.2s)
 ```
 
 **Persistance :** chaque tâche terminée appende une ligne dans `~/.apollia/session_costs.jsonl` :
@@ -824,7 +824,7 @@ impl TokenBudget {
 ### `LlmRoutingLevel`
 
 ```rust
-/// Deux niveaux de routing — déductibles du tradeoff coût/latence/qualité.
+/// Deux niveaux de routing - déductibles du tradeoff coût/latence/qualité.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LlmRoutingLevel {
     /// Tâches de raisonnement : planification, analyse complexe, jugement.
@@ -863,15 +863,15 @@ fast = "claude-haiku-4-5-20251001"
 
 | Callsite | Niveau | Justification |
 |---|---|---|
-| `apollia-oria/src/reasoner.rs` | `route_precise` | Planification ReAct — erreur à fort impact |
-| `apollia-workspace/src/style_detector.rs` | `route_fast` | Extraction conventions — déterministe |
-| `apollia-tools/src/executors/bash_executor.rs` | `route_fast` | Extraction file paths — résultat vérifiable |
-| `apollia-memory/src/compactor.rs` | `route_fast` | Résumé contexte — faible coût d'erreur |
+| `apollia-oria/src/reasoner.rs` | `route_precise` | Planification ReAct - erreur à fort impact |
+| `apollia-workspace/src/style_detector.rs` | `route_fast` | Extraction conventions - déterministe |
+| `apollia-tools/src/executors/bash_executor.rs` | `route_fast` | Extraction file paths - résultat vérifiable |
+| `apollia-memory/src/compactor.rs` | `route_fast` | Résumé contexte - faible coût d'erreur |
 
-### `TokenBudgetUpdated` — Event enrichi
+### `TokenBudgetUpdated` - Event enrichi
 
 ```rust
-/// Émis après chaque appel LLM — alimente le widget coût desktop.
+/// Émis après chaque appel LLM - alimente le widget coût desktop.
 TokenBudgetUpdated {
     session_cost_usd: f64,
     total_input_tokens: u64,
@@ -928,7 +928,7 @@ model_id = "claude-sonnet-4-6@20251001"
 ```rust
 // crates/apollia-llm/src/backends/vertex.rs
 
-/// Client Vertex AI — implémente CompletionModel.
+/// Client Vertex AI - implémente CompletionModel.
 /// Auth via ADC (authorized_user credentials gcloud).
 pub struct VertexClient {
     config: VertexConfig,
@@ -949,7 +949,7 @@ impl VertexClient {
 1. Variable d'environnement `GOOGLE_APPLICATION_CREDENTIALS`
 2. `~/.config/gcloud/application_default_credentials.json`
 
-Seul le type `authorized_user` (credentials `gcloud auth application-default login`) est supporté. Les clés de service JSON sont hors périmètre — voir [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md).
+Seul le type `authorized_user` (credentials `gcloud auth application-default login`) est supporté. Les clés de service JSON sont hors périmètre - voir [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md).
 
 **Refresh automatique :** le token ADC est rafraîchi via `https://oauth2.googleapis.com/token` 60 secondes avant expiration. Le cache est en mémoire (`Arc<Mutex<Option<GoogleToken>>>`).
 
@@ -958,7 +958,7 @@ Seul le type `authorized_user` (credentials `gcloud auth application-default log
 - `429` → retry selon `RetryPolicy` existant
 - Corps de requête : identique à l'API Anthropic Messages (`anthropic-version: vertex-2023-10-16`)
 
-> **Voir aussi :** [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) — justification ADC vs clé de service
+> **Voir aussi :** [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) - justification ADC vs clé de service
 
 ---
 
@@ -992,22 +992,22 @@ model_id = "anthropic.claude-sonnet-4-6-20251001-v1:0"
 
 **Credentials AWS :** résolus via la chaîne standard AWS (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` ou `~/.aws/credentials`). La signature SigV4 est calculée nativement sans dépendance au SDK AWS.
 
-> **Voir aussi :** [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) — justification aws-sigv4 natif vs SDK complet
+> **Voir aussi :** [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) - justification aws-sigv4 natif vs SDK complet
 
 ---
 
 ## Voir aussi
 
-- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — `ctx.llm` depuis Python
-- [Briques ORIA Engine](./Briques-ORIA-Engine) — Reasoner LLM en Mode Orchestré
-- [Briques AIP Specification](./Briques-AIP-Specification) — champ `llm_backend` dans `AgentManifest`
-- [API-HTTP-Agents](./API-HTTP-Agents#get-apiv1llmbackends-) — endpoints CRUD `/api/v1/llm/backends`
-- [Config apollia.toml](./Config-apollia-toml) — section `[llm.observability]`
-- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — `apollia-os llm status/ping/chat`
-- [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) — Google Vertex AI : ADC vs clé de service
-- [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) — AWS Bedrock : aws-sigv4 natif vs SDK complet
-- [ADR-057](../adr/ADR-057-prompt-caching-strategy.md) — Prompt Caching Strategy
-- [ADR-047](../adr/ADR-047-multi-llm-backend-registry.md) — Multi-LLM Backend Registry (SQLite)
-- [ADR-042](../adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md) — remplacement mistral-rs par llama.cpp
-- [ADR-020](../adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) — feature flags LLM
-- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md) — observabilité complète
+- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) - `ctx.llm` depuis Python
+- [Briques ORIA Engine](./Briques-ORIA-Engine) - Reasoner LLM en Mode Orchestré
+- [Briques AIP Specification](./Briques-AIP-Specification) - champ `llm_backend` dans `AgentManifest`
+- [API-HTTP-Agents](./API-HTTP-Agents#get-apiv1llmbackends-) - endpoints CRUD `/api/v1/llm/backends`
+- [Config apollia.toml](./Config-apollia-toml) - section `[llm.observability]`
+- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) - `apollia-os llm status/ping/chat`
+- [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) - Google Vertex AI : ADC vs clé de service
+- [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) - AWS Bedrock : aws-sigv4 natif vs SDK complet
+- [ADR-057](../adr/ADR-057-prompt-caching-strategy.md) - Prompt Caching Strategy
+- [ADR-047](../adr/ADR-047-multi-llm-backend-registry.md) - Multi-LLM Backend Registry (SQLite)
+- [ADR-042](../adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md) - remplacement mistral-rs par llama.cpp
+- [ADR-020](../adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) - feature flags LLM
+- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md) - observabilité complète

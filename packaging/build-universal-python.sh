@@ -32,7 +32,7 @@ cp -R "${TMP_DIR}/arm64/python" "$PYTHON_DIR"
 # lipo-merge every Mach-O binary (executables + .dylib + .so extensions).
 #
 # `file` reports "Mach-O" for both executables and dynamic libraries. We skip
-# anything else (Python source, data, archives) — those are architecture-agnostic.
+# anything else (Python source, data, archives) - those are architecture-agnostic.
 echo "==> Lipo-merging Mach-O binaries into universal2"
 count=0
 while IFS= read -r arm_file; do
@@ -45,7 +45,7 @@ while IFS= read -r arm_file; do
         continue
     fi
     lipo -create "$arm_file" "$x86_file" -output "$arm_file" 2>/dev/null || {
-        echo "  warn: lipo failed on $rel_path — keeping arm64 only" >&2
+        echo "  warn: lipo failed on $rel_path - keeping arm64 only" >&2
         continue
     }
     count=$((count + 1))

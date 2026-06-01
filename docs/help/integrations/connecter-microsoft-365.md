@@ -87,4 +87,4 @@ Les outils sont les mêmes des deux côtés, seul le backend qui répond change.
 
 Sur la carte Microsoft 365, cliquez sur **Déconnecter** à côté du compte. Le token est supprimé du trousseau local. Pour révoquer également côté Microsoft, allez sur https://myaccount.microsoft.com et retirez l'autorisation de l'application Apollia.
 
-> **Référence technique :** [Briques-Auth](https://github.com/nidal-z/apollia-os/wiki/Briques-Auth) , flow OAuth Microsoft, scopes complets, refresh proactif.
+> **Référence technique :** [Briques-Auth](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Auth) , flow OAuth Microsoft, scopes complets, refresh proactif.

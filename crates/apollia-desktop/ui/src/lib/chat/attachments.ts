@@ -15,7 +15,7 @@ export interface PendingAttachment {
   mime: string;
   size: number;
   kind: AttachmentKind;
-  /** Object URL for image previews — caller revokes on removal. */
+  /** Object URL for image previews - caller revokes on removal. */
   previewUrl?: string;
   /** Base64 payload when the file is small enough to inline. */
   base64?: string;

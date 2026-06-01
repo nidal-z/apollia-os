@@ -113,7 +113,7 @@ impl FilePathExtractor {
                     "You are a file-path extraction assistant. \
                      Given the output of a bash command, list all file paths you find, \
                      one per line. If there are no file paths, respond with an empty string. \
-                     Output only the paths — no explanations, no bullet points.",
+                     Output only the paths - no explanations, no bullet points.",
                 ),
                 ChatMessage::user(format!("Command: {command}\nOutput:\n{output}")),
             ],

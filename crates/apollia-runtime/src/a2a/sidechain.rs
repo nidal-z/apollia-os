@@ -201,11 +201,11 @@ impl SidechainLogger {
         {
             Ok(Ok(n)) => n,
             Ok(Err(e)) => {
-                warn!(error = %e, "sidechain start failed — delegation continues untracked");
+                warn!(error = %e, "sidechain start failed - delegation continues untracked");
                 0
             }
             Err(e) => {
-                warn!(error = %e, "sidechain start task panicked — delegation continues untracked");
+                warn!(error = %e, "sidechain start task panicked - delegation continues untracked");
                 0
             }
         }

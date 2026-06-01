@@ -8,14 +8,14 @@
 
   const REFRESH_INTERVAL_MS = 60_000;
 
-  /** SVG viewBox dimensions — the chart rescales to fit its container. */
+  /** SVG viewBox dimensions - the chart rescales to fit its container. */
   const CHART_WIDTH = 920;
   const CHART_HEIGHT = 320;
   const MARGIN = { top: 24, right: 24, bottom: 48, left: 64 };
   const INNER_WIDTH = CHART_WIDTH - MARGIN.left - MARGIN.right;
   const INNER_HEIGHT = CHART_HEIGHT - MARGIN.top - MARGIN.bottom;
 
-  /** Chart palette — first five entries map to --chart-1..5 design tokens. */
+  /** Chart palette - first five entries map to --chart-1..5 design tokens. */
   const CHART_CSS_VARS: string[] = [
     "var(--chart-1)",
     "var(--chart-2)",
@@ -108,7 +108,7 @@
     return best;
   });
 
-  /** Total cost per backend over the window — used in the legend pills. */
+  /** Total cost per backend over the window - used in the legend pills. */
   let backendTotals = $derived(
     backends.map((b) => ({
       backend: b,
@@ -200,7 +200,7 @@
       </span>
     </div>
 
-    <!-- Period selector — segmented control aligned with the design system. -->
+    <!-- Period selector - segmented control aligned with the design system. -->
     <div
       class="inline-flex items-center gap-0.5 rounded-md glass-border glass-surface p-0.5"
       role="tablist"
@@ -260,7 +260,7 @@
           </div>
           <div class="flex items-baseline gap-2">
             <span class="text-[20px] font-semibold tabular-nums leading-none">
-              {maxDay ? formatCost(maxDay.total) : "—"}
+              {maxDay ? formatCost(maxDay.total) : "-"}
             </span>
             {#if maxDay}
               <span class="text-[11px] text-muted-foreground tabular-nums">{shortDateLabel(maxDay.date)}</span>
@@ -287,7 +287,7 @@
               </span>
             </div>
           {:else}
-            <div class="text-[15px] font-semibold text-muted-foreground">—</div>
+            <div class="text-[15px] font-semibold text-muted-foreground">-</div>
           {/if}
         </article>
       </div>
@@ -366,7 +366,7 @@
                 ry={isTopSegment ? Math.min(4, barWidth / 4) : 0}
                 style="transition: opacity 140ms ease;"
               >
-                <title>{segment.backend}: {formatCost(segment.cost)} — {shortDateLabel(day.date)}</title>
+                <title>{segment.backend}: {formatCost(segment.cost)} - {shortDateLabel(day.date)}</title>
               </rect>
             {/each}
 
@@ -386,7 +386,7 @@
               </text>
             {/if}
 
-            <!-- X-axis labels — thinned when the window is wide. -->
+            <!-- X-axis labels - thinned when the window is wide. -->
             {#if showLabel}
               {#if windowDays <= 14}
                 <text

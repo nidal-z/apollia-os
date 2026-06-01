@@ -43,7 +43,7 @@
   import CommandPalette from "../components/chat/CommandPalette.svelte";
   import ShortcutsHelpDialog from "../components/chat/ShortcutsHelpDialog.svelte";
 
-  // Operator design-system primitives — V3 Chat Refonte v2.
+  // Operator design-system primitives - V3 Chat Refonte v2.
   import {
     ConversationRow,
     Journal,
@@ -153,7 +153,7 @@
           return;
         }
         // Streaming abort + per-modal Esc are handled by the owning
-        // components — fall through so they keep working.
+        // components - fall through so they keep working.
         return false;
       },
     },
@@ -170,7 +170,7 @@
     try {
       projectList = await invoke<ProjectSummary[]>("list_projects");
     } catch {
-      // Non-blocking — the chip just won't render.
+      // Non-blocking - the chip just won't render.
     }
   }
 
@@ -194,7 +194,7 @@
     };
   });
 
-  // The preset payload is currently informational — QuickPicker has no
+  // The preset payload is currently informational - QuickPicker has no
   // preset prop yet (see story follow-up). We accept and
   // ignore it so the palette wiring stays forward-compatible.
   function openNewChatPicker(_preset?: { templateId?: string; agentName?: string }) {
@@ -268,12 +268,12 @@
 
   // ─── Sidebar list (V3 Operator) ───────────────────────────────────────────
   // Re-uses the existing `decoratedSessions` store: the SSE wiring stays
-  // owned by `chatSessions` upstream — this view is purely presentational.
+  // owned by `chatSessions` upstream - this view is purely presentational.
 
   function relativeTime(iso: string | null | undefined): string {
-    if (!iso) return "—";
+    if (!iso) return "-";
     const d = new Date(iso).getTime();
-    if (Number.isNaN(d)) return "—";
+    if (Number.isNaN(d)) return "-";
     const diffSec = Math.max(1, Math.round((Date.now() - d) / 1000));
     if (diffSec < 60) return `${diffSec}s`;
     const min = Math.round(diffSec / 60);
@@ -311,7 +311,7 @@
 
   // Live agent activity events for the right Journal panel.
   // Source: `currentSession` (set by ChatConversation.applySessionDetail on every
-  // refresh — both initial load and runtime-event-triggered refreshes), so the
+  // refresh - both initial load and runtime-event-triggered refreshes), so the
   // Journal updates live as the SSE stream lands new messages.
   function fmtTime(iso: string): string {
     const d = new Date(iso);
@@ -332,11 +332,11 @@
     const out: JournalEvent[] = [];
     for (const m of messages) {
       const time = fmtTime(m.created_at);
-      // Tool calls — surface each one as a dedicated tool event.
+      // Tool calls - surface each one as a dedicated tool event.
       const calls = m.tool_calls ?? [];
       for (const tc of calls) {
         const status = tc.status;
-        const heading = isBuilder ? tc.tool_name : `Outil — ${tc.tool_name}`;
+        const heading = isBuilder ? tc.tool_name : `Outil - ${tc.tool_name}`;
         let body: string;
         if (isBuilder) {
           const inputJson = (() => {
@@ -357,7 +357,7 @@
         out.push({ type: evType, heading, body, time });
       }
 
-      // Message body — skip empty content (tool-only assistant turns).
+      // Message body - skip empty content (tool-only assistant turns).
       const content = (m.content ?? "").trim();
       if (!content) continue;
       switch (m.role) {
@@ -419,12 +419,12 @@
 />
 <ShortcutsHelpDialog bind:open={showShortcutsHelp} />
 
-<!-- Runtime health banner — stays mounted across sub-states. -->
+<!-- Runtime health banner - stays mounted across sub-states. -->
 <RuntimeDisconnectedBanner />
 
 <!--
   V3 Operator chat layout: left sessions rail / center thread / right journal.
-  PageHeader is intentionally absent — the route fills the panel and the
+  PageHeader is intentionally absent - the route fills the panel and the
   page title lives in the Topbar (per V3 ChatPage).
 -->
 <div

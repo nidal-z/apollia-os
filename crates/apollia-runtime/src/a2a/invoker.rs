@@ -77,7 +77,7 @@ pub struct RuntimeContextConfig {
 #[derive(Debug, thiserror::Error)]
 pub enum A2AError {
     /// Aucun agent A2A disponible ne déclare le skill demandé.
-    #[error("skill '{skill_id}' not found — available: {available:?}")]
+    #[error("skill '{skill_id}' not found - available: {available:?}")]
     SkillNotFound {
         /// Identifiant du skill demandé.
         skill_id: String,

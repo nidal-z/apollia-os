@@ -122,7 +122,7 @@ struct NoopToolInvoker;
 impl ToolInvoker for NoopToolInvoker {
     async fn invoke(&self, name: &str, _args: &serde_json::Value) -> Result<String, String> {
         Err(format!(
-            "tool '{name}' invocation via LLM loop not wired — use ctx.tools directly"
+            "tool '{name}' invocation via LLM loop not wired - use ctx.tools directly"
         ))
     }
 }
@@ -330,7 +330,7 @@ impl AgentRunner for BridgeRunner {
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| memory_base_dir.clone());
             let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "governance snapshot unavailable — defaulting to all tools enabled");
+                tracing::warn!(error = %e, "governance snapshot unavailable - defaulting to all tools enabled");
                 Default::default()
             });
 
@@ -408,7 +408,7 @@ impl AgentRunner for BridgeRunner {
                 _ => {
                     tracing::warn!(
                         agent = %agent_id,
-                        "ToolProxy not available — tool registry or audit trail missing"
+                        "ToolProxy not available - tool registry or audit trail missing"
                     );
                     None
                 }
@@ -629,7 +629,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             None => {
                 tracing::error!(
                     agent = %agent_id,
-                    "event bus not initialized — factory called before supervisor started"
+                    "event bus not initialized - factory called before supervisor started"
                 );
                 return DynBackend::new(NoopBackend);
             }
@@ -675,7 +675,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             _ => {
                 tracing::warn!(
                     agent = %agent_id,
-                    "A2A delegate/invoker not available — registry or router not yet initialized"
+                    "A2A delegate/invoker not available - registry or router not yet initialized"
                 );
                 (None, None)
             }
@@ -734,7 +734,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                     agent = %agent_id,
                     path = %agent_path.display(),
                     error = %e,
-                    "failed to load agent Python module — falling back to NoopBackend"
+                    "failed to load agent Python module - falling back to NoopBackend"
                 );
                 DynBackend::new(NoopBackend)
             }
@@ -771,7 +771,7 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
             tracing::warn!(
                 target: "apollia.aip.secrets",
                 error = %e,
-                "failed to open ToolCredentialStore for ctx.secrets — agent will see None for all keys"
+                "failed to open ToolCredentialStore for ctx.secrets - agent will see None for all keys"
             );
             None
         }
@@ -909,7 +909,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             _ => {
                 tracing::warn!(
                     agent = %agent_name,
-                    "A2A delegate/invoker not available for chat-agent runner — registry or router not yet initialized"
+                    "A2A delegate/invoker not available for chat-agent runner - registry or router not yet initialized"
                 );
                 (None, None)
             }

@@ -1,5 +1,5 @@
 <!--
-  /integrations — Native OAuth connectors (Google Workspace, Microsoft 365).
+  /integrations - Native OAuth connectors (Google Workspace, Microsoft 365).
 
   Distinct from /connections which handles MCP servers. This route surfaces
   the Tauri commands defined in commands/integrations.rs:
@@ -87,7 +87,7 @@
     try {
       accounts = await invoke<OauthAccountInfo[]>("oauth_get_status");
     } catch (e) {
-      // Backend errors carry a "kind" tag — surface a friendly summary.
+      // Backend errors carry a "kind" tag - surface a friendly summary.
       errorMessage = formatError(e);
     }
   }

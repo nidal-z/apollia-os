@@ -30,12 +30,12 @@ async function refresh(): Promise<void> {
     for (const s of snapshot) next[s.name] = s.status;
     agentStatuses.set(next);
   } catch {
-    // Swallow — keep last known state. UI shows stale data rather than flicker.
+    // Swallow - keep last known state. UI shows stale data rather than flicker.
   }
 }
 
 /**
- * Attach a polling subscriber. Returns a disposer — the last disposer stops
+ * Attach a polling subscriber. Returns a disposer - the last disposer stops
  * the underlying `setInterval`, so unused pages don't keep polling.
  */
 export function startAgentStatusPolling(): () => void {

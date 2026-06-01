@@ -14,7 +14,7 @@
     ? "Cmd"
     : "Ctrl";
 
-  // Canonical shortcuts owned by App root — other components register
+  // Canonical shortcuts owned by App root - other components register
   // additional entries via `registerShortcuts` on mount.
   const builtins: Shortcut[] = [
     { id: "nav.back",    keys: [modKey, "["], descriptionKey: "a11y.shortcut.nav_back",    group: "navigation" },

@@ -1,4 +1,4 @@
-# Apollia OS — Wiki
+# Apollia OS - Wiki
 
 > Runtime open-source Rust pour l'exécution souveraine d'agents IA autonomes.
 > Local-first. Zéro cloud. Un binaire.
@@ -10,7 +10,7 @@
 | | |
 |---|---|
 | [Installation en 5 min](./INSTALL-Quickstart) | Rust + Python + `cargo build` |
-| [Premier agent en 5 min](./Agents-Quickstart) | `manifest()` + `async run` — c'est tout |
+| [Premier agent en 5 min](./Agents-Quickstart) | `manifest()` + `async run` - c'est tout |
 
 ---
 
@@ -18,11 +18,11 @@
 
 | Document | Audience |
 |---|---|
-| [Tutoriel Hello Agent](./Agents-Tutoriel-Hello-Agent) | Débutant — pas à pas avec explications |
-| [RuntimeContext Guide](./Agents-RuntimeContext-Guide) | Intermédiaire — `ctx.tools`, `ctx.memory`, `ctx.step_budget` |
-| [Adapter LangGraph / CrewAI](./Agents-Adapter-Existants) | Intermédiaire — adapter un agent existant |
-| [Bonnes pratiques](./Agents-Bonnes-Pratiques) | Avancé — StepBudget, coûts LLM, résilience |
-| [Troubleshooting](./Agents-Troubleshooting) | Tous — par symptôme |
+| [Tutoriel Hello Agent](./Agents-Tutoriel-Hello-Agent) | Débutant - pas à pas avec explications |
+| [RuntimeContext Guide](./Agents-RuntimeContext-Guide) | Intermédiaire - `ctx.tools`, `ctx.memory`, `ctx.step_budget` |
+| [Adapter LangGraph / CrewAI](./Agents-Adapter-Existants) | Intermédiaire - adapter un agent existant |
+| [Bonnes pratiques](./Agents-Bonnes-Pratiques) | Avancé - StepBudget, coûts LLM, résilience |
+| [Troubleshooting](./Agents-Troubleshooting) | Tous - par symptôme |
 
 ---
 
@@ -41,8 +41,8 @@
 | [Principes Architecturaux](./Architecture-Principes) | Les 8 décisions fondamentales non-négociables |
 | [Vue d'ensemble technique](./Architecture-Vue-Ensemble) | Stack, workspace 7 crates, Agent Interface Protocol |
 | [Modèle Acteur Tokio](./Architecture-Modele-Acteur) | 6 acteurs, pattern Handle, séquence démarrage |
-| [Machines d'état](./Architecture-Machines-Etat) | ProcessState vs TaskState — la distinction critique |
-| [Protocoles & Standards](./Architecture-Protocoles-Standards) | MCP, A2A, ACP — alignement avec l'écosystème |
+| [Machines d'état](./Architecture-Machines-Etat) | ProcessState vs TaskState - la distinction critique |
+| [Protocoles & Standards](./Architecture-Protocoles-Standards) | MCP, A2A, ACP - alignement avec l'écosystème |
 
 ---
 
@@ -72,7 +72,7 @@
 
 | Document | Description |
 |---|---|
-| [API HTTP — Index](./API-HTTP-Reference) | Endpoints REST, SSE, codes d'erreur (3 pages : [Agents](./API-HTTP-Agents), [Workspace](./API-HTTP-Workspace), [Observability](./API-HTTP-Observability)) |
+| [API HTTP - Index](./API-HTTP-Reference) | Endpoints REST, SSE, codes d'erreur (3 pages : [Agents](./API-HTTP-Agents), [Workspace](./API-HTTP-Workspace), [Observability](./API-HTTP-Observability)) |
 | [MCP Integration](./MCP-Integration) | Consommer des serveurs MCP depuis les agents |
 | [A2A / ACP](./A2A-ACP-Alignement) | Alignement avec les standards émergents |
 
@@ -100,11 +100,11 @@
 
 ## En 3 lignes
 
-Apollia OS est un **runtime Rust open-source** qui permet à n'importe quel agent IA Python (CrewAI, LangGraph, custom) de s'exécuter de manière **isolée, souveraine, et outillée** — sans dépendance cloud, sans Docker obligatoire, avec mémoire persistante locale.
+Apollia OS est un **runtime Rust open-source** qui permet à n'importe quel agent IA Python (CrewAI, LangGraph, custom) de s'exécuter de manière **isolée, souveraine, et outillée** - sans dépendance cloud, sans Docker obligatoire, avec mémoire persistante locale.
 
-**État :** v0.1.0 en préparation — 342 tests, MVP validé (mars 2026)
+**État :** v0.1.0 en préparation - 342 tests, MVP validé (mars 2026)
 
 ---
 
-*Auteur : Nidal — CTO & Co-fondateur Apollia*
+*Auteur : Nidal - CTO & Co-fondateur Apollia*
 *Dernière mise à jour : mars 2026*

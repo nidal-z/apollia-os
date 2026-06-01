@@ -2,7 +2,7 @@
 name = "apollia-core"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — shared types (AgentManifest, AIPTask, AIPResult, ProcessState, StepBudgetConfig)"
+description = "Apollia OS - shared types (AgentManifest, AIPTask, AIPResult, ProcessState, StepBudgetConfig)"
 license = "MIT OR Apache-2.0"
 
 # apollia-core depends on NOTHING else in the workspace.

@@ -2,7 +2,7 @@
 name = "apollia-tools"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — Tool Registry, native tools (bash, python, file_io, http, mcp), and Linux namespace sandbox"
+description = "Apollia OS - Tool Registry, native tools (bash, python, file_io, http, mcp), and Linux namespace sandbox"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
@@ -26,7 +26,7 @@ aes-gcm      = { workspace = true }
 rand         = { workspace = true }
 url          = "2"
 
-# Optional — feature-gated to keep the default build lean
+# Optional - feature-gated to keep the default build lean
 reqwest        = { workspace = true, optional = true }
 apollia-memory = { workspace = true, optional = true }
 scraper        = { version = "0.26", optional = true }

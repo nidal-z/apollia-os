@@ -104,7 +104,7 @@ pub enum StepError {
     ///
     /// Indicates the runtime is shutting down. Plan execution is stopped cleanly
     /// without panicking.
-    #[error("channel d'approbation fermé — runtime en cours d'arrêt")]
+    #[error("channel d'approbation fermé - runtime en cours d'arrêt")]
     ApprovalChannelClosed,
 }
 
@@ -684,7 +684,7 @@ impl ActorLoop {
                 tracing::warn!(
                     step_id = %step.step_id,
                     tool = ?step.tool_hint,
-                    "PendingApprovals not configured — executing sensitive step without approval"
+                    "PendingApprovals not configured - executing sensitive step without approval"
                 );
             }
         }
@@ -834,7 +834,7 @@ impl ActorLoop {
             task_id = %self.plan.task_id,
             step_id = %step.step_id,
             tool = ?step.tool_hint,
-            "step suspended — waiting for human approval"
+            "step suspended - waiting for human approval"
         );
 
         // 3. Wait for the human decision (pure await: StepBudget does not advance)
@@ -1215,7 +1215,7 @@ impl ActorLoop {
                 self.fail_plan("APPROVAL_CHANNEL_CLOSED");
                 AIPResult::failed(
                     "APPROVAL_CHANNEL_CLOSED",
-                    "Approval channel closed — runtime shutting down",
+                    "Approval channel closed - runtime shutting down",
                 )
             }
             e => {
@@ -2140,7 +2140,7 @@ mod tests {
         assert_eq!(
             call_count.load(Ordering::SeqCst),
             1,
-            "only s1 should be called — s2 rejected before tool call"
+            "only s1 should be called - s2 rejected before tool call"
         );
     }
 

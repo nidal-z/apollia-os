@@ -14,7 +14,7 @@ import {
   Compass,
   BookOpen,
 } from "lucide-svelte";
-// NOSONAR typescript:S1874 — Svelte 4 ComponentType retained for lucide-svelte compat
+// NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 
 /**

@@ -63,4 +63,4 @@ Apollia affiche quelques cartes d'exemples avec un bouton *"Essayer ce prompt"* 
 - **Vous voulez brancher un serveur qui n'est pas dans le catalogue** : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
 - **L'agent dit qu'il n'a pas accès à l'outil** : ouvrez la fiche de l'agent, l'onglet Outils liste ce que son manifest déclare. Si l'outil n'y figure pas, c'est l'agent qu'il faut mettre à jour. Voir [Comprendre la portée d'une intégration](comprendre-la-portee-d-une-integration.md).
 
-> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP) , protocole MCP, transports, trust levels, gouvernance.
+> **Référence technique :** [Briques-MCP](https://github.com/Apollia-OS/apollia-os/wiki/Briques-MCP) , protocole MCP, transports, trust levels, gouvernance.

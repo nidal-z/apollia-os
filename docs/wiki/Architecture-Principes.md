@@ -1,4 +1,4 @@
-# Principes Architecturaux — Les Décisions Qui Guident Tout
+# Principes Architecturaux - Les Décisions Qui Guident Tout
 
 > *Ces principes ne sont pas des règles arbitraires. Chacun a été forgé par un problème réel rencontré dans la phase SaaS ou par l'analyse rigoureuse des besoins du projet.*
 
@@ -73,9 +73,9 @@ AIP = duck typing. `hasattr(agent, 'manifest') and hasattr(agent, 'run')` suffit
 
 **Ce que ça signifie concrètement :**
 - Validation stricte du manifest à `INITIALIZING`
-- Résolution des `tools_required` à `INITIALIZING` — outil absent = agent ne démarre pas
-- Installation des packages Python à `INITIALIZING` — package manquant = erreur au démarrage
-- Connexion aux serveurs MCP à `INITIALIZING` — serveur inaccessible = `ProcessState.DEGRADED` ou `STOPPED`
+- Résolution des `tools_required` à `INITIALIZING` - outil absent = agent ne démarre pas
+- Installation des packages Python à `INITIALIZING` - package manquant = erreur au démarrage
+- Connexion aux serveurs MCP à `INITIALIZING` - serveur inaccessible = `ProcessState.DEGRADED` ou `STOPPED`
 
 **Pourquoi ce principe existe :**
 Un agent qui démarre avec succès et plante à la 3ème étape de sa 2ème tâche parce qu'un outil n'est pas disponible est un désastre en production. Le bug est difficile à reproduire, le log d'erreur est cryptique, l'utilisateur est frustré.
@@ -83,7 +83,7 @@ Un agent qui démarre avec succès et plante à la 3ème étape de sa 2ème tâc
 "Fail fast" est le principe de conception qui transforme des bugs de production en erreurs de configuration détectables avant le déploiement.
 
 **Conséquence architecturale :**
-`tools_required` vs `tools_optional` distinction explicite. `DEGRADED` vs `STOPPED` pour les outils manquants. Toute la phase `INITIALIZING` est de la validation — l'agent ne passe à `ACTIVE` que si tout est prêt.
+`tools_required` vs `tools_optional` distinction explicite. `DEGRADED` vs `STOPPED` pour les outils manquants. Toute la phase `INITIALIZING` est de la validation - l'agent ne passe à `ACTIVE` que si tout est prêt.
 
 ---
 
@@ -125,7 +125,7 @@ Pattern `mpsc::channel` + `HashMap` état interne + `JoinHandle` Tokio pour chaq
 **Pourquoi ce principe existe :**
 La "mémoire automatique" est séduisante en théorie. En pratique, elle génère des appels LLM non contrôlés (résumés automatiques, extraction de faits...), des coûts imprévisibles, des comportements difficiles à debugger, et des risques de perte d'information par consolidation trop agressive.
 
-La latence due au traitement mémoriel constant est un goulot d'étranglement fréquemment observé dans les agents en production — chaque injection automatique de contexte ajoute un appel LLM et 1-3 secondes de latence.
+La latence due au traitement mémoriel constant est un goulot d'étranglement fréquemment observé dans les agents en production - chaque injection automatique de contexte ajoute un appel LLM et 1-3 secondes de latence.
 
 **Conséquence architecturale :**
 `MemoryInterface` est une API appelée explicitement par l'agent. Pas de hook de lifecycle qui injecte automatiquement. La consolidation sera une feature opt-in v1.0, jamais un comportement par défaut.
@@ -148,7 +148,7 @@ Les boucles infinies et les coûts LLM incontrôlés sont des risques fréquemme
 En production PME, ce type d'incident est inacceptable. Le runtime doit être la couche de sécurité sur laquelle on peut compter indépendamment de la qualité du code de l'agent.
 
 **Conséquence architecturale :**
-`StepBudget` implémenté dans `ExecutionCoordinator` (Rust), pas dans l'agent Python. L'agent reçoit `ctx.step_budget` en lecture seule pour adapter son comportement proactivement — mais il ne peut pas le désactiver.
+`StepBudget` implémenté dans `ExecutionCoordinator` (Rust), pas dans l'agent Python. L'agent reçoit `ctx.step_budget` en lecture seule pour adapter son comportement proactivement - mais il ne peut pas le désactiver.
 
 ---
 

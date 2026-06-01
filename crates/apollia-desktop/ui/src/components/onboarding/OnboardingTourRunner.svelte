@@ -8,7 +8,7 @@
    * Skip / final Next, fires `oncomplete` so the App can clean up.
    *
    * Note (May 2026): the underlying tour content is partially obsolete and
-   * scheduled for a rework — we wire the orchestration here so the
+   * scheduled for a rework - we wire the orchestration here so the
    * post-onboarding hand-off is no longer a hard cut to the dashboard, but
    * the steps themselves are best-effort.
    */
@@ -61,7 +61,7 @@
       try {
         navigateTo(step.route as never);
       } catch {
-        /* unknown route — leave current view */
+        /* unknown route - leave current view */
       }
     }
     // Wait for the route's components to mount before measuring the target.

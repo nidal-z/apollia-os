@@ -54,7 +54,7 @@ fn apply_remote_header_fallback(
 
 /// Infer a category from a server's name and description using keyword matching.
 ///
-/// Returns `None` when no keywords match — the frontend treats `None` as "other".
+/// Returns `None` when no keywords match - the frontend treats `None` as "other".
 fn infer_category(name: &str, description: Option<&str>) -> Option<String> {
     let text = format!(
         "{} {}",
@@ -433,7 +433,7 @@ pub async fn add_mcp_server(
 /// `(apollia-mcp-oauth, <server_name>)` so a future reinstall doesn't
 /// inherit a stale token that would silently fail with `invalid_grant`.
 ///
-/// Keychain deletion errors are logged but not propagated — leaving an
+/// Keychain deletion errors are logged but not propagated - leaving an
 /// orphan keychain entry is preferable to blocking the user from removing
 /// a server they no longer want.
 #[tauri::command]
@@ -445,14 +445,14 @@ pub async fn remove_mcp_server(
     http_delete_json(state.api_port, &path).await.map(|_| ())?;
 
     // Best-effort OAuth token cleanup. We don't know at this layer whether
-    // the server used OAuth, so we always attempt the delete — it's a no-op
+    // the server used OAuth, so we always attempt the delete - it's a no-op
     // when no entry exists.
     if let Ok(store) = apollia_auth::select_secret_store() {
         if let Err(e) = apollia_auth::delete_mcp_token(&*store, &name) {
             tracing::warn!(
                 server = %name,
                 error = %e,
-                "failed to purge OAuth token on server removal — keychain entry may be orphaned"
+                "failed to purge OAuth token on server removal - keychain entry may be orphaned"
             );
         }
     }
@@ -525,7 +525,7 @@ pub enum McpConnectionTestResponse {
 /// terminates the process without modifying `mcp.toml` or the tool registry.
 ///
 /// Returns a tagged enum so the wizard can route Auth step UI without an
-/// extra round-trip — `oauth_required` means the server returned 401 and the
+/// extra round-trip - `oauth_required` means the server returned 401 and the
 /// MCP HTTP OAuth flow should be driven via [`mcp_oauth_login`].
 #[tauri::command]
 pub async fn test_mcp_connection(
@@ -591,14 +591,14 @@ pub async fn fetch_mcp_registry(
     // The remote MCP registry can be unreachable (offline, DNS down, registry
     // outage, or simply not configured in this build). When that happens we
     // still want the operator to see the 18 curated entries from
-    // enrichments.json — they are baked into the binary and require no
+    // enrichments.json - they are baked into the binary and require no
     // network. Treat any registry error as an empty result and log it.
     let raw_servers = match registry.fetch_servers(search.as_deref()).await {
         Ok(servers) => servers,
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                "mcp.registry.fetch_failed — falling back to curated catalogue only"
+                "mcp.registry.fetch_failed - falling back to curated catalogue only"
             );
             Vec::new()
         }
@@ -654,7 +654,7 @@ pub async fn fetch_mcp_registry(
             ) {
                 tracing::debug!(
                     server = %s.server.name,
-                    "mcp.registry.dedup — skipping public entry already covered by curated"
+                    "mcp.registry.dedup - skipping public entry already covered by curated"
                 );
                 return None;
             }
@@ -779,7 +779,7 @@ pub async fn fetch_mcp_registry(
                     (Some(url), Some(transport)) => vec![RegistryRemote {
                         transport_type: transport.clone(),
                         url: url.clone(),
-                        // Synthetic entries have no registry data — use enrichment
+                        // Synthetic entries have no registry data - use enrichment
                         // fallback headers directly as the sole source.
                         headers: enrichment
                             .remote_headers
@@ -801,7 +801,7 @@ pub async fn fetch_mcp_registry(
     Ok(result)
 }
 
-/// Return only the 18 curated MCP entries baked into the binary —
+/// Return only the 18 curated MCP entries baked into the binary -
 /// instant, network-free path.
 ///
 /// Used by the Catalogue Sheet to show a useful subset immediately on
@@ -930,7 +930,7 @@ pub async fn fetch_mcp_curated(
 ///
 /// Used by the wizard when the server's remote auth headers are absent from
 /// the bulk-cached catalogue. Skips the local cache so the result is always
-/// current — auth requirements are defined by the publisher, not by Apollia.
+/// current - auth requirements are defined by the publisher, not by Apollia.
 #[tauri::command]
 pub async fn refresh_mcp_server_detail(
     registry: State<'_, McpRegistryClient>,
@@ -1151,7 +1151,7 @@ pub async fn revoke_mcp_tool_approval(server: String, tool: String) -> Result<bo
 /// Surfaces what the wizard needs to render the OAuth Auth step:
 /// - `as_url` for telemetry / "you'll authenticate at <X>".
 /// - `scopes_supported` populates the scope selector (defaults all checked).
-/// - `scope_descriptions` lets the AS provide human labels — sparse in
+/// - `scope_descriptions` lets the AS provide human labels - sparse in
 ///   practice, but rendered when available.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpOAuthDiscoveryResult {
@@ -1193,7 +1193,7 @@ pub async fn mcp_oauth_discover(
     let discovery = apollia_auth::McpDiscoveryClient::new()
         .map_err(|e| format!("init discovery client: {e}"))?;
 
-    // 1. PRM — prefer the URL advertised by WWW-Authenticate, then fall back
+    // 1. PRM - prefer the URL advertised by WWW-Authenticate, then fall back
     //    to the well-known at the server's origin (ADR-095 §2).
     let prm = match www_authenticate
         .as_deref()
@@ -1217,7 +1217,7 @@ pub async fn mcp_oauth_discover(
         .await
         .map_err(|e| format!("fetch AS metadata: {e}"))?;
 
-    // Refuse to surface OAuth as available when PKCE S256 isn't advertised —
+    // Refuse to surface OAuth as available when PKCE S256 isn't advertised -
     // matches the orchestrator's hard refusal at negotiation time so the UI
     // doesn't lure the user into a downgraded flow.
     if !as_metadata.supports_pkce_s256() {
@@ -1242,7 +1242,7 @@ pub async fn mcp_oauth_discover(
         scopes_supported,
         // Scope descriptions aren't part of RFC 8414; some AS extend the
         // metadata with `scopes_supported_description` or similar, but we
-        // don't parse those today — leave empty.
+        // don't parse those today - leave empty.
         scope_descriptions: HashMap::new(),
         registration_supported: as_metadata.registration_endpoint.is_some(),
     })
@@ -1262,16 +1262,16 @@ const MCP_CLIENT_ID_SERVICE: &str = "apollia-mcp-client-ids";
 ///
 /// Lookup order (mirrors the Google/Microsoft connector pattern, ADR-095
 /// follow-up 2026-05-17):
-/// 1. **Runtime env var** matching `env_var` — for dev / power-user override
+/// 1. **Runtime env var** matching `env_var` - for dev / power-user override
 ///    (e.g. `APOLLIA_FIGMA_CLIENT_ID=xxx` exported before launch).
-/// 2. **Keychain stored value** — set via the wizard input or settings panel
+/// 2. **Keychain stored value** - set via the wizard input or settings panel
 ///    by users who don't want to touch env vars but registered their own app.
-/// 3. **Build-time constant** baked into the binary via `option_env!` — set
+/// 3. **Build-time constant** baked into the binary via `option_env!` - set
 ///    when the release pipeline runs with `APOLLIA_BUILD_FIGMA_CLIENT_ID`
 ///    in the environment (cf. `OAUTH-SETUP-TUTO.md §4`). End users of the
 ///    release binary inherit this without setting anything.
 ///
-/// Returns `None` only when all three layers are absent — the wizard then
+/// Returns `None` only when all three layers are absent - the wizard then
 /// shows an input field with the provider's registration help text.
 #[tauri::command]
 pub fn mcp_oauth_resolve_client_id(env_var: String) -> Option<String> {
@@ -1330,7 +1330,7 @@ fn load_stored_client_id(env_var: &str) -> Option<String> {
 }
 
 /// Build-time client id registry. `option_env!` requires a literal so each
-/// known env var must be enumerated here — adding a new provider is a
+/// known env var must be enumerated here - adding a new provider is a
 /// 2-line change. End users never see this layer; it's how releases ship
 /// "turnkey" credentials for AS that don't support CIMD/DCR (Figma today).
 fn compile_time_known_client_id(env_var: &str) -> Option<&'static str> {
@@ -1386,7 +1386,7 @@ pub async fn mcp_oauth_login(
         client_id_override,
     };
 
-    // Use Tauri's opener plugin instead of the `open` crate — the latter
+    // Use Tauri's opener plugin instead of the `open` crate - the latter
     // spawns a subprocess that gets blocked by Tauri 2's webview sandbox on
     // some platforms (silent no-op). The opener plugin goes through Tauri's
     // own native integration, with explicit capability gating.

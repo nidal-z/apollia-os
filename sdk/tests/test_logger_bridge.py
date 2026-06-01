@@ -43,7 +43,7 @@ def _isolate_loggers() -> Any:
     """
     # GIVEN: snapshot before
     yield
-    # WHEN: teardown — remove every apollia.agent.* handler we installed.
+    # WHEN: teardown - remove every apollia.agent.* handler we installed.
     manager = logging.Logger.manager
     for name in [n for n in manager.loggerDict if n.startswith("apollia.agent.")]:
         logger = logging.getLogger(name)

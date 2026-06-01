@@ -47,4 +47,4 @@ Tous les MCPs installés et tous les connecteurs natifs sont visibles par tous l
 - **L'agent voit l'outil mais l'appel échoue** : c'est probablement une question de permission (token expiré, scope manquant) ou de souveraineté. Voir [Comprendre les permissions MCP](comprendre-les-permissions-mcp.md) et [Gérer les tokens OAuth](gerer-les-tokens-oauth.md).
 - **Deux agents devraient voir le même outil et un seul le voit** : vérifiez les deux manifests, l'outil doit être déclaré dans chacun.
 
-> **Référence technique :** [Briques-Tool-Registry](https://github.com/nidal-z/apollia-os/wiki/Briques-Tool-Registry) , résolution des outils par agent, scoping projet, ContextProvider.
+> **Référence technique :** [Briques-Tool-Registry](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Tool-Registry) , résolution des outils par agent, scoping projet, ContextProvider.

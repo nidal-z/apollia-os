@@ -6,7 +6,7 @@
     /** Apply hover-lift micro-interaction. */
     hover?: boolean;
     /**
-     * Optional primary action — when provided, the card becomes a focusable,
+     * Optional primary action - when provided, the card becomes a focusable,
      * keyboard-activatable element (`role="button"`, Enter / Space to fire).
      * Caller is responsible for `stopPropagation()` on inner buttons.
      */

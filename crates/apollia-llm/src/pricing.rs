@@ -368,7 +368,7 @@ mod tests {
 
         assert!(
             result.is_none(),
-            "local Ollama model must return None — cost is zero by definition"
+            "local Ollama model must return None - cost is zero by definition"
         );
     }
 }

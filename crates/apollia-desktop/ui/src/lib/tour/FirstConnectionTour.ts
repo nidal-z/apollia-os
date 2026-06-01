@@ -1,5 +1,5 @@
 /**
- * First-connection guided tour — launched after the user successfully adds
+ * First-connection guided tour - launched after the user successfully adds
  * their first MCP connection via the wizard.
  *
  * Provides a lightweight 4-step Shepherd-like spotlight sequence. Skippable,
@@ -65,7 +65,7 @@ export function markFirstConnectionTourDone(): void {
   localStorage.setItem(FIRST_CONNECTION_DONE_KEY, "true");
 }
 
-/** Reset the flag — exposed for settings/debug affordances. */
+/** Reset the flag - exposed for settings/debug affordances. */
 export function resetFirstConnectionTour(): void {
   localStorage.removeItem(FIRST_CONNECTION_DONE_KEY);
 }

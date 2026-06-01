@@ -1,4 +1,4 @@
-//! Types partagés pour le binary feedback RLHF — deux plans alternatifs.
+//! Types partagés pour le binary feedback RLHF - deux plans alternatifs.
 //!
 //! Défini dans `apollia-core` pour être utilisé par `apollia-oria` (génération),
 //! `apollia-memory` (persistance du choix), `apollia-cli` (affichage terminal)
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// Un step individuel dans un [`TaskPlan`].
 ///
-/// Représentation partagée utilisée dans le contexte du binary feedback —
+/// Représentation partagée utilisée dans le contexte du binary feedback -
 /// distincte de `ExecutionPlan` / `PlanStep` interne à `apollia-oria`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskPlanStep {
@@ -56,9 +56,9 @@ pub struct TaskPlan {
 /// Le `session_id` corrèle la génération avec le choix de l'opérateur.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanAlternatives {
-    /// Plan A : température basse — déterministe et conservateur.
+    /// Plan A : température basse - déterministe et conservateur.
     pub plan_a: TaskPlan,
-    /// Plan B : température haute — créatif et exploratoire.
+    /// Plan B : température haute - créatif et exploratoire.
     pub plan_b: TaskPlan,
     /// Identifiant de session pour la corrélation avec [`PlanChoice`].
     pub session_id: String,
@@ -73,7 +73,7 @@ pub struct PlanAlternatives {
 /// Choix de l'opérateur entre les deux plans alternatifs.
 ///
 /// Persisté en SQLite par `PlanChoiceStore::log_plan_choice()` pour constituer
-/// le signal RLHF. Local uniquement — jamais envoyé à l'extérieur (Principe #1).
+/// le signal RLHF. Local uniquement - jamais envoyé à l'extérieur (Principe #1).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChoice {
     /// Identifiant de session correspondant à [`PlanAlternatives::session_id`].

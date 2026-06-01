@@ -218,7 +218,7 @@ const PROMPT_HEADER: &str = "\
 You are a productivity coach inside Apollia OS. From the provided facts, \
 propose 2 to 3 concrete, immediately doable next steps the user can take \
 INSIDE Apollia. Each step MUST reference a real Apollia route or Tauri \
-command from the allowlist below — never invent routes.
+command from the allowlist below - never invent routes.
 
 Respond with a single JSON object matching EXACTLY this schema:
 {
@@ -235,7 +235,7 @@ Respond with a single JSON object matching EXACTLY this schema:
   ]
 }
 
-No prose, no markdown fence — JSON only.
+No prose, no markdown fence - JSON only.
 ";
 
 fn allowed_routes_line() -> String {
@@ -263,10 +263,10 @@ fn mode_line(mode: NextStepsMode) -> &'static str {
 fn context_line(ctx: NextStepsContext) -> &'static str {
     match ctx {
         NextStepsContext::GlobalContext => {
-            "Panel: operator Dashboard — rolling context of the last few days."
+            "Panel: operator Dashboard - rolling context of the last few days."
         }
         NextStepsContext::SessionEnd => {
-            "Panel: session end — suggestions must relate to the session that \
+            "Panel: session end - suggestions must relate to the session that \
             just closed."
         }
     }

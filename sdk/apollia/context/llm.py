@@ -1,4 +1,4 @@
-"""ctx.llm — LLM completion, streaming, embeddings (Protocol)."""
+"""ctx.llm - LLM completion, streaming, embeddings (Protocol)."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class LlmResponse(Protocol):
 
 @runtime_checkable
 class LlmProxy(Protocol):
-    """``ctx.llm`` — LLM backend access.
+    """``ctx.llm`` - LLM backend access.
 
     Three primary methods: :meth:`complete` for single-shot, :meth:`stream`
     for token iteration, :meth:`embed` for embeddings.  Stream cleanup

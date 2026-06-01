@@ -107,7 +107,7 @@ single-maintainer source-available.
 
 **Build and packaging**
 
-- Workspace MSRV: Rust 1.84.
+- Workspace MSRV: Rust 1.85.
 - Cross-compilation hints in `Cross.toml`.
 - `deny.toml` for license, banned crates, and advisory checks.
 - Cargo audit and Cargo deny green at release time.
@@ -126,5 +126,5 @@ single-maintainer source-available.
   awaiting upstream patches.
 - Private vulnerability reporting via GitHub Security Advisories.
 
-[Unreleased]: https://github.com/nidalzoumita/apollia-os/compare/v0.1.0-preview...HEAD
-[0.1.0-preview]: https://github.com/nidalzoumita/apollia-os/releases/tag/v0.1.0-preview
+[Unreleased]: https://github.com/Apollia-OS/apollia-os/compare/v0.1.0-preview...HEAD
+[0.1.0-preview]: https://github.com/Apollia-OS/apollia-os/releases/tag/v0.1.0-preview

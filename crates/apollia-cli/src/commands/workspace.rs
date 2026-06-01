@@ -15,7 +15,7 @@ use apollia_workspace::git::GitContextCollector;
 use crate::exit_codes;
 
 /// Template written by `apollia workspace init`.
-const APOLLIA_MD_TEMPLATE: &str = "# APOLLIA.md — Instructions for AI agents\n\
+const APOLLIA_MD_TEMPLATE: &str = "# APOLLIA.md - Instructions for AI agents\n\
 \n\
 ## Project context\n\
 <!-- Describe your project here: goal, tech stack, constraints. -->\n\

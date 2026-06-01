@@ -623,7 +623,7 @@ impl TriggerEngine {
                             trigger_id = %event.trigger_id,
                             agent = %def.agent,
                             max_depth,
-                            "trigger droppé — file d'attente pleine"
+                            "trigger droppé - file d'attente pleine"
                         );
                         return Err(TriggerEngineError::SubmitFailed(
                             "trigger queue full".into(),
@@ -769,7 +769,7 @@ impl TriggerEngine {
             let Some(def) = def else {
                 tracing::warn!(
                     trigger_id = %queued.trigger_id,
-                    "définition introuvable pendant le drain — trigger ignoré"
+                    "définition introuvable pendant le drain - trigger ignoré"
                 );
                 continue;
             };
@@ -804,7 +804,7 @@ impl TriggerEngine {
                     tracing::warn!(
                         trigger_id = %queued.trigger_id,
                         error = %e,
-                        "échec soumission pendant le drain — trigger perdu"
+                        "échec soumission pendant le drain - trigger perdu"
                     );
                     let _ = self.event_bus.send(RuntimeEvent::TriggerError {
                         trigger_id: queued.trigger_id.clone(),
@@ -908,7 +908,7 @@ fn restore_counters(persistence: Option<&TriggerPersistence>) -> RestoredCounter
         Err(e) => {
             tracing::error!(
                 error = %e,
-                "failed to restore trigger counters from history — starting with zeros"
+                "failed to restore trigger counters from history - starting with zeros"
             );
             return (HashMap::new(), HashMap::new(), HashMap::new());
         }

@@ -34,10 +34,10 @@ d'origine.
 | MCP server         | Connexion               | Connection            | MCP server               |
 | MCP tool           | Outil                   | Tool                  | MCP tool                 |
 | Tool call          | Action                  | Action                | Tool call                |
-| Tool call id       | —                       | —                     | tool_call_id             |
-| Event id           | —                       | —                     | event_id                 |
-| Task id            | —                       | —                     | task_id                  |
-| Agent id           | —                       | —                     | agent_id                 |
+| Tool call id       | -                       | -                     | tool_call_id             |
+| Event id           | -                       | -                     | event_id                 |
+| Task id            | -                       | -                     | task_id                  |
+| Agent id           | -                       | -                     | agent_id                 |
 | HITL approval      | Demande de validation   | Approval request      | HITL approval            |
 | Approval queue     | Boîte de réception      | Inbox                 | Approvals inbox          |
 | Approval resolved  | Décision prise          | Decision made         | Resolved approval        |
@@ -59,8 +59,8 @@ d'origine.
 | Run (task)         | Démarrer                | Start                 | Submit                   |
 | Cancel             | Annuler                 | Cancel                | Cancel                   |
 | Retry              | Réessayer               | Retry                 | Retry                    |
-| Install path       | —                       | —                     | install_path             |
-| Agent version      | —                       | —                     | version                  |
+| Install path       | -                       | -                     | install_path             |
+| Agent version      | -                       | -                     | version                  |
 | Agent manifest     | Fiche d'assistant       | Assistant card        | Manifest                 |
 | Runtime status     | État                    | Status                | Runtime status           |
 | LLM backend        | Modèle IA               | AI model              | LLM backend              |
@@ -78,9 +78,9 @@ d'origine.
 | Pipeline fan-out   | Distribution            | Fan-out               | Fan-out                  |
 | Pipeline HITL      | Point de validation     | Approval point        | HITL stage               |
 | Observability      | Suivi                   | Monitoring            | Observability            |
-| Event bus          | —                       | —                     | Event bus                |
-| Supervisor         | —                       | —                     | Supervisor               |
-| Resilience layer   | —                       | —                     | Resilience layer         |
+| Event bus          | -                       | -                     | Event bus                |
+| Supervisor         | -                       | -                     | Supervisor               |
+| Resilience layer   | -                       | -                     | Resilience layer         |
 | Step budget        | Quota d'étapes          | Step quota            | Step budget              |
 | Audit trail        | Journal d'activité      | Activity log          | Audit trail              |
 | Sandbox            | Bac à sable             | Sandbox               | Sandbox                  |
@@ -100,8 +100,8 @@ ils doivent être wrappés dans `<BuilderOnly>` dans les composants partagés :
 - `version`, `v1.2.3`, `install_path`
 - `tool_call_id`, `event_id`, `task_id`, `agent_id`
 - `namespace` brut (toujours exposé comme "Mémoires de X")
-- Codes cron (`0 9 * * 1-5`) — affichés en langage naturel en operator
-- Stack traces complets — remplacés par un message utilisateur + CTA builder
+- Codes cron (`0 9 * * 1-5`) - affichés en langage naturel en operator
+- Stack traces complets - remplacés par un message utilisateur + CTA builder
 
 ## Processus d'ajout d'un terme
 

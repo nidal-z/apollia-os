@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Apollia OS launcher — Linux / macOS.
+# Apollia OS launcher - Linux / macOS.
 #
 # Ce script est inclus dans chaque archive de release (linux-* et macos-*).
 # Il garantit que apollia-os trouve l'interprète Python 3.13 bundlé même si
@@ -27,7 +27,7 @@ export PYO3_PYTHON="${HERE}/python/bin/python3.13"
 
 if [[ ! -x "$PYO3_PYTHON" ]]; then
     echo "error: bundled Python missing at $PYO3_PYTHON" >&2
-    echo "       l'archive est incomplète — re-télécharger depuis apollia.fr/download" >&2
+    echo "       l'archive est incomplète - re-télécharger depuis apollia.fr/download" >&2
     exit 1
 fi
 
@@ -39,7 +39,7 @@ case "$(uname -s)" in
         ;;
     Darwin)
         # macOS : install_name du dylib a été ré-écrit côté packaging vers
-        # @executable_path/../Resources/python/lib/… — fonctionne dans le bundle
+        # @executable_path/../Resources/python/lib/… - fonctionne dans le bundle
         # Tauri, mais pour la CLI standalone on prepend explicitement.
         export DYLD_LIBRARY_PATH="${HERE}/python/lib:${DYLD_LIBRARY_PATH:-}"
         ;;

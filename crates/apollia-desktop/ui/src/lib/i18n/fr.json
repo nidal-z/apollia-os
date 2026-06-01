@@ -3,9 +3,9 @@
     "title": "Prochaines étapes",
     "refresh": "Actualiser",
     "dismiss": "Masquer la suggestion",
-    "empty": "Pas de suggestion pour le moment — réessayez après quelques actions.",
+    "empty": "Pas de suggestion pour le moment - réessayez après quelques actions.",
     "error": "Impossible de charger les suggestions. Essayez d'actualiser.",
-    "fallback_hint": "LLM indisponible — suggestions génériques affichées.",
+    "fallback_hint": "LLM indisponible - suggestions génériques affichées.",
     "feedback_label": "Cette suggestion vous est-elle utile ?",
     "feedback_useful": "Utile",
     "feedback_not_useful": "Pas utile",
@@ -81,7 +81,7 @@
       "connecting": "Connexion à l'agent…",
       "creating": "Création de la session…",
       "ready": "Prêt",
-      "input_disabled_hint": "Session en cours de démarrage — la saisie sera disponible bientôt.",
+      "input_disabled_hint": "Session en cours de démarrage - la saisie sera disponible bientôt.",
       "timeout_toast_title": "La session prend plus de temps que prévu"
     },
     "error": {
@@ -219,7 +219,7 @@
     },
     "mode": {
       "chip_aria": "Mode courant : {mode}. Ouvrir le sélecteur de mode.",
-      "chip_tooltip": "Mode : {current} — clic pour passer en {other}",
+      "chip_tooltip": "Mode : {current} - clic pour passer en {other}",
       "operator": {
         "label": "Opérateur",
         "description": "Vue simplifiée : lancer et surveiller les assistants."
@@ -248,7 +248,7 @@
       "reconnecting": "Reconnexion…",
       "offline": "Hors ligne",
       "reconnecting_title": "Reconnexion au runtime",
-      "reconnecting_detail": "Le flux d'événements a été interrompu — nouvelle tentative en cours.",
+      "reconnecting_detail": "Le flux d'événements a été interrompu - nouvelle tentative en cours.",
       "offline_title": "Runtime hors ligne",
       "offline_detail": "Le runtime est injoignable. Relancez la connexion ou consultez les journaux."
     },
@@ -261,7 +261,7 @@
     "status": {
       "ok": "Runtime connecté · fournisseur LLM disponible",
       "no_llm": "Runtime connecté · aucun fournisseur LLM configuré",
-      "runtime_down": "Runtime hors ligne — reconnexion en cours"
+      "runtime_down": "Runtime hors ligne - reconnexion en cours"
     },
     "search_aria": "Recherche et palette de commandes"
   },
@@ -282,11 +282,11 @@
     },
     "community": {
       "label": "Communauté",
-      "tooltip": "Maintenu par la communauté — fiabilité vérifiée par les contributeurs"
+      "tooltip": "Maintenu par la communauté - fiabilité vérifiée par les contributeurs"
     },
     "unverified": {
       "label": "Non vérifié",
-      "tooltip": "Ce connecteur n'a pas été validé — utilisez-le avec prudence"
+      "tooltip": "Ce connecteur n'a pas été validé - utilisez-le avec prudence"
     },
     "unknown": {
       "label": "Confiance inconnue",
@@ -297,8 +297,8 @@
     "add_connection": "Ajouter une connexion",
     "capabilities": {
       "scope_policy_title": "Ce qu'Apollia peut faire avec ce compte",
-      "scope_policy_body_google": "Apollia v0.1.0 utilise uniquement des scopes Google OAuth gratuits (pas d'audit CASA Tier 2, ~5-15k$/an). Vos agents peuvent : envoyer des e-mails, gérer leurs brouillons, lire et écrire votre calendrier, créer/lire/écrire des fichiers dans le dossier Apollia (chemin configurable) **ainsi que dans tout dossier que vous désignez via le sélecteur Google Drive** (Réglages → Intégrations → bouton « Ajouter via Google »). Ils ne peuvent toujours pas : lire votre boîte de réception, rechercher dans vos e-mails, parcourir automatiquement la totalité de votre Drive (vous devez explicitement designer les zones accessibles). Pour aller plus loin : (a) **Mode Expert** ci-dessous, vous créez votre propre app Google Cloud avec les scopes voulus — bypass CASA car en mode Testing.",
-      "scope_policy_body_microsoft": "Apollia v0.1.0 utilise des scopes delegated Microsoft Graph. Microsoft est plus permissif que Google sur le free-tier — vos agents peuvent lire votre boîte Outlook et votre OneDrive complet en plus des opérations d'écriture.",
+      "scope_policy_body_google": "Apollia v0.1.0 utilise uniquement des scopes Google OAuth gratuits (pas d'audit CASA Tier 2, ~5-15k$/an). Vos agents peuvent : envoyer des e-mails, gérer leurs brouillons, lire et écrire votre calendrier, créer/lire/écrire des fichiers dans le dossier Apollia (chemin configurable) **ainsi que dans tout dossier que vous désignez via le sélecteur Google Drive** (Réglages → Intégrations → bouton « Ajouter via Google »). Ils ne peuvent toujours pas : lire votre boîte de réception, rechercher dans vos e-mails, parcourir automatiquement la totalité de votre Drive (vous devez explicitement designer les zones accessibles). Pour aller plus loin : (a) **Mode Expert** ci-dessous, vous créez votre propre app Google Cloud avec les scopes voulus - bypass CASA car en mode Testing.",
+      "scope_policy_body_microsoft": "Apollia v0.1.0 utilise des scopes delegated Microsoft Graph. Microsoft est plus permissif que Google sur le free-tier - vos agents peuvent lire votre boîte Outlook et votre OneDrive complet en plus des opérations d'écriture.",
       "group_gmail": "Gmail",
       "group_gcal": "Google Agenda",
       "group_gdrive": "Google Drive",
@@ -328,13 +328,13 @@
         "gdrive_workspace_read": "Lire un fichier qu'Apollia a écrit",
         "gdrive_workspace_write": "Créer ou remplacer un fichier (approbation requise)",
         "gdrive_workspace_share": "Partager un fichier créé par Apollia avec quelqu'un (approbation requise)",
-        "gdrive_workspace_detail": "Apollia opère dans : (1) le dossier racine Apollia choisi à la connexion (par défaut `Drive/Apollia/`) ; (2) tout dossier que vous lui désignez via le sélecteur Google Drive (Réglages → Intégrations). Pas de scope restreint, pas de CASA — Google étend l'accès `drive.file` aux dossiers picker.",
+        "gdrive_workspace_detail": "Apollia opère dans : (1) le dossier racine Apollia choisi à la connexion (par défaut `Drive/Apollia/`) ; (2) tout dossier que vous lui désignez via le sélecteur Google Drive (Réglages → Intégrations). Pas de scope restreint, pas de CASA - Google étend l'accès `drive.file` aux dossiers picker.",
         "gdrive_picker": "Désigner n'importe quel dossier de votre Drive (sélecteur Google)",
         "gdrive_picker_detail": "Bouton « Ajouter via Google » dans Réglages → Intégrations. Vous picker un dossier (y compris My Drive root), Apollia gagne l'accès `drive.file` à ce dossier et ses descendants. Sans CASA, sans scope restreint.",
         "gdrive_full": "Lister automatiquement tous vos fichiers (sans rien picker au préalable)",
         "gdrive_full_detail": "Nécessite le scope restreint Google `drive.readonly`. Mode Expert uniquement (votre propre app OAuth, Testing mode = pas de CASA). Le sélecteur Google ci-dessus couvre la plupart des usages sans cet inconvénient.",
         "gdrive_write_anywhere": "Écrire/modifier des fichiers sans les picker au préalable",
-        "gdrive_write_anywhere_detail": "Nécessite le scope restreint `drive`. Mode Expert uniquement. Pour les besoins concrets, désignez vos dossiers via le sélecteur Google — Apollia peut alors y écrire normalement.",
+        "gdrive_write_anywhere_detail": "Nécessite le scope restreint `drive`. Mode Expert uniquement. Pour les besoins concrets, désignez vos dossiers via le sélecteur Google - Apollia peut alors y écrire normalement.",
         "gsheets_create": "Créer un Google Sheet (approbation requise)",
         "gsheets_read_values": "Lire des cellules d'un Sheet (notation A1)",
         "gsheets_write_values": "Écrire/ajouter des lignes dans un Sheet (approbation requise)",
@@ -345,17 +345,17 @@
         "gdocs_detail": "Idem Sheets : seuls les Docs créés par Apollia ou picker via le sélecteur sont accessibles. Scope `documents`, gratuit.",
         "gslides_create": "Créer une présentation Google Slides (approbation requise)",
         "gslides_append_slide": "Ajouter une diapositive avec un bloc de texte (approbation requise)",
-        "gslides_detail": "Création basique pour v0.1 — l'édition fine (mise en page, images, etc.) viendra. Scope `presentations`, gratuit.",
+        "gslides_detail": "Création basique pour v0.1 - l'édition fine (mise en page, images, etc.) viendra. Scope `presentations`, gratuit.",
         "gtasks_list": "Lister vos tâches et listes de tâches",
         "gtasks_create": "Créer une tâche (approbation requise)",
         "gtasks_complete": "Marquer une tâche comme terminée (approbation requise)",
         "gtasks_delete": "Supprimer une tâche (confirmation phrase requise)",
-        "gtasks_detail": "Accès complet à Google Tasks. Contrairement à Drive, le scope `tasks` n'est pas restreint par ressource — Apollia voit toutes vos listes.",
+        "gtasks_detail": "Accès complet à Google Tasks. Contrairement à Drive, le scope `tasks` n'est pas restreint par ressource - Apollia voit toutes vos listes.",
         "gforms_create": "Créer un Google Form (approbation requise)",
         "gforms_detail": "Création d'un formulaire vide pour v0.1 (édition des questions à venir). Scope `forms.body`, gratuit.",
         "youtube_search": "Rechercher des vidéos YouTube",
         "youtube_video_details": "Récupérer les métadonnées d'une vidéo (vues, durée, description)",
-        "youtube_detail": "Lecture seule de YouTube — pas de gestion de chaîne ni d'upload. Scope `youtube.readonly`, gratuit.",
+        "youtube_detail": "Lecture seule de YouTube - pas de gestion de chaîne ni d'upload. Scope `youtube.readonly`, gratuit.",
         "outlook_send": "Envoyer des e-mails en votre nom",
         "outlook_read": "Lire votre boîte de réception",
         "outlook_cal_read": "Lister vos évènements",
@@ -363,7 +363,7 @@
         "onedrive_read": "Lire les fichiers de tout votre OneDrive",
         "onedrive_write": "Créer/modifier des fichiers dans votre OneDrive (approbation requise)"
       },
-      "expert_mode_hint": "Mode Expert (recommandé pour étendre les permissions) : 1) Allez sur console.cloud.google.com, créez un projet, une app OAuth de type \"Desktop app\". 2) Dans l'écran de consentement, ajoutez les scopes restreints voulus (`gmail.readonly`, `drive.readonly`, `drive` pour la lecture+écriture complète, etc.). 3) Restez en mode \"Testing\" (pas \"In production\") et ajoutez-vous comme test user — c'est ce qui permet d'utiliser les scopes restreints sans audit CASA (~5-15k$/an). 4) Copiez le Client ID + Client secret dans Réglages → Intégrations → Mode Expert. Apollia bascule sur votre app et vos agents reçoivent les scopes étendus."
+      "expert_mode_hint": "Mode Expert (recommandé pour étendre les permissions) : 1) Allez sur console.cloud.google.com, créez un projet, une app OAuth de type \"Desktop app\". 2) Dans l'écran de consentement, ajoutez les scopes restreints voulus (`gmail.readonly`, `drive.readonly`, `drive` pour la lecture+écriture complète, etc.). 3) Restez en mode \"Testing\" (pas \"In production\") et ajoutez-vous comme test user - c'est ce qui permet d'utiliser les scopes restreints sans audit CASA (~5-15k$/an). 4) Copiez le Client ID + Client secret dans Réglages → Intégrations → Mode Expert. Apollia bascule sur votre app et vos agents reçoivent les scopes étendus."
     },
     "hero": {
       "title": "Connexions",
@@ -403,7 +403,7 @@
     },
     "error": {
       "title": "Détails de l'erreur",
-      "unknown": "Erreur inconnue — consultez les logs.",
+      "unknown": "Erreur inconnue - consultez les logs.",
       "retry": "Réessayer",
       "view_logs": "Voir logs",
       "consult_docs": "Consulter docs"
@@ -497,7 +497,7 @@
       }
     },
     "disclaimer": {
-      "title": "Connexions externes — Lisez avant de continuer",
+      "title": "Connexions externes - Lisez avant de continuer",
       "step_title": "Ce que vous devez savoir avant de connecter",
       "step_subtitle": "Cochez chaque point pour confirmer votre compréhension.",
       "items": {
@@ -568,7 +568,7 @@
     },
     "connectors": {
       "figma": {
-        "auth_help": "Le serveur MCP distant de Figma (mcp.figma.com) n'est ouvert qu'aux clients de la Figma MCP Catalog (Claude.ai, Cursor, Windsurf, …). Apollia est sur la liste d'attente — nous basculerons sur l'endpoint distant dès que nous serons approuvés.\n\nEn attendant, ce connecteur s'appuie sur le serveur MCP Dev Mode LOCAL de Figma, embarqué dans Figma Desktop. Attention : Dev Mode (et donc son serveur MCP) requiert un plan Figma payant (Professional ou supérieur). Si vous êtes sur le plan gratuit, ce connecteur ne fonctionnera pas encore — patientez jusqu'à l'approbation d'Apollia sur la Catalog distante.\n\nSi vous avez un plan payant :\n\n1. Installez Figma Desktop et connectez-vous.\n2. Ouvrez un fichier et activez Dev Mode.\n3. Activez « Dev Mode MCP Server » dans les Préférences.\n4. Laissez Figma Desktop ouvert — votre session fournit l'identité, aucun OAuth requis."
+        "auth_help": "Le serveur MCP distant de Figma (mcp.figma.com) n'est ouvert qu'aux clients de la Figma MCP Catalog (Claude.ai, Cursor, Windsurf, …). Apollia est sur la liste d'attente - nous basculerons sur l'endpoint distant dès que nous serons approuvés.\n\nEn attendant, ce connecteur s'appuie sur le serveur MCP Dev Mode LOCAL de Figma, embarqué dans Figma Desktop. Attention : Dev Mode (et donc son serveur MCP) requiert un plan Figma payant (Professional ou supérieur). Si vous êtes sur le plan gratuit, ce connecteur ne fonctionnera pas encore - patientez jusqu'à l'approbation d'Apollia sur la Catalog distante.\n\nSi vous avez un plan payant :\n\n1. Installez Figma Desktop et connectez-vous.\n2. Ouvrez un fichier et activez Dev Mode.\n3. Activez « Dev Mode MCP Server » dans les Préférences.\n4. Laissez Figma Desktop ouvert - votre session fournit l'identité, aucun OAuth requis."
       }
     },
     "wizard": {
@@ -584,14 +584,14 @@
       "encrypted_locally": "Chiffré et stocké localement",
       "test_retry": "Réessayer",
       "test_err": {
-        "unauthorized": "Authentification refusée — vérifiez votre clé API.",
+        "unauthorized": "Authentification refusée - vérifiez votre clé API.",
         "oauth_required": "Ce serveur exige une authentification OAuth. Revenez à l'étape précédente et utilisez le bouton « Se connecter ».",
-        "forbidden": "Accès interdit — votre clé n'a pas les droits requis.",
-        "not_found": "Service introuvable — vérifiez l'URL ou le nom du serveur.",
-        "network": "Erreur réseau — le service n'a pas répondu à temps.",
+        "forbidden": "Accès interdit - votre clé n'a pas les droits requis.",
+        "not_found": "Service introuvable - vérifiez l'URL ou le nom du serveur.",
+        "network": "Erreur réseau - le service n'a pas répondu à temps.",
         "handshake_timeout": "Le serveur a démarré mais n'a pas répondu au handshake MCP. Causes typiques : URL incorrecte, paquet npm/pypi en cours de téléchargement (réessayez), ou serveur incompatible avec la spec MCP.",
         "transport_closed": "Le serveur s'est fermé avant la fin du handshake. Causes typiques : paquet introuvable sur npm/pypi (vérifiez l'identifiant), URL distante injoignable (DNS/firewall), ou commande locale absente.",
-        "command_missing": "Commande introuvable — le paquet n'est probablement pas installé.",
+        "command_missing": "Commande introuvable - le paquet n'est probablement pas installé.",
         "generic": "La connexion a échoué. Vérifiez vos identifiants et réessayez.",
         "raw_details": "Voir le détail technique",
         "fix_auth": "Modifier l'authentification",
@@ -605,7 +605,7 @@
         "examples_subtitle": "Quelques exemples d'utilisation pour démarrer.",
         "loading": "Génération des suggestions…",
         "error": "Les suggestions ne sont pas disponibles pour l'instant.",
-        "empty": "Aucune suggestion — explorez les outils depuis le chat.",
+        "empty": "Aucune suggestion - explorez les outils depuis le chat.",
         "try": "Essayer"
       },
       "step_progress": "Progression de la configuration",
@@ -628,7 +628,7 @@
       "oauth_required_body": "Ce serveur exige une authentification standard OAuth 2.1. Vous allez être redirigé vers la page de connexion de l'éditeur pour autoriser Apollia, puis ramené ici.",
       "oauth_scope_selector_title": "Permissions demandées",
       "oauth_scope_selector_hint": "Décochez les permissions que vous ne souhaitez pas accorder. Toutes les permissions exposées par le serveur sont sélectionnées par défaut.",
-      "oauth_scope_selector_empty": "Le serveur ne publie pas la liste des permissions disponibles — les permissions par défaut seront demandées.",
+      "oauth_scope_selector_empty": "Le serveur ne publie pas la liste des permissions disponibles - les permissions par défaut seront demandées.",
       "oauth_signin_button": "Se connecter à {provider}",
       "oauth_signin_in_progress": "Connexion en cours…",
       "oauth_signin_success": "Connecté en tant que {identity}",
@@ -663,7 +663,7 @@
       "approval_readonly_desc": "Seules les opérations de lecture sont autorisées.",
       "confirm_button": "Ajouter la connexion",
       "adding": "Ajout en cours…",
-      "test_unavailable": "Test de connexion indisponible — aucune configuration trouvée pour ce serveur.",
+      "test_unavailable": "Test de connexion indisponible - aucune configuration trouvée pour ce serveur.",
       "no_package_title": "Serveur non configurable",
       "no_package_body": "Ce serveur ne possède ni paquet installable ni point d'accès distant. Il ne peut pas être ajouté automatiquement."
     },
@@ -679,7 +679,7 @@
       "no_activity": "Aucune activité pour l’instant",
       "test_button": "Tester",
       "test_testing": "Test en cours…",
-      "test_ok": "Connexion OK — {count} outils",
+      "test_ok": "Connexion OK - {count} outils",
       "test_failed": "Test échoué",
       "reconnect_button": "Reconnecter",
       "reconnecting": "Reconnexion…",
@@ -720,7 +720,7 @@
     "ready": "Prêt",
     "workers_section": "Agents workers",
     "manage": "Gérer",
-    "digest_hero_title": "Aujourd'hui — {date}",
+    "digest_hero_title": "Aujourd'hui - {date}",
     "week_tasks_count": "Tâches de la semaine ({n})",
     "week_pending_suffix": "dont {m} en attente",
     "digest_loading": "Génération de votre résumé du jour...",
@@ -734,7 +734,7 @@
     "fact_insights": "Insights :",
     "fact_automations_failed": "Automatisations échouées :",
     "pending_actions_title": "Actions en attente",
-    "pending_actions_empty": "Rien ne vous attend — vous êtes à jour.",
+    "pending_actions_empty": "Rien ne vous attend - vous êtes à jour.",
     "pending_actions_see_all": "Voir la boîte de réception ({n})",
     "completed_today_title": "Terminées aujourd'hui",
     "completed_today_empty": "Aucune tâche terminée pour cette période.",
@@ -744,16 +744,16 @@
     "range_all": "Tout",
     "my_assistants_title": "Vos assistants",
     "my_assistants_empty": "Aucun assistant installé pour l'instant.",
-    "worker_badge_tooltip": "{skills} skills partagées via A2A — utilisées {calls} fois aujourd'hui",
-    "worker_badge_tooltip_idle": "{skills} skills partagées via A2A — inutilisées aujourd'hui",
+    "worker_badge_tooltip": "{skills} skills partagées via A2A - utilisées {calls} fois aujourd'hui",
+    "worker_badge_tooltip_idle": "{skills} skills partagées via A2A - inutilisées aujourd'hui",
     "worker_sheet_title": "Qu'est-ce qu'un worker A2A ?",
     "worker_sheet_intro": "Ces assistants peuvent collaborer automatiquement.",
     "worker_sheet_what_title": "Le concept",
-    "worker_sheet_what_body": "Un worker A2A est un assistant qui peut être appelé par d'autres pour déléguer des sous-tâches — sans passer par vous.",
+    "worker_sheet_what_body": "Un worker A2A est un assistant qui peut être appelé par d'autres pour déléguer des sous-tâches - sans passer par vous.",
     "worker_sheet_when_title": "Quand vous voyez le badge",
     "worker_sheet_when_body": "Cet assistant expose des skills que d'autres agents peuvent invoquer. Vous restez maître : chaque appel reste local et apparaît dans le journal d'activité.",
     "next_steps_title": "Ce qu'Apollia suggère ensuite",
-    "next_steps_empty": "Lancez quelques tâches — des suggestions apparaîtront ici.",
+    "next_steps_empty": "Lancez quelques tâches - des suggestions apparaîtront ici.",
     "cold_start_title": "Bienvenue ! Votre journée démarre.",
     "cold_start_subtitle": "Essayez d'ouvrir un chat ou parcourez vos assistants.",
     "browse_agents": "Parcourir mes assistants"
@@ -912,8 +912,8 @@
     "step_observation_operator": "Mémoire enregistrée",
     "step_observation_builder": "Observation de step persistée",
     "cache_hit_operator": "Plan en cache réutilisé",
-    "cache_hit_builder": "Cache hit du plan — planification LLM ignorée",
-    "cache_hit_tooltip": "Plan identique trouvé en cache — exécution directe sans re-planification",
+    "cache_hit_builder": "Cache hit du plan - planification LLM ignorée",
+    "cache_hit_tooltip": "Plan identique trouvé en cache - exécution directe sans re-planification",
     "tool_output_label": "Sortie",
     "no_tool_details": "Aucun détail disponible."
   },
@@ -946,7 +946,7 @@
       "session": "Session"
     },
     "activity": {
-      "empty": "Tout va bien — aucun incident récent.",
+      "empty": "Tout va bien - aucun incident récent.",
       "empty_desc": "Cet onglet liste uniquement les échecs, dégradations et incidents LLM des 14 derniers jours. Pour l'activité globale (tâches lancées, triggers exécutés avec succès), voir Observabilité → Chronologie.",
       "empty_cta": "Ouvrir Observabilité",
       "see_logs": "Voir les logs",
@@ -1027,7 +1027,7 @@
     "toast": {
       "accepted": "Action approuvée",
       "rejected": "Action refusée",
-      "always_accepted": "Règle enregistrée — futurs appels auto-approuvés",
+      "always_accepted": "Règle enregistrée - futurs appels auto-approuvés",
       "ask_user_replied": "Réponses envoyées à l'agent",
       "bulk_approved": "{count} actions approuvées",
       "bulk_rejected": "{count} actions refusées"
@@ -1046,7 +1046,7 @@
     "rejecting": "Refus...",
     "reject_reason_placeholder": "Motif du refus...",
     "reject_reason_min": "{min} caractères minimum",
-    "always_allow_success": "Règle enregistrée — sera auto-approuvé à l'avenir",
+    "always_allow_success": "Règle enregistrée - sera auto-approuvé à l'avenir",
     "always_allow_error": "Impossible d'enregistrer la règle",
     "type_bash": "Commande",
     "type_file_edit": "Édition fichier",
@@ -1067,7 +1067,7 @@
     "arguments_label": "Arguments",
     "input_label": "Entrée",
     "preview": {
-      "lazy_hint": "Aperçu non calculé — cliquer pour charger",
+      "lazy_hint": "Aperçu non calculé - cliquer pour charger",
       "load": "Charger l'aperçu",
       "loading": "Chargement de l'aperçu…"
     },
@@ -1115,11 +1115,11 @@
         "all_always": {
           "label": "Tout (tous les agents, tous les outils)",
           "help": "Désactive toutes les demandes d'approbation. Réservé aux environnements entièrement de confiance.",
-          "example": "À utiliser avec une extrême prudence — les agents s'exécuteront sans aucune validation.",
+          "example": "À utiliser avec une extrême prudence - les agents s'exécuteront sans aucune validation.",
           "danger": "Ceci désactive toutes les demandes d'approbation à l'échelle du système.",
           "confirm_title": "Désactiver toutes les approbations ?",
           "confirm_body": "Cela auto-approuvera chaque action de chaque agent. Vous pouvez réactiver des règles individuelles dans Paramètres → Règles de permission.",
-          "confirm_action": "Confirmer — désactiver toutes les validations"
+          "confirm_action": "Confirmer - désactiver toutes les validations"
         }
       }
     },
@@ -1172,7 +1172,7 @@
     "unknown_agent": "Agent inconnu",
     "type_task": "Tâche",
     "type_chat": "Chat",
-    "chat_tools_title": "Chat — Approbations d'outils",
+    "chat_tools_title": "Chat - Approbations d'outils",
     "chat_no_pending": "Aucune approbation d'outil en attente",
     "chat_session_label": "Session",
     "chat_open_session": "Ouvrir la session",
@@ -1269,8 +1269,8 @@
     "view_history": "Voir l'historique",
     "advanced_link": "Ouvrir la vue builder avancée",
     "target_prefix": "Assistant",
-    "paused_hint": "En pause — réactivez-la en mode avancé pour qu'elle s'exécute selon sa planification.",
-    "fired_toast": "Automatisation lancée — tâche {taskId}",
+    "paused_hint": "En pause - réactivez-la en mode avancé pour qu'elle s'exécute selon sa planification.",
+    "fired_toast": "Automatisation lancée - tâche {taskId}",
     "custom_tooltip": "Planification avancée définie en mode builder : {expr}",
     "last_run_failed": "Dernière exécution en échec",
     "success_stat": "Succès {rate} % ({fires}/{total})",
@@ -1314,7 +1314,7 @@
       "refine_label": "Ajustez en langage naturel",
       "refine_placeholder": "Ex. plutôt à 9 h",
       "agent_intro": "Choisissez l'assistant que ce déclencheur va lancer. Un déclencheur lance toujours un assistant à la fois.",
-      "agent_not_matched_hint": "Apollia n'a pas reconnu d'assistant dans votre description — sélectionnez-en un ci-dessous.",
+      "agent_not_matched_hint": "Apollia n'a pas reconnu d'assistant dans votre description - sélectionnez-en un ci-dessous.",
       "agent_pick": "Choisir un assistant",
       "agent_select_aria": "Assistant cible",
       "agent_inferred": "Reconnu automatiquement : {agent}",
@@ -1340,7 +1340,7 @@
     "reloading": "Rechargement...",
     "reload_success": "Configuration rechargée ({count} triggers actifs)",
     "reload_error": "Erreur de rechargement : {message}",
-    "fired_toast": "Trigger déclenché — tâche {taskId}",
+    "fired_toast": "Trigger déclenché - tâche {taskId}",
     "empty_title": "Aucun trigger configuré",
     "empty_subtitle": "Les triggers permettent à vos assistants de s'exécuter automatiquement. Configurez-les dans apollia.toml.",
     "agent_label": "Agent",
@@ -1451,7 +1451,7 @@
     "interval_unit_days": "jours",
     "interval_custom": "Intervalle personnalisé",
     "advanced_section": "Paramètres avancés",
-    "field_id_auto": "Généré automatiquement — personnalisable ci-dessous",
+    "field_id_auto": "Généré automatiquement - personnalisable ci-dessous",
     "empty_subtitle_operator": "Les triggers permettent à vos assistants de s'exécuter automatiquement. Créez votre premier trigger ci-dessous."
   },
   "memory": {
@@ -1509,7 +1509,7 @@
       "permissions_label_operator": "Permissions",
       "permissions_label_builder": "Permissions requises",
       "empty_operator": "Schéma non disponible pour cet outil",
-      "empty_builder": "ToolDescriptor introuvable — l'outil n'expose peut-être pas l'introspection",
+      "empty_builder": "ToolDescriptor introuvable - l'outil n'expose peut-être pas l'introspection",
       "no_schema": "Non défini",
       "no_permissions": "Aucune permission requise"
     },
@@ -1792,14 +1792,14 @@
     "empty_audit": "Aucune invocation d'outil enregistrée.",
     "load_more_audit": "Charger {count} de plus",
     "audit_purpose_title": "Pourquoi cette piste ?",
-    "audit_purpose_body": "Chaque outil invoqué par un agent — fichier écrit, requête web, action MCP, commande shell — est tracé ici de manière immuable. Cas d'usage : contrôle interne, enquête après incident, conformité, vérification du périmètre d'action d'un agent.",
+    "audit_purpose_body": "Chaque outil invoqué par un agent - fichier écrit, requête web, action MCP, commande shell - est tracé ici de manière immuable. Cas d'usage : contrôle interne, enquête après incident, conformité, vérification du périmètre d'action d'un agent.",
     "audit_kpi_entries": "Entrées affichées",
     "audit_kpi_tools": "Outils distincts",
     "audit_kpi_failures": "Échecs",
     "audit_kpi_avg_duration": "Durée moyenne",
     "audit_status_ok": "Succès",
     "audit_status_error": "Échec",
-    "audit_status_unknown": "—",
+    "audit_status_unknown": "-",
     "table": {
       "timestamp": "Horodatage",
       "tool": "Outil",
@@ -1838,7 +1838,7 @@
     "save_toast_error": "Échec de l'enregistrement : {error}",
     "save_status_saved": "Enregistré",
     "save_status_saving": "Enregistrement…",
-    "save_status_retry": "Échec — réessayer",
+    "save_status_retry": "Échec - réessayer",
     "nav": {
       "aria_label": "Sections des paramètres",
       "cluster_personalization": "Personnalisation",
@@ -1863,7 +1863,7 @@
     },
     "observability": {
       "title": "Observabilité",
-      "subtitle": "Contrôlez ce qui est capturé sur l'exécution des agents. Tout reste local — rien n'est envoyé sur le réseau.",
+      "subtitle": "Contrôlez ce qui est capturé sur l'exécution des agents. Tout reste local - rien n'est envoyé sur le réseau.",
       "capture_thoughts": "Pensées de l'agent (raisonnement ReAct)",
       "capture_thoughts_desc": "Persiste le champ 'thought' du LLM à chaque tour ReAct.",
       "capture_llm_prompts": "Prompts LLM (contenu complet)",
@@ -1977,7 +1977,7 @@
     "read_only_notice": "Les modifications nécessitent un redémarrage",
     "readonly_banner": "Configuration en lecture seule. Pour modifier, éditez {file} et redémarrez le runtime.",
     "loading_config": "Chargement de la configuration...",
-    "file_not_found": "fichier introuvable — affichage des valeurs par défaut",
+    "file_not_found": "fichier introuvable - affichage des valeurs par défaut",
     "see_llm": "Voir les backends LLM",
     "see_details": "Voir les détails",
     "operational_redirect_banner": "Les triggers et notifications se configurent depuis leurs vues dédiées dans la sidebar.",
@@ -2065,7 +2065,7 @@
         "captured": "Capturé : {combo}",
         "updated_toast": "Raccourci mis à jour : {combo}",
         "cancelled_toast": "Capture annulée",
-        "timeout_toast": "Aucune touche — capture annulée"
+        "timeout_toast": "Aucune touche - capture annulée"
       },
       "status_refresh": "Rafraîchir",
       "status_updated": "Mis à jour {relative}",
@@ -2098,7 +2098,7 @@
     "stt_hotkey": "Raccourci clavier",
     "stt_hotkey_recording": "Appuyez sur la combinaison...",
     "stt_hotkey_placeholder": "Cliquez pour enregistrer",
-    "stt_hotkey_hint": "Appuyez sur la combinaison souhaitée — Échap pour annuler.",
+    "stt_hotkey_hint": "Appuyez sur la combinaison souhaitée - Échap pour annuler.",
     "stt_clipboard_mode": "Mode presse-papiers",
     "stt_clipboard_restore": "Restaurer le presse-papiers après injection",
     "stt_silence_threshold": "Seuil de silence",
@@ -2185,8 +2185,8 @@
       "scan": "Scanner",
       "scan_empty": "Aucun fichier .gguf trouvé dans ~/.apollia/models, ~/Downloads ou ~/.cache/lm-studio.",
       "recommended": "Recommandé",
-      "multipart_first": "Modèle multi-partie ({total} fichiers) — tous les fichiers doivent être dans le même dossier.",
-      "multipart_corrected": "Partie {part}/{total} sélectionnée — chemin corrigé vers la première partie automatiquement.",
+      "multipart_first": "Modèle multi-partie ({total} fichiers) - tous les fichiers doivent être dans le même dossier.",
+      "multipart_corrected": "Partie {part}/{total} sélectionnée - chemin corrigé vers la première partie automatiquement.",
       "err_required": "Requis",
       "err_invalid_name": "Utilisez lettres minuscules, chiffres, _ ou -",
       "err_invalid_url": "Doit être une URL http(s) valide",
@@ -2259,11 +2259,11 @@
       "card": {
         "gated": "Soumis",
         "embedding_only": "Embedding uniquement",
-        "embedding_only_title": "Pas un modèle de génération de texte — incompatible avec llama.cpp",
+        "embedding_only_title": "Pas un modèle de génération de texte - incompatible avec llama.cpp",
         "no_gguf": "Pas de GGUF",
         "no_gguf_title": "Aucun fichier GGUF trouvé dans ce dépôt",
         "arch_unknown": "Archi. inconnue",
-        "arch_unknown_title": "Architecture non encore confirmée dans llama.cpp — peut fonctionner ou non",
+        "arch_unknown_title": "Architecture non encore confirmée dans llama.cpp - peut fonctionner ou non",
         "downloads_count": "↓ {count}k téléchargements",
         "gguf_files_count": "{count} fichiers GGUF"
       },
@@ -2279,9 +2279,9 @@
         "variants_other": "{count} variantes",
         "parts": "{count} parties",
         "compat_fits": "Tient en mémoire",
-        "compat_might_fit": "Pourrait tenir — limite",
+        "compat_might_fit": "Pourrait tenir - limite",
         "compat_too_large": "Trop volumineux pour votre machine",
-        "vision_projector": "Projecteur de vision — requis pour l'inférence multimodale",
+        "vision_projector": "Projecteur de vision - requis pour l'inférence multimodale",
         "download": "Télécharger",
         "files_count": "{count} fichiers",
         "no_gguf_in_repo": "Aucun fichier GGUF trouvé dans ce dépôt."
@@ -2380,7 +2380,7 @@
     "sending": "Envoi...",
     "send": "Envoyer",
     "waiting_approval": "En attente d'approbation",
-    "running_status": "En cours — {status}",
+    "running_status": "En cours - {status}",
     "running_status_operator": "En cours...",
     "completed": "Terminé",
     "failed": "Échoué",
@@ -2415,7 +2415,7 @@
         },
         "dashboard_activity": {
           "title": "Fil d'activité récente",
-          "message": "Ce fil affiche les événements récents de tous vos agents — actions effectuées, approbations demandées, et plus encore."
+          "message": "Ce fil affiche les événements récents de tous vos agents - actions effectuées, approbations demandées, et plus encore."
         },
         "agents_grid": {
           "title": "Votre flotte d'agents",
@@ -2424,7 +2424,7 @@
         "agents_start": {
           "title": "Démarrez votre premier agent",
           "message": "Cet agent est en pause. Cliquez sur le bouton Démarrer lumineux pour l'activer et voir le runtime en action.",
-          "success": "Agent démarré ! Remarquez le bouton Chat qui vient d'apparaître sur sa carte — il vous permet de converser directement avec lui."
+          "success": "Agent démarré ! Remarquez le bouton Chat qui vient d'apparaître sur sa carte - il vous permet de converser directement avec lui."
         },
         "chat_discover": {
           "title": "Démarrez une conversation",
@@ -2441,7 +2441,7 @@
         },
         "triggers_overview": {
           "title": "Automatisez avec les déclencheurs",
-          "message": "Les déclencheurs permettent à vos agents de s'exécuter selon un planning ou en réaction à des événements — sans intervention manuelle."
+          "message": "Les déclencheurs permettent à vos agents de s'exécuter selon un planning ou en réaction à des événements - sans intervention manuelle."
         },
         "triggers_detail": {
           "title": "Vos déclencheurs",
@@ -2449,7 +2449,7 @@
         },
         "approvals": {
           "title": "Validation humaine (HITL)",
-          "message": "C'est ici que vos agents vous demandent permission avant d'agir. Quand un agent exécute une action sensible (écriture fichier, appel API externe…), une carte d'approbation apparaît avec le détail de l'action. Vous approuvez ou refusez en un clic. La file est vide pour l'instant — c'est bon signe !"
+          "message": "C'est ici que vos agents vous demandent permission avant d'agir. Quand un agent exécute une action sensible (écriture fichier, appel API externe…), une carte d'approbation apparaît avec le détail de l'action. Vous approuvez ou refusez en un clic. La file est vide pour l'instant - c'est bon signe !"
         },
         "notifications_overview": {
           "title": "Restez informé",
@@ -2462,7 +2462,7 @@
         },
         "observability_tabs": {
           "title": "Trois vues sur votre système",
-          "message": "L'observabilité offre Timeline, Coûts LLM et Audit Trail — chacune donne un angle différent sur l'activité de vos agents."
+          "message": "L'observabilité offre Timeline, Coûts LLM et Audit Trail - chacune donne un angle différent sur l'activité de vos agents."
         },
         "observability_timeline": {
           "title": "Timeline en temps réel",
@@ -2477,13 +2477,13 @@
       "bld": {
         "dashboard": {
           "title": "Votre architecture en un coup d'œil",
-          "message": "C'est votre espace de travail. Vous construirez et exécuterez des agents depuis ici — chaque agent est un module Python avec un contrat manifest() + run()."
+          "message": "C'est votre espace de travail. Vous construirez et exécuterez des agents depuis ici - chaque agent est un module Python avec un contrat manifest() + run()."
         },
         "agents": {
           "title": "Démarrez csv-data-worker",
           "message": "Cliquez sur Démarrer pour activer cet agent de démo. Observez comment le runtime charge le module Python et l'enregistre.",
           "success": "Agent actif ! Le runtime a chargé le manifest et démarré la boucle run().",
-          "already_active": "Cet agent tourne déjà — le runtime l'a détecté automatiquement."
+          "already_active": "Cet agent tourne déjà - le runtime l'a détecté automatiquement."
         },
         "agent_detail": {
           "title": "Le manifest de l'agent",
@@ -2492,7 +2492,7 @@
         "memory": {
           "title": "Interroger la mémoire de l'agent",
           "message": "Les agents écrivent en mémoire à leur propre initiative. Cherchez dans le namespace 'onboarding-agent' ce que csv-data-worker a stocké.",
-          "success": "Résultats chargés — vous voyez ce que l'agent a persisté pendant son exécution."
+          "success": "Résultats chargés - vous voyez ce que l'agent a persisté pendant son exécution."
         },
         "chat": {
           "title": "Dialoguez avec votre agent",
@@ -2501,7 +2501,7 @@
         },
         "integrations": {
           "title": "Intégrations MCP",
-          "message": "Connectez des outils externes via des serveurs MCP. Vos agents appellent ces outils via le client natif — sans dépendances Python requises."
+          "message": "Connectez des outils externes via des serveurs MCP. Vos agents appellent ces outils via le client natif - sans dépendances Python requises."
         },
         "triggers": {
           "title": "Types de déclencheurs",
@@ -2509,7 +2509,7 @@
         },
         "pipelines": {
           "title": "Pipelines DAG",
-          "message": "Connectez des agents en graphes acycliques dirigés. Fan-out, fan-in, branches conditionnelles — tout géré par le moteur de pipeline."
+          "message": "Connectez des agents en graphes acycliques dirigés. Fan-out, fan-in, branches conditionnelles - tout géré par le moteur de pipeline."
         },
         "observability": {
           "title": "Observabilité",
@@ -2519,7 +2519,7 @@
           "title": "Vous êtes prêt à construire",
           "message": "Vous connaissez l'architecture. Créez votre premier agent avec manifest() + run(), installez-le, et laissez le runtime faire le reste."
         },
-        "timeout_skip": "Prenez votre temps — vous pouvez rejouer n'importe quelle étape depuis la barre de progression.",
+        "timeout_skip": "Prenez votre temps - vous pouvez rejouer n'importe quelle étape depuis la barre de progression.",
         "step_1": "Votre espace de travail. Chaque agent est un module Python avec un contrat manifest() + run().",
         "step_2": "Démarrez csv-data-worker. Observez comment le runtime charge le module et l'enregistre.",
         "step_3": "Chaque agent expose manifest() pour les métadonnées et run() pour la boucle principale.",
@@ -2527,7 +2527,7 @@
         "step_5": "Envoyez ce message pour voir comment un agent traite une requête liée à la mémoire.",
         "step_6": "Connectez des outils externes via MCP. Vos agents les appellent sans dépendances Python.",
         "step_7": "Cron, intervalle, filewatch, webhook. Chaque trigger appelle run() automatiquement.",
-        "step_8": "Connectez des agents en graphes DAG. Fan-out, fan-in, branches — moteur de pipeline.",
+        "step_8": "Connectez des agents en graphes DAG. Fan-out, fan-in, branches - moteur de pipeline.",
         "step_9": "Chaque appel d'outil, écriture mémoire et token LLM est enregistré dans l'audit trail.",
         "step_10": "Vous connaissez l'architecture. Créez votre premier agent avec manifest() + run()."
       }
@@ -2591,7 +2591,7 @@
     "bm25": "Algorithme de scoring de pertinence pour les résultats de recherche"
   },
   "mac_sandbox": {
-    "title": "macOS — les outils s'exécutent sans sandbox.",
+    "title": "macOS - les outils s'exécutent sans sandbox.",
     "body": "L'isolation par namespaces Linux n'est pas disponible sur macOS. Les appels d'outils des agents (bash, fichiers) s'exécutent directement dans votre session utilisateur. N'exécutez que des agents de confiance et vérifiez leurs permissions d'outils dans le manifest."
   },
   "chat": {
@@ -2646,7 +2646,7 @@
     "select_mode": "Mode",
     "select_agent": "Agent",
     "select_tools": "Outils disponibles",
-    "tools_optional": "Optionnel — sélectionnez les outils à rendre disponibles",
+    "tools_optional": "Optionnel - sélectionnez les outils à rendre disponibles",
     "system_prompt": "Instructions",
     "system_prompt_placeholder": "Instructions pour le LLM...",
     "pick_type": "Nouvelle conversation",
@@ -2718,7 +2718,7 @@
     },
     "rate_limit": {
       "too_fast": "Ralentissez…",
-      "too_many": "Trop de messages — respirez"
+      "too_many": "Trop de messages - respirez"
     },
     "template": {
       "dev_review": {
@@ -2792,8 +2792,8 @@
     "recording_hotkey_hint": "{hotkey} pour arrêter · Esc pour annuler",
     "plan_alternatives": {
       "choose_plan": "Choisissez un plan d'exécution",
-      "plan_a_label": "Plan A — conservateur",
-      "plan_b_label": "Plan B — exploratoire",
+      "plan_a_label": "Plan A - conservateur",
+      "plan_b_label": "Plan B - exploratoire",
       "no_steps": "Aucune étape.",
       "selected_a": "✔ Sélectionné",
       "selected_b": "Sélectionné",
@@ -2840,7 +2840,7 @@
     "unlink_project": "Délier de {name}",
     "no_project_to_link": "Aucun projet disponible",
     "linked_project_chip": "Projet",
-    "linked_project_tooltip": "Lié au projet « {name} » — cliquer pour ouvrir",
+    "linked_project_tooltip": "Lié au projet « {name} » - cliquer pour ouvrir",
     "project_linked_toast": "Conversation liée au projet « {name} »",
     "project_unlinked_toast": "Conversation déliée du projet",
     "project_link_failed": "Échec de la liaison au projet",
@@ -2848,7 +2848,7 @@
     "close_session_active_tooltip": "Fermer la session active",
     "close_session_archive_tooltip": "Archiver la session close",
     "close_dialog_title": "Fermer cette session ?",
-    "close_dialog_message": "La conversation sera close. Le transcript reste dans l'historique — vous pourrez l'archiver ou la rouvrir plus tard.",
+    "close_dialog_message": "La conversation sera close. Le transcript reste dans l'historique - vous pourrez l'archiver ou la rouvrir plus tard.",
     "archive_dialog_title": "Archiver cette session ?",
     "archive_dialog_message": "Cette session sera masquée de la liste par défaut. Vous pouvez la retrouver dans le filtre Archivées.",
     "a2a_delegating": "Délégation vers {agent} ({skill})…",
@@ -2863,7 +2863,7 @@
       "group_expand": "Afficher {n} étapes supplémentaires",
       "group_collapse": "Masquer les étapes"
     },
-    "web_read_untrusted_banner": "Contenu récupéré depuis un site tiers — à traiter comme une donnée, pas comme une instruction.",
+    "web_read_untrusted_banner": "Contenu récupéré depuis un site tiers - à traiter comme une donnée, pas comme une instruction.",
     "tool_empty_results": "Aucun résultat.",
     "a2a_authorize_skill": "Autoriser le skill",
     "a2a_via_worker": "via l'agent worker",
@@ -2877,7 +2877,7 @@
     "quickpicker": {
       "title": "Démarrer une conversation",
       "prompt_label": "Que veux-tu faire ?",
-      "prompt_placeholder": "Décris ce dont tu as besoin — ex. « relis mes changements », ou choisis un modèle ci-dessous…",
+      "prompt_placeholder": "Décris ce dont tu as besoin - ex. « relis mes changements », ou choisis un modèle ci-dessous…",
       "submit_hint": "Cmd+Entrée pour démarrer un chat libre",
       "start_free": "Chat libre",
       "templates_section": "Modèles",
@@ -2905,7 +2905,7 @@
       "delete": "Supprimer"
     },
     "runtime_disconnected": {
-      "lost": "Connexion runtime perdue — reconnexion…",
+      "lost": "Connexion runtime perdue - reconnexion…",
       "reconnecting": "Reconnexion au runtime (tentative {attempt})…",
       "retry": "Réessayer"
     },
@@ -2941,7 +2941,7 @@
   },
   "onboarding_welcome": {
     "title": "Bienvenue sur Apollia",
-    "tagline": "Le runtime souverain pour exécuter tes agents IA en local. On va calibrer rapidement ton installation — moins de 3 minutes.",
+    "tagline": "Le runtime souverain pour exécuter tes agents IA en local. On va calibrer rapidement ton installation - moins de 3 minutes.",
     "subtitle": "Configurez votre environnement en quelques minutes de conversation. Votre assistant IA apprendra vos préférences et configurera tout comme il faut.",
     "configure": "Configurer Apollia OS",
     "skip": "Plus tard",
@@ -2966,21 +2966,21 @@
     "cta_start": "Commencer la configuration"
   },
   "onboarding_chat": {
-    "permission_banner": "À la fin du dialogue, Apollia te proposera quelques règles de permissions adaptées à tes choix — chaque règle s'affichera comme une carte à valider ou refuser dans la conversation.",
+    "permission_banner": "À la fin du dialogue, Apollia te proposera quelques règles de permissions adaptées à tes choix - chaque règle s'affichera comme une carte à valider ou refuser dans la conversation.",
     "wrapup_title_finalized": "Calibrage terminé",
     "wrapup_title_safety": "Tu peux passer à la suite",
     "wrapup_detail_finalized": "L'agent a enregistré ton profil et appliqué les règles de permissions que tu as validées. Tu peux désormais ouvrir Apollia et explorer.",
     "wrapup_detail_safety": "Si tu as répondu aux questions principales, on peut clore ici.",
     "finish": "Terminer",
     "no_llm_title": "Aucun moteur LLM disponible",
-    "no_llm_detail": "Reviens à l'étape précédente pour configurer un modèle local ou un fournisseur cloud — l'agent en a besoin pour dialoguer.",
+    "no_llm_detail": "Reviens à l'étape précédente pour configurer un modèle local ou un fournisseur cloud - l'agent en a besoin pour dialoguer.",
     "back_step": "← Étape précédente",
     "bootstrap": "Initialisation de l'agent…",
     "bootstrap_failed": "Impossible de démarrer l'onboarding."
   },
   "onboarding_permissions": {
     "title": "Règles de permissions proposées",
-    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Applique celles qui te conviennent, ignore les autres — tu pourras toujours les modifier dans <strong>Paramètres → Permissions</strong>.",
+    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Applique celles qui te conviennent, ignore les autres - tu pourras toujours les modifier dans <strong>Paramètres → Permissions</strong>.",
     "loading": "Chargement…",
     "empty": "Aucune règle restante.",
     "apply": "Appliquer",
@@ -3001,7 +3001,7 @@
     "hotkey_save": "Enregistrer",
     "hotkey_saving": "…",
     "hotkey_hint": "Active la dictée vocale depuis n'importe où dans l'app. Combine au moins une touche modificateur (Ctrl, Alt, Shift, Meta) avec une touche normale.",
-    "hotkey_invalid": "Combinaison invalide — utilise au moins un modificateur.",
+    "hotkey_invalid": "Combinaison invalide - utilise au moins un modificateur.",
     "test_start": "Tester maintenant",
     "test_stop": "Parle… (clique pour arrêter)",
     "test_empty": "(transcription vide)",
@@ -3106,7 +3106,7 @@
       "research": {
         "label_operator": "Recherche",
         "label_builder": "Recherche web",
-        "desc_operator": "Chercher sur le web et lire des articles — cocher les outils ci-dessous pour ce chat"
+        "desc_operator": "Chercher sur le web et lire des articles - cocher les outils ci-dessous pour ce chat"
       },
       "memory": {
         "label_operator": "Mémoire",
@@ -3118,62 +3118,62 @@
       "file_read": {
         "label_operator": "Lire des fichiers",
         "desc_operator": "Consulter le contenu de n'importe quel fichier de votre espace de travail",
-        "desc_builder": "file_read — pagination offset/limit — SandboxProfile::ReadOnly"
+        "desc_builder": "file_read - pagination offset/limit - SandboxProfile::ReadOnly"
       },
       "file_write": {
         "label_operator": "Créer des fichiers",
         "desc_operator": "Enregistrer de nouveaux fichiers ou écraser des fichiers existants",
-        "desc_builder": "file_write — écriture atomique — SandboxProfile::Restricted"
+        "desc_builder": "file_write - écriture atomique - SandboxProfile::Restricted"
       },
       "file_edit": {
         "label_operator": "Modifier des fichiers",
         "desc_operator": "Effectuer des modifications précises dans des fichiers existants",
-        "desc_builder": "file_edit — recherche-remplacement, flag replace_all — SandboxProfile::Restricted"
+        "desc_builder": "file_edit - recherche-remplacement, flag replace_all - SandboxProfile::Restricted"
       },
       "file_list": {
         "label_operator": "Explorer des dossiers",
         "desc_operator": "Lister les fichiers et sous-dossiers d'un répertoire",
-        "desc_builder": "file_list — profondeur récursive, filtre hidden — SandboxProfile::ReadOnly"
+        "desc_builder": "file_list - profondeur récursive, filtre hidden - SandboxProfile::ReadOnly"
       },
       "file_glob": {
         "label_operator": "Trouver des fichiers",
         "desc_operator": "Rechercher des fichiers correspondant à un motif (ex. *.txt)",
-        "desc_builder": "file_glob — pattern glob, trié par mtime — SandboxProfile::ReadOnly"
+        "desc_builder": "file_glob - pattern glob, trié par mtime - SandboxProfile::ReadOnly"
       },
       "file_grep": {
         "label_operator": "Rechercher dans les fichiers",
         "desc_operator": "Trouver du texte ou des motifs de code dans vos fichiers",
-        "desc_builder": "file_grep — regex, context_lines, max_results — SandboxProfile::ReadOnly"
+        "desc_builder": "file_grep - regex, context_lines, max_results - SandboxProfile::ReadOnly"
       },
       "bash_executor": {
         "label_operator": "Commandes terminal",
-        "desc_operator": "Exécuter des commandes shell — chaque exécution demande votre approbation",
-        "desc_builder": "bash_executor — timeout_secs, working_dir — SandboxProfile::Full — dangereux"
+        "desc_operator": "Exécuter des commandes shell - chaque exécution demande votre approbation",
+        "desc_builder": "bash_executor - timeout_secs, working_dir - SandboxProfile::Full - dangereux"
       },
       "python_executor": {
         "label_operator": "Scripts Python",
         "desc_operator": "Exécuter du code Python dans un environnement isolé",
-        "desc_builder": "python_executor — venv par agent, timeout_secs — SandboxProfile::Full — dangereux"
+        "desc_builder": "python_executor - venv par agent, timeout_secs - SandboxProfile::Full - dangereux"
       },
       "http_fetch": {
         "label_operator": "Requêtes web",
         "desc_operator": "Récupérer des données depuis des sites web ou APIs externes",
-        "desc_builder": "http_fetch — liste blanche obligatoire, limite 1 Mo, GET/POST — SandboxProfile::Network"
+        "desc_builder": "http_fetch - liste blanche obligatoire, limite 1 Mo, GET/POST - SandboxProfile::Network"
       },
       "web_search": {
         "label_operator": "Recherche web",
         "desc_operator": "Chercher sur le web (DuckDuckGo par défaut, Brave si une clé API est configurée)",
-        "desc_builder": "web_search — backends pluggables (DDG/Brave), opt-in via [tools].web_search — ADR-072"
+        "desc_builder": "web_search - backends pluggables (DDG/Brave), opt-in via [tools].web_search - ADR-072"
       },
       "web_read": {
         "label_operator": "Lire un article",
         "desc_operator": "Récupérer une URL et en extraire le texte lisible de l'article",
-        "desc_builder": "web_read — extraction dom_smoothie (Readability), cap 5 Mo, protégé SSRF — ADR-072"
+        "desc_builder": "web_read - extraction dom_smoothie (Readability), cap 5 Mo, protégé SSRF - ADR-072"
       },
       "memory_search": {
         "label_operator": "Rechercher en mémoire",
         "desc_operator": "Retrouver des informations que l'agent a sauvegardées précédemment",
-        "desc_builder": "memory_search — FTS5 BM25, cloisonné par namespace, limit — SandboxProfile::ReadOnly"
+        "desc_builder": "memory_search - FTS5 BM25, cloisonné par namespace, limit - SandboxProfile::ReadOnly"
       }
     },
     "select": {
@@ -3334,7 +3334,7 @@
   "tours": {
     "first_chat": {
       "step_1_title": "Tapez un message",
-      "step_1_body": "Posez une question en langage naturel — l'agent répond localement, sans sortir de votre machine.",
+      "step_1_body": "Posez une question en langage naturel - l'agent répond localement, sans sortir de votre machine.",
       "step_2_title": "Envoyez le message",
       "step_2_body": "Cliquez sur envoyer (ou Entrée) pour transmettre votre prompt à l'agent sélectionné.",
       "step_3_title": "Observez le raisonnement",
@@ -3346,7 +3346,7 @@
       "step_2_title": "Choisissez un déclencheur",
       "step_2_body": "Définissez quand elle s'exécute : planification, modification de fichier, webhook ou mot-clé.",
       "step_3_title": "Sauvegardez et testez",
-      "step_3_body": "Sauvegardez l'automatisation — elle apparaît dans votre liste et peut être lancée ou éditée à tout moment."
+      "step_3_body": "Sauvegardez l'automatisation - elle apparaît dans votre liste et peut être lancée ou éditée à tout moment."
     },
     "first_memory": {
       "step_1_title": "Parcourez votre mémoire",
@@ -3405,7 +3405,7 @@
     "no_instructions": "Aucune instruction",
     "no_providers": "Aucun provider de contexte configuré",
     "no_documents": "Aucun document attaché",
-    "snapshot_empty": "Aucun contexte collecté — vérifiez que les providers sont activés",
+    "snapshot_empty": "Aucun contexte collecté - vérifiez que les providers sont activés",
     "name_required": "Le nom du projet est requis",
     "field_name": "Nom",
     "field_name_placeholder": "Mon projet",
@@ -3589,13 +3589,13 @@
   "empty_states": {
     "agents": {
       "title": "Votre premier assistant n'attend qu'une installation",
-      "description": "Installez un agent Python ou partez d'un modèle. Apollia l'exécute en local, dans son propre sandbox — aucun aller-retour cloud.",
+      "description": "Installez un agent Python ou partez d'un modèle. Apollia l'exécute en local, dans son propre sandbox - aucun aller-retour cloud.",
       "primary_cta": "Installer un agent",
       "secondary_cta": "Créer depuis un modèle"
     },
     "tasks": {
       "title": "Votre flux de tâches est grand ouvert",
-      "description": "Quand un agent travaille, ses tâches atterrissent ici — exécutions, échecs, approbations, tout est tracé et rejouable.",
+      "description": "Quand un agent travaille, ses tâches atterrissent ici - exécutions, échecs, approbations, tout est tracé et rejouable.",
       "primary_cta": "Lancer une tâche",
       "secondary_cta_operator": "Parcourir les assistants"
     },
@@ -3613,7 +3613,7 @@
     },
     "chat": {
       "title": "Entamez la conversation avec vos agents",
-      "description": "Posez une question, brainstormez, ou déléguez une tâche. Chaque message reste sur votre machine — local-first par conception.",
+      "description": "Posez une question, brainstormez, ou déléguez une tâche. Chaque message reste sur votre machine - local-first par conception.",
       "primary_cta": "Nouveau chat",
       "secondary_cta": "Voir les agents"
     },
@@ -3625,7 +3625,7 @@
     },
     "integrations": {
       "title": "Connectez votre premier outil",
-      "description": "Apollia parle MCP — parcourez le registre ou branchez un serveur custom pour étendre vos agents aux systèmes de fichiers, APIs et plus.",
+      "description": "Apollia parle MCP - parcourez le registre ou branchez un serveur custom pour étendre vos agents aux systèmes de fichiers, APIs et plus.",
       "primary_cta": "Ajouter une connexion",
       "secondary_cta": "Parcourir le registre"
     }

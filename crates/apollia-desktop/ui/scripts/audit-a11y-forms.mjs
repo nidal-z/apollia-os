@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Form-field label audit (US-SP42-007 — F.76 / E.50).
+ * Form-field label audit (US-SP42-007 - F.76 / E.50).
  *
  * Every `<Input …/>` (or Select/Textarea) in a .svelte file must
  * either:
@@ -117,10 +117,10 @@ for await (const file of walk(ROOT)) {
 }
 
 if (violations.length > 0) {
-  console.error("A11y forms audit — violations found:\n");
+  console.error("A11y forms audit - violations found:\n");
   for (const v of violations) console.error(`  ✗ ${v}`);
   console.error(`\nTotal: ${violations.length} violation(s).`);
   process.exit(1);
 }
 
-console.log("A11y forms audit — 0 violations. ✓");
+console.log("A11y forms audit - 0 violations. ✓");

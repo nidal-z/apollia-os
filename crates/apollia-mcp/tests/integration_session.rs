@@ -135,7 +135,7 @@ async fn test_server_crash_returns_error_on_tool_call() {
     // GIVEN a server that exits immediately after responding to tools/list
     let config = crash_server_config();
 
-    // WHEN the session is started — succeeds because the crash happens after tools/list
+    // WHEN the session is started - succeeds because the crash happens after tools/list
     let session = McpSession::start(config, None).await.unwrap();
     assert_eq!(session.tools().len(), 1);
 

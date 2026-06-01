@@ -4,7 +4,7 @@
  * The Tauri backend emits `runtime:heartbeat` events at a regular cadence.
  * If no heartbeat arrives within `HEARTBEAT_TIMEOUT_MS`, the runtime is
  * marked as disconnected and an exponential-backoff reconnect loop kicks
- * in — attempting `refreshAll()` until a fresh heartbeat (or any runtime
+ * in - attempting `refreshAll()` until a fresh heartbeat (or any runtime
  * event) is observed.
  *
  * Consumers subscribe to `runtimeHealth` to render the persistent
@@ -28,7 +28,7 @@ export interface RuntimeHealth {
 
 /** Grace window before we mark the runtime disconnected. */
 const HEARTBEAT_TIMEOUT_MS = 15_000;
-/** Initial retry delay — doubles on every failure up to `MAX_BACKOFF_MS`. */
+/** Initial retry delay - doubles on every failure up to `MAX_BACKOFF_MS`. */
 const INITIAL_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
 
@@ -105,7 +105,7 @@ async function attemptReconnect(): Promise<void> {
   try {
     await refreshAll();
     // `refreshAll` returns on fulfilment regardless of subsequent heartbeats,
-    // so we keep the watchdog engaged — a real heartbeat (or runtime-event)
+    // so we keep the watchdog engaged - a real heartbeat (or runtime-event)
     // will flip the store back to `connected`. If nothing arrives, the next
     // heartbeat miss re-enters `scheduleRetry` with an increased attempt.
     armWatchdog();
@@ -114,7 +114,7 @@ async function attemptReconnect(): Promise<void> {
   }
 }
 
-/** Manually trigger a reconnect — wired to the banner's "Retry now" button. */
+/** Manually trigger a reconnect - wired to the banner's "Retry now" button. */
 export function triggerReconnect(): void {
   if (retryTimer !== null) {
     clearTimeout(retryTimer);
@@ -173,7 +173,7 @@ export function startRuntimeHealthMonitor(): () => void {
 /**
  * Classifies an error message coming from the `get_chat_session` IPC.
  * Backend errors propagate their rusqlite/runtime wording through the Tauri
- * bridge — surface enough to pick the right UI state without locking in
+ * bridge - surface enough to pick the right UI state without locking in
  * exact substrings.
  */
 export function classifySessionError(raw: string): "not_found" | "corrupted" | "other" {

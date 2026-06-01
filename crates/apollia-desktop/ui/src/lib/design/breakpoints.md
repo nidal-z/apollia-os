@@ -1,4 +1,4 @@
-# Breakpoints responsive — Apollia Desktop
+# Breakpoints responsive - Apollia Desktop
 
 > Source de vérité pour tous les breakpoints utilisés dans `apollia-desktop/ui`.
 > Défini par US-SP42-002 et adossé à l'ADR-076.
@@ -17,7 +17,7 @@ correspondent un à un aux préfixes Tailwind standard, enrichis d'un `xs` dédi
 | `xs`   | `375px`     | **Operator mobile** (iPhone SE, seuil minimum supporté) |
 | `sm`   | `640px`     | Tablette portrait, fenêtre desktop étroite        |
 | `md`   | `768px`     | Tablette paysage, split-screen desktop 2 colonnes |
-| `lg`   | `1024px`    | Laptop standard — cible de référence builder      |
+| `lg`   | `1024px`    | Laptop standard - cible de référence builder      |
 | `xl`   | `1280px`    | Desktop large                                     |
 | `2xl`  | `1536px`    | Desktop ultra-wide, dashboards pleins             |
 
@@ -30,7 +30,7 @@ devtools Tailwind).
 
 La persona **operator** peut consulter son agent depuis un mobile (check rapide de
 tâche, approbation HITL, lecture de notif). Le **seuil minimum** est défini à
-**375 px** (iPhone SE). En dessous, le rendu n'est pas garanti — on assume une
+**375 px** (iPhone SE). En dessous, le rendu n'est pas garanti - on assume une
 dégradation acceptable.
 
 La persona **builder** ne descend pas sous `md` (768 px) : la profondeur
@@ -43,7 +43,7 @@ d'observabilité exige de la place.
    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">…</div>
    ```
 2. **Aucune valeur brute en `px` dans le code Svelte** (classes `w-[420px]`,
-   `max-w-[600px]`, `@media (max-width: 560px)`, etc.) — sauf cas explicitement
+   `max-w-[600px]`, `@media (max-width: 560px)`, etc.) - sauf cas explicitement
    justifié par un commentaire `// @responsive-exception: raison` relié à un ADR.
 3. **Conteneurs de page** : toutes les routes de `src/routes/**.svelte` doivent
    utiliser le pattern canonique :
@@ -68,7 +68,7 @@ Un lint visuel doit être passé aux 4 largeurs critiques avant merge :
 |------------|-----------------------------|
 | `375 px`   | operator mobile (limite basse) |
 | `768 px`   | charnière `sm → md`         |
-| `1024 px`  | charnière `md → lg` — laptop builder |
+| `1024 px`  | charnière `md → lg` - laptop builder |
 | `1440 px`  | desktop confort             |
 
 Checklist QA complète : [`docs/internal/STORIES/sprint-42/responsive-qa.md`](../../../../../docs/internal/STORIES/sprint-42/responsive-qa.md).

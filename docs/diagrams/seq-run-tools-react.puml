@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Boucle ReAct run_tools() — Apollia OS
+title Séquence - Boucle ReAct run_tools() - Apollia OS
 
 participant "Agent Python" as agent #2d4a22/d4edda
 participant "LlmProxy\n(PyO3)" as proxy #4a3728/f5e6d3

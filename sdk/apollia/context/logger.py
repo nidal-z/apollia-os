@@ -1,4 +1,4 @@
-"""ctx.logger — structured logging via stdlib ``logging``.
+"""ctx.logger - structured logging via stdlib ``logging``.
 
 The runtime configures the actual logger so that records are piped into
 the Rust ``tracing`` subscriber.  Agents just use the standard

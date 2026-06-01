@@ -1,9 +1,9 @@
-# ADR-059 — Concurrent Tool Execution
+# ADR-059 - Concurrent Tool Execution
 
 **Date :** 2026-04-04
 **Statut :** Accepté
 **Décideur :** Nidal
-**Sprint :** 35 — Workspace Intelligence & Execution Performance
+**Sprint :** 35 - Workspace Intelligence & Execution Performance
 
 ---
 
@@ -91,8 +91,8 @@ La concurrence est limitée par un `tokio::sync::Semaphore` de 10 permits pour �
 - Semaphore(10) : protection contre la saturation des ressources système
 
 **Négatives / Compromis :**
-- Un seul outil non-read-only dans un batch force le sériel pour tout le batch. Si ORIA génère des plans mixtes, le gain est partiel. La solution est que le Reasoner génère des batches homogènes — documenté dans le wiki.
-- L'ordre des résultats dans un batch parallel est celui de l'entrée, pas celui de completion — l'outil le plus lent bloque la progression perçue mais pas le résultat final.
+- Un seul outil non-read-only dans un batch force le sériel pour tout le batch. Si ORIA génère des plans mixtes, le gain est partiel. La solution est que le Reasoner génère des batches homogènes - documenté dans le wiki.
+- L'ordre des résultats dans un batch parallel est celui de l'entrée, pas celui de completion - l'outil le plus lent bloque la progression perçue mais pas le résultat final.
 
 **Neutres / À surveiller :**
 - Les outils MCP (`McpToolExecutor`) sont `is_read_only = false` par défaut même si le serveur n'a que des outils de lecture. Une annotation per-tool sera envisagée si un serveur MCP déclare explicitement `read-only: true` dans sa réponse `tools/list`.
@@ -101,8 +101,8 @@ La concurrence est limitée par un `tokio::sync::Semaphore` de 10 permits pour �
 
 ## Principes architecturaux impactés
 
-- **Principe #5 — Un acteur, une responsabilité** : `ToolDispatcher` gère le routing et la concurrence. `ToolExecutor` gère l'exécution d'un outil individuel. Conforme.
-- **Principe #4 — Fail fast** : Un batch mixte → sériel immédiatement, sans tentative d'optimisation partielle risquée. Conforme.
+- **Principe #5 - Un acteur, une responsabilité** : `ToolDispatcher` gère le routing et la concurrence. `ToolExecutor` gère l'exécution d'un outil individuel. Conforme.
+- **Principe #4 - Fail fast** : Un batch mixte → sériel immédiatement, sans tentative d'optimisation partielle risquée. Conforme.
 
 ---
 
@@ -110,6 +110,6 @@ La concurrence est limitée par un `tokio::sync::Semaphore` de 10 permits pour �
 
 - Story d'implémentation : STORY-456
 - Implémenté dans : `crates/apollia-tools/src/dispatcher.rs`
-- Wiki : [Briques Tool Registry — Concurrence d'outils](../wiki/Briques-Tool-Registry.md#concurrence-doutils)
-- ADR connexe : [ADR-015](ADR-015-tool-executor-trait-abstraction.md) — `ToolExecutor` trait
-- ADR connexe : [ADR-043](ADR-043-decomposition-atomique-outils.md) — décomposition atomique
+- Wiki : [Briques Tool Registry - Concurrence d'outils](../wiki/Briques-Tool-Registry.md#concurrence-doutils)
+- ADR connexe : [ADR-015](ADR-015-tool-executor-trait-abstraction.md) - `ToolExecutor` trait
+- ADR connexe : [ADR-043](ADR-043-decomposition-atomique-outils.md) - décomposition atomique

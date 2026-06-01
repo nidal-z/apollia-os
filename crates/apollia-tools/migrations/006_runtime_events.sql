@@ -1,11 +1,11 @@
--- Migration 006 — table runtime_events (event-sourced observability)
+-- Migration 006 - table runtime_events (event-sourced observability)
 -- Idempotente : CREATE TABLE / TRIGGER / INDEX IF NOT EXISTS.
 --
 -- Append-only event log qui devient la source de vérité de la trajectoire
 -- d'exécution d'un agent. Couvre : ctx.log, thoughts ReAct, tool calls,
 -- LLM calls, retries, A2A invocations, transitions HITL, etc.
 --
--- Voir ADR-088 — Event-sourced observability via `runtime_events`.
+-- Voir ADR-088 - Event-sourced observability via `runtime_events`.
 
 CREATE TABLE IF NOT EXISTS runtime_events (
     -- UUID v7 (ordonnable lexicographiquement par création).

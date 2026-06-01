@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title CircuitBreaker State Machine — ResilienceLayer — Apollia OS
+title CircuitBreaker State Machine - ResilienceLayer - Apollia OS
 
 [*] --> Closed
 

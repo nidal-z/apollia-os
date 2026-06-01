@@ -1,6 +1,6 @@
--- Migration 009 — project_agents junction table.
+-- Migration 009 - project_agents junction table.
 -- Links agents to projects (many-to-many). agent_name references installed_agents
--- in agents.db (application-level, no FK — separate databases).
+-- in agents.db (application-level, no FK - separate databases).
 
 CREATE TABLE IF NOT EXISTS project_agents (
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

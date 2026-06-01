@@ -126,7 +126,7 @@ export async function setToolFilter(tool: string | null): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Chat-libre agent rules — règles `scope = 'agent'` pour `apollia:chat`.
+// Chat-libre agent rules - règles `scope = 'agent'` pour `apollia:chat`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Liste des règles agent-scoped attribuées à l'agent système Apollia Chat. */
@@ -155,7 +155,7 @@ export async function deleteChatRule(id: number): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Active session authorizations — `scope = 'session'` in-memory only.
+// Active session authorizations - `scope = 'session'` in-memory only.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Autorisation in-memory accordée pendant une session de chat. */

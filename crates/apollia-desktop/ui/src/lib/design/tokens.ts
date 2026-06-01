@@ -1,11 +1,11 @@
 /**
- * Design tokens v2 — ADR-077.
+ * Design tokens v2 - ADR-077.
  *
  * Typed references to CSS variables declared in `src/app.css`. Prefer these
  * exports over raw CSS variable strings so that renames (or a future move to
  * a different backing store) surface at type-check time.
  *
- * Every token here resolves at runtime via `var()` — no values are duplicated.
+ * Every token here resolves at runtime via `var()` - no values are duplicated.
  */
 
 export const elevation = {
@@ -22,22 +22,22 @@ export const elevation = {
 } as const;
 
 export const primaryShadow = {
-  /** Primary tint — buttons at rest. */
+  /** Primary tint - buttons at rest. */
   sm: "var(--shadow-primary-sm)",
-  /** Primary tint — raised CTAs. */
+  /** Primary tint - raised CTAs. */
   md: "var(--shadow-primary-md)",
-  /** Primary tint — hovered hero CTAs. */
+  /** Primary tint - hovered hero CTAs. */
   lg: "var(--shadow-primary-lg)",
-  /** Primary tint — big featured buttons (Start agent, Send). */
+  /** Primary tint - big featured buttons (Start agent, Send). */
   xl: "var(--shadow-primary-xl)",
 } as const;
 
 export const surface = {
-  /** Most elevated card surface — modals, focused cards. */
+  /** Most elevated card surface - modals, focused cards. */
   s1: "hsl(var(--surface-1))",
   /** Default card / panel body. */
   s2: "hsl(var(--surface-2))",
-  /** Recessed / inset regions — empty states, diff viewers. */
+  /** Recessed / inset regions - empty states, diff viewers. */
   s3: "hsl(var(--surface-3))",
 } as const;
 
@@ -49,9 +49,9 @@ export const glassBorder = {
 } as const;
 
 export const backdrop = {
-  /** Modal / sheet backdrop — bg-black/40 light, warm dark tint. */
+  /** Modal / sheet backdrop - bg-black/40 light, warm dark tint. */
   default: "var(--backdrop)",
-  /** Lighter dim — popovers, quiet overlays. */
+  /** Lighter dim - popovers, quiet overlays. */
   subtle: "var(--backdrop-subtle)",
 } as const;
 
@@ -60,20 +60,20 @@ export const primaryGradient = {
   css: "linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)))",
 } as const;
 
-/** Canonical gradients — full `var()` references. */
+/** Canonical gradients - full `var()` references. */
 export const gradient = {
-  /** Primary → secondary, 135° — hero CTAs, promoted cards. */
+  /** Primary → secondary, 135° - hero CTAs, promoted cards. */
   primary: "var(--gradient-primary)",
-  /** Surface-1 → surface-2, vertical — hero backgrounds, panel tops. */
+  /** Surface-1 → surface-2, vertical - hero backgrounds, panel tops. */
   surface: "var(--gradient-surface)",
-  /** Primary/secondary tinted wash — empty states, accent surfaces. */
+  /** Primary/secondary tinted wash - empty states, accent surfaces. */
   accent: "var(--gradient-accent)",
 } as const;
 
 /**
  * Chat shell layout bounds.
  *
- * Canonical widths for the 3-column chat shell — Sessions, Conversation,
+ * Canonical widths for the 3-column chat shell - Sessions, Conversation,
  * ContextDrawer. Values are in CSS pixels; keep in sync with the story AC:
  * Sessions 260–320 px, Conversation elastic, ContextDrawer 320–420 px.
  */

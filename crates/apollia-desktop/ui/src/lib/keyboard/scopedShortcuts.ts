@@ -1,5 +1,5 @@
 /**
- * Scoped keyboard shortcuts — registered globally but only active while
+ * Scoped keyboard shortcuts - registered globally but only active while
  * the application's current route matches a given predicate.
  *
  * Introduced for (Cmd+S / Ctrl+S inside `/settings/*`).
@@ -20,7 +20,7 @@ export interface ScopedShortcut {
 }
 
 // navigator.platform is deprecated but still the most reliable signal across
-// engines for Mac detection — no widely-supported replacement exists.
+// engines for Mac detection - no widely-supported replacement exists.
 const isMac =
   typeof navigator !== "undefined" &&
   /Mac|iPod|iPhone|iPad/.test((navigator as Navigator & { platform?: string }).platform ?? ""); // NOSONAR typescript:S1874

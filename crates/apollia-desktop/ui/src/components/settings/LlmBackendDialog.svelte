@@ -42,7 +42,7 @@
     return p === "openai" || p === "mistral" || p === "anthropic" || p === "ollama";
   }
 
-  /** Pure validator — unit-testable. */
+  /** Pure validator - unit-testable. */
   export function validateForm(state: BackendFormState, editing: boolean): ValidationErrors {
     const errors: ValidationErrors = {};
     if (!state.name.trim()) {
@@ -171,7 +171,7 @@
     delete rest.top_p;
     delete rest.repeat_penalty;
     delete rest.context_size;
-    // model_path / model_paths are managed via form.model — never round-trip via extraJson
+    // model_path / model_paths are managed via form.model - never round-trip via extraJson
     delete rest.model_path;
     delete rest.model_paths;
     return {
@@ -645,7 +645,7 @@
                   min="0"
                   max="2"
                   step="0.05"
-                  placeholder="—"
+                  placeholder="-"
                   class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   value={form.temperature ?? ""}
                   oninput={(e) => {
@@ -665,7 +665,7 @@
                   type="number"
                   min="0"
                   step="1"
-                  placeholder="—"
+                  placeholder="-"
                   class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   value={form.topK ?? ""}
                   oninput={(e) => {
@@ -686,7 +686,7 @@
                   min="0"
                   max="1"
                   step="0.05"
-                  placeholder="—"
+                  placeholder="-"
                   class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   value={form.topP ?? ""}
                   oninput={(e) => {
@@ -707,7 +707,7 @@
                   min="0"
                   max="2"
                   step="0.05"
-                  placeholder="—"
+                  placeholder="-"
                   class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   value={form.repeatPenalty ?? ""}
                   oninput={(e) => {
@@ -727,7 +727,7 @@
                   type="number"
                   min="512"
                   step="512"
-                  placeholder="—"
+                  placeholder="-"
                   class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   value={form.contextSize ?? ""}
                   oninput={(e) => {

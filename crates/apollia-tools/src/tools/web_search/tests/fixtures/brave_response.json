@@ -11,8 +11,8 @@
     "results": [
       {
         "type": "search_result",
-        "title": "Apollia OS — Local-first runtime for autonomous AI agents",
-        "url": "https://github.com/nidal-z/apollia-os",
+        "title": "Apollia OS - Local-first runtime for autonomous AI agents",
+        "url": "https://github.com/Apollia-OS/apollia-os",
         "description": "<strong>Apollia</strong> is an open-source <strong>Rust</strong> <strong>runtime</strong> for running AI agents locally. Supports LangGraph, CrewAI, and custom Python agents.",
         "age": "2 days ago",
         "page_age": "2026-04-15T10:24:00",
@@ -20,7 +20,7 @@
       },
       {
         "type": "search_result",
-        "title": "Tokio — Asynchronous Rust runtime",
+        "title": "Tokio - Asynchronous Rust runtime",
         "url": "https://tokio.rs/",
         "description": "Tokio is a <strong>runtime</strong> for writing reliable asynchronous applications with Rust.",
         "page_age": "2026-03-10T00:00:00",
@@ -28,7 +28,7 @@
       },
       {
         "type": "search_result",
-        "title": "PyO3 — Rust bindings for Python",
+        "title": "PyO3 - Rust bindings for Python",
         "url": "https://pyo3.rs/",
         "description": "Use <strong>Rust</strong> to write Python extensions. Supports async.",
         "language": "en"

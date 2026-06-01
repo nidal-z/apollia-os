@@ -54,7 +54,7 @@
       codeCopied = true;
       setTimeout(() => (codeCopied = false), 1500);
     } catch {
-      // Clipboard unavailable — silent fallback.
+      // Clipboard unavailable - silent fallback.
     }
   }
 </script>

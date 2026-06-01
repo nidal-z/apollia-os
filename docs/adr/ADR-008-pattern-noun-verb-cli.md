@@ -1,4 +1,4 @@
-# ADR-008 — Pattern `noun verb` pour la CLI
+# ADR-008 - Pattern `noun verb` pour la CLI
 
 **Date :** 2026-03
 **Statut :** Accepté
@@ -17,17 +17,17 @@ Nous adoptons `noun-verb` : `apollia-os agent start`, `apollia-os task list`, `a
 
 ## Alternatives considérées
 
-### Option A — `verb-noun` (rejetée)
+### Option A - `verb-noun` (rejetée)
 **Pour :** Similaire à kubectl, familier pour les utilisateurs Kubernetes.
 **Contre :** Moins intuitif pour explorer les capacités d'un objet (quels verbes s'appliquent à "agent" ?). L'autocomplétion est moins naturelle.
 
-### Option B — Mixte selon le contexte (rejetée)
+### Option B - Mixte selon le contexte (rejetée)
 **Pour :** Liberté de choisir le plus naturel cas par cas.
 **Contre :** Incohérent. Source de confusion pour les opérateurs. Impossible à documenter proprement.
 
-### Option retenue — `noun-verb` uniforme
+### Option retenue - `noun-verb` uniforme
 **Pour :** `apollia-os agent <TAB>` liste toutes les actions possibles sur un agent. Découverte naturelle. Cohérent avec Docker CLI et Homebrew.
-**Compromis acceptés :** Les commandes de niveau 1 (`start`, `stop`, `status`, `run`) sont des exceptions — justifiées par leur fréquence d'usage.
+**Compromis acceptés :** Les commandes de niveau 1 (`start`, `stop`, `status`, `run`) sont des exceptions - justifiées par leur fréquence d'usage.
 
 ## Conséquences
 
@@ -38,14 +38,14 @@ Nous adoptons `noun-verb` : `apollia-os agent start`, `apollia-os task list`, `a
 
 **Négatives / Compromis :**
 - Les exceptions de niveau 1 (`start`, `stop`) créent une légère incohérence.
-- `apollia-os run` est un raccourci pour `apollia-os task run` — à documenter explicitement.
+- `apollia-os run` est un raccourci pour `apollia-os task run` - à documenter explicitement.
 
 **Neutres / À surveiller :**
 - Vérifier la cohérence lors de l'ajout de nouvelles commandes en Sprint 5.
 
 ## Principes architecturaux impactés
 
-- Principe #8 — CLI humaine, API machine : La CLI doit être intuitive pour un humain.
+- Principe #8 - CLI humaine, API machine : La CLI doit être intuitive pour un humain.
 
 ## Liens
 

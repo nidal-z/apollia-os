@@ -118,7 +118,7 @@ def test_pure_conversational_agent_dispatches_message() -> None:
 
 
 def test_pure_orchestrated_agent_has_no_dispatch_route() -> None:
-    """Orchestrated agents are driven by ORIA, not the dispatch loop —
+    """Orchestrated agents are driven by ORIA, not the dispatch loop -
     when called via __apollia_dispatch__ without a skill_id, they fail."""
     mod_name = _new_module()
 

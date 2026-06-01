@@ -27,7 +27,7 @@ pub enum UpdateError {
     Io(#[from] std::io::Error),
 
     /// SHA256 checksum does not match the downloaded binary.
-    #[error("SHA256 mismatch — expected: {expected}, got: {actual}")]
+    #[error("SHA256 mismatch - expected: {expected}, got: {actual}")]
     ChecksumMismatch { expected: String, actual: String },
 
     /// Version string could not be parsed as semver.

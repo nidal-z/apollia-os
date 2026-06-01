@@ -1,5 +1,5 @@
 /**
- * Typed i18n key catalog — one module per zone.
+ * Typed i18n key catalog - one module per zone.
  *
  * The actual translations live in `../en.json` / `../fr.json`. These TS
  * modules are the typed indexes consumed by components that want to pass

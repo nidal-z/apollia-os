@@ -80,7 +80,7 @@
   ];
 
   function shortId(id: string | null): string {
-    if (!id) return "—";
+    if (!id) return "-";
     return id.slice(0, 8);
   }
 

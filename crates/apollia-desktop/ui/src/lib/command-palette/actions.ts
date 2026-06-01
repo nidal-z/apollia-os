@@ -7,7 +7,7 @@
  * and an optional `shortcut` rendered as kbd chips.
  *
  * Runtime-derived groups (Sessions, Settings sub-routes, Recently used)
- * live in `paletteIndex.ts` — this module is static data only.
+ * live in `paletteIndex.ts` - this module is static data only.
  */
 import { get } from "svelte/store";
 import { t } from "svelte-i18n";
@@ -38,12 +38,12 @@ import {
   Keyboard,
   Info,
 } from "lucide-svelte";
-// NOSONAR typescript:S1874 — Svelte 4 ComponentType retained for lucide-svelte compat
+// NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 
 /**
  * Local alias for Svelte 4 `ComponentType`. Centralizes deprecation
- * suppression — lucide-svelte's icon exports are typed against this alias.
+ * suppression - lucide-svelte's icon exports are typed against this alias.
  */
 // NOSONAR typescript:S1874
 type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874
@@ -67,7 +67,7 @@ export type PaletteGroupKind =
 export interface PaletteAction {
   /** Stable id used for dedup, telemetry, and "Recently used" tracking. */
   id: string;
-  /** Rendered label (translated — NOT an i18n key). */
+  /** Rendered label (translated - NOT an i18n key). */
   label: string;
   /** Translated keywords/synonyms boosting fuzzy search. */
   keywords?: string[];
@@ -87,7 +87,7 @@ export interface PaletteAction {
   execute: () => void | Promise<void>;
 }
 
-// NOSONAR typescript:S1874 — navigator.platform retained for Tauri webview parity;
+// NOSONAR typescript:S1874 - navigator.platform retained for Tauri webview parity;
 // userAgentData is not yet stable across all platforms Apollia targets.
 const isMac =
   typeof navigator !== "undefined" && navigator.platform.includes("Mac"); // NOSONAR typescript:S1874

@@ -12,7 +12,7 @@
 
   /**
    * Gallery component showing the 4+ empty-state archetypes.
-   * Standalone display utility — for production usage prefer EmptyState.svelte.
+   * Standalone display utility - for production usage prefer EmptyState.svelte.
    */
 
   type Archetype = {
@@ -28,7 +28,7 @@
     {
       icon: MessageCircle,
       title: "Aucune conversation",
-      desc: "Lancez un chat pour démarrer — vos échanges s'afficheront ici.",
+      desc: "Lancez un chat pour démarrer - vos échanges s'afficheront ici.",
       action: "+ Nouveau chat",
       tone: "primary",
     },
@@ -48,7 +48,7 @@
     },
     {
       icon: Activity,
-      title: "Boîte vide — tout est à jour",
+      title: "Boîte vide - tout est à jour",
       desc: "Rien n'attend votre attention. Les agents vous préviendront ici.",
       ok: true,
       tone: "success",

@@ -1,4 +1,4 @@
-# ADR-016 — Trait AgentRunner pour decoupler ORIAEngine de AIPBridge
+# ADR-016 - Trait AgentRunner pour decoupler ORIAEngine de AIPBridge
 
 **Date :** 2026-03-06
 **Statut :** Accepte
@@ -32,15 +32,15 @@ pub trait AgentRunner: Send + Sync {
 
 ## Alternatives considerees
 
-### Option A — Prendre `&AIPBridge` directement (rejetee)
+### Option A - Prendre `&AIPBridge` directement (rejetee)
 **Pour :** Conforme a la spec STORY-030 initiale, zero indirection.
 **Contre :** Tests unitaires impossibles sans Python reel. `apollia-oria` devrait dependre de `apollia-aip` (qui depend de PyO3), creant un couplage fort entre le moteur d'execution et le bridge Python.
 
-### Option B — Fonction libre inner testable sans trait (rejetee)
+### Option B - Fonction libre inner testable sans trait (rejetee)
 **Pour :** Pas de trait supplementaire.
 **Contre :** La logique de `tokio::select!` necessite un Future pour la branche execution. Extraire une `execute_direct_inner()` ne resout pas le probleme car le Future doit etre fourni par le caller.
 
-### Option retenue — Trait `AgentRunner` injectable
+### Option retenue - Trait `AgentRunner` injectable
 **Pour :** Testable via `MockRunnerOk`/`MockRunnerErr`, pas de dependance PyO3 dans apollia-oria, extensible (le trait pourra servir pour des runners non-Python dans le futur).
 **Compromis acceptes :** Signature `execute_direct()` diverge de la spec initiale STORY-030. Indirection dynamique (vtable) negligeable.
 
@@ -60,8 +60,8 @@ pub trait AgentRunner: Send + Sync {
 
 ## Principes architecturaux impactes
 
-- Principe #5 — Un acteur, une responsabilite : Respecte. Le runner execute, le moteur supervise.
-- Principe #7 — Garde-fous non-negociables : Respecte. Le StepBudget est applique par ORIAEngine independamment du runner concret.
+- Principe #5 - Un acteur, une responsabilite : Respecte. Le runner execute, le moteur supervise.
+- Principe #7 - Garde-fous non-negociables : Respecte. Le StepBudget est applique par ORIAEngine independamment du runner concret.
 
 ## Liens
 

@@ -1,4 +1,4 @@
-// Operator design-system components — extracted from V3 design canvas.
+// Operator design-system components - extracted from V3 design canvas.
 // Primitives
 export { default as PageHeader } from "./PageHeader.svelte";
 export { default as PageLayout } from "./PageLayout.svelte";

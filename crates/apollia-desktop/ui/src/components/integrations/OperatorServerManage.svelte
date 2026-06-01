@@ -312,7 +312,7 @@
         {/if}
       </section>
 
-      <!-- Launch configuration (command + args + env + timeouts), editable —
+      <!-- Launch configuration (command + args + env + timeouts), editable -
            rendered by the shared `McpServerSettingsEditor` so both this Sheet
            and the inline Connections detail panel use the same component. -->
       {#if detectMissingRequiredArgs(detail)}

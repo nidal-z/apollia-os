@@ -11,16 +11,16 @@
  *
  * `prefersReducedMotion` returns true when the OS / browser requests reduced
  * motion. In that case, consumers should either skip animations or set
- * `duration: 0`. Spring presets do not auto-adapt — caller responsibility.
+ * `duration: 0`. Spring presets do not auto-adapt - caller responsibility.
  */
 
-/** Spring configs — tuned to feel tactile without overshooting. */
+/** Spring configs - tuned to feel tactile without overshooting. */
 export const spring = {
   /** Default for hover lifts, list item translate/scale (stiff, low bounce). */
   default: { stiffness: 0.22, damping: 0.24 },
-  /** Slower, softer — large panels, sheets sliding in. */
+  /** Slower, softer - large panels, sheets sliding in. */
   gentle: { stiffness: 0.12, damping: 0.32 },
-  /** Short, punchy — press feedback, micro-reactions. */
+  /** Short, punchy - press feedback, micro-reactions. */
   snappy: { stiffness: 0.38, damping: 0.28 },
 } as const;
 
@@ -29,7 +29,7 @@ export const spring = {
  *
  * Svelte's `spring()` uses normalised 0-1 stiffness/damping values (the numbers
  * above). We also expose the CSS-friendly "motion design" scale for
- * documentation and for libraries that expect raw spring physics — these are
+ * documentation and for libraries that expect raw spring physics - these are
  * the values the story references (`stiffness: 220, damping: 24`).
  */
 export const springPhysics = {
@@ -38,23 +38,23 @@ export const springPhysics = {
   snappy: { stiffness: 380, damping: 28, mass: 0.8 },
 } as const;
 
-/** Transition durations (ms) — keep in sync with `--motion-*` in app.css. */
+/** Transition durations (ms) - keep in sync with `--motion-*` in app.css. */
 export const duration = {
-  /** 120ms — micro-interactions (hover color, icon pop). */
+  /** 120ms - micro-interactions (hover color, icon pop). */
   fast: 120,
-  /** 200ms — page entrance, list slide, buttons. */
+  /** 200ms - page entrance, list slide, buttons. */
   base: 200,
-  /** 320ms — overlays, drawers, large surfaces. */
+  /** 320ms - overlays, drawers, large surfaces. */
   slow: 320,
 } as const;
 
-/** Easing curves — `apple` is the Tailwind-registered cubic-bezier. */
+/** Easing curves - `apple` is the Tailwind-registered cubic-bezier. */
 export const easing = {
-  /** cubic-bezier(0.2, 0, 0, 1) — decelerate, default for entrances. */
+  /** cubic-bezier(0.2, 0, 0, 1) - decelerate, default for entrances. */
   apple: [0.2, 0, 0, 1] as const,
-  /** cubic-bezier(0.4, 0, 0.2, 1) — standard ease-in-out. */
+  /** cubic-bezier(0.4, 0, 0.2, 1) - standard ease-in-out. */
   standard: [0.4, 0, 0.2, 1] as const,
-  /** cubic-bezier(0.4, 0, 1, 1) — accelerate, for exits. */
+  /** cubic-bezier(0.4, 0, 1, 1) - accelerate, for exits. */
   accel: [0.4, 0, 1, 1] as const,
 } as const;
 

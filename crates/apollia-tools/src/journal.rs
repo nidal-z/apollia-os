@@ -191,7 +191,7 @@ impl JournalWriter {
                         error!(
                             session_id = %self.session_id,
                             error = %e,
-                            "journal write failed — caller must abort mutation"
+                            "journal write failed - caller must abort mutation"
                         );
                     }
                     let _ = reply.send(result);

@@ -1,4 +1,4 @@
-# ADR-073 — Code signing macOS : ad-hoc pour v0.1.0, Developer ID en backlog
+# ADR-073 - Code signing macOS : ad-hoc pour v0.1.0, Developer ID en backlog
 
 **Date :** 2026-04-17
 **Statut :** Accepté
@@ -12,7 +12,7 @@
 Apollia OS sort son v0.1.0 sous forme de DMG macOS universal2. Sans code signature,
 macOS Gatekeeper applique le *quarantine bit* (`com.apple.quarantine` xattr) à tout
 binaire téléchargé depuis Internet et **refuse l'exécution** avec le message
-*« Apollia OS ne peut pas être ouverte car macOS ne peut pas vérifier qu'elle est exempte de logiciels malveillants »* — seuls les boutons « Jeter à la corbeille » ou « OK » sont proposés.
+*« Apollia OS ne peut pas être ouverte car macOS ne peut pas vérifier qu'elle est exempte de logiciels malveillants »* - seuls les boutons « Jeter à la corbeille » ou « OK » sont proposés.
 
 Cette friction est **rédhibitoire pour un prospect non-technique** qui reçoit un lien DM :
 la majorité des utilisateurs abandonnent à ce stade sans connaître le workaround.
@@ -31,7 +31,7 @@ Contrainte budgétaire pour v0.1.0 : **99 USD/an non soutenable** dans la phase 
 
 ## Décision
 
-**Choix : Option B — ad-hoc signing avec hardened runtime et entitlements.**
+**Choix : Option B - ad-hoc signing avec hardened runtime et entitlements.**
 
 Les deux binaires du bundle (`apollia-desktop`, `apollia-os`) sont signés en ad-hoc
 (`codesign --force --deep --sign - --options runtime --entitlements entitlements.plist`)
@@ -57,11 +57,11 @@ de PyO3 avec un interpréteur Python bundled non-signé par Apple :
 ```
 
 **Justification des entitlements :**
-- `allow-unsigned-executable-memory` — PyO3 exécute du bytecode Python compilé dynamiquement.
-- `allow-dyld-environment-variables` — `PYTHONHOME`/`PYTHONPATH`/`DYLD_LIBRARY_PATH` sont
+- `allow-unsigned-executable-memory` - PyO3 exécute du bytecode Python compilé dynamiquement.
+- `allow-dyld-environment-variables` - `PYTHONHOME`/`PYTHONPATH`/`DYLD_LIBRARY_PATH` sont
   exportés au runtime par `setup_bundled_python()` avant `init_embedded()`. Sans cette
   entitlement, hardened runtime les purgerait silencieusement.
-- `disable-library-validation` — l'app doit charger `libpython3.13.dylib` provenant du
+- `disable-library-validation` - l'app doit charger `libpython3.13.dylib` provenant du
   bundle `python-build-standalone` (signée par Astral mais pas par notre Team ID Apple,
   qu'on n'a pas). Sans cette entitlement, dyld refuserait le chargement.
 
@@ -88,11 +88,11 @@ souscrit (v0.2+).
 
 Trois canaux publient la procédure de 1er lancement :
 
-1. **README.md — section « Install »** — 2 étapes numérotées + GIF 10s :
+1. **README.md - section « Install »** - 2 étapes numérotées + GIF 10s :
    1. Télécharger le DMG, double-clic, glisser Apollia OS dans Applications.
    2. Au 1er lancement, **clic-droit sur l'icône → Ouvrir** → bouton « Ouvrir » dans le dialog.
-2. **Landing page — bloc « Installation »** — même contenu avec screenshot.
-3. **KNOWN-ISSUES.md — entrée « macOS 1st launch »** — workaround Terminal alternatif :
+2. **Landing page - bloc « Installation »** - même contenu avec screenshot.
+3. **KNOWN-ISSUES.md - entrée « macOS 1st launch »** - workaround Terminal alternatif :
    `xattr -cr "/Applications/Apollia OS.app"`.
 
 ### Pipeline CI
@@ -111,7 +111,7 @@ Avant la génération du `.dmg` par Tauri, toute la hiérarchie (y compris le bi
 ### Rejet de l'option A
 
 Pas de signature = 0 chance de passer Gatekeeper sans intervention Terminal de l'utilisateur.
-Crée une friction identique à B mais **sans bouton natif « Ouvrir »** dans le dialog — oblige
+Crée une friction identique à B mais **sans bouton natif « Ouvrir »** dans le dialog - oblige
 à sortir de l'app pour faire `xattr`. Inacceptable pour un prospect non-dev.
 
 ### Rejet de l'option C pour v0.1.0
@@ -130,11 +130,11 @@ quand les premiers prospects auront généré un signal commercial.
   `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_PASSWORD`) et remplacer `"-"` par
   `"$APPLE_SIGNING_IDENTITY"` dans la config + ajouter une step `notarytool submit --wait`.
   Aucun changement dans le code applicatif ni dans les entitlements.
-- **Hardened runtime actif** dès v0.1.0 — comportement runtime identique à celui qu'aura
+- **Hardened runtime actif** dès v0.1.0 - comportement runtime identique à celui qu'aura
   la version notarisée. Zéro surprise le jour de la migration.
 
 **Négatives / Compromis :**
-- **Warning Gatekeeper au 1er lancement** — ~30-50 % des prospects non-techniques peuvent
+- **Warning Gatekeeper au 1er lancement** - ~30-50 % des prospects non-techniques peuvent
   abandonner à ce stade malgré la doc. Métrique à surveiller : nombre de téléchargements
   DMG vs nombre d'apps qui envoient un 1er event télémétrie (si on en ajoute).
 - **Entitlement `disable-library-validation`** affaiblit le modèle de sécurité macOS.
@@ -151,12 +151,12 @@ quand les premiers prospects auront généré un signal commercial.
 
 ## Principes architecturaux impactés
 
-- **Principe #2 — Zéro dépendance externe :** Signature ad-hoc ne crée pas de dépendance
+- **Principe #2 - Zéro dépendance externe :** Signature ad-hoc ne crée pas de dépendance
   à un service tiers (contrairement à notarize qui requiert `notarytool submit` à l'API
   Apple). Conforme.
-- **Principe #4 — Fail fast :** Si `codesign` échoue dans le workflow CI, le build est
+- **Principe #4 - Fail fast :** Si `codesign` échoue dans le workflow CI, le build est
   rejeté avant la génération du DMG. Conforme.
-- **Principe #8 — CLI humaine :** Le binaire `apollia-os` dans `Contents/Resources/`
+- **Principe #8 - CLI humaine :** Le binaire `apollia-os` dans `Contents/Resources/`
   est signé ad-hoc aussi, assurant qu'une exécution en ligne de commande (après
   création du symlink via UI Settings) ne déclenche pas de prompt Gatekeeper séparé.
   Conforme.
@@ -165,8 +165,8 @@ quand les premiers prospects auront généré un signal commercial.
 
 ## Liens
 
-- `docs/internal/packaging-design.md` — conception globale du packaging v0.1.0 (§3.2).
-- `LAUNCH-BACKLOG.md` — bloc 1.5 (items 1.5.1, 1.5.2, 1.5.8).
-- Apple — [Code Signing Guide](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Introduction/Introduction.html).
-- Apple — [Hardened Runtime Entitlements](https://developer.apple.com/documentation/security/hardened_runtime).
-- python-build-standalone — [Astral GitHub](https://github.com/astral-sh/python-build-standalone).
+- `docs/internal/packaging-design.md` - conception globale du packaging v0.1.0 (§3.2).
+- `LAUNCH-BACKLOG.md` - bloc 1.5 (items 1.5.1, 1.5.2, 1.5.8).
+- Apple - [Code Signing Guide](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Introduction/Introduction.html).
+- Apple - [Hardened Runtime Entitlements](https://developer.apple.com/documentation/security/hardened_runtime).
+- python-build-standalone - [Astral GitHub](https://github.com/astral-sh/python-build-standalone).

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * EmptySessionsState — canonical "no chats yet" surface.
+   * EmptySessionsState - canonical "no chats yet" surface.
    *
    * Wraps the shared `<EmptyState>` with chat-specific copy and a
    * secondary "Premiers pas" link pointing at the getting-started wiki.
@@ -18,7 +18,7 @@
 
   function openGettingStarted(): void {
     window.open(
-      "https://github.com/nidal-z/apollia-os/wiki/Premiers-pas",
+      "https://github.com/Apollia-OS/apollia-os/wiki/Premiers-pas",
       "_blank",
       "noreferrer",
     );

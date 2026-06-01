@@ -1,4 +1,4 @@
-"""Apollia CLI — agent scaffolding commands."""
+"""Apollia CLI - agent scaffolding commands."""
 
 from apollia.cli.scaffold import main, scaffold_agent
 

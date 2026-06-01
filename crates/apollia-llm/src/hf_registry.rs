@@ -32,7 +32,7 @@ pub enum HfError {
     NotFound(String),
 
     /// The model is gated and requires an HF token.
-    #[error("model '{0}' is gated — a HuggingFace token is required")]
+    #[error("model '{0}' is gated - a HuggingFace token is required")]
     Gated(String),
 }
 

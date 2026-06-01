@@ -4,7 +4,7 @@ title: Apollia · Référence technique
 hero:
   name: Apollia
   text: Référence technique
-  tagline: Briques, API, configurations, codes d'erreur. Documentation consultée — pas lue de bout en bout.
+  tagline: Briques, API, configurations, codes d'erreur. Documentation consultée - pas lue de bout en bout.
   actions:
     - theme: brand
       text: Vue d'ensemble
@@ -18,7 +18,7 @@ hero:
 features:
   - icon: 🧩
     title: Briques
-    details: Une page par crate du workspace — types publics, configuration, codes d'erreur.
+    details: Une page par crate du workspace - types publics, configuration, codes d'erreur.
     link: /Briques-Runtime-Core
   - icon: 🔌
     title: API HTTP

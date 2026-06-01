@@ -1,4 +1,4 @@
-# ADR-027 — apollia-desktop : processus unique Tauri + runtime embarqué
+# ADR-027 - apollia-desktop : processus unique Tauri + runtime embarqué
 
 **Date :** 2026-03-13
 **Statut :** Accepté
@@ -20,17 +20,17 @@ centrale est : **comment le frontend Tauri communique-t-il avec le runtime Rust 
 
 ### Contraintes
 
-- **Principe #1 — Local-first** : un seul binaire auto-suffisant, distribuable comme
+- **Principe #1 - Local-first** : un seul binaire auto-suffisant, distribuable comme
   `.dmg` (macOS) ou `.AppImage` (Linux). Pas de serveur externe.
-- **Principe #2 — Zéro dépendance externe** : l'utilisateur ne doit pas installer
+- **Principe #2 - Zéro dépendance externe** : l'utilisateur ne doit pas installer
   de prérequis (Node.js, Python runtime, etc.) au-delà du binaire lui-même.
-- **Principe #4 — Fail fast** : si le runtime ne démarre pas, l'application doit
-  afficher une erreur immédiate — pas une fenêtre vide qui charge indéfiniment.
-- **Principe #8 — CLI humaine, API machine** : le CLI existant (`apollia-os`) doit
+- **Principe #4 - Fail fast** : si le runtime ne démarre pas, l'application doit
+  afficher une erreur immédiate - pas une fenêtre vide qui charge indéfiniment.
+- **Principe #8 - CLI humaine, API machine** : le CLI existant (`apollia-os`) doit
   continuer à fonctionner en parallèle de l'application desktop, via le Unix socket
   existant `/tmp/apollia.sock`.
 - Le runtime utilise déjà des handles Tokio (`AgentRegistryHandle`, `TaskRouterHandle`,
-  `EventBusSender`) qui sont `Clone + Send + Sync` — disponibles pour un passage
+  `EventBusSender`) qui sont `Clone + Send + Sync` - disponibles pour un passage
   in-process sans sérialisation.
 
 ---
@@ -96,7 +96,7 @@ façon de le démarrer, alternative à la boucle CLI de `apollia-os start`.
 
 ## Alternatives considérées
 
-### Option A — Deux processus séparés (rejetée)
+### Option A - Deux processus séparés (rejetée)
 
 Le runtime (`apollia-os start`) tourne en arrière-plan, Tauri communique uniquement via
 HTTP sur `localhost:7771`.
@@ -111,11 +111,11 @@ HTTP sur `localhost:7771`.
   prêt ? Polling HTTP ? Socket file watch ? Chaque solution ajoute de la complexité.
 - Deux binaires à distribuer et coordonner dans le `.dmg` / `.AppImage`.
 - Communication forcée via HTTP alors que les handles Tokio sont disponibles en mémoire
-  — sérialisation/désérialisation inutile pour les mutations ponctuelles.
+  - sérialisation/désérialisation inutile pour les mutations ponctuelles.
 - L'utilisateur doit gérer deux processus (vérifier que le runtime tourne, le relancer
   si crash, etc.).
 
-### Option B — WebView navigateur sans Tauri (rejetée)
+### Option B - WebView navigateur sans Tauri (rejetée)
 
 L'application expose `localhost:7771/dashboard` (HTMX existant du Sprint 9) et
 l'utilisateur ouvre un navigateur.
@@ -127,16 +127,16 @@ l'utilisateur ouvre un navigateur.
 **Contre :**
 - Friction inacceptable pour utilisateur non-technique : ouvrir navigateur, taper URL,
   bookmarker. Personne ne fait ça pour un outil desktop.
-- Pas de packaging natif (`.dmg`, `.AppImage`) — pas de double-clic.
+- Pas de packaging natif (`.dmg`, `.AppImage`) - pas de double-clic.
 - Pas de tray icon, pas de notifications natives, pas de file picker natif.
 - HTMX insuffisant pour les interactions complexes du Sprint 14 : HITL real-time
   (compteur en direct), timeline interactive, file picker natif.
 
-### Option retenue — Processus unique Tauri + runtime embarqué
+### Option retenue - Processus unique Tauri + runtime embarqué
 
 **Pour :**
-- Un seul binaire distribué — expérience utilisateur optimale
-- Communication in-process via handles Tokio — zéro overhead sérialisation
+- Un seul binaire distribué - expérience utilisateur optimale
+- Communication in-process via handles Tokio - zéro overhead sérialisation
 - Le CLI continue de fonctionner via le Unix socket existant
 - Fail fast : si `init_embedded()` échoue, l'erreur est immédiate
 - Tauri v2 fournit tray icon, notifications natives, file picker, packaging
@@ -160,9 +160,9 @@ l'utilisateur ouvre un navigateur.
 **Négatives / Compromis :**
 - Le binaire desktop inclut toute la stack (Tauri + WebView + runtime Rust + PyO3)
   → taille ~50MB estimée
-- Fermer la fenêtre arrête le runtime — pas de mode "tray only" pour l'instant
+- Fermer la fenêtre arrête le runtime - pas de mode "tray only" pour l'instant
   (prévu Sprint 15+)
-- Conflit potentiel PyO3 linker sur macOS — à diagnostiquer dès STORY-135
+- Conflit potentiel PyO3 linker sur macOS - à diagnostiquer dès STORY-135
 
 **Neutres / À surveiller :**
 - La taille du binaire devra être surveillée à chaque sprint
@@ -173,13 +173,13 @@ l'utilisateur ouvre un navigateur.
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : renforcé — binaire unique auto-suffisant,
+- **Principe #1 - Local-first** : renforcé - binaire unique auto-suffisant,
   zéro donnée transmise à l'extérieur
-- **Principe #2 — Zéro dépendance externe** : respecté — Tauri WebView utilise
+- **Principe #2 - Zéro dépendance externe** : respecté - Tauri WebView utilise
   le moteur natif de l'OS (WebKit sur macOS, WebKitGTK sur Linux)
-- **Principe #4 — Fail fast** : respecté — `init_embedded()` retourne une erreur
+- **Principe #4 - Fail fast** : respecté - `init_embedded()` retourne une erreur
   immédiate si le runtime ne démarre pas
-- **Principe #8 — CLI humaine, API machine** : étendu — le desktop devient une
+- **Principe #8 - CLI humaine, API machine** : étendu - le desktop devient une
   troisième interface (CLI / API REST / Desktop), toutes sur le même runtime
 
 ---
@@ -187,7 +187,7 @@ l'utilisateur ouvre un navigateur.
 ## Liens
 
 - Stories associées : STORY-135 à STORY-142
-- ADR précédent lié : ADR-017 (hyper-util Unix socket — le socket reste actif
+- ADR précédent lié : ADR-017 (hyper-util Unix socket - le socket reste actif
   quand le desktop tourne)
-- ADR précédent lié : ADR-018 (CLI bootstrap sans Supervisor — `init_embedded()`
+- ADR précédent lié : ADR-018 (CLI bootstrap sans Supervisor - `init_embedded()`
   est l'équivalent pour le desktop)

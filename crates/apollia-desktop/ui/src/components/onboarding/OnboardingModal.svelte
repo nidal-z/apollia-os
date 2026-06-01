@@ -5,10 +5,10 @@
    * Drives the new-user flow as a sequence of dedicated screens, each
    * implemented as a self-contained component:
    *
-   *   1. {@link OnboardingWelcome}        — intro and consent to start
-   *   2. {@link OnboardingProfileSelector} — operator vs builder
-   *   3. {@link OnboardingAiSetup}         — local LLM (GGUF) + STT (Whisper)
-   *   4. {@link OnboardingChatStep}        — agent-driven chat (4 turns,
+   *   1. {@link OnboardingWelcome}        - intro and consent to start
+   *   2. {@link OnboardingProfileSelector} - operator vs builder
+   *   3. {@link OnboardingAiSetup}         - local LLM (GGUF) + STT (Whisper)
+   *   4. {@link OnboardingChatStep}        - agent-driven chat (4 turns,
    *                                          collects user.name / user.role /
    *                                          HITL / sovereignty)
    *
@@ -17,7 +17,7 @@
    * still owns analytics/persistence even though navigation is local.
    *
    * The chat step needs at least one LLM backend to be usable. The AI Setup
-   * gate prevents reaching it without one — but we keep an extra safety net
+   * gate prevents reaching it without one - but we keep an extra safety net
    * inside the chat step (it surfaces the LLM-unavailable state explicitly).
    */
   import { onMount, untrack } from "svelte";
@@ -114,7 +114,7 @@
       const target = phaseToStep[state.phase] ?? "welcome";
       currentStep = target;
     } catch {
-      // Backend unreachable — keep the default "welcome" step.
+      // Backend unreachable - keep the default "welcome" step.
     }
   }
 
@@ -157,7 +157,7 @@
   >
     <header class="onboarding-card-header">
       <h2 id="onboarding-modal-title" class="onboarding-card-title">
-        Apollia — Premier contact
+        Apollia - Premier contact
       </h2>
       <ol class="onboarding-steps" aria-label="Progression de l'onboarding">
         {#each STEPS as step, i (step.id)}
@@ -239,7 +239,7 @@
     overflow: hidden;
   }
 
-  /* AI setup and chat need extra height — give them a fixed minimum so the
+  /* AI setup and chat need extra height - give them a fixed minimum so the
      scroll area is comfortable on small viewports. */
   .onboarding-card-tall {
     height: min(86vh, 760px);

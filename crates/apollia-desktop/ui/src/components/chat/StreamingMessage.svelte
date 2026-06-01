@@ -1,5 +1,5 @@
 <!--
-  StreamingMessage — isolates the streaming assistant bubble.
+  StreamingMessage - isolates the streaming assistant bubble.
 
   Thinking blocks are rendered ABOVE the bubble (matching the committed-message
   ReasoningSequence layout) so they are never confused with the response text.
@@ -15,7 +15,7 @@
   interface Props {
     /** Accumulated streamed text (per-session buffer snapshot). */
     text: string;
-    /** Session mode — bubble only shown in "libre" mode. */
+    /** Session mode - bubble only shown in "libre" mode. */
     sessionMode: "libre" | "agent";
   }
 

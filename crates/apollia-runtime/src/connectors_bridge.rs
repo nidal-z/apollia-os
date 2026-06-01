@@ -116,7 +116,7 @@ fn short_impact(op: &OperationSpec) -> String {
             "Lists files Apollia can see in Drive (its own + picker-granted).".into()
         }
         "gdrive.find_by_name" => {
-            "Resolves a Drive file/folder by title — call this before asking the user for an ID."
+            "Resolves a Drive file/folder by title - call this before asking the user for an ID."
                 .into()
         }
         "gdrive.workspace_list" => "Lists files in the agent's Drive workspace folder.".into(),
@@ -125,7 +125,7 @@ fn short_impact(op: &OperationSpec) -> String {
         "gdrive.workspace_delete" => "Moves a workspace file to Drive Trash.".into(),
         "gdrive.workspace_share" => "Grants reader access to an email address.".into(),
         "gsheets.list_sheets" => {
-            "Lists the tabs of a spreadsheet — call before composing a range.".into()
+            "Lists the tabs of a spreadsheet - call before composing a range.".into()
         }
         _ => "Calls a Google Workspace API on behalf of the connected account.".into(),
     }
@@ -565,12 +565,12 @@ async fn resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String> {
         .await
         .map_err(|e| format!("auth: {e}"))?;
     if accounts.is_empty() {
-        return Err("no Google account connected — open Réglages → Intégrations to sign in".into());
+        return Err("no Google account connected - open Réglages → Intégrations to sign in".into());
     }
     if accounts.len() > 1 {
         tracing::warn!(
             count = accounts.len(),
-            "multiple Google accounts connected — using the first"
+            "multiple Google accounts connected - using the first"
         );
     }
     Ok(accounts.into_iter().next().expect("len>=1"))
@@ -926,7 +926,7 @@ async fn gdrive_list_my_files(
                 return Ok(json!({
                     "files": [],
                     "note": format!(
-                        "Configured root `{root_path}` doesn't exist on Drive yet — Apollia hasn't created or written anything in it. Either ask the user to create the folder manually, or call `gdrive.write_to_folder` to materialise it. Pass `all=true` to bypass the workspace scope and see every Drive file Apollia has access to."
+                        "Configured root `{root_path}` doesn't exist on Drive yet - Apollia hasn't created or written anything in it. Either ask the user to create the folder manually, or call `gdrive.write_to_folder` to materialise it. Pass `all=true` to bypass the workspace scope and see every Drive file Apollia has access to."
                     ),
                 }));
             }

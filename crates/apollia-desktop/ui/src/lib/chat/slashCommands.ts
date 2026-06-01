@@ -1,7 +1,7 @@
 /**
  * Slash-command registry for the chat input.
  *
- * Commands are declarative — the input matches the current prefix against
+ * Commands are declarative - the input matches the current prefix against
  * `name` (and optional `aliases`), the menu component renders them, and
  * the parent component receives an `oncommand(id)` callback to dispatch.
  */

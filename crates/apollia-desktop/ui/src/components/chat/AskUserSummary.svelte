@@ -33,7 +33,7 @@
   interface Props {
     questions: UserQuestion[];
     answers: UserAnswer[];
-    /** Optional — used to scope aria ids and future reasoning deep-links. */
+    /** Optional - used to scope aria ids and future reasoning deep-links. */
     requestId?: string;
   }
 

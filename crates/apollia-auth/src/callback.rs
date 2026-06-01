@@ -22,7 +22,7 @@ type ResultCell = Arc<Mutex<Option<oneshot::Sender<Result<String, AuthError>>>>>
 const SUCCESS_HTML: &str = concat!(
     "<!DOCTYPE html><html lang=\"en\">",
     "<head><meta charset=\"utf-8\">",
-    "<title>Apollia — Authentication Successful</title></head>",
+    "<title>Apollia - Authentication Successful</title></head>",
     "<body style=\"font-family:sans-serif;text-align:center;padding:2rem\">",
     "<h1>Authentication successful ✓</h1>",
     "<p>You can close this tab and return to the terminal.</p>",
@@ -32,7 +32,7 @@ const SUCCESS_HTML: &str = concat!(
 const ERROR_HTML: &str = concat!(
     "<!DOCTYPE html><html lang=\"en\">",
     "<head><meta charset=\"utf-8\">",
-    "<title>Apollia — Authentication Failed</title></head>",
+    "<title>Apollia - Authentication Failed</title></head>",
     "<body style=\"font-family:sans-serif;text-align:center;padding:2rem\">",
     "<h1>Authentication failed</h1>",
     "<p>An error occurred. Check the terminal for details.</p>",

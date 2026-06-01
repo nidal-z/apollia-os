@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * EmptyAgentsState — shown inside the QuickPicker agents section when
+   * EmptyAgentsState - shown inside the QuickPicker agents section when
    * nothing is installed.
    *
    * Factored out of `QuickPicker.svelte` so the same surface can be
@@ -17,7 +17,7 @@
   }
 
   let {
-    docsHref = "https://github.com/nidal-z/apollia-os/wiki/Agents",
+    docsHref = "https://github.com/Apollia-OS/apollia-os/wiki/Agents",
   }: Props = $props();
 </script>
 

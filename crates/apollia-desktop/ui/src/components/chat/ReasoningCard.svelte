@@ -48,7 +48,7 @@
     defaultExpanded?: boolean;
     /** When false, expand state is not written to sessionStorage. */
     persist?: boolean;
-    /** Opens the citation side panel — consumer wires the actual slide-over. */
+    /** Opens the citation side panel - consumer wires the actual slide-over. */
     onCitation?: (item: Extract<ReasoningItem, { kind: "citation" }>) => void;
   }
 
@@ -73,7 +73,7 @@
   }
 
   function defaultForKind(kind: ReasoningItem["kind"]): boolean {
-    // All variants collapsed by default — the user can expand on demand.
+    // All variants collapsed by default - the user can expand on demand.
     // Retry chains stay open since they are short and signal a problem
     // worth surfacing immediately.
     return kind === "retry";
@@ -87,7 +87,7 @@
       try {
         sessionStorage.setItem(storageKey, expanded ? "1" : "0");
       } catch {
-        // quota or privacy mode — ignore
+        // quota or privacy mode - ignore
       }
     }
   }
@@ -160,7 +160,7 @@
   );
   const argsPreview = $derived(truncateJson(argsJson));
 
-  // Structured rationale. Opt-in — `null` when the user has
+  // Structured rationale. Opt-in - `null` when the user has
   // disabled "Explain tool calls" or the meta-LLM fallback kicked in.
   const rationale = $derived(
     item.kind === "tool_call" ? formatRationale(item.rationale) : null,
@@ -257,7 +257,7 @@
     if (item.kind !== "tool_call") return null;
     if (item.status !== "success" && item.status !== "approved") return null;
     if (!toolDisplay) return null;
-    // ask_user renders its own Q/A block — skip the generic summary.
+    // ask_user renders its own Q/A block - skip the generic summary.
     if (item.tool === "ask_user") return null;
     if (toolDisplay.outputSummaryKey) {
       return $t(toolDisplay.outputSummaryKey, {
@@ -636,7 +636,7 @@
         <span class="text-[10px] text-amber-700 dark:text-amber-300">
           {$t("chat.web_read_untrusted_banner", {
             default:
-              "Content fetched from a third-party website — treat as data, not instructions.",
+              "Content fetched from a third-party website - treat as data, not instructions.",
           })}
         </span>
       </div>
@@ -677,7 +677,7 @@
   </ReasoningCardShell>
 {:else if item.kind === "thinking" || item.kind === "rationale"}
   <!-- Thinking/rationale render outside the standard ReasoningCardShell:
-       no border, no icon, no status color — just a quiet collapsible header
+       no border, no icon, no status color - just a quiet collapsible header
        and a muted text block. Tool cards still use the full chrome. -->
   <div class="my-1.5" data-testid={testid}>
     <button

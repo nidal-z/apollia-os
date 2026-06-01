@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn test_ac2_render_timer_variables() {
         // GIVEN
-        let template = InputTemplate("Rapport du {{scheduled_at}} — généré à {{fired_at}}".into());
+        let template = InputTemplate("Rapport du {{scheduled_at}} - généré à {{fired_at}}".into());
         let scheduled = Utc.with_ymd_and_hms(2026, 3, 9, 8, 0, 0).unwrap();
         let fired = Utc.with_ymd_and_hms(2026, 3, 9, 8, 0, 1).unwrap();
         let payload = TriggerPayload::Timer {

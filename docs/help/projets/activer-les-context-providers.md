@@ -14,11 +14,11 @@
 2. Faites défiler jusqu'à la section **Context providers**. Trois types de fournisseurs sont disponibles.
    ![section Context providers dans le panneau projet, liste des providers avec toggle ON/OFF](../_screenshots/projets-activer-les-context-providers-1.png)
 
-3. **Git Status** (`git`) — cliquez sur **Ajouter un fournisseur** et sélectionnez *Git Status*. Actif, ce fournisseur injecte l'état git courant (fichiers modifiés, branch) dans chaque message envoyé aux agents liés au projet.
+3. **Git Status** (`git`) - cliquez sur **Ajouter un fournisseur** et sélectionnez *Git Status*. Actif, ce fournisseur injecte l'état git courant (fichiers modifiés, branch) dans chaque message envoyé aux agents liés au projet.
 
-4. **Arborescence** (`tree`) — ajoutez *Directory Tree* pour inclure la structure de fichiers du dossier racine dans le contexte.
+4. **Arborescence** (`tree`) - ajoutez *Directory Tree* pour inclure la structure de fichiers du dossier racine dans le contexte.
 
-5. **Project Rules** (`rules`) — ajoutez *Project Rules (APOLLIA.md)* pour inclure automatiquement les instructions du fichier `APOLLIA.md` à la racine du projet.
+5. **Project Rules** (`rules`) - ajoutez *Project Rules (APOLLIA.md)* pour inclure automatiquement les instructions du fichier `APOLLIA.md` à la racine du projet.
 
 6. Basculez l'interrupteur de chaque fournisseur sur ON ou OFF selon vos besoins.
    ![provider Git Status activé (toggle vert), provider Directory Tree désactivé (toggle gris)](../_screenshots/projets-activer-les-context-providers-2.png)
@@ -38,4 +38,4 @@ Ouvrez un chat lié au projet et posez une question précise (par exemple : *"Qu
 - **Le provider n'apparaît pas** : cliquez sur **Ajouter un fournisseur** pour le créer s'il n'existe pas encore.
 - **Le contexte est trop lourd** : désactivez le provider *Directory Tree* si la structure de fichiers est volumineuse.
 
-> **Concept :** [book ch12 — Chat interactif](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md) — savoir quel fournisseur activer selon le type de projet.
+> **Concept :** [book ch12 - Chat interactif](https://github.com/Apollia-OS/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md) - savoir quel fournisseur activer selon le type de projet.

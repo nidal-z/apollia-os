@@ -18,8 +18,8 @@ from apollia.errors import PayloadError, SchemaError
 
 # Module-level helpers (need to be resolvable by ``get_type_hints`` under
 # ``from __future__ import annotations``).
-class Ctx:  # noqa: N801 — name is the exclusion key
-    """Stand-in for the runtime ``Ctx`` protocol — recognised by name."""
+class Ctx:  # noqa: N801 - name is the exclusion key
+    """Stand-in for the runtime ``Ctx`` protocol - recognised by name."""
 
 
 @dataclass
@@ -164,7 +164,7 @@ def test_annotation_typed_dict_not_required() -> None:
     the raw ``__annotations__`` dict. Under ``from __future__ import
     annotations`` (PEP 563), all annotations are strings and TypedDict cannot
     detect ``NotRequired[T]``. Worker ``schemas.py`` files therefore avoid
-    PEP 563 — and so does ``_typeddict_fixtures.py``.
+    PEP 563 - and so does ``_typeddict_fixtures.py``.
     """
     from tests._typeddict_fixtures import NotRequiredTD
 

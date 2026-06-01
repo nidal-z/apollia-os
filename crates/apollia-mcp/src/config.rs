@@ -234,7 +234,7 @@ pub enum McpConfigError {
     /// validation time so the failure mode is a clear error instead of a
     /// confusing `MODULE_NOT_FOUND` from the launched Node/Python process.
     #[error(
-        "server '{server}': command '{command}' looks like a package identifier — \
+        "server '{server}': command '{command}' looks like a package identifier - \
          use a launcher (e.g. `command = \"npx\"`, `args = [\"-y\", \"{command}\", ...]`)"
     )]
     PackageIdAsCommand { server: String, command: String },
@@ -245,7 +245,7 @@ pub enum McpConfigError {
 fn format_unresolved_env_var(server: &str, var: &str) -> String {
     if var == "APOLLIA_OAUTH" {
         format!(
-            "server '{server}': MCP OAuth token not yet stored — run `apollia-os mcp oauth login {server}` to authenticate"
+            "server '{server}': MCP OAuth token not yet stored - run `apollia-os mcp oauth login {server}` to authenticate"
         )
     } else {
         format!("server '{server}': environment variable ${{{var}}} is not set")

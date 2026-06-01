@@ -1,4 +1,4 @@
-# Configuration — apollia.toml — Apollia OS
+# Configuration - apollia.toml - Apollia OS
 
 > Référence complète du fichier de configuration apollia.toml avec toutes les options, valeurs par défaut et exemples.
 > Public cible : opérateur, développeur
@@ -19,7 +19,7 @@ Apollia OS cherche sa configuration dans cet ordre (priorité croissante) :
 ## Fichier minimal
 
 ```toml
-# Fichier vide valide — toutes les valeurs par défaut sont compilées dans le binaire.
+# Fichier vide valide - toutes les valeurs par défaut sont compilées dans le binaire.
 # Aucune section n'est obligatoire pour démarrer Apollia OS.
 
 # Personnalisation minimale recommandée :
@@ -45,7 +45,7 @@ eventbus_capacity = 1024
 mailbox_capacity = 100
 
 # Timeout global de démarrage du runtime, en secondes
-# 0 = illimité — non recommandé en production
+# 0 = illimité - non recommandé en production
 # Défaut : 300
 startup_timeout_secs = 300
 ```
@@ -60,7 +60,7 @@ startup_timeout_secs = 300
 > ⚠️ **Section non supportée.** Il n'existe pas de section `[memory]` dans `ApolliaCConfig`. Les clés `path`, `max_size_mb`, `episode_ttl_days`, `fts5_enabled` sont ignorées si présentes dans `apollia.toml`.
 >
 > - **Chemin mémoire :** calculé automatiquement → `~/.apollia/memory/<namespace>.db` (non configurable via TOML)
-> - **FTS5 :** toujours activé — pas de toggle de désactivation
+> - **FTS5 :** toujours activé - pas de toggle de désactivation
 > - **TTL par épisode :** configurable par agent via son manifest (`memory_config.episodic_retention_days`), pas globalement
 
 ### [tools]
@@ -90,7 +90,7 @@ max_output_chars = 30000
 # Backend préféré pour l'outil web_search.
 # "auto"       : DuckDuckGo en priorité, Brave si une clé API est disponible (défaut)
 # "duckduckgo" : DuckDuckGo uniquement (zero-config)
-# "brave"      : Brave uniquement — requiert une clé API
+# "brave"      : Brave uniquement - requiert une clé API
 backend = "auto"
 
 # Si true, le démarrage échoue si le backend sélectionné n'est pas opérationnel.
@@ -131,7 +131,7 @@ max_response_kb = 2048
 
 # Active le garde anti-SSRF : rejette les URL à destination d'hôtes privés
 # (127.x, 10.x, 192.168.x, ::1, etc.). Désactiver uniquement en lab isolé.
-# Défaut : true — NE PAS désactiver en production.
+# Défaut : true - NE PAS désactiver en production.
 ssrf_guard = true
 ```
 
@@ -140,8 +140,8 @@ ssrf_guard = true
 ```toml
 [api]
 # Adresse IP sur laquelle binder le listener TCP.
-# Défaut : 127.0.0.1 (loopback uniquement — inaccessible depuis le réseau)
-# ⚠️  Ne passer à 0.0.0.0 que dans des contextes contrôlés (VM, CI) — voir ADR-051.
+# Défaut : 127.0.0.1 (loopback uniquement - inaccessible depuis le réseau)
+# ⚠️  Ne passer à 0.0.0.0 que dans des contextes contrôlés (VM, CI) - voir ADR-051.
 bind = "127.0.0.1"
 
 # Port TCP du serveur REST.
@@ -153,7 +153,7 @@ port = 7771
 # Le socket Unix n'est jamais soumis à cette vérification.
 # Token stocké dans ~/.apollia/api-token (chmod 0600, généré au premier démarrage).
 # Rotation manuelle : apollia-os config rotate-token
-# Défaut : true — NE PAS désactiver en production.
+# Défaut : true - NE PAS désactiver en production.
 require_token = true
 
 # Chemin du socket Unix local (utilisé par CLI et desktop sans auth).
@@ -204,7 +204,7 @@ approval_ttl_hours = 24
 [permissions]
 # Commandes auto-approuvées sans HITL (SafeList, couche 1).
 # Format : "tool_name(arg_text)" ou "tool_name".
-# Vide par défaut — aucune commande n'est auto-approuvée sans configuration explicite.
+# Vide par défaut - aucune commande n'est auto-approuvée sans configuration explicite.
 safe_commands = [
     "bash_executor(git status)",
     "bash_executor(git log)",
@@ -212,7 +212,7 @@ safe_commands = [
 
 # Active la détection d'injections shell (couche 3, priorité absolue).
 # Désactiver uniquement pour les environnements de test contrôlés.
-# Défaut : true — NE PAS désactiver en production.
+# Défaut : true - NE PAS désactiver en production.
 injection_detection = true
 
 # Durée de vie des règles préfixe SQLite (PrefixRuleEngine, couche 2), en heures.
@@ -243,16 +243,16 @@ max_sessions = 50
 root = "~/.apollia/journal"
 ```
 
-### [llm] et [[llm.backends]] — Moteur LLM
+### [llm] et [[llm.backends]] - Moteur LLM
 
-La section `[llm]` configure le `LlmRouter`. Elle est **optionnelle** — le runtime démarre sans LLM, et `ctx.llm` sera `None` dans les agents.
+La section `[llm]` configure le `LlmRouter`. Elle est **optionnelle** - le runtime démarre sans LLM, et `ctx.llm` sera `None` dans les agents.
 
 ```toml
 [llm]
 # Nom du backend utilisé par défaut (get(None) → ce backend)
 default = "local"
 
-# Observabilité — paramètres communs à tous les backends
+# Observabilité - paramètres communs à tous les backends
 [llm.observability]
 log_token_usage  = true   # log tokens consommés (défaut: true)
 log_latency      = true   # log latence de chaque appel (défaut: true)
@@ -260,7 +260,7 @@ log_cost         = false  # log coût USD estimé pour les backends cloud (défa
 debug_log_prompt = false  # log le prompt complet au niveau TRACE (défaut: false, JAMAIS en prod)
 ```
 
-#### Backend embarqué — inférence locale in-process
+#### Backend embarqué - inférence locale in-process
 
 ```toml
 [[llm.backends]]
@@ -281,7 +281,7 @@ Le chemin `~` est résolu au démarrage. Si le fichier est absent, `LlmError::Mo
 | `"metal"` | `local-metal` | `cargo build --features local-metal` ¹ |
 | `"cuda"` | `local-cuda` | `cargo build --features local-cuda` (non testé) |
 
-¹ Sans Xcode complet : préfixer avec `MISTRALRS_METAL_PRECOMPILE=0` (shaders Metal compilés JIT au premier appel au lieu d'être baked au build — voir [INSTALL.md](./INSTALL) pour le détail).
+¹ Sans Xcode complet : préfixer avec `MISTRALRS_METAL_PRECOMPILE=0` (shaders Metal compilés JIT au premier appel au lieu d'être baked au build - voir [INSTALL.md](./INSTALL) pour le détail).
 
 #### Backend cloud OpenAI-compatible
 
@@ -307,11 +307,11 @@ api_key_env = "ANTHROPIC_API_KEY"
 
 **Heuristique de sélection client :** `api_url.contains("anthropic.com")` → `AnthropicClient`. Sinon → `OpenAICompatibleClient`.
 
-**Comportement si clé API absente :** warning loggé au démarrage (`WARN apollia_llm — backend "anthropic" skipped: ANTHROPIC_API_KEY not set`), backend ignoré, runtime continue. L'agent recevra `ctx.llm = None` si *tous* les backends configurés échouent ou sont absents.
+**Comportement si clé API absente :** warning loggé au démarrage (`WARN apollia_llm - backend "anthropic" skipped: ANTHROPIC_API_KEY not set`), backend ignoré, runtime continue. L'agent recevra `ctx.llm = None` si *tous* les backends configurés échouent ou sont absents.
 
-**Expansion du chemin `~` :** effectuée au parsing TOML (avant `LlmRouter::from_config`). Le chemin est converti en chemin absolu — si le fichier est absent, `LlmError::ModelNotFound` est émis au démarrage (fail-fast, Principe #4).
+**Expansion du chemin `~` :** effectuée au parsing TOML (avant `LlmRouter::from_config`). Le chemin est converti en chemin absolu - si le fichier est absent, `LlmError::ModelNotFound` est émis au démarrage (fail-fast, Principe #4).
 
-#### Exemple — local CPU (défaut)
+#### Exemple - local CPU (défaut)
 
 ```toml
 [llm]
@@ -325,7 +325,7 @@ quantization = "q4_k_m"
 device       = "cpu"    # --features local
 ```
 
-#### Exemple — local Metal (Apple Silicon GPU)
+#### Exemple - local Metal (Apple Silicon GPU)
 
 ```toml
 [llm]
@@ -339,7 +339,7 @@ quantization = "q4_k_m"
 device       = "metal"  # --features local-metal (ou local-metal,local-accelerate)
 ```
 
-#### Exemple complet — config mixte (local Metal + cloud)
+#### Exemple complet - config mixte (local Metal + cloud)
 
 ```toml
 [llm]
@@ -377,7 +377,7 @@ response = await ctx.llm.chat(
 
 ---
 
-### [budget] — défauts StepBudget
+### [budget] - défauts StepBudget
 
 > ⚠️ **Section non supportée.** Il n'existe pas de section `[budget]` dans `ApolliaCConfig`. Les clés `max_steps`, `max_tool_calls`, `wall_clock_timeout_secs` sont ignorées si présentes dans `apollia.toml`.
 >
@@ -390,11 +390,11 @@ response = await ctx.llm.chat(
 
 ---
 
-### [observability] — Capture trace d'exécution
+### [observability] - Capture trace d'exécution
 
 Contrôle ce qui est persisté dans `~/.apollia/runtime_events.db` par
 l'`EventPersistor` (ADR-088). Toutes les captures sont **`true` par
-défaut** (local-first — la promesse Apollia est la transparence
+défaut** (local-first - la promesse Apollia est la transparence
 totale). Désactivable granulairement.
 
 ```toml
@@ -433,11 +433,11 @@ debug_log_prompt      = false
 
 ---
 
-### [stt] — Moteur Speech-to-Text *(section TOML dépréciée en)*
+### [stt] - Moteur Speech-to-Text *(section TOML dépréciée en)*
 
 > **Déprécié :** la configuration STT est désormais dans `~/.apollia/system.db` (table `stt_config`), gérée via `GET/PUT /api/v1/stt/config` ou l'app desktop. Si cette section est présente dans `apollia.toml`, un warning est émis au démarrage mais le boot continue normalement.
 
-La section `[stt]` configure le moteur STT embarqué (ADR-041). Elle est **optionnelle** — le runtime démarre sans STT si la table `stt_config` est absente.
+La section `[stt]` configure le moteur STT embarqué (ADR-041). Elle est **optionnelle** - le runtime démarre sans STT si la table `stt_config` est absente.
 
 ```toml
 [stt]
@@ -494,7 +494,7 @@ trigger_mode = "toggle"
 
 ---
 
-## Configuration opérationnelle — migrée vers SQLite *(Sprints 17 + 28)*
+## Configuration opérationnelle - migrée vers SQLite *(Sprints 17 + 28)*
 
 Les sections opérationnelles suivantes ne sont plus dans `apollia.toml` :
 
@@ -506,14 +506,14 @@ Les sections opérationnelles suivantes ne sont plus dans `apollia.toml` :
 | `[[llm.backends]]` | `~/.apollia/system.db` (table `llm_backends`) | `GET/POST/PUT/DELETE /api/v1/llm/backends` + app desktop | 28 |
 | `mcp.toml` / `[mcp]` | `~/.apollia/mcp.db` (table `mcp_servers`) | API REST MCP + app desktop | 28 |
 
-**Pourquoi :** un opérateur peut créer, modifier et supprimer ses backends LLM, sa config STT, ses serveurs MCP et ses triggers depuis l'interface graphique — sans toucher au TOML, sans redémarrer le runtime.
+**Pourquoi :** un opérateur peut créer, modifier et supprimer ses backends LLM, sa config STT, ses serveurs MCP et ses triggers depuis l'interface graphique - sans toucher au TOML, sans redémarrer le runtime.
 
 `apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[api]`, `[tools]`, `[oria]`, `[hitl]`, `[llm]`, `[a2a]`, `[registry]`. Les sections `[memory]` et `[budget]` ne sont **pas** désérialisées.
 
 Voir :
-- [Briques Triggers](./Briques-Triggers) — CRUD triggers
-- [Briques Notifications](./Briques-Notifications) — CRUD notifications
-- [API HTTP — Index](./API-HTTP-Reference) — endpoints CRUD (3 pages par domaine)
+- [Briques Triggers](./Briques-Triggers) - CRUD triggers
+- [Briques Notifications](./Briques-Notifications) - CRUD notifications
+- [API HTTP - Index](./API-HTTP-Reference) - endpoints CRUD (3 pages par domaine)
 
 ---
 
@@ -523,9 +523,9 @@ Toutes les options configurables via variables d'environnement avec le préfixe 
 
 | Variable | Effet |
 |---|---|
-| `APOLLIA_SOCKET` | ⚠️ Non supporté — le socket Unix se configure via `[api] unix_socket` |
-| `APOLLIA_PORT` | ⚠️ Non supporté — le port TCP se configure via `[api] port` |
-| `APOLLIA_LOG_LEVEL` | ⚠️ Non supporté — utiliser `RUST_LOG` à la place |
+| `APOLLIA_SOCKET` | ⚠️ Non supporté - le socket Unix se configure via `[api] unix_socket` |
+| `APOLLIA_PORT` | ⚠️ Non supporté - le port TCP se configure via `[api] port` |
+| `APOLLIA_LOG_LEVEL` | ⚠️ Non supporté - utiliser `RUST_LOG` à la place |
 | `RUST_LOG` | Filtres tracing (ex: `RUST_LOG=apollia_runtime=debug,apollia_tools=info`) |
 | `APOLLIA_LLM_DEFAULT` | Override du backend LLM par défaut (équiv. `[llm] default`) |
 | `BRAVE_SEARCH_API_KEY` | Clé API Brave Search pour l'outil `web_search` |
@@ -542,7 +542,7 @@ unix_socket = "/tmp/apollia-dev.sock"
 port        = 7772
 
 # Budget plus permissif : surcharger par agent via le manifest (step_budget section)
-# Pas de section [budget] — utiliser le manifest de l'agent
+# Pas de section [budget] - utiliser le manifest de l'agent
 
 # LLM local pour le dev (aucun coût cloud)
 # Sur macOS Apple Silicon : utiliser device = "metal" avec --features local-metal
@@ -581,7 +581,7 @@ bind         = "127.0.0.1"  # jamais exposer sur 0.0.0.0 en prod
 require_token = true
 
 [tools]
-disabled     = []            # tous les outils actifs — ajuster selon la politique de sécurité
+disabled     = []            # tous les outils actifs - ajuster selon la politique de sécurité
 max_output_chars = 30000
 
 # LLM cloud en production
@@ -619,6 +619,6 @@ api_key_env = "ANTHROPIC_API_KEY"
 
 ## Voir aussi
 
-- [INSTALL.md](./INSTALL) — installation et prérequis
-- [INSTALL Production](./INSTALL-Production) — déploiement en production
-- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — monitoring et debug
+- [INSTALL.md](./INSTALL) - installation et prérequis
+- [INSTALL Production](./INSTALL-Production) - déploiement en production
+- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) - monitoring et debug

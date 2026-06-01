@@ -1,4 +1,4 @@
-# Positionnement Concurrentiel — Analyse de l'Espace
+# Positionnement Concurrentiel - Analyse de l'Espace
 
 > *Cartographie précise des concurrents, validation de l'espace libre, différenciateurs défendables.*
 
@@ -42,7 +42,7 @@
 
 #### AutoGen (Microsoft)
 - **Ce qu'ils font** : Framework multi-agents conversationnels.
-- **Relation avec Apollia OS** : **Complémentaire.** Microsoft a un intérêt commercial dans son écosystème Azure — Apollia OS est le choix naturel pour ceux qui veulent rester indépendants.
+- **Relation avec Apollia OS** : **Complémentaire.** Microsoft a un intérêt commercial dans son écosystème Azure - Apollia OS est le choix naturel pour ceux qui veulent rester indépendants.
 
 **Message clé :** Apollia OS ne concurrence pas les frameworks d'orchestration. Il leur fournit l'infrastructure d'exécution qui leur manque. La question n'est pas "LangGraph ou Apollia OS ?" mais "LangGraph exécuté sur quoi ?"
 
@@ -50,7 +50,7 @@
 
 ### Catégorie 3 : Runtimes d'agents (concurrents directs)
 
-#### AgentScope Runtime — Alibaba (v1.1, février 2026)
+#### AgentScope Runtime - Alibaba (v1.1, février 2026)
 
 C'est le concurrent le plus sérieux à surveiller.
 
@@ -58,10 +58,10 @@ C'est le concurrent le plus sérieux à surveiller.
 - **Architecture** : Agent (composant core), Runner (orchestration), Context & Env Manager (mémoire, sandbox, historique)
 - **Forces** : Adoption portée par l'écosystème Alibaba/DashScope, support MCP/A2A natif, bien documenté
 - **Faiblesses** :
-  - Écosystème Python uniquement (pas Rust — performances, sécurité, distribution différentes)
+  - Écosystème Python uniquement (pas Rust - performances, sécurité, distribution différentes)
   - Couplage implicite à l'écosystème Alibaba/DashScope
   - Pas conçu pour le déploiement local-first strict (on-premise entreprise européenne)
-  - Documentation et communauté en majorité anglophone/chinoise — faible ancrage Europe
+  - Documentation et communauté en majorité anglophone/chinoise - faible ancrage Europe
   - Complexité de déploiement vs. un binaire unique Apollia OS
 
 - **Différence Apollia OS** :
@@ -79,15 +79,15 @@ La taille du besoin suggère que d'autres projets similaires vont émerger dans 
 
 ### Catégorie 4 : Protocoles et standards (alignement, pas compétition)
 
-#### MCP — Model Context Protocol (Anthropic → Linux Foundation)
+#### MCP - Model Context Protocol (Anthropic → Linux Foundation)
 - **Ce qu'ils font** : Standard JSON-RPC 2.0 pour la connexion agent↔outil/données. 16 000+ serveurs MCP disponibles.
 - **Relation avec Apollia OS** : Apollia OS **consomme** MCP nativement via `mcp_consumer`. Tout serveur MCP est un outil disponible dans le Tool Registry. AIP est aligné sur le schéma d'outil MCP.
 
-#### A2A — Agent-to-Agent Protocol (Google → Linux Foundation)
+#### A2A - Agent-to-Agent Protocol (Google → Linux Foundation)
 - **Ce qu'ils font** : Standard de communication agent-à-agent avec AgentCard, Task lifecycle, Artifact management.
 - **Relation avec Apollia OS** : Apollia OS **génère** automatiquement une AgentCard A2A si `supports_a2a=True` dans le manifest. Le TaskState AIP est aligné sur le TaskState A2A.
 
-#### ACP — Agent Communication Protocol (IBM/BeeAI → Linux Foundation)
+#### ACP - Agent Communication Protocol (IBM/BeeAI → Linux Foundation)
 - **Ce qu'ils font** : Standard de lifecycle processus agent (INITIALIZING → ACTIVE → RETIRED) et communication REST.
 - **Relation avec Apollia OS** : Le ProcessState d'Apollia OS est aligné sur le lifecycle ACP. Les deux machines d'état (processus vs. tâche) sont explicitement distinguées.
 
@@ -99,7 +99,7 @@ La taille du besoin suggère que d'autres projets similaires vont émerger dans 
 
 #### Dust.tt
 - **Ce qu'ils font** : Plateforme SaaS de construction d'agents avec connecteurs, knowledge base, et orchestration.
-- **Différence Apollia OS** : Apollia OS est de l'infrastructure, Dust.tt est un produit end-user. Non concurrents sur le même marché — complémentaires (Dust.tt pourrait utiliser Apollia OS comme runtime d'exécution).
+- **Différence Apollia OS** : Apollia OS est de l'infrastructure, Dust.tt est un produit end-user. Non concurrents sur le même marché - complémentaires (Dust.tt pourrait utiliser Apollia OS comme runtime d'exécution).
 
 #### LangSmith (LangChain)
 - **Ce qu'ils font** : Plateforme de monitoring et d'évaluation d'agents LangChain.
@@ -137,7 +137,7 @@ Cette propriété est difficile à répliquer pour un projet Python (dépendance
 
 ### Différenciateur #2 : La souveraineté totale comme valeur centrale
 
-"Souverain" n'est pas un feature dans Apollia OS — c'est un principe architectural. Aucun octet de données ne quitte la machine sans que le développeur l'ait explicitement demandé. L'audit trail est local. La mémoire est locale. Les modèles d'embedding (optionnels) sont locaux.
+"Souverain" n'est pas un feature dans Apollia OS - c'est un principe architectural. Aucun octet de données ne quitte la machine sans que le développeur l'ait explicitement demandé. L'audit trail est local. La mémoire est locale. Les modèles d'embedding (optionnels) sont locaux.
 
 Ce n'est pas une case à cocher pour la conformité RGPD. C'est la conséquence directe de la philosophie "local-first" qui informe chaque décision de design.
 
@@ -158,7 +158,7 @@ Cette interopérabilité est un multiplicateur d'adoption : les développeurs qu
 
 La plupart des implémentations d'agents sont conçues pour fonctionner en démo. Apollia OS est conçu pour fonctionner en production.
 
-Circuit breakers par outil, retry avec backoff exponentiel, StepBudget tri-dimensionnel, graceful shutdown, audit trail immuable — ces mécanismes sont la différence entre un POC qui impressionne et un système qu'on peut déployer avec confiance.
+Circuit breakers par outil, retry avec backoff exponentiel, StepBudget tri-dimensionnel, graceful shutdown, audit trail immuable - ces mécanismes sont la différence entre un POC qui impressionne et un système qu'on peut déployer avec confiance.
 
 Pour un DSI qui évalue un outil IA pour sa PME, ces propriétés de robustesse sont aussi importantes que les capacités de l'agent lui-même.
 

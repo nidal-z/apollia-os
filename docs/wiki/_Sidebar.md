@@ -5,8 +5,8 @@
 - [[Agents-Quickstart|Premier agent (5 min)]]
 
 **Guides Agents**
-- [[Decision-Matrix-Capabilities|Matrice de décision — Capabilities]]
-- [[Worker-Agent-Pattern|Worker Agent Pattern — Guide builders]]
+- [[Decision-Matrix-Capabilities|Matrice de décision - Capabilities]]
+- [[Worker-Agent-Pattern|Worker Agent Pattern - Guide builders]]
 - [[Community-Agent-Registry|Community Agent Registry]]
 - [[Agents-Tutoriel-Hello-Agent|Tutoriel Hello Agent]]
 - [[Agents-RuntimeContext-Guide|RuntimeContext (ctx.*)]]
@@ -36,14 +36,14 @@
 - [[Briques-User-Profile|User Profile]]
 - [[Briques-ORIA-Engine|ORIA Engine]]
 - [[Briques-LLM-Backend|LLM Backend]]
-- [[LLM-Sampling-Defaults|LLM — Sampling Defaults]]
+- [[LLM-Sampling-Defaults|LLM - Sampling Defaults]]
 - [[Briques-Auth|Auth OAuth2 PKCE]]
 - [[Briques-Triggers|Triggers Engine]]
 - [[Briques-Notifications|Notifications Engine]]
 - [[Briques-Runtime-Core|Runtime Core]]
 - [[Briques-Desktop|Application Desktop]]
-- [[Onboarding-System|Onboarding — Spec système]]
-- [[Onboarding-Tour-Steps|Onboarding — Étapes du tour]]
+- [[Onboarding-System|Onboarding - Spec système]]
+- [[Onboarding-Tour-Steps|Onboarding - Étapes du tour]]
 - [[Briques-STT|Speech-to-Text]]
 - [[Briques-Chat|Chat]]
 - [[Briques-CLI|Apollia CLI]]
@@ -54,13 +54,13 @@
 - [[Config-apollia-toml|apollia.toml]]
 
 **API & Intégration**
-- [[API-HTTP-Reference|API HTTP — Index]]
+- [[API-HTTP-Reference|API HTTP - Index]]
   - [[API-HTTP-Agents|Agents, Chat, LLM, A2A]]
   - [[API-HTTP-Workspace|Triggers, Notifications]]
   - [[API-HTTP-Observability|Observability, STT, MCP]]
-- [[MCP-Guide-Utilisateur|MCP — Guide utilisateur]]
-- [[Integrations-Guide|Intégrations — Guide desktop]]
-- [[MCP-Integration|MCP — Intégration technique]]
+- [[MCP-Guide-Utilisateur|MCP - Guide utilisateur]]
+- [[Integrations-Guide|Intégrations - Guide desktop]]
+- [[MCP-Integration|MCP - Intégration technique]]
 - [[A2A-ACP-Alignement|A2A / ACP]]
 
 **Sécurité**
@@ -89,4 +89,4 @@
 
 **Référence**
 - [[Glossaire|Glossaire]]
-- [[Integrations-Guide|Intégrations — Guide desktop]]
+- [[Integrations-Guide|Intégrations - Guide desktop]]

@@ -327,7 +327,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
             return Err((
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(ErrorResponse {
-                    error: "HITL not configured — task_repository absent".into(),
+                    error: "HITL not configured - task_repository absent".into(),
                 }),
             ));
         }
@@ -416,7 +416,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
                         tracing::info!(
                             task_id = %task_id,
                             approved = body.approved,
-                            "PendingApprovals resolved — ORIA execute_direct unblocked"
+                            "PendingApprovals resolved - ORIA execute_direct unblocked"
                         );
                     }
                     Err(e) => {
@@ -425,14 +425,14 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
                         tracing::warn!(
                             task_id = %task_id,
                             error = %e,
-                            "PendingApprovals.resolve failed — task may not be suspended via ORIA"
+                            "PendingApprovals.resolve failed - task may not be suspended via ORIA"
                         );
                     }
                 }
             } else {
                 tracing::warn!(
                     task_id = %task_id,
-                    "PendingApprovals not configured in AppState — ORIA will not be unblocked"
+                    "PendingApprovals not configured in AppState - ORIA will not be unblocked"
                 );
             }
         }

@@ -1,4 +1,4 @@
-//! Tests e2e — comportement dégradé sans backend LLM.
+//! Tests e2e - comportement dégradé sans backend LLM.
 //!
 //! Vérifie que :
 //! - le runtime démarre correctement avec `llm_router = None` ;
@@ -6,7 +6,7 @@
 //! - `LlmRouter::empty()` n'a aucun backend disponible ;
 //! - une erreur d'initialisation LLM n'empêche pas le runtime de démarrer.
 //!
-//! Aucune dépendance Python — CI OK.
+//! Aucune dépendance Python - CI OK.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -25,10 +25,10 @@ use apollia_runtime::{
 };
 
 // ─────────────────────────────────────────────
-// Mock backend — bloque indéfiniment
+// Mock backend - bloque indéfiniment
 // ─────────────────────────────────────────────
 
-/// Backend qui ne se termine jamais — utilisé pour tester le démarrage du runtime.
+/// Backend qui ne se termine jamais - utilisé pour tester le démarrage du runtime.
 #[derive(Clone)]
 struct NeverMockBackend;
 

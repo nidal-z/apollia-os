@@ -14,7 +14,7 @@ function isToggleShortcut(
   return isModifier && event.key === "/";
 }
 
-describe("CompanionToggle — keyboard shortcut detection", () => {
+describe("CompanionToggle - keyboard shortcut detection", () => {
   test("Cmd+/ is detected as toggle shortcut on macOS", () => {
     // GIVEN macOS platform
     // WHEN Cmd+/ is pressed
@@ -32,13 +32,13 @@ describe("CompanionToggle — keyboard shortcut detection", () => {
   });
 
   test("Cmd+/ is not the shortcut on non-macOS", () => {
-    // GIVEN non-macOS platform — Meta key should not trigger
+    // GIVEN non-macOS platform - Meta key should not trigger
     const event = { metaKey: true, ctrlKey: false, key: "/" };
     expect(isToggleShortcut(event, false)).toBe(false);
   });
 
   test("Ctrl+/ is not the shortcut on macOS", () => {
-    // GIVEN macOS platform — Ctrl key should not trigger
+    // GIVEN macOS platform - Ctrl key should not trigger
     const event = { metaKey: false, ctrlKey: true, key: "/" };
     expect(isToggleShortcut(event, true)).toBe(false);
   });
@@ -60,7 +60,7 @@ function resolveButtonVariant(enabled: boolean): "active" | "inactive" {
   return enabled ? "active" : "inactive";
 }
 
-describe("CompanionToggle — active state", () => {
+describe("CompanionToggle - active state", () => {
   test("button variant is active when companion is enabled", () => {
     // GIVEN companion is enabled
     expect(resolveButtonVariant(true)).toBe("active");
@@ -82,7 +82,7 @@ function canToggle(hasLlm: boolean): boolean {
   return hasLlm;
 }
 
-describe("CompanionToggle — LLM availability guard", () => {
+describe("CompanionToggle - LLM availability guard", () => {
   test("toggle is allowed when at least one LLM backend is ready", () => {
     expect(canToggle(true)).toBe(true);
   });

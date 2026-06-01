@@ -3,7 +3,7 @@
   import { Button } from "$lib/components/ui/button";
 
   /// The four checklist items shown in the interactive disclaimer.
-  /// The version hash is derived from this exact ordered list — any change
+  /// The version hash is derived from this exact ordered list - any change
   /// to wording or order will force existing users to re-accept.
   export const DISCLAIMER_ITEMS = [
     "i18n:integrations.disclaimer.items.code_on_machine",

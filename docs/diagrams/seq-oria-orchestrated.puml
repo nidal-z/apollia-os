@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — ORIA Mode Orchestré (ActorLoop) — Apollia OS
+title Séquence - ORIA Mode Orchestré (ActorLoop) - Apollia OS
 
 participant "ExecutionCoord." as coord #1a1a2e/e0e0ff
 participant "Observer" as obs #1a1a2e/e0e0ff
@@ -107,7 +107,7 @@ loop chaque step dans l'ordre topologique
     coord -> budget : increment_steps()
     coord -> db : complete_step(step_id, output)
     coord -> bus : StepCompleted { duration_ms }
-    coord -> memory : record episodic\n(fire-and-forget, importance=0.6\ntroncature 200 chars — Sprint 20)
+    coord -> memory : record episodic\n(fire-and-forget, importance=0.6\ntroncature 200 chars - Sprint 20)
 
   else step échoué
     coord -> resilience : record_failure(tool_name)
@@ -134,7 +134,7 @@ end
 == Phase 5 : Finalisation ==
 
 coord -> db : complete_plan(plan_id)
-coord -> cache : store(key, plan)\n(si cache MISS initial — Sprint 20)
+coord -> cache : store(key, plan)\n(si cache MISS initial - Sprint 20)
 coord -> bus : PlanCompleted { step_count, duration_ms }
 
 alt hasattr(agent, "on_plan_complete")

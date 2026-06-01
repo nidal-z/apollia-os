@@ -1,4 +1,4 @@
-# Memory Engine — Persistance Souveraine Multi-Types
+# Memory Engine - Persistance Souveraine Multi-Types
 
 > *Architecture complète du système de mémoire : 4 types, SQLite local, FTS5 unicode, embedding optionnel.*
 
@@ -8,7 +8,7 @@
 
 ### 1.1 Le problème de la mémoire sans architecture
 
-La plupart des agents IA sont amnésiques par design : chaque session repart de zéro. Ce n'est pas un choix délibéré — c'est l'absence d'infrastructure pour gérer la persistance.
+La plupart des agents IA sont amnésiques par design : chaque session repart de zéro. Ce n'est pas un choix délibéré - c'est l'absence d'infrastructure pour gérer la persistance.
 
 Les solutions ad hoc courantes :
 - **Variables globales Python** : disparaissent au redémarrage du processus
@@ -28,7 +28,7 @@ Pour Apollia OS, implémenter tout cela dès le MVP serait une **erreur stratég
 - Comportements difficiles à debugger en production
 
 **Décision :** Architecture à **deux niveaux d'activation** :
-- v0.1 : 3 types persistants + working memory RAM + FTS5 — zero LLM requis
+- v0.1 : 3 types persistants + working memory RAM + FTS5 - zero LLM requis
 - v1.0 : Consolidation opt-in, embedding vectoriel opt-in, extraction de faits opt-in
 
 ---
@@ -51,7 +51,7 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
     # draft et intermediate_results disparaissent à la fin de run()
 ```
 
-**Pourquoi pas SQLite :** Overhead inutile pour des données temporaires. La working memory ne doit pas persister — c'est sa définition.
+**Pourquoi pas SQLite :** Overhead inutile pour des données temporaires. La working memory ne doit pas persister - c'est sa définition.
 
 ### 2.2 Episodic Memory (persistante, datée)
 
@@ -60,13 +60,13 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
 **Exemples PME :**
 - "Le 14/02/2026 : Devis #142 refusé par Dupont SA, budget insuffisant"
 - "Le 30/01/2026 : Devis #138 refusé par Martin SAS, délai trop court"
-- "Le 05/03/2026 : Rapport hebdomadaire généré — 3 anomalies détectées"
+- "Le 05/03/2026 : Rapport hebdomadaire généré - 3 anomalies détectées"
 
 ```python
 # Enregistrer un épisode
 await ctx.memory.record(
     content=f"Devis #{devis_id} généré pour {client}. Montant: {montant}€",
-    importance=0.8,           # 0.0 à 1.0 — filtre les recherches
+    importance=0.8,           # 0.0 à 1.0 - filtre les recherches
     task_id=task.task_id,
     expires_in=timedelta(days=90),  # None = permanent
     metadata={"devis_id": devis_id, "client": client}
@@ -205,7 +205,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
 ```
 
 **Pourquoi `unicode61` :**
-Le tokenizer `unicode61` est indispensable pour une cible PME française. Sans lui, "réunion" n'est pas retrouvé quand on cherche "reunion", "société" rate pour "societe". Les accents sont une réalité du français professionnel — les ignorer dégrade significativement la qualité de la recherche.
+Le tokenizer `unicode61` est indispensable pour une cible PME française. Sans lui, "réunion" n'est pas retrouvé quand on cherche "reunion", "société" rate pour "societe". Les accents sont une réalité du français professionnel - les ignorer dégrade significativement la qualité de la recherche.
 
 ---
 
@@ -214,17 +214,17 @@ Le tokenizer `unicode61` est indispensable pour une cible PME française. Sans l
 La recherche sémantique (vectorielle) est puissante mais nécessite un modèle d'embedding. Apollia OS adopte une stratégie de dégradation gracieuse : FTS5 fonctionne toujours, les embeddings s'activent uniquement si le matériel et les modèles sont présents.
 
 ```
-Niveau 1 — FTS5 uniquement (défaut, toujours disponible)
+Niveau 1 - FTS5 uniquement (défaut, toujours disponible)
   → Recherche par mots-clés avec ranking BM25
   → Zéro dépendance supplémentaire
   → 100% fonctionnel, très bon pour les cas PME
 
-Niveau 2 — sqlite-vec + sqlite-lembed + GGUF local (opt-in)
+Niveau 2 - sqlite-vec + sqlite-lembed + GGUF local (opt-in)
   → all-MiniLM-L6-v2.gguf (22MB) : zéro cloud, local-first
   → 384 dimensions, multilingue, français natif
   → Activé si le fichier GGUF est présent sur le système
 
-Niveau 3 — sqlite-vec + Ollama (opt-in avancé)
+Niveau 3 - sqlite-vec + Ollama (opt-in avancé)
   → nomic-embed-text-v1.5 via Ollama local (768 dims)
   → Pour les déploiements avec Ollama déjà installé
   → Meilleure qualité sémantique
@@ -241,7 +241,7 @@ La feature `embeddings` est désactivée par défaut dans `apollia-memory`. Pour
 apollia-memory = { path = "../apollia-memory", features = ["embeddings"] }
 ```
 
-La feature active la dépendance `sqlite-vec` et le moteur d'embedding local via `sqlite-lembed`. Sans elle, toutes les recherches passent par FTS5 — le binaire reste plus léger et aucune erreur n'est levée.
+La feature active la dépendance `sqlite-vec` et le moteur d'embedding local via `sqlite-lembed`. Sans elle, toutes les recherches passent par FTS5 - le binaire reste plus léger et aucune erreur n'est levée.
 
 La configuration dans `apollia.toml` sélectionne le backend :
 
@@ -258,14 +258,14 @@ En mode `auto`, le runtime détecte ce qui est disponible et utilise le niveau l
 
 | Modèle | Dimensions | Taille fichier | Usage recommandé |
 |---|---|---|---|
-| `all-MiniLM-L6-v2.gguf` | 384 | ~23 MB | Défaut — bon compromis vitesse/qualité, multilingue |
+| `all-MiniLM-L6-v2.gguf` | 384 | ~23 MB | Défaut - bon compromis vitesse/qualité, multilingue |
 | `nomic-embed-text-v1.5.gguf` | 768 | ~137 MB | Meilleure qualité sémantique, phrases longues |
 
 Les fichiers `.gguf` doivent être téléchargés manuellement et placés dans un répertoire accessible au runtime. Le chemin est renseigné dans `memory.gguf_model_path`. Apollia OS ne télécharge jamais un modèle automatiquement.
 
 ### 4.3 Limitations connues
 
-- **Pas d'index HNSW** : `sqlite-vec` effectue un scan linéaire sur tous les vecteurs — la recherche est en O(n). Acceptable jusqu'à environ 100 000 vecteurs ; au-delà, les latences de recherche augmentent notablement.
+- **Pas d'index HNSW** : `sqlite-vec` effectue un scan linéaire sur tous les vecteurs - la recherche est en O(n). Acceptable jusqu'à environ 100 000 vecteurs ; au-delà, les latences de recherche augmentent notablement.
 - **CPU uniquement** : le calcul des embeddings via `sqlite-lembed` s'exécute sur CPU. Pas de GPU requis, mais le temps de génération d'un embedding est de l'ordre de 5-20 ms selon le modèle et le matériel.
 - **Un modèle par namespace** : la table `memory_vec` est créée avec une dimension fixe lors de la première activation. Changer de modèle (ex. de 384 à 768 dims) nécessite de recréer la table vectorielle du namespace.
 - **Feature additive** : activer `embeddings` sur un namespace existant indexe uniquement les nouveaux enregistrements. Les entrées antérieures ne sont pas rétroactivement vectorisées.
@@ -292,7 +292,7 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
             source=entry.source_table,
         )
 
-    # Enregistrer un épisode — sera vectorisé automatiquement si embeddings activés
+    # Enregistrer un épisode - sera vectorisé automatiquement si embeddings activés
     await ctx.memory.record(
         content=f"Analyse terminée : {len(results)} épisodes pertinents trouvés",
         importance=0.7,
@@ -300,11 +300,11 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
     )
 ```
 
-L'agent ne distingue pas FTS5 d'un embedding vectoriel — le runtime gère la dégradation gracieuse. Si le modèle GGUF n'est pas disponible au démarrage, le runtime bascule sur FTS5 et l'indique dans les logs (`tracing::warn`).
+L'agent ne distingue pas FTS5 d'un embedding vectoriel - le runtime gère la dégradation gracieuse. Si le modèle GGUF n'est pas disponible au démarrage, le runtime bascule sur FTS5 et l'indique dans les logs (`tracing::warn`).
 
 ---
 
-## 5. MemoryInterface — API complète
+## 5. MemoryInterface - API complète
 
 ```python
 class MemoryInterface(Protocol):
@@ -371,18 +371,18 @@ class MemoryInterface(Protocol):
     async def purge_expired(self) -> int: ...
 ```
 
-### `MemoryStats` — champs retournés par `stats`
+### `MemoryStats` - champs retournés par `stats`
 
 ```python
 # Obtenir les statistiques d'un namespace
 s = await ctx.memory.stats()
 
-s.namespace         # str    — nom du namespace
-s.episodic_count    # int    — nombre d'entrées épisodiques
-s.semantic_count    # int    — nombre de faits sémantiques
-s.procedural_count  # int    — nombre de procédures
-s.fts_entries       # int    — nombre d'entrées dans l'index FTS5
-s.db_size_bytes     # int    — taille du fichier .db en octets
+s.namespace         # str    - nom du namespace
+s.episodic_count    # int    - nombre d'entrées épisodiques
+s.semantic_count    # int    - nombre de faits sémantiques
+s.procedural_count  # int    - nombre de procédures
+s.fts_entries       # int    - nombre d'entrées dans l'index FTS5
+s.db_size_bytes     # int    - taille du fichier .db en octets
 ```
 
 Exemple d'usage :
@@ -404,11 +404,11 @@ async def run(self, task, ctx):
 
 ---
 
-## 5bis. Profil utilisateur — accès générique pour tous les agents
+## 5bis. Profil utilisateur - accès générique pour tous les agents
 
 Le profil utilisateur (clés `user.*` collectées par l'onboarding-agent) est
 volontairement **partagé entre tous les agents** sans opt-in. Cette mémoire
-n'est pas dédiée à `apollia-guide` ni à un agent particulier — c'est une
+n'est pas dédiée à `apollia-guide` ni à un agent particulier - c'est une
 ressource transverse qui sert à tout consommateur.
 
 Trois mécanismes assurent cette généricité (ADR-087) :
@@ -418,7 +418,7 @@ Trois mécanismes assurent cette généricité (ADR-087) :
 Toutes les entrées de profil sont écrites dans le namespace **`__user__`**
 par `UserMemoryRepository::set(...)`. Les clés sont **plates** (pas de
 préfixe `user.` ni de préfixe catégorie). L'écriture est gatée par le flag
-manifest `user_memory_write = true` — seul l'`onboarding-agent` détient
+manifest `user_memory_write = true` - seul l'`onboarding-agent` détient
 cette permission en V1.
 
 ### 2. API SDK dédiée `ctx.profile`
@@ -441,10 +441,10 @@ profile = await ctx.profile.all()                # dict[str, str], clés plates
 `BuiltInChatAgent::build_system_prompt(...)`
 (`crates/apollia-runtime/src/chat/builtin_agent.rs`) appelle
 `recall_persona_brief(30)` à chaque construction de session **Libre** ou
-**Agent**. Le brief — narrative header + section Gouvernance (HITL,
-souveraineté, compliance) + outils + objectifs — est injecté dans le
+**Agent**. Le brief - narrative header + section Gouvernance (HITL,
+souveraineté, compliance) + outils + objectifs - est injecté dans le
 system prompt sans intervention de l'agent. Seul le mode **Companion**
-est isolé (Principe #6 strict — l'agent compagnon ne reçoit pas le
+est isolé (Principe #6 strict - l'agent compagnon ne reçoit pas le
 contexte utilisateur).
 
 ### Clés profil canoniques (ADR-087, clés plates)
@@ -462,7 +462,7 @@ Spec complète : [Briques-User-Profile](Briques-User-Profile.md).
 ### Comment lire le profil depuis un agent
 
 ```python
-# Dans n'importe quel agent — lecture toujours autorisée.
+# Dans n'importe quel agent - lecture toujours autorisée.
 name = await ctx.profile.get("name")
 sovereignty = await ctx.profile.get("constraints.sovereignty")
 
@@ -498,7 +498,7 @@ AgentManifest(
 )
 ```
 
-### `MemoryAccess` — niveaux d'accès
+### `MemoryAccess` - niveaux d'accès
 
 ```rust
 pub enum MemoryAccess {
@@ -514,7 +514,7 @@ pub enum MemoryAccess {
 
 La méthode `MemoryManager::access_level(namespace)` retourne `Some(ReadWrite)`, `Some(ReadOnly)`, ou `None` (namespace non autorisé).
 
-### Modèle d'accès multi-agents — qui lit quoi, qui écrit quoi
+### Modèle d'accès multi-agents - qui lit quoi, qui écrit quoi
 
 ```
 Agent A
@@ -531,10 +531,10 @@ Agent C (lecture seule, pas de mémoire privée)
 ```
 
 **Règles immuables :**
-- Un agent ne peut **jamais écrire** dans un namespace `shared_memory_namespaces` — c'est `ReadOnly`
+- Un agent ne peut **jamais écrire** dans un namespace `shared_memory_namespaces` - c'est `ReadOnly`
 - Tenter une écriture dans un namespace partagé lève `MemoryManagerError::ReadOnlyNamespace`
 - Accéder à un namespace non déclaré lève `MemoryManagerError::NamespaceNotAllowed`
-- `memory_namespace = None` → `ctx.memory` est `None` — pas d'accès mémoire du tout
+- `memory_namespace = None` → `ctx.memory` est `None` - pas d'accès mémoire du tout
 
 **Erreurs `MemoryManager` :**
 
@@ -562,14 +562,14 @@ effective_namespace = manifest.memory_namespace                     # sinon (ses
 | `dev-assistant` en session standalone | `"dev-assistant"` |
 | `spec-assistant` dans projet `proj_abc123` | `"proj_abc123:spec-assistant"` |
 
-Le préfixage est transparent pour le code Python de l'agent — il s'applique lors de l'initialisation du `MemoryInterface` via la fonction pure `effective_memory_namespace` dans `crates/apollia-aip/src/context.rs`.
+Le préfixage est transparent pour le code Python de l'agent - il s'applique lors de l'initialisation du `MemoryInterface` via la fonction pure `effective_memory_namespace` dans `crates/apollia-aip/src/context.rs`.
 
 **Invariants :**
 - Backward compatible : les namespaces existants fonctionnent en session standalone
 - Workers non affectés (pas de `project_id` dans leur contexte)
 - Pas de changement de schéma SQLite
 
-> **Voir aussi :** [ADR-070](../adr/ADR-070-memory-namespace-project-scoped.md) — Memory namespace project-scoped
+> **Voir aussi :** [ADR-070](../adr/ADR-070-memory-namespace-project-scoped.md) - Memory namespace project-scoped
 
 ---
 
@@ -596,7 +596,7 @@ La troncature est appliquée systématiquement par le runtime lors de l'appel `c
 
 ---
 
-## 8. `MemoryStore` — référence pour contributeurs
+## 8. `MemoryStore` - référence pour contributeurs
 
 `MemoryStore` est la couche bas niveau qui gère un fichier SQLite unique par namespace. C'est la brique sur laquelle s'appuient `EpisodicMemory`, `SemanticMemory` et `ProceduralMemory`.
 
@@ -647,7 +647,7 @@ MemoryStore
        └── ProceduralMemory (lecture via trigger_text)
 ```
 
-`MemoryManager` est le seul point d'entrée autorisé — ne pas instancier `MemoryStore` directement dans les agents. L'interface Python `MemoryInterface` passe toujours par `MemoryManager`.
+`MemoryManager` est le seul point d'entrée autorisé - ne pas instancier `MemoryStore` directement dans les agents. L'interface Python `MemoryInterface` passe toujours par `MemoryManager`.
 
 ---
 
@@ -683,7 +683,7 @@ $ apollia-os memory purge crm-dupont
 
 ---
 
-## 10. FileTimestampCache — Détection de Fichiers Modifiés
+## 10. FileTimestampCache - Détection de Fichiers Modifiés
 
 , `apollia-memory` inclut `FileTimestampCache` : un cache SQLite qui détecte si un fichier lu par un agent a été modifié entre deux accès, permettant à ORIA d'invalider les plans stale.
 
@@ -755,7 +755,7 @@ poll_interval_ms = 1000         # uniquement si strategy = "polling"
 
 ---
 
-## 11. Table `plan_choices` — Log RLHF
+## 11. Table `plan_choices` - Log RLHF
 
 La table SQLite `plan_choices` dans `apollia-memory` persiste les choix de l'opérateur entre deux plans alternatifs ORIA. Données locales, jamais envoyées (Principe #1).
 
@@ -770,7 +770,7 @@ CREATE TABLE IF NOT EXISTS plan_choices (
 );
 ```
 
-> **Voir aussi :** [Briques ORIA Engine — Binary Feedback](./Briques-ORIA-Engine.md#13-binary-feedback--deux-plans-alternatifs--)
+> **Voir aussi :** [Briques ORIA Engine - Binary Feedback](./Briques-ORIA-Engine.md#13-binary-feedback--deux-plans-alternatifs--)
 
 ---
 
@@ -778,7 +778,7 @@ CREATE TABLE IF NOT EXISTS plan_choices (
 
 , la rétention mémoire est configurable par type (épisodique / sémantique / procédurale) via `MemoryConfig` dans le manifest de l'agent.
 
-### `MemoryConfig` — dans `AgentManifest`
+### `MemoryConfig` - dans `AgentManifest`
 
 ```rust
 // crates/apollia-core/src/manifest.rs
@@ -819,7 +819,7 @@ def manifest(self):
 ```rust
 // crates/apollia-memory/src/manager.rs
 
-/// Rapport d'une passe de purge — nombre d'entrées supprimées par type.
+/// Rapport d'une passe de purge - nombre d'entrées supprimées par type.
 pub struct PurgeReport {
     pub episodic_deleted: usize,
     pub semantic_deleted: usize,
@@ -865,7 +865,7 @@ $ apollia memory purge --agent crm-agent --type all --older-than 30
 
 , la mémoire d'un agent peut être exportée vers un fichier JSON gzip et réimportée sur une autre machine (ADR-066).
 
-### Format — JSON gzip
+### Format - JSON gzip
 
 ```json
 {
@@ -891,11 +891,11 @@ $ apollia memory export --agent crm-agent --output backup.apollia-mem.gz
   Procédurale : 3 procédures
   ✔ Export : backup.apollia-mem.gz (14.2 KB)
 
-# Importer (mode Merge — INSERT OR IGNORE)
+# Importer (mode Merge - INSERT OR IGNORE)
 $ apollia memory import --agent crm-agent --input backup.apollia-mem.gz
   ✔ 42 épisodes importés, 18 clés sémantiques, 3 procédures.
 
-# Importer (mode Replace — DELETE + INSERT)
+# Importer (mode Replace - DELETE + INSERT)
 $ apollia memory import --agent crm-agent --input backup.apollia-mem.gz --replace
   ⚠ Ce mode supprime toute la mémoire existante et la remplace. Continuer ? [o/N] o
   ✔ 42 épisodes importés (mode replace), 18 clés sémantiques, 3 procédures.
@@ -909,10 +909,10 @@ $ apollia memory import --agent crm-agent --input future.apollia-mem.gz
 
 | Mode | Comportement | Commande |
 |---|---|---|
-| `Merge` (défaut) | `INSERT OR IGNORE` — préserve les données existantes | `apollia memory import` |
-| `Replace` | `DELETE` + `INSERT` — écrase tout le namespace | `apollia memory import --replace` |
+| `Merge` (défaut) | `INSERT OR IGNORE` - préserve les données existantes | `apollia memory import` |
+| `Replace` | `DELETE` + `INSERT` - écrase tout le namespace | `apollia memory import --replace` |
 
-> **Voir aussi :** [ADR-066](../adr/ADR-066-memory-export-import-format.md) — Format JSON Gzip, migration de schéma
+> **Voir aussi :** [ADR-066](../adr/ADR-066-memory-export-import-format.md) - Format JSON Gzip, migration de schéma
 
 ---
 
@@ -926,8 +926,8 @@ $ apollia memory import --agent crm-agent --input future.apollia-mem.gz
 | Dégradation FTS5 → GGUF → Ollama | Agent fonctionnel sans embedding, sémantique s'active progressivement |
 | Écriture toujours à initiative agent | Pas d'automatisme opaque, coût LLM maîtrisé, comportement prévisible |
 | Pas de consolidation automatique MVP | Réduit le risque de comportement imprévisible et de coûts cachés |
-| Tokenizer `unicode61` | Cible PME française — accentuation native correcte |
-| Pas de téléchargement automatique | Souveraineté totale — aucun binaire sans consentement explicite |
+| Tokenizer `unicode61` | Cible PME française - accentuation native correcte |
+| Pas de téléchargement automatique | Souveraineté totale - aucun binaire sans consentement explicite |
 
 ---
 

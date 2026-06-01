@@ -21,7 +21,7 @@ members = [
     "crates/apollia-desktop",
     "tests",
 ]
-# apollia-desktop excluded from default builds (heavy tauri dep — use `cargo build -p apollia-desktop`)
+# apollia-desktop excluded from default builds (heavy tauri dep - use `cargo build -p apollia-desktop`)
 default-members = [
     "crates/apollia-auth",
     "crates/apollia-connectors",
@@ -46,10 +46,15 @@ default-members = [
 # Shared workspace-level package metadata. Individual crates may opt into
 # these defaults via `<field>.workspace = true` in their own Cargo.toml.
 [workspace.package]
-rust-version = "1.84"
+rust-version = "1.85"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Nidal Zoumita <admin@apollia.fr>"]
+repository = "https://github.com/Apollia-OS/apollia-os"
+homepage = "https://apollia.fr"
 
 # Centralize all dependency versions here.
-# Individual crates use { workspace = true } — never specify versions inline.
+# Individual crates use { workspace = true } - never specify versions inline.
 [workspace.dependencies]
 
 # --- Async runtime ---
@@ -60,7 +65,7 @@ tokio-util = { version = "0.7" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# --- Error handling — thiserror ONLY, anyhow FORBIDDEN in all workspace crates ---
+# --- Error handling - thiserror ONLY, anyhow FORBIDDEN in all workspace crates ---
 thiserror = "2"
 
 # --- Logging ---
@@ -82,7 +87,7 @@ tower-http = { version = "0.5", features = ["trace"] }
 # --- CLI (apollia-cli) ---
 clap = { version = "4", features = ["derive"] }
 
-# --- SQLite — bundled = zero external system dependency (Principe #2) ---
+# --- SQLite - bundled = zero external system dependency (Principe #2) ---
 rusqlite = { version = "0.32", features = ["bundled"] }
 
 # --- Cryptography ---
@@ -96,13 +101,13 @@ rand = "0.8"
 # --- LLM (apollia-llm) ---
 futures = "0.3"
 async-trait = "0.1"
-# cloud backends (OpenAI-compatible + Anthropic) — [feature = "cloud"]
+# cloud backends (OpenAI-compatible + Anthropic) - [feature = "cloud"]
 async-openai = "0.28"
 reqwest = { version = "0.12", features = ["json", "stream"] }
-# llama-cpp-2 = bindings Rust safe pour llama.cpp — ADR-042
+# llama-cpp-2 = bindings Rust safe pour llama.cpp - ADR-042
 # Compilation statique, binaire unique, 30+ architectures GGUF.
 llama-cpp-2 = "0.1.144"
-# llama-cpp-sys-2 = bindings FFI bruts — requis pour `llama_model_load_from_splits`
+# llama-cpp-sys-2 = bindings FFI bruts - requis pour `llama_model_load_from_splits`
 # (naming scheme custom, non exposé par le wrapper safe).
 llama-cpp-sys-2 = "0.1.145"
 encoding_rs = "0.8"
@@ -125,7 +130,7 @@ hf-hub = "0.3"
 # --- Progress bars (CLI download) ---
 indicatif = "0.17"
 
-# --- System information (RAM, OS, GPU detection — apollia-desktop onboarding) ---
+# --- System information (RAM, OS, GPU detection - apollia-desktop onboarding) ---
 sysinfo = "0.31"
 
 # --- Clipboard + keyboard simulation (apollia-desktop STT injection) ---
@@ -145,7 +150,7 @@ shell-words = "1"
 base64      = "0.22"
 # `apple-native` + `linux-native` + `windows-native` route writes through
 # the real OS keychain. Without these the crate's default backend is a no-op
-# that returns Ok from `set_password` while persisting nothing — silent data
+# that returns Ok from `set_password` while persisting nothing - silent data
 # loss for every secret Apollia stores (MCP OAuth, connector tokens, tool
 # credentials, …). Diagnosed 2026-05-21 when MCP OAuth login appeared to
 # succeed but the daemon still read NoStoredToken.
@@ -169,7 +174,7 @@ notify = "6"
 pyo3 = { version = "0.24", features = ["auto-initialize"] }
 pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
 
-# --- Agent runtime (apollia-aip) — YAML datasources + Jinja2 templates (ADR-103) ---
+# --- Agent runtime (apollia-aip) - YAML datasources + Jinja2 templates (ADR-103) ---
 serde_yaml = "0.9"
 minijinja = { version = "2", default-features = false, features = ["builtins", "serde"] }
 

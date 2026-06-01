@@ -24,7 +24,7 @@
 
 6. Cliquez sur **Créer**. Le projet apparaît immédiatement dans la liste.
 
-7. Cliquez sur la carte du projet pour ouvrir son **panneau de détail** (Sheet latérale). Vous y voyez le chemin, les agents liés, les context providers actifs, les documents attachés et les chats liés — dans des sections scrollables, sans onglets formels.
+7. Cliquez sur la carte du projet pour ouvrir son **panneau de détail** (Sheet latérale). Vous y voyez le chemin, les agents liés, les context providers actifs, les documents attachés et les chats liés - dans des sections scrollables, sans onglets formels.
    ![panneau de détail projet (Sheet latérale), sections Description, Agents, Context providers, Documents, Chat...](../_screenshots/projets-creer-un-projet-3.png)
 
 8. Continuez avec **Activer les context providers** pour charger automatiquement les bonnes informations dans vos futurs chats.
@@ -39,4 +39,4 @@ Le projet est listé dans la sidebar sous **Projets** et sa page de détail affi
 - **Le bouton Créer reste grisé** : un nom et un dossier sont obligatoires, le modèle est facultatif.
 - **Le projet apparaît mais reste vide** : c'est normal, les fournisseurs de contexte s'activent à l'étape suivante.
 
-> **Concept :** [book ch12 — Chat interactif](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md) — comprendre pourquoi un projet sert d'enveloppe contextuelle pour vos chats.
+> **Concept :** [book ch12 - Chat interactif](https://github.com/Apollia-OS/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md) - comprendre pourquoi un projet sert d'enveloppe contextuelle pour vos chats.

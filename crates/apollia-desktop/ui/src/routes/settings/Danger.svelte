@@ -28,7 +28,7 @@
       await invoke("reset_onboarding");
       // Reload the now-empty state so derived stores (badges, etc.) catch up.
       await onboardingStore.refreshState();
-      // Open the onboarding modal immediately — no restart required.
+      // Open the onboarding modal immediately - no restart required.
       onboardingModalOpen.set(true);
       addToast($t("settings.danger.reset_onboarding.success"), "success", {
         "data-testid": "danger-reset-onboarding-toast",
@@ -44,7 +44,7 @@
   async function runClearMemories() {
     loading = true;
     try {
-      // Wipes every namespace (user profile, agents, projects) — see
+      // Wipes every namespace (user profile, agents, projects) - see
       // commands::config::clear_all_memories.
       const count = await invoke<number>("clear_all_memories");
       addToast(
@@ -80,13 +80,13 @@
     try {
       await invoke("factory_reset");
       openAction = null;
-      // Factory reset wipes the config dir — a restart is mandatory to
+      // Factory reset wipes the config dir - a restart is mandatory to
       // re-init the runtime. In dev mode, app_restart may not work (no
       // packaged bundle), so we show a fallback message.
       try {
         await invoke("app_restart");
       } catch {
-        // app_restart failed (probably dev mode) — show manual reload prompt.
+        // app_restart failed (probably dev mode) - show manual reload prompt.
         addToast(
           "La réinitialisation est terminée. Veuillez redémarrer l'application manuellement.",
           "warning",
@@ -220,7 +220,7 @@
     </div>
   </article>
 
-  <!-- Factory Reset — separated with an extra warning -->
+  <!-- Factory Reset - separated with an extra warning -->
   <div class="space-y-2 pt-4 border-t border-destructive/40">
     <p class="text-xs font-medium uppercase tracking-wider text-destructive">
       {$t("settings.danger.last_resort")}

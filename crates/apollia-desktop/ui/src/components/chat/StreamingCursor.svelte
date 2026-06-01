@@ -1,6 +1,6 @@
 <script lang="ts">
   interface Props {
-    /** Hide the cursor — used when the stream is interrupted or completed. */
+    /** Hide the cursor - used when the stream is interrupted or completed. */
     hidden?: boolean;
   }
 

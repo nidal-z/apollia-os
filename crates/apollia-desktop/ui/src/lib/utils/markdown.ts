@@ -8,7 +8,7 @@
  *
  * This keeps the initial bundle small (Shiki's WASM + themes + languages are
  * loaded on demand), preserves first-paint, and respects `principle 1`
- * (no outbound traffic — Shiki bundles grammars locally via Vite).
+ * (no outbound traffic - Shiki bundles grammars locally via Vite).
  */
 import { Marked } from "marked";
 import DOMPurify from "dompurify";

@@ -3,7 +3,7 @@
    * Warning banner displayed on macOS to inform users that tool execution
    * (bash_executor, file_io, etc.) runs without Linux namespace isolation.
    *
-   * Shown once per session — dismissed state is stored in sessionStorage.
+   * Shown once per session - dismissed state is stored in sessionStorage.
    * Renders nothing on non-macOS platforms.
    */
   import { t } from "svelte-i18n";

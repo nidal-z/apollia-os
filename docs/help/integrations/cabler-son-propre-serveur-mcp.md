@@ -83,4 +83,4 @@ Apollia peut découvrir des serveurs MCP sur votre réseau local via mDNS (servi
 
 Pour que votre serveur interne apparaisse aux côtés des entrées officielles (avec logo, description, badge trust level), voir [Personnaliser le catalogue MCP](personnaliser-le-catalogue-mcp.md).
 
-> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP) , schéma complet du protocole, capabilities, transports, sécurité.
+> **Référence technique :** [Briques-MCP](https://github.com/Apollia-OS/apollia-os/wiki/Briques-MCP) , schéma complet du protocole, capabilities, transports, sécurité.

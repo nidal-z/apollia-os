@@ -8,7 +8,7 @@
     onclose: () => void;
     width?: "sm" | "md" | "lg";
     side?: "left" | "right";
-    /** Accessible label for the sheet — screen readers announce this when the panel opens. */
+    /** Accessible label for the sheet - screen readers announce this when the panel opens. */
     ariaLabel?: string;
     class?: string;
     children?: import("svelte").Snippet;

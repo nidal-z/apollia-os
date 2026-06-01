@@ -1,4 +1,4 @@
-# ADR-030 — EventBus → Tauri events remplace le polling IPC
+# ADR-030 - EventBus → Tauri events remplace le polling IPC
 
 **Date :** 2026-03-16
 **Statut :** Accepté
@@ -9,7 +9,7 @@
 
 ## Contexte
 
-L'application desktop Apollia OS (Sprint 14-15) utilise un polling IPC toutes les 3 secondes pour rafraîchir l'état du frontend Svelte. Le fichier `sse.ts` — nommé de manière trompeuse — appelle `setInterval(poll, 3000)` qui exécute 6 `invoke()` Tauri en parallèle (`list_agents`, `list_tasks`, `list_llm_backends`, `list_triggers`, `list_all_pipeline_runs`, `list_pending_approvals`).
+L'application desktop Apollia OS (Sprint 14-15) utilise un polling IPC toutes les 3 secondes pour rafraîchir l'état du frontend Svelte. Le fichier `sse.ts` - nommé de manière trompeuse - appelle `setInterval(poll, 3000)` qui exécute 6 `invoke()` Tauri en parallèle (`list_agents`, `list_tasks`, `list_llm_backends`, `list_triggers`, `list_all_pipeline_runs`, `list_pending_approvals`).
 
 Ce polling pose trois problèmes :
 1. **Latence** : 0 à 3 secondes entre un événement runtime et sa visibilité dans l'UI
@@ -20,8 +20,8 @@ L'ADR-027 (processus unique Tauri + runtime embarqué) avait prévu d'utiliser l
 
 ### Contraintes
 
-- **Principe #8 — CLI humaine, API machine** : le desktop doit recevoir les mêmes events que le CLI
-- Les events Tauri (`app.emit()`) sont fire-and-forget — pas de backpressure, pas de garantie de livraison
+- **Principe #8 - CLI humaine, API machine** : le desktop doit recevoir les mêmes events que le CLI
+- Les events Tauri (`app.emit()`) sont fire-and-forget - pas de backpressure, pas de garantie de livraison
 - Le `connectionStatus` store doit continuer à refléter l'état de la connexion au runtime
 - Le code Svelte doit rester simple (pas de gestion de reconnexion complexe)
 
@@ -67,7 +67,7 @@ apollia-runtime (EventBus broadcast::Sender<RuntimeEvent>)
 
 ## Alternatives considérées
 
-### Option A — Conserver le polling IPC (rejetée)
+### Option A - Conserver le polling IPC (rejetée)
 
 **Pour :**
 - Fonctionne déjà, zéro effort
@@ -77,9 +77,9 @@ apollia-runtime (EventBus broadcast::Sender<RuntimeEvent>)
 - Latence de 0 à 3 secondes inacceptable pour une app desktop moderne
 - Gaspillage CPU/mémoire : 6 requêtes IPC toutes les 3 secondes même au repos
 - Ne scale pas : chaque nouvelle fonctionnalité nécessite une requête de polling supplémentaire
-- Le nom `sse.ts` est trompeur — dette cognitive pour les futurs contributeurs
+- Le nom `sse.ts` est trompeur - dette cognitive pour les futurs contributeurs
 
-### Option B — SSE HTTP depuis le WebView (rejetée)
+### Option B - SSE HTTP depuis le WebView (rejetée)
 
 **Pour :**
 - Le endpoint SSE `/api/v1/dashboard/stream` existe déjà (Sprint 9)
@@ -88,17 +88,17 @@ apollia-runtime (EventBus broadcast::Sender<RuntimeEvent>)
 **Contre :**
 - **CORS bloquant** : en production, le WebView Tauri charge les assets depuis `tauri://localhost`, et les requêtes vers `http://127.0.0.1:7771` sont bloquées par la Same-Origin Policy
 - Contournements possibles (Tauri `allowlist.http`, proxy dans les commandes) mais fragiles et non-standard
-- En mode dev (Vite sur `:5173`), le SSE fonctionnait — ce qui a masqué le problème jusqu'au premier build production
+- En mode dev (Vite sur `:5173`), le SSE fonctionnait - ce qui a masqué le problème jusqu'au premier build production
 - ADR-027 l'avait initialement prévu mais l'expérience Sprint 14 a prouvé que c'est impraticable
 
-### Option retenue — EventBus → Tauri events
+### Option retenue - EventBus → Tauri events
 
 **Pour :**
 - Latence quasi-nulle : l'event arrive dans le frontend en < 50ms après émission Rust
-- Aucune requête HTTP — communication in-process via le bridge Tauri natif
+- Aucune requête HTTP - communication in-process via le bridge Tauri natif
 - Un seul canal pour tous les types d'events (pas N requêtes de polling)
 - Cohérent avec l'architecture Tauri v2 (events are first-class citizens)
-- Le `broadcast::Sender<RuntimeEvent>` existe depuis le Sprint 1 — zéro modification du runtime
+- Le `broadcast::Sender<RuntimeEvent>` existe depuis le Sprint 1 - zéro modification du runtime
 
 **Compromis acceptés :**
 - Les events Tauri sont fire-and-forget : si le frontend est lent à traiter un event, il est perdu (mitigé par le fallback watchdog)
@@ -116,7 +116,7 @@ apollia-runtime (EventBus broadcast::Sender<RuntimeEvent>)
 - Le fichier `sse.ts` portera enfin un nom cohérent avec son comportement
 
 **Négatives / Compromis :**
-- Si le `broadcast` channel est saturé (100+ events/seconde), des events seront perdus — le watchdog compense
+- Si le `broadcast` channel est saturé (100+ events/seconde), des events seront perdus - le watchdog compense
 - Le fallback `refreshAll()` reste du polling (mais appelé rarement : au démarrage + toutes les 10s max en dégradé)
 - Complexité légèrement accrue côté Rust (mapping RuntimeEvent → catégories Tauri)
 
@@ -129,12 +129,12 @@ apollia-runtime (EventBus broadcast::Sender<RuntimeEvent>)
 
 ## Principes architecturaux impactés
 
-- **Principe #8 — CLI humaine, API machine** : respecté — le desktop reçoit les mêmes `RuntimeEvent` que le CLI. Le SSE REST reste disponible pour les clients externes.
+- **Principe #8 - CLI humaine, API machine** : respecté - le desktop reçoit les mêmes `RuntimeEvent` que le CLI. Le SSE REST reste disponible pour les clients externes.
 
 ---
 
 ## Liens
 
 - Story associée : STORY-156
-- ADR précédent lié : ADR-027 (processus unique Tauri — cette ADR corrige l'approche SSE HTTP initialement prévue)
-- ADR précédent lié : ADR-017 (hyper-util Unix socket — le socket reste actif en parallèle)
+- ADR précédent lié : ADR-027 (processus unique Tauri - cette ADR corrige l'approche SSE HTTP initialement prévue)
+- ADR précédent lié : ADR-017 (hyper-util Unix socket - le socket reste actif en parallèle)

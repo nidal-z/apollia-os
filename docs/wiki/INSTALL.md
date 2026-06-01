@@ -1,4 +1,4 @@
-# Guide d'installation — Apollia OS
+# Guide d'installation - Apollia OS
 
 ---
 
@@ -24,10 +24,10 @@ sqlite3 --version      # >= 3.35
 
 ```bash
 # Cloner le depot
-git clone https://github.com/nidal-z/apollia-os.git
+git clone https://github.com/Apollia-OS/apollia-os.git
 cd apollia-os
 
-# Compiler tout le workspace (binaire léger — backends cloud uniquement)
+# Compiler tout le workspace (binaire léger - backends cloud uniquement)
 cargo build --workspace
 
 # Ou en release (recommande pour la production)
@@ -50,7 +50,7 @@ Par défaut, le build n'inclut que les backends cloud (HTTP). Pour activer l'inf
 **Metal sur macOS (Apple Silicon) :**
 
 ```bash
-# Build standard — fonctionne sans Xcode complet (Command Line Tools suffit)
+# Build standard - fonctionne sans Xcode complet (Command Line Tools suffit)
 # MISTRALRS_METAL_PRECOMPILE=0 est défini par défaut dans .cargo/config.toml
 cargo build --workspace --release --features local-metal
 
@@ -84,7 +84,7 @@ L'application desktop Apollia embarque le runtime complet dans une fenetre nativ
 
 ### macOS
 
-1. Telecharger `Apollia OS_0.1.0_aarch64.dmg` depuis la page [Releases](https://github.com/nidal-z/apollia-os/releases)
+1. Telecharger `Apollia OS_0.1.0_aarch64.dmg` depuis la page [Releases](https://github.com/Apollia-OS/apollia-os/releases)
 2. Ouvrir le fichier.dmg
 3. Glisser **Apollia OS** dans le dossier Applications
 4. Au premier lancement, clic droit → Ouvrir (l'application n'est pas encore signee)
@@ -95,7 +95,7 @@ Prerequis : Python 3.11+ installe (`brew install python@3.13`)
 
 **AppImage :**
 
-1. Telecharger `apollia-desktop_0.1.0_amd64.AppImage` depuis la page [Releases](https://github.com/nidal-z/apollia-os/releases)
+1. Telecharger `apollia-desktop_0.1.0_amd64.AppImage` depuis la page [Releases](https://github.com/Apollia-OS/apollia-os/releases)
 2. Rendre executable : `chmod +x apollia-desktop_*.AppImage`
 3. Lancer : `./apollia-desktop_*.AppImage`
 

@@ -1,4 +1,4 @@
-//! [`ScriptProvider`] — provider de contexte via script shell ou binaire.
+//! [`ScriptProvider`] - provider de contexte via script shell ou binaire.
 //!
 //! Le script est exécuté dans `cwd` et doit écrire son résultat JSON sur stdout.
 //! Format attendu :
@@ -46,7 +46,7 @@ struct ScriptSection {
 impl ScriptProvider {
     /// Construit un provider script avec les paramètres fournis.
     ///
-    /// `timeout_ms` — timeout d'exécution du script. `0` désactive le timeout.
+    /// `timeout_ms` - timeout d'exécution du script. `0` désactive le timeout.
     pub fn new(
         name: impl Into<String>,
         path: impl Into<PathBuf>,
@@ -183,7 +183,7 @@ mod tests {
         let provider = ScriptProvider::new("test", "/nonexistent/script.sh", 500, 50);
         // WHEN
         let slice = provider.collect(tmp.path()).await;
-        // THEN — fail-silent : pas de panic, erreur dans slice.errors
+        // THEN - fail-silent : pas de panic, erreur dans slice.errors
         assert!(slice.is_empty());
         assert!(!slice.errors.is_empty());
     }

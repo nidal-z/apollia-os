@@ -81,7 +81,7 @@ fn load_baseline(mcp_toml_path: &std::path::Path) -> McpConfig {
         tracing::warn!(
             path = %mcp_toml_path.display(),
             error = %e,
-            "McpConfigWatcher: failed to load initial mcp.toml — starting with empty baseline"
+            "McpConfigWatcher: failed to load initial mcp.toml - starting with empty baseline"
         );
         McpConfig {
             servers: Vec::new(),
@@ -184,7 +184,7 @@ async fn handle_reload_tick(
             tracing::warn!(
                 path = %mcp_toml_path.display(),
                 error = %e,
-                "McpConfigWatcher: failed to parse updated mcp.toml — skipping reload"
+                "McpConfigWatcher: failed to parse updated mcp.toml - skipping reload"
             );
             return;
         }
@@ -205,7 +205,7 @@ async fn handle_reload_tick(
     tracing::info!(
         path = %mcp_toml_path.display(),
         servers = ?changed_names,
-        "McpConfigWatcher: detected MCP server config changes — hot reloading"
+        "McpConfigWatcher: detected MCP server config changes - hot reloading"
     );
 
     for name in &changed_names {

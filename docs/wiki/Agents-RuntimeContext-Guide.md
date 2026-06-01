@@ -1,4 +1,4 @@
-# Agents — RuntimeContext Guide
+# Agents - RuntimeContext Guide
 
 > Référence exhaustive (signatures uniquement) des services injectés dans `ctx` lors de `run(task, ctx)`.
 > Public cible : développeur Python intermédiaire en consultation.
@@ -34,8 +34,8 @@ Proxy de sécurité pour l'invocation d'outils. Permissifs, audit, comptabilité
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
 | **call** | `async call(tool_name: str, input: dict) -> dict` | `tool_name` : str ; `input` : dict JSON sérialisable | dict (résultat JSON du Rust) | `RuntimeError: tool not found` ; `RuntimeError: tool not allowed` ; `RuntimeError: tool execution failed` | Tous les appels comptabilisés, audit trail SQLite fire-and-forget |
-| **list_tools** | `list_tools -> list[str]` | — | liste des noms d'outils accessibles | — | Consulter avant de décider d'un appel optionnel |
-| **tool_call_count** | `tool_call_count -> int` | — | nombre d'appels effectués | — | Aide à adapter le comportement proche de la limite budget |
+| **list_tools** | `list_tools -> list[str]` | - | liste des noms d'outils accessibles | - | Consulter avant de décider d'un appel optionnel |
+| **tool_call_count** | `tool_call_count -> int` | - | nombre d'appels effectués | - | Aide à adapter le comportement proche de la limite budget |
 
 ### Outils natifs disponibles
 
@@ -43,36 +43,36 @@ Proxy de sécurité pour l'invocation d'outils. Permissifs, audit, comptabilité
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `command` | str | — | ✅ | Commande bash à exécuter |
+| `command` | str | - | ✅ | Commande bash à exécuter |
 | `timeout_seconds` | int | 30 | ❌ | Timeout en secondes |
 | `working_dir` | str | `.` | ❌ | Répertoire de travail |
-| **Retour** | dict | — | — | `{"stdout": str, "stderr": str, "exit_code": int}` |
+| **Retour** | dict | - | - | `{"stdout": str, "stderr": str, "exit_code": int}` |
 
 #### file_read
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `path` | str | — | ✅ | Chemin du fichier à lire |
+| `path` | str | - | ✅ | Chemin du fichier à lire |
 | `offset` | int | 1 | ❌ | Ligne de départ (1-based) |
-| `limit` | int | — | ❌ | Nombre max de lignes à retourner |
-| **Retour** | dict | — | — | `{"content": str, "total_lines": int, "truncated": bool}` |
+| `limit` | int | - | ❌ | Nombre max de lignes à retourner |
+| **Retour** | dict | - | - | `{"content": str, "total_lines": int, "truncated": bool}` |
 
 #### file_write
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `path` | str | — | ✅ | Chemin du fichier (crée ou remplace) |
-| `content` | str | — | ✅ | Contenu à écrire |
-| **Retour** | dict | — | — | `{"bytes_written": int, "path": str}` |
+| `path` | str | - | ✅ | Chemin du fichier (crée ou remplace) |
+| `content` | str | - | ✅ | Contenu à écrire |
+| **Retour** | dict | - | - | `{"bytes_written": int, "path": str}` |
 
 #### file_edit
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `path` | str | — | ✅ | Chemin du fichier à modifier |
-| `old_str` | str | — | ✅ | Chaîne exacte à remplacer (doit être unique) |
-| `new_str` | str | — | ✅ | Nouvelle chaîne |
-| **Retour** | dict | — | — | `{"replaced": bool, "path": str}` — échoue si absent/non-unique |
+| `path` | str | - | ✅ | Chemin du fichier à modifier |
+| `old_str` | str | - | ✅ | Chaîne exacte à remplacer (doit être unique) |
+| `new_str` | str | - | ✅ | Nouvelle chaîne |
+| **Retour** | dict | - | - | `{"replaced": bool, "path": str}` - échoue si absent/non-unique |
 
 #### file_list
 
@@ -80,53 +80,53 @@ Proxy de sécurité pour l'invocation d'outils. Permissifs, audit, comptabilité
 |---|---|---|---|---|
 | `path` | str | `.` | ❌ | Répertoire à lister |
 | `depth` | int | 1 | ❌ | Profondeur de récursion |
-| **Retour** | dict | — | — | `{"entries": [{"name": str, "is_dir": bool, "size": int},...]}` |
+| **Retour** | dict | - | - | `{"entries": [{"name": str, "is_dir": bool, "size": int},...]}` |
 
 #### file_glob
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `pattern` | str | — | ✅ | Pattern glob (ex. `**/*.py`) |
+| `pattern` | str | - | ✅ | Pattern glob (ex. `**/*.py`) |
 | `path` | str | `.` | ❌ | Répertoire de départ |
-| **Retour** | dict | — | — | `{"matches": [str], "count": int}` |
+| **Retour** | dict | - | - | `{"matches": [str], "count": int}` |
 
 #### file_grep
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `pattern` | str | — | ✅ | Expression régulière |
+| `pattern` | str | - | ✅ | Expression régulière |
 | `path` | str | `.` | ❌ | Répertoire de recherche |
-| `glob` | str | — | ❌ | Filtre sur les fichiers (pattern glob) |
+| `glob` | str | - | ❌ | Filtre sur les fichiers (pattern glob) |
 | `context_lines` | int | 0 | ❌ | Lignes de contexte avant/après |
-| **Retour** | dict | — | — | `{"matches": [{"file": str, "line": int, "content": str},...], "count": int}` |
+| **Retour** | dict | - | - | `{"matches": [{"file": str, "line": int, "content": str},...], "count": int}` |
 
 #### http_fetch
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `url` | str | — | ✅ | URL cible (domaine doit être dans `network_allowlist`) |
+| `url` | str | - | ✅ | URL cible (domaine doit être dans `network_allowlist`) |
 | `method` | str | `GET` | ❌ | Méthode HTTP (GET, POST, etc.) |
 | `headers` | dict | `{}` | ❌ | En-têtes HTTP |
 | `timeout_secs` | int | 15 | ❌ | Timeout en secondes |
-| **Retour** | dict | — | — | `{"status": int, "body": str, "headers": dict}` |
+| **Retour** | dict | - | - | `{"status": int, "body": str, "headers": dict}` |
 
 #### memory_search
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `query` | str | — | ✅ | Texte à rechercher (FTS5 + BM25) |
+| `query` | str | - | ✅ | Texte à rechercher (FTS5 + BM25) |
 | `namespace` | str | namespace propre | ❌ | Namespace cible |
 | `limit` | int | 10 | ❌ | Max 50 résultats |
 | `source` | str | `"episodic"` | ❌ | `"episodic"` \| `"semantic"` |
-| **Retour** | dict | — | — | `{"results": [{"content": str, "score": float, "source": str},...], "count": int}` |
+| **Retour** | dict | - | - | `{"results": [{"content": str, "score": float, "source": str},...], "count": int}` |
 
 #### python_executor
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `code` | str | — | ✅ | Code Python à exécuter |
+| `code` | str | - | ✅ | Code Python à exécuter |
 | `timeout_seconds` | int | 60 | ❌ | Timeout en secondes |
-| **Retour** | dict | — | — | `{"stdout": str, "stderr": str, "exit_code": int}` |
+| **Retour** | dict | - | - | `{"stdout": str, "stderr": str, "exit_code": int}` |
 
 ---
 
@@ -158,7 +158,7 @@ Retourné par `chat()`, `complete()`, `stream()`.
 |---|---|---|
 | **content** | str | Texte généré par le modèle |
 | **latency_ms** | int | Latence totale en millisecondes |
-| **usage** | TokenUsage (objet) | — |
+| **usage** | TokenUsage (objet) | - |
 | **usage.prompt_tokens** | int | Tokens entrée |
 | **usage.completion_tokens** | int | Tokens sortie |
 | **usage.cost_usd** | float \| None | Coût estimé (`None` pour backends locaux) |
@@ -176,10 +176,10 @@ Accès à la mémoire persistante (épisodique, sémantique, procédurale). Name
 | **record** | `async record(content: str, importance: float=0.5, task_id: str=None, metadata: dict=None) -> str` | `content` : str ; `importance` : float [0.0-1.0] ; `task_id` : str optionnel ; `metadata` : dict optionnel | memory_id (str) | `RuntimeError` si no namespace | Enregistrement mémoire épisodique (horodaté) |
 | **remember** | `async remember(key: str, value: str, *, source: str \| None = None, confidence: float \| None = None) -> None` | `key` : str ; `value` : str ; `source` : str optionnel ; `confidence` : float [0.0-1.0] optionnel | `None` | `RuntimeError` si no namespace | Enregistrement mémoire sémantique clé/valeur dans le namespace propre de l'agent |
 | **remember_user** | `async remember_user(key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key` : str ; `value` : str ; `source` / `confidence` optionnels | `None` | `RuntimeError` si `user_memory_write ≠ true` dans le manifest ; `RuntimeError` si aucun `user_manager` configuré | Écrit dans le namespace global `__user__`. Réservé aux agents système (ex. `onboarding-agent`). Toute valeur écrite devient lisible par tous les agents via `recall()`. |
-| **recall** | `async recall(key: str) -> str \| None` | `key` : str (clé de fait sémantique) | `str` (valeur stockée) ou `None` si absent | — | Cherche d'abord dans le namespace propre, puis dans `__user__` en fallback inconditionnellement (si `user_manager` configuré). |
-| **recall_entry** | `async recall_entry(key: str) -> dict \| None` | `key` : str | dict complet `{"key": str, "value": str, "confidence": float, "source": str, "updated_at": str, "expires_at": str \| None}` ou `None` | — | Rappel complet avec toutes métadonnées |
-| **recall_all** | `async recall_all(limit: int=100) -> list[dict]` | `limit` : int (défaut 100) | `list[dict]` (même format que `recall_entry()`) | — | Toutes les entrées sémantiques du namespace |
-| **search** | `async search(query: str, limit: int=10) -> list[dict]` | `query` : str (texte libre) ; `limit` : int | `list[dict]` avec `{"content": str, "score": float, "type": str, "created_at": str}` | — | Recherche FTS5 cross-backend (épisodique + sémantique + procédurale) |
+| **recall** | `async recall(key: str) -> str \| None` | `key` : str (clé de fait sémantique) | `str` (valeur stockée) ou `None` si absent | - | Cherche d'abord dans le namespace propre, puis dans `__user__` en fallback inconditionnellement (si `user_manager` configuré). |
+| **recall_entry** | `async recall_entry(key: str) -> dict \| None` | `key` : str | dict complet `{"key": str, "value": str, "confidence": float, "source": str, "updated_at": str, "expires_at": str \| None}` ou `None` | - | Rappel complet avec toutes métadonnées |
+| **recall_all** | `async recall_all(limit: int=100) -> list[dict]` | `limit` : int (défaut 100) | `list[dict]` (même format que `recall_entry()`) | - | Toutes les entrées sémantiques du namespace |
+| **search** | `async search(query: str, limit: int=10) -> list[dict]` | `query` : str (texte libre) ; `limit` : int | `list[dict]` avec `{"content": str, "score": float, "type": str, "created_at": str}` | - | Recherche FTS5 cross-backend (épisodique + sémantique + procédurale) |
 | **forget** | `async forget(memory_id: str) -> None` | `memory_id` : str (id retourné par `record()` ou `remember`) | `None` | `RuntimeError` si id invalid | Suppression d'un enregistrement |
 
 ---
@@ -198,13 +198,13 @@ Lecture seule. Permet à l'agent de s'adapter proactivement avant épuisement.
 
 ---
 
-## ctx.log — méthode `(level, message)`
+## ctx.log - méthode `(level, message)`
 
 Logs émis vers deux canaux en parallèle :
 
 1. **`tracing::*`** du runtime (stderr, format structuré opérateur).
 2. **`runtime_events.db`** comme `RuntimeEvent::AgentLog` (ADR-088,
-   ADR-088 Lot 1) — visible dans la trace `ExecutionTrace` de l'UI et
+   ADR-088 Lot 1) - visible dans la trace `ExecutionTrace` de l'UI et
    requêtable via `GET /api/v1/tasks/:id/trace`.
 
 ### Signature
@@ -216,7 +216,7 @@ ctx.log(level: str, message: str) -> None
 | Paramètre | Type | Notes |
 |---|---|---|
 | `level` | `str` | `"debug"` \| `"info"` \| `"warn"` \| `"error"` ; lève `ValueError` pour tout autre niveau |
-| `message` | `str` | Message libre. Pré-formater côté agent (`f"…"`) — pas de templating runtime. |
+| `message` | `str` | Message libre. Pré-formater côté agent (`f"…"`) - pas de templating runtime. |
 
 Exemple :
 ```python
@@ -239,7 +239,7 @@ pour exposer thoughts / retries / parse errors. Toutes *fire-and-forget*
 
 `cause` accepte `"action_parse_error"`, `"tool_error"`, `"llm_error"`,
 `"other"`. Les agents Python n'appellent rarement ces méthodes
-directement — `BaseReActAgent` les déclenche au bon endroit dans la
+directement - `BaseReActAgent` les déclenche au bon endroit dans la
 boucle ReAct.
 
 ---
@@ -289,10 +289,10 @@ Envoie un message JSON asynchrone à un autre agent via mailbox.
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `agent_name` | str | — | ✅ | Nom de l'agent destinataire |
-| `payload` | dict | — | ✅ | Données JSON arbitraires |
-| **Retour** | awaitable (None) | — | — | — |
-| **Erreurs** | — | — | — | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: mailbox not available` ; `RuntimeError: queue full` |
+| `agent_name` | str | - | ✅ | Nom de l'agent destinataire |
+| `payload` | dict | - | ✅ | Données JSON arbitraires |
+| **Retour** | awaitable (None) | - | - | - |
+| **Erreurs** | - | - | - | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: mailbox not available` ; `RuntimeError: queue full` |
 
 Limitation : max 100 messages en file par agent.
 
@@ -305,8 +305,8 @@ Attend le prochain message dans la mailbox avec timeout.
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
 | `timeout_seconds` | float | 5.0 | ❌ | Timeout en secondes |
-| **Retour** | awaitable (dict \| None) | — | — | `{"from": str, "payload": dict, "sent_at": str}` ou `None` si timeout |
-| **Erreurs** | — | — | — | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: mailbox not available` |
+| **Retour** | awaitable (dict \| None) | - | - | `{"from": str, "payload": dict, "sent_at": str}` ou `None` si timeout |
+| **Erreurs** | - | - | - | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: mailbox not available` |
 
 ---
 
@@ -316,11 +316,11 @@ Délègue une tâche à un Worker Agent via skill ID. Bas niveau, type-erasé.
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `skill_id` | str | — | ✅ | ID de compétence du Worker |
-| `payload` | dict | — | ✅ | Données d'entrée JSON |
+| `skill_id` | str | - | ✅ | ID de compétence du Worker |
+| `payload` | dict | - | ✅ | Données d'entrée JSON |
 | `timeout_secs` | int \| None | 120 | ❌ | Timeout en secondes |
-| **Retour** | awaitable (dict) | — | — | `{"task_id": str, "agent_name": str, "output": list[dict]}` |
-| **Erreurs** | — | — | — | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: delegation not available` ; `RuntimeError: A2A cycle: agent X already in delegation chain` ; `RuntimeError: A2A max hops exceeded: limit is 5` ; Timeout |
+| **Retour** | awaitable (dict) | - | - | `{"task_id": str, "agent_name": str, "output": list[dict]}` |
+| **Erreurs** | - | - | - | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: delegation not available` ; `RuntimeError: A2A cycle: agent X already in delegation chain` ; `RuntimeError: A2A max hops exceeded: limit is 5` ; Timeout |
 
 ---
 
@@ -331,7 +331,7 @@ Délègue une tâche à un Worker Agent via skill ID. Bas niveau, type-erasé.
 | Paramètre | Type | Obligatoire | Notes |
 |---|---|---|---|
 | `token` | str | ✅ | Fragment texte à streaming |
-| **Retour** | None | — | Fire-and-forget (erreurs silencieuses si bus plein) |
+| **Retour** | None | - | Fire-and-forget (erreurs silencieuses si bus plein) |
 
 ---
 
@@ -341,10 +341,10 @@ Invoque un Worker Agent via `A2AInvoker` (haut niveau, orchestration complète).
 
 | Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `skill_id` | str | — | ✅ | ID de compétence |
-| `input` | dict | — | ✅ | Données d'entrée JSON |
-| `timeout_secs` | int | — | ❌ | Timeout en secondes |
-| **Retour** | awaitable (dict) | — | — | `{"result": dict, "agent_name": str, "skill_id": str, "duration_ms": int}` ou `AIPResult.failed` |
+| `skill_id` | str | - | ✅ | ID de compétence |
+| `input` | dict | - | ✅ | Données d'entrée JSON |
+| `timeout_secs` | int | - | ❌ | Timeout en secondes |
+| **Retour** | awaitable (dict) | - | - | `{"result": dict, "agent_name": str, "skill_id": str, "duration_ms": int}` ou `AIPResult.failed` |
 
 ---
 
@@ -355,7 +355,7 @@ Découvre l'agent qui expose un skill et retourne sa carte.
 | Paramètre | Type | Obligatoire | Notes |
 |---|---|---|---|
 | `skill_id` | str | ✅ | ID de skill à découvrir |
-| **Retour** | awaitable (dict \| None) | — | Carte de découverte ou `None` si non trouvé |
+| **Retour** | awaitable (dict \| None) | - | Carte de découverte ou `None` si non trouvé |
 
 ---
 
@@ -365,7 +365,7 @@ Indique si l'agent peut écrire dans la mémoire utilisateur globale via `ctx.me
 
 | Propriété | Type | Notes |
 |---|---|---|
-| **user_memory_writable** | bool | `True` uniquement pour les agents dont le manifest déclare `user_memory_write = true` (ex. `onboarding-agent`). La **lecture** de `__user__` via `recall()` est inconditionnelle — disponible à tout agent dès qu'un `user_manager` est configuré. |
+| **user_memory_writable** | bool | `True` uniquement pour les agents dont le manifest déclare `user_memory_write = true` (ex. `onboarding-agent`). La **lecture** de `__user__` via `recall()` est inconditionnelle - disponible à tout agent dès qu'un `user_manager` est configuré. |
 
 ---
 
@@ -381,7 +381,7 @@ Indique si l'agent peut écrire dans la mémoire utilisateur globale via `ctx.me
 | **ctx.delegate** | Suspect per Audit Axe 3 | ✅ Confirmé, signature actuelle | Vérification effectuée dans context.rs:1128-1184 |
 | **ctx.llm.stream_complete** | Absent | ✅ Ajouté | Async iterator vs collect |
 | **ctx.emit_token** | Absent | ✅ Ajouté | Mode chat streaming |
-| **ctx.user_memory_writable** | Absent (ancien `user_memory_read_only`) | ✅ MAJ | Propriété booléenne — contrôle les écritures `__user__`, lecture toujours libre |
+| **ctx.user_memory_writable** | Absent (ancien `user_memory_read_only`) | ✅ MAJ | Propriété booléenne - contrôle les écritures `__user__`, lecture toujours libre |
 | **Métadonnées memory** | Narratif | Tables : `recall_entry()`, `recall_all()` | (injection tracker) |
 
 ---
@@ -397,11 +397,11 @@ Indique si l'agent peut écrire dans la mémoire utilisateur globale via `ctx.me
 
 ## Voir aussi
 
-- [Briques-AIP-Specification](./Briques-AIP-Specification.md) — contrat `AIPTask`, `AIPResult`
-- [Briques-Tool-Registry](./Briques-Tool-Registry.md) — catalogue complet outils + schémas JSON
-- [Briques-Memory-Engine](./Briques-Memory-Engine.md) — backends mémoire, FTS5, namespaces
-- [Briques-LLM-Backend](./Briques-LLM-Backend.md) — backends LLM, routing, feature flags
-- [Outils-Reference](./Outils-Reference.md) — outils disponibles (autre source)
-- [Agents-SDK-Guide](./Agents-SDK-Guide.md) — classes SDK Python, mocks de test
-- [Agents-Bonnes-Pratiques](./Agents-Bonnes-Pratiques.md) — gestion StepBudget, coûts LLM
+- [Briques-AIP-Specification](./Briques-AIP-Specification.md) - contrat `AIPTask`, `AIPResult`
+- [Briques-Tool-Registry](./Briques-Tool-Registry.md) - catalogue complet outils + schémas JSON
+- [Briques-Memory-Engine](./Briques-Memory-Engine.md) - backends mémoire, FTS5, namespaces
+- [Briques-LLM-Backend](./Briques-LLM-Backend.md) - backends LLM, routing, feature flags
+- [Outils-Reference](./Outils-Reference.md) - outils disponibles (autre source)
+- [Agents-SDK-Guide](./Agents-SDK-Guide.md) - classes SDK Python, mocks de test
+- [Agents-Bonnes-Pratiques](./Agents-Bonnes-Pratiques.md) - gestion StepBudget, coûts LLM
 

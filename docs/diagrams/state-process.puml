@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title ProcessState — Lifecycle Agent — Apollia OS
+title ProcessState - Lifecycle Agent - Apollia OS
 
 [*] --> Initializing : apollia-os agent start
 
@@ -27,7 +27,7 @@ note right of Initializing
   - tools_required présents ?
   - packages Python installés ?
   - connexions MCP établies ?
-  Fail fast — jamais silencieux.
+  Fail fast - jamais silencieux.
 end note
 
 note right of Degraded

@@ -1,11 +1,11 @@
-# Sprint Summary — Apollia OS
+# Sprint Summary - Apollia OS
 
 > Vue consolidée de tous les sprints : ce qui a été livré, les primitives agent disponibles, et les écarts par rapport aux specs.
 > Dernière mise à jour : 2026-04-15.
 
 ---
 
-## — Fondations
+## - Fondations
 
 **Statut :** LIVRÉ ✅ | **Stories :** 5/5 | **Crates :** 7 squelettes + apollia-core peuplé
 
@@ -15,15 +15,15 @@
 - CI GitHub Actions : `cargo fmt` + `clippy` + `test` chaînés avec `rust-cache`
 
 ### Primitives agent disponibles
-Aucune — types définis mais pas encore de runtime.
+Aucune - types définis mais pas encore de runtime.
 
 ### Écarts
-- 6 crates vides (squelettes uniquement — normal pour )
+- 6 crates vides (squelettes uniquement - normal pour )
 - DT-001→005 : `Cargo.lock` non commité, CI Linux only, sprint-index non synchronisé automatiquement
 
 ---
 
-## — EventBus + AgentRegistry
+## - EventBus + AgentRegistry
 
 **Statut :** LIVRÉ ✅ | **Stories :** 4/4 | **Tests :** 17
 
@@ -34,7 +34,7 @@ Aucune — types définis mais pas encore de runtime.
 - Test d'intégration EventBus ↔ Registry
 
 ### Primitives agent disponibles
-Aucune directement — infrastructure acteur interne.
+Aucune directement - infrastructure acteur interne.
 
 ### Écarts
 - Spec prévoyait 7 `RuntimeEvent` au test d'intégration, réalité = 6 (pas de variant `AgentStopping`)
@@ -43,7 +43,7 @@ Aucune directement — infrastructure acteur interne.
 
 ---
 
-## — Tool Registry + Outils natifs
+## - Tool Registry + Outils natifs
 
 **Statut :** LIVRÉ ✅ | **Stories :** 7/7 | **Tests :** 55
 
@@ -51,7 +51,7 @@ Aucune directement — infrastructure acteur interne.
 - `ToolDescriptor`, `ToolKind`, `McpTransport` dans `apollia-tools`
 - `ToolRegistry` acteur Tokio + `ToolRegistryHandle`
 - `ToolResolver` : validation des outils requis/optionnels au démarrage agent
-- 3 outils natifs : `bash_executor` (Linux namespaces via `unshare`, mode Dev macOS), `python_executor` (venv isolé par agent), `file_io` (protection path traversal + glob matcher) — *Note : `file_io` a été déprécié au et remplacé par `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep` (ADR-043)*
+- 3 outils natifs : `bash_executor` (Linux namespaces via `unshare`, mode Dev macOS), `python_executor` (venv isolé par agent), `file_io` (protection path traversal + glob matcher) - *Note : `file_io` a été déprécié au et remplacé par `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep` (ADR-043)*
 - `AuditTrail` SQLite (acteur `std::thread` + `mpsc::sync_channel`, fire-and-forget, SHA-256)
 
 ### Primitives agent disponibles
@@ -67,7 +67,7 @@ Aucune directement — infrastructure acteur interne.
 
 ---
 
-## — Memory Engine
+## - Memory Engine
 
 **Statut :** LIVRÉ ✅ | **Stories :** 7/7 | **Tests :** 56
 
@@ -91,7 +91,7 @@ Aucune directement — infrastructure acteur interne.
 
 ---
 
-## — Bridge PyO3 + ORIA Direct
+## - Bridge PyO3 + ORIA Direct
 
 **Statut :** LIVRÉ ✅ | **Stories :** 9/9 | **Tests :** 32 (apollia-aip) + 16 (apollia-oria)
 
@@ -117,14 +117,14 @@ Aucune directement — infrastructure acteur interne.
 ### Écarts
 - `#[allow(clippy::useless_conversion)]` nécessaire (faux positif PyO3)
 - `PYO3_PYTHON` obligatoire sur macOS → **ADR-013** (non planifié)
-- `Arc<Mutex<MemoryManager>>` au lieu de pattern acteur (DT-023 — compromis single-agent)
+- `Arc<Mutex<MemoryManager>>` au lieu de pattern acteur (DT-023 - compromis single-agent)
 - **ADR-014** (non planifié) : `spawn_blocking` + `asyncio.run()` au lieu de `into_future`
-- **ADR-015** (non planifié) : trait `ToolExecutor` (dependency injection — réutilisé Sprints 6, 12, 20)
+- **ADR-015** (non planifié) : trait `ToolExecutor` (dependency injection - réutilisé Sprints 6, 12, 20)
 - **ADR-016** (non planifié) : trait `AgentRunner` (testabilité sans Python)
 
 ---
 
-## — APIServer + CLI complète
+## - APIServer + CLI complète
 
 **Statut :** LIVRÉ ✅ | **Stories :** 8/8 | **Tests :** 73 (apollia-runtime) + 35 (apollia-cli)
 
@@ -141,14 +141,14 @@ Pas de nouvelles primitives Python. API REST et CLI opérationnelles pour admini
 
 ### Écarts
 - axum 0.7.9 : path params `:id` (pas `{id}` qui est 0.8+)
-- `manifest_from_path()` MVP sans chargement Python réel — DT-031 (résolu via ADR-019)
+- `manifest_from_path()` MVP sans chargement Python réel - DT-031 (résolu via ADR-019)
 - Fichiers longs : `shutdown.rs` (829 loc), `router.rs` (649 loc), `supervisor.rs` (623 loc)
 - **ADR-017** (non planifié) : hyper-util explicite pour Unix socket (axum 0.7 ne supporte pas nativement)
 - **ADR-018** (non planifié) : CLI bootstrap sans Supervisor
 
 ---
 
-## — Hardening + Agent démo
+## - Hardening + Agent démo
 
 **Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **Tests :** 336 workspace
 
@@ -170,7 +170,7 @@ Pas de nouvelles primitives Python. API REST et CLI opérationnelles pour admini
 
 ---
 
-## — Hardening tests + CI verte
+## - Hardening tests + CI verte
 
 **Statut :** LIVRÉ ✅ | **Stories :** 4/4 | **Tests :** 340+ workspace
 
@@ -183,11 +183,11 @@ Pas de nouvelles primitives Python. API REST et CLI opérationnelles pour admini
 Aucune nouvelle.
 
 ### Écarts
-Aucun — sprint purement technique, 4/4 livré conforme.
+Aucun - sprint purement technique, 4/4 livré conforme.
 
 ---
 
-## — apollia-llm : moteur embarqué + ctx.llm
+## - apollia-llm : moteur embarqué + ctx.llm
 
 **Statut :** LIVRÉ ✅ | **Stories :** 14/14 | **Crate :** `apollia-llm` créée
 
@@ -203,7 +203,7 @@ Aucun — sprint purement technique, 4/4 livré conforme.
 - soldée via : `Reasoner` fonctionnel avec `Arc<dyn CompletionModel>`
 
 ### Primitives agent disponibles
-- **`ctx.llm`** — Proxy LLM complet :
+- **`ctx.llm`** - Proxy LLM complet :
   - `ctx.llm.chat(messages)` → réponse LLM
   - `ctx.llm.complete(messages)` → complétion
   - `ctx.llm.stream(messages)` → streaming token par token
@@ -217,7 +217,7 @@ Aucun — sprint purement technique, 4/4 livré conforme.
 
 ---
 
-## — apollia-triggers + Dashboard
+## - apollia-triggers + Dashboard
 
 **Statut :** LIVRÉ ✅ | **Stories :** 14/14 | **Crate :** `apollia-triggers` créée
 
@@ -233,14 +233,14 @@ Aucun — sprint purement technique, 4/4 livré conforme.
 - 6 nouveaux `RuntimeEvent` : `TriggerFired/Skipped/Error/Enabled/Disabled/TriggersReloaded`
 
 ### Primitives agent disponibles
-Les agents ne déclenchent pas directement les triggers — les triggers déclenchent les agents.
+Les agents ne déclenchent pas directement les triggers - les triggers déclenchent les agents.
 
 ### Écarts
-- **ADR-021** : TOML-only (pas SQLite pour les définitions — migré SQLite en ), HMAC-SHA256 header `X-Apollia-Signature`, hot reload timeout 2s + abort forcé
+- **ADR-021** : TOML-only (pas SQLite pour les définitions - migré SQLite en ), HMAC-SHA256 header `X-Apollia-Signature`, hot reload timeout 2s + abort forcé
 
 ---
 
-## — ORIA Mode Orchestré
+## - ORIA Mode Orchestré
 
 **Statut :** LIVRÉ ✅ | **Stories :** 13/13
 
@@ -260,12 +260,12 @@ Les agents ne déclenchent pas directement les triggers — les triggers déclen
 - `system_prompt` dans manifest → prompt injecté au Reasoner pour la planification
 
 ### Écarts
-- **ADR-022** : Option B retenue — ORIA exécute les outils directement, `agent.run()` n'est PAS appelé pendant les steps (écart majeur vs option A qui aurait délégué à l'agent)
+- **ADR-022** : Option B retenue - ORIA exécute les outils directement, `agent.run()` n'est PAS appelé pendant les steps (écart majeur vs option A qui aurait délégué à l'agent)
 - `spawn_blocking` nécessaire pour SQLite `!Send` dans futures async
 
 ---
 
-## — HITL + Notifications
+## - HITL + Notifications
 
 **Statut :** LIVRÉ ✅ | **Stories :** 15/15 | **Crate :** `apollia-notifications` créée
 
@@ -292,9 +292,9 @@ Les agents ne déclenchent pas directement les triggers — les triggers déclen
 
 ---
 
-## — Orchestration multi-agent (Pipelines)
+## - Orchestration multi-agent (Pipelines)
 
-**Statut :** LIVRÉ ✅ | **Stories :** 18/18 | **Crate :** `apollia-pipelines` créée — ⚠️ **retirée du workspace v0.1.0** (composition multi-agent désormais via triggers + agents ReAct autonomes, ADR-066)
+**Statut :** LIVRÉ ✅ | **Stories :** 18/18 | **Crate :** `apollia-pipelines` créée - ⚠️ **retirée du workspace v0.1.0** (composition multi-agent désormais via triggers + agents ReAct autonomes, ADR-066)
 
 ### Ce qui a été implémenté
 - Types : `PipelineDefinition`, `PipelineRun`, `StepRun`, `PipelineStatus`, `StepRunStatus`
@@ -309,15 +309,15 @@ Les agents ne déclenchent pas directement les triggers — les triggers déclen
 - API REST + CLI + Dashboard SSE
 
 ### Primitives agent disponibles
-Les agents participent aux pipelines sans le savoir — le pipeline orchestre leurs exécutions en séquence/parallèle.
+Les agents participent aux pipelines sans le savoir - le pipeline orchestre leurs exécutions en séquence/parallèle.
 
 ### Écarts
 - **ADR-025** : Pipeline déclaratif TOML + topologies DAG natives + HITL intégré (conforme à la spec)
-- Aucun écart notable — 18/18 stories livrées sans dette nouvelle
+- Aucun écart notable - 18/18 stories livrées sans dette nouvelle
 
 ---
 
-## — Observabilité complète
+## - Observabilité complète
 
 **Statut :** LIVRÉ ✅ | **Stories :** 10/12 (2 abandonnées)
 
@@ -329,19 +329,19 @@ Les agents participent aux pipelines sans le savoir — le pipeline orchestre le
 - `TriggerFireRecord` enrichi : `payload_json`, `dispatch_ms`
 - HITL enrichi : `suspended_at`, `wait_duration_ms`
 - `truncate_with_marker()` UTF-8 safe pour les champs longs
-- Timeline API : `GET /api/v1/tasks/{id}/timeline` — agrège 5 sources SQLite, 9 types `TimelineEvent`
+- Timeline API : `GET /api/v1/tasks/{id}/timeline` - agrège 5 sources SQLite, 9 types `TimelineEvent`
 
 ### Primitives agent disponibles
-Aucune nouvelle primitive Python — l'observabilité est automatique et transparente pour les agents.
+Aucune nouvelle primitive Python - l'observabilité est automatique et transparente pour les agents.
 
 ### Écarts
-- **** 🚫 abandonnée (Dashboard HTMX observabilité) — migration Tauri+Svelte prévue
-- **** 🚫 abandonnée (Tests e2e observabilité) — couverture unitaire jugée suffisante
+- **** 🚫 abandonnée (Dashboard HTMX observabilité) - migration Tauri+Svelte prévue
+- **** 🚫 abandonnée (Tests e2e observabilité) - couverture unitaire jugée suffisante
 - **ADR-026** : Timeline unifiée 5 sources SQLite (conforme)
 
 ---
 
-## — Application desktop native
+## - Application desktop native
 
 **Statut :** LIVRÉ ✅ | **Stories :** 8/8 | **Crate :** `apollia-desktop` créée (Tauri v2)
 
@@ -353,7 +353,7 @@ Aucune nouvelle primitive Python — l'observabilité est automatique et transpa
 - Build + packaging (.dmg / .AppImage)
 
 ### Primitives agent disponibles
-Aucune — les agents ne sont pas conscients du desktop.
+Aucune - les agents ne sont pas conscients du desktop.
 
 ### Écarts
 - **ADR-027** : Processus unique Tauri (runtime embarqué dans l'app, pas de daemon séparé)
@@ -361,7 +361,7 @@ Aucune — les agents ne sont pas conscients du desktop.
 
 ---
 
-## — Svelte frontend complet
+## - Svelte frontend complet
 
 **Statut :** LIVRÉ ✅ | **Stories :** 13/13
 
@@ -377,20 +377,20 @@ Aucune — les agents ne sont pas conscients du desktop.
 - Plugins : `tauri-plugin-dialog`, `tauri-plugin-notification`
 
 ### Primitives agent disponibles
-Aucune — frontend uniquement.
+Aucune - frontend uniquement.
 
 ### Écarts
-- **ADR-029** : Settings en lecture seule dans l'app desktop (pas de CRUD settings — choix délibéré)
+- **ADR-029** : Settings en lecture seule dans l'app desktop (pas de CRUD settings - choix délibéré)
 
 ---
 
-## — Config opérateur CRUD SQLite
+## - Config opérateur CRUD SQLite
 
 **Statut :** LIVRÉ ✅ | **Stories :** 14/14
 
 ### Ce qui a été implémenté
 - 3 repositories SQLite : `triggers_def.db`, `pipelines_def.db`, `notifications.db`
-- `TriggerDefinitionRepository`, `PipelineDefinitionRepository`, `NotificationConfigRepository` — tous avec validation avant écriture
+- `TriggerDefinitionRepository`, `PipelineDefinitionRepository`, `NotificationConfigRepository` - tous avec validation avant écriture
 - 9 REST CRUD endpoints (triggers + pipelines + notifications)
 - 11 Tauri commands CRUD
 - Svelte éditeurs : `CreateTriggerDialog`, `EditTriggerDialog`, `CreatePipelineDialog`, `EditPipelineDialog`, `CreateChannelDialog`, `EditChannelDialog`, `GlobalEventsEditor`
@@ -399,15 +399,15 @@ Aucune — frontend uniquement.
 - Settings vue nettoyée : sections opérationnelles retirées, bandeau info vers vues dédiées
 
 ### Primitives agent disponibles
-Aucune — configuration opérateur uniquement.
+Aucune - configuration opérateur uniquement.
 
 ### Écarts
 - **ADR-033** : Séparation structurel (TOML reste pour `[runtime]`, `[memory]`, `[[llm.backends]]`) / opérationnel (SQLite pour triggers, pipelines, notifications). Choix Option A validé.
-- `Arc<Mutex<Repository>>` dans `AppState` (mutations rares, opérateur humain — exception acceptée au pattern acteur)
+- `Arc<Mutex<Repository>>` dans `AppState` (mutations rares, opérateur humain - exception acceptée au pattern acteur)
 
 ---
 
-## — Chat hybride
+## - Chat hybride
 
 **Statut :** LIVRÉ ✅ | **Stories :** 12/12
 
@@ -425,11 +425,11 @@ Aucune — configuration opérateur uniquement.
 
 ### Écarts
 - **ADR-034** : Chat hybride sessions + streaming + HITL inline (conforme à la spec)
-- Pas d'écart majeur — 12/12 livré conforme
+- Pas d'écart majeur - 12/12 livré conforme
 
 ---
 
-## — Système Agentique Amélioré
+## - Système Agentique Amélioré
 
 **Statut :** LIVRÉ ✅ | **Stories :** 18/18
 
@@ -449,12 +449,12 @@ Aucune — configuration opérateur uniquement.
 - `model_hint` dans `PlanStep` → routing vers un backend LLM spécifique par step (mode orchestré)
 
 ### Écarts
-- **ADR-035** : Per-step observation en mode Orchestré (non planifié initialement — enrichissement)
+- **ADR-035** : Per-step observation en mode Orchestré (non planifié initialement - enrichissement)
 - **ADR-036** : Cache de plans (optimisation performance, non prévu dans les specs initiales)
 
 ---
 
-## — apollia-sdk : Bibliothèque Python
+## - apollia-sdk : Bibliothèque Python
 
 **Statut :** LIVRÉ ✅ | **Stories :** 15/15 | **Package :** `sdk/apollia/`
 
@@ -480,11 +480,11 @@ Aucune — configuration opérateur uniquement.
 - **`apollia new <name>`** → scaffolding d'un nouvel agent
 
 ### Écarts
-- **ADR-037** : Packaging Python SDK (conforme — distribution via pip install local, pas PyPI pour l'instant)
+- **ADR-037** : Packaging Python SDK (conforme - distribution via pip install local, pas PyPI pour l'instant)
 
 ---
 
-## — Chat Intelligent + Mémoire Utilisateur Globale
+## - Chat Intelligent + Mémoire Utilisateur Globale
 
 **Statut :** LIVRÉ ✅ (d'après implémentation constatée)
 
@@ -502,16 +502,16 @@ Aucune — configuration opérateur uniquement.
 - Desktop : User Memory Dashboard, contexte injecté visible dans le chat
 
 ### Primitives agent disponibles
-- **`ctx.user_context`** → `dict[str, list[tuple[str, str]]] | None` — contexte utilisateur (préférences, habitudes, contexte) en mode chat
+- **`ctx.user_context`** → `dict[str, list[tuple[str, str]]] | None` - contexte utilisateur (préférences, habitudes, contexte) en mode chat
 - **`ctx.memory.remember(key, value, source, confidence)`** → persistance avec score de confiance
 
 ### Écarts
 - **ADR-038** : Mémoire utilisateur globale (conforme)
-- **ADR-039** : Conversation memory management — summarization + sliding window (conforme)
+- **ADR-039** : Conversation memory management - summarization + sliding window (conforme)
 
 ---
 
-## — Onboarding Utilisateur
+## - Onboarding Utilisateur
 
 **Statut :** EN COURS | **Stories :** 14 planifiées
 
@@ -528,7 +528,7 @@ Aucune — configuration opérateur uniquement.
 
 ### Primitives agent disponibles
 - Le `onboarding-agent` utilise les mêmes primitives que tout agent SDK : `ctx.llm.complete()`, `ctx.memory.remember()`, `ConversationalAgent.converse()`
-- Pas de nouvelle primitive — démonstration que le SDK existant suffit pour l'onboarding
+- Pas de nouvelle primitive - démonstration que le SDK existant suffit pour l'onboarding
 
 ### Écarts
 - Sprint-index marque le sprint 🔲 (À planifier) alors que l'implémentation est avancée
@@ -536,7 +536,7 @@ Aucune — configuration opérateur uniquement.
 
 ---
 
-## — apollia-stt : moteur STT embarqué
+## - apollia-stt : moteur STT embarqué
 
 **Statut :** LIVRÉ ✅ | **Stories :** 17/17 | **ADR :** ADR-041
 
@@ -552,11 +552,11 @@ Aucune — configuration opérateur uniquement.
 - CLI `apollia-os stt transcribe/status/models` + téléchargement modèle
 
 ### Primitives agent disponibles
-Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une API agent.
+Pas de nouvelle primitive Python - STT est une feature desktop/CLI, pas une API agent.
 
 ---
 
-## — Surface outil complète : outils atomiques + HTTP + mémoire
+## - Surface outil complète : outils atomiques + HTTP + mémoire
 
 **Statut :** LIVRÉ ✅ | **Stories :** 22/22 | **ADR :** ADR-043
 
@@ -575,7 +575,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## — Client MCP : intégration universelle des outils externes
+## - Client MCP : intégration universelle des outils externes
 
 **Statut :** LIVRÉ ✅ | **Stories :** 19/19 | **ADR :** ADR-044
 
@@ -590,11 +590,11 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 - API REST `/mcp/*` + CLI `apollia-os mcp list/status/restart`
 
 ### Primitives agent disponibles
-- `ctx.tools.call("mcp:notion/search", ...)` — tout outil MCP accessible via le même pattern
+- `ctx.tools.call("mcp:notion/search", ...)` - tout outil MCP accessible via le même pattern
 
 ---
 
-## — Configuration Runtime Unifiée : SQLite-first
+## - Configuration Runtime Unifiée : SQLite-first
 
 **Statut :** LIVRÉ ✅ | **Stories :** 12/12 | **ADR :** ADR-047
 
@@ -608,11 +608,11 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 - CLI `memory list` + `memory clear`
 
 ### Primitives agent disponibles
-- `manifest()["llm_backend"]` — binding agent → backend LLM spécifique
+- `manifest()["llm_backend"]` - binding agent → backend LLM spécifique
 
 ---
 
-## — Worker Agents V1 : excel-worker + csv-data-worker
+## - Worker Agents V1 : excel-worker + csv-data-worker
 
 **Statut :** LIVRÉ ✅ | **Stories :** 6/7 (différée ) | **ADR :** ADR-048
 
@@ -625,12 +625,12 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ### Primitives agent disponibles
 - `WorkerAgent` base class SDK (héritage `BaseReActAgent`)
-- `manifest()["packages"]` — déclaration dépendances pip
-- `manifest()["supports_a2a"]` + `manifest()["skills"]` — déclaration skills A2A
+- `manifest()["packages"]` - déclaration dépendances pip
+- `manifest()["supports_a2a"]` + `manifest()["skills"]` - déclaration skills A2A
 
 ---
 
-## — A2A Routing V1 + Benchmark Worker Agent Pattern
+## - A2A Routing V1 + Benchmark Worker Agent Pattern
 
 **Statut :** LIVRÉ ✅ | **Stories :** 9/9 | **ADR :** ADR-049
 
@@ -644,14 +644,14 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 - Matrice de décision wiki (Worker vs MCP vs Pipeline)
 
 ### Primitives agent disponibles
-- `ctx.delegate(skill_id, payload, timeout_secs=120)` — délégation A2A
-- `ctx.a2a_invoke(skill_id, payload)` — alias d'invocation
+- `ctx.delegate(skill_id, payload, timeout_secs=120)` - délégation A2A
+- `ctx.a2a_invoke(skill_id, payload)` - alias d'invocation
 
 ---
 
-## — Worker Agents V2 : pdf-worker + code-worker + A2A chat libre
+## - Worker Agents V2 : pdf-worker + code-worker + A2A chat libre
 
-**Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **ADR :** —
+**Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **ADR :** -
 
 ### Ce qui a été implémenté
 - `pdf-worker` : extraction texte/tableaux PDF via pdfplumber (guardrail : chunking > 50 pages)
@@ -665,7 +665,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## — A2A complet + Distribution locale + Worker Agents communautaires
+## - A2A complet + Distribution locale + Worker Agents communautaires
 
 **Statut :** LIVRÉ ✅ | **Stories :** 8/8 | **ADR :** ADR-050
 
@@ -684,12 +684,12 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ### Primitives agent disponibles
 - 6 Worker Agents total (4 bundled + 2 communautaires)
-- `ctx.tools.call("a2a:read-excel", ...)` — invocation A2A transparente via outil ORIA
+- `ctx.tools.call("a2a:read-excel", ...)` - invocation A2A transparente via outil ORIA
 - Garde-fous A2A appliqués par le runtime (non contournables depuis Python)
 
 ---
 
-## — Onboarding interactif multi-phases
+## - Onboarding interactif multi-phases
 
 **Statut :** LIVRÉ ✅ | **Stories :** 13/13
 
@@ -702,19 +702,19 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## — Beta Hardening: Technical Debt, Security & Robustness
+## - Beta Hardening: Technical Debt, Security & Robustness
 
 **Statut :** LIVRÉ ✅ | **Stories :** 24/25 (1 🚫 Windows sandbox reporté) | **ADRs :** ADR-051→055
 
 ### Ce qui a été implémenté
-- Auth API REST TCP `:7771` (token + loopback) — ADR-051
+- Auth API REST TCP `:7771` (token + loopback) - ADR-051
 - HMAC-SHA256 sur webhooks sortants
 - `cargo audit` + `cargo deny` en CI
 - 23 constantes hardcodées → `apollia.toml`
 - Pipeline fan-out (ADR-053) + step timeout + cancellation + HITL audit
 - Pricing LLM robuste (table lookup)
 - 3 agents communautaires : browser-worker, email-worker, slack-worker
-- Registry communautaire distant (Git-based) — `apollia agent install <git-url>` — ADR-055
+- Registry communautaire distant (Git-based) - `apollia agent install <git-url>` - ADR-055
 - Tests E2E Tauri automatisés (5 tests)
 - apollia-stt tests renforcés (22 → ~40)
 - CUDA compile check CI
@@ -722,52 +722,52 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ### Primitives agent disponibles
 - 9 Worker Agents total (6 précédents + browser + email + slack)
-- `apollia-os agent install <git-url>` — installation depuis un repo Git
+- `apollia-os agent install <git-url>` - installation depuis un repo Git
 
 ---
 
-## — Workspace Intelligence & Execution Performance
+## - Workspace Intelligence & Execution Performance
 
 **Statut :** LIVRÉ ✅ | **Stories :** 13/13 | **ADRs :** ADR-056→060
 
 ### Ce qui a été implémenté
-- Prompt caching `cache_control: ephemeral` — ADR-057 (-80% coût LLM sessions longues)
+- Prompt caching `cache_control: ephemeral` - ADR-057 (-80% coût LLM sessions longues)
 - `TokenBudget` accumulé + affichage CLI + TTFT
 - `truncate_middle()` pour output > 30KB
-- Outils read-only concurrents (`is_read_only` + `execute_batch()`) — ADR-059
+- Outils read-only concurrents (`is_read_only` + `execute_batch()`) - ADR-059
 - Retry exponentiel partagé tous backends + `CancellationToken` abort
-- Nouvelle crate `apollia-workspace` — ADR-056 : WorkspaceAssembler, GitContextCollector, ApolliamdFinder
+- Nouvelle crate `apollia-workspace` - ADR-056 : WorkspaceAssembler, GitContextCollector, ApolliamdFinder
 - Injection APOLLIA.md dans ORIA + AIP bridge (`ctx.workspace`)
-- `StyleDetector` — détection conventions de code
-- Auto-compact fenêtre de contexte — ADR-058 (seuil 80%, résumé LLM)
-- Session recovery — `apollia chat --resume <id>` après Ctrl+C
-- `persistent_bash` — shell persistant entre steps (état CWD conservé)
+- `StyleDetector` - détection conventions de code
+- Auto-compact fenêtre de contexte - ADR-058 (seuil 80%, résumé LLM)
+- Session recovery - `apollia chat --resume <id>` après Ctrl+C
+- `persistent_bash` - shell persistant entre steps (état CWD conservé)
 - Sidechain logging A2A
-- `ContextProvider` trait — ADR-060
+- `ContextProvider` trait - ADR-060
 
 ### Primitives agent disponibles
-- `ctx.workspace` — contexte projet injecté (APOLLIA.md, git, style)
-- `apollia workspace status` — branche git + APOLLIA.md path
+- `ctx.workspace` - contexte projet injecté (APOLLIA.md, git, style)
+- `apollia workspace status` - branche git + APOLLIA.md path
 - Shell persistant (`cd /tmp` conservé entre steps)
 
 ---
 
-## — Permissions, MCP Server & Intelligence UX
+## - Permissions, MCP Server & Intelligence UX
 
 **Statut :** LIVRÉ ✅ | **Stories :** 16/16 | **ADRs :** ADR-061→063
 
 ### Ce qui a été implémenté
-- `apollia-permissions` : moteur 3 couches (SafeList + PrefixRuleEngine + InjectionDetector) — ADR-061
+- `apollia-permissions` : moteur 3 couches (SafeList + PrefixRuleEngine + InjectionDetector) - ADR-061
 - Validation syntaxe bash + `BANNED_COMMANDS` + AST parser (remplace regex)
-- MCP server mode — Apollia client ET serveur (stdio, 9 outils + `submit_task`) — ADR-062
+- MCP server mode - Apollia client ET serveur (stdio, 9 outils + `submit_task`) - ADR-062
 - Routing LLM par niveau de précision (Precise/Fast/Embedding)
 - Extraction file paths post-bash (non-bloquant, `FilePathExtractor`)
-- Binary feedback — deux plans alternatifs (RLHF SQLite logging) — ADR-063
+- Binary feedback - deux plans alternatifs (RLHF SQLite logging) - ADR-063
 - 6 types UI HITL desktop (Bash, FileEdit, FileWrite, Filesystem, MCP, Generic + PermissionDispatcher)
 - Widget coût LLM temps réel desktop (`TokenBudgetWidget`)
 - Notification inactivité + canal terminal iTerm2/GNOME
 - `apollia workspace status/init`
-- `FileTimestampCache` — invalidation mémoire fichiers modifiés
+- `FileTimestampCache` - invalidation mémoire fichiers modifiés
 - Alerte seuil coût LLM (notifications desktop et OS)
 - `--allowedTools` / `--disallowedTools` + REPL history
 - Conversation forking (`ChatSession::fork`, `/fork` REPL)
@@ -775,69 +775,69 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ### Primitives agent disponibles
 - Permissions 3 couches appliquées par le runtime
-- `/fork` — forking de conversation
+- `/fork` - forking de conversation
 - Slash commands custom depuis `APOLLIA_COMMANDS/`
 
 ---
 
-## — Parité complète TypeScript
+## - Parité complète TypeScript
 
 **Statut :** LIVRÉ ✅ | **Stories :** 15/15 | **ADRs :** ADR-064→068
 
 ### Ce qui a été implémenté
-- `apollia-auth` : OAuth2 PKCE complet (keyring, providers, callback localhost) — ADR-064
-- Auto-updater `apollia update` (GitHub Releases, SHA256, atomic replace) — ADR-065
+- `apollia-auth` : OAuth2 PKCE complet (keyring, providers, callback localhost) - ADR-064
+- Auto-updater `apollia update` (GitHub Releases, SHA256, atomic replace) - ADR-065
 - Code review agent `apollia-review` (Python AIP, route REST, CLI)
 - MCP discovery mDNS (`_apollia-mcp._tcp.local.`)
 - Hot reload serveurs MCP (disconnect → update config → reconnect)
 - HITL MCP finalisé (`apollia mcp set-approval`, SQLite persistence, TTL)
-- `apollia memory export/import` (JSON gzip, merge/replace) — ADR-066
+- `apollia memory export/import` (JSON gzip, merge/replace) - ADR-066
 - Purge configurable par type mémoire (episodic/semantic/procedural, auto_purge)
 - `OnBusyPolicy::Queue` pour triggers (file bornée, TriggerQueueFull event)
 - Filtrage notifications par sévérité par canal (Debug→Critical, min_severity)
 - Templates pipeline communautaires + `apollia pipeline install` (registry Git, LlmPrompt step)
 - `apollia-stt` CUDA compile check CI (feature matrix cpu/metal/cuda)
-- AWS Bedrock backend (SigV4, credentials chain) — ADR-067
-- Google Vertex AI backend (ADC OAuth2, token cache) — ADR-068
-- Notebook tool — lecture et édition Jupyter `.ipynb` (NotebookRead + NotebookEdit)
+- AWS Bedrock backend (SigV4, credentials chain) - ADR-067
+- Google Vertex AI backend (ADC OAuth2, token cache) - ADR-068
+- Notebook tool - lecture et édition Jupyter `.ipynb` (NotebookRead + NotebookEdit)
 
 ### Primitives agent disponibles
-- `apollia auth login <provider>` — OAuth2 PKCE
-- `apollia update` — auto-updater SHA256
-- `apollia mcp list --discover` — mDNS discovery
+- `apollia auth login <provider>` - OAuth2 PKCE
+- `apollia update` - auto-updater SHA256
+- `apollia mcp list --discover` - mDNS discovery
 - Vertex AI + Bedrock comme backends LLM enterprise
 - `NotebookRead` + `NotebookEdit` pour agents data science
 
 ---
 
-## — Autonomie filesystem
+## - Autonomie filesystem
 
 **Statut :** LIVRÉ ✅ | **Stories :** 5/5 | **ADR :** ADR-069
 
 ### Ce qui a été implémenté
 - Refactor `NativeChatToolInvoker` : workspace_path par session
 - Extension `RiskClassifier` aux opérations filesystem (4 niveaux de risque)
-- Journal réversible filesystem + CLI `apollia rollback` — ADR-069
-- UI HITL filesystem — modal diff/preview pour opérations sensibles
+- Journal réversible filesystem + CLI `apollia rollback` - ADR-069
+- UI HITL filesystem - modal diff/preview pour opérations sensibles
 - File picker natif pour création de projet
 
 ### Primitives agent disponibles
 - Agents autonomes sur le filesystem, régulés par friction graduée HITL
-- `apollia rollback <session-id>` — restauration post-hoc du disque
+- `apollia rollback <session-id>` - restauration post-hoc du disque
 
 ---
 
-## — Agents qui travaillent : Restructuration & Premiers Assistants Réels
+## - Agents qui travaillent : Restructuration & Premiers Assistants Réels
 
 **Statut :** LIVRÉ ✅ | **Stories :** 7/7 | **ADR :** ADR-070
 
 ### Ce qui a été implémenté
-- Memory namespace project-scoped (`project_id:namespace`) — ADR-070
+- Memory namespace project-scoped (`project_id:namespace`) - ADR-070
 - Restructuration `agents/` (workers/ assistants/ system/ examples/)
-- `spec-assistant` — assistant conception et specs (TaskSpec, project rules, mémoire)
-- `dev-assistant` — assistant implémentation (pre-task contract, A2A, guardrails)
-- `review-assistant` — assistant vérification (complétude, conformance, tests)
-- `document-assistant` — traitement documents tous profils (routing A2A vers workers)
+- `spec-assistant` - assistant conception et specs (TaskSpec, project rules, mémoire)
+- `dev-assistant` - assistant implémentation (pre-task contract, A2A, guardrails)
+- `review-assistant` - assistant vérification (complétude, conformance, tests)
+- `document-assistant` - traitement documents tous profils (routing A2A vers workers)
 - Smoke tests des 4 assistants
 
 ### Primitives agent disponibles
@@ -847,39 +847,39 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## — Context Bootstrapping & SDK 0.3.0
+## - Context Bootstrapping & SDK 0.3.0
 
 **Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **ADRs :** ADR-070, ADR-071
 
 ### Ce qui a été implémenté
 - `recall_entry()` + `recall_all()` exposés en Python (métadonnées complètes)
 - SDK 0.3.0 : `AgentManifestDict` v2 (4 champs AIP), `ConversationalAgent` stub importable sans runtime
-- `ContextBootstrap` : protocole SDK (classe abstraite, 2 méthodes) — ADR-071
+- `ContextBootstrap` : protocole SDK (classe abstraite, 2 méthodes) - ADR-071
 - `ProjectContextBootstrap` : base partagée agents dev (commit hash, workspace rules, tech stack)
 - Adoption bootstrap dans les 4 assistants (spec/dev/review/document)
 - Tests d'intégration bootstrap + smoke tests mis à jour
 
 ### Primitives agent disponibles
-- `ctx.memory.recall_entry(key)` — métadonnées complètes d'une entrée sémantique
-- `ctx.memory.recall_all(limit=N)` — lister toutes les entrées du namespace
-- `ContextBootstrap` — persistance cross-session du contexte projet
-- `from apollia import ConversationalAgent` — importable sans runtime Rust
+- `ctx.memory.recall_entry(key)` - métadonnées complètes d'une entrée sémantique
+- `ctx.memory.recall_all(limit=N)` - lister toutes les entrées du namespace
+- `ContextBootstrap` - persistance cross-session du contexte projet
+- `from apollia import ConversationalAgent` - importable sans runtime Rust
 
 ---
 
 ## Sprints non livrés
 
-### — MVP Demo-Ready UI/UX bimodale
+### - MVP Demo-Ready UI/UX bimodale
 **Statut :** 🔲 À planifier | **Stories :** 27 planifiées
 Objectif : UI bimodale (Builder + Opérateur), agent install/persistence SQLite, dark mode, i18n, glassmorphism.
 
-### — Refonte UI/UX 8 pages restantes
+### - Refonte UI/UX 8 pages restantes
 **Statut :** 🔲 À faire | **Stories :** 14 planifiées
 Objectif : Aligner les 8 pages desktop sur le Design System "Warm Glass".
 
 ---
 
-## Récapitulatif — Primitives agent par sprint
+## Récapitulatif - Primitives agent par sprint
 
 | Sprint | Primitives ajoutées |
 |---|---|
@@ -894,15 +894,15 @@ Objectif : Aligner les 8 pages desktop sur le Design System "Warm Glass".
 | 21 | SDK classes (`ReactAgent`, `ConversationalAgent`, `OrchestratedAgent`), `MockContext`, `apollia new` |
 | 22 | `ctx.user_context`, `ctx.memory.remember(..., confidence=)` |
 | 25 | `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`, `http_fetch`, `memory_search` |
-| 26 | `ctx.tools.call("mcp:{server}/{tool}", ...)` — outils MCP externes |
-| 28 | `manifest()["llm_backend"]` — binding agent → backend LLM |
+| 26 | `ctx.tools.call("mcp:{server}/{tool}", ...)` - outils MCP externes |
+| 28 | `manifest()["llm_backend"]` - binding agent → backend LLM |
 | 29 | `WorkerAgent` base class, `manifest()["packages"]`, `manifest()["supports_a2a"]` |
 | 30 | `ctx.delegate(skill_id, payload)`, `ctx.a2a_invoke(skill_id, payload)` |
-| 32 | `ctx.tools.call("a2a:{skill_id}", ...)` — invocation A2A via outils ORIA |
+| 32 | `ctx.tools.call("a2a:{skill_id}", ...)` - invocation A2A via outils ORIA |
 
 ---
 
-## Récapitulatif — ADRs non planifiés
+## Récapitulatif - ADRs non planifiés
 
 | ADR | Sprint | Cause |
 |---|---|---|
@@ -910,7 +910,7 @@ Objectif : Aligner les 8 pages desktop sur le Design System "Warm Glass".
 | ADR-012 | 2 | macOS sandbox-exec deprecated → mode Dev compile-time |
 | ADR-013 | 4 | PYO3_PYTHON config macOS (friction dev) |
 | ADR-014 | 4 | spawn_blocking + asyncio.run (event loop init trop complexe) |
-| ADR-015 | 4 | Trait ToolExecutor (testabilité — réutilisé 3 sprints) |
+| ADR-015 | 4 | Trait ToolExecutor (testabilité - réutilisé 3 sprints) |
 | ADR-016 | 4 | Trait AgentRunner (même pattern que ADR-015) |
 | ADR-017 | 5 | hyper-util Unix socket (limitation axum 0.7) |
 | ADR-018 | 5 | CLI bootstrap sans Supervisor (simplifié) |

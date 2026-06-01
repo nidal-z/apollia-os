@@ -1,4 +1,4 @@
-# ADR-039 — Conversation memory management
+# ADR-039 - Conversation memory management
 
 **Date :** 2026-03-23
 **Statut :** Accepté
@@ -17,15 +17,15 @@ Nous adoptons un sliding window de N derniers messages (défaut 20) avec résum�
 
 ## Alternatives considérées
 
-### Option A — Keep all messages, truncate on overflow (rejetée)
+### Option A - Keep all messages, truncate on overflow (rejetée)
 **Pour :** Le plus simple.
 **Contre :** Perd le contexte le plus ancien de manière abrupte, pas de dégradation gracieuse, le modèle voit une coupure en pleine conversation.
 
-### Option B — Hierarchical summarization (rejetée)
+### Option B - Hierarchical summarization (rejetée)
 **Pour :** Compression multi-niveaux pour les très longues conversations.
 **Contre :** Sur-ingénierie pour les besoins actuels, multiples appels LLM, difficile à débugger.
 
-### Option retenue — Sliding window + single summary
+### Option retenue - Sliding window + single summary
 **Pour :** Taille de contexte prévisible, un seul appel LLM de résumé quand la fenêtre glisse, le résumé préserve les décisions clés.
 **Compromis acceptés :** Le résumé peut perdre des nuances des messages anciens. Un appel LLM supplémentaire quand la fenêtre se déplace.
 
@@ -37,7 +37,7 @@ Nous adoptons un sliding window de N derniers messages (défaut 20) avec résum�
 - Consommation de tokens LLM prévisible
 
 **Négatives / Compromis :**
-- Appel LLM supplémentaire au déplacement de la fenêtre (amorti — se produit environ tous les 20 messages)
+- Appel LLM supplémentaire au déplacement de la fenêtre (amorti - se produit environ tous les 20 messages)
 - La qualité du résumé dépend du LLM
 
 **Neutres / À surveiller :**
@@ -45,7 +45,7 @@ Nous adoptons un sliding window de N derniers messages (défaut 20) avec résum�
 - Surveiller la qualité des résumés en pratique
 
 ## Principes architecturaux impactés
-- Principe #8 — CLI humaine, API machine : le résumé est généré par la machine pour consommation machine (injection dans le system prompt).
+- Principe #8 - CLI humaine, API machine : le résumé est généré par la machine pour consommation machine (injection dans le system prompt).
 
 ## Liens
 - Story associée : STORY-257, STORY-258, STORY-259

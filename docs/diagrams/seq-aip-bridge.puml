@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — AIP Bridge (Rust ↔ Python) — Apollia OS
+title Séquence - AIP Bridge (Rust ↔ Python) - Apollia OS
 
 participant "ORIAEngine\n(Rust)" as oria #1a1a2e/e0e0ff
 participant "AIPBridge\n(Rust + PyO3)" as bridge #1a1a2e/e0e0ff
@@ -74,7 +74,7 @@ bridge -> bridge : serde_json::from_str::<AIPResult>(&result_json)
 
 bridge --> oria : Ok(AIPResult { status, output, ... })
 
-== call_on_start(ctx) — si has_on_start == true ==
+== call_on_start(ctx) - si has_on_start == true ==
 
 oria -> bridge : call_on_start(ctx: PyObject)
 bridge -> spawn : spawn_blocking(|| { Python::with_gil ... })
@@ -87,7 +87,7 @@ spawn --> bridge : Ok(())
 deactivate spawn
 bridge --> oria : Ok(())
 
-== call_on_stop() — si has_on_stop == true ==
+== call_on_stop() - si has_on_stop == true ==
 
 oria -> bridge : call_on_stop()
 bridge -> spawn : spawn_blocking(|| { Python::with_gil ... })
@@ -111,7 +111,7 @@ alt agent.run() lève une exception Python
 end
 
 alt résultat non désérialisable en AIPResult
-  bridge -> bridge : serde_json::from_str — Err
+  bridge -> bridge : serde_json::from_str - Err
   bridge --> oria : Err(AIPBridgeError::DeserializationError)
 end
 

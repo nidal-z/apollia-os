@@ -16,7 +16,7 @@
 
   let { sessionId, messageId, toolName, inputPreview }: Props = $props();
 
-  /** True quand la session courante est rattachée à un projet — sert à griser
+  /** True quand la session courante est rattachée à un projet - sert à griser
    *  l'option "Toujours pour ce projet" hors contexte projet. */
   const hasProject = $derived(
     $currentSession?.id === sessionId && $currentSession?.project_id !== null,
@@ -203,7 +203,7 @@
         <div class="text-[10px] text-muted-foreground">
           {hasProject
             ? "Tous les assistants utilisés dans ce projet."
-            : "Indisponible — la session n'est rattachée à aucun projet."}
+            : "Indisponible - la session n'est rattachée à aucun projet."}
         </div>
       </Button>
       <Button variant="ghost" size="sm"

@@ -309,7 +309,7 @@
   const QUANT_RE = /[-.]([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*)(?:-\d{5}-of-\d{5})?\.gguf$/i;
 
   interface GgufGroup {
-    quantName: string;       // "Q4_K_M", "F16" — extracted quant label
+    quantName: string;       // "Q4_K_M", "F16" - extracted quant label
     fullName: string;        // full base filename for tooltip
     files: HfFile[];
     totalSizeHuman: string;  // "3 × 44.0 GB · 132.0 GB total" or "17.5 GB"
@@ -320,7 +320,7 @@
 
   interface GroupedFiles {
     models: GgufGroup[];
-    projectors: HfFile[];    // mmproj-*.gguf — vision projection matrices
+    projectors: HfFile[];    // mmproj-*.gguf - vision projection matrices
   }
 
   function formatSizeBytes(bytes: number): string {
@@ -416,7 +416,7 @@
     if (lic && OPEN_LICENSES.has(lic)) return "open";
     if (lic && RESTRICTED_LICENSES.has(lic)) return "restricted";
     for (const tag of m.tags) {
-      // HF tags use "license:apache-2.0" format — strip the prefix
+      // HF tags use "license:apache-2.0" format - strip the prefix
       const t = tag.toLowerCase().replace(/^license:/, "");
       if (RESTRICTED_LICENSES.has(t)) return "restricted";
       if (OPEN_LICENSES.has(t)) return "open";
@@ -873,7 +873,7 @@
                       {#each grouped.projectors as f}
                         <div class="flex items-center gap-2 text-xs">
                           <span class="flex-1 truncate font-mono text-foreground">{f.filename.split("/").pop()}</span>
-                          <span class="text-muted-foreground">{f.size_human || "—"}</span>
+                          <span class="text-muted-foreground">{f.size_human || "-"}</span>
                           <Button variant="ghost" size="sm"
                             onclick={() => startDownload(f)}
                             class="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"

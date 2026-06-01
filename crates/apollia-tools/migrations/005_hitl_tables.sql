@@ -1,4 +1,4 @@
--- Migration 005 — table tasks + table task_approvals (HITL)
+-- Migration 005 - table tasks + table task_approvals (HITL)
 -- Idempotente : CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
 
 -- Table tasks : créée pour la première fois dans cette migration.

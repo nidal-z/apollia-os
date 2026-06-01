@@ -1,4 +1,4 @@
-"""Tests for apollia.types — AIPResult dataclass and factory methods."""
+"""Tests for apollia.types - AIPResult dataclass and factory methods."""
 
 from apollia.types import AIPResult
 

@@ -168,7 +168,7 @@ impl BashExecutor {
                     "command": {
                         "type": "string",
                         "description": "Shell command to execute. Use the most efficient approach \
-                                        for the task — avoid scanning entire filesystems when a \
+                                        for the task - avoid scanning entire filesystems when a \
                                         scoped command suffices."
                     },
                     "timeout_secs": {
@@ -373,7 +373,7 @@ impl BashExecutor {
     fn build_command(input: &BashInput) -> tokio::process::Command {
         tracing::warn!(
             command = %input.command,
-            "bash_executor: running in Dev mode — no sandbox active. \
+            "bash_executor: running in Dev mode - no sandbox active. \
              Linux namespaces are not available on this platform. \
              Production deployments require Linux."
         );

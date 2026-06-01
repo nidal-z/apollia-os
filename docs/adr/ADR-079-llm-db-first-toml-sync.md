@@ -1,9 +1,9 @@
-# ADR-079 — LLM Backend : DB-first, sync TOML atomique après mutation
+# ADR-079 - LLM Backend : DB-first, sync TOML atomique après mutation
 
 **Date :** 2026-04-24
 **Statut :** Accepté
 **Décideur :** Nidal (solo)
-**Sprint :** Sprint 43 — LLM Backend Management + Model Hub
+**Sprint :** Sprint 43 - LLM Backend Management + Model Hub
 
 ---
 
@@ -11,12 +11,12 @@
 
 Apollia stocke la configuration LLM dans deux endroits :
 
-1. **`system.db`** — table `llm_backends`, source de toutes les mutations UI (CRUD via `LlmBackendRepository`)
-2. **`apollia.toml`** — section `[[llm.backends]]`, lue au démarrage pour construire l'`LlmRouter`
+1. **`system.db`** - table `llm_backends`, source de toutes les mutations UI (CRUD via `LlmBackendRepository`)
+2. **`apollia.toml`** - section `[[llm.backends]]`, lue au démarrage pour construire l'`LlmRouter`
 
 Avant ce sprint, ces deux sources pouvaient diverger : une modification effectuée via la page Settings
 (ajout, mise à jour, suppression d'un backend) était persistée en DB mais **jamais propagée vers le TOML**.
-Au prochain démarrage de l'app, le `LlmRouter` était reconstruit depuis le TOML — potentiellement obsolète —
+Au prochain démarrage de l'app, le `LlmRouter` était reconstruit depuis le TOML - potentiellement obsolète -
 plutôt que depuis la DB.
 
 Symptôme concret observé : après un switch Qwen3-235B → Qwen3-30B via l'UI, `apollia.toml` contenait
@@ -38,7 +38,7 @@ Nous adoptons **DB-first avec sync TOML atomique** après chaque mutation.
 `LlmBackendRepository::sync_to_toml(toml_path: &Path)` :
 1. Lit tous les backends depuis SQLite (`SELECT * FROM llm_backends ORDER BY is_default DESC, name ASC`)
 2. Charge le contenu brut de `apollia.toml`
-3. Supprime tous les blocs `[[llm.backends]]` existants (parsage ligne par ligne — pas de TOML round-trip
+3. Supprime tous les blocs `[[llm.backends]]` existants (parsage ligne par ligne - pas de TOML round-trip
    pour préserver les commentaires et la mise en forme des autres sections)
 4. Ajoute à la fin les blocs régénérés depuis la DB, précédés d'un commentaire d'avertissement
 5. Écrit le résultat atomiquement (`write_all` sur le chemin d'origine)
@@ -49,7 +49,7 @@ Cette fonction est appelée en **best-effort** après chaque handler REST LLM :
 - `DELETE /api/v1/llm/backends/:name` (DELETE)
 - `POST /api/v1/llm/backends/:name/default` (SET-DEFAULT)
 
-Un échec du sync TOML génère un `tracing::warn!` mais ne fait pas échouer la requête HTTP — la DB
+Un échec du sync TOML génère un `tracing::warn!` mais ne fait pas échouer la requête HTTP - la DB
 reste toujours cohérente, le TOML sera re-synced à la prochaine mutation.
 
 ### Rechargement mémoire
@@ -63,7 +63,7 @@ drop(old);                // libère immédiatement si zéro autres clones
 ```
 
 Si des requêtes en cours détiennent un clone de l'ancien `Arc`, le modèle reste chargé jusqu'à leur
-fin — comportement correct et documenté (backpressure naturelle).
+fin - comportement correct et documenté (backpressure naturelle).
 
 ---
 
@@ -91,7 +91,7 @@ fin — comportement correct et documenté (backpressure naturelle).
 
 **TOML-first** : aurait nécessité de parser le TOML en mémoire pour chaque mutation UI, de gérer les
 conflits entre l'édition manuelle et l'édition UI, et de propager les changements vers la DB. Complexité
-disproportionnée — la DB est déjà le bus de persistance de toute la configuration runtime.
+disproportionnée - la DB est déjà le bus de persistance de toute la configuration runtime.
 
 **TOML supprimé** : abandonner le TOML pour les backends et tout lire depuis la DB au démarrage.
 Rejeté car le TOML reste utile pour le bootstrapping (avant que la DB soit accessible) et pour les

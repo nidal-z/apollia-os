@@ -362,7 +362,7 @@ fn backend_label(tool: &str, cfg: &ToolsConfig) -> String {
             WebSearchBackend::Brave => "Brave".to_string(),
         }
     } else {
-        "—".to_string()
+        "-".to_string()
     }
 }
 
@@ -387,7 +387,7 @@ fn credentials_summary(tool: &str, credentials: Option<&[CredentialEntry]>) -> s
 fn credentials_text(tool: &str, credentials: Option<&[CredentialEntry]>) -> String {
     let needs = required_credentials(tool);
     if needs.is_empty() {
-        return "—".to_string();
+        return "-".to_string();
     }
     let entries = credentials.unwrap_or(&[]);
     needs
@@ -542,7 +542,7 @@ fn run_config_set(key_path: &str, value: &str, json: bool) -> i32 {
     let parts: Vec<&str> = key_path.split('.').collect();
     if parts.len() < 2 {
         return emit_error(
-            format!("invalid key '{key_path}' — expected format: <tool>.<key>"),
+            format!("invalid key '{key_path}' - expected format: <tool>.<key>"),
             json,
         );
     }
@@ -598,7 +598,7 @@ fn parse_value_for(tool: &str, key_segments: &[&str], raw: &str) -> Result<Value
         ("web_search", "backend") => match raw {
             "auto" | "duckduckgo" | "brave" => Ok(Value::from(raw)),
             _ => Err(format!(
-                "valeur invalide '{raw}' pour web_search.backend — attendu : auto | duckduckgo | brave"
+                "valeur invalide '{raw}' pour web_search.backend - attendu : auto | duckduckgo | brave"
             )),
         },
         ("web_search", "require_configured") => parse_bool(raw),
@@ -624,7 +624,7 @@ fn valid_keys_help(tool: &str) -> String {
                          duckduckgo.max_response_kb"
             .to_string(),
         "web_read" => "valid keys: timeout_secs, max_response_kb, ssrf_guard".to_string(),
-        _ => "outil sans configuration TOML — outils configurables : web_search, web_read"
+        _ => "outil sans configuration TOML - outils configurables : web_search, web_read"
             .to_string(),
     }
 }
@@ -722,7 +722,7 @@ fn run_reload(json: bool) -> i32 {
         };
         println!("  Brave API key     : {brave}");
         println!(
-            "  Note: the runtime rereads this snapshot on every agent run — \
+            "  Note: the runtime rereads this snapshot on every agent run - \
              no restart required."
         );
     }
@@ -749,7 +749,7 @@ fn run_credentials_list(filter: Option<&str>, json: bool) -> i32 {
         Some(s) => s,
         None => {
             return emit_error(
-                "unable to open the credential store — check ~/.apollia".to_string(),
+                "unable to open the credential store - check ~/.apollia".to_string(),
                 json,
             );
         }
@@ -811,7 +811,7 @@ fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
         Err(e) => return emit_error(format!("failed to read prompt: {e}"), json),
     };
     if value.is_empty() {
-        return emit_error("empty value — credential not stored".to_string(), json);
+        return emit_error("empty value - credential not stored".to_string(), json);
     }
     let mut store = match ToolCredentialStore::new(&db_path(&data_dir), &keyfile_path(&data_dir)) {
         Ok(s) => s,
@@ -886,7 +886,7 @@ async fn run_credentials_test(tool: &str, json: bool) -> i32 {
         Ok(Some(k)) => k,
         Ok(None) => {
             return emit_error(
-                "no brave.api_key stored — use `apollia-os tools credentials set web_search brave.api_key`"
+                "no brave.api_key stored - use `apollia-os tools credentials set web_search brave.api_key`"
                     .to_string(),
                 json,
             );
@@ -1035,7 +1035,7 @@ fn is_known_tool(name: &str) -> bool {
 fn emit_unknown_tool(name: &str, json: bool) -> i32 {
     let known = NATIVE_TOOL_NAMES.join(", ");
     emit_error(
-        format!("outil inconnu '{name}' — outils natifs disponibles : {known}"),
+        format!("outil inconnu '{name}' - outils natifs disponibles : {known}"),
         json,
     )
 }
@@ -1060,7 +1060,7 @@ fn load_tools_config(json: bool) -> ToolsConfig {
             Err(e) => {
                 if !json {
                     eprintln!(
-                        "Warning: apollia.toml unreadable ({e}) — using defaults"
+                        "Warning: apollia.toml unreadable ({e}) - using defaults"
                     );
                 }
                 ToolsConfig::default()
@@ -1278,6 +1278,6 @@ mod tests {
         let cfg = ToolsConfig::default();
         // THEN web_search shows "DuckDuckGo (auto)".
         assert_eq!(backend_label("web_search", &cfg), "DuckDuckGo (auto)");
-        assert_eq!(backend_label("file_read", &cfg), "—");
+        assert_eq!(backend_label("file_read", &cfg), "-");
     }
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Next Steps panel — renders up to 3 Meta-LLM-generated
+   * Next Steps panel - renders up to 3 Meta-LLM-generated
    * cards for either the operator Dashboard (`context="global_context"`)
    * or the end-of-session debrief (`context="session_end"`).
    *
@@ -24,15 +24,15 @@
   } from "$lib/stores/nextSteps";
 
   interface Props {
-    /** Unique cache key for this panel — e.g. `"global"` or `"session:<id>"`. */
+    /** Unique cache key for this panel - e.g. `"global"` or `"session:<id>"`. */
     scopeKey: string;
     /** Which context the backend should narrate. */
     context: NextStepsContext;
-    /** Persona — operator (default) or builder. */
+    /** Persona - operator (default) or builder. */
     mode?: NextStepsMode;
     /** Frontend-computed facts passed verbatim to the backend. */
     facts: NextStepsFacts;
-    /** Optional title override — defaults to `next_steps.title`. */
+    /** Optional title override - defaults to `next_steps.title`. */
     title?: string;
   }
 
@@ -80,7 +80,7 @@
     nextSteps.load(scopeKey, context, mode, facts);
   });
 
-  // Re-fetch when facts change (cache-honoring — store guards the 12h TTL).
+  // Re-fetch when facts change (cache-honoring - store guards the 12h TTL).
   let lastFactsKey = "";
   $effect(() => {
     const currentFacts = facts;

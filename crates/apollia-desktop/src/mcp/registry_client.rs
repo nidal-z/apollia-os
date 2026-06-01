@@ -347,7 +347,7 @@ impl McpRegistryClient {
             Err(network_err) => {
                 tracing::warn!(
                     error = %network_err,
-                    "MCP Registry unreachable — falling back to local cache"
+                    "MCP Registry unreachable - falling back to local cache"
                 );
                 self.read_cache()?
             }
@@ -455,7 +455,7 @@ impl McpRegistryClient {
                     return Err(RegistryClientError::HttpError(e));
                 }
                 PageFetch::Fatal(e) => {
-                    tracing::warn!(page, error = %e, "registry page fetch failed — stopping");
+                    tracing::warn!(page, error = %e, "registry page fetch failed - stopping");
                     break;
                 }
             };
@@ -516,7 +516,7 @@ impl McpRegistryClient {
                 tracing::warn!(
                     page,
                     serde_error = %e,
-                    "registry page JSON parse failed — skipping to next page"
+                    "registry page JSON parse failed - skipping to next page"
                 );
                 match extract_cursor_raw(body) {
                     Some(next) => PageParse::SkipTo {

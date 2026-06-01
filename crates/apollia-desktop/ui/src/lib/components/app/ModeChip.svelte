@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * ModeChip — pill-shaped selector at the top of the sidebar.
+   * ModeChip - pill-shaped selector at the top of the sidebar.
    *
    * Reads the current UI mode, exposes a 2-item dropdown (Operator / Builder)
    * with a short description of each so a new user learns the distinction

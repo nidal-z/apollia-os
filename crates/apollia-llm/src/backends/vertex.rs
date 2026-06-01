@@ -191,7 +191,7 @@ impl VertexClient {
 
         if creds.credential_type != "authorized_user" {
             return Err(LlmError::InferenceError(format!(
-                "ADC credential type '{}' not supported — \
+                "ADC credential type '{}' not supported - \
                  run `gcloud auth application-default login` to generate user credentials",
                 creds.credential_type
             )));

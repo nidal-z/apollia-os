@@ -1,8 +1,8 @@
-# Roadmap — Apollia OS
+# Roadmap - Apollia OS
 
 > Pour la roadmap interne détaillée : voir `docs/internal/roadmap/`.
 
-## v0.1 — Foundation (mars 2026)
+## v0.1 - Foundation (mars 2026)
 
 **Focus :** Runtime stable, agent Python fonctionnel, CLI opérationnelle.
 
@@ -20,11 +20,11 @@
 - ✅ HITL inline (Accept/Refuse/Always Accept) dans le chat []
 - ✅ Application Desktop (Tauri v2 + Svelte 5) avec 46 commandes IPC [-18]
 
-**Livrable :** `cargo install apollia-os` — premier agent en 5 minutes.
+**Livrable :** `cargo install apollia-os` - premier agent en 5 minutes.
 
 ---
 
-## v0.2 — Connectivity (prévue Q3 2026)
+## v0.2 - Connectivity (prévue Q3 2026)
 
 **Focus :** Interopérabilité standards, résilience production.
 
@@ -36,7 +36,7 @@
 
 ---
 
-## v0.3 — Ecosystem (prévue Q1 2027)
+## v0.3 - Ecosystem (prévue Q1 2027)
 
 **Focus :** Marketplace agents, standard empaquetage PyPI.
 
@@ -47,7 +47,7 @@
 
 ---
 
-## v1.0 — Enterprise (prévue 2027)
+## v1.0 - Enterprise (prévue 2027)
 
 **Focus :** Production enterprise, marketplace stable.
 

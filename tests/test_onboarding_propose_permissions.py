@@ -91,7 +91,7 @@ class _FakeTools:
             if self._list_should_raise:
                 raise RuntimeError("dispatcher unavailable")
             return self._list_response
-        # The new flow does NOT call permission_rule_add — surfacing it
+        # The new flow does NOT call permission_rule_add - surfacing it
         # in a test would be a regression.
         raise AssertionError(f"unexpected tool call: {tool_name}")
 
@@ -116,7 +116,7 @@ def _proposals_from(memory: _FakeMemory) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Tests — idempotence + degraded paths
+# Tests - idempotence + degraded paths
 # ---------------------------------------------------------------------------
 
 
@@ -134,7 +134,7 @@ async def test_writes_proposals_even_when_governance_has_prior_rules() -> None:
     # WHEN
     await _persist_proposed_permission_rules(ctx)
 
-    # THEN les propositions sont (re)écrites en mémoire — pas d'idempotence
+    # THEN les propositions sont (re)écrites en mémoire - pas d'idempotence
     # côté agent, le desktop dédupe lors de l'apply si nécessaire.
     proposals = _proposals_from(memory)
     assert proposals, "expected fresh proposals despite prior gov.db rules"
@@ -149,7 +149,7 @@ async def test_continues_when_permission_rule_list_fails() -> None:
 
     await _persist_proposed_permission_rules(ctx)
 
-    # On a quand même écrit les propositions — la défaillance de l'historique
+    # On a quand même écrit les propositions - la défaillance de l'historique
     # ne doit pas bloquer la dérivation.
     proposals = _proposals_from(memory)
     assert proposals, "expected proposals despite list failure"
@@ -167,7 +167,7 @@ async def test_runs_without_tools_attribute() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tests — matrix coverage (sovereignty × hitl × integrations)
+# Tests - matrix coverage (sovereignty × hitl × integrations)
 # ---------------------------------------------------------------------------
 
 

@@ -1,4 +1,4 @@
-//! E2E test — chat session lifecycle: create → send → receive → close.
+//! E2E test - chat session lifecycle: create → send → receive → close.
 
 /// Verifies the full Libre chat flow:
 /// 1. Create a Libre session.
@@ -9,7 +9,7 @@
 /// A 503 from the sessions endpoint signals that the chat subsystem is not
 /// configured; the test exits early with a pass in that case.
 #[tokio::test]
-#[ignore = "E2E test — requires running runtime and desktop app"]
+#[ignore = "E2E test - requires running runtime and desktop app"]
 async fn test_chat_create_session_send_receive() {
     super::with_retry(|| async {
         let client = super::http_client()?;
@@ -22,7 +22,7 @@ async fn test_chat_create_session_send_receive() {
             .await?;
 
         if create_resp.status().as_u16() == 503 {
-            // Chat subsystem not configured — treat as pass.
+            // Chat subsystem not configured - treat as pass.
             return Ok(());
         }
 

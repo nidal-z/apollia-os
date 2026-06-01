@@ -3,7 +3,7 @@
    * Chat shortcuts help dialog.
    *
    * Lists every binding currently registered in `$shortcuts`, grouped
-   * by `group`. Opened by `Cmd+/` from the central chat handler — the
+   * by `group`. Opened by `Cmd+/` from the central chat handler - the
    * caller binds `open` and the dialog closes on Esc or backdrop click.
    *
    * Distinct from the global `?` overlay (KeyboardHintOverlay) which is

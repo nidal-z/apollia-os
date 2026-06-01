@@ -1,7 +1,7 @@
 //! Helpers SQLite partagés pour les migrations idempotentes du schéma de gouvernance.
 //!
 //! Ces helpers permettent d'ajouter une colonne à une table existante sans
-//! échouer si la colonne est déjà présente — utile lors de la migration
+//! échouer si la colonne est déjà présente - utile lors de la migration
 //! d'une base `permissions.db` legacy vers le schéma `governance.db` étendu.
 
 use rusqlite::Connection;

@@ -1,4 +1,4 @@
-"""ctx.stt — Speech-to-Text."""
+"""ctx.stt - Speech-to-Text."""
 
 from __future__ import annotations
 

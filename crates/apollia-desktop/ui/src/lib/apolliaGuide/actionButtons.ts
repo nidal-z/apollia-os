@@ -1,10 +1,10 @@
 /**
- * Apollia Guide — action button helpers.
+ * Apollia Guide - action button helpers.
  *
  * The meta-chat coach (backend `apollia_coach_invoke`) returns structured
  * `action_buttons` alongside its narrative text. The frontend renders them
  * inline inside the reply bubble. To keep the attack surface minimal and
- * prevent prompt-injected links, we enforce a **strict allowlist** here —
+ * prevent prompt-injected links, we enforce a **strict allowlist** here -
  * both the action kind AND the payload shape are validated before the
  * button is rendered.
  *
@@ -20,7 +20,7 @@ export type CoachActionKind = "navigate" | "invoke";
 
 /**
  * Raw action button as received from the backend. Shape mirrors the Rust
- * `ActionButton` struct — `payload` is untyped on purpose because it
+ * `ActionButton` struct - `payload` is untyped on purpose because it
  * varies per action kind.
  */
 export interface RawActionButton {
@@ -33,7 +33,7 @@ export interface RawActionButton {
 export interface SafeActionButton {
   label: string;
   action: CoachActionKind;
-  /** Resolved, allowlisted target — `Route` for navigate, command name for invoke. */
+  /** Resolved, allowlisted target - `Route` for navigate, command name for invoke. */
   target: string;
   /** Extra query string for navigate actions (e.g. `wizard=open`). `""` when absent. */
   query: string;
@@ -41,7 +41,7 @@ export interface SafeActionButton {
 
 /**
  * Allowlist of routes the coach is allowed to deep-link to. Mirrors the
- * `_ALLOWED_ROUTES` set in `agent.py` — routes absent from this list are
+ * `_ALLOWED_ROUTES` set in `agent.py` - routes absent from this list are
  * dropped silently.
  */
 const ROUTE_ALLOWLIST: Record<string, Route> = {
@@ -63,7 +63,7 @@ const ROUTE_ALLOWLIST: Record<string, Route> = {
 };
 
 /**
- * Allowlist of Tauri commands the coach may invoke. Currently empty — the
+ * Allowlist of Tauri commands the coach may invoke. Currently empty - the
  * `invoke` action kind is reserved for future capabilities (e.g. "Run the
  * onboarding tour from here"). Commands must be explicitly added here AND
  * must be read-only / idempotent.
@@ -72,7 +72,7 @@ const INVOKE_ALLOWLIST = new Set<string>([]);
 
 /**
  * Parse a raw action button. Returns `null` if the button fails validation
- * — the caller should skip rendering it.
+ * - the caller should skip rendering it.
  */
 export function validateActionButton(raw: RawActionButton): SafeActionButton | null {
   if (!raw || typeof raw.label !== "string" || !raw.label.trim()) return null;
@@ -125,7 +125,7 @@ export function sanitizeActionButtons(raw: RawActionButton[] | null | undefined)
  * so downstream code that reads the query (e.g. the automation wizard's
  * `?wizard=open`) keeps working.
  *
- * For `invoke`, reserved for future use — currently a no-op warning.
+ * For `invoke`, reserved for future use - currently a no-op warning.
  */
 export async function executeActionButton(btn: SafeActionButton): Promise<void> {
   if (btn.action === "navigate") {

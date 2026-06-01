@@ -4,7 +4,7 @@
   import type { Snippet } from "svelte";
 
   /**
-   * Badge — unified variants (+).
+   * Badge - unified variants (+).
    *
    * Canonical variants: `neutral | primary | success | warning | danger | info`.
    * Premium variants: `gradient-primary | gradient-success | gradient-warning | gradient-destructive`.
@@ -30,7 +30,7 @@
     | "gradient-success"
     | "gradient-warning"
     | "gradient-destructive"
-    // legacy aliases — do not remove without migrating call-sites first.
+    // legacy aliases - do not remove without migrating call-sites first.
     | "default"
     | "secondary"
     | "destructive";
@@ -45,7 +45,7 @@
     variant?: Variant;
     size?: Size;
     /**
-     * Outline mode — drops the variant's filled background and keeps only the
+     * Outline mode - drops the variant's filled background and keeps only the
      * variant's foreground colour against a transparent surface with a
      * `border-border` ring. Lets a "primary outline" badge coexist with a
      * "primary filled" badge without duplicating variants.
@@ -55,14 +55,14 @@
     children?: Snippet;
     /**
      * When provided, the Badge renders as a `<button>` with focus ring,
-     * cursor-pointer and hover state — for filter chips and toggles.
+     * cursor-pointer and hover state - for filter chips and toggles.
      * When absent, the Badge stays a decorative `<div>`.
      */
     onclick?: (e: MouseEvent) => void;
   } & Omit<HTMLButtonAttributes, "class" | "onclick">
     & Omit<HTMLAttributes<HTMLElement>, "class" | "onclick">;
 
-  // Shared inset rim for gradient variants — white highlight at top.
+  // Shared inset rim for gradient variants - white highlight at top.
   const gradientInset = "shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]";
 
   const variantClasses: Record<Variant, string> = {

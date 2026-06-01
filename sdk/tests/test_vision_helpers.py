@@ -17,7 +17,7 @@ from apollia.types import (
 )
 
 
-# Minimal PNG header (8-byte signature) — enough for ``mimetypes`` and base64.
+# Minimal PNG header (8-byte signature) - enough for ``mimetypes`` and base64.
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
@@ -112,7 +112,7 @@ def test_image_from_path_rejects_non_image(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_mock_llm_proxy_accepts_multimodal_messages() -> None:
     """An agent that sends an ImageContent block through ``ctx.llm.complete``
-    must reach the proxy unchanged — the mock records the full message list,
+    must reach the proxy unchanged - the mock records the full message list,
     including the typed image block, so the agent author can assert the wiring.
     """
     from apollia.testing.mocks import MockLlmProxy
@@ -128,7 +128,7 @@ async def test_mock_llm_proxy_accepts_multimodal_messages() -> None:
 
     response = await llm.complete([msg])
 
-    # The mock records the prompt verbatim — the image dict survives.
+    # The mock records the prompt verbatim - the image dict survives.
     assert llm.call_count == 1
     recorded = llm.prompts[0]
     assert isinstance(recorded, list)

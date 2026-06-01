@@ -12,7 +12,7 @@
     icon?: typeof Icon;
     trailing?: Snippet;
     /**
-     * Vertical density — mirrors `Input.size`.
+     * Vertical density - mirrors `Input.size`.
      * - `sm`      = `min-h-[64px] px-2 py-1 text-xs`
      * - `default` = `min-h-[80px] px-3 py-2 text-sm` (current default)
      * - `lg`      = `min-h-[120px] px-4 py-2.5 text-base`

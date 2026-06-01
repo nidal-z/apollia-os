@@ -1,4 +1,4 @@
-# ADR-019 — Trait AgentLoader pour decoupler apollia-runtime de PyO3
+# ADR-019 - Trait AgentLoader pour decoupler apollia-runtime de PyO3
 
 **Date :** 2026-03-06
 **Statut :** Accepte
@@ -37,15 +37,15 @@ L'implementation concrete `AIPAgentLoader` vit dans `apollia-cli` (qui depend de
 
 ## Alternatives considerees
 
-### Option A — apollia-runtime depend directement de apollia-aip (rejetee)
+### Option A - apollia-runtime depend directement de apollia-aip (rejetee)
 **Pour :** Simple, aucune abstraction necessaire.
 **Contre :** Couple le runtime a PyO3 (toute compilation du runtime necessite Python link). Les 73 tests existants deviendraient dependants de Python. Viole le pattern etabli par ADR-015/016.
 
-### Option B — Feature flag `python` sur apollia-runtime (rejetee)
+### Option B - Feature flag `python` sur apollia-runtime (rejetee)
 **Pour :** Le runtime reste compilable sans Python, activation optionnelle.
 **Contre :** Complexite conditionnelle (`#[cfg(feature = "python")]` partout), deux chemins de code a maintenir, les tests doivent couvrir les deux configurations.
 
-### Option retenue — Trait `AgentLoader` injectable via `Arc<dyn AgentLoader>`
+### Option retenue - Trait `AgentLoader` injectable via `Arc<dyn AgentLoader>`
 **Pour :** Tests unitaires sans Python (mock loader), runtime decouple de l'implementation Python, pattern coherent avec ADR-015/016, zero dependance PyO3 dans apollia-runtime.
 **Compromis acceptes :** Un champ `agent_loader` ajoute a `AppState`. Les tests existants doivent fournir un mock loader (trivial).
 
@@ -66,8 +66,8 @@ L'implementation concrete `AIPAgentLoader` vit dans `apollia-cli` (qui depend de
 
 ## Principes architecturaux impactes
 
-- Principe #3 — Contrat minimal : Respecte. Le trait expose seulement `load_and_validate(path) -> Result<AgentManifest>`.
-- Principe #5 — Un acteur, une responsabilite : Respecte. Le loader charge, le handler enregistre.
+- Principe #3 - Contrat minimal : Respecte. Le trait expose seulement `load_and_validate(path) -> Result<AgentManifest>`.
+- Principe #5 - Un acteur, une responsabilite : Respecte. Le loader charge, le handler enregistre.
 
 ## Liens
 

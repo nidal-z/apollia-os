@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * PageLayout — canonical route container.
+   * PageLayout - canonical route container.
    *
    * Enforces the Dashboard/Chat/Agents reference layout:
    *   • `mx-auto w-full max-w-6xl` centred container

@@ -196,7 +196,7 @@ export interface AgentListItem {
    * Plusieurs agents d'un même package partagent souvent le même namespace
    * (ex. : tous les agents du package `veille-ia` déclarent
    * `memory_namespace = "veille-ia"`), donc cette valeur n'est jamais
-   * dérivée de `name` — elle vient toujours du manifest.
+   * dérivée de `name` - elle vient toujours du manifest.
    */
   memory_namespace: string | null;
   /** Namespaces mémoire partagés accessibles en lecture par l'agent. */
@@ -402,7 +402,7 @@ export interface TaskFilter {
   agent_id?: string;
 }
 
-/** Backend LLM configuré — vue CRUD retournée par `list_llm_backends`. */
+/** Backend LLM configuré - vue CRUD retournée par `list_llm_backends`. */
 export interface LlmBackendConfig {
   name: string;
   provider: "llama-cpp" | "openai" | "mistral" | "anthropic" | "ollama";
@@ -824,7 +824,7 @@ export interface RetryAttempt {
   reason?: ErrorAnalysis | null;
 }
 
-/** LLM fallback snapshot — emitted when the router switches provider. */
+/** LLM fallback snapshot - emitted when the router switches provider. */
 export interface LlmFallback {
   from_provider: string;
   to_provider: string;
@@ -864,7 +864,7 @@ export interface ToolAuthorizationRequest {
   decision: "accept" | "refuse" | "always_accept";
 }
 
-/** Pending chat tool approval — tracked globally so it survives page navigation. */
+/** Pending chat tool approval - tracked globally so it survives page navigation. */
 export interface PendingChatApproval {
   sessionId: string;
   messageId: string;
@@ -873,7 +873,7 @@ export interface PendingChatApproval {
   receivedAt: string;
 }
 
-/** Pending ask_user request — tracked globally so it survives page navigation. */
+/** Pending ask_user request - tracked globally so it survives page navigation. */
 export interface PendingUserInputView {
   request_id: string;
   session_id: string;
@@ -882,7 +882,7 @@ export interface PendingUserInputView {
   created_at: string;
 }
 
-// ─── Sprint 20 — Système Agentique Amélioré ─────────────────────────────────
+// ─── Sprint 20 - Système Agentique Amélioré ─────────────────────────────────
 
 /** Résumé d'un outil pour l'affichage en liste. */
 export interface ToolSummary {
@@ -1158,7 +1158,7 @@ export interface SttConfigView {
   trigger_mode: string;
 }
 
-/** Configuration STT — vue CRUD avec types stricts (miroir de `SttConfigRow`). */
+/** Configuration STT - vue CRUD avec types stricts (miroir de `SttConfigRow`). */
 export interface SttConfig {
   enabled: boolean;
   model_path: string;
@@ -1650,7 +1650,7 @@ export type DecisionKind =
 export interface ConsideredAlternative {
   label: string;
   rejected_reason: string;
-  /** Signed gap in confidence vs the chosen path — expected ≤ 0. */
+  /** Signed gap in confidence vs the chosen path - expected ≤ 0. */
   confidence_delta: number;
 }
 
@@ -1724,7 +1724,7 @@ export interface SessionMetricsUpdatedEvent {
   alert: BudgetAlertLevel;
 }
 
-// ─── ask_user tool — dynamic form payload ─────────────────────────────────
+// ─── ask_user tool - dynamic form payload ─────────────────────────────────
 
 /** Type de question posée par un agent via le tool `ask_user`. */
 export type AskUserQuestionType = "open" | "single_choice" | "multi_choice";

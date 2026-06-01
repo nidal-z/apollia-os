@@ -17,7 +17,7 @@ beforeEach(() => {
 
 // ── Route context propagation ─────────────────────────────────────────────────
 
-describe("CompanionContextProvider — route context", () => {
+describe("CompanionContextProvider - route context", () => {
   test("context text for a known route is stored in companionStore", async () => {
     // GIVEN the backend returns a specific text for /memory
     const memoryContext =
@@ -71,7 +71,7 @@ function createDebouncedContextUpdater(
   };
 }
 
-describe("CompanionContextProvider — debounce", () => {
+describe("CompanionContextProvider - debounce", () => {
   test("rapid route changes result in only the last route being processed", () => {
     // GIVEN a debounced updater with fake timers
     vi.useFakeTimers();

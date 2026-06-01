@@ -10,7 +10,9 @@
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Please report security issues by email to: **security@apollia.dev**
+Please report security issues privately through
+[GitHub Security Advisories](https://github.com/Apollia-OS/apollia-os/security/advisories/new).
+If you cannot use GitHub Advisories, email **admin@apollia.fr** instead.
 
 Include in your report:
 - A description of the vulnerability and its potential impact

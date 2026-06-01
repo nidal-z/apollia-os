@@ -36,7 +36,7 @@ export interface LlmCallFailedPayload {
   backend: string;
   model: string;
   error: string;
-  /** ErrorAnalysis (catégorie, sévérité, hint…) — opaque côté UI pour l'instant. */
+  /** ErrorAnalysis (catégorie, sévérité, hint…) - opaque côté UI pour l'instant. */
   analysis: Record<string, unknown>;
 }
 
@@ -94,7 +94,7 @@ export interface ActionParseErrorPayload {
 
 /** Champs communs à tous les événements de trace. */
 interface RuntimeEventBase {
-  /** UUID v7 — clé primaire ordonnée chronologiquement. */
+  /** UUID v7 - clé primaire ordonnée chronologiquement. */
   eventId: string;
   /** Tâche concernée. */
   taskId: string;
@@ -110,7 +110,7 @@ interface RuntimeEventBase {
   ts: string;
 }
 
-/** Discriminated union — narrowing par `kind`. */
+/** Discriminated union - narrowing par `kind`. */
 export type RuntimeEventDto =
   | (RuntimeEventBase & { kind: "agent_log"; payload: AgentLogPayload })
   | (RuntimeEventBase & { kind: "thought"; payload: ThoughtPayload })

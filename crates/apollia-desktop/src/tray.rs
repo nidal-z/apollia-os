@@ -47,7 +47,7 @@ pub fn format_tooltip(active_agents: usize, pending_approvals: usize) -> String 
     if parts.is_empty() {
         "Apollia OS".to_string()
     } else {
-        format!("Apollia OS — {}", parts.join(", "))
+        format!("Apollia OS - {}", parts.join(", "))
     }
 }
 
@@ -214,7 +214,7 @@ mod tests {
         // GIVEN 1 active agent and no approvals
         let tooltip = format_tooltip(1, 0);
         // THEN it uses singular form
-        assert_eq!(tooltip, "Apollia OS — 1 agent actif");
+        assert_eq!(tooltip, "Apollia OS - 1 agent actif");
     }
 
     #[test]
@@ -222,7 +222,7 @@ mod tests {
         // GIVEN 3 active agents and no approvals
         let tooltip = format_tooltip(3, 0);
         // THEN it uses plural form
-        assert_eq!(tooltip, "Apollia OS — 3 agents actifs");
+        assert_eq!(tooltip, "Apollia OS - 3 agents actifs");
     }
 
     #[test]
@@ -232,7 +232,7 @@ mod tests {
         // THEN both are shown
         assert_eq!(
             tooltip,
-            "Apollia OS — 3 agents actifs, 2 approbations en attente"
+            "Apollia OS - 3 agents actifs, 2 approbations en attente"
         );
     }
 
@@ -243,7 +243,7 @@ mod tests {
         // THEN singular forms are used
         assert_eq!(
             tooltip,
-            "Apollia OS — 1 agent actif, 1 approbation en attente"
+            "Apollia OS - 1 agent actif, 1 approbation en attente"
         );
     }
 
@@ -252,7 +252,7 @@ mod tests {
         // GIVEN no agents but 3 pending approvals
         let tooltip = format_tooltip(0, 3);
         // THEN only approvals are shown
-        assert_eq!(tooltip, "Apollia OS — 3 approbations en attente");
+        assert_eq!(tooltip, "Apollia OS - 3 approbations en attente");
     }
 
     #[test]

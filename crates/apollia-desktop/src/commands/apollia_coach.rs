@@ -77,7 +77,7 @@ pub async fn apollia_coach_invoke(
         guard
             .as_ref()
             .cloned()
-            .ok_or_else(|| "LLM backend not configured — open Settings → LLM".to_string())?
+            .ok_or_else(|| "LLM backend not configured - open Settings → LLM".to_string())?
     };
 
     let response = invoke_apollia_coach(

@@ -1,4 +1,4 @@
-"""``apollia inspect`` — load an agent module and display its generated manifest.
+"""``apollia inspect`` - load an agent module and display its generated manifest.
 
 The command performs read-only introspection: it loads the target ``.py``
 file as a module, extracts the canonical manifest produced by ``@agent``
@@ -82,7 +82,7 @@ def _load_agent_module(path: Path) -> ModuleType:
     finally:
         if inserted_path and parent in sys.path:
             sys.path.remove(parent)
-        # Restore any pre-existing entry under the same name (paranoia —
+        # Restore any pre-existing entry under the same name (paranoia -
         # we use a private prefix so collisions are unlikely).
         if previous_module is not None:
             sys.modules[module_name] = previous_module
@@ -280,7 +280,7 @@ def _skill_lines(skill: dict[str, Any]) -> list[str]:
     sdesc = skill.get("description", "") or ""
     head = f"  • {sid}"
     if sdesc:
-        head += f" — {sdesc}"
+        head += f" - {sdesc}"
     lines = [
         head,
         f"    Input:  {_format_schema_brief(skill.get('input_schema', {}))}",
@@ -410,7 +410,7 @@ def _load_module_for_inspect(
     except ValueError as exc:
         _emit_error(json_mode, error_text=str(exc), stderr_text=str(exc))
         return None, 2
-    except Exception as exc:  # noqa: BLE001 — surface every load error
+    except Exception as exc:  # noqa: BLE001 - surface every load error
         message = f"Failed to load module: {exc}"
         _emit_error(
             json_mode,
@@ -425,9 +425,9 @@ def inspect_command(args: argparse.Namespace) -> int:
     """Execute ``apollia inspect`` and return a process exit code.
 
     Exit codes:
-        - ``0`` — success
-        - ``1`` — load failure or invalid manifest
-        - ``2`` — argument / path error (file missing, wrong suffix)
+        - ``0`` - success
+        - ``1`` - load failure or invalid manifest
+        - ``2`` - argument / path error (file missing, wrong suffix)
     """
     json_mode = bool(getattr(args, "json", False))
     path = Path(args.agent_path).resolve()
@@ -468,7 +468,7 @@ def build_parser(subparsers: Any) -> argparse.ArgumentParser:
         help="Inspect an agent module without running it",
         description=(
             "Load an agent .py file and display the manifest the runtime "
-            "would see. Read-only — no task is executed."
+            "would see. Read-only - no task is executed."
         ),
     )
     p.add_argument("agent_path", help="Path to the agent .py file")

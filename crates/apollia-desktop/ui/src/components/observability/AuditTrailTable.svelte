@@ -32,7 +32,7 @@
     }),
   );
 
-  /** Status of an audit entry — derived from exit_code + stderr presence.
+  /** Status of an audit entry - derived from exit_code + stderr presence.
    *  An MCP tool with no exit_code is considered "ok" unless stderr is set. */
   type EntryStatus = "ok" | "error" | "unknown";
 
@@ -78,7 +78,7 @@
   }
 
   function formatDuration(ms: number | null): string {
-    if (ms === null || ms === undefined) return "—";
+    if (ms === null || ms === undefined) return "-";
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
   }
@@ -120,7 +120,7 @@
 </script>
 
 <div class="space-y-5">
-  <!-- Purpose banner — explains why audit trail matters, premium framing. -->
+  <!-- Purpose banner - explains why audit trail matters, premium framing. -->
   <aside
     class="glass-card glass-border rounded-xl px-5 py-4 flex items-start gap-3"
     data-testid="audit-purpose"
@@ -173,7 +173,7 @@
           {$t('observability.audit_kpi_avg_duration')}
         </div>
         <div class="text-[20px] font-semibold tabular-nums leading-none">
-          {stats.avgMs > 0 ? formatDuration(Math.round(stats.avgMs)) : "—"}
+          {stats.avgMs > 0 ? formatDuration(Math.round(stats.avgMs)) : "-"}
         </div>
       </article>
     </div>

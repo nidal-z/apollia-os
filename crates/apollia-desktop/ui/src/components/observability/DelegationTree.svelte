@@ -93,7 +93,7 @@
       >
         {#each tasks as task (task.id)}
           <option value={task.id}>
-            {task.agent_name || task.id.slice(0, 8)} — {task.status} ({task.id.slice(0, 8)})
+            {task.agent_name || task.id.slice(0, 8)} - {task.status} ({task.id.slice(0, 8)})
           </option>
         {/each}
       </Select>

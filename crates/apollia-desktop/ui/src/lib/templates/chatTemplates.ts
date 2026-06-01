@@ -16,7 +16,7 @@ import {
 } from "lucide-svelte";
 
 export interface ChatTemplate {
-  /** Stable id — used for analytics & localStorage. */
+  /** Stable id - used for analytics & localStorage. */
   id: string;
   /** i18n key for the card title. */
   titleKey: string;

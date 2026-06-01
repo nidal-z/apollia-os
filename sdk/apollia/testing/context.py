@@ -6,7 +6,7 @@ queues, ``values`` dicts) so tests can drive scenarios and assert what
 happened.
 
 These mocks intentionally implement only the surface methods agents use
-at runtime.  They are *not* full duck-types — calling a method that has
+at runtime.  They are *not* full duck-types - calling a method that has
 not been implemented will raise :class:`AttributeError`, which keeps the
 test surface small and intentional.
 """
@@ -109,7 +109,7 @@ class MockTemplates:
 
     Pre-configure ``templates`` with ``{name: template_string}``.  The
     mock applies a minimal ``{{ var }}`` / ``{{var}}`` substitution
-    instead of running a real Jinja2 engine — sufficient for unit tests
+    instead of running a real Jinja2 engine - sufficient for unit tests
     that only care about which template was rendered with what context.
 
     Track via ``render_calls``: ordered list of ``(name, context_dict)``.
@@ -267,7 +267,7 @@ class MockStt:
         self.transcribe_calls: list[tuple[str, str | None, str | None]] = []
         self.transcribe_responses: list[str] = []
 
-    async def transcribe(  # NOSONAR S7503 — Protocol contract
+    async def transcribe(  # NOSONAR S7503 - Protocol contract
         self,
         path: str,
         *,
@@ -293,7 +293,7 @@ class MockNotify:
     def __init__(self) -> None:
         self.published: list[dict[str, Any]] = []
 
-    async def publish(  # NOSONAR S7503 — Protocol contract
+    async def publish(  # NOSONAR S7503 - Protocol contract
         self,
         message: str,
         *,
@@ -315,7 +315,7 @@ class MockNotify:
 class MockBudget:
     """In-memory mock of the ``Budget`` Protocol.
 
-    All fields are public attributes — assign before calling the agent
+    All fields are public attributes - assign before calling the agent
     to simulate budget constraints.  Defaults imply "no limit".
     """
 

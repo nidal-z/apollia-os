@@ -31,7 +31,7 @@ from apollia.testing import (
 # Module-fixture machinery
 #
 # ``@agent`` refuses to register two different classes inside
-# the same Python module — the test_*.py file itself would have an
+# the same Python module - the test_*.py file itself would have an
 # ``agent`` symbol clash with the imported decorator.  We therefore
 # build fresh, unique fake modules for every fixture class.
 # ──────────────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ def _prepare_ctx(ctx: MockContext) -> MockContext:
 
 
 class NotAnAgent:
-    """Plain class — not decorated with @agent."""
+    """Plain class - not decorated with @agent."""
 
 
 # ──────────────────────────────────────────────────────────────────────

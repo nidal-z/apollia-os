@@ -1,4 +1,4 @@
-# ADR-013 — Configuration PyO3 Python sur macOS via PYO3_PYTHON
+# ADR-013 - Configuration PyO3 Python sur macOS via PYO3_PYTHON
 
 **Date :** 2026-03-06
 **Statut :** Accepté
@@ -32,19 +32,19 @@ Sur Linux (CI et production), aucune configuration supplémentaire n'est nécess
 
 ## Alternatives considérées
 
-### Option A — Forcer PYO3_PYTHON dans .cargo/config.toml (rejetée)
+### Option A - Forcer PYO3_PYTHON dans .cargo/config.toml (rejetée)
 **Pour :** Configuration automatique pour tous les développeurs macOS.
 **Contre :** Le chemin Homebrew varie selon la version Python installée et l'architecture (Intel vs ARM). Un chemin en dur casserait sur d'autres machines. Viole la portabilité.
 
-### Option B — Exiger Xcode.app complet au lieu de CommandLineTools (rejetée)
+### Option B - Exiger Xcode.app complet au lieu de CommandLineTools (rejetée)
 **Pour :** Le chemin Python serait correct.
 **Contre :** Xcode.app pèse 12+ GB. Disproportionné pour un problème de link Python. Non justifiable pour les contributeurs.
 
-### Option C — Pinner PyO3 à une version qui résout automatiquement le chemin (rejetée)
+### Option C - Pinner PyO3 à une version qui résout automatiquement le chemin (rejetée)
 **Pour :** Zéro configuration.
 **Contre :** PyO3 0.22 délègue la résolution à `python3-config` qui retourne un chemin incorrect avec le Python system macOS. Ce n'est pas un bug PyO3 mais une spécificité CommandLineTools.
 
-### Option retenue — PYO3_PYTHON vers Homebrew Python
+### Option retenue - PYO3_PYTHON vers Homebrew Python
 **Pour :** Simple, explicite, fonctionne sur toutes les machines macOS avec Homebrew. Compatible avec le Principe #8 (CLI humaine).
 **Compromis acceptés :** Le développeur doit installer Python via Homebrew et configurer une variable d'environnement.
 
@@ -65,7 +65,7 @@ Sur Linux (CI et production), aucune configuration supplémentaire n'est nécess
 
 ## Principes architecturaux impactés
 
-- Principe #2 — Zéro dépendance externe : Homebrew Python est une dépendance de développement, pas de production. Le binaire compilé embarque le runtime Python via PyO3. Pas de violation.
+- Principe #2 - Zéro dépendance externe : Homebrew Python est une dépendance de développement, pas de production. Le binaire compilé embarque le runtime Python via PyO3. Pas de violation.
 
 ## Liens
 

@@ -691,7 +691,7 @@ impl McpClientManager {
                 tracing::error!(
                     server = %name,
                     error = %e,
-                    "MCP server hot reload failed — server removed from managed set"
+                    "MCP server hot reload failed - server removed from managed set"
                 );
                 return Err(e);
             }
@@ -1123,7 +1123,7 @@ fn log_session_start_error(server_name: &str, e: &McpSessionError) {
         tracing::warn!(
             server = %server_name,
             error = %e,
-            "MCP server skipped — OAuth not yet configured"
+            "MCP server skipped - OAuth not yet configured"
         );
     } else {
         tracing::error!(

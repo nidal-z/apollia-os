@@ -1,12 +1,12 @@
 <script lang="ts" context="module">
   /**
-   * Settings → Observability — fenêtre de la config `[observability]` du
+   * Settings → Observability - fenêtre de la config `[observability]` du
    * fichier `apollia.toml` (ADR-088, Lot 3).
    *
    * Pour la phase MVP, on affiche les valeurs courantes en lecture seule
    * et on offre un bouton « Modifier dans apollia.toml » qui ouvre le
    * fichier dans l'éditeur système. Le CRUD live des toggles arrivera
-   * dans un Lot ultérieur — préserver le fichier comme source de vérité
+   * dans un Lot ultérieur - préserver le fichier comme source de vérité
    * a moins de risque qu'un système de double écriture.
    */
   export const meta = {
@@ -24,7 +24,7 @@
   import { Activity, ExternalLink } from "lucide-svelte";
 
   /**
-   * Vue plate de la config — lit les valeurs depuis `apollia.toml` via la
+   * Vue plate de la config - lit les valeurs depuis `apollia.toml` via la
    * commande Tauri `get_config` quand celle-ci sera étendue. En attendant,
    * on affiche les defaults documentés.
    */

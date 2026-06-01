@@ -1,7 +1,7 @@
-# `apollia-os` — référence CLI
+# `apollia-os` - référence CLI
 
 > Référence technique exhaustive, complémentaire au [book pédagogique][book].
-> Snapshot **2026-05-27** (sprint CLI v0.1.0 — rattrapage + polish).
+> Snapshot **2026-05-27** (sprint CLI v0.1.0 - rattrapage + polish).
 >
 > Tous les exemples supposent que le binaire `apollia-os` est sur le `PATH` et
 > que le daemon est démarré (sauf mention "local-first").
@@ -125,7 +125,7 @@ Canaux de notification + types d'événements.
 - `model delete <name> --confirm` : suppression locale.
 
 ### `trigger <list|status|fire|enable|disable|logs|reload|create|update|delete>`
-CRUD complet de triggers — 5 kinds supportés : `cron`, `interval`, `oneshot`, `filewatch`, `webhook`.
+CRUD complet de triggers - 5 kinds supportés : `cron`, `interval`, `oneshot`, `filewatch`, `webhook`.
 - `trigger create <id> --agent NAME --kind KIND --detail VALUE [--on-busy queue|drop] [--input TEMPLATE]` :
   - `--detail` mappé selon le kind : expression cron / durée (`30m`, `1h`) / RFC 3339 / path / shared HMAC-SHA256 secret (≥ 32 chars validé côté CLI).
   - `--on-busy queue` (défaut) enfile les déclenchements pendant qu'une tâche tourne ; `drop` jette.
@@ -140,7 +140,7 @@ Gestion des serveurs MCP + queue d'approbations HITL + secrets serveurs + flow O
 - `mcp oauth client-id set <env_var> <value>` / `clear <env_var>` : surchage le client_id par-env-var en keychain (`apollia-mcp-client-ids`).
 - `mcp oauth discover <server> [--db PATH]` : RFC 9728 + RFC 8414 discovery contre le serveur. Read-only, pas d'échange de token.
 
-**Déférés v0.1.1** : `mcp catalogue` (browse registry) et `mcp enrichments list` — backend dans `apollia-desktop`, cross-crate refactor requis.
+**Déférés v0.1.1** : `mcp catalogue` (browse registry) et `mcp enrichments list` - backend dans `apollia-desktop`, cross-crate refactor requis.
 
 ### `workspace <status|init>`
 Inspection du workspace + génération `APOLLIA.md`.
@@ -198,7 +198,7 @@ Gestion globale de `apollia.toml` :
 - `config validate` : parse + reporting d'erreur.
 - `config edit` : ouvre `$EDITOR`.
 - `config show` : sortie JSON du parse.
-- `config reset --confirm [--dry-run] [--home PATH]` : factory reset. Wipe les enfants de `~/.apollia/` (databases, journals, models, configs). Les entrées keychain OS ne sont **pas** touchées — utiliser `auth logout`, `connector revoke`, `mcp oauth logout` pour les nettoyer.
+- `config reset --confirm [--dry-run] [--home PATH]` : factory reset. Wipe les enfants de `~/.apollia/` (databases, journals, models, configs). Les entrées keychain OS ne sont **pas** touchées - utiliser `auth logout`, `connector revoke`, `mcp oauth logout` pour les nettoyer.
 
 ### `connector <list|accounts|test|revoke|client-id|client-secret|api-key|drive>`
 Connecteurs SaaS natifs (Google Workspace, Microsoft 365).
@@ -207,7 +207,7 @@ Connecteurs SaaS natifs (Google Workspace, Microsoft 365).
 - `connector test <provider> <account>` : health check (userinfo round-trip + scopes).
 - `connector revoke <provider> <account> --confirm` : supprime le token local.
 
-**Mode Expert OAuth (power user)** — paramétrer ses propres credentials Google/Microsoft, sans toucher au binaire :
+**Mode Expert OAuth (power user)** - paramétrer ses propres credentials Google/Microsoft, sans toucher au binaire :
 - `connector client-id list` / `set <provider> <client_id>` : override `oauth-clients.toml` (résolution `env var > file > compiled default`).
 - `connector client-secret set <provider> <secret>` : idem pour le client secret (Google only).
 - `connector api-key set <provider> <key>` : idem pour l'API key (Google Picker).
@@ -219,7 +219,7 @@ Local-first sur `~/.apollia/projects.db`.
 - `project create <name> [--description] [--instructions] [--workspace DIR]`
 - `project agents <list|add|remove> <project> <agent>`
 - `project templates <list|seed-builtins>`
-- `project link <project_id> --session <chat_session_id> [--unlink] [--chat-db PATH]` : attache (ou détache via `--unlink`) une session chat existante à un projet — écrit `chat_sessions.project_id` directement dans `~/.apollia/chat.db`.
+- `project link <project_id> --session <chat_session_id> [--unlink] [--chat-db PATH]` : attache (ou détache via `--unlink`) une session chat existante à un projet - écrit `chat_sessions.project_id` directement dans `~/.apollia/chat.db`.
 - `project chats <project_id> [--chat-db PATH]` : liste les sessions chat liées à un projet.
 
 ### `user-memory <show|set|forget|reset|schema|export|import>`
@@ -240,12 +240,12 @@ Configuration du Chat Libre (`governance.db`).
 ## Decisions
 
 Les choix architecturaux derrière le CLI sont tracés dans :
-- ADR-008 — pattern noun-verb
-- ADR-064 — OAuth2 PKCE + keyring
-- ADR-088 — trace event-sourced
-- ADR-098 — SDK Python rebuild (impacte `agent install` / `agent new`)
-- [docs/wiki/Briques-CLI.md][briques] — spec d'origine
-- [docs/internal/release/CLI-STATE.md][state] — état pré-release v0.1.0 + gaps Desktop attendus
+- ADR-008 - pattern noun-verb
+- ADR-064 - OAuth2 PKCE + keyring
+- ADR-088 - trace event-sourced
+- ADR-098 - SDK Python rebuild (impacte `agent install` / `agent new`)
+- [docs/wiki/Briques-CLI.md][briques] - spec d'origine
+- [docs/internal/release/CLI-STATE.md][state] - état pré-release v0.1.0 + gaps Desktop attendus
 
 [book]: ../../book/src
 [briques]: ./Briques-CLI.md

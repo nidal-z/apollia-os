@@ -32,7 +32,7 @@ pub enum PendingApprovalError {
 /// [`ORIAEngine::execute_direct`]. Le `ResumeHandler`
 /// appelle [`resolve`] pour débloquer l'attente et transmettre la décision humaine.
 ///
-/// Cloneable via `Arc` — partagé entre `ORIAEngine` et les routes REST via `AppState`.
+/// Cloneable via `Arc` - partagé entre `ORIAEngine` et les routes REST via `AppState`.
 ///
 /// [`ORIAEngine::execute_direct`]: apollia_oria::engine::ORIAEngine::execute_direct
 /// [`resolve`]: PendingApprovals::resolve
@@ -59,7 +59,7 @@ impl PendingApprovals {
     /// L'appelant (typiquement `ORIAEngine::execute_direct`) fait `rx.await` pour se
     /// bloquer jusqu'à ce que [`resolve`] soit appelé par le `ResumeHandler`.
     ///
-    /// Si une entrée existait déjà pour ce `task_id`, elle est remplacée — l'ancien
+    /// Si une entrée existait déjà pour ce `task_id`, elle est remplacée - l'ancien
     /// sender est dropped, le receiver correspondant recevra une erreur de canal fermé.
     ///
     /// [`resolve`]: PendingApprovals::resolve
@@ -78,14 +78,14 @@ impl PendingApprovals {
         guard.keys().cloned().collect()
     }
 
-    /// Résout l'approbation en attente pour `task_id` — appelé par le `ResumeHandler`.
+    /// Résout l'approbation en attente pour `task_id` - appelé par le `ResumeHandler`.
     ///
     /// Retire l'entrée du registre et envoie `response` sur le oneshot channel.
     /// Si le receiver côté ORIA a déjà été droppé (ex: shutdown du runtime),
     /// l'erreur d'envoi est ignorée silencieusement.
     ///
     /// Retourne [`PendingApprovalError::NotFound`] si aucune approbation n'est enregistrée
-    /// pour `task_id` — typiquement si la tâche n'est pas en status `input_required`.
+    /// pour `task_id` - typiquement si la tâche n'est pas en status `input_required`.
     pub fn resolve(
         &self,
         task_id: &str,
@@ -94,7 +94,7 @@ impl PendingApprovals {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         match guard.remove(task_id) {
             Some(tx) => {
-                // Ignore send error — receiver may have been dropped on runtime shutdown.
+                // Ignore send error - receiver may have been dropped on runtime shutdown.
                 let _ = tx.send(response);
                 Ok(())
             }

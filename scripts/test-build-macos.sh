@@ -85,7 +85,7 @@ if command -v rustup &>/dev/null; then
         rustup target add aarch64-apple-darwin
     fi
 else
-    echo "    ⚠ rustup not found — skipping target verification"
+    echo "    ⚠ rustup not found - skipping target verification"
     echo "      If the build fails, install rustup from https://rustup.rs"
     echo "      (Homebrew Rust works on native arch only)"
 fi
@@ -149,7 +149,7 @@ echo "==> Building Tauri app (ARM64)"
 cd "${PROJECT_ROOT}/crates/apollia-desktop"
 
 export PYO3_PYTHON
-# python-build-standalone has hardcoded /install/lib LIBDIR — override for PyO3 link
+# python-build-standalone has hardcoded /install/lib LIBDIR - override for PyO3 link
 export RUSTFLAGS="${RUSTFLAGS:-} -L ${PYTHON_BUNDLE_DIR}/python/lib"
 echo "    PYO3_PYTHON=$PYO3_PYTHON"
 echo "    RUSTFLAGS=$RUSTFLAGS"
@@ -159,11 +159,11 @@ echo "    ✓ Tauri build completed"
 
 cd "$PROJECT_ROOT"
 
-# ── Step 5: Post-bundle — patch install_names + ad-hoc sign ─────────────────
+# ── Step 5: Post-bundle - patch install_names + ad-hoc sign ─────────────────
 if $SKIP_CODESIGN; then
     echo "==> Skipping codesigning step (--skip-codesign)"
 else
-    echo "==> Post-bundle — patch install_names + ad-hoc sign (ADR-073)"
+    echo "==> Post-bundle - patch install_names + ad-hoc sign (ADR-073)"
     cd "${PROJECT_ROOT}/crates/apollia-desktop"
 
     export TAURI_TARGET_TRIPLE="$TARGET_TRIPLE"

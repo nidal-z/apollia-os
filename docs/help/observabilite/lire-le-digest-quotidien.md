@@ -12,10 +12,10 @@
 
 2. La page affiche trois cartes côte à côte, plus une bande d'activité récente en dessous.
 
-   - **Décisions en attente** *(la plus large, à gauche)* — actions HITL en attente de votre décision. Compteur en en-tête. Liste compacte des premiers items (extraits d'inbox) ; un lien *« Voir tout → »* mène à la **Boîte de réception**.
-   - **Livrables prêts** — tâches récemment complétées. Cliquez sur une ligne pour ouvrir l'onglet **Tâches**.
-   - **Au travail** — agents actuellement actifs. Cliquez sur un agent pour ouvrir son détail.
-   ![tableau de bord en mode opérateur — 3 cartes en grille, "Décisions en attente" à gauche occupe deux colonne...](../_screenshots/observabilite-lire-le-digest-quotidien-1.png)
+   - **Décisions en attente** *(la plus large, à gauche)* - actions HITL en attente de votre décision. Compteur en en-tête. Liste compacte des premiers items (extraits d'inbox) ; un lien *« Voir tout → »* mène à la **Boîte de réception**.
+   - **Livrables prêts** - tâches récemment complétées. Cliquez sur une ligne pour ouvrir l'onglet **Tâches**.
+   - **Au travail** - agents actuellement actifs. Cliquez sur un agent pour ouvrir son détail.
+   ![tableau de bord en mode opérateur - 3 cartes en grille, "Décisions en attente" à gauche occupe deux colonne...](../_screenshots/observabilite-lire-le-digest-quotidien-1.png)
 
 3. Sous les trois cartes, la section **Activité récente** liste les dernières tâches (toutes statuts confondus) sous forme de mini-cartes. Cliquez pour ouvrir la page **Tâches**.
 
@@ -23,11 +23,11 @@
 
 ## Vérification
 
-Les compteurs des trois cartes correspondent à votre activité actuelle. Si vous lancez une nouvelle tâche, *« Au travail »* s'incrémente sans rafraîchissement manuel — les données se mettent à jour automatiquement via les flux temps réel.
+Les compteurs des trois cartes correspondent à votre activité actuelle. Si vous lancez une nouvelle tâche, *« Au travail »* s'incrémente sans rafraîchissement manuel - les données se mettent à jour automatiquement via les flux temps réel.
 
 ## Si ça ne marche pas
 
 - **Tout est vide alors qu'un agent vient de tourner** : la mise à jour temps réel a peut-être perdu sa connexion ; quittez et rouvrez l'application.
 - **Une erreur récente n'est pas visible** : ouvrez **Mes assistants**, cliquez sur l'agent concerné, ouvrez ses **Logs** pour voir le message complet (cf. [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md)).
 
-> **Référence technique :** [Ops-Exploitation-et-Debug](https://github.com/nidal-z/apollia-os/wiki/Ops-Exploitation-et-Debug)
+> **Référence technique :** [Ops-Exploitation-et-Debug](https://github.com/Apollia-OS/apollia-os/wiki/Ops-Exploitation-et-Debug)

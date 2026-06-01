@@ -627,14 +627,14 @@ pub async fn oauth_google_picker_session(
                 .await
                 .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
             accounts.into_iter().next().ok_or_else(|| {
-                IntegrationsError::Auth("no Google account connected — sign in first".into())
+                IntegrationsError::Auth("no Google account connected - sign in first".into())
             })?
         }
     };
 
     let api_key = ConnectorProvider::Google.resolve_api_key().ok_or_else(|| {
         IntegrationsError::Auth(
-            "Google API key missing — set it in Settings → Integrations → Expert Mode \
+            "Google API key missing - set it in Settings → Integrations → Expert Mode \
              (Google Cloud → Credentials → API keys, restricted to Picker + Drive APIs)"
                 .into(),
         )

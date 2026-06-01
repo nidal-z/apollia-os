@@ -1,4 +1,4 @@
-# Apollia OS — Capabilities
+# Apollia OS - Capabilities
 
 Apollia OS is a local-first runtime for autonomous AI agents.
 
@@ -6,7 +6,7 @@ Apollia OS is a local-first runtime for autonomous AI agents.
 
 - **Agents**: Run any Python agent (LangGraph, CrewAI, custom) locally via the AIP bridge.
 - **Memory**: Cross-session semantic and episodic memory stored in SQLite.
-- **Tools**: Native tools — web search, web read, file operations, bash executor, HTTP fetch.
+- **Tools**: Native tools - web search, web read, file operations, bash executor, HTTP fetch.
 - **Triggers**: Cron, interval, file watch, and webhook triggers to automate agent runs.
 - **Pipelines**: DAG-based pipelines with fan-out/fan-in, HITL approval steps, and fallback.
 - **A2A**: Director/Worker delegation pattern for multi-agent collaboration.
@@ -17,6 +17,6 @@ Apollia OS is a local-first runtime for autonomous AI agents.
 
 ## Principles
 
-1. Local-first — no user data leaves the machine without explicit action.
-2. Zero external dependencies — binary runs on any Linux without installation.
-3. Minimal contract — agents need only `manifest()` + `async run()`.
+1. Local-first - no user data leaves the machine without explicit action.
+2. Zero external dependencies - binary runs on any Linux without installation.
+3. Minimal contract - agents need only `manifest()` + `async run()`.

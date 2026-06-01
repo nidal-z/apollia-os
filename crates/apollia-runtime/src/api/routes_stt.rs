@@ -93,7 +93,7 @@ fn stt_unavailable() -> (StatusCode, Json<SttErrorResponse>) {
     (
         StatusCode::SERVICE_UNAVAILABLE,
         Json(SttErrorResponse {
-            error: "STT engine not available — stt.enabled is false or model failed to load".into(),
+            error: "STT engine not available - stt.enabled is false or model failed to load".into(),
         }),
     )
 }

@@ -1,5 +1,5 @@
 <!--
-  RichLinkPreview — OG card for a standalone link.
+  RichLinkPreview - OG card for a standalone link.
 
   Loads metadata via `fetchLinkPreview` (Tauri backend).  While loading or on
   error, falls back to rendering a plain link so the content stays readable.

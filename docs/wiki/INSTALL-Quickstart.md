@@ -1,4 +1,4 @@
-# Installation Quickstart — Apollia OS
+# Installation Quickstart - Apollia OS
 
 > Démarrer Apollia OS rapidement sur Linux ou macOS.
 > Public cible : développeur qui veut tester Apollia OS rapidement
@@ -27,8 +27,8 @@ source ~/.cargo/env
 ## Build
 
 ```bash
-# Cloner et compiler (binaire léger — backends cloud uniquement, par défaut)
-git clone https://github.com/nidal-z/apollia-os.git
+# Cloner et compiler (binaire léger - backends cloud uniquement, par défaut)
+git clone https://github.com/Apollia-OS/apollia-os.git
 cd apollia-os
 cargo build --workspace --release
 ```
@@ -48,7 +48,7 @@ Pour activer le backend embarqué (`device = "cpu"`, `"metal"`, etc.) dans `apol
 # CPU (tout matériel)
 cargo build --workspace --release --features local
 
-# GPU Apple Silicon — fonctionne directement (MISTRALRS_METAL_PRECOMPILE=0 configuré dans .cargo/config.toml)
+# GPU Apple Silicon - fonctionne directement (MISTRALRS_METAL_PRECOMPILE=0 configuré dans .cargo/config.toml)
 cargo build --workspace --release --features local-metal
 ```
 
@@ -110,4 +110,4 @@ Bonjour ! J'ai reçu : Bonjour Apollia
 - Pour une installation en production : [INSTALL Production](./INSTALL-Production)
 - Pour écrire votre premier agent : [Agents Quickstart](./Agents-Quickstart)
 - Pour la configuration avancée : [Config apollia.toml](./Config-apollia-toml)
-- Pour les problèmes d'installation : [INSTALL.md](./INSTALL) — dépannage complet
+- Pour les problèmes d'installation : [INSTALL.md](./INSTALL) - dépannage complet

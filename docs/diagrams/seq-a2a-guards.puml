@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence A2A — Garde-fous d'invocation — Apollia OS
+title Séquence A2A - Garde-fous d'invocation - Apollia OS
 
 participant "Director Agent\n(ORIA ReAct)" as director #2d4a22
 participant "RuntimeContext\n(PyO3)" as ctx #1a1a2e

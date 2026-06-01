@@ -31,7 +31,7 @@
      * Render the title in monospace. Default `true` for tool-call cards
      * where the title is a function name. Pass `false` for narrative
      * variants (thinking, rationale) where mono looks technical and out
-     * of place — those use the standard sans-serif type ramp instead.
+     * of place - those use the standard sans-serif type ramp instead.
      */
     monoTitle?: boolean;
   }

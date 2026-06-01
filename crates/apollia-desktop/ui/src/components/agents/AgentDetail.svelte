@@ -102,7 +102,7 @@
 <Sheet {open} {onclose} class="w-full sm:max-w-[560px]">
   <div class="flex h-full flex-col" data-testid="agent-detail-sheet" data-agent-name={agent.name}>
 
-    <!-- ═══ HEADER — glass card with brand wash ═══ -->
+    <!-- ═══ HEADER - glass card with brand wash ═══ -->
     <Card class="mx-4 mt-6 overflow-hidden">
       <!-- Accent bar -->
       <div class="h-0.5 w-full {isRunning ? 'bg-primary' : 'bg-muted'}"></div>

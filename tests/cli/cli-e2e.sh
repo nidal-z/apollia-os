@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# tests/cli/cli-e2e.sh — Apollia OS CLI smoke + E2E suite (single source of truth).
+# tests/cli/cli-e2e.sh - Apollia OS CLI smoke + E2E suite (single source of truth).
 #
 # Covers ~145 of the ~165 CLI leaf commands. Splits into two phases:
 #
-#   Phase A — LOCAL (always runs):
+#   Phase A - LOCAL (always runs):
 #     Every command runnable without a daemon. Each operation targets the
 #     isolated $HOME (mktemp) so the user's real ~/.apollia is never touched.
 #     Wall-clock: ~5–10 s on a warm release build.
 #
-#   Phase B — RUNTIME (gated APOLLIA_REQUIRE_RUNTIME=1):
+#   Phase B - RUNTIME (gated APOLLIA_REQUIRE_RUNTIME=1):
 #     Spawns `apollia-os start`, exercises the runtime-dependent surface
 #     (agent lifecycle, tasks, llm with local backend, triggers CRUD, …),
 #     then `apollia-os stop`. Wall-clock: 30–90 s depending on the model.
@@ -52,7 +52,7 @@ TEST_REVIEW="${APOLLIA_TEST_REVIEW:-0}"
 VERBOSE="${APOLLIA_TEST_VERBOSE:-0}"
 
 # Force file-based secret storage for keyring-bound commands. macOS Terminal
-# sessions often can't reach the default keychain from a sub-shell — the
+# sessions often can't reach the default keychain from a sub-shell - the
 # AgeFileSecretStore is a deterministic, hermetic backend perfect for tests.
 export APOLLIA_TOKEN_STORAGE="${APOLLIA_TOKEN_STORAGE:-file}"
 export APOLLIA_TOKEN_PASSPHRASE="${APOLLIA_TOKEN_PASSPHRASE:-cli-e2e-test-passphrase}"
@@ -189,7 +189,7 @@ check_grep() {
 
 skip() {
     local label=$1; local reason=${2:-skipped}
-    printf '  %s %s — %s\n' "$(yellow ⊘)" "$label" "$reason"
+    printf '  %s %s - %s\n' "$(yellow ⊘)" "$label" "$reason"
     SKIP=$((SKIP + 1))
 }
 
@@ -221,9 +221,9 @@ echo "  VERBOSE              = $VERBOSE"
 #                                 PHASE A
 # ═══════════════════════════════════════════════════════════════════════════
 echo
-echo "$(bold "═══ Phase A — LOCAL (no daemon) ═══")"
+echo "$(bold "═══ Phase A - LOCAL (no daemon) ═══")"
 
-# A.1 — Always-on
+# A.1 - Always-on
 section "A.1 always-on"
 check        "version"                                      "$BIN" version
 check_json   "version --json"                               "$BIN" version --json
@@ -231,7 +231,7 @@ check        "--help"                                       "$BIN" --help
 check        "doctor"                                       "$BIN" doctor
 check_json   "doctor --json"                                "$BIN" doctor --json
 
-# A.2 — config
+# A.2 - config
 section "A.2 config"
 check        "config validate (absent)"                     "$BIN" config validate --file "$CFG"
 check        "config set llm.default local"                 "$BIN" config set llm.default local --file "$CFG"
@@ -262,7 +262,7 @@ else
 fi
 check        "config reset --confirm (missing home)"        "$BIN" config reset --confirm --home "$TMPDIR/.never-existed"
 
-# A.3 — project
+# A.3 - project
 section "A.3 project"
 check        "project list (empty)"                         "$BIN" project list --db "$PROJECTS_DB"
 PROJECT_OUT=$("$BIN" project create acme --description "demo" --db "$PROJECTS_DB" --json 2>/dev/null)
@@ -284,7 +284,7 @@ check        "project agents remove"                        "$BIN" project agent
 check        "project templates list"                       "$BIN" project templates list --db "$PROJECTS_DB"
 check        "project templates seed-builtins"              "$BIN" project templates seed-builtins --db "$PROJECTS_DB"
 
-# Chat link/chats — prime chat.db with the schema first.
+# Chat link/chats - prime chat.db with the schema first.
 /usr/bin/touch "$CHAT_DB"
 "$BIN" chat delete bootstrap-ghost --confirm --db "$CHAT_DB" >/dev/null 2>&1 || true
 # Insert a stub session for link/chats tests.
@@ -298,8 +298,8 @@ check        "project chats unknown-pid (empty ok)"         "$BIN" project chats
 check_exit   "project link with empty session"  1           "$BIN" project link "$PROJECT_ID" --session "" --chat-db "$CHAT_DB"
 check        "project delete --confirm"                     "$BIN" project delete "$PROJECT_ID" --confirm --db "$PROJECTS_DB"
 
-# A.3b — auth (read-only paths)
-section "A.3b auth (read-only — token storage forced to age-file)"
+# A.3b - auth (read-only paths)
+section "A.3b auth (read-only - token storage forced to age-file)"
 check        "auth status (no token)"               "$BIN" auth status
 check_json   "auth status --json"                   "$BIN" --json auth status
 # `auth logout` deletes from the keychain backend (here AgeFileSecretStore in
@@ -308,7 +308,7 @@ check        "auth logout anthropic (no-op)"        "$BIN" auth logout anthropic
 check        "auth logout openai (no-op)"           "$BIN" auth logout openai
 check        "auth logout vertex (no-op)"           "$BIN" auth logout vertex
 
-# A.4 — user-memory
+# A.4 - user-memory
 section "A.4 user-memory"
 check        "user-memory show (empty)"                     "$BIN" user-memory show --db "$USER_DB"
 check        "user-memory set name Alice"                   "$BIN" user-memory set name "Alice" --db "$USER_DB"
@@ -322,7 +322,7 @@ check        "user-memory forget"                           "$BIN" user-memory f
 check        "user-memory reset --confirm"                  "$BIN" user-memory reset --confirm --db "$USER_DB"
 check_exit   "user-memory reset (no --confirm)"  1          "$BIN" user-memory reset --db "$USER_DB"
 
-# A.5 — chat-config
+# A.5 - chat-config
 section "A.5 chat-config"
 check        "chat-config get (default)"                    "$BIN" chat-config get --db "$GOV_DB"
 check        "chat-config set system-prompt"                "$BIN" chat-config set system-prompt "You are helpful." --db "$GOV_DB"
@@ -336,9 +336,9 @@ check        "chat-config permissions list (empty)"         "$BIN" chat-config p
 check_json   "chat-config permissions list --json"          "$BIN" chat-config permissions list --db "$GOV_DB" --json
 check_exit   "chat-config permissions delete (no id)"  1    "$BIN" chat-config permissions delete 9999 --confirm --db "$GOV_DB"
 check_exit   "chat-config permissions delete (no --confirm)" 1  "$BIN" chat-config permissions delete 1 --db "$GOV_DB"
-skip         "chat-config authorizations list" "v0.1.1 — runtime route absente, gardée tel quel par arbitrage"
+skip         "chat-config authorizations list" "v0.1.1 - runtime route absente, gardée tel quel par arbitrage"
 
-# A.6 — permissions
+# A.6 - permissions
 section "A.6 permissions"
 check        "permissions list (empty)"                     "$BIN" permissions list
 check_json   "permissions list --json"                      "$BIN" permissions list --json
@@ -352,7 +352,7 @@ check        "permissions revoke 1 --yes"                   "$BIN" permissions r
 check_exit   "permissions revoke session-prefix"  1         "$BIN" permissions revoke s42 --yes
 check        "permissions revoke --all --scope global --yes"      "$BIN" permissions revoke --all --scope global --yes
 
-# A.7 — memory
+# A.7 - memory
 section "A.7 memory"
 check        "memory list (empty)"                          "$BIN" memory list --data-dir "$MDIR"
 # Bootstrap a namespace: `memory inspect` refuses an absent db, so we create
@@ -374,7 +374,7 @@ check        "memory export"                                "$BIN" memory export
 check        "memory import --replace"                      "$BIN" memory import --namespace myns2 --input "$TMPDIR/m.apollia-memory" --replace --data-dir "$MDIR"
 check        "memory learn-procedure"                       "$BIN" memory learn-procedure --namespace myns --trigger "Test" --steps "1,2,3" --data-dir "$MDIR"
 
-# A.8 — connector (multi-account keyring + drive-prefs + oauth-clients)
+# A.8 - connector (multi-account keyring + drive-prefs + oauth-clients)
 section "A.8 connector"
 check        "connector list"                               "$BIN" connector list
 check_json   "connector list --json"                        "$BIN" connector list --json
@@ -397,7 +397,7 @@ check        "connector drive folder reset"                 "$BIN" connector dri
 check        "connector drive folder picked list (empty)"   "$BIN" connector drive folder picked list alice@example.invalid
 check        "connector drive folder picked remove (idempotent)"  "$BIN" connector drive folder picked remove alice@example.invalid ghost-folder-id
 
-# A.9 — mcp (without daemon)
+# A.9 - mcp (without daemon)
 section "A.9 mcp"
 check        "mcp list (mcp.db absent)"                     "$BIN" mcp list
 check_json   "mcp list --json"                              "$BIN" mcp list --json
@@ -418,7 +418,7 @@ check        "mcp oauth logout --confirm (no token)"        "$BIN" mcp oauth log
 check_exit   "mcp oauth logout (no --confirm)"  1           "$BIN" mcp oauth logout some-server
 check_exit   "mcp oauth discover (mcp.db absent)"  1        "$BIN" mcp oauth discover ghost-server --db "$MCP_DB"
 
-# A.10 — chat hygiene
+# A.10 - chat hygiene
 section "A.10 chat hygiene"
 check_exit   "chat delete (no --confirm)"  1                "$BIN" chat delete e2e-sess-1
 check_exit   "chat delete (chat.db absent)"  1              "$BIN" chat delete x --confirm --db "$TMPDIR/no-chat.db"
@@ -434,7 +434,7 @@ check_exit   "chat export --format xml (clap rejects)"  2   "$BIN" chat export e
 check_exit   "chat export unknown session"  1               "$BIN" chat export ghost-sess-id --db "$CHAT_DB"
 check        "chat delete --confirm"                        "$BIN" chat delete e2e-sess-1 --confirm --db "$CHAT_DB"
 
-# A.11 — llm threshold + setup (without daemon)
+# A.11 - llm threshold + setup (without daemon)
 section "A.11 llm (threshold + setup, no daemon)"
 check        "llm costs --get-threshold (toml absent)"      "$BIN" llm costs --get-threshold --config "$CFG"
 check        "llm costs --threshold 0.5"                    "$BIN" llm costs --threshold 0.5 --config "$CFG"
@@ -461,7 +461,7 @@ else
     skip "system.db backend check"   "depends on llm setup"
 fi
 
-# A.12 — daemon-off behaviors for runtime-bound commands
+# A.12 - daemon-off behaviors for runtime-bound commands
 section "A.12 runtime-bound commands (daemon off → exit 2)"
 check_exit   "status (daemon off)"           2  "$BIN" --socket "$SOCK" status
 # `agent list` has a local-DB fallback: it reads agents.db when the daemon is
@@ -490,7 +490,7 @@ check_exit   "tools approvals pending (off)" 2  "$BIN" --socket "$SOCK" tools ap
 check        "model list (no models)"           "$BIN" model list
 # `model hardware` queries the runtime LLM registry (`/api/v1/llm/hardware`);
 # in Phase A there's no daemon so it's grouped here as a daemon-off check
-# (exit 2 per ADR-008 — F4 polish 2026-05-27).
+# (exit 2 per ADR-008 - F4 polish 2026-05-27).
 check_exit   "model hardware (daemon off)"   2  "$BIN" model hardware
 check_exit   "model hardware --json (off)"   2  "$BIN" model hardware --json
 # `model delete` round-trip on a stub `.gguf` we drop into the models dir.
@@ -521,7 +521,7 @@ check_exit   "logs --last 5 (no log file)"   1  "$BIN" logs --last 5
 # a missing path returns 1 (not the runtime-off exit 2).
 check_exit   "agent install (missing file)"  1  "$BIN" --socket "$SOCK" agent install /tmp/never-exists.py
 
-# A.13 — Skipped paths (and the *precise* reason each is unreachable here).
+# A.13 - Skipped paths (and the *precise* reason each is unreachable here).
 # Trimmed aggressively in the 2026-05-27 polish; the remaining skips fall in
 # four categories: (a) interactive UI, (b) network, (c) deferred v0.1.1
 # items, (d) environment limitations the script can't synthesize.
@@ -529,11 +529,11 @@ section "A.13 SKIP justifiés"
 skip "chat (REPL)" \
      "interactive rustyline editor (no pty in non-tty CI)"
 skip "auth login <provider>" \
-     "spawns the browser at the provider authorize URL — needs a human"
+     "spawns the browser at the provider authorize URL - needs a human"
 skip "update / update --check" \
      "outbound HTTPS to api.github.com (script policy: no network)"
 skip "onboard / onboard --topic" \
-     "runs a chat-based onboarding agent — interactive by design"
+     "runs a chat-based onboarding agent - interactive by design"
 skip "mcp-server / mcp-server --with-runtime" \
      "long-running stdio JSON-RPC server, never returns"
 skip "model search / model show" \
@@ -551,21 +551,21 @@ skip "mcp oauth login" \
 skip "tools credentials set / test" \
      "set: masked stdin prompt; test: live call to the credentialed backend"
 skip "chat-config authorizations list / revoke" \
-     "deferred v0.1.1 — in-memory daemon state, no HTTP route yet"
+     "deferred v0.1.1 - in-memory daemon state, no HTTP route yet"
 skip "mcp catalogue / mcp enrichments list" \
-     "deferred v0.1.1 — backend (McpRegistryClient + enrichments.json) lives in apollia-desktop"
+     "deferred v0.1.1 - backend (McpRegistryClient + enrichments.json) lives in apollia-desktop"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #                                 PHASE B
 # ═══════════════════════════════════════════════════════════════════════════
 if [[ "$REQUIRE_RUNTIME" == "1" ]]; then
     echo
-    echo "$(bold "═══ Phase B — RUNTIME (daemon spawned) ═══")"
+    echo "$(bold "═══ Phase B - RUNTIME (daemon spawned) ═══")"
 
     section "B.0 daemon lifecycle"
     # Pre-stage a local LLM backend in system.db so the daemon picks it up at
     # boot (and `llm reload` becomes a no-op refresh instead of a first-time
-    # initialiser). Phase A may already have done this — repeating is cheap
+    # initialiser). Phase A may already have done this - repeating is cheap
     # because the models dir is a symlink and the upsert is idempotent.
     if [[ -f "$TEST_GGUF" ]]; then
         "$BIN" llm setup --local --model "$TEST_GGUF" --system-db "$SYSTEM_DB" --models-dir "$MODELS_DIR" >/dev/null 2>&1 || true
@@ -595,7 +595,7 @@ if [[ "$REQUIRE_RUNTIME" == "1" ]]; then
     check_json   "status --json (daemon on)"        "$BIN" --socket "$SOCK" status --json
     check        "doctor (daemon on)"               "$BIN" doctor
 
-    # B.1 — agent lifecycle with a stub agent.
+    # B.1 - agent lifecycle with a stub agent.
     section "B.1 agent lifecycle"
     HELLO_PY="$TMPDIR/hello.py"
     /bin/cat >"$HELLO_PY" <<'PYEOF'
@@ -635,7 +635,7 @@ PYEOF
         fi
         AGENT_RUNNING=1
     else
-        skip     "agent status/messages/logs/repair" "agent start failed — Python bundled runner couldn't spawn the SDK loader inside the tmp \$HOME"
+        skip     "agent status/messages/logs/repair" "agent start failed - Python bundled runner couldn't spawn the SDK loader inside the tmp \$HOME"
         AGENT_RUNNING=0
     fi
     check        "agent enable"                     "$BIN" --socket "$SOCK" agent enable e2e-hello
@@ -644,7 +644,7 @@ PYEOF
     check        "agent package list (empty)"       "$BIN" --socket "$SOCK" agent package list
     check        "agent new <name> --type react"    "$BIN" agent new e2e-scaffold --type react
 
-    # B.2 — task via run
+    # B.2 - task via run
     section "B.2 task lifecycle"
     if [[ -f "$TEST_GGUF" && "$AGENT_RUNNING" == "1" ]]; then
         # Configure local LLM backend so `run` has a model.
@@ -676,10 +676,10 @@ PYEOF
             skip "task lifecycle" "run --detach didn't return a task_id (out: ${RUN_OUT:0:200})"
         fi
     else
-        skip "task lifecycle" "GGUF absent ($TEST_GGUF) — no LLM backend"
+        skip "task lifecycle" "GGUF absent ($TEST_GGUF) - no LLM backend"
     fi
 
-    # B.3 — LLM (local backend only).
+    # B.3 - LLM (local backend only).
     # The daemon delegates model loading to the apollia-runner sidecar over
     # HTTP. In a CI/sub-shell environment the runner usually isn't on PATH,
     # so model loading fails with "load_model via runner: http error". When
@@ -687,7 +687,7 @@ PYEOF
     # exercise the metadata CRUD on backends.
     section "B.3 llm (local backend)"
     if [[ -f "$TEST_GGUF" ]]; then
-        # CRUD on backends — pure metadata, works without the runner.
+        # CRUD on backends - pure metadata, works without the runner.
         check       "llm backends list"             "$BIN" --socket "$SOCK" llm backends list
         check       "llm backends show local"       "$BIN" --socket "$SOCK" llm backends show local
         check       "llm backends create local2 (llama-cpp)"  "$BIN" --socket "$SOCK" llm backends create local2 --provider llama-cpp --model "$TEST_GGUF" --device cpu --timeout-sec 60
@@ -700,7 +700,7 @@ PYEOF
         check       "llm status"                    "$BIN" --socket "$SOCK" llm status
         check_json  "llm status --json"             "$BIN" --socket "$SOCK" llm status --json
         check       "llm costs"                     "$BIN" --socket "$SOCK" llm costs
-        # Model-bound ops — require apollia-runner to be reachable. Probe with
+        # Model-bound ops - require apollia-runner to be reachable. Probe with
         # `llm reload` and skip the rest if the runner isn't there.
         if "$BIN" --socket "$SOCK" llm reload >/dev/null 2>&1; then
             printf '  %s %s\n' "$(green ✔)" "llm reload"
@@ -716,7 +716,7 @@ PYEOF
         skip "llm phase B" "GGUF absent: $TEST_GGUF"
     fi
 
-    # B.4 — tools / audit / triggers / notify / stt / model / resilience / plan-cache / digest
+    # B.4 - tools / audit / triggers / notify / stt / model / resilience / plan-cache / digest
     section "B.4 services (tools / audit / triggers / notify / …)"
     check       "tools list (daemon on)"            "$BIN" --socket "$SOCK" tools list
     check_json  "tools list --json"                 "$BIN" --socket "$SOCK" tools list --json
@@ -729,7 +729,7 @@ PYEOF
     check_json  "audit stats --json"                "$BIN" --socket "$SOCK" audit stats --json
     check       "audit export"                      "$BIN" --socket "$SOCK" audit export --output "$TMPDIR/audit.json" --limit 100
 
-    # Triggers — exercise all 5 source kinds end-to-end (CRUD).
+    # Triggers - exercise all 5 source kinds end-to-end (CRUD).
     # The runtime requires the webhook secret to be ≥ 32 chars, so the
     # test secret is padded accordingly.
     section "B.4.1 triggers (multi-kind CRUD)"
@@ -752,7 +752,7 @@ PYEOF
     check       "trigger create webhook"            "$BIN" --socket "$SOCK" trigger create t-wh --agent e2e-hello --kind webhook --detail "this-is-a-32-char-or-more-secret-aa"
     check       "trigger delete t-wh --confirm"     "$BIN" --socket "$SOCK" trigger delete t-wh --confirm
 
-    # Notify — exercise full CRUD with explicit id, webhook + desktop kinds.
+    # Notify - exercise full CRUD with explicit id, webhook + desktop kinds.
     section "B.4.2 notify"
     check       "notify list"                       "$BIN" --socket "$SOCK" notify list
     check       "notify events get"                 "$BIN" --socket "$SOCK" notify events get
@@ -764,7 +764,7 @@ PYEOF
     check       "notify delete e2e-hook --confirm"  "$BIN" --socket "$SOCK" notify delete e2e-hook --confirm
     check       "notify delete e2e-desk --confirm"  "$BIN" --socket "$SOCK" notify delete e2e-desk --confirm
 
-    # STT — engine is disabled by default in the test env (no Whisper model
+    # STT - engine is disabled by default in the test env (no Whisper model
     # bundled). The runtime returns 503 "STT engine not available", which the
     # CLI surfaces as exit 1. That's the *expected* state on a fresh $HOME,
     # so we assert exit 1 explicitly rather than skipping.
@@ -808,11 +808,11 @@ PYEOF
         skip    "review ." "APOLLIA_TEST_REVIEW=0 (opt-in)"
     fi
 
-    # B.5 — cleanup agent
+    # B.5 - cleanup agent
     section "B.5 cleanup"
     check       "agent uninstall e2e-hello"         "$BIN" --socket "$SOCK" agent uninstall e2e-hello
 
-    # B.6 — stop daemon (the EXIT trap also handles this)
+    # B.6 - stop daemon (the EXIT trap also handles this)
     section "B.6 stop daemon"
     check       "stop"                              "$BIN" --socket "$SOCK" stop
     DAEMON_PID=""

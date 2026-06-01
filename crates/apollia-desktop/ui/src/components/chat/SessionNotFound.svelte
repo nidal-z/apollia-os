@@ -1,17 +1,17 @@
 <script lang="ts">
   /**
-   * SessionNotFound — shown when a `/chat/:id` selection points at a
+   * SessionNotFound - shown when a `/chat/:id` selection points at a
    * session id that no longer exists.
    *
    * Offers two paths forward: back to the session list, or start a new
-   * chat. Fails fast but gracefully — principe 4.
+   * chat. Fails fast but gracefully - principe 4.
    */
   import { t } from "svelte-i18n";
   import { FileQuestion } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
-    /** Missing session id — surfaced for debugging / support. */
+    /** Missing session id - surfaced for debugging / support. */
     sessionId?: string;
     /** Back to the session list (clears selection). */
     onback: () => void;

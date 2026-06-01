@@ -7,13 +7,13 @@
  * up the same physical keys instead of producing different `event.key`s.
  *
  * Each binding owns:
- *   - `id` — used by the help dialog to dedupe and i18n the description.
- *   - `chord` — modifier requirements + KeyboardEvent.code.
- *   - `allowInTextarea` — when false (default) the binding is skipped if
+ *   - `id` - used by the help dialog to dedupe and i18n the description.
+ *   - `chord` - modifier requirements + KeyboardEvent.code.
+ *   - `allowInTextarea` - when false (default) the binding is skipped if
  *     focus is inside an editable field, except for chords that include
  *     a Cmd/Ctrl modifier (operators expect Cmd+K to work everywhere).
  *
- * The store does NOT wire any UI — `Chat.svelte` calls `installChatShortcuts`
+ * The store does NOT wire any UI - `Chat.svelte` calls `installChatShortcuts`
  * once on mount. Other surfaces (App, modals) keep ownership of their
  * own listeners; this module focuses on the chat-route bindings called
  * out by the story.
@@ -26,7 +26,7 @@ export type Modifier = "mod" | "shift" | "alt";
 export interface Chord {
   /** `event.code` (e.g. `KeyN`, `Slash`, `Enter`). Required. */
   code: string;
-  /** Required modifiers — order independent. */
+  /** Required modifiers - order independent. */
   modifiers?: Modifier[];
   /** Modifiers that MUST NOT be pressed (e.g. `shift` for plain `KeyJ`). */
   forbid?: Modifier[];
@@ -35,7 +35,7 @@ export interface Chord {
 export interface ShortcutBinding {
   id: string;
   chord: Chord;
-  /** Logical group — passed through to the help dialog. */
+  /** Logical group - passed through to the help dialog. */
   group: string;
   /** i18n key for the help dialog description. */
   descriptionKey: string;
@@ -43,7 +43,7 @@ export interface ShortcutBinding {
   keys: string[];
   /** When true, the chord still fires while a textarea/input is focused. */
   allowInTextarea?: boolean;
-  /** Handler — return `true` to mark `event.preventDefault()`. */
+  /** Handler - return `true` to mark `event.preventDefault()`. */
   run: (event: KeyboardEvent) => boolean | void;
 }
 
@@ -73,7 +73,7 @@ export function chordMatches(event: KeyboardEvent, chord: Chord): boolean {
   for (const m of chord.forbid ?? []) {
     if (modifierActive(event, m)) return false;
   }
-  // No silent extra modifiers — a binding without `shift` must not match
+  // No silent extra modifiers - a binding without `shift` must not match
   // `Shift+code`. The exception is when the binding explicitly lists it
   // in `modifiers` (handled above).
   const required = new Set<Modifier>(chord.modifiers ?? []);
@@ -88,7 +88,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target instanceof HTMLTextAreaElement) return true;
   if (target instanceof HTMLInputElement) {
-    // Skip non-text inputs (checkbox/radio/button/file …) — they don't
+    // Skip non-text inputs (checkbox/radio/button/file …) - they don't
     // capture printable keys.
     const t = target.type;
     return t !== "checkbox" && t !== "radio" && t !== "button" && t !== "submit";
@@ -100,7 +100,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
  * Install the singleton chat keydown listener for `bindings`.
  *
  * Returns an unregister function that detaches the listener and clears
- * the registered bindings — call it from `onMount` cleanup.
+ * the registered bindings - call it from `onMount` cleanup.
  */
 export function installChatShortcuts(bindings: ShortcutBinding[]): () => void {
   function handler(event: KeyboardEvent): void {
@@ -108,7 +108,7 @@ export function installChatShortcuts(bindings: ShortcutBinding[]): () => void {
     for (const binding of bindings) {
       if (!chordMatches(event, binding.chord)) continue;
       if (editable && !binding.allowInTextarea) {
-        // Cmd/Ctrl chords stay enabled inside textareas — operators expect
+        // Cmd/Ctrl chords stay enabled inside textareas - operators expect
         // ⌘K to open the palette even while typing.
         const hasMod = binding.chord.modifiers?.includes("mod");
         if (!hasMod) continue;
@@ -124,7 +124,7 @@ export function installChatShortcuts(bindings: ShortcutBinding[]): () => void {
 
 /**
  * Translate a binding to the lightweight `Shortcut` shape consumed by
- * `ShortcutsHelpDialog`. Pure helper — no side effects.
+ * `ShortcutsHelpDialog`. Pure helper - no side effects.
  */
 export function describeBinding(binding: ShortcutBinding): Shortcut {
   return {

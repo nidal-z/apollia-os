@@ -7,9 +7,9 @@
    * and declared skills (as colored chips).
    *
    * Data sources:
-   *   - `list_agents` Tauri command — enumerates agents + runtime status.
-   *   - `list_a2a_skills` — skills declared by worker agents.
-   *   - Optional Tauri event `a2a:worker_status` — pushed live status updates.
+   *   - `list_agents` Tauri command - enumerates agents + runtime status.
+   *   - `list_a2a_skills` - skills declared by worker agents.
+   *   - Optional Tauri event `a2a:worker_status` - pushed live status updates.
    *
    * Graceful degradation: if the event is not emitted, the badge still refreshes
    * on mount and when the popover opens.
@@ -67,7 +67,7 @@
         void refresh();
       });
     } catch {
-      // Event bus unavailable — manual refresh only.
+      // Event bus unavailable - manual refresh only.
     }
   });
 

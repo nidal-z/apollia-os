@@ -1,11 +1,11 @@
-# Agents — Bonnes pratiques (checklist référence)
+# Agents - Bonnes pratiques (checklist référence)
 
 > Checklist consultée. Pour le **pourquoi** et les exemples détaillés, suivre les liens vers le book.
 > Format : items checkables. Chaque item = une règle vérifiable.
 
 ---
 
-## StepBudget — anticiper avant d'être arrêté
+## StepBudget - anticiper avant d'être arrêté
 
 - [ ] **Vérifier le budget avant chaque itération** : `ctx.step_budget.steps_remaining` doit être contrôlé en début de boucle. Retourner un résultat partiel plutôt qu'attendre `BudgetExceeded`. → [book ch07-01](../../book/src/ch07-01-step-budget.md)
 - [ ] **Adapter la profondeur au budget restant** : ratio `steps_remaining / max_steps` > 0.5 → mode normal ; < 0.2 → mode dégradé.
@@ -14,7 +14,7 @@
 
 ---
 
-## Mémoire — lire avant d'appeler un LLM
+## Mémoire - lire avant d'appeler un LLM
 
 - [ ] **Chercher en mémoire avant chaque génération coûteuse** : `await ctx.memory.search(query, limit=5)` est gratuit, un LLM ne l'est pas. → [book ch05-02](../../book/src/ch05-02-fts5-search.md)
 - [ ] **Filtrer les résultats par score** (≥ 0.3 typiquement) avant de les injecter dans le prompt.
@@ -23,10 +23,10 @@
 
 ---
 
-## Outils — gérer les échecs explicitement
+## Outils - gérer les échecs explicitement
 
 - [ ] **Ne jamais laisser propager une exception d'outil** sans la catcher et retourner un `AIPResult` explicite avec code d'erreur. → [book ch04-02](../../book/src/ch04-02-calling.md)
-- [ ] **Tester `exit_code` sur `bash_executor`** — un exit code non nul ne déclenche pas d'exception, c'est à l'agent de le détecter.
+- [ ] **Tester `exit_code` sur `bash_executor`** - un exit code non nul ne déclenche pas d'exception, c'est à l'agent de le détecter.
 - [ ] **Logger les détails d'erreur** (`stderr`, `exit_code`) via `ctx.log.warn(...)` avant de retourner un échec.
 
 ---
@@ -43,14 +43,14 @@
 
 - [ ] **Activer `dangerous_tools_allowed: true` uniquement si nécessaire**. Ce flag est audité dans le `AuditTrail`. → [Briques-Tool-Registry](./Briques-Tool-Registry.md)
 - [ ] **Documenter dans la description de l'agent** la raison de l'activation (transparence pour l'opérateur).
-- [ ] **Réserver aux agents de confiance** sous contrôle direct de l'opérateur — jamais dans un agent communautaire publié sans avertissement explicite.
+- [ ] **Réserver aux agents de confiance** sous contrôle direct de l'opérateur - jamais dans un agent communautaire publié sans avertissement explicite.
 
 ---
 
 ## Logging
 
 - [ ] **Utiliser `ctx.log.info/warn/error`** avec champs structurés (kwargs), jamais `print`.
-- [ ] **Ne pas dupliquer `agent_id` ou `task_id`** dans les kwargs — le runtime les ajoute automatiquement.
+- [ ] **Ne pas dupliquer `agent_id` ou `task_id`** dans les kwargs - le runtime les ajoute automatiquement.
 - [ ] **Convention nommage** : verbe en snake_case (`processing_step`, `tool_failed`, `model_loaded`).
 
 ---
@@ -65,26 +65,26 @@
 
 ## Erreurs connues à éviter
 
-- [ ] **Boucle non bornée par budget** — toujours vérifier `steps_remaining` dans la condition de boucle.
-- [ ] **Exception non catchée dans `run()`** — termine la tâche en `failed` avec message générique. Toujours wrap dans `try/except` les blocs susceptibles d'échouer.
+- [ ] **Boucle non bornée par budget** - toujours vérifier `steps_remaining` dans la condition de boucle.
+- [ ] **Exception non catchée dans `run()`** - termine la tâche en `failed` avec message générique. Toujours wrap dans `try/except` les blocs susceptibles d'échouer.
 - [ ] **Appel d'outil non déclaré** dans `tools_required` ou `tools_optional` du manifest → `ToolNotAllowed`.
-- [ ] **Promesse non await** — un `await` oublié sur un appel async produit un warning silencieux et un comportement imprévisible.
+- [ ] **Promesse non await** - un `await` oublié sur un appel async produit un warning silencieux et un comportement imprévisible.
 
 ---
 
 ## Tests
 
-- [ ] **Test unitaire avec mock RuntimeContext** — utiliser les helpers du SDK (`apollia_sdk.testing`). → [book ch08-04](../../book/src/ch08-04-tests.md)
+- [ ] **Test unitaire avec mock RuntimeContext** - utiliser les helpers du SDK (`apollia_sdk.testing`). → [book ch08-04](../../book/src/ch08-04-tests.md)
 - [ ] **Test d'intégration avec runtime réel** au moins pour le golden path.
-- [ ] **Test du cas budget épuisé** — vérifier que l'agent retourne un résultat partiel cohérent.
-- [ ] **Test du cas outil indisponible** (MCP désactivé, etc.) — vérifier la dégradation gracieuse.
+- [ ] **Test du cas budget épuisé** - vérifier que l'agent retourne un résultat partiel cohérent.
+- [ ] **Test du cas outil indisponible** (MCP désactivé, etc.) - vérifier la dégradation gracieuse.
 
 ---
 
 ## Publication
 
-- [ ] **Manifest complet** — `description`, `version` (semver), `author`, `tools_required`, `tools_optional`. → [book ch08-05](../../book/src/ch08-05-publish.md)
-- [ ] **README de l'agent** — exemple de tâche, format d'input attendu, exemple de `[permissions]` minimal pour l'opérateur.
+- [ ] **Manifest complet** - `description`, `version` (semver), `author`, `tools_required`, `tools_optional`. → [book ch08-05](../../book/src/ch08-05-publish.md)
+- [ ] **README de l'agent** - exemple de tâche, format d'input attendu, exemple de `[permissions]` minimal pour l'opérateur.
 - [ ] **Tag semver et changelog** entre versions.
 - [ ] **Test E2E sur version publiée** avant tag final.
 
@@ -92,6 +92,6 @@
 
 ## Voir aussi
 
-- [Agents-RuntimeContext-Guide](./Agents-RuntimeContext-Guide.md) — table des services injectés
-- [Briques-AIP-Specification](./Briques-AIP-Specification.md) — tous les champs du manifest
-- [Securite-Guardrails](./Securite-Guardrails.md) — plafonds runtime
+- [Agents-RuntimeContext-Guide](./Agents-RuntimeContext-Guide.md) - table des services injectés
+- [Briques-AIP-Specification](./Briques-AIP-Specification.md) - tous les champs du manifest
+- [Securite-Guardrails](./Securite-Guardrails.md) - plafonds runtime

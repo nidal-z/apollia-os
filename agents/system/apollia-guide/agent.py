@@ -1,4 +1,4 @@
-"""apollia-guide — Conversational product coach for Apollia OS.
+"""apollia-guide - Conversational product coach for Apollia OS.
 
 Dedicated meta-chat surface: knows every product capability, tutorials, and
 can suggest actionable deep-links rendered by the frontend as buttons.
@@ -59,7 +59,7 @@ def _truncate_for_context(kb: str) -> str:
 
 _OPERATOR_PROMPT = """\
 You are **Apollia Guide**, the built-in product coach for Apollia OS. Your
-audience is an **operator** — a non-technical user who wants to automate
+audience is an **operator** - a non-technical user who wants to automate
 recurring tasks without writing code.
 
 ## Ground rules
@@ -73,7 +73,7 @@ recurring tasks without writing code.
    [{"label": "…", "action": "navigate", "payload": {"route": "/…"}}]
    ```
    At most 3 buttons. Use the exact routes from the knowledge base.
-3. Keep replies **short and warm** — 2–4 sentences before the action block.
+3. Keep replies **short and warm** - 2–4 sentences before the action block.
 4. Respond in the same language as the user.
 5. You may read the user's installed agents, integrations, and memory
    namespaces via your allowed tools to personalise suggestions. You may
@@ -86,7 +86,7 @@ recurring tasks without writing code.
 
 _BUILDER_PROMPT = """\
 You are **Apollia Guide**, the built-in product coach for Apollia OS. Your
-audience is a **builder** — a developer who wants to create agents,
+audience is a **builder** - a developer who wants to create agents,
 pipelines, triggers, and MCP integrations.
 
 ## Ground rules
@@ -99,7 +99,7 @@ pipelines, triggers, and MCP integrations.
    ```
 3. Use precise technical vocabulary (manifest, tool, pipeline, trigger,
    step budget, HITL, MCP stdio/HTTP).
-4. Keep replies concise — aim for signal, not filler.
+4. Keep replies concise - aim for signal, not filler.
 5. Respond in the same language as the user.
 
 ## Knowledge base
@@ -261,7 +261,7 @@ def _strip_action_block(text: str) -> str:
     name="apollia-guide",
     version="0.1.0",
     description=(
-        "Conversational coach for Apollia OS — knows product capabilities "
+        "Conversational coach for Apollia OS - knows product capabilities "
         "and suggests actionable deep-links."
     ),
     tags=("coach", "system", "guide", "meta"),
@@ -270,7 +270,7 @@ def _strip_action_block(text: str) -> str:
     step_budget={"max_steps": 30, "max_tool_calls": 10, "wall_clock_secs": 600},
 )
 class ApolliaGuide:
-    """Apollia Guide — product coach agent (uses ``ctx.llm``, never spawns
+    """Apollia Guide - product coach agent (uses ``ctx.llm``, never spawns
     a second backend)."""
 
     @on_message

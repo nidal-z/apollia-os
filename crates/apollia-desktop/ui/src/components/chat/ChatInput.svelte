@@ -8,7 +8,7 @@
   - Attachments: paperclip button, drag & drop, preview chips above input.
   - ↑ on empty input re-opens the last user message for editing.
   - Client-side rate-limit (1 send / 500 ms, 30 / min) with soft feedback.
-  - Re-render isolation — parent passes props, input state stays local.
+  - Re-render isolation - parent passes props, input state stays local.
 -->
 <script lang="ts">
   import { onMount, untrack } from "svelte";
@@ -40,12 +40,12 @@
     disabled: boolean;
     onsend: (content: string, attachments: PendingAttachment[]) => void;
     suggestions?: string[];
-    /** Last user message text — used by ↑ to pre-fill editing. */
+    /** Last user message text - used by ↑ to pre-fill editing. */
     lastUserMessage?: string | null;
     /** Invoked when the user picks a slash command. */
     oncommand?: (cmdId: SlashCommand["id"]) => void;
     /**
-     * Monotonic counter — when it changes, the input pulls `lastUserMessage`
+     * Monotonic counter - when it changes, the input pulls `lastUserMessage`
      * into its textarea (used when the parent wants to trigger edit-last
      * without coupling to input internals).
      */
@@ -79,11 +79,11 @@
   const MAX_HEIGHT_PX = LINE_HEIGHT_PX * MAX_LINES + 16; // + vertical padding
 
   let value = $state("");
-  // ── Speech-to-text — bouton micro ───────────────────────────────────────
+  // ── Speech-to-text - bouton micro ───────────────────────────────────────
   // Le bouton mic toggle l'enregistrement en réutilisant les Tauri commands
   // existants `start_tour_recording` / `stop_tour_recording`. La transcription
   // arrive via l'event Tauri `stt-transcribed` (broadcast par le pipeline
-  // Whisper) — on l'insère dans le textarea à ce moment-là.
+  // Whisper) - on l'insère dans le textarea à ce moment-là.
   let recording = $state(false);
   let sttBusy = $state(false);
   let sttUnlisten: UnlistenFn | null = null;
@@ -128,7 +128,7 @@
             values: { s: Math.ceil(rateBlockedMs / 1000) },
           })
         : $t("chat.rate_limit.too_many_countdown", {
-            default: "Rate limit reached — retry in {s}s",
+            default: "Rate limit reached - retry in {s}s",
             values: { s: Math.ceil(rateBlockedMs / 1000) },
           });
       rateTone = "warn";
@@ -259,7 +259,7 @@
         sttBusy = false;
       }
     } catch {
-      // STT engine unavailable, no model configured, etc. — surface nothing
+      // STT engine unavailable, no model configured, etc. - surface nothing
       // here (the global hotkey listener already toasts) and reset state.
       recording = false;
       sttBusy = false;
@@ -370,7 +370,7 @@
       return;
     }
     limiter.record();
-    // After a successful send, the min-interval cooldown kicks in — surface it.
+    // After a successful send, the min-interval cooldown kicks in - surface it.
     refreshRateState();
     ensureRateBlockTimer();
 

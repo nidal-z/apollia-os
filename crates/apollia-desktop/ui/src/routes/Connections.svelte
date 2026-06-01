@@ -62,7 +62,7 @@
   let registryLoading = $state(false);
   let loadError = $state<string | null>(null);
 
-  // Catalog pagination — show 48 cards initially, expand 48 at a time.
+  // Catalog pagination - show 48 cards initially, expand 48 at a time.
   const CATALOG_PAGE = 48;
   let catalogLimit = $state(CATALOG_PAGE);
 
@@ -80,8 +80,8 @@
 
   // ── Sidebar+detail selection (mirror Projets/Agents) ──────────────────
   // Sidebar entries:
-  //   - 2 native connectors (Google, Microsoft) — always shown
-  //   - Installed MCP servers — sorted by status
+  //   - 2 native connectors (Google, Microsoft) - always shown
+  //   - Installed MCP servers - sorted by status
   // Selection is a discriminated union so the right pane knows which tabs
   // to render and which actions to wire.
   type Selection =
@@ -171,7 +171,7 @@
   /** Capability matrix shown on the "Ce qu'Apollia peut faire" tab. Reads
    *  i18n keys (so FR/EN are surfaced through the user's locale) and groups
    *  operations by service. The booleans below mirror the actual scope set
-   *  exposed in `connector_providers.rs` for v0.1.0 — keep both in sync. */
+   *  exposed in `connector_providers.rs` for v0.1.0 - keep both in sync. */
   interface CapabilityEntry {
     labelKey: string;
     detailKey?: string;
@@ -378,7 +378,7 @@
         },
       ];
     }
-    // Microsoft — wired the same way; capability list mirrors connector_providers.rs.
+    // Microsoft - wired the same way; capability list mirrors connector_providers.rs.
     return [
       {
         key: "outlook_mail",
@@ -550,7 +550,7 @@
   let oauthDialogPastedCode = $state("");
   let oauthDialogError = $state<string | null>(null);
   /** True when the error returned by `oauth_start_flow` is
-   *  `oauth_client_not_configured` — surface a CTA toward Settings → Integrations
+   *  `oauth_client_not_configured` - surface a CTA toward Settings → Integrations
    *  instead of the generic error message. */
   let oauthDialogErrorIsMissingClient = $state(false);
   let oauthDialogBusy = $state(false);
@@ -591,7 +591,7 @@
       return "Profil souveraineté « local-only » : connecteurs cloud désactivés.";
     }
     if (anyE.kind === "oauth_client_not_configured") {
-      return "Identifiant OAuth manquant — ouvrez Réglages → Intégrations pour le coller.";
+      return "Identifiant OAuth manquant - ouvrez Réglages → Intégrations pour le coller.";
     }
     if (anyE.kind && anyE.detail) {
       return `${anyE.kind}: ${anyE.detail}`;
@@ -601,7 +601,7 @@
     return String(e);
   }
 
-  /** Tear down any registered Tauri listeners — called when the dialog closes
+  /** Tear down any registered Tauri listeners - called when the dialog closes
    *  or before starting a new flow so we don't leak handlers across attempts. */
   async function clearOauthListeners(): Promise<void> {
     const fns = oauthDialogUnlistenFns;
@@ -637,7 +637,7 @@
     oauthDialogDriveFolderError = null;
     oauthDialogOpen = true;
     try {
-      // Default scopes mirror connector_providers.rs defaults — let the
+      // Default scopes mirror connector_providers.rs defaults - let the
       // user trim later via "Gérer le compte" once we expose a scope picker.
       const defaultScopes =
         provider === "google"
@@ -693,7 +693,7 @@
 
       // The backend opens the system browser via tauri-plugin-opener (more
       // reliable than `window.open` from the Tauri webview, which is blocked
-      // by sandboxing on some platforms). No-op here — the link is still
+      // by sandboxing on some platforms). No-op here - the link is still
       // surfaced in the dialog as a manual fallback.
     } catch (e) {
       const formatted = formatTauriError(e);
@@ -796,10 +796,10 @@
   // ── Loaders ────────────────────────────────────────────────────────────────
 
   /** Phase 1: load servers + enrichments immediately (fast, no network call).
-   *  Phase 2 happens lazily — see `loadCuratedCatalogue` and `loadFullRegistry`.
+   *  Phase 2 happens lazily - see `loadCuratedCatalogue` and `loadFullRegistry`.
    *  The previous version always blocked on `fetch_mcp_registry` (full network
    *  fetch of ~6000 entries, 30–60s on cold cache). That blocked the
-   *  Catalogue Sheet open with no visible content — fixed by gating the
+   *  Catalogue Sheet open with no visible content - fixed by gating the
    *  heavy fetch behind a user opt-in. */
   async function loadAll(): Promise<void> {
     loading = true;
@@ -824,7 +824,7 @@
     }
   }
 
-  // Catalogue load tiers — curated (~18, instant) vs full registry (~6k, slow).
+  // Catalogue load tiers - curated (~18, instant) vs full registry (~6k, slow).
   type CatalogueTier = "none" | "curated" | "full";
   let catalogueTier = $state<CatalogueTier>("none");
 
@@ -952,7 +952,7 @@
     }),
   );
 
-  /** MCP catalogue — combine ranked suggestions + remaining registry, dedup. */
+  /** MCP catalogue - combine ranked suggestions + remaining registry, dedup. */
   const mcpEntries = $derived.by(() => {
     const ranked = rankSuggestions(registry, agents, 12);
     const seen = new Set(ranked.map((r) => r.name));
@@ -988,7 +988,7 @@
     }),
   );
 
-  // Visible slice — reset catalogLimit when filter changes to avoid showing 0 results.
+  // Visible slice - reset catalogLimit when filter changes to avoid showing 0 results.
   $effect(() => {
     void mcpFilter;
     catalogLimit = CATALOG_PAGE;
@@ -1005,7 +1005,7 @@
   }
 
   function handleConnect(server: RegistryServerView) {
-    // Close the Catalogue Sheet before opening the wizard — otherwise the
+    // Close the Catalogue Sheet before opening the wizard - otherwise the
     // Sheet stays mounted under the wizard, leaking through the backdrop
     // (regression observed: wizard z-index doesn't escape the parent Sheet
     // portal stacking context).
@@ -1043,7 +1043,7 @@
 
   /**
    * Uninstall confirmation state. We surface a [`ConfirmDialog`] before the
-   * destructive `remove_mcp_server` call — matching the pattern used by
+   * destructive `remove_mcp_server` call - matching the pattern used by
    * Projects.svelte. The `target` carries the installed server name (the
    * sanitized identifier stored on disk, NOT the registry / package
    * identifier) so legacy entries like `modelcontextprotocol-server-filesystem`
@@ -1137,7 +1137,7 @@
     catalogueOpen = true;
     // Curated (~18 entries, instant, no network) fills the visible area
     // immediately. The full registry (~6k entries) loads in background
-    // straight after — appears as it arrives, no spinner blocking, no
+    // straight after - appears as it arrives, no spinner blocking, no
     // explicit user click required. Subsequent opens hit the 15-min disk
     // cache and are near-instant.
     void (async () => {
@@ -1208,7 +1208,7 @@
     return clean.charAt(0).toUpperCase() + clean.slice(1);
   }
 
-  // IntersectionObserver-based auto-pagination — Amazon-style infinite
+  // IntersectionObserver-based auto-pagination - Amazon-style infinite
   // scroll. Replaces the "Voir plus" button. The sentinel is mounted at
   // the bottom of the list; when it scrolls into view we bump
   // `catalogLimit` by a page (24).
@@ -1361,7 +1361,7 @@
 
 <div class="flex h-full min-h-0 w-full flex-col" data-testid="connections-route">
   <div class="flex-1 flex min-h-0">
-    <!-- ============ LEFT — sidebar (mirror Projets/Agents) ============ -->
+    <!-- ============ LEFT - sidebar (mirror Projets/Agents) ============ -->
     <aside class="w-[300px] shrink-0 border-r border-border flex flex-col bg-background" data-testid="connectors-sidebar">
       <header class="px-4 pt-4 pb-2.5">
         <div class="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[1.2px] uppercase text-muted-foreground">
@@ -1512,7 +1512,7 @@
       </div>
     </aside>
 
-    <!-- ============ RIGHT — detail pane ============ -->
+    <!-- ============ RIGHT - detail pane ============ -->
     <section class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background" data-testid="connector-detail">
       {#if selection?.kind === "native" && selectedNativeConnector}
         {@const connector = selectedNativeConnector}
@@ -1613,7 +1613,7 @@
                    only free-tier OAuth scopes (no CASA audit), so some Gmail
                    and Drive verbs are intentionally out of reach. Surface this
                    clearly so the operator does not waste time asking the
-                   agent to read inbox / list whole Drive — neither will work. -->
+                   agent to read inbox / list whole Drive - neither will work. -->
               <Card class="p-[14px_16px] border-primary/30 bg-primary/5">
                 <div class="text-[10px] font-medium uppercase tracking-wider text-primary/80 mb-2">
                   {$t("connections.capabilities.scope_policy_title")}
@@ -1664,8 +1664,8 @@
                 </div>
                 <ul class="space-y-1 text-[12px] text-foreground/85">
                   {#each (connector.id === "google"
-                    ? ["Gmail — envoi + brouillons", "Calendar — lecture + écriture", "Drive Workspace — fichiers Apollia"]
-                    : ["Outlook Mail — lecture + envoi", "Outlook Calendar — lecture + écriture", "OneDrive — fichiers utilisateur"]) as scope}
+                    ? ["Gmail - envoi + brouillons", "Calendar - lecture + écriture", "Drive Workspace - fichiers Apollia"]
+                    : ["Outlook Mail - lecture + envoi", "Outlook Calendar - lecture + écriture", "OneDrive - fichiers utilisateur"]) as scope}
                     <li class="flex items-start gap-2">
                       <span class="mt-1.5 w-1 h-1 rounded-full bg-muted-foreground/60 shrink-0"></span>
                       <span>{scope}</span>
@@ -1678,7 +1678,7 @@
                   Provider
                 </div>
                 <p class="text-[12px] text-foreground/85">
-                  {connector.id === "google" ? "OAuth 2.0 — accounts.google.com" : "OAuth 2.0 — login.microsoftonline.com"}
+                  {connector.id === "google" ? "OAuth 2.0 - accounts.google.com" : "OAuth 2.0 - login.microsoftonline.com"}
                 </p>
                 <p class="text-[11px] text-muted-foreground mt-1.5">
                   Tokens stockés via keyring système. Rotation gérée automatiquement par le runtime.
@@ -1960,7 +1960,7 @@
       {#if oauthDialogStep === "drive_folder"}
         <!-- Step 2 (Google only): pick the Drive root path Apollia agents
              will read/write inside. With the free-tier `drive.file` scope
-             Apollia cannot list existing folders for selection — the user
+             Apollia cannot list existing folders for selection - the user
              types the path and Apollia creates each missing segment. -->
         <div class="space-y-3" data-testid="oauth-dialog-drive-folder">
           <p class="text-sm text-muted-foreground leading-[1.5]">
@@ -1974,7 +1974,7 @@
           <p class="text-[11.5px] text-muted-foreground leading-[1.5]">
             Pour permettre à vos agents d'accéder à tout votre Drive, il
             faut passer en <strong>Mode Expert</strong> (votre propre app
-            Google Cloud avec les scopes étendus) — voir Réglages →
+            Google Cloud avec les scopes étendus) - voir Réglages →
             Intégrations après la connexion.
           </p>
           <label class="block text-xs font-medium text-foreground">
@@ -2023,7 +2023,7 @@
         <p class="text-sm text-muted-foreground">
           Une fenêtre navigateur s'est ouverte sur le consentement
           {oauthDialogProvider === "google" ? "Google" : "Microsoft"}.
-          Validez les permissions — Apollia récupère le code automatiquement
+          Validez les permissions - Apollia récupère le code automatiquement
           dès le retour du navigateur.
         </p>
 
@@ -2117,7 +2117,7 @@
 
      Layout : vertical row list (single column at narrow widths, 2-column
      grid wide). Cards on a Sheet contracted by the left rail were
-     illegible (titles truncated to 1 char) — rows scale to any width. -->
+     illegible (titles truncated to 1 char) - rows scale to any width. -->
 <Sheet
   open={catalogueOpen}
   onclose={() => { catalogueOpen = false; resetCustomForm(); }}
@@ -2201,7 +2201,7 @@
             {/snippet}
           </EmptyState>
         {:else}
-          <!-- Vertical row list — readable at any Sheet width, scales to
+          <!-- Vertical row list - readable at any Sheet width, scales to
                long descriptions and long vendor names without truncation
                nightmares. -->
           <ul class="space-y-1.5" data-testid="catalogue-list">
@@ -2265,7 +2265,7 @@
             {/each}
           </ul>
 
-          <!-- IntersectionObserver sentinel — auto-paginates DOM rendering
+          <!-- IntersectionObserver sentinel - auto-paginates DOM rendering
                as the user scrolls (Amazon-style). When near the bottom,
                `catalogLimit` is bumped to reveal the next chunk. -->
           <div bind:this={catalogueSentinel} class="h-px" aria-hidden="true"></div>
@@ -2278,7 +2278,7 @@
             </div>
           {:else if hasMoreMcp}
             <div class="mt-4 flex items-center justify-center text-[11px] text-muted-foreground/70" data-testid="catalogue-more-hint">
-              {filteredMcp.length - catalogLimit} entrées restantes — continuez à scroller
+              {filteredMcp.length - catalogLimit} entrées restantes - continuez à scroller
             </div>
           {:else if catalogueTier === "full" && filteredMcp.length > 0}
             <div class="mt-4 flex items-center justify-center text-[11px] text-muted-foreground/60">
@@ -2376,7 +2376,7 @@
 
         {#if customTestResult}
           <div class="mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
-            ✓ Test OK — {customTestResult}
+            ✓ Test OK - {customTestResult}
           </div>
         {/if}
         {#if customError}

@@ -3,7 +3,7 @@ name: apollia-sprint
 description: Planifier, démarrer, clôturer et faire le bilan d'un sprint pour le projet Apollia OS. Utilise ce skill quand l'utilisateur dit "on commence le sprint N", "qu'est-ce qu'on fait ce sprint", "bilan du sprint", "démarre le sprint", "prépare le sprint", "qu'est-ce qui reste à faire", ou demande à voir l'état d'avancement du projet. Ce skill maintient la cohérence entre les stories, vérifie les dépendances, et produit les artefacts de sprint (plan, bilan, décisions).
 ---
 
-# Apollia OS — Skill de Planification de Sprint
+# Apollia OS - Skill de Planification de Sprint
 
 Gère le cycle de vie complet d'un sprint Apollia OS : préparation, démarrage, suivi, et clôture.
 
@@ -25,12 +25,12 @@ Produit le plan détaillé du sprint avant de commencer.
 1. Lire `references/sprint-index.md` pour récupérer les stories du sprint
 2. Vérifier que les dépendances des stories sont toutes ✅ dans les sprints précédents
 3. Calculer la charge totale (S=2h, M=3h, L=6h) et comparer au budget (8-10h/semaine × 2 = 16-20h)
-4. Identifier le **Sprint Goal** — le livrable démo-able unique qui valide le sprint
+4. Identifier le **Sprint Goal** - le livrable démo-able unique qui valide le sprint
 5. Produire `docs/internal/STORIES/sprint-N/plan.md`
 
 **Format du plan :**
 ```markdown
-# Sprint N — Plan
+# Sprint N - Plan
 
 **Sprint Goal :** [livrable démo-able en 1 phrase]
 **Durée estimée :** Xh / budget 16-20h
@@ -72,7 +72,7 @@ Vue d'ensemble de l'avancement en cours.
 
 **Format de sortie :**
 ```
-Sprint N — En cours (jour X/14)
+Sprint N - En cours (jour X/14)
 
 docs/internal/STORIES
   ✅ STORY-006  EventBus broadcast Tokio              M  2.5h
@@ -99,7 +99,7 @@ Valide le sprint terminé et prépare le bilan.
 
 **Format du bilan :**
 ```markdown
-# Sprint N — Bilan
+# Sprint N - Bilan
 
 **Sprint Goal :** [atteint ✅ | partiellement ⚠️ | non atteint ❌]
 **Démo :** [description de ce qui peut être démontré]
@@ -133,7 +133,7 @@ Identifie la prochaine story à implémenter selon l'ordre de priorité et les d
 **Logique :**
 1. Lire l'état du sprint courant dans `sprint-index.md`
 2. Trouver la première story 🔲 dont toutes les dépendances sont ✅
-3. Afficher : "Prochaine story : STORY-NNN — [titre]. Commencer par [fichier cible]."
+3. Afficher : "Prochaine story : STORY-NNN - [titre]. Commencer par [fichier cible]."
 
 ---
 

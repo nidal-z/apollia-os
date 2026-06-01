@@ -1,4 +1,4 @@
-# Apollia — sites de documentation
+# Apollia - sites de documentation
 
 Trois sites statiques HTML/CSS/JS prêts à déployer sur 3 sous-domaines indépendants.
 
@@ -21,18 +21,18 @@ Trois sites statiques HTML/CSS/JS prêts à déployer sur 3 sous-domaines indép
 ./scripts/build-docs.sh wiki help     # combinaisons
 ```
 
-Sortie : `web/dist/{book,wiki,help}/` — chaque dossier est un site statique autonome (à pointer comme `dist` Cloudflare Pages).
+Sortie : `web/dist/{book,wiki,help}/` - chaque dossier est un site statique autonome (à pointer comme `dist` Cloudflare Pages).
 
 ## Dev local
 
 ```bash
-# mdBook (book) — port 3000 par défaut
+# mdBook (book) - port 3000 par défaut
 cd book && mdbook serve --open
 
-# VitePress wiki — port 5174
+# VitePress wiki - port 5174
 cd web/wiki-site && npm run dev
 
-# VitePress help — port 5175
+# VitePress help - port 5175
 cd web/help-site && npm run dev
 ```
 
@@ -82,10 +82,10 @@ Un script utilitaire `scripts/refresh-symlinks.sh` peut être ajouté si nécess
 
 Les configs VitePress activent :
 
-- `html: false` — pour escape les `<Vec<T>>`, `<Option<String>>` et autres generics Rust qui sinon seraient interprétés comme des composants Vue.
-- Hook `escape-vue-interpolation` — pour escape les `{{...}}` (templates de pipelines, exemples TOML).
-- Hook `<pre v-pre>` — double protection sur les blocs de code.
-- `ignoreDeadLinks: true` — temporaire, à durcir une fois les cross-links validés.
+- `html: false` - pour escape les `<Vec<T>>`, `<Option<String>>` et autres generics Rust qui sinon seraient interprétés comme des composants Vue.
+- Hook `escape-vue-interpolation` - pour escape les `{{...}}` (templates de pipelines, exemples TOML).
+- Hook `<pre v-pre>` - double protection sur les blocs de code.
+- `ignoreDeadLinks: true` - temporaire, à durcir une fois les cross-links validés.
 
 ### Diagrammes
 

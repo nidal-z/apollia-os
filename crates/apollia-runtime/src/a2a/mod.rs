@@ -416,7 +416,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                     warn!(
                         task_id = %task_id_str,
                         lagged = n,
-                        "A2A EventBus lagged — checking router output directly"
+                        "A2A EventBus lagged - checking router output directly"
                     );
                     // Fallback: consulter le routeur directement.
                     if let Ok(Some(out)) = router.get_output(&task_id_str).await {

@@ -44,7 +44,7 @@ def test_react_listed_in_dunder_all() -> None:
 
 class _StubCtx:
     """Minimal ctx exposing ``llm`` (a MockLlmProxy) and an optional
-    ``events`` interface — enough for the ``react`` happy paths."""
+    ``events`` interface - enough for the ``react`` happy paths."""
 
     def __init__(
         self,

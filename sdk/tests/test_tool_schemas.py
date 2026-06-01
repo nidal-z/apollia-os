@@ -30,7 +30,7 @@ from apollia.tools.schemas import (
 def test_native_tool_schemas_has_known_tools() -> None:
     # GIVEN the static SDK mirror of the Rust descriptors
     # WHEN we look up known native tool names
-    # THEN they all have an entry — guards against silent drift from previous bugs.
+    # THEN they all have an entry - guards against silent drift from previous bugs.
     expected = {
         "bash_executor",
         "file_read",
@@ -69,7 +69,7 @@ def test_build_tools_block_empty() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Runtime-driven path — single source of truth via ctx.tools.describe()
+# Runtime-driven path - single source of truth via ctx.tools.describe()
 # ---------------------------------------------------------------------------
 
 
@@ -128,7 +128,7 @@ def test_render_descriptor_from_runtime_input_schema() -> None:
     assert "query: str (required, 1-500 chars)" in out
     assert "max_results: int (optional, 1-20)" in out
     assert "backend: str (optional, one of: auto | duckduckgo | brave)" in out
-    # Example honours the `required` array — query placeholder must be present
+    # Example honours the `required` array - query placeholder must be present
     assert '"query": "<query>"' in out
 
 
@@ -164,7 +164,7 @@ def test_build_tools_block_from_ctx_uses_runtime_descriptors() -> None:
     assert "Available tools:" in block
     assert "echo:" in block
     assert "Echoes input back." in block
-    assert "msg: str (required) — Message." in block
+    assert "msg: str (required) - Message." in block
 
 
 def test_build_tools_block_from_ctx_degrades_without_ctx() -> None:

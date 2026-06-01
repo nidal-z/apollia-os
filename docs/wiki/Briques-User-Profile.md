@@ -1,14 +1,14 @@
-# Brique — Profil utilisateur (User Profile)
+# Brique - Profil utilisateur (User Profile)
 
 > **Principe fondamental** : le profil utilisateur est un **outil**, pas une règle.
 > Le LLM reçoit le contexte profil comme information dans le system prompt.
-> Il **DÉCIDE** quoi en faire. Ce n'est **JAMAIS** un filtre déterministe qui modifie le comportement du runtime (Principe #6 — mémoire à initiative de l'agent).
+> Il **DÉCIDE** quoi en faire. Ce n'est **JAMAIS** un filtre déterministe qui modifie le comportement du runtime (Principe #6 - mémoire à initiative de l'agent).
 
 **Décisions architecturales** :
-- [ADR-007 — Mémoire à initiative de l'agent](../adr/ADR-007-memoire-initiative-agent.md)
-- [ADR-038 — Mémoire utilisateur globale](../adr/ADR-038-global-user-memory.md) (amendée par ADR-087)
-- [ADR-040 — Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
-- [ADR-087 — Profil utilisateur canonique avec schéma déclaratif](../adr/ADR-087-user-profile-redesign.md)
+- [ADR-007 - Mémoire à initiative de l'agent](../adr/ADR-007-memoire-initiative-agent.md)
+- [ADR-038 - Mémoire utilisateur globale](../adr/ADR-038-global-user-memory.md) (amendée par ADR-087)
+- [ADR-040 - Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
+- [ADR-087 - Profil utilisateur canonique avec schéma déclaratif](../adr/ADR-087-user-profile-redesign.md)
 
 ---
 
@@ -18,9 +18,9 @@ Le profil utilisateur global permet à Apollia OS de conserver des informations 
 
 Le sous-système repose sur trois piliers :
 
-1. **Schéma canonique** — une const Rust `PROFILE_SCHEMA` déclare la liste des champs canoniques (Tier 1 + Tier 2) regroupés en quatre sections d'affichage.
-2. **Stockage** — `UserMemoryRepository` persiste les entrées dans SQLite via `SemanticMemory` sous le namespace réservé `__user__`, avec des **clés plates** (pas de préfixe).
-3. **Exposition** — le SDK Python expose `ctx.profile` ; l'UI desktop expose `Paramètres → Profil` ; l'onboarding-agent peuple le Tier 1 lors du premier lancement.
+1. **Schéma canonique** - une const Rust `PROFILE_SCHEMA` déclare la liste des champs canoniques (Tier 1 + Tier 2) regroupés en quatre sections d'affichage.
+2. **Stockage** - `UserMemoryRepository` persiste les entrées dans SQLite via `SemanticMemory` sous le namespace réservé `__user__`, avec des **clés plates** (pas de préfixe).
+3. **Exposition** - le SDK Python expose `ctx.profile` ; l'UI desktop expose `Paramètres → Profil` ; l'onboarding-agent peuple le Tier 1 lors du premier lancement.
 
 ---
 
@@ -40,7 +40,7 @@ Toutes les entrées de profil vivent sous le namespace réservé `__user__` dans
 └───────────────┴─────────────────────────┘
 ```
 
-Les **états internes** de l'onboarding et du desktop (UI bookkeeping) vivent aussi dans `__user__` mais sous des clés préfixées `__` (ex. `__onboarding_skipped`, `__companion_enabled`) — masquées de toutes les listes utilisateur.
+Les **états internes** de l'onboarding et du desktop (UI bookkeeping) vivent aussi dans `__user__` mais sous des clés préfixées `__` (ex. `__onboarding_skipped`, `__companion_enabled`) - masquées de toutes les listes utilisateur.
 
 ### Schéma canonique
 
@@ -91,7 +91,7 @@ pub struct UserMemoryRepository { store: MemoryStore }
 | `get_last_onboarding_session()` / `set_last_onboarding_session(ts)` | Timestamp dernière session |
 | `get_internal(key)` / `set_internal(key, value)` | Helpers génériques pour états internes (UI desktop, etc.) |
 
-### Provenance — `WrittenBy`
+### Provenance - `WrittenBy`
 
 Trois variantes (`WrittenBy { Onboarding, User, Agent(String) }`) sérialisées dans la colonne `source` de `semantic_memories` :
 
@@ -101,7 +101,7 @@ Trois variantes (`WrittenBy { Onboarding, User, Agent(String) }`) sérialisées 
 | `user` | Édition explicite depuis Settings → Profil ou IPC opérateur |
 | `agent:<name>` | Observation d'un agent en cours de tâche (ex. `agent:chat-extractor`) |
 
-Pas de score `confidence` exposé, pas de badge `validated`, pas d'enum `category` — supprimés en V1 (ADR-087).
+Pas de score `confidence` exposé, pas de badge `validated`, pas d'enum `category` - supprimés en V1 (ADR-087).
 
 ### IPC Tauri
 
@@ -116,26 +116,26 @@ Pas de score `confidence` exposé, pas de badge `validated`, pas d'enum `categor
 | `reset_user_profile` | `()` | `usize` (nombre d'entrées supprimées) |
 | `get_conversation_stats` | `session_id: String` | `ConversationStatsView` (pour SidePanel chat) |
 
-### SDK Python — `ctx.profile`
+### SDK Python - `ctx.profile`
 
 **Bridge Rust** : `crates/apollia-aip/src/profile.rs`  
 **Stub Python** : `sdk/apollia/stubs/profile.py`
 
 ```python
-# Lecture (toujours autorisée — namespace __user__ partagé)
+# Lecture (toujours autorisée - namespace __user__ partagé)
 await ctx.profile.get("role")          # str | None
 await ctx.profile.has("agents.hitl")    # bool
 await ctx.profile.all()                  # dict[str, str] (clés plates)
-ctx.profile.schema_keys()                # list[str] — canonical keys (sync)
+ctx.profile.schema_keys()                # list[str] - canonical keys (sync)
 
-# Écriture — requiert user_memory_write = true dans le manifest
+# Écriture - requiert user_memory_write = true dans le manifest
 await ctx.profile.set("role", "CTO fintech")
 await ctx.profile.update({"name": "Nidal", "preferences.language": "fr"})
 ```
 
 Le préfixe legacy `user.` est silencieusement stripé sur `get` et `set` : `ctx.profile.get("user.role")` ≡ `ctx.profile.get("role")`. Préférer la clé plate dans le nouveau code.
 
-Sans la permission manifest, `set`/`update` lèvent `RuntimeError`. La permission est **réservée à l'onboarding-agent** dans la V1 — les autres agents observent passivement et n'écrivent qu'avec une autorisation explicite.
+Sans la permission manifest, `set`/`update` lèvent `RuntimeError`. La permission est **réservée à l'onboarding-agent** dans la V1 - les autres agents observent passivement et n'écrivent qu'avec une autorisation explicite.
 
 ### Injection en chat mode
 
@@ -145,7 +145,7 @@ L'injection est marquée dans le prompt par un en-tête `Section: <name>` (ex. `
 
 ---
 
-## Onboarding-agent — point d'entrée canonique
+## Onboarding-agent - point d'entrée canonique
 
 **Fichier** : `agents/system/onboarding-agent/agent.py`
 
@@ -153,10 +153,10 @@ L'onboarding-agent est le **seul agent système** déclarant `user_memory_write 
 
 | Tour | Clés écrites | `WrittenBy` |
 |---|---|---|
-| 1 — Identité | `name`, `role` | `Onboarding` |
-| 2 — Supervision | `agents.hitl` | `Onboarding` |
-| 3 — Contraintes | `constraints.sovereignty` | `Onboarding` |
-| 4 — Proposition de règles | n/a (propose des règles `governance.db`) | — |
+| 1 - Identité | `name`, `role` | `Onboarding` |
+| 2 - Supervision | `agents.hitl` | `Onboarding` |
+| 3 - Contraintes | `constraints.sovereignty` | `Onboarding` |
+| 4 - Proposition de règles | n/a (propose des règles `governance.db`) | - |
 
 Les états internes du dialogue (`bootstrap.snapshot`, topics couverts, `onboarding.completed_at`) restent dans la **namespace propre** de l'agent (`onboarding-agent`), distincte de `__user__`. Les marqueurs UI desktop (`__onboarding_phase`, `__onboarding_skipped`, etc.) vivent eux dans `__user__` sous préfixe `__`.
 
@@ -181,15 +181,15 @@ Les états internes du dialogue (`bootstrap.snapshot`, topics couverts, `onboard
 
 ## Tests
 
-- `crates/apollia-memory/src/user_memory.rs` — CRUD, partition schema/extras, reset, persona brief, validation de clés (tests inline).
-- `crates/apollia-memory/src/profile_schema.rs` — invariants (clés uniques, options de `Select`, présence Tier 1).
-- `crates/apollia-aip/src/memory.rs` — round-trip mémoire agent isolée (sans fallback `__user__`).
-- `crates/apollia-desktop/src/commands/user_memory.rs` — round-trip view types.
+- `crates/apollia-memory/src/user_memory.rs` - CRUD, partition schema/extras, reset, persona brief, validation de clés (tests inline).
+- `crates/apollia-memory/src/profile_schema.rs` - invariants (clés uniques, options de `Select`, présence Tier 1).
+- `crates/apollia-aip/src/memory.rs` - round-trip mémoire agent isolée (sans fallback `__user__`).
+- `crates/apollia-desktop/src/commands/user_memory.rs` - round-trip view types.
 - UI : Vitest sur `companion.test.ts` (utilise `get_companion_enabled`).
 
 ---
 
 ## Aide opérateur
 
-- [Mon profil](../help/memoire/mon-profil.md) — éditer son profil depuis Settings.
-- [Consulter et nettoyer la mémoire](../help/memoire/consulter-et-nettoyer-la-memoire.md) — explorer les namespaces et supprimer des entrées.
+- [Mon profil](../help/memoire/mon-profil.md) - éditer son profil depuis Settings.
+- [Consulter et nettoyer la mémoire](../help/memoire/consulter-et-nettoyer-la-memoire.md) - explorer les namespaces et supprimer des entrées.

@@ -18,7 +18,7 @@ use crate::config::StyleProviderConfig;
 
 /// Extensions exclues de la détection du langage dominant.
 ///
-/// On veut uniquement des fichiers de code source — pas de configuration,
+/// On veut uniquement des fichiers de code source - pas de configuration,
 /// documentation, ni métadonnées de build.
 const EXCLUDED_EXTENSIONS: &[&str] = &[
     "md", "toml", "json", "lock", "yaml", "yml", "txt", "log", "xml", "csv",

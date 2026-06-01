@@ -1,5 +1,5 @@
 /**
- * Hotkey capture utilities — parses `KeyboardEvent` into a canonical combo
+ * Hotkey capture utilities - parses `KeyboardEvent` into a canonical combo
  * string (`"ctrl+shift+space"`), validates it, and flags collisions against a
  * small list of reserved OS/app shortcuts.
  *

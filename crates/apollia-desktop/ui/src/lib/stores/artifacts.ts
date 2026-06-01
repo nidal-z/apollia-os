@@ -9,7 +9,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { derived, get, writable } from "svelte/store";
 
-/** Wire-format Artifact — matches `commands::artifacts::Artifact` in Rust. */
+/** Wire-format Artifact - matches `commands::artifacts::Artifact` in Rust. */
 export interface Artifact {
   id: string;
   session_id: string;

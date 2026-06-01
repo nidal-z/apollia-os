@@ -19,11 +19,11 @@ def _build_parser() -> argparse.ArgumentParser:
     """Build the top-level ``apollia`` parser with every sub-command wired."""
     parser = argparse.ArgumentParser(
         prog="apollia",
-        description="Apollia SDK — agent development toolkit",
+        description="Apollia SDK - agent development toolkit",
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    # `apollia new` — agent scaffolding (delegates to scaffold.py).
+    # `apollia new` - agent scaffolding (delegates to scaffold.py).
     new_parser = subparsers.add_parser(
         "new",
         help="Generate a new agent from a template",
@@ -53,7 +53,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     new_parser.set_defaults(func=_run_new)
 
-    # `apollia inspect` — read-only manifest inspection.
+    # `apollia inspect` - read-only manifest inspection.
     inspect_cmd.build_parser(subparsers)
 
     return parser

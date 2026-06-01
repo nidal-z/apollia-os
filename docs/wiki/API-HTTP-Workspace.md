@@ -1,20 +1,20 @@
-# API HTTP — Workspace (Triggers, Notifications) — Apollia OS
+# API HTTP - Workspace (Triggers, Notifications) - Apollia OS
 
 > Référence des endpoints REST liés aux **triggers, webhooks et notifications**.
 > Public cible : développeur intégrant Apollia OS dans un système externe.
 >
 > Cette page fait partie d'un découpage en trois :
-> - [API-HTTP-Agents](./API-HTTP-Agents) — agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
-> - **API-HTTP-Workspace** (cette page) — triggers, webhooks, notifications
-> - [API-HTTP-Observability](./API-HTTP-Observability) — audit, timeline, approvals, user memory, dashboard, STT, MCP
+> - [API-HTTP-Agents](./API-HTTP-Agents) - agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
+> - **API-HTTP-Workspace** (cette page) - triggers, webhooks, notifications
+> - [API-HTTP-Observability](./API-HTTP-Observability) - audit, timeline, approvals, user memory, dashboard, STT, MCP
 
 ---
 
 ## Vue d'ensemble
 
 L'API HTTP locale est exposée sur deux transports :
-- **Unix socket** : `/tmp/apollia.sock` — recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (ADR-051)
+- **Unix socket** : `/tmp/apollia.sock` - recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
+- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-051)
 
 Tous les endpoints retournent du JSON.
 
@@ -367,16 +367,16 @@ La table `notification_logs` est créée de manière idempotente si elle n'exist
 
 ## Codes d'erreur HTTP
 
-Voir [API-HTTP-Agents — Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-http) pour le tableau complet.
+Voir [API-HTTP-Agents - Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-http) pour le tableau complet.
 
 ---
 
 ## Voir aussi
 
-- [API-HTTP-Agents](./API-HTTP-Agents) — agents, tasks, LLM, tools, a2a, sessions
-- [API-HTTP-Observability](./API-HTTP-Observability) — audit, timeline, approvals, user, dashboard, STT, MCP
-- [Briques Triggers](./Briques-Triggers) — moteur de déclenchement
-- [Briques Notifications](./Briques-Notifications) — canaux de notification et moteur HITL
-- [ADR-021](../adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) — décisions TOML/HMAC/hot reload
-- [ADR-024](../adr/ADR-024) — décisions système de notifications (canaux, événements, SQLite)
-- [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) — config opérateur SQLite (CRUD triggers/notifications)
+- [API-HTTP-Agents](./API-HTTP-Agents) - agents, tasks, LLM, tools, a2a, sessions
+- [API-HTTP-Observability](./API-HTTP-Observability) - audit, timeline, approvals, user, dashboard, STT, MCP
+- [Briques Triggers](./Briques-Triggers) - moteur de déclenchement
+- [Briques Notifications](./Briques-Notifications) - canaux de notification et moteur HITL
+- [ADR-021](../adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) - décisions TOML/HMAC/hot reload
+- [ADR-024](../adr/ADR-024) - décisions système de notifications (canaux, événements, SQLite)
+- [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) - config opérateur SQLite (CRUD triggers/notifications)

@@ -1,4 +1,4 @@
-# ADR-110 — Commande `apollia inspect <agent.py>`
+# ADR-110 - Commande `apollia inspect <agent.py>`
 
 **Date :** 2026-05-19
 **Statut :** Accepté
@@ -12,7 +12,7 @@ Aujourd'hui, valider qu'un agent Python est conforme au runtime Apollia
 nécessite de **le démarrer pour de vrai** via `apollia agent start
 <id>` ou `apollia chat-libre <id>`. Si le manifeste est mal formé, si
 une signature de skill est incohérente, si une datasource déclarée
-n'existe pas, l'erreur n'apparaît qu'au premier appel — ou pire,
+n'existe pas, l'erreur n'apparaît qu'au premier appel - ou pire,
 silencieusement dégrade le comportement.
 
 **État observé au 2026-05-19** :
@@ -78,7 +78,7 @@ Skills (3):
       output:       {title: str, text: str, lang: str}
 
 Datasources (2):
-  ✓ sources       (datasources/sources.yaml — 203 entrées)
+  ✓ sources       (datasources/sources.yaml - 203 entrées)
   ✗ topics        MISSING (datasources/topics.yaml introuvable)
 
 Templates (1):
@@ -92,7 +92,7 @@ Permissions:
   tools.allow: ["web_search", "file_read", "http_request"]
 
 Warnings (1):
-  - Skill "deep_search" has untyped `dict` return — consider TypedDict
+  - Skill "deep_search" has untyped `dict` return - consider TypedDict
     for clearer client schemas.
 
 Errors (1):
@@ -104,20 +104,20 @@ Errors (1):
 
 Détails techniques :
 
-1. **Chargement isolé** — le module Python est chargé via `importlib.
+1. **Chargement isolé** - le module Python est chargé via `importlib.
    util.spec_from_file_location()` dans un subprocess Python pur (ou
    via un mode CLI Rust qui invoque Python sans le bridge complet). Le
    décorateur `@agent` (ADR-107) instancie l'agent ; `apollia inspect`
    accède à `module.agent.__apollia_manifest__`.
-2. **Sans runtime** — pas d'EventBus, pas d'acteurs, pas d'API HTTP.
+2. **Sans runtime** - pas d'EventBus, pas d'acteurs, pas d'API HTTP.
    `ctx` n'est jamais instancié. Le PyO3 bridge n'est pas chargé.
    Inspection pure = lecture statique.
 3. **Validation systématique** :
    - Skill_id unicité.
    - Signatures (`@skill`, `@on_message`, `@orchestrated`) inférables
-     en JSON Schema (ADR-099) — sinon erreur.
+     en JSON Schema (ADR-099) - sinon erreur.
    - Datasources YAML existent ET parsent (validation `serde_yaml`).
-   - Templates Jinja2 existent (pas validation syntax — laissé à
+   - Templates Jinja2 existent (pas validation syntax - laissé à
      `minijinja` au load runtime).
    - Secrets déclarés vs configurés dans le store local (warning si
      non-configurés).
@@ -139,37 +139,37 @@ Détails techniques :
 
 ## Alternatives considérées
 
-### Option A — Valider seulement au boot runtime (statu quo) (rejetée)
+### Option A - Valider seulement au boot runtime (statu quo) (rejetée)
 
 **Pour :** zéro outil supplémentaire.
 **Contre :** cycle de feedback lent (~5-10s pour démarrer). Erreurs
 fragmentées dans les logs Rust. Pas exploitable en pre-commit/CI.
 
-### Option B — Outil externe `apollia-lint` séparé (rejetée)
+### Option B - Outil externe `apollia-lint` séparé (rejetée)
 
 **Pour :** modulaire.
 **Contre :** dupplique la logique d'introspection. Maintenance
 parallèle. Moins discoverable que `apollia inspect`.
 
-### Option C — Web UI desktop affichant l'inspection (rejetée)
+### Option C - Web UI desktop affichant l'inspection (rejetée)
 
 **Pour :** beau visuellement.
 **Contre :** ne sert pas le CI/pre-commit. Auteur en terminal n'a rien.
 
-### Option retenue — Commande CLI `apollia inspect` first-class
+### Option retenue - Commande CLI `apollia inspect` first-class
 
 **Pour :** intégrée à la CLI existante (cohérence ADR-x sur CLI),
 exécutable en CI/pre-commit/dev/IDE, output JSON pour intégration tools
 tiers, feedback rapide (<1s typique).
 **Compromis acceptés :** l'inspection ne détecte pas les erreurs
 runtime (ex. token API expiré, datasource invalide à mid-execution).
-Couvre le statique seulement — clairement documenté.
+Couvre le statique seulement - clairement documenté.
 
 ## Conséquences
 
 **Positives :**
 
-- Feedback < 1s pour valider la conformité d'un agent — vs ~5-10s du
+- Feedback < 1s pour valider la conformité d'un agent - vs ~5-10s du
   cycle "install + start + invoke".
 - Pre-commit hook trivial à ajouter dans le repo et chez les
   utilisateurs : refuse un agent mal formé avant qu'il n'arrive en
@@ -178,7 +178,7 @@ Couvre le statique seulement — clairement documenté.
   workflows`.
 - Onboarding builder : un nouvel auteur lance `apollia inspect` après
   chaque modif et apprend par feedback rapide.
-- Implémente concrètement le **principe #4 — Fail fast** au niveau
+- Implémente concrètement le **principe #4 - Fail fast** au niveau
   ergonomique.
 - Synergique avec ADR-098 (decorator-first introspectable), ADR-099
   (signature inference génère le schéma), ADR-103/104 (gating
@@ -189,7 +189,7 @@ Couvre le statique seulement — clairement documenté.
 - Implémentation : ~400 LOC côté CLI (commande clap + renderer texte
   + renderer JSON + driver subprocess Python). Estimé 1-1.5j sur
   LOT 11.
-- Si l'agent fait des side-effects au load (rare mais possible — un
+- Si l'agent fait des side-effects au load (rare mais possible - un
   `print("loading")` ou un fetch HTTP au top-level), `inspect` les
   déclenche. Documenter : "le load doit être pure".
 - Subprocess Python implique de connaître le chemin Python du runtime
@@ -197,7 +197,7 @@ Couvre le statique seulement — clairement documenté.
 
 **À surveiller :**
 
-- Adoption pré-commit côté builders externes — si faible, prévoir un
+- Adoption pré-commit côté builders externes - si faible, prévoir un
   template pre-commit dans le starter kit agent.
 - Output JSON : stabiliser le schéma (versionned `schema_version: 1`)
   pour ne pas casser les outils tiers.
@@ -206,20 +206,20 @@ Couvre le statique seulement — clairement documenté.
 
 ## Principes architecturaux impactés
 
-- **Principe #4 — Fail fast** : matérialisation directe au niveau
+- **Principe #4 - Fail fast** : matérialisation directe au niveau
   ergonomique builder.
-- **Principe #8 — CLI humaine, API machine** : `apollia inspect` est
+- **Principe #8 - CLI humaine, API machine** : `apollia inspect` est
   les deux à la fois (human-readable + `--json`).
-- **Principe #3 — Contrat minimal** : le contrat de l'agent est
-  introspectable sans démarrer le runtime — preuve qu'il est vraiment
+- **Principe #3 - Contrat minimal** : le contrat de l'agent est
+  introspectable sans démarrer le runtime - preuve qu'il est vraiment
   minimal et statique.
 
 ## Liens
 
-- ADR-098 — Decorator-first (rend l'introspection possible)
-- ADR-099 — Signature inference (alimente le rapport schémas)
-- ADR-103 — Datasources & templates (vérifications statiques ajoutées)
-- ADR-104 — Secrets read-only (vérifications statiques ajoutées)
-- ADR-107 — Auto module instance (rend `module.agent` toujours
+- ADR-098 - Decorator-first (rend l'introspection possible)
+- ADR-099 - Signature inference (alimente le rapport schémas)
+- ADR-103 - Datasources & templates (vérifications statiques ajoutées)
+- ADR-104 - Secrets read-only (vérifications statiques ajoutées)
+- ADR-107 - Auto module instance (rend `module.agent` toujours
   disponible)
-- ADR-082 — Tool governance (le rapport croise les permissions tools)
+- ADR-082 - Tool governance (le rapport croise les permissions tools)

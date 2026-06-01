@@ -1,4 +1,4 @@
-# ADR-018 — CLI Bootstrap sans Supervisor
+# ADR-018 - CLI Bootstrap sans Supervisor
 
 **Date :** 2026-03-06
 **Statut :** Accepte
@@ -21,15 +21,15 @@ Ce bootstrap sera remplace par le Supervisor quand STORY-039 sera implementee.
 
 ## Alternatives considerees
 
-### Option A — Attendre STORY-039 avant d'implementer la CLI (rejetee)
+### Option A - Attendre STORY-039 avant d'implementer la CLI (rejetee)
 **Pour :** Architecture propre des le depart, pas de code temporaire.
 **Contre :** Bloque le sprint 5. La CLI est le Sprint Goal et ne peut pas etre reportee. Les commandes `status`, `run`, `stop` ne dependent pas du Supervisor.
 
-### Option B — Implementer le Supervisor dans STORY-037 (rejetee)
+### Option B - Implementer le Supervisor dans STORY-037 (rejetee)
 **Pour :** Pas de code temporaire, architecture complete.
 **Contre :** Augmente la taille de STORY-037 (deja L) de maniere significative. Le Supervisor a ses propres complexites (watchdog, restart policy, timeout par acteur) qui meritent une story dediee.
 
-### Option retenue — Bootstrap inline temporaire
+### Option retenue - Bootstrap inline temporaire
 **Pour :** Debloque la CLI immediatement. Code simple et lisible. Facile a remplacer par le Supervisor (une seule fonction a changer). L'endpoint shutdown est reutilisable tel quel par le Supervisor.
 **Compromis acceptes :** Code temporaire qui sera remplace. Pas de watchdog ni restart policy en attendant STORY-039.
 
@@ -50,8 +50,8 @@ Ce bootstrap sera remplace par le Supervisor quand STORY-039 sera implementee.
 
 ## Principes architecturaux impactes
 
-- Principe #5 — Un acteur, une responsabilite : respecte — chaque acteur est cree separement avec son propre canal
-- Principe #8 — CLI humaine, API machine : respecte — le bootstrap affiche la progression en texte
+- Principe #5 - Un acteur, une responsabilite : respecte - chaque acteur est cree separement avec son propre canal
+- Principe #8 - CLI humaine, API machine : respecte - le bootstrap affiche la progression en texte
 
 ## Liens
 

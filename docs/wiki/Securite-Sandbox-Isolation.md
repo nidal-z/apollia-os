@@ -1,4 +1,4 @@
-# Sécurité — Sandbox et Isolation — Apollia OS
+# Sécurité - Sandbox et Isolation - Apollia OS
 
 > Comment Apollia OS isole l'exécution des outils système et protège l'API REST locale : Linux namespaces, authentification par token, sandbox Windows 3 couches (ADR-052).
 > Public cible : administrateur système, contributeur Rust
@@ -12,7 +12,7 @@
 
 ## Vue d'ensemble
 
-Apollia OS utilise les **Linux user namespaces** (via `unshare`) pour isoler l'exécution de `bash_executor` et `python_executor`. Pas de Docker, pas de daemon requis — les [user namespaces](https://man7.org/linux/man-pages/man7/user_namespaces.7.html) sont une fonctionnalité native du kernel Linux disponible sans privilèges root.
+Apollia OS utilise les **Linux user namespaces** (via `unshare`) pour isoler l'exécution de `bash_executor` et `python_executor`. Pas de Docker, pas de daemon requis - les [user namespaces](https://man7.org/linux/man-pages/man7/user_namespaces.7.html) sont une fonctionnalité native du kernel Linux disponible sans privilèges root.
 
 La commande `unshare` crée un environnement isolé avec ses propres identifiants utilisateur (`--user`), son propre filesystem (`--mount`) et sa propre pile réseau (`--net`). L'outil s'exécute comme root dans son namespace (uid 0) mais n'a aucun privilège réel sur le système hôte.
 
@@ -45,13 +45,13 @@ L'outil s'exécute avec un UID mappé qui apparaît root dans le namespace mais 
 
 ---
 
-## SandboxProfile — niveaux d'isolation
+## SandboxProfile - niveaux d'isolation
 
 Le Tool Registry attribue un `SandboxProfile` à chaque outil :
 
 | Profile | Filesystem | Réseau | Usage |
 |---|---|---|---|
-| `None` | Accès complet | Accès complet | Pas de sandbox — outils internes uniquement |
+| `None` | Accès complet | Accès complet | Pas de sandbox - outils internes uniquement |
 | `ReadOnly` | Lecture seule | Aucun | Lecture de fichiers, inspection |
 | `FileSystem` | Lecture/écriture sur le working dir | Aucun | `bash_executor`, `python_executor`, `file_io` |
 | `NetworkRestricted` | ReadOnly | Whitelist uniquement | `http_client` (futur) |
@@ -68,7 +68,7 @@ pub enum SandboxProfile {
 
 ---
 
-## BashExecutor — isolation Linux namespaces
+## BashExecutor - isolation Linux namespaces
 
 ```bash
 # Ce qu'Apollia OS exécute en coulisse pour chaque commande
@@ -93,7 +93,7 @@ result = await ctx.tools.call("bash_executor", {
 
 ---
 
-## PythonExecutor — venv isolation
+## PythonExecutor - venv isolation
 
 En plus du namespace, `python_executor` crée un venv Python dédié par agent :
 
@@ -157,14 +157,14 @@ L'API REST TCP `:7771` est protégée par un token statique.
 - Généré automatiquement au premier démarrage via `rand::rngs::OsRng`.
 - Le runtime refuse de démarrer si les permissions sont trop ouvertes (`0640`, `0644`, etc.).
 - Toutes les requêtes TCP doivent porter `Authorization: Bearer <token>`.
-- Comparaison à **temps constant** via `subtle::ConstantTimeEq` — pas de timing attack.
+- Comparaison à **temps constant** via `subtle::ConstantTimeEq` - pas de timing attack.
 - Le **socket Unix** reste non authentifié (permissions filesystem suffisent).
 
 Configurable dans `apollia.toml` :
 
 ```toml
 [api]
-require_token = true      # défaut : true — NE PAS désactiver en production
+require_token = true      # défaut : true - NE PAS désactiver en production
 bind = "127.0.0.1"        # loopback uniquement par défaut
 ```
 
@@ -179,7 +179,7 @@ apollia-os config rotate-token  # régénérer un nouveau token (redémarre le r
 
 ---
 
-## Sandbox Windows — modèle Chromium 3 couches *(ADR-052 — déploiement différé)*
+## Sandbox Windows - modèle Chromium 3 couches *(ADR-052 - déploiement différé)*
 
 L'ADR-052 définit la stratégie de sandbox pour Windows natif (implémentation différée). Le design est formalisé et implémentable dès qu'un environnement Windows est disponible.
 
@@ -187,9 +187,9 @@ L'ADR-052 définit la stratégie de sandbox pour Windows natif (implémentation 
 
 | Couche | Mécanisme | Vecteurs couverts |
 |---|---|---|
-| 1 — Job Object | `win32job::Job` | Terminaison auto, pas de boîte de dialogue d'erreur Windows |
-| 2 — Restricted Token | `CreateRestrictedToken` (Win32) | Suppression groupes sensibles, retrait privilèges dangereux |
-| 3 — AppContainer | `CreateAppContainerProfile` (Win32) | Isolation réseau/filesystem par profil dédié |
+| 1 - Job Object | `win32job::Job` | Terminaison auto, pas de boîte de dialogue d'erreur Windows |
+| 2 - Restricted Token | `CreateRestrictedToken` (Win32) | Suppression groupes sensibles, retrait privilèges dangereux |
+| 3 - AppContainer | `CreateAppContainerProfile` (Win32) | Isolation réseau/filesystem par profil dédié |
 
 **Dégradation gracieuse :** si AppContainer échoue (Windows 7, erreur API), le runtime se replie sur couches 1+2 avec un warning explicite.
 
@@ -207,12 +207,12 @@ Les agents Apollia OS sont véritablement autonomes sur le filesystem, régulés
 
 | Couche | Mécanisme | Rôle |
 |---|---|---|
-| 0 — Workspace déclaratif | `Project.workspace_path` + file picker natif | Définit le périmètre de travail de l'agent |
-| 1 — RiskClassifier | Classification pré-exécution des opérations fichier | Évalue le risque de chaque mutation |
-| 2 — HITL graduée | Modal diff/preview pour opérations sensibles | L'utilisateur approuve ou refuse avec contexte |
-| 3 — Journal réversible | Log JSONL de chaque mutation avant exécution | Restauration post-hoc via `apollia rollback` |
+| 0 - Workspace déclaratif | `Project.workspace_path` + file picker natif | Définit le périmètre de travail de l'agent |
+| 1 - RiskClassifier | Classification pré-exécution des opérations fichier | Évalue le risque de chaque mutation |
+| 2 - HITL graduée | Modal diff/preview pour opérations sensibles | L'utilisateur approuve ou refuse avec contexte |
+| 3 - Journal réversible | Log JSONL de chaque mutation avant exécution | Restauration post-hoc via `apollia rollback` |
 
-### RiskClassifier — niveaux de risque filesystem
+### RiskClassifier - niveaux de risque filesystem
 
 Le `RiskClassifier` (étendu depuis `apollia-permissions`) évalue chaque opération fichier avant exécution :
 
@@ -225,7 +225,7 @@ Le `RiskClassifier` (étendu depuis `apollia-permissions`) évalue chaque opéra
 
 ### Workspace par session
 
-Chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` (refactoré) injecte ce chemin dans chaque outil natif — l'agent travaille dans le bon répertoire sans configuration manuelle.
+Chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` (refactoré) injecte ce chemin dans chaque outil natif - l'agent travaille dans le bon répertoire sans configuration manuelle.
 
 ### Journal réversible et `apollia rollback`
 
@@ -243,7 +243,7 @@ $ apollia rollback <session-id>
   ✔ 3 mutations annulées
 ```
 
-### HITL filesystem — modal diff/preview
+### HITL filesystem - modal diff/preview
 
 Pour les opérations classées Medium ou High, un modal desktop affiche :
 - Le **diff** complet (avant/après) pour les écritures
@@ -270,10 +270,10 @@ Pour les opérations classées Medium ou High, un modal desktop affiche :
 
 ## Voir aussi
 
-- [Architecture Principes](./Architecture-Principes) — Principe #2 Zéro dépendance externe
-- [Sécurité Local-First](./Securite-Local-First) — souveraineté des données, token API
-- [Sécurité Guardrails](./Securite-Guardrails) — StepBudget
-- [ADR-005](../adr/ADR-005-sandbox-sans-docker) — pourquoi namespaces plutôt que Docker
-- [ADR-012](../adr/ADR-012-sandbox-devmode-macos) — mode dev macOS
-- [ADR-051](../adr/ADR-051-api-auth) — authentification API TCP
-- [ADR-052](../adr/ADR-052-windows-sandbox) — sandbox Windows 3 couches
+- [Architecture Principes](./Architecture-Principes) - Principe #2 Zéro dépendance externe
+- [Sécurité Local-First](./Securite-Local-First) - souveraineté des données, token API
+- [Sécurité Guardrails](./Securite-Guardrails) - StepBudget
+- [ADR-005](../adr/ADR-005-sandbox-sans-docker) - pourquoi namespaces plutôt que Docker
+- [ADR-012](../adr/ADR-012-sandbox-devmode-macos) - mode dev macOS
+- [ADR-051](../adr/ADR-051-api-auth) - authentification API TCP
+- [ADR-052](../adr/ADR-052-windows-sandbox) - sandbox Windows 3 couches

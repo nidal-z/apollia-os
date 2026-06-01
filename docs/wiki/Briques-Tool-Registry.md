@@ -1,4 +1,4 @@
-# Tool Registry — Catalogue, Sandbox, Audit Trail
+# Tool Registry - Catalogue, Sandbox, Audit Trail
 
 > *Spécification complète du système de gestion des outils : catalogue, résolution, sandbox, et traçabilité.*
 
@@ -15,7 +15,7 @@ Le Tool Registry est la **couche d'outillage** d'Apollia OS. Il répond à 4 que
 
 ---
 
-## 2. ToolDescriptor — L'unité du catalogue
+## 2. ToolDescriptor - L'unité du catalogue
 
 Chaque outil est décrit par un `ToolDescriptor`, aligné sur le schéma MCP :
 
@@ -84,7 +84,7 @@ print(json.dumps(data))
 )
 ```
 
-**Isolation :** Virtualenv dédié dans `~/.apollia/sandboxes/<agent_id>/venv/`. Les packages déclarés dans le manifest sont installés à `INITIALIZING` — une tentative d'installer un package à l'exécution échoue avec une erreur claire.
+**Isolation :** Virtualenv dédié dans `~/.apollia/sandboxes/<agent_id>/venv/`. Les packages déclarés dans le manifest sont installés à `INITIALIZING` - une tentative d'installer un package à l'exécution échoue avec une erreur claire.
 
 **Décision de design :** Les packages sont installés au démarrage (fail fast) et non à l'exécution pour éviter les surprises de performance et les installations silencieuses non auditées.
 
@@ -117,7 +117,7 @@ await ctx.tools.file_write.run(
     path="output/result.json",
     content=json.dumps(data, indent=2)
 )
-# Crée output/ s'il n'existe pas — opération atomique (write + rename)
+# Crée output/ s'il n'existe pas - opération atomique (write + rename)
 ```
 
 **Sandbox :** Chemin validé par `SandboxRoot`. Écriture hors sandbox rejetée avant toute opération disque.
@@ -136,7 +136,7 @@ await ctx.tools.file_edit.run(
 # Erreur si old_str non-unique : ToolExecutionError::ExecutionFailed { code: "NOT_UNIQUE", ... }
 ```
 
-**Cas d'erreur :** La non-unicité est une protection explicite — fournir un contexte plus large dans `old_str` pour disambiguïser.
+**Cas d'erreur :** La non-unicité est une protection explicite - fournir un contexte plus large dans `old_str` pour disambiguïser.
 
 ### 3.6 `file_list`
 
@@ -159,7 +159,7 @@ matches = await ctx.tools.file_glob.run(pattern="**/*.json")
 # Exemple : ["output/result.json", "config/agent.json"]
 ```
 
-**Sandbox :** Le glob est ancré à la racine sandbox — un pattern absolu est rejeté par `SandboxRoot`.
+**Sandbox :** Le glob est ancré à la racine sandbox - un pattern absolu est rejeté par `SandboxRoot`.
 
 ### 3.8 `file_grep`
 
@@ -201,13 +201,13 @@ AgentManifest(
 )
 ```
 
-**Garde anti-SSRF :** Après vérification de l'allowlist, `http_fetch` applique un second filtre via `apollia_tools::ssrf::assert_public`. Les URL pointant vers des hôtes privés (loopback `127.x`, RFC 1918, link-local `169.254.x.x`, metadata cloud, domaines `.local`/`.internal`/`localhost`) sont rejetées avec `ToolExecutionError::ExecutionFailed { code: "SSRF_BLOCKED" }`. Ce filtre s'applique même si l'hôte figure dans l'allowlist — une misconfiguration opérateur ne peut pas ouvrir l'accès à l'infrastructure interne.
+**Garde anti-SSRF :** Après vérification de l'allowlist, `http_fetch` applique un second filtre via `apollia_tools::ssrf::assert_public`. Les URL pointant vers des hôtes privés (loopback `127.x`, RFC 1918, link-local `169.254.x.x`, metadata cloud, domaines `.local`/`.internal`/`localhost`) sont rejetées avec `ToolExecutionError::ExecutionFailed { code: "SSRF_BLOCKED" }`. Ce filtre s'applique même si l'hôte figure dans l'allowlist - une misconfiguration opérateur ne peut pas ouvrir l'accès à l'infrastructure interne.
 
 **Feature flag :** Compilé uniquement si `features = ["http"]` dans `apollia-tools`. Absent du binaire par défaut.
 
 ### 3.10 `memory_search` *(feature flag `memory-search`)*
 
-Recherche FTS5/BM25 dans la mémoire de l'agent, isolée par namespace. Respecte le Principe #6 (mémoire à initiative de l'agent — jamais d'injection automatique).
+Recherche FTS5/BM25 dans la mémoire de l'agent, isolée par namespace. Respecte le Principe #6 (mémoire à initiative de l'agent - jamais d'injection automatique).
 
 ```python
 results = await ctx.tools.memory_search.run(
@@ -220,7 +220,7 @@ results = await ctx.tools.memory_search.run(
 
 **Isolation namespace :** La requête FTS5 est toujours filtrée par `namespace = ?` avant évaluation du score BM25. Un agent ne peut jamais accéder aux souvenirs d'un autre agent.
 
-**Principe #6 :** L'agent appelle explicitement `memory_search` — le runtime n'injecte jamais de contexte mémoriel automatiquement. L'initiative est toujours côté agent.
+**Principe #6 :** L'agent appelle explicitement `memory_search` - le runtime n'injecte jamais de contexte mémoriel automatiquement. L'initiative est toujours côté agent.
 
 **Feature flag :** Compilé uniquement si `features = ["memory-search"]` dans `apollia-tools`. Requiert `apollia-memory` dans le workspace.
 
@@ -238,7 +238,7 @@ result = await ctx.tools.mcp_database.query(sql="SELECT * FROM clients")
 
 ### Outil déprécié : `file_io`
 
-> **DEPRECATION** — `file_io` est déprécié et remplacé par les outils atomiques `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`.
+> **DEPRECATION** - `file_io` est déprécié et remplacé par les outils atomiques `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`.
 >
 > Le code source est conservé dans `apollia-tools` mais l'outil **n'est plus enregistré** dans le registry. Toute tentative de résolution via `tools_required = ["file_io"]` ou `tools_optional = ["file_io"]` retourne un avertissement dans les logs :
 >
@@ -337,11 +337,11 @@ AgentManifest(
 | outil déprécié (`file_io`) | → | Warning dans les logs + résolution échoue comme `NotFound` |
 | dépendance `a2a:<skill>` (required ou optional) | → | Résolue d'office sans lookup registry → `ACTIVE` |
 
-**Règle préfixe `a2a:`** — Les entrées commençant par `a2a:` (ex. `a2a:search-and-extract`) sont des skills d'agents inter-agents et ne sont pas enregistrées dans le `ToolRegistry`. Le resolver les considère comme résolues d'office ; la résolution réelle a lieu à l'invocation via le `ToolProxy` + `A2AInvoker`. Un manifest mixte est valide :
+**Règle préfixe `a2a:`** - Les entrées commençant par `a2a:` (ex. `a2a:search-and-extract`) sont des skills d'agents inter-agents et ne sont pas enregistrées dans le `ToolRegistry`. Le resolver les considère comme résolues d'office ; la résolution réelle a lieu à l'invocation via le `ToolProxy` + `A2AInvoker`. Un manifest mixte est valide :
 
 ```python
 AgentManifest(
-    tools_required=["file_read"],                          # natif — vérifié dans le registry
+    tools_required=["file_read"],                          # natif - vérifié dans le registry
     tools_optional=["a2a:synthesize-report", "mcp_erp"],   # A2A : OK d'office ; mcp_erp : warning si absent
 )
 ```
@@ -367,7 +367,7 @@ pub enum SandboxProfile {
     ReadOnly,            // Lecture seule, pas réseau, CPU/RAM limités
     FileSystem,          // Lecture/écriture sandbox agent, pas réseau
     NetworkRestricted,   // FileSystem + réseau limité à network_allowlist
-    Full,                // Tout autorisé — nécessite dangerous=true dans ToolDescriptor
+    Full,                // Tout autorisé - nécessite dangerous=true dans ToolDescriptor
 }
 ```
 
@@ -382,7 +382,7 @@ pub enum SandboxProfile {
 
 **Roadmap sandbox :**
 - v0.1 : `subprocess` + namespaces Linux (`unshare`)
-- v0.2 : `nsjail` (Google, open-source) — namespaces + seccomp-BPF dans un binaire
+- v0.2 : `nsjail` (Google, open-source) - namespaces + seccomp-BPF dans un binaire
 - v1.0 : gVisor optionnel pour déploiements production sensibles
 
 ---
@@ -438,7 +438,7 @@ pub struct ObservabilityConfig {
 }
 ```
 
-La troncature utilise `truncate_with_marker` qui garantit des frontières UTF-8 valides et ajoute le marqueur `[TRONQUÉ — N octets total]` si le contenu dépasse la limite. Un flag `*_truncated` accompagne chaque champ tronqué.
+La troncature utilise `truncate_with_marker` qui garantit des frontières UTF-8 valides et ajoute le marqueur `[TRONQUÉ - N octets total]` si le contenu dépasse la limite. Un flag `*_truncated` accompagne chaque champ tronqué.
 
 Les colonnes `args_json`, `stdout`, `stderr` sont ajoutées par migration idempotente (`ALTER TABLE ADD COLUMN IF NOT EXISTS`). Les invocations antérieures ont ces colonnes à `NULL`.
 
@@ -457,7 +457,7 @@ $ apollia-os audit stats
   Tâches     : 89 terminées, 3 échouées (96.7% succès)
   Temps moy  : 2.8s par tâche
   Outil +    : python_executor (34 appels)
-  Outil —    : http_fetch (2 timeouts)
+  Outil -    : http_fetch (2 timeouts)
 ```
 
 ---
@@ -498,7 +498,7 @@ GET /api/v1/tools/:name     → Détail complet d'un outil (ToolDescriptor)
 
 ---
 
-## 9. ToolExecutor — Interface unifiée d'exécution
+## 9. ToolExecutor - Interface unifiée d'exécution
 
 Le introduit un trait `ToolExecutor` et un routeur `ToolDispatcher` pour unifier l'invocation des outils natifs via une interface JSON générique. Voir ADR-043.
 
@@ -510,7 +510,7 @@ Chaque outil natif implémente ce trait, découplant la logique métier du regis
 /// Interface d'exécution unifiée pour tous les outils natifs.
 /// Chaque implémentation est stateless et thread-safe (Send + Sync).
 pub trait ToolExecutor: Send + Sync {
-    /// Identifiant unique de l'outil — doit correspondre au champ `name` du ToolDescriptor.
+    /// Identifiant unique de l'outil - doit correspondre au champ `name` du ToolDescriptor.
     fn tool_name(&self) -> &'static str;
 
     /// Exécute l'outil avec un input JSON arbitraire.
@@ -529,10 +529,10 @@ pub enum ToolExecutionError {
 
 **Conventions :**
 - `code` dans `ExecutionFailed` est une chaîne machine lisible (`"NOT_FOUND"`, `"NOT_UNIQUE"`, `"DOMAIN_NOT_ALLOWED"`, `"TRAVERSAL_ATTEMPTED"`, `"TIMEOUT"`, etc.)
-- L'implémentation ne doit jamais `unwrap` ni `panic!` — toute erreur prévisible retourne `ToolExecutionError`
+- L'implémentation ne doit jamais `unwrap` ni `panic!` - toute erreur prévisible retourne `ToolExecutionError`
 - `execute` reçoit et retourne `serde_json::Value` : la sérialisation/désérialisation des types métier est interne à l'implémentation
 
-### 9.2 `ToolDispatcher` — Routeur par nom
+### 9.2 `ToolDispatcher` - Routeur par nom
 
 `ToolDispatcher` maintient une map `tool_name → Box<dyn ToolExecutor>` et route les appels JSON entrants :
 
@@ -559,7 +559,7 @@ impl ToolDispatcher {
 
 **Intégration dans le registry :** Le `ToolDispatcher` est construit à `INITIALIZING` après la résolution des outils. Il est passé en lecture seule aux acteurs qui gèrent l'exécution des tâches.
 
-### 9.3 `SandboxRoot` — Validation des chemins
+### 9.3 `SandboxRoot` - Validation des chemins
 
 Le module `sandbox_path` centralise toute la logique de validation des traversals pour les outils fichiers :
 
@@ -590,7 +590,7 @@ pub enum SandboxPathError {
 
 Le introduit la crate `apollia-mcp` qui connecte le Tool Registry aux serveurs MCP externes. Un serveur MCP est un processus tiers (Node.js, Python, ou autre) qui expose des outils via le protocole JSON-RPC MCP.
 
-### 10.1 Naming — `mcp:{server}/{tool}`
+### 10.1 Naming - `mcp:{server}/{tool}`
 
 Chaque outil découvert sur un serveur MCP est enregistré dans le Tool Registry avec la convention :
 
@@ -625,7 +625,7 @@ pub enum ToolKind {
 }
 ```
 
-`McpTransport::Stdio` est le seul transport supporté en V1 — le serveur MCP est un sous-processus local géré par le runtime.
+`McpTransport::Stdio` est le seul transport supporté en V1 - le serveur MCP est un sous-processus local géré par le runtime.
 
 ### 10.3 Enregistrement automatique par `McpClientManager`
 
@@ -635,11 +635,11 @@ Au démarrage, `McpClientManagerHandle::start` :
 2. Pour chaque serveur, démarre le processus (`command` + `args` + `env`) et effectue le handshake `initialize`.
 3. Envoie `tools/list` au serveur et récupère les définitions d'outils.
 4. Enregistre chaque outil découvert dans le `ToolRegistryHandle` avec un `ToolDescriptor` construit à partir de la définition MCP.
-5. Un serveur qui échoue à démarrer est loggué et ignoré — les autres serveurs continuent.
+5. Un serveur qui échoue à démarrer est loggué et ignoré - les autres serveurs continuent.
 
 L'enregistrement est idempotent par redémarrage de session : le manager gère les ajouts et suppressions dynamiques via les routes API (`POST /api/v1/mcp/servers`, `DELETE /api/v1/mcp/servers/:name`).
 
-### 10.4 `McpToolExecutor` — Interface d'exécution unifiée
+### 10.4 `McpToolExecutor` - Interface d'exécution unifiée
 
 Chaque outil MCP découvert est encapsulé dans un `McpToolExecutor` qui implémente le trait `ToolExecutor` :
 
@@ -652,7 +652,7 @@ impl ToolExecutor for McpToolExecutor {
 ```
 
 `execute` :
-1. Vérifie si une approbation HITL est requise (serveur ou agent) — si oui, suspend et attend.
+1. Vérifie si une approbation HITL est requise (serveur ou agent) - si oui, suspend et attend.
 2. Sérialise `input` comme `arguments` du `tools/call` JSON-RPC.
 3. Achemine la requête via `McpClientManagerHandle` vers la session du serveur.
 4. Retourne le `content` de la réponse MCP comme `Value` JSON.
@@ -668,7 +668,7 @@ Les outils MCP utilisent le profil sandbox suivant :
 
 Contrairement aux outils natifs dont le sandbox est appliqué par le runtime, le sandbox d'un outil MCP est déclaratif : le code s'exécute dans le processus serveur externe. `SandboxProfile` ici reflète la politique de confiance accordée au serveur.
 
-### 10.6 `McpConfigWriter` — Mutations persistées
+### 10.6 `McpConfigWriter` - Mutations persistées
 
 `McpConfigWriter` gère les mutations de `mcp.toml` depuis les routes API :
 
@@ -689,20 +689,20 @@ Chaque méthode : lit le fichier courant, applique la mutation en mémoire, vali
 | Décision | Justification |
 |---|---|
 | Schéma outil aligné MCP | Interopérabilité native avec l'écosystème MCP (16K+ serveurs) |
-| Résolution uniquement à `INITIALIZING` | Fail fast — erreurs prévisibles, pas de surprises runtime |
+| Résolution uniquement à `INITIALIZING` | Fail fast - erreurs prévisibles, pas de surprises runtime |
 | `tools_required` vs `tools_optional` | Distinction criticité explicite : `STOPPED` vs `DEGRADED` |
 | Sandbox par profil prédéfini | Simple à comprendre et tester, pas de config per-outil |
 | MVP sans Docker | Zéro dépendance, fonctionne sur tout Linux, évolutif vers nsjail |
 | Audit log SQLite local | Souveraineté complète, format lisible, zéro service externe |
-| `network_allowlist` dans manifest | Principe du moindre privilège — whitelist explicite |
-| Décomposition atomique des outils fichiers (ADR-043) | `file_io` monolithique remplacé par 6 outils à responsabilité unique — testabilité, composabilité, erreurs typées par cas d'usage |
-| `ToolExecutor` trait + `ToolDispatcher` (ADR-043) | Interface JSON unifiée — découplage registry/dispatch, ajout d'outils sans modifier le routeur |
-| Feature flags `http` et `memory-search` | `http_fetch` et `memory_search` sont opt-in à la compilation — binaire minimal par défaut, zéro surface d'attaque réseau inutile |
-| `SandboxRoot` comme type dédié | Centralisation de la logique anti-traversal — un seul endroit à auditer, impossibilité d'oublier la validation |
-| Naming `mcp:{server}/{tool}` | Namespace explicite — évite les collisions avec les outils natifs, lisible dans les manifests agents et les logs audit |
-| `McpClientManager` comme acteur unique | Pattern acteur Tokio strict — zéro état partagé, toutes les mutations de sessions passent par le channel `mpsc` |
-| `McpConfigWriter` séparé de `McpClientManager` | Séparation I/O disque / état runtime — le writer est synchrone et stateless, le manager ne touche jamais le disque directement |
-| `McpToolExecutor` implémente `ToolExecutor` | Les outils MCP sont indiscernables des outils natifs pour le `ToolDispatcher` — ajout de l'intégration MCP sans modifier le chemin d'exécution existant |
+| `network_allowlist` dans manifest | Principe du moindre privilège - whitelist explicite |
+| Décomposition atomique des outils fichiers (ADR-043) | `file_io` monolithique remplacé par 6 outils à responsabilité unique - testabilité, composabilité, erreurs typées par cas d'usage |
+| `ToolExecutor` trait + `ToolDispatcher` (ADR-043) | Interface JSON unifiée - découplage registry/dispatch, ajout d'outils sans modifier le routeur |
+| Feature flags `http` et `memory-search` | `http_fetch` et `memory_search` sont opt-in à la compilation - binaire minimal par défaut, zéro surface d'attaque réseau inutile |
+| `SandboxRoot` comme type dédié | Centralisation de la logique anti-traversal - un seul endroit à auditer, impossibilité d'oublier la validation |
+| Naming `mcp:{server}/{tool}` | Namespace explicite - évite les collisions avec les outils natifs, lisible dans les manifests agents et les logs audit |
+| `McpClientManager` comme acteur unique | Pattern acteur Tokio strict - zéro état partagé, toutes les mutations de sessions passent par le channel `mpsc` |
+| `McpConfigWriter` séparé de `McpClientManager` | Séparation I/O disque / état runtime - le writer est synchrone et stateless, le manager ne touche jamais le disque directement |
+| `McpToolExecutor` implémente `ToolExecutor` | Les outils MCP sont indiscernables des outils natifs pour le `ToolDispatcher` - ajout de l'intégration MCP sans modifier le chemin d'exécution existant |
 | Transport stdio V1 uniquement (ADR-043) | Local-first : le serveur MCP est un subprocess local, zéro appel réseau initié sans action explicite de l'utilisateur |
 
 ---
@@ -759,7 +759,7 @@ impl ToolDispatcher {
 }
 ```
 
-**Règle fondamentale : batch mixte → sériel obligatoire.** Un seul outil avec effets de bord force l'exécution séquentielle de l'ensemble — l'ordre des effets est garanti.
+**Règle fondamentale : batch mixte → sériel obligatoire.** Un seul outil avec effets de bord force l'exécution séquentielle de l'ensemble - l'ordre des effets est garanti.
 
 **`Semaphore(10)` pour les batches read-only :** limite la concurrence pour éviter la saturation des file descriptors et les pics CPU.
 
@@ -769,7 +769,7 @@ impl ToolDispatcher {
 
 ---
 
-## 13. `persistent_bash` — Shell Persistant
+## 13. `persistent_bash` - Shell Persistant
 
 `PersistentBashExecutor` maintient un processus shell (`/bin/bash`) vivant entre les steps. L'état du shell (répertoire courant, variables d'environnement, fonctions définies) est préservé.
 
@@ -816,7 +816,7 @@ pub struct ShellSessionRegistry {
 
 ### 13.3 `is_read_only = false`
 
-`PersistentBashExecutor` est toujours `is_read_only = false` — le shell peut avoir des effets de bord arbitraires. Il n'est jamais inclus dans un batch concurrent.
+`PersistentBashExecutor` est toujours `is_read_only = false` - le shell peut avoir des effets de bord arbitraires. Il n'est jamais inclus dans un batch concurrent.
 
 ### 13.4 Exemple d'usage Python
 
@@ -840,7 +840,7 @@ result = await ctx.tools.persistent_bash.run(command="echo $API_KEY")
 
 ## 14. Nouvelles fonctionnalités
 
-### 14.1 `BashValidator` — Validation pré-exécution
+### 14.1 `BashValidator` - Validation pré-exécution
 
 `BashValidator` valide la syntaxe bash et classe les risques **avant** l'exécution d'une commande. Il s'intègre dans `BashExecutor::execute` : risques d'abord (sync), syntaxe ensuite (async).
 
@@ -853,7 +853,7 @@ impl BashValidator {
     pub fn new(config: BashValidatorConfig) -> Self { ... }
     /// Validation syntaxique via `bash -n -c` avec timeout 1s.
     pub async fn validate_syntax(&self, cmd: &str) -> Result<(), ToolError> { ... }
-    /// Classification des risques — sync, rapide, avant validate_syntax.
+    /// Classification des risques - sync, rapide, avant validate_syntax.
     pub fn classify_risks(&self, cmd: &str) -> Vec<RiskCategory> { ... }
 }
 ```
@@ -871,7 +871,7 @@ RiskyCommand { command: String, category: RiskCategory },
 SyntaxValidationTimeout,
 ```
 
-### 14.2 `RiskClassifier` — Classification des risques shell
+### 14.2 `RiskClassifier` - Classification des risques shell
 
 Classifie les commandes shell selon 4 catégories documentées par des standards publics.
 
@@ -880,13 +880,13 @@ pub struct RiskClassifier;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RiskCategory {
-    /// Accès réseau sortant — OWASP A10:2021, Principe #1 Apollia (local-first)
+    /// Accès réseau sortant - OWASP A10:2021, Principe #1 Apollia (local-first)
     NetworkEgress,
-    /// Destruction irréversible de données — NIST SP 800-190 §4.4
+    /// Destruction irréversible de données - NIST SP 800-190 §4.4
     DestructiveOp,
-    /// Élévation de droits — CWE-269
+    /// Élévation de droits - CWE-269
     PrivilegeEscalation,
-    /// Consommation non-contrôlée de ressources — CWE-400
+    /// Consommation non-contrôlée de ressources - CWE-400
     ResourceExhaustion,
 }
 
@@ -909,11 +909,11 @@ block_resource_exhaustion = true     # CWE-400
 syntax_check_timeout_ms = 1000
 ```
 
-**Philosophie :** aucune liste hardcodée — tout est configurable par l'opérateur. Comportement opt-in par catégorie.
+**Philosophie :** aucune liste hardcodée - tout est configurable par l'opérateur. Comportement opt-in par catégorie.
 
-### 14.3 `FilePathExtractor` — Extraction post-bash non-bloquante
+### 14.3 `FilePathExtractor` - Extraction post-bash non-bloquante
 
-Extrait les paths de fichiers depuis la sortie d'une commande bash via `LlmRouter::route_fast`. Tournant dans un `tokio::spawn` détaché — n'impacte pas la latence de `BashExecutor`.
+Extrait les paths de fichiers depuis la sortie d'une commande bash via `LlmRouter::route_fast`. Tournant dans un `tokio::spawn` détaché - n'impacte pas la latence de `BashExecutor`.
 
 ```rust
 pub struct FilePathExtractor {
@@ -922,7 +922,7 @@ pub struct FilePathExtractor {
 
 impl FilePathExtractor {
     pub fn new(llm_router: Arc<LlmRouter>) -> Self { ... }
-    /// Lance l'extraction en arrière-plan — non-bloquant pour BashExecutor.
+    /// Lance l'extraction en arrière-plan - non-bloquant pour BashExecutor.
     pub fn extract_detached(
         &self,
         command: String,
@@ -943,7 +943,7 @@ BashFilePathsExtracted {
 
 ORIA reçoit cet event pour invalider les caches de plan stale sur les fichiers affectés.
 
-> **Voir aussi :** [apollia-permissions](./Briques-Permissions.md) — intégration `PermissionEngine::decide` dans `ToolRegistry::invoke`
+> **Voir aussi :** [apollia-permissions](./Briques-Permissions.md) - intégration `PermissionEngine::decide` dans `ToolRegistry::invoke`
 
 ---
 
@@ -959,7 +959,7 @@ ORIA reçoit cet event pour invalider les caches de plan stale sur les fichiers 
 /// Type d'une cellule Jupyter.
 pub enum CellType { Code, Markdown, Raw }
 
-/// Cellule d'un notebook — agnostique au format de sérialisation.
+/// Cellule d'un notebook - agnostique au format de sérialisation.
 pub struct JupyterCell {
     pub cell_type: CellType,
     pub source: Vec<String>,   // lignes de code ou markdown
@@ -1062,13 +1062,13 @@ result = await ctx.tools.notebook_edit.run(
 
 | Décision | Justification |
 |---|---|
-| `is_read_only = false` par défaut | Conservateur — pas de régression sur les outils futurs (ADR-059) |
-| Batch mixte → sériel | Ordre des effets garanti — sécurité > performance sur les batches hétérogènes |
+| `is_read_only = false` par défaut | Conservateur - pas de régression sur les outils futurs (ADR-059) |
+| Batch mixte → sériel | Ordre des effets garanti - sécurité > performance sur les batches hétérogènes |
 | Semaphore(10) sur les batches read-only | Évite la saturation des fd système et les pics CPU sur les machines contraintes |
 | Marqueur UUID dans `persistent_bash` | Détection fiable de fin de commande même si l'output contient des chaînes arbitraires |
-| `ShellSessionRegistry` par agent_id | Isolation stricte — deux agents ne partagent jamais une session shell |
-| Absent de `tools` = actif par défaut | La table `tools` de `governance.db` est une liste d'exception — tout outil inconnu reste activé, seul `enabled = FALSE` désactive |
-| AES-256-GCM pour les credentials | Chiffrement symétrique authentifié — le ciphertext intègre le MAC, toute altération échoue au déchiffrement |
+| `ShellSessionRegistry` par agent_id | Isolation stricte - deux agents ne partagent jamais une session shell |
+| Absent de `tools` = actif par défaut | La table `tools` de `governance.db` est une liste d'exception - tout outil inconnu reste activé, seul `enabled = FALSE` désactive |
+| AES-256-GCM pour les credentials | Chiffrement symétrique authentifié - le ciphertext intègre le MAC, toute altération échoue au déchiffrement |
 
 ---
 
@@ -1078,12 +1078,12 @@ result = await ctx.tools.notebook_edit.run(
 
 `apollia_tools::tool_registry` expose deux composants persistés dans `governance.db` :
 
-- **`ToolRegistry`** — état `enabled` / `disabled` par outil natif.
-- **`ToolCredentialStore`** — secrets chiffrés par outil (ex. clé Brave Search).
+- **`ToolRegistry`** - état `enabled` / `disabled` par outil natif.
+- **`ToolCredentialStore`** - secrets chiffrés par outil (ex. clé Brave Search).
 
-Au démarrage du runtime, `load_governance_snapshot` lit ces deux composants et produit un `GovernanceSnapshot` injecté dans `NativeDispatcherConfig`. Les outils désactivés sont exclus du `ToolDispatcher` — tout appel à un tel outil retourne `UnknownTool`.
+Au démarrage du runtime, `load_governance_snapshot` lit ces deux composants et produit un `GovernanceSnapshot` injecté dans `NativeDispatcherConfig`. Les outils désactivés sont exclus du `ToolDispatcher` - tout appel à un tel outil retourne `UnknownTool`.
 
-### 16.2 `ToolRegistry` — activation / désactivation
+### 16.2 `ToolRegistry` - activation / désactivation
 
 ```rust
 /// Registre persisté des outils activés/désactivés et de leur config JSON.
@@ -1112,7 +1112,7 @@ impl ToolRegistry {
 }
 ```
 
-**`NATIVE_TOOL_NAMES`** — liste canonique des 16 outils natifs du runtime :
+**`NATIVE_TOOL_NAMES`** - liste canonique des 16 outils natifs du runtime :
 
 ```rust
 pub const NATIVE_TOOL_NAMES: &[&str] = &[
@@ -1122,14 +1122,14 @@ pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "web_search", "web_read",
     "memory_search",
     "ask_user",
-    // ADR-086 — gouvernance agent-driven des permissions.
+    // ADR-086 - gouvernance agent-driven des permissions.
     "permission_rule_add",
     "permission_rule_remove",
     "permission_rule_list",
 ];
 ```
 
-**`ToolStatus`** — snapshot d'un outil :
+**`ToolStatus`** - snapshot d'un outil :
 
 ```rust
 pub struct ToolStatus {
@@ -1140,7 +1140,7 @@ pub struct ToolStatus {
 }
 ```
 
-### 16.3 `ToolCredentialStore` — secrets chiffrés AES-256-GCM
+### 16.3 `ToolCredentialStore` - secrets chiffrés AES-256-GCM
 
 ```rust
 pub struct ToolCredentialStore {
@@ -1167,7 +1167,7 @@ impl ToolCredentialStore {
     pub fn delete(&mut self, tool_name: &str, key_name: &str)
         -> Result<bool, ToolGovernanceError>;
 
-    /// Liste les credentials (métadonnées uniquement — valeur jamais exposée).
+    /// Liste les credentials (métadonnées uniquement - valeur jamais exposée).
     /// `tool_name_filter = None` retourne toutes les credentials.
     pub fn list(&self, tool_name_filter: Option<&str>)
         -> Result<Vec<CredentialEntry>, ToolGovernanceError>;
@@ -1203,7 +1203,7 @@ pub struct GovernanceSnapshot {
 
 /// Charge le snapshot depuis `<base_dir>/governance.db` et `<base_dir>/.keyfile`.
 /// Retourne `GovernanceSnapshot::default()` (tous outils actifs, pas de clé Brave)
-/// si `governance.db` n'existe pas encore — le runtime fonctionne avant la première écriture.
+/// si `governance.db` n'existe pas encore - le runtime fonctionne avant la première écriture.
 pub fn load_governance_snapshot(base_dir: &Path)
     -> Result<GovernanceSnapshot, ToolGovernanceError>;
 ```
@@ -1219,7 +1219,7 @@ pub fn load_governance_snapshot(base_dir: &Path)
 ```rust
 pub struct NativeDispatcherConfig {
     // ... champs existants ...
-    /// Outils exclus du dispatcher — tout appel retourne `UnknownTool`.
+    /// Outils exclus du dispatcher - tout appel retourne `UnknownTool`.
     /// Produit par `merge_disabled` : union de la liste statique (`apollia.toml`)
     /// et de la liste dynamique (`governance.db`). Un outil absent des deux est actif.
     pub disabled_tools: Vec<String>,
@@ -1244,7 +1244,7 @@ pub struct NativeDispatcherConfig {
 
 ```rust
 /// Union de la liste statique (apollia.toml) et de la liste dynamique (governance.db).
-/// Un outil désactivé dans l'une ou l'autre source est inactif — les deux sources
+/// Un outil désactivé dans l'une ou l'autre source est inactif - les deux sources
 /// sont complémentaires.
 fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>) -> Vec<String> {
     for name in static_disabled {
@@ -1258,7 +1258,7 @@ fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>)
 
 `static_disabled` provient de `ToolsConfig.disabled` (section `[tools]` de `apollia.toml`). `runtime_disabled` provient de `GovernanceSnapshot.disabled_tools` (table `tools` de `governance.db`).
 
-### 16.6 `ToolGovernanceError` — erreurs typées
+### 16.6 `ToolGovernanceError` - erreurs typées
 
 ```rust
 #[derive(Debug, thiserror::Error)]

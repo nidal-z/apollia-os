@@ -14,9 +14,9 @@
     trailing?: Snippet;
     /**
      * Vertical density:
-     * - `sm`      = `h-8 px-2 py-1 text-xs` — table cells, filter rows, dense forms.
-     * - `default` = `h-10 px-3 py-2 text-sm` — standard form input (current default).
-     * - `lg`      = `h-12 px-4 py-2.5 text-base` — hero search bars.
+     * - `sm`      = `h-8 px-2 py-1 text-xs` - table cells, filter rows, dense forms.
+     * - `default` = `h-10 px-3 py-2 text-sm` - standard form input (current default).
+     * - `lg`      = `h-12 px-4 py-2.5 text-base` - hero search bars.
      */
     size?: Size;
     /**

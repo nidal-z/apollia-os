@@ -1,4 +1,4 @@
-# ADR-098 — Apollia AgentKit : decorator-first, agent unifié
+# ADR-098 - Apollia AgentKit : decorator-first, agent unifié
 
 **Date :** 2026-05-19
 **Statut :** Accepté
@@ -16,17 +16,17 @@ agents en a hérité d'une dette manifeste.
 
 **État observé au 2026-05-19 :**
 
-- `sdk/apollia/agents/react.py` — **676 LOC** pour `BaseReActAgent` (boucle
+- `sdk/apollia/agents/react.py` - **676 LOC** pour `BaseReActAgent` (boucle
   Observer-Reasoner-Actor, gestion d'erreurs JSON, streaming optionnel,
   fallbacks `getattr(ctx, "emit_thought", lambda *a: None)` pour les events,
   budget steps interne).
-- `sdk/apollia/agents/worker.py` — **125 LOC** pour `WorkerAgent` qui
+- `sdk/apollia/agents/worker.py` - **125 LOC** pour `WorkerAgent` qui
   redéclare un dispatch `op → handler` via `register_skill()` et un
   `manifest()` que chaque sous-classe doit redéfinir.
-- `sdk/apollia/agents/conversational.py` — **126 LOC** pour
+- `sdk/apollia/agents/conversational.py` - **126 LOC** pour
   `ConversationalAgent` qui dupplique la boucle LLM mais sans ReAct, avec un
   `system_prompt` géré différemment.
-- `sdk/apollia/agents/orchestrated.py` — **103 LOC** pour `OrchestratedAgent`
+- `sdk/apollia/agents/orchestrated.py` - **103 LOC** pour `OrchestratedAgent`
   qui ne fait que wrapper `ctx.a2a_invoke()` mais introduit pourtant un cycle
   de vie supplémentaire (`on_subtask_failed`, `on_plan_step_done`).
 - **Total héritage : 1 030 LOC** pour un comportement que les agents en
@@ -79,7 +79,7 @@ Concrètement :
 4. **`@orchestrated`** décore la méthode chef-d'orchestre d'un agent
    director (qui appelle `ctx.a2a.invoke(...)` pour déléguer à des workers).
    Pas de classe parente requise.
-5. **ReAct devient une utility runtime** — plus une classe parente.
+5. **ReAct devient une utility runtime** - plus une classe parente.
    `ctx.react(messages, tools=..., max_steps=...)` lance une boucle
    Observer-Reasoner-Actor déterministe gérée par le SDK. L'agent reste
    maître de l'enchaînement (il peut faire deux `ctx.react()` consécutifs,
@@ -107,26 +107,26 @@ Soit **~15 LOC pour 2 skills** vs ~400 LOC sous l'ancienne hiérarchie.
 
 ## Alternatives considérées
 
-### Option A — Conserver `BaseReActAgent` comme parente unique (rejetée)
+### Option A - Conserver `BaseReActAgent` comme parente unique (rejetée)
 
 **Pour :** moins de breaking changes, courbe d'apprentissage incrémentale,
 réutilise le code existant de la boucle ReAct.
 **Contre :** force tous les agents (même un worker qui ne fait que parser
 un PDF) à hériter d'une boucle LLM qu'ils n'utilisent pas. La méthode
-`run()` reste l'unique entry point — pas de multi-skill natif sans
+`run()` reste l'unique entry point - pas de multi-skill natif sans
 recoder le dispatch côté sous-classe. Ne résout pas le problème de fond :
 1 000+ LOC d'héritage défensif persistent.
 
-### Option B — Garder l'héritage mais en faire des mixins composables (rejetée)
+### Option B - Garder l'héritage mais en faire des mixins composables (rejetée)
 
 **Pour :** un agent pourrait combiner `WorkerMixin` + `ConversationalMixin`,
 le run-time choisit le bon dispatcher selon la présence de méthodes.
 **Contre :** la cognition côté auteur empire (l'ordre des mixins compte, le
 MRO Python est piège), et le SDK doit toujours implémenter 4 dispatchers
-internes. La duplication LOC ne disparaît pas — elle migre dans les mixins.
+internes. La duplication LOC ne disparaît pas - elle migre dans les mixins.
 Aucun gain de testabilité.
 
-### Option C — DSL externe (YAML + bouts de code Python) à la LangFlow (rejetée)
+### Option C - DSL externe (YAML + bouts de code Python) à la LangFlow (rejetée)
 
 **Pour :** zéro Python à écrire pour les cas simples, "no-code".
 **Contre :** trahit le principe #3 (contrat minimal duck-typing) et la
@@ -134,7 +134,7 @@ philosophie "des vrais agents, pas des flowcharts". Casse l'autocomplete
 IDE, force un parser custom, et complique la review de code (audit
 sécurité = relire du YAML).
 
-### Option retenue — decorator-first, agent unifié
+### Option retenue - decorator-first, agent unifié
 
 **Pour :** un seul concept côté auteur (`@agent` + décorateurs additifs),
 introspection statique (au load time) ⇒ `apollia inspect` peut tout
@@ -142,7 +142,7 @@ afficher (cf. ADR-110) sans démarrer le runtime, composition naturelle
 (un agent peut avoir N skills + un on_message + un orchestrated), aucune
 hiérarchie ⇒ tests unitaires triviaux (`DocxWorker()` instancié comme une
 classe normale en test).
-**Compromis acceptés :** breaking change total — aucun agent existant ne
+**Compromis acceptés :** breaking change total - aucun agent existant ne
 fonctionne sans réécriture. Documentation à refaire de zéro. Skills
 `apollia-agent-forge` et `apollia-worker-forge` à refondre (cf. LOT 12 du
 plan).
@@ -164,7 +164,7 @@ plan).
   reste, mais déménage dans `_internal/react_loop.py` et n'est plus
   exposée comme classe publique.
 - Cohérence avec les frameworks modernes (FastAPI `@app.get`, Pydantic
-  `@validator`, dataclasses `@dataclass`) — courbe d'apprentissage proche
+  `@validator`, dataclasses `@dataclass`) - courbe d'apprentissage proche
   de zéro pour un dev Python contemporain.
 
 **Négatives / Compromis :**
@@ -176,7 +176,7 @@ plan).
   ne fonctionne plus). Si un besoin de "framework dérivé" émerge
   (ex. `BaseRAGAgent`), il faudra concevoir un mécanisme de mixin
   decorator-based, pas via héritage.
-- La validation runtime est plus déclarative (au load) qu'imperative — un
+- La validation runtime est plus déclarative (au load) qu'imperative - un
   bug de signature `@skill` ne fail plus à l'exécution mais au load, ce
   qui change l'UX d'erreurs (alignement avec principe #4).
 
@@ -184,7 +184,7 @@ plan).
 
 - Adoption auteurs externes (post-release) : si l'absence d'héritage
   déroute, prévoir un guide "venant de LangChain / CrewAI" dans le book.
-- Émergence d'un besoin de hooks `before_skill` / `after_skill` —
+- Émergence d'un besoin de hooks `before_skill` / `after_skill` -
   envisager des décorateurs `@before(skill_id)` plutôt que des méthodes
   parentes.
 - Coût de l'introspection au load : sur 100 agents installés simultanément,
@@ -192,23 +192,23 @@ plan).
 
 ## Principes architecturaux impactés
 
-- **Principe #3 — Contrat minimal** : renforcé. L'agent est désormais une
+- **Principe #3 - Contrat minimal** : renforcé. L'agent est désormais une
   classe + des décorateurs ; plus aucune méthode parente à connaître.
-- **Principe #4 — Fail fast** : renforcé. Le manifest est construit au
-  load Python — toute incohérence (signature invalide, skill_id en
+- **Principe #4 - Fail fast** : renforcé. Le manifest est construit au
+  load Python - toute incohérence (signature invalide, skill_id en
   doublon, mauvais type d'annotation) lève à l'import, pas au premier
   appel.
-- **Principe #2 — Zéro dépendance externe** : préservé. Les décorateurs
+- **Principe #2 - Zéro dépendance externe** : préservé. Les décorateurs
   sont implémentés en stdlib pur (`functools`, `inspect`, `typing`).
 
 ## Liens
 
-- ADR-099 — Signature inference comme schéma I/O (compagnon natif)
-- ADR-100 — Exceptions typées au boundary
-- ADR-101 — `ctx` exhaustif via `Protocol`
-- ADR-102 — API A2A unifiée
-- ADR-107 — `@agent` instancie et expose `agent` au module
-- ADR-109 — `AIPResult` interne au SDK
-- ADR-110 — `apollia inspect` CLI
-- ADR-014 — Bridge PyO3 async (préservé, alimente le boundary)
-- ADR-083 — Trust model agents Python (alignement signature validation)
+- ADR-099 - Signature inference comme schéma I/O (compagnon natif)
+- ADR-100 - Exceptions typées au boundary
+- ADR-101 - `ctx` exhaustif via `Protocol`
+- ADR-102 - API A2A unifiée
+- ADR-107 - `@agent` instancie et expose `agent` au module
+- ADR-109 - `AIPResult` interne au SDK
+- ADR-110 - `apollia inspect` CLI
+- ADR-014 - Bridge PyO3 async (préservé, alimente le boundary)
+- ADR-083 - Trust model agents Python (alignement signature validation)

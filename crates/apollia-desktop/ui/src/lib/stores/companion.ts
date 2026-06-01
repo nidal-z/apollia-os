@@ -28,7 +28,7 @@ export type CompanionSessionStatus =
   | "creating"
   | "ready";
 
-/** Error category — drives icon, title, and suggested actions. */
+/** Error category - drives icon, title, and suggested actions. */
 export type CompanionErrorKind =
   | "network"
   | "permissions"
@@ -270,7 +270,7 @@ function createCompanionStore() {
     toggleCompanion(): void {
       let persistEnabled: boolean | null = null;
       mutate((s) => {
-        // If minimized, just restore — don't toggle the enabled preference
+        // If minimized, just restore - don't toggle the enabled preference
         if (s.enabled && s.minimized) {
           return { ...s, minimized: false, unreadCount: 0, restorePulseActive: false };
         }
@@ -405,7 +405,7 @@ function createCompanionStore() {
           });
         }
       } catch {
-        // Non-critical — companion still functions without updated context.
+        // Non-critical - companion still functions without updated context.
       }
     },
 
@@ -420,7 +420,7 @@ function createCompanionStore() {
           mutate((s) => ({ ...s, enabled: true, visible: true }));
         }
       } catch {
-        // Non-critical — companion defaults to disabled on error.
+        // Non-critical - companion defaults to disabled on error.
       }
     },
 

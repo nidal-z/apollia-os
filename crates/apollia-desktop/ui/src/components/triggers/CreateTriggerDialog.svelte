@@ -275,7 +275,7 @@
         aria-label={$t("triggers.field_target_agent")}
         data-testid="trigger-input-agent"
       >
-        <option value="" disabled>— {$t("triggers.field_target_agent")} —</option>
+        <option value="" disabled>- {$t("triggers.field_target_agent")} -</option>
         {#each agents as agent}
           <option value={agent.name}>{agent.name}</option>
         {/each}

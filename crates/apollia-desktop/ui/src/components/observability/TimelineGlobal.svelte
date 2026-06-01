@@ -40,7 +40,7 @@
     error: "observability.type_error",
   };
 
-  /** lucide-svelte icon components keyed by event type — visually consistent
+  /** lucide-svelte icon components keyed by event type - visually consistent
    *  with the rest of the design system (no emojis). */
   const TYPE_ICON: Record<string, typeof Icon> = {
     task: ClipboardList,
@@ -54,7 +54,7 @@
 
   /** Pastel chip palette per type. Foreground tokens are *dark* variants of
    *  each accent (info-foreground, warning-foreground…) so the text reads
-   *  well on the 10% tinted background — never use `accent-foreground` here,
+   *  well on the 10% tinted background - never use `accent-foreground` here,
    *  it's white. LLM gets a custom dark violet distinct from primary/memory. */
   const TYPE_CHIP: Record<string, string> = {
     task: "bg-info/10 text-info border-info/30",
@@ -96,7 +96,7 @@
     return m ? m[1] : null;
   }
 
-  /** Strip the leading "[agent] " prefix for the visible event title — the agent
+  /** Strip the leading "[agent] " prefix for the visible event title - the agent
    *  is already shown on the right of the row. Keeps the title clean. */
   function eventBody(event: GlobalTimelineEvent): string {
     return event.summary.replace(/^\[[^\]]+\]\s*/, "");
@@ -114,7 +114,7 @@
     }),
   );
 
-  /** KPI counters — recompute against the currently filtered set. */
+  /** KPI counters - recompute against the currently filtered set. */
   let stats = $derived.by(() => {
     let tools = 0,
       llm = 0,
@@ -237,7 +237,7 @@
 </script>
 
 <div class="space-y-5">
-  <!-- KPI strip — refreshes against current filter selection. -->
+  <!-- KPI strip - refreshes against current filter selection. -->
   {#if !loading}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="timeline-kpis">
       <article class="glass-inset rounded-lg px-4 py-3">
@@ -272,7 +272,7 @@
     </div>
   {/if}
 
-  <!-- Controls strip — window selector + type chips + agent picker. -->
+  <!-- Controls strip - window selector + type chips + agent picker. -->
   <Card class="px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3" data-testid="timeline-controls">
     <div class="flex items-center gap-2">
       <span class="section-meta text-[10px] tracking-[1.4px]">

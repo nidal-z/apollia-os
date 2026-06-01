@@ -52,4 +52,4 @@ Un lien **Voir le détail technique** affiche le message brut du backend pour le
 - **Commande introuvable (stdio)** : pour un MCP en transport stdio, le binaire n'est pas dans le PATH d'Apollia. Installez l'outil ou ajustez la commande.
 - **Test OK mais l'agent n'appelle pas l'outil** : ouvrez la fiche de l'agent, vérifiez que ce MCP figure dans son manifest. Voir [Comprendre la portée d'une intégration](comprendre-la-portee-d-une-integration.md).
 
-> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP) , codes d'erreur complets, sémantique handshake MCP.
+> **Référence technique :** [Briques-MCP](https://github.com/Apollia-OS/apollia-os/wiki/Briques-MCP) , codes d'erreur complets, sémantique handshake MCP.

@@ -1,4 +1,4 @@
-# ADR-100 — Exceptions typées au boundary, AIPResult interne
+# ADR-100 - Exceptions typées au boundary, AIPResult interne
 
 **Date :** 2026-05-19
 **Statut :** Accepté
@@ -25,7 +25,7 @@ input_required)` dans `agents/`) :
   les deux.
 - `AIPResult` est **injecté magiquement** dans `run.__globals__` par le
   bridge Rust (`crates/apollia-aip/src/bridge.rs:39` const `AIP_TYPES_PY`)
-  — l'auteur Python utilise un symbole non importé. IDE et linters le
+  - l'auteur Python utilise un symbole non importé. IDE et linters le
   signalent comme `undefined`. La friction est réelle (auteurs ajoutent
   des `# noqa` dans tout le repo pour la museler).
 - Pas de typage : `AIPResult.failed("REJECTED", "...")` accepte
@@ -54,11 +54,11 @@ Hiérarchie d'exceptions publique (`apollia.errors`) :
 
 ```
 ApolliaError                       # base abstraite, jamais levée directement
-├── DomainError                    # erreur métier — devient AIPResult.failed
+├── DomainError                    # erreur métier - devient AIPResult.failed
 │   └── (l'auteur peut sous-classer pour ses propres codes)
-├── PayloadError                   # validation input ratée — failed (CODE="PAYLOAD")
-├── PermissionError                # tool/secret/datasource non autorisé — failed (CODE="PERMISSION")
-├── BudgetError                    # StepBudget dépassé — failed (CODE="BUDGET")
+├── PayloadError                   # validation input ratée - failed (CODE="PAYLOAD")
+├── PermissionError                # tool/secret/datasource non autorisé - failed (CODE="PERMISSION")
+├── BudgetError                    # StepBudget dépassé - failed (CODE="BUDGET")
 ├── NeedHumanInput                 # devient AIPResult.input_required
 └── UnsupportedAnnotationError     # load-time, jamais runtime
 ```
@@ -104,27 +104,27 @@ et produit l'`AIPResult` que la couche PyO3 attend.
 
 ## Alternatives considérées
 
-### Option A — Sentinelle de retour (Result Ok/Err style Rust) (rejetée)
+### Option A - Sentinelle de retour (Result Ok/Err style Rust) (rejetée)
 
 **Pour :** explicite, pas de magie d'exceptions, style fonctionnel.
 **Contre :** chaque appel imbriqué (helper, sous-fonction) doit faire
 suivre un `Result` ou tout réécrire. Verbose en Python (`match
 result: case Ok(v): ...`). Casse l'idiome Python.
 
-### Option B — Sous-classer `AIPResult` côté agent (rejetée)
+### Option B - Sous-classer `AIPResult` côté agent (rejetée)
 
 **Pour :** garde la classmethod actuelle.
 **Contre :** ne supprime aucune duplication, ajoute une couche d'héritage,
 nécessite toujours `.to_dict()`.
 
-### Option C — Décorateur `@with_result` qui wrap le handler (rejetée)
+### Option C - Décorateur `@with_result` qui wrap le handler (rejetée)
 
 **Pour :** transparent côté auteur.
 **Contre :** déplace la magie d'un endroit à un autre. Toujours pas de
 typage des codes d'erreur. Mélange mal avec le boundary PyO3 (le décorateur
-intercepte avant le bridge — collision avec ADR-098 / dispatcher central).
+intercepte avant le bridge - collision avec ADR-098 / dispatcher central).
 
-### Option retenue — Exceptions typées trappées au boundary
+### Option retenue - Exceptions typées trappées au boundary
 
 **Pour :** idiome Python natif (`raise` partout), zéro boilerplate sur
 les chemins de succès, l'agent ne sait pas que `AIPResult` existe, le
@@ -132,7 +132,7 @@ boundary devient le **seul** endroit qui formate les réponses (single
 point of truth pour audit, logging, tracing). Sous-classer
 `DomainError` permet de définir un catalogue de codes typé par agent.
 **Compromis acceptés :** un peu de magie au boundary (toute exception
-non-`ApolliaError` devient `UNHANDLED`) — documentée, observable via
+non-`ApolliaError` devient `UNHANDLED`) - documentée, observable via
 `ctx.logger` (ADR-106).
 
 ## Conséquences
@@ -146,10 +146,10 @@ non-`ApolliaError` devient `UNHANDLED`) — documentée, observable via
   boilerplate "return AIPResult.failed" sur les agents bundled.
 - L'IDE comprend que `DomainError` est un type Python régulier
   (importé, autocomplété). Plus de `# noqa` ni de symbole magique.
-- Catalogue de codes d'erreur émergent — un agent peut définir
+- Catalogue de codes d'erreur émergent - un agent peut définir
   `class DocxError(DomainError): pass` et les codes deviennent
   inspectables (`apollia inspect` ADR-110 peut les lister).
-- Le boundary devient le seul endroit qui sérialise — il enrichit
+- Le boundary devient le seul endroit qui sérialise - il enrichit
   systématiquement avec `step_id`, `agent_name`, timestamp, ce qui était
   fait manuellement (ou pas) avant.
 - Cohérence avec FastAPI/HTTPException → courbe d'apprentissage proche
@@ -179,23 +179,23 @@ non-`ApolliaError` devient `UNHANDLED`) — documentée, observable via
 
 ## Principes architecturaux impactés
 
-- **Principe #3 — Contrat minimal** : renforcé. Le handler retourne un
+- **Principe #3 - Contrat minimal** : renforcé. Le handler retourne un
   `dict` métier ou lève. Plus de classmethod magique à connaître.
-- **Principe #4 — Fail fast** : renforcé. Le boundary log immédiatement
+- **Principe #4 - Fail fast** : renforcé. Le boundary log immédiatement
   toute `UNHANDLED` avec stacktrace, ce qui rend visible des bugs
   jusqu'ici masqués par des `try/except` larges côté agent.
-- **Principe #7 — Garde-fous non-négociables** : `BudgetError` levé par
+- **Principe #7 - Garde-fous non-négociables** : `BudgetError` levé par
   le runtime (StepBudget Rust) traverse maintenant le boundary
   proprement et n'est plus convertible en `completed` par mégarde côté
   Python.
 
 ## Liens
 
-- ADR-098 — Decorator-first (parent direct)
-- ADR-099 — Signature inference (alimente `PayloadError` automatique)
-- ADR-109 — `AIPResult` interne (cousin direct — le boundary construit
+- ADR-098 - Decorator-first (parent direct)
+- ADR-099 - Signature inference (alimente `PayloadError` automatique)
+- ADR-109 - `AIPResult` interne (cousin direct - le boundary construit
   l'AIPResult depuis les exceptions)
-- ADR-014 — Bridge PyO3 async (modifié : plus de `AIP_TYPES_PY` injection
+- ADR-014 - Bridge PyO3 async (modifié : plus de `AIP_TYPES_PY` injection
   dans `run.__globals__`)
-- ADR-083 — Trust model agents Python (alignement audit trail des
+- ADR-083 - Trust model agents Python (alignement audit trail des
   erreurs)

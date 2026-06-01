@@ -76,7 +76,7 @@ async fn get_task_status(db_path: &Path, task_id: &str) -> Option<String> {
 ///       tâche en status `cancelled` dans SQLite
 #[tokio::test]
 async fn test_ac5_timeout_watcher_cancels_expired_task() {
-    // GIVEN — tâche input_required depuis 25h (> timeout de 24h)
+    // GIVEN - tâche input_required depuis 25h (> timeout de 24h)
     let (repo, db_path) = open_test_repo().await;
     let task_id = "t-timeout-001";
     insert_input_required_task(&db_path, task_id, 25).await;
@@ -93,7 +93,7 @@ async fn test_ac5_timeout_watcher_cancels_expired_task() {
         event_tx,
     );
 
-    // WHEN — spawn the watcher loop; it will scan immediately on the first tick.
+    // WHEN - spawn the watcher loop; it will scan immediately on the first tick.
     let watcher_handle = tokio::spawn(watcher.run());
 
     // Collect events for up to 2 seconds.
@@ -134,10 +134,10 @@ async fn test_ac5_timeout_watcher_cancels_expired_task() {
         }
     }
 
-    // Stop the watcher — it runs an infinite loop, so we abort the task.
+    // Stop the watcher - it runs an infinite loop, so we abort the task.
     watcher_handle.abort();
 
-    // THEN — both events must have been emitted
+    // THEN - both events must have been emitted
     assert!(
         got_timeout_event,
         "RuntimeEvent::TaskApprovalTimeout must be emitted for the expired task"
@@ -147,7 +147,7 @@ async fn test_ac5_timeout_watcher_cancels_expired_task() {
         "RuntimeEvent::TaskCanceled must be emitted for the expired task"
     );
 
-    // THEN — task status updated to 'cancelled' in SQLite
+    // THEN - task status updated to 'cancelled' in SQLite
     let status = get_task_status(&db_path, "t-timeout-001").await;
     assert_eq!(
         status.as_deref(),

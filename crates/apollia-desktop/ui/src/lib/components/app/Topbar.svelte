@@ -1,10 +1,10 @@
 <script lang="ts">
   /**
-   * Topbar — V3 Operator cockpit header.
+   * Topbar - V3 Operator cockpit header.
    *
    *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [ModeChip] [Activity] [Settings] [UserMenu]
    *
-   * The ModeChip is the single deviation from the V3 mockup — kept here per
+   * The ModeChip is the single deviation from the V3 mockup - kept here per
    * product call so the OP/Builder toggle stays in the cockpit.
    */
   import { t } from "svelte-i18n";

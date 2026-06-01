@@ -460,7 +460,7 @@ impl UserMemoryRepository {
             }
         }
         if let Some(ref ind) = industry {
-            headline_parts.push(format!("— {ind}"));
+            headline_parts.push(format!("- {ind}"));
         }
         if headline_parts.is_empty() {
             return;

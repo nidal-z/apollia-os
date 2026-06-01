@@ -1,9 +1,9 @@
-# Apollia OS — Comprehensive Design System Documentation
+# Apollia OS - Comprehensive Design System Documentation
 
 **Version:** 2.0
 **Last Updated:** 2026-04-27 (based on live codebase exploration)
 **Stack:** Tauri v2 + Svelte 5 + Tailwind 3.4 + lucide-svelte + bits-ui
-**Design Tokens:** ADR-077 (Design tokens v2 — elevation, warmth dark, rim lights)
+**Design Tokens:** ADR-077 (Design tokens v2 - elevation, warmth dark, rim lights)
 **Reference:** `crates/apollia-desktop/ui/src/`
 
 ---
@@ -116,10 +116,10 @@ Explicit light/dark variants to handle glassmorphism borders correctly in both t
 
 | Variable | Light Value | Dark Value | Usage |
 |----------|-------------|-----------|-------|
-| `--glass-border-light` | `220 80% 58% / 0.10` | — | Light mode border at rest |
-| `--glass-border-light-hover` | `220 80% 58% / 0.18` | — | Light mode border on hover |
-| `--glass-border-dark` | `260 40% 70% / 0.12` | — | Dark mode border at rest |
-| `--glass-border-dark-hover` | `260 40% 70% / 0.22` | — | Dark mode border on hover |
+| `--glass-border-light` | `220 80% 58% / 0.10` | - | Light mode border at rest |
+| `--glass-border-light-hover` | `220 80% 58% / 0.18` | - | Light mode border on hover |
+| `--glass-border-dark` | `260 40% 70% / 0.12` | - | Dark mode border at rest |
+| `--glass-border-dark-hover` | `260 40% 70% / 0.22` | - | Dark mode border on hover |
 | `--glass-border` | `var(--glass-border-light)` | `var(--glass-border-dark)` | Canonical glass border (auto-resolved) |
 | `--glass-border-hover` | `var(--glass-border-light-hover)` | `var(--glass-border-dark-hover)` | Canonical on hover |
 | `--glass-inset` | `220 80% 58% / 0.06` | `32 40% 78% / 0.14` | Inset rim light (warm-tinted dark) |
@@ -160,7 +160,7 @@ Explicit light/dark variants to handle glassmorphism borders correctly in both t
 
 Each level uses **multi-layer shadows + inset rim light** for materiality. Light mode uses warm-tinted rim; dark mode uses bronze-white.
 
-**Light mode — shadow tokens:**
+**Light mode - shadow tokens:**
 
 ```css
 --shadow-elev-0:
@@ -188,7 +188,7 @@ Each level uses **multi-layer shadows + inset rim light** for materiality. Light
   inset 0 1px 0 rgba(255, 252, 240, 0.8);
 ```
 
-**Dark mode — shadow tokens:**
+**Dark mode - shadow tokens:**
 
 ```css
 --shadow-elev-0:
@@ -272,8 +272,8 @@ Five canonical layers for depth and context. Each uses `backdrop-blur` + a brand
 | `.glass-panel` | `backdrop-blur-2xl` | Brand gradient + 90% opaque warm cream | `elev-0` | Sidebars, sheets, overlays |
 | `.glass-card` | `backdrop-blur-xl` | Subtle brand gradient + 90% opaque cream | `elev-2` | Content cards, detail views |
 | `.glass-card-hover` | `backdrop-blur-xl` | Same as glass-card | `elev-2 → 3 on hover` | Interactive cards with lift effect |
-| `.glass-surface` | `backdrop-blur-md` | 50% opaque cream wash | — | Tags, table headers, lightweight containers |
-| `.glass-inset` | `backdrop-blur-sm` | Canonical glass-inset token (resolves per theme) | — | Nested hover states, subtle backgrounds |
+| `.glass-surface` | `backdrop-blur-md` | 50% opaque cream wash | - | Tags, table headers, lightweight containers |
+| `.glass-inset` | `backdrop-blur-sm` | Canonical glass-inset token (resolves per theme) | - | Nested hover states, subtle backgrounds |
 
 **Light mode backgrounds:**
 
@@ -342,8 +342,8 @@ Cards use a spring-based lift on hover:
 ```
 
 Hover utilities:
-- `.hover-lift` — lift + glow for cards
-- `.hover-glow` — glow only for CTAs
+- `.hover-lift` - lift + glow for cards
+- `.hover-glow` - glow only for CTAs
 
 ---
 
@@ -368,13 +368,13 @@ Display types use `clamp()` for fluid sizing between `xs` (375px) and `xl` (1280
 | Display MD | `clamp(1.75rem, 1.25rem + 1.4vw, 2.25rem)` | 600 | 1.15 | -0.02em | Section headers |
 | Display SM | `1.5rem` | 600 | 1.2 | -0.015em | Subsection headers |
 | `text-2xl` | 1.5rem | 600 (`font-semibold`) | 1.2 | -0.015em | Page h1 titles |
-| `text-base` | 1rem | 500 (`font-medium`) | 1.5 | — | Dialog/sheet headers |
-| `text-sm` | 0.875rem | 500 (`font-medium`) | 1.5 | — | Section h2 titles |
-| `text-[13px]` | 0.8125rem | 500 (`font-medium`) | 1.5 | — | Card titles |
-| `text-xs` | 0.75rem | 400 | 1.5 | — | Body text, card content |
-| `text-[11px]` | 0.6875rem | 400 | 1.4 | — | Meta-information, timestamps |
-| `text-[10px]` | 0.625rem | 400 | 1.4 | — | Helper text, secondary labels |
-| `text-[9px]` (mono) | 0.5625rem | 400 | 1.4 | — | Code, IDs, technical identifiers |
+| `text-base` | 1rem | 500 (`font-medium`) | 1.5 | - | Dialog/sheet headers |
+| `text-sm` | 0.875rem | 500 (`font-medium`) | 1.5 | - | Section h2 titles |
+| `text-[13px]` | 0.8125rem | 500 (`font-medium`) | 1.5 | - | Card titles |
+| `text-xs` | 0.75rem | 400 | 1.5 | - | Body text, card content |
+| `text-[11px]` | 0.6875rem | 400 | 1.4 | - | Meta-information, timestamps |
+| `text-[10px]` | 0.625rem | 400 | 1.4 | - | Helper text, secondary labels |
+| `text-[9px]` (mono) | 0.5625rem | 400 | 1.4 | - | Code, IDs, technical identifiers |
 
 ### 4.3 Font Weight Rules
 
@@ -383,7 +383,7 @@ Display types use `clamp()` for fluid sizing between `xs` (375px) and `xl` (1280
 | 400 | `font-normal` | Body, descriptions, labels | Titles |
 | 500 | `font-medium` | Card titles, form labels, badges, section headers | Page titles |
 | 600 | `font-semibold` | Page h1 titles ONLY, display text | Everything else |
-| 700 | `font-bold` | **NEVER** — removed from production | — |
+| 700 | `font-bold` | **NEVER** - removed from production | - |
 
 ---
 
@@ -443,12 +443,12 @@ Motion tokens (not spatial, but timing):
 | `primary-gradient` | `bg-primary-gradient` | `var(--shadow-primary-md)` | `shadow-primary-lg + lift` | `scale-0.98` |
 | `destructive` | `bg-destructive text-destructive-foreground shadow-sm` | `shadow-sm` | `bg-destructive/90` | `scale-0.98` |
 | `success` | `bg-emerald-600 text-white shadow-sm` | `shadow-sm` | `bg-emerald-600/90` | `scale-0.98` |
-| `outline` | `border border-border bg-transparent text-foreground` | — | `bg-muted` | `scale-0.98` |
-| `secondary` | `bg-muted text-foreground` | — | `bg-muted/80` | `scale-0.98` |
-| `ghost` | `text-foreground` | — | `bg-muted` | `scale-0.98` |
-| `link` | `text-primary underline-offset-4` | — | `underline` | — |
+| `outline` | `border border-border bg-transparent text-foreground` | - | `bg-muted` | `scale-0.98` |
+| `secondary` | `bg-muted text-foreground` | - | `bg-muted/80` | `scale-0.98` |
+| `ghost` | `text-foreground` | - | `bg-muted` | `scale-0.98` |
+| `link` | `text-primary underline-offset-4` | - | `underline` | - |
 | `elevated` | `bg-primary text-primary-foreground shadow-md` | `shadow-md` | `shadow-lg + bg-primary/90` | `scale-0.98` |
-| `soft` | `bg-primary/10 text-primary` | — | `bg-primary/15` | `scale-0.98` |
+| `soft` | `bg-primary/10 text-primary` | - | `bg-primary/15` | `scale-0.98` |
 
 **Sizes:**
 
@@ -470,7 +470,7 @@ disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]
 **Props:**
 - `variant?: "default" | "primary-solid" | "primary-gradient" | "destructive" | "success" | "outline" | "secondary" | "ghost" | "link" | "elevated" | "soft"`
 - `size?: "default" | "sm" | "lg" | "icon"`
-- `loading?: boolean` — shows spinner, disables button
+- `loading?: boolean` - shows spinner, disables button
 - `disabled?: boolean`
 
 ---
@@ -480,8 +480,8 @@ disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]
 **File:** `ui/card/Card.svelte`
 
 **Props:**
-- `interactive?: boolean` — `true` applies `.glass-card-hover` (lift effect), `false` applies `.glass-card` (static)
-- `premium?: boolean` — adds 2px primary-tinted border + glow shadow
+- `interactive?: boolean` - `true` applies `.glass-card-hover` (lift effect), `false` applies `.glass-card` (static)
+- `premium?: boolean` - adds 2px primary-tinted border + glow shadow
 
 **Base classes:**
 ```
@@ -528,7 +528,7 @@ glass-border rounded-xl text-card-foreground
 
 | Variant | Light Background | Dark Background | Text Color | Usage |
 |---------|------------------|-----------------|------------|-------|
-| `neutral` | `bg-muted` | — | `text-muted-foreground` | Neutral status |
+| `neutral` | `bg-muted` | - | `text-muted-foreground` | Neutral status |
 | `primary` | `bg-primary/10` | `bg-primary/20` | `text-primary` | Active/ready |
 | `success` | `bg-success/10` | `bg-success/20` | `text-success-a11y` | Success |
 | `warning` | `bg-warning/10` | `bg-warning/20` | `text-warning-a11y` | Warning/caution |
@@ -556,8 +556,8 @@ inline-flex items-center rounded-full border border-transparent font-medium tran
 **Props:**
 - `variant?: Variant` (see above)
 - `size?: "sm" | "md" | "lg"`
-- `icon?: Snippet` — optional leading icon
-- `children?: Snippet` — label text
+- `icon?: Snippet` - optional leading icon
+- `children?: Snippet` - label text
 
 ---
 
@@ -576,8 +576,8 @@ disabled:cursor-not-allowed disabled:opacity-50
 
 **Props:**
 - `value?: string` (bindable)
-- `icon?: typeof Icon` — leading lucide icon
-- `trailing?: Snippet` — trailing element (clear button, etc.)
+- `icon?: typeof Icon` - leading lucide icon
+- `trailing?: Snippet` - trailing element (clear button, etc.)
 - `disabled?: boolean`
 - All HTML input attributes
 
@@ -616,7 +616,7 @@ disabled:cursor-not-allowed disabled:opacity-50
 - `open: boolean` (required)
 - `onclose: => void` (required)
 - `size?: "sm" | "md" | "lg" | "xl"` (default: `"md"`)
-- `title?: string` — optional header title
+- `title?: string` - optional header title
 - `children?: Snippet`
 - `data-testid?: string`
 
@@ -643,7 +643,7 @@ disabled:cursor-not-allowed disabled:opacity-50
 - `onchange?: (checked: boolean) => void`
 - `size?: "sm" | "default"`
 - `disabled?: boolean`
-- `loading?: boolean` — shows spinner inside dot
+- `loading?: boolean` - shows spinner inside dot
 - `aria-label?: string`
 
 ---
@@ -675,11 +675,11 @@ Then style with: `hsl({hue}, 60%, 48%)` background, `hsla({hue}, 60%, 38%, 0.3)`
 | `xl` | 16×16 | 18px | `rounded-2xl` | `h-16 w-16 text-lg` |
 
 **Props:**
-- `name: string` — derives color + initials
+- `name: string` - derives color + initials
 - `size?: AvatarSize` (default: `"md"`)
-- `src?: string | null` — optional image URL
-- `fallback?: string | null` — override display text
-- `ring?: boolean` — adds border ring effect
+- `src?: string | null` - optional image URL
+- `fallback?: string | null` - override display text
+- `ring?: boolean` - adds border ring effect
 - `class?: string`
 
 ---
@@ -818,23 +818,23 @@ All in `lib/components/ui/`:
 | Component | File | States | Variants | Accessibility |
 |-----------|------|--------|----------|----------------|
 | Button | `button/Button.svelte` | default, hover, active, disabled, loading | 11 (see §7.1) | `aria-busy`, keyboard accessible |
-| Card | `card/Card.svelte` | static, interactive (hover lift) | — | Semantic div |
-| Badge | `badge/Badge.svelte` | — | 14 (see §7.3) | `aria-hidden` on icon |
+| Card | `card/Card.svelte` | static, interactive (hover lift) | - | Semantic div |
+| Badge | `badge/Badge.svelte` | - | 14 (see §7.3) | `aria-hidden` on icon |
 | Input | `input/Input.svelte` | default, focus, disabled, error | text, email, password, etc. | Focus ring, label-able |
-| Textarea | `textarea/Textarea.svelte` | default, focus, disabled | — | Focus ring, label-able |
-| Checkbox | `checkbox/Checkbox.svelte` | unchecked, checked, indeterminate, disabled | — | `role="checkbox"`, `aria-checked` |
+| Textarea | `textarea/Textarea.svelte` | default, focus, disabled | - | Focus ring, label-able |
+| Checkbox | `checkbox/Checkbox.svelte` | unchecked, checked, indeterminate, disabled | - | `role="checkbox"`, `aria-checked` |
 | Toggle | `toggle/Toggle.svelte` | off, on, disabled, loading | 2 sizes | `role="switch"`, `aria-checked` |
-| Radio | `radio/RadioGroup.svelte` + `RadioItem.svelte` | unselected, selected, disabled | — | `role="radio"`, `aria-checked` |
-| Select | `select/Select.svelte` | default, open, selected, disabled | — | Native `<select>` styling |
+| Radio | `radio/RadioGroup.svelte` + `RadioItem.svelte` | unselected, selected, disabled | - | `role="radio"`, `aria-checked` |
+| Select | `select/Select.svelte` | default, open, selected, disabled | - | Native `<select>` styling |
 | Dialog | `dialog/Dialog.svelte` | closed, open | 4 sizes | Focus trap, keyboard (Escape) |
-| Sheet | `sheet/Sheet.svelte` | closed, open (left/right) | — | Focus trap, keyboard |
-| Toast | `toast/Toast.svelte` | success, error, info | — | Auto-dismiss 4s |
-| Popover | `popover/Popover.svelte` | closed, open | — | Click-away dismiss |
-| Separator | `separator/Separator.svelte` | horizontal, vertical | — | 1px borders |
-| Skeleton | `skeleton/Skeleton.svelte` | — | — | Shimmer animation |
-| Spinner | `progress/Spinner.svelte` | — | — | Rotate animation |
-| ProgressBar | `progress/ProgressBar.svelte` | determinate, indeterminate | — | A11y-labeled |
-| Avatar | `avatar/Avatar.svelte` | — | 5 sizes | `aria-label` optional |
+| Sheet | `sheet/Sheet.svelte` | closed, open (left/right) | - | Focus trap, keyboard |
+| Toast | `toast/Toast.svelte` | success, error, info | - | Auto-dismiss 4s |
+| Popover | `popover/Popover.svelte` | closed, open | - | Click-away dismiss |
+| Separator | `separator/Separator.svelte` | horizontal, vertical | - | 1px borders |
+| Skeleton | `skeleton/Skeleton.svelte` | - | - | Shimmer animation |
+| Spinner | `progress/Spinner.svelte` | - | - | Rotate animation |
+| ProgressBar | `progress/ProgressBar.svelte` | determinate, indeterminate | - | A11y-labeled |
+| Avatar | `avatar/Avatar.svelte` | - | 5 sizes | `aria-label` optional |
 
 ### Layout Components
 
@@ -986,16 +986,16 @@ focus-visible:ring-offset-2
 | Toggle/Switch | `role="switch"` | `aria-checked` |
 | Dialog | `role="dialog"` | `aria-modal="true"`, `aria-label` |
 | Sheet | `role="dialog"` | `aria-modal="true"` |
-| RadioGroup | `role="radiogroup"` | — |
-| Button (loading) | — | `aria-busy="true"` |
+| RadioGroup | `role="radiogroup"` | - |
+| Button (loading) | - | `aria-busy="true"` |
 
 ### 15.3 Keyboard Navigation
 
-- **Tab** — cycle focus through interactive elements
-- **Shift+Tab** — reverse cycle
-- **Escape** — close Dialog/Sheet
-- **Space/Enter** — toggle Checkbox/Toggle/Button
-- **Arrow keys** — navigate RadioGroup/Combobox
+- **Tab** - cycle focus through interactive elements
+- **Shift+Tab** - reverse cycle
+- **Escape** - close Dialog/Sheet
+- **Space/Enter** - toggle Checkbox/Toggle/Button
+- **Arrow keys** - navigate RadioGroup/Combobox
 
 ### 15.4 Contrast Ratios
 

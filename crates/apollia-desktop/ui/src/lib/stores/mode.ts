@@ -22,7 +22,7 @@ function loadPersistedMode(): UIMode {
       return stored;
     }
   } catch {
-    // localStorage unavailable — use default
+    // localStorage unavailable - use default
   }
   return DEFAULT_MODE;
 }
@@ -35,6 +35,6 @@ uiMode.subscribe((value) => {
   try {
     localStorage.setItem(STORAGE_KEY, value);
   } catch {
-    // localStorage unavailable — silently ignore
+    // localStorage unavailable - silently ignore
   }
 });

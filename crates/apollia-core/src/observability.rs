@@ -38,7 +38,7 @@ pub struct ObservabilityConfig {
     #[serde(default)]
     pub debug_log_prompt: bool,
 
-    // ── ADR-088 — capture granulaire pour `runtime_events` (Lot 2) ──
+    // ── ADR-088 - capture granulaire pour `runtime_events` (Lot 2) ──
     /// Si `true`, persiste les `Thought` ReAct sur la trace (défaut `true`).
     /// Désactiver vide les bulles de raisonnement côté UI builder.
     #[serde(default = "default_capture_on")]
@@ -131,7 +131,7 @@ pub fn truncate_with_marker(text: &str, max_bytes: usize) -> (String, bool) {
         return (text.to_string(), false);
     }
     let total = text.len();
-    let marker = format!("\n[TRONQUÉ — {} octets total]", total);
+    let marker = format!("\n[TRONQUÉ - {} octets total]", total);
     let keep = max_bytes.saturating_sub(marker.len());
     let safe_end = floor_char_boundary(text, keep);
     let mut result = text[..safe_end].to_string();

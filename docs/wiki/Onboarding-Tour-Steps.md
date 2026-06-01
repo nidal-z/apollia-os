@@ -1,6 +1,6 @@
-# Onboarding — Tables des etapes du tour guide
+# Onboarding - Tables des etapes du tour guide
 
-> **⚠️ Archive — Tour guidé supprimé.** Le tour interactif multi-etapes a ete supprime lors de la refonte de l'onboarding (v2.1.0). L'onboarding est desormais une conversation agent-driven dans `OnboardingModal`. Cette page est conservee a titre d'archive historique.
+> **⚠️ Archive - Tour guidé supprimé.** Le tour interactif multi-etapes a ete supprime lors de la refonte de l'onboarding (v2.1.0). L'onboarding est desormais une conversation agent-driven dans `OnboardingModal`. Cette page est conservee a titre d'archive historique.
 >
 > Voir [Onboarding-System](./Onboarding-System) pour la spec actuelle.
 
@@ -8,7 +8,7 @@
 
 ---
 
-## Profil Operator — 8 etapes
+## Profil Operator - 8 etapes
 
 | # | Cle | Route | Action requise | Message Companion (i18n key) | Condition de completion |
 |---|---|---|---|---|---|
@@ -19,7 +19,7 @@
 | 5 | `approvals` | `approvals` | observer | `onboarding.tour.op.approvals.message` | Navigation detectee |
 | 6 | `notifications` | `notifications` | observer | `onboarding.tour.op.notifications.message` | Navigation detectee |
 | 7 | `observability` | `observability` | observer | `onboarding.tour.op.observability.message` | Navigation detectee |
-| 8 | `graduation` | — | cliquer CTA | `onboarding.tour.op.graduation.message` | Phase `graduation` atteinte |
+| 8 | `graduation` | - | cliquer CTA | `onboarding.tour.op.graduation.message` | Phase `graduation` atteinte |
 
 ### Messages companion courts (onboarding_v2.tour.op.step_N)
 
@@ -36,7 +36,7 @@
 
 ---
 
-## Profil Builder — 10 etapes
+## Profil Builder - 10 etapes
 
 | # | Cle | Route | Action requise | Message Companion (i18n key) | Condition de completion |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@
 | 6 | `integrations` | `integrations` | observer | `onboarding.tour.bld.integrations.message` | Navigation detectee |
 | 7 | `triggers` | `triggers` | observer | `onboarding.tour.bld.triggers.message` | Navigation detectee |
 | 8 | `observability` | `observability` | observer | `onboarding.tour.bld.observability.message` | Navigation detectee |
-| 9 | `graduation` | — | cliquer CTA | `onboarding.tour.bld.graduation.message` | Phase `graduation` atteinte |
+| 9 | `graduation` | - | cliquer CTA | `onboarding.tour.bld.graduation.message` | Phase `graduation` atteinte |
 
 ### Messages companion courts (onboarding_v2.tour.bld.step_N)
 

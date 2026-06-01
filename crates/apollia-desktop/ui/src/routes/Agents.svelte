@@ -31,7 +31,7 @@
   } from "lucide-svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import AgentActivity from "../components/agents/AgentActivity.svelte";
-  // AgentDetail.svelte (Sheet) was the previous "Configurer" target — replaced
+  // AgentDetail.svelte (Sheet) was the previous "Configurer" target - replaced
   // by inline tabs (Aperçu / Outils / Mémoire / Activité / Paramètres) in this
   // route. The file is kept on disk for archival but no longer imported here.
   import AgentTriggers from "../components/agents/AgentTriggers.svelte";
@@ -149,12 +149,12 @@
     }
   }
 
-  // ── Memory tab — load entries from the agent's declared namespace ─────
+  // ── Memory tab - load entries from the agent's declared namespace ─────
   // Important: `memory_namespace` comes from the Python manifest, not from
   // `agent.name`. Multiple agents in a package often share a single namespace
   // (e.g. all agents in the `veille-ia` package declare
   // `memory_namespace = "veille-ia"`), so we must NEVER fall back to `name`
-  // when fetching entries — that would silently miss the package's memory.
+  // when fetching entries - that would silently miss the package's memory.
   let memoryEntries = $state<MemoryEntry[]>([]);
   let memoryLoading = $state(false);
   let memoryError = $state<string | null>(null);
@@ -193,7 +193,7 @@
   let selectedPackageName = $state<string | null>(null);
   /** Détail du package sélectionné, chargé à la volée. */
   let pkgDetail = $state<AgentPackageDetailView | null>(null);
-  /** Pinned synthetic system agent — when true, the right column shows the
+  /** Pinned synthetic system agent - when true, the right column shows the
    * Apollia Chat config panel instead of an `AgentListItem` detail. */
   let apolliaChatSelected = $state(false);
   /** Action start/stop en cours, par identifiant ("agent:NAME" ou "pkg:NAME"). */
@@ -373,7 +373,7 @@
   }
   /**
    * Select an agent and jump to its settings tab (replaces the old
-   * `AgentDetail` Sheet — the tour entry point still calls this).
+   * `AgentDetail` Sheet - the tour entry point still calls this).
    */
   function openDetail(agent: AgentListItem) {
     selectedName = agent.name;
@@ -491,7 +491,7 @@
           : await startPackage(pkg, $agents, $triggers);
       if (result.errors.length > 0) {
         addToast(
-          `Package ${pkg.name} : ${result.errors.length} erreur(s) — ${result.errors[0]}`,
+          `Package ${pkg.name} : ${result.errors.length} erreur(s) - ${result.errors[0]}`,
           "error",
         );
       }
@@ -547,7 +547,7 @@
   <PageHeader
     kicker="MES ASSISTANTS · {allAssistants.length}"
     title="Assistants"
-    subtitle="Vos compagnons IA — chacun avec ses outils, sa mémoire et ses déclencheurs."
+    subtitle="Vos compagnons IA - chacun avec ses outils, sa mémoire et ses déclencheurs."
   >
     {#snippet actions()}
       <Button variant="outline" size="sm" onclick={() => (installPackageOpen = true)}>
@@ -583,7 +583,7 @@
 
   <!-- ── Split layout: list (320px) + detail ─────────────────────────── -->
   <div class="flex min-h-0 flex-1">
-    <!-- LEFT — list -->
+    <!-- LEFT - list -->
     <aside
       class="flex w-[320px] shrink-0 flex-col border-r border-border/60"
       data-testid="agents-list"
@@ -853,7 +853,7 @@
       </div>
     </aside>
 
-    <!-- RIGHT — detail -->
+    <!-- RIGHT - detail -->
     <section class="flex min-w-0 flex-1 flex-col overflow-y-auto">
       {#if apolliaChatSelected}
         <div class="border-b border-border/40 px-8 pb-4 pt-[22px]">
@@ -872,7 +872,7 @@
                 Apollia Chat
               </h2>
               <p class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                Votre assistant intégré — il vous accompagne au quotidien dans
+                Votre assistant intégré - il vous accompagne au quotidien dans
                 le chat libre. Personnalisez sa personnalité, ses outils, et
                 le modèle qu'il utilise.
               </p>
@@ -1271,7 +1271,7 @@
                   </div>
                   <ul class="m-0 list-none space-y-1 p-0">
                     {#each a.examples.slice(0, 5) as ex (ex)}
-                      <li class="text-[12px] text-foreground/85">— {ex}</li>
+                      <li class="text-[12px] text-foreground/85">- {ex}</li>
                     {/each}
                   </ul>
                 </Card>
@@ -1397,7 +1397,7 @@
                     {#if memoryEntries.length > 12}
                       <div class="px-4 py-2 text-[10.5px] text-muted-foreground/70 border-t border-border/40 text-center">
                         +{memoryEntries.length - 12} entrée{memoryEntries.length - 12 > 1 ? "s" : ""}
-                        — <Button variant="ghost" size="auto" onclick={handleMemoryLink} class="inline p-0 text-[10.5px] text-primary hover:underline">voir toutes dans /mémoire</Button>
+                        - <Button variant="ghost" size="auto" onclick={handleMemoryLink} class="inline p-0 text-[10.5px] text-primary hover:underline">voir toutes dans /mémoire</Button>
                       </div>
                     {/if}
                   {/if}
@@ -1418,7 +1418,7 @@
               {:else}
                 <Card class="p-[14px_16px]">
                   <p class="text-[12px] text-muted-foreground italic">
-                    L'assistant n'est pas chargé — démarrez-le pour voir son activité récente.
+                    L'assistant n'est pas chargé - démarrez-le pour voir son activité récente.
                   </p>
                 </Card>
               {/if}

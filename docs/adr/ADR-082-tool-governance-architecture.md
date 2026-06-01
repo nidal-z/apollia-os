@@ -1,4 +1,4 @@
-# ADR-082 — Tool Governance : DB unifiée, scopes HITL, ToolRegistry runtime
+# ADR-082 - Tool Governance : DB unifiée, scopes HITL, ToolRegistry runtime
 
 **Date :** 2026-04-26
 **Statut :** Accepté
@@ -27,7 +27,7 @@ au sprint 43 :
 
 À cela s'ajoutait la dispersion du stockage de gouvernance : `permissions.db`
 contenait les règles et l'audit, mais les credentials de tools (clé Brave,
-tokens HTTP) n'avaient aucun emplacement officiel — chaque outil les lisait
+tokens HTTP) n'avaient aucun emplacement officiel - chaque outil les lisait
 ad-hoc dans l'environnement.
 
 ## Décision
@@ -35,7 +35,7 @@ ad-hoc dans l'environnement.
 **Nous adoptons une base SQLite unique `~/.apollia/governance.db`** comme
 source de vérité pour les règles de permissions, l'audit log immuable, l'état
 enabled/disabled des outils et leurs credentials chiffrées AES-256-GCM. Trois
-scopes HITL explicites — `session`, `project`, `global` — sont propagés
+scopes HITL explicites - `session`, `project`, `global` - sont propagés
 fidèlement de l'UI au moteur d'évaluation.
 
 ### 1. Une seule DB : `~/.apollia/governance.db`
@@ -87,7 +87,7 @@ DuckDuckGo est désormais ajouté inconditionnellement en tête de la liste
 de backends. Brave n'est inséré qu'après lui, et seulement si la clé
 résout à une valeur non-vide (credential store > variable
 d'environnement). Un backend qui échoue (401, captcha, timeout) cède la
-main au suivant via `WebSearchError::AllBackendsFailed` — la dégradation
+main au suivant via `WebSearchError::AllBackendsFailed` - la dégradation
 gracieuse est préférée à un échec total silencieux.
 
 ## Alternatives considérées
@@ -109,7 +109,7 @@ hors budget sprint. Reporté à un sprint dédié.
 **Contre :** c'était la cause racine du bug initial : un Brave 401
 plantait l'outil entier au lieu de céder à DDG.
 
-### Option retenue — DB unique + scopes explicites + DDG-first
+### Option retenue - DB unique + scopes explicites + DDG-first
 **Pour :** chemin de configuration unique, comportement HITL prévisible,
 veille-ia fonctionnelle sans configuration.
 **Compromis acceptés :** la base est plus large (4 tables vs 2) et les
@@ -140,20 +140,20 @@ sauvegardes utilisateur doivent intégrer un seul fichier de plus
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : credentials et règles restent sur la
+- **Principe #1 - Local-first** : credentials et règles restent sur la
   machine, chiffrement local, aucune fuite réseau ajoutée.
-- **Principe #4 — Fail fast** : `try_with_default_backends(require_brave)`
+- **Principe #4 - Fail fast** : `try_with_default_backends(require_brave)`
   remonte une erreur au boot lorsque Brave est obligatoire et non
   configuré, plutôt qu'à la première requête de l'agent.
-- **Principe #5 — Un acteur, une responsabilité** : `ToolRegistry`,
+- **Principe #5 - Un acteur, une responsabilité** : `ToolRegistry`,
   `ToolCredentialStore`, `PrefixRuleEngine` et `PermissionAuditLog`
   partagent la même base mais possèdent chacun leur propre connexion
   SQLite, sans état partagé inter-acteurs.
-- **Principe #7 — Garde-fous non-négociables** : les triggers SQLite
+- **Principe #7 - Garde-fous non-négociables** : les triggers SQLite
   `no_update_audit` / `no_delete_audit` rendent l'audit log
   cryptographiquement append-only au niveau du moteur, indépendamment
   du code applicatif.
-- **Principe #8 — CLI humaine, API machine** : `apollia tools` et
+- **Principe #8 - CLI humaine, API machine** : `apollia tools` et
   `apollia permissions` exposent les mêmes capacités que l'UI desktop,
   avec sortie `--json` pour l'automatisation.
 

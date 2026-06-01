@@ -22,7 +22,7 @@ function makeEvent(init: {
   altKey?: boolean;
   metaKey?: boolean;
 }): KeyboardEvent {
-  // We run in a node environment — synthesize a plain object that satisfies
+  // We run in a node environment - synthesize a plain object that satisfies
   // the subset of `KeyboardEvent` that the parser reads.
   return {
     key: init.key,

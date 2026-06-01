@@ -3,7 +3,7 @@ name: apollia-story
 description: Créer, affiner et valider des User Stories pour le projet Apollia OS (runtime Rust pour agents IA autonomes). Utilise ce skill systématiquement quand l'utilisateur mentionne "story", "user story", "US", "tâche à implémenter", "sprint", "fonctionnalité à coder", ou demande de décomposer un epic en stories. Ce skill garantit que chaque story est directement implémentable par Claude Code sans ambiguïté, avec des critères d'acceptation testables, des contraintes Rust/PyO3 respectées, et une alignment parfaite avec les 8 principes architecturaux d'Apollia OS.
 ---
 
-# Apollia OS — Skill de Création de User Stories
+# Apollia OS - Skill de Création de User Stories
 
 Ce skill produit des User Stories directement actionnables par Claude Code pour le projet Apollia OS (runtime Rust open-source pour agents IA autonomes souverains).
 
@@ -19,7 +19,7 @@ Lire `references/architecture-summary.md` pour les détails complets avant de cr
 
 ## Workflow de création d'une story
 
-### Étape 1 — Identifier le contexte
+### Étape 1 - Identifier le contexte
 
 Avant d'écrire quoi que ce soit, déterminer :
 1. **Quelle brique** est concernée ? (core / runtime / oria / tools / memory / aip / cli)
@@ -27,11 +27,11 @@ Avant d'écrire quoi que ce soit, déterminer :
 3. **Dépendances** : quelles stories doivent être terminées avant celle-ci ?
 4. **Estimation** : S (< 2h), M (2-4h), L (4-8h), XL (> 8h, à découper)
 
-### Étape 2 — Appliquer le template
+### Étape 2 - Appliquer le template
 
 Utiliser **exactement** le template défini dans `references/story-template.md`.
 
-### Étape 3 — Valider la story
+### Étape 3 - Valider la story
 
 Passer la checklist de validation avant de livrer :
 
@@ -56,11 +56,11 @@ Passer la checklist de validation avant de livrer :
 - [ ] La story ne dépend pas de code du sprint suivant
 - [ ] Le livrable est démo-able à la fin de la story (pas "sera visible dans 3 stories")
 
-### Étape 4 — Générer les fichiers
+### Étape 4 - Générer les fichiers
 
 Produire systématiquement :
-1. `docs/internal/STORIES/sprint-N/story-NNN-titre-court.md` — la story complète
-2. Une mise à jour de `docs/internal/STORIES/sprint-N/index.md` — ajout de la story dans l'index du sprint
+1. `docs/internal/STORIES/sprint-N/story-NNN-titre-court.md` - la story complète
+2. Une mise à jour de `docs/internal/STORIES/sprint-N/index.md` - ajout de la story dans l'index du sprint
 
 ---
 
@@ -75,7 +75,7 @@ Exemples corrects :
 ### User Story
 Format strict : `En tant que [runtime / développeur d'agent / opérateur CLI], je veux [action], afin de [bénéfice mesurable].`
 
-Ne pas utiliser "utilisateur" générique — être précis sur le persona :
+Ne pas utiliser "utilisateur" générique - être précis sur le persona :
 - `runtime` = le code Rust lui-même qui a besoin d'une capacité
 - `développeur d'agent` = celui qui écrit un agent Python
 - `opérateur CLI` = celui qui gère le runtime via terminal
@@ -138,7 +138,7 @@ impl MonActeur {
 
 ## Référence des fichiers
 
-- `references/architecture-summary.md` — résumé machine-readable de l'architecture complète
-- `references/story-template.md` — template de story à remplir
-- `references/sprint-index.md` — état actuel de tous les sprints et stories
-- `references/rust-patterns.md` — patterns Rust/Tokio attendus par brique
+- `references/architecture-summary.md` - résumé machine-readable de l'architecture complète
+- `references/story-template.md` - template de story à remplir
+- `references/sprint-index.md` - état actuel de tous les sprints et stories
+- `references/rust-patterns.md` - patterns Rust/Tokio attendus par brique

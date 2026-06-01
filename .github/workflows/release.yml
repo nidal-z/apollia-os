@@ -1,4 +1,4 @@
-# Release — production des artefacts distribuables.
+# Release - production des artefacts distribuables.
 #
 # Déclenché sur push d'un tag `v*` (release officielle) ou via dispatch
 # manuel pour tester sans bumper la version.
@@ -7,7 +7,7 @@
 #   1. 13 binaires CLI self-contained (Python + CRT statique bundlés)
 #      → tarball/zip par preset OS × arch × accélérateur
 #   2. Desktop bundle macOS ARM64 (.dmg via Tauri 2)
-#      [Linux .deb/.AppImage + Windows .msi : à étendre — pour l'instant
+#      [Linux .deb/.AppImage + Windows .msi : à étendre - pour l'instant
 #       le binaire CLI + launcher couvre Windows/Linux pour les power-users]
 #
 # Job final `release` agrège tout dans une GitHub Release draft (review manuel
@@ -46,7 +46,7 @@ concurrency:
 
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
-  # Setup — calcule la matrice CLI filtrée (dynamic matrix).
+  # Setup - calcule la matrice CLI filtrée (dynamic matrix).
   #
   # GH Actions ne supporte PAS `matrix.preset` dans le `if:` au niveau du job
   # (limitation parser). Le contournement standard : un job léger qui sort
@@ -66,7 +66,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         shell: bash
         run: |
-          # Full preset matrix — single source of truth.
+          # Full preset matrix - single source of truth.
           read -r -d '' FULL <<'JSON' || true
           {
             "include": [
@@ -109,7 +109,7 @@ jobs:
           fi
 
   # ────────────────────────────────────────────────────────────────────────────
-  # CLI binaries (13 presets max) — self-contained bundles avec Python embarqué
+  # CLI binaries (13 presets max) - self-contained bundles avec Python embarqué
   # ────────────────────────────────────────────────────────────────────────────
   cli:
     name: CLI ${{ matrix.preset }}
@@ -312,7 +312,7 @@ jobs:
             echo "  Runner bundled : apollia-runner-$RUNNER_BACKEND"
           fi
           cat > "$STAGE/README.txt" <<EOF
-          Apollia OS ${{ matrix.preset }} — self-contained bundle
+          Apollia OS ${{ matrix.preset }} - self-contained bundle
           ========================================================
           Lance : ./apollia-os.sh start
           Doc   : https://apollia.fr/docs/install
@@ -340,7 +340,7 @@ jobs:
               Write-Host "  Runner bundled : apollia-runner-$rb.exe"
           }
           @"
-          Apollia OS ${{ matrix.preset }} — self-contained bundle
+          Apollia OS ${{ matrix.preset }} - self-contained bundle
           ========================================================
           Lance : apollia-os.bat start
           Doc   : https://apollia.fr/docs/install
@@ -363,7 +363,7 @@ jobs:
           retention-days: 30
 
   # ────────────────────────────────────────────────────────────────────────────
-  # Desktop bundle Tauri — macOS ARM64 .dmg (extension future : Linux/Win)
+  # Desktop bundle Tauri - macOS ARM64 .dmg (extension future : Linux/Win)
   # ────────────────────────────────────────────────────────────────────────────
   desktop-macos:
     name: Desktop macOS (ARM64)
@@ -476,7 +476,7 @@ jobs:
           retention-days: 30
 
   # ────────────────────────────────────────────────────────────────────────────
-  # Desktop bundle Tauri — Linux x86_64 (.deb + .AppImage)
+  # Desktop bundle Tauri - Linux x86_64 (.deb + .AppImage)
   # ────────────────────────────────────────────────────────────────────────────
   desktop-linux:
     name: Desktop Linux (x86_64)
@@ -570,7 +570,7 @@ jobs:
           retention-days: 30
 
   # ────────────────────────────────────────────────────────────────────────────
-  # Desktop bundle Tauri — Windows x86_64 (.msi + .exe NSIS)
+  # Desktop bundle Tauri - Windows x86_64 (.msi + .exe NSIS)
   # ────────────────────────────────────────────────────────────────────────────
   desktop-windows:
     name: Desktop Windows (x86_64)

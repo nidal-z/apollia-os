@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Context — Apollia OS
+title C4 Context - Apollia OS
 
 actor "Développeur d'agent" as dev #3a3a3a/white
 actor "Opérateur / Admin" as ops #3a3a3a/white

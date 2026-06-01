@@ -22,7 +22,7 @@ limite à son rôle et cite les autres.
 
 ## Les cinq corpus
 
-### 🛟 [`docs/help/`](./help/) — Aide opérateur
+### 🛟 [`docs/help/`](./help/) - Aide opérateur
 
 Comment accomplir une tâche depuis l'application Desktop. Français. Un
 article = une tâche. Pas de vocabulaire interne (jamais "acteur",
@@ -30,7 +30,7 @@ article = une tâche. Pas de vocabulaire interne (jamais "acteur",
 
 **Audience** : utilisateur final non-développeur.
 
-### 📘 [`docs/book/`](./book/) — Pédagogique mdBook
+### 📘 [`docs/book/`](./book/) - Pédagogique mdBook
 
 "Le Rust Book mais pour Apollia". Apprendre en faisant, 1-2 exemples par
 concept, progression chapitres. Français. Build : `mdbook build docs/book/`.
@@ -41,7 +41,7 @@ wiki. Il lie. Pattern : `> **Référence technique :**
 
 **Audience** : développeur qui découvre Apollia.
 
-### 📚 [`docs/wiki/`](./wiki/) — Référence technique (refonte en cours)
+### 📚 [`docs/wiki/`](./wiki/) - Référence technique (refonte en cours)
 
 L'équivalent docs.rs pour Apollia : specs complètes, tables de paramètres,
 codes d'erreur, signatures. Pas de tutoriel, pas d'opinion.
@@ -53,7 +53,7 @@ codes d'erreur, signatures. Pas de tutoriel, pas d'opinion.
 
 **Audience** : développeur expérimenté qui cherche le détail technique.
 
-### 🗝️ [`docs/adr/`](./adr/) — Architecture Decision Records
+### 🗝️ [`docs/adr/`](./adr/) - Architecture Decision Records
 
 Les décisions architecturales passées. Une par fichier (`ADR-NNN-...md`).
 Format : Context / Decision / Consequences / Alternatives. Statut en tête
@@ -62,7 +62,7 @@ pas un ADR accepté, on en écrit un nouveau qui le supersede.
 
 **Audience** : mainteneur, lecteur curieux du "pourquoi".
 
-### 🤖 [`docs/agents/`](./agents/) — Règles pour LLM et agents IA
+### 🤖 [`docs/agents/`](./agents/) - Règles pour LLM et agents IA
 
 Le rulebook pour tout LLM qui code Apollia (Claude Code, Codex, Cursor,
 Aider, etc.). Anglais. Format AGENTS.md standard (Linux Foundation). Ton

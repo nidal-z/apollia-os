@@ -357,7 +357,7 @@
                 </div>
               </div>
 
-              <!-- Row 2: input preview — what triggered the task -->
+              <!-- Row 2: input preview - what triggered the task -->
               <p
                 class="text-[11px] text-foreground/75 leading-snug line-clamp-2"
                 title={task.input_preview || undefined}

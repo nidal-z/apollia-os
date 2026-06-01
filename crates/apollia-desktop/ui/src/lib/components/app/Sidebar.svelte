@@ -36,7 +36,7 @@
     { route: "observability" as Route, Icon: Activity,        labelKey: "nav.sidebar.observability", badge: "none"      },
   ];
 
-  // Cluster Builder — vues purement techniques (apparaît uniquement en mode Builder).
+  // Cluster Builder - vues purement techniques (apparaît uniquement en mode Builder).
   const BUILDER_NAV = [
     { route: "llm"            as Route, Icon: Brain, labelKey: "nav.sidebar.llm" },
     { route: "transcriptions" as Route, Icon: Mic,   labelKey: "nav.sidebar.transcriptions" },
@@ -228,7 +228,7 @@
     </div>
   {/if}
 {:else}
-  <!-- V3 64px icon rail — permanent, no expand -->
+  <!-- V3 64px icon rail - permanent, no expand -->
   <aside
     class="rail v4-hair flex h-full w-16 flex-shrink-0 flex-col items-center border-r border-border bg-muted py-3 gap-1"
     role="navigation"
@@ -279,7 +279,7 @@
     {/each}
 
     {#if isBuilder}
-      <!-- Builder cluster — Inspection -->
+      <!-- Builder cluster - Inspection -->
       <div class="my-1 h-px w-8 bg-border/60" data-testid="sidebar-builder-separator"></div>
       {#each BUILDER_NAV as item (item.route)}
         {@const isActive = $currentRoute === item.route}

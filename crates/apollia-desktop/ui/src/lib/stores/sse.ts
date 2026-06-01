@@ -39,7 +39,7 @@ import {
   removePendingUserInput,
 } from "./chat-global";
 
-/** Watchdog timeout — triggers a single IPC refresh if no event received. */
+/** Watchdog timeout - triggers a single IPC refresh if no event received. */
 const WATCHDOG_TIMEOUT_MS = 10_000;
 
 /** Current connection status (reflects event bridge health). */
@@ -82,7 +82,7 @@ export const extractedInsights = writable<InsightEntry[]>([]);
  */
 export const rejectedInsights = writable<RejectedInsightEntry[]>([]);
 
-/** Real-time session LLM cost — updated on every TokenBudgetUpdated event. */
+/** Real-time session LLM cost - updated on every TokenBudgetUpdated event. */
 export const sessionBudget = writable<SessionBudgetState | null>(null);
 
 /** Shape of the TokenBudgetUpdated event payload (Rust enum, externally tagged). */
@@ -103,7 +103,7 @@ async function refreshAgentsViaIpc(): Promise<void> {
     agents.set(result);
     emitTrayUpdate();
   } catch {
-    // runtime not ready yet — keep current state
+    // runtime not ready yet - keep current state
   }
 }
 
@@ -112,7 +112,7 @@ async function refreshTasksViaIpc(): Promise<void> {
     const result: TaskSummary[] = await invoke("list_tasks", { filter: null });
     tasks.set(result);
   } catch {
-    // runtime not ready yet — keep current state
+    // runtime not ready yet - keep current state
   }
 }
 
@@ -121,7 +121,7 @@ async function refreshLlmBackendsViaIpc(): Promise<void> {
     const result: LlmBackendConfig[] = await invoke("list_llm_backends");
     llmBackends.set(result);
   } catch {
-    // runtime not ready yet — keep current state
+    // runtime not ready yet - keep current state
   }
 }
 
@@ -130,7 +130,7 @@ async function refreshTriggersViaIpc(): Promise<void> {
     const result: TriggerStatus[] = await invoke("list_triggers");
     triggers.set(result);
   } catch {
-    // runtime not ready yet — keep current state
+    // runtime not ready yet - keep current state
   }
 }
 
@@ -149,7 +149,7 @@ async function refreshPendingApprovalsViaIpc(): Promise<void> {
     pendingApprovals.set(result);
     emitTrayUpdate();
   } catch {
-    // runtime not ready yet — keep current state
+    // runtime not ready yet - keep current state
   }
 }
 
@@ -158,7 +158,7 @@ async function refreshChatSessionsViaIpc(): Promise<void> {
     const result: ChatSessionSummary[] = await invoke("list_chat_sessions");
     chatSessions.set(result);
   } catch {
-    // runtime not ready yet — keep current state
+    // runtime not ready yet - keep current state
   }
 }
 
@@ -189,11 +189,11 @@ async function sendNativeNotification(taskId: string): Promise<void> {
     }
     if (!granted) return;
     sendNotification({
-      title: "Action requise — Apollia OS",
+      title: "Action requise - Apollia OS",
       body: `Tâche ${taskId.slice(0, 8)} attend votre approbation`,
     });
   } catch {
-    // Notification API unavailable — silently ignore
+    // Notification API unavailable - silently ignore
   }
 }
 
@@ -209,11 +209,11 @@ async function sendChatApprovalNotification(
     }
     if (!granted) return;
     sendNotification({
-      title: "Approbation requise — Chat",
+      title: "Approbation requise - Chat",
       body: `L'outil « ${toolName} » demande votre autorisation (session ${sessionId.slice(0, 8)})`,
     });
   } catch {
-    // Notification API unavailable — silently ignore
+    // Notification API unavailable - silently ignore
   }
 }
 
@@ -229,11 +229,11 @@ async function sendToolFailureNotification(
     }
     if (!granted) return;
     sendNotification({
-      title: "Outil échoué — Apollia OS",
+      title: "Outil échoué - Apollia OS",
       body: `L'outil « ${toolName} » a échoué (session ${sessionId.slice(0, 8)})`,
     });
   } catch {
-    // Notification API unavailable — silently ignore
+    // Notification API unavailable - silently ignore
   }
 }
 
@@ -410,7 +410,7 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       break;
     case "llm-changed":
       if (event.event_type === "TokenBudgetUpdated") {
-        // Direct store update — no IPC round-trip needed, payload carries all fields.
+        // Direct store update - no IPC round-trip needed, payload carries all fields.
         const raw = event.payload as { TokenBudgetUpdated?: SessionBudgetState };
         const budget = raw.TokenBudgetUpdated;
         if (budget) {
@@ -454,7 +454,7 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       onboardingStore.setRequired();
       break;
     case "system":
-      // AllReady / ShutdownRequested / FatalError — refresh everything
+      // AllReady / ShutdownRequested / FatalError - refresh everything
       void refreshAll();
       break;
   }
@@ -530,7 +530,7 @@ export function createSSEConnection(): () => void {
     }
   });
 
-  // 2b. Global chat-token listener — accumulates tokens into the global buffer
+  // 2b. Global chat-token listener - accumulates tokens into the global buffer
   //     so streaming data is never lost when the ChatConversation component
   //     is not mounted.
   void listen<{ session_id: string; message_id: string; token: string }>(

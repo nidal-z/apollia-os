@@ -79,4 +79,4 @@ Pour un modèle GGUF géré directement par Apollia en in-process (sans daemon O
 - **Ollama injoignable** : vérifiez que `ollama serve` tourne sur l'hôte cible et que le port 11434 est ouvert. Pour Ollama distant, testez avec `curl http://<host>:11434/api/tags` depuis votre machine.
 - **Pas de réponse dans le chat malgré pastille verte** : voir [Le fournisseur d'IA ne répond pas](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
 
-> **Référence technique :** [Briques-LLM-Backend](https://github.com/nidal-z/apollia-os/wiki/Briques-LLM-Backend) , tous les fournisseurs supportés, paramètres avancés (temperature, top_k, context_size, fallback policy), routing multi-backend.
+> **Référence technique :** [Briques-LLM-Backend](https://github.com/Apollia-OS/apollia-os/wiki/Briques-LLM-Backend) , tous les fournisseurs supportés, paramètres avancés (temperature, top_k, context_size, fallback policy), routing multi-backend.

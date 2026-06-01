@@ -20,19 +20,19 @@
     if (!entry?.value) return { isJson: false, text: "" };
     const raw = entry.value;
     try {
-      // Tenter parse — gère "{...}", "[...]", strings JSON-encodées, nombres.
+      // Tenter parse - gère "{...}", "[...]", strings JSON-encodées, nombres.
       const parsed = JSON.parse(raw);
       if (typeof parsed === "object" && parsed !== null) {
         return { isJson: true, text: JSON.stringify(parsed, null, 2) };
       }
-      // String, nombre, bool — rendre en tant que tel sans forcer pretty
+      // String, nombre, bool - rendre en tant que tel sans forcer pretty
       return { isJson: false, text: raw };
     } catch {
       return { isJson: false, text: raw };
     }
   });
 
-  // Icone type — rendue explicitement via if/else dans le markup (cohérence
+  // Icone type - rendue explicitement via if/else dans le markup (cohérence
   // avec le reste du codebase qui n'utilise pas de pattern dynamic via $derived).
 
   const typeLabel = $derived(

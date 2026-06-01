@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * ActionMenu — canonical kebab/overflow menu.
+   * ActionMenu - canonical kebab/overflow menu.
    *
    * Wraps `<Popover>` with a default kebab trigger and a vertically-stacked
    * list of `role="menuitem"` buttons. Either feed `items` (declarative) or
@@ -21,7 +21,7 @@
     icon?: typeof Icon;
     /** Click handler. */
     onclick: () => void;
-    /** Variant — `destructive` renders the row in red. */
+    /** Variant - `destructive` renders the row in red. */
     variant?: "default" | "destructive";
     /** Disables the row. */
     disabled?: boolean;

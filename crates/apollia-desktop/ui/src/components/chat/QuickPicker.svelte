@@ -54,7 +54,7 @@
   let { defaultProjectId = null, oncreated, onclose }: Props = $props();
 
   // ─── State ────────────────────────────────────────────────────────────────
-  // Focus management is owned by `use:focusTrap` on the root — no DOM
+  // Focus management is owned by `use:focusTrap` on the root - no DOM
   // refs needed beyond what the action grabs internally.
 
   let prompt = $state("");
@@ -88,7 +88,7 @@
     try {
       localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(next));
     } catch {
-      // Quota or private mode — degrade silently.
+      // Quota or private mode - degrade silently.
     }
   }
 
@@ -99,7 +99,7 @@
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
   // Focus management (initial autofocus + restore on close) is owned by
-  // `use:focusTrap` on the root — this hook only seeds backend state.
+  // `use:focusTrap` on the root - this hook only seeds backend state.
   onMount(() => {
     void invoke<AgentListItem[]>("list_agents")
       .then((list) => agents.set(list))
@@ -140,7 +140,7 @@
       });
       if (initialPrompt && initialPrompt.trim().length > 0) {
         // Kick off auto-naming before send_chat_message so the title LLM call
-        // runs concurrently with the agent run — title typically lands first.
+        // runs concurrently with the agent run - title typically lands first.
         triggerAutoName(session.id, initialPrompt);
         await invoke("send_chat_message", {
           sessionId: session.id,
@@ -186,7 +186,7 @@
 
   // ─── Keyboard ─────────────────────────────────────────────────────────────
   // Tab cycling and focus restoration are handled by `use:focusTrap` on
-  // the root — this handler only covers Escape (close) and the textarea
+  // the root - this handler only covers Escape (close) and the textarea
   // submit chord.
   function handleRootKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
@@ -225,7 +225,7 @@
     </button>
   </div>
 
-  <!-- Project selector — second entry point for the chat ⇄ project link.
+  <!-- Project selector - second entry point for the chat ⇄ project link.
        Hidden only when the user has zero projects; the same action is also
        available later from the conversation header's kebab menu. -->
   {#if $projects.length > 0}
@@ -348,7 +348,7 @@
           {/each}
         </div>
       {:else}
-        <!-- Empty state — extracted to EmptyAgentsState for reuse. -->
+        <!-- Empty state - extracted to EmptyAgentsState for reuse. -->
         <EmptyAgentsState />
       {/if}
     {/if}

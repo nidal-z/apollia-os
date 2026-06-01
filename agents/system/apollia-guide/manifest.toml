@@ -1,4 +1,4 @@
-# Apollia OS — apollia-guide bundle manifest (ADR-073/ADR-074 — US-SP42-057)
+# Apollia OS - apollia-guide bundle manifest (ADR-073/ADR-074 - US-SP42-057)
 # Built-in system agent, embedded in the desktop binary at compile time.
 # Non-uninstallable, auto-provisioned at first launch.
 
@@ -6,7 +6,7 @@
 name = "apollia-guide"
 version = "0.2.0"
 description = """\
-Conversational coach for Apollia OS — knows every product capability, \
+Conversational coach for Apollia OS - knows every product capability, \
 tutorials, and can propose actionable deep-links. Reuses the user's \
 configured LLM backend (never a separate model, never cloud unless the \
 user already opted-in). Knowledge base embedded from agents/system/\

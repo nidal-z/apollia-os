@@ -102,12 +102,12 @@ export class TokenBufferStore {
     this.clear(sessionId);
   }
 
-  /** Current size — exposed for tests. */
+  /** Current size - exposed for tests. */
   size(): number {
     return this.map.size;
   }
 
-  /** Force eviction pass — exposed for tests. */
+  /** Force eviction pass - exposed for tests. */
   evictExpiredForTest(now: number = Date.now()): void {
     if (this.evictExpired(now)) {
       this.notifyBuffers();

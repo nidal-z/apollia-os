@@ -14,7 +14,7 @@
     config: McpServerConfigInput;
     /** When true, a "Skip test (expert)" escape hatch is shown (builder only). */
     allowBypass?: boolean;
-    /** Called when the test succeeds — parent uses this to unlock the Next button. */
+    /** Called when the test succeeds - parent uses this to unlock the Next button. */
     onsuccess?: (result: McpConnectionTestResultView) => void;
     /** Called when user asks to go back to the Auth step to fix credentials. */
     onfixauth?: () => void;
@@ -81,7 +81,7 @@
       // connection before the handshake completed. Most common causes:
       // - npm package not found ("npx <pkg>" fails to download)
       // - HTTP endpoint unreachable (wrong URL, DNS down)
-      // - auth rejected at connection layer (rare — usually surfaced as 401)
+      // - auth rejected at connection layer (rare - usually surfaced as 401)
       return $t("integrations.wizard.test_err.transport_closed");
     }
     if (lower.includes("network") || lower.includes("dns") || lower.includes("connect")) {
@@ -104,7 +104,7 @@
         { config },
       );
       if (response.kind === "success") {
-        // Strip the discriminant — `onsuccess` consumers expect the legacy
+        // Strip the discriminant - `onsuccess` consumers expect the legacy
         // success shape verbatim.
         const { kind: _kind, ...result } = response;
         void _kind;

@@ -4,7 +4,7 @@
    *
    * Top row: agent avatar, editable title, live status badge, A2A worker badge,
    * primary actions + overflow menu, close button.
-   * Bottom row: meta chips — message count / context usage / duration / mode.
+   * Bottom row: meta chips - message count / context usage / duration / mode.
    *
    * Title renaming is inline (double-click on the title, or the "Rename" action).
    */
@@ -42,7 +42,7 @@
     sessionMode: "libre" | "agent";
     sessionAgentName: string | null;
     sessionStatus: "active" | "processing" | "closed";
-    /** "libre" mode has Free/Auto variants driven by tools + system prompt —
+    /** "libre" mode has Free/Auto variants driven by tools + system prompt -
      *  surface a simple Libre/Auto label for operator persona (B.5). */
     autoMode?: boolean;
     hideConfig?: boolean;
@@ -106,7 +106,7 @@
   const messageCount = $derived(stats?.message_count ?? session?.messages?.length ?? 0);
   const contextPct = $derived(stats?.context_usage_pct ?? 0);
 
-  // Live duration — recomputed once a second while the session is open.
+  // Live duration - recomputed once a second while the session is open.
   $effect(() => {
     if (!session?.created_at) {
       elapsedSeconds = 0;
@@ -475,7 +475,7 @@
         <span class="truncate">{linkedProject.name}</span>
       </button>
     {/if}
-    <!-- A2A badge on xs viewports — keeps it visible without header overflow. -->
+    <!-- A2A badge on xs viewports - keeps it visible without header overflow. -->
     <div class="sm:hidden ml-auto">
       <A2AWorkerBadge />
     </div>

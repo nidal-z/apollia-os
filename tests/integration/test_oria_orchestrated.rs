@@ -146,7 +146,7 @@ impl RecordingToolProxy {
 #[async_trait]
 impl ToolProxyTrait for RecordingToolProxy {
     async fn invoke(&self, tool_name: &str, input: &serde_json::Value) -> Result<String, String> {
-        // ActorLoop passes {"input": "<step description>"} — extract the description.
+        // ActorLoop passes {"input": "<step description>"} - extract the description.
         let label = input["input"].as_str().unwrap_or(tool_name).to_string();
         self.calls
             .lock()
@@ -164,7 +164,7 @@ struct FailingToolProxy;
 #[async_trait]
 impl ToolProxyTrait for FailingToolProxy {
     async fn invoke(&self, _tool_name: &str, _input: &serde_json::Value) -> Result<String, String> {
-        Err("tool timeout — simulated transient failure".to_string())
+        Err("tool timeout - simulated transient failure".to_string())
     }
 }
 
@@ -235,7 +235,7 @@ fn make_manifest() -> AgentManifest {
 
 // ── Plan séquentiel ───────────────────────────────────────────────────────────
 
-/// Plan valide de 4 steps exécuté séquentiellement — `PlanCompleted` émis.
+/// Plan valide de 4 steps exécuté séquentiellement - `PlanCompleted` émis.
 ///
 /// ÉTANT DONNÉ un plan linéaire (s1→s2→s3→s4) et un `RecordingToolProxy`
 /// QUAND `ActorLoop::execute()` est appelé
@@ -270,7 +270,7 @@ async fn test_ac1_plan_4_steps_execute_sequentiellement() {
         .execute(&proxy, &llm, &budget, &resilience, &reasoner)
         .await;
 
-    // THEN — Completed
+    // THEN - Completed
     assert_eq!(
         result.status,
         TaskStatus::Completed,
@@ -278,11 +278,11 @@ async fn test_ac1_plan_4_steps_execute_sequentiellement() {
         result.error
     );
 
-    // THEN — 4 proxy calls recorded
+    // THEN - 4 proxy calls recorded
     let calls = proxy.recorded_calls();
     assert_eq!(calls.len(), 4, "expected 4 proxy calls, got: {calls:?}");
 
-    // THEN — PlanCompleted { step_count: 4 } emitted on bus
+    // THEN - PlanCompleted { step_count: 4 } emitted on bus
     let mut found_completed = false;
     while let Ok(event) = rx.try_recv() {
         if let RuntimeEvent::PlanCompleted { step_count, .. } = event {
@@ -298,14 +298,14 @@ async fn test_ac1_plan_4_steps_execute_sequentiellement() {
 
 // ── Ordre topologique ─────────────────────────────────────────────────────────
 
-/// Dépendances topologiques respectées — plan en diamant.
+/// Dépendances topologiques respectées - plan en diamant.
 ///
 /// ÉTANT DONNÉ s1 et s3 sans deps, s2 dépend de s1, s4 dépend de s2 et s3
 /// QUAND `ActorLoop::execute()` est appelé
 /// ALORS l'ordre observé satisfait : s1 < s2, s3 < s4, s2 < s4.
 #[tokio::test]
 async fn test_ac2_depends_on_respectes() {
-    // GIVEN — diamond dependency: s1 and s3 independent, s2 needs s1, s4 needs s2+s3
+    // GIVEN - diamond dependency: s1 and s3 independent, s2 needs s1, s4 needs s2+s3
     let plan = make_plan(vec![
         ("s1", &[]),
         ("s3", &[]),
@@ -337,7 +337,7 @@ async fn test_ac2_depends_on_respectes() {
         result.error
     );
 
-    // THEN — verify ordering via recorded step descriptions
+    // THEN - verify ordering via recorded step descriptions
     let calls = proxy.recorded_calls();
     assert_eq!(calls.len(), 4, "expected 4 proxy calls");
 
@@ -356,7 +356,7 @@ async fn test_ac2_depends_on_respectes() {
 
 // ── Budget épuisé ─────────────────────────────────────────────────────────────
 
-/// Budget épuisé — plan de 5 steps indépendants, max 2 steps autorisés.
+/// Budget épuisé - plan de 5 steps indépendants, max 2 steps autorisés.
 ///
 /// ÉTANT DONNÉ 5 steps sans dépendances et `StepBudget::with_max(2)`
 /// QUAND `ActorLoop::execute()` est appelé
@@ -390,7 +390,7 @@ async fn test_ac3_budget_epuise_step_3_sur_5() {
         .execute(&proxy, &llm, &budget, &resilience, &reasoner)
         .await;
 
-    // THEN — Failed with STEP_BUDGET_EXCEEDED
+    // THEN - Failed with STEP_BUDGET_EXCEEDED
     assert_eq!(result.status, TaskStatus::Failed, "expected Failed");
     let code = result.error.as_ref().map(|e| e.code.as_str()).unwrap_or("");
     assert_eq!(
@@ -398,7 +398,7 @@ async fn test_ac3_budget_epuise_step_3_sur_5() {
         "expected STEP_BUDGET_EXCEEDED error code"
     );
 
-    // THEN — exactly 2 proxy calls (step 3 was blocked by budget)
+    // THEN - exactly 2 proxy calls (step 3 was blocked by budget)
     let calls = proxy.recorded_calls();
     assert_eq!(
         calls.len(),
@@ -419,7 +419,7 @@ async fn test_ac3_budget_epuise_step_3_sur_5() {
 ///   ET `Completed` est retourné si s2b réussit.
 #[tokio::test]
 async fn test_ac4_replanification_step_echec() {
-    // GIVEN — plan s1 (succeeds), s2 (will fail with retryable error)
+    // GIVEN - plan s1 (succeeds), s2 (will fail with retryable error)
     let plan = make_plan(vec![("s1", &[]), ("s2", &["s1"])]);
     let db = make_db();
     db.insert_plan(&plan, "test")
@@ -430,7 +430,7 @@ async fn test_ac4_replanification_step_echec() {
     let bus = make_bus();
     let mut rx = bus.subscribe();
 
-    // Proxy fails only on the exact description "Step s2" — not on "Step s2b".
+    // Proxy fails only on the exact description "Step s2" - not on "Step s2b".
     let proxy = SelectiveFailProxy {
         fail_on_description: "Step s2".to_string(),
     };
@@ -438,7 +438,7 @@ async fn test_ac4_replanification_step_echec() {
     let budget = StepBudget::unlimited();
     let resilience = ResilienceLayer::default();
 
-    // Reasoner::replan() will be called once — return a single replacement step.
+    // Reasoner::replan() will be called once - return a single replacement step.
     let replacement_plan = r#"{"steps":[{"step_id":"s2b","description":"Step s2b","tool_hint":"mock_tool","depends_on":[]}]}"#;
     let mock_model = MockCompletionModel::with_responses(vec![replacement_plan]);
     let reasoner = Reasoner::new(mock_model, 10);
@@ -451,7 +451,7 @@ async fn test_ac4_replanification_step_echec() {
         .execute(&proxy, &llm, &budget, &resilience, &reasoner)
         .await;
 
-    // THEN — Completed after s1 ok, s2 fail → replan → s2b ok
+    // THEN - Completed after s1 ok, s2 fail → replan → s2b ok
     assert_eq!(
         result.status,
         TaskStatus::Completed,
@@ -459,7 +459,7 @@ async fn test_ac4_replanification_step_echec() {
         result.error
     );
 
-    // THEN — PlanReplanning event emitted with attempt=1
+    // THEN - PlanReplanning event emitted with attempt=1
     let mut found_replan = false;
     while let Ok(event) = rx.try_recv() {
         if let RuntimeEvent::PlanReplanning { attempt, .. } = event {
@@ -475,7 +475,7 @@ async fn test_ac4_replanification_step_echec() {
 
 // ── MAX_REPLAN_EXCEEDED ───────────────────────────────────────────────────────
 
-/// `MAX_REPLAN_EXCEEDED` — zéro replanification autorisée, step retryable échoue.
+/// `MAX_REPLAN_EXCEEDED` - zéro replanification autorisée, step retryable échoue.
 ///
 /// ÉTANT DONNÉ un plan avec un step qui produit toujours une erreur retryable
 ///   ET `max_replans = 0` (aucune replanification autorisée)
@@ -483,7 +483,7 @@ async fn test_ac4_replanification_step_echec() {
 /// ALORS `Failed("MAX_REPLAN_EXCEEDED")` est retourné immédiatement.
 #[tokio::test]
 async fn test_ac5_max_replan_exceeded() {
-    // GIVEN — single step that always fails (FailingToolProxy → ToolCallFailed → retryable)
+    // GIVEN - single step that always fails (FailingToolProxy → ToolCallFailed → retryable)
     let plan = make_plan(vec![("s1", &[])]);
     let db = make_db();
     db.insert_plan(&plan, "test")
@@ -506,7 +506,7 @@ async fn test_ac5_max_replan_exceeded() {
         .execute(&proxy, &llm, &budget, &resilience, &reasoner)
         .await;
 
-    // THEN — Failed with MAX_REPLAN_EXCEEDED
+    // THEN - Failed with MAX_REPLAN_EXCEEDED
     assert_eq!(result.status, TaskStatus::Failed, "expected Failed");
     let code = result.error.as_ref().map(|e| e.code.as_str()).unwrap_or("");
     assert_eq!(
@@ -517,7 +517,7 @@ async fn test_ac5_max_replan_exceeded() {
 
 // ── Reasoner retry ────────────────────────────────────────────────────────────
 
-/// `Reasoner` retry ×3 sur JSON invalide — `PlanParseError(attempts: 3)`.
+/// `Reasoner` retry ×3 sur JSON invalide - `PlanParseError(attempts: 3)`.
 ///
 /// ÉTANT DONNÉ un mock `CompletionModel` retournant 3 fois du texte non-JSON
 /// QUAND `Reasoner::plan(&ctx).await` est appelé
@@ -537,7 +537,7 @@ async fn test_ac6_reasoner_retry_3_fois_json_invalide() {
     // WHEN
     let result = reasoner.plan(&ctx).await;
 
-    // THEN — PlanParseError after 3 failed attempts
+    // THEN - PlanParseError after 3 failed attempts
     assert!(
         matches!(
             result,
@@ -563,7 +563,7 @@ async fn test_ac6_reasoner_retry_3_fois_json_invalide() {
 ///   ET l'output contient les sorties des 2 steps concaténées.
 #[tokio::test]
 async fn test_ac7_agent_sans_hook_concatenation() {
-    // GIVEN — minimal agent, no on_plan_complete (trait default: false)
+    // GIVEN - minimal agent, no on_plan_complete (trait default: false)
     struct SimpleAgent;
 
     impl AIPAgent for SimpleAgent {
@@ -602,7 +602,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 user_memory_write: false,
             }
         }
-        // has_on_plan_complete() returns false by default — auto-concat is used
+        // has_on_plan_complete() returns false by default - auto-concat is used
     }
 
     let two_step_plan = r#"{"steps":[
@@ -620,7 +620,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
     // WHEN
     let result = engine.execute(task, &SimpleAgent).await;
 
-    // THEN — Completed
+    // THEN - Completed
     assert_eq!(
         result.status,
         TaskStatus::Completed,
@@ -628,7 +628,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
         result.error
     );
 
-    // THEN — output is non-empty (auto-concatenation of step outputs)
+    // THEN - output is non-empty (auto-concatenation of step outputs)
     let output_text: String = result
         .output
         .iter()

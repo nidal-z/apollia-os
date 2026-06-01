@@ -1,4 +1,4 @@
--- Migration 008 — projects
+-- Migration 008 - projects
 -- Idempotente : CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
 
 CREATE TABLE IF NOT EXISTS projects (

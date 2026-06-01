@@ -22,7 +22,7 @@
 4. Cliquez sur **Télécharger**. Une barre de progression apparaît à côté du modèle.
    ![ligne modèle "Llama 3.1 8B" avec barre de progression à 42 % et bouton Annuler](../_screenshots/installation-telecharger-des-modeles-locaux-2.png)
 
-5. Laissez la fenêtre ouverte (le téléchargement peut prendre 5 à 30 minutes selon votre débit et la taille du modèle). Vous pouvez continuer à utiliser le reste d'Apollia. Le téléchargement ne s'interrompt pas en raison d'une durée trop longue — seul l'établissement de la connexion initiale est soumis à un délai (30 secondes).
+5. Laissez la fenêtre ouverte (le téléchargement peut prendre 5 à 30 minutes selon votre débit et la taille du modèle). Vous pouvez continuer à utiliser le reste d'Apollia. Le téléchargement ne s'interrompt pas en raison d'une durée trop longue - seul l'établissement de la connexion initiale est soumis à un délai (30 secondes).
 
 6. À la fin, l'état du modèle passe à **Disponible localement** avec une pastille verte.
 
@@ -41,4 +41,4 @@ Pour un modèle GGUF, ouvrez un nouveau chat, sélectionnez votre modèle local 
 - **Espace disque insuffisant :** supprimez un modèle existant ou libérez de la place avant de relancer.
 - **Modèle absent du sélecteur après téléchargement :** redémarrez Apollia pour qu'il détecte le nouveau modèle.
 
-> **Référence technique :** [Briques-LLM-Backend](https://github.com/nidal-z/apollia-os/wiki/Briques-LLM-Backend) — formats GGUF supportés, paramètres de quantization, recommandations matériel.
+> **Référence technique :** [Briques-LLM-Backend](https://github.com/Apollia-OS/apollia-os/wiki/Briques-LLM-Backend) - formats GGUF supportés, paramètres de quantization, recommandations matériel.

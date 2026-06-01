@@ -150,7 +150,7 @@ pub async fn resolve(
                 tracing::warn!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: optional tool missing — agent will run in DEGRADED mode"
+                    "ToolResolver: optional tool missing - agent will run in DEGRADED mode"
                 );
                 warnings.push(warning);
             }
@@ -159,7 +159,7 @@ pub async fn resolve(
                 tracing::warn!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: dangerous optional tool not allowed — skipping"
+                    "ToolResolver: dangerous optional tool not allowed - skipping"
                 );
                 warnings.push(warning);
             }

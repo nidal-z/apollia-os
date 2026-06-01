@@ -3,7 +3,7 @@
 
   Shown only on small viewports (Tailwind `md:hidden`) so the desktop layout
   keeps the existing top-right "Nouvelle tâche" button as the primary CTA.
-  A.7.5 + A.1.13 — operator mode only.
+  A.7.5 + A.1.13 - operator mode only.
 -->
 <script lang="ts">
   import { t } from "svelte-i18n";

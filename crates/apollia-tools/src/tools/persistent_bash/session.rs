@@ -496,7 +496,7 @@ mod tests {
         // THEN: /var is reflected in stdout or cwd
         assert!(
             output.stdout.contains("/var") || output.cwd.contains("/var"),
-            "expected /var — stdout='{}' cwd='{}'",
+            "expected /var - stdout='{}' cwd='{}'",
             output.stdout,
             output.cwd
         );
@@ -531,7 +531,7 @@ mod tests {
         // THEN
         assert!(
             output.stdout.contains("hello42"),
-            "expected 'hello42' — stdout='{}'",
+            "expected 'hello42' - stdout='{}'",
             output.stdout
         );
     }
@@ -555,7 +555,7 @@ mod tests {
         // THEN: SyntaxError returned
         assert!(
             matches!(result, Err(PersistentBashError::SyntaxError(_))),
-            "expected SyntaxError — got: {result:?}"
+            "expected SyntaxError - got: {result:?}"
         );
 
         // AND: session still functional
@@ -596,7 +596,7 @@ mod tests {
         // THEN: Cancelled error
         assert!(
             matches!(result, Err(PersistentBashError::Cancelled)),
-            "expected Cancelled — got: {result:?}"
+            "expected Cancelled - got: {result:?}"
         );
 
         // AND: session usable after implicit restart
@@ -647,13 +647,13 @@ mod tests {
 
         assert!(
             out_a.stdout.contains("/var") || out_a.cwd.contains("/var"),
-            "session_a expected /var — stdout='{}' cwd='{}'",
+            "session_a expected /var - stdout='{}' cwd='{}'",
             out_a.stdout,
             out_a.cwd
         );
         assert!(
             out_b.stdout.contains("/tmp") || out_b.cwd.contains("/tmp"),
-            "session_b expected /tmp — stdout='{}' cwd='{}'",
+            "session_b expected /tmp - stdout='{}' cwd='{}'",
             out_b.stdout,
             out_b.cwd
         );
@@ -675,7 +675,7 @@ mod tests {
         // THEN: exit code captured, no error
         assert_eq!(
             output.exit_code, 42,
-            "expected exit_code=42 — got {}",
+            "expected exit_code=42 - got {}",
             output.exit_code
         );
 
@@ -727,7 +727,7 @@ mod tests {
         // THEN
         assert!(
             matches!(result, Err(PersistentBashError::Io(_))),
-            "expected Io error for blank command — got: {result:?}"
+            "expected Io error for blank command - got: {result:?}"
         );
     }
 }

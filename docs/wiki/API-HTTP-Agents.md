@@ -1,20 +1,20 @@
-# API HTTP — Agents, Tâches & LLM — Apollia OS
+# API HTTP - Agents, Tâches & LLM - Apollia OS
 
 > Référence des endpoints REST liés aux **agents, tâches, LLM, outils, A2A, plan cache, sessions de chat, santé et shutdown**.
 > Public cible : développeur intégrant Apollia OS dans un système externe.
 >
 > Cette page fait partie d'un découpage en trois :
-> - **API-HTTP-Agents** (cette page) — agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
-> - [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications
-> - [API-HTTP-Observability](./API-HTTP-Observability) — audit, timeline, approvals, user memory, dashboard, STT, MCP
+> - **API-HTTP-Agents** (cette page) - agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
+> - [API-HTTP-Workspace](./API-HTTP-Workspace) - triggers, webhooks, notifications
+> - [API-HTTP-Observability](./API-HTTP-Observability) - audit, timeline, approvals, user memory, dashboard, STT, MCP
 
 ---
 
 ## Vue d'ensemble
 
 L'API HTTP locale est exposée sur deux transports :
-- **Unix socket** : `/tmp/apollia.sock` — recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (ADR-051)
+- **Unix socket** : `/tmp/apollia.sock` - recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
+- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-051)
 
 Tous les endpoints retournent du JSON.
 
@@ -37,7 +37,7 @@ Le token est généré au premier démarrage et stocké dans `~/.apollia/api-tok
 
 Pour afficher le token : `apollia-os config show-token`. Pour le régénérer : `apollia-os config rotate-token`.
 
-> Le socket Unix reste non authentifié — les processus locaux sous le même UID (CLI, app desktop) l'utilisent sans token.
+> Le socket Unix reste non authentifié - les processus locaux sous le même UID (CLI, app desktop) l'utilisent sans token.
 
 **Base URL :** `http://localhost:7771/api/v1`
 
@@ -96,9 +96,9 @@ Démarrer un agent à partir d'un fichier Python.
 ```
 
 **Erreurs :**
-- `400` — manifest invalide ou outil requis introuvable
-- `409` — agent avec ce nom déjà déployé
-- `422` — fichier Python introuvable ou erreur de chargement
+- `400` - manifest invalide ou outil requis introuvable
+- `409` - agent avec ce nom déjà déployé
+- `422` - fichier Python introuvable ou erreur de chargement
 
 ### GET /api/v1/agents/:id
 
@@ -120,7 +120,7 @@ Obtenir les détails d'un agent.
 ```
 
 **Erreurs :**
-- `404` — agent introuvable
+- `404` - agent introuvable
 
 ### DELETE /api/v1/agents/:id
 
@@ -135,8 +135,8 @@ Arrêter un agent (graceful drain).
 ```
 
 **Erreurs :**
-- `404` — agent introuvable
-- `409` — agent déjà en `Stopping` ou `Stopped`
+- `404` - agent introuvable
+- `409` - agent déjà en `Stopping` ou `Stopped`
 
 ---
 
@@ -147,7 +147,7 @@ Arrêter un agent (graceful drain).
 Lister toutes les tâches connues du runtime.
 
 **Query params :**
-- `status` (optionnel) — filtre par statut exact (`submitted`, `working`, `completed`, `failed`, `canceled`, `input_required`)
+- `status` (optionnel) - filtre par statut exact (`submitted`, `working`, `completed`, `failed`, `canceled`, `input_required`)
 
 **Réponse 200 :**
 ```json
@@ -196,9 +196,9 @@ Soumettre une tâche à un agent.
 ```
 
 **Erreurs :**
-- `404` — agent introuvable
-- `409` — agent en état non-acceptant (Stopping, Stopped)
-- `503` — capacité de l'agent saturée (max_concurrent_tasks atteint)
+- `404` - agent introuvable
+- `409` - agent en état non-acceptant (Stopping, Stopped)
+- `503` - capacité de l'agent saturée (max_concurrent_tasks atteint)
 
 ### GET /api/v1/tasks/:id
 
@@ -244,7 +244,7 @@ Obtenir l'état et le résultat d'une tâche.
 ```
 
 **Erreurs :**
-- `404` — tâche introuvable
+- `404` - tâche introuvable
 
 ### DELETE /api/v1/tasks/:id
 
@@ -259,8 +259,8 @@ Annuler une tâche.
 ```
 
 **Erreurs :**
-- `404` — tâche introuvable
-- `409` — tâche déjà terminée (completed, failed, canceled)
+- `404` - tâche introuvable
+- `409` - tâche déjà terminée (completed, failed, canceled)
 
 ### POST /api/v1/tasks/:id/resume
 
@@ -281,7 +281,7 @@ ou pour un rejet :
 }
 ```
 
-Le champ `approved` est obligatoire — son absence provoque HTTP 422. Le champ `reason` est optionnel, surtout utile en cas de rejet.
+Le champ `approved` est obligatoire - son absence provoque HTTP 422. Le champ `reason` est optionnel, surtout utile en cas de rejet.
 
 **Réponse 200 :**
 ```json
@@ -292,14 +292,14 @@ Le champ `approved` est obligatoire — son absence provoque HTTP 422. Le champ 
 }
 ```
 
-Le champ `status` vaut toujours `"working"` que la décision soit une approbation ou un rejet — l'agent reprend l'exécution dans les deux cas.
+Le champ `status` vaut toujours `"working"` que la décision soit une approbation ou un rejet - l'agent reprend l'exécution dans les deux cas.
 
 **Erreurs :**
-- `404` — tâche introuvable dans le système HITL
-- `409` — tâche connue mais pas en status `input_required`
-- `422` — corps de requête invalide (champ `approved` manquant)
-- `500` — erreur SQLite ou echec de reconstruction de la tâche (`rebuild_for_resume`)
-- `503` — HITL non configuré (`task_repository` absent)
+- `404` - tâche introuvable dans le système HITL
+- `409` - tâche connue mais pas en status `input_required`
+- `422` - corps de requête invalide (champ `approved` manquant)
+- `500` - erreur SQLite ou echec de reconstruction de la tâche (`rebuild_for_resume`)
+- `503` - HITL non configuré (`task_repository` absent)
 
 ### GET /api/v1/tasks/:id/stream
 
@@ -346,7 +346,7 @@ data: {"event":"input_required","task_id":"t-abc123","prompt":"Confirmer l'envoi
 data: {"event":"task_resumed","task_id":"t-abc123","approved":true}
 ```
 
-`input_required` n'est **pas** un événement terminal — la tâche reste suspendue et attend une décision via `POST /api/v1/tasks/:id/resume`. Le flux reste ouvert. `task_resumed` est émis dès que la reprise est enregistrée ; la tâche repasse en `working`.
+`input_required` n'est **pas** un événement terminal - la tâche reste suspendue et attend une décision via `POST /api/v1/tasks/:id/resume`. Le flux reste ouvert. `task_resumed` est émis dès que la reprise est enregistrée ; la tâche repasse en `working`.
 
 **Événements terminaux :** `completed`, `failed`, `canceled`, `plan_failed`. Le flux se ferme après réception d'un événement terminal. `input_required` et `task_resumed` ne ferment pas le flux.
 
@@ -389,7 +389,7 @@ Mesurer la latence d'un backend LLM.
 **Corps :**
 ```json
 {
-  "backend": "anthropic"   // optionnel — utilise le backend par défaut si absent
+  "backend": "anthropic"   // optionnel - utilise le backend par défaut si absent
 }
 ```
 
@@ -403,7 +403,7 @@ Mesurer la latence d'un backend LLM.
 }
 ```
 
-**Réponse 200 (backend indisponible — clé API absente, etc.) :**
+**Réponse 200 (backend indisponible - clé API absente, etc.) :**
 ```json
 {
   "backend":    "anthropic",
@@ -423,7 +423,7 @@ Envoyer un prompt direct à un backend LLM et récupérer la réponse.
 ```json
 {
   "prompt":  "Résume les avantages du local-first en 3 points",
-  "backend": "local"   // optionnel — backend par défaut si absent
+  "backend": "local"   // optionnel - backend par défaut si absent
 }
 ```
 
@@ -457,7 +457,7 @@ Envoyer un historique de conversation multi-tours à un backend LLM.
     { "role": "assistant", "content": "Le StepBudget est un garde-fou appliqué par..." },
     { "role": "user",      "content": "Combien de steps par défaut ?" }
   ],
-  "backend": "anthropic"   // optionnel — backend par défaut si absent
+  "backend": "anthropic"   // optionnel - backend par défaut si absent
 }
 ```
 
@@ -477,8 +477,8 @@ Rôles valides : `"system"`, `"user"`, `"assistant"`, `"tool"`.
 ```
 
 **Erreurs :**
-- `400` — rôle inconnu dans les messages
-- `503` — aucun router LLM configuré ou backend indisponible
+- `400` - rôle inconnu dans les messages
+- `503` - aucun router LLM configuré ou backend indisponible
 
 ---
 
@@ -487,7 +487,7 @@ Rôles valides : `"system"`, `"user"`, `"assistant"`, `"tool"`.
 Statistiques agrégées de coût et de tokens sur une fenêtre glissante.
 
 **Query params :**
-- `days` (optionnel, défaut: 7) — nombre de jours à agréger
+- `days` (optionnel, défaut: 7) - nombre de jours à agréger
 
 **Réponse 200 :**
 ```json
@@ -521,7 +521,7 @@ Statistiques agrégées de coût et de tokens sur une fenêtre glissante.
 Coûts LLM ventilés par jour et par backend. Utile pour générer un graphique d'évolution.
 
 **Query params :**
-- `days` (optionnel, défaut: 7) — profondeur historique
+- `days` (optionnel, défaut: 7) - profondeur historique
 
 **Réponse 200 :**
 ```json
@@ -686,7 +686,7 @@ Retourne le descripteur complet d'un outil.
 Liste les messages en file pour un agent. Max 200 messages par requête.
 
 **Query params :**
-- `limit` (optionnel, défaut: 50, max: 200) — nombre de messages à retourner
+- `limit` (optionnel, défaut: 50, max: 200) - nombre de messages à retourner
 
 **Réponse 200 :**
 ```json
@@ -702,11 +702,11 @@ Liste les messages en file pour un agent. Max 200 messages par requête.
 }
 ```
 
-**Réponse 503 :** `{ "error": "Mailbox not configured" }` — si `AgentMailbox` n'est pas activé.
+**Réponse 503 :** `{ "error": "Mailbox not configured" }` - si `AgentMailbox` n'est pas activé.
 
 ---
 
-## A2A — Routing Agent-to-Agent
+## A2A - Routing Agent-to-Agent
 
 ### GET /api/v1/a2a/agents
 
@@ -782,9 +782,9 @@ Délègue une tâche à un Worker Agent par `skill_id`. Soumet la tâche, attend
 
 | Champ | Requis | Défaut |
 |---|---|---|
-| `skill_id` | ✅ | — |
-| `input` | ✅ | — |
-| `timeout_secs` | — | 120 |
+| `skill_id` | ✅ | - |
+| `input` | ✅ | - |
+| `timeout_secs` | - | 120 |
 
 **Réponse 200 :**
 ```json
@@ -796,16 +796,16 @@ Délègue une tâche à un Worker Agent par `skill_id`. Soumet la tâche, attend
 ```
 
 **Erreurs :**
-- `404` — `skill_id` introuvable, champ `available_skills` listé dans la réponse
-- `409` — skill ambigu (plusieurs agents déclarent le même skill), champ `conflicting_agents` listé
-- `504` — timeout dépassé
-- `502` — Worker Agent a retourné une erreur
+- `404` - `skill_id` introuvable, champ `available_skills` listé dans la réponse
+- `409` - skill ambigu (plusieurs agents déclarent le même skill), champ `conflicting_agents` listé
+- `504` - timeout dépassé
+- `502` - Worker Agent a retourné une erreur
 
 ---
 
 ### POST /api/v1/a2a/invoke
 
-Invocation haut niveau via l'`A2AInvoker` — applique les garde-fous (profondeur max, auto-invocation, timeout de chaîne).
+Invocation haut niveau via l'`A2AInvoker` - applique les garde-fous (profondeur max, auto-invocation, timeout de chaîne).
 
 **Corps :**
 ```json
@@ -819,10 +819,10 @@ Invocation haut niveau via l'`A2AInvoker` — applique les garde-fous (profondeu
 
 | Champ | Requis | Défaut |
 |---|---|---|
-| `skill_id` | ✅ | — |
-| `input` | ✅ | — |
-| `caller` | — | `"api"` |
-| `timeout_secs` | — | 120 |
+| `skill_id` | ✅ | - |
+| `input` | ✅ | - |
+| `caller` | - | `"api"` |
+| `timeout_secs` | - | 120 |
 
 **Réponse 200 :**
 ```json
@@ -838,11 +838,11 @@ Invocation haut niveau via l'`A2AInvoker` — applique les garde-fous (profondeu
 ```
 
 **Erreurs :**
-- `404` — skill introuvable
-- `503` — agent non actif ou A2A invoker non initialisé
-- `429` — profondeur max dépassée (`MAX_DEPTH`), auto-invocation, ou timeout de chaîne global dépassé
-- `504` — timeout par invocation dépassé
-- `502` — agent a retourné une erreur
+- `404` - skill introuvable
+- `503` - agent non actif ou A2A invoker non initialisé
+- `429` - profondeur max dépassée (`MAX_DEPTH`), auto-invocation, ou timeout de chaîne global dépassé
+- `504` - timeout par invocation dépassé
+- `502` - agent a retourné une erreur
 
 ---
 
@@ -904,7 +904,7 @@ POST /api/v1/sessions
 |---|---|---|---|
 | `mode` | `"libre"` \| `"agent"` | ✅ | Mode de chat |
 | `agent_name` | `string \| null` | Agent mode | Nom de l'agent installé |
-| `system_prompt` | `string \| null` | — | Prompt système personnalisé |
+| `system_prompt` | `string \| null` | - | Prompt système personnalisé |
 | `tools` | `string[]` | Libre mode | Outils disponibles |
 
 **Réponse (201) :**
@@ -1033,7 +1033,7 @@ curl -N -H "Accept: text/event-stream" \
 |---|---|
 | `200` | Succès |
 | `201` | Créé avec succès (`POST /api/v1/agents`, `POST /api/v1/mcp/servers`) |
-| `202` | Accepté (`POST /api/v1/tasks` — tâche soumise, exécution asynchrone) |
+| `202` | Accepté (`POST /api/v1/tasks` - tâche soumise, exécution asynchrone) |
 | `204` | Supprimé avec succès (`DELETE /api/v1/llm/backends/:name`, `DELETE /api/v1/user/memory/:key`) |
 | `400` | Requête invalide (manifest, champs manquants, rôle LLM inconnu) |
 | `401` | Non autorisé (signature HMAC invalide sur webhook) |
@@ -1042,11 +1042,11 @@ curl -N -H "Accept: text/event-stream" \
 | `422` | Erreur de traitement (fichier Python invalide, corps de requête invalide, catégorie mémoire inconnue) |
 | `429` | Trop de requêtes (garde-fous A2A : profondeur max, auto-invocation, timeout de chaîne) |
 | `500` | Erreur interne (SQLite, rebuild HITL) |
-| `502` | Bad gateway — Worker Agent a retourné une erreur (`POST /api/v1/a2a/delegate|invoke`) |
+| `502` | Bad gateway - Worker Agent a retourné une erreur (`POST /api/v1/a2a/delegate|invoke`) |
 | `503` | Service indisponible (capacité saturée, composant non configuré) |
-| `504` | Gateway timeout — timeout A2A dépassé (`POST /api/v1/a2a/delegate|invoke`) |
+| `504` | Gateway timeout - timeout A2A dépassé (`POST /api/v1/a2a/delegate|invoke`) |
 
-**Statut `input_required` :** statut intermédiaire émis par ORIA en mode Direct quand l'agent requiert une validation humaine. La tâche est suspendue et attend une décision via `POST /api/v1/tasks/:id/resume`. Ce n'est pas un état terminal — le flux SSE reste ouvert.
+**Statut `input_required` :** statut intermédiaire émis par ORIA en mode Direct quand l'agent requiert une validation humaine. La tâche est suspendue et attend une décision via `POST /api/v1/tasks/:id/resume`. Ce n'est pas un état terminal - le flux SSE reste ouvert.
 
 **Format d'erreur standard :**
 ```json
@@ -1095,13 +1095,13 @@ curl --unix-socket /tmp/apollia.sock http://localhost/api/v1/health
 
 ## Voir aussi
 
-- [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications
-- [API-HTTP-Observability](./API-HTTP-Observability) — audit, timeline, approvals, user, dashboard, STT, MCP
-- [Briques CLI](./Briques-CLI) — wrapper CLI sur cette API
-- [Briques Runtime Core](./Briques-Runtime-Core) — implémentation APIServer axum
-- [A2A-ACP-Alignement](./A2A-ACP-Alignement) — spécification des guards et de l'A2AInvoker
-- [Briques Chat](./Briques-Chat) — sous-système de chat complet
-- [ADR-006](../adr/ADR-006-rest-json-api-locale) — pourquoi REST JSON plutôt qu'une autre API
-- [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) — Unix socket avec hyper-util
-- [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) — chat hybride : sessions, streaming, HITL inline
-- [ADR-050](../adr/ADR-050) — distribution Worker Agents, registre communautaire
+- [API-HTTP-Workspace](./API-HTTP-Workspace) - triggers, webhooks, notifications
+- [API-HTTP-Observability](./API-HTTP-Observability) - audit, timeline, approvals, user, dashboard, STT, MCP
+- [Briques CLI](./Briques-CLI) - wrapper CLI sur cette API
+- [Briques Runtime Core](./Briques-Runtime-Core) - implémentation APIServer axum
+- [A2A-ACP-Alignement](./A2A-ACP-Alignement) - spécification des guards et de l'A2AInvoker
+- [Briques Chat](./Briques-Chat) - sous-système de chat complet
+- [ADR-006](../adr/ADR-006-rest-json-api-locale) - pourquoi REST JSON plutôt qu'une autre API
+- [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) - Unix socket avec hyper-util
+- [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) - chat hybride : sessions, streaming, HITL inline
+- [ADR-050](../adr/ADR-050) - distribution Worker Agents, registre communautaire

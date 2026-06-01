@@ -121,7 +121,7 @@
         enabled,
         config,
       };
-      // Only include `label` when changed — distinguishes "keep" from "clear".
+      // Only include `label` when changed - distinguishes "keep" from "clear".
       if (trimmedLabel !== originalLabel.trim()) {
         request.label = trimmedLabel || null;
       }

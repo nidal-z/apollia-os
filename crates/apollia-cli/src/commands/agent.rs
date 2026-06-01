@@ -356,7 +356,7 @@ fn looks_like_file_path(arg: &str) -> bool {
 async fn run_stop(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
     if looks_like_file_path(agent_id) {
         let msg = format!(
-            "'{agent_id}' looks like a file path — use the agent name or UUID instead\n\
+            "'{agent_id}' looks like a file path - use the agent name or UUID instead\n\
              Hint: apollia-os agent stop <name|uuid>  (e.g. apollia-os agent stop apollia-reviewer)"
         );
         if json {
@@ -386,7 +386,7 @@ async fn run_stop(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
 async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
     if looks_like_file_path(agent_id) {
         let msg = format!(
-            "'{agent_id}' looks like a file path — use the agent name or UUID instead\n\
+            "'{agent_id}' looks like a file path - use the agent name or UUID instead\n\
              Hint: apollia-os agent info <name|uuid>  (e.g. apollia-os agent info apollia-reviewer)"
         );
         return print_compact_error_and_exit(&msg, json);
@@ -562,7 +562,7 @@ fn local_agent_detail(agent_id: &str) -> Option<serde_json::Value> {
         "manifest": entry.manifest,
         "install_path": entry.install_path,
         "installed_at": entry.installed_at,
-        "_source": "local agents.db (runtime registry has no live entry — agent is disabled or failed to load)",
+        "_source": "local agents.db (runtime registry has no live entry - agent is disabled or failed to load)",
     });
     Some(body)
 }
@@ -692,7 +692,7 @@ async fn run_install_git(
 
     if manifest.dangerous_tools_allowed {
         eprintln!(
-            "Warning: community agent '{}' requests dangerous_tools_allowed — user approval required",
+            "Warning: community agent '{}' requests dangerous_tools_allowed - user approval required",
             manifest.name
         );
     }
@@ -710,7 +710,7 @@ async fn run_install_git(
 
     // Check if runtime is running (informational only).
     if client.list_agents().await.is_err() {
-        eprintln!("Info: Runtime not running — agent will auto-start on next boot");
+        eprintln!("Info: Runtime not running - agent will auto-start on next boot");
     }
 
     if json {
@@ -749,7 +749,7 @@ async fn run_install_local(
         }
         return print_error_and_exit(
             &format!(
-                "directory '{}' has no agent.toml — not a valid agent package",
+                "directory '{}' has no agent.toml - not a valid agent package",
                 source_path.display()
             ),
             json,
@@ -773,13 +773,13 @@ async fn run_install_local(
     // Surface security and skip-tests warnings to the operator.
     if manifest.dangerous_tools_allowed {
         eprintln!(
-            "Warning: community agent '{}' requests dangerous_tools_allowed — user approval required",
+            "Warning: community agent '{}' requests dangerous_tools_allowed - user approval required",
             manifest.name
         );
     }
     if skip_tests {
         eprintln!(
-            "Warning: installing '{}' without running its test suite — not recommended",
+            "Warning: installing '{}' without running its test suite - not recommended",
             manifest.name
         );
     }
@@ -844,7 +844,7 @@ async fn run_install_local(
     // Check if runtime is running (informational only).
     let runtime_running = client.list_agents().await.is_ok();
     if !runtime_running {
-        eprintln!("Info: Runtime not running — agent will auto-start on next boot");
+        eprintln!("Info: Runtime not running - agent will auto-start on next boot");
     }
 
     if json {
@@ -992,7 +992,7 @@ async fn run_install_package(
 
     let runtime_running = client.list_agents().await.is_ok();
     if !runtime_running {
-        eprintln!("Info: Runtime not running — agents will auto-start on next boot");
+        eprintln!("Info: Runtime not running - agents will auto-start on next boot");
     }
 
     let summary = InstallSummary {
@@ -1506,7 +1506,7 @@ async fn run_enable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
                     tracing::warn!(
                         agent = %name,
                         error = %e,
-                        "enable: failed to load into the live registry — agent remains enabled=true for next boot"
+                        "enable: failed to load into the live registry - agent remains enabled=true for next boot"
                     );
                     "load-failed"
                 }
@@ -1525,8 +1525,8 @@ async fn run_enable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
                 let suffix = match load_outcome {
                     "loaded" => " and loaded into the runtime (`apollia-os run` works now)",
                     "already-loaded" => " (already running in the runtime)",
-                    "runtime-offline" => " — runtime offline, load will happen on next start",
-                    _ => " — runtime load failed, retry with `apollia-os agent start <name>`",
+                    "runtime-offline" => " - runtime offline, load will happen on next start",
+                    _ => " - runtime load failed, retry with `apollia-os agent start <name>`",
                 };
                 println!("Agent '{name}' enabled (will auto-start on boot){suffix}");
             }
@@ -1568,7 +1568,7 @@ async fn run_disable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
                     tracing::warn!(
                         agent = %name,
                         error = %e,
-                        "disable: failed to stop live registry entry — agent remains enabled=false for next boot"
+                        "disable: failed to stop live registry entry - agent remains enabled=false for next boot"
                     );
                     "stop-failed"
                 }
@@ -1587,7 +1587,7 @@ async fn run_disable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
                 let suffix = match stop_outcome {
                     "stopped" => " and unloaded from the runtime",
                     "not-loaded" => " (was not loaded in the runtime)",
-                    "runtime-offline" => " — runtime offline, change takes effect on next start",
+                    "runtime-offline" => " - runtime offline, change takes effect on next start",
                     _ => "",
                 };
                 println!("Agent '{name}' disabled (will not auto-start){suffix}");
@@ -2150,7 +2150,7 @@ async fn run_logs(
 ) -> i32 {
     if looks_like_file_path(agent_id) {
         let msg = format!(
-            "'{agent_id}' looks like a file path — use the agent name or UUID instead\n\
+            "'{agent_id}' looks like a file path - use the agent name or UUID instead\n\
              Hint: apollia-os agent logs <name|uuid>"
         );
         return print_compact_error_and_exit(&msg, json);
@@ -2369,7 +2369,7 @@ fn print_validate_text(manifest: &apollia_core::AgentManifest) {
     }
     if !optional.is_empty() {
         println!("  Optional tools   : {}", optional.join(", "));
-        println!("  ⚠ Optional tools not checked — agent may start in DEGRADED mode if absent");
+        println!("  ⚠ Optional tools not checked - agent may start in DEGRADED mode if absent");
     }
     if !manifest.tools_requiring_approval.is_empty() {
         println!(

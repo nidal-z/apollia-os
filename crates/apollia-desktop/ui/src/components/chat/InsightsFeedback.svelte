@@ -121,7 +121,7 @@
           </p>
         </div>
       {:else}
-        <!-- Batch actions — only Accept-all; reject requires a reason per entry. -->
+        <!-- Batch actions - only Accept-all; reject requires a reason per entry. -->
         {#if $extractedInsights.length >= 2}
           <div class="flex items-center gap-2">
             <button
@@ -136,7 +136,7 @@
               title={$t("memory.insights.reject_all_disabled_hint")}
               data-testid="reject-all-disabled"
             >
-              {rejectAllLabel} — {$t("memory.insights.reject_all_disabled_hint")}
+              {rejectAllLabel} - {$t("memory.insights.reject_all_disabled_hint")}
             </span>
           </div>
         {/if}

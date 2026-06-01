@@ -4,7 +4,7 @@
  * Wraps `@tanstack/svelte-virtual` behind a small API so `ChatConversation`
  * can opt into windowing when the message count exceeds
  * `VIRTUALIZATION_THRESHOLD`.  Below the threshold we keep the plain
- * `{#each}` render path — virtualization imposes a constant overhead per
+ * `{#each}` render path - virtualization imposes a constant overhead per
  * item that is counter-productive for short histories.
  */
 

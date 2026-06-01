@@ -155,7 +155,7 @@ function buildExtraGroups(extras: CommandItem[]): CommandPaletteGroup[] {
   return groups;
 }
 
-/** Groups shown by the palette — reactive to stores + persona. */
+/** Groups shown by the palette - reactive to stores + persona. */
 export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
   [
     _actions,

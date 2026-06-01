@@ -1,9 +1,9 @@
-# ADR-053 — Pipeline fan-out et boucles conditionnelles
+# ADR-053 - Pipeline fan-out et boucles conditionnelles
 
 **Date :** 2026-04-03
-**Statut :** SUPERSEDED — La crate `apollia-pipelines` a été retirée du workspace ; cette décision n'est plus applicable. Conservé pour l'historique.
+**Statut :** SUPERSEDED - La crate `apollia-pipelines` a été retirée du workspace ; cette décision n'est plus applicable. Conservé pour l'historique.
 **Décideur :** Nidal (solo)
-**Sprint :** 34 — Beta Hardening
+**Sprint :** 34 - Beta Hardening
 
 ---
 
@@ -22,8 +22,8 @@ Ces deux patterns sont bloquants pour les cas d'usage PME avancés identifiés d
 STORY-444 les implémente. Cette ADR formalise les décisions d'architecture.
 
 Les contraintes principales sont :
-- Principe #5 (Un acteur, une responsabilité) — pas de logique d'orchestration cross-acteurs
-- Principe #7 (Garde-fous non-négociables) — pas de boucles infinies possibles
+- Principe #5 (Un acteur, une responsabilité) - pas de logique d'orchestration cross-acteurs
+- Principe #7 (Garde-fous non-négociables) - pas de boucles infinies possibles
 - Le DAG statique existant ne doit pas être modifié rétroactivement
 
 ---
@@ -48,7 +48,7 @@ agent       = "file-processor"
 depends_on  = ["list-files"]  # reçoit chaque élément individuellement
 ```
 
-Les sous-steps du fan-out sont **éphémères** — ils n'existent pas dans le DAG statique de la
+Les sous-steps du fan-out sont **éphémères** - ils n'existent pas dans le DAG statique de la
 définition TOML. Ils sont créés à l'exécution et détruits à leur completion. Le cycle detector
 existant n'est pas affecté car il s'applique uniquement au DAG statique.
 
@@ -73,7 +73,7 @@ Comportement :
   avec `cancel_reason = "max_iterations_reached"`. La pipeline peut continuer ou échouer selon
   `on_cancel` (défaut : `fail`).
 
-**Les boucles infinies sont impossibles par construction** — `max_iterations` est obligatoire si
+**Les boucles infinies sont impossibles par construction** - `max_iterations` est obligatoire si
 `loop_until` est présent. L'absence de `max_iterations` avec `loop_until` est une erreur de
 validation au démarrage (Principe #4).
 
@@ -102,10 +102,10 @@ Si le timeout expire : `StepRunStatus::Cancelled { reason: "timeout" }`. Implém
 
 | Option | Raison du rejet |
 |---|---|
-| **Exécution séquentielle du fan-out** | Defeat le but — analyser 100 fichiers séquentiellement sur un modèle local à 2 tok/s = des heures. |
+| **Exécution séquentielle du fan-out** | Defeat le but - analyser 100 fichiers séquentiellement sur un modèle local à 2 tok/s = des heures. |
 | **Framework de workflow externe (Temporal, Airflow)** | Viole Principe #2. Dépendance externe lourde. Le Pipeline Engine existant couvre 95% des cas sans framework dédié. |
-| **Boucles infinies avec signal d'arrêt** | Impossible à borner statiquement — un agent peut ignorer le signal. Principe #7 exige un garde-fou non-contournable. |
-| **Expansion des nœuds de boucle dans le DAG statique** | Complexité excessive — le cycle detector devrait être étendu pour différencier les cycles intentionnels des cycles erreur. Les nœuds éphémères sont plus simples. |
+| **Boucles infinies avec signal d'arrêt** | Impossible à borner statiquement - un agent peut ignorer le signal. Principe #7 exige un garde-fou non-contournable. |
+| **Expansion des nœuds de boucle dans le DAG statique** | Complexité excessive - le cycle detector devrait être étendu pour différencier les cycles intentionnels des cycles erreur. Les nœuds éphémères sont plus simples. |
 | **Nœuds dynamiques dans le graphe persisté** | La persistance du run state dans SQLite stocke les steps définis statiquement. Des nœuds dynamiques impliqueraient un schéma flexible difficile à migrer. |
 
 ---
@@ -119,27 +119,27 @@ Si le timeout expire : `StepRunStatus::Cancelled { reason: "timeout" }`. Implém
 - Garde-fous non-contournables : `max_iterations` obligatoire, `max_fan_out_concurrency` borné.
 
 **Négatives / Compromis :**
-- Le fan-out dynamique ajoute de la complexité au Pipeline Executor — les sous-steps éphémères
+- Le fan-out dynamique ajoute de la complexité au Pipeline Executor - les sous-steps éphémères
   doivent être agrégés avant de débloquer les steps dépendants.
-- Les boucles augmentent le temps d'exécution d'une pipeline de façon potentiellement non-linéaire —
+- Les boucles augmentent le temps d'exécution d'une pipeline de façon potentiellement non-linéaire -
   à documenter dans le wiki (Briques-Pipelines).
-- Risque de deadlock si deux steps avec `depends_on` circulaire se retrouvent dans un fan-out —
+- Risque de deadlock si deux steps avec `depends_on` circulaire se retrouvent dans un fan-out -
   le cycle detector statique ne couvre pas ce cas. Documenté comme limitation V1.
 
 **Neutres / À surveiller :**
 - L'agrégation des résultats de fan-out (liste de sorties) doit être déterministe pour l'audit trail.
   Utiliser l'ordre d'index dans le tableau source, pas l'ordre de completion.
-- `max_fan_out_concurrency` est un paramètre global — évaluer si un paramètre par-step est nécessaire.
+- `max_fan_out_concurrency` est un paramètre global - évaluer si un paramètre par-step est nécessaire.
 
 ---
 
 ## Principes architecturaux impactés
 
-- **Principe #5 — Un acteur, une responsabilité** : Le Pipeline Executor reste le seul orchestrateur.
+- **Principe #5 - Un acteur, une responsabilité** : Le Pipeline Executor reste le seul orchestrateur.
   Les sous-steps de fan-out sont gérés dans son `JoinSet` interne, pas dans un acteur séparé. Conforme.
-- **Principe #7 — Garde-fous non-négociables** : `max_iterations` obligatoire avec `loop_until`.
+- **Principe #7 - Garde-fous non-négociables** : `max_iterations` obligatoire avec `loop_until`.
   `max_fan_out_concurrency` borné. Validation au démarrage. Renforcé.
-- **Principe #4 — Fail fast** : Configuration de boucle invalide (`loop_until` sans
+- **Principe #4 - Fail fast** : Configuration de boucle invalide (`loop_until` sans
   `max_iterations`) → erreur de validation au démarrage, pas à l'exécution. Conforme.
 
 ---

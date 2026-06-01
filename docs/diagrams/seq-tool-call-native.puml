@@ -6,7 +6,7 @@ skinparam defaultFontSize 11
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Séquence — Tool Call Natif (ToolDispatcher) — Apollia OS
+title Séquence - Tool Call Natif (ToolDispatcher) - Apollia OS
 
 participant "Agent Python\n(ctx.tools)" as agent #2d4a22/d4edda
 participant "ToolProxy\n(PyO3 #[pyclass])" as proxy #1a1a2e/e0e0ff

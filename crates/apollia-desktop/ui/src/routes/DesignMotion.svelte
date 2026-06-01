@@ -20,7 +20,7 @@
   ];
 
   const listItems = [
-    { label: "Home", hint: "hover me — translateX + scale" },
+    { label: "Home", hint: "hover me - translateX + scale" },
     { label: "Assistants", hint: "press & hold for active state" },
     { label: "Projects" },
     { label: "Activity" },
@@ -174,7 +174,7 @@
     <div class="max-h-40 overflow-auto rounded-xl glass-card glass-border p-4">
       <div class="space-y-2">
         {#each Array.from({ length: 20 }, (_, i) => i) as i}
-          <p class="text-xs text-muted-foreground">Scrollable row #{i + 1} — 6px rail, translucent thumb.</p>
+          <p class="text-xs text-muted-foreground">Scrollable row #{i + 1} - 6px rail, translucent thumb.</p>
         {/each}
       </div>
     </div>

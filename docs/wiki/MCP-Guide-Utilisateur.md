@@ -1,4 +1,4 @@
-# MCP — Guide utilisateur
+# MCP - Guide utilisateur
 
 > Comment configurer des serveurs MCP pour étendre vos agents avec des outils externes.
 > Public cible : utilisateur d'Apollia OS qui veut connecter Notion, SQLite, Brave Search ou tout autre serveur MCP.
@@ -7,7 +7,7 @@
 
 ## 1. Introduction
 
-Le Model Context Protocol (MCP) est le standard d'interopérabilité des agents IA. Il permet à Apollia OS de parler à n'importe quel serveur MCP — plus de 16 000 existent sur GitHub — sans écrire de code d'intégration.
+Le Model Context Protocol (MCP) est le standard d'interopérabilité des agents IA. Il permet à Apollia OS de parler à n'importe quel serveur MCP - plus de 16 000 existent sur GitHub - sans écrire de code d'intégration.
 
 Quelques exemples de ce que vous pouvez faire :
 
@@ -27,7 +27,7 @@ Le transport V1 est **stdio** : Apollia OS démarre le serveur MCP comme un sous
 
 | Lanceur | Usage | Installation |
 |---|---|---|
-| `npx` | Serveurs Node.js (la majorité) | Node.js ≥ 18 — [nodejs.org](https://nodejs.org) |
+| `npx` | Serveurs Node.js (la majorité) | Node.js ≥ 18 - [nodejs.org](https://nodejs.org) |
 | `uvx` | Serveurs Python | `pip install uv` ou [docs.astral.sh/uv](https://docs.astral.sh/uv) |
 
 Vérification :
@@ -41,7 +41,7 @@ uvx --version
 
 ---
 
-## 3. Configuration — `~/.apollia/mcp.toml`
+## 3. Configuration - `~/.apollia/mcp.toml`
 
 ### 3.1 Emplacement
 
@@ -74,8 +74,8 @@ NOTION_API_KEY = "${NOTION_API_KEY}"
 
 | Champ | Type | Défaut | Description |
 |---|---|---|---|
-| `name` | string | — | **Requis.** Identifiant unique du serveur. Caractères autorisés : `a-z`, `0-9`, `_`, `-`. Exemple : `"notion"`. |
-| `command` | string | — | **Requis.** Exécutable à lancer. Généralement `"npx"` ou `"uvx"`. |
+| `name` | string | - | **Requis.** Identifiant unique du serveur. Caractères autorisés : `a-z`, `0-9`, `_`, `-`. Exemple : `"notion"`. |
+| `command` | string | - | **Requis.** Exécutable à lancer. Généralement `"npx"` ou `"uvx"`. |
 | `args` | string[] | `[]` | Arguments passés à la commande. |
 | `env` | table | `{}` | Variables d'environnement injectées dans le processus serveur. Les valeurs acceptent `${VAR}`. |
 | `transport` | string | `"stdio"` | Transport MCP. Seul `"stdio"` est supporté en V1. |
@@ -150,7 +150,7 @@ rows = await ctx.tools.call("mcp:sqlite/query", {
 
 Recherches web via l'API Brave Search.
 
-**Prérequis :** clé API Brave Search — [brave.com/search/api](https://brave.com/search/api).
+**Prérequis :** clé API Brave Search - [brave.com/search/api](https://brave.com/search/api).
 
 ```toml
 [[servers]]
@@ -202,7 +202,7 @@ ERROR apollia_mcp::config: server 'notion': unresolved environment variable: ${N
 
 ### 5.2 Sécurité
 
-- Ne jamais écrire de secret en clair dans `mcp.toml` — utiliser exclusivement `${VAR}`.
+- Ne jamais écrire de secret en clair dans `mcp.toml` - utiliser exclusivement `${VAR}`.
 - Les env keys sont exposées par l'API REST (pour audit), mais pas leurs valeurs.
 - `mcp.toml` doit avoir les permissions `600` : `chmod 600 ~/.apollia/mcp.toml`.
 
@@ -317,7 +317,7 @@ args             = ["-y", "@notionhq/notion-mcp-server"]
 init_timeout_secs = 120
 ```
 
-Après le premier lancement, `npx` utilise le cache local — le timeout par défaut de 30 secondes est suffisant.
+Après le premier lancement, `npx` utilise le cache local - le timeout par défaut de 30 secondes est suffisant.
 
 ---
 
@@ -476,7 +476,7 @@ curl -X POST http://127.0.0.1:7771/api/v1/mcp/servers/test \
 
 ## Voir aussi
 
-- [Briques Tool Registry](./Briques-Tool-Registry) — architecture du Tool Registry et section outils MCP
-- [MCP Integration](./MCP-Integration) — alignement Apollia OS ↔ standard MCP
-- [Sécurité — Local-first](./Securite-Local-First) — principes de souveraineté des données
-- [API HTTP — Index](./API-HTTP-Reference) — référence complète de l'API REST (voir [API-HTTP-Observability](./API-HTTP-Observability#mcp--adr-044) pour la section MCP)
+- [Briques Tool Registry](./Briques-Tool-Registry) - architecture du Tool Registry et section outils MCP
+- [MCP Integration](./MCP-Integration) - alignement Apollia OS ↔ standard MCP
+- [Sécurité - Local-first](./Securite-Local-First) - principes de souveraineté des données
+- [API HTTP - Index](./API-HTTP-Reference) - référence complète de l'API REST (voir [API-HTTP-Observability](./API-HTTP-Observability#mcp--adr-044) pour la section MCP)

@@ -3,7 +3,7 @@
  *
  * Drives the 3-column chat shell (Sessions / Conversation / ContextDrawer).
  *
- * Responsive contract — one source of truth for the shell:
+ * Responsive contract - one source of truth for the shell:
  *   - `sm`  (<768 px)   → sessions = drawer overlay, context = drawer overlay
  *   - `md`  (768–1023)  → sessions = sticky column, context = drawer overlay
  *   - `lg+` (≥1024 px)  → sessions = column, context = inline column (toggle)
@@ -62,7 +62,7 @@ export const chatViewport: Readable<Viewport> = readable<Viewport>(computeViewpo
 export const contextDrawerOpen = writable<boolean>(false);
 export const sessionsDrawerOpen = writable<boolean>(false);
 /**
- * Sessions sidebar collapsed state (`lg+` only — `Cmd+B` toggle from
+ * Sessions sidebar collapsed state (`lg+` only - `Cmd+B` toggle from
  *). On smaller viewports the sidebar is a drawer governed by
  * `sessionsDrawerOpen`; the collapsed flag is ignored.
  */
@@ -82,7 +82,7 @@ contextDrawerWidth.subscribe((w) => {
   try {
     localStorage.setItem(WIDTH_STORAGE_KEY, String(clampWidth(w)));
   } catch {
-    // Quota or disabled storage — silently ignore.
+    // Quota or disabled storage - silently ignore.
   }
 });
 

@@ -4,7 +4,7 @@ import type { AskUserQuestion } from "$lib/types";
 
 const EMPTY_STATE: AskUserFormState = { open: {}, single: {}, multi: {} };
 
-describe("buildAskUserAnswers — three question types", () => {
+describe("buildAskUserAnswers - three question types", () => {
   test("open question with text returns value, no skip", () => {
     // GIVEN one open-text question and a non-empty input
     const questions: AskUserQuestion[] = [
@@ -16,7 +16,7 @@ describe("buildAskUserAnswers — three question types", () => {
     };
     // WHEN
     const answers = buildAskUserAnswers(questions, state);
-    // THEN — value is trimmed, skipped is false
+    // THEN - value is trimmed, skipped is false
     expect(answers).toEqual([{ id: "stack", value: "FastAPI", skipped: false }]);
   });
 
@@ -61,7 +61,7 @@ describe("buildAskUserAnswers — three question types", () => {
   });
 });
 
-describe("buildAskUserAnswers — skipped state (soft validation)", () => {
+describe("buildAskUserAnswers - skipped state (soft validation)", () => {
   test("empty open input is marked skipped", () => {
     const questions: AskUserQuestion[] = [
       { id: "q1", question: "?", type: "open", options: [] },

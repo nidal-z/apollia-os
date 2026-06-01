@@ -1,4 +1,4 @@
-//! Tests d'intégration E2E — garde-fous A2A.
+//! Tests d'intégration E2E - garde-fous A2A.
 //!
 //! Valide les trois garde-fous automatiques appliqués par A2AInvoker::invoke() :
 //! - Profondeur de récursivité (max_depth)
@@ -6,7 +6,7 @@
 //! - Timeout cumulé de chaîne (chain_timeout)
 //!
 //! Vérifie également l'émission de RuntimeEvent::A2AGuardTriggered sur le bus.
-//! Aucun Python requis — utilise SuccessBackend et BlockingBackend.
+//! Aucun Python requis - utilise SuccessBackend et BlockingBackend.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -42,7 +42,7 @@ impl ExecutionBackend for SuccessBackend {
     }
 }
 
-/// Backend qui bloque indéfiniment — simule un agent qui ne répond jamais.
+/// Backend qui bloque indéfiniment - simule un agent qui ne répond jamais.
 #[derive(Clone)]
 struct BlockingBackend;
 

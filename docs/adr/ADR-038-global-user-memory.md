@@ -1,11 +1,11 @@
-# ADR-038 — Mémoire utilisateur globale
+# ADR-038 - Mémoire utilisateur globale
 
 **Date :** 2026-03-23
-**Statut :** Accepté — **amendé par [ADR-087](ADR-087-user-profile-redesign.md) (2026-05-11)**
+**Statut :** Accepté - **amendé par [ADR-087](ADR-087-user-profile-redesign.md) (2026-05-11)**
 **Décideur :** Nidal (solo)
 **Sprint :** 22
 
-> **Amendement (ADR-087, 2026-05-11)** — Le namespace `__user__` reste la source de
+> **Amendement (ADR-087, 2026-05-11)** - Le namespace `__user__` reste la source de
 > vérité globale du profil utilisateur, et le fallback automatique de
 > `ctx.memory.recall("user.X")` vers `__user__` est conservé. En revanche, la
 > structure interne (catégories, sources multi-valeurs, score de confiance, badge
@@ -16,7 +16,7 @@
 
 ## Contexte
 
-Les sessions chat Apollia OS sont isolées — aucune mémoire cross-session. Le système ne connaît ni le nom de l'utilisateur, ni ses préférences, ni son expertise, ni ses habitudes. Chaque conversation repart de zéro. Les assistants de niveau Claude Code/Desktop maintiennent un contexte utilisateur entre les sessions. Nous avons besoin d'un système de mémoire utilisateur globale qui enrichit chaque interaction — mais il ne doit JAMAIS être déterministe. Le LLM reçoit le contexte comme information et DÉCIDE ce qu'il utilise.
+Les sessions chat Apollia OS sont isolées - aucune mémoire cross-session. Le système ne connaît ni le nom de l'utilisateur, ni ses préférences, ni son expertise, ni ses habitudes. Chaque conversation repart de zéro. Les assistants de niveau Claude Code/Desktop maintiennent un contexte utilisateur entre les sessions. Nous avons besoin d'un système de mémoire utilisateur globale qui enrichit chaque interaction - mais il ne doit JAMAIS être déterministe. Le LLM reçoit le contexte comme information et DÉCIDE ce qu'il utilise.
 
 ## Décision
 
@@ -24,15 +24,15 @@ Nous créons un namespace mémoire spécial `__user__` dans le MemoryManager, st
 
 ## Alternatives considérées
 
-### Option A — Per-session user context only (rejetée)
+### Option A - Per-session user context only (rejetée)
 **Pour :** Simple, pas de persistance nécessaire.
 **Contre :** Ne résout pas l'amnésie cross-session.
 
-### Option B — Deterministic rule engine for preferences (rejetée)
+### Option B - Deterministic rule engine for preferences (rejetée)
 **Pour :** Comportement prévisible.
 **Contre :** Viole le Principe #6, rend les agents heuristiques plutôt qu'intelligents, règles fragiles.
 
-### Option retenue — LLM-informed injection via SemanticMemory
+### Option retenue - LLM-informed injection via SemanticMemory
 **Pour :** Non-déterministe (le LLM décide), utilise l'infrastructure existante, pondéré par confidence, corrigeable par l'utilisateur.
 **Compromis acceptés :** Le LLM peut ignorer le contexte injecté. La précision d'extraction dépend de la qualité du LLM.
 
@@ -52,8 +52,8 @@ Nous créons un namespace mémoire spécial `__user__` dans le MemoryManager, st
 - Considérer un auto-purge des entrées non-validées à faible confidence après 30 jours
 
 ## Principes architecturaux impactés
-- Principe #6 — Mémoire à initiative de l'agent : étendu au niveau utilisateur. La mémoire est DISPONIBLE mais jamais IMPOSÉE.
-- Principe #1 — Local-first : toutes les données utilisateur restent dans le SQLite local.
+- Principe #6 - Mémoire à initiative de l'agent : étendu au niveau utilisateur. La mémoire est DISPONIBLE mais jamais IMPOSÉE.
+- Principe #1 - Local-first : toutes les données utilisateur restent dans le SQLite local.
 
 ## Liens
 - Story associée : STORY-251, STORY-252, STORY-253, STORY-254, STORY-255

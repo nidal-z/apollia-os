@@ -1,4 +1,4 @@
-# ADR-076 — Internationalisation du frontend desktop (svelte-i18n)
+# ADR-076 - Internationalisation du frontend desktop (svelte-i18n)
 
 **Date :** 2026-04-19
 **Statut :** Accepté
@@ -14,7 +14,7 @@ Le frontend `apollia-desktop` (Svelte 5 + Tauri v2) est historiquement mixte FR/
 - **B.11** : "Thinking..." / "Thought" hardcodés dans `StreamingText`.
 - **B.34** : "Libre" (legend mémoire) déjà présent côté FR mais clé inexistante côté EN.
 - **D.31** : `PlanCacheStats` entièrement en français hardcodé.
-- **E.48** : `aria-label` icon-only ("Close", "Dismiss", "Actions", "Microphone"…) en clair dans le markup — aucun parcours clavier FR.
+- **E.48** : `aria-label` icon-only ("Close", "Dismiss", "Actions", "Microphone"…) en clair dans le markup - aucun parcours clavier FR.
 - **E.65** : convention de capitalisation des boutons non alignée (mélange "Title Case", "Sentence case", UPPERCASE).
 
 Le runtime livre déjà `svelte-i18n` (4.0.1) avec un catalogue `en.json`/`fr.json` à ~1700 clés, un switch de langue dans Settings et un test de parité `i18n-tools.test.ts`. L'outil est en place, mais l'usage est incomplet et la convention de nommage n'est pas documentée.
@@ -32,7 +32,7 @@ Règles opérationnelles :
 3. **Convention de clés.** `zone.sous_zone.contexte` en `snake_case`. Exemples : `observability.plan_cache.dialog_title`, `chat.plan_alternatives.choose_plan_a`, `a11y.close`. Pour les `aria-label` icon-only : toujours sous `a11y.<nom>`.
 4. **Convention de capitalisation (E.65).**
    - **FR** : sentence case partout (premier mot capitalisé, le reste en minuscule). Ex : « Créer un projet ».
-   - **EN** : sentence case par défaut (« Create a project ») — aligné sur la convention Material / Atlassian moderne. Les badges système restent UPPERCASE (`DEFAULT`, `ACTIVE`). Les marques et identifiants techniques conservent leur casse (`OpenAI`, `llama-cpp`).
+   - **EN** : sentence case par défaut (« Create a project ») - aligné sur la convention Material / Atlassian moderne. Les badges système restent UPPERCASE (`DEFAULT`, `ACTIVE`). Les marques et identifiants techniques conservent leur casse (`OpenAI`, `llama-cpp`).
    - Un mélange historique subsiste dans le catalogue ; la normalisation complète est déférée à une story dédiée (voir *À surveiller*).
 5. **Détection de locale.** À l'initialisation : `localStorage.apollia-locale` si défini, sinon `getLocaleFromNavigator()` si supporté (`fr` ou `en`), sinon `fr`. L'utilisateur peut basculer depuis Settings, choix persisté.
 6. **Whitelist brand.** Les marques et identifiants techniques ne sont pas traduits : `Apollia`, `Apollia OS`, `MCP`, `OpenAI`, `Mistral`, `Anthropic`, `Ollama`, `Metal`, `CUDA`, `GPU`. Les placeholders d'exemple de type `qwen3-0.6b-q8_0` ou `local-code` non plus.
@@ -42,15 +42,15 @@ Un script `scripts/audit-i18n.mjs` (exposé en `npm run audit:i18n`) grep les ch
 
 ## Alternatives considérées
 
-### Option A — `paraglide-js` (rejetée)
+### Option A - `paraglide-js` (rejetée)
 **Pour :** bundle optimal (tree-shaking), typage fort natif, syntaxe ICU MessageFormat complète, DX plus moderne.
 **Contre :** déjà 1700 clés en place avec `svelte-i18n` utilisées dans ~150 composants. Migration = risque net sans gain visible pour l'utilisateur dans le Sprint 42. `paraglide` reste une option pour une future réécriture majeure.
 
-### Option B — Pas de bibliothèque, `JSON + get()` maison (rejetée)
+### Option B - Pas de bibliothèque, `JSON + get()` maison (rejetée)
 **Pour :** zéro dépendance runtime, contrôle total.
 **Contre :** on réécrirait l'interpolation `{param}`, la pluralisation ICU, le store réactif Svelte. Sous-investissement déjà validé par `svelte-i18n`.
 
-### Option retenue — `svelte-i18n` (status quo enrichi)
+### Option retenue - `svelte-i18n` (status quo enrichi)
 **Pour :** déjà intégré, store `$t` réactif, interpolation `{count}` et ICU `{n, plural, …}` supportés, tests existants, langue changeable sans reload.
 **Compromis acceptés :** bundle légèrement plus gros que paraglide ; conventions à documenter manuellement (cet ADR).
 
@@ -63,7 +63,7 @@ Un script `scripts/audit-i18n.mjs` (exposé en `npm run audit:i18n`) grep les ch
 - Les index TS `strings/*.ts` donnent une cartographie grep-friendly des clés par zone.
 
 **Négatives / Compromis :**
-- Catalogue JSON volumineux (~1700 clés × 2 locales). Le chargement init reste sync via imports statiques — acceptable sur desktop.
+- Catalogue JSON volumineux (~1700 clés × 2 locales). Le chargement init reste sync via imports statiques - acceptable sur desktop.
 - La convention de capitalisation n'est pas enforced mécaniquement ; repose sur la revue de code et l'ADR.
 - Le test `i18n-locale-switch` couvre un échantillon ciblé, pas l'exhaustivité du catalogue.
 
@@ -75,8 +75,8 @@ Un script `scripts/audit-i18n.mjs` (exposé en `npm run audit:i18n`) grep les ch
 
 ## Principes architecturaux impactés
 
-- **Principe #8 — CLI humaine, API machine** : étendu au frontend — l'UI est humaine (FR par défaut), mais les `data-testid` restent machine-readable et non-traduits.
-- **Principe #1 — Local-first** : la locale est persistée en `localStorage`, zéro appel réseau.
+- **Principe #8 - CLI humaine, API machine** : étendu au frontend - l'UI est humaine (FR par défaut), mais les `data-testid` restent machine-readable et non-traduits.
+- **Principe #1 - Local-first** : la locale est persistée en `localStorage`, zéro appel réseau.
 
 ## Liens
 

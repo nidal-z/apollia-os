@@ -6,9 +6,9 @@
 
 Apollia affiche **un seul indicateur global** d'état runtime + LLM, en haut à gauche, à côté du mot *Apollia* dans le breadcrumb :
 
-- 🟢 **vert** — runtime sain et au moins un backend LLM prêt.
-- 🟡 **ambre** — runtime sain mais aucun backend LLM connecté.
-- 🔴 **rouge clignotant** — runtime déconnecté ou reconnexion en cours.
+- 🟢 **vert** - runtime sain et au moins un backend LLM prêt.
+- 🟡 **ambre** - runtime sain mais aucun backend LLM connecté.
+- 🔴 **rouge clignotant** - runtime déconnecté ou reconnexion en cours.
 
 Survolez le point pour voir l'état exact (tooltip natif). Ce point est le repère central de cette page.
 
@@ -39,7 +39,7 @@ Les fournisseurs renomment ou retirent régulièrement leurs modèles. Un identi
 
 **Solution :**
 1. Cliquez sur l'**icône crayon** de la carte en erreur.
-2. Vérifiez le champ **Modèle** : il doit correspondre exactement à un identifiant valide chez le fournisseur. Consultez la documentation à jour du fournisseur — les identifiants évoluent au fil des mois.
+2. Vérifiez le champ **Modèle** : il doit correspondre exactement à un identifiant valide chez le fournisseur. Consultez la documentation à jour du fournisseur - les identifiants évoluent au fil des mois.
 3. Corrigez, cliquez sur **Tester la connexion** dans le dialog, puis sur **Enregistrer**.
 
 ### 4. Le service du fournisseur est en panne
@@ -66,4 +66,4 @@ Si vous utilisez un modèle local Apollia (llama.cpp) ou Ollama, le moteur doit 
 3. Pour suivre **quand exactement** la perte a eu lieu, ouvrez **Boîte de réception → onglet Activité** : les événements `llm.backend_down` y apparaissent avec leur horodatage si vous avez activé la notification correspondante.
 4. En dernier recours, contactez le support en joignant le message d'erreur visible au survol du statut + l'identifiant du backend.
 
-> **Référence technique :** [Securite-LLM-Backend](https://github.com/nidal-z/apollia-os/wiki/Securite-LLM-Backend) — comprendre comment Apollia isole les clés API et la mécanique de ping périodique.
+> **Référence technique :** [Securite-LLM-Backend](https://github.com/Apollia-OS/apollia-os/wiki/Securite-LLM-Backend) - comprendre comment Apollia isole les clés API et la mécanique de ping périodique.

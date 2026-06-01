@@ -1,4 +1,4 @@
-# CI — validation continue.
+# CI - validation continue.
 #
 # Tourne sur chaque push vers main et chaque PR. Goal : garder main vert,
 # attraper les régressions en < 15 min de feedback.
@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Rust : fmt → clippy → test (chaîne — chacun bloque le suivant) ─────────
+  # ── Rust : fmt → clippy → test (chaîne - chacun bloque le suivant) ─────────
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -124,7 +124,7 @@ jobs:
   doc-charte:
     name: Doc Charte L1.4
     runs-on: ubuntu-latest
-    # Seulement quand un fichier doc/lint a bougé — évite de re-runner sur
+    # Seulement quand un fichier doc/lint a bougé - évite de re-runner sur
     # chaque changement code.
     if: |
       github.event_name == 'workflow_dispatch' ||
@@ -174,3 +174,56 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: EmbarkStudios/cargo-deny-action@v2
+
+  # ── macOS Silicon : core test run backing the "Tested" platform claim ──────
+  test-macos:
+    name: Rust Tests (macOS Silicon)
+    needs: clippy
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+      - uses: Swatinem/rust-cache@v2
+      # Default members exclude the heavy Tauri desktop crate; full desktop
+      # E2E stays in nightly.yml.
+      - run: cargo test
+
+  # ── Prose guard : locks in the sanitize invariants (no regressions) ────────
+  prose-guard:
+    name: Prose Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: No em-dash in prose
+        run: |
+          if grep -rnP "—" \
+               --include="*.md" --include="*.rs" --include="*.py" --include="*.svelte" \
+               --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . \
+             | grep -vE 'docs/agents/(FORBIDDEN|DOCS-WRITING)\.md|(^|/)AGENTS\.md:'; then
+            echo "::error::em-dash (U+2014) found in prose; use a hyphen, comma, or colon"
+            exit 1
+          fi
+      - name: No PII path, dead domain, or stale GitHub slug
+        run: |
+          rc=0
+          # Bracket classes keep these patterns from matching their own literal text in this file.
+          grep -rnE '/Users/nida[l]' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
+          grep -rnE 'apollia[.]dev' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
+          grep -rnE 'github[.]com/(nidal-z|nidalzoumit[a])/' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
+          [ "$rc" = 0 ] || { echo "::error::PII / dead domain / stale slug found"; exit 1; }
+
+  # ── Link check : catches broken local doc links (offline, no external flake) ─
+  links:
+    name: Doc Link Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md 'docs/wiki/**/*.md' 'docs/book/src/**/*.md' 'docs/help/**/*.md'"
+          fail: true

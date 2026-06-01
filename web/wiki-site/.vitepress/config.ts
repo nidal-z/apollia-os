@@ -7,18 +7,18 @@ const BOOK_URL = process.env.BOOK_URL || 'https://book.apollia.fr'
 const HELP_URL = process.env.HELP_URL || 'https://guide.apollia.fr'
 
 export default defineConfig({
-  title: 'Apollia OS — Référence technique',
+  title: 'Apollia OS - Référence technique',
   description: 'Référence consultée : briques, API, configurations, codes d\'erreur.',
   lang: 'fr-FR',
 
   // Source via symlinks dans content/ (évite les problèmes de résolution
-  // SSR quand la source est hors du projet — cf. preserveSymlinks ci-dessous).
+  // SSR quand la source est hors du projet - cf. preserveSymlinks ci-dessous).
   srcDir: 'content',
 
   // Pages à ignorer (GitHub Wiki internals)
   srcExclude: ['**/_Sidebar.md', '**/_Footer.md'],
 
-  // Cross-site links (book, help) — tolérance pendant la phase de contenu.
+  // Cross-site links (book, help) - tolérance pendant la phase de contenu.
   ignoreDeadLinks: true,
 
   // Build cleaner
@@ -40,7 +40,7 @@ export default defineConfig({
       { text: 'Apprendre', link: BOOK_URL },
       { text: 'Référence', link: '/Home' },
       { text: 'Aide opérateur', link: HELP_URL },
-      { text: 'GitHub', link: 'https://github.com/nidal-z/apollia-os' },
+      { text: 'GitHub', link: 'https://github.com/Apollia-OS/apollia-os' },
     ],
     sidebar,
     outline: { level: [2, 3], label: 'Sur cette page' },
@@ -48,11 +48,11 @@ export default defineConfig({
     lastUpdated: { text: 'Dernière mise à jour' },
     search: { provider: 'local' },
     editLink: {
-      pattern: 'https://github.com/nidal-z/apollia-os/edit/main/docs/wiki/:path',
+      pattern: 'https://github.com/Apollia-OS/apollia-os/edit/main/docs/wiki/:path',
       text: 'Modifier cette page sur GitHub',
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/nidal-z/apollia-os' },
+      { icon: 'github', link: 'https://github.com/Apollia-OS/apollia-os' },
     ],
     footer: {
       message: 'Référence technique d\'Apollia OS · runtime open-source pour agents IA autonomes.',
@@ -68,7 +68,7 @@ export default defineConfig({
     lineNumbers: false,
     // Désactive l'HTML brut inline (les `<Vec<T>>` Rust sont alors escapés).
     // Les tags HTML explicites (ex: <br>) dans le markdown source ne marchent
-    // plus — acceptable pour une référence technique.
+    // plus - acceptable pour une référence technique.
     html: false,
     theme: { light: 'github-light', dark: 'github-dark' },
     container: {

@@ -26,7 +26,7 @@ function makeCall(
   };
 }
 
-describe("toReasoningItem — generic tool_call kind", () => {
+describe("toReasoningItem - generic tool_call kind", () => {
   test("GIVEN a plain tool call WHEN normalized THEN kind is tool_call", () => {
     const call = makeCall({
       tool_name: "file_read",
@@ -60,7 +60,7 @@ describe("toReasoningItem — generic tool_call kind", () => {
   });
 });
 
-describe("toReasoningItem — web_search promotion", () => {
+describe("toReasoningItem - web_search promotion", () => {
   test("promotes to web_search kind when output parses", () => {
     const call = makeCall({
       tool_name: "web_search",
@@ -95,7 +95,7 @@ describe("toReasoningItem — web_search promotion", () => {
   });
 });
 
-describe("toReasoningItem — web_read promotion", () => {
+describe("toReasoningItem - web_read promotion", () => {
   test("promotes to web_read kind with extracted content", () => {
     const call = makeCall({
       tool_name: "web_read",
@@ -144,7 +144,7 @@ describe("buildReasoningSequence", () => {
   });
 });
 
-describe("ReasoningItem — all 7 kinds are constructible", () => {
+describe("ReasoningItem - all 7 kinds are constructible", () => {
   test("snapshot: one instance of each kind", () => {
     const items: ReasoningItem[] = [
       {

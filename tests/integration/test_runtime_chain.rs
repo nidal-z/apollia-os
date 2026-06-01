@@ -1,8 +1,8 @@
-//! Integration tests — full runtime chain via HTTP API.
+//! Integration tests - full runtime chain via HTTP API.
 //!
 //! Tests the complete flow: start_agent → submit_task → poll → Completed
 //! via real HTTP calls to a live APIServer bound on a free TCP port.
-//! No Python dependency — uses MockBackend for instant task completion.
+//! No Python dependency - uses MockBackend for instant task completion.
 //!
 //! POST /api/v1/agents returns 201 + state "active"
 //! POST /api/v1/tasks returns 202 + task_id
@@ -203,7 +203,7 @@ async fn poll_until_terminal(port: u16, task_id: &str) -> String {
             return status;
         }
         if tokio::time::Instant::now() >= deadline {
-            panic!("timeout polling task {task_id} — last status: '{status}'");
+            panic!("timeout polling task {task_id} - last status: '{status}'");
         }
         tokio::task::yield_now().await;
     }
@@ -288,7 +288,7 @@ async fn test_task_completes_end_to_end_mock_backend() {
     )
     .await;
 
-    // WHEN POST /api/v1/tasks using the manifest name (not the UUID) —
+    // WHEN POST /api/v1/tasks using the manifest name (not the UUID) -
     let (status, task_resp) = http_post(
         port,
         "/api/v1/tasks",
@@ -303,7 +303,7 @@ async fn test_task_completes_end_to_end_mock_backend() {
     );
     let task_id = task_resp["task_id"].as_str().expect("task_id missing");
 
-    // WHEN polling GET /api/v1/tasks/{task_id} until terminal —
+    // WHEN polling GET /api/v1/tasks/{task_id} until terminal -
     let final_status = poll_until_terminal(port, task_id).await;
 
     // THEN status is "completed" (MockBackend completes instantly)

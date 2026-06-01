@@ -33,14 +33,14 @@ in mind. The maintainer may refine the shape before any work happens.
 
 Usage questions, configuration help, "how do I do X", and general discussion
 belong in
-[Discussions Q&A](https://github.com/nidalzoumita/apollia-os/discussions/categories/q-a).
+[Discussions Q&A](https://github.com/Apollia-OS/apollia-os/discussions/categories/q-a).
 They are not bugs and not feature requests, so please do not open issues
 for them.
 
 ## Reporting a security vulnerability
 
 Please report security vulnerabilities **privately** through
-[GitHub Security Advisories](https://github.com/nidalzoumita/apollia-os/security/advisories/new)
+[GitHub Security Advisories](https://github.com/Apollia-OS/apollia-os/security/advisories/new)
 rather than as a public issue. The maintainer will respond and coordinate
 disclosure.
 
@@ -60,6 +60,14 @@ changelog where applicable.
 If you need a contribution path that does accept external PRs, several other
 agent runtimes welcome them. This project will not, at least for the
 v0.1.x line.
+
+## Supporting the project
+
+Code contributions are not accepted, but you can still help Apollia OS survive
+and grow. If you want to back the work financially, see the
+[Support section of the README](README.md#support-apollia-os) (Patreon, GitHub
+Sponsors, Ko-fi). Funding is the most direct way to influence what gets built
+next.
 
 ## Code of Conduct
 

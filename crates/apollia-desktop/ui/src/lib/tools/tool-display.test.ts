@@ -31,7 +31,7 @@ function makeCall(
 
 // ─── resolveToolDisplay ───────────────────────────────────────────────────────
 
-describe("resolveToolDisplay — native tools", () => {
+describe("resolveToolDisplay - native tools", () => {
   test("file_read returns FileText icon and base description key", () => {
     // GIVEN a file_read call without offset
     const call = makeCall("file_read", { path: "src/main.rs" });
@@ -186,7 +186,7 @@ describe("resolveToolDisplay — native tools", () => {
 
 // ─── MCP tools ───────────────────────────────────────────────────────────────
 
-describe("resolveToolDisplay — MCP tools", () => {
+describe("resolveToolDisplay - MCP tools", () => {
   test("mcp:server/tool returns Plug icon with server_name and tool_description", () => {
     // GIVEN a call with MCP tool name
     const call = makeCall("mcp:notion/create_page");
@@ -209,7 +209,7 @@ describe("resolveToolDisplay — MCP tools", () => {
 
 // ─── Unknown tools ────────────────────────────────────────────────────────────
 
-describe("resolveToolDisplay — unknown tools", () => {
+describe("resolveToolDisplay - unknown tools", () => {
   test("unknown tool returns Terminal icon and dynamic label/description keys", () => {
     // GIVEN an unrecognised tool name
     const call = makeCall("unknown_tool");

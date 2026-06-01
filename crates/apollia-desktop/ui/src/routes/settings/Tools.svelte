@@ -152,10 +152,10 @@
     const backend = typeof cfg?.backend === "string" ? cfg.backend : "auto";
     const hasBraveKey = tool.credential_keys.includes("brave.api_key");
     if (backend === "brave" && !hasBraveKey) {
-      return "Brave forcé mais clé absente — l'outil échouera.";
+      return "Brave forcé mais clé absente - l'outil échouera.";
     }
     if (backend === "auto" && !hasBraveKey) {
-      return "Brave non configuré — DuckDuckGo utilisé par défaut.";
+      return "Brave non configuré - DuckDuckGo utilisé par défaut.";
     }
     return null;
   }

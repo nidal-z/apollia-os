@@ -1,4 +1,4 @@
-# Apollia OS — Tutorials
+# Apollia OS - Tutorials
 
 ## Install and run your first agent
 

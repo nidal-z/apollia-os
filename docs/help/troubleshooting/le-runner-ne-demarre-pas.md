@@ -67,6 +67,6 @@ Cherchez :
 
 - `RunnerSupervisor: spawning <binary>` (le daemon trouve le binaire)
 - `runner handshake ok` (succès)
-- `runner exited prematurely` (le runner a crashé — joindre les lignes précédentes au rapport)
+- `runner exited prematurely` (le runner a crashé - joindre les lignes précédentes au rapport)
 
 Ouvrez une issue GitHub avec `apollia.log` + sortie de `apollia-os doctor --json`.

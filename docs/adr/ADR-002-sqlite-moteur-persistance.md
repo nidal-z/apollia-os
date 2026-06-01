@@ -1,4 +1,4 @@
-# ADR-002 — SQLite comme seul moteur de persistance
+# ADR-002 - SQLite comme seul moteur de persistance
 
 **Date :** 2026-03
 **Statut :** Accepté
@@ -17,23 +17,23 @@ Nous utilisons SQLite avec l'extension FTS5 (plein texte) comme seul moteur de p
 
 ## Alternatives considérées
 
-### Option A — PostgreSQL (rejetée)
+### Option A - PostgreSQL (rejetée)
 **Pour :** Concurrent robuste, FTS mature, JSON natif.
 **Contre :** Nécessite un service PostgreSQL séparé. Viole directement Principe #2. Non opérable sans infrastructure.
 
-### Option B — DuckDB (rejetée)
+### Option B - DuckDB (rejetée)
 **Pour :** Performant pour les requêtes analytiques, zero-copy.
 **Contre :** Optimisé pour OLAP (lectures massives), pas pour les insertions fréquentes d'une mémoire d'agent (OLTP). Moins adapté aux accès concurrents.
 
-### Option C — Fichiers JSON (rejetée)
+### Option C - Fichiers JSON (rejetée)
 **Pour :** Simplicité maximale.
 **Contre :** Pas de recherche plein texte. Pas de TTL natif. Pas de transactions. Non viable pour la recherche sémantique.
 
-### Option D — LanceDB (rejetée)
+### Option D - LanceDB (rejetée)
 **Pour :** Orienté vectoriel natif, Rust API.
 **Contre :** Moins mature que sqlite-vec. Dépendance supplémentaire. La recherche vectorielle n'est pas requise pour le MVP.
 
-### Option retenue — SQLite + FTS5 + sqlite-vec optionnel
+### Option retenue - SQLite + FTS5 + sqlite-vec optionnel
 **Pour :** Zéro dépendance externe (bundled). FTS5 suffisant pour les PME francophones. Un fichier = un namespace = isolation parfaite. Bien supporté par rusqlite.
 **Compromis acceptés :** Concurrence limitée (WAL mode atténue). Pas de recherche vectorielle sans modèle d'embedding.
 
@@ -56,8 +56,8 @@ Nous utilisons SQLite avec l'extension FTS5 (plein texte) comme seul moteur de p
 
 ## Principes architecturaux impactés
 
-- Principe #1 — Local-first : Données stockées localement, zéro cloud.
-- Principe #2 — Zéro dépendance externe : SQLite bundlé dans le binaire.
+- Principe #1 - Local-first : Données stockées localement, zéro cloud.
+- Principe #2 - Zéro dépendance externe : SQLite bundlé dans le binaire.
 
 ## Liens
 

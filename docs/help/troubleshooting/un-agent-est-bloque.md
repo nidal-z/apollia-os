@@ -22,7 +22,7 @@ Un appel à un serveur MCP (Notion, GitHub, Slack) ou à une API distante peut p
 1. Dans la sidebar, ouvrez **Mes assistants**.
 2. Repérez la carte de l'agent concerné, passez la souris dessus pour faire apparaître les actions à droite.
 3. Cliquez sur le menu **⋯** → **Voir les logs**. Un panneau coulissant s'ouvre depuis la droite avec l'historique des tâches.
-4. Utilisez la **barre de recherche** en haut du panneau pour taper un nom d'outil (`notion`, `github`, `fetch`, etc.) — seules les tâches dont l'entrée ou la sortie mentionne cet outil restent affichées.
+4. Utilisez la **barre de recherche** en haut du panneau pour taper un nom d'outil (`notion`, `github`, `fetch`, etc.) - seules les tâches dont l'entrée ou la sortie mentionne cet outil restent affichées.
 5. Si la dernière tâche en cours est figée depuis plusieurs minutes sur cet outil, ouvrez **Connexions** dans la sidebar et testez le serveur correspondant.
 
 ### 3. Un identifiant ou une autorisation a expiré
@@ -43,7 +43,7 @@ Certains agents peuvent rester coincés sur une étape qu'ils retentent indéfin
 2. Sur la carte de l'agent dans **Mes assistants**, cliquez sur l'**icône Stop** (action inline visible au hover). Une confirmation s'affiche.
 3. Confirmez l'arrêt. L'agent passe en statut **ARRÊTÉ**. Relancez-le après avoir corrigé la cause (instructions trop vagues, outil manquant).
 
-   > **Note :** il n'existe pas de bouton *« Forcer l'arrêt »* distinct — l'icône Stop envoie un signal d'arrêt normal. Si l'agent ne réagit pas après quelques secondes, redémarrez l'application.
+   > **Note :** il n'existe pas de bouton *« Forcer l'arrêt »* distinct - l'icône Stop envoie un signal d'arrêt normal. Si l'agent ne réagit pas après quelques secondes, redémarrez l'application.
 
 ### 5. Une dépendance manque (outil, fichier, modèle)
 
@@ -60,4 +60,4 @@ L'agent peut requérir un outil MCP non installé, un fichier introuvable ou un 
 2. Si le blocage se reproduit immédiatement, désactivez l'agent depuis la liste **Mes assistants** (toggle on/off sur la carte) pour éviter toute consommation de ressources.
 3. **Récupérer les logs pour le support** : ouvrez le panneau **Logs** de l'agent, cliquez sur l'**icône Copier** (à gauche du bouton Rafraîchir dans l'en-tête). Les tâches actuellement affichées (filtres + recherche pris en compte) sont copiées dans le presse-papiers au format texte, prêtes à coller dans un ticket. Un toast confirme le nombre de tâches copiées.
 
-> **Référence technique :** [Briques-Runtime-Core](https://github.com/nidal-z/apollia-os/wiki/Briques-Runtime-Core) — comprendre le superviseur qui surveille l'avancement des agents et déclenche les timeouts.
+> **Référence technique :** [Briques-Runtime-Core](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Runtime-Core) - comprendre le superviseur qui surveille l'avancement des agents et déclenche les timeouts.

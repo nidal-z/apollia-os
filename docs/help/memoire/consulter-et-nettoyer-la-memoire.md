@@ -10,8 +10,8 @@
 
 Deux endroits distincts, deux usages distincts :
 
-- **Paramètres → Profil** — votre profil utilisateur (prénom, rôle, secteur, supervision des agents, souveraineté…). C'est ce que tous vos agents savent de vous. Voir [Mon profil](mon-profil.md).
-- **Mémoire** (depuis la sidebar) — l'explorateur des **namespaces mémoire** par agent et par projet. C'est ce que chaque agent retient pour lui-même (épisodes de conversation, faits sémantiques, procédures apprises).
+- **Paramètres → Profil** - votre profil utilisateur (prénom, rôle, secteur, supervision des agents, souveraineté…). C'est ce que tous vos agents savent de vous. Voir [Mon profil](mon-profil.md).
+- **Mémoire** (depuis la sidebar) - l'explorateur des **namespaces mémoire** par agent et par projet. C'est ce que chaque agent retient pour lui-même (épisodes de conversation, faits sémantiques, procédures apprises).
 
 Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supprimer des entrées.
 
@@ -19,17 +19,17 @@ Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supp
 
 1. Dans la sidebar, cliquez sur **Mémoire**. La page affiche un layout deux colonnes : sidebar des namespaces à gauche, panneau central avec la liste des entrées du namespace sélectionné.
 
-   `[SCREENSHOT: page Mémoire — sidebar gauche avec namespaces classifiés (Profil / Agents / Projets / Autres) et segmented control de catégorie, panneau central avec barre de filtres (Toutes / Épisodique / Sémantique / Procédurale) + recherche + breadcrumb, liste d'entrées en dessous]`
+   `[SCREENSHOT: page Mémoire - sidebar gauche avec namespaces classifiés (Profil / Agents / Projets / Autres) et segmented control de catégorie, panneau central avec barre de filtres (Toutes / Épisodique / Sémantique / Procédurale) + recherche + breadcrumb, liste d'entrées en dessous]`
 
-2. **Sidebar gauche** — la liste des **namespaces** (un namespace = un espace mémoire isolé). Chaque namespace est classifié automatiquement :
-   - **Profil** : votre profil utilisateur partagé (`__user__`). En lecture seule depuis cette page — l'édition se fait dans **Paramètres → Profil**. Une bannière le rappelle quand vous sélectionnez `__user__`.
-   - **Agents** : namespaces d'agents installés (un par agent — ex: `veille-ia`, `email-triage`).
+2. **Sidebar gauche** - la liste des **namespaces** (un namespace = un espace mémoire isolé). Chaque namespace est classifié automatiquement :
+   - **Profil** : votre profil utilisateur partagé (`__user__`). En lecture seule depuis cette page - l'édition se fait dans **Paramètres → Profil**. Une bannière le rappelle quand vous sélectionnez `__user__`.
+   - **Agents** : namespaces d'agents installés (un par agent - ex: `veille-ia`, `email-triage`).
    - **Projets** : namespaces scopés à un projet (format `{project_id}:{ns}`).
    - **Autres** : namespaces legacy ou d'agents désinstallés.
 
    Un **segmented control** en haut permet de filtrer la liste par catégorie. Un champ **Filtrer…** permet de retrouver un namespace par nom.
 
-3. **Panneau central** — la liste des entrées du namespace sélectionné, avec :
+3. **Panneau central** - la liste des entrées du namespace sélectionné, avec :
    - Un **segmented control** par type d'entrée : **Toutes / Épisodique / Sémantique / Procédurale**.
    - Une **barre de recherche** plein texte (FTS5) qui interroge le contenu.
    - Un **breadcrumb** sous le filtre qui rappelle le namespace courant.
@@ -37,7 +37,7 @@ Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supp
 
 4. **Cliquez sur une entrée** pour ouvrir le **panneau de détail** à droite. Il affiche la valeur complète (avec pretty-print JSON automatique si applicable), toutes les métadonnées (type, namespace, ID, dates, score BM25 en mode recherche), et expose deux actions : **Copier** la valeur et **Supprimer** l'entrée.
 
-   `[SCREENSHOT: panneau de détail (Sheet) ouvert à droite — valeur JSON pretty-printée, métadonnées (type, ID, dates), boutons Copier / Supprimer en bas]`
+   `[SCREENSHOT: panneau de détail (Sheet) ouvert à droite - valeur JSON pretty-printée, métadonnées (type, ID, dates), boutons Copier / Supprimer en bas]`
 
 5. Pour **rechercher**, tapez quelques mots-clés dans la **barre de recherche** en haut du panneau central. Les entrées correspondantes s'affichent triées par pertinence (score BM25), et le breadcrumb indique « *N résultats* ».
 
@@ -60,4 +60,4 @@ L'entrée supprimée n'apparaît plus dans la liste, même après recharge de la
 
 > **Note** : Pour gérer les **outils** disponibles à vos agents (recherche web, lecture de fichiers, etc.), ouvrez **Paramètres → Outils**. La page propose le détail de chaque outil, son activation/désactivation, et sa configuration éventuelle.
 
-> **Référence technique :** [Briques-Memory-Engine](https://github.com/nidal-z/apollia-os/wiki/Briques-Memory-Engine) — types de mémoire, durées de rétention par défaut, limites.
+> **Référence technique :** [Briques-Memory-Engine](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Memory-Engine) - types de mémoire, durées de rétention par défaut, limites.

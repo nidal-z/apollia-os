@@ -12,7 +12,7 @@
 
   type Preset = "15m" | "30m" | "hourly" | "daily" | "weekly" | "custom";
 
-  // cron day-of-week: 0=Sun,1=Mon,...,6=Sat — displayed as Mon-Sun
+  // cron day-of-week: 0=Sun,1=Mon,...,6=Sat - displayed as Mon-Sun
   const DAYS_LABEL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const DAYS_CRON = [1, 2, 3, 4, 5, 6, 0]; // Mon→1, ... Sun→0
 

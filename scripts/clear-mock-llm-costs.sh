@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Supprime les appels LLM mock injectés par mock-llm-costs.sh.
-# Filtre sur task_id = 'mock_screenshot' — n'affecte aucun appel réel.
+# Filtre sur task_id = 'mock_screenshot' - n'affecte aucun appel réel.
 
 set -euo pipefail
 

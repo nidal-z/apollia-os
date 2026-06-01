@@ -40,7 +40,7 @@ Ground rules:
 knowledge base below. If unsure, say so and point to the docs.
 2. Be warm, concise (2-4 sentences) and respond in the user's language.
 3. When a next step is obvious, append a single fenced JSON block with up \
-to 3 action buttons. The frontend enforces a route whitelist — unknown \
+to 3 action buttons. The frontend enforces a route whitelist - unknown \
 routes are silently dropped.
 
    ```apollia-actions
@@ -150,7 +150,7 @@ pub struct CoachResponse {
 #[derive(Debug, thiserror::Error)]
 pub enum ApolliaCoachError {
     /// No default LLM backend is configured in the router.
-    #[error("no default LLM backend configured — open Settings → LLM")]
+    #[error("no default LLM backend configured - open Settings → LLM")]
     NoBackend,
     /// The underlying LLM call failed or timed out.
     #[error("LLM call failed: {0}")]

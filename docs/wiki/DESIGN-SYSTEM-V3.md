@@ -1,4 +1,4 @@
-# Apollia Design System V3 — Layout & UX Patterns
+# Apollia Design System V3 - Layout & UX Patterns
 
 > Référence canonique pour le frontend Apollia OS (Tauri v2 + Svelte 5 + Tailwind 3.4).
 > Établie à l'issue de la refonte UX/UI mai 2026 (Tasks → Agents → Projets → Connecteurs).
@@ -15,7 +15,7 @@ exactement une de ces trois familles, jamais à cheval. Les primitives canon
 composants ad-hoc dans `src/components/*` doivent les composer, pas les réinventer.
 
 **Le détail ne s'ouvre pas, il se révèle.** Plus de Sheet/drawer pour les contextes
-métier — le détail vit dans le right pane via tabs. Les Sheets sont réservés aux
+métier - le détail vit dans le right pane via tabs. Les Sheets sont réservés aux
 contextes ponctuels : wizards d'install, dialogues d'ajout, prévisualisation.
 
 **Sidebar + Detail avec tabs = pattern primaire** pour toute page qui présente une
@@ -25,7 +25,7 @@ collection d'entités gérables (Projets, Assistants, Tâches, Connecteurs).
 
 ## 2. Les 3 familles de layout
 
-### Famille A — **Sidebar + Detail tabs** (pattern primaire)
+### Famille A - **Sidebar + Detail tabs** (pattern primaire)
 
 Pour les pages qui listent et gèrent des entités persistantes. Le détail est toujours
 visible (premier item auto-sélectionné). Onglets dans le right pane.
@@ -56,18 +56,18 @@ visible (premier item auto-sélectionné). Onglets dans le right pane.
 | Section | Contenu | Classes clés |
 |---|---|---|
 | Header | `MES ENTITÉS · N` en `font-mono text-[10.5px] uppercase tracking-[1.2px]` muted | `px-4 pt-4 pb-2.5` |
-| Search (optionnel) | `<Input unstyled>` wrappé dans `flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border` | — |
-| Filter chips (optionnel) | Pills `rounded-full border px-2 py-0.5 text-[10.5px] font-medium` — actif : `border-primary/40 bg-primary/10 text-primary` | `flex flex-wrap gap-1` |
+| Search (optionnel) | `<Input unstyled>` wrappé dans `flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border` | - |
+| Filter chips (optionnel) | Pills `rounded-full border px-2 py-0.5 text-[10.5px] font-medium` - actif : `border-primary/40 bg-primary/10 text-primary` | `flex flex-wrap gap-1` |
 | Item rows | Voir "Sidebar list rows" ci-dessous | `flex-1 overflow-auto px-2.5 pb-3` |
 | Footer CTA | `<Button variant="outline" size="sm" class="w-full justify-center">` | `px-3 py-2 border-t border-border` |
 
 **Largeurs canoniques :**
-- `w-[240px]` — Projets (titres courts, liste dense)
-- `w-[280px]` — Tasks (titres tronqués + agent name + badge statut)
-- `w-[300px]` — Connecteurs (deux groupes : natifs + MCP)
-- `w-[320px]` — Assistants (titres + description + status indicators)
+- `w-[240px]` - Projets (titres courts, liste dense)
+- `w-[280px]` - Tasks (titres tronqués + agent name + badge statut)
+- `w-[300px]` - Connecteurs (deux groupes : natifs + MCP)
+- `w-[320px]` - Assistants (titres + description + status indicators)
 
-### Famille B — **PageHeader + content flat** (pattern legacy/secondaire)
+### Famille B - **PageHeader + content flat** (pattern legacy/secondaire)
 
 Pour les pages "tableau de bord" / "indicateurs" sans entité primaire à éditer.
 
@@ -81,9 +81,9 @@ Pour les pages "tableau de bord" / "indicateurs" sans entité primaire à édite
 [Body : grids, tables, sections]
 ```
 
-`<PageHeader>` (kicker `text-[10.5px] uppercase tracking-[1.2px] font-mono`, title `text-[24..28px] font-semibold`, subtitle `text-[12.5px] muted`) — depuis `$lib/components/operator/PageHeader`.
+`<PageHeader>` (kicker `text-[10.5px] uppercase tracking-[1.2px] font-mono`, title `text-[24..28px] font-semibold`, subtitle `text-[12.5px] muted`) - depuis `$lib/components/operator/PageHeader`.
 
-### Famille C — **Left rail + content** (pattern Settings only)
+### Famille C - **Left rail + content** (pattern Settings only)
 
 Pour les pages avec sous-navigation verticale par catégorie. Ne pas étendre à d'autres
 contextes sans nouveau primitive `VerticalRailNav`.
@@ -92,7 +92,7 @@ contextes sans nouveau primitive `VerticalRailNav`.
 
 ---
 
-## 3. Sidebar list rows — spec stricte
+## 3. Sidebar list rows - spec stricte
 
 Le composant le plus répliqué de l'app. Toute liste de sidebar (Projets, Assistants,
 Tâches split, Connecteurs) suit **exactement** cette structure :
@@ -154,7 +154,7 @@ Sections au sein de la sidebar : header `section-meta mt-N mb-1.5 px-2 text-[10p
 
 ---
 
-## 4. Right pane — header + tabs
+## 4. Right pane - header + tabs
 
 Quand un item est sélectionné dans la sidebar, le right pane affiche :
 
@@ -216,7 +216,7 @@ Quand un item est sélectionné dans la sidebar, le right pane affiche :
 ```
 
 **Règles non-négociables :**
-- **Pas de bordure colorée supérieure** (status accent strip `<div class="h-0.5 w-full bg-...">`) — proscrite (régression catastrophique).
+- **Pas de bordure colorée supérieure** (status accent strip `<div class="h-0.5 w-full bg-...">`) - proscrite (régression catastrophique).
 - **Pas de PageHeader top-level** quand le right pane affiche son propre header.
 - **Title** : `font-size: 22px; font-weight: 600; letter-spacing: -0.3px; line-height: 1.2` en style inline (pas une classe Tailwind faute de token équivalent).
 - **TabBar variant** : toujours `"underline"` dans ce contexte (jamais `"pill"`).
@@ -248,21 +248,21 @@ Quand un item est sélectionné dans la sidebar, le right pane affiche :
 ```
 
 **Règles :**
-- **Le `.blur()` après click** est obligatoire — sans ça, le focus ring persiste et fait croire à un état actif fantôme (régression observée).
+- **Le `.blur()` après click** est obligatoire - sans ça, le focus ring persiste et fait croire à un état actif fantôme (régression observée).
 - **Variante sidebar (compact)** : `px-2 py-0.5 text-[10.5px]`.
 - **Variante list/grid (full)** : `px-2.5 py-1 text-[11.5px]`.
 - **Glow** : uniquement quand `isActive` ET la key est sémantiquement "en cours" (`active`, `running`).
 
-**NE PAS utiliser** : `<Badge variant="primary" outline={false}>` dans un wrapper `<Button>` — le double layer crée un focus ring fantôme.
+**NE PAS utiliser** : `<Badge variant="primary" outline={false}>` dans un wrapper `<Button>` - le double layer crée un focus ring fantôme.
 
 ---
 
-## 6. Sheets — quand et comment
+## 6. Sheets - quand et comment
 
 `<Sheet>` est réservé aux contextes ponctuels :
-- **Wizards** (install package, OAuth flow, connector wizard) — multi-step.
-- **Catalogues / dialogues d'ajout** (catalogue MCP, etc.) — discovery + sélection.
-- **Préviews** (tool schema panel, memory entry sheet) — read-only ou édition légère.
+- **Wizards** (install package, OAuth flow, connector wizard) - multi-step.
+- **Catalogues / dialogues d'ajout** (catalogue MCP, etc.) - discovery + sélection.
+- **Préviews** (tool schema panel, memory entry sheet) - read-only ou édition légère.
 
 **Composition canonique** (depuis `$lib/components/ui/sheet`) :
 
@@ -295,48 +295,48 @@ Ces contextes doivent vivre dans le right pane (famille A) avec tabs.
 
 ---
 
-## 7. Primitives canoniques — inventaire rapide
+## 7. Primitives canoniques - inventaire rapide
 
 ### Layout & shell
-- `<PageHeader kicker title subtitle actions>` — famille B uniquement.
-- `<PageLayout>` — wrapper centré `max-w-6xl` + PageHeader intégré.
-- `<SectionTitle>` — section header dense (`uppercase tracking-[1.4px] text-[10.5px]`).
-- `<EmptyState icon title desc action tone="primary|neutral|success|warning">` — états vides.
+- `<PageHeader kicker title subtitle actions>` - famille B uniquement.
+- `<PageLayout>` - wrapper centré `max-w-6xl` + PageHeader intégré.
+- `<SectionTitle>` - section header dense (`uppercase tracking-[1.4px] text-[10.5px]`).
+- `<EmptyState icon title desc action tone="primary|neutral|success|warning">` - états vides.
 
 ### Forms
-- `<Input unstyled?>` — input texte. `unstyled` quand wrappé dans un container avec bordure custom (cf. sidebar searches).
-- `<Select>`, `<Textarea>`, `<Checkbox>`, `<Toggle>` — natifs stylés.
-- `<FormField id label labelClass hint error required optional optionalLabel data-testid>` — wrapper canonique label + control + hint/error. Toujours utilisé pour les formulaires.
+- `<Input unstyled?>` - input texte. `unstyled` quand wrappé dans un container avec bordure custom (cf. sidebar searches).
+- `<Select>`, `<Textarea>`, `<Checkbox>`, `<Toggle>` - natifs stylés.
+- `<FormField id label labelClass hint error required optional optionalLabel data-testid>` - wrapper canonique label + control + hint/error. Toujours utilisé pour les formulaires.
 
 ### Display
-- `<Card class="p-[14px_16px]">` — surface contenu primaire. Hérite `bg-card border border-border rounded-xl`.
-- `<Badge variant size outline>` — tag/statut. `size="sm"` pour l'inline, `size="md"` pour les chips standalone.
-- `<StatusDot color glow size={5|6|7}>` — point d'état coloré.
-- `<Avatar name fallback size="sm|md|lg" ring>` — avatar utilisateur/agent.
-- `<Spinner size={11|14|24}>` — loader.
-- `<Skeleton class="h-N w-N">` — placeholder loading.
-- `<Banner variant surface="edge|card">` — bannière info/warning/error.
-- `<Separator variant="default|inline">` — séparateur visuel.
+- `<Card class="p-[14px_16px]">` - surface contenu primaire. Hérite `bg-card border border-border rounded-xl`.
+- `<Badge variant size outline>` - tag/statut. `size="sm"` pour l'inline, `size="md"` pour les chips standalone.
+- `<StatusDot color glow size={5|6|7}>` - point d'état coloré.
+- `<Avatar name fallback size="sm|md|lg" ring>` - avatar utilisateur/agent.
+- `<Spinner size={11|14|24}>` - loader.
+- `<Skeleton class="h-N w-N">` - placeholder loading.
+- `<Banner variant surface="edge|card">` - bannière info/warning/error.
+- `<Separator variant="default|inline">` - séparateur visuel.
 
 ### Navigation
-- `<TabBar variant="underline|pill" items activeTab ontabchange testidPrefix>` — onglets. **Underline** dans le right pane. **Pill** rare (segmented control compact).
-- `<Breadcrumbs items>` — global app shell (déjà câblé).
+- `<TabBar variant="underline|pill" items activeTab ontabchange testidPrefix>` - onglets. **Underline** dans le right pane. **Pill** rare (segmented control compact).
+- `<Breadcrumbs items>` - global app shell (déjà câblé).
 
 ### Actions / Overlays
-- `<Button variant size>` — voir spec ci-dessous.
-- `<ActionMenu items|body triggerSlot triggerLabel align side>` — kebab menus.
-- `<Sheet>` + `<SheetHeader>` + `<SheetContent>` + `<SheetFooter>` — drawer canonique.
-- `<Dialog>` + `<DialogFooter>` — modal.
-- `<ConfirmDialog>` — confirmation destructive standard.
-- `<Popover trigger content>` — popovers (bits-ui sous le capot).
-- `<Toast>` via `addToast(message, variant)` — notifications éphémères.
+- `<Button variant size>` - voir spec ci-dessous.
+- `<ActionMenu items|body triggerSlot triggerLabel align side>` - kebab menus.
+- `<Sheet>` + `<SheetHeader>` + `<SheetContent>` + `<SheetFooter>` - drawer canonique.
+- `<Dialog>` + `<DialogFooter>` - modal.
+- `<ConfirmDialog>` - confirmation destructive standard.
+- `<Popover trigger content>` - popovers (bits-ui sous le capot).
+- `<Toast>` via `addToast(message, variant)` - notifications éphémères.
 
 ### Tabular
-- `<DataTable data columns rowKey emptyLabel>` — table générique. **Ne supporte pas les rows expansibles** — pour les tables à dépliage (AuditTrail), garder une table inline.
+- `<DataTable data columns rowKey emptyLabel>` - table générique. **Ne supporte pas les rows expansibles** - pour les tables à dépliage (AuditTrail), garder une table inline.
 
 ---
 
-## 8. Button variants — quand utiliser quoi
+## 8. Button variants - quand utiliser quoi
 
 | Variant | Usage |
 |---|---|
@@ -344,7 +344,7 @@ Ces contextes doivent vivre dans le right pane (famille A) avec tabs.
 | `outline` | Action secondaire. Refresh, cancel, navigation latérale. |
 | `ghost` | Wrapper pour rows cliquables (sidebar items, table rows interactives). Pas de fond, juste hover. |
 | `destructive` | Disconnect, delete, supprimer. Toujours derrière une confirmation inline ou ConfirmDialog. |
-| `success` | Validation explicite (rare — Badge success suffit souvent). |
+| `success` | Validation explicite (rare - Badge success suffit souvent). |
 | `link` | Actions de navigation inline dans du texte. |
 | `secondary` | Action neutre (rare). |
 
@@ -358,7 +358,7 @@ Ces contextes doivent vivre dans le right pane (famille A) avec tabs.
 | `icon-sm` | `h-7 w-7` | Bouton icône compact (toggle dans une row). |
 | `auto` | aucune hauteur fixe (px-3 py-2) | Wrapper pour multi-line content (rows sidebar, cards cliquables). |
 
-**Règle d'or** : si tu wrappes un layout multi-ligne dans un `<Button>`, c'est **toujours** `size="auto"`. Ne jamais utiliser `size="sm"` (h-9) sur une row de 3 lignes — elle sera écrasée.
+**Règle d'or** : si tu wrappes un layout multi-ligne dans un `<Button>`, c'est **toujours** `size="auto"`. Ne jamais utiliser `size="sm"` (h-9) sur une row de 3 lignes - elle sera écrasée.
 
 **Hover-revealed buttons** (toggle Play/Stop dans une row) : pas de `hover:bg-N`. Utiliser :
 ```
@@ -433,17 +433,17 @@ les cards, `border-border/60` pour les séparateurs forts (header bottom, table 
 
 | Anti-pattern | Pourquoi |
 |---|---|
-| Status accent strip `<div class="h-0.5 w-full bg-...">` en haut du right pane | "Catastrophique" — écrase visuellement le contenu. |
+| Status accent strip `<div class="h-0.5 w-full bg-...">` en haut du right pane | "Catastrophique" - écrase visuellement le contenu. |
 | PageHeader full-width au-dessus d'un layout split (sidebar + detail) | Écrase la sidebar et bloque le pattern "header dans le right pane". |
 | `<Badge>` dans un `<Button>` pour les filter chips | Génère un focus ring fantôme. Utiliser raw button rounded-full. |
-| `size="sm"` (h-9) sur un Button wrappant une row multi-ligne | Force h-9 (36px) — le contenu est écrasé. Utiliser `size="auto"`. |
+| `size="sm"` (h-9) sur un Button wrappant une row multi-ligne | Force h-9 (36px) - le contenu est écrasé. Utiliser `size="auto"`. |
 | Sheet pour le détail d'une entité éditable | Doit vivre dans le right pane avec tabs. |
-| Badge "Système" / "Libre" / catégorie sur chaque row de liste | "Bas de gamme" — supprime du noise visuel sans valeur. |
+| Badge "Système" / "Libre" / catégorie sur chaque row de liste | "Bas de gamme" - supprime du noise visuel sans valeur. |
 | Liserai (accent bar) `w-1` (4px) ou plus | Trop large. Toujours `w-0.5` (2px). |
 | Badge trailing `text-[9px] px-1.5` ou plus | Trop gros pour une sidebar row. `text-[8px] px-1 py-0 leading-[1.4]`. |
-| Boutons toggle (Play/Stop) avec leur propre `hover:bg-N` | "Hors de la row" — utiliser hover-revealed transparent. |
+| Boutons toggle (Play/Stop) avec leur propre `hover:bg-N` | "Hors de la row" - utiliser hover-revealed transparent. |
 | `bg-background` sur les inputs de form dans une page bg-background | Inputs invisibles. Utiliser `class="bg-card"`. |
-| Centrer le texte dans les rows de nav sidebar (Settings) | `justify-center` hérité de Button — override avec `justify-start`. |
+| Centrer le texte dans les rows de nav sidebar (Settings) | `justify-center` hérité de Button - override avec `justify-start`. |
 | Chips de filtre dont l'état actif n'est pas visuellement distinct | Pattern unique : raw button rounded-full avec `border-primary/40 bg-primary/10 text-primary`. |
 | Compteurs (`count: 0`) qui restent à 0 jusqu'à click | Charger eager au mount, pas à l'ouverture du tab. |
 
@@ -453,7 +453,7 @@ les cards, `border-border/60` pour les séparateurs forts (header bottom, table 
 
 Avant de coder une nouvelle route, vérifier :
 
-1. **Famille de layout ?** A (sidebar+detail) / B (PageHeader+flat) / C (Settings-only) — réponse univoque.
+1. **Famille de layout ?** A (sidebar+detail) / B (PageHeader+flat) / C (Settings-only) - réponse univoque.
 2. **Si famille A** :
    - [ ] `mode === "split"` toujours sans PageHeader au-dessus
    - [ ] Auto-select du 1er item via `$effect`
@@ -474,7 +474,7 @@ Avant de coder une nouvelle route, vérifier :
 5. **Sheets** : uniquement wizards, catalogues, previews. **Jamais** le détail d'une entité éditable.
 6. **Données externes** : charger eager au mount (counts, badges). Pas de "0 jusqu'à click".
 7. **Forms** : `<FormField>` autour de chaque label+input. `<Input class="bg-card">` quand sur fond `bg-background`.
-8. **Memory namespace** : si la page expose la mémoire d'un agent, utiliser `agent.memory_namespace` du manifest — **jamais** `agent.name`.
+8. **Memory namespace** : si la page expose la mémoire d'un agent, utiliser `agent.memory_namespace` du manifest - **jamais** `agent.name`.
 
 ---
 
@@ -494,7 +494,7 @@ Avant de coder une nouvelle route, vérifier :
 | Inbox | B | ✓ avec tabs underline |
 | Observabilité | B | ✓ avec tabs underline |
 | Settings | C | ✓ left rail (justify-start) |
-| Chat | spécial | tripartite (sidebar conversations / chat / config) — n'entre pas dans les 3 familles |
+| Chat | spécial | tripartite (sidebar conversations / chat / config) - n'entre pas dans les 3 familles |
 | Onboarding | spécial | flow modal multi-step |
 
 ---
@@ -503,7 +503,7 @@ Avant de coder une nouvelle route, vérifier :
 
 **Si vous ajoutez une page** : commencer par identifier la famille. Si A, scaffolder à
 partir de **Projets** (le canon le plus mature). Si B, à partir de **Dashboard**. Si C,
-à partir de **Settings** (mais réfléchir à deux fois — Settings est l'unique cas C, ne pas
+à partir de **Settings** (mais réfléchir à deux fois - Settings est l'unique cas C, ne pas
 multiplier).
 
 **Si vous touchez une primitive** (`$lib/components/operator/*` ou `$lib/components/ui/*`) :
@@ -514,4 +514,4 @@ mettre à jour ce document dans la même PR et flagger les consumers à reviewer
 
 ---
 
-*Dernière mise à jour : 2026-05-15 — fin de la refonte Connecteurs.*
+*Dernière mise à jour : 2026-05-15 - fin de la refonte Connecteurs.*

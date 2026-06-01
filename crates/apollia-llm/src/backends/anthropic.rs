@@ -669,7 +669,7 @@ fn mark_message_cache_control(msg: &mut AnthropicMessage) {
                     AnthropicBlock::ToolUse { .. } => {
                         // ToolUse does not support cache_control, breakpoint ignored
                         tracing::debug!(
-                            "cache breakpoint on message ending with tool_use block — ignored"
+                            "cache breakpoint on message ending with tool_use block - ignored"
                         );
                     }
                 }

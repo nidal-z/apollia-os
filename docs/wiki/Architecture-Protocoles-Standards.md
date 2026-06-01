@@ -1,10 +1,10 @@
-# Protocoles & Standards — MCP, A2A, ACP
+# Protocoles & Standards - MCP, A2A, ACP
 
 > *Comment Apollia OS s'aligne avec les standards émergents de l'écosystème agents IA sans les réinventer.*
 
 ---
 
-## 1. Philosophie — Aligner, pas réinventer
+## 1. Philosophie - Aligner, pas réinventer
 
 La règle fondamentale du projet est simple : **si un standard existe et est adopté par la communauté, Apollia OS le respecte plutôt que d'en inventer un concurrent.**
 
@@ -16,7 +16,7 @@ Cette philosophie a plusieurs bénéfices :
 
 ---
 
-## 2. MCP — Model Context Protocol
+## 2. MCP - Model Context Protocol
 
 ### 2.1 Ce qu'est MCP
 
@@ -83,13 +83,13 @@ command = "npx @modelcontextprotocol/server-filesystem /workspace"
 
 ### 2.3 Ce que MCP ne résout pas (et qu'Apollia OS résout)
 
-MCP est un protocole de communication, pas un runtime d'exécution. Il définit comment un agent parle à un outil — pas comment l'outil est isolé, audité, ou protégé par des circuit breakers.
+MCP est un protocole de communication, pas un runtime d'exécution. Il définit comment un agent parle à un outil - pas comment l'outil est isolé, audité, ou protégé par des circuit breakers.
 
-Apollia OS enveloppe les outils MCP dans son `ResilienceLayer` et son `AuditTrail` — toute invocation MCP est auditée et protégée exactement comme un outil natif.
+Apollia OS enveloppe les outils MCP dans son `ResilienceLayer` et son `AuditTrail` - toute invocation MCP est auditée et protégée exactement comme un outil natif.
 
 ---
 
-## 3. A2A — Agent-to-Agent Protocol
+## 3. A2A - Agent-to-Agent Protocol
 
 ### 3.1 Ce qu'est A2A
 
@@ -141,7 +141,7 @@ AgentManifest(
 
 **Alignement du TaskState**
 
-Les états de tâche AIP (`submitted`, `working`, `completed`, `failed`, `input_required`, `canceled`) sont directement alignés sur le `TaskState` A2A. Pas de mapping — ce sont les mêmes états.
+Les états de tâche AIP (`submitted`, `working`, `completed`, `failed`, `input_required`, `canceled`) sont directement alignés sur le `TaskState` A2A. Pas de mapping - ce sont les mêmes états.
 
 **Communication inter-agents**
 
@@ -161,7 +161,7 @@ A2A est un protocole de découverte et communication. Il ne définit pas comment
 
 ---
 
-## 4. ACP — Agent Communication Protocol
+## 4. ACP - Agent Communication Protocol
 
 ### 4.1 Ce qu'est ACP
 
@@ -195,7 +195,7 @@ Le `ProcessState` d'Apollia OS est directement inspiré du lifecycle ACP :
 
 ACP définit le lifecycle du **processus**. A2A définit le lifecycle de la **tâche**. Ce sont deux machines d'état indépendantes. Un processus `ACTIVE` peut avoir zéro ou plusieurs tâches `working` simultanément.
 
-Apollia OS maintient cette distinction explicitement — pas d'ambiguïté entre "est-ce que l'agent est prêt ?" (ProcessState) et "est-ce que la tâche est terminée ?" (TaskState).
+Apollia OS maintient cette distinction explicitement - pas d'ambiguïté entre "est-ce que l'agent est prêt ?" (ProcessState) et "est-ce que la tâche est terminée ?" (TaskState).
 
 ---
 
@@ -208,9 +208,9 @@ Apollia OS maintient cette distinction explicitement — pas d'ambiguïté entre
 | **ACP** | Lifecycle processus agent | ProcessState aligné ACP, distinction processus/tâche explicite |
 
 **Ce qu'Apollia OS n'implémente pas (par design) :**
-- Pas de registry MCP central hébergé — les serveurs MCP sont configurés localement
-- Pas de discovery A2A cloud — l'AgentCard est exposée localement
-- Pas de compatibilité ACP REST complète en v0.1 — uniquement l'alignement sémantique des états
+- Pas de registry MCP central hébergé - les serveurs MCP sont configurés localement
+- Pas de discovery A2A cloud - l'AgentCard est exposée localement
+- Pas de compatibilité ACP REST complète en v0.1 - uniquement l'alignement sémantique des états
 
 Ces fonctionnalités enterprise sont dans la [Roadmap](./Roadmap).
 

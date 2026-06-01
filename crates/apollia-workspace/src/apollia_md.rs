@@ -82,7 +82,7 @@ mod tests {
     async fn test_apollia_md_absent_returns_none() {
         // GIVEN : répertoire sans APOLLIA.md (ni dans ses parents dans la limite)
         let dir = tempfile::tempdir().expect("tempdir");
-        // WHEN — profondeur 0 : on ne remonte pas
+        // WHEN - profondeur 0 : on ne remonte pas
         let result = ApolliamdFinder::find(dir.path(), 8192, 0).await;
         // THEN
         assert!(result.is_none(), "no APOLLIA.md at depth 0");
@@ -98,7 +98,7 @@ mod tests {
             .expect("write");
         // WHEN
         let result = ApolliamdFinder::find(dir.path(), 100, 5).await;
-        // THEN — le middle-trim ajoute un message, mais le résultat est < original
+        // THEN - le middle-trim ajoute un message, mais le résultat est < original
         assert!(result.is_some());
         let (_, content) = result.unwrap();
         assert!(

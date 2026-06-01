@@ -2,7 +2,7 @@
 name = "apollia-mcp"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — MCP client: config, JSON-RPC, session, manager, executor"
+description = "Apollia OS - MCP client: config, JSON-RPC, session, manager, executor"
 license = "MIT OR Apache-2.0"
 
 [dependencies]

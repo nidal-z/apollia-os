@@ -1,4 +1,4 @@
-# ADR-044 — Client MCP : architecture, transport, lifecycle
+# ADR-044 - Client MCP : architecture, transport, lifecycle
 
 **Date :** 2026-03-29
 **Statut :** Accepté
@@ -19,13 +19,13 @@ est identifiée comme la prochaine priorité stratégique.
 
 **Contraintes structurantes :**
 
-1. **Principe #1 — Local-first** : les données utilisateur ne doivent pas quitter la machine
+1. **Principe #1 - Local-first** : les données utilisateur ne doivent pas quitter la machine
    sans action explicite. Le transport MCP doit favoriser les processus locaux.
-2. **Principe #2 — Zéro dépendance externe** : pas de SDK MCP tiers dans le binaire. Le
+2. **Principe #2 - Zéro dépendance externe** : pas de SDK MCP tiers dans le binaire. Le
    client doit être implémenté nativement.
-3. **Principe #5 — Un acteur, une responsabilité** : le client MCP doit être encapsulé dans
+3. **Principe #5 - Un acteur, une responsabilité** : le client MCP doit être encapsulé dans
    sa propre crate, géré par un acteur Tokio dédié.
-4. **Principe #8 — CLI humaine, API machine** : les serveurs MCP configurés doivent être
+4. **Principe #8 - CLI humaine, API machine** : les serveurs MCP configurés doivent être
    introspectables via l'API REST (`/mcp/servers`).
 
 Le transport MCP supporte deux modes : **stdio** (subprocess local) et **HTTP/SSE** (remote).
@@ -87,7 +87,7 @@ dans `apollia-mcp` avec des types Rust sérialisés via `serde_json`. Le handsha
 
 ## Alternatives considérées
 
-### Option A — Embarquer un SDK MCP existant en Rust (rejetée)
+### Option A - Embarquer un SDK MCP existant en Rust (rejetée)
 
 **Pour :** Moins de code à maintenir, conformité automatique aux évolutions du protocole.
 
@@ -96,16 +96,16 @@ dans `apollia-mcp` avec des types Rust sérialisés via `serde_json`. Le handsha
 maintenues, et ajoutent ~2-5 Mo de dépendances transitives. Rejetée : dépendance externe
 non maîtrisée sur un protocole encore en évolution.
 
-### Option B — Transport HTTP/SSE uniquement (rejetée)
+### Option B - Transport HTTP/SSE uniquement (rejetée)
 
 **Pour :** API plus simple (pas de gestion de subprocess), protocole standardisé HTTP.
 
 **Contre :** ~90 % des serveurs MCP communautaires sont distribués en stdio. HTTP/SSE
-nécessite que le serveur soit déjà démarré et accessible — ce qui implique une gestion de
+nécessite que le serveur soit déjà démarré et accessible - ce qui implique une gestion de
 lifecycle externe. Pour les serveurs locaux (SQLite, filesystem), stdio est systématiquement
 préféré par les auteurs. Rejetée : couvrirait une minorité des cas d'usage réels.
 
-### Option C — Intégration directe dans `apollia-tools` (rejetée)
+### Option C - Intégration directe dans `apollia-tools` (rejetée)
 
 **Pour :** Moins de crates, pas d'ajout au workspace.
 
@@ -114,7 +114,7 @@ préféré par les auteurs. Rejetée : couvrirait une minorité des cas d'usage 
 d'état. Les deux ont des patterns d'erreur, de test, et de dépendances orthogonaux.
 Rejetée : violerait le Principe #5.
 
-### Option retenue — `apollia-mcp` natif, stdio V1, `mcp.toml`, naming `mcp:`
+### Option retenue - `apollia-mcp` natif, stdio V1, `mcp.toml`, naming `mcp:`
 
 **Pour :**
 - Zéro dépendance externe : implémentation native complète sous notre contrôle
@@ -124,9 +124,9 @@ Rejetée : violerait le Principe #5.
 - HITL intégré : aligné avec le mécanisme d'approbation existant (Sprint 12)
 
 **Compromis acceptés :**
-- HTTP/SSE non supporté en V1 — serveurs distants (Brave Search via HTTP) inaccessibles
+- HTTP/SSE non supporté en V1 - serveurs distants (Brave Search via HTTP) inaccessibles
   jusqu'à V2
-- Pas de reconnection automatique en V1 — si le sous-processus crash, la session est close
+- Pas de reconnection automatique en V1 - si le sous-processus crash, la session est close
   et doit être redémarrée manuellement
 - `toml` et `async-trait` ajoutés comme dépendances workspace
 
@@ -142,12 +142,12 @@ Rejetée : violerait le Principe #5.
 - L'API REST `/mcp/servers` expose l'état des serveurs (Principe #8)
 
 **Négatives / Compromis :**
-- Nouvelle crate à maintenir — interface publique à stabiliser avant V1.0
+- Nouvelle crate à maintenir - interface publique à stabiliser avant V1.0
 - Gestion des pipes stdio async : deux tâches Tokio par session, corrélation requête/réponse
-  par `id` JSON-RPC — complexité accrue vs un appel HTTP simple
+  par `id` JSON-RPC - complexité accrue vs un appel HTTP simple
 - Pas de reconnection en V1 : un crash du sous-processus MCP doit être détecté et reporté
   à l'agent (erreur explicite plutôt que hang silencieux)
-- `tokio::process::Command` : dépendance au module process de Tokio — pas de problème pour
+- `tokio::process::Command` : dépendance au module process de Tokio - pas de problème pour
   Linux/macOS, à valider pour les targets futures
 
 **À surveiller :**
@@ -160,19 +160,19 @@ Rejetée : violerait le Principe #5.
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : respecté — transport stdio = subprocess local, secrets via
+- **Principe #1 - Local-first** : respecté - transport stdio = subprocess local, secrets via
   variables d'environnement, HITL gate avant tout appel
-- **Principe #2 — Zéro dépendance externe** : respecté — implémentation native, zéro SDK
+- **Principe #2 - Zéro dépendance externe** : respecté - implémentation native, zéro SDK
   MCP tiers dans le binaire
-- **Principe #5 — Un acteur, une responsabilité** : respecté — `McpClientManager` est un
+- **Principe #5 - Un acteur, une responsabilité** : respecté - `McpClientManager` est un
   acteur Tokio dédié, `McpSession` gère une connexion unique, `McpToolExecutor` délègue
   l'exécution sans état partagé
-- **Principe #8 — CLI humaine, API machine** : respecté — état des serveurs MCP exposé via
+- **Principe #8 - CLI humaine, API machine** : respecté - état des serveurs MCP exposé via
   `/mcp/servers` REST, listing dans `apollia mcp list`
 
 ## Liens
 
-- ADR connexe : ADR-010 (Tool Registry — architecture de base, ToolKind::McpServer déjà défini)
-- ADR connexe : ADR-023 (HITL — PendingApprovals, mécanisme d'approbation réutilisé)
-- ADR connexe : ADR-015 (ToolExecutor trait — McpToolExecutor l'implémente)
+- ADR connexe : ADR-010 (Tool Registry - architecture de base, ToolKind::McpServer déjà défini)
+- ADR connexe : ADR-023 (HITL - PendingApprovals, mécanisme d'approbation réutilisé)
+- ADR connexe : ADR-015 (ToolExecutor trait - McpToolExecutor l'implémente)
 - Spec de référence : `docs/specs/sprint-26-spec.md`

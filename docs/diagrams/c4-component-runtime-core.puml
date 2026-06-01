@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Component — Runtime Core (Acteurs Tokio) — Apollia OS
+title C4 Component - Runtime Core (Acteurs Tokio) - Apollia OS
 
 rectangle "apollia-runtime" as runtime #1a1a2e {
 

@@ -69,7 +69,7 @@ function detectTheme(): "github-light" | "github-dark" {
 
 /**
  * Hydrate every unresolved code placeholder under `root`.  Safe to call
- * repeatedly — already-hydrated blocks are skipped.
+ * repeatedly - already-hydrated blocks are skipped.
  */
 export async function hydrateCodeBlocks(root: HTMLElement): Promise<void> {
   const blocks = Array.from(
@@ -82,7 +82,7 @@ export async function hydrateCodeBlocks(root: HTMLElement): Promise<void> {
   try {
     highlighter = await getHighlighter();
   } catch {
-    // Shiki failed to load — leave the escaped placeholder as-is.
+    // Shiki failed to load - leave the escaped placeholder as-is.
     return;
   }
 
@@ -110,7 +110,7 @@ export async function hydrateCodeBlocks(root: HTMLElement): Promise<void> {
       continue;
     }
 
-    // Shiki wraps the code in its own <pre><code> — we only want the inner
+    // Shiki wraps the code in its own <pre><code> - we only want the inner
     // <code> spans so we preserve our outer .apollia-code-block structure.
     const parser = new DOMParser();
     const doc = parser.parseFromString(highlighted, "text/html");

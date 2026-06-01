@@ -265,7 +265,7 @@ fn load_server_url(db_override: Option<&std::path::Path>, server: &str) -> Resul
         .ok_or_else(|| format!("server '{server}' not configured in {}", path.display()))?;
     entry.url.clone().filter(|u| !u.is_empty()).ok_or_else(|| {
         format!(
-            "server '{server}' has no URL — only HTTP/streamable-http MCP servers \
+            "server '{server}' has no URL - only HTTP/streamable-http MCP servers \
                  require OAuth (stdio servers run a local subprocess)"
         )
     })
@@ -336,7 +336,7 @@ async fn run_login(
     if !json {
         eprintln!(
             "Starting MCP OAuth flow for '{server}' against {server_url}.\n  \
-             A browser will open with the authorisation URL — log in there to complete the flow."
+             A browser will open with the authorisation URL - log in there to complete the flow."
         );
     }
 
@@ -359,7 +359,7 @@ async fn run_login(
     match result {
         Ok(token) => emit_login_success(server, &token, json).await,
         Err(McpOAuthError::ReauthRequired { .. }) => emit_error(
-            "the authorisation server rejected the refresh — stored token deleted, re-run login",
+            "the authorisation server rejected the refresh - stored token deleted, re-run login",
             json,
         ),
         Err(e) => emit_error(format!("OAuth flow failed: {e}"), json),
@@ -413,7 +413,7 @@ async fn emit_login_success(
         }
         ReconnectOutcome::RuntimeOffline => {
             println!(
-                "  ! daemon offline — start it with `apollia-os start` and the server will pick up the token."
+                "  ! daemon offline - start it with `apollia-os start` and the server will pick up the token."
             );
         }
         ReconnectOutcome::Failed(reason) => {
@@ -487,7 +487,7 @@ fn enumerate_status_servers(
         if json {
             println!("[]");
         } else {
-            println!("  (mcp.db absent — no configured servers)");
+            println!("  (mcp.db absent - no configured servers)");
         }
         return Err(exit_codes::SUCCESS);
     }

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * LoadingShimmer — translucent band sliding across a muted background.
+   * LoadingShimmer - translucent band sliding across a muted background.
    * Use for content-sized placeholders (lines of text, cards, rows).
    *
    * Driven by `@keyframes shimmerSlide` in app.css. Honours

@@ -7,7 +7,7 @@ export type AutoSaveMode = "debounced" | "explicit";
 export interface UseSettingsFormOptions<T> {
   /** Identifier of the owning sub-route (used for dirty/savingState tracking). */
   route: SettingsSubRoute;
-  /** Initial snapshot — used as baseline for dirty detection. */
+  /** Initial snapshot - used as baseline for dirty detection. */
   initial: T;
   /** Persist handler. Must throw on failure. */
   onSave: (values: T) => Promise<void>;
@@ -22,7 +22,7 @@ export interface UseSettingsFormOptions<T> {
 }
 
 export interface SettingsForm<T> {
-  /** Live, reactive values — Svelte 5 `$state` proxy wrapper. */
+  /** Live, reactive values - Svelte 5 `$state` proxy wrapper. */
   values: T;
   /** Set a single field and mark the form dirty. */
   setField: <K extends keyof T>(key: K, value: T[K]) => void;
@@ -48,7 +48,7 @@ function clone<T>(value: T): T {
 
 /**
  * Standardised settings-form hook. Tracks dirty state, drives savingState
- * transitions on the shared `settingsDirtyStore`, and — in `debounced` mode —
+ * transitions on the shared `settingsDirtyStore`, and - in `debounced` mode -
  * auto-persists changes 1 second after the last edit.
  *
  * Usage (Svelte 5):

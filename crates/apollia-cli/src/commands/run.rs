@@ -211,7 +211,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             let attempt = event.data["attempt"].as_u64().unwrap_or(1);
             let failed_step = event.data["failed_step"].as_str().unwrap_or("?");
             let reason = event.data["reason"].as_str().unwrap_or("?");
-            println!("  ↻ Replanning ({attempt}/2) — step {failed_step} failed: {reason}");
+            println!("  ↻ Replanning ({attempt}/2) - step {failed_step} failed: {reason}");
             false
         }
 
@@ -221,7 +221,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             let duration_ms = event.data["duration_ms"].as_u64().unwrap_or(0);
             let secs = duration_ms as f64 / 1000.0;
             println!();
-            println!("  ✔ Plan completed — {step_count} steps in {secs:.1}s");
+            println!("  ✔ Plan completed - {step_count} steps in {secs:.1}s");
             false
         }
 

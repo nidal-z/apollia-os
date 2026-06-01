@@ -8,7 +8,7 @@ pub enum AuthError {
     /// The `state` parameter in the callback does not match the expected value.
     ///
     /// This indicates a possible CSRF attack and the flow must be aborted.
-    #[error("state mismatch — possible CSRF")]
+    #[error("state mismatch - possible CSRF")]
     StateMismatch,
 
     /// The callback URL did not contain an authorization code.

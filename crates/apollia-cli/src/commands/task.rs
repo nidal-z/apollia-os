@@ -370,9 +370,9 @@ async fn run_resume(client: &RuntimeClient, args: ResumeArgs<'_>, json: bool) ->
         let status = parsed.get("status").and_then(|v| v.as_str()).unwrap_or("?");
 
         if approved {
-            println!("✔ Task {task_id} approved — {agent} › {status}...");
+            println!("✔ Task {task_id} approved - {agent} › {status}...");
         } else {
-            println!("✔ Task {task_id} rejected — {agent} › done ({status})");
+            println!("✔ Task {task_id} rejected - {agent} › done ({status})");
         }
     }
     exit_codes::SUCCESS
@@ -1070,14 +1070,14 @@ mod tests {
                 "task_id": "t-0042",
                 "agent_id": "devis-agent",
                 "input_required_at": "2020-01-01T00:00:00Z",
-                "input_required_prompt": "Devis 12 500€ TTC — Dupont SA — confirmer ?",
+                "input_required_prompt": "Devis 12 500€ TTC - Dupont SA - confirmer ?",
                 "step_id": "s1"
             }),
             serde_json::json!({
                 "task_id": "t-0043",
                 "agent_id": "contrats",
                 "input_required_at": "2020-01-01T00:00:00Z",
-                "input_required_prompt": "Envoyer email à dupont@acme.fr — confirmer ?",
+                "input_required_prompt": "Envoyer email à dupont@acme.fr - confirmer ?",
                 "step_id": null
             }),
         ];
@@ -1095,7 +1095,7 @@ mod tests {
         );
         assert_eq!(
             output[0]["prompt"],
-            "Devis 12 500€ TTC — Dupont SA — confirmer ?"
+            "Devis 12 500€ TTC - Dupont SA - confirmer ?"
         );
         assert_eq!(output[0]["step_id"], "s1");
         assert_eq!(output[1]["task_id"], "t-0043");

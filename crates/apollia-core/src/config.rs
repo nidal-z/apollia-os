@@ -1,11 +1,11 @@
 //! Configuration du runtime Apollia OS.
 //!
 //! Définit les sections de configuration lues depuis `apollia.toml` :
-//! - [`RuntimeConfig`] — section `[runtime]` pour la capacité de l'EventBus et des mailboxes.
-//! - [`A2AConfig`] — section `[a2a]` pour le routing inter-agents.
-//! - [`HitlConfig`] — section `[hitl]` pour le watcher Human-in-the-Loop.
-//! - [`ORIAConfig`] — section `[oria]` pour le moteur Observer-Reasoner-Actor.
-//! - [`ApiConfig`] — section `[api]` pour le listener TCP et le socket Unix.
+//! - [`RuntimeConfig`] - section `[runtime]` pour la capacité de l'EventBus et des mailboxes.
+//! - [`A2AConfig`] - section `[a2a]` pour le routing inter-agents.
+//! - [`HitlConfig`] - section `[hitl]` pour le watcher Human-in-the-Loop.
+//! - [`ORIAConfig`] - section `[oria]` pour le moteur Observer-Reasoner-Actor.
+//! - [`ApiConfig`] - section `[api]` pour le listener TCP et le socket Unix.
 //!
 //! Tous les champs ont des valeurs par défaut saines via [`Default`].
 
@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 /// Erreur de validation de la configuration au démarrage.
 ///
 /// Produite par les méthodes `validate()` des configs de section.
-/// Le runtime doit traiter ces erreurs comme des erreurs fatales (Principe #4 — Fail fast).
+/// Le runtime doit traiter ces erreurs comme des erreurs fatales (Principe #4 - Fail fast).
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     /// Une valeur de configuration est hors des bornes acceptables.
@@ -132,7 +132,7 @@ impl Default for RuntimeConfig {
 }
 
 impl RuntimeConfig {
-    /// Valide les bornes de la configuration runtime au démarrage (Principe #4 — Fail fast).
+    /// Valide les bornes de la configuration runtime au démarrage (Principe #4 - Fail fast).
     ///
     /// - `eventbus_capacity` : doit être dans [64, 65536].
     /// - `mailbox_capacity` : doit être dans [10, 10000].
@@ -212,7 +212,7 @@ impl Default for A2AConfig {
 }
 
 impl A2AConfig {
-    /// Valide les bornes de la configuration A2A au démarrage (Principe #4 — Fail fast).
+    /// Valide les bornes de la configuration A2A au démarrage (Principe #4 - Fail fast).
     ///
     /// - `chain_timeout_secs` : doit être dans [10, 3600].
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -273,7 +273,7 @@ impl Default for HitlConfig {
 }
 
 impl HitlConfig {
-    /// Valide les bornes de la configuration HITL au démarrage (Principe #4 — Fail fast).
+    /// Valide les bornes de la configuration HITL au démarrage (Principe #4 - Fail fast).
     ///
     /// - `timeout_hours` : si `Some`, doit être dans [1, 168].
     /// - `scan_interval_secs` : doit être dans [10, 3600].
@@ -306,7 +306,7 @@ pub struct ORIAConfig {
     /// ou un changement de contexte. Validé au démarrage : doit être compris
     /// entre 0 et 10 inclus.
     ///
-    /// - `0` : aucun replan autorisé — la tâche échoue au premier plan raté.
+    /// - `0` : aucun replan autorisé - la tâche échoue au premier plan raté.
     /// - `2` : valeur par défaut (comportement historique).
     /// - `10` : borne haute acceptée.
     #[serde(default = "default_max_replans")]
@@ -349,7 +349,7 @@ pub struct ORIAConfig {
     /// Longueur maximale du résumé généré lors du compactage, en caractères.
     ///
     /// Borne haute appliquée à la sortie LLM lors de la synthèse de l'historique.
-    /// `4000` correspond à ~1000 tokens — suffisant pour capturer l'état d'une
+    /// `4000` correspond à ~1000 tokens - suffisant pour capturer l'état d'une
     /// tâche complexe avec fichiers modifiés et prochaines étapes.
     /// Défaut : 4000. Bornes : [500, 32000].
     #[serde(default = "default_summary_max_chars")]
@@ -388,7 +388,7 @@ impl Default for ORIAConfig {
 }
 
 impl ORIAConfig {
-    /// Valide la configuration ORIA au démarrage (Principe #4 — Fail fast).
+    /// Valide la configuration ORIA au démarrage (Principe #4 - Fail fast).
     ///
     /// - `max_replans` : doit être entre 0 et 10 inclus.
     /// - `orchestrated_threshold` : doit être dans [0.0, 1.0].
@@ -514,7 +514,7 @@ impl Default for TriggersConfig {
 }
 
 impl TriggersConfig {
-    /// Valide les bornes de la configuration triggers au démarrage (Principe #4 — Fail fast).
+    /// Valide les bornes de la configuration triggers au démarrage (Principe #4 - Fail fast).
     ///
     /// - `queue_max_depth` : doit être dans [0, 10000].
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -535,12 +535,12 @@ fn default_trigger_queue_max_depth() -> usize {
 ///
 /// Contrôle le binding TCP, l'authentification par token statique,
 /// et le chemin du socket Unix local.
-/// Le socket Unix reste non authentifié — seul le propriétaire du fichier socket y accède.
+/// Le socket Unix reste non authentifié - seul le propriétaire du fichier socket y accède.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ApiConfig {
     /// Adresse IP sur laquelle binder le listener TCP.
     ///
-    /// Défaut : `"127.0.0.1"` — loopback uniquement, inaccessible depuis le réseau.
+    /// Défaut : `"127.0.0.1"` - loopback uniquement, inaccessible depuis le réseau.
     #[serde(default = "default_api_bind")]
     pub bind: String,
 
@@ -580,13 +580,13 @@ impl Default for ApiConfig {
 }
 
 impl ApiConfig {
-    /// Valide la configuration de l'API au démarrage (Principe #4 — Fail fast).
+    /// Valide la configuration de l'API au démarrage (Principe #4 - Fail fast).
     ///
     /// Vérifie que le répertoire parent du socket Unix existe.
     /// Un socket Unix dont le répertoire parent est absent ne peut pas être bindé.
     pub fn validate(&self) -> Result<(), ConfigError> {
         let parent = self.unix_socket.parent().unwrap_or_else(|| {
-            // Fallback: racine — toujours accessible
+            // Fallback: racine - toujours accessible
             std::path::Path::new("/")
         });
         if !parent.exists() {
@@ -622,7 +622,7 @@ fn default_unix_socket() -> PathBuf {
 ///
 /// Contrôle les limites appliquées par le runtime aux outputs des outils natifs
 /// avant leur transmission au LLM. Protège la fenêtre de contexte LLM contre
-/// les outputs volumineux (Principe #7 — Garde-fous non-négociables).
+/// les outputs volumineux (Principe #7 - Garde-fous non-négociables).
 #[derive(Debug, Clone, Deserialize)]
 pub struct ToolsConfig {
     /// Taille maximale d'un output d'outil transmis au LLM, en bytes UTF-8.
@@ -637,7 +637,7 @@ pub struct ToolsConfig {
     /// Pattern regex d'extraction de paths depuis l'output bash.
     ///
     /// Utilisé par `FilePathExtractor` pour parser la réponse du LLM léger.
-    /// Défaut : `None` — le pattern intégré (chemins Unix POSIX.1-2017 §3.265
+    /// Défaut : `None` - le pattern intégré (chemins Unix POSIX.1-2017 §3.265
     /// et Windows UNC RFC 8089) est appliqué.
     /// Configurable pour des environnements avec des conventions de nommage custom.
     ///
@@ -651,7 +651,7 @@ pub struct ToolsConfig {
 
     /// Outils natifs désactivés statiquement par l'opérateur dans `apollia.toml`.
     ///
-    /// Les noms listés ici sont retirés du dispatcher au boot — toute invocation
+    /// Les noms listés ici sont retirés du dispatcher au boot - toute invocation
     /// se solde par `UnknownTool`. Cette liste est complémentaire de la table
     /// `tools` de `governance.db` : un outil désactivé dans l'un ou l'autre est
     /// inactif. Défaut : `[]`.
@@ -680,7 +680,7 @@ impl Default for ToolsConfig {
 }
 
 impl ToolsConfig {
-    /// Valide les bornes de la configuration tools au démarrage (Principe #4 — Fail fast).
+    /// Valide les bornes de la configuration tools au démarrage (Principe #4 - Fail fast).
     ///
     /// - `max_output_chars` : doit être dans [10, 1 000 000].
     /// - `web_search.brave.max_results` : doit être dans [1, 20].
@@ -747,7 +747,7 @@ pub enum WebSearchBackend {
     Auto,
     /// Forcer DuckDuckGo (zero-config, toujours disponible).
     DuckDuckGo,
-    /// Forcer Brave Search — requiert une clé API valide.
+    /// Forcer Brave Search - requiert une clé API valide.
     Brave,
 }
 
@@ -943,7 +943,7 @@ impl Default for McpConfig {
 }
 
 impl McpConfig {
-    /// Valide les bornes de la configuration MCP au démarrage (Principe #4 — Fail fast).
+    /// Valide les bornes de la configuration MCP au démarrage (Principe #4 - Fail fast).
     ///
     /// - `approval_ttl_hours` : doit être dans [0, 8760].
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -972,7 +972,7 @@ fn default_approval_ttl_hours() -> u64 {
 /// - PrefixRuleEngine (couche 2) : règles préfixe persistées en SQLite.
 /// - InjectionDetector (couche 3) : détection des patterns shell dangereux.
 ///
-/// La SafeList est **vide par défaut** — l'opérateur définit explicitement
+/// La SafeList est **vide par défaut** - l'opérateur définit explicitement
 /// ce qui est sûr (principe de moindre privilège, OWASP ASVS V1.4, CWE-272).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct PermissionsConfig {
@@ -980,7 +980,7 @@ pub struct PermissionsConfig {
     ///
     /// Format : `"tool_name(arg_text)"` ou `"tool_name"`.
     /// Exemples : `"bash_executor(git status)"`, `"bash_executor(git log)"`.
-    /// **Vide par défaut** — aucune commande n'est auto-approuvée sans configuration explicite.
+    /// **Vide par défaut** - aucune commande n'est auto-approuvée sans configuration explicite.
     #[serde(default)]
     pub safe_commands: Vec<String>,
 
@@ -1045,7 +1045,7 @@ fn default_permissions_db_path() -> std::path::PathBuf {
 ///
 /// Toutes les catégories sont **activées** (`block_* = true`) mais les listes de patterns
 /// sont **vides par défaut** : aucun blocage n'est appliqué sans configuration explicite
-/// (principe opt-in — l'opérateur définit ce qu'il veut bloquer).
+/// (principe opt-in - l'opérateur définit ce qu'il veut bloquer).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct BashValidatorConfig {
     /// Active le blocage des commandes d'accès réseau sortant.
@@ -1079,7 +1079,7 @@ pub struct BashValidatorConfig {
     /// Patterns déclenchant la catégorie `NetworkEgress`.
     ///
     /// Chaque entrée est une sous-chaîne recherchée dans la commande (ex: `"curl"`, `"wget"`).
-    /// Vide par défaut — l'opérateur définit les patterns selon les outils installés.
+    /// Vide par défaut - l'opérateur définit les patterns selon les outils installés.
     #[serde(default)]
     pub network_egress_patterns: Vec<String>,
 
@@ -1129,7 +1129,7 @@ impl Default for BashValidatorConfig {
 }
 
 impl BashValidatorConfig {
-    /// Valide les bornes de la configuration bash validator au démarrage (Principe #4 — Fail fast).
+    /// Valide les bornes de la configuration bash validator au démarrage (Principe #4 - Fail fast).
     ///
     /// - `syntax_check_timeout_ms` : doit être dans [100, 10000].
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -1246,8 +1246,8 @@ impl Default for FilesystemRiskConfig {
 /// - tâches de raisonnement profond → backend précis mais coûteux
 /// - tâches d'extraction légère → backend rapide et économique
 ///
-/// La section `[llm.routing]` est **obligatoire** — son absence est une erreur fatale au démarrage
-/// (Principe #4 — Fail fast). Configurer les deux champs explicitement dans `apollia.toml`.
+/// La section `[llm.routing]` est **obligatoire** - son absence est une erreur fatale au démarrage
+/// (Principe #4 - Fail fast). Configurer les deux champs explicitement dans `apollia.toml`.
 ///
 /// Exemple `apollia.toml` :
 /// ```toml
@@ -1316,7 +1316,7 @@ fn default_runner_backend() -> String {
 
 /// Configuration du backend Google Vertex AI.
 ///
-/// Auth via Application Default Credentials (ADC) — fichier
+/// Auth via Application Default Credentials (ADC) - fichier
 /// `~/.config/gcloud/application_default_credentials.json` ou variable
 /// d'environnement `GOOGLE_APPLICATION_CREDENTIALS`.
 ///
@@ -1379,7 +1379,7 @@ impl Default for JournalConfig {
 }
 
 impl JournalConfig {
-    /// Valide les bornes de la configuration journal au démarrage (Principe #4 — Fail fast).
+    /// Valide les bornes de la configuration journal au démarrage (Principe #4 - Fail fast).
     ///
     /// - `max_sessions` : doit être dans [1, 10 000].
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -1432,7 +1432,7 @@ pub struct FilesystemConfig {
 }
 
 impl FilesystemConfig {
-    /// Valide la configuration filesystem au démarrage (Principe #4 — Fail fast).
+    /// Valide la configuration filesystem au démarrage (Principe #4 - Fail fast).
     pub fn validate(&self) -> Result<(), ConfigError> {
         self.journal.validate()
     }
@@ -1523,7 +1523,7 @@ mod tests {
         // GIVEN default config (no TOML)
         let cfg = HitlConfig::default();
 
-        // THEN timeout is None — tasks pause indefinitely
+        // THEN timeout is None - tasks pause indefinitely
         assert_eq!(cfg.timeout_hours, None);
         cfg.validate().expect("default must be valid");
     }
@@ -1553,7 +1553,7 @@ mod tests {
 
     #[test]
     fn test_custom_unix_socket_used() {
-        // GIVEN — /tmp always exists
+        // GIVEN - /tmp always exists
         let toml = r#"unix_socket = "/tmp/custom-apollia.sock""#;
         let cfg: ApiConfig = toml::from_str(toml).expect("valid toml");
 

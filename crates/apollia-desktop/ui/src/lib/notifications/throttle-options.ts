@@ -1,7 +1,7 @@
 /**
  * Preset values for the throttle Select used in both create/edit dialogs.
  *
- * `null` is the sentinel for "Custom..." — when selected, the dialog shows
+ * `null` is the sentinel for "Custom..." - when selected, the dialog shows
  * a NumberInput so the user can type any value up to MAX_MIN_INTERVAL_SECONDS.
  */
 export const THROTTLE_PRESETS: ReadonlyArray<{ value: number; key: string }> = [

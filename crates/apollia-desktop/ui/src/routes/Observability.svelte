@@ -18,8 +18,8 @@
   let delegationLoaded = $state(false);
   let planCacheLoaded = $state(false);
 
-  // Operator: 3 tabs — Timeline · Coûts · Audit (lecture non-technique).
-  // Builder: 5 tabs — ajoute Delegation et Plan-Cache (inspection exhaustive).
+  // Operator: 3 tabs - Timeline · Coûts · Audit (lecture non-technique).
+  // Builder: 5 tabs - ajoute Delegation et Plan-Cache (inspection exhaustive).
   let tabItems = $derived.by(() => {
     const base = [
       { key: "timeline", label: $t("observability.tab_timeline") },

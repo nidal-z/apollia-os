@@ -1,4 +1,4 @@
-# Hints de performance par outil natif — US-SP42-038.
+# Hints de performance par outil natif - US-SP42-038.
 #
 # `expected_duration_ms` : p50 estimé ; sert à afficher un hint informatif
 #   avant exécution ("Durée attendue: Xms").

@@ -1,8 +1,8 @@
 # Apollia Python SDK
 
-> **Apollia AgentKit v0.5.0** — Python toolkit for building agents that run on [Apollia OS](https://github.com/nidal-z/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
+> **Apollia AgentKit v0.5.0** - Python toolkit for building agents that run on [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
 
-The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` — a typed runtime context exposing **14 backend services** (LLM, memory, tools, A2A, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
+The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **14 backend services** (LLM, memory, tools, A2A, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
 
 **Design philosophy** :
 - Signature **is** the schema (type hints → JSON Schema → runtime validation)
@@ -24,7 +24,7 @@ python -c "import apollia; print(apollia.__version__)"
 # 0.5.0
 ```
 
-## Quickstart — four canonical patterns
+## Quickstart - four canonical patterns
 
 ### 1. Conversational agent
 
@@ -152,9 +152,9 @@ Every handler receives `ctx: Ctx`. The 14 services:
 | `ctx.memory` | `MemoryInterface` | episodic / semantic / procedural + `export` / `import_data` |
 | `ctx.tools` | `ToolProxy` | `call(name, input)`, `describe(name)`, `list_tools()` |
 | `ctx.a2a` | `A2AInterface` | `invoke(skill_id)`, `discover`, `list_skills`, `skill_as_tool` |
-| `ctx.datasources` | `DatasourcesInterface` | `get(name)` — runtime YAML access |
-| `ctx.templates` | `TemplatesInterface` | `render(name, **vars)` — Jinja2 |
-| `ctx.secrets` | `SecretsInterface` | `get(key)` — read-only credentials, gated by manifest |
+| `ctx.datasources` | `DatasourcesInterface` | `get(name)` - runtime YAML access |
+| `ctx.templates` | `TemplatesInterface` | `render(name, **vars)` - Jinja2 |
+| `ctx.secrets` | `SecretsInterface` | `get(key)` - read-only credentials, gated by manifest |
 | `ctx.events` | `EventsInterface` | `emit_token`, `emit_thought`, `emit_retry`, `emit_action_parse_error` |
 | `ctx.logger` | `logging.Logger` | piped to Rust `tracing` |
 | `ctx.profile` | `ProfileInterface` | canonical user profile (read/write gated) |
@@ -163,7 +163,7 @@ Every handler receives `ctx: Ctx`. The 14 services:
 | `ctx.notify` | `NotifyInterface` | desktop / webhook notifications |
 | `ctx.budget` | `BudgetView` | `steps_remaining`, `tool_calls_remaining`, `elapsed_seconds`, `wall_clock_remaining` |
 
-All typed via `typing.Protocol` — IDE autocomplete works everywhere, `mypy --strict` passes.
+All typed via `typing.Protocol` - IDE autocomplete works everywhere, `mypy --strict` passes.
 
 ## Error model
 
@@ -179,7 +179,7 @@ raise DomainError("FILE_TOO_LARGE", "File exceeds 100MB", details={"size_mb": 15
 raise NeedHumanInput("Approve processing this 100MB file?", context={"path": "/tmp/big.pdf"})
 ```
 
-You never construct `AIPResult` yourself — it's internal to the SDK.
+You never construct `AIPResult` yourself - it's internal to the SDK.
 
 ## Manifest declarations
 
@@ -211,7 +211,7 @@ class MyAgent:
 
 Skills exposed via A2A are seen by LLM callers (Chat Libre, director ReAct loops, other workers) as **tools**. The richer the JSON Schema description, the higher the chance a mid-market LLM (Mistral Small, Haiku, Llama 70B) builds a valid payload on the first try.
 
-`typing.Annotated[T, "description"]` is the canonical way to document a parameter. The SDK introspects the second argument and propagates it into `input_schema.properties[param].description` — visible to every LLM that calls the skill as a tool.
+`typing.Annotated[T, "description"]` is the canonical way to document a parameter. The SDK introspects the second argument and propagates it into `input_schema.properties[param].description` - visible to every LLM that calls the skill as a tool.
 
 ```python
 from typing import Annotated
@@ -231,17 +231,17 @@ class ChartWorker:
             str,
             "'vertical' (bars rise from baseline) | 'horizontal' (bars extend right).",
         ] = "vertical",
-        dpi: int = 150,  # trivial numeric — no Annotated, keeps signature readable
+        dpi: int = 150,  # trivial numeric - no Annotated, keeps signature readable
         ctx: Ctx = None,
     ) -> dict:
         ...
 ```
 
-Skip `Annotated` for trivial numerics/booleans (`dpi: int = 150`, `overwrite: bool = False`) — keep the signature readable.
+Skip `Annotated` for trivial numerics/booleans (`dpi: int = 150`, `overwrite: bool = False`) - keep the signature readable.
 
 ## Providing examples for the LLM
 
-`@skill(examples=[{...}])` attaches one or more **payload templates** to the skill. The SDK propagates them to the tool descriptor LLM-facing — the LLM sees not only the JSON Schema but also a concrete, valid call shape.
+`@skill(examples=[{...}])` attaches one or more **payload templates** to the skill. The SDK propagates them to the tool descriptor LLM-facing - the LLM sees not only the JSON Schema but also a concrete, valid call shape.
 
 ```python
 @skill(
@@ -262,20 +262,20 @@ async def read_text(
 ```
 
 Guidelines:
-- At least 1 realistic example per skill — must cover every `required` field.
+- At least 1 realistic example per skill - must cover every `required` field.
 - Demonstrate the exact structure of complex parameters (`list[TypedDict]`, nested dicts).
-- The SDK does **not** validate examples against the inferred schema — author responsibility to keep them in sync.
+- The SDK does **not** validate examples against the inferred schema - author responsibility to keep them in sync.
 
 `apollia inspect <agent.py> --json` shows `manifest.skills[].examples` so you can confirm propagation.
 
 ## Structured payloads with TypedDict
 
-When a parameter is a complex structure (`list[dict[str, Any]]`, nested config), the inferred JSON Schema is just `object` / `array of object` — opaque, no `properties`, no `required`. LLMs guess the shape and frequently get it wrong.
+When a parameter is a complex structure (`list[dict[str, Any]]`, nested config), the inferred JSON Schema is just `object` / `array of object` - opaque, no `properties`, no `required`. LLMs guess the shape and frequently get it wrong.
 
 Replace `list[dict[str, Any]]` with a `TypedDict` declared in a sibling `schemas.py`. The SDK introspects the TypedDict and produces a **structurally strict** sub-schema (`properties` + `required` + sub-types).
 
 ```python
-# schemas.py — DO NOT add `from __future__ import annotations` !
+# schemas.py - DO NOT add `from __future__ import annotations` !
 from typing import Literal, NotRequired, TypedDict
 
 
@@ -299,11 +299,11 @@ async def bar(self, series: list[BarSeries], ctx: Ctx = None) -> dict:
     ...
 ```
 
-**Why no `from __future__ import annotations` in `schemas.py`** — PEP 563 turns all annotations into strings at class creation, which breaks `TypedDict.__required_keys__` (every field becomes "required"). The SDK uses `__required_keys__` to compute the `required: [...]` array of the JSON Schema, so under PEP 563 the schema lies about which fields are mandatory. Keep `schemas.py` free of `from __future__ import annotations`; the worker `.py` can still use it freely (only the TypedDict definitions are sensitive).
+**Why no `from __future__ import annotations` in `schemas.py`** - PEP 563 turns all annotations into strings at class creation, which breaks `TypedDict.__required_keys__` (every field becomes "required"). The SDK uses `__required_keys__` to compute the `required: [...]` array of the JSON Schema, so under PEP 563 the schema lies about which fields are mandatory. Keep `schemas.py` free of `from __future__ import annotations`; the worker `.py` can still use it freely (only the TypedDict definitions are sensitive).
 
 Single source of truth: the TypedDict documents the contract for the LLM (via the schema), for callers (via type hints), and for tests / eval cases. No drift between schema, code, and docs.
 
-## Testing — isomorphic mocks
+## Testing - isomorphic mocks
 
 ```python
 import pytest
@@ -335,7 +335,7 @@ async def test_read_text_missing_file():
 
 `mock(AgentClass)` returns `(instance, ctx)` where:
 - `instance.invoke_skill(skill_id, **kwargs)` bypasses runtime dispatch
-- `ctx` is a `MockContext` implementing all 14 surfaces — pre-configure via `ctx.llm.responses = [...]`, `ctx.datasources.values = {...}`, `ctx.secrets.values = {...}`, etc.
+- `ctx` is a `MockContext` implementing all 14 surfaces - pre-configure via `ctx.llm.responses = [...]`, `ctx.datasources.values = {...}`, `ctx.secrets.values = {...}`, etc.
 
 ## CLI
 
@@ -350,9 +350,9 @@ python -m apollia new my-agent --type worker
 
 ## Architecture references
 
-- **ADRs** in `docs/adr/` — every architectural decision behind the rebuild
-- **Skills `apollia-agent-forge` + `apollia-worker-forge`** in `.claude/skills/` — Claude Code skills for generating agents
-- **Existing agents** in `agents/` — 17 production agents migrated to AgentKit
+- **ADRs** in `docs/adr/` - every architectural decision behind the rebuild
+- **Skills `apollia-agent-forge` + `apollia-worker-forge`** in `.claude/skills/` - Claude Code skills for generating agents
+- **Existing agents** in `agents/` - 17 production agents migrated to AgentKit
 
 ## Project structure
 
@@ -378,4 +378,4 @@ sdk/
 
 ## License
 
-Apache-2.0 OR MIT — see the root repository.
+Apache-2.0 OR MIT - see the root repository.

@@ -81,7 +81,7 @@ fn provision_onboarding_agent(
     // Check if already installed at the current version.
     if let Some(existing) = repo.get(agent_name)? {
         if existing.version == ONBOARDING_AGENT_VERSION {
-            tracing::debug!(name = %agent_name, "bundled agent already at current version — skipping");
+            tracing::debug!(name = %agent_name, "bundled agent already at current version - skipping");
             return Ok(());
         }
         tracing::info!(
@@ -131,7 +131,7 @@ fn onboarding_manifest() -> AgentManifest {
     AgentManifest {
         name: "onboarding-agent".to_string(),
         version: ONBOARDING_AGENT_VERSION.to_string(),
-        description: "Agent d'onboarding conversationnel — fait connaissance \
+        description: "Agent d'onboarding conversationnel - fait connaissance \
                       avec l'utilisateur de manière naturelle."
             .to_string(),
         tools_required: Vec::new(),
@@ -230,7 +230,7 @@ fn apollia_guide_manifest() -> AgentManifest {
     AgentManifest {
         name: "apollia-guide".to_string(),
         version: APOLLIA_GUIDE_VERSION.to_string(),
-        description: "Conversational coach for Apollia OS — knows product \
+        description: "Conversational coach for Apollia OS - knows product \
                       capabilities and suggests actionable deep-links."
             .to_string(),
         tools_required: Vec::new(),

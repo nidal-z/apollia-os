@@ -96,7 +96,7 @@ impl AIPBridge {
                 .map_err(|e| AIPBridgeError::Internal(format!("hasattr failed: {e}")))?
             {
                 return Err(AIPBridgeError::Internal(
-                    "agent is missing __apollia_dispatch__ — apply the @agent decorator"
+                    "agent is missing __apollia_dispatch__ - apply the @agent decorator"
                         .to_string(),
                 ));
             }

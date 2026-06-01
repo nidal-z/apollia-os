@@ -1,6 +1,6 @@
 //! Unified tool execution interface for native tools.
 //!
-//! Provides [`ToolExecutor`] — a JSON-in / JSON-out async trait — and [`ToolDispatcher`],
+//! Provides [`ToolExecutor`] - a JSON-in / JSON-out async trait - and [`ToolDispatcher`],
 //! which routes calls to the correct executor by tool name.
 //!
 //! Each native tool struct implements [`ToolExecutor`] by deserialising the input
@@ -49,7 +49,7 @@ pub enum ToolExecutionError {
     },
 
     /// The tool execution failed with a domain-specific error.
-    #[error("execution failed: {code} — {message}")]
+    #[error("execution failed: {code} - {message}")]
     ExecutionFailed {
         /// Stable snake_case error code (e.g. `"not_found"`, `"sandbox_violation"`).
         code: String,
@@ -348,7 +348,7 @@ impl ToolDispatcher {
             match &decision {
                 PermissionDecision::AutoAllowedSafeList
                 | PermissionDecision::AutoAllowedPrefixRule { .. } => {
-                    // Invocation approuvée — continuer normalement.
+                    // Invocation approuvée - continuer normalement.
                     tracing::debug!(tool = %tool_name, "permission: auto-allowed");
                 }
                 PermissionDecision::AutoDeniedInjection { pattern } => {
@@ -359,7 +359,7 @@ impl ToolDispatcher {
                     );
                     return Err(ToolExecutionError::PermissionDenied {
                         reason: format!(
-                            "injection pattern detected: '{}' — invocation blocked",
+                            "injection pattern detected: '{}' - invocation blocked",
                             pattern
                         ),
                     });
@@ -387,12 +387,12 @@ impl ToolDispatcher {
                         tracing::info!(
                             tool = %tool_name,
                             request_id = %request_id,
-                            "permission: NeedsApproval — PermissionRequired event emitted"
+                            "permission: NeedsApproval - PermissionRequired event emitted"
                         );
                     } else {
                         tracing::info!(
                             tool = %tool_name,
-                            "permission: NeedsApproval — no event bus configured"
+                            "permission: NeedsApproval - no event bus configured"
                         );
                     }
                     return Err(ToolExecutionError::PermissionDenied {
@@ -434,12 +434,12 @@ impl ToolDispatcher {
 
     /// Execute a batch of tool calls, parallelising when all tools are read-only.
     ///
-    /// **Parallel path** — when every call in `calls` resolves to a registered
+    /// **Parallel path** - when every call in `calls` resolves to a registered
     /// read-only executor (`is_read_only() == true`): all calls are driven
     /// concurrently via `futures::stream::StreamExt::buffered` with a cap of
     /// [`MAX_CONCURRENT_READ_TOOLS`] (10) simultaneous executions.
     ///
-    /// **Serial path** — when at least one call targets an unknown tool
+    /// **Serial path** - when at least one call targets an unknown tool
     /// (`get_executor()` returns `None`) or a mutating executor: every call is
     /// executed in the input order to preserve effect ordering.
     ///
@@ -489,7 +489,7 @@ impl ToolDispatcher {
 }
 
 // ---------------------------------------------------------------------------
-// ToolExecutor implementations — file tools
+// ToolExecutor implementations - file tools
 // ---------------------------------------------------------------------------
 
 #[async_trait::async_trait]
@@ -700,7 +700,7 @@ impl ToolExecutor for FileGrep {
 }
 
 // ---------------------------------------------------------------------------
-// ToolExecutor implementations — notebook tools
+// ToolExecutor implementations - notebook tools
 // ---------------------------------------------------------------------------
 
 #[async_trait::async_trait]
@@ -773,7 +773,7 @@ impl ToolExecutor for NotebookEdit {
 }
 
 // ---------------------------------------------------------------------------
-// ToolExecutor implementations — network tool (feature = "http")
+// ToolExecutor implementations - network tool (feature = "http")
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "http")]
@@ -813,7 +813,7 @@ impl ToolExecutor for HttpFetch {
 }
 
 // ---------------------------------------------------------------------------
-// ToolExecutor implementations — web search (feature = "web-search")
+// ToolExecutor implementations - web search (feature = "web-search")
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "web-search")]
@@ -854,7 +854,7 @@ impl ToolExecutor for WebSearch {
 }
 
 // ---------------------------------------------------------------------------
-// ToolExecutor implementations — web_read (feature = "web-read")
+// ToolExecutor implementations - web_read (feature = "web-read")
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "web-read")]
@@ -900,7 +900,7 @@ impl ToolExecutor for WebRead {
 }
 
 // ---------------------------------------------------------------------------
-// ToolExecutor implementations — memory tool (feature = "memory-search")
+// ToolExecutor implementations - memory tool (feature = "memory-search")
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "memory-search")]
@@ -940,7 +940,7 @@ impl ToolExecutor for MemorySearchTool {
 }
 
 // ---------------------------------------------------------------------------
-// ToolExecutor implementations — process tools (manual JSON I/O)
+// ToolExecutor implementations - process tools (manual JSON I/O)
 // ---------------------------------------------------------------------------
 
 #[async_trait::async_trait]
@@ -1257,14 +1257,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_batch_read_only_is_parallel() {
-        // GIVEN — 5 read-only executors each sleeping 50 ms
+        // GIVEN - 5 read-only executors each sleeping 50 ms
         let (dispatcher, calls) = make_read_only_dispatcher(5, 50);
         let start = std::time::Instant::now();
 
         // WHEN
         let results = dispatcher.execute_batch(calls).await;
 
-        // THEN — total < 2× 50 ms (confirms concurrency)
+        // THEN - total < 2× 50 ms (confirms concurrency)
         let elapsed = start.elapsed();
         assert_eq!(results.len(), 5);
         for r in &results {
@@ -1278,13 +1278,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_batch_results_ordered() {
-        // GIVEN — 4 read-only executors; each echoes its index
+        // GIVEN - 4 read-only executors; each echoes its index
         let (dispatcher, calls) = make_read_only_dispatcher(4, 0);
 
         // WHEN
         let results = dispatcher.execute_batch(calls).await;
 
-        // THEN — output order matches input order
+        // THEN - output order matches input order
         assert_eq!(results.len(), 4);
         for (i, result) in results.iter().enumerate() {
             let val = result.as_ref().expect("should succeed");
@@ -1294,7 +1294,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_batch_mixed_is_serial() {
-        // GIVEN — [read_only, write, read_only] — write tool makes the batch serial
+        // GIVEN - [read_only, write, read_only] - write tool makes the batch serial
         let executors: Vec<Box<dyn ToolExecutor>> = vec![
             Box::new(TimedEchoExecutor {
                 tool_name: "ro_a",
@@ -1331,7 +1331,7 @@ mod tests {
         // WHEN
         let results = dispatcher.execute_batch(calls).await;
 
-        // THEN — all succeed, order preserved
+        // THEN - all succeed, order preserved
         assert_eq!(results.len(), 3);
         for (i, r) in results.iter().enumerate() {
             let val = r.as_ref().expect("should succeed");
@@ -1341,7 +1341,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_batch_unknown_tool_forces_serial_and_errors() {
-        // GIVEN — first call targets an unknown tool; second is registered and read-only
+        // GIVEN - first call targets an unknown tool; second is registered and read-only
         let dispatcher = ToolDispatcher::new(vec![Box::new(EchoExecutor { tool_name: "known" })]);
         let calls = vec![
             ToolBatchCall {
@@ -1354,10 +1354,10 @@ mod tests {
             },
         ];
 
-        // WHEN — unknown tool forces serial path; each call is dispatched independently
+        // WHEN - unknown tool forces serial path; each call is dispatched independently
         let results = dispatcher.execute_batch(calls).await;
 
-        // THEN — first result is UnknownTool error, second succeeds
+        // THEN - first result is UnknownTool error, second succeeds
         assert_eq!(results.len(), 2);
         assert!(matches!(
             results[0],
@@ -1368,14 +1368,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_batch_semaphore_limits_concurrency() {
-        // GIVEN — 15 read-only executors each sleeping 10 ms
+        // GIVEN - 15 read-only executors each sleeping 10 ms
         // With MAX_CONCURRENT_READ_TOOLS=10 the total should be >= 2 batches
         let (dispatcher, calls) = make_read_only_dispatcher(15, 10);
 
         // WHEN
         let results = dispatcher.execute_batch(calls).await;
 
-        // THEN — all 15 results returned
+        // THEN - all 15 results returned
         assert_eq!(results.len(), 15);
         for r in &results {
             assert!(r.is_ok(), "unexpected error: {r:?}");
@@ -1394,13 +1394,13 @@ mod tests {
 
     #[test]
     fn test_tool_descriptor_default_is_read_only_false() {
-        // GIVEN — default ToolDescriptor fields (via executor default)
+        // GIVEN - default ToolDescriptor fields (via executor default)
         let executor = TimedEchoExecutor {
             tool_name: "write_tool",
             read_only: false,
             delay_ms: 0,
         };
-        // THEN — tools that don't override is_read_only return false
+        // THEN - tools that don't override is_read_only return false
         assert!(!executor.is_read_only());
     }
 
@@ -1460,7 +1460,7 @@ mod tests {
 
     #[tokio::test]
     async fn no_tool_filter_allows_all() {
-        // GIVEN: no filter — all tools allowed
+        // GIVEN: no filter - all tools allowed
         let dispatcher = ToolDispatcher::new(vec![Box::new(EchoExecutor {
             tool_name: "bash_executor",
         })]);
@@ -1476,7 +1476,7 @@ mod tests {
 
     #[tokio::test]
     async fn disallowed_wins_over_allowed_conflict() {
-        // GIVEN: "file_write" is both allowed and disallowed — disallowed wins
+        // GIVEN: "file_write" is both allowed and disallowed - disallowed wins
         let filter = SessionToolFilter::new(
             Some(vec!["file_write".to_string()]),
             vec!["file_write".to_string()],
@@ -1489,7 +1489,7 @@ mod tests {
         // WHEN: dispatch to the conflicting tool
         let result = dispatcher.dispatch("file_write", json!({})).await;
 
-        // THEN: ToolNotAllowed — disallowed takes priority
+        // THEN: ToolNotAllowed - disallowed takes priority
         assert!(matches!(
             result,
             Err(ToolExecutionError::ToolNotAllowed { .. })

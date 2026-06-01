@@ -6,7 +6,7 @@
  * automatiquement au backend, sans demander de confirmation explicite à
  * l'utilisateur pour chaque package qui déclare des dépendances pip.
  *
- * Par défaut : `false` (sécurité par défaut — toute install qui touche
+ * Par défaut : `false` (sécurité par défaut - toute install qui touche
  * pip doit être explicitement consentie).
  *
  * Persisté en localStorage (pattern aligné sur `mode.ts`). ADR-029
@@ -52,7 +52,7 @@ agentInstallPrefs.subscribe((value) => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
   } catch {
-    // localStorage indisponible — ignorer silencieusement.
+    // localStorage indisponible - ignorer silencieusement.
   }
 });
 

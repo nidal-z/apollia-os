@@ -5,7 +5,7 @@
  * entry here so the `?` overlay can list them. Registration is
  * reactive: entries added to the store appear immediately.
  *
- * The registry does NOT wire the listener itself — components keep
+ * The registry does NOT wire the listener itself - components keep
  * ownership of their own `window.addEventListener("keydown", …)`
  * and call `registerShortcuts(...)` in their `onMount` hook.
  */
@@ -16,9 +16,9 @@ export interface Shortcut {
   id: string;
   /** Human-readable keys, e.g. `["Cmd", "["]`. Rendered as `<kbd>` chips. */
   keys: string[];
-  /** Short description — translation key or literal label. */
+  /** Short description - translation key or literal label. */
   descriptionKey: string;
-  /** Logical grouping — `navigation`, `editor`, `panels`, … */
+  /** Logical grouping - `navigation`, `editor`, `panels`, … */
   group: string;
 }
 

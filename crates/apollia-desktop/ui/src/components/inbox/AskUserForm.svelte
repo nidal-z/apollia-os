@@ -5,7 +5,7 @@
    * Renders one input widget per question (open / single_choice /
    * multi_choice), packs the answers into the `AskUserAnswer[]` shape the
    * backend expects, and falls back to `skipped: true` when a field is left
-   * empty (validation soft — no blocking).
+   * empty (validation soft - no blocking).
    */
   import { t } from "svelte-i18n";
   import { Input } from "$lib/components/ui/input";
@@ -21,7 +21,7 @@
     questions: AskUserQuestion[];
     context?: string;
     submitting?: boolean;
-    /** Chat session that originated the `ask_user` call — enables the
+    /** Chat session that originated the `ask_user` call - enables the
      *  "Ouvrir la conversation" affordance when set. */
     sessionId?: string;
     onsubmit: (answers: AskUserAnswer[]) => void;
@@ -57,7 +57,7 @@
     Object.fromEntries(questions.map((q) => [q.id, {} as Record<string, boolean>])),
   );
 
-  // Keep maps in sync if `questions` changes after mount (rare — same item
+  // Keep maps in sync if `questions` changes after mount (rare - same item
   // shouldn't mutate its question list, but defensive).
   $effect(() => {
     for (const q of questions) {

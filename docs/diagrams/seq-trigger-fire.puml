@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Trigger Fire (Cron / FileWatch / Webhook) — Apollia OS
+title Séquence - Trigger Fire (Cron / FileWatch / Webhook) - Apollia OS
 
 participant "Source\n(Cron / Interval\nFileWatch / Webhook)" as source #4a3728/f5e6d3
 participant "TriggerEngine\n(acteur Tokio)" as engine #1a1a2e/e0e0ff
@@ -18,14 +18,14 @@ participant "EventBus" as bus #2a3a4a/cce5ff
 
 == Déclenchement ==
 
-alt Tier 1 — CronTrigger / IntervalTrigger
+alt Tier 1 - CronTrigger / IntervalTrigger
   source -> source : calcule next_occurrence\n(cron::Schedule::upcoming)
   source -> engine : TriggerEvent { trigger_id, payload }
-else Tier 2 — FileWatchTrigger
+else Tier 2 - FileWatchTrigger
   source -> source : notify::Watcher détecte\nCreate / Modify / Delete
   source -> source : map_notify_event()\nfiltrage par FileEventKind
   source -> engine : TriggerEvent { trigger_id, payload\n  filename, size_bytes }
-else Tier 3 — Webhook POST /webhooks/:id
+else Tier 3 - Webhook POST /webhooks/:id
   [-> engine : POST /webhooks/:trigger_id\n  X-Apollia-Signature: sha256=<hmac>
   engine -> engine : verify_hmac(secret, body)\n  constant_time_eq
   note right

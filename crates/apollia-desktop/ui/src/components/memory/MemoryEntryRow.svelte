@@ -20,7 +20,7 @@
   // ── Catégorisation visuelle des clés (préfixes système) ─────────────────────
   // Le but est de différencier visuellement les clés "système" (`seen:`,
   // `entity:*`, `bootstrap.*`, `procedure:*`) des clés métier libres, sans
-  // ajouter de couleur — juste une icône + un léger styling de mono.
+  // ajouter de couleur - juste une icône + un léger styling de mono.
   type KeyKind = "seen" | "entity" | "bootstrap" | "procedure" | "user" | "default";
   const keyKind: KeyKind = $derived.by(() => {
     if (entry.key.startsWith("seen:")) return "seen";
@@ -31,7 +31,7 @@
     return "default";
   });
 
-  // Icone par TYPE d'entrée — rendue explicitement via if/else dans le markup
+  // Icone par TYPE d'entrée - rendue explicitement via if/else dans le markup
   // (volontairement uniforme en couleur muted-foreground pour éviter la collision
   // tonale avec les chips de catégorie utilisateur).
 
@@ -118,7 +118,7 @@
     : 'bg-transparent hover:bg-muted/40'}"
   data-testid="memory-entry-row-{entry.id}"
 >
-  <!-- Icone type — uniforme en gris muted, pas de couleur sémantique
+  <!-- Icone type - uniforme en gris muted, pas de couleur sémantique
        pour éviter la collision tonale avec les chips de catégorie -->
   <div
     class="w-[28px] h-[28px] rounded-md shrink-0 mt-0.5 inline-flex items-center justify-center {selected

@@ -73,7 +73,7 @@
     }
   }
 
-  // Spring scale entrance — swaps to plain fade when the user requests
+  // Spring scale entrance - swaps to plain fade when the user requests
   // reduced motion (§ prefers-reduced-motion).
   function dialogTransition(node: Element): TransitionConfig {
     if (prefersReducedMotion()) {

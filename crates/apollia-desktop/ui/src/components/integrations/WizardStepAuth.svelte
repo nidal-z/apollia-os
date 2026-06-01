@@ -72,7 +72,7 @@
     /** True when this connector uses a pre-registered OAuth app (override
      *  in effect). The scope selector is hidden in this case because scopes
      *  are configured at the provider's developer portal, not negotiated
-     *  per sign-in — e.g. Figma rejects the PRM-published `mcp:connect`
+     *  per sign-in - e.g. Figma rejects the PRM-published `mcp:connect`
      *  scope when sent to a third-party OAuth app's authorize endpoint. */
     oauthUsingPreRegisteredApp?: boolean;
     /** Name of the env var the connector expects, surfaced verbatim in
@@ -82,7 +82,7 @@
     oauthSavingClientId?: boolean;
     /** Error message from the saveClientId IPC. */
     oauthSaveClientIdError?: string | null;
-    /** Click handler for the "Save" button — receives the trimmed value. */
+    /** Click handler for the "Save" button - receives the trimmed value. */
     onOAuthSaveClientId?: (value: string) => void;
   }
 
@@ -138,7 +138,7 @@
   const authHelpKey = $derived(enrichment?.auth_help_i18n_key ?? null);
   const authHelpInline = $derived(enrichment?.auth_help_text ?? null);
   // The legacy fields (catalog headers / package env) should only render when
-  // the probe outcome calls for them — never alongside the OAuth flow, where
+  // the probe outcome calls for them - never alongside the OAuth flow, where
   // they'd compete with the "Sign in" button and confuse the operator.
   const showLegacyFields = $derived(
     hasFields && (probeMode === "static" || probeMode === "idle" || probeMode === "probe_error"),
@@ -162,10 +162,10 @@
 
 <div class="space-y-4" data-testid="wizard-step-auth">
   {#if localLoopback}
-    <!-- Local-loopback MCPs (Figma Dev Mode, future similar) — the server is
+    <!-- Local-loopback MCPs (Figma Dev Mode, future similar) - the server is
          provided by an app installed on the user's machine, not a cloud
          endpoint. Surface this up front so "no auth required" doesn't read
-         as "ready to connect" — the user still has work to do in the host
+         as "ready to connect" - the user still has work to do in the host
          app. -->
     <div
       class="flex gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-3"
@@ -191,10 +191,10 @@
   {#if showHelpTextCard}
     <!-- Connector-specific instructions (sourced from the catalog enrichment).
          Hoisted out of the form branch so it shows even when there are no
-         fields to fill — that was the Figma blank-step bug. -->
+         fields to fill - that was the Figma blank-step bug. -->
     <div class="rounded-md border border-border bg-muted/40 px-4 py-3">
       {#if authHelpKey}
-        <!-- i18n-resolved guidance (preferred path — properly localised).
+        <!-- i18n-resolved guidance (preferred path - properly localised).
              Split on \n\n into paragraphs and detect numbered steps so the
              template stays generic across all future connectors without
              requiring per-connector markup. -->
@@ -312,7 +312,7 @@
       {/if}
 
       {#if oauthUsingPreRegisteredApp}
-        <!-- Pre-registered OAuth app — scopes are baked at the provider's
+        <!-- Pre-registered OAuth app - scopes are baked at the provider's
              dev portal, not chooseable per sign-in. Surface that with a
              short note so the user doesn't expect the selector. -->
         <p class="text-[11.5px] text-muted-foreground leading-[1.5]" data-testid="auth-oauth-preregistered-scope-note">

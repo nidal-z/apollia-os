@@ -11,7 +11,7 @@ Le raccourci de dictée peut entrer en conflit avec un raccourci système (Spotl
 **Solution :**
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
 2. Repérez la ligne **Raccourci global** : la combinaison actuelle s'affiche sous forme de touches stylisées.
-3. **Cliquez sur la combinaison** : un dialog plein écran de capture s'ouvre. Appuyez sur la nouvelle combinaison souhaitée — elle est capturée en temps réel et enregistrée à la validation.
+3. **Cliquez sur la combinaison** : un dialog plein écran de capture s'ouvre. Appuyez sur la nouvelle combinaison souhaitée - elle est capturée en temps réel et enregistrée à la validation.
    `[SCREENSHOT: dialog plein écran de capture de raccourci, message "Appuyez sur la combinaison souhaitée", touches détectées en gros caractères]`
 4. Quittez le dialog avec **Échap** pour annuler.
 5. Testez à nouveau le raccourci : **un overlay d'enregistrement avec visualizer audio** doit s'afficher dès l'appui.
@@ -27,7 +27,7 @@ Apollia transcrit en local avec un modèle Whisper. Sans modèle chargé, l'appu
 
 ### 3. Votre microphone système est muet ou mal sélectionné
 
-Si le micro est désactivé au niveau du système d'exploitation, Apollia n'entend rien — sans message d'erreur.
+Si le micro est désactivé au niveau du système d'exploitation, Apollia n'entend rien - sans message d'erreur.
 
 **Solution :**
 1. Ouvrez les réglages son de votre système et vérifiez que le bon microphone est sélectionné comme entrée par défaut.
@@ -58,4 +58,4 @@ Le modèle Whisper transcrit selon la langue configurée. Une langue erronée pr
 2. Téléchargez un modèle Whisper plus précis (**Medium** ou **Large**) depuis **Paramètres → Hub de modèles** si vos dictées sont systématiquement floues.
 3. Relancez Apollia après chaque changement de modèle ou de raccourci pour que le moteur recharge sa configuration.
 
-> **Référence technique :** [Briques-STT](https://github.com/nidal-z/apollia-os/wiki/Briques-STT) — comprendre comment Apollia capte, traite et stocke vos dictées en local.
+> **Référence technique :** [Briques-STT](https://github.com/Apollia-OS/apollia-os/wiki/Briques-STT) - comprendre comment Apollia capte, traite et stocke vos dictées en local.

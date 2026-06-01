@@ -5,7 +5,7 @@ import { classifySessionError } from "./runtimeHealth";
  * Unit tests for the session-error classifier.
  *
  * The classifier powers the SessionNotFound vs session-corrupted routing
- * in `ChatConversation.svelte` — a regression here silently downgrades
+ * in `ChatConversation.svelte` - a regression here silently downgrades
  * the banner to the generic "other" fallback.
  */
 

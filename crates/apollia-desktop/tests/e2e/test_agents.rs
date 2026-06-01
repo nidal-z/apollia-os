@@ -1,4 +1,4 @@
-//! E2E test — bundled agent lifecycle: list → start → verify active.
+//! E2E test - bundled agent lifecycle: list → start → verify active.
 
 use std::time::Duration;
 
@@ -19,7 +19,7 @@ const AGENT_POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// If the agent is already active when the test runs (e.g. desktop app
 /// auto-started it), the test exits early after confirming the state.
 #[tokio::test]
-#[ignore = "E2E test — requires running runtime and desktop app"]
+#[ignore = "E2E test - requires running runtime and desktop app"]
 async fn test_agents_list_start_bundled_verify_active() {
     super::with_retry(|| async {
         let client = super::http_client()?;
@@ -61,7 +61,7 @@ async fn test_agents_list_start_bundled_verify_active() {
         let start_status = start_resp.status();
 
         let agent_id: String = if start_status.is_success() {
-            // Newly started — extract the assigned agent_id.
+            // Newly started - extract the assigned agent_id.
             let started: serde_json::Value = start_resp.json().await?;
             started
                 .get("agent_id")
@@ -69,7 +69,7 @@ async fn test_agents_list_start_bundled_verify_active() {
                 .ok_or("start agent response missing 'agent_id' field")?
                 .to_string()
         } else if start_status.as_u16() == 409 {
-            // Already registered in the registry — look it up by name.
+            // Already registered in the registry - look it up by name.
             let list2: serde_json::Value = client
                 .get(super::api_url("/api/v1/agents"))
                 .send()

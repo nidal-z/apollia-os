@@ -104,7 +104,7 @@ const REPLANNER_SYSTEM_PROMPT: &str = r#"Le plan d'exécution a rencontré une e
 
 Plan original : {original_plan_json}
 Steps complétés avec succès : {completed_steps_json}
-Step en échec : {failed_step_id} — erreur : {error_message}
+Step en échec : {failed_step_id} - erreur : {error_message}
 
 Génère un nouveau plan pour les steps restants uniquement.
 Réutilise les outputs des steps déjà complétés si pertinent.

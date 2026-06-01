@@ -5,7 +5,7 @@
  * - Min interval between sends: 500 ms (debounce against accidental double-Enter).
  * - Max sends per rolling minute: 30 (soft client guard, not a security boundary).
  *
- * Stateless pure class — one instance per ChatInput. Backend-side throttling
+ * Stateless pure class - one instance per ChatInput. Backend-side throttling
  * remains authoritative; this exists to give immediate UX feedback.
  */
 export interface RateLimitResult {
@@ -27,7 +27,7 @@ export class ChatRateLimiter {
     this.maxPerMinute = maxPerMinute;
   }
 
-  /** Check without recording — use before disabling submit. */
+  /** Check without recording - use before disabling submit. */
   check(now = Date.now()): RateLimitResult {
     const sinceLast = now - this.lastSendAt;
     if (sinceLast < this.minIntervalMs) {

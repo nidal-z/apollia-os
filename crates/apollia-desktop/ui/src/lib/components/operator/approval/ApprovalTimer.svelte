@@ -17,7 +17,7 @@
   interface Props {
     /** Epoch-ms when the request was suspended. */
     startedAt: number;
-    /** If set, enables a progress bar — timeout duration in ms. */
+    /** If set, enables a progress bar - timeout duration in ms. */
     totalMs?: number | null;
     /** Called when `totalMs` elapses. Optional. */
     onExpired?: () => void;
@@ -31,7 +31,7 @@
   let expiredFired = false;
 
   function tick(ts: number): void {
-    // Throttle to ~4 Hz — enough for mm:ss and smooth bar animation.
+    // Throttle to ~4 Hz - enough for mm:ss and smooth bar animation.
     if (ts - lastTick >= 250) {
       now = Date.now();
       lastTick = ts;

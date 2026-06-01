@@ -2,7 +2,7 @@
  * Unified inbox item model (A.6.6).
  *
  * Discriminated union covering every flavor of pending human action the
- * runtime can surface — HITL task approvals, chat tool approvals, always-
+ * runtime can surface - HITL task approvals, chat tool approvals, always-
  * accept requests, and (forward-compat) bash/filesystem approvals.
  */
 import type { PendingApproval, PendingChatApproval, PendingUserInputView } from "$lib/types";

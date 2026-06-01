@@ -719,7 +719,7 @@ fn build_event_summary(event_type: &str, event: &serde_json::Value, agent_id: &s
             let tool = event
                 .get("tool")
                 .and_then(|v| v.as_str())
-                .map(|t| format!(" — {t}"))
+                .map(|t| format!(" - {t}"))
                 .unwrap_or_default();
             format!("[{agent_id}] Step {step_id} started{tool}")
         }

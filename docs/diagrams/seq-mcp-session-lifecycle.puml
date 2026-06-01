@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence — Cycle de vie session MCP — Apollia OS
+title Séquence - Cycle de vie session MCP - Apollia OS
 
 participant "Agent Python" as agent #2d4a22
 participant "McpToolExecutor" as executor #1a1a2e
@@ -23,7 +23,7 @@ note over manager
   au premier appel d'outil.
 end note
 
-== Première invocation — Lazy Start ==
+== Première invocation - Lazy Start ==
 
 agent -> executor : ctx.tools.call("mcp:notion/search", args)
 executor -> manager : get_or_create_session("notion")

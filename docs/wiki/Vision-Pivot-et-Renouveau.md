@@ -1,4 +1,4 @@
-# Pivot & Renouveau — Pourquoi Apollia OS Change de Direction
+# Pivot & Renouveau - Pourquoi Apollia OS Change de Direction
 
 > *Ce document raconte honnêtement l'histoire du projet : ce qu'on a construit, ce qu'on a appris, et pourquoi le nouveau chemin est plus solide que l'ancien.*
 
@@ -6,15 +6,15 @@
 
 ## 1. Ce qu'était Apollia OS (version SaaS)
 
-De septembre 2025 à début 2026, Apollia OS était un **workspace IA SaaS** — une application web complète ciblant les travailleurs du savoir dans les PME et ETI françaises.
+De septembre 2025 à début 2026, Apollia OS était un **workspace IA SaaS** - une application web complète ciblant les travailleurs du savoir dans les PME et ETI françaises.
 
 ### La vision initiale
 
-L'idée de départ était solide : les professionnels passent plus de temps à orchestrer des outils qu'à penser. Chaque tâche de connaissance — comparer des rapports, synthétiser des données, produire des livrables — mobilise 3 à 5 outils différents, et le contexte se perd à chaque transition. L'humain joue le rôle de routeur manuel.
+L'idée de départ était solide : les professionnels passent plus de temps à orchestrer des outils qu'à penser. Chaque tâche de connaissance - comparer des rapports, synthétiser des données, produire des livrables - mobilise 3 à 5 outils différents, et le contexte se perd à chaque transition. L'humain joue le rôle de routeur manuel.
 
 L'IA générative existait, mais restait passive : elle répondait à des prompts dans des sessions éphémères. Elle ne pouvait pas agir dans l'environnement réel de l'utilisateur.
 
-La solution proposée : **ORIA**, un agent IA autonome avec un vrai runtime d'exécution — un sandbox Docker isolé avec des primitives composables (bash, Python, lecture/écriture fichiers) — opérant dans une interface web unifiée avec base de connaissances persistante et mémoire utilisateur.
+La solution proposée : **ORIA**, un agent IA autonome avec un vrai runtime d'exécution - un sandbox Docker isolé avec des primitives composables (bash, Python, lecture/écriture fichiers) - opérant dans une interface web unifiée avec base de connaissances persistante et mémoire utilisateur.
 
 ### Ce qui a été construit
 
@@ -33,7 +33,7 @@ Ce n'était pas un prototype. C'était un produit à qualité de production, ave
 
 ---
 
-## 2. Les enseignements — ce que le SaaS a révélé
+## 2. Les enseignements - ce que le SaaS a révélé
 
 ### 2.1 Le problème de la complexité opérationnelle
 
@@ -42,7 +42,7 @@ La stack technique choisie était puissante. Elle était aussi **opérationnelle
 - PostgreSQL + DragonflyDB + Qdrant + MinIO + Keycloak + Traefik : **6 services d'infrastructure** à déployer, configurer, maintenir
 - Un DSI de PME ne peut pas (et ne veut pas) gérer cette complexité
 - La promesse de "souveraineté des données" s'érodait face à la réalité d'un déploiement cloud nécessaire pour simplifier l'opération
-- La valeur perçue par la PME n'était pas dans l'infrastructure — elle était dans l'agent qui agissait sur ses documents
+- La valeur perçue par la PME n'était pas dans l'infrastructure - elle était dans l'agent qui agissait sur ses documents
 
 Le produit avait résolu le problème de l'utilisateur final. Il n'avait pas encore résolu le problème de l'acheteur IT.
 
@@ -62,16 +62,16 @@ Parallèlement à ces défis, quelque chose d'inattendu est apparu :
 - L'**écosystème des agents IA Python** (CrewAI, LangGraph, AutoGen, custom) explosait
 - Chaque développeur d'agents se heurtait aux mêmes problèmes : comment exécuter un agent de manière isolée ? Comment lui donner des outils sans coder une sandbox from scratch ? Comment lui donner de la mémoire persistante sans base vectorielle cloud ?
 - **Aucun runtime universel open-source n'existait** pour répondre à ces besoins
-- La stack technique que nous avions construite était une réponse partielle à ces problèmes — mais enfermée dans un produit SaaS fermé
+- La stack technique que nous avions construite était une réponse partielle à ces problèmes - mais enfermée dans un produit SaaS fermé
 
 ### 2.4 Le vrai actif
 
 En faisant le bilan, l'actif le plus précieux du projet n'était pas l'application web. C'était :
 
-1. **La compréhension profonde des problèmes d'exécution d'agents** — sandbox, isolation, outils, mémoire, résilience
+1. **La compréhension profonde des problèmes d'exécution d'agents** - sandbox, isolation, outils, mémoire, résilience
 2. **L'architecture ORIA** (Observer-Reasoner-Actor) validée en conditions réelles
 3. **Les patterns de gestion de mémoire** adaptés aux PME (pas de surfonctionnalité)
-4. **La sensibilité à la souveraineté** — comprendre ce que "local-first" signifie vraiment opérationnellement
+4. **La sensibilité à la souveraineté** - comprendre ce que "local-first" signifie vraiment opérationnellement
 
 Ces actifs valaient beaucoup plus en open-source qu'enfermés dans une application SaaS.
 
@@ -92,13 +92,13 @@ On **conserve** :
 - Le nom Apollia et la vision long-terme
 - Tous les enseignements techniques sur les agents IA
 
-Ce n'est pas un abandon — c'est une **distillation**. On extrait le noyau technique le plus précieux du projet SaaS et on en fait le fondement d'un projet open-source.
+Ce n'est pas un abandon - c'est une **distillation**. On extrait le noyau technique le plus précieux du projet SaaS et on en fait le fondement d'un projet open-source.
 
 ### Ce qu'on construit maintenant
 
 **Apollia OS v2 : un runtime Rust open-source** pour l'exécution souveraine d'agents IA autonomes.
 
-Au lieu de concurrencer Notion et Microsoft, on fournit l'infrastructure manquante aux **développeurs d'agents IA** — un marché en croissance explosive, avec des besoins précis non satisfaits, et une communauté qui adopte rapidement les bons outils.
+Au lieu de concurrencer Notion et Microsoft, on fournit l'infrastructure manquante aux **développeurs d'agents IA** - un marché en croissance explosive, avec des besoins précis non satisfaits, et une communauté qui adopte rapidement les bons outils.
 
 ---
 
@@ -135,18 +135,18 @@ Un runtime open-source génère de la valeur pour Nidal de plusieurs façons san
 
 Le SaaS complet nécessitait de gérer simultanément : produit, infrastructure, acquisition clients, support, ventes. Trop de fronts à gérer simultanément.
 
-Le runtime open-source peut être **fonctionnel et démontrable en 20 semaines** de développement. Le premier commit qui fait tourner un agent Python dans un sandbox Rust est le premier livrable de valeur — pas besoin d'attendre une V1 complète pour commencer à créer de la traction.
+Le runtime open-source peut être **fonctionnel et démontrable en 20 semaines** de développement. Le premier commit qui fait tourner un agent Python dans un sandbox Rust est le premier livrable de valeur - pas besoin d'attendre une V1 complète pour commencer à créer de la traction.
 
 ---
 
 ## 5. Ce que le projet SaaS a transmis à Apollia OS
 
-Le projet SaaS n'a pas été un échec — il a été une **phase de R&D intensive**. Voici ce qu'il a directement légué au nouveau projet :
+Le projet SaaS n'a pas été un échec - il a été une **phase de R&D intensive**. Voici ce qu'il a directement légué au nouveau projet :
 
 | Acquis SaaS | Application dans Apollia OS Runtime |
 |---|---|
 | Architecture ORIA (Observer-Reasoner-Actor) | Moteur central ORIA Engine avec modes Direct/Orchestré |
-| Patterns sandbox Docker | Sandbox Linux namespaces (sans Docker) — plus léger, zéro dépendance |
+| Patterns sandbox Docker | Sandbox Linux namespaces (sans Docker) - plus léger, zéro dépendance |
 | Pipeline mémoire utilisateur | Memory Engine SQLite avec 4 types (Working/Episodic/Semantic/Procedural) |
 | HITL (Human-in-the-Loop) | `input_required` dans le TaskContract AIP |
 | Tool Registry interne | Tool Registry avec ToolDescriptor + SandboxProfile formalisés |

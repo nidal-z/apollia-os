@@ -6,8 +6,8 @@
 
 Apollia répartit le contrôle des notifications sur **deux étages** :
 
-1. **Événements globaux** *(section en haut de la page Notifications)* — décide quels événements le système doit suivre et router. Un événement décoché ici ne partira **sur aucun canal**, quoi qu'il arrive.
-2. **Événements par canal** *(dans le dialog Créer / Modifier d'un canal)* — pour chaque événement activé globalement, filtre s'il doit aller sur **ce canal précis**. Liste vide = ce canal reçoit **tous** les événements globaux.
+1. **Événements globaux** *(section en haut de la page Notifications)* - décide quels événements le système doit suivre et router. Un événement décoché ici ne partira **sur aucun canal**, quoi qu'il arrive.
+2. **Événements par canal** *(dans le dialog Créer / Modifier d'un canal)* - pour chaque événement activé globalement, filtre s'il doit aller sur **ce canal précis**. Liste vide = ce canal reçoit **tous** les événements globaux.
 
 Logique pratique : commencez par activer les événements qui vous intéressent au niveau global, puis affinez le routage canal par canal selon vos besoins.
 
@@ -27,18 +27,18 @@ Logique pratique : commencez par activer les événements qui vous intéressent 
 | `trigger.error` | **Erreur de déclencheur** | Une automatisation programmée n'a pas pu se déclencher. |
 | `llm.backend_down` | **Fournisseur LLM indisponible** | Le fournisseur d'IA configuré ne répond plus. |
 
-## Étapes — activer / désactiver un événement globalement
+## Étapes - activer / désactiver un événement globalement
 
 1. Dans la sidebar, cliquez sur **Notifications**.
 
 2. Repérez la section **Événements globaux** en haut de la page. Elle affiche une grille de cases à cocher, une par type d'événement, avec libellé humain, description courte et identifiant technique en sous-texte muted.
-   ![section Événements globaux — grille de 6 cases à cocher avec libellé humain, description et identifiant en...](../_screenshots/notifications-choisir-les-evenements-notifies-1.png)
+   ![section Événements globaux - grille de 6 cases à cocher avec libellé humain, description et identifiant en...](../_screenshots/notifications-choisir-les-evenements-notifies-1.png)
 
 3. Cochez ou décochez les événements selon ce que vous voulez voir remonter.
 
-4. Cliquez sur **Enregistrer**. Un toast *« Événements globaux enregistrés »* confirme. Les modifications **ne sont pas appliquées instantanément** — sans clic sur Enregistrer, les coches restent locales à l'écran.
+4. Cliquez sur **Enregistrer**. Un toast *« Événements globaux enregistrés »* confirme. Les modifications **ne sont pas appliquées instantanément** - sans clic sur Enregistrer, les coches restent locales à l'écran.
 
-## Étapes — affiner le routage par canal
+## Étapes - affiner le routage par canal
 
 1. Dans la liste de canaux, cliquez sur **Modifier** sur la carte du canal voulu.
 
@@ -56,7 +56,7 @@ Pour les événements bavards (`task.completed` en particulier), configurez **Li
 - **1 par minute** (60 s).
 - **1 toutes les 5 min** (300 s).
 - **1 par heure** (3600 s).
-- **Personnalisé…** — secondes au choix entre 1 et 86 400 (24 h).
+- **Personnalisé…** - secondes au choix entre 1 et 86 400 (24 h).
 
 La limite agit **par couple (canal, type d'événement)**. Si plusieurs notifications du même type tombent pendant la fenêtre :
 
@@ -64,7 +64,7 @@ La limite agit **par couple (canal, type d'événement)**. Si plusieurs notifica
 - Les **suivantes** sont absorbées silencieusement.
 - En fin de fenêtre, Apollia envoie un **récapitulatif** : *« 12 événements « task.completed » au cours des 60 dernières secondes »*.
 
-Pendant ce temps, les autres types d'événements continuent à partir sans contrainte — un throttle agressif sur `task.completed` ne bloque jamais une `task.input_required`.
+Pendant ce temps, les autres types d'événements continuent à partir sans contrainte - un throttle agressif sur `task.completed` ne bloque jamais une `task.input_required`.
 
 Dès qu'un throttling est posé sur un canal, sa carte affiche un petit indicateur **⏱ … s** à droite de la rangée des événements, pour vous rappeler en un coup d'œil que ce canal applique une limite.
 
@@ -77,11 +77,11 @@ Le toggle on/off en en-tête de la carte du canal le met en silence en un clic (
 La section **Historique** en bas de la page **Notifications** liste les 50 derniers événements traités, avec 4 colonnes :
 
 - **Horodatage** (relatif : `5min ago`).
-- **Canal** — affiché par son **nom** (label) si défini, sinon son identifiant technique.
-- **Événement** — libellé humain si traduisible, sinon l'identifiant technique brut.
-- **Statut** — badge vert *« envoyé »* ou rouge *« échoué »*.
+- **Canal** - affiché par son **nom** (label) si défini, sinon son identifiant technique.
+- **Événement** - libellé humain si traduisible, sinon l'identifiant technique brut.
+- **Statut** - badge vert *« envoyé »* ou rouge *« échoué »*.
 
-Un filtre par canal en haut du tableau permet de cibler une cible précise. Le motif d'erreur n'est pas affiché ici — pour le voir, lancez **Tester** depuis la carte du canal concerné.
+Un filtre par canal en haut du tableau permet de cibler une cible précise. Le motif d'erreur n'est pas affiché ici - pour le voir, lancez **Tester** depuis la carte du canal concerné.
 
 ## Vérification
 
@@ -99,4 +99,4 @@ Un filtre par canal en haut du tableau permet de cibler une cible précise. Le m
   4. Cliquez sur l'**icône Tester** (avion en papier) dans le pied de la carte du canal pour confirmer que la chaîne d'envoi fonctionne.
 - **Récapitulatifs en cascade** : si vous voyez beaucoup de notifications *« N événements … »*, c'est que le throttling est probablement trop strict ou l'événement trop bavard. Réduisez la fenêtre ou décochez l'événement pour ce canal.
 
-> **Référence technique :** [Briques-Notifications](https://github.com/nidal-z/apollia-os/wiki/Briques-Notifications)
+> **Référence technique :** [Briques-Notifications](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Notifications)

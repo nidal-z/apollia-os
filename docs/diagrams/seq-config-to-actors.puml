@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — apollia.toml → Supervisor::start() → Acteurs — Apollia OS
+title Séquence - apollia.toml → Supervisor::start() → Acteurs - Apollia OS
 
 participant "apollia.toml\n(fichier)" as toml #4a3728/f5e6d3
 participant "parse_apollia_toml()\n(apollia-cli)" as cfg #1a1a2e/e0e0ff
@@ -30,39 +30,39 @@ note right : ApolliaCConfig { llm, budget, runtime }\n[agents] section optionnel
 
 cfg --> sup : ApolliaCConfig →\nSupervisorConfig {\n  llm_config: Option<LlmConfig>,\n  data_dir, startup_timeout_secs, ...\n}\nNote: triggers/notifications\nlus depuis SQLite (ADR-033, Sprint 17)
 
-== Supervisor::start() — Démarrage séquentiel ==
+== Supervisor::start() - Démarrage séquentiel ==
 
 sup -> bus : EventBus::new()\n→ (EventBusSender, broadcast::Receiver)
-note right : Position 1 — toujours démarré en premier\nSender cloné vers tous les acteurs
+note right : Position 1 - toujours démarré en premier\nSender cloné vers tous les acteurs
 
 sup -> reg : AgentRegistry::spawn(event_sender)
-note right : Position 2 — dépend uniquement de l'EventBus
+note right : Position 2 - dépend uniquement de l'EventBus
 
 sup -> tools : ToolRegistryHandle::start()\npuis register(BashExecutor)\nregister(PythonExecutor)\nregister(FileIo)
-note right : Position 3 — 3 outils natifs enregistrés\nautomatiquement
+note right : Position 3 - 3 outils natifs enregistrés\nautomatiquement
 
 alt [llm] présent dans apollia.toml
   sup -> llm : LlmRouter::from_config_with_bus(\n  llm_config, Some(event_sender)\n)
-  note right : Position 4 — section [llm]\nChaque [[llm.backends]] → AnthropicClient\nou OpenAICompatibleClient ou EmbeddedBackend\nÉchec non fatal : runtime continue sans LLM
+  note right : Position 4 - section [llm]\nChaque [[llm.backends]] → AnthropicClient\nou OpenAICompatibleClient ou EmbeddedBackend\nÉchec non fatal : runtime continue sans LLM
   llm --> sup : Arc<LlmRouter>
 else [llm] absent
   sup -> sup : llm_router = None\n(AgentContext.llm == None)
 end
 
 sup -> router : TaskRouterHandle::spawn(\n  registry_handle,\n  event_sender,\n  capacity=256\n)
-note right : Position 5 — dépend de AgentRegistry\nreçoit event_bus pour observer ShutdownRequested
+note right : Position 5 - dépend de AgentRegistry\nreçoit event_bus pour observer ShutdownRequested
 
 sup -> sup : TriggerDefinitionRepository::open(\n  data_dir/triggers_def.db\n)
 sup -> trig : TriggerEngineHandle::spawn(\n  defs_from_sqlite,\n  router_handle,\n  event_sender,\n  ...\n)
-note right : Position 6 — définitions depuis SQLite\n(Sprint 17, ADR-033)\nRepository → Arc<Mutex<>> dans AppState
+note right : Position 6 - définitions depuis SQLite\n(Sprint 17, ADR-033)\nRepository → Arc<Mutex<>> dans AppState
 
 sup -> api : APIServer::bind(\n  api_config (socket_path + tcp_port),\n  AppState { registry, router, tools,\n    llm_router, trigger_engine, ... }\n)
-note right : Position 7 — écoute sur :\n- Unix socket (/tmp/apollia.sock)\n- TCP localhost:7771\nRoutes : /api/v1/{agents,tasks,\ntriggers,llm,dashboard,health,shutdown}
+note right : Position 7 - écoute sur :\n- Unix socket (/tmp/apollia.sock)\n- TCP localhost:7771\nRoutes : /api/v1/{agents,tasks,\ntriggers,llm,dashboard,health,shutdown}
 
 sup -> sup : NotificationConfigRepository::open(\n  data_dir/notifications.db\n)
 alt canaux dans SQLite
   sup -> notif : build_channels(config_from_sqlite)\n→ NotificationEngine::spawn(\n  channels, event_bus\n)
-  note right : Position 9 — config depuis SQLite\n(Sprint 17, ADR-033)\nCanaux : desktop (notify-rust),\nwebhook (HTTP)\nRepository → Arc<Mutex<>> dans AppState
+  note right : Position 9 - config depuis SQLite\n(Sprint 17, ADR-033)\nCanaux : desktop (notify-rust),\nwebhook (HTTP)\nRepository → Arc<Mutex<>> dans AppState
 else base SQLite vide
   sup -> sup : notification_engine = None
 end

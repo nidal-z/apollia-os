@@ -1,4 +1,4 @@
-# Installation Production — Apollia OS
+# Installation Production - Apollia OS
 
 > Déploiement d'Apollia OS en conditions de production sur Linux.
 > Public cible : administrateur système, ingénieur DevOps
@@ -32,10 +32,10 @@ echo "kernel.unprivileged_userns_clone = 1" >> /etc/sysctl.conf
 ## Build optimisé
 
 ```bash
-git clone https://github.com/nidal-z/apollia-os.git
+git clone https://github.com/Apollia-OS/apollia-os.git
 cd apollia-os
 
-# Binaire cloud uniquement (léger, ~20–30 MB) — backends API Anthropic/OpenAI
+# Binaire cloud uniquement (léger, ~20–30 MB) - backends API Anthropic/OpenAI
 cargo build --workspace --release
 
 # Vérifier la taille du binaire
@@ -49,14 +49,14 @@ ls -lh target/release/apollia-os
 # CPU (Linux x86_64, ARM)
 cargo build --workspace --release --features local
 
-# GPU Apple Silicon macOS — fonctionne directement (MISTRALRS_METAL_PRECOMPILE=0 dans .cargo/config.toml)
+# GPU Apple Silicon macOS - fonctionne directement (MISTRALRS_METAL_PRECOMPILE=0 dans .cargo/config.toml)
 cargo build --workspace --release --features local-metal
 
 # Avec précompilation des shaders (Xcode complet requis, optimal pour la distribution)
 MISTRALRS_METAL_PRECOMPILE=1 cargo build --workspace --release --features local-metal
 ```
 
-Le binaire avec `--features local` est plus lourd (~200–400 MB selon la plateforme — moteur d'inférence mistralrs lié statiquement). La taille du modèle `.gguf` (1–8 GB) n'est **pas** dans le binaire : elle est chargée depuis `~/.apollia/models/` au démarrage.
+Le binaire avec `--features local` est plus lourd (~200–400 MB selon la plateforme - moteur d'inférence mistralrs lié statiquement). La taille du modèle `.gguf` (1–8 GB) n'est **pas** dans le binaire : elle est chargée depuis `~/.apollia/models/` au démarrage.
 
 ---
 
@@ -171,7 +171,7 @@ apollia-os run hello-agent "test production"
 
 ## Considérations sécurité
 
-> **WARNING — Isolation réseau :** L'API est liée sur `127.0.0.1` par défaut. **Ne JAMAIS exposer sur `0.0.0.0` sans reverse proxy + authentification.** L'API n'a pas d'authentification intégrée — toute personne qui atteint le port peut soumettre des tâches et contrôler le runtime.
+> **WARNING - Isolation réseau :** L'API est liée sur `127.0.0.1` par défaut. **Ne JAMAIS exposer sur `0.0.0.0` sans reverse proxy + authentification.** L'API n'a pas d'authentification intégrée - toute personne qui atteint le port peut soumettre des tâches et contrôler le runtime.
 
 **Agents et sandbox :** Les `bash_executor` et `python_executor` utilisent les Linux namespaces (unshare) pour l'isolation. Vérifier que `unprivileged_userns_clone = 1`.
 
@@ -201,7 +201,7 @@ systemctl start apollia-os
 
 ## Voir aussi
 
-- [Config apollia.toml](./Config-apollia-toml) — toutes les options de configuration
-- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — monitoring et debug en production
-- [Sécurité Sandbox Isolation](./Securite-Sandbox-Isolation) — Linux namespaces détaillés
-- [ADR-005](../adr/ADR-005-sandbox-sans-docker) — pourquoi namespaces plutôt que Docker
+- [Config apollia.toml](./Config-apollia-toml) - toutes les options de configuration
+- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) - monitoring et debug en production
+- [Sécurité Sandbox Isolation](./Securite-Sandbox-Isolation) - Linux namespaces détaillés
+- [ADR-005](../adr/ADR-005-sandbox-sans-docker) - pourquoi namespaces plutôt que Docker

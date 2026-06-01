@@ -39,7 +39,7 @@ pub enum HttpFetchError {
     },
 
     /// No `network_allowlist` was configured; all network access is denied.
-    #[error("no network_allowlist configured — all network access is denied")]
+    #[error("no network_allowlist configured - all network access is denied")]
     NoAllowlist,
 
     /// The URL could not be parsed or is missing a hostname.

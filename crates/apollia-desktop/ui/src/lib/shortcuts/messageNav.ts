@@ -2,7 +2,7 @@
  * j/k message navigation helper.
  *
  * Used by `Chat.svelte` to step focus across rendered chat messages.
- * Selectors are resolved lazily — the active conversation may not be
+ * Selectors are resolved lazily - the active conversation may not be
  * mounted when the shortcut binding is created.
  */
 
@@ -24,7 +24,7 @@ export function focusMessage(direction: 1 | -1): void {
     idx = Math.max(0, Math.min(items.length - 1, idx + direction));
   }
   const target = items[idx];
-  // Bubbles need an explicit `tabindex` to receive focus — fall back if
+  // Bubbles need an explicit `tabindex` to receive focus - fall back if
   // the renderer hasn't tagged them yet.
   if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: false });

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * `ExecutionTrace` — vue conversation-like d'une exécution agent
+   * `ExecutionTrace` - vue conversation-like d'une exécution agent
    * (ADR-088, Lot 3).
    *
    * Source unique : table `runtime_events` exposée via la commande Tauri
@@ -37,7 +37,7 @@
 
   interface Props {
     taskId: string;
-    /** "task" / "chat" / "standalone" — détermine le rendu container. */
+    /** "task" / "chat" / "standalone" - détermine le rendu container. */
     context?: "task" | "chat" | "standalone";
     /** Override du `$uiMode` global. Sinon hérite. */
     skin?: UIMode | undefined;
@@ -88,7 +88,7 @@
         e.parentEventId &&
         closersByParent.has(e.parentEventId)
       ) {
-        // Ne pas rendre seul — déjà associé via le started.
+        // Ne pas rendre seul - déjà associé via le started.
         continue;
       }
       if (e.kind === "tool_call_started") {
@@ -112,7 +112,7 @@
 
   onDestroy(() => {
     unsubscribeTraceLive(taskId);
-    // Ne pas clear — la trace peut être réaffichée si l'utilisateur revient.
+    // Ne pas clear - la trace peut être réaffichée si l'utilisateur revient.
     // `clearTrace(taskId)` sera appelé manuellement par le parent en cas de
     // pression mémoire. Pas un cas réel pour le MVP.
     void clearTrace; // référence pour qu'eslint ne warn pas sur l'import.

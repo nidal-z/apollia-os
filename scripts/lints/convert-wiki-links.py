@@ -2,7 +2,7 @@
 """
 Convertit les liens GitHub Wiki [[Page-Name|Label]] et [[Page-Name]]
 en liens markdown standard [Label](./Page-Name.md), tout en respectant :
-- les blocs de code triple-backtick (laissés intacts — les `[[pipelines]]` TOML restent)
+- les blocs de code triple-backtick (laissés intacts - les `[[pipelines]]` TOML restent)
 - les blocs inline `code`
 - les commentaires HTML <!-- ... -->
 
@@ -130,7 +130,7 @@ def main():
 
     print(f"\nRésumé : {total_files} fichier(s) modifié(s), ~{total_changes} occurrences traitées.")
     if args.dry_run:
-        print("(dry-run — aucun fichier écrit)")
+        print("(dry-run - aucun fichier écrit)")
 
 
 if __name__ == "__main__":

@@ -440,7 +440,7 @@ impl WebSearch {
                  give you enough signal to decide which URLs to read in full (use `web_read` to \
                  fetch the extracted content of a specific URL). Defaults to DuckDuckGo; Brave \
                  is used automatically when BRAVE_SEARCH_API_KEY is set. This tool does NOT \
-                 honour the agent network allowlist — ticking it in the chat's tool picker is \
+                 honour the agent network allowlist - ticking it in the chat's tool picker is \
                  the user's opt-in to search-engine egress."
                     .to_string(),
             kind: ToolKind::Native,
@@ -546,7 +546,7 @@ async fn dispatch(
             tracing::warn!(
                 backend = backend.name(),
                 error = %e,
-                "backend failed — trying next if available"
+                "backend failed - trying next if available"
             );
             Err(WebSearchError::AllBackendsFailed {
                 last: e.to_string(),

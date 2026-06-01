@@ -22,7 +22,7 @@
 
 5. Vérifiez les **blocs de contexte** affichés en bas du chat. Vous pouvez les replier ou les déplier pour voir ce qui est réellement transmis à l'IA.
 
-6. Posez une question spécifique au projet pour valider — par exemple : *"Quels fichiers ont changé cette semaine ?"*. La réponse doit citer des fichiers et des commits réels.
+6. Posez une question spécifique au projet pour valider - par exemple : *"Quels fichiers ont changé cette semaine ?"*. La réponse doit citer des fichiers et des commits réels.
 
 7. Vous pouvez créer plusieurs chats liés au même projet. Chacun garde son propre historique mais partage le même contexte.
    ![page projet avec liste de chats liés, chacun avec son titre et sa date](../_screenshots/projets-lier-un-projet-a-un-chat-3.png)
@@ -39,4 +39,4 @@ L'icône projet est visible dans l'en-tête du chat et le bandeau de contexte af
 - **Les blocs de contexte sont vides** : retournez sur la page projet et activez au moins un context provider.
 - **L'IA ne semble rien savoir du projet** : le contexte est probablement plié, dépliez-le ou rechargez le chat.
 
-> **Concept :** [book ch12 — Chat interactif](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md) — comprendre comment le contexte d'un projet est utilisé par l'IA.
+> **Concept :** [book ch12 - Chat interactif](https://github.com/Apollia-OS/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md) - comprendre comment le contexte d'un projet est utilisé par l'IA.

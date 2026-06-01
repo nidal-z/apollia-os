@@ -47,7 +47,7 @@
   async function ensureSession() {
     if (sessionId || showSkeleton) return;
     if (timeoutToastTimer) clearTimeout(timeoutToastTimer);
-    // Soft warning toast at the timeout boundary — the store also surfaces a
+    // Soft warning toast at the timeout boundary - the store also surfaces a
     // structured error state when the underlying IPC call eventually fails.
     timeoutToastTimer = setTimeout(() => {
       addToast($t("companion.session.timeout_toast_title"), "info");
@@ -172,7 +172,7 @@
     window.addEventListener("pointercancel", onUp);
   }
 
-  // Snap-guides — recomputed only while dragging (cheap derivations).
+  // Snap-guides - recomputed only while dragging (cheap derivations).
   const guides = $derived.by(() => {
     if (!dragging) return { left: false, right: false, top: false, bottom: false };
     if (typeof window === "undefined") return { left: false, right: false, top: false, bottom: false };

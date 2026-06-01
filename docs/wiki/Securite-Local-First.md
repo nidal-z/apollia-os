@@ -1,4 +1,4 @@
-# Sécurité — Local-First — Apollia OS
+# Sécurité - Local-First - Apollia OS
 
 > Comment Apollia OS garantit que les données utilisateur ne quittent jamais la machine, et ce que ça signifie concrètement.
 > Public cible : responsable sécurité, DSI, développeur soucieux de la souveraineté
@@ -9,7 +9,7 @@
 
 Le principe Local-First (Principe #1) est la garantie fondamentale d'Apollia OS : **aucun octet de données utilisateur ne quitte la machine sans une action explicite du développeur**.
 
-Cette garantie est architecturale — le runtime Rust n'ouvre aucune connexion sortante. Il n'existe pas de serveur distant vers lequel Apollia OS pourrait envoyer des données, même accidentellement.
+Cette garantie est architecturale - le runtime Rust n'ouvre aucune connexion sortante. Il n'existe pas de serveur distant vers lequel Apollia OS pourrait envoyer des données, même accidentellement.
 
 > **Caveat important :** le runtime est local-first, mais le code Python de l'agent est sous la responsabilité du développeur. Un agent peut appeler des API externes (OpenAI, Anthropic, etc.) qui traitent les données hors machine. Pour une isolation complète, utiliser les features `local` / `local-metal` et auditer le code des agents. Voir la section [Ce qui PEUT sortir](#ce-qui-peut-sortir-avec-action-explicite).
 
@@ -78,7 +78,7 @@ def manifest(self):
     }
 ```
 
-Cette whitelist est appliquée au niveau du sandbox (`unshare`) — l'agent ne peut pas la contourner depuis son code Python.
+Cette whitelist est appliquée au niveau du sandbox (`unshare`) - l'agent ne peut pas la contourner depuis son code Python.
 
 ### Outils dangereux : opt-in explicite
 
@@ -95,7 +95,7 @@ Un opérateur qui déploie un agent avec `dangerous_tools_allowed: True` fait un
 
 ---
 
-## Flux de données — ce qui reste local
+## Flux de données - ce qui reste local
 
 ```
 Agent Python
@@ -163,7 +163,7 @@ Apollia OS est conçu pour les contextes où la souveraineté des données est n
 
 ## Voir aussi
 
-- [Architecture Principes](./Architecture-Principes) — Principe #1 Local-first
-- [Sécurité Sandbox Isolation](./Securite-Sandbox-Isolation) — Linux namespaces
-- [Sécurité Guardrails](./Securite-Guardrails) — StepBudget et circuit breakers
-- [ADR-010](../adr/ADR-010-pivot-saas-vers-runtime-rust-open-source) — contexte du pivot vers local-first
+- [Architecture Principes](./Architecture-Principes) - Principe #1 Local-first
+- [Sécurité Sandbox Isolation](./Securite-Sandbox-Isolation) - Linux namespaces
+- [Sécurité Guardrails](./Securite-Guardrails) - StepBudget et circuit breakers
+- [ADR-010](../adr/ADR-010-pivot-saas-vers-runtime-rust-open-source) - contexte du pivot vers local-first

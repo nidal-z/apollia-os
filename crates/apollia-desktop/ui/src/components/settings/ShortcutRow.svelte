@@ -16,7 +16,7 @@
 
   let parts = $derived(splitCombo(comboFor(entry, mac)));
   let ariaLabel = $derived(
-    `${$t(entry.descriptionKey)} — ${comboFor(entry, mac).replace(/\+/g, " ")}`,
+    `${$t(entry.descriptionKey)} - ${comboFor(entry, mac).replace(/\+/g, " ")}`,
   );
 </script>
 

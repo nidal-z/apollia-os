@@ -1,4 +1,4 @@
-# Triggers Engine — Déclenchement automatique des agents
+# Triggers Engine - Déclenchement automatique des agents
 
 > *La crate `apollia-triggers` expose un moteur déclaratif pour déclencher des agents automatiquement via des règles persistées en SQLite : cron, interval, file watch, webhooks HMAC-SHA256. Les triggers se créent, modifient et suppriment via l'API REST ou l'application desktop (ADR-033).*
 
@@ -8,7 +8,7 @@
 
 Le `TriggerEngine` est un acteur Tokio positionné en **position 6** dans la séquence de démarrage du Supervisor (après le `LlmRouter`). Il gère un ensemble de `TriggerDefinition` persistées en SQLite (`~/.apollia/triggers_def.db`) et déclenche des tâches vers le `TaskRouter` selon les événements reçus.
 
-Les triggers ne sont plus déclarés dans `apollia.toml` — ils sont gérés exclusivement via SQLite + API REST CRUD (ADR-033). L'opérateur crée, modifie et supprime ses triggers depuis l'application desktop ou via `curl`.
+Les triggers ne sont plus déclarés dans `apollia.toml` - ils sont gérés exclusivement via SQLite + API REST CRUD (ADR-033). L'opérateur crée, modifie et supprime ses triggers depuis l'application desktop ou via `curl`.
 
 ```
 triggers_def.db (SQLite)
@@ -46,11 +46,11 @@ triggers_def.db (SQLite)
  └──────────────┘
 ```
 
-*Voir le diagramme de séquence complet : [Séquence — Trigger Fire](./Architecture-Vue-Ensemble#diagrammes)*
+*Voir le diagramme de séquence complet : [Séquence - Trigger Fire](./Architecture-Vue-Ensemble#diagrammes)*
 
 ---
 
-## 2. Gestion des triggers — CRUD SQLite
+## 2. Gestion des triggers - CRUD SQLite
 
 (ADR-033), les triggers sont persistés en SQLite (`~/.apollia/triggers_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[triggers]]` de `apollia.toml` n'est plus utilisée.
 
@@ -100,7 +100,7 @@ $ curl -X DELETE http://localhost:7771/api/v1/triggers/rapport-hebdomadaire
 | `file_watch` | `path`, `events` | `"~/imports/"`, `["create"]` |
 | `webhook` | `secret` (min 32 chars) | `"un-secret-robuste..."` |
 
-### 2.5 Webhook — appel externe
+### 2.5 Webhook - appel externe
 
 ```bash
 $ curl -X POST http://localhost:7771/webhooks/github-push \
@@ -166,7 +166,7 @@ pub struct TriggerPayload {
 
 ---
 
-## 4. TriggerEngine — acteur Tokio
+## 4. TriggerEngine - acteur Tokio
 
 ```rust
 // apollia-triggers/src/engine.rs
@@ -176,7 +176,7 @@ pub struct TriggerEngineHandle {
 }
 
 impl TriggerEngineHandle {
-    /// Clone + Send + Sync — injectable dans AppState<B>
+    /// Clone + Send + Sync - injectable dans AppState<B>
     pub fn clone(&self) -> Self { ... }
 
     /// Déclenche immédiatement un trigger (test ou CLI fire)
@@ -209,13 +209,13 @@ pub struct TriggerStatus {
 
 | Politique | Comportement si agent WORKING |
 |---|---|
-| `Queue` | Soumet la tâche — elle sera exécutée quand le slot se libère |
+| `Queue` | Soumet la tâche - elle sera exécutée quand le slot se libère |
 | `Drop` | Ignore le fire, émet `TriggerSkipped` sur EventBus, incrémente `skip_count` |
 | `Error` | Émet `TriggerError` sur EventBus, incrémente `error_count` |
 
 ---
 
-## 5. Sources — implémentation
+## 5. Sources - implémentation
 
 ### 5.1 CronTrigger
 
@@ -290,7 +290,7 @@ Séquence de validation :
 
 ## 6. Persistance SQLite
 
-### 6.1 Définitions — `TriggerDefinitionRepository`
+### 6.1 Définitions - `TriggerDefinitionRepository`
 
 Les définitions de triggers sont persistées dans `~/.apollia/triggers_def.db` via le `TriggerDefinitionRepository` :
 
@@ -324,7 +324,7 @@ Le repository est wrappé dans `Arc<Mutex<TriggerDefinitionRepository>>` dans `A
 - Expression cron syntaxiquement valide
 - Secret webhook ≥ 32 caractères
 
-### 6.2 Historique — `trigger_history`
+### 6.2 Historique - `trigger_history`
 
 Chaque fire/skip/error est persisté dans la base de l'`AuditTrail`.
 
@@ -480,7 +480,7 @@ Au démarrage, le Supervisor :
 1. Ouvre `TriggerDefinitionRepository` depuis `data_dir/triggers_def.db`
 2. Charge toutes les lignes, convertit en `TriggerDefinition` (les définitions invalides sont ignorées avec un `warn!`)
 3. Wraps le repository dans `Arc<Mutex<>>` → stocké dans `AppState`
-4. Affiche : `✔ TriggerEngine — 3 trigger(s) actif(s)`
+4. Affiche : `✔ TriggerEngine - 3 trigger(s) actif(s)`
 
 Si la base est vide, `TriggerEngine` démarre avec 0 définitions (comportement no-op, pas d'erreur).
 
@@ -488,7 +488,7 @@ Si la base est vide, `TriggerEngine` démarre avec 0 définitions (comportement 
 
 ---
 
-## 10. `OnBusyPolicy::Queue` — File bornée
+## 10. `OnBusyPolicy::Queue` - File bornée
 
 , `OnBusyPolicy` dispose d'un troisième variant `Queue` qui met en file d'attente les triggers quand l'agent est occupé, dans la limite d'une capacité configurable.
 
@@ -500,7 +500,7 @@ Si la base est vide, `TriggerEngine` démarre avec 0 définitions (comportement 
 pub enum OnBusyPolicy {
     /// Ignore le trigger si l'agent est occupé. Comportement par défaut historique.
     Skip,
-    /// (Existait mais non implémenté — remplacé par Queue)
+    /// (Existait mais non implémenté - remplacé par Queue)
     Enqueue,
     /// Met le trigger en file FIFO bornée.
     /// Si la file est pleine, le trigger est droppé et `RuntimeEvent::TriggerQueueFull` est émis.
@@ -525,7 +525,7 @@ pub enum OnBusyPolicy {
 ```
 
 ```toml
-# apollia.toml — capacité par défaut pour les queues non spécifiées
+# apollia.toml - capacité par défaut pour les queues non spécifiées
 [triggers]
 queue_max_depth = 10
 ```
@@ -533,7 +533,7 @@ queue_max_depth = 10
 ### Événement `TriggerQueueFull`
 
 ```rust
-// crates/apollia-runtime/src/events.rs — nouveau variant
+// crates/apollia-runtime/src/events.rs - nouveau variant
 
 /// Émis quand un trigger est droppé parce que la file de l'agent est pleine.
 TriggerQueueFull {
@@ -545,7 +545,7 @@ TriggerQueueFull {
 
 | Situation | Résultat |
 |---|---|
-| Agent occupé, queue < max_depth | Trigger en queue — exécuté dès que l'agent se libère (FIFO) |
+| Agent occupé, queue < max_depth | Trigger en queue - exécuté dès que l'agent se libère (FIFO) |
 | Agent occupé, queue == max_depth | Trigger droppé + `TriggerQueueFull` émis |
 | Agent libre | Trigger dispatché immédiatement (pas de queuing) |
 | Policy `Skip` | Trigger ignoré silencieusement (comportement pré) |

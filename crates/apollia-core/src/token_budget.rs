@@ -21,7 +21,7 @@ pub struct TokenBudget {
     pub api_duration_ms: u64,
     /// Durée wall-clock totale de la session en millisecondes.
     pub wall_duration_ms: u64,
-    /// Time to First Token — latence jusqu'au premier token reçu (ms).
+    /// Time to First Token - latence jusqu'au premier token reçu (ms).
     ///
     /// `None` si la session ne contient aucun appel streaming, ou si non mesuré.
     /// Défini sur le premier appel streaming de la session.
@@ -65,7 +65,7 @@ impl TokenBudget {
 
     /// Formate le budget pour un affichage CLI lisible par un humain.
     ///
-    /// Format : `"Tokens: X input / Y output / Z cache-read — $0.00XX USD (TTFT: Xms, wall: Xms)"`
+    /// Format : `"Tokens: X input / Y output / Z cache-read - $0.00XX USD (TTFT: Xms, wall: Xms)"`
     /// Le segment TTFT est omis si [`ttft_ms`](TokenBudget::ttft_ms) est `None`.
     pub fn format_summary(&self) -> String {
         let ttft_segment = self
@@ -73,7 +73,7 @@ impl TokenBudget {
             .map(|t| format!("TTFT: {}ms, ", t))
             .unwrap_or_default();
         format!(
-            "Tokens: {} input / {} output / {} cache-read — ${:.4} USD ({}wall: {}ms)",
+            "Tokens: {} input / {} output / {} cache-read - ${:.4} USD ({}wall: {}ms)",
             self.input_tokens,
             self.output_tokens,
             self.cache_read_tokens,
@@ -92,7 +92,7 @@ mod tests {
     fn test_token_budget_merge_accumulates() {
         // GIVEN
         let mut budget = TokenBudget::default();
-        // WHEN — deux appels successifs identiques
+        // WHEN - deux appels successifs identiques
         let delta = TokenUsageDelta {
             prompt_tokens: 100,
             completion_tokens: 50,

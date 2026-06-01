@@ -149,7 +149,7 @@ impl SearchBackend for BraveBackend {
         if status == reqwest::StatusCode::UNAUTHORIZED {
             return Err(SearchBackendError::MissingCredential {
                 backend: BACKEND_NAME.to_string(),
-                what: format!("{ENV_API_KEY} (rejected by Brave — key invalid or revoked)"),
+                what: format!("{ENV_API_KEY} (rejected by Brave - key invalid or revoked)"),
             });
         }
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -370,7 +370,7 @@ pub(crate) mod tests {
         // THEN every web result is surfaced with rank starting at 1
         assert_eq!(results.len(), 3);
         assert_eq!(results[0].rank, 1);
-        assert_eq!(results[0].url, "https://github.com/nidal-z/apollia-os");
+        assert_eq!(results[0].url, "https://github.com/Apollia-OS/apollia-os");
     }
 
     #[test]

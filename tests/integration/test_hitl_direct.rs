@@ -34,7 +34,7 @@ async fn open_test_repo() -> (TaskRepository, tempfile::TempPath) {
     (repo, guard)
 }
 
-/// Returns a `StepBudget` with generous limits — never exhausted during tests.
+/// Returns a `StepBudget` with generous limits - never exhausted during tests.
 fn make_budget() -> Arc<StepBudget> {
     Arc::new(StepBudget::new(&StepBudgetConfig {
         max_steps: 10,
@@ -63,13 +63,13 @@ impl AgentRunner for MockHitlRunner {
         let n = self.call_count.fetch_add(1, Ordering::SeqCst);
         Box::pin(async move {
             if n == 0 {
-                // First call — suspend for human approval
+                // First call - suspend for human approval
                 Ok(AIPResult::input_required(
                     "Confirmer l'envoi du devis ?",
                     serde_json::json!({"devis_id": 42, "montant": 12500}),
                 ))
             } else {
-                // Second call after approval — verify resumed task fields
+                // Second call after approval - verify resumed task fields
                 assert!(
                     task.is_resumed,
                     "task.is_resumed must be true on second call"
@@ -113,7 +113,7 @@ async fn test_ac1_mode_direct_approve_recalls_run() {
         .with_task_repository(Arc::new(repo))
         .with_event_bus(event_tx);
 
-    // WHEN — spawn a resolver task that approves once TaskInputRequired is seen
+    // WHEN - spawn a resolver task that approves once TaskInputRequired is seen
     let pending_for_resolver = Arc::clone(&pending);
     let resolver = tokio::spawn(async move {
         // Poll the EventBus until TaskInputRequired is emitted (max ~2 s)
@@ -139,7 +139,7 @@ async fn test_ac1_mode_direct_approve_recalls_run() {
     let result = engine.execute_direct(task, &runner, make_budget()).await;
     resolver.await.expect("resolver task must not panic");
 
-    // THEN — result is Completed
+    // THEN - result is Completed
     assert!(
         result.is_ok(),
         "execute_direct must return Ok; got: {:?}",
@@ -151,7 +151,7 @@ async fn test_ac1_mode_direct_approve_recalls_run() {
         "final status must be Completed"
     );
 
-    // THEN — run() was called exactly twice (first → InputRequired, second → Completed)
+    // THEN - run() was called exactly twice (first → InputRequired, second → Completed)
     assert_eq!(
         call_count.load(Ordering::SeqCst),
         2,
@@ -187,7 +187,7 @@ async fn test_ac2_mode_direct_reject_no_second_call() {
         .with_task_repository(Arc::new(repo))
         .with_event_bus(event_tx);
 
-    // WHEN — spawn a resolver that rejects
+    // WHEN - spawn a resolver that rejects
     let pending_for_resolver = Arc::clone(&pending);
     let resolver = tokio::spawn(async move {
         for _ in 0..100_u32 {
@@ -212,7 +212,7 @@ async fn test_ac2_mode_direct_reject_no_second_call() {
     let result = engine.execute_direct(task, &runner, make_budget()).await;
     resolver.await.expect("resolver task must not panic");
 
-    // THEN — result is Ok (execute_direct wraps rejection as AIPResult, not Err)
+    // THEN - result is Ok (execute_direct wraps rejection as AIPResult, not Err)
     assert!(
         result.is_ok(),
         "execute_direct must return Ok even on rejection; got: {:?}",
@@ -220,7 +220,7 @@ async fn test_ac2_mode_direct_reject_no_second_call() {
     );
     let aip = result.unwrap();
 
-    // THEN — status Failed with code REJECTED
+    // THEN - status Failed with code REJECTED
     assert_eq!(aip.status, TaskStatus::Failed, "status must be Failed");
     let code = aip.error.as_ref().map(|e| e.code.as_str()).unwrap_or("");
     assert_eq!(code, "REJECTED", "error code must be REJECTED");
@@ -231,7 +231,7 @@ async fn test_ac2_mode_direct_reject_no_second_call() {
         "rejection reason must appear in error message; got: {msg}"
     );
 
-    // THEN — run() called exactly once (no second call after rejection)
+    // THEN - run() called exactly once (no second call after rejection)
     assert_eq!(
         call_count.load(Ordering::SeqCst),
         1,

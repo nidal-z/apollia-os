@@ -35,7 +35,7 @@
   /**
    * Per-type presentation : icon + tint class for the icon container, and the
    * canonical Badge variant. We use the design system's variants directly
-   * (info / primary) rather than overriding text/border via extraClass — that
+   * (info / primary) rather than overriding text/border via extraClass - that
    * was the source of the contrast issues on the previous version.
    */
   type ChannelTypeStyle = {
@@ -155,7 +155,7 @@
 </script>
 
 <Card interactive class="relative overflow-hidden flex flex-col" data-testid="channel-card-{channel.channel_id}">
-  <!-- Top accent bar — matches AgentPackageCard pattern. Muted when disabled. -->
+  <!-- Top accent bar - matches AgentPackageCard pattern. Muted when disabled. -->
   <div class="h-0.5 w-full {channel.enabled ? typeStyle.barClass : 'bg-muted-foreground/20'}"></div>
 
   <div class="flex flex-1 flex-col px-3.5 pt-3 pb-2.5">

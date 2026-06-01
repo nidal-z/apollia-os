@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * LoadingSpinner — SVG ring spinner tinted with primary by default.
+   * LoadingSpinner - SVG ring spinner tinted with primary by default.
    *
    * Prefer this over inline `animate-spin` + lucide icons so that loading
    * states stay consistent and obey `prefers-reduced-motion`.
@@ -15,7 +15,7 @@
     strokeWidth?: number;
     /** `currentColor` picks up the surrounding text color. */
     tone?: "primary" | "current" | "muted";
-    /** Accessible label — omit when the spinner is decorative. */
+    /** Accessible label - omit when the spinner is decorative. */
     label?: string;
   }
 

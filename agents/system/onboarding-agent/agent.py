@@ -1,4 +1,4 @@
-"""onboarding-agent v2.2 — 4-turn calibration of new Apollia OS users.
+"""onboarding-agent v2.2 - 4-turn calibration of new Apollia OS users.
 
 Drives a short conversation (≤ 4 turns / 3 questions, < 2 minutes) that
 captures the four Tier 1 facts required to finalize the onboarding:
@@ -15,7 +15,7 @@ order (the desktop watches ``onboarding.completed_at``):
   2. onboarding.profile_type        (operator | builder, inferred from role)
   3. onboarding.version             ("2.0")
   4. onboarding.suggested_agents    (JSON list)
-  5. onboarding.completed_at        (ISO 8601, LAST — desktop signal)
+  5. onboarding.completed_at        (ISO 8601, LAST - desktop signal)
 
 If user.name OR user.role is missing at the end, NO completion key is written
 and the conversation closes with: "Nous pourrons reprendre depuis les
@@ -23,7 +23,7 @@ Settings quand tu le souhaites."
 
 Tags emitted by the LLM and parsed by this module:
   [REMEMBER key=value]   explicit fact, confidence 0.9
-  [INFER    key=value]   inference, confidence 0.6 — confirm next turn
+  [INFER    key=value]   inference, confidence 0.6 - confirm next turn
   [PROFILE  operator]    profile decision (operator | builder)
   [SUGGEST  veille-ia]   demo agent recommendation (one slug per tag)
 
@@ -54,7 +54,7 @@ _logger = logging.getLogger("onboarding-agent")
 MEMORY_SOURCE: str = "onboarding"
 ONBOARDING_VERSION: str = "2.2"
 
-# ADR-086 — l'agent propose les règles de permissions correspondant aux
+# ADR-086 - l'agent propose les règles de permissions correspondant aux
 # préférences profil collectées, en passant par les outils natifs HITL-gated
 # `permission_rule_add` / `permission_rule_list`. La table ci-dessous décrit
 # l'intention par défaut ; chaque appel d'outil est confirmé par l'utilisateur
@@ -75,13 +75,13 @@ TIER1_KEYS: tuple[str, ...] = (
 )
 
 # Keys whose presence unlocks the desktop *gate* (the UI considers the user
-# "named" once these are stored — see onboarding.rs:789-795). They are the
+# "named" once these are stored - see onboarding.rs:789-795). They are the
 # bare minimum to acknowledge the user's identity, NOT the completion bar.
 GATE_KEYS: tuple[str, ...] = ("user.name", "user.role")
 
 # Keys whose presence is required to **finalize** onboarding. We only emit
 # ``onboarding.completed_at`` (and propose permission rules) when every Tier 1
-# fact is collected — otherwise suggested_agents / permission proposals run
+# fact is collected - otherwise suggested_agents / permission proposals run
 # on a half-empty profile.
 FINALIZE_KEYS: tuple[str, ...] = TIER1_KEYS
 
@@ -100,7 +100,7 @@ PII_KEY_PREFIXES: tuple[str, ...] = (
 )
 
 # Substrings whose presence in a value makes us skip memorisation. Detection
-# is intentionally conservative — false positives are fine here.
+# is intentionally conservative - false positives are fine here.
 INJECTION_PATTERNS: tuple[str, ...] = (
     "; rm",
     "$(",
@@ -120,7 +120,7 @@ VALID_SOVEREIGNTY = {"local-only", "local-preferred", "cloud-ok"}
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
-Tu es l'agent d'onboarding d'Apollia OS — un runtime local-first pour agents \
+Tu es l'agent d'onboarding d'Apollia OS - un runtime local-first pour agents \
 IA autonomes. Ta mission : calibrer les agents en 3 questions (≈ 4 tours), \
 en moins de 2 minutes. Tu DOIS suivre le flux ci-dessous à la lettre.
 
@@ -146,19 +146,19 @@ clés sont déjà collectées, et seulement dans ce cas, passe au Tour 4 \
 (clôture). N'invente jamais d'avoir collecté une valeur que l'utilisateur \
 ne t'a pas donnée.
 
-## Flux strict — 4 tours
+## Flux strict - 4 tours
 
-### Tour 1 — Accueil + Identité (premier message)
+### Tour 1 - Accueil + Identité (premier message)
 Inclus l'accroche exacte :
 "Je vais te poser 3 questions rapides pour calibrer les agents. Tes \
 réponses seront modifiables à tout moment depuis les Settings."
 Enchaîne immédiatement avec une question ouverte demandant prénom + rôle \
-(ex : "Pour commencer — ton prénom et ce que tu fais au quotidien ?").
+(ex : "Pour commencer - ton prénom et ce que tu fais au quotidien ?").
 Quand l'utilisateur répond, émets en fin de ton message suivant :
   [REMEMBER user.name=Prénom]
   [REMEMBER user.role=description courte du rôle]
 
-### Tour 2 — Supervision des agents
+### Tour 2 - Supervision des agents
 **Pré-requis :** `user.name` et `user.role` collectés.
 Question exacte :
 "Quand un agent est sur le point d'envoyer un email ou modifier un fichier, \
@@ -168,7 +168,7 @@ Mappe la réponse vers une seule valeur :
   (1) → always · (2) → critical-only · (3) → never
 Émets : [REMEMBER user.agents.hitl=always|critical-only|never]
 
-### Tour 3 — Souveraineté des données (NE PAS SAUTER)
+### Tour 3 - Souveraineté des données (NE PAS SAUTER)
 **Pré-requis :** `user.agents.hitl` collecté.
 Tu DOIS poser cette question avant la clôture, même si l'utilisateur \
 répond brièvement à la question précédente. Question exacte :
@@ -180,7 +180,7 @@ Mappe vers :
 cloud OK → cloud-ok
 Émets : [REMEMBER user.constraints.sovereignty=local-only|local-preferred|cloud-ok]
 
-### Tour 4 — Clôture (SEULEMENT si les 4 clés sont là)
+### Tour 4 - Clôture (SEULEMENT si les 4 clés sont là)
 Vérifie d'abord que `user.name`, `user.role`, `user.agents.hitl` ET \
 `user.constraints.sovereignty` ont toutes été données par l'utilisateur \
 dans les tours précédents. Si une seule manque, **ne clos pas** : repose la \
@@ -207,13 +207,13 @@ Après ton message de clôture, le runtime applique automatiquement les règles 
 de permissions correspondant aux préférences collectées via des appels \
 `permission_rule_add` HITL-gated (cf. ADR-086). L'utilisateur valide chaque \
 règle dans une boîte de dialogue. Tu n'as pas besoin d'émettre ces appels \
-dans ton message — ils sont déclenchés par le code de finalisation.
+dans ton message - ils sont déclenchés par le code de finalisation.
 
 ## Tags
 
 Format strict, en fin de message uniquement :
   [REMEMBER key=value]   fait explicite (confidence 0.9)
-  [INFER    key=value]   inférence (confidence 0.6) — à confirmer au tour suivant
+  [INFER    key=value]   inférence (confidence 0.6) - à confirmer au tour suivant
   [PROFILE  operator]    ou [PROFILE builder]
   [SUGGEST  veille-ia]   un tag par agent suggéré
 
@@ -247,7 +247,7 @@ sans insister.
 ## Confirmation des inférences
 
 Si tu utilises [INFER] pour un fait important (HITL, sovereignty), reformule \
-au tour suivant ("Si je résume bien : tu préfères X — c'est ça ?") avant de \
+au tour suivant ("Si je résume bien : tu préfères X - c'est ça ?") avant de \
 passer à [REMEMBER].
 """
 
@@ -346,7 +346,7 @@ _RSE_KEYWORDS: tuple[str, ...] = ("rse", "esg", "sustainability", "durabilité",
 
 
 def _infer_profile_type(role: str | None) -> str:
-    """operator | builder — falls back to operator when role is empty."""
+    """operator | builder - falls back to operator when role is empty."""
     if not role:
         return "operator"
     low = role.lower()
@@ -383,7 +383,7 @@ async def _remember(
     ``user.*`` keys describe the operator and are written to the canonical
     user profile via ``ctx.profile.set`` (ADR-087).  The ``user.`` prefix is
     stripped on storage so the flat key matches the profile schema.
-    Other keys (``onboarding.*``) remain in the agent's own namespace —
+    Other keys (``onboarding.*``) remain in the agent's own namespace -
     they describe the run, not the user.
 
     Writing to ``ctx.profile`` requires the manifest to declare
@@ -422,30 +422,30 @@ async def _all_keys_present(ctx: Any, keys: tuple[str, ...]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Progress note — state-driven prompting
+# Progress note - state-driven prompting
 # ---------------------------------------------------------------------------
 
 # Deterministic verbatim questions used when the agent code overrides a
 # hallucinated closure (cf. ``_force_question_if_premature_closure``). These
-# are the exact strings the user must see at Tour 2 and Tour 3 — the LLM
+# are the exact strings the user must see at Tour 2 and Tour 3 - the LLM
 # would otherwise be tempted to infer the answer from earlier replies and
 # skip the question entirely (observed with smaller local models).
 _DETERMINISTIC_QUESTION: dict[str, str] = {
     "user.agents.hitl": (
-        "Question 2 sur 3 — Quand un agent est sur le point d'envoyer un email "
+        "Question 2 sur 3 - Quand un agent est sur le point d'envoyer un email "
         "ou modifier un fichier, tu préfères : (1) toujours valider, "
         "(2) valider les actions critiques seulement, ou (3) laisser l'agent "
         "agir en autonomie ?"
     ),
     "user.constraints.sovereignty": (
-        "Question 3 sur 3 — Tes agents peuvent-ils utiliser des APIs cloud "
+        "Question 3 sur 3 - Tes agents peuvent-ils utiliser des APIs cloud "
         "(OpenAI, Anthropic…), ou tout doit rester sur ta machine ? "
         "(local uniquement / local par défaut / cloud OK)"
     ),
 }
 
 # Heuristic markers that flag the LLM trying to close the onboarding. The
-# detection is intentionally generous — false positives are fine because
+# detection is intentionally generous - false positives are fine because
 # the override only kicks in when state is provably incomplete.
 _CLOSURE_MARKERS: tuple[str, ...] = (
     "tu peux maintenant",
@@ -469,7 +469,7 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
     """Best-effort recovery of a Tier 1 value from the user's raw reply.
 
     Small local models routinely fail to emit a clean
-    ``[REMEMBER user.agents.hitl=critical-only]`` tag — they parrot the
+    ``[REMEMBER user.agents.hitl=critical-only]`` tag - they parrot the
     user's own words ("local par défaut", "actions critiques") inside
     the tag, which the guard in ``converse`` rejects as out of vocabulary.
     Without this fallback the agent would loop on the same question.
@@ -528,7 +528,7 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
             "apis cloud", "api cloud", "cloud d'accord", "cloud allowed",
         )):
             return "cloud-ok"
-        # "Local-only" — checked last so "local par défaut" doesn't fall here.
+        # "Local-only" - checked last so "local par défaut" doesn't fall here.
         if any(w in text for w in (
             "local-only", "local only", "local uniquement", "local seulement",
             "tout en local", "que en local", "rien sortir", "rester local",
@@ -536,7 +536,7 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
         )):
             return "local-only"
         if " local" in text or text.strip() == "local":
-            # Bare "local" defaults to local-only — the strictest reasonable
+            # Bare "local" defaults to local-only - the strictest reasonable
             # interpretation when the user is too terse to disambiguate.
             return "local-only"
         return None
@@ -552,15 +552,15 @@ def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
 # from chat history.
 _NEXT_QUESTION: dict[str, str] = {
     "user.name": (
-        "Tour 1 — pose UNE question ouverte demandant prénom + rôle "
+        "Tour 1 - pose UNE question ouverte demandant prénom + rôle "
         "(ex : « Pour commencer, ton prénom et ce que tu fais au quotidien ? »)."
     ),
     "user.role": (
-        "Tour 1 — pose UNE question ouverte demandant prénom + rôle "
+        "Tour 1 - pose UNE question ouverte demandant prénom + rôle "
         "(ex : « Pour commencer, ton prénom et ce que tu fais au quotidien ? »)."
     ),
     "user.agents.hitl": (
-        "Tour 2 — pose la question EXACTE : « Quand un agent est sur le "
+        "Tour 2 - pose la question EXACTE : « Quand un agent est sur le "
         "point d'envoyer un email ou modifier un fichier, tu préfères : "
         "(1) toujours valider, (2) valider les actions critiques seulement, "
         "ou (3) laisser l'agent agir en autonomie ? » Mappe la réponse "
@@ -568,7 +568,7 @@ _NEXT_QUESTION: dict[str, str] = {
         "[REMEMBER user.agents.hitl=...]."
     ),
     "user.constraints.sovereignty": (
-        "Tour 3 — pose la question EXACTE : « Tes agents peuvent-ils "
+        "Tour 3 - pose la question EXACTE : « Tes agents peuvent-ils "
         "utiliser des APIs cloud (OpenAI, Anthropic…), ou tout doit "
         "rester sur ta machine ? (local uniquement / local par défaut / "
         "cloud OK) » Mappe la réponse vers "
@@ -584,7 +584,7 @@ async def _build_progress_note(ctx: Any) -> str:
     The note is injected as an extra ``system`` message right before the
     user's input so the LLM sees authoritative state instead of having to
     infer it from the conversation history. This is how we keep small
-    local models on rails — they are unreliable at multi-step planning,
+    local models on rails - they are unreliable at multi-step planning,
     but very reliable at executing an explicit instruction.
     """
     collected: list[str] = []
@@ -604,7 +604,7 @@ async def _build_progress_note(ctx: Any) -> str:
 
     if not missing:
         return (
-            "ÉTAT INTERNE — toutes les clés requises sont collectées : "
+            "ÉTAT INTERNE - toutes les clés requises sont collectées : "
             f"{', '.join(collected)}. Tu peux maintenant passer au Tour 4 "
             "(clôture) : résumé en 2 phrases, [PROFILE …], [SUGGEST …], "
             "puis termine par « Tu peux maintenant ouvrir /agents… »."
@@ -615,7 +615,7 @@ async def _build_progress_note(ctx: Any) -> str:
     collected_str = ", ".join(collected) if collected else "aucune"
     missing_str = ", ".join(missing)
     return (
-        f"ÉTAT INTERNE — clés déjà collectées : {collected_str}. "
+        f"ÉTAT INTERNE - clés déjà collectées : {collected_str}. "
         f"Clés encore manquantes : {missing_str}. "
         f"Action attendue : {instruction} "
         "INTERDIT de clore l'onboarding tant que les 4 clés "
@@ -627,12 +627,12 @@ async def _build_progress_note(ctx: Any) -> str:
 async def _persist_proposed_permission_rules(ctx: Any) -> None:
     """Sérialise les règles de permissions dérivées du profil dans la mémoire (ADR-086).
 
-    L'agent NE crée pas les règles directement — il écrit la liste sérialisée
+    L'agent NE crée pas les règles directement - il écrit la liste sérialisée
     sous la clé ``onboarding.proposed_rules`` (JSON). Le desktop lit cette
     clé en fin d'onboarding et présente chaque règle comme une carte
     d'approbation inline (`OnboardingPermissionStep.svelte`). Sur approbation,
     le desktop appelle directement ``PrefixRuleEngine::add_rule`` via une
-    Tauri command (bypass du tool dispatcher) — ce qui évite le bug
+    Tauri command (bypass du tool dispatcher) - ce qui évite le bug
     ``executor.rs:NeedsApproval → PermissionDenied`` qui empêchait les
     cartes d'apparaître quand l'agent appelait ``permission_rule_add``.
 
@@ -661,7 +661,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     # Pas d'idempotence sur ``permission_rule_list`` : depuis le passage à
     # une architecture par mémoire (plan v2), c'est l'utilisateur qui crée
     # les règles via les cartes du desktop, pas l'agent. Re-onboarder doit
-    # toujours re-proposer le set complet — l'utilisateur a peut-être
+    # toujours re-proposer le set complet - l'utilisateur a peut-être
     # refusé certaines règles auparavant et veut une seconde chance, ou il
     # a changé de profil et la matrice change. La couche d'application
     # (``apply_proposed_permission_rule``) est libre de dédupliquer côté
@@ -781,7 +781,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
 
 
 async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str]) -> None:
-    """Write the meta keys in strict order — completed_at LAST.
+    """Write the meta keys in strict order - completed_at LAST.
 
     The strict ordering matters: ``onboarding.completed_at`` is the desktop's
     completion signal, so it must only land after every dependent meta key is
@@ -804,7 +804,7 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
     suggested = suggested_hint if suggested_hint else _compute_suggested_agents(role, hitl)
     await _remember(ctx, "onboarding.suggested_agents", json.dumps(suggested))
 
-    # ADR-086 — sérialise les propositions de règles. Le desktop les rend
+    # ADR-086 - sérialise les propositions de règles. Le desktop les rend
     # comme cartes d'approbation dans la modale onboarding (post-chat).
     await _persist_proposed_permission_rules(ctx)
 
@@ -823,13 +823,13 @@ _SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
     name="onboarding-agent",
     version="0.1.0",
     description=(
-        "Premier contact utilisateur — calibrage en 3 questions "
+        "Premier contact utilisateur - calibrage en 3 questions "
         "(identité, supervision, souveraineté)"
     ),
     tags=("onboarding", "conversational"),
     memory_namespace="onboarding",
     agent_type="system",
-    # ADR-086 — accès aux outils permission_rule_* pour proposer les règles
+    # ADR-086 - accès aux outils permission_rule_* pour proposer les règles
     # dérivées du profil (HITL-gated).
     tools_required=("permission_rule_add", "permission_rule_list"),
     # Only this system agent owns the user profile and may write into the
@@ -853,7 +853,7 @@ class OnboardingAgent:
         if ctx.llm is None:
             raise DomainError(
                 "NO_LLM",
-                "OnboardingAgent requires ctx.llm — no LLM backend configured",
+                "OnboardingAgent requires ctx.llm - no LLM backend configured",
             )
 
         user_message = message
@@ -874,7 +874,7 @@ class OnboardingAgent:
                 progress_note = await _build_progress_note(ctx)
                 messages.append({"role": "system", "content": progress_note})
             except Exception as exc:
-                # Non-fatal — fall back to history-only prompting.
+                # Non-fatal - fall back to history-only prompting.
                 # The static SYSTEM_PROMPT alone still gives reasonable
                 # behaviour, just less robust against premature closure.
                 # Logged so flakey persistence surfaces rather than hiding.
@@ -929,7 +929,7 @@ class OnboardingAgent:
                     await _remember(ctx, key, recovered, explicit=False)
 
             # --- Conditional finalize ---------------------------------------
-            # Finalize only when the FULL Tier 1 set is collected — otherwise
+            # Finalize only when the FULL Tier 1 set is collected - otherwise
             # we'd write ``onboarding.completed_at`` after just the identity
             # turn, locking in suggested_agents and permission proposals on a
             # half-empty profile (cf. v2.2 fix).
@@ -939,7 +939,7 @@ class OnboardingAgent:
 
         # --- Premature-closure override --------------------------------------
         # Small local models routinely jump to Tour 4 the moment they have
-        # captured user.name + user.role — they "guess" the remaining answers
+        # captured user.name + user.role - they "guess" the remaining answers
         # from prior context (e.g. "solo founder of a sovereign runtime →
         # local-only + builder") and emit [PROFILE] / [SUGGEST] tags. We
         # detect that pattern and substitute the model output with the

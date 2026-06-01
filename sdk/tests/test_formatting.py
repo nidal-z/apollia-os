@@ -1,4 +1,4 @@
-"""Tests for apollia.utils.formatting — text, Markdown, JSON, and AIP helpers."""
+"""Tests for apollia.utils.formatting - text, Markdown, JSON, and AIP helpers."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Agent scaffolding — generates a ready-to-run agent from a template.
+"""Agent scaffolding - generates a ready-to-run agent from a template.
 
 All scaffolds use the canonical decorator-first SDK (``@agent``, ``@skill``,
 ``@on_message``, ``@orchestrated``). No legacy base classes are produced.
@@ -338,7 +338,7 @@ def main(argv: list[str] | None = None) -> None:
     """
     parser = argparse.ArgumentParser(
         prog="apollia",
-        description="Apollia SDK — agent development toolkit",
+        description="Apollia SDK - agent development toolkit",
     )
     subparsers = parser.add_subparsers(dest="command")
 

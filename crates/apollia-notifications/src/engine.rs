@@ -445,7 +445,7 @@ async fn run_engine_loop(state: EngineLoopState) {
                         }
                     }
                     Some(NotifEngineCommand::Shutdown) | None => {
-                        tracing::info!("NotificationEngine : signal d'arrêt reçu — arrêt propre");
+                        tracing::info!("NotificationEngine : signal d'arrêt reçu - arrêt propre");
                         break;
                     }
                 }
@@ -493,7 +493,7 @@ async fn run_engine_loop(state: EngineLoopState) {
                         );
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        tracing::info!("NotificationEngine : bus fermé — arrêt propre");
+                        tracing::info!("NotificationEngine : bus fermé - arrêt propre");
                         break;
                     }
                 }
@@ -572,7 +572,7 @@ async fn dispatch_with_throttle(
                 tracing::debug!(
                     channel_id = channel.id(),
                     event = %notif.event,
-                    "Notification throttled — sera incluse dans le prochain récap"
+                    "Notification throttled - sera incluse dans le prochain récap"
                 );
             }
         }
@@ -597,7 +597,7 @@ async fn send_to_channel(
                 channel_id = channel.id(),
                 error = %err,
                 event = %notif.event,
-                "Canal de notification en erreur — dispatch continue"
+                "Canal de notification en erreur - dispatch continue"
             );
             results.insert(channel.id().to_string(), Some(err.to_string()));
         }
@@ -739,7 +739,7 @@ async fn dispatch_notif(
                         channel_id = channel.id(),
                         error = %err,
                         event = %notif.event,
-                        "Canal de notification en erreur — dispatch continue"
+                        "Canal de notification en erreur - dispatch continue"
                     );
                     results.insert(channel.id().to_string(), Some(err.to_string()));
                 }
@@ -753,7 +753,7 @@ async fn dispatch_notif(
 ///
 /// `channel_results` : map `channel_id → None` (succès) ou `Some(msg)` (erreur).
 /// La table est créée idempotentiellement si elle n'existe pas.
-/// Les erreurs sont loggées en `warn!` sans propagation — le logging est best-effort.
+/// Les erreurs sont loggées en `warn!` sans propagation - le logging est best-effort.
 fn write_notification_log(
     db_path: &std::path::Path,
     notif: &Notification,
@@ -884,9 +884,9 @@ mod tests {
             "agent.degraded".into(),
         ]);
 
-        // WHEN / THEN — agent.degraded rejeté car absent de la liste du canal
+        // WHEN / THEN - agent.degraded rejeté car absent de la liste du canal
         assert!(!channel.accepts("agent.degraded", &config));
-        // ET — les événements listés sont acceptés
+        // ET - les événements listés sont acceptés
         assert!(channel.accepts("task.input_required", &config));
         assert!(channel.accepts("task.failed", &config));
     }
@@ -907,7 +907,7 @@ mod tests {
             "agent.degraded".into(),
         ]);
 
-        // WHEN / THEN — tous les événements de la liste globale sont acceptés
+        // WHEN / THEN - tous les événements de la liste globale sont acceptés
         assert!(channel.accepts("task.input_required", &config));
         assert!(channel.accepts("task.failed", &config));
         assert!(channel.accepts("agent.degraded", &config));
@@ -952,7 +952,7 @@ mod tests {
         // Laisser l'engine s'abonner au bus
         tokio::task::yield_now().await;
 
-        // WHEN — envoi d'un événement
+        // WHEN - envoi d'un événement
         tx.send(RuntimeEvent::TaskInputRequired {
             task_id: TaskId::from("t-001"),
             prompt: "Confirmer ?".into(),
@@ -967,13 +967,13 @@ mod tests {
         // Arrêter proprement via handle
         handle.shutdown().await;
 
-        // THEN — desktop a bien reçu la notification malgré l'erreur slack
+        // THEN - desktop a bien reçu la notification malgré l'erreur slack
         assert_eq!(desktop_count.load(Ordering::SeqCst), 1);
     }
 
     #[test]
     fn test_map_event_delegates_to_event_filter() {
-        // GIVEN — NotificationEngine délègue map_event à event_filter::map_event
+        // GIVEN - NotificationEngine délègue map_event à event_filter::map_event
         let (tx, _rx) = tokio::sync::broadcast::channel(16);
         let engine = NotificationEngine::new(
             make_config(vec![]),
@@ -1257,7 +1257,7 @@ mod tests {
         )
         .await;
 
-        // THEN both reached the channel — the second one re-armed the window
+        // THEN both reached the channel - the second one re-armed the window
         assert_eq!(count.load(Ordering::SeqCst), 2);
         let state = throttle
             .get(&("desktop".into(), "task.completed".into()))
@@ -1301,7 +1301,7 @@ mod tests {
         )
         .await;
 
-        // THEN both pass — throttle is per (channel, event) not per channel
+        // THEN both pass - throttle is per (channel, event) not per channel
         assert_eq!(count.load(Ordering::SeqCst), 2);
     }
 
@@ -1427,7 +1427,7 @@ mod tests {
         .await;
         assert_eq!(count.load(Ordering::SeqCst), 1);
 
-        // WHEN we flush only 30s after — still within window
+        // WHEN we flush only 30s after - still within window
         flush_recaps(
             &config,
             &channels,

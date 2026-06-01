@@ -61,7 +61,7 @@
   function openLogsFromDetail(agentId: string) { closeDetail(); openLogs(agentId); }
   function closeLogs() { logsOpen = false; }
 
-  // ── Inbox items adapter (light — just enough for the compact preview) ──────
+  // ── Inbox items adapter (light - just enough for the compact preview) ──────
 
   function extractRisk(ctx: Record<string, unknown> | undefined): InboxRisk | undefined {
     if (!ctx || typeof ctx !== "object") return undefined;
@@ -205,7 +205,7 @@
   }
 </script>
 
-<!-- Unified dashboard — Operator layout shared by both modes; the Builder mode
+<!-- Unified dashboard - Operator layout shared by both modes; the Builder mode
      receives optional technical overlays via `BuilderOnly` blocks below. -->
 <div
   class="mx-auto w-full max-w-6xl"
@@ -230,7 +230,7 @@
     </PageHeader>
 
     {#if $tasks.length === 0 && $agents.length === 0 && $projects.length === 0}
-      <!-- Cold start — welcome the operator. -->
+      <!-- Cold start - welcome the operator. -->
       <div class="px-8 mt-6" data-testid="dashboard-cold-start">
         <LegacyEmptyState
           icon={LayoutDashboard}

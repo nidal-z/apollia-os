@@ -364,7 +364,7 @@
                 {modeLabel(entry.mode)} · {entry.session_title ?? entry.session_id.slice(0, 8)}
               </div>
               <div class="mt-0.5 text-[10.5px] text-muted-foreground italic">
-                Expire à la fermeture de la session — non persistée
+                Expire à la fermeture de la session - non persistée
               </div>
             </div>
             <Button
@@ -449,7 +449,7 @@
             <span class="text-muted-foreground">
               {entry.decision}{#if entry.scope} · {entry.scope}{/if}{#if entry.rule_id} · règle #{entry.rule_id}{/if}
             </span>
-            <span class="text-right text-muted-foreground">{entry.agent ?? "—"}</span>
+            <span class="text-right text-muted-foreground">{entry.agent ?? "-"}</span>
           </li>
         {/each}
       </ul>

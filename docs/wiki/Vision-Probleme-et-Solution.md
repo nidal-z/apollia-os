@@ -1,10 +1,10 @@
-# Problème & Solution — Ce qu'Apollia OS résout
+# Problème & Solution - Ce qu'Apollia OS résout
 
 > *Définition précise du problème, de l'espace libre sur le marché, et de la solution proposée.*
 
 ---
 
-## 1. Le problème — La fracture entre développement et exécution d'agents
+## 1. Le problème - La fracture entre développement et exécution d'agents
 
 ### 1.1 L'explosion des agents IA sans infrastructure adaptée
 
@@ -14,23 +14,23 @@ Mais construire un agent et **l'exécuter en production de manière fiable** son
 
 Chaque développeur qui dépasse le stade du notebook Jupyter se retrouve à devoir résoudre les mêmes problèmes fondamentaux :
 
-**Problème #1 — L'isolation d'exécution**
+**Problème #1 - L'isolation d'exécution**
 > Un agent qui exécute du code bash ou Python non maîtrisé est un vecteur de risque. Comment l'isoler sans Docker obligatoire ? Sans Kubernetes ? Sans infrastructre cloud complexe ?
 
-**Problème #2 — La gestion des outils**
-> Chaque agent réimplémente son propre catalogue d'outils. File I/O, bash executor, HTTP client, connecteurs MCP — tout est réécrit, souvent mal, dans chaque projet. Aucune standardisation, aucun audit.
+**Problème #2 - La gestion des outils**
+> Chaque agent réimplémente son propre catalogue d'outils. File I/O, bash executor, HTTP client, connecteurs MCP - tout est réécrit, souvent mal, dans chaque projet. Aucune standardisation, aucun audit.
 
-**Problème #3 — La mémoire persistante**
+**Problème #3 - La mémoire persistante**
 > Les agents sans mémoire recommencent à zéro à chaque exécution. Les solutions existantes sont soit des bases vectorielles cloud (dépendance externe, coût, latence), soit des implémentations SQLite artisanales sans structure claire.
 
-**Problème #4 — La résilience**
+**Problème #4 - La résilience**
 > Comment gérer un outil qui tombe ? Un LLM saturé ? Un timeout ? Les agents naïfs plantent silencieusement ou boucle indéfiniment. Les circuit breakers, retry policies, et step budgets sont rarissimes dans les implémentations d'agents.
 
-**Problème #5 — La souveraineté**
+**Problème #5 - La souveraineté**
 > De plus en plus d'entreprises, notamment en Europe, refusent que leurs données transitent par des APIs cloud. Mais les solutions "local" existantes sont soit incomplètes, soit trop complexes à déployer.
 
-**Problème #6 — L'interopérabilité**
-> MCP (Model Context Protocol), A2A (Agent-to-Agent), ACP (Agent Communication Protocol) — des standards émergent mais leur adoption dans les runtimes est fragmentée. Chaque framework gère son propre écosystème d'outils.
+**Problème #6 - L'interopérabilité**
+> MCP (Model Context Protocol), A2A (Agent-to-Agent), ACP (Agent Communication Protocol) - des standards émergent mais leur adoption dans les runtimes est fragmentée. Chaque framework gère son propre écosystème d'outils.
 
 ### 1.2 Le coût réel du problème
 
@@ -38,21 +38,21 @@ Ces problèmes ne sont pas théoriques. Ils ont un coût mesurable :
 
 - **Temps de développement gaspillé** : Un développeur qui intègre un agent en entreprise passe en moyenne 40-60% de son temps sur la plomberie d'exécution (sandbox, outils, mémoire, résilience) plutôt que sur la logique métier.
 - **Incidents de production** : Les agents sans budget de steps ou circuit breakers génèrent des coûts LLM incontrôlés et des pannes en cascade.
-- **Blocages réglementaires** : Les projets IA en entreprise européenne sont bloqués par l'absence de solution locale viable — "on ne peut pas mettre nos données client dans une API américaine."
+- **Blocages réglementaires** : Les projets IA en entreprise européenne sont bloqués par l'absence de solution locale viable - "on ne peut pas mettre nos données client dans une API américaine."
 - **Fragmentation écosystème** : L'impossibilité de réutiliser des outils entre projets force chaque équipe à réinventer la roue, multipliant les bugs et la dette technique.
 
 ---
 
-## 2. L'espace libre — Ce qui n'existe pas encore
+## 2. L'espace libre - Ce qui n'existe pas encore
 
 ### 2.1 Cartographie des solutions existantes
 
 | Catégorie | Exemples | Ce qu'ils font | Limitation fondamentale |
 |---|---|---|---|
 | **Sandboxes cloud** | E2B, Daytona, Modal | Exécution isolée dans le cloud | Cloud-only, dépendance externe, latence, coût |
-| **Frameworks d'orchestration** | LangGraph, CrewAI, AutoGen | Orchestration de LLMs et agents | Pas des runtimes d'exécution — pas de sandbox, pas de mémoire standard |
+| **Frameworks d'orchestration** | LangGraph, CrewAI, AutoGen | Orchestration de LLMs et agents | Pas des runtimes d'exécution - pas de sandbox, pas de mémoire standard |
 | **Runtimes K8s** | Agent Sandbox (Google) | Isolation par conteneur K8s | Complexité opérationnelle massive, inaccessible hors grande entreprise |
-| **Protocoles MCP/A2A** | Anthropic MCP, Google A2A | Standards de communication agent↔outil | Standards uniquement — aucun runtime d'exécution |
+| **Protocoles MCP/A2A** | Anthropic MCP, Google A2A | Standards de communication agent↔outil | Standards uniquement - aucun runtime d'exécution |
 | **AgentScope Runtime** | Alibaba (v1.1, fév. 2026) | Runtime multi-framework | Couplé à l'écosystème Alibaba, pas conçu pour déploiement local pur |
 | **Solutions tout-en-un** | Dust.tt, LangSmith | Plateforme agents avec monitoring | SaaS-only, pas d'exécution locale, pas framework-agnostic |
 
@@ -93,17 +93,17 @@ Sans runtime standard, les développeurs adoptent un de ces contournements :
 
 ---
 
-## 3. La solution — Apollia OS Runtime
+## 3. La solution - Apollia OS Runtime
 
 ### 3.1 La proposition en une phrase
 
-**Apollia OS est un runtime Rust open-source qui permet à n'importe quel agent IA Python de s'exécuter de manière isolée, souveraine, et outillée — avec un `pip install apollia_os` côté agent, et un binaire unique côté infrastructure.**
+**Apollia OS est un runtime Rust open-source qui permet à n'importe quel agent IA Python de s'exécuter de manière isolée, souveraine, et outillée - avec un `pip install apollia_os` côté agent, et un binaire unique côté infrastructure.**
 
 ### 3.2 Ce que le runtime fournit
 
 #### Un contrat d'interface universel : l'AIP
 
-L'**Agent Interface Protocol (AIP)** est le contrat minimal qu'un agent doit implémenter pour fonctionner dans Apollia OS. Il est conçu pour le duck typing Python — pas de classe de base obligatoire, zéro friction pour les agents existants.
+L'**Agent Interface Protocol (AIP)** est le contrat minimal qu'un agent doit implémenter pour fonctionner dans Apollia OS. Il est conçu pour le duck typing Python - pas de classe de base obligatoire, zéro friction pour les agents existants.
 
 ```python
 # Tout ce qu'un agent doit implémenter
@@ -116,7 +116,7 @@ class MonAgent:
         )
 
     async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
-        # L'agent fait son travail — tout le reste est géré par le runtime
+        # L'agent fait son travail - tout le reste est géré par le runtime
         result = await ctx.tools.python_executor.run("print('hello')")
         return AIPResult.completed(result.stdout)
 ```
@@ -127,11 +127,11 @@ Le runtime gère tout le reste : isolation, outils, mémoire, résilience, audit
 
 Apollia OS fournit des **outils natifs** immédiatement disponibles pour tout agent :
 
-- `bash_executor` — exécution shell dans un sandbox Linux namespace isolé
-- `python_executor` — exécution Python dans un virtualenv dédié par agent
-- `file_io` — lecture/écriture dans le répertoire sandbox de l'agent
-- `http_client` — requêtes HTTP avec whitelist de domaines configurable
-- `mcp_consumer` — connexion à n'importe quel serveur MCP de l'écosystème
+- `bash_executor` - exécution shell dans un sandbox Linux namespace isolé
+- `python_executor` - exécution Python dans un virtualenv dédié par agent
+- `file_io` - lecture/écriture dans le répertoire sandbox de l'agent
+- `http_client` - requêtes HTTP avec whitelist de domaines configurable
+- `mcp_consumer` - connexion à n'importe quel serveur MCP de l'écosystème
 
 Et un système d'**enregistrement d'outils custom** pour les intégrations métier spécifiques :
 
@@ -149,7 +149,7 @@ Le Memory Engine fournit 4 types de mémoire persistante via SQLite local :
 - **Semantic** (connaissances factuelles, préférences)
 - **Procedural** (workflows qui ont bien fonctionné)
 
-Recherche FTS5 (unicode61 pour l'accentuation française) en standard. Recherche vectorielle optionnelle via sqlite-vec + modèle GGUF local — activée seulement si le modèle est présent, jamais téléchargé automatiquement.
+Recherche FTS5 (unicode61 pour l'accentuation française) en standard. Recherche vectorielle optionnelle via sqlite-vec + modèle GGUF local - activée seulement si le modèle est présent, jamais téléchargé automatiquement.
 
 #### Un moteur d'exécution intelligent : ORIA
 
@@ -185,7 +185,7 @@ apollia-os audit                              # Historique d'exécution
 Apollia OS est délibérément **minimal** sur ce qu'il impose :
 
 - **Pas de LLM intégré** : l'agent choisit son LLM (Ollama, Anthropic, OpenAI, tout)
-- **Pas de framework imposé** : LangGraph, CrewAI, ou agent custom — le runtime est agnostic
+- **Pas de framework imposé** : LangGraph, CrewAI, ou agent custom - le runtime est agnostic
 - **Pas de cloud obligatoire** : tout fonctionne en local, hors ligne si nécessaire
 - **Pas d'interface graphique** : c'est de l'infrastructure, pas un produit end-user
 - **Pas de multi-tenancy** : un runtime, un utilisateur, une machine (la complexité multi-tenant appartient à l'application qui l'utilise)
@@ -208,7 +208,7 @@ Un seul binaire Rust. Une seule dépendance côté agent (`apollia_os` Python). 
 
 ---
 
-## 4. Pour qui — Les cas d'usage cibles
+## 4. Pour qui - Les cas d'usage cibles
 
 ### 4.1 Le développeur d'agents freelance ou en startup
 
@@ -240,7 +240,7 @@ Un seul binaire Rust. Une seule dépendance côté agent (`apollia_os` Python). 
 
 **Problème actuel** : Les notebooks sont fragiles pour des agents avec état persistant. Les environnements cloud sont coûteux.
 
-**Avec Apollia OS** : Infrastructure locale complète pour expérimenter avec des agents persistants, des outils réels, et des patterns de résilience — sans coût cloud.
+**Avec Apollia OS** : Infrastructure locale complète pour expérimenter avec des agents persistants, des outils réels, et des patterns de résilience - sans coût cloud.
 
 ---
 
@@ -251,7 +251,7 @@ Le problème n'est pas hypothétique. Il est documenté dans l'écosystème :
 - Les issues GitHub de LangGraph, CrewAI, AutoGen mentionnent régulièrement les problèmes de sandbox, de mémoire persistante, et d'isolation
 - Le protocole MCP d'Anthropic (nov. 2025, adopté par Linux Foundation) valide le besoin de standardisation des outils
 - Le protocole A2A de Google (v1.0-rc, Linux Foundation) valide le besoin de standards de communication agent-à-agent
-- AgentScope Runtime d'Alibaba (v1.1, fév. 2026) valide le besoin de runtimes framework-agnostics — mais leur solution reste couplée à leur écosystème et non conçue pour le déploiement local-first
+- AgentScope Runtime d'Alibaba (v1.1, fév. 2026) valide le besoin de runtimes framework-agnostics - mais leur solution reste couplée à leur écosystème et non conçue pour le déploiement local-first
 
 L'espace reste ouvert pour une solution indépendante, local-first, et genuinement open-source.
 

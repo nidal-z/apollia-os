@@ -1,4 +1,4 @@
-"""Tests for apollia.testing.mocks — low-level mock proxies."""
+"""Tests for apollia.testing.mocks - low-level mock proxies."""
 
 import pytest
 

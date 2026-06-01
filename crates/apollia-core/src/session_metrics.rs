@@ -60,7 +60,7 @@ pub struct SummarizationEvent {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum BudgetAlertLevel {
-    /// Sous le seuil de warning — RAS.
+    /// Sous le seuil de warning - RAS.
     #[default]
     Ok,
     /// Au-dessus de `token_warn_pct`, affichage toast warning.
@@ -107,7 +107,7 @@ impl SessionThresholds {
     }
 }
 
-/// Snapshot des métriques d'une session — tokens, contexte, timings, summarization.
+/// Snapshot des métriques d'une session - tokens, contexte, timings, summarization.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SessionMetrics {
     /// Tokens envoyés en entrée (prompt) cumulés.
@@ -124,7 +124,7 @@ pub struct SessionMetrics {
     pub context_window_max: u64,
     /// Budget total configuré pour la session (0 si non configuré).
     pub token_budget: u64,
-    /// Historique des timings d'outils — capé à 100 dernières entrées.
+    /// Historique des timings d'outils - capé à 100 dernières entrées.
     pub tool_timings: Vec<ToolTiming>,
     /// Historique des événements de summarization.
     pub summarization_events: Vec<SummarizationEvent>,
@@ -136,7 +136,7 @@ pub struct SessionMetrics {
 pub const TOOL_TIMINGS_MAX: usize = 100;
 
 impl SessionMetrics {
-    /// Fusionne les compteurs d'un appel LLM — incrémente `tokens_in`, `tokens_out`, `tokens_cached`.
+    /// Fusionne les compteurs d'un appel LLM - incrémente `tokens_in`, `tokens_out`, `tokens_cached`.
     ///
     /// `is_meta = true` route les tokens vers `tokens_meta` au lieu des compteurs principaux.
     pub fn record_llm_call(

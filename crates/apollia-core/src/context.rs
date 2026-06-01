@@ -41,7 +41,7 @@ pub trait ContextProvider: Send + Sync {
 
     /// Retourne `true` si ce provider est applicable dans `cwd`.
     ///
-    /// Un provider retournant `false` n'est pas appelé — aucun overhead, aucune erreur.
+    /// Un provider retournant `false` n'est pas appelé - aucun overhead, aucune erreur.
     fn is_applicable(&self, cwd: &Path) -> bool {
         let _ = cwd;
         true
@@ -51,7 +51,7 @@ pub trait ContextProvider: Send + Sync {
 /// Snapshot éphémère produit par un [`ContextProvider`].
 ///
 /// Injecté dans le system prompt de l'agent au démarrage de la session.
-/// Non persisté — recollecté à chaque démarrage de tâche (modulo cache TTL).
+/// Non persisté - recollecté à chaque démarrage de tâche (modulo cache TTL).
 #[derive(Clone)]
 pub struct ContextSnapshot {
     /// Identifiant du provider source.
@@ -91,7 +91,7 @@ impl ContextSnapshot {
         }
     }
 
-    /// Construit un snapshot vide — aucun contenu à injecter.
+    /// Construit un snapshot vide - aucun contenu à injecter.
     ///
     /// Retourné quand le provider n'est pas applicable ou que la source est vide.
     pub fn empty(source: &str) -> Self {

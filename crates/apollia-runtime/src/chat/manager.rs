@@ -1885,7 +1885,7 @@ impl ChatSessionManager {
                     warn!(error = %e, "Failed to reset session status to Active in SQLite");
                 }
                 return Err(ChatError::AgentLoadFailed(
-                    "no ChatAgentRunner configured — Agent mode unavailable".into(),
+                    "no ChatAgentRunner configured - Agent mode unavailable".into(),
                 ));
             }
         };
@@ -2867,7 +2867,7 @@ async fn resolve_workspace_path(
             if detail.workspace_path.is_none() {
                 warn!(
                     project_id = %pid,
-                    "project has no workspace_path configured — falling back to current_dir()"
+                    "project has no workspace_path configured - falling back to current_dir()"
                 );
             }
             Ok(detail.workspace_path.map(std::path::PathBuf::from))

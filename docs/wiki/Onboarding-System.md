@@ -1,4 +1,4 @@
-# Systeme d'Onboarding — Spec technique
+# Systeme d'Onboarding - Spec technique
 
 > *Reference technique du parcours d'onboarding multi-etapes d'Apollia OS Desktop (v2.2.0).*
 
@@ -79,7 +79,7 @@ Conséquence : si l'utilisateur ferme le modal pour ajouter un backend cloud (en
 
 ---
 
-## 4. Composant `OnboardingModal` — orchestrateur
+## 4. Composant `OnboardingModal` - orchestrateur
 
 Fichier : `ui/src/components/onboarding/OnboardingModal.svelte`
 
@@ -102,7 +102,7 @@ const stepIndex = $derived(STEPS.findIndex((s) => s.id === currentStep));
 
 ### Synchronisation backend
 
-`syncBackendPhase(target)` est appelée à chaque transition d'etape. La phase machine valide les transitions sequentielles strictes — un echec est ignoré silencieusement (cas où la phase backend est déjà au-delà).
+`syncBackendPhase(target)` est appelée à chaque transition d'etape. La phase machine valide les transitions sequentielles strictes - un echec est ignoré silencieusement (cas où la phase backend est déjà au-delà).
 
 | Transition frontend | Phase cible | Commande IPC |
 |---|---|---|
@@ -112,7 +112,7 @@ const stepIndex = $derived(STEPS.findIndex((s) => s.id === currentStep));
 
 ---
 
-## 5. Etape 1 — `OnboardingWelcome`
+## 5. Etape 1 - `OnboardingWelcome`
 
 Fichier : `ui/src/components/onboarding/OnboardingWelcome.svelte`
 
@@ -123,11 +123,11 @@ Fichier : `ui/src/components/onboarding/OnboardingWelcome.svelte`
 | Props | `onnext: => void` |
 | `data-testid` | `onboarding-welcome`, `onboarding-welcome-cta` |
 
-Aucune logique métier — sert uniquement à briser la friction du lancement à froid.
+Aucune logique métier - sert uniquement à briser la friction du lancement à froid.
 
 ---
 
-## 6. Etape 2 — `OnboardingProfileSelector`
+## 6. Etape 2 - `OnboardingProfileSelector`
 
 Fichier : `ui/src/components/onboarding/OnboardingProfileSelector.svelte`
 
@@ -145,7 +145,7 @@ Carte Builder : 3 puces orientées observabilité + SDK, exemple "Dev, Data, Inf
 
 ---
 
-## 7. Etape 3 — `OnboardingAiSetup`
+## 7. Etape 3 - `OnboardingAiSetup`
 
 Fichier : `ui/src/components/onboarding/OnboardingAiSetup.svelte` (~1100 lignes)
 
@@ -199,7 +199,7 @@ Filtrage dynamique par RAM disponible (`sysInfo.total_ram_gb`). Le badge "Recomm
 
 ### Evénement Tauri consommé
 
-`"model-download-progress"` — payload `DownloadProgress`. Distinguer `id === llmDownloadId` vs `sttDownloadId`. Statuts : `in_progress`, `completed`, `cancelled`, `failed`. À `completed`, déclenche un `loadData()` (LLM) ou `rescanStt()` (STT) pour refléter l'arrivée du nouveau fichier.
+`"model-download-progress"` - payload `DownloadProgress`. Distinguer `id === llmDownloadId` vs `sttDownloadId`. Statuts : `in_progress`, `completed`, `cancelled`, `failed`. À `completed`, déclenche un `loadData()` (LLM) ou `rescanStt()` (STT) pour refléter l'arrivée du nouveau fichier.
 
 ### Garde-fou Continuer
 
@@ -207,7 +207,7 @@ Filtrage dynamique par RAM disponible (`sysInfo.total_ram_gb`). Le badge "Recomm
 const hasUsableLlm = $derived(llmSuccess || $llmBackends.length > 0);
 ```
 
-Le bouton **Continuer** est désactivé tant qu'aucun LLM n'est utilisable — soit le modèle local vient d'être configuré dans cette session (`llmSuccess`), soit un backend cloud est déjà enregistré (via `$llmBackends`).
+Le bouton **Continuer** est désactivé tant qu'aucun LLM n'est utilisable - soit le modèle local vient d'être configuré dans cette session (`llmSuccess`), soit un backend cloud est déjà enregistré (via `$llmBackends`).
 
 ### Props
 
@@ -229,7 +229,7 @@ Le bouton **Continuer** est désactivé tant qu'aucun LLM n'est utilisable — s
 
 ---
 
-## 8. Etape 4 — `OnboardingChatStep`
+## 8. Etape 4 - `OnboardingChatStep`
 
 Fichier : `ui/src/components/onboarding/OnboardingChatStep.svelte`
 
@@ -251,7 +251,7 @@ Quatre pips horizontaux + une coche finale. Les pips actifs sont remplis en grad
 | Prop | Effet |
 |---|---|
 | `onback` | Retour à `ai-setup` |
-| `onclose` | Réservé — l'orchestrateur ferme le modal sur `OnboardingCompleted` |
+| `onclose` | Réservé - l'orchestrateur ferme le modal sur `OnboardingCompleted` |
 
 ### `data-testid`
 
@@ -283,14 +283,14 @@ Mis à `false` par :
 
 | Commande | Parametres | Retour | Etape |
 |---|---|---|---|
-| `get_onboarding_state` | — | `OnboardingState` | Verif au demarrage + `restoreStepFromBackend` |
+| `get_onboarding_state` | - | `OnboardingState` | Verif au demarrage + `restoreStepFromBackend` |
 | `advance_onboarding_phase` | `targetPhase: OnboardingPhase` | `OnboardingState` | Sync à chaque transition d'etape |
 | `set_onboarding_profile` | `profile: "operator" \| "builder"` | `OnboardingState` | Etape 2 (profile) |
-| `get_ai_setup_info` | — | `SystemInfo` | Etape 3 (ai-setup) header |
-| `scan_for_gguf_models` | — | `Vec<GgufModelInfo>` | Etape 3 (ai-setup) LLM |
-| `scan_for_whisper_models` | — | `Vec<WhisperModelInfo>` | Etape 3 (ai-setup) STT |
+| `get_ai_setup_info` | - | `SystemInfo` | Etape 3 (ai-setup) header |
+| `scan_for_gguf_models` | - | `Vec<GgufModelInfo>` | Etape 3 (ai-setup) LLM |
+| `scan_for_whisper_models` | - | `Vec<WhisperModelInfo>` | Etape 3 (ai-setup) STT |
 | `setup_local_llm` | `ggufPath: String` | `()` | Etape 3 (ai-setup) LLM |
-| `reload_llm` | — | `()` | Etape 3 (ai-setup) LLM |
+| `reload_llm` | - | `()` | Etape 3 (ai-setup) LLM |
 | `setup_whisper_model` | `modelPath: String` | `()` | Etape 3 (ai-setup) STT |
 | `start_model_download` | `request: { url, filename, hf_token?, dest_dir?, repo_id? }` | `String` (downloadId) | Etape 3 (ai-setup) télé. `repo_id` déclenche l'auto-persistance des sampling defaults officiels HF. |
 | `cancel_model_download` | `downloadId: String` | `()` | Etape 3 (ai-setup) télé. |
@@ -299,8 +299,8 @@ Mis à `false` par :
 | `trigger_onboarding` | `topic: null, profile: null` | `TriggerResult` | Etape 4 (chat) demarrage |
 | `send_chat_message` | `sessionId: String, content: String` | `String` | Etape 4 (chat) kick initial |
 | `get_chat_session` | `sessionId: String` | `ChatSessionDetail` | Etape 4 (chat) polling |
-| `dismiss_onboarding` | — | `()` | Bouton "Configurer plus tard" |
-| `reset_onboarding` | — | `()` | Settings → Zone de danger |
+| `dismiss_onboarding` | - | `()` | Bouton "Configurer plus tard" |
+| `reset_onboarding` | - | `()` | Settings → Zone de danger |
 
 ### Commandes utilitaires (`commands/onboarding.rs`)
 
@@ -364,7 +364,7 @@ Efface uniquement les marqueurs de progression et de profil. Backends LLM, modè
 
 1. Supprime `~/.apollia/.onboarded`.
 2. Purge les clés `onboarding_*` dans `UserMemoryRepository` (Context).
-3. Purge la base sémantique de l'agent (`~/.apollia/memory/onboarding-agent.db`) — efface `user.*` et `onboarding.*` (sauf `onboarding.active_profile`).
+3. Purge la base sémantique de l'agent (`~/.apollia/memory/onboarding-agent.db`) - efface `user.*` et `onboarding.*` (sauf `onboarding.active_profile`).
 
 Effet : `started_at = null` au prochain `get_onboarding_state`, donc `shouldOpenOnboarding == true` au prochain demarrage. Le parcours redémarre depuis l'Accueil.
 
@@ -373,7 +373,7 @@ Effet : `started_at = null` au prochain `get_onboarding_state`, donc `shouldOpen
 Supprime **tout** `~/.apollia/`. Action destructive irréversible.
 
 1. `tokio::fs::remove_dir_all(~/.apollia/)`.
-2. `app.restart()` (peut échouer en mode dev — bandeau orange en fallback).
+2. `app.restart()` (peut échouer en mode dev - bandeau orange en fallback).
 3. Au redémarrage, runtime fresh → `OnboardingRequired` émis → parcours en 4 etapes ouvert depuis l'Accueil.
 
 ---
@@ -382,8 +382,8 @@ Supprime **tout** `~/.apollia/`. Action destructive irréversible.
 
 | Niveau | Couverture |
 |---|---|
-| Unit (Rust) | Phase machine, transitions, persistence dans UserMemory — voir `crates/apollia-desktop/src/commands/onboarding.rs::tests` |
-| Component (Svelte/Vitest) | À ajouter — actuellement non couvert |
-| E2E (Playwright) | À ajouter — `crates/apollia-desktop/ui/tests/` ne couvre pas encore le parcours v2.2.0 |
+| Unit (Rust) | Phase machine, transitions, persistence dans UserMemory - voir `crates/apollia-desktop/src/commands/onboarding.rs::tests` |
+| Component (Svelte/Vitest) | À ajouter - actuellement non couvert |
+| E2E (Playwright) | À ajouter - `crates/apollia-desktop/ui/tests/` ne couvre pas encore le parcours v2.2.0 |
 
-> **Voir aussi :** [Briques-Desktop](https://github.com/nidal-z/apollia-os/wiki/Briques-Desktop) pour le contexte global Tauri/Svelte, [Briques-LLM-Backend](https://github.com/nidal-z/apollia-os/wiki/Briques-LLM-Backend) pour le détail des providers.
+> **Voir aussi :** [Briques-Desktop](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Desktop) pour le contexte global Tauri/Svelte, [Briques-LLM-Backend](https://github.com/Apollia-OS/apollia-os/wiki/Briques-LLM-Backend) pour le détail des providers.

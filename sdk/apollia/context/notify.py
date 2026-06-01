@@ -1,4 +1,4 @@
-"""ctx.notify — multi-channel notifications."""
+"""ctx.notify - multi-channel notifications."""
 
 from __future__ import annotations
 

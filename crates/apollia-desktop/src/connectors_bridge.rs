@@ -43,7 +43,7 @@ pub async fn build_google_executors() -> Vec<Box<dyn ToolExecutor>> {
     let connector = match GoogleConnector::new(auth.clone()) {
         Ok(c) => Arc::new(c),
         Err(e) => {
-            tracing::warn!(error = %e, "Google connector init failed — tools unavailable");
+            tracing::warn!(error = %e, "Google connector init failed - tools unavailable");
             return Vec::new();
         }
     };
@@ -100,14 +100,14 @@ impl GoogleToolExecutor {
         if accounts.is_empty() {
             return Err(ToolExecutionError::ExecutionFailed {
                 code: "no_account".into(),
-                message: "no Google account connected — open Réglages → Intégrations to sign in"
+                message: "no Google account connected - open Réglages → Intégrations to sign in"
                     .into(),
             });
         }
         if accounts.len() > 1 {
             tracing::warn!(
                 count = accounts.len(),
-                "multiple Google accounts connected — using the first one (multi-account dispatch is not yet implemented)"
+                "multiple Google accounts connected - using the first one (multi-account dispatch is not yet implemented)"
             );
         }
         Ok(accounts.into_iter().next().expect("len>=1"))

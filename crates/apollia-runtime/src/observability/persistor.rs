@@ -235,7 +235,7 @@ pub fn spawn_runtime_events_subscriber(
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                     tracing::warn!(
                         skipped = n,
-                        "runtime_events subscriber lagged — events dropped (Lot 4 will surface as bus_lagged)",
+                        "runtime_events subscriber lagged - events dropped (Lot 4 will surface as bus_lagged)",
                     );
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {

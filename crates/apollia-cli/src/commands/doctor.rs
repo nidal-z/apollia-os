@@ -174,7 +174,7 @@ fn check_config_file(data_dir: &Path) -> CheckResult {
         return CheckResult::ok(
             "config_file",
             "Config file",
-            "no apollia.toml (optional — runtime tuning only; defaults are fine)",
+            "no apollia.toml (optional - runtime tuning only; defaults are fine)",
         );
     };
 

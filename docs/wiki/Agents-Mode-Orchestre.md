@@ -1,4 +1,4 @@
-# Référence — Mode Orchestré ORIA
+# Référence - Mode Orchestré ORIA
 
 > *Spécification des opcodes, conditions de replanification et codes d'erreur du mode d'exécution orchestré.*
 
@@ -10,7 +10,7 @@ Le **Mode Orchestré** est le mode d'exécution où ORIA (Observer-Reasoner-Acto
 
 ---
 
-## 1. Table — Activation du Mode Orchestré
+## 1. Table - Activation du Mode Orchestré
 
 | Paramètre | Type | Valeur | Effet |
 |---|---|---|---|
@@ -32,7 +32,7 @@ Le **Mode Orchestré** est le mode d'exécution où ORIA (Observer-Reasoner-Acto
 
 ---
 
-## 2. Table — Primitives du Plan d'Exécution
+## 2. Table - Primitives du Plan d'Exécution
 
 L'`ExecutionPlan` est généré par le Reasoner et validé par `Reasoner::parse_and_validate`.
 
@@ -55,7 +55,7 @@ L'`ExecutionPlan` est généré par le Reasoner et validé par `Reasoner::parse_
 
 ---
 
-## 3. Table — Opcodes ORIA (Actions du Planner)
+## 3. Table - Opcodes ORIA (Actions du Planner)
 
 Chaque primitive de l'ORIAEngine exécute une séquence Observer → Reason → Act.
 
@@ -91,7 +91,7 @@ Chaque primitive de l'ORIAEngine exécute une séquence Observer → Reason → 
 
 ---
 
-## 4. Table — Conditions de Replanification
+## 4. Table - Conditions de Replanification
 
 La replanification est **automatique** et bornée à **max 2 replans** (au-delà : `MAX_REPLAN_EXCEEDED`).
 
@@ -103,7 +103,7 @@ La replanification est **automatique** et bornée à **max 2 replans** (au-delà
 | **NoLlmBackend** | ❌ Non | Échec immédiat (config manquante) |
 | **RejectedByUser** | ❌ Non | Arrêt immédiat (HITL Mode Orchestré) |
 | **ApprovalChannelClosed** | ❌ Non | Arrêt immédiat (runtime shutdown) |
-| **replan_count ≥ max_replans** | — | `MAX_REPLAN_EXCEEDED` : tâche échoue |
+| **replan_count ≥ max_replans** | - | `MAX_REPLAN_EXCEEDED` : tâche échoue |
 
 **Flux de replanification :**
 ```
@@ -121,7 +121,7 @@ Step échoue
 
 ---
 
-## 5. Table — Codes d'Erreur ORIA
+## 5. Table - Codes d'Erreur ORIA
 
 ### 5.1 ORIAError (Engine)
 
@@ -165,7 +165,7 @@ Step échoue
 
 ---
 
-## 6. Table — Paramètres de Configuration
+## 6. Table - Paramètres de Configuration
 
 ### 6.1 StepBudgetConfig (par agent)
 
@@ -189,11 +189,11 @@ Step échoue
 ## 7. Références internes
 
 ### Fichiers de code source
-- **Plan** : `/crates/apollia-oria/src/plan.rs` — `ExecutionPlan`, `PlanStep`
-- **Reasoner** : `/crates/apollia-oria/src/reasoner.rs` — `Reasoner`, `ReasonerError`, `PlanValidationError`
-- **ActorLoop** : `/crates/apollia-oria/src/actor.rs` — `ActorLoop`, `StepError`, `ToolProxyTrait`
-- **Observer** : `/crates/apollia-oria/src/observer.rs` — `ContextBundle`, `ExecutionMode`, classification
-- **Engine** : `/crates/apollia-oria/src/engine.rs` — `ORIAEngine`, `ORIAError`
+- **Plan** : `/crates/apollia-oria/src/plan.rs` - `ExecutionPlan`, `PlanStep`
+- **Reasoner** : `/crates/apollia-oria/src/reasoner.rs` - `Reasoner`, `ReasonerError`, `PlanValidationError`
+- **ActorLoop** : `/crates/apollia-oria/src/actor.rs` - `ActorLoop`, `StepError`, `ToolProxyTrait`
+- **Observer** : `/crates/apollia-oria/src/observer.rs` - `ContextBundle`, `ExecutionMode`, classification
+- **Engine** : `/crates/apollia-oria/src/engine.rs` - `ORIAEngine`, `ORIAError`
 
 ### Librairies associées
 - `apollia-core` : `ORIAConfig`, `AIPResult`, `StepBudgetConfig`
@@ -205,7 +205,7 @@ Step échoue
 
 ## 8. Liens
 
-> Pour le pattern d'usage du Mode Orchestré dans un agent Python, voir [book ch09 — Agents en mode orchestré](../../book/src/ch09-00-orchestrated.md).
+> Pour le pattern d'usage du Mode Orchestré dans un agent Python, voir [book ch09 - Agents en mode orchestré](../../book/src/ch09-00-orchestrated.md).
 
 > Pour la spécification interne complète (Observer, Reasoner, ActorLoop détaillés), voir [Briques-ORIA-Engine.md](./Briques-ORIA-Engine.md).
 

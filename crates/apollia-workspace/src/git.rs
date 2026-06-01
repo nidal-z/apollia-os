@@ -1,14 +1,14 @@
 //! Collecteur de contexte git via sous-processus.
 //!
 //! Toutes les commandes git sont lancées via [`tokio::process::Command`].
-//! Aucune dépendance `git2` — zéro dépendance C supplémentaire (Principe #2).
+//! Aucune dépendance `git2` - zéro dépendance C supplémentaire (Principe #2).
 //! Toute erreur (git absent, répertoire hors dépôt) est absorbée silencieusement.
 
 use std::path::Path;
 
 /// Résultat brut de la collecte git pour un répertoire donné.
 ///
-/// Tous les champs sont optionnels ou ont un défaut inerte — jamais de panic
+/// Tous les champs sont optionnels ou ont un défaut inerte - jamais de panic
 /// si git est absent ou si le répertoire n'est pas un dépôt.
 #[derive(Debug, Default)]
 pub struct GitResult {
@@ -117,12 +117,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_git_status_max_lines_respected() {
-        // GIVEN : repo avec au moins un fichier modifié (ou pas — on teste la limite)
+        // GIVEN : repo avec au moins un fichier modifié (ou pas - on teste la limite)
         let cwd = std::env::current_dir().expect("current_dir");
         let max_lines = 2;
         // WHEN
         let result = GitContextCollector::collect(&cwd, max_lines).await;
-        // THEN — si du statut existe, il ne dépasse pas max_lines lignes
+        // THEN - si du statut existe, il ne dépasse pas max_lines lignes
         if let Some(status) = &result.status {
             assert!(
                 status.lines().count() <= max_lines,

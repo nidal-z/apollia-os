@@ -9,7 +9,7 @@
   function humanizeBackend(backendType: string, model: string): string {
     const displayModel = prettifyModelName(model);
     if (backendType === "embedded") {
-      return `${$t('agent_detail.llm_local')} (${displayModel}) — ${$t('agent_detail.llm_free')}`;
+      return `${$t('agent_detail.llm_local')} (${displayModel}) - ${$t('agent_detail.llm_free')}`;
     }
     return `${$t('agent_detail.llm_cloud')} (${displayModel})`;
   }

@@ -1,4 +1,4 @@
-# Sécurité — Guardrails — Apollia OS
+# Sécurité - Guardrails - Apollia OS
 
 > StepBudget, ResilienceLayer et circuit breakers : les garde-fous non contournables appliqués par le runtime.
 > Public cible : développeur d'agent, opérateur
@@ -7,11 +7,11 @@
 
 ## Vue d'ensemble
 
-Les guardrails d'Apollia OS protègent contre les risques les plus fréquemment observés dans les déploiements d'agents IA : les boucles infinies et les coûts LLM incontrôlés. Ils sont appliqués par le runtime Rust — un agent Python ne peut pas les désactiver depuis son code.
+Les guardrails d'Apollia OS protègent contre les risques les plus fréquemment observés dans les déploiements d'agents IA : les boucles infinies et les coûts LLM incontrôlés. Ils sont appliqués par le runtime Rust - un agent Python ne peut pas les désactiver depuis son code.
 
 ---
 
-## StepBudget — tri-dimensionnel
+## StepBudget - tri-dimensionnel
 
 Le StepBudget est appliqué par l'`ExecutionCoordinator` (Rust), pas par l'agent Python.
 
@@ -62,7 +62,7 @@ wall_clock_ceiling_secs = 600
 
 Si ces valeurs ne sont pas définies, les défauts runtime (10 steps, 20 tool_calls, 300s) s'appliquent comme plafond.
 
-### from_capped — le runtime plafonne toujours
+### from_capped - le runtime plafonne toujours
 
 L'agent peut demander plus que les défauts, mais le runtime plafonne :
 
@@ -95,7 +95,7 @@ async def run(self, task, ctx):
 
 ---
 
-## ResilienceLayer — circuit breakers par outil
+## ResilienceLayer - circuit breakers par outil
 
 Empêche qu'un outil défaillant ne bloque toutes les tâches de l'agent.
 
@@ -105,10 +105,10 @@ Empêche qu'un outil défaillant ne bloque toutes les tâches de l'agent.
 CLOSED (normal)
     │ failure_threshold atteint
     ▼
-OPEN (circuit coupé — outil bloqué)
+OPEN (circuit coupé - outil bloqué)
     │ cooldown_period écoulé
     ▼
-HALF_OPEN (test — une tentative autorisée)
+HALF_OPEN (test - une tentative autorisée)
     │ succès → CLOSED
     │ échec → OPEN (reset cooldown)
 ```
@@ -136,7 +136,7 @@ apollia-os audit stats
 
 ---
 
-## RetryPolicy — backoff exponentiel avec jitter
+## RetryPolicy - backoff exponentiel avec jitter
 
 Pour les erreurs transitoires, l'ORIA Engine réessaie automatiquement avec backoff.
 
@@ -200,15 +200,15 @@ def manifest(self):
 
 ---
 
-## Outils dangereux — `dangerous_tools_allowed`
+## Outils dangereux - `dangerous_tools_allowed`
 
 Les outils avec `dangerous: true` dans leur `ToolDescriptor` (ex: `bash_executor` avec profil `SandboxProfile::Full`) nécessitent un opt-in explicite de l'agent via `dangerous_tools_allowed: True` dans le manifest. Sans ce flag, l'appel retourne `ToolAccessDenied`.
 
-Ce mécanisme garantit qu'un agent ne peut pas accidentellement accéder à des outils à haut risque. Voir [Bonnes Pratiques — Outils dangereux](./Agents-Bonnes-Pratiques) pour les détails d'implémentation.
+Ce mécanisme garantit qu'un agent ne peut pas accidentellement accéder à des outils à haut risque. Voir [Bonnes Pratiques - Outils dangereux](./Agents-Bonnes-Pratiques) pour les détails d'implémentation.
 
 ---
 
-## Garde-fous A2A — protection des chaînes d'invocations inter-agents
+## Garde-fous A2A - protection des chaînes d'invocations inter-agents
 
 Quand un Director Agent invoque un Worker via A2A (`ctx.delegate(skill_id,...)`), le runtime applique trois garde-fous automatiques non contournables depuis Python.
 
@@ -266,13 +266,13 @@ Le `chain_deadline` est initialisé lors de la première invocation A2A à `Inst
 
 ### Interaction avec StepBudget
 
-Le StepBudget du Director Agent continue de s'appliquer pendant l'invocation A2A. Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche du Director échoue avec `BUDGET_EXCEEDED` — le Worker est interrompu par le timeout A2A.
+Le StepBudget du Director Agent continue de s'appliquer pendant l'invocation A2A. Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche du Director échoue avec `BUDGET_EXCEEDED` - le Worker est interrompu par le timeout A2A.
 
 ---
 
 ## Voir aussi
 
-- [Architecture Principes](./Architecture-Principes) — Principe #7 Garde-fous non négociables
-- [Briques ORIA Engine](./Briques-ORIA-Engine) — implémentation StepBudget et ResilienceLayer
-- [Agents Bonnes Pratiques](./Agents-Bonnes-Pratiques) — comment anticiper le budget dans le code agent
-- [A2A / ACP](./A2A-ACP-Alignement) — routing A2A, trust model, A2AToolsProvider
+- [Architecture Principes](./Architecture-Principes) - Principe #7 Garde-fous non négociables
+- [Briques ORIA Engine](./Briques-ORIA-Engine) - implémentation StepBudget et ResilienceLayer
+- [Agents Bonnes Pratiques](./Agents-Bonnes-Pratiques) - comment anticiper le budget dans le code agent
+- [A2A / ACP](./A2A-ACP-Alignement) - routing A2A, trust model, A2AToolsProvider

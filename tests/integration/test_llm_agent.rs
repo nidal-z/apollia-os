@@ -1,4 +1,4 @@
-//! Tests e2e — agent Python avec `ctx.llm`.
+//! Tests e2e - agent Python avec `ctx.llm`.
 //!
 //! Vérifie le cycle complet LLM depuis un agent Python :
 //! - agent qui appelle `ctx.llm.chat()` avec un mock Python → Completed ;
@@ -31,7 +31,7 @@ use apollia_llm::{
 use apollia_runtime::eventbus::EventBus;
 
 // ─────────────────────────────────────────────
-// Mock CompletionModel — réponse textuelle simple
+// Mock CompletionModel - réponse textuelle simple
 // ─────────────────────────────────────────────
 
 /// Mock LLM qui retourne un contenu fixe avec `FinishReason::Stop`.
@@ -201,7 +201,7 @@ async fn test_agent_llm_chat_completed() {
 /// `LlmCallCompleted` est émis sur l'EventBus après un appel LLM.
 ///
 /// Teste la couche d'observabilité de `LlmRouter::complete_with_observability`.
-/// Test Rust pur — pas de Python.
+/// Test Rust pur - pas de Python.
 #[tokio::test]
 async fn test_llm_call_completed_event_emitted() {
     // GIVEN un LlmRouter avec un mock backend et un EventBus
@@ -248,7 +248,7 @@ async fn test_llm_call_completed_event_emitted() {
 
 /// Le stream d'un mock CompletionModel retourne les chunks attendus.
 ///
-/// Teste le mode streaming depuis l'API publique — Rust pur, pas de Python.
+/// Teste le mode streaming depuis l'API publique - Rust pur, pas de Python.
 #[tokio::test]
 async fn test_llm_stream_yields_chunks() {
     use futures::StreamExt;

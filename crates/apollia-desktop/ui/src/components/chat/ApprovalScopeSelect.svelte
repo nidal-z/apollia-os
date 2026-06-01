@@ -4,7 +4,7 @@
    * card. Presented as a native <details> so it stays reachable with the
    * keyboard and requires no portal/popover primitive.
    *
-   * The default scope is `this_session` — the safest sticky option.
+   * The default scope is `this_session` - the safest sticky option.
    */
 
   import { t } from "svelte-i18n";

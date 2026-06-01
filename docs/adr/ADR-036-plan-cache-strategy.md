@@ -1,4 +1,4 @@
-# ADR-036 — Stratégie de cache de plans ORIA
+# ADR-036 - Stratégie de cache de plans ORIA
 
 **Date :** 2026-03-23
 **Statut :** Accepté
@@ -19,15 +19,15 @@ Nous adoptons un cache de plans en SQLite (`plan_cache.db`) avec clé de cache S
 
 ## Alternatives considérées
 
-### Option A — In-memory LRU cache (rejetée)
+### Option A - In-memory LRU cache (rejetée)
 **Pour :** Lookup le plus rapide possible, zéro IO disque.
 **Contre :** Perdu au redémarrage, pas de persistance, la mémoire croît de manière non bornée sur les serveurs long-running.
 
-### Option B — No cache (actuel, rejetée)
+### Option B - No cache (actuel, rejetée)
 **Pour :** Le plus simple, aucun bug d'invalidation possible.
 **Contre :** Gaspille des appels LLM pour des tâches identiques, latence et coût plus élevés.
 
-### Option retenue — SQLite persistent cache
+### Option retenue - SQLite persistent cache
 **Pour :** Survit au redémarrage, stockage borné (1000 entrées max), pattern familier (même approche que les autres repositories), requêtable pour le debugging.
 **Compromis acceptés :** Légèrement plus lent qu'un cache in-memory (mais SQLite est rapide pour un lookup par clé), nécessite une maintenance d'éviction.
 
@@ -48,8 +48,8 @@ Nous adoptons un cache de plans en SQLite (`plan_cache.db`) avec clé de cache S
 - Considérer un mécanisme d'invalidation manuelle via CLI (`apollia-os cache clear`)
 
 ## Principes architecturaux impactés
-- Principe #1 — Local-first : cache stocké localement en SQLite, zéro donnée externalisée
-- Principe #4 — Fail fast : un cache miss retombe gracieusement sur le `Reasoner` (aucun mode d'échec ajouté)
+- Principe #1 - Local-first : cache stocké localement en SQLite, zéro donnée externalisée
+- Principe #4 - Fail fast : un cache miss retombe gracieusement sur le `Reasoner` (aucun mode d'échec ajouté)
 
 ## Liens
 - Story associée : STORY-231, STORY-232, STORY-233

@@ -1,4 +1,4 @@
-# ORIA Engine — Observer, Reasoner, Actor
+# ORIA Engine - Observer, Reasoner, Actor
 
 > *Le moteur d'exécution intelligent d'Apollia OS : deux modes, des garde-fous production-grade, et une résilience fondée sur l'état de l'art.*
 
@@ -26,7 +26,7 @@ La recherche 2025 valide l'architecture Reasoner-Planner-Executor (RP-ReAct) pou
 
 ---
 
-## 2. Observer — Enrichissement du contexte
+## 2. Observer - Enrichissement du contexte
 
 L'Observer est le premier composant activé à réception d'une `AIPTask`. Son rôle : construire un `ContextBundle` complet avant tout raisonnement.
 
@@ -54,7 +54,7 @@ pub struct MemorySnapshot {
 4. Snapshot de l'état runtime (outils disponibles, ProcessState)
 5. **Classifier la complexité** → `ExecutionMode`
 
-**Algorithme de classification — Scoring pondéré :**
+**Algorithme de classification - Scoring pondéré :**
 
 ```rust
 pub enum ExecutionMode {
@@ -115,11 +115,11 @@ Le champ `system_prompt` est injecté par ORIA dans les prompts du Reasoner pour
 
 ---
 
-## 3. Reasoner — Planification
+## 3. Reasoner - Planification
 
 Le Reasoner opère différemment selon le mode.
 
-### 3.1 Mode Direct — Raisonnement délégué à l'agent
+### 3.1 Mode Direct - Raisonnement délégué à l'agent
 
 En Mode Direct, il n'y a pas de Reasoner séparé. L'agent Python gère lui-même son raisonnement interne (typiquement via une boucle ReAct avec son LLM). ORIA joue le rôle de **superviseur de boucle** :
 
@@ -134,7 +134,7 @@ ContextBundle → agent.run(task, ctx)
 
 **Rôle ORIA en Mode Direct :** Injecter le `RuntimeContext`, surveiller le `StepBudget`, appliquer la `ResilienceLayer` sur chaque appel d'outil.
 
-### 3.2 Mode Orchestré — Reasoner LLM explicite
+### 3.2 Mode Orchestré - Reasoner LLM explicite
 
 En Mode Orchestré, ORIA instancie un `Reasoner` qui appelle un `Arc<dyn CompletionModel>` (depuis `apollia-llm`) pour produire un `ExecutionPlan` structuré JSON.
 
@@ -157,7 +157,7 @@ pub struct PlanStep {
 Le `Reasoner` est injecté dans l'`ORIAEngine` via un builder :
 
 ```rust
-// Dans le Supervisor — après LlmRouter démarré (position 5)
+// Dans le Supervisor - après LlmRouter démarré (position 5)
 let model: Arc<dyn CompletionModel> = llm_router.get(None).unwrap();
 let reasoner = Reasoner::new(model);
 let engine = ORIAEngine::new().with_reasoner(reasoner);
@@ -210,16 +210,16 @@ ajoute un champ "model_hint": "nom_backend" à l'étape.
 
 ---
 
-## 4. Actor — Exécution et observation
+## 4. Actor - Exécution et observation
 
 L'Actor est le composant qui traduit les steps en appels concrets aux outils, observe les résultats, et remonte au Reasoner si nécessaire.
 
 ### 4.1 Boucle Actor en Mode Orchestré
 
-L'`ActorLoop` exécute un `ExecutionPlan` en ordre topologique. En Mode Orchestré (Option B — ADR-022), `agent.run` n'est **jamais** appelé pendant les steps : ORIA appelle les outils et le LLM directement via `ToolProxyTrait`.
+L'`ActorLoop` exécute un `ExecutionPlan` en ordre topologique. En Mode Orchestré (Option B - ADR-022), `agent.run` n'est **jamais** appelé pendant les steps : ORIA appelle les outils et le LLM directement via `ToolProxyTrait`.
 
 ```rust
-/// Abstraction du ToolProxy pour l'ActorLoop — permet les tests sans PyO3.
+/// Abstraction du ToolProxy pour l'ActorLoop - permet les tests sans PyO3.
 #[async_trait::async_trait]
 pub trait ToolProxyTrait: Send + Sync {
     async fn invoke(&self, tool_name: &str, input: &serde_json::Value) -> Result<String, String>;
@@ -238,7 +238,7 @@ pub enum StepError {
     ToolNotFound(String),
     #[error("step rejeté par l'utilisateur : {reason}")]
     RejectedByUser { reason: String },         // HITL
-    #[error("channel d'approbation fermé — runtime en cours d'arrêt")]
+    #[error("channel d'approbation fermé - runtime en cours d'arrêt")]
     ApprovalChannelClosed,                     // HITL
 }
 
@@ -249,9 +249,9 @@ impl StepError {
 }
 ```
 
-### 4.0 StepContext — Observation per-step *(ADR-035)*
+### 4.0 StepContext - Observation per-step *(ADR-035)*
 
-L'`ActorLoop` maintient un `StepContext` qui accumule les résultats des steps précédents et les injecte dans le contexte LLM de chaque step suivant. Ceci permet une **observation per-step en mode Orchestré** — le LLM voit les outputs des steps déjà exécutés.
+L'`ActorLoop` maintient un `StepContext` qui accumule les résultats des steps précédents et les injecte dans le contexte LLM de chaque step suivant. Ceci permet une **observation per-step en mode Orchestré** - le LLM voit les outputs des steps déjà exécutés.
 
 ```rust
 pub struct StepContext {
@@ -276,7 +276,7 @@ const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
 const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 ```
 
-**Principe #6 relaxé en Orchestré (ADR-035) :** En mode Direct, le Principe #6 ("mémoire à initiative de l'agent") reste strict — aucune injection automatique. En mode Orchestré, ORIA injecte le `StepContext` et enregistre les épisodes car l'agent Python n'est pas appelé pendant les steps.
+**Principe #6 relaxé en Orchestré (ADR-035) :** En mode Direct, le Principe #6 ("mémoire à initiative de l'agent") reste strict - aucune injection automatique. En mode Orchestré, ORIA injecte le `StepContext` et enregistre les épisodes car l'agent Python n'est pas appelé pendant les steps.
 
 Pipeline d'exécution de l'`ActorLoop` :
 
@@ -301,13 +301,13 @@ ActorLoop::execute()
 
 ### 4.2 Replanification (Mode Orchestré uniquement)
 
-Si un step retryable échoue, l'Actor déclenche une replanification LLM plutôt qu'un abandon immédiat. **Maximum 2 replans** — au-delà, `MAX_REPLAN_EXCEEDED` est retourné.
+Si un step retryable échoue, l'Actor déclenche une replanification LLM plutôt qu'un abandon immédiat. **Maximum 2 replans** - au-delà, `MAX_REPLAN_EXCEEDED` est retourné.
 
 Le Reasoner reçoit le plan original, le step ayant échoué, et son erreur, puis génère un plan alternatif. L'`ActorLoop` reprend l'exécution avec le nouveau plan en sautant les steps déjà complétés.
 
 **Pourquoi max 2 replans :** La replanification sans limite est le vecteur principal de boucles infinies et de coûts LLM incontrôlés. 2 replans offrent une seconde chance pour les erreurs transitoires sans risque de récursion incontrôlée.
 
-### 4.3 Persistance SQLite — PlanRepository
+### 4.3 Persistance SQLite - PlanRepository
 
 Chaque plan et chaque step sont persistés en temps réel dans `~/.apollia/plans.db` (migration `004_execution_plans.sql`).
 
@@ -340,7 +340,7 @@ impl PlanRepository {
 }
 ```
 
-Les colonnes d'observabilité (`input_rendered`, `input_truncated`, `output_text`, `output_truncated`, `tool_used`, `error_detail`, `duration_ms`) sont ajoutées à `plan_steps` par migration idempotente au `PlanRepository::open`. La troncature suit `ObservabilityConfig` avec le marqueur `[TRONQUÉ — N octets total]`.
+Les colonnes d'observabilité (`input_rendered`, `input_truncated`, `output_text`, `output_truncated`, `tool_used`, `error_detail`, `duration_ms`) sont ajoutées à `plan_steps` par migration idempotente au `PlanRepository::open`. La troncature suit `ObservabilityConfig` avec le marqueur `[TRONQUÉ - N octets total]`.
 
 `get_plan_with_steps` est utilisé par `apollia-os task inspect` et la Timeline API pour afficher le plan post-exécution sans nécessiter un runtime démarré.
 
@@ -349,7 +349,7 @@ Les colonnes d'observabilité (`input_rendered`, `input_truncated`, `output_text
 Après l'exécution complète du plan, ORIA appelle le hook Python `on_plan_complete` si l'agent l'expose (duck typing via `hasattr`). L'agent reçoit les outputs de tous les steps et peut appliquer une logique métier finale.
 
 ```python
-# Hook optionnel — le contrat AIP minimal (manifest + run) reste suffisant
+# Hook optionnel - le contrat AIP minimal (manifest + run) reste suffisant
 async def on_plan_complete(self, step_results: dict[str, str], ctx) -> str:
     """
     step_results: { "s1": "output du step 1", "s2": "output du step 2", ... }
@@ -363,11 +363,11 @@ Si le hook est absent, ORIA concatène automatiquement les outputs des steps et 
 
 ---
 
-## 5. HITL — Human-in-the-Loop
+## 5. HITL - Human-in-the-Loop
 
 Le HITL permet à un agent de **suspendre son exécution** pour demander une décision humaine avant de continuer. ORIA implémente deux variantes selon le mode d'exécution.
 
-### 5.1 Mode Direct — Suspension sur `AIPResult.input_required`
+### 5.1 Mode Direct - Suspension sur `AIPResult.input_required`
 
 En Mode Direct, l'agent Python initie la suspension en retournant `AIPResult.input_required(prompt, context)` depuis `run()`. ORIA prend alors le relais :
 
@@ -389,7 +389,7 @@ ORIA.execute_direct() :
   │   └── Rappelle agent.run(resumed_task, ctx) → résultat final
   │
   └── Si approved=false :
-      └── AIPResult::failed("REJECTED", reason) — run() n'est PAS rappelé
+      └── AIPResult::failed("REJECTED", reason) - run() n'est PAS rappelé
 ```
 
 **Contrat Python côté agent :**
@@ -397,14 +397,14 @@ ORIA.execute_direct() :
 ```python
 async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
     if task.is_resumed:
-        # L'humain a approuvé — input_response contient sa réponse
+        # L'humain a approuvé - input_response contient sa réponse
         response = task.input_response
         if response.approved:
             # Continuer avec l'état sérialisé au moment du suspend
             saved_state = response.context
             return await self._continue_from(saved_state, ctx)
 
-    # Première exécution — calculer, puis demander validation
+    # Première exécution - calculer, puis demander validation
     amount = await self._calculate_total(task, ctx)
 
     return AIPResult.input_required(
@@ -413,9 +413,9 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
     )
 ```
 
-**Persistance SQLite :** `TaskRepository.save_input_required(task_id, step_id=None, prompt, context)` écrit dans la table `task_hitl_state`. En cas d'échec SQLite, ORIA logue un `warn` et continue (fail-safe — Principe #4).
+**Persistance SQLite :** `TaskRepository.save_input_required(task_id, step_id=None, prompt, context)` écrit dans la table `task_hitl_state`. En cas d'échec SQLite, ORIA logue un `warn` et continue (fail-safe - Principe #4).
 
-**StepBudget pausé pendant la suspension :** L'attente sur le oneshot channel est un `await` pur — le polling du budget ne tourne pas. Le compteur de steps ne progresse pas tant que l'humain n'a pas répondu.
+**StepBudget pausé pendant la suspension :** L'attente sur le oneshot channel est un `await` pur - le polling du budget ne tourne pas. Le compteur de steps ne progresse pas tant que l'humain n'a pas répondu.
 
 **Dégradation gracieuse :** Si `PendingApprovals` n'est pas configuré sur l'`ORIAEngine`, ORIA retourne `AIPResult::InputRequired` sans suspendre (la tâche reste dans l'état `input_required` mais n'attend pas de résolution).
 
@@ -436,11 +436,11 @@ def manifest(self):
 ```
 
 **Règles :**
-- Champ optionnel — `[]` par défaut (aucune approbation requise).
+- Champ optionnel - `[]` par défaut (aucune approbation requise).
 - Seuls les outils listés déclenchent une suspension ; les autres s'exécutent normalement.
 - La liste est lue par l'`ActorLoop` à chaque step (Mode Orchestré).
 
-**Côté Rust — `AgentManifest` :**
+**Côté Rust - `AgentManifest` :**
 ```rust
 pub struct AgentManifest {
     // ...
@@ -450,7 +450,7 @@ pub struct AgentManifest {
 }
 ```
 
-### 5.3 Mode Orchestré — Suspension par step
+### 5.3 Mode Orchestré - Suspension par step
 
 En Mode Orchestré, c'est l'`ActorLoop` (et non l'agent) qui gère la suspension. Avant d'exécuter un step, il vérifie si l'outil du step est dans `manifest.tools_requiring_approval`.
 
@@ -478,32 +478,32 @@ ActorLoop.execute() :
 
 | Champ | Mode Direct | Mode Orchestré |
 |---|---|---|
-| `step_id` | `None` — toute la tâche est suspendue | `Some(step_id)` — un step précis attend |
+| `step_id` | `None` - toute la tâche est suspendue | `Some(step_id)` - un step précis attend |
 | Qui suspend | L'agent Python via `AIPResult.input_required` | L'`ActorLoop` Rust avant `execute_step` |
 | Reprise | Re-appel `agent.run` avec `is_resumed=True` | Exécution normale du step après `Ok()` |
 | Rejet | `AIPResult::failed` sans rappel Python | `StepError::RejectedByUser` → plan arrêté |
 
 **Comportement si `PendingApprovals` absent :** L'`ActorLoop` logue un `warn` et exécute le step sans approbation (mode dégradé). Cela garantit qu'un runtime non-HITL reste fonctionnel avec des manifests HITL.
 
-### 5.4 TimeoutWatcher — Annulation automatique des suspensions
+### 5.4 TimeoutWatcher - Annulation automatique des suspensions
 
-> **⚠️ Non implémenté** — Le `TimeoutWatcher` est documenté dans la spec mais absent du code (`crates/apollia-oria/src/`). Les tâches en état `input_required` ne sont pas annulées automatiquement dans la version actuelle.
+> **⚠️ Non implémenté** - Le `TimeoutWatcher` est documenté dans la spec mais absent du code (`crates/apollia-oria/src/`). Les tâches en état `input_required` ne sont pas annulées automatiquement dans la version actuelle.
 
 La spec prévoit un acteur Tokio (position 9 dans le Supervisor) qui scanne périodiquement les tâches `input_required` et annule celles qui dépassent un délai configurable. Cette feature est planifiée pour une version future.
 
 ```rust
 // Spec (non implémentée)
 pub struct TimeoutWatcherConfig {
-    /// Délai max avant annulation — défaut : 24 heures.
+    /// Délai max avant annulation - défaut : 24 heures.
     pub input_required_timeout: Duration,
-    /// Intervalle de scan — défaut : 60 secondes.
+    /// Intervalle de scan - défaut : 60 secondes.
     pub scan_interval: Duration,
 }
 ```
 
 ---
 
-## 6. StepBudget — Garde-fou fondamental
+## 6. StepBudget - Garde-fou fondamental
 
 Le StepBudget est le mécanisme le plus important pour la robustesse en production.
 
@@ -513,7 +513,7 @@ pub struct StepBudget {
     pub max_tool_calls: u32,                   // Max appels outils (défaut: 60)
     pub wall_clock_limit: Duration,            // Durée max (défaut: 10 minutes)
     pub started_at: Instant,
-    // Compteurs internes thread-safe — non exposés en pub direct
+    // Compteurs internes thread-safe - non exposés en pub direct
     // current_steps: AtomicU32
     // current_tool_calls: AtomicU32
 }
@@ -539,7 +539,7 @@ impl StepBudget {
 | `max_tool_calls` | `60` | Override possible dans `AgentManifest.step_budget` |
 | `wall_clock_secs` | `600` (10 min) | Override possible dans `AgentManifest.step_budget` |
 
-> Ces valeurs ne sont **pas** dans `apollia.toml [oria]` — elles sont dans `StepBudgetConfig` (apollia-core). L'opérateur les surcharge par agent via le manifest Python.
+> Ces valeurs ne sont **pas** dans `apollia.toml [oria]` - elles sont dans `StepBudgetConfig` (apollia-core). L'opérateur les surcharge par agent via le manifest Python.
 
 **Override par agent via manifest :**
 
@@ -571,7 +571,7 @@ L'agent **lit** le budget mais ne peut pas le modifier. C'est le runtime qui l'a
 
 ---
 
-## 7. ResilienceLayer — Circuit Breakers et Retry
+## 7. ResilienceLayer - Circuit Breakers et Retry
 
 ### 7.1 Architecture
 
@@ -599,15 +599,15 @@ pub struct CircuitBreaker {
 }
 
 pub enum CircuitState {
-    Closed,    // Normal — requêtes passent
-    Open,      // Circuit ouvert — requêtes rejetées immédiatement
-    HalfOpen,  // Test — une requête sonde autorisée
+    Closed,    // Normal - requêtes passent
+    Open,      // Circuit ouvert - requêtes rejetées immédiatement
+    HalfOpen,  // Test - une requête sonde autorisée
 }
 ```
 
 ### 7.2 Machine d'état du circuit breaker
 
-Chaque outil possède son propre `CircuitBreaker` indépendant — une défaillance de `file_io` n'affecte pas `python_executor`.
+Chaque outil possède son propre `CircuitBreaker` indépendant - une défaillance de `file_io` n'affecte pas `python_executor`.
 
 ```
 CLOSED (normal)
@@ -620,7 +620,7 @@ OPEN (circuit ouvert)
   → Toute requête : ResilienceError::CircuitOpen immédiate (outil non appelé)
   → Après cooldown (30s) écoulé, au prochain pre_check() : → HALF_OPEN
 
-HALF_OPEN (probe — une sonde autorisée)
+HALF_OPEN (probe - une sonde autorisée)
   → Succès :  record_success() → CLOSED + failure_count = 0 + last_failure_at = None
               Émet RuntimeEvent::ToolCircuitRestored
   → Échec Transient : record_failure() → OPEN + last_failure_at = now() (cooldown reset)
@@ -656,7 +656,7 @@ $ apollia-os tools reset-circuit mcp_erp_acme
   ✔ Circuit breaker de mcp_erp_acme réinitialisé (→ CLOSED)
 ```
 
-### 7.3 Plan Cache — Réutilisation de plans *(ADR-036)*
+### 7.3 Plan Cache - Réutilisation de plans *(ADR-036)*
 
 Le Plan Cache permet de réutiliser des plans d'exécution précédemment générés pour des tâches similaires, évitant un appel LLM coûteux au Reasoner.
 
@@ -756,14 +756,14 @@ Seules les erreurs `Transient` affectent le circuit breaker. Une erreur `Permane
 
 Toutes les constantes sont définies dans le code Rust. Certaines sont configurables via `apollia.toml`, d'autres sont des valeurs de défaut surchargeable à l'instanciation.
 
-**Circuit Breaker (`ResilienceLayer::default` — `crates/apollia-oria/src/resilience.rs`) :**
+**Circuit Breaker (`ResilienceLayer::default` - `crates/apollia-oria/src/resilience.rs`) :**
 
 | Constante | Valeur par défaut | Description |
 |---|---|---|
 | `default_failure_threshold` | `3` | Échecs `Transient` consécutifs pour passer `Closed → Open` |
 | `default_cooldown` | `30s` | Délai avant transition `Open → HalfOpen` |
 
-**RetryPolicy (`RetryPolicy::default` — `crates/apollia-oria/src/resilience.rs`) :**
+**RetryPolicy (`RetryPolicy::default` - `crates/apollia-oria/src/resilience.rs`) :**
 
 | Champ | Valeur par défaut | Description |
 |---|---|---|
@@ -780,11 +780,11 @@ Exemples (sans jitter) : tentative 1 → 500ms, tentative 2 → 1000ms, tentativ
 | Valeur | Valeur | Description |
 |---|---|---|
 | `ORCHESTRATED_THRESHOLD` | `0.40` | Score de complexité au-delà duquel le Mode Orchestré est sélectionné |
-| `max_replans` (ORIAConfig) | `2` | Défaut via `default_max_replans()` — configurable via `apollia.toml [oria]` |
+| `max_replans` (ORIAConfig) | `2` | Défaut via `default_max_replans()` - configurable via `apollia.toml [oria]` |
 
-> Note : `max_replans` n'est pas une constante Rust file-level — c'est la valeur par défaut de `ORIAConfig::max_replans` retournée par `default_max_replans()` dans `apollia-core/src/config.rs`.
+> Note : `max_replans` n'est pas une constante Rust file-level - c'est la valeur par défaut de `ORIAConfig::max_replans` retournée par `default_max_replans()` dans `apollia-core/src/config.rs`.
 
-**StepBudget (défauts dans `StepBudgetConfig::default()` — `apollia-core`) :**
+**StepBudget (défauts dans `StepBudgetConfig::default()` - `apollia-core`) :**
 
 > Les champs `max_steps`, `max_tool_calls`, `wall_clock_secs` ne font **pas** partie de `apollia.toml [oria]`. Ils sont déclarés par l'agent dans son manifest Python.
 
@@ -866,7 +866,7 @@ Mode Orchestré
           ├── Si tool_hint ∈ tools_requiring_approval (HITL) :
           │   ├── EventBus: TaskInputRequired { task_id, prompt, step_id: Some(step_id) }
           │   ├── await rx  ←── SUSPENSION (StepBudget pausé)
-          │   ├── Si rejected → AIPResult::failed("REJECTED: <reason>") — plan arrêté
+          │   ├── Si rejected → AIPResult::failed("REJECTED: <reason>") - plan arrêté
           │   └── Si approved → continuer vers execute_step()
           ├── EventBus: StepStarted { step_id, step_num, total, desc }
           ├── execute_step() → outil ou LLM
@@ -878,7 +878,7 @@ Mode Orchestré
   └── PlanRepository.complete_plan() / fail_plan()
   └── EventBus: PlanCompleted / PlanFailed
 
-TimeoutWatcher (⚠️ non implémenté — spec uniquement)
+TimeoutWatcher (⚠️ non implémenté - spec uniquement)
   └── Scan TaskRepository.find_input_required_older_than(timeout)
   └── Pour chaque tâche expirée :
       ├── TaskRouter.cancel_task()         → TaskStatus::Canceled
@@ -901,20 +901,20 @@ AIPResult → Runtime Core
 | Classification automatique | Zéro config pour PME, runtime décide selon manifest + input |
 | StepBudget tri-dimensionnel | Trois vecteurs d'abus distincts (steps, tool_calls, temps) |
 | Max 2 replans | Coût LLM prévisible, comportement déterministe en production |
-| Circuit breaker par outil | Isolation fine — un outil défaillant n'affecte pas les autres |
+| Circuit breaker par outil | Isolation fine - un outil défaillant n'affecte pas les autres |
 | Classification Transient / Permanent | Retry uniquement sur ce qui peut se résoudre |
-| Modèle Reasoner = même LLM que l'agent (fallback) | Simplicité MVP — `model_hint` per-step disponible si multi-modèle souhaité |
+| Modèle Reasoner = même LLM que l'agent (fallback) | Simplicité MVP - `model_hint` per-step disponible si multi-modèle souhaité |
 | StepBudget exposé à l'agent (lecture seule) | Agent peut adapter sa stratégie proactivement |
-| Scoring pondéré 7 facteurs (ADR-035) | Classification plus fine que les seuils booléens — tient compte de la mémoire et de la longueur de l'input |
-| Per-step observation en mode Orchestré (ADR-035) | Injection delta dans le contexte LLM de chaque step — Principe #6 relaxé uniquement en Orchestré |
-| Plan Cache SHA-256 avec TTL 7j (ADR-036) | Évite les appels LLM répétitifs pour des tâches similaires — local-first, SQLite |
-| `model_hint` per-step | Le Reasoner peut router chaque step vers un backend LLM différent — fallback transparent si introuvable |
-| Mémoire épisodique fire-and-forget per-step | Traçabilité sans blocage — même pattern que AuditTrail |
-| HITL via `oneshot` channel + `PendingApprovals` (ADR-023) | Suspension pure sans polling — le budget ne progresse pas ; résolution thread-safe via HashMap de senders |
-| Reprise HITL par re-appel `agent.run` avec `is_resumed=True` (ADR-023) | Pas de nouveau point d'entrée — contrat minimal préservé (Principe #3) ; l'agent voit explicitement qu'il reprend via `task.is_resumed` |
-| `tools_requiring_approval` dans le manifest (ADR-023) | Déclaration décentralisée côté agent — le runtime n'a pas à connaître la sémantique métier de chaque outil |
-| `TimeoutWatcher` scan périodique (60s) | Pas de timer par tâche — un seul acteur gère tous les timeouts, O(n) SQLite au lieu de O(n) timers en mémoire |
-| Observabilité par step (ADR-026) | Input rendu, output, outil utilisé, erreur détaillée, durée — chaque step est une boîte ouverte |
+| Scoring pondéré 7 facteurs (ADR-035) | Classification plus fine que les seuils booléens - tient compte de la mémoire et de la longueur de l'input |
+| Per-step observation en mode Orchestré (ADR-035) | Injection delta dans le contexte LLM de chaque step - Principe #6 relaxé uniquement en Orchestré |
+| Plan Cache SHA-256 avec TTL 7j (ADR-036) | Évite les appels LLM répétitifs pour des tâches similaires - local-first, SQLite |
+| `model_hint` per-step | Le Reasoner peut router chaque step vers un backend LLM différent - fallback transparent si introuvable |
+| Mémoire épisodique fire-and-forget per-step | Traçabilité sans blocage - même pattern que AuditTrail |
+| HITL via `oneshot` channel + `PendingApprovals` (ADR-023) | Suspension pure sans polling - le budget ne progresse pas ; résolution thread-safe via HashMap de senders |
+| Reprise HITL par re-appel `agent.run` avec `is_resumed=True` (ADR-023) | Pas de nouveau point d'entrée - contrat minimal préservé (Principe #3) ; l'agent voit explicitement qu'il reprend via `task.is_resumed` |
+| `tools_requiring_approval` dans le manifest (ADR-023) | Déclaration décentralisée côté agent - le runtime n'a pas à connaître la sémantique métier de chaque outil |
+| `TimeoutWatcher` scan périodique (60s) | Pas de timer par tâche - un seul acteur gère tous les timeouts, O(n) SQLite au lieu de O(n) timers en mémoire |
+| Observabilité par step (ADR-026) | Input rendu, output, outil utilisé, erreur détaillée, durée - chaque step est une boîte ouverte |
 
 ---
 
@@ -949,7 +949,7 @@ impl ContextManager {
 ```
 maybe_compact(messages) :
   ├── estimate_tokens(messages) → u32
-  │     (approximation : chars / 4 × 1.2 — conservateur)
+  │     (approximation : chars / 4 × 1.2 - conservateur)
   ├── Si estimated_tokens ≤ context_limit × threshold → retourne messages inchangés
   └── Si estimated_tokens > context_limit × threshold :
       ├── Appelle route_light(résumé de l'historique)
@@ -957,7 +957,7 @@ maybe_compact(messages) :
       │   ├── messages compactés = [system_msg_original, summary_msg]
       │   └── EventBus: RuntimeEvent::ContextCompacted { original_tokens, compacted_tokens, session_id }
       └── Si échec (timeout, erreur LLM) :
-          ├── summary_msg = "[Résumé indisponible — contexte tronqué]"
+          ├── summary_msg = "[Résumé indisponible - contexte tronqué]"
           └── Session continue (pas d'échec fatal)
 ```
 
@@ -968,7 +968,7 @@ maybe_compact(messages) :
 ```rust
 /// Estimation approximative du nombre de tokens dans un vecteur de messages.
 /// Formule : somme des longueurs de contenu en caractères / 4, multipliée par 1.2.
-/// Conservateur intentionnel — préférable à des faux négatifs (dépassement non détecté).
+/// Conservateur intentionnel - préférable à des faux négatifs (dépassement non détecté).
 pub fn estimate_tokens(messages: &[ChatMessage]) -> u32 {
     let chars: usize = messages.iter()
         .map(|m| m.content.len())
@@ -1054,7 +1054,7 @@ $ apollia-os workspace status
 
 ---
 
-## 13. Binary Feedback — Deux Plans Alternatifs
+## 13. Binary Feedback - Deux Plans Alternatifs
 
  (ADR-063), le Reasoner peut générer deux plans en parallèle pour permettre à l'opérateur de choisir et fournir un signal de supervision structuré.
 
@@ -1082,9 +1082,9 @@ impl Reasoner {
 ```rust
 /// Deux plans alternatifs générés en parallèle.
 pub struct PlanAlternatives {
-    /// Plan A : température basse — déterministe et conservateur.
+    /// Plan A : température basse - déterministe et conservateur.
     pub plan_a: TaskPlan,
-    /// Plan B : température haute — créatif et exploratoire.
+    /// Plan B : température haute - créatif et exploratoire.
     pub plan_b: TaskPlan,
     pub session_id: String,
     pub generated_at: i64,
@@ -1127,7 +1127,7 @@ Le log est local, jamais envoyé (Principe #1). Il constitue un signal RLHF pour
 ### Activation
 
 ```bash
-# CLI — mode alternatifs opt-in
+# CLI - mode alternatifs opt-in
 $ apollia run --alternatives "Migre la base de données"
 ```
 
@@ -1137,7 +1137,7 @@ plan_alternatives_temp_a = 0.3  # plan conservateur
 plan_alternatives_temp_b = 0.8  # plan exploratoire
 ```
 
-> **Voir aussi :** [ADR-063](../adr/ADR-063-binary-feedback-rlhf.md) — Binary feedback RLHF
+> **Voir aussi :** [ADR-063](../adr/ADR-063-binary-feedback-rlhf.md) - Binary feedback RLHF
 
 ---
 

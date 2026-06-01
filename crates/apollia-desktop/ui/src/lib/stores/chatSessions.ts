@@ -5,7 +5,7 @@
  * filter segment, sort order, density, and the per-session flags (pinned,
  * archived, last read) that back the pin/archive/unread features.
  *
- * Persistence is local-first via localStorage — backend SQLite columns
+ * Persistence is local-first via localStorage - backend SQLite columns
  * (`pinned_at`, `archived_at`, `last_read_at`) are deferred to a follow-up
  * story. UI-side persistence survives reloads and keeps the same UX.
  */
@@ -43,7 +43,7 @@ function saveJson(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* quota — ignore */
+    /* quota - ignore */
   }
 }
 

@@ -13,7 +13,7 @@ pub struct AIPTask {
     pub task_id: String,
     /// Identifiant de contexte groupant les tâches liées (ex: session utilisateur).
     pub context_id: String,
-    /// Skill A2A invoqué (peuplé uniquement lors d'une délégation A2A — `None`
+    /// Skill A2A invoqué (peuplé uniquement lors d'une délégation A2A - `None`
     /// pour les exécutions racine, les tâches déclenchées par triggers, ou
     /// l'invocation directe via la CLI / API REST sans skill ciblé).
     ///
@@ -50,14 +50,14 @@ pub struct AIPTask {
     /// session à taguer.
     #[serde(default)]
     pub message_id: Option<String>,
-    /// Réponse humaine fournie après la suspension — peuplée uniquement si `is_resumed == true`.
+    /// Réponse humaine fournie après la suspension - peuplée uniquement si `is_resumed == true`.
     ///
     /// Contient la décision (`approved`), la raison optionnelle, et le contexte
     /// JSON sérialisé par l'agent au moment du `input_required`.
     /// Construite par `TaskRepository::rebuild_for_resume()`.
     #[serde(default)]
     pub input_response: Option<InputResponseData>,
-    /// Chaîne de délégation A2A — IDs des agents parents dans la chaîne.
+    /// Chaîne de délégation A2A - IDs des agents parents dans la chaîne.
     ///
     /// Vide pour une tâche racine. Étendue par le runtime à chaque délégation A2A
     /// avec l'ID de l'agent qui délègue. Utilisée par `a2a::validate_chain` pour

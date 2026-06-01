@@ -1,4 +1,4 @@
-//! Tests d'intégration A2A — flux complet Director → Worker → résultat.
+//! Tests d'intégration A2A - flux complet Director → Worker → résultat.
 //!
 //! Valide l'enchaînement complet : discovery → résolution → invocation → trust
 //! model → résultat, en assemblant les composants réels du runtime (EventBus,
@@ -39,7 +39,7 @@ impl ExecutionBackend for SuccessBackend {
     }
 }
 
-/// Backend qui bloque indéfiniment — simule un agent qui ne répond jamais.
+/// Backend qui bloque indéfiniment - simule un agent qui ne répond jamais.
 #[derive(Clone)]
 struct BlockingBackend;
 
@@ -325,7 +325,7 @@ async fn test_trust_model_context_config() {
     // WHEN on génère la configuration de contexte pour un agent invoqué via A2A
     let ctx_config = invoker.build_a2a_context();
 
-    // THEN user_memory_writable est false — la lecture de `__user__` est gérée
+    // THEN user_memory_writable est false - la lecture de `__user__` est gérée
     // directement par le `MemoryInterface` (toujours active si user_manager est
     // fourni) et l'écriture n'est jamais octroyée par A2A.
     assert!(
@@ -377,7 +377,7 @@ async fn test_events_emitted() {
     );
 
     // ET A2AInvocationCompleted émis avec status="completed"
-    // (duration_ms peut être 0 sur matériel rapide — précision milliseconde)
+    // (duration_ms peut être 0 sur matériel rapide - précision milliseconde)
     let completed = events.iter().any(|e| {
         matches!(
             e,

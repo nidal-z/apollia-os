@@ -43,8 +43,8 @@ Le dashboard est organisé en **7 sections** mises à jour en temps réel via SS
 
 Le dashboard suit un pattern hybride :
 
-1. **Chargement initial** — `GET /api/v1/dashboard/state` retourne un snapshot JSON complet
-2. **Mise à jour temps réel** — `GET /api/v1/dashboard/stream` pousse des fragments HTML via SSE
+1. **Chargement initial** - `GET /api/v1/dashboard/state` retourne un snapshot JSON complet
+2. **Mise à jour temps réel** - `GET /api/v1/dashboard/stream` pousse des fragments HTML via SSE
 3. **HTMX** reçoit les fragments et met à jour les sections correspondantes via `hx-swap-oob`
 
 ```
@@ -80,7 +80,7 @@ GET /api/v1/dashboard/partials/{section}
     → Utilisé pour le rafraîchissement à la demande
 
 GET /api/v1/dashboard/stream
-    → SSE stream — événements nommés alignés sur les RuntimeEvent
+    → SSE stream - événements nommés alignés sur les RuntimeEvent
     → Connection: keep-alive, Content-Type: text/event-stream
 ```
 
@@ -179,7 +179,7 @@ const DASHBOARD_HTML: &str = include_str!(
 
 Le dashboard est exposé **uniquement sur `localhost:7771`** (lié à `127.0.0.1`). Il n'est pas accessible depuis l'extérieur sans tunnel explicite.
 
-Si le runtime est exposé en production sur un port public, le dashboard doit être protégé par un reverse proxy avec authentification. Apollia OS ne gère pas l'authentification dashboard — c'est délibéré (principe local-first).
+Si le runtime est exposé en production sur un port public, le dashboard doit être protégé par un reverse proxy avec authentification. Apollia OS ne gère pas l'authentification dashboard - c'est délibéré (principe local-first).
 
 ---
 
@@ -195,7 +195,7 @@ $ curl http://localhost:7771/api/v1/tasks/t-abc123/timeline
 
 Cette API agrège 5 sources SQLite (hitl.db, plans.db, llm_calls.db, audit.db) et retourne une liste d'événements ordonnés par timestamp : transitions d'état, steps ORIA, appels outils, appels LLM, suspensions HITL.
 
-Voir [API-HTTP-Observability — Timeline](./API-HTTP-Observability#get-apiv1tasksidtimeline) pour le schéma complet de la réponse.
+Voir [API-HTTP-Observability - Timeline](./API-HTTP-Observability#get-apiv1tasksidtimeline) pour le schéma complet de la réponse.
 
 ---
 

@@ -1,25 +1,8 @@
 # Wiki Apollia OS
 
-> ⚠️ **Ce corpus est en cours de refonte intégrale.**
->
-> Le contenu a été produit sprint par sprint et accumulé sans relecture
-> systématique. Plusieurs catégories d'imprécisions y subsistent :
->
-> - **Références obsolètes** : `STORY-NNN`, `sprint-N`, `[Lot N]` qui ne
->   parlent plus à un lecteur externe.
-> - **ADRs supersedés** cités comme actifs (ex. ADR-025 pipelines,
->   superseded fin 2026).
-> - **Doublons** : plusieurs pages sur les mêmes sujets (5 pages agents,
->   4 pages MCP, 3 pages installation).
-> - **Code path mentions** qui peuvent ne plus correspondre au code
->   actuel.
->
-> **Refonte planifiée** dans le sprint L2b, post-stabilisation totale
-> (cible été 2026). Détails dans
-> `docs/internal/release/DOCS-STATE.md` §2.4.
->
-> **En attendant**, traite ce corpus comme une référence à vérifier
-> contre le code avant de citer publiquement.
+> Référence technique d'Apollia OS : tables exhaustives, signatures
+> complètes, codes d'erreur. Le wiki suit le code, il ne le précède pas.
+> En cas de doute, le code et les ADRs font foi.
 
 ---
 

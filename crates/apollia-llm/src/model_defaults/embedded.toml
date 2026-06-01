@@ -2,7 +2,7 @@
 #
 # Sources : `generation_config.json` officiel publié par les éditeurs sur
 # HuggingFace Hub. Les valeurs sont des FAITS (paramètres recommandés par
-# l'éditeur) — non-copyrightables sous Feist (US) et la directive 96/9/CE (UE).
+# l'éditeur) - non-copyrightables sous Feist (US) et la directive 96/9/CE (UE).
 # Pas de redistribution du modèle ; uniquement les params recommandés.
 #
 # Matching : `arch_pattern` est testé contre `general.architecture` du GGUF

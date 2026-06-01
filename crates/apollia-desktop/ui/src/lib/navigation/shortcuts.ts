@@ -3,7 +3,7 @@
  *
  * The canonical list of user-facing shortcuts shown on the
  * `/settings/shortcuts` page and surfaced in the Command Palette.
- * This module is presentational only — each entry is the keycap rendering
+ * This module is presentational only - each entry is the keycap rendering
  * for an action owned elsewhere (command palette, chat, companion…).
  *
  * Keeping the table here (instead of on each feature) means we only have
@@ -28,11 +28,11 @@ export interface ShortcutCombo {
 }
 
 export interface ShortcutEntry {
-  /** Stable id — used by the palette, tests, and ARIA labels. */
+  /** Stable id - used by the palette, tests, and ARIA labels. */
   id: string;
   /** Chord representation per platform. */
   combo: ShortcutCombo;
-  /** Translated-label i18n key — resolved at render time. */
+  /** Translated-label i18n key - resolved at render time. */
   descriptionKey: string;
   /** Whether the shortcut is listened to globally or only in a scope. */
   scope: ShortcutScope;

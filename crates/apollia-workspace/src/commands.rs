@@ -2,7 +2,7 @@
 //!
 //! Reads `.md` files from a directory and parses their YAML frontmatter
 //! to extract the command description, declared argument names, and prompt
-//! template.  Only simple inline YAML is supported — no external YAML crate
+//! template.  Only simple inline YAML is supported - no external YAML crate
 //! dependency is required.
 
 use std::path::Path;
@@ -27,7 +27,7 @@ impl CommandLoader {
     /// Loads all `.md` files from `dir` as [`LoadedCommand`]s.
     ///
     /// Returns an empty `Vec` when the directory does not exist or cannot be
-    /// read — callers treat absence as an empty command set (fail-silent).
+    /// read - callers treat absence as an empty command set (fail-silent).
     pub async fn load_dir(dir: &Path) -> Vec<LoadedCommand> {
         let mut read_dir = match tokio::fs::read_dir(dir).await {
             Ok(rd) => rd,

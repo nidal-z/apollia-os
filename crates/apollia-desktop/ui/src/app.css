@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════
-   Design tokens v2 — ADR-077
-   Sprint 42 — elevation, warmth dark, rim lights, primary
+   Design tokens v2 - ADR-077
+   Sprint 42 - elevation, warmth dark, rim lights, primary
    scale. The only source of truth for shadows / brand surfaces.
    ═══════════════════════════════════════════════════════════ */
 @layer base {
   :root {
-    /* ── Brand palette — V4 indigo iris (softer than original blue) ── */
+    /* ── Brand palette - V4 indigo iris (softer than original blue) ── */
     --primary: 237 47% 57%;
     --primary-foreground: 0 0% 100%;
     --primary-hover: 237 47% 53%;
@@ -23,7 +23,7 @@
     --primary-gradient-from: 237 47% 57%;
     --primary-gradient-to: 261 36% 61%;
 
-    /* ── Surfaces — V4 warm gray (greige), vibe Vercel/Arc ── */
+    /* ── Surfaces - V4 warm gray (greige), vibe Vercel/Arc ── */
     --background: 33 11% 95%;
     --foreground: 33 13% 9%;
     --surface-1: 40 14% 98%;
@@ -80,7 +80,7 @@
     --chart-7: #06b6d4;
     --chart-8: #84cc16;
 
-    /* ── Elevation — V4 hairline + subtle warmth ── */
+    /* ── Elevation - V4 hairline + subtle warmth ── */
     --shadow-elev-0:
       0 1px 0 rgba(255,255,255,0.60) inset,
       0 1px 2px rgba(26,24,20,0.04);
@@ -107,12 +107,12 @@
     /* ── Semantic shadows ── */
     --shadow-success-md: 0 4px 16px -2px hsl(144 33% 37% / 0.35);
     --shadow-destructive-md: 0 4px 16px -2px hsl(11 57% 42% / 0.30);
-    /* Warm focus glow — applied on the chat composer when the textarea
+    /* Warm focus glow - applied on the chat composer when the textarea
        receives focus. Pure rgba (not hsl) so the terracotta tone keeps its
        hand-crafted feel against the parchment surface. */
     --shadow-warm-focus: 0 0 0 1px rgba(255, 180, 120, 0.35),
                          0 4px 14px -6px rgba(255, 150, 80, 0.45);
-    /* Status dot halos — 3px clear ring against the background,
+    /* Status dot halos - 3px clear ring against the background,
        then a 4px coloured aura. Used by the topbar runtime status
        indicator (OperatorBreadcrumb) and any future health dot. */
     --shadow-status-ok: 0 0 0 3px hsl(var(--background)),
@@ -175,7 +175,7 @@
     --warm-accent: 15 47% 56%;
     --warm-accent-bg: 15 47% 56% / 0.10;
 
-    /* ── User avatar gradient (terracotta) — used by the sidebar avatar
+    /* ── User avatar gradient (terracotta) - used by the sidebar avatar
        and any future "current user" badge. Hardcoded hex preserves the
        hand-tuned tone independently of brand palette shifts. ── */
     --avatar-gradient-warm: linear-gradient(135deg, #c2715a, #9a4f3c);
@@ -287,12 +287,12 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Warm Glassmorphism — layered glass with subtle brand wash.
-   Anchored on shadow tokens — never hardcode a box-shadow here.
+   Warm Glassmorphism - layered glass with subtle brand wash.
+   Anchored on shadow tokens - never hardcode a box-shadow here.
    ═══════════════════════════════════════════════════════════ */
 @layer components {
   /* ═════════════════════════════════════════════════════════
-     Typography — `.section-meta` is the canonical small-caps
+     Typography - `.section-meta` is the canonical small-caps
      label used as section heading inside tables, KPI tiles,
      timeline grouping, etc. Replaces the repeated inline
      `font-mono text-[10px] tracking-[1.4px] uppercase font-
@@ -307,7 +307,7 @@
     text-transform: uppercase;
   }
 
-  /* ── Panel layer — sidebar, sheets, overlays (heaviest blur) ── */
+  /* ── Panel layer - sidebar, sheets, overlays (heaviest blur) ── */
   .glass-panel {
     background:
       linear-gradient(135deg, rgba(91,95,199,0.02) 0%, rgba(132,116,196,0.01) 100%),
@@ -321,7 +321,7 @@
     @apply backdrop-blur-2xl;
   }
 
-  /* ── Card layer — warm cream glass with real depth ── */
+  /* ── Card layer - warm cream glass with real depth ── */
   .glass-card {
     background:
       linear-gradient(145deg, rgba(91,95,199,0.025) 0%, rgba(132,116,196,0.012) 100%),
@@ -336,7 +336,7 @@
     box-shadow: var(--shadow-elev-2);
   }
 
-  /* ── Card hover — lift with warm glow (spring-like, US-SP42-005) ── */
+  /* ── Card hover - lift with warm glow (spring-like, US-SP42-005) ── */
   .glass-card-hover {
     @apply glass-card;
     transition:
@@ -353,7 +353,7 @@
     transition-duration: var(--motion-fast);
   }
 
-  /* ── Surface layer — frosted containers, tags, table headers ── */
+  /* ── Surface layer - frosted containers, tags, table headers ── */
   .glass-surface {
     background: rgba(235,231,225,0.50);
     @apply backdrop-blur-md;
@@ -363,14 +363,14 @@
     @apply backdrop-blur-md;
   }
 
-  /* ── Inset layer — hover states, nested elements. Resolves via
+  /* ── Inset layer - hover states, nested elements. Resolves via
      `--glass-inset` so the rim stays visible in both themes. ── */
   .glass-inset {
     background: hsl(var(--glass-inset));
     @apply backdrop-blur-sm;
   }
 
-  /* ── Borders — visible brand tint, resolved via canonical token. ── */
+  /* ── Borders - visible brand tint, resolved via canonical token. ── */
   .glass-border {
     @apply border;
     border-color: hsl(var(--glass-border));
@@ -386,7 +386,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Hover utilities (US-SP42-009) — `.hover-lift` for cards,
+     Hover utilities (US-SP42-009) - `.hover-lift` for cards,
      `.hover-glow` for CTAs. Both respect prefers-reduced-motion
      via the global rule at the bottom of this file.
      ═════════════════════════════════════════════════════════ */
@@ -419,7 +419,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Glass relief levels (US-SP42-009) — 3 canonical levels
+     Glass relief levels (US-SP42-009) - 3 canonical levels
      aligned with elevation shadows. Aliases on top of the
      existing `.glass-card` / `.glass-panel` primitives:
        level-1 → cards (shadow-elev-2)
@@ -469,7 +469,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Placeholder contrast (US-SP42-009, A.4.4) — force min
+     Placeholder contrast (US-SP42-009, A.4.4) - force min
      opacity so placeholders remain legible ≥ AA against
      surface-1 in both themes.
      ═════════════════════════════════════════════════════════ */
@@ -481,7 +481,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Primary utilities (F.41, A.1.10) — 3 canonical expositions
+     Primary utilities (F.41, A.1.10) - 3 canonical expositions
      ═════════════════════════════════════════════════════════ */
   .bg-primary-solid {
     background-color: hsl(var(--primary));
@@ -524,7 +524,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Backdrop (modal, sheet) — F.56
+     Backdrop (modal, sheet) - F.56
      ═════════════════════════════════════════════════════════ */
   .app-backdrop {
     background-color: var(--backdrop);
@@ -535,7 +535,7 @@
     @apply backdrop-blur-sm;
   }
 
-  /* Warm modal backdrop (US-SP42-012 — F.56). Warm cast vs the neutral
+  /* Warm modal backdrop (US-SP42-012 - F.56). Warm cast vs the neutral
      `app-backdrop` so overlays feel anchored in the parchment palette. */
   .backdrop-warm {
     background-color: rgba(60, 40, 20, 0.40);
@@ -552,11 +552,11 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Global focus rings (US-SP42-007 — F.2, F.43, D.52)
+     Global focus rings (US-SP42-007 - F.2, F.43, D.52)
      Every natively focusable element gets a primary ring on
      :focus-visible. Components that render a custom shadow on
      focus (buttons / inputs with their own variants) can opt
-     out by adding `focus:!ring-0` — but by default they now
+     out by adding `focus:!ring-0` - but by default they now
      inherit the token-driven ring, so shadowy focus states
      stop drifting across primitives.
      ═════════════════════════════════════════════════════════ */
@@ -581,7 +581,7 @@
     box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
     border-radius: calc(var(--radius) - 0.25rem);
   }
-  /* Inputs already render their own border — reuse the ring via `ring`. */
+  /* Inputs already render their own border - reuse the ring via `ring`. */
   :where(input, select, textarea):focus-visible {
     box-shadow:
       0 0 0 2px hsl(var(--background)),
@@ -596,7 +596,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Skip-to-content link (F.77) — visually hidden until it
+     Skip-to-content link (F.77) - visually hidden until it
      receives focus, then pins to top-left on top of every-
      thing so keyboard users can reach <main> in one press.
      ═════════════════════════════════════════════════════════ */
@@ -621,7 +621,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Inline prose links (F.60) — dotted underline resolves to
+     Inline prose links (F.60) - dotted underline resolves to
      solid on hover, with a comfortable offset.
      ═════════════════════════════════════════════════════════ */
   .link-inline {
@@ -659,7 +659,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     List-item spring (F.46) — applied on row/row-like controls
+     List-item spring (F.46) - applied on row/row-like controls
      that live inside nav / tables / long scrollable lists.
      Uses a cubic-bezier that *feels* springy without pulling a
      JS spring every frame.
@@ -680,7 +680,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Divider fade edges (F.42, F.71) — gradient-fade horizontal
+     Divider fade edges (F.42, F.71) - gradient-fade horizontal
      rule. Used where a plain separator feels too hard (chat
      surfaces, long feeds).
      ═════════════════════════════════════════════════════════ */
@@ -710,7 +710,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Animations — polished, Apple-tier micro-interactions
+   Animations - polished, Apple-tier micro-interactions
    ═══════════════════════════════════════════════════════════ */
 @layer utilities {
   .animate-fade-in {
@@ -764,13 +764,13 @@
   50%      { box-shadow: var(--shadow-primary-md); }
 }
 
-/* Shimmer — translucent band slides across a muted background. */
+/* Shimmer - translucent band slides across a muted background. */
 @keyframes shimmerSlide {
   from { transform: translateX(-100%); }
   to   { transform: translateX(100%); }
 }
 
-/* Skeleton shimmer — gradient translation across the element background.
+/* Skeleton shimmer - gradient translation across the element background.
    Replaces `animate-pulse` on Skeleton (F.12). Tokens adapt to dark mode
    via --muted / --muted-foreground. */
 @keyframes skeletonShimmer {
@@ -790,28 +790,28 @@
   animation: skeletonShimmer 1.8s linear infinite;
 }
 
-/* Spin — plain rotate, reused by the LoadingSpinner component. */
+/* Spin - plain rotate, reused by the LoadingSpinner component. */
 @keyframes spinnerRotate {
   to { transform: rotate(360deg); }
 }
 
-/* Progress bar indeterminate — 30 % fill travels across track in 1.5 s (US-SP42-019). */
+/* Progress bar indeterminate - 30 % fill travels across track in 1.5 s (US-SP42-019). */
 @keyframes progress-indeterminate {
   0%   { left: -30%; }
   100% { left: 100%; }
 }
 
-/* Toast progress — 2px bar collapses from full width to zero over autoDismiss ms. */
+/* Toast progress - 2px bar collapses from full width to zero over autoDismiss ms. */
 @keyframes toast-progress {
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Custom scrollbars (F.53) — 6px rail, translucent thumb with
+   Custom scrollbars (F.53) - 6px rail, translucent thumb with
    hover state. Firefox fallback via `scrollbar-*` properties.
    ═══════════════════════════════════════════════════════════ */
-/* Firefox — `thin` keeps the native implementation but narrows it. */
+/* Firefox - `thin` keeps the native implementation but narrows it. */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.16) transparent;
@@ -820,7 +820,7 @@
   scrollbar-color: hsl(32 30% 70% / 0.18) transparent;
 }
 
-/* WebKit / Blink — fully custom. */
+/* WebKit / Blink - fully custom. */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -833,7 +833,7 @@
 .dark ::-webkit-scrollbar-thumb { background: hsl(32 30% 70% / 0.16); }
 .dark ::-webkit-scrollbar-thumb:hover { background: hsl(32 30% 70% / 0.28); }
 
-/* Apollia resolved color aliases — for inline style and var() usage */
+/* Apollia resolved color aliases - for inline style and var() usage */
 :root {
   --apollia-bg: hsl(var(--background));
   --apollia-surface: hsl(var(--card));
@@ -883,7 +883,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   V4 grain texture overlay — subtle SVG noise on surfaces.
+   V4 grain texture overlay - subtle SVG noise on surfaces.
    ═══════════════════════════════════════════════════════════ */
 .v4-grain-overlay {
   position: absolute;
@@ -896,7 +896,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   V4 hairline border — 0.5px borders for premium density.
+   V4 hairline border - 0.5px borders for premium density.
    ═══════════════════════════════════════════════════════════ */
 .v4-hair {
   border-width: 0.5px;
@@ -931,7 +931,7 @@
 .v4-glow   { animation: v4-glow 2s ease-in-out infinite; }
 
 /* ═══════════════════════════════════════════════════════════
-   Reduced motion (US-SP42-005) — honour OS preference by
+   Reduced motion (US-SP42-005) - honour OS preference by
    collapsing every animation and transition to a near-instant
    step. Spring transforms become static.
    ═══════════════════════════════════════════════════════════ */

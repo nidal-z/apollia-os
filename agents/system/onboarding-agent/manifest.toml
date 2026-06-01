@@ -1,10 +1,10 @@
-# Apollia OS — agent bundle manifest (ADR-074)
+# Apollia OS - agent bundle manifest (ADR-074)
 # Built-in system agent, embedded in the desktop binary at compile time.
 
 [agent]
 name = "onboarding-agent"
 version = "2.4.0"
-description = "Premier contact utilisateur — calibrage en 3 questions (identité, supervision, souveraineté)"
+description = "Premier contact utilisateur - calibrage en 3 questions (identité, supervision, souveraineté)"
 license = "MIT OR Apache-2.0"
 authors = ["Nidal Zoumita <nidal.zoumita@gmail.com>"]
 tags = ["onboarding", "conversational", "system"]
@@ -12,7 +12,7 @@ tags = ["onboarding", "conversational", "system"]
 [agent.manifest]
 agent_type = "system"
 execution_mode = "auto"
-# ADR-086 — l'onboarding-agent propose les règles de permissions correspondant
+# ADR-086 - l'onboarding-agent propose les règles de permissions correspondant
 # aux préférences collectées (sovereignty, hitl, integrations) via des appels
 # d'outils HITL-gated. permission_rule_remove n'est volontairement pas exposé
 # (moindre privilège : reset/cleanup passe par UI Settings ou CLI).

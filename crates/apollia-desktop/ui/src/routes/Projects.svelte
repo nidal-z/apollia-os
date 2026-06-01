@@ -48,7 +48,7 @@
   // ─── State ────────────────────────────────────────────────────────────────
 
   let loading = $state(false);
-  // No more "grid" mode — the page always shows the sidebar + detail layout
+  // No more "grid" mode - the page always shows the sidebar + detail layout
   // (mirror Assistants), with the first project auto-selected. Grid + cards
   // were removed in the 2026-05-15 refonte UX.
 
@@ -172,7 +172,7 @@
     if (!selectedProject) return;
     projectTasksLoading = true;
     try {
-      // No project_id on tasks (yet) — narrow by agents attached to the project.
+      // No project_id on tasks (yet) - narrow by agents attached to the project.
       // This stays consistent with how operator/agent linkage is modelled today.
       const allowedAgents = new Set(selectedProject.agents);
       const all = await invoke<TaskSummary[]>("list_tasks", { filter: null });
@@ -203,11 +203,11 @@
             });
             return {
               namespace,
-              subname: namespace.slice(prefix.length) || "—",
+              subname: namespace.slice(prefix.length) || "-",
               count: list.length,
             };
           } catch {
-            return { namespace, subname: namespace.slice(prefix.length) || "—", count: 0 };
+            return { namespace, subname: namespace.slice(prefix.length) || "-", count: 0 };
           }
         }),
       );
@@ -472,7 +472,7 @@
       );
       showDeleteConfirm = false;
       if (selectedProjectId === deleteProjectId) {
-        // Drop the deleted project from the right pane — the auto-select
+        // Drop the deleted project from the right pane - the auto-select
         // effect will pick the next one if any remain.
         selectedProjectId = null;
         selectedProject = null;
@@ -567,7 +567,7 @@
 
 <div class="flex flex-col h-full min-h-0" data-testid="projects-page">
   {#if !loading && $projects.length === 0}
-    <!-- Empty state — no projects yet, full-width invitation. -->
+    <!-- Empty state - no projects yet, full-width invitation. -->
     <PageHeader
       kicker={$t("projects.kicker", {
         values: {
@@ -913,7 +913,7 @@
                 onUpdated={reloadDetail}
               />
             {:else}
-              <!-- Settings — editable metadata form -->
+              <!-- Settings - editable metadata form -->
               <SectionTitle>
                 {$t("projects.tab_settings") || "Paramètres"}
               </SectionTitle>

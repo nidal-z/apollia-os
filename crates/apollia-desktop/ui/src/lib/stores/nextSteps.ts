@@ -2,8 +2,8 @@
  * Next Steps store.
  *
  * Powers the `NextStepsPanel` on two surfaces:
- *   - `global` — operator Dashboard, rolling context of the last ~12h.
- *   - `session:<id>` — end-of-session debrief on `ChatConversation`.
+ *   - `global` - operator Dashboard, rolling context of the last ~12h.
+ *   - `session:<id>` - end-of-session debrief on `ChatConversation`.
  *
  * Responsibilities:
  *   - Cache the Meta-LLM response in-memory per scope. Global is refreshed
@@ -12,7 +12,7 @@
  *   - Persist dismissed card ids in `localStorage` for 24h so a card the
  *     user actively dismissed does not come back on the next mount.
  *   - Persist inline thumbs-up / thumbs-down feedback per card id (local
- *     only — never uploaded).
+ *     only - never uploaded).
  */
 
 import { writable, get, derived, type Readable } from "svelte/store";
@@ -102,7 +102,7 @@ function writeDismissMap(map: DismissMap): void {
   try {
     localStorage.setItem(DISMISS_KEY, JSON.stringify(map));
   } catch {
-    /* quota exceeded — ignore */
+    /* quota exceeded - ignore */
   }
 }
 
@@ -263,7 +263,7 @@ function createStore() {
 
 export const nextSteps = createStore();
 
-/** Key for the operator Dashboard panel — single global scope. */
+/** Key for the operator Dashboard panel - single global scope. */
 export const GLOBAL_SCOPE = "global";
 /** Helper to compute a stable per-session scope key. */
 export function sessionScope(sessionId: string): string {

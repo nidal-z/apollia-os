@@ -50,7 +50,7 @@ pub fn warn_unknown_events(events: &[String]) {
         if !KNOWN_EVENT_NAMES.contains(&event.as_str()) {
             tracing::warn!(
                 event = %event,
-                "notification config: unknown event name — it will never fire"
+                "notification config: unknown event name - it will never fire"
             );
         }
     }
@@ -219,7 +219,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 task_id: None,
                 agent: None,
                 message: format!(
-                    "Pipeline {pipeline_id} terminé — run {run_id} en {duration_s:.1}s"
+                    "Pipeline {pipeline_id} terminé - run {run_id} en {duration_s:.1}s"
                 ),
                 metadata,
                 severity: Severity::Info,
@@ -241,7 +241,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: None,
                 agent: None,
-                message: format!("Pipeline {pipeline_id} échoué — step [{step_id}] : {reason}"),
+                message: format!("Pipeline {pipeline_id} échoué - step [{step_id}] : {reason}"),
                 metadata,
                 severity: Severity::Warning,
             })
@@ -269,7 +269,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 task_id: Some(task_id.clone()),
                 agent: None,
                 message: format!(
-                    "Pipeline suspendu — step [{step_id}] attend approbation (run {run_id})\napollia-os task resume {task_id} --approve"
+                    "Pipeline suspendu - step [{step_id}] attend approbation (run {run_id})\napollia-os task resume {task_id} --approve"
                 ),
                 metadata,
                 severity: Severity::Warning,

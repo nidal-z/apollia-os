@@ -1,4 +1,4 @@
-//! [`ProjectRuntime`] — orchestrateur multi-provider avec cache TTL configurable.
+//! [`ProjectRuntime`] - orchestrateur multi-provider avec cache TTL configurable.
 //!
 //! Orchestre un ensemble de [`WorkspaceProvider`] en parallèle via
 //! `futures::future::join_all`. Un cache par répertoire évite les I/O répétées
@@ -74,7 +74,7 @@ impl ProjectRuntime {
     /// (provenant de la table `project_providers` en SQLite).
     ///
     /// Types supportés : `"git"`, `"rules"`, `"tree"`, `"script"`.
-    /// Le type `"style"` nécessite un `LlmRouter` — utiliser `with_style_detection`.
+    /// Le type `"style"` nécessite un `LlmRouter` - utiliser `with_style_detection`.
     pub fn from_providers_config(
         providers_config: &[ProviderEntry],
         llm_router: Option<Arc<LlmRouter>>,
@@ -126,7 +126,7 @@ impl ProjectRuntime {
                     let path = match &entry.path {
                         Some(p) => p.clone(),
                         None => {
-                            tracing::warn!(name = %entry.name, "script provider missing path — ignored");
+                            tracing::warn!(name = %entry.name, "script provider missing path - ignored");
                             continue;
                         }
                     };
@@ -144,7 +144,7 @@ impl ProjectRuntime {
                     )));
                 }
                 other => {
-                    tracing::warn!(name = %entry.name, provider_type = %other, "unknown provider type — ignored");
+                    tracing::warn!(name = %entry.name, provider_type = %other, "unknown provider type - ignored");
                 }
             }
         }
@@ -158,7 +158,7 @@ impl ProjectRuntime {
     /// Retourne depuis le cache si la dernière collecte date de moins de
     /// [`context_ttl_secs`](RuntimeConfig::context_ttl_secs).
     pub async fn collect(&self, cwd: &Path) -> WorkspaceSnapshot {
-        // — Lecture cache ————————————————————————————————————————————————
+        // - Lecture cache ------------------------------------------------
         {
             let guard = self.cache.read().await;
             if let Some((collected_at, ref snapshot)) = guard.get(cwd) {
@@ -174,7 +174,7 @@ impl ProjectRuntime {
             }
         }
 
-        // — Collecte parallèle avec timeout par provider ——————————————————
+        // - Collecte parallèle avec timeout par provider ------------------
         let timeout_secs = self.config.collect_timeout_secs;
         let futures: Vec<_> = self
             .providers
@@ -218,7 +218,7 @@ impl ProjectRuntime {
 
         let snapshot = WorkspaceSnapshot::new(slices);
 
-        // — Mise à jour cache ——————————————————————————————————————————————
+        // - Mise à jour cache ----------------------------------------------
         self.cache
             .write()
             .await
@@ -250,7 +250,7 @@ mod tests {
         let cwd = std::env::current_dir().expect("current_dir");
         // WHEN
         let snapshot = runtime.collect(&cwd).await;
-        // THEN — au moins une section
+        // THEN - au moins une section
         assert!(!snapshot.is_empty(), "expected sections from git repo");
     }
 
@@ -284,7 +284,7 @@ mod tests {
         let cwd = std::path::Path::new("/tmp");
         // WHEN
         let snapshot = runtime.collect(cwd).await;
-        // THEN — git provider non applicable, snapshot vide
+        // THEN - git provider non applicable, snapshot vide
         assert!(
             snapshot.is_empty(),
             "no providers applicable outside git repo"
@@ -318,7 +318,7 @@ mod tests {
         let snapshot = WorkspaceSnapshot::new(vec![s1, s2]);
         // WHEN
         let prompt = snapshot.format_for_prompt();
-        // THEN — Git apparaît avant Règles
+        // THEN - Git apparaît avant Règles
         let pos_git = prompt.find("Git").expect("Git not found");
         let pos_rules = prompt.find("Règles").expect("Règles not found");
         assert!(pos_git < pos_rules, "Git must appear before Règles");

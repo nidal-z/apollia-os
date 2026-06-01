@@ -85,12 +85,12 @@
   // or nothing. The result drives which UI branch the step renders.
   //
   // `probeMode` lifecycle:
-  //   "idle"        — not yet probed (initial state / probe disabled).
-  //   "probing"     — request in flight, render a spinner.
-  //   "none"        — server returned 200, no auth required (Figma local etc.).
-  //   "static"      — server returned a non-OAuth 4xx, keep legacy token UX.
-  //   "oauth"       — server returned 401 + OAuth discovery succeeded.
-  //   "probe_error" — transport / discovery failed; the user can still try the
+  //   "idle"        - not yet probed (initial state / probe disabled).
+  //   "probing"     - request in flight, render a spinner.
+  //   "none"        - server returned 200, no auth required (Figma local etc.).
+  //   "static"      - server returned a non-OAuth 4xx, keep legacy token UX.
+  //   "oauth"       - server returned 401 + OAuth discovery succeeded.
+  //   "probe_error" - transport / discovery failed; the user can still try the
   //                   static-token path if the catalog declared headers.
   type ProbeMode = "idle" | "probing" | "none" | "static" | "oauth" | "probe_error";
   let probeMode = $state<ProbeMode>("idle");
@@ -188,7 +188,7 @@
     return [];
   });
 
-  /** Positional args whose value is not pre-filled by the registry — the user
+  /** Positional args whose value is not pre-filled by the registry - the user
    *  must supply them at install time. Returned with their original index in
    *  `pkg.packageArguments` so `argValues[idx]` stays addressable. */
   const userPackageArgs = $derived.by((): { index: number; arg: import("$lib/types").RegistryPackageArgView }[] => {
@@ -241,11 +241,11 @@
         case "probing":
           return false;
         case "none":
-          // Local-loopback / no-auth — user just needs to have read the
+          // Local-loopback / no-auth - user just needs to have read the
           // help text; advancing is always allowed once the probe returned.
           return true;
         case "oauth":
-          // OAuth — must have completed the sign-in dance.
+          // OAuth - must have completed the sign-in dance.
           return oauthAccount !== null;
         case "static":
         case "probe_error":
@@ -300,7 +300,7 @@
   // ── Stdio launcher resolution ──────────────────────────────────────────────
   // Map (registry_type, runtime_hint) to the actual launcher invocation. The
   // registry's `runtime_hint` field is semantically informational ("which
-  // runtime is needed", e.g. `node`, `python`) — not an executable name. The
+  // runtime is needed", e.g. `node`, `python`) - not an executable name. The
   // wizard previously passed it straight to `command`, which produced
   // `command="node", args=["@scope/pkg", ...]` for every npm-based server and
   // made Node interpret the package name as a relative script path.
@@ -319,7 +319,7 @@
     if (hint === "uvx") return { command: "uvx", prefixArgs: [] };
     if (hint === "bunx") return { command: "bunx", prefixArgs: [] };
 
-    // Runtime-name hints — map to the conventional launcher for that ecosystem.
+    // Runtime-name hints - map to the conventional launcher for that ecosystem.
     if (hint === "node" || reg === "npm") {
       return { command: "npx", prefixArgs: ["-y"] };
     }
@@ -327,7 +327,7 @@
       return { command: "uvx", prefixArgs: [] };
     }
 
-    // Unknown hint — surface it verbatim so the user can fix it in custom mode
+    // Unknown hint - surface it verbatim so the user can fix it in custom mode
     // rather than silently rewriting to something potentially wrong.
     return { command: runtimeHint || "npx", prefixArgs: [] };
   }
@@ -364,7 +364,7 @@
               : (envValues[header.name] ?? "");
         }
       } else {
-        // Legacy / static-token path — operator pasted a value into the form.
+        // Legacy / static-token path - operator pasted a value into the form.
         for (const header of remote.headers) {
           env[header.name] =
             header.isSecret && !forTest
@@ -448,7 +448,7 @@
   // ── Probe + OAuth discovery (ADR-095 Phase 5) ──────────────────────────────
 
   /** Build a no-auth probe config for the Auth step pre-flight. Only meaningful
-   *  for remote connectors — package mode (stdio) needs its env to spawn at all,
+   *  for remote connectors - package mode (stdio) needs its env to spawn at all,
    *  so we skip probing there and stay on the legacy field-based UX. */
   function buildProbeConfig(): McpServerConfigInput | null {
     if (connectionMode !== "remote" || !remote) return null;
@@ -492,7 +492,7 @@
         probeMode = "probe_error";
       }
     } catch (err: unknown) {
-      // Probe transport errors — fall back to the legacy static-token UX so
+      // Probe transport errors - fall back to the legacy static-token UX so
       // the user can still try a manual token (catalog may declare headers).
       probeMode = remoteHeadersAsEnvVars.length > 0 ? "static" : "probe_error";
       probeError = err instanceof Error ? err.message : String(err);
@@ -511,7 +511,7 @@
       // ADR-095 follow-up: when the enrichment declares a pre-registered
       // OAuth client id env var, resolve it now so we can surface a
       // guidance error BEFORE the user clicks "Sign in" (saves a wasted
-      // browser round-trip for AS that don't support CIMD/DCR — Figma).
+      // browser round-trip for AS that don't support CIMD/DCR - Figma).
       const envVar = server.enrichment?.oauth_pre_registered_client_id_env;
       if (envVar) {
         const resolved = await invoke<string | null>(
@@ -571,7 +571,7 @@
       oauthClientIdOverride = trimmed;
       // Mirror runOAuthDiscovery's pre-registered branch: once the user
       // supplies a pre-registered client_id, scopes are baked at the
-      // provider's dev portal — sending PRM-published placeholders
+      // provider's dev portal - sending PRM-published placeholders
       // (`mcp:connect` on Figma) to the AS produces "Invalid scope".
       // Empty list ⇒ orchestrator omits `scope=` from the authorize URL.
       oauthSelectedScopes = [];
@@ -597,7 +597,7 @@
     // doesn't exist" page (the Figma case before this fix).
     const envVar = server.enrichment?.oauth_pre_registered_client_id_env;
     if (envVar && (oauthClientIdOverride === null || oauthClientIdOverride === "")) {
-      // Defensive — build-time injection (option_env!) should normally
+      // Defensive - build-time injection (option_env!) should normally
       // populate this for end users. We only reach here in dev builds where
       // the build var wasn't set AND the operator hasn't exported the
       // runtime var either. The help_text card above documents the

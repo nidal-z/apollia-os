@@ -1,10 +1,10 @@
-# Application Desktop — Tauri v2 + Runtime embarque
+# Application Desktop - Tauri v2 + Runtime embarque
 
 > *L'application desktop Apollia OS embarque le runtime complet dans un processus unique. Double-clic → fenetre → 10 vues temps reel couvrant 100% des capacites CLI.*
 
 ---
 
-## 1. Architecture — Processus unique (ADR-027)
+## 1. Architecture - Processus unique (ADR-027)
 
 L'application desktop est une crate Tauri v2 (`apollia-desktop`) qui demarre le runtime Apollia en interne via `init_embedded`. Un seul binaire distribue a la fois le runtime Rust et le frontend Svelte.
 
@@ -64,7 +64,7 @@ crates/apollia-desktop/
 │       ├── tool_governance.rs ← governance_list_tools, governance_set_tool_enabled, governance_get/set_tool_config, governance_*_credential, governance_list_permission_rules, governance_revoke_permission_rule, governance_revoke_all_rules, governance_list_audit
 │       ├── chat_libre.rs      ← get_chat_libre_config, update_chat_libre_config, list_chat_permission_rules, delete_chat_permission_rule, list_active_chat_session_authorizations, revoke_chat_session_authorization
 │       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache
-│       ├── trace.rs            ← get_task_trace (ADR-088 — vue ExecutionTrace)
+│       ├── trace.rs            ← get_task_trace (ADR-088 - vue ExecutionTrace)
 │       ├── config.rs          ← get_config, open_config_in_editor
 │       ├── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
 │       └── stt.rs             ← get_stt_status, list_transcriptions, delete_transcription, transcribe_file, list_stt_models
@@ -94,7 +94,7 @@ crates/apollia-desktop/
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
         │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
         │   ├── triggers/      ← TriggerRow, TriggerLogs, CreateTriggerDialog, EditTriggerDialog
-        │   ├── memory/        ← NamespaceSidebar.svelte, MemoryEntryRow.svelte, MemoryEntrySheet.svelte, MemorySearch.svelte, UserMemoryDashboard.svelte, MemoryRow.svelte (la page Memory.svelte expose 2 onglets : "User Memory" + "Memory explorateur" — l'ancien onglet "Tools" a migré vers settings/Tools.svelte qui est désormais la page autoritaire des outils)
+        │   ├── memory/        ← NamespaceSidebar.svelte, MemoryEntryRow.svelte, MemoryEntrySheet.svelte, MemorySearch.svelte, UserMemoryDashboard.svelte, MemoryRow.svelte (la page Memory.svelte expose 2 onglets : "User Memory" + "Memory explorateur" - l'ancien onglet "Tools" a migré vers settings/Tools.svelte qui est désormais la page autoritaire des outils)
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte, DelegationTree.svelte
         │   ├── settings/      ← SettingsNav.svelte, ToolCard.svelte, ToolConfigDrawer.svelte, CredentialField.svelte, PermissionRuleCard.svelte
@@ -153,14 +153,14 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `list_agents` | — | `Vec<AgentListItem>` |
+| `list_agents` | - | `Vec<AgentListItem>` |
 | `start_agent` | `path: String` | `Result<String, String>` (agent_id) |
 | `stop_agent` | `agent_id: String` | `Result<, String>` |
 | `create_agent_from_template` | `name: String, template_type: String` | `Result<CreateAgentResult, String>` |
-| `check_sdk_available` | — | `Result<bool, String>` |
+| `check_sdk_available` | - | `Result<bool, String>` |
 | `check_agent_name_available` | `name: String` | `Result<bool, String>` |
 
-`AgentListItem` (source : `commands/agents.rs`) inclut notamment : `name`, `description`, `version`, `status`, `execution_mode`, `tools_required`, `tools_optional`, `tags`, `skills`, `examples`, `limitations`, `setup_notes`, et `agent_class: Option<String>` — nom de la classe Python source de l'agent (ex: `"ReActAgent"`), extrait par le validateur AIP et affiché comme badge *Direct / Conversational / Orchestrated / Worker* dans la vue Agents.
+`AgentListItem` (source : `commands/agents.rs`) inclut notamment : `name`, `description`, `version`, `status`, `execution_mode`, `tools_required`, `tools_optional`, `tags`, `skills`, `examples`, `limitations`, `setup_notes`, et `agent_class: Option<String>` - nom de la classe Python source de l'agent (ex: `"ReActAgent"`), extrait par le validateur AIP et affiché comme badge *Direct / Conversational / Orchestrated / Worker* dans la vue Agents.
 
 ### Tasks (4)
 
@@ -171,13 +171,13 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 | `get_task_timeline` | `task_id: String` | `Result<Vec<Value>, String>` |
 | `get_delegation_tree` | `task_id: String` | `Result<DelegationTreeNode, String>` |
 
-`DelegationTreeNode` — nœud de l'arbre de délégation A2A : `agent_id`, `agent_name`, `status`, `started_at: Option<String>`, `children: Vec<DelegationTreeNode>`. La racine correspond à la tâche parente ; les enfants sont les délégations enregistrées via `GET /api/v1/tasks/{id}/sidechains`.
+`DelegationTreeNode` - nœud de l'arbre de délégation A2A : `agent_id`, `agent_name`, `status`, `started_at: Option<String>`, `children: Vec<DelegationTreeNode>`. La racine correspond à la tâche parente ; les enfants sont les délégations enregistrées via `GET /api/v1/tasks/{id}/sidechains`.
 
 ### HITL (3)
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `list_pending_approvals` | — | `Result<Vec<PendingApproval>, String>` |
+| `list_pending_approvals` | - | `Result<Vec<PendingApproval>, String>` |
 | `list_resolved_approvals` | `limit: Option<usize>, days: Option<u64>` | `Result<Vec<ResolvedApproval>, String>` |
 | `resume_task` | `task_id, approved, reason` | `Result<, String>` |
 
@@ -185,16 +185,16 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `list_llm_backends` | — | `Vec<LlmBackendStatus>` |
+| `list_llm_backends` | - | `Vec<LlmBackendStatus>` |
 | `ping_llm_backend` | `name: String` | `u64` (latency_ms) |
 | `get_llm_cost_stats` | `days: Option<u32>` | `LlmCostStats` |
 
-### Triggers (9 — 5 + 3 + 1)
+### Triggers (9 - 5 + 3 + 1)
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `list_triggers` | — | `Vec<TriggerStatus>` |
-| `list_trigger_definitions` | — | `Vec<TriggerDefinitionView>` |
+| `list_triggers` | - | `Vec<TriggerStatus>` |
+| `list_trigger_definitions` | - | `Vec<TriggerDefinitionView>` |
 | `get_trigger_definition` | `id: String` | `TriggerDefinitionView` |
 | `create_trigger` | `definition: CreateTriggerRequest` | `TriggerDefinitionView` |
 | `update_trigger` | `id: String, definition: UpdateTriggerRequest` | `TriggerDefinitionView` |
@@ -207,20 +207,20 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `list_memory_namespaces` | — | `Vec<String>` |
+| `list_memory_namespaces` | - | `Vec<String>` |
 | `list_memory_entries` | `namespace, type?, limit?` | `Vec<MemoryEntry>` |
 | `search_memory` | `namespace: String, query: String, limit?` | `Vec<MemorySearchResult>` |
 | `delete_memory_entry` | `namespace: String, id: String` | `` |
 
-### Notifications (8 — 3 + 5)
+### Notifications (8 - 3 + 5)
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `list_notification_channels` | — | `Vec<NotificationChannelView>` |
+| `list_notification_channels` | - | `Vec<NotificationChannelView>` |
 | `create_notification_channel` | `channel: CreateChannelRequest` | `NotificationChannelView` |
 | `update_notification_channel` | `id: String, channel: UpdateChannelRequest` | `NotificationChannelView` |
 | `delete_notification_channel` | `id: String` | `` |
-| `get_notification_events` | — | `Vec<String>` |
+| `get_notification_events` | - | `Vec<String>` |
 | `set_notification_events` | `events: Vec<String>` | `` |
 | `test_notification_channel` | `channel_id: String` | `ChannelTestResult` |
 | `get_notification_logs` | `limit: Option<usize>` | `Vec<NotificationLogEntry>` |
@@ -247,9 +247,9 @@ Commandes lisant/écrivant la configuration persistée de l'agent système Apoll
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `get_chat_libre_config` | — | `Result<ChatLibreConfigDto, String>` |
+| `get_chat_libre_config` | - | `Result<ChatLibreConfigDto, String>` |
 | `update_chat_libre_config` | `config: ChatLibreConfigDto` | `Result<(), String>` |
-| `list_chat_permission_rules` | — | `Result<Vec<PermissionRuleDto>, String>` |
+| `list_chat_permission_rules` | - | `Result<Vec<PermissionRuleDto>, String>` |
 | `delete_chat_permission_rule` | `rule_id: i64` | `Result<(), String>` |
 
 `ChatLibreConfigDto` (source : `commands/chat_libre.rs`) :
@@ -264,7 +264,7 @@ pub struct ChatLibreConfigDto {
 
 > **Sémantique `allowed_tools` :** contrairement à ce que son nom suggère, `allowed_tools` n'est **pas** une restriction de la liste d'outils disponibles. Il peuple `pre_authorized_tools` : l'outil est auto-approuvé (pas de popup HITL), mais le LLM voit l'ensemble du registre. Les changements s'appliquent aux sessions Libre déjà ouvertes (live merge à chaque message).
 
-`APOLLIA_CHAT_AGENT_ID = "apollia:chat"` — identifiant logique de l'agent système Chat, partagé avec `apollia-runtime::chat::manager`.
+`APOLLIA_CHAT_AGENT_ID = "apollia:chat"` - identifiant logique de l'agent système Chat, partagé avec `apollia-runtime::chat::manager`.
 
 `SessionAuthorizationDto` (source : `commands/chat_libre.rs`) :
 
@@ -283,7 +283,7 @@ Commandes supplementaires dans `commands/chat_libre.rs` :
 
 | Commande | Parametres | Retour | Description |
 |---|---|---|---|
-| `list_active_chat_session_authorizations` | — | `Vec<SessionAuthorizationDto>` | Autorisations in-memory de toutes les sessions actives (pour Settings > Permissions > Sessions actives) |
+| `list_active_chat_session_authorizations` | - | `Vec<SessionAuthorizationDto>` | Autorisations in-memory de toutes les sessions actives (pour Settings > Permissions > Sessions actives) |
 | `revoke_chat_session_authorization` | `session_id: String`, `tool_name: String` | `Result<(), String>` | Retire une autorisation in-memory ; erreur si session ou entree introuvable |
 
 ### Tool Governance (12)
@@ -292,7 +292,7 @@ Commandes pilotant `NativeToolRegistry`, `ToolCredentialStore`, `PrefixRuleEngin
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `governance_list_tools` | — | `Vec<ToolStatusDto>` |
+| `governance_list_tools` | - | `Vec<ToolStatusDto>` |
 | `governance_set_tool_enabled` | `tool_name: String, enabled: bool` | `` |
 | `governance_get_tool_config` | `tool_name: String` | `Option<Value>` |
 | `governance_set_tool_config` | `tool_name: String, config: Value` | `` |
@@ -311,8 +311,8 @@ DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialE
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `get_config` | — | `ApollaConfigView` |
-| `open_config_in_editor` | — | `` |
+| `get_config` | - | `ApollaConfigView` |
+| `open_config_in_editor` | - | `` |
 
 ### Chat (10)
 
@@ -333,11 +333,11 @@ DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialE
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `get_stt_status` | — | `Result<SttStatus, String>` |
+| `get_stt_status` | - | `Result<SttStatus, String>` |
 | `list_transcriptions` | `limit: Option<u32>` | `Result<Vec<TranscriptRow>, String>` |
 | `delete_transcription` | `id: String` | `Result<, String>` |
 | `transcribe_file` | `file_path: String` | `Result<TranscriptRow, String>` |
-| `list_stt_models` | — | `Result<Vec<SttModelInfo>, String>` |
+| `list_stt_models` | - | `Result<Vec<SttModelInfo>, String>` |
 
 ### User Memory Profile (4)
 
@@ -345,10 +345,10 @@ Commandes lisant et écrivant le profil utilisateur persisté dans le namespace 
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `get_user_memory_profile` | — | `Result<UserMemoryProfileView, String>` |
+| `get_user_memory_profile` | - | `Result<UserMemoryProfileView, String>` |
 | `update_user_memory_entry` | `request: UpdateUserMemoryEntryRequest` | `Result<(), String>` |
 | `delete_user_memory_entry` | `key: String` | `Result<(), String>` |
-| `clear_user_memory` | — | `Result<(), String>` |
+| `clear_user_memory` | - | `Result<(), String>` |
 
 ```rust
 pub struct UserMemoryEntryView {
@@ -375,23 +375,23 @@ pub struct UpdateUserMemoryEntryRequest {
 
 `clear_user_memory` supprime l'intégralité du namespace `__user__` et doit être suivi d'un reset de l'onboarding côté frontend.
 
-### Onboarding (6 — commandes utilitaires)
+### Onboarding (6 - commandes utilitaires)
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `check_onboarded` | — | `bool` |
-| `mark_onboarded` | — | `` |
-| `reset_onboarding` | — | `` |
-| `check_python` | — | `bool` |
-| `check_llm_configured` | — | `bool` |
-| `check_hello_agent_exists` | — | `Option<String>` (path) |
+| `check_onboarded` | - | `bool` |
+| `mark_onboarded` | - | `` |
+| `reset_onboarding` | - | `` |
+| `check_python` | - | `bool` |
+| `check_llm_configured` | - | `bool` |
+| `check_hello_agent_exists` | - | `Option<String>` (path) |
 
 ### Mises a jour in-app (2)
 
 | Commande | Parametres | Retour | Description |
 |---|---|---|---|
-| `check_for_update` | — | `Result<UpdateCheckResult, String>` | Interroge l'endpoint GitHub Releases configure dans `tauri.conf.json`. Retourne `available: true` + `new_version` si une version plus recente existe. |
-| `install_update` | — | `Result<(), String>` | Telecharge et installe la mise a jour disponible, puis redémarre l'application. Doit etre appele apres `check_for_update`. |
+| `check_for_update` | - | `Result<UpdateCheckResult, String>` | Interroge l'endpoint GitHub Releases configure dans `tauri.conf.json`. Retourne `available: true` + `new_version` si une version plus recente existe. |
+| `install_update` | - | `Result<(), String>` | Telecharge et installe la mise a jour disponible, puis redémarre l'application. Doit etre appele apres `check_for_update`. |
 
 ```rust
 pub struct UpdateCheckResult {
@@ -408,12 +408,12 @@ pub struct UpdateCheckResult {
 
 ### 4.1 Stack
 
-- **Svelte 5** (runes `$state`, `$effect`) + **Vite 6** — framework reactif leger
-- **bits-ui** — composants headless accessibles (Button, Card, Badge, Sheet)
-- **Tailwind CSS 3.4** — utilitaires CSS + design tokens
-- **@tauri-apps/api** — bridge IPC Tauri
-- **@tauri-apps/plugin-dialog** — file picker natif
-- **@tauri-apps/plugin-notification** — notifications natives OS
+- **Svelte 5** (runes `$state`, `$effect`) + **Vite 6** - framework reactif leger
+- **bits-ui** - composants headless accessibles (Button, Card, Badge, Sheet)
+- **Tailwind CSS 3.4** - utilitaires CSS + design tokens
+- **@tauri-apps/api** - bridge IPC Tauri
+- **@tauri-apps/plugin-dialog** - file picker natif
+- **@tauri-apps/plugin-notification** - notifications natives OS
 
 ### 4.2 Navigation
 
@@ -436,22 +436,22 @@ type Route =
   | "settings";      // Configuration lecture seule (ADR-029)
 ```
 
-Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe — routing par store client-side. L'onboarding est gere separement par `App.svelte` via le store `onboardingModalOpen` (modal overlay, pas une route).
+Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe - routing par store client-side. L'onboarding est gere separement par `App.svelte` via le store `onboardingModalOpen` (modal overlay, pas une route).
 
 ### 4.3 Sidebar
 
-Rail d'icones 56px permanent (V4, `data-state="rail"`). Pas de mode expand/collapse ni de categories — liste plate de 7 destinations + Settings en pied.
+Rail d'icones 56px permanent (V4, `data-state="rail"`). Pas de mode expand/collapse ni de categories - liste plate de 7 destinations + Settings en pied.
 
 | Route | Icone | Badge |
 |---|---|---|
-| `dashboard` | Home | — |
+| `dashboard` | Home | - |
 | `chat()` | MessageSquare | compteur sessions actives |
-| `agents` | Bot | — |
-| `projects` | FolderOpen | — |
+| `agents` | Bot | - |
+| `projects` | FolderOpen | - |
 | `tasks` | CheckSquare | compteur taches in-flight (pulse animee) |
 | `inbox` | Inbox | compteur approbations en attente (`pendingCount + pendingChatApprovalCount`) |
-| `integrations` | Plug | — |
-| `settings` | Settings | — (pied de sidebar) |
+| `integrations` | Plug | - |
+| `settings` | Settings | - (pied de sidebar) |
 
 Comportement :
 - Chaque bouton affiche un **tooltip** au survol (label en francais)
@@ -479,7 +479,7 @@ Le store `sse.ts` etablit une connexion SSE vers `localhost:7771/api/v1/dashboar
 | `transcriptions` | `TranscriptRow[]` | hydrate via IPC `list_transcriptions` |
 | `isRecording` | `boolean` | evenements `stt-recording-started/stopped` |
 | `chatSessions` | `ChatSessionSummary[]` | evenement `chat-changed` |
-| `currentSession` | `ChatSessionDetail \| null` | — |
+| `currentSession` | `ChatSessionDetail \| null` | - |
 | `chatTokenBuffer` | `string` | evenement `chat-token` (fast path) |
 
 4 stores derives :
@@ -528,40 +528,40 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 ### 4.6 Vues
 
-**Agents** — Vue en deux colonnes : colonne gauche liste les assistants individuels et les packages installés ; colonne droite affiche le panneau détail selon la sélection.
+**Agents** - Vue en deux colonnes : colonne gauche liste les assistants individuels et les packages installés ; colonne droite affiche le panneau détail selon la sélection.
 
-- **Agents individuels** — badges d'état temps réel (ACTIVE/vert, DEGRADED/orange, STOPPED/gris). File picker natif Tauri pour enregistrer un agent `.py`. Boutons Démarrer/Arrêter inline (`start_agent` / `stop_agent` IPC) avec spinner `busyKeys` par agent. Drawer avec les 20 dernières tâches de l'agent.
-- **Packages** — chaque package affiche un `PackageRuntimeState` agrégé en temps réel : `runningAgents/totalAgents`, `enabledTriggers/totalTriggers`, statut global `running` | `partial` | `stopped`. Boutons **Démarrer** / **Arrêter** inline pilotent `startPackage()` / `stopPackage()` (store `agentPackages.ts`) : démarrage dans l'ordre workers → assistants/director ; arrêt dans l'ordre inverse. Sélectionner un package ouvre son panneau détail dans la colonne droite (meta informations, liste des agents avec état runtime individuel et lien vers le détail agent, triggers actifs/inactifs issus du store SSE `triggers`).
+- **Agents individuels** - badges d'état temps réel (ACTIVE/vert, DEGRADED/orange, STOPPED/gris). File picker natif Tauri pour enregistrer un agent `.py`. Boutons Démarrer/Arrêter inline (`start_agent` / `stop_agent` IPC) avec spinner `busyKeys` par agent. Drawer avec les 20 dernières tâches de l'agent.
+- **Packages** - chaque package affiche un `PackageRuntimeState` agrégé en temps réel : `runningAgents/totalAgents`, `enabledTriggers/totalTriggers`, statut global `running` | `partial` | `stopped`. Boutons **Démarrer** / **Arrêter** inline pilotent `startPackage()` / `stopPackage()` (store `agentPackages.ts`) : démarrage dans l'ordre workers → assistants/director ; arrêt dans l'ordre inverse. Sélectionner un package ouvre son panneau détail dans la colonne droite (meta informations, liste des agents avec état runtime individuel et lien vers le détail agent, triggers actifs/inactifs issus du store SSE `triggers`).
 
-**Tasks** — Liste filtrable par onglets (All/Running/Completed/Failed/Pending). Detail avec input/output complets. Timeline interactive avec 8 types d'evenements (task_transition, step_started, step_completed, llm_call, tool_call, hitl_suspended, hitl_resolved, task_completed).
+**Tasks** - Liste filtrable par onglets (All/Running/Completed/Failed/Pending). Detail avec input/output complets. Timeline interactive avec 8 types d'evenements (task_transition, step_started, step_completed, llm_call, tool_call, hitl_suspended, hitl_resolved, task_completed).
 
-**Approvals** — Cartes d'approbation avec compteur live (Xm Ys), prompt complet, contexte JSON depliable, boutons Approuver/Rejeter avec dialogs de confirmation. Historique des 20 dernieres approbations resolues (7 jours).
+**Approvals** - Cartes d'approbation avec compteur live (Xm Ys), prompt complet, contexte JSON depliable, boutons Approuver/Rejeter avec dialogs de confirmation. Historique des 20 dernieres approbations resolues (7 jours).
 
-**LLM** — Grille de backends avec cards : nom, type (embedded/api), modele, badge statut (Ready/Loading/Error), bouton Ping avec affichage latence. Section statistiques : cout USD, tokens, appels par backend sur 7 jours. Refresh 30s.
+**LLM** - Grille de backends avec cards : nom, type (embedded/api), modele, badge statut (Ready/Loading/Error), bouton Ping avec affichage latence. Section statistiques : cout USD, tokens, appels par backend sur 7 jours. Refresh 30s.
 
-**Triggers** — Vue editeur CRUD. Tableau avec ID, type badge (Cron/FileWatch/Webhook/Interval/Oneshot), cible agent, toggle enable/disable, compteur fires/skips. Boutons Fire et Logs. Dialogs `CreateTriggerDialog` et `EditTriggerDialog` avec champs dynamiques selon le type de source. Bouton Hot Reload. Suppression avec confirmation.
+**Triggers** - Vue editeur CRUD. Tableau avec ID, type badge (Cron/FileWatch/Webhook/Interval/Oneshot), cible agent, toggle enable/disable, compteur fires/skips. Boutons Fire et Logs. Dialogs `CreateTriggerDialog` et `EditTriggerDialog` avec champs dynamiques selon le type de source. Bouton Hot Reload. Suppression avec confirmation.
 
-**Memory** — Selecteur de namespace en dropdown. Recherche FTS5 debounced 300ms (minimum 3 caracteres), score BM25 affiche. Table expandable : type badge (episodic/semantic/procedural), cle, preview 100 chars, TTL, timestamp. Suppression par ligne avec dialog de confirmation.
+**Memory** - Selecteur de namespace en dropdown. Recherche FTS5 debounced 300ms (minimum 3 caracteres), score BM25 affiche. Table expandable : type badge (episodic/semantic/procedural), cle, preview 100 chars, TTL, timestamp. Suppression par ligne avec dialog de confirmation.
 
-**Notifications** — Vue editeur CRUD. Onglet Canaux : creation/edition/suppression canaux (`CreateChannelDialog`, `EditChannelDialog`), type webhook config URL/headers. Onglet Evenements Globaux : checkboxes des evenements reconnus (`GlobalEventsEditor`). Bouton Tester avec resultat inline. Logs : 50 dernieres notifications envoyees.
+**Notifications** - Vue editeur CRUD. Onglet Canaux : creation/edition/suppression canaux (`CreateChannelDialog`, `EditChannelDialog`), type webhook config URL/headers. Onglet Evenements Globaux : checkboxes des evenements reconnus (`GlobalEventsEditor`). Bouton Tester avec resultat inline. Logs : 50 dernieres notifications envoyees.
 
-**Observability** — 3 onglets :
+**Observability** - 3 onglets :
 - *Timeline* : evenements des N dernieres heures (slider 30min→24h), filtres par type (Task/Tool/LLM/Trigger/HITL), liste chronologique inversee avec icones + detail expandable
 - *LLM Costs* : bar chart SVG natif Svelte (pas de lib externe), cout par jour 7j, barres colorees par backend
 - *Audit Trail* : table expandable (args_json, stdout, stderr), filtres par outil + agent
 
-**Integrations** — Route `/integrations`, catégorie "Infrastructure". Le rendu change selon le mode actif : mode **Operator** affiche "Connexions" (OperatorConnectionCard + OperatorCatalogue + ConnectorWizard 5 étapes + OperatorServerManage) ; mode **Builder** affiche "MCP Servers" (BuilderServerRow + BuilderServerDetail + BuilderRegistryBrowser). Le catalogue est alimenté par le `RegistryClient` qui interroge `registry.modelcontextprotocol.io` avec cache local JSON (`~/.apollia/cache/mcp-registry.json`). Les secrets saisis dans le wizard sont stockés dans l'OS Keychain via le `SecretStore` (crate `keyring`). Le disclaimer de sécurité MCP s'affiche une seule fois (persisté dans `localStorage`). Les cartes affichent `TrustBadge` (Official / Verified / Community / Custom) et `ConnectionStatusIndicator`. i18n complet EN + FR (clés `integrations.*`). Voir [Guide Intégrations](./Integrations-Guide) pour la documentation utilisateur.
+**Integrations** - Route `/integrations`, catégorie "Infrastructure". Le rendu change selon le mode actif : mode **Operator** affiche "Connexions" (OperatorConnectionCard + OperatorCatalogue + ConnectorWizard 5 étapes + OperatorServerManage) ; mode **Builder** affiche "MCP Servers" (BuilderServerRow + BuilderServerDetail + BuilderRegistryBrowser). Le catalogue est alimenté par le `RegistryClient` qui interroge `registry.modelcontextprotocol.io` avec cache local JSON (`~/.apollia/cache/mcp-registry.json`). Les secrets saisis dans le wizard sont stockés dans l'OS Keychain via le `SecretStore` (crate `keyring`). Le disclaimer de sécurité MCP s'affiche une seule fois (persisté dans `localStorage`). Les cartes affichent `TrustBadge` (Official / Verified / Community / Custom) et `ConnectionStatusIndicator`. i18n complet EN + FR (clés `integrations.*`). Voir [Guide Intégrations](./Integrations-Guide) pour la documentation utilisateur.
 
-**Transcriptions** — Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav,.mp3,.ogg,.m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule — ADR-029) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
+**Transcriptions** - Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav,.mp3,.ogg,.m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule - ADR-029) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
 
-**Settings** — Vue multi-onglets. Navigation gauche (`SettingsNav.svelte`) regroupée en sections.
+**Settings** - Vue multi-onglets. Navigation gauche (`SettingsNav.svelte`) regroupée en sections.
 
-- *Configuration* — lecture seule nettoyee (ADR-029). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor` via `open::that`.
-- *Outils* (`/settings/tools`, `Tools.svelte`) — gouvernance des outils natifs. Liste les outils (`governance_list_tools`) avec toggle enable/disable (`ToolCard.svelte`). Bouton "Configurer" ouvre `ToolConfigDrawer.svelte` (panel latéral Sheet) pour les outils exposant une config : `web_search` (backend Auto/DDG/Brave, timeouts, résultats max, `require_configured`) et `web_read` (timeout, taille max, garde SSRF). `CredentialField.svelte` gère les credentials (Brave API key) : saisie masquée, enregistrement via `governance_set_credential`, suppression via `governance_delete_credential`, test live via `governance_test_credential`. Store réactif `toolGovernance.ts` applique un état optimiste pour les toggles avec rollback automatique si l'IPC échoue.
-- *Permissions* (`/settings/permissions`, `Permissions.svelte`) — 3 sections :
-  - **Sessions actives** — autorisations in-memory (`scope=session`) des sessions de chat en cours. Chargees via `list_active_chat_session_authorizations`, révocables via `revoke_chat_session_authorization`. Disparaissent a la fermeture de la session. Badge *Session* orange sur chaque entree.
-  - **Chat — Apollia** — regles `scope=agent` persistees dans `governance.db` pour l'agent `apollia:chat`. Chargees via `list_chat_permission_rules`, révocables via `delete_chat_permission_rule`.
-  - **Autorisations persistees** — toutes les regles `scope=project|agent|global` de `governance.db`. Filtres par portee (*Ce projet*, *Chat / agent*, *Partout*) et par outil. Revocation individuelle (`governance_revoke_permission_rule`) ou en masse (`governance_revoke_all_rules` avec portee *Ce projet* | *Chat / agent* | *Partout* | *Toutes portees*).
+- *Configuration* - lecture seule nettoyee (ADR-029). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor` via `open::that`.
+- *Outils* (`/settings/tools`, `Tools.svelte`) - gouvernance des outils natifs. Liste les outils (`governance_list_tools`) avec toggle enable/disable (`ToolCard.svelte`). Bouton "Configurer" ouvre `ToolConfigDrawer.svelte` (panel latéral Sheet) pour les outils exposant une config : `web_search` (backend Auto/DDG/Brave, timeouts, résultats max, `require_configured`) et `web_read` (timeout, taille max, garde SSRF). `CredentialField.svelte` gère les credentials (Brave API key) : saisie masquée, enregistrement via `governance_set_credential`, suppression via `governance_delete_credential`, test live via `governance_test_credential`. Store réactif `toolGovernance.ts` applique un état optimiste pour les toggles avec rollback automatique si l'IPC échoue.
+- *Permissions* (`/settings/permissions`, `Permissions.svelte`) - 3 sections :
+  - **Sessions actives** - autorisations in-memory (`scope=session`) des sessions de chat en cours. Chargees via `list_active_chat_session_authorizations`, révocables via `revoke_chat_session_authorization`. Disparaissent a la fermeture de la session. Badge *Session* orange sur chaque entree.
+  - **Chat - Apollia** - regles `scope=agent` persistees dans `governance.db` pour l'agent `apollia:chat`. Chargees via `list_chat_permission_rules`, révocables via `delete_chat_permission_rule`.
+  - **Autorisations persistees** - toutes les regles `scope=project|agent|global` de `governance.db`. Filtres par portee (*Ce projet*, *Chat / agent*, *Partout*) et par outil. Revocation individuelle (`governance_revoke_permission_rule`) ou en masse (`governance_revoke_all_rules` avec portee *Ce projet* | *Chat / agent* | *Partout* | *Toutes portees*).
 - Les autres onglets (LLM backends, Mémoires, Raccourcis, Danger, etc.) sont gérés par leurs routes respectives dans `routes/settings/`.
 
 ---
@@ -572,7 +572,7 @@ L'onboarding s'affiche au premier lancement (et apres une reinitialisation) sous
 
 ### 5.1 Composants
 
-`OnboardingModal.svelte` — orchestrateur central. Modal centree (`max-width: 720px`, `max-height: 90vh`, `z-index: 80`, hauteur etendue `min(86vh, 760px)` pour les etapes `ai-setup` et `chat()`). Maintient l'etat local `currentStep` et synchronise la phase backend via `advance_onboarding_phase`.
+`OnboardingModal.svelte` - orchestrateur central. Modal centree (`max-width: 720px`, `max-height: 90vh`, `z-index: 80`, hauteur etendue `min(86vh, 760px)` pour les etapes `ai-setup` et `chat()`). Maintient l'etat local `currentStep` et synchronise la phase backend via `advance_onboarding_phase`.
 
 | # | Etape | Composant |
 |---|---|---|
@@ -619,7 +619,7 @@ Panneau flottant draggable/resizable disponible pendant et apres l'onboarding.
 |---|---|
 | `hidden` | Masque completement (post-graduation si desactive) |
 | `minimized` | Bouton "Restaurer" en bas a droite |
-| `visible` | Panneau complet — session chat active |
+| `visible` | Panneau complet - session chat active |
 
 ### 6.3 Sessions chat
 
@@ -632,9 +632,9 @@ Le companion utilise une session de chat ordinaire (`create_chat_session` avec `
 ### Menu contextuel
 
 3 items :
-1. **"Ouvrir Apollia OS"** — affiche/focus la fenetre principale
-2. **Compteur approbations** — desactive si 0, affiche "N approbations en attente" si > 0
-3. **"Quitter"** — arret graceful via `POST /api/v1/shutdown` puis `exit(0)`
+1. **"Ouvrir Apollia OS"** - affiche/focus la fenetre principale
+2. **Compteur approbations** - desactive si 0, affiche "N approbations en attente" si > 0
+3. **"Quitter"** - arret graceful via `POST /api/v1/shutdown` puis `exit(0)`
 
 ### Comportement fenetre
 
@@ -645,13 +645,13 @@ Le companion utilise une session de chat ordinaire (`create_chat_session` avec `
 ### Mise a jour dynamique
 
 Le frontend emet un evenement `tray-update` avec `{ active_agents, pending_approvals }` :
-- Tooltip formate en francais : "Apollia OS — 3 agents actifs, 2 approbations en attente" (singulier/pluriel)
+- Tooltip formate en francais : "Apollia OS - 3 agents actifs, 2 approbations en attente" (singulier/pluriel)
 - Menu item approbations : texte et etat `enabled` mis a jour
 
 ### Notifications natives
 
 Declenchees quand la fenetre est masquee + `TaskInputRequired` recu via SSE :
-- Titre : "Action requise — Apollia OS"
+- Titre : "Action requise - Apollia OS"
 - Corps : "Tache XXX attend votre approbation"
 - Clic → affiche la fenetre + navigue vers /approvals
 - Utilise `@tauri-apps/plugin-notification` (permission demandee au premier usage)
@@ -688,9 +688,9 @@ Voir la section "Installation application desktop" dans [INSTALL](./INSTALL.md).
 
 Les deux modes d'acces (CLI et Desktop) partagent le meme runtime :
 
-- **API REST** — TCP `localhost:7771` (Tauri commandes + SSE)
-- **Unix socket** — `/tmp/apollia.sock` (CLI `apollia-os status`)
-- **EventBus** — Broadcast Tokio partage (SSE dashboard + Tauri SSE stores)
+- **API REST** - TCP `localhost:7771` (Tauri commandes + SSE)
+- **Unix socket** - `/tmp/apollia.sock` (CLI `apollia-os status`)
+- **EventBus** - Broadcast Tokio partage (SSE dashboard + Tauri SSE stores)
 
 Un seul processus, un seul Supervisor, un seul jeu d'acteurs Tokio. Pas de conflit de port ou de socket.
 
@@ -708,11 +708,11 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 
 ## 11. Decisions architecturales
 
-- **ADR-027** — Processus unique Tauri + runtime embarque
-- **ADR-028** — Frontend Svelte : UX first, UI sprint dedie
-- **ADR-029** — Settings lecture seule (round-trip TOML detruirait les commentaires)
-- **ADR-033** — Config operateur SQLite : separation structurel (TOML) / operationnel (SQLite)
-- **ADR-041** — Moteur STT embarqué : whisper-rs V1, trait SttBackend
+- **ADR-027** - Processus unique Tauri + runtime embarque
+- **ADR-028** - Frontend Svelte : UX first, UI sprint dedie
+- **ADR-029** - Settings lecture seule (round-trip TOML detruirait les commentaires)
+- **ADR-033** - Config operateur SQLite : separation structurel (TOML) / operationnel (SQLite)
+- **ADR-041** - Moteur STT embarqué : whisper-rs V1, trait SttBackend
 
 ---
 
@@ -731,7 +731,7 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 | `McpPermissionView.svelte` | `mcp` | Serveur + outil + arguments JSON indenté |
 | `GenericPermissionView.svelte` | autres | JSON brut (fallback) |
 
-**Bouton "Toujours autoriser"** — crée une `PrefixRule` via `add_permission_prefix_rule` Tauri IPC (intégration avec `apollia-permissions`).
+**Bouton "Toujours autoriser"** - crée une `PrefixRule` via `add_permission_prefix_rule` Tauri IPC (intégration avec `apollia-permissions`).
 
 ```typescript
 async function alwaysAllow(scope: 'project' | 'global', projectPath?: string) {
@@ -762,7 +762,7 @@ crates/apollia-desktop/src/lib/components/permissions/
 
 Widget dans le header du desktop affichant le coût LLM de la session en temps réel.
 
-- Affiche `$X.XXX` — mis à jour < 500ms après chaque appel LLM
+- Affiche `$X.XXX` - mis à jour < 500ms après chaque appel LLM
 - Passe à **orange** à 80% du seuil configuré
 - Passe à **rouge** + badge `!` si `threshold_exceeded = true`
 - Alimenté par `RuntimeEvent::TokenBudgetUpdated` via SSE

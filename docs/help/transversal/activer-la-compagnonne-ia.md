@@ -5,9 +5,9 @@
 ## Prérequis
 
 - Au moins un fournisseur d'IA est configuré et prêt. L'état est visible **en haut à gauche** : un **point coloré à gauche du mot *Apollia*** dans le bandeau supérieur indique l'état combiné runtime + LLM.
-  - 🟢 vert — runtime sain + au moins un LLM prêt → l'Aide Apollia peut démarrer.
-  - 🟡 ambre — aucun LLM connecté → le bouton est grisé.
-  - 🔴 rouge — runtime déconnecté → rien ne fonctionnera ; quittez et relancez l'application.
+  - 🟢 vert - runtime sain + au moins un LLM prêt → l'Aide Apollia peut démarrer.
+  - 🟡 ambre - aucun LLM connecté → le bouton est grisé.
+  - 🔴 rouge - runtime déconnecté → rien ne fonctionnera ; quittez et relancez l'application.
 
   Pour configurer un LLM, allez sur **Paramètres → Modèles LLM**.
 
@@ -15,11 +15,11 @@
 
 1. Dans la sidebar, repérez le bouton **Aide Apollia** (logo Apollia, dans le bas de la sidebar).
 
-   Le bouton est **grisé et non cliquable** tant qu'aucun fournisseur d'IA n'est prêt — au survol, un tooltip explicite : *« Configurez un modèle LLM pour activer l'aide contextuelle »*.
+   Le bouton est **grisé et non cliquable** tant qu'aucun fournisseur d'IA n'est prêt - au survol, un tooltip explicite : *« Configurez un modèle LLM pour activer l'aide contextuelle »*.
 
    `[SCREENSHOT: sidebar avec bouton Aide Apollia visible en bas, logo Apollia en icône ; à droite un point vert visible à côté du mot Apollia dans le bandeau supérieur]`
 
-2. Cliquez sur le bouton. Un **panneau flottant** s'ouvre, ancré à droite de l'écran par défaut. Une session de discussion dédiée démarre — un court spinner s'affiche pendant la création (1 à 2 secondes).
+2. Cliquez sur le bouton. Un **panneau flottant** s'ouvre, ancré à droite de l'écran par défaut. Une session de discussion dédiée démarre - un court spinner s'affiche pendant la création (1 à 2 secondes).
 
 3. Posez une question rapide. L'Aide Apollia répond sans interrompre votre travail sur la page principale.
 
@@ -35,13 +35,13 @@
 
 7. **Réduire en bulle** : cliquez sur l'icône Moins (−) en haut du panneau. Il se condense en une mini-bulle cliquable que vous pouvez redéployer plus tard. L'historique de la conversation est conservé.
 
-8. **Fermer** : cliquez sur l'icône X en haut du panneau (ou utilisez le raccourci **Cmd+/** / **Ctrl+/** depuis n'importe où dans l'app). Le panneau disparaît mais l'Aide reste *activée* — un nouveau Cmd+/ le rouvre instantanément sur la même session.
+8. **Fermer** : cliquez sur l'icône X en haut du panneau (ou utilisez le raccourci **Cmd+/** / **Ctrl+/** depuis n'importe où dans l'app). Le panneau disparaît mais l'Aide reste *activée* - un nouveau Cmd+/ le rouvre instantanément sur la même session.
 
-9. **Désactiver complètement** : cliquez à nouveau sur le bouton **Aide Apollia** dans la sidebar. Cette fois, c'est la désactivation : le panneau se ferme et l'historique est fermé. La préférence est persistée — la prochaine ouverture redémarrera une session vierge.
+9. **Désactiver complètement** : cliquez à nouveau sur le bouton **Aide Apollia** dans la sidebar. Cette fois, c'est la désactivation : le panneau se ferme et l'historique est fermé. La préférence est persistée - la prochaine ouverture redémarrera une session vierge.
 
 ## Raccourci clavier
 
-- **Cmd+/** (macOS) / **Ctrl+/** (Windows et Linux) — bascule l'affichage du panneau **sans toucher à l'activation**. Pratique pour cacher rapidement l'Aide pendant une démo et la rappeler ensuite.
+- **Cmd+/** (macOS) / **Ctrl+/** (Windows et Linux) - bascule l'affichage du panneau **sans toucher à l'activation**. Pratique pour cacher rapidement l'Aide pendant une démo et la rappeler ensuite.
 
 ## Vérification
 
@@ -58,4 +58,4 @@
 - **Le panneau est invisible alors que je l'ai déjà ouvert** : il est peut-être minimisé en bulle dans un coin de l'écran. Cherchez la bulle Aide Apollia ; sinon **Cmd+/** force la réouverture.
 - **Le panneau s'ouvre dans un coin inaccessible** : maintenez le bouton **Aide Apollia** de la sidebar enfoncé (ou désactivez puis réactivez) pour réinitialiser la position par défaut (côté droit).
 
-> **Concept :** [book ch12 — Chat interactif](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md)
+> **Concept :** [book ch12 - Chat interactif](https://github.com/Apollia-OS/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md)

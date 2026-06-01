@@ -1,4 +1,4 @@
-//! Integration tests — TriggerEngine : interval, FileWatch, on_busy.
+//! Integration tests - TriggerEngine : interval, FileWatch, on_busy.
 //!
 //! Couvre les scénarios : interval, FileWatch, on_busy=Drop, on_busy=Queue.
 //! Aucune dépendance Python. Exécutés dans tous les environnements CI.
@@ -103,7 +103,7 @@ fn interval_def(id: &str, every: &str, on_busy: OnBusyPolicy) -> TriggerDefiniti
 /// IntervalTrigger 200 ms → au moins 2 submit() en 700 ms.
 #[tokio::test]
 async fn test_ac1_interval_trigger_submits_tasks() {
-    // GIVEN — moteur avec un trigger à 200 ms d'intervalle
+    // GIVEN - moteur avec un trigger à 200 ms d'intervalle
     let (mock_router, submit_count) = MockTaskSubmitter::new();
     let bus_tx = make_bus();
     let def = interval_def(
@@ -120,10 +120,10 @@ async fn test_ac1_interval_trigger_submits_tasks() {
     )
     .await;
 
-    // WHEN — attendre 700 ms (3,5× l'intervalle)
+    // WHEN - attendre 700 ms (3,5× l'intervalle)
     tokio::time::sleep(Duration::from_millis(700)).await;
 
-    // THEN — au moins 2 submit() effectués (marge pour CI lente)
+    // THEN - au moins 2 submit() effectués (marge pour CI lente)
     let count = submit_count.load(Ordering::SeqCst);
     assert!(
         count >= 2,
@@ -136,7 +136,7 @@ async fn test_ac1_interval_trigger_submits_tasks() {
 /// FileWatch `create` → 1 submit() dans les 5 secondes.
 #[tokio::test]
 async fn test_ac2_file_watch_create_submits_task() {
-    // GIVEN — moteur avec FileWatch sur un répertoire temporaire
+    // GIVEN - moteur avec FileWatch sur un répertoire temporaire
     let dir = TempDir::new().expect("TempDir creation failed");
     let (mock_router, submit_count) = MockTaskSubmitter::new();
     let bus_tx = make_bus();
@@ -165,11 +165,11 @@ async fn test_ac2_file_watch_create_submits_task() {
     // Laisser le watcher s'initialiser
     tokio::time::sleep(Duration::from_millis(300)).await;
 
-    // WHEN — créer un fichier dans le répertoire surveillé
+    // WHEN - créer un fichier dans le répertoire surveillé
     let test_file = dir.path().join("facture.pdf");
     std::fs::write(&test_file, b"pdf-content").expect("file write failed");
 
-    // THEN — au moins 1 submit dans les 5 secondes (marge large pour CI)
+    // THEN - au moins 1 submit dans les 5 secondes (marge large pour CI)
     let submitted = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             if submit_count.load(Ordering::SeqCst) >= 1 {
@@ -191,7 +191,7 @@ async fn test_ac2_file_watch_create_submits_task() {
 /// `on_busy=Drop` + agent occupé → `TriggerSkipped` émis, zéro submit.
 #[tokio::test]
 async fn test_ac5_on_busy_drop_skips_and_emits_event() {
-    // GIVEN — mock occupé (pending_count = 1) + policy Drop + interval "1h" (pas d'auto-fire)
+    // GIVEN - mock occupé (pending_count = 1) + policy Drop + interval "1h" (pas d'auto-fire)
     let (mock_router, submit_count) = MockTaskSubmitter::new_busy();
     let bus_tx = tokio::sync::broadcast::channel::<RuntimeEvent>(64).0;
     let mut bus_rx = bus_tx.subscribe();
@@ -205,10 +205,10 @@ async fn test_ac5_on_busy_drop_skips_and_emits_event() {
     )
     .await;
 
-    // WHEN — fire_now force le déclenchement (ignoré car agent occupé + Drop)
+    // WHEN - fire_now force le déclenchement (ignoré car agent occupé + Drop)
     let _ = handle.fire_now("drop-trigger").await;
 
-    // THEN — TriggerSkipped doit être reçu dans les 500 ms
+    // THEN - TriggerSkipped doit être reçu dans les 500 ms
     let skipped = tokio::time::timeout(Duration::from_millis(500), async {
         loop {
             match bus_rx.recv().await {
@@ -240,7 +240,7 @@ async fn test_ac5_on_busy_drop_skips_and_emits_event() {
 /// `on_busy=Queue` + agent occupé → 1 submit() quand même.
 #[tokio::test]
 async fn test_ac6_on_busy_queue_submits_task_when_agent_busy() {
-    // GIVEN — mock occupé (pending_count = 1) + policy Queue + interval "1h" (pas d'auto-fire)
+    // GIVEN - mock occupé (pending_count = 1) + policy Queue + interval "1h" (pas d'auto-fire)
     let (mock_router, submit_count) = MockTaskSubmitter::new_busy();
     let bus_tx = make_bus();
     let def = interval_def("queue-trigger", "1h", OnBusyPolicy::Queue { max_depth: 16 });
@@ -253,13 +253,13 @@ async fn test_ac6_on_busy_queue_submits_task_when_agent_busy() {
     )
     .await;
 
-    // WHEN — fire_now force le déclenchement
+    // WHEN - fire_now force le déclenchement
     let result = handle.fire_now("queue-trigger").await;
 
     // Laisser le temps à l'acteur de traiter
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // THEN — Queue policy queues the task for later dispatch when agent is busy.
+    // THEN - Queue policy queues the task for later dispatch when agent is busy.
     // fire_now returns an error indicating the task was queued, not submitted immediately.
     match &result {
         Ok(_) => {

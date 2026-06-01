@@ -21,7 +21,7 @@
   const segments = $derived(segmentize(parsed));
 
   // Build footnote numbering from the *order* citations are first referenced
-  // in the text — stable, and independent of the citations prop order.
+  // in the text - stable, and independent of the citations prop order.
   const footnoteNumbers = $derived.by(() => {
     const map = new Map<string, number>();
     let next = 1;

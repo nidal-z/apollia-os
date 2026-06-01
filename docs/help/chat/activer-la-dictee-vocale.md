@@ -44,4 +44,4 @@ Une phrase parlée de quelques secondes apparaît transcrite dans le champ de sa
 - **Transcription approximative :** vérifiez que la langue sélectionnée correspond bien à celle parlée, et envisagez un modèle Whisper plus gros.
 - **Le texte n'apparaît pas dans le champ :** assurez-vous que le champ de saisie du chat est actif (cliquez dessus) avant d'utiliser le raccourci.
 
-> **Référence technique :** [Briques-STT](https://github.com/nidal-z/apollia-os/wiki/Briques-STT) — moteurs supportés, tailles de modèles Whisper, formats audio, optimisations de latence.
+> **Référence technique :** [Briques-STT](https://github.com/Apollia-OS/apollia-os/wiki/Briques-STT) - moteurs supportés, tailles de modèles Whisper, formats audio, optimisations de latence.

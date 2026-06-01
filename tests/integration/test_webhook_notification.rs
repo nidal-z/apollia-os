@@ -37,7 +37,7 @@ fn make_input_required_notification() -> Notification {
         timestamp: Utc::now(),
         task_id: Some("t-0042".into()),
         agent: Some("devis-agent".into()),
-        message: "Devis #42 — 12 500€ TTC pour Dupont SA — confirmer l'envoi ?".into(),
+        message: "Devis #42 - 12 500€ TTC pour Dupont SA - confirmer l'envoi ?".into(),
         metadata,
         severity: Severity::Warning,
     }
@@ -65,7 +65,7 @@ fn make_channel(url: &str) -> WebhookChannel {
 ///       ET le header `X-Apollia-Event` == `"task.input_required"`
 #[tokio::test]
 async fn test_ac6_webhook_payload_verified() {
-    // GIVEN — wiremock server that expects a POST to /webhook
+    // GIVEN - wiremock server that expects a POST to /webhook
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -82,10 +82,10 @@ async fn test_ac6_webhook_payload_verified() {
     // WHEN
     let result = channel.send(&notif).await;
 
-    // THEN — send succeeds
+    // THEN - send succeeds
     assert!(result.is_ok(), "send must succeed; got: {:?}", result.err());
 
-    // THEN — exactly 1 request received by the mock server
+    // THEN - exactly 1 request received by the mock server
     let requests = server.received_requests().await.unwrap();
     assert_eq!(
         requests.len(),
@@ -95,7 +95,7 @@ async fn test_ac6_webhook_payload_verified() {
 
     let req = &requests[0];
 
-    // THEN — body is valid JSON with all required Apollia fields
+    // THEN - body is valid JSON with all required Apollia fields
     let body: serde_json::Value =
         serde_json::from_slice(&req.body).expect("request body must be valid JSON");
 
@@ -126,7 +126,7 @@ async fn test_ac6_webhook_payload_verified() {
         "message must not be empty"
     );
 
-    // THEN — metadata contains HITL URLs
+    // THEN - metadata contains HITL URLs
     assert!(
         body["metadata"]["resume_url"].as_str().is_some(),
         "metadata.resume_url must be present"
@@ -136,7 +136,7 @@ async fn test_ac6_webhook_payload_verified() {
         "metadata.inspect_url must be present"
     );
 
-    // THEN — X-Apollia-Event header is correct (checked by wiremock matcher above)
+    // THEN - X-Apollia-Event header is correct (checked by wiremock matcher above)
     let event_header = req
         .headers
         .get("x-apollia-event")
@@ -156,12 +156,12 @@ async fn test_ac6_webhook_payload_verified() {
 ///       et le runtime continue sans crash
 #[tokio::test]
 async fn test_ac7_webhook_timeout_returns_error() {
-    // GIVEN — find a free port, then immediately drop the listener so nobody listens.
+    // GIVEN - find a free port, then immediately drop the listener so nobody listens.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind must succeed");
     let port = listener.local_addr().expect("local_addr").port();
-    // Drop the listener — subsequent TCP connects to this port will be refused.
+    // Drop the listener - subsequent TCP connects to this port will be refused.
     drop(listener);
 
     let channel = make_channel(&format!("http://127.0.0.1:{port}"));
@@ -174,14 +174,14 @@ async fn test_ac7_webhook_timeout_returns_error() {
 
     let elapsed = start.elapsed();
 
-    // THEN — connection-refused maps to NotifError::WebhookFailed (no panic, no hang)
+    // THEN - connection-refused maps to NotifError::WebhookFailed (no panic, no hang)
     assert!(
         matches!(result, Err(NotifError::WebhookFailed(_))),
         "expected NotifError::WebhookFailed on connection refused, got: {:?}",
         result
     );
 
-    // THEN — error returned quickly (well under the 5 s default timeout)
+    // THEN - error returned quickly (well under the 5 s default timeout)
     assert!(
         elapsed < Duration::from_secs(5),
         "send must return within 5 s even on unreachable host; took {:?}",

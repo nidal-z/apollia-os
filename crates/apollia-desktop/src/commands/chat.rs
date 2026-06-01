@@ -14,7 +14,7 @@ use tauri::State;
 /// Request payload for creating a new chat session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSessionRequest {
-    /// Chat mode — `"libre"` or `"agent"`.
+    /// Chat mode - `"libre"` or `"agent"`.
     pub mode: String,
     /// Agent name (required when `mode == "agent"`).
     pub agent_name: Option<String>,
@@ -258,7 +258,7 @@ pub async fn rename_chat_session(
 const TITLE_PROMPT: &str = "Tu génères des titres courts pour des conversations à partir de la \
 requête de l'utilisateur. Le titre doit décrire l'intention de l'utilisateur en 3 à 5 mots. \
 Exemples : « Aide rédaction CV », « Bug import CSV Pandas », « Idée nom d'agent IA ». \
-Réponds UNIQUEMENT avec le titre — pas de guillemets, pas de ponctuation finale, pas \
+Réponds UNIQUEMENT avec le titre - pas de guillemets, pas de ponctuation finale, pas \
 d'introduction du type « Voici le titre : ».";
 
 /// Maximum tokens the LLM may produce for a session title.
@@ -331,7 +331,7 @@ pub async fn generate_chat_session_name(
 /// Cleans a raw LLM response into a usable session title.
 ///
 /// - Removes `<think>…</think>` and `<reasoning>…</reasoning>` blocks emitted
-///   by reasoning models (DeepSeek R1, o1-style, …) — including unterminated
+///   by reasoning models (DeepSeek R1, o1-style, …) - including unterminated
 ///   blocks when the response was truncated by `max_tokens`.
 /// - Drops common preambles like "Voici le titre :" / "Title:".
 /// - Keeps only the first non-empty line (titles are single-line).
@@ -341,7 +341,7 @@ pub async fn generate_chat_session_name(
 /// - Truncates to [`TITLE_MAX_CHARS`] characters (not bytes).
 fn sanitize_session_title(raw: &str) -> String {
     let stripped = strip_reasoning_blocks(raw);
-    // Take the first non-empty line — titles never span multiple lines.
+    // Take the first non-empty line - titles never span multiple lines.
     let line = stripped
         .lines()
         .map(str::trim)
@@ -375,7 +375,7 @@ fn sanitize_session_title(raw: &str) -> String {
 ///
 /// Handles the common reasoning-model truncation case: if the response is
 /// cut off inside an unterminated `<think>` block, everything from that tag
-/// onward is dropped (yielding an empty string — caller will reject it).
+/// onward is dropped (yielding an empty string - caller will reject it).
 fn strip_reasoning_blocks(raw: &str) -> String {
     fn drop_block(text: &str, open: &str, close: &str) -> String {
         let mut out = String::with_capacity(text.len());
@@ -386,7 +386,7 @@ fn strip_reasoning_blocks(raw: &str) -> String {
             match after_open.find(close) {
                 Some(end) => rest = &after_open[end + close.len()..],
                 None => {
-                    // Unterminated block — drop everything from the opening tag.
+                    // Unterminated block - drop everything from the opening tag.
                     return out;
                 }
             }
@@ -441,7 +441,7 @@ pub async fn send_chat_message(
 ///
 /// `reason` is forwarded to the agent when `decision == "refuse"` so it can
 /// adapt its plan; it is ignored for `accept`. `scope` is only meaningful for
-/// `always_accept` and defaults to [`AlwaysAcceptScope::ThisSession`] — the
+/// `always_accept` and defaults to [`AlwaysAcceptScope::ThisSession`] - the
 /// safest sticky option (cf. `ApprovalCardV2`).
 #[tauri::command]
 pub async fn authorize_chat_tool(
@@ -708,7 +708,7 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
 
 /// Writes exported conversation content to disk.
 ///
-/// Thin IPC wrapper around [`std::fs::write`] — the frontend owns the
+/// Thin IPC wrapper around [`std::fs::write`] - the frontend owns the
 /// formatting (Markdown / JSON / Markdown-with-tools) via
 /// `lib/chat/exportConversation.ts`, then calls this to persist at the
 /// path chosen via the native save dialog.

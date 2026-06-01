@@ -49,7 +49,7 @@ def test_on_message_on_non_callable_raises() -> None:
 
 
 def test_on_message_does_not_wrap() -> None:
-    """Ensure ``@on_message`` is a pure marker — no closure, no wrap."""
+    """Ensure ``@on_message`` is a pure marker - no closure, no wrap."""
 
     async def fn(self: object, message: str, history: list, ctx: object) -> str:  # NOSONAR
         return "ok"

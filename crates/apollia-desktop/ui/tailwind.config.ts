@@ -7,7 +7,7 @@ const config: Config = {
   theme: {
     // Canonical responsive breakpoints for Apollia OS desktop (Sprint 42).
     // Source of vérité : src/lib/design/breakpoints.md.
-    // Seuil "operator mobile" = 375 px (iPhone SE) — xs doit rester fonctionnel à cette largeur.
+    // Seuil "operator mobile" = 375 px (iPhone SE) - xs doit rester fonctionnel à cette largeur.
     screens: {
       xs: "375px",
       sm: "640px",
@@ -22,7 +22,7 @@ const config: Config = {
         serif: ["Instrument Serif", "Cormorant Garamond", "Georgia", "serif"],
         mono: ["JetBrains Mono", "IBM Plex Mono", "ui-monospace", "monospace"],
       },
-      // Display type scale — hero titles & empty-state headlines.
+      // Display type scale - hero titles & empty-state headlines.
       // Values use `clamp(min, preferred, max)` so the scale breathes between the
       // xs (375 px) and xl (1280 px) breakpoints without extra media queries.
       fontSize: {

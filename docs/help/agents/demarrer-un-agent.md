@@ -11,15 +11,15 @@
 
 Dans la page **Mes assistants**, la colonne de gauche affiche deux sections distinctes :
 
-- **Mes assistants** — un agent unique, identifié par une icône d'étoile. On le démarre seul. C'est le format livré pour un agent simple (un fichier `.py`).
-- **Mes packages** — un ensemble cohérent d'agents qui travaillent souvent ensemble, identifié par une icône de boîte. Démarrer un package, c'est démarrer **tous ses agents et activer ses déclencheurs** d'un coup.
+- **Mes assistants** - un agent unique, identifié par une icône d'étoile. On le démarre seul. C'est le format livré pour un agent simple (un fichier `.py`).
+- **Mes packages** - un ensemble cohérent d'agents qui travaillent souvent ensemble, identifié par une icône de boîte. Démarrer un package, c'est démarrer **tous ses agents et activer ses déclencheurs** d'un coup.
 
 Vous y trouverez aussi un agent système épinglé en haut, **Apollia Chat** : il est toujours disponible et ne nécessite ni installation ni démarrage.
 
-## Étapes — Démarrer un assistant seul
+## Étapes - Démarrer un assistant seul
 
 1. Dans la sidebar, ouvrez **Mes assistants**. La colonne de gauche liste vos assistants sous **Mes assistants · N**.
-   ![page Mes assistants — colonne de gauche avec les deux sections "Mes assistants" et "Mes packages" visibles](../_screenshots/agents-demarrer-un-agent-1.png)
+   ![page Mes assistants - colonne de gauche avec les deux sections "Mes assistants" et "Mes packages" visibles](../_screenshots/agents-demarrer-un-agent-1.png)
 
 2. Repérez votre agent dans la liste. La pastille à droite de son nom indique son état : **grise** (arrêté), **verte** (actif), **orange** (dégradé).
 
@@ -31,9 +31,9 @@ Vous y trouverez aussi un agent système épinglé en haut, **Apollia Chat** : i
 
 6. Pour libérer les ressources quand vous n'en avez plus besoin, recliquez sur le bouton stop de la ligne. La pastille redevient grise.
 
-> Les agents marqués comme **workers** (uniquement appelés en interne par d'autres agents) n'apparaissent pas dans la section **Mes assistants** — vous les retrouverez dans le détail d'un package.
+> Les agents marqués comme **workers** (uniquement appelés en interne par d'autres agents) n'apparaissent pas dans la section **Mes assistants** - vous les retrouverez dans le détail d'un package.
 
-## Étapes — Démarrer un package entier
+## Étapes - Démarrer un package entier
 
 1. Dans la sidebar, ouvrez **Mes assistants**. Faites défiler la colonne de gauche jusqu'à la section **Mes packages · N**.
 
@@ -42,22 +42,22 @@ Vous y trouverez aussi un agent système épinglé en haut, **Apollia Chat** : i
 3. Cliquez sur le **bouton lecture** (▶) à droite de la ligne. Apollia démarre tous les agents du package et active leurs déclencheurs en une seule opération. La pastille passe au vert ; le compteur affiche `2/2 agents · 1/1 triggers`.
 
 4. Cliquez sur la ligne pour ouvrir le détail du package : vous y voyez la liste des agents qu'il contient, leurs rôles (*director* ou *worker*), et la liste des déclencheurs configurés (cron, webhook…).
-   ![panneau de détail d'un package — sections Informations, Agents (avec rôles director/worker), Triggers](../_screenshots/agents-demarrer-un-agent-2.png)
+   ![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers](../_screenshots/agents-demarrer-un-agent-2.png)
 
-![panneau de détail d'un package — sections Informations, Agents (avec rôles director/worker), Triggers (suite)](../_screenshots/agents-demarrer-un-agent-2bis.png)
+![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers (suite)](../_screenshots/agents-demarrer-un-agent-2bis.png)
 
 5. Si certains agents seulement ont démarré, la pastille du package devient **orange** (statut **partiel**). Cliquez sur la ligne d'un agent dans le panneau pour identifier celui qui pose problème, puis ouvrez ses logs.
 
 6. Pour tout arrêter d'un coup : recliquez sur le bouton stop de la ligne du package, ou utilisez **Tout arrêter** en haut à droite du panneau de détail.
 
-## Cas particulier — Apollia Chat
+## Cas particulier - Apollia Chat
 
 L'agent système **Apollia Chat**, épinglé en haut de la liste, est **toujours actif** : pas de bouton démarrer/arrêter. Cliquez dessus pour ouvrir son panneau de configuration (personnalité, outils, modèle).
 
 ## Vérification
 
-- **Assistant seul** — pastille verte sur la ligne et dans le panneau de détail. L'envoi d'un message dans **Nouveau chat** déclenche une réponse en streaming.
-- **Package** — pastille verte et compteur du type `N/N agents · M/M triggers`. Les déclencheurs (cron, webhook…) sont actifs.
+- **Assistant seul** - pastille verte sur la ligne et dans le panneau de détail. L'envoi d'un message dans **Nouveau chat** déclenche une réponse en streaming.
+- **Package** - pastille verte et compteur du type `N/N agents · M/M triggers`. Les déclencheurs (cron, webhook…) sont actifs.
 
 ## Si ça ne marche pas
 
@@ -65,7 +65,7 @@ L'agent système **Apollia Chat**, épinglé en haut de la liste, est **toujours
 - **Erreur « fournisseur d'IA indisponible » :** vérifiez la pastille du bandeau supérieur et reconnectez le fournisseur si besoin.
 - **Bouton lecture grisé sur un agent :** son chemin d'installation est introuvable (fichier déplacé ou supprimé). Réinstallez-le.
 - **Bouton lecture grisé sur un package :** le dossier source du package a disparu (icône d'avertissement à côté du nom). Réinstallez le package depuis sa source.
-- **Package en statut « partiel » :** un ou plusieurs agents n'ont pas démarré. Le détail du package liste l'état de chaque agent — ouvrez les logs de celui qui est en échec.
+- **Package en statut « partiel » :** un ou plusieurs agents n'ont pas démarré. Le détail du package liste l'état de chaque agent - ouvrez les logs de celui qui est en échec.
 - **L'agent démarre mais ne répond pas :** consultez [Un agent est bloqué](../troubleshooting/un-agent-est-bloque.md).
 
-> **Concept :** [book ch11 — Worker Agent Pattern](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch11-00-worker-agent-pattern.md) — comprendre la différence director/worker dans un package et leur cycle de vie.
+> **Concept :** [book ch11 - Worker Agent Pattern](https://github.com/Apollia-OS/apollia-os/blob/main/book/src/ch11-00-worker-agent-pattern.md) - comprendre la différence director/worker dans un package et leur cycle de vie.

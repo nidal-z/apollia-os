@@ -1,4 +1,4 @@
-# packaging/ — scripts de release DMG/AppImage (ADR-073, ADR-074)
+# packaging/ - scripts de release DMG/AppImage (ADR-073, ADR-074)
 
 Ce dossier contient tout ce qui est nécessaire pour assembler une release
 auto-contenue d'Apollia OS : Python embarqué + site-packages curé, binaire CLI,
@@ -18,7 +18,7 @@ bundle Tauri signé.
 - Python : **3.13.13**
 - python-build-standalone release tag : **20260414**
 
-Mettre à jour manuellement (éditer `fetch-python-standalone.sh`) — pas d'auto-update.
+Mettre à jour manuellement (éditer `fetch-python-standalone.sh`) - pas d'auto-update.
 
 ## Targets supportées
 

@@ -3,7 +3,7 @@
    * Single card rendered by `NextStepsPanel`.
    *
    * Keyboard-focusable, `aria-live`-friendly, and delegates dismiss /
-   * feedback to the parent panel. The CTA click dispatches `onaction` —
+   * feedback to the parent panel. The CTA click dispatches `onaction` -
    * the parent resolves the payload against the allowlist (`navigate`
    * routes are mapped to the Route enum; `invoke` commands are awaited
    * via Tauri).

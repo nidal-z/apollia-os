@@ -1,8 +1,8 @@
-# ADR-029 — Settings lecture seule dans l'application desktop
+# ADR-029 - Settings lecture seule dans l'application desktop
 
 **Date :** 2026-03-13
 **Statut :** Accepte
-**Contexte :** Sprint 15 — STORY-149 (Vue Settings)
+**Contexte :** Sprint 15 - STORY-149 (Vue Settings)
 
 ---
 
@@ -22,9 +22,9 @@ Le round-trip TOML (parse → modifier → serialiser) **detruit les commentaire
 
 | Option | Avantages | Inconvenients |
 |---|---|---|
-| **A — Lecture seule + editeur natif** (choisi) | Zero risque de perte de commentaires, simple | Necessite redemarrage apres modification |
-| B — Edition in-app avec `toml_edit` | UX integree | `toml_edit` complexe, risque de bugs, commentaires fragiles |
-| C — Edition partielle (quelques champs) | Compromis | Surface de bugs, incoherence UX (certains champs editables, d'autres non) |
+| **A - Lecture seule + editeur natif** (choisi) | Zero risque de perte de commentaires, simple | Necessite redemarrage apres modification |
+| B - Edition in-app avec `toml_edit` | UX integree | `toml_edit` complexe, risque de bugs, commentaires fragiles |
+| C - Edition partielle (quelques champs) | Compromis | Surface de bugs, incoherence UX (certains champs editables, d'autres non) |
 
 ## Implementation
 

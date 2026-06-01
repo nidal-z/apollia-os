@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Sequence — Graceful Shutdown — Apollia OS
+title Sequence - Graceful Shutdown - Apollia OS
 
 actor "User / Signal" as user #3a3a3a/ffffff
 participant "ShutdownController" as shutdown #1a1a2e/e0e0ff
@@ -24,7 +24,7 @@ user -> shutdown : SIGTERM / SIGINT /\napollia-os stop
 
 shutdown -> bus : broadcast ShutdownRequested
 
-== Phase 1 — Refuse new work ==
+== Phase 1 - Refuse new work ==
 
 bus -> api : ShutdownRequested
 api -> api : refuse new connections\nclose listener
@@ -32,7 +32,7 @@ api -> api : refuse new connections\nclose listener
 bus -> router : ShutdownRequested
 router -> router : refuse new task submissions\nreturn SubmitError::ShuttingDown
 
-== Phase 2 — Drain active agents (timeout: 30s) ==
+== Phase 2 - Drain active agents (timeout: 30s) ==
 
 supervisor -> supervisor : enumerate ACTIVE agents
 
@@ -56,7 +56,7 @@ loop for each active agent
   end
 end
 
-== Phase 3 — Close infrastructure ==
+== Phase 3 - Close infrastructure ==
 
 supervisor -> mcp : close all McpSessions
 loop for each MCP session
@@ -75,7 +75,7 @@ memory --> supervisor : done
 supervisor -> tools : close MCP connections
 tools --> supervisor : done
 
-== Phase 4 — Final cleanup ==
+== Phase 4 - Final cleanup ==
 
 shutdown -> supervisor : stop all Tokio actors
 supervisor -> supervisor : drop all actor handles\njoin all JoinHandles

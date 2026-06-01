@@ -1,8 +1,8 @@
-//! Integration tests — agent persistence E2E.
+//! Integration tests - agent persistence E2E.
 //!
 //! Validates the complete cycle: install → persist → boot → reload
 //! using real `AgentRepository` (SQLite) and `Supervisor` auto-load.
-//! No Python dependency — uses a configurable mock `AgentLoader`.
+//! No Python dependency - uses a configurable mock `AgentLoader`.
 //!
 //! install → persist → reload at boot
 //! disabled agent not loaded at boot
@@ -25,7 +25,7 @@ use apollia_tools::{AgentRepository, InstalledAgent};
 use tempfile::TempDir;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock backend — completes instantly, no Python needed
+// Mock backend - completes instantly, no Python needed
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -65,7 +65,7 @@ impl ExecutionBackend for InstantBackend {
 ///
 /// Install paths follow `~/.apollia/agents/<name>/agent.py`, so the parent
 /// directory name is the agent name. If the file does not exist on disk,
-/// returns an error — simulating a corrupted/deleted agent scenario.
+/// returns an error - simulating a corrupted/deleted agent scenario.
 struct FileCheckingAgentLoader;
 
 impl AgentLoader for FileCheckingAgentLoader {
@@ -400,7 +400,7 @@ async fn test_corrupted_agent_graceful_degradation() {
             None,
         )
         .await
-        .expect("supervisor start — should not fail despite corrupted agent");
+        .expect("supervisor start - should not fail despite corrupted agent");
 
     // THEN the valid agent is loaded
     let agents = handles
@@ -411,7 +411,7 @@ async fn test_corrupted_agent_graceful_degradation() {
     assert_eq!(agents.len(), 1, "only the valid agent should be loaded");
     assert_eq!(agents[0].manifest.name, "valid-agent");
 
-    // AND AgentLoadFailed was emitted — verify via EventBus
+    // AND AgentLoadFailed was emitted - verify via EventBus
     // Subscribe and check recent events. Since the event was emitted during
     // start(), we verify indirectly: the runtime is operational (no panic/crash)
     // and only 1 agent was loaded (the valid one). The Supervisor logs

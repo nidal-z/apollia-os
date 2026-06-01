@@ -4,7 +4,7 @@
  * (ADR-088, Lot 3) so it's reusable by `TraceEventCard` and unit-testable
  * in isolation.
  *
- * The functions here are pure — no Svelte / DOM / store dependencies.
+ * The functions here are pure - no Svelte / DOM / store dependencies.
  * Operators see "Reading file.txt" instead of `cat /path/to/file.txt`,
  * "Pushing changes" instead of `git push origin main`, etc.
  */
@@ -25,7 +25,7 @@ export function firstPath(tokens: string[]): string | null {
   return p ? shellFilename(p) : null;
 }
 
-// Constant verbs that ignore arguments — kept as a lookup map to keep
+// Constant verbs that ignore arguments - kept as a lookup map to keep
 // `describeBashCommand` flat (S1479 / S3776).
 const CONSTANT_VERBS: Record<string, string> = {
   pwd: "Checking current directory",

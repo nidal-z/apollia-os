@@ -3,12 +3,12 @@
   import { sessionMetricsStore } from "$lib/stores/chatMetrics";
 
   interface Props {
-    /** Current chat session id — required to read live metrics. */
+    /** Current chat session id - required to read live metrics. */
     sessionId: string;
     /** Variant: `pill` (used in Metrics tab) or `footer` (mini under input). */
     variant?: "pill" | "footer";
     /**
-     * Click handler — when supplied, the indicator becomes a button (P7 —
+     * Click handler - when supplied, the indicator becomes a button (P7 -
      * opens the `<InjectedMemorySheet />` sheet).
      */
     onclick?: () => void;

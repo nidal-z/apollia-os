@@ -599,7 +599,7 @@
   function eventSummary(event: TimelineEvent): string {
     switch (event.type) {
       case "task_transition": return $t(STATUS_I18N[event.status] ?? "dashboard.status_submitted");
-      case "step_started": return event.tool ? `Step ${event.step_id} — ${event.tool}` : `Step ${event.step_id}`;
+      case "step_started": return event.tool ? `Step ${event.step_id} - ${event.tool}` : `Step ${event.step_id}`;
       case "step_completed": return `Step ${event.step_id} ${event.success ? "done" : "failed"} ${formatDurationMs(event.duration_ms)}`;
       case "llm_call": {
         const tokens = event.prompt_tokens !== undefined && event.completion_tokens !== undefined
@@ -611,7 +611,7 @@
         const duration = formatDurationMs(event.duration_ms);
         return duration ? `${name} · ${duration}` : name;
       }
-      case "hitl_suspended": return `Waiting — ${event.prompt.slice(0, 60)}`;
+      case "hitl_suspended": return `Waiting - ${event.prompt.slice(0, 60)}`;
       case "hitl_resolved": return event.approved ? $t('common.approved') : $t('common.rejected');
       case "task_completed": return formatDurationMs(event.duration_ms) ? `Done in ${formatDurationMs(event.duration_ms)}` : "Done";
       case "step_observation": return $uiMode === "builder" ? $t('tasks.step_observation_builder') : $t('tasks.step_observation_operator');
@@ -699,7 +699,7 @@
               </div>
             </div>
 
-          <!-- Tool call — operator mode: icon + contextual description, no expand -->
+          <!-- Tool call - operator mode: icon + contextual description, no expand -->
           {:else if event.type === "tool_call" && $uiMode === "operator"}
             {@const ToolIcon = getToolIcon(event.tool_name)}
             <div class="flex items-center gap-2.5">

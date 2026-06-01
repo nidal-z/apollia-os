@@ -1,4 +1,4 @@
-"""ctx.events — typed event emission."""
+"""ctx.events - typed event emission."""
 
 from __future__ import annotations
 

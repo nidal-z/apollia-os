@@ -6,7 +6,7 @@
  * illustration, and the `page` test-id used by E2E coverage.
  *
  * The actual copies live in `en.json` / `fr.json` under `empty_states.*`
- * — this file is the typed index that the design showcase iterates over and
+ * - this file is the typed index that the design showcase iterates over and
  * that route components reference to stay in sync with the catalogue.
  */
 import type { Icon } from "lucide-svelte";
@@ -43,7 +43,7 @@ export interface EmptyStateEntry {
   secondaryCtaKey?: string;
 }
 
-/** Canonical catalogue — one entry per targeted scope. */
+/** Canonical catalogue - one entry per targeted scope. */
 export const EMPTY_STATES: Record<EmptyStateVariant, EmptyStateEntry> = {
   agents: {
     page: "agents",
@@ -95,7 +95,7 @@ export const EMPTY_STATES: Record<EmptyStateVariant, EmptyStateEntry> = {
   },
 };
 
-/** Ordered list — drives the design showcase iteration. */
+/** Ordered list - drives the design showcase iteration. */
 export const EMPTY_STATE_ORDER: EmptyStateVariant[] = [
   "agents",
   "tasks",

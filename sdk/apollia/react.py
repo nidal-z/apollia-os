@@ -1,4 +1,4 @@
-"""ReAct loop utility — Reason + Act loop using ``ctx.llm`` and tools.
+"""ReAct loop utility - Reason + Act loop using ``ctx.llm`` and tools.
 
 The ReAct pattern is exposed as a free utility (not a base class).
 Agents opt in by importing :func:`react` and calling it from any handler::
@@ -75,7 +75,7 @@ async def react(
     Raises:
         DomainError: With code ``"REACT_MAX_STEPS"`` if ``max_steps <= 0``.
             (The internal LLM loop raises its own error if it exhausts
-            ``max_steps`` without converging — that error bubbles up
+            ``max_steps`` without converging - that error bubbles up
             unchanged.)
     """
     if max_steps <= 0:

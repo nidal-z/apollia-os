@@ -1,4 +1,4 @@
-# Outils natifs — Référence rapide
+# Outils natifs - Référence rapide
 
 > Référence des outils natifs Apollia OS. Version.
 
@@ -8,21 +8,21 @@
 
 | Outil | Catégorie | Feature flag | Description courte |
 |---|---|---|---|
-| `bash_executor` | Shell | — | Exécution shell dans namespace isolé |
-| `python_executor` | Python | — | Code Python dans venv isolé |
-| `file_read` | Filesystem | — | Lire un fichier (offset/limit) |
-| `file_write` | Filesystem | — | Écrire un fichier |
-| `file_edit` | Filesystem | — | Remplacement chirurgical de texte |
-| `file_list` | Filesystem | — | Lister les entrées d'un répertoire |
-| `file_glob` | Recherche | — | Recherche par glob pattern |
-| `file_grep` | Recherche | — | Recherche par regex avec contexte |
+| `bash_executor` | Shell | - | Exécution shell dans namespace isolé |
+| `python_executor` | Python | - | Code Python dans venv isolé |
+| `file_read` | Filesystem | - | Lire un fichier (offset/limit) |
+| `file_write` | Filesystem | - | Écrire un fichier |
+| `file_edit` | Filesystem | - | Remplacement chirurgical de texte |
+| `file_list` | Filesystem | - | Lister les entrées d'un répertoire |
+| `file_glob` | Recherche | - | Recherche par glob pattern |
+| `file_grep` | Recherche | - | Recherche par regex avec contexte |
 | `http_fetch` | Réseau | `http` | Requête HTTP avec allowlist |
 | `web_search` | Réseau | `web-search` | Recherche web (DuckDuckGo / Brave) |
 | `web_read` | Réseau | `web-read` | Extraction texte d'une URL publique |
 | `memory_search` | Mémoire | `memory-search` | Recherche FTS5/BM25 en mémoire locale |
-| `permission_rule_add` | Gouvernance | — | Ajouter une règle de permission dans `governance.db` (HITL) |
-| `permission_rule_remove` | Gouvernance | — | Supprimer une règle par ID (HITL) |
-| `permission_rule_list` | Gouvernance | — | Lister les règles (lecture seule, filtre par `created_by`/`scope`) |
+| `permission_rule_add` | Gouvernance | - | Ajouter une règle de permission dans `governance.db` (HITL) |
+| `permission_rule_remove` | Gouvernance | - | Supprimer une règle par ID (HITL) |
+| `permission_rule_list` | Gouvernance | - | Lister les règles (lecture seule, filtre par `created_by`/`scope`) |
 
 ---
 
@@ -30,9 +30,9 @@
 
 > **Convention de chemins partagée.** Tous les outils filesystem (`file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`, `notebook_read`, `notebook_edit`) résolvent les chemins via le même `SandboxRoot`. Les chemins acceptent trois formats :
 >
-> - **Relatif au sandbox** — ex. `output/result.txt` (joint à la racine sandbox).
-> - **Absolu sous le sandbox** — ex. `/Users/alice/.apollia/agents/foo/output.txt` accepté si la racine sandbox couvre `/Users/alice`.
-> - **Préfixe tilde `~` ou `~/...`** — expansé vers `$HOME` puis vérifié contre la racine sandbox. `~user` (lookup passwd) n'est pas supporté ; un tilde au milieu du chemin (`foo/~/bar`) reste littéral.
+> - **Relatif au sandbox** - ex. `output/result.txt` (joint à la racine sandbox).
+> - **Absolu sous le sandbox** - ex. `/Users/alice/.apollia/agents/foo/output.txt` accepté si la racine sandbox couvre `/Users/alice`.
+> - **Préfixe tilde `~` ou `~/...`** - expansé vers `$HOME` puis vérifié contre la racine sandbox. `~user` (lookup passwd) n'est pas supporté ; un tilde au milieu du chemin (`foo/~/bar`) reste littéral.
 >
 > Toute tentative d'évasion (path traversal `../..`, absolu hors racine, tilde vers un HOME hors sandbox) lève `sandbox_violation`.
 
@@ -44,9 +44,9 @@ Lit le contenu d'un fichier texte. Supporte la lecture partielle via offset et l
 
 ```json
 {
-  "path":   "String          — chemin absolu, relatif au sandbox, ou avec préfixe `~`/`~/` (expansé vers $HOME)",
-  "offset": "u32 (optionnel) — première ligne à lire (1-based)",
-  "limit":  "u32 (optionnel) — nombre maximum de lignes à retourner"
+  "path":   "String          - chemin absolu, relatif au sandbox, ou avec préfixe `~`/`~/` (expansé vers $HOME)",
+  "offset": "u32 (optionnel) - première ligne à lire (1-based)",
+  "limit":  "u32 (optionnel) - nombre maximum de lignes à retourner"
 }
 ```
 
@@ -54,9 +54,9 @@ Lit le contenu d'un fichier texte. Supporte la lecture partielle via offset et l
 
 ```json
 {
-  "content":     "String — contenu du fichier avec numéros de ligne préfixés",
-  "total_lines": "u32   — nombre total de lignes dans le fichier",
-  "truncated":   "bool  — true si le fichier a été tronqué par limit"
+  "content":     "String - contenu du fichier avec numéros de ligne préfixés",
+  "total_lines": "u32   - nombre total de lignes dans le fichier",
+  "truncated":   "bool  - true si le fichier a été tronqué par limit"
 }
 ```
 
@@ -93,8 +93,8 @@ Crée ou remplace un fichier avec le contenu fourni.
 
 ```json
 {
-  "path":    "String — chemin du fichier à écrire (préfixe `~`/`~/` expansé vers $HOME)",
-  "content": "String — contenu complet à écrire"
+  "path":    "String - chemin du fichier à écrire (préfixe `~`/`~/` expansé vers $HOME)",
+  "content": "String - contenu complet à écrire"
 }
 ```
 
@@ -102,8 +102,8 @@ Crée ou remplace un fichier avec le contenu fourni.
 
 ```json
 {
-  "bytes_written": "u64    — nombre d'octets écrits",
-  "path":          "String — chemin du fichier écrit (normalisé)"
+  "bytes_written": "u64    - nombre d'octets écrits",
+  "path":          "String - chemin du fichier écrit (normalisé)"
 }
 ```
 
@@ -134,9 +134,9 @@ Effectue un remplacement exact et chirurgical dans un fichier existant. L'outil 
 
 ```json
 {
-  "path":    "String — chemin du fichier à modifier",
-  "old_str": "String — chaîne exacte à remplacer (doit être unique dans le fichier)",
-  "new_str": "String — chaîne de remplacement"
+  "path":    "String - chemin du fichier à modifier",
+  "old_str": "String - chaîne exacte à remplacer (doit être unique dans le fichier)",
+  "new_str": "String - chaîne de remplacement"
 }
 ```
 
@@ -144,8 +144,8 @@ Effectue un remplacement exact et chirurgical dans un fichier existant. L'outil 
 
 ```json
 {
-  "replaced": "bool   — true si le remplacement a eu lieu",
-  "path":     "String — chemin du fichier modifié"
+  "replaced": "bool   - true si le remplacement a eu lieu",
+  "path":     "String - chemin du fichier modifié"
 }
 ```
 
@@ -182,8 +182,8 @@ Liste les entrées d'un répertoire, avec traversée optionnelle en profondeur.
 
 ```json
 {
-  "path":  "String          — chemin du répertoire à lister",
-  "depth": "u32 (optionnel) — profondeur de traversée (1 = entrées directes uniquement)"
+  "path":  "String          - chemin du répertoire à lister",
+  "depth": "u32 (optionnel) - profondeur de traversée (1 = entrées directes uniquement)"
 }
 ```
 
@@ -193,13 +193,13 @@ Liste les entrées d'un répertoire, avec traversée optionnelle en profondeur.
 {
   "entries": [
     {
-      "name":     "String        — nom de l'entrée",
-      "is_dir":   "bool          — true si répertoire",
-      "size":     "u64 (optionnel) — taille en octets (fichiers uniquement)",
-      "modified": "String (optionnel) — date de modification ISO 8601"
+      "name":     "String        - nom de l'entrée",
+      "is_dir":   "bool          - true si répertoire",
+      "size":     "u64 (optionnel) - taille en octets (fichiers uniquement)",
+      "modified": "String (optionnel) - date de modification ISO 8601"
     }
   ],
-  "count": "u32 — nombre total d'entrées retournées"
+  "count": "u32 - nombre total d'entrées retournées"
 }
 ```
 
@@ -237,8 +237,8 @@ Recherche des fichiers par glob pattern. Retourne les chemins correspondants tri
 
 ```json
 {
-  "pattern": "String          — glob pattern (ex: \"**/*.rs\", \"src/**/*.toml\")",
-  "path":    "String (optionnel) — répertoire racine de la recherche (défaut: \".\")"
+  "pattern": "String          - glob pattern (ex: \"**/*.rs\", \"src/**/*.toml\")",
+  "path":    "String (optionnel) - répertoire racine de la recherche (défaut: \".\")"
 }
 ```
 
@@ -247,7 +247,7 @@ Recherche des fichiers par glob pattern. Retourne les chemins correspondants tri
 ```json
 {
   "matches": ["String"] ,
-  "count":   "u32 — nombre de correspondances"
+  "count":   "u32 - nombre de correspondances"
 }
 ```
 
@@ -281,10 +281,10 @@ Recherche par expression régulière dans les fichiers, avec contexte optionnel 
 
 ```json
 {
-  "pattern":       "String          — expression régulière (syntaxe Rust regex)",
-  "path":          "String (optionnel) — répertoire ou fichier cible (défaut: \".\")",
-  "glob":          "String (optionnel) — filtre de fichiers par glob (ex: \"*.rs\")",
-  "context_lines": "u32 (optionnel) — nombre de lignes de contexte avant/après chaque correspondance"
+  "pattern":       "String          - expression régulière (syntaxe Rust regex)",
+  "path":          "String (optionnel) - répertoire ou fichier cible (défaut: \".\")",
+  "glob":          "String (optionnel) - filtre de fichiers par glob (ex: \"*.rs\")",
+  "context_lines": "u32 (optionnel) - nombre de lignes de contexte avant/après chaque correspondance"
 }
 ```
 
@@ -294,15 +294,15 @@ Recherche par expression régulière dans les fichiers, avec contexte optionnel 
 {
   "matches": [
     {
-      "file":           "String          — chemin du fichier",
-      "line":           "u32             — numéro de ligne (1-based)",
-      "content":        "String          — contenu de la ligne correspondante",
-      "context_before": "[String] (optionnel) — lignes avant la correspondance",
-      "context_after":  "[String] (optionnel) — lignes après la correspondance"
+      "file":           "String          - chemin du fichier",
+      "line":           "u32             - numéro de ligne (1-based)",
+      "content":        "String          - contenu de la ligne correspondante",
+      "context_before": "[String] (optionnel) - lignes avant la correspondance",
+      "context_after":  "[String] (optionnel) - lignes après la correspondance"
     }
   ],
-  "count": "u32  — nombre de correspondances retournées",
-  "capped": "bool — true si les résultats ont été tronqués à 1000"
+  "count": "u32  - nombre de correspondances retournées",
+  "capped": "bool - true si les résultats ont été tronqués à 1000"
 }
 ```
 
@@ -347,9 +347,9 @@ Exécute une commande shell dans un namespace Linux isolé (réseau, PID, mount)
 
 ```json
 {
-  "command":     "String          — commande shell à exécuter",
-  "timeout":     "u32             — timeout en secondes (obligatoire)",
-  "working_dir": "String (optionnel) — répertoire de travail (défaut: sandbox root)"
+  "command":     "String          - commande shell à exécuter",
+  "timeout":     "u32             - timeout en secondes (obligatoire)",
+  "working_dir": "String (optionnel) - répertoire de travail (défaut: sandbox root)"
 }
 ```
 
@@ -357,10 +357,10 @@ Exécute une commande shell dans un namespace Linux isolé (réseau, PID, mount)
 
 ```json
 {
-  "stdout":      "String — sortie standard complète",
-  "stderr":      "String — sortie d'erreur complète",
-  "exit_code":   "i32    — code de retour du processus",
-  "duration_ms": "u64    — durée d'exécution en millisecondes"
+  "stdout":      "String - sortie standard complète",
+  "stderr":      "String - sortie d'erreur complète",
+  "exit_code":   "i32    - code de retour du processus",
+  "duration_ms": "u64    - durée d'exécution en millisecondes"
 }
 ```
 
@@ -389,8 +389,8 @@ Exécute du code Python arbitraire dans un venv isolé. Le module `apollia` est 
 
 ```json
 {
-  "code":            "String          — code Python à exécuter",
-  "timeout_seconds": "u32 (optionnel) — timeout en secondes"
+  "code":            "String          - code Python à exécuter",
+  "timeout_seconds": "u32 (optionnel) - timeout en secondes"
 }
 ```
 
@@ -398,9 +398,9 @@ Exécute du code Python arbitraire dans un venv isolé. Le module `apollia` est 
 
 ```json
 {
-  "stdout":    "String — sortie standard du script",
-  "stderr":    "String — sortie d'erreur du script",
-  "exit_code": "i32    — code de retour de l'interpréteur"
+  "stdout":    "String - sortie standard du script",
+  "stderr":    "String - sortie d'erreur du script",
+  "exit_code": "i32    - code de retour de l'interpréteur"
 }
 ```
 
@@ -433,11 +433,11 @@ Effectue une requête HTTP vers un hôte externe. Nécessite le feature flag `ht
 
 ```json
 {
-  "url":          "String                    — URL complète de la requête",
-  "method":       "String (optionnel)        — méthode HTTP : GET | POST (défaut: GET)",
-  "headers":      "Map<String,String> (optionnel) — en-têtes HTTP additionnels",
-  "body":         "String (optionnel)        — corps de la requête (pour POST)",
-  "timeout_secs": "u64 (optionnel)           — timeout en secondes (défaut: 30)"
+  "url":          "String                    - URL complète de la requête",
+  "method":       "String (optionnel)        - méthode HTTP : GET | POST (défaut: GET)",
+  "headers":      "Map<String,String> (optionnel) - en-têtes HTTP additionnels",
+  "body":         "String (optionnel)        - corps de la requête (pour POST)",
+  "timeout_secs": "u64 (optionnel)           - timeout en secondes (défaut: 30)"
 }
 ```
 
@@ -445,10 +445,10 @@ Effectue une requête HTTP vers un hôte externe. Nécessite le feature flag `ht
 
 ```json
 {
-  "status":      "u16               — code de statut HTTP",
-  "body":        "String            — corps de la réponse (max 1 Mo)",
-  "headers":     "Map<String,String> — en-têtes de la réponse",
-  "duration_ms": "u64               — durée totale de la requête en millisecondes"
+  "status":      "u16               - code de statut HTTP",
+  "body":        "String            - corps de la réponse (max 1 Mo)",
+  "headers":     "Map<String,String> - en-têtes de la réponse",
+  "duration_ms": "u64               - durée totale de la requête en millisecondes"
 }
 ```
 
@@ -495,10 +495,10 @@ Effectue une recherche web et retourne une liste de résultats structurés. Util
 
 ```json
 {
-  "query":       "String          — requête de recherche",
-  "max_results": "u32 (optionnel) — nombre maximum de résultats (défaut: 10, max: 20)",
-  "region":      "String (optionnel) — région au format BCP-47 (ex: \"fr-fr\", \"en-us\")",
-  "time_range":  "String (optionnel) — filtre temporel : \"day\" | \"week\" | \"month\" | \"year\""
+  "query":       "String          - requête de recherche",
+  "max_results": "u32 (optionnel) - nombre maximum de résultats (défaut: 10, max: 20)",
+  "region":      "String (optionnel) - région au format BCP-47 (ex: \"fr-fr\", \"en-us\")",
+  "time_range":  "String (optionnel) - filtre temporel : \"day\" | \"week\" | \"month\" | \"year\""
 }
 ```
 
@@ -508,14 +508,14 @@ Effectue une recherche web et retourne une liste de résultats structurés. Util
 {
   "results": [
     {
-      "title":       "String — titre de la page",
-      "url":         "String — URL canonique",
-      "description": "String — extrait de description"
+      "title":       "String - titre de la page",
+      "url":         "String - URL canonique",
+      "description": "String - extrait de description"
     }
   ],
-  "count":         "u32    — nombre de résultats retournés",
-  "backend_used":  "String — backend effectivement utilisé : \"duckduckgo\" | \"brave\"",
-  "duration_ms":   "u64    — durée totale de la requête"
+  "count":         "u32    - nombre de résultats retournés",
+  "backend_used":  "String - backend effectivement utilisé : \"duckduckgo\" | \"brave\"",
+  "duration_ms":   "u64    - durée totale de la requête"
 }
 ```
 
@@ -530,7 +530,7 @@ Effectue une recherche web et retourne une liste de résultats structurés. Util
 
 **Configuration opérateur**
 
-Le backend, les timeouts et le nombre de résultats sont configurables dans `[tools.web_search]` (voir [Config-apollia-toml — §tools.web_search](./Config-apollia-toml#toolsweb_search)). La clé Brave Search peut être stockée dans le credential store chiffré (`apollia-os tools credentials set web_search brave.api_key <clé>`) ou dans la variable d'environnement `BRAVE_SEARCH_API_KEY`.
+Le backend, les timeouts et le nombre de résultats sont configurables dans `[tools.web_search]` (voir [Config-apollia-toml - §tools.web_search](./Config-apollia-toml#toolsweb_search)). La clé Brave Search peut être stockée dans le credential store chiffré (`apollia-os tools credentials set web_search brave.api_key <clé>`) ou dans la variable d'environnement `BRAVE_SEARCH_API_KEY`.
 
 **Exemple**
 
@@ -542,7 +542,7 @@ Le backend, les timeouts et le nombre de résultats sont configurables dans `[to
 {
   "results": [
     {
-      "title":       "Apollia OS — Local-first agent runtime",
+      "title":       "Apollia OS - Local-first agent runtime",
       "url":         "https://github.com/apollia-os/apollia",
       "description": "Rust runtime for autonomous AI agents..."
     }
@@ -563,8 +563,8 @@ Récupère une URL publique et en extrait le contenu textuel (article, documenta
 
 ```json
 {
-  "url":       "String          — URL complète à lire (schéma https:// ou http://)",
-  "max_chars": "u32 (optionnel) — longueur maximale du texte extrait (défaut: valeur runtime)"
+  "url":       "String          - URL complète à lire (schéma https:// ou http://)",
+  "max_chars": "u32 (optionnel) - longueur maximale du texte extrait (défaut: valeur runtime)"
 }
 ```
 
@@ -572,11 +572,11 @@ Récupère une URL publique et en extrait le contenu textuel (article, documenta
 
 ```json
 {
-  "url":         "String — URL finale après redirections",
-  "title":       "String — titre de la page (balise <title> ou premier <h1>)",
-  "text":        "String — contenu textuel extrait (HTML strippé)",
-  "is_truncated": "bool  — true si le texte a été tronqué par max_chars",
-  "duration_ms": "u64   — durée totale de la requête"
+  "url":         "String - URL finale après redirections",
+  "title":       "String - titre de la page (balise <title> ou premier <h1>)",
+  "text":        "String - contenu textuel extrait (HTML strippé)",
+  "is_truncated": "bool  - true si le texte a été tronqué par max_chars",
+  "duration_ms": "u64   - durée totale de la requête"
 }
 ```
 
@@ -593,7 +593,7 @@ Récupère une URL publique et en extrait le contenu textuel (article, documenta
 
 **Configuration opérateur**
 
-Timeout, taille maximale et activation du garde SSRF sont configurables dans `[tools.web_read]` (voir [Config-apollia-toml — §tools.web_read](./Config-apollia-toml#toolsweb_read)). `ssrf_guard = false` ne doit être utilisé qu'en lab isolé — jamais en production.
+Timeout, taille maximale et activation du garde SSRF sont configurables dans `[tools.web_read]` (voir [Config-apollia-toml - §tools.web_read](./Config-apollia-toml#toolsweb_read)). `ssrf_guard = false` ne doit être utilisé qu'en lab isolé - jamais en production.
 
 **Exemple**
 
@@ -604,7 +604,7 @@ Timeout, taille maximale et activation du garde SSRF sont configurables dans `[t
 // Output
 {
   "url":          "https://docs.rs/tokio/latest/tokio/",
-  "title":        "tokio — Rust — Docs.rs",
+  "title":        "tokio - Rust - Docs.rs",
   "text":         "Tokio is an asynchronous runtime for the Rust programming language...",
   "is_truncated": true,
   "duration_ms":  891
@@ -623,10 +623,10 @@ Recherche en mémoire locale par full-text search (FTS5/BM25). Accès restreint 
 
 ```json
 {
-  "query":     "String          — requête de recherche (texte libre, opérateurs FTS5 supportés)",
-  "namespace": "String (optionnel) — namespace mémoire cible (défaut: namespace de l'agent courant)",
-  "limit":     "u32 (optionnel) — nombre maximum de résultats (défaut: 10, max: 50)",
-  "source":    "String (optionnel) — filtre par source : \"episodic\" | \"semantic\""
+  "query":     "String          - requête de recherche (texte libre, opérateurs FTS5 supportés)",
+  "namespace": "String (optionnel) - namespace mémoire cible (défaut: namespace de l'agent courant)",
+  "limit":     "u32 (optionnel) - nombre maximum de résultats (défaut: 10, max: 50)",
+  "source":    "String (optionnel) - filtre par source : \"episodic\" | \"semantic\""
 }
 ```
 
@@ -636,15 +636,15 @@ Recherche en mémoire locale par full-text search (FTS5/BM25). Accès restreint 
 {
   "results": [
     {
-      "content":    "String          — contenu du fragment mémoriel",
-      "score":      "f32             — score BM25 de pertinence",
-      "source":     "String          — origine : \"episodic\" | \"semantic\"",
-      "key":        "String (optionnel) — clé unique du fragment",
-      "created_at": "String (optionnel) — date de création ISO 8601"
+      "content":    "String          - contenu du fragment mémoriel",
+      "score":      "f32             - score BM25 de pertinence",
+      "source":     "String          - origine : \"episodic\" | \"semantic\"",
+      "key":        "String (optionnel) - clé unique du fragment",
+      "created_at": "String (optionnel) - date de création ISO 8601"
     }
   ],
-  "count":     "u32    — nombre de résultats retournés",
-  "namespace": "String — namespace effectivement interrogé"
+  "count":     "u32    - nombre de résultats retournés",
+  "namespace": "String - namespace effectivement interrogé"
 }
 ```
 
@@ -666,7 +666,7 @@ Recherche en mémoire locale par full-text search (FTS5/BM25). Accès restreint 
 {
   "results": [
     {
-      "content":    "Step 12 — SQLite connection failed: database is locked",
+      "content":    "Step 12 - SQLite connection failed: database is locked",
       "score":      0.87,
       "source":     "episodic",
       "key":        "ep_20260329_001",
@@ -684,7 +684,7 @@ Recherche en mémoire locale par full-text search (FTS5/BM25). Accès restreint 
 
 ## Outils Gouvernance (ADR-086)
 
-Ces trois outils permettent aux agents de lire et de proposer des règles de permission dans `governance.db`. Les écritures (`add` / `remove`) passent systématiquement par le HITL standard — l'utilisateur valide chaque règle.
+Ces trois outils permettent aux agents de lire et de proposer des règles de permission dans `governance.db`. Les écritures (`add` / `remove`) passent systématiquement par le HITL standard - l'utilisateur valide chaque règle.
 
 ### `permission_rule_add`
 
@@ -694,13 +694,13 @@ Persiste une nouvelle règle `Allow` ou `Deny` dans `governance.db`. HITL obliga
 
 ```json
 {
-  "tool_name":    "String          — outil ciblé (ex. 'bash_executor')",
-  "action":       "String          — 'allow' | 'deny'",
-  "arg_prefix":   "String?         — préfixe d'argument (None = tout argument)",
-  "scope":        "String          — 'global' (défaut) | 'project' | 'agent'",
-  "project_path": "String?         — requis si scope='project'",
-  "agent_id":     "String?         — requis si scope='agent'",
-  "expires_at":   "i64?            — Unix timestamp d'expiration (None = permanent)"
+  "tool_name":    "String          - outil ciblé (ex. 'bash_executor')",
+  "action":       "String          - 'allow' | 'deny'",
+  "arg_prefix":   "String?         - préfixe d'argument (None = tout argument)",
+  "scope":        "String          - 'global' (défaut) | 'project' | 'agent'",
+  "project_path": "String?         - requis si scope='project'",
+  "agent_id":     "String?         - requis si scope='agent'",
+  "expires_at":   "i64?            - Unix timestamp d'expiration (None = permanent)"
 }
 ```
 
@@ -708,7 +708,7 @@ Persiste une nouvelle règle `Allow` ou `Deny` dans `governance.db`. HITL obliga
 
 ```json
 {
-  "rule_id":  "i64    — identifiant SQLite de la règle créée",
+  "rule_id":  "i64    - identifiant SQLite de la règle créée",
   "tool_name": "String",
   "action":   "String",
   "scope":    "String"
@@ -735,7 +735,7 @@ Supprime une règle par son identifiant SQLite. HITL obligatoire.
 
 ```json
 {
-  "rule_id": "i64 — identifiant SQLite de la règle à supprimer"
+  "rule_id": "i64 - identifiant SQLite de la règle à supprimer"
 }
 ```
 
@@ -744,7 +744,7 @@ Supprime une règle par son identifiant SQLite. HITL obligatoire.
 ```json
 {
   "rule_id": "i64",
-  "removed": "bool — false si la règle n'existait pas"
+  "removed": "bool - false si la règle n'existait pas"
 }
 ```
 
@@ -758,9 +758,9 @@ Liste les règles persistées. Lecture seule, pas de HITL.
 
 ```json
 {
-  "tool_name":  "String? — filtre sur le nom d'outil",
-  "created_by": "String? — filtre sur l'auteur (ex. 'onboarding-agent', 'user-hitl')",
-  "scope":      "String? — filtre sur la portée"
+  "tool_name":  "String? - filtre sur le nom d'outil",
+  "created_by": "String? - filtre sur l'auteur (ex. 'onboarding-agent', 'user-hitl')",
+  "scope":      "String? - filtre sur la portée"
 }
 ```
 
@@ -790,6 +790,6 @@ Liste les règles persistées. Lecture seule, pas de HITL.
 
 ## Voir aussi
 
-- [Briques-Tool-Registry.md](Briques-Tool-Registry.md) — spécification complète du Tool Registry : cycle de vie, sandbox, StepBudget, feature flags, et implémentation des outils natifs
-- [Agents-RuntimeContext-Guide.md](Agents-RuntimeContext-Guide.md) — guide complet du RuntimeContext : comment les agents déclarent leurs besoins en outils et interagissent avec le runtime
-- [Briques-Permissions.md](Briques-Permissions.md) — moteur de permissions 3 couches, gouvernance `governance.db`, ADR-086
+- [Briques-Tool-Registry.md](Briques-Tool-Registry.md) - spécification complète du Tool Registry : cycle de vie, sandbox, StepBudget, feature flags, et implémentation des outils natifs
+- [Agents-RuntimeContext-Guide.md](Agents-RuntimeContext-Guide.md) - guide complet du RuntimeContext : comment les agents déclarent leurs besoins en outils et interagissent avec le runtime
+- [Briques-Permissions.md](Briques-Permissions.md) - moteur de permissions 3 couches, gouvernance `governance.db`, ADR-086

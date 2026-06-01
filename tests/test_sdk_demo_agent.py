@@ -22,7 +22,7 @@ from apollia.testing.assertions import (
 )
 
 # ---------------------------------------------------------------------------
-# Agent import (filename uses hyphens — requires importlib)
+# Agent import (filename uses hyphens - requires importlib)
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent

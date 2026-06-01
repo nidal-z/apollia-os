@@ -1,5 +1,5 @@
 /**
- * Layout store — source de vérité pour l'état du sidebar et du companion.
+ * Layout store - source de vérité pour l'état du sidebar et du companion.
  *
  * Dérive `sidebarState` de la viewport via `window.matchMedia` :
  *   - ≥ `lg` (1024 px) → `expanded` ou `icon` selon la préférence utilisateur
@@ -20,11 +20,11 @@ type SidebarPreference = "expanded" | "collapsed";
 
 type Viewport = "sm" | "md" | "lg";
 
-// Legacy single-key storage — migrated on first load.
+// Legacy single-key storage - migrated on first load.
 const LEGACY_KEY = "apollia.ui.sidebar";
 // Per-breakpoint key prefix. Values : `open | collapsed | hidden`.
 const STATE_KEY_PREFIX = "apollia.ui.sidebarState_";
-// Breakpoints canoniques — voir `src/lib/design/breakpoints.md`.
+// Breakpoints canoniques - voir `src/lib/design/breakpoints.md`.
 const MD_QUERY = "(min-width: 768px)";
 const LG_QUERY = "(min-width: 1024px)";
 
@@ -70,7 +70,7 @@ function saveState(v: Viewport, state: PersistedState): void {
   try {
     localStorage.setItem(stateKey(v), state);
   } catch {
-    // Quota or disabled storage — silently ignore.
+    // Quota or disabled storage - silently ignore.
   }
 }
 
@@ -102,7 +102,7 @@ preference.subscribe((p) => savePreference(p));
 
 const drawerOpenInternal = writable(false);
 
-// Persist drawer open state under sm — `hidden` when closed, `open` when open.
+// Persist drawer open state under sm - `hidden` when closed, `open` when open.
 drawerOpenInternal.subscribe((open) => {
   if (globalThis.window === undefined) return;
   if (computeViewport() !== "sm") return;
@@ -134,7 +134,7 @@ export const companionOpen: Readable<boolean> = derived(
   ($c) => $c.visible && !$c.minimized,
 );
 
-/** Vue agrégée — utile pour les tests / la télémétrie / le debug. */
+/** Vue agrégée - utile pour les tests / la télémétrie / le debug. */
 export const layout: Readable<{
   sidebarState: SidebarState;
   drawerOpen: boolean;
@@ -161,7 +161,7 @@ export const layoutActions = {
       return;
     }
     if (v === "md") {
-      // icon-only forcé entre md et lg — pas de préférence utilisateur.
+      // icon-only forcé entre md et lg - pas de préférence utilisateur.
       return;
     }
     preference.update((p) => (p === "expanded" ? "collapsed" : "expanded"));

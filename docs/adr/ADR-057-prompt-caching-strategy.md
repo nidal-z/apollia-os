@@ -1,9 +1,9 @@
-# ADR-057 — Prompt Caching Strategy
+# ADR-057 - Prompt Caching Strategy
 
 **Date :** 2026-04-04
 **Statut :** Accepté
 **Décideur :** Nidal
-**Sprint :** 35 — Workspace Intelligence & Execution Performance
+**Sprint :** 35 - Workspace Intelligence & Execution Performance
 
 ---
 
@@ -26,14 +26,14 @@ L'API Anthropic propose depuis juillet 2024 un mécanisme de prompt caching via 
 
 Trois breakpoints de cache dans chaque requête `AnthropicClient`, appliqués dans cet ordre :
 
-1. **System prompt** — le message `Role::System` reçoit `cache_control: { type: "ephemeral" }`. Stable pour toute la durée d'une session.
-2. **Liste des outils (`tools`)** — les définitions JSON des outils reçoivent `cache_control`. Change rarement (uniquement si l'agent modifie ses outils à chaud).
-3. **3ème message depuis la fin** — breakpoint glissant sur l'historique des messages. Maximise le hit-rate car les messages récents changent à chaque step, mais l'historique plus ancien est stable.
+1. **System prompt** - le message `Role::System` reçoit `cache_control: { type: "ephemeral" }`. Stable pour toute la durée d'une session.
+2. **Liste des outils (`tools`)** - les définitions JSON des outils reçoivent `cache_control`. Change rarement (uniquement si l'agent modifie ses outils à chaud).
+3. **3ème message depuis la fin** - breakpoint glissant sur l'historique des messages. Maximise le hit-rate car les messages récents changent à chaque step, mais l'historique plus ancien est stable.
 
-**En-tête beta :** `anthropic-beta: prompt-caching-2024-07-31` est toujours envoyé par `AnthropicClient`, même si les breakpoints ne sont pas utilisés — l'API l'ignore sans cet en-tête.
+**En-tête beta :** `anthropic-beta: prompt-caching-2024-07-31` est toujours envoyé par `AnthropicClient`, même si les breakpoints ne sont pas utilisés - l'API l'ignore sans cet en-tête.
 
 **Backends non supportés :**
-- `OpenAICompatibleClient` : pas de mécanisme équivalent — `cache_control` ignoré, `cache_*` tokens = 0
+- `OpenAICompatibleClient` : pas de mécanisme équivalent - `cache_control` ignoré, `cache_*` tokens = 0
 - `OllamaClient` : idem
 
 **Nouveau champ dans `TokenUsage` :**
@@ -58,7 +58,7 @@ pub struct TokenUsage {
 - Monitoring : `session_costs.jsonl` trace `cache_read` / `cache_write` par session pour vérifier le hit-rate
 
 **Négatives / Compromis :**
-- La première requête de chaque session paie `cache_write` (légèrement plus cher) — rentable dès la 2ème requête avec le même contexte
+- La première requête de chaque session paie `cache_write` (légèrement plus cher) - rentable dès la 2ème requête avec le même contexte
 - Le breakpoint glissant (3ème depuis la fin) est une heuristique : sur les sessions très courtes (<3 messages), il n'y a pas de 3ème message → pas de breakpoint glissant
 
 **Neutres / À surveiller :**
@@ -68,8 +68,8 @@ pub struct TokenUsage {
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : Le caching est côté serveur Anthropic — il s'applique uniquement aux backends cloud. Conforme (opt-in, pas de changement de comportement local).
-- **Principe #4 — Fail fast** : Si l'API retourne une erreur liée au prompt caching, `AnthropicClient` traite la réponse normalement sans les champs cache — pas de régression.
+- **Principe #1 - Local-first** : Le caching est côté serveur Anthropic - il s'applique uniquement aux backends cloud. Conforme (opt-in, pas de changement de comportement local).
+- **Principe #4 - Fail fast** : Si l'API retourne une erreur liée au prompt caching, `AnthropicClient` traite la réponse normalement sans les champs cache - pas de régression.
 
 ---
 
@@ -77,5 +77,5 @@ pub struct TokenUsage {
 
 - Story d'implémentation : STORY-453
 - Implémenté dans : `crates/apollia-llm/src/backends/anthropic.rs`
-- Wiki : [Briques LLM Backend — Prompt Caching](../wiki/Briques-LLM-Backend.md#prompt-caching)
+- Wiki : [Briques LLM Backend - Prompt Caching](../wiki/Briques-LLM-Backend.md#prompt-caching)
 - Documentation Anthropic : https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching

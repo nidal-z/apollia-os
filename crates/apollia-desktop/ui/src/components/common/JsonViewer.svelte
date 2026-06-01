@@ -2,10 +2,10 @@
   Raw JSON viewer with basic syntax highlighting.
 
   Renders JSON with indentation and color-coded tokens (strings, numbers,
-  booleans, null, keys). Uses simple regex-based highlighting — no external
+  booleans, null, keys). Uses simple regex-based highlighting - no external
   dependency required.
 
-  Smart output renderer — raw JSON view
+  Smart output renderer - raw JSON view
 -->
 <script lang="ts">
   import { cn } from "$lib/utils";

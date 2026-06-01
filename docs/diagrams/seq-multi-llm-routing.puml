@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence — Routing Multi-LLM par agent et par niveau de précision — Apollia OS
+title Séquence - Routing Multi-LLM par agent et par niveau de précision - Apollia OS
 
 participant "code-worker\n(llm_backend\n= 'local-code')" as cw #2d4a22
 participant "mail-agent\n(llm_backend\n= null)" as ma #2d4a22
@@ -15,7 +15,7 @@ participant "local-code\n(EmbeddedBackend)" as local #4a3728
 participant "anthropic-cloud\n(is_default=true)" as cloud #4a3728
 participant "EventBus" as bus #2a3a4a
 
-== Démarrage — Chargement des backends ==
+== Démarrage - Chargement des backends ==
 
 router -> repo : load_all_backends()
 repo --> router : [local-code, anthropic-cloud (default)]
@@ -26,7 +26,7 @@ cloud --> router : Ok
 router -> bus : LlmModelReady { backend: "local-code" }
 router -> bus : LlmModelReady { backend: "anthropic-cloud" }
 
-== code-worker — binding explicite ==
+== code-worker - binding explicite ==
 
 cw -> router : ctx.llm.complete(request)
 router -> router : resolve("code-worker")\n→ llm_backend = "local-code"
@@ -35,7 +35,7 @@ local --> router : Response {tokens: 847}
 router -> bus : LlmCallCompleted\n{ backend: "local-code",\ncost_usd: None }
 router --> cw : response
 
-== mail-agent — fallback défaut ==
+== mail-agent - fallback défaut ==
 
 ma -> router : ctx.llm.complete(request)
 router -> router : resolve("mail-agent")\n→ llm_backend = None\n→ use default
@@ -62,12 +62,12 @@ note over router
   fast    = "claude-haiku-4-5-20251001"
 end note
 
-reasoner -> router : route_precise()\n— planification ReAct\n(erreur à fort impact)
+reasoner -> router : route_precise()\n- planification ReAct\n(erreur à fort impact)
 router -> cloud : complete(plan_request)\n→ backend "claude-opus-4-6"
 cloud --> router : ExecutionPlan
 router --> reasoner : ExecutionPlan
 
-fpe -> router : route_fast()\n— extraction file paths\n(résultat vérifiable)
+fpe -> router : route_fast()\n- extraction file paths\n(résultat vérifiable)
 router -> router : backend_for("claude-haiku-4-5-20251001")
 router -> cloud : complete(extract_request)
 cloud --> router : ["src/main.rs", "src/lib.rs"]

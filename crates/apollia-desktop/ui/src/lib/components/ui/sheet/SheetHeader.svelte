@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * SheetHeader — canonical header bar for a `<Sheet>` panel.
+   * SheetHeader - canonical header bar for a `<Sheet>` panel.
    *
    * Structure : title (h2) + optional subtitle + close button + optional
    * trailing actions snippet. Mirrors PageHeader's ergonomics but at panel
@@ -20,7 +20,7 @@
     titleSlot?: Snippet;
     /** Right-aligned action area BEFORE the close button. */
     actions?: Snippet;
-    /** Close handler — when provided, the × button is rendered. */
+    /** Close handler - when provided, the × button is rendered. */
     onclose?: () => void;
     /** Accessible label for the close button. Defaults to "Close". */
     closeLabel?: string;

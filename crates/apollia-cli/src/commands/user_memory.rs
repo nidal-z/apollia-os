@@ -144,7 +144,7 @@ fn run_show(db_path: Option<&Path>, json: bool) -> i32 {
             serde_json::to_string_pretty(&entries).unwrap_or_default()
         );
     } else if entries.is_empty() {
-        println!("  (profile is empty — run `apollia-os onboard` to fill it)");
+        println!("  (profile is empty - run `apollia-os onboard` to fill it)");
     } else {
         let kw = entries.iter().map(|e| e.key.len()).max().unwrap_or(8);
         println!("  {:<width$}  WRITTEN BY  VALUE", "KEY", width = kw);

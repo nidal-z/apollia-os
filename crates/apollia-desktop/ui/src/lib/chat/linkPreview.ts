@@ -44,7 +44,7 @@ function pruneCache(now: number): void {
  * Fetch (and cache) the Open Graph metadata for `url`.
  *
  * Returns `null` when the backend returns an error (preview disabled, SSRF
- * refusal, network error) — callers should then fall back to rendering the
+ * refusal, network error) - callers should then fall back to rendering the
  * bare link.
  */
 export async function fetchLinkPreview(url: string): Promise<LinkPreview | null> {
@@ -76,7 +76,7 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreview | null>
 
 /**
  * Identify URLs that appear standalone (one URL per non-empty line, no
- * surrounding prose).  Only these trigger a rich preview card — inline links
+ * surrounding prose).  Only these trigger a rich preview card - inline links
  * stay bare to avoid cluttering the flow.
  */
 export function detectStandaloneLinks(content: string): string[] {

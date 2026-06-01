@@ -1,6 +1,6 @@
 # Diagrammes d'Architecture
 
-> Sources PlantUML : [`docs/diagrams/`](https://github.com/nidal-z/apollia-os/tree/main/docs/diagrams)
+> Sources PlantUML : [`docs/diagrams/`](https://github.com/Apollia-OS/apollia-os/tree/main/docs/diagrams)
 > Régénérer : `just diagrams`
 
 ---

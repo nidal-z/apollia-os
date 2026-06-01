@@ -82,7 +82,7 @@ pub enum McpOAuthError {
     /// Refresh failed and the user must re-authenticate from scratch.
     /// Distinct from transient transport errors so the wizard can offer the
     /// right CTA ("Sign in again") instead of "Retry".
-    #[error("MCP server '{server}' rejected refresh — re-authentication required ({reason})")]
+    #[error("MCP server '{server}' rejected refresh - re-authentication required ({reason})")]
     ReauthRequired { server: String, reason: String },
 
     /// Configuration is malformed (e.g. URL parse failure).
@@ -319,7 +319,7 @@ pub async fn ensure_fresh_token(
         Err(e) => {
             return Err(McpOAuthError::ReauthRequired {
                 server: server_name.to_string(),
-                reason: format!("keychain access failed ({e}) — re-allow Apollia in Keychain Access or sign in again"),
+                reason: format!("keychain access failed ({e}) - re-allow Apollia in Keychain Access or sign in again"),
             });
         }
     };
@@ -438,7 +438,7 @@ async fn resolve_client_id(
             // or contact the AS support to enable DCR for their workspace.
             tracing::warn!(
                 error = %e,
-                "DCR failed — pre-registration likely required at the AS developer portal"
+                "DCR failed - pre-registration likely required at the AS developer portal"
             );
             e.into()
         })

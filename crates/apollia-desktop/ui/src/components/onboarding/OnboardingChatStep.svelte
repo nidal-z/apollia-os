@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Onboarding step 4 — Agent chat.
+   * Onboarding step 4 - Agent chat.
    *
    * Final step of the onboarding flow. Spawns an `onboarding-agent` chat
    * session and renders the conversation in the modal. The agent collects
@@ -48,7 +48,7 @@
   // the user has actually engaged.
   const KICK_MESSAGES = 1;
   // Minimum *real* user replies (excluding the kick) required before we
-  // trust the agent's `completed_at` signal — guards against stale memory
+  // trust the agent's `completed_at` signal - guards against stale memory
   // state from a previous broken session triggering the wrap-up panel
   // before the conversation has even started.
   const MIN_REAL_REPLIES = 2;
@@ -79,7 +79,7 @@
   // Show the wrap-up panel either because the agent wrote
   // `onboarding.completed_at` to memory (authoritative signal AFTER the
   // user has actually answered) or because the conversation ran the full
-  // 4 turns without a finalize tag (safety net — never leave the user
+  // 4 turns without a finalize tag (safety net - never leave the user
   // stranded in chat).
   // Wrap-up is suppressed while permission cards are still pending so the
   // user is forced to triage them before clicking "Terminer".
@@ -116,7 +116,7 @@
       });
       userTurns = detail.messages.filter((m) => m.role === "user").length;
     } catch {
-      // Non-critical — retry on next tick.
+      // Non-critical - retry on next tick.
     }
 
     // Authoritative completion signal: the agent has written
@@ -133,7 +133,7 @@
           }
         }
       } catch {
-        // Non-critical — try again next tick.
+        // Non-critical - try again next tick.
       }
     }
   }
@@ -160,7 +160,7 @@
       bootstrapping = false;
 
       // Kick the agent so it produces its opening turn without waiting
-      // for the user to type first. Failures here are non-fatal — the
+      // for the user to type first. Failures here are non-fatal - the
       // agent will still respond once the user sends a real message.
       try {
         await invoke("send_chat_message", {
@@ -342,7 +342,7 @@
 
   /* When the chat body hosts the permission cards or the celebration
      screen instead of the conversation, centre the content vertically
-     and give it room to breathe — no chat history, no banner, no
+     and give it room to breathe - no chat history, no banner, no
      overflow blending. */
   .chat-body-stage {
     align-items: stretch;
@@ -429,6 +429,6 @@
     color: hsl(var(--muted-foreground));
   }
 
-  /* (Legacy `.chat-wrapup` styles removed — the celebration screen now
+  /* (Legacy `.chat-wrapup` styles removed - the celebration screen now
      replaces the chat body entirely instead of stacking under it.) */
 </style>

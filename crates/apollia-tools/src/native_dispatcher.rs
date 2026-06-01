@@ -121,7 +121,7 @@ pub fn build_dispatcher_with(
     if is_active("python_executor") {
         match PythonExecutor::new(&cfg.agent_id, &cfg.venv_base_dir) {
             Ok(exec) => executors.push(Box::new(exec)),
-            Err(e) => tracing::warn!(error = %e, "python_executor unavailable — skipped"),
+            Err(e) => tracing::warn!(error = %e, "python_executor unavailable - skipped"),
         }
     }
 
@@ -146,7 +146,7 @@ pub fn build_dispatcher_with(
             match WebSearch::from_config(&cfg.web_search_config, cfg.brave_api_key.clone()) {
                 Ok(tool) => executors.push(Box::new(tool)),
                 Err(e) => {
-                    tracing::warn!(error = %e, "web_search disabled — configuration invalid");
+                    tracing::warn!(error = %e, "web_search disabled - configuration invalid");
                 }
             }
         }
@@ -265,6 +265,6 @@ fn push_sandbox_tool<T, E>(
 {
     match built {
         Ok(exec) => executors.push(Box::new(exec)),
-        Err(e) => tracing::warn!(tool = name, error = %e, "native tool unavailable — skipped"),
+        Err(e) => tracing::warn!(tool = name, error = %e, "native tool unavailable - skipped"),
     }
 }

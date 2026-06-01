@@ -1,6 +1,6 @@
 import { vi, describe, test, expect, beforeEach } from "vitest";
 
-// Minimal localStorage shim — the default vitest env is `node`, but the
+// Minimal localStorage shim - the default vitest env is `node`, but the
 // store uses `localStorage` for dismiss/feedback persistence.
 class MemoryStorage {
   private readonly s = new Map<string, string>();
@@ -77,7 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("nextSteps store — load() surfaces 3 cards", () => {
+describe("nextSteps store - load() surfaces 3 cards", () => {
   test("3 LLM outputs are stored and exposed via visible()", async () => {
     mockedInvoke.mockResolvedValue({ steps: sampleSteps(), fromLlm: true });
 
@@ -96,7 +96,7 @@ describe("nextSteps store — load() surfaces 3 cards", () => {
   });
 });
 
-describe("nextSteps store — dismiss persistence", () => {
+describe("nextSteps store - dismiss persistence", () => {
   test("dismissed card is filtered out and persisted in localStorage", async () => {
     mockedInvoke.mockResolvedValue({ steps: sampleSteps(), fromLlm: true });
     nextSteps.load(GLOBAL_SCOPE, "global_context", "operator", {});
@@ -119,7 +119,7 @@ describe("nextSteps store — dismiss persistence", () => {
   });
 });
 
-describe("nextSteps store — fallback path", () => {
+describe("nextSteps store - fallback path", () => {
   test("fromLlm=false surfaces through the store when backend falls back", async () => {
     mockedInvoke.mockResolvedValue({
       steps: sampleSteps().slice(0, 2),
@@ -150,7 +150,7 @@ describe("nextSteps store — fallback path", () => {
   });
 });
 
-describe("nextSteps store — feedback is local only", () => {
+describe("nextSteps store - feedback is local only", () => {
   test("setFeedback persists and feedbackFor returns the value", () => {
     nextSteps.setFeedback("capture-note", "useful");
     expect(nextSteps.feedbackFor("capture-note")).toBe("useful");

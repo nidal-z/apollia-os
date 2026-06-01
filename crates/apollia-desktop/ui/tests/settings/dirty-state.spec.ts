@@ -40,7 +40,7 @@ async function installTauriStub(page: import("@playwright/test").Page): Promise<
       list_llm_backends: () => [],
     };
 
-    // Minimal Tauri-v2 invoke shim — only what the UI calls.
+    // Minimal Tauri-v2 invoke shim - only what the UI calls.
     (globalThis as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
       invoke: (cmd: string, args: unknown) => {
         const h = handlers[cmd];
@@ -62,14 +62,14 @@ test.describe("settings dirty-state", () => {
     await page.waitForSelector('[data-testid="stt-config-form"]');
     await page.waitForSelector('[data-testid="stt-hotkey-input"]');
 
-    // Mutate the language field — easier to drive than a hotkey capture.
+    // Mutate the language field - easier to drive than a hotkey capture.
     const langInput = page.locator('[data-testid="stt-language-input"]');
     await langInput.fill("en");
 
     await expect(page.locator('[data-testid="settings-unsaved-badge"]')).toBeVisible();
 
     // Trigger Cmd+S (metaKey on macOS, ctrlKey elsewhere).
-    // NOSONAR typescript:S1874 — navigator.platform retained inside page.evaluate;
+    // NOSONAR typescript:S1874 - navigator.platform retained inside page.evaluate;
     // userAgentData is unavailable in WebKit (Playwright cross-browser parity).
     const isMac = await page.evaluate(() => /Mac/.test(navigator.platform)); // NOSONAR typescript:S1874
     await page.keyboard.press(isMac ? "Meta+s" : "Control+s");
@@ -83,7 +83,7 @@ test.describe("settings dirty-state", () => {
     await page.waitForSelector('[data-testid="stt-config-form"]');
     await page.locator('[data-testid="stt-language-input"]').fill("fr");
 
-    // Attempt to navigate to another sub-route — the nav should be blocked.
+    // Attempt to navigate to another sub-route - the nav should be blocked.
     await page.locator('[data-testid="settings-nav-llm"]').click();
 
     const dialog = page.locator('[data-testid="settings-unsaved-dialog"]');
@@ -92,7 +92,7 @@ test.describe("settings dirty-state", () => {
     await expect(dialog.locator('[data-testid="settings-unsaved-dialog-save"]')).toBeVisible();
     await expect(dialog.locator('[data-testid="settings-unsaved-dialog-stay"]')).toBeVisible();
 
-    // Default focus is "Stay" — pressing Enter keeps us here.
+    // Default focus is "Stay" - pressing Enter keeps us here.
     await page.keyboard.press("Enter");
     await expect(dialog).toBeHidden();
     await expect(page.locator('[data-testid="stt-config-form"]')).toBeVisible();

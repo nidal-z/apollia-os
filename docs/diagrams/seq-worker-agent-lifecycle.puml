@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence Worker Agent — Lifecycle complet — Apollia OS
+title Séquence Worker Agent - Lifecycle complet - Apollia OS
 
 participant "Runtime Core" as runtime #1a1a2e
 participant "AIP Bridge\n(PyO3)" as aip #1a1a2e

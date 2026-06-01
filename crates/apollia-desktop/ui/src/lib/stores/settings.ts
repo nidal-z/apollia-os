@@ -61,7 +61,7 @@ export function goToSettingsSubRoute(route: string | null | undefined): Settings
 
 /**
  * Install a guard that decides whether a sub-route change is allowed to
- * commit. Returning `false` cancels the navigation — the guard is then
+ * commit. Returning `false` cancels the navigation - the guard is then
  * expected to either resolve the blocker (discard/save) and re-navigate, or
  * restore the store to its previous value (which it already is, since the
  * guard runs before the store is updated). Returns an uninstall function.

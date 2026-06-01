@@ -104,7 +104,7 @@ fn embedded_table() -> &'static [EmbeddedEntry] {
     TABLE.get_or_init(|| {
         let raw = include_str!("embedded.toml");
         let parsed: EmbeddedTable = toml::from_str(raw)
-            .expect("embedded model_defaults.toml must parse — checked at compile time");
+            .expect("embedded model_defaults.toml must parse - checked at compile time");
         parsed.entry
     })
 }

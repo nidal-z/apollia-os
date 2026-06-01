@@ -1,4 +1,4 @@
-//! E2E test — all 15 frontend routes have non-crashing backing API endpoints.
+//! E2E test - all 15 frontend routes have non-crashing backing API endpoints.
 
 /// Mapping of a frontend route to its primary backing API endpoint.
 struct RouteProbe {
@@ -11,7 +11,7 @@ struct RouteProbe {
 /// The 15 frontend routes and the API endpoint each calls on mount.
 ///
 /// Only 5xx server errors (excluding 503 which signals an optional subsystem)
-/// count as failures — they indicate the route would render a crash screen.
+/// count as failures - they indicate the route would render a crash screen.
 /// 4xx responses and 503 are acceptable steady states.
 const ROUTE_PROBES: &[RouteProbe] = &[
     RouteProbe {
@@ -83,7 +83,7 @@ const ROUTE_PROBES: &[RouteProbe] = &[
 /// All 15 routes are probed before failures are reported so that a single
 /// run surfaces all broken routes rather than stopping at the first.
 #[tokio::test]
-#[ignore = "E2E test — requires running runtime and desktop app"]
+#[ignore = "E2E test - requires running runtime and desktop app"]
 async fn test_navigation_all_15_routes_no_crash() {
     assert_eq!(
         ROUTE_PROBES.len(),
@@ -108,7 +108,7 @@ async fn test_navigation_all_15_routes_no_crash() {
                 })?;
 
             let status = response.status();
-            // 503 = optional subsystem not configured — acceptable.
+            // 503 = optional subsystem not configured - acceptable.
             if status.is_server_error() && status.as_u16() != 503 {
                 failures.push(format!(
                     "route '{}' → {} returned HTTP {}",

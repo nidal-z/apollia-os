@@ -8,7 +8,7 @@
    *   - footer = actions (Skip / Skip with default / Submit) + waiting timer
    *   - role="alertdialog" + Esc cancels the card, Enter submits when allowed
    *
-   * Post-submit the card collapses to `AskUserSummary` — behaviour preserved
+   * Post-submit the card collapses to `AskUserSummary` - behaviour preserved
    * from v1 (cf. docs/internal/UX-UI-AUDIT-CHAT-COMPONENTS-ORPHELINS.md §3.2).
    */
 
@@ -179,7 +179,7 @@
 
   /**
    * Reject the HITL request. Forces a non-empty reason (min
-   * `MIN_REJECT_REASON_LENGTH` chars) — the textarea is mandatory.
+   * `MIN_REJECT_REASON_LENGTH` chars) - the textarea is mandatory.
    * The reason is forwarded to the agent via `approval_outcome`
    * (SDK-side) and emitted on the event bus as `HitlRejected`.
    */
@@ -200,7 +200,7 @@
     }
   }
 
-  // ── A11y — initial focus + keyboard handlers ─────────────────────────────
+  // ── A11y - initial focus + keyboard handlers ─────────────────────────────
   onMount(async () => {
     await tick();
     const firstInput = rootEl?.querySelector<HTMLElement>(
@@ -231,7 +231,7 @@
   <AskUserSummary {questions} answers={submittedAnswers} {requestId} />
 {:else}
   <div class="glass-card glass-border my-1.5 rounded-lg border-l-2 border-l-info px-3 py-2 text-xs" bind:this={rootEl} role="alertdialog" aria-modal="false" aria-labelledby="ask-user-title-{requestId}" tabindex="-1" onkeydown={handleKeydown} data-testid="ask-user-card-{requestId}" transition:slide={{ duration: 200 }}>
-    <!-- Header — compact (prompt 1 line, expandable) -->
+    <!-- Header - compact (prompt 1 line, expandable) -->
     <div class="flex items-start gap-2">
       <div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-info/10">
         <HelpCircle class="h-3 w-3 text-info" />
@@ -253,7 +253,7 @@
           id="ask-user-prompt-{requestId}"
           class="ml-1 text-[12px] text-muted-foreground {promptExpanded ? '' : 'line-clamp-1'}"
         >
-          — {firstQuestionText}
+          - {firstQuestionText}
         </span>
       </Button>
     </div>
@@ -342,7 +342,7 @@
       </div>
     {/if}
 
-    <!-- Questions — scroll max 480 px -->
+    <!-- Questions - scroll max 480 px -->
     <div class="mt-1 max-h-[480px] overflow-y-auto pr-1">
       {#each questions as question, i (question.id)}
         <AskUserQuestion

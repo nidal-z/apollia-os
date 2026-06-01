@@ -24,7 +24,7 @@
     open?: boolean;
     groups: CommandPaletteGroup[];
     placeholder?: string;
-    /** Fires after an item's own `action` runs — for telemetry. */
+    /** Fires after an item's own `action` runs - for telemetry. */
     onexecute?: (id: string) => void;
   }
 
@@ -68,7 +68,7 @@
     return out;
   });
 
-  // Flat list for keyboard navigation — same order as rendering.
+  // Flat list for keyboard navigation - same order as rendering.
   const flatItems = $derived(
     filteredGroups.flatMap((g) => g.items.map((r) => r.item)),
   );
@@ -134,7 +134,7 @@
       return;
     }
     if (event.key === "Tab") {
-      // Keep focus trapped in the input — Tab must not escape the palette.
+      // Keep focus trapped in the input - Tab must not escape the palette.
       event.preventDefault();
     }
   }

@@ -113,7 +113,7 @@
         ></div>
       </div>
     {:else}
-      <span class="text-[10.5px] text-muted-foreground/70 font-mono">— —</span>
+      <span class="text-[10.5px] text-muted-foreground/70 font-mono">- -</span>
     {/if}
   </div>
   <div class="w-[120px]">
@@ -144,8 +144,8 @@
     {#if task.builderMeta}
       {task.builderMeta}
     {:else}
-      task_id={task.id ?? "—"} · agent={task.agent} · status={task.status}<br />
-      progress={task.progress ?? 0}% · started={task.started ?? "—"} · eta={task.eta ?? "—"}
+      task_id={task.id ?? "-"} · agent={task.agent} · status={task.status}<br />
+      progress={task.progress ?? 0}% · started={task.started ?? "-"} · eta={task.eta ?? "-"}
     {/if}
   </div>
 {/if}

@@ -23,12 +23,12 @@
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
 
   // ---------------------------------------------------------------------------
-  // ADR-087 — Profile keys are stored flat in `__user__`.  The schema is
+  // ADR-087 - Profile keys are stored flat in `__user__`.  The schema is
   // declared in Rust (PROFILE_SCHEMA); the form below mirrors it manually.
   // ---------------------------------------------------------------------------
 
   // Sensitive keys: their value impacts agent behavior and tool permissions.
-  // Editing one does NOT auto-rederive rules — the user must rerun the
+  // Editing one does NOT auto-rederive rules - the user must rerun the
   // onboarding agent to have updated proposals applied.
   const SENSITIVE_KEYS = new Set<string>([
     "constraints.sovereignty",
@@ -197,7 +197,7 @@
 
   // ── Static option lists ───────────────────────────────────────────────────
   const SECTORS = [
-    { v: "", label: "—" },
+    { v: "", label: "-" },
     { v: "fintech", label: "Fintech" },
     { v: "sante", label: "Santé" },
     { v: "ecommerce", label: "E-commerce" },
@@ -206,25 +206,25 @@
     { v: "autre", label: "Autre" },
   ];
   const TEAM_SIZES = [
-    { v: "", label: "—" },
+    { v: "", label: "-" },
     { v: "solo", label: "Solo" },
     { v: "2-5", label: "2–5" },
     { v: "6-20", label: "6–20" },
     { v: "20+", label: "20+" },
   ];
   const PROFICIENCY = [
-    { v: "", label: "—" },
+    { v: "", label: "-" },
     { v: "debutant", label: "Débutant" },
     { v: "a-laise", label: "À l'aise" },
     { v: "expert", label: "Expert" },
   ];
   const LANGUAGES = [
-    { v: "", label: "—" },
+    { v: "", label: "-" },
     { v: "fr", label: "Français" },
     { v: "en", label: "English" },
   ];
   const LLM_BACKENDS = [
-    { v: "", label: "—" },
+    { v: "", label: "-" },
     { v: "local", label: "Local (llama.cpp)" },
     { v: "ollama", label: "Ollama" },
     { v: "anthropic", label: "Anthropic" },
@@ -403,7 +403,7 @@
             </span>
           </h3>
           <p class="text-[11px] text-muted-foreground">
-            Modifier ces choix n'ajuste pas tes règles de permissions automatiquement —
+            Modifier ces choix n'ajuste pas tes règles de permissions automatiquement -
             relance l'onboarding pour que l'agent te propose les ajustements correspondants.
           </p>
         </div>
@@ -508,7 +508,7 @@
           data-testid="profile-input-tools-daily"
         />
         <span class="block text-[11px] text-muted-foreground">
-          Liste libre — applications métier, IDE, outils de bureau, plateformes SaaS.
+          Liste libre - applications métier, IDE, outils de bureau, plateformes SaaS.
         </span>
       </label>
 
@@ -573,7 +573,7 @@
             </span>
           </h3>
           <p class="text-[11px] text-muted-foreground">
-            Modifier ces choix n'ajuste pas tes règles de permissions automatiquement —
+            Modifier ces choix n'ajuste pas tes règles de permissions automatiquement -
             relance l'onboarding pour que l'agent te propose les ajustements correspondants.
           </p>
         </div>

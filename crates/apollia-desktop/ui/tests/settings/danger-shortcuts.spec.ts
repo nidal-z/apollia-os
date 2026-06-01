@@ -35,7 +35,7 @@ async function installTauriStub(page: import("@playwright/test").Page): Promise<
   });
 }
 
-test.describe("Danger Zone — 2-step destructive confirmation", () => {
+test.describe("Danger Zone - 2-step destructive confirmation", () => {
   test.beforeEach(async ({ page }) => {
     await installTauriStub(page);
   });
@@ -75,7 +75,7 @@ test.describe("Danger Zone — 2-step destructive confirmation", () => {
   });
 });
 
-test.describe("Shortcuts page — search filter", () => {
+test.describe("Shortcuts page - search filter", () => {
   test.beforeEach(async ({ page }) => {
     await installTauriStub(page);
   });
@@ -88,7 +88,7 @@ test.describe("Shortcuts page — search filter", () => {
     await expect(page.locator('[data-testid="shortcuts-category-global"]')).toBeVisible();
     await expect(page.locator('[data-testid="shortcuts-category-navigation"]')).toBeVisible();
 
-    // Filter for the command palette chord — on either mac or win we search
+    // Filter for the command palette chord - on either mac or win we search
     // for the literal "K" so the filter matches ⌘+K and Ctrl+K alike.
     await page.locator('[data-testid="shortcuts-search"]').fill("K");
     // Palette row must remain visible.

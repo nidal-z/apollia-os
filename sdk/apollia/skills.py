@@ -1,4 +1,4 @@
-"""``@skill`` decorator — mark a method as an A2A-invocable skill.
+"""``@skill`` decorator - mark a method as an A2A-invocable skill.
 
 The decorator stamps a marker on the method; the manifest builder
 walks those markers to assemble the canonical agent manifest.
@@ -42,7 +42,7 @@ def _validate_examples(
     """Validate the optional ``examples=`` argument and return a normalized list.
 
     Each example must be a ``dict`` representing a sample payload. The
-    SDK does not validate examples against the inferred schema — author
+    SDK does not validate examples against the inferred schema - author
     is responsible (validating here would create a chicken-and-egg cycle
     since the schema isn't built until ``collect_skills`` runs).
     """

@@ -43,4 +43,4 @@ Votre conversation apparaît dans la liste de gauche avec un titre et la date du
 - **Réponse en erreur ou tronquée :** changez de modèle dans le panneau de configuration, ou consultez [Le fournisseur d'IA ne répond pas](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
 - **L'IA ne connaît pas vos fichiers :** liez la conversation à un projet et activez les context providers.
 
-> **Concept :** [book ch12 — Chat interactif](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md) — comprendre comment le contexte est injecté et comment les modes Libre et Agent diffèrent.
+> **Concept :** [book ch12 - Chat interactif](https://github.com/Apollia-OS/apollia-os/blob/main/book/src/ch12-00-chat-interactif.md) - comprendre comment le contexte est injecté et comment les modes Libre et Agent diffèrent.

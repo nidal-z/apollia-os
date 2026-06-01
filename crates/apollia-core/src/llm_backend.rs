@@ -1,6 +1,6 @@
 //! Registre des backends LLM persisté dans `system.db`.
 //!
-//! [`LlmBackendRepository`] est un wrapper synchrone autour de `rusqlite` —
+//! [`LlmBackendRepository`] est un wrapper synchrone autour de `rusqlite` -
 //! même pattern que `PlanRepository`. Toutes les méthodes sont synchrones ;
 //! les acteurs Tokio les appellent via `spawn_blocking` si nécessaire.
 //!
@@ -115,7 +115,7 @@ pub enum LlmBackendError {
     DefaultAlreadyExists(String),
 
     /// Suppression du backend par défaut refusée.
-    #[error("cannot delete the default backend — set another default first")]
+    #[error("cannot delete the default backend - set another default first")]
     CannotDeleteDefault,
 
     /// Nom de backend invalide (doit correspondre à `[a-z0-9_-]+`).
@@ -140,7 +140,7 @@ pub enum LlmBackendError {
 // ────────────────────────────────────────────────────────────────────────────
 
 fn validate_name(name: &str) -> Result<(), LlmBackendError> {
-    // Pattern évalué une seule fois grâce au `Regex::new` — pas de `OnceLock` nécessaire
+    // Pattern évalué une seule fois grâce au `Regex::new` - pas de `OnceLock` nécessaire
     // car la validation est appelée peu fréquemment (opérations d'écriture uniquement).
     let re = Regex::new(r"^[a-z0-9_-]+$").expect("static pattern is valid");
     if name.is_empty() || !re.is_match(name) {
@@ -516,7 +516,7 @@ impl LlmBackendRepository {
 
         if !backends.is_empty() {
             output.push_str(
-                "\n# ⚠️  Section gérée automatiquement par Apollia — éditer via Settings\n",
+                "\n# ⚠️  Section gérée automatiquement par Apollia - éditer via Settings\n",
             );
             for cfg in &backends {
                 output.push('\n');
@@ -540,7 +540,7 @@ impl LlmBackendRepository {
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Valeurs brutes d'une ligne `llm_backends` — regroupées pour garder la
+/// Valeurs brutes d'une ligne `llm_backends` - regroupées pour garder la
 /// signature de [`row_to_config`] lisible.
 struct RawBackendRow {
     name: String,

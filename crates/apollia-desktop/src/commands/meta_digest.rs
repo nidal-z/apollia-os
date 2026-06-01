@@ -231,7 +231,7 @@ fn render_narration(facts: &DigestFacts) -> String {
             sentences.push(format!("Une automatisation a échoué : « {label} »."));
         } else {
             sentences.push(format!(
-                "{n} automatisation{s} ont échoué — à vérifier.",
+                "{n} automatisation{s} ont échoué - à vérifier.",
                 n = facts.automations_failed,
                 s = if facts.automations_failed > 1 {
                     "s"

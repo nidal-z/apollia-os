@@ -1,6 +1,6 @@
 @echo off
 rem
-rem Apollia OS launcher — Windows.
+rem Apollia OS launcher - Windows.
 rem
 rem Ce script est inclus dans chaque archive de release (windows-*). Il garantit
 rem que apollia-os.exe trouve l'interprète Python 3.13 bundlé même si l'user n'a
@@ -15,7 +15,7 @@ rem   ├── python313.dll
 rem   └── Lib\, DLLs\
 rem
 rem Le binaire apollia-os.exe a son CRT (vcruntime140.dll, msvcp140.dll)
-rem statiquement lié via +crt-static — aucun "Visual C++ Redist" requis.
+rem statiquement lié via +crt-static - aucun "Visual C++ Redist" requis.
 rem
 rem Usage :
 rem   apollia-os.bat start

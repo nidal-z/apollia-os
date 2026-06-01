@@ -1,4 +1,4 @@
-//! [`GitProvider`] — fournit l'état git du répertoire courant.
+//! [`GitProvider`] - fournit l'état git du répertoire courant.
 //!
 //! Collecte la branche courante, le statut des fichiers modifiés et les
 //! commits récents. Inactif hors d'un dépôt git (`is_applicable` retourne `false`).
@@ -113,7 +113,7 @@ mod tests {
         let provider = GitProvider::default();
         // WHEN
         let slice = provider.collect(&cwd).await;
-        // THEN — au moins une section git
+        // THEN - au moins une section git
         assert!(!slice.sections.is_empty(), "expected git section in repo");
         assert!(
             slice.sections[0].content.contains("Branche"),

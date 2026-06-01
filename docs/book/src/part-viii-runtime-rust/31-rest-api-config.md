@@ -125,7 +125,7 @@ Le `code` métier est le même que celui que produit `DomainError(code, message)
 
 ## apollia.toml : configuration structurelle
 
-Le fichier de configuration est résolu dans cet ordre au démarrage : (1) `./apollia.toml` dans le répertoire courant, (2) `~/.config/apollia/apollia.toml` dans le home utilisateur. Le premier trouvé est lu. Si aucun n'existe, le runtime démarre avec les défauts et un message `no apollia.toml found — starting with defaults`.
+Le fichier de configuration est résolu dans cet ordre au démarrage : (1) `./apollia.toml` dans le répertoire courant, (2) `~/.config/apollia/apollia.toml` dans le home utilisateur. Le premier trouvé est lu. Si aucun n'existe, le runtime démarre avec les défauts et un message `no apollia.toml found - starting with defaults`.
 
 Il couvre les sections suivantes : `[runtime]`, `[memory]`, `[tools]`, `[logging]`, `[a2a]`, `[chat]`, `[observability]`, `[stt]`, et les backends LLM via `[llm]` + `[[llm.backends]]`.
 
@@ -149,7 +149,7 @@ type         = "embedded"
 model_path   = "/Users/me/models/mistral-7b-instruct.Q4_K_M.gguf"
 quantization = "Q4_K_M"
 
-# Routing : qui répond à quel besoin. Optionnel — sans cette section, le runtime
+# Routing : qui répond à quel besoin. Optionnel - sans cette section, le runtime
 # utilise `[llm].default` pour les trois rôles (suffisant pour un setup
 # single-backend). Ajoutez-la pour router precise/fast sur deux backends différents.
 [llm.routing]

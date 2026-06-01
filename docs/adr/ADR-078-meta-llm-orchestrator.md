@@ -1,4 +1,4 @@
-# ADR-078 — MetaLlmOrchestrator : service de transparence partagé
+# ADR-078 - MetaLlmOrchestrator : service de transparence partagé
 
 > Note : la story US-SP42-036 référençait historiquement "ADR-073". Le numéro
 > 073 ayant déjà été utilisé pour la signature de code macOS, cette décision
@@ -6,7 +6,7 @@
 
 - **Date** : 2026-04-19
 - **Statut** : Accepté
-- **Sprint** : 42 — frontend redressement
+- **Sprint** : 42 - frontend redressement
 - **Story** : US-SP42-036
 
 ## Contexte
@@ -16,7 +16,7 @@ appel d'outil, résumé d'un thinking, titre de session, explication d'erreur,
 conséquences d'une question AskUser, évaluation de risque, branches
 alternatives, vérification d'hallucination). Ces artefacts doivent être
 générés à la volée par un LLM mais ne relèvent d'aucun acteur existant
-(ORIA, Chat, Pipelines) — c'est une couche horizontale de narration.
+(ORIA, Chat, Pipelines) - c'est une couche horizontale de narration.
 
 Deux options se sont dégagées :
 
@@ -39,7 +39,7 @@ Le service est un acteur Tokio :
   défaut 10 000 tokens/session, event `RuntimeEvent::MetaLlmBudgetExceeded`
   émis une fois ;
 - timeout appel LLM : 10 s, fallback `Ok(None)` (l'UI affiche un texte statique) ;
-- `MetaLlmSettings { enabled: false, per_routine, session_budget_tokens }` —
+- `MetaLlmSettings { enabled: false, per_routine, session_budget_tokens }` -
   opt-in strict, master toggle + overrides par routine.
 
 10 routines : `GenerateToolCallRationale`, `GenerateThinkingSummary`,
@@ -57,7 +57,7 @@ embarqués via `include_str!`.
   canonique (les mêmes inputs JSON produisent la même clé indépendamment de
   l'ordre des champs).
 - Enveloppe estimée : ~7 k tokens/session si toutes les routines tirent une
-  fois — reste sous le budget par défaut.
+  fois - reste sous le budget par défaut.
 
 ## Alternative rejetée : modèle LLM dédié
 
@@ -76,7 +76,7 @@ Raisons du rejet :
 - **Positives** : zéro nouvelle config, pas de nouveau quota, cohérence de ton,
   toggle opt-in offre un contrôle fin à l'utilisateur, cache évite le re-coût.
 - **Négatives** : budget du LLM principal partagé entre travail utile et
-  narration méta — d'où le budget par session + l'événement
+  narration méta - d'où le budget par session + l'événement
   `MetaLlmBudgetExceeded` qui permet à l'UI de masquer proactivement les
   artefacts restants.
 - **Suite** : US-SP42-037 (intégration `Chat`), US-SP42-038 (intégration
@@ -85,8 +85,8 @@ Raisons du rejet :
 
 ## Fichiers introduits
 
-- `crates/apollia-llm/src/meta_orchestrator.rs` — acteur, cache, budget, tests.
-- `crates/apollia-llm/prompts/meta/*.md` — 10 templates versionnés.
-- `crates/apollia-core/src/events.rs` — variant `MetaLlmBudgetExceeded`.
-- `crates/apollia-llm/Cargo.toml` — dépendances `lru` et `sha2`.
-- `Cargo.toml` — dépendance `lru` ajoutée au workspace.
+- `crates/apollia-llm/src/meta_orchestrator.rs` - acteur, cache, budget, tests.
+- `crates/apollia-llm/prompts/meta/*.md` - 10 templates versionnés.
+- `crates/apollia-core/src/events.rs` - variant `MetaLlmBudgetExceeded`.
+- `crates/apollia-llm/Cargo.toml` - dépendances `lru` et `sha2`.
+- `Cargo.toml` - dépendance `lru` ajoutée au workspace.

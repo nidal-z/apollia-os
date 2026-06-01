@@ -133,7 +133,7 @@ impl AgentRole {
             "worker" => Ok(AgentRole::Worker),
             "assistant" => Ok(AgentRole::Assistant),
             other => Err(PackageLoaderError::InvalidManifest(format!(
-                "rôle inconnu '{other}' — attendu : director | worker | assistant. \
+                "rôle inconnu '{other}' - attendu : director | worker | assistant. \
                  (Agents @agent+@skill ⇒ worker ; @agent+@orchestrated ⇒ director ; \
                  @agent+@on_message ⇒ assistant.)"
             ))),

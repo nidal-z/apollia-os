@@ -2,7 +2,7 @@
  * Local telemetry sink for permission-related UX events.
  *
  * Events never leave the device. They are posted to the `telemetry_emit`
- * Tauri command when available and silently dropped otherwise — the UI
+ * Tauri command when available and silently dropped otherwise - the UI
  * must keep working even when the backend is older than this build.
  */
 import { invoke } from "@tauri-apps/api/core";

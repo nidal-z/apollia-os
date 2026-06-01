@@ -1,7 +1,7 @@
-//! Smoke test — apollia-reviewer.py, chaîne complète sans LLM.
+//! Smoke test - apollia-reviewer.py, chaîne complète sans LLM.
 //!
 //! Valide : AIPLoader → validate_agent → AIPBridge → run() → AIPResult.
-//! Pas de LLM, pas de vrai git repo — ctx minimal, outils mockés via NoopToolExecutor.
+//! Pas de LLM, pas de vrai git repo - ctx minimal, outils mockés via NoopToolExecutor.
 //!
 //! Run :
 //!   PYO3_PYTHON=/opt/homebrew/bin/python3.13 \
@@ -33,7 +33,7 @@ impl ExecutionBackend for AIPBridgeBackend {
         let bridge = Arc::clone(&self.bridge);
         Box::pin(async move {
             // ctx minimal : dict Python vide.
-            // Les appels ctx.tools.call() vont lever AttributeError —
+            // Les appels ctx.tools.call() vont lever AttributeError -
             // c'est acceptable pour un smoke test : on vérifie que la
             // chaîne Rust → Python → retour fonctionne, pas les outils.
             let ctx: PyObject = Python::with_gil(|py| pyo3::types::PyDict::new_bound(py).into());
@@ -111,7 +111,7 @@ async fn test_ac2_empty_input_returns_failed() {
     let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
     let backend = AIPBridgeBackend { bridge };
 
-    // Entrée vide — l'agent Python doit retourner status=failed
+    // Entrée vide - l'agent Python doit retourner status=failed
     let task = make_task("");
     let result = backend.execute(task).await;
 
@@ -132,7 +132,7 @@ async fn test_ac2_empty_input_returns_failed() {
             );
         }
         Err(e) => {
-            // AttributeError sur ctx.tools.call — acceptable : l'agent a bien
+            // AttributeError sur ctx.tools.call - acceptable : l'agent a bien
             // passé la validation d'entrée et essayé d'appeler un outil
             println!("✔ bridge err (ctx vide attendu) : {e}");
         }
@@ -167,7 +167,7 @@ async fn test_ac3_valid_repo_path_reaches_tool_call() {
     match result {
         Ok(r) => {
             println!("status: {:?}", r.status);
-            // Avec ctx vide, l'agent ne peut pas écrire le rapport — c'est OK ici
+            // Avec ctx vide, l'agent ne peut pas écrire le rapport - c'est OK ici
         }
         Err(e) => {
             // Attendu : AttributeError sur ctx.tools (dict vide sans méthode .call)
@@ -177,7 +177,7 @@ async fn test_ac3_valid_repo_path_reaches_tool_call() {
                 e.contains("AttributeError") || e.contains("tools") || e.contains("call"),
                 "erreur inattendue (ni AttributeError ni tools) : {e}"
             );
-            println!("✔ run() atteint ctx.tools.call — chaîne Rust→Python OK");
+            println!("✔ run() atteint ctx.tools.call - chaîne Rust→Python OK");
         }
     }
 }

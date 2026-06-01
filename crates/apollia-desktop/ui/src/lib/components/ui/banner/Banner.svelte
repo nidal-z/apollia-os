@@ -9,7 +9,7 @@
   interface Props extends HTMLAttributes<HTMLDivElement> {
     /**
      * Persistent banner shown at the top of a region (chat, panel, app).
-     * Distinct from `Toast` which auto-dismisses — Banner stays visible
+     * Distinct from `Toast` which auto-dismisses - Banner stays visible
      * while the underlying condition is true (e.g. runtime disconnected,
      * platform sandbox limitation, agent unavailable).
      */
@@ -20,10 +20,10 @@
     trailing?: Snippet;
     /**
      * Surface treatment:
-     * - `"edge"` (default) — `border-b`, full-width, used at the top of a
+     * - `"edge"` (default) - `border-b`, full-width, used at the top of a
      *   region (chat banner, panel header). Single-line content, truncated
      *   with ellipsis, items-center, dense padding.
-     * - `"card"` — rounded border on every side, used as a standalone
+     * - `"card"` - rounded border on every side, used as a standalone
      *   notice card (e.g. MacOS sandbox warning). Multi-line content allowed,
      *   icon top-aligned, comfortable padding.
      */

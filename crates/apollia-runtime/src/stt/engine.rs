@@ -268,7 +268,7 @@ impl SttEngine {
                         }
                     }
                     Err(e) => {
-                        warn!(error = %e, "SttRepository lock poisoned — skipping persistence");
+                        warn!(error = %e, "SttRepository lock poisoned - skipping persistence");
                     }
                 }
                 let _ = self.event_bus.send(RuntimeEvent::SttTranscribed {

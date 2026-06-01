@@ -199,7 +199,7 @@
             {#if projectPath}
               Persiste pour ce projet uniquement. Révoquer dans Paramètres.
             {:else}
-              Aucun projet courant — utiliser « Cette session » ou « Partout ».
+              Aucun projet courant - utiliser « Cette session » ou « Partout ».
             {/if}
           </span>
           {#if busy("project")}

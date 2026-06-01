@@ -1,14 +1,14 @@
-//! Moteur de permissions 3 couches — point d'entrée principal.
+//! Moteur de permissions 3 couches - point d'entrée principal.
 //!
 //! `PermissionEngine::decide()` évalue chaque invocation d'outil dans l'ordre suivant :
 //!
-//! 1. **Couche 3 — InjectionDetector** (priorité absolue, bloquant)
+//! 1. **Couche 3 - InjectionDetector** (priorité absolue, bloquant)
 //!    Vérifie tous les arguments string pour détecter des patterns shell dangereux.
 //!
-//! 2. **Couche 1 — SafeList** (config opérateur, vide par défaut)
+//! 2. **Couche 1 - SafeList** (config opérateur, vide par défaut)
 //!    Auto-approuve les invocations explicitement configurées par l'opérateur.
 //!
-//! 3. **Couche 2 — PrefixRuleEngine** (règles SQLite persistées)
+//! 3. **Couche 2 - PrefixRuleEngine** (règles SQLite persistées)
 //!    Auto-approuve ou auto-refuse selon les règles enregistrées par l'opérateur
 //!    ou le bouton "Toujours autoriser" HITL desktop.
 //!
@@ -32,7 +32,7 @@ use crate::prefix_rule_engine::{
 use crate::safe_list::SafeList;
 
 /// Marqueur `created_by` apposé aux règles ingérées depuis `PermissionsConfig.safe_commands`
-/// au démarrage du moteur (ADR-086 — source unique `governance.db`).
+/// au démarrage du moteur (ADR-086 - source unique `governance.db`).
 pub const CONFIG_IMPORT_CREATOR: &str = "config-import";
 
 // ─────────────────────────────────────────────
@@ -63,7 +63,7 @@ pub enum PermissionDecision {
         /// Nom du pattern d'injection détecté (ex : `";"`, `"$("`, ...).
         pattern: String,
     },
-    /// Aucune couche n'a tranché — l'approbation humaine est requise.
+    /// Aucune couche n'a tranché - l'approbation humaine est requise.
     NeedsApproval,
 }
 
@@ -97,7 +97,7 @@ impl PermissionEngine {
         let mut prefix_rules = PrefixRuleEngine::new(db_path)?;
         let safe_list = SafeList::from_config(config);
 
-        // ADR-086 — Migration idempotente de la SafeList TOML vers governance.db.
+        // ADR-086 - Migration idempotente de la SafeList TOML vers governance.db.
         // Au premier boot avec une SafeList non vide, on ingère chaque pattern en
         // tant que règle Allow scope=Global avec created_by="config-import". Les
         // boots suivants détectent les règles déjà présentes et n'en réécrivent
@@ -180,7 +180,7 @@ impl PermissionEngine {
                 tracing::warn!(
                     tool = %tool_name,
                     injection_pattern = %pattern,
-                    "injection detected — invocation blocked"
+                    "injection detected - invocation blocked"
                 );
                 self.audit_log
                     .record(tool_name, first_arg.as_deref(), &decision)?;

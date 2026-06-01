@@ -1,4 +1,4 @@
-# Decisions Log — Apollia OS
+# Decisions Log - Apollia OS
 
 > Journal des décisions architecturales significatives.
 > Chaque entrée pointe vers le fichier ADR détaillé dans `docs/adr/`.
@@ -25,36 +25,36 @@
 | 2025-XX-XX | ADR-016 | AgentRunner trait abstraction | [docs/adr/ADR-016-agent-runner-trait-abstraction.md](adr/ADR-016-agent-runner-trait-abstraction.md) |
 | 2025-XX-XX | ADR-017 | hyper-util Unix socket serving | [docs/adr/ADR-017-hyper-util-unix-socket-serving.md](adr/ADR-017-hyper-util-unix-socket-serving.md) |
 | 2025-XX-XX | ADR-018 | CLI bootstrap sans Supervisor | [docs/adr/ADR-018-cli-bootstrap-sans-supervisor.md](adr/ADR-018-cli-bootstrap-sans-supervisor.md) |
-| 2025-XX-XX | ADR-019 | AgentLoader trait — découplage runtime PyO3 | [docs/adr/ADR-019-agent-loader-trait-decouplage-runtime-pyo3.md](adr/ADR-019-agent-loader-trait-decouplage-runtime-pyo3.md) |
-| 2025-XX-XX | ADR-020 | LLM moteur embarqué — modèles externes + feature flags | [docs/adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md](adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) |
+| 2025-XX-XX | ADR-019 | AgentLoader trait - découplage runtime PyO3 | [docs/adr/ADR-019-agent-loader-trait-decouplage-runtime-pyo3.md](adr/ADR-019-agent-loader-trait-decouplage-runtime-pyo3.md) |
+| 2025-XX-XX | ADR-020 | LLM moteur embarqué - modèles externes + feature flags | [docs/adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md](adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) |
 | 2025-XX-XX | ADR-021 | Triggers TOML + HMAC + hot reload | [docs/adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md](adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) |
 | 2025-XX-XX | ADR-022 | ORIA Mode Orchestré (Option B) | [docs/adr/ADR-022-oria-mode-orchestre-option-b.md](adr/ADR-022-oria-mode-orchestre-option-b.md) |
-| 2025-XX-XX | ADR-023 | HITL — is_resumed, input, response, tools requiring approval | [docs/adr/ADR-023-hitl-is-resumed-input-response-tools-requiring-approval.md](adr/ADR-023-hitl-is-resumed-input-response-tools-requiring-approval.md) |
-| 2025-XX-XX | ADR-024 | Notifications — trait Channel, JSON fixe | [docs/adr/ADR-024-apollia-notifications-trait-channel-json-fixe.md](adr/ADR-024-apollia-notifications-trait-channel-json-fixe.md) |
-| 2025-XX-XX | ADR-025 | Pipelines TOML déclaratif — topologies natives + HITL intégré | [docs/adr/ADR-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md](adr/ADR-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md) |
-| 2025-XX-XX | ADR-026 | Observabilité complète — persistance timeline + troncature | [docs/adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md](adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md) |
-| 2025-XX-XX | ADR-027 | Desktop — processus unique Tauri + runtime embarqué | [docs/adr/ADR-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md](adr/ADR-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md) |
-| 2025-XX-XX | ADR-028 | Frontend Svelte — UX-first, UI sprint dédié | [docs/adr/ADR-028-frontend-svelte-ux-first-ui-sprint-dedie.md](adr/ADR-028-frontend-svelte-ux-first-ui-sprint-dedie.md) |
+| 2025-XX-XX | ADR-023 | HITL - is_resumed, input, response, tools requiring approval | [docs/adr/ADR-023-hitl-is-resumed-input-response-tools-requiring-approval.md](adr/ADR-023-hitl-is-resumed-input-response-tools-requiring-approval.md) |
+| 2025-XX-XX | ADR-024 | Notifications - trait Channel, JSON fixe | [docs/adr/ADR-024-apollia-notifications-trait-channel-json-fixe.md](adr/ADR-024-apollia-notifications-trait-channel-json-fixe.md) |
+| 2025-XX-XX | ADR-025 | Pipelines TOML déclaratif - topologies natives + HITL intégré | [docs/adr/ADR-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md](adr/ADR-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md) |
+| 2025-XX-XX | ADR-026 | Observabilité complète - persistance timeline + troncature | [docs/adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md](adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md) |
+| 2025-XX-XX | ADR-027 | Desktop - processus unique Tauri + runtime embarqué | [docs/adr/ADR-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md](adr/ADR-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md) |
+| 2025-XX-XX | ADR-028 | Frontend Svelte - UX-first, UI sprint dédié | [docs/adr/ADR-028-frontend-svelte-ux-first-ui-sprint-dedie.md](adr/ADR-028-frontend-svelte-ux-first-ui-sprint-dedie.md) |
 | 2025-XX-XX | ADR-029 | Settings lecture seule | [docs/adr/ADR-029-settings-lecture-seule.md](adr/ADR-029-settings-lecture-seule.md) |
-| 2025-XX-XX | ADR-030 | EventBus Tauri events — remplace polling | [docs/adr/ADR-030-eventbus-tauri-events-remplace-polling.md](adr/ADR-030-eventbus-tauri-events-remplace-polling.md) |
+| 2025-XX-XX | ADR-030 | EventBus Tauri events - remplace polling | [docs/adr/ADR-030-eventbus-tauri-events-remplace-polling.md](adr/ADR-030-eventbus-tauri-events-remplace-polling.md) |
 | 2025-XX-XX | ADR-031 | i18n svelte-i18n FR+EN | [docs/adr/ADR-031-i18n-svelte-i18n-fr-en.md](adr/ADR-031-i18n-svelte-i18n-fr-en.md) |
-| 2025-XX-XX | ADR-032 | Agent install — persistance | [docs/adr/ADR-032-agent-install-persistence.md](adr/ADR-032-agent-install-persistence.md) |
+| 2025-XX-XX | ADR-032 | Agent install - persistance | [docs/adr/ADR-032-agent-install-persistence.md](adr/ADR-032-agent-install-persistence.md) |
 | 2025-XX-XX | ADR-033 | Config opérateur SQLite | [docs/adr/ADR-033-config-operateur-sqlite.md](adr/ADR-033-config-operateur-sqlite.md) |
-| 2025-XX-XX | ADR-034 | Chat hybride — sessions, streaming, HITL inline | [docs/adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md](adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) |
+| 2025-XX-XX | ADR-034 | Chat hybride - sessions, streaming, HITL inline | [docs/adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md](adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) |
 | 2025-XX-XX | ADR-035 | Per-step observation en mode Orchestré | [docs/adr/ADR-035-per-step-observation-orchestrated.md](adr/ADR-035-per-step-observation-orchestrated.md) |
 | 2025-XX-XX | ADR-036 | Stratégie de cache de plans | [docs/adr/ADR-036-plan-cache-strategy.md](adr/ADR-036-plan-cache-strategy.md) |
 | 2025-XX-XX | ADR-037 | Packaging Python SDK | [docs/adr/ADR-037-python-sdk-packaging.md](adr/ADR-037-python-sdk-packaging.md) |
 | 2025-XX-XX | ADR-038 | Mémoire utilisateur globale | [docs/adr/ADR-038-global-user-memory.md](adr/ADR-038-global-user-memory.md) |
 | 2025-XX-XX | ADR-039 | Conversation memory management | [docs/adr/ADR-039-conversation-memory-management.md](adr/ADR-039-conversation-memory-management.md) |
 | 2025-XX-XX | ADR-040 | Onboarding conversationnel non-déterministe | [docs/adr/ADR-040-onboarding-conversational-agent.md](adr/ADR-040-onboarding-conversational-agent.md) |
-| 2025-XX-XX | ADR-041 | Moteur STT embarqué — whisper-rs + trait SttBackend | [docs/adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md](adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) |
+| 2025-XX-XX | ADR-041 | Moteur STT embarqué - whisper-rs + trait SttBackend | [docs/adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md](adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) |
 | 2025-XX-XX | ADR-042 | Remplacement mistral-rs par llama.cpp statique | [docs/adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md](adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md) |
 | 2025-XX-XX | ADR-043 | Décomposition atomique des outils | [docs/adr/ADR-043-decomposition-atomique-outils.md](adr/ADR-043-decomposition-atomique-outils.md) |
 | 2025-XX-XX | ADR-044 | Client MCP natif (JSON-RPC 2.0) | [docs/adr/ADR-044-client-mcp.md](adr/ADR-044-client-mcp.md) |
-| 2025-XX-XX | ADR-045 | Page Integrations — wizard générique | [docs/adr/ADR-045-page-integrations-wizard-generique.md](adr/ADR-045-page-integrations-wizard-generique.md) |
+| 2025-XX-XX | ADR-045 | Page Integrations - wizard générique | [docs/adr/ADR-045-page-integrations-wizard-generique.md](adr/ADR-045-page-integrations-wizard-generique.md) |
 | 2025-XX-XX | ADR-046 | Transport HTTP/SSE MCP | [docs/adr/ADR-046-transport-http-sse-mcp.md](adr/ADR-046-transport-http-sse-mcp.md) |
 | 2025-XX-XX | ADR-047 | Multi-LLM Backend Registry (SQLite) | [docs/adr/ADR-047-multi-llm-backend-registry.md](adr/ADR-047-multi-llm-backend-registry.md) |
-| 2025-XX-XX | ADR-048 | Worker Agents — expertise de domaine compilée | [docs/adr/ADR-048-worker-agents-expertise-domaine.md](adr/ADR-048-worker-agents-expertise-domaine.md) |
+| 2025-XX-XX | ADR-048 | Worker Agents - expertise de domaine compilée | [docs/adr/ADR-048-worker-agents-expertise-domaine.md](adr/ADR-048-worker-agents-expertise-domaine.md) |
 | 2025-XX-XX | ADR-049 | Routing A2A inter-agents : discovery + invocation | [docs/adr/ADR-049-a2a-routing-inter-agents.md](adr/ADR-049-a2a-routing-inter-agents.md) |
 | 2026-04-01 | ADR-050 | Distribution Worker Agents : bundled vs communautaire, registre local et Git | [docs/adr/ADR-050-distribution-worker-agents.md](adr/ADR-050-distribution-worker-agents.md) |
 | 2026-04-03 | ADR-051 | Authentification API REST : token statique + restriction loopback | [docs/adr/ADR-051-api-auth.md](adr/ADR-051-api-auth.md) |
@@ -80,7 +80,7 @@
 | 2026-04-15 | ADR-071 | ContextBootstrap : convention de bootstrapping de contexte agent (2 méthodes abstraites, SDK 0.2.0+) | [docs/adr/ADR-071-context-bootstrap-convention.md](adr/ADR-071-context-bootstrap-convention.md) |
 | 2026-04-17 | ADR-072 | Outils web natifs : architecture 2-étages `web_search` + `web_read` (backends pluggables DDG + Brave, extraction `dom_smoothie`, opt-in, SSRF) | [docs/adr/ADR-072-web-tools-architecture.md](adr/ADR-072-web-tools-architecture.md) |
 | 2026-04-19 | ADR-075 | GGUF multi-file : auto-détection pattern standard `-NNNNN-of-NNNNN.gguf` + FFI `llama_model_load_from_splits` pour naming custom | [docs/adr/ADR-075-gguf-multi-file-loading.md](adr/ADR-075-gguf-multi-file-loading.md) |
-| 2026-04-19 | ADR-077 | Design tokens v2 : 5 niveaux d'élévation avec rim light, warm dark (`28°` hue), primary utilities et backdrop mode-spécifique — source unique de vérité pour shadows/surfaces | [docs/adr/ADR-077-design-tokens-v2.md](adr/ADR-077-design-tokens-v2.md) |
+| 2026-04-19 | ADR-077 | Design tokens v2 : 5 niveaux d'élévation avec rim light, warm dark (`28°` hue), primary utilities et backdrop mode-spécifique - source unique de vérité pour shadows/surfaces | [docs/adr/ADR-077-design-tokens-v2.md](adr/ADR-077-design-tokens-v2.md) |
 | 2026-04-24 | ADR-079 | LLM Backend : DB-first, sync TOML atomique après mutation (strip + régénération `[[llm.backends]]`, best-effort, drop explicite ancien router) | [docs/adr/ADR-079-llm-db-first-toml-sync.md](adr/ADR-079-llm-db-first-toml-sync.md) |
 | 2026-04-24 | ADR-080 | Model Hub : intégration HuggingFace via token optionnel, zéro redistribution (API HF directe, `generation_config.json`, badges compatibilité hardware-aware, feature gate `cloud`) | [docs/adr/ADR-080-model-hub-hf-integration.md](adr/ADR-080-model-hub-hf-integration.md) |
 | 2026-04-26 | ADR-082 | Tool Governance : `governance.db` unifiée, scopes HITL session/project/global, ToolRegistry runtime, credentials AES-256-GCM, `web_search` DDG-first | [docs/adr/ADR-082-tool-governance-architecture.md](adr/ADR-082-tool-governance-architecture.md) |

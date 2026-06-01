@@ -29,7 +29,7 @@ use async_trait::async_trait;
 // ── Stub LLM (required by ActorLoop::execute signature) ─────────────────────
 
 /// Minimal `CompletionModel` that always returns an empty plan.
-/// Used to satisfy the `reasoner` parameter — replanification is never triggered
+/// Used to satisfy the `reasoner` parameter - replanification is never triggered
 /// in these tests because we pre-insert the plan and steps succeed or reject.
 struct StubLlm;
 
@@ -205,7 +205,7 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
     let mut actor = ActorLoop::new(plan, 0, db, bus_tx, manifest)
         .with_pending_approvals(Some(Arc::clone(&pending)));
 
-    // WHEN — spawn resolver that approves once TaskInputRequired{step_id=Some("s2")} seen
+    // WHEN - spawn resolver that approves once TaskInputRequired{step_id=Some("s2")} seen
     let pending_clone = Arc::clone(&pending);
     let task_id_clone = task_id.to_string();
     let resolver = tokio::spawn(async move {
@@ -241,7 +241,7 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
         .await;
     resolver.await.expect("resolver must not panic");
 
-    // THEN — plan completed successfully
+    // THEN - plan completed successfully
     assert_eq!(
         result.status,
         TaskStatus::Completed,
@@ -249,7 +249,7 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
         result.error
     );
 
-    // THEN — both tools invoked (s1 file_io + s2 smtp)
+    // THEN - both tools invoked (s1 file_io + s2 smtp)
     assert_eq!(
         tool_proxy.invocation_count(),
         2,
@@ -313,7 +313,7 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
     let (bus_tx, mut bus_rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
     let manifest = make_manifest_with_approval(&["smtp"]);
 
-    // Track invocations — s3 must NOT be called
+    // Track invocations - s3 must NOT be called
     let invocation_log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
     let invocation_log_clone = Arc::clone(&invocation_log);
 
@@ -344,7 +344,7 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
     let mut actor = ActorLoop::new(plan, 0, db, bus_tx, manifest)
         .with_pending_approvals(Some(Arc::clone(&pending)));
 
-    // WHEN — spawn resolver that rejects s2
+    // WHEN - spawn resolver that rejects s2
     let pending_clone = Arc::clone(&pending);
     let task_id_clone = task_id.to_string();
     let resolver = tokio::spawn(async move {
@@ -378,7 +378,7 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
         .await;
     resolver.await.expect("resolver must not panic");
 
-    // THEN — plan failed with REJECTED code
+    // THEN - plan failed with REJECTED code
     assert_eq!(
         result.status,
         TaskStatus::Failed,
@@ -387,12 +387,12 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
     let code = result.error.as_ref().map(|e| e.code.as_str()).unwrap_or("");
     assert_eq!(code, "REJECTED", "error code must be REJECTED");
 
-    // THEN — file_io called exactly once (s1 only, NOT s3)
+    // THEN - file_io called exactly once (s1 only, NOT s3)
     let log = invocation_log.lock().unwrap();
     let file_io_count = log.iter().filter(|t| t.as_str() == "file_io").count();
     assert_eq!(
         file_io_count, 1,
-        "file_io must only be called once (s1) — s3 must not execute; invocations: {log:?}"
+        "file_io must only be called once (s1) - s3 must not execute; invocations: {log:?}"
     );
     let smtp_count = log.iter().filter(|t| t.as_str() == "smtp").count();
     assert_eq!(smtp_count, 0, "smtp must never be invoked after rejection");

@@ -1,4 +1,4 @@
-# ADR-111 — Vision API typée + memory export/import
+# ADR-111 - Vision API typée + memory export/import
 
 **Date :** 2026-05-19
 **Statut :** Accepté
@@ -16,19 +16,19 @@ côté SDK Python** ou pas exposées du tout :
 L'enum côté Rust `apollia-llm::MessageContent` supporte deux variantes
 (`Text(String)`, `Image { base64: String, mime: String }`) côté
 providers cloud (Anthropic, OpenAI, Vertex). Côté llama-cpp local
-(`project_local_llm_engine`), seul `Text` est consommé — la vision
+(`project_local_llm_engine`), seul `Text` est consommé - la vision
 n'est pas dispo en local mais l'API doit la supporter pour les
 providers cloud.
 
 **État observé** :
 
-- `sdk/apollia/stubs/llm.py` (136 LOC) — `complete(messages: list[dict])`
+- `sdk/apollia/stubs/llm.py` (136 LOC) - `complete(messages: list[dict])`
   accepte des dicts amorphes. Aucun TypedDict pour `LlmMessage`,
   `MessageContent`, `ImageContent`. L'auteur qui veut envoyer une
   image doit reverse-engineer le shape depuis le code Rust.
 - 1 occurrence dans le repo (`agents/veille-ia/workers/synthesis-worker.py`)
   d'un dict `{"role": "user", "content": [{"type": "text", "text":
-  "..."}, {"type": "image", ...}]}` manuel — aucune validation.
+  "..."}, {"type": "image", ...}]}` manuel - aucune validation.
 - Aucune documentation docs/book/wiki ne montre comment envoyer une image.
 - Pas d'helper côté SDK (`apollia.types.image_from_path(p)`, etc.).
 
@@ -46,7 +46,7 @@ branché**. `ctx.memory` (stub) ne l'expose pas.
 - Aucun agent bundled ne sait sauvegarder sa mémoire en Python (cas
   d'usage légitime : checkpoint d'un agent long-running, debug en
   test).
-- L'ADR-066 reste un "écrit mais pas exploité" — un poids mort de la
+- L'ADR-066 reste un "écrit mais pas exploité" - un poids mort de la
   spec.
 
 Les deux problèmes sont distincts mais regroupés ici parce que :
@@ -137,12 +137,12 @@ class MemoryService(Protocol):
         procédurale) en dict JSON-sérialisable. Format ADR-066 v1."""
 
     async def import_data(self, data: dict) -> None:
-        """Importe une mémoire exportée. Merge (pas replace) — les
+        """Importe une mémoire exportée. Merge (pas replace) - les
         entrées existantes avec le même `id` sont écrasées.
         Raise DomainError("MEMORY_INVALID_FORMAT") si shape incorrect."""
 ```
 
-Format JSON aligné strictement avec ADR-066 (schema_version: 1) — pas
+Format JSON aligné strictement avec ADR-066 (schema_version: 1) - pas
 de nouveau format, juste exposition Python du round-trip Rust.
 
 Cas d'usage :
@@ -189,7 +189,7 @@ report. Pertinent immédiatement pour les tests intégration LOT 14.
 **Pour :** TypedDicts stdlib, helpers ergonomiques, mémoire boucle la
 boucle ADR-066, surface API mineure ajoutée, alignement avec ADR-101
 (Ctx Protocol exhaustif).
-**Compromis acceptés :** TypedDicts ne valident pas runtime — un dict
+**Compromis acceptés :** TypedDicts ne valident pas runtime - un dict
 mal formé n'est détecté qu'au passage côté Rust LLM provider. Acceptable
 (les helpers couvrent 95 % des cas).
 
@@ -199,10 +199,10 @@ mal formé n'est détecté qu'au passage côté Rust LLM provider. Acceptable
 
 - Vision exploitable proprement par les agents v1.0 (use case
   immédiat : agent d'analyse de screenshots pour le QA UI desktop).
-- ADR-066 enfin bouclé côté Python — round-trip mémoire testable.
+- ADR-066 enfin bouclé côté Python - round-trip mémoire testable.
 - Helpers `image_from_path` / `image_from_bytes` éliminent la boilerplate
   base64 + détection mime.
-- IDE autocomplete sur la structure `LlmMessage` — réduction des
+- IDE autocomplete sur la structure `LlmMessage` - réduction des
   bugs typo de provider.
 - Cohérence avec ADR-101 : `ctx.memory` et `ctx.llm` deviennent
   pleinement spec'd.
@@ -215,33 +215,33 @@ mal formé n'est détecté qu'au passage côté Rust LLM provider. Acceptable
 - Local llama-cpp ne supporte pas vision → l'auteur qui développe en
   local + déploie en cloud doit penser à switcher provider. Documenté.
 - Memory export d'un agent à mémoire volumineuse (~MB) renvoie un dict
-  Python lourd. Pas d'optimisation streaming en v1.0 (acceptable —
+  Python lourd. Pas d'optimisation streaming en v1.0 (acceptable -
   mémoire SQLite typique d'un agent ne dépasse pas quelques MB).
 
 **À surveiller :**
 
 - Émergence du besoin `ToolUseContent` / `ToolResultContent` pour les
-  providers qui exposent du native tool calling — extension naturelle
+  providers qui exposent du native tool calling - extension naturelle
   des MessageContent en v1.1.
-- Format ADR-066 v2 si évolution du schéma mémoire — `schema_version`
+- Format ADR-066 v2 si évolution du schéma mémoire - `schema_version`
   permet la migration.
 - Streaming export (genérateur Python) si agents accumulent trop de
   mémoire. Non v1.0.
 
 ## Principes architecturaux impactés
 
-- **Principe #2 — Zéro dépendance externe** : préservé (TypedDicts
+- **Principe #2 - Zéro dépendance externe** : préservé (TypedDicts
   stdlib, base64 stdlib, mimetypes stdlib).
-- **Principe #6 — Mémoire à initiative de l'agent** : l'agent invoque
+- **Principe #6 - Mémoire à initiative de l'agent** : l'agent invoque
   `export()` / `import_data()` explicitement. Pas d'auto-export.
-- **Principe #3 — Contrat minimal** : vision = TypedDict léger,
+- **Principe #3 - Contrat minimal** : vision = TypedDict léger,
   helpers optionnels.
 
 ## Liens
 
-- ADR-101 — `ctx` Protocol (`ctx.llm` et `ctx.memory` enrichis)
-- ADR-066 — Memory export/import format (cette ADR le boucle côté SDK)
-- ADR-078 — Meta-LLM orchestrator (consommateur naturel de la vision
+- ADR-101 - `ctx` Protocol (`ctx.llm` et `ctx.memory` enrichis)
+- ADR-066 - Memory export/import format (cette ADR le boucle côté SDK)
+- ADR-078 - Meta-LLM orchestrator (consommateur naturel de la vision
   multimodale si exploitée)
 - Mémoire `project_local_llm_engine` (contrainte llama-cpp text-only
   documentée)

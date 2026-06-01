@@ -1,4 +1,4 @@
-# ADR-105 — Events publics typés (`ctx.events`)
+# ADR-105 - Events publics typés (`ctx.events`)
 
 **Date :** 2026-05-19
 **Statut :** Accepté
@@ -18,7 +18,7 @@ des méthodes nommées implicitement sur `RuntimeContext` :
 `sdk/apollia/stubs/context.py`) :
 
 - `react.py:187` définit un helper `_emit_safe(ctx, method, *args)` qui
-  fait `getattr(ctx, method, lambda *a: None)(*args)` — i.e. **le SDK
+  fait `getattr(ctx, method, lambda *a: None)(*args)` - i.e. **le SDK
   lui-même ne fait pas confiance** à la présence des méthodes
   d'événements sur `ctx`. C'est défensif contre les contexts de test
   qui n'implémentent pas tout.
@@ -27,7 +27,7 @@ des méthodes nommées implicitement sur `RuntimeContext` :
   4 mentions vagues dans des docstrings, aucune signature explicite).
 - L'auteur d'agent qui veut émettre une "thought" custom doit deviner
   la signature (`emit_thought(text, step_num)` ? `emit_thought(text)` ?).
-  Cherche dans `crates/apollia-aip/src/context.rs` pour la trouver —
+  Cherche dans `crates/apollia-aip/src/context.rs` pour la trouver -
   ce qui contredit l'idée que le SDK Python est self-contained.
 - Côté runtime : 4 méthodes implémentées côté Rust (`emit_token`,
   `emit_thought`, `emit_retry`, `emit_action_parse_error`). Pas d'event
@@ -43,7 +43,7 @@ des méthodes nommées implicitement sur `RuntimeContext` :
 **Nous adoptons un service `ctx.events` typé via `Protocol`, exposant
 explicitement les événements publics que les agents peuvent émettre.
 Tous les events sont no-op gracieux si le runtime n'est pas branché
-(testing, mock). Le helper `_emit_safe` disparaît du SDK — remplacé par
+(testing, mock). Le helper `_emit_safe` disparaît du SDK - remplacé par
 le contrat formel.**
 
 Surface publique :
@@ -86,42 +86,42 @@ class EventsService(Protocol):
 
 Règles :
 
-1. **Tous synchrones non-async** — l'émission événement est un
+1. **Tous synchrones non-async** - l'émission événement est un
    `send` non-bloquant côté Rust (mpsc::Sender vers EventBus). Pas
    d'await côté Python.
-2. **No-op gracieux** — si `ctx.events` est un `NullEventsService`
+2. **No-op gracieux** - si `ctx.events` est un `NullEventsService`
    (testing), toutes les méthodes retournent sans rien faire. Plus
    besoin de `getattr(..., lambda: None)` côté agent.
-3. **Pas de méthode custom** — l'auteur n'invente pas ses propres
+3. **Pas de méthode custom** - l'auteur n'invente pas ses propres
    events. Pour de la donnée métier qui doit voyager, utiliser
    `ctx.logger.info(...)` (ADR-106) avec extra fields structurés.
-4. **Contrat versionné** — ajouter un event = mineur SemVer SDK ;
+4. **Contrat versionné** - ajouter un event = mineur SemVer SDK ;
    renommer/supprimer = majeur. La liste reste maîtrisée (cible :
    ~10 events max).
-5. **Le runtime DOIT exposer les 8 méthodes** — vérifié au load par le
+5. **Le runtime DOIT exposer les 8 méthodes** - vérifié au load par le
    check Protocol (ADR-101). Une divergence = fail à l'import.
 
 ## Alternatives considérées
 
-### Option A — Conserver le pattern `getattr` défensif (rejetée)
+### Option A - Conserver le pattern `getattr` défensif (rejetée)
 
 **Pour :** rétrocompat.
 **Contre :** maintient la confusion runtime/test. Aucun typage IDE.
 Auteur ne sait jamais quel event est émis vs ignoré.
 
-### Option B — Un seul `ctx.events.emit(kind, **data)` générique (rejetée)
+### Option B - Un seul `ctx.events.emit(kind, **data)` générique (rejetée)
 
 **Pour :** ultra-simple, ajouter un event ne touche pas le Protocol.
 **Contre :** zéro autocomplete, zéro typage des payloads, zéro
 discoverabilité. L'UI desktop doit deviner les `kind` en wild.
 
-### Option C — Pub/sub (l'agent publie, le runtime souscrit) avec topic strings (rejetée)
+### Option C - Pub/sub (l'agent publie, le runtime souscrit) avec topic strings (rejetée)
 
 **Pour :** flexible.
 **Contre :** abstraction inutile pour notre usage (l'UI desktop est le
 seul consommateur réel). Surface API plus large pour rien.
 
-### Option retenue — Protocol typé, 8 events nommés, no-op gracieux
+### Option retenue - Protocol typé, 8 events nommés, no-op gracieux
 
 **Pour :** chaque event est documenté et typé, autocomplete IDE clair,
 le mock testing implémente `NullEventsService` une fois pour toutes,
@@ -134,15 +134,15 @@ veut émettre du custom, il passe par `ctx.logger.info(...)`. Acceptable.
 **Positives :**
 
 - Élimination de `_emit_safe` et de tous les `getattr(ctx, "emit_X",
-  lambda *a: None)` — code agent plus propre.
+  lambda *a: None)` - code agent plus propre.
 - L'UI desktop (builder mode) gagne 4 nouveaux events
   (`emit_action`, `emit_observation`, `emit_progress`, `emit_warning`)
   qui matérialisent la promesse "plus transparent que Claude.ai" (cf.
   mémoire `project_sprint42_frontend`).
-- Mode operator (`feedback_operator_builder_modes`) reste minimaliste —
+- Mode operator (`feedback_operator_builder_modes`) reste minimaliste -
   il n'affiche que `emit_progress` + `emit_warning` (les events
   pertinents pour un humain non-builder).
-- Mock testing trivial — `NullEventsService()` injecté dans les tests.
+- Mock testing trivial - `NullEventsService()` injecté dans les tests.
 - Contract clair runtime ↔ SDK : ajout d'event = 3 fichiers patchés en
   parallèle (SDK Protocol + Rust impl + UI consumer).
 
@@ -152,10 +152,10 @@ veut émettre du custom, il passe par `ctx.logger.info(...)`. Acceptable.
   cas, `ctx.logger.info(...)` avec `extra={...}` couvre. Documenter le
   pattern.
 - Le runtime Rust doit implémenter 4 nouveaux events (`emit_action`,
-  `emit_observation`, `emit_progress`, `emit_warning`) — effort estimé
+  `emit_observation`, `emit_progress`, `emit_warning`) - effort estimé
   0.5j sur LOT 8.
 - L'UI desktop builder mode doit consommer ces nouveaux events
-  (renderer, store SSE) — ~0.5j.
+  (renderer, store SSE) - ~0.5j.
 
 **À surveiller :**
 
@@ -163,23 +163,23 @@ veut émettre du custom, il passe par `ctx.logger.info(...)`. Acceptable.
   500 sources) : si l'EventBus sature, ajouter du throttling côté Rust
   per-event-type.
 - Émergence d'events métier récurrents (ex. `emit_skill_started/ended`)
-  — candidate à ajout en v1.1 si demande forte.
+  - candidate à ajout en v1.1 si demande forte.
 - Sémantique de `emit_progress(ratio)` quand l'agent ne connaît pas le
   total : documenter `ratio=None` comme "indéterminé".
 
 ## Principes architecturaux impactés
 
-- **Principe #3 — Contrat minimal** : events sont opt-in (l'agent ne les
+- **Principe #3 - Contrat minimal** : events sont opt-in (l'agent ne les
   émet que s'il le veut). Aucune obligation.
-- **Principe #5 — Un acteur, une responsabilité** : `EventsService` =
+- **Principe #5 - Un acteur, une responsabilité** : `EventsService` =
   acteur EventBus côté Rust, sans état côté Python.
-- **Principe #8 — CLI humaine, API machine** : events alimentent à la
+- **Principe #8 - CLI humaine, API machine** : events alimentent à la
   fois l'UI humaine (operator/builder) et l'API machine (HTTP SSE).
 
 ## Liens
 
-- ADR-101 — `ctx` Protocol (ajoute `ctx.events`)
-- ADR-106 — Logger structuré (escape hatch pour events custom)
-- ADR-098 — Decorator-first (`ctx.events` exposé via Protocol cohérent)
-- Mémoire `project_sprint42_frontend` — builder mode "plus transparent
+- ADR-101 - `ctx` Protocol (ajoute `ctx.events`)
+- ADR-106 - Logger structuré (escape hatch pour events custom)
+- ADR-098 - Decorator-first (`ctx.events` exposé via Protocol cohérent)
+- Mémoire `project_sprint42_frontend` - builder mode "plus transparent
   que Claude.ai" (consommateur principal de ces events)

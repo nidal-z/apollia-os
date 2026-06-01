@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence A2A — Discovery & Invocation (Happy Path) — Apollia OS
+title Séquence A2A - Discovery & Invocation (Happy Path) - Apollia OS
 
 participant "Director Agent\n(ORIA ReAct)" as director #2d4a22
 participant "RuntimeContext\n(PyO3)" as ctx #1a1a2e
@@ -41,7 +41,7 @@ end note
 invoker -> invoker : validate_chain(\n  parent_chain=[],\n  current="director",\n  target="excel-worker",\n  max_hops=5\n)
 invoker -> invoker : child_chain = ["director"]\nbuild A2AContext {\n  caller: "director",\n  skill_id: "read-excel",\n  delegation_chain: ["director"],\n  user_memory_read_only: true,\n  timeout: configured\n}
 
-== 4. Event — Invocation Started ==
+== 4. Event - Invocation Started ==
 
 invoker -> bus : emit A2AInvocationStarted {\n  caller: "director",\n  target: "excel-worker",\n  skill_id: "read-excel"\n}
 
@@ -67,7 +67,7 @@ worker --> router : AIPResult.completed() {\n  output: "{parsed data}"\n}
 
 router --> invoker : A2AInvocationResult {\n  result: "{parsed data}",\n  agent_name: "excel-worker",\n  skill_id: "read-excel",\n  duration_ms: 1240\n}
 
-== 8. Event — Invocation Completed ==
+== 8. Event - Invocation Completed ==
 
 invoker -> bus : emit A2AInvocationCompleted {\n  caller: "director",\n  target: "excel-worker",\n  skill_id: "read-excel",\n  duration_ms: 1240,\n  success: true\n}
 

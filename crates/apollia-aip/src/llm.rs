@@ -614,7 +614,7 @@ fn py_dict_to_chat_message(py: Python<'_>, obj: &PyObject) -> PyResult<ChatMessa
         "tool" => Role::Tool,
         other => {
             return Err(PyValueError::new_err(format!(
-                "unknown role '{other}' — expected system/user/assistant/tool"
+                "unknown role '{other}' - expected system/user/assistant/tool"
             )))
         }
     };
@@ -695,7 +695,7 @@ fn flatten_multimodal_content(py: Python<'_>, content: &Bound<'_, PyAny>) -> PyR
                 // text-only backend so they can switch to a cloud vision model.
                 tracing::warn!(
                     media = %descriptor,
-                    "vision content received by LlmProxy — current backends are text-only, \
+                    "vision content received by LlmProxy - current backends are text-only, \
                      image was flattened to a placeholder"
                 );
                 // Drop the dumped JSON if we ever need it for debugging.
@@ -703,7 +703,7 @@ fn flatten_multimodal_content(py: Python<'_>, content: &Bound<'_, PyAny>) -> PyR
             }
             other => {
                 return Err(PyValueError::new_err(format!(
-                    "unknown content block type '{other}' — expected 'text' or 'image'"
+                    "unknown content block type '{other}' - expected 'text' or 'image'"
                 )));
             }
         }

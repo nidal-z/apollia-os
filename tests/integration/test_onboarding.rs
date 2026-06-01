@@ -1,4 +1,4 @@
-//! Integration tests — Sprint 23 onboarding subsystem.
+//! Integration tests - Sprint 23 onboarding subsystem.
 //!
 //! Validates the end-to-end interactions between `apollia-memory` (UserMemory),
 //! `apollia-runtime` (Supervisor onboarding detection, chat extractor),
@@ -186,7 +186,7 @@ async fn test_onboarding_agent_e2e() {
     let router = mock_router(ONBOARDING_EXTRACTION_JSON);
     let messages = make_onboarding_messages();
 
-    // WHEN — extract user memory from the onboarding conversation
+    // WHEN - extract user memory from the onboarding conversation
     let extraction = extract_user_memory(&messages, &router)
         .await
         .expect("extraction should succeed");
@@ -202,7 +202,7 @@ async fn test_onboarding_agent_e2e() {
     repo.set_last_onboarding_session("2026-06-24T10:05:00Z")
         .expect("set session timestamp");
 
-    // THEN — at least 3 entries exist with source onboarding
+    // THEN - at least 3 entries exist with source onboarding
     let all_prefs = repo
         .recall(UserMemoryCategory::Preferences, 50)
         .expect("recall preferences");
@@ -272,7 +272,7 @@ async fn test_onboarding_agent_e2e() {
 ///      AND the user_memory repository reports is_empty = true
 #[tokio::test]
 async fn test_first_launch_onboarding_required() {
-    // GIVEN — empty UserMemory
+    // GIVEN - empty UserMemory
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = create_user_memory(dir.path(), &[]);
     let event_bus = make_event_bus();
@@ -284,10 +284,10 @@ async fn test_first_launch_onboarding_required() {
         "fresh repo should be empty"
     );
 
-    // WHEN — detection runs (mirrors supervisor.rs logic)
+    // WHEN - detection runs (mirrors supervisor.rs logic)
     let _ = event_bus.send(RuntimeEvent::OnboardingRequired);
 
-    // THEN — the event is received
+    // THEN - the event is received
     let event = tokio::time::timeout(Duration::from_secs(1), rx.recv())
         .await
         .expect("should receive within 1s")
@@ -298,7 +298,7 @@ async fn test_first_launch_onboarding_required() {
         "expected OnboardingRequired, got: {event:?}"
     );
 
-    // AND — verify is_empty is true (pre-condition for detection)
+    // AND - verify is_empty is true (pre-condition for detection)
     assert!(repo.is_empty().expect("is_empty"));
 }
 
@@ -307,7 +307,7 @@ async fn test_first_launch_onboarding_required() {
 /// THEN OnboardingRequired is NOT emitted
 #[tokio::test]
 async fn test_subsequent_launch_no_onboarding() {
-    // GIVEN — populated UserMemory
+    // GIVEN - populated UserMemory
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = create_user_memory(
         dir.path(),
@@ -321,7 +321,7 @@ async fn test_subsequent_launch_no_onboarding() {
     let event_bus = make_event_bus();
     let mut rx = event_bus.subscribe();
 
-    // WHEN — simulate Supervisor detection (only fires if empty)
+    // WHEN - simulate Supervisor detection (only fires if empty)
     let is_empty = repo.is_empty().expect("is_empty");
     if is_empty {
         let _ = event_bus.send(RuntimeEvent::OnboardingRequired);
@@ -330,7 +330,7 @@ async fn test_subsequent_launch_no_onboarding() {
     // Emit a sentinel to prove the bus works but OnboardingRequired was never sent
     let _ = event_bus.send(RuntimeEvent::AllReady);
 
-    // THEN — receive AllReady, not OnboardingRequired
+    // THEN - receive AllReady, not OnboardingRequired
     let event = tokio::time::timeout(Duration::from_secs(1), rx.recv())
         .await
         .expect("should receive within 1s")
@@ -352,7 +352,7 @@ async fn test_subsequent_launch_no_onboarding() {
 ///      AND existing entries in other categories are preserved
 #[tokio::test]
 async fn test_onboarding_retrigger_topic() {
-    // GIVEN — pre-populated memory from initial onboarding
+    // GIVEN - pre-populated memory from initial onboarding
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = create_user_memory(
         dir.path(),
@@ -394,7 +394,7 @@ async fn test_onboarding_retrigger_topic() {
         "existing context should include user role"
     );
 
-    // WHEN — simulate partial onboarding focused on preferences
+    // WHEN - simulate partial onboarding focused on preferences
     // The mock LLM returns updated preference data
     let preferences_json = r#"{
         "preferences": [
@@ -468,7 +468,7 @@ async fn test_onboarding_retrigger_topic() {
     // Persist new entries
     persist_extraction(&repo, &extraction, UserMemorySource::Onboarding);
 
-    // THEN — new preference entries are persisted
+    // THEN - new preference entries are persisted
     let prefs = repo
         .recall(UserMemoryCategory::Preferences, 50)
         .expect("recall preferences");
@@ -486,7 +486,7 @@ async fn test_onboarding_retrigger_topic() {
     assert!(keys.contains(&"verbosity"), "verbosity should be stored");
     assert!(keys.contains(&"language"), "language should be preserved");
 
-    // AND — existing context entries are untouched
+    // AND - existing context entries are untouched
     // (context also contains onboarding_topic_* markers from mark_topic_covered)
     let ctx = repo
         .recall(UserMemoryCategory::Context, 50)
@@ -495,7 +495,7 @@ async fn test_onboarding_retrigger_topic() {
     assert!(ctx_keys.contains(&"name"), "name should be preserved");
     assert!(ctx_keys.contains(&"role"), "role should be preserved");
 
-    // AND — covered topics are preserved
+    // AND - covered topics are preserved
     let covered = repo.get_covered_topics().expect("get_covered_topics");
     assert!(covered.contains(&"identity".to_string()));
     assert!(covered.contains(&"preferences".to_string()));
@@ -509,7 +509,7 @@ async fn test_onboarding_retrigger_topic() {
 ///      AND running the same extraction again produces no duplicates
 #[tokio::test]
 async fn test_passive_enrichment_post_session() {
-    // GIVEN — empty UserMemory + mock LLM returning tool-related extractions
+    // GIVEN - empty UserMemory + mock LLM returning tool-related extractions
     let dir = tempfile::tempdir().expect("tempdir");
     let db_path = dir.path().join("user_memory.db");
     let repo =
@@ -525,14 +525,14 @@ async fn test_passive_enrichment_post_session() {
 
     let messages = make_chat_messages(10);
 
-    // WHEN — first extraction
+    // WHEN - first extraction
     let mut extractor = UserMemoryExtractor::new(Arc::clone(&router), Arc::clone(&repo_arc));
     let count = extractor
         .extract_from_session(&messages)
         .await
         .expect("first extraction should succeed");
 
-    // THEN — 3 entries created
+    // THEN - 3 entries created
     assert_eq!(count, 3, "should create 3 new entries");
 
     {
@@ -564,7 +564,7 @@ async fn test_passive_enrichment_post_session() {
         assert_eq!(ctx[0].key, "stack");
     }
 
-    // WHEN — second extraction with same data (simulate duplicate session)
+    // WHEN - second extraction with same data (simulate duplicate session)
     // Reset rate limiter by creating a fresh extractor
     let mut extractor2 = UserMemoryExtractor::new(Arc::clone(&router), Arc::clone(&repo_arc));
     let count2 = extractor2
@@ -572,7 +572,7 @@ async fn test_passive_enrichment_post_session() {
         .await
         .expect("second extraction should succeed");
 
-    // THEN — no new entries (deduplication kicks in: same value = skip)
+    // THEN - no new entries (deduplication kicks in: same value = skip)
     assert_eq!(count2, 0, "duplicate entries should not be created");
 
     {

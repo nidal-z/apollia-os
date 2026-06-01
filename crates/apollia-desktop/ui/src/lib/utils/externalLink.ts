@@ -1,14 +1,14 @@
 // External URL helpers for the Tauri webview.
 //
 // Tauri 2 disables `window.open()` and ignores `<a target="_blank">` by
-// default — outbound clicks were silently dead before this module landed.
+// default - outbound clicks were silently dead before this module landed.
 // The canonical fix is the `tauri-plugin-opener` plugin (paired with the
 // `opener:default` + `opener:allow-open-url` capability permissions).
 //
 // We export two helpers:
-//   - `openExternalUrl(url)` — async, returns Promise<void>. Use from event
+//   - `openExternalUrl(url)` - async, returns Promise<void>. Use from event
 //     handlers that can `await`.
-//   - `handleExternalLinkClick(event)` — synchronous Svelte event handler
+//   - `handleExternalLinkClick(event)` - synchronous Svelte event handler
 //     that intercepts a left-click on a normal `<a href>` link and routes
 //     the URL through the opener. Bind with `onclick={handleExternalLinkClick}`.
 //
@@ -29,7 +29,7 @@ function isTauri(): boolean {
  * routes to `window.open` for parity during dev preview.
  *
  * Logs (and swallows) errors so callers don't have to wrap each invocation
- * in try/catch — outbound link failures are non-critical and the worst case
+ * in try/catch - outbound link failures are non-critical and the worst case
  * is the user manually copy-pasting the URL.
  */
 export async function openExternalUrl(url: string): Promise<void> {
@@ -56,7 +56,7 @@ export async function openExternalUrl(url: string): Promise<void> {
 export function handleExternalLinkClick(
   event: MouseEvent & { currentTarget: EventTarget & HTMLAnchorElement },
 ): void {
-  // Respect modified clicks (open-in-new-window etc.) — the user explicitly
+  // Respect modified clicks (open-in-new-window etc.) - the user explicitly
   // wants the browser shortcut behaviour, don't override.
   if (
     event.metaKey ||

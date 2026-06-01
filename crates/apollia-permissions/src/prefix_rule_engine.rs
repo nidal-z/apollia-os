@@ -1,4 +1,4 @@
-//! Couche 2 du moteur de permissions — PrefixRuleEngine SQLite.
+//! Couche 2 du moteur de permissions - PrefixRuleEngine SQLite.
 //!
 //! Persiste des règles Allow/Deny par préfixe d'argument dans SQLite.
 //! Permet à l'opérateur (ou au bouton "Toujours autoriser" HITL desktop)
@@ -31,7 +31,7 @@ use crate::migrations::add_column_if_missing;
 // Types publics
 // ─────────────────────────────────────────────
 
-/// Action d'une règle de préfixe — Allow ou Deny.
+/// Action d'une règle de préfixe - Allow ou Deny.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RuleAction {
     /// Auto-approuver les invocations correspondant à cette règle.
@@ -76,7 +76,7 @@ pub enum PermissionScope {
     /// Règle persistée et filtrée par identité de l'agent courant.
     ///
     /// S'applique à tout invocation émise par l'agent dont l'`agent_id` matche.
-    /// Indépendante du projet — un agent peut être lancé hors projet.
+    /// Indépendante du projet - un agent peut être lancé hors projet.
     Agent,
     /// Règle persistée s'appliquant à n'importe quel projet.
     #[default]
@@ -94,7 +94,7 @@ impl PermissionScope {
         }
     }
 
-    /// Parse la valeur stockée en base — par défaut `Global` pour les colonnes nulles.
+    /// Parse la valeur stockée en base - par défaut `Global` pour les colonnes nulles.
     fn from_db_str(s: &str) -> Result<Self, PermissionError> {
         match s {
             "session" => Ok(PermissionScope::Session),
@@ -113,7 +113,7 @@ impl PermissionScope {
 /// Communiqué au `PrefixRuleEngine` pour filtrer les règles `Project`/`Agent`.
 #[derive(Debug, Clone, Default)]
 pub struct ScopeContext {
-    /// Portée associée à l'invocation courante (informatif — non utilisé pour le filtrage).
+    /// Portée associée à l'invocation courante (informatif - non utilisé pour le filtrage).
     pub scope: PermissionScope,
     /// Chemin canonique du projet courant (`None` lorsque hors projet).
     pub project_path: Option<PathBuf>,
@@ -247,7 +247,7 @@ impl PrefixRuleEngine {
                 tracing::warn!(
                     rule_id = id,
                     tool = %tool_name,
-                    "expired prefix rule encountered — ignored"
+                    "expired prefix rule encountered - ignored"
                 );
                 continue;
             }
@@ -731,7 +731,7 @@ fn match_in_session(
                 tracing::warn!(
                     rule_id = r.id,
                     tool = %tool_name,
-                    "expired session rule encountered — ignored"
+                    "expired session rule encountered - ignored"
                 );
                 false
             } else {
@@ -800,7 +800,7 @@ fn scan_rows(
                 rule_id = id,
                 tool = %tool_name,
                 scope = %scope,
-                "expired prefix rule encountered — ignored"
+                "expired prefix rule encountered - ignored"
             );
             continue;
         }

@@ -1,4 +1,4 @@
-# Apollia OS — "batteries included" Python site-packages bundled into the
+# Apollia OS - "batteries included" Python site-packages bundled into the
 # desktop DMG/AppImage (ADR-074 §1.b).
 #
 # These packages are pre-installed in the bundled Python distribution so that

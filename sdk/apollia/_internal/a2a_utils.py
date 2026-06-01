@@ -2,7 +2,7 @@
 
 The public surface relies on the ``@skill`` decorator plus the dispatch
 glue in :mod:`apollia._internal.dispatch` to route tasks. Agent code
-should not need to call these helpers directly — they live here so they
+should not need to call these helpers directly - they live here so they
 can be shared between dispatch primitives without leaking through the
 public API.
 """
@@ -58,7 +58,7 @@ def extract_a2a_payload(task: Any) -> dict[str, Any]:
     for the rare case where a worker is exercised directly with a textual
     JSON blob (tests, manual chat invocation, REST ``POST /api/v1/tasks``).
 
-    Returns an empty dict when no usable payload is found — callers should
+    Returns an empty dict when no usable payload is found - callers should
     treat that as "missing required fields" and return a domain error.
     """
     parts = _extract_parts(task)
@@ -84,7 +84,7 @@ def extract_skill_id(task: Any) -> str | None:
     Populated by the runtime when a task is dispatched through the A2A
     delegate (``ctx.a2a.invoke("chart.bar", payload)`` ⇒
     ``task["skill_id"] == "chart.bar"``). Workers that expose **multiple**
-    skills must read this field to know which one was invoked — the
+    skills must read this field to know which one was invoked - the
     payload alone is insufficient because ``AIPTask`` is the only carrier
     of routing information.
 

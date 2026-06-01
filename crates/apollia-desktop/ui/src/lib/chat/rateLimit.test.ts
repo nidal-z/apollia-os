@@ -36,7 +36,7 @@ describe("ChatRateLimiter", () => {
     const rl = new ChatRateLimiter(0, 2);
     rl.record(1_000);
     rl.record(2_000);
-    // 61 s later — both old entries are evicted.
+    // 61 s later - both old entries are evicted.
     expect(rl.check(62_001).allowed).toBe(true);
   });
 });

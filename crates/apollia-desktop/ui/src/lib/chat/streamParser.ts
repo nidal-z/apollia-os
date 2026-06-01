@@ -3,7 +3,7 @@
  *
  * Segments an incrementally-growing token stream into typed blocks
  * (`text`, `thinking`, `tool`) without relying on fragile regex replaces.
- * Safe to call on every buffer update — the parser performs a single
+ * Safe to call on every buffer update - the parser performs a single
  * linear scan with no backtracking.
  */
 

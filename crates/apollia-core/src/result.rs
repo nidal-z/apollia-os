@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::task::{AIPPart, DataPart, TextPart};
 
 // ─────────────────────────────────────────────
-// HITL — Human-in-the-Loop types (Sprint 11)
+// HITL - Human-in-the-Loop types (Sprint 11)
 // ─────────────────────────────────────────────
 
 /// Données portées par [`AIPResult`] quand `status == InputRequired`.
@@ -31,7 +31,7 @@ pub struct InputRequiredData {
 pub struct InputResponseData {
     /// `true` si l'utilisateur a approuvé, `false` si rejeté.
     pub approved: bool,
-    /// Raison transmise à l'agent — `None` si approuvé, potentiellement peuplé si rejeté.
+    /// Raison transmise à l'agent - `None` si approuvé, potentiellement peuplé si rejeté.
     pub reason: Option<String>,
     /// Contexte JSON sérialisé par l'agent au moment du suspend, restitué intégralement dans [`InputResponseData::context`].
     pub context: serde_json::Value,

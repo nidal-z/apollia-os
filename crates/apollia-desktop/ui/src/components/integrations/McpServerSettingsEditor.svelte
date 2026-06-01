@@ -52,7 +52,7 @@
   let callTimeoutDraft = $state(60);
   let envValuesDraft = $state<Record<string, string>>({}); // plain (non-secret) env values
   let secretRotateValues = $state<Record<string, string>>({}); // new secret material per key
-  /** Env keys whose value is `${APOLLIA_OAUTH}` — managed via the OAuth
+  /** Env keys whose value is `${APOLLIA_OAUTH}` - managed via the OAuth
    *  orchestrator, not through static rotation (ADR-095 Phase 5). */
   let oauthEnvHeaders = $state<string[]>([]);
   let oauthReconnecting = $state(false);
@@ -123,7 +123,7 @@
       initTimeoutDraft = raw.init_timeout_secs;
       callTimeoutDraft = raw.call_timeout_secs;
 
-      // Hydrate env drafts — plain values become editable, secrets stay as
+      // Hydrate env drafts - plain values become editable, secrets stay as
       // placeholders with a separate rotation field initialised empty, OAuth
       // placeholders are surfaced separately so the operator can re-trigger
       // the sign-in flow without seeing them as "static secrets".
@@ -171,7 +171,7 @@
 
   // ── OAuth reconnect (ADR-095 Phase 5) ────────────────────────────────────────
 
-  /** Re-run the MCP OAuth flow for this server. Re-uses `mcp_oauth_login` —
+  /** Re-run the MCP OAuth flow for this server. Re-uses `mcp_oauth_login` -
    *  idempotent at the orchestrator level: a fresh token simply overwrites the
    *  one persisted under `mcp_oauth:{server_name}`. */
   async function reconnectOAuth(): Promise<void> {
@@ -244,7 +244,7 @@
           value,
         });
       }
-      // 2. PUT the updated config — the runtime does remove → add → persist
+      // 2. PUT the updated config - the runtime does remove → add → persist
       //    and restarts the server with the new parameters.
       const next = buildNextConfig();
       if (!next) return;
@@ -302,10 +302,10 @@
     const id = launcherHead.findLast?.(looksLikePackageIdentifier);
     if (!id) return null;
     if (id.includes("server-filesystem")) {
-      return "Un chemin absolu par ligne — chaque dossier listé devient accessible en lecture/écriture au serveur (ex. `/Users/moi/Documents`).";
+      return "Un chemin absolu par ligne - chaque dossier listé devient accessible en lecture/écriture au serveur (ex. `/Users/moi/Documents`).";
     }
     if (id.includes("server-git")) {
-      return "Un dépôt par ligne — chemin absolu vers la racine d'un dépôt Git auquel exposer l'historique.";
+      return "Un dépôt par ligne - chemin absolu vers la racine d'un dépôt Git auquel exposer l'historique.";
     }
     if (id.includes("server-postgres")) {
       return "URI de connexion PostgreSQL (`postgres://user:pass@host:5432/db`) en premier argument.";
@@ -354,7 +354,7 @@
           </div>
         </div>
         <p class="text-[10.5px] text-muted-foreground leading-[1.5]">
-          Ces champs ne sont pas éditables ici — ils proviennent du catalogue. Pour pointer ce serveur vers un autre paquet, désinstallez puis réinstallez via le catalogue.
+          Ces champs ne sont pas éditables ici - ils proviennent du catalogue. Pour pointer ce serveur vers un autre paquet, désinstallez puis réinstallez via le catalogue.
         </p>
       </Card>
 
@@ -411,7 +411,7 @@
     {/if}
 
     {#if oauthEnvHeaders.length > 0}
-      <!-- OAuth (ADR-095 Phase 5) — the token is managed by the orchestrator,
+      <!-- OAuth (ADR-095 Phase 5) - the token is managed by the orchestrator,
            never exposed to the user. Surface its presence + offer a sign-in
            refresh button so the operator can rotate without uninstalling. -->
       <Card class="p-[14px_16px] space-y-2.5" data-testid="mcp-settings-oauth">

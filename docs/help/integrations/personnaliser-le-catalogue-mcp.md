@@ -92,4 +92,4 @@ Les champs obligatoires sont `package_identifier`, `operator_label`, `category`,
 - Pas de validation cryptographique sur les entrées `add` (vous êtes responsable du contenu).
 - Pas de gouvernance multi-utilisateur (PR review), prévu en v0.3 avec un registry remote optionnel.
 
-> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP) , schéma complet `ConnectorEnrichment`, ordre d'application, cas particuliers.
+> **Référence technique :** [Briques-MCP](https://github.com/Apollia-OS/apollia-os/wiki/Briques-MCP) , schéma complet `ConnectorEnrichment`, ordre d'application, cas particuliers.

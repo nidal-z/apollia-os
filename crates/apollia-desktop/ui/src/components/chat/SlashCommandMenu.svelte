@@ -43,7 +43,7 @@
           <div class="flex items-center gap-1.5 font-medium">
             <span class="text-muted-foreground/60">/</span>
             <span>{cmd.name}</span>
-            <span class="text-muted-foreground/60">— {$t(cmd.labelKey)}</span>
+            <span class="text-muted-foreground/60">- {$t(cmd.labelKey)}</span>
           </div>
           <div class="truncate text-[10px] text-muted-foreground/70">
             {$t(cmd.descriptionKey)}

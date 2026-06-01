@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# reinstall-agents.sh — Désinstalle puis réinstalle tous les agents/packages
+# reinstall-agents.sh - Désinstalle puis réinstalle tous les agents/packages
 # locaux dans le daemon Apollia OS en cours d'exécution.
 #
 # Use case : tu modifies le SDK (sdk/apollia/...) ou un agent (agents/...) et
@@ -100,7 +100,7 @@ if [ ! -x "$APOLLIA" ]; then
 fi
 
 if [ ! -S "$SOCKET" ]; then
-    echo "ERROR: daemon socket absent ($SOCKET) — start it with:" >&2
+    echo "ERROR: daemon socket absent ($SOCKET) - start it with:" >&2
     echo "       $APOLLIA start" >&2
     exit 1
 fi
@@ -127,7 +127,7 @@ else
     selected=("${PACKAGES[@]}")
 fi
 
-echo "=== Apollia — reinstall agents ==="
+echo "=== Apollia - reinstall agents ==="
 echo "Binary : $APOLLIA"
 echo "Socket : $SOCKET"
 echo "Targets: $(printf '%s ' "${selected[@]}" | xargs -n1 basename | tr '\n' ' ')"
@@ -139,7 +139,7 @@ if ! $keep_pycache; then
     find "$REPO/agents" "$REPO/sdk" -type d -name "__pycache__" \
         -exec rm -rf {} + 2>/dev/null || true
 else
-    echo "[1/4] (skipped — --keep-pycache)"
+    echo "[1/4] (skipped - --keep-pycache)"
 fi
 
 # ─── [2/4] Désinstallation ─────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ except Exception:
         filtered_pkgs=""
         for p in $installed_pkgs; do
             for w in $wanted_names; do
-                # Le nom du package TOML peut différer du dossier — on garde
+                # Le nom du package TOML peut différer du dossier - on garde
                 # tout match qui correspond.
                 if [ "$p" = "$w" ]; then
                     filtered_pkgs="$filtered_pkgs $p"
@@ -213,7 +213,7 @@ except Exception:
         fi
     fi
 else
-    echo "[2/4] (skipped — --uninstall-only off)"
+    echo "[2/4] (skipped - --uninstall-only off)"
 fi
 
 # ─── [3/4] Installation ────────────────────────────────────────────────────────
@@ -245,7 +245,7 @@ if $do_install; then
         exit 1
     fi
 else
-    echo "[3/4] (skipped — --install-only off)"
+    echo "[3/4] (skipped - --install-only off)"
 fi
 
 # ─── [4/4] Récap ───────────────────────────────────────────────────────────────

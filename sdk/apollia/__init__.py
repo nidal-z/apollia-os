@@ -1,4 +1,4 @@
-"""Apollia SDK — Python toolkit for building Apollia OS agents."""
+"""Apollia SDK - Python toolkit for building Apollia OS agents."""
 
 from apollia.agent import agent
 from apollia.errors import (

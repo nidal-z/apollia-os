@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-/// Handle en écriture sur l'EventBus — clonable, partageable entre acteurs.
+/// Handle en écriture sur l'EventBus - clonable, partageable entre acteurs.
 ///
 /// Alias public défini dans `apollia-core` pour permettre à `apollia-llm`
 /// (et toute autre crate sans dépendance sur `apollia-runtime`) d'émettre
@@ -83,7 +83,7 @@ pub struct ToolCallRationale {
     /// Résultat attendu de l'outil (1 phrase).
     pub expected_outcome: String,
     /// Hint de performance (ex. "Durée attendue: 2s" ou suggestion d'outil
-    /// plus rapide) — absent si aucun hint pertinent.
+    /// plus rapide) - absent si aucun hint pertinent.
     #[serde(default)]
     pub performance_hint: Option<String>,
 }
@@ -197,7 +197,7 @@ pub enum RuntimeEvent {
     ToolCircuitBroken { tool_name: String },
     /// Le circuit breaker d'un outil s'est refermé après recovery.
     ToolCircuitRestored { tool_name: String },
-    /// Tous les composants sont prêts — runtime opérationnel.
+    /// Tous les composants sont prêts - runtime opérationnel.
     AllReady,
     /// Arrêt demandé (SIGTERM ou commande CLI).
     ShutdownRequested,
@@ -238,7 +238,7 @@ pub enum RuntimeEvent {
         name: String,
     },
 
-    /// Un trigger a été déclenché — tâche soumise au runtime.
+    /// Un trigger a été déclenché - tâche soumise au runtime.
     TriggerFired {
         /// Identifiant du trigger qui a produit l'événement.
         trigger_id: String,
@@ -261,7 +261,7 @@ pub enum RuntimeEvent {
         /// Message d'erreur.
         error: String,
     },
-    /// La file d'attente bornée d'un trigger est pleine — le trigger est droppé.
+    /// La file d'attente bornée d'un trigger est pleine - le trigger est droppé.
     ///
     /// Émis par `TriggerEngine` quand [`OnBusyPolicy::Queue`] est configuré et que
     /// `max_depth` est atteint. Le trigger droppé est perdu (non persisté).
@@ -306,21 +306,21 @@ pub enum RuntimeEvent {
         /// Chemin du fichier `.gguf` (backend local) ou URL de l'API (backend cloud).
         model_path: String,
     },
-    /// Un backend LLM est prêt — modèle chargé en mémoire ou connexion cloud vérifiée.
+    /// Un backend LLM est prêt - modèle chargé en mémoire ou connexion cloud vérifiée.
     LlmModelReady {
         /// Nom logique du backend.
         backend: String,
         /// Identifiant du modèle : nom de fichier sans extension (.gguf) ou model_id API.
         model_id: String,
     },
-    /// Le chargement d'un backend LLM a échoué — backend ignoré, runtime continue.
+    /// Le chargement d'un backend LLM a échoué - backend ignoré, runtime continue.
     LlmModelFailed {
         /// Nom logique du backend.
         backend: String,
         /// Raison de l'échec (message d'erreur).
         reason: String,
     },
-    /// Un appel LLM s'est terminé — émis par `complete_with_observability()`.
+    /// Un appel LLM s'est terminé - émis par `complete_with_observability()`.
     LlmCallCompleted {
         /// Nom logique du backend qui a traité la requête.
         backend: String,
@@ -353,7 +353,7 @@ pub enum RuntimeEvent {
         step_count: usize,
     },
 
-    /// Un step a démarré son exécution — émis par `ActorLoop` avant chaque appel outil ou LLM.
+    /// Un step a démarré son exécution - émis par `ActorLoop` avant chaque appel outil ou LLM.
     StepStarted {
         /// Identifiant de la tâche parente.
         task_id: TaskId,
@@ -369,7 +369,7 @@ pub enum RuntimeEvent {
         desc: String,
     },
 
-    /// Un step s'est terminé avec succès — émis par `ActorLoop` après chaque appel réussi.
+    /// Un step s'est terminé avec succès - émis par `ActorLoop` après chaque appel réussi.
     StepCompleted {
         /// Identifiant de la tâche parente.
         task_id: TaskId,
@@ -381,7 +381,7 @@ pub enum RuntimeEvent {
         duration_ms: u64,
     },
 
-    /// Un step a échoué — émis par `ActorLoop` après chaque échec.
+    /// Un step a échoué - émis par `ActorLoop` après chaque échec.
     StepFailed {
         /// Identifiant de la tâche parente.
         task_id: TaskId,
@@ -409,7 +409,7 @@ pub enum RuntimeEvent {
         reason: String,
     },
 
-    /// Tous les steps ont été complétés avec succès — plan terminé.
+    /// Tous les steps ont été complétés avec succès - plan terminé.
     PlanCompleted {
         /// Identifiant de la tâche parente.
         task_id: TaskId,
@@ -431,8 +431,8 @@ pub enum RuntimeEvent {
         reason: String,
     },
 
-    // ── HITL — Human-in-the-Loop events ────────────────────
-    /// Une tâche `input_required` a expiré — annulée automatiquement par le `TimeoutWatcher`.
+    // ── HITL - Human-in-the-Loop events ────────────────────
+    /// Une tâche `input_required` a expiré - annulée automatiquement par le `TimeoutWatcher`.
     ///
     /// Émis par `TimeoutWatcher::scan_and_cancel` pour chaque tâche
     /// dont `input_required_at` dépasse `input_required_timeout`.
@@ -477,7 +477,7 @@ pub enum RuntimeEvent {
     },
 
     // ── Pipeline events ──────────────────────────
-    /// Un run de pipeline a démarré — émis par `PipelineExecutor::execute()`.
+    /// Un run de pipeline a démarré - émis par `PipelineExecutor::execute()`.
     PipelineStarted {
         /// Identifiant unique du run (e.g. `"r-0017"`).
         run_id: String,
@@ -549,7 +549,7 @@ pub enum RuntimeEvent {
         step_id: String,
     },
 
-    /// Tous les steps ont complété ou été skippés — pipeline terminé avec succès.
+    /// Tous les steps ont complété ou été skippés - pipeline terminé avec succès.
     PipelineCompleted {
         /// Identifiant du run.
         run_id: String,
@@ -775,7 +775,7 @@ pub enum RuntimeEvent {
     },
 
     // ── A2A Invocation events ─────────────────────
-    /// Une invocation A2A a démarré — émise par `A2AInvoker` avant la soumission de la tâche.
+    /// Une invocation A2A a démarré - émise par `A2AInvoker` avant la soumission de la tâche.
     ///
     /// Émis en fire-and-forget avant l'appel au TaskRouter.
     /// Suivi de [`RuntimeEvent::A2AInvocationCompleted`] après exécution.
@@ -787,7 +787,7 @@ pub enum RuntimeEvent {
         /// Identifiant du skill invoqué.
         skill_id: String,
     },
-    /// Une invocation A2A s'est terminée — émise après réception du résultat ou d'un échec.
+    /// Une invocation A2A s'est terminée - émise après réception du résultat ou d'un échec.
     ///
     /// `status` vaut `"completed"` en cas de succès ou `"failed"` en cas d'erreur.
     A2AInvocationCompleted {
@@ -821,7 +821,7 @@ pub enum RuntimeEvent {
     },
 
     // ── A2A Skill telemetry ─────────
-    /// Un skill A2A vient d'être invoqué — émis avant la soumission effective.
+    /// Un skill A2A vient d'être invoqué - émis avant la soumission effective.
     ///
     /// Destiné à l'agrégation télémétrique par skill et à l'alimentation de
     /// [`A2AStepProvenance`] dans la timeline globale.
@@ -841,7 +841,7 @@ pub enum RuntimeEvent {
         /// Step parent dans la chaîne A2A, `None` pour la racine.
         parent_step: Option<String>,
     },
-    /// Un skill A2A vient de terminer — émis après réception du résultat.
+    /// Un skill A2A vient de terminer - émis après réception du résultat.
     A2ASkillCompleted {
         /// Identifiant du step corrélé à [`RuntimeEvent::A2ASkillInvoked`].
         step_id: String,
@@ -881,7 +881,7 @@ pub enum RuntimeEvent {
     ///
     /// Le frontend intercepte cet événement via SSE pour afficher l'écran
     /// d'accueil onboarding. Le runtime continue de fonctionner normalement
-    /// — cet événement est purement informatif et ne bloque rien.
+    /// - cet événement est purement informatif et ne bloque rien.
     OnboardingRequired,
 
     /// Émis quand une session d'onboarding est déclenchée (complet ou partiel).
@@ -927,7 +927,7 @@ pub enum RuntimeEvent {
         audio_duration_ms: u64,
     },
 
-    /// Le modèle STT a été chargé avec succès — moteur opérationnel.
+    /// Le modèle STT a été chargé avec succès - moteur opérationnel.
     ///
     /// Émis par `SttEngine` après chargement du modèle GGML dans `spawn_blocking`.
     /// Le frontend peut utiliser cet événement pour indiquer que le STT est prêt.
@@ -968,7 +968,7 @@ pub enum RuntimeEvent {
     },
 
     // ── Token Budget events ──────────────────────
-    /// Mise à jour du budget de session — émis après chaque appel LLM.
+    /// Mise à jour du budget de session - émis après chaque appel LLM.
     ///
     /// Émis par `LlmRouter::complete_with_observability` après chaque appel backend.
     /// Le desktop widget écoute cet événement pour afficher le coût en temps réel.
@@ -989,7 +989,7 @@ pub enum RuntimeEvent {
     },
 
     // ── Thinking / Reasoning transparency events ───
-    /// Émis au début de la phase Reasoner — l'agent commence à "réfléchir".
+    /// Émis au début de la phase Reasoner - l'agent commence à "réfléchir".
     ///
     /// Permet au frontend d'afficher un indicateur de thinking en streaming.
     /// Le `turn_id` corrèle cet événement avec `ThinkingEnded` et les éventuels
@@ -1000,7 +1000,7 @@ pub enum RuntimeEvent {
         /// Timestamp Unix en millisecondes du début de la phase thinking.
         ts_ms: u64,
     },
-    /// Émis à la fin de la phase Reasoner — le raisonnement est terminé.
+    /// Émis à la fin de la phase Reasoner - le raisonnement est terminé.
     ///
     /// Transporte le raw content produit par le LLM, la durée et un estimé
     /// du nombre de tokens consommés. Le frontend peut l'utiliser pour
@@ -1018,7 +1018,7 @@ pub enum RuntimeEvent {
         tokens: u32,
     },
 
-    /// Un appel LLM a échoué — émis par `complete_with_observability()` quand
+    /// Un appel LLM a échoué - émis par `complete_with_observability()` quand
     /// la requête au backend retourne une erreur (timeout, auth, quota, etc.).
     /// Porte une [`crate::error_analysis::ErrorAnalysis`] pour humaniser
     /// l'erreur côté UI.
@@ -1033,7 +1033,7 @@ pub enum RuntimeEvent {
         step_id: Option<String>,
         /// Message brut de l'erreur (pour les détails techniques).
         error: String,
-        /// Analyse structurée — toujours présente.
+        /// Analyse structurée - toujours présente.
         analysis: crate::error_analysis::ErrorAnalysis,
     },
 
@@ -1069,7 +1069,7 @@ pub enum RuntimeEvent {
     ///
     /// Émis de façon non-bloquante par `FilePathExtractor::extract_detached` après
     /// chaque exécution bash réussie. Permet à ORIA d'invalider les entrées du cache de
-    /// plan pour les fichiers affectés (Principe #5 — Un acteur, une responsabilité).
+    /// plan pour les fichiers affectés (Principe #5 - Un acteur, une responsabilité).
     BashFilePathsExtracted {
         /// Paths extraits depuis la sortie de la commande bash.
         paths: Vec<std::path::PathBuf>,
@@ -1176,7 +1176,7 @@ pub enum RuntimeEvent {
     // ── Session metrics ───
     /// Agrégat des métriques de session mis à jour.
     ///
-    /// Émis par `SessionMetricsActor` à chaque changement notable — nouvel appel LLM,
+    /// Émis par `SessionMetricsActor` à chaque changement notable - nouvel appel LLM,
     /// fin d'outil, événement de summarization ou franchissement d'un seuil de budget.
     /// Le payload complet est transporté pour permettre au frontend de rafraîchir
     /// l'intégralité du panneau sans re-requêter le backend.
@@ -1189,7 +1189,7 @@ pub enum RuntimeEvent {
         alert: crate::session_metrics::BudgetAlertLevel,
     },
 
-    // ── Observability — event-sourced runtime trace (ADR-088) ─────────
+    // ── Observability - event-sourced runtime trace (ADR-088) ─────────
     /// Un agent a émis un message via `ctx.log(level, msg, **fields)`.
     ///
     /// Premier maillon du Lot 1 de la refonte observabilité : ce qui partait
@@ -1210,12 +1210,12 @@ pub enum RuntimeEvent {
         /// Message libre fourni par l'agent.
         message: String,
         /// Champs supplémentaires structurés (kwargs Python sérialisés en
-        /// JSON) — `None` si l'agent n'a pas fourni de champs structurés.
+        /// JSON) - `None` si l'agent n'a pas fourni de champs structurés.
         #[serde(default)]
         extra_fields_json: Option<String>,
     },
 
-    // ── Observability — Lot 2 : ReAct loop & tools enrichis ───────────
+    // ── Observability - Lot 2 : ReAct loop & tools enrichis ───────────
     /// Le LLM a émis une `thought` ReAct (chaîne de raisonnement).
     ///
     /// Capturé dans le SDK Python (`react.py`) à chaque tour, après le
@@ -1263,7 +1263,7 @@ pub enum RuntimeEvent {
     /// Le payload `args_json` est `None` si
     /// `[observability] capture_tool_args = false`.
     ToolCallStarted {
-        /// Identifiant unique de cet appel (UUID v7) — devient le
+        /// Identifiant unique de cet appel (UUID v7) - devient le
         /// `parent_event_id` du `ToolCallCompleted` correspondant.
         event_id: String,
         /// Tâche.
@@ -1325,7 +1325,7 @@ pub enum RuntimeEvent {
     /// ouvre la sous-trace du callee. Le `correlation_id` partagé sur la
     /// chaîne A2A complète permet à l'UI de reconstruire l'arbre.
     A2AInvokeStarted {
-        /// `event_id` (UUID v7) — devient le `parent_event_id` des records
+        /// `event_id` (UUID v7) - devient le `parent_event_id` des records
         /// produits par le callee dans sa propre trace.
         event_id: String,
         /// `correlation_id` partagé sur toute la chaîne A2A. Hérité de
@@ -1447,7 +1447,7 @@ mod tests {
 
     #[test]
     fn test_ac4_all_variants_exist_and_clone() {
-        // GIVEN / WHEN — instancier chaque variante et la cloner
+        // GIVEN / WHEN - instancier chaque variante et la cloner
         let variants: Vec<RuntimeEvent> = vec![
             RuntimeEvent::AgentRegistered("agent-1".into()),
             RuntimeEvent::AgentReady("agent-1".into()),
@@ -1940,7 +1940,7 @@ mod tests {
             },
         ];
 
-        // THEN — toutes les variantes sont clonables et debuggables
+        // THEN - toutes les variantes sont clonables et debuggables
         for event in &variants {
             let cloned = event.clone();
             let debug_str = format!("{:?}", cloned);
@@ -2138,7 +2138,7 @@ mod pipeline_event_tests {
     /// tous les 9 variants Pipeline sont constructibles (zéro warning de compilation).
     #[test]
     fn test_all_pipeline_events_compile() {
-        // GIVEN / WHEN — construire chaque variant
+        // GIVEN / WHEN - construire chaque variant
         let events: Vec<RuntimeEvent> = vec![
             RuntimeEvent::PipelineStarted {
                 run_id: "r".into(),

@@ -4,7 +4,7 @@
 //! (prompt, contexte, réponse humaine) dans une base SQLite locale.
 //!
 //! Toutes les méthodes publiques sont `async` et délèguent aux opérations
-//! SQLite bloquantes via `tokio::task::spawn_blocking` — pattern identique
+//! SQLite bloquantes via `tokio::task::spawn_blocking` - pattern identique
 //! à [`crate::audit::AuditTrail`] (ADR-014).
 //!
 //! La migration `005_hitl_tables.sql` est appliquée idempotentiellement
@@ -16,7 +16,7 @@ use std::time::Duration;
 use apollia_core::{truncate_with_marker, AIPTask, InputResponseData, ObservabilityConfig};
 use rusqlite::params;
 
-/// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
+/// SQL de migration embarqué - appliqué idempotentiellement à chaque ouverture.
 const MIGRATION_SQL: &str = include_str!("../migrations/005_hitl_tables.sql");
 
 /// Colonnes à ajouter par la migration observabilité.
@@ -107,7 +107,7 @@ pub struct TaskDetail {
 ///
 /// Appelé par toutes les méthodes du [`TaskRepository`] pour garantir l'intégrité
 /// du schéma même si la base a été supprimée et recréée après le démarrage du runtime.
-/// La migration utilise `CREATE TABLE IF NOT EXISTS` — sans effet sur une base valide.
+/// La migration utilise `CREATE TABLE IF NOT EXISTS` - sans effet sur une base valide.
 ///
 /// Si le fichier principal n'existe pas, les fichiers WAL/SHM résiduels éventuels
 /// sont supprimés avant l'ouverture pour éviter une récupération WAL orpheline

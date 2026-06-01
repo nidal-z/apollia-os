@@ -2,11 +2,11 @@
 
 > *Stack, workspace Rust, interactions entre briques, et spécification complète de l'Agent Interface Protocol.*
 
-**Prérequis de lecture :** cette page assume une familiarité avec Python async/await. Aucune connaissance de Rust n'est requise — les concepts Rust sont expliqués quand ils apparaissent. Si un terme n'est pas clair, consultez le [Glossaire](./glossary).
+**Prérequis de lecture :** cette page assume une familiarité avec Python async/await. Aucune connaissance de Rust n'est requise - les concepts Rust sont expliqués quand ils apparaissent. Si un terme n'est pas clair, consultez le [Glossaire](./glossary).
 
 **Concepts clés :**
 - **AIP** (Agent Interface Protocol) : le contrat minimal entre un agent Python et le runtime Rust. Deux fonctions suffisent : `manifest()` (qui je suis) et `run(task, ctx)` (que je fais).
-- **ORIA** : le moteur d'exécution qui supervise les agents — Observer, Reasoner, Actor. Il applique les garde-fous (StepBudget) et peut planifier automatiquement en mode orchestré.
+- **ORIA** : le moteur d'exécution qui supervise les agents - Observer, Reasoner, Actor. Il applique les garde-fous (StepBudget) et peut planifier automatiquement en mode orchestré.
 - **Acteur Tokio** : un composant autonome qui possède son état et communique par messages. C'est le pattern de concurrence utilisé par le runtime (inspiré d'[Alice Ryhl](https://ryhl.io/blog/actors-with-tokio/)).
 
 ### Diagramme simplifié
@@ -357,7 +357,7 @@ class AgentManifest:
 
 Si `supports_a2a=True`, Apollia OS génère automatiquement une AgentCard A2A et l'expose à `/.well-known/agent.json`. L'agent n'écrit pas de code A2A.
 
-#### Composant 2 : AgentLifecycle — ProcessState
+#### Composant 2 : AgentLifecycle - ProcessState
 
 La machine d'état du **processus** (alignée ACP) :
 
@@ -374,12 +374,12 @@ INITIALIZING ──► ACTIVE ──► DEGRADED ──► STOPPING ──► ST
 | `ACTIVE` | Prêt à recevoir des tâches |
 | `DEGRADED` | Actif mais avec des `tools_optional` manquants |
 | `STOPPING` | Drain des tâches en cours (timeout 30s) |
-| `STOPPED` | Arrêt propre — plus aucune tâche acceptée |
+| `STOPPED` | Arrêt propre - plus aucune tâche acceptée |
 
 Callbacks Python (optionnels, non obligatoires pour AIP-compliance) :
 
 ```python
-class AIPAgent:  # Classe de base OPTIONNELLE — duck typing accepté
+class AIPAgent:  # Classe de base OPTIONNELLE - duck typing accepté
     def manifest(self) -> AgentManifest:
         raise NotImplementedError  # OBLIGATOIRE
 
@@ -396,7 +396,7 @@ class AIPAgent:  # Classe de base OPTIONNELLE — duck typing accepté
         return AgentHealth(status="healthy")
 ```
 
-#### Composant 3 : TaskContract — TaskState
+#### Composant 3 : TaskContract - TaskState
 
 La machine d'état des **tâches** (alignée A2A TaskState) :
 
@@ -408,7 +408,7 @@ submitted ──► working ──► completed
                 └──► canceled
 ```
 
-**AIPTask — ce que le runtime envoie à l'agent :**
+**AIPTask - ce que le runtime envoie à l'agent :**
 
 ```python
 @dataclass
@@ -441,11 +441,11 @@ class DataPart:
     data: dict[str, Any]
 ```
 
-**AIPResult — ce que l'agent retourne au runtime :**
+**AIPResult - ce que l'agent retourne au runtime :**
 
 ```python
 class AIPResult:
-    """Classe utilitaire — factory methods retournant des dicts Python purs."""
+    """Classe utilitaire - factory methods retournant des dicts Python purs."""
 
     @staticmethod
     def completed(text: str, task_id: str = "") -> dict: ...
@@ -457,9 +457,9 @@ class AIPResult:
     def input_required(prompt: str, context: dict | None = None) -> dict: ...
 ```
 
-> Le pont Rust désérialise le dict retourné par `run()` directement en `apollia_core::AIPResult`. `AIPResult` n'est pas un dataclass avec instances — c'est une classe utilitaire avec 3 static methods. Il n'y a pas de hiérarchie d'héritage.
+> Le pont Rust désérialise le dict retourné par `run()` directement en `apollia_core::AIPResult`. `AIPResult` n'est pas un dataclass avec instances - c'est une classe utilitaire avec 3 static methods. Il n'y a pas de hiérarchie d'héritage.
 
-#### Composant 4 : RuntimeContext — services injectés
+#### Composant 4 : RuntimeContext - services injectés
 
 Le `RuntimeContext` est ce que l'agent reçoit comme second argument de `run()`. C'est son interface vers tous les services du runtime.
 
@@ -483,7 +483,7 @@ class RuntimeContext:
 ### 2.3 L'agent minimal complet
 
 ```python
-# mon_agent.py — agent AIP-compatible minimal
+# mon_agent.py - agent AIP-compatible minimal
 from apollia_os import AgentManifest, AIPTask, AIPResult, RuntimeContext
 
 class MonAgent:
@@ -541,7 +541,7 @@ aip_agent = AIPWrapper(
 
 ---
 
-## 3. Les deux machines d'état — distinction critique
+## 3. Les deux machines d'état - distinction critique
 
 Un point souvent source de confusion : Apollia OS maintient **deux machines d'état indépendantes**.
 

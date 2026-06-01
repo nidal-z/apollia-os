@@ -1,8 +1,8 @@
 /**
- * Conversation export — formats a chat session as Markdown, JSON, or
+ * Conversation export - formats a chat session as Markdown, JSON, or
  * Markdown-with-tools export.
  *
- * Pure functions, no Tauri/IPC coupling — the backend command
+ * Pure functions, no Tauri/IPC coupling - the backend command
  * `export_conversation` reuses the same logic server-side, but the UI
  * may also render a preview locally without a round-trip.
  */
@@ -64,7 +64,7 @@ function toMarkdown(session: ChatSessionDetail, withTools: boolean): string {
 function renderMessage(msg: ChatMessageView, withTools: boolean): string[] {
   const out: string[] = [];
   const role = roleLabel(msg.role);
-  out.push(`## ${role} — ${msg.created_at}`);
+  out.push(`## ${role} - ${msg.created_at}`);
   if (msg.content?.trim()) {
     out.push("", msg.content.trim());
   }

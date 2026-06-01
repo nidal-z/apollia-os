@@ -33,7 +33,7 @@
   let deleteConfirmText = $state("");
   let deleting = $state(false);
 
-  // Inline ping test state — keyed by backend name.
+  // Inline ping test state - keyed by backend name.
   const FEEDBACK_DURATION_MS = 5_000;
   let testingMap = $state<Record<string, boolean>>({});
   let testResultMap = $state<Record<string, LlmPingResult>>({});

@@ -149,7 +149,7 @@ fn run_get(key: Option<&str>, file: Option<&Path>, json: bool) -> i32 {
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
                 eprintln!(
-                    "No config file at {} — runtime will start with defaults.",
+                    "No config file at {} - runtime will start with defaults.",
                     path.display()
                 );
             }
@@ -467,7 +467,7 @@ fn run_show(file: Option<&Path>, json: bool) -> i32 {
             println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
         } else {
             println!(
-                "No config file at {} — runtime will start with defaults.",
+                "No config file at {} - runtime will start with defaults.",
                 path.display()
             );
         }
@@ -576,12 +576,12 @@ fn emit_reset_absent(home: &Path, json: bool) {
         let body = serde_json::json!({
             "home": home.display().to_string(),
             "reset": false,
-            "reason": "home directory absent — nothing to reset",
+            "reason": "home directory absent - nothing to reset",
         });
         println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
     } else {
         println!(
-            "  Apollia home {} does not exist — nothing to reset.",
+            "  Apollia home {} does not exist - nothing to reset.",
             home.display()
         );
     }
@@ -596,7 +596,7 @@ fn emit_reset_dry_run(home: &Path, entries: &[PathBuf], json: bool) {
         });
         println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
     } else {
-        println!("  Dry run — {} entries under {} would be removed:", entries.len(), home.display());
+        println!("  Dry run - {} entries under {} would be removed:", entries.len(), home.display());
         for p in entries {
             let kind = if p.is_dir() { "dir " } else { "file" };
             println!("    [{kind}] {}", p.display());

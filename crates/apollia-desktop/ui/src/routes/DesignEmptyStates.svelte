@@ -19,7 +19,7 @@
 
   const reduced = prefersReducedMotion();
 
-  /** Stub actions — the showcase doesn't wire real handlers. */
+  /** Stub actions - the showcase doesn't wire real handlers. */
   function noop(): void {
     /* showcase action */
   }

@@ -118,7 +118,7 @@ def _docstring_first_line(fn: Any) -> str:
 
     Algorithm:
     1. ``inspect.getdoc(fn)`` (cleans indentation).
-    2. Split on the first blank line — keep the leading paragraph.
+    2. Split on the first blank line - keep the leading paragraph.
     3. Within that paragraph, keep only the first non-empty line.
     """
     raw = inspect.getdoc(fn)

@@ -1,4 +1,4 @@
-"""``@on_message`` decorator — mark a method as the conversational handler.
+"""``@on_message`` decorator - mark a method as the conversational handler.
 
 At most one ``@on_message`` method is allowed per agent
 class; the duplication check fires at ``@agent`` decoration time
@@ -27,7 +27,7 @@ def on_message(fn: F) -> F:
     ``ctx.events.emit_token`` when streaming. The method must be
     ``async def``.
 
-    At most one ``@on_message`` method per class is allowed — the
+    At most one ``@on_message`` method per class is allowed - the
     duplicate check happens at ``@agent`` decoration time.
 
     Raises:

@@ -2,7 +2,7 @@
 name = "apollia-connectors"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — Native OAuth connectors (Google Workspace, Microsoft 365) with typed HTTP clients"
+description = "Apollia OS - Native OAuth connectors (Google Workspace, Microsoft 365) with typed HTTP clients"
 license = "MIT OR Apache-2.0"
 
 [dependencies]

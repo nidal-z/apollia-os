@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 # ---------------------------------------------------------------------------
-# Chargement du module agent (nom de fichier avec tiret — pas importable via import)
+# Chargement du module agent (nom de fichier avec tiret - pas importable via import)
 # ---------------------------------------------------------------------------
 
 def _load_agent_module():
@@ -105,7 +105,7 @@ class TestManifest:
 
 
 # ---------------------------------------------------------------------------
-# Tests run() — validation d'entrée
+# Tests run() - validation d'entrée
 # ---------------------------------------------------------------------------
 
 class TestInputValidation:
@@ -139,7 +139,7 @@ class TestInputValidation:
 
 
 # ---------------------------------------------------------------------------
-# Tests run() — flux nominal (Palier 0)
+# Tests run() - flux nominal (Palier 0)
 # ---------------------------------------------------------------------------
 
 class TestRunTier0:
@@ -190,7 +190,7 @@ class TestRunTier0:
     async def test_no_memory_call_when_none(self):
         ctx = make_ctx(has_memory=False)
         await ApollaReviewer().run(make_task("/repo"), ctx)
-        # ctx.memory est None — aucune AttributeError ne doit être levée
+        # ctx.memory est None - aucune AttributeError ne doit être levée
 
     @pytest.mark.asyncio
     async def test_footer_tier0_when_no_llm(self):
@@ -200,7 +200,7 @@ class TestRunTier0:
 
 
 # ---------------------------------------------------------------------------
-# Tests run() — enrichissement LLM (Palier 1)
+# Tests run() - enrichissement LLM (Palier 1)
 # ---------------------------------------------------------------------------
 
 class TestRunTier1:
@@ -214,7 +214,7 @@ class TestRunTier1:
     async def test_llm_not_called_when_none(self):
         ctx = make_ctx(has_llm=False)
         await ApollaReviewer().run(make_task("/repo"), ctx)
-        # ctx.llm est None — pas d'appel
+        # ctx.llm est None - pas d'appel
 
     @pytest.mark.asyncio
     async def test_footer_tier1_when_llm(self):

@@ -1,5 +1,5 @@
 /**
- * Pure helper for `AskUserForm.svelte` — converts per-question UI state into
+ * Pure helper for `AskUserForm.svelte` - converts per-question UI state into
  * the structured `AskUserAnswer[]` payload the runtime expects.
  *
  * Kept out of the Svelte component so unit tests can exercise the validation

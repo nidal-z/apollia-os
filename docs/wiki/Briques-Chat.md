@@ -1,4 +1,4 @@
-# Chat — Sous-systeme conversationnel
+# Chat - Sous-systeme conversationnel
 
 > Page source de verite pour le sous-systeme Chat introduit.
 > Derniere mise a jour :.
@@ -42,21 +42,21 @@ ChatSessionManager (actor loop)
 
 L'enum `ChatCommand` definit les 9 messages acceptes par l'acteur :
 
-- `CreateSession` — cree une session (mode, agent optionnel, outils, prompt systeme)
-- `SendMessage` — envoie un message utilisateur, declenche l'execution
-- `ResolveTool` — resout une approbation d'outil en attente
-- `ListSessions` — retourne la liste des sessions (filtre optionnel par statut)
-- `GetSession` — retourne le detail complet d'une session (historique inclus)
-- `CloseSession` — ferme une session (status → `Closed`)
-- `ListSessionAuthorizations` — retourne les autorisations in-memory (scope=session) de toutes les sessions actives ; utilise par Settings > Permissions
-- `RevokeSessionAuthorization` — retire une autorisation in-memory d'une session active (retourne `true` si l'entree existait)
-- `Shutdown` — arret propre de l'acteur
+- `CreateSession` - cree une session (mode, agent optionnel, outils, prompt systeme)
+- `SendMessage` - envoie un message utilisateur, declenche l'execution
+- `ResolveTool` - resout une approbation d'outil en attente
+- `ListSessions` - retourne la liste des sessions (filtre optionnel par statut)
+- `GetSession` - retourne le detail complet d'une session (historique inclus)
+- `CloseSession` - ferme une session (status → `Closed`)
+- `ListSessionAuthorizations` - retourne les autorisations in-memory (scope=session) de toutes les sessions actives ; utilise par Settings > Permissions
+- `RevokeSessionAuthorization` - retire une autorisation in-memory d'une session active (retourne `true` si l'entree existait)
+- `Shutdown` - arret propre de l'acteur
 
 Chaque commande porte un `oneshot::Sender` pour la reponse, sauf `Shutdown`.
 
 Le `ChatSessionManager` occupe la position 13 dans la sequence de demarrage du Supervisor, apres le `NotificationEngine` (position 9).
 
-### Chat Libre — BuiltInChatAgent
+### Chat Libre - BuiltInChatAgent
 
 Le mode Libre utilise un agent Rust pur qui execute une boucle ReAct sans dependance Python.
 
@@ -74,16 +74,16 @@ Flux d'execution par echange :
 Le prompt systeme est configurable par session. La valeur par defaut fournit les instructions ReAct standard avec la liste des outils disponibles.
 
 **Surcharges Chat Libre :** a la creation de chaque session Libre, `load_chat_libre_overrides()` lit `governance.db` et applique :
-- `system_prompt` — prepend au prompt systeme de la session si non vide.
-- `allowed_tools` (config) — inseree dans `pre_authorized_tools` (le LLM voit tous les outils, mais ceux-ci ne declenchent pas de popup HITL).
-- `llm_backend` — enregistre le backend prefere sur la session.
-- Regles `scope = 'agent'`/`action = 'allow'` pour `apollia:chat` — prechargees dans `pre_authorized_tools` (auto-approuves sans HITL).
+- `system_prompt` - prepend au prompt systeme de la session si non vide.
+- `allowed_tools` (config) - inseree dans `pre_authorized_tools` (le LLM voit tous les outils, mais ceux-ci ne declenchent pas de popup HITL).
+- `llm_backend` - enregistre le backend prefere sur la session.
+- Regles `scope = 'agent'`/`action = 'allow'` pour `apollia:chat` - prechargees dans `pre_authorized_tools` (auto-approuves sans HITL).
 
 De plus, a **chaque message** d'une session Libre, `load_chat_libre_overrides()` est rappele et ses `pre_authorized_tools` sont fusionnes additivement avec `session.authorized_tools`. Cela permet aux changements de configuration (outils auto-approuves) de s'appliquer aux sessions deja ouvertes sans fermeture/reouverture.
 
 Ces surcharges sont configurables depuis **Mes assistants → Apollia Chat** dans l'interface desktop, via les 4 commandes IPC `chat_libre_*`. Fallback silencieux si `governance.db` est absent.
 
-### CompositeToolInvoker — routing A2A depuis le chat libre
+### CompositeToolInvoker - routing A2A depuis le chat libre
 
 Le `CompositeToolInvoker` est introduit par pour permettre au Chat Libre d'invoquer des Worker Agents via A2A sans que l'utilisateur ne sache que la délégation a eu lieu.
 
@@ -94,7 +94,7 @@ Le `CompositeToolInvoker` est introduit par pour permettre au Chat Libre d'invoq
 ```
 BuiltInChatAgent
   └── tool_invoker: Arc<dyn ToolInvoker>
-        ├── NativeChatToolInvoker  (outils natifs — comportement inchangé)
+        ├── NativeChatToolInvoker  (outils natifs - comportement inchangé)
         └── CompositeToolInvoker   (si agents A2A actifs)
               ├── native: NativeChatToolInvoker
               └── a2a: Arc<A2AInvoker>
@@ -118,11 +118,11 @@ La fonction `generate_a2a_tool_specs(a2a_invoker)` (fichier `chat/a2a_tools.rs`)
 - Description : `"{skill.description} (via {agent_name})"`
 - Input schema : `{"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}`
 
-Si aucun agent n'a `supports_a2a: true`, la liste des outils virtuels est vide — pas d'outils `a2a:` exposés.
+Si aucun agent n'a `supports_a2a: true`, la liste des outils virtuels est vide - pas d'outils `a2a:` exposés.
 
 **Approbation HITL** : les outils `a2a:*` sont auto-approuvés dans la session chat. L'agent Worker cible gère ses propres gardes-fous internes.
 
-### Chat Agent — AgentChatExecutor
+### Chat Agent - AgentChatExecutor
 
 Le mode Agent delegue l'execution a un agent Python existant via le bridge PyO3.
 
@@ -131,7 +131,7 @@ Flux d'execution :
 1. L'historique de la session est converti en `AIPTask` via `session_to_task`
 2. L'agent est charge via `AgentLoader` et valide
 3. Un `RuntimeContext` est cree avec les composants necessaires (tools, memory, llm, budget)
-4. `AIPBridge.call_run` est appele directement — le `TaskRouter` n'est pas implique
+4. `AIPBridge.call_run` est appele directement - le `TaskRouter` n'est pas implique
 5. Le resultat est ajoute comme message assistant
 6. Si `AIPResult.input_required` retourne `true`, le flux bascule vers `ChatApprovalRequired`
 
@@ -198,7 +198,7 @@ pub struct SessionAuthorizationView {
 }
 ```
 
-Snapshot d'une autorisation `scope=session` (in-memory) sur une session active. Retourne par `ChatSessionManagerHandle::list_session_authorizations`. Ces entrees ne sont **jamais persistees** dans `governance.db` — elles disparaissent a la fermeture de la session. Exposees au frontend via les commandes IPC `list_active_chat_session_authorizations` et `revoke_chat_session_authorization`.
+Snapshot d'une autorisation `scope=session` (in-memory) sur une session active. Retourne par `ChatSessionManagerHandle::list_session_authorizations`. Ces entrees ne sont **jamais persistees** dans `governance.db` - elles disparaissent a la fermeture de la session. Exposees au frontend via les commandes IPC `list_active_chat_session_authorizations` et `revoke_chat_session_authorization`.
 
 ### ChatError
 
@@ -232,10 +232,10 @@ La persistance de `AlwaysAccept` varie selon le `scope` :
 
 | Scope | Persistance dans `chat.db` | Persistance dans `governance.db` |
 |---|---|---|
-| `ThisTool` / `ThisSession` | Oui (`chat_tool_authorizations`) | Non — in-memory uniquement |
-| `ThisAgent` | Oui | Oui — `scope='agent'`, `agent_id = apollia:chat` (Libre) ou `session.agent_name` (Agent) |
-| `ThisProject` | Oui | Oui — `scope='project'`, `project_path` derive du projet courant |
-| `Global` | Oui | Oui — `scope='global'` |
+| `ThisTool` / `ThisSession` | Oui (`chat_tool_authorizations`) | Non - in-memory uniquement |
+| `ThisAgent` | Oui | Oui - `scope='agent'`, `agent_id = apollia:chat` (Libre) ou `session.agent_name` (Agent) |
+| `ThisProject` | Oui | Oui - `scope='project'`, `project_path` derive du projet courant |
+| `Global` | Oui | Oui - `scope='global'` |
 
 Les autorisations `ThisSession` sont visibles dans **Reglages › Permissions › Sessions actives** (in-memory, disparaissent a la fermeture). Les regles persistees sont visibles dans **Reglages › Permissions › Chat** et dans la liste generale des regles.
 
@@ -336,12 +336,12 @@ Tous les endpoints sont montes sous le prefixe `/api/v1/sessions`.
 | Methode | Route | Corps | Reponse | Description |
 |---|---|---|---|---|
 | `POST` | `/api/v1/sessions` | `CreateSessionRequest` | `201 ChatSessionResponse` | Cree une session |
-| `GET` | `/api/v1/sessions` | — | `200 Vec<ChatSessionSummary>` | Liste les sessions |
-| `GET` | `/api/v1/sessions/:id` | — | `200 ChatSessionDetail` | Detail complet (historique inclus) |
-| `DELETE` | `/api/v1/sessions/:id` | — | `204` | Ferme une session |
+| `GET` | `/api/v1/sessions` | - | `200 Vec<ChatSessionSummary>` | Liste les sessions |
+| `GET` | `/api/v1/sessions/:id` | - | `200 ChatSessionDetail` | Detail complet (historique inclus) |
+| `DELETE` | `/api/v1/sessions/:id` | - | `204` | Ferme une session |
 | `POST` | `/api/v1/sessions/:id/messages` | `SendMessageRequest` | `202 { message_id }` | Envoie un message |
 | `POST` | `/api/v1/sessions/:id/authorize` | `AuthorizeToolRequest` | `200` | Resout une approbation |
-| `GET` | `/api/v1/sessions/:id/stream` | — | `200 text/event-stream` | Flux SSE de la session |
+| `GET` | `/api/v1/sessions/:id/stream` | - | `200 text/event-stream` | Flux SSE de la session |
 
 Le endpoint `POST /messages` retourne `202 Accepted` car le traitement est asynchrone : la reponse de l'agent arrive via le flux SSE.
 
@@ -363,7 +363,7 @@ Le flux SSE (`/stream`) emet les `RuntimeEvent` chat filtres par `session_id`. L
 | `generate_chat_session_name` | `session_id`, `first_message` | `String` (titre) | Genere automatiquement un titre court via LLM a partir du premier message utilisateur (max 60 caracteres, compatible reasoning models) |
 | `send_chat_message` | `session_id`, `content` | `{ message_id }` | Envoie un message |
 | `authorize_chat_tool` | `session_id`, `message_id`, `tool_name`, `decision`, `scope?` | `` | Resout une approbation (`scope` = `this_session` \| `this_agent` \| `this_project` \| `global`) |
-| `list_active_chat_session_authorizations` | — | `Vec<SessionAuthorizationDto>` | Liste les autorisations in-memory (scope=session) de toutes les sessions actives |
+| `list_active_chat_session_authorizations` | - | `Vec<SessionAuthorizationDto>` | Liste les autorisations in-memory (scope=session) de toutes les sessions actives |
 | `revoke_chat_session_authorization` | `session_id`, `tool_name` | `` | Retire une autorisation in-memory d'une session active |
 
 ### Event bridge Tauri
@@ -413,7 +413,7 @@ Le store `uiMode` accepte deux valeurs :
 
 | Valeur | Audience | Style d'affichage |
 |---|---|---|
-| `"operator"` | Utilisateur final | Phrase humaine, icone, indicateur de statut — sans JSON expose |
+| `"operator"` | Utilisateur final | Phrase humaine, icone, indicateur de statut - sans JSON expose |
 | `"builder"` | Developpeur / debug | Nom technique, JSON entree/sortie, previews specialisees |
 
 `ChatMessageBubble.svelte` lit `$uiMode` a chaque rendu et instancie le composant correspondant en lieu et place de l'ancien `ToolCallCard.svelte`.
@@ -480,9 +480,9 @@ Les cles de traduction sont definies dans les deux catalogues (EN et FR) sous l'
 Structure de cle :
 
 ```
-tools.<tool_name>.label          — nom court (ex. "Lecture de fichier")
-tools.<tool_name>.description    — phrase humaine avec placeholders {param} (ex. "Lecture de {path}")
-tools.<tool_name>.output_summary — resume de sortie avec placeholders (ex. "{lines} lignes lues")
+tools.<tool_name>.label          - nom court (ex. "Lecture de fichier")
+tools.<tool_name>.description    - phrase humaine avec placeholders {param} (ex. "Lecture de {path}")
+tools.<tool_name>.output_summary - resume de sortie avec placeholders (ex. "{lines} lignes lues")
 ```
 
 Les 10 outils natifs documentes : `read_file`, `write_file`, `list_dir`, `bash`, `http_request`, `search_memory`, `store_memory`, `web_search`, `read_url`, `send_notification`.
@@ -497,7 +497,7 @@ Le mode Chat Libre enrichit automatiquement le prompt systeme avec le profil mem
 
 Quand `BuiltInChatAgent` est cree avec un `UserMemoryRepository` (parametre optionnel), il appelle `repo.recall_persona_brief(30)` avant chaque echange. Cette methode :
 
-1. Appelle `SemanticMemory::recall_all("__user__")` — lit toutes les entrees stockees sous le namespace reserve `__user__`
+1. Appelle `SemanticMemory::recall_all("__user__")` - lit toutes les entrees stockees sous le namespace reserve `__user__`
 2. Filtre les entrees avec `confidence < 0.3` (entrées de faible confiance ignorées)
 3. Retourne au maximum 30 entrees formatees sous forme de bloc narratif
 
@@ -519,8 +519,8 @@ Conformement au Principe #6 (Mémoire à initiative de l'agent), les entrées `_
 
 ### Source de verite
 
-- Injection : `crates/apollia-runtime/src/chat/builtin_agent.rs` — `BuiltInChatAgent::build_system_prompt`
-- Stockage et format : `crates/apollia-memory/src/user_memory.rs` — `UserMemoryRepository::recall_persona_brief`
+- Injection : `crates/apollia-runtime/src/chat/builtin_agent.rs` - `BuiltInChatAgent::build_system_prompt`
+- Stockage et format : `crates/apollia-memory/src/user_memory.rs` - `UserMemoryRepository::recall_persona_brief`
 - Namespace reserve : `const USER_NAMESPACE: &str = "__user__"`
 
 ---
@@ -545,7 +545,7 @@ La summarisation est realisee par une fonction async `summarize(messages, llm)` 
 
 - Prompt systeme : instruction de produire un resume en 2-3 paragraphes, focusse sur les decisions cles, le contexte etabli, et les questions non resolues
 - Contenu : la transcription des messages anciens (`role: contenu\n`)
-- `max_tokens: Some(500)` — cap absolu a **500 tokens** pour eviter de surcharger la fenetre de contexte lors de la reinsertion
+- `max_tokens: Some(500)` - cap absolu a **500 tokens** pour eviter de surcharger la fenetre de contexte lors de la reinsertion
 
 Le LLM appele est le router par defaut de la session (`LlmRouter`). Le resume est retourne comme `String` brute.
 
@@ -585,7 +585,7 @@ La logique de recall est activee uniquement quand `history.len == 1` (premiere r
 const MIN_MESSAGE_LENGTH_FOR_RECALL: usize = 20;
 ```
 
-Les messages courts (salutations comme "bonjour", "hello") ne declenchent pas de recall — evite d'injecter un contexte hors-sujet.
+Les messages courts (salutations comme "bonjour", "hello") ne declenchent pas de recall - evite d'injecter un contexte hors-sujet.
 
 ### Recherche FTS5 (BM25)
 
@@ -633,17 +633,17 @@ pub struct PastSessionSummary {
 
 ### Source de verite
 
-- Constantes et logique : `crates/apollia-runtime/src/chat/manager.rs` — `build_cross_session_context` et constantes `MAX_PAST_SESSIONS`, `MIN_MESSAGE_LENGTH_FOR_RECALL`
-- Requete FTS5 : `crates/apollia-runtime/src/chat/repository.rs` — `find_relevant_sessions`
-- Type : `crates/apollia-runtime/src/chat/types.rs` — `PastSessionSummary`
+- Constantes et logique : `crates/apollia-runtime/src/chat/manager.rs` - `build_cross_session_context` et constantes `MAX_PAST_SESSIONS`, `MIN_MESSAGE_LENGTH_FOR_RECALL`
+- Requete FTS5 : `crates/apollia-runtime/src/chat/repository.rs` - `find_relevant_sessions`
+- Type : `crates/apollia-runtime/src/chat/types.rs` - `PastSessionSummary`
 
 ---
 
 ## Voir aussi
 
-- [ADR-034 — Chat hybride](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) — decision architecturale
-- [Runtime Core](./Briques-Runtime-Core.md) — Supervisor et acteurs Tokio
-- [Memory Engine](./Briques-Memory-Engine.md) — UserMemoryRepository et namespace `__user__`
-- [Notifications](./Briques-Notifications.md) — evenement `chat.approval_required`
-- [Desktop](./Briques-Desktop.md) — commandes Tauri IPC
-- [API-HTTP-Agents](./API-HTTP-Agents#chat-) — reference complete des endpoints Chat
+- [ADR-034 - Chat hybride](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) - decision architecturale
+- [Runtime Core](./Briques-Runtime-Core.md) - Supervisor et acteurs Tokio
+- [Memory Engine](./Briques-Memory-Engine.md) - UserMemoryRepository et namespace `__user__`
+- [Notifications](./Briques-Notifications.md) - evenement `chat.approval_required`
+- [Desktop](./Briques-Desktop.md) - commandes Tauri IPC
+- [API-HTTP-Agents](./API-HTTP-Agents#chat-) - reference complete des endpoints Chat

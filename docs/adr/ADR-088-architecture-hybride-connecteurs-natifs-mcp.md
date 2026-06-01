@@ -1,4 +1,4 @@
-# ADR-088 — Architecture hybride : connecteurs natifs + MCP officiels
+# ADR-088 - Architecture hybride : connecteurs natifs + MCP officiels
 
 **Date :** 2026-05-12
 **Statut :** Proposé
@@ -18,19 +18,19 @@ Nous adoptons une **architecture hybride** : connecteurs **natifs** Rust pour Go
 
 ## Alternatives considérées
 
-### Option A — Tout MCP communautaire (rejetée)
+### Option A - Tout MCP communautaire (rejetée)
 **Pour :** zéro code Rust à maintenir.
 **Contre :** dépendance totale qualité MCP communautaire (variable). Aucun MCP officiel SaaS pour Google/Microsoft → workflow "mail / agenda" non-tenable de bout en bout.
 
-### Option B — Tout natif Rust (rejetée)
+### Option B - Tout natif Rust (rejetée)
 **Pour :** contrôle total qualité.
 **Contre :** maintenance prohibitive (15-20 SaaS × API breaking changes). Re-inventer ce que les éditeurs SaaS publient déjà gratuitement (Notion MCP, Slack MCP, etc.).
 
-### Option C — Aggregator cloud (Composio) (rejetée)
+### Option C - Aggregator cloud (Composio) (rejetée)
 **Pour :** 500+ apps via un endpoint unique managé.
 **Contre :** dépendance cloud propriétaire payante. Anti-local-first par construction (relai externe).
 
-### Option retenue — Hybride natif + MCP officiel
+### Option retenue - Hybride natif + MCP officiel
 **Pour :** maximise gratuité (user et Apollia), externalise la maintenance là où le SaaS la prend en charge, garde le contrôle sur les workflows critiques (mail / agenda / fichiers).
 **Compromis acceptés :** maintenance OAuth Rust côté Google + Microsoft (dette long-terme).
 
@@ -50,13 +50,13 @@ Nous adoptons une **architecture hybride** : connecteurs **natifs** Rust pour Go
 
 ## Principes architecturaux impactés
 
-- Principe #1 — Local-first : ✅ renforcé (zéro relai cloud).
-- Principe #2 — Zéro dépendance externe : ✅ maintenu (pas d'aggregator).
-- Principe #3 — Contrat minimal : trait `Connector` doit rester thin.
+- Principe #1 - Local-first : ✅ renforcé (zéro relai cloud).
+- Principe #2 - Zéro dépendance externe : ✅ maintenu (pas d'aggregator).
+- Principe #3 - Contrat minimal : trait `Connector` doit rester thin.
 
 ## Liens
 
-- ADR-090 — Abstraction `Connector` trait
-- ADR-091 — Stratégie catalogue MCP
-- ADR-064 — OAuth2 PKCE keyring (étendu)
+- ADR-090 - Abstraction `Connector` trait
+- ADR-091 - Stratégie catalogue MCP
+- ADR-064 - OAuth2 PKCE keyring (étendu)
 - Plan : `~/.claude/plans/j-aimerai-que-tu-m-aides-melodic-wirth.md` §1 et §4

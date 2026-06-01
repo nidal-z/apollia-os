@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Linter charte documentaire — règles L1.4 du CONTEXTE-DEPART.md
+# Linter charte documentaire - règles L1.4 du CONTEXTE-DEPART.md
 # Usage : ./scripts/lints/charte-doc.sh [--strict]
 # Retour : 0 = tout OK, 1 = violation détectée
 #
@@ -26,7 +26,7 @@ log_pass() { printf "\033[32mPASS\033[0m  %s\n" "$1"; }
 header() { printf "\n\033[1m== %s ==\033[0m\n" "$1"; }
 
 # ---------- R3 : wiki ≤ 1500 lignes ----------
-header "R3 — Pages wiki ≤ 1500 lignes"
+header "R3 - Pages wiki ≤ 1500 lignes"
 R3_VIOLATIONS=0
 # Exclusions : index historique qui a vocation à grandir
 R3_ALLOW=("Decisions-Log.md" "Sprint-Summary.md")
@@ -47,7 +47,7 @@ done < <(find "$WIKI" -maxdepth 1 -name "*.md" -print0)
 (( R3_VIOLATIONS == 0 )) && log_pass "R3 : aucune page wiki hors allow-list > 1500 lignes"
 
 # ---------- R7 : wiki sans capture d'écran ----------
-header "R7 — Aucune capture d'écran dans le wiki"
+header "R7 - Aucune capture d'écran dans le wiki"
 
 # Note : SVG autorisés (diagrammes architecture PlantUML / Mermaid)
 # Interdit : captures d'écran UI (png, jpg, jpeg, gif, webp)
@@ -60,7 +60,7 @@ else
 fi
 
 # ---------- R8 : book, aucune table > 10 lignes ----------
-header "R8 — Book : tables markdown ≤ 10 lignes (hors allow-list)"
+header "R8 - Book : tables markdown ≤ 10 lignes (hors allow-list)"
 R8_VIOLATIONS=0
 # Allow-list éducationnelle : chapitres "catalogue" où la table longue est la valeur pédagogique
 R8_ALLOW=(
@@ -95,7 +95,7 @@ done < <(find "$BOOK" -name "*.md" -print0)
 (( R8_VIOLATIONS == 0 )) && log_pass "R8 : aucune table book hors allow-list > 10 lignes"
 
 # ---------- R10 : wiki/help, sections H2 ≤ 800 mots (warn) ----------
-header "R10 — Sections H2 ≤ 800 mots (warn-only)"
+header "R10 - Sections H2 ≤ 800 mots (warn-only)"
 R10_WARNS=0
 check_r10() {
   local f="$1"
@@ -126,7 +126,7 @@ done
 (( R10_WARNS == 0 )) && log_pass "R10 : aucune section H2 > 800 mots"
 
 # ---------- NG : wiki sans titre narratif ----------
-header "NG — Wiki sans titres narratifs (Tutoriel, Premiers pas, Quickstart…)"
+header "NG - Wiki sans titres narratifs (Tutoriel, Premiers pas, Quickstart…)"
 # Patterns interdits dans H1/H2 du wiki (pages non-stub)
 PATTERNS='^(# |## )(.*(Tutoriel|Premiers pas|Étape par étape|Comment démarrer|Pas à pas|Guide pas à pas))'
 NG_VIOLATIONS=0

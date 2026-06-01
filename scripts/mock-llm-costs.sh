@@ -12,7 +12,7 @@
 #   ./scripts/mock-llm-costs.sh --days 90       # 90 jours
 #   ./scripts/clear-mock-llm-costs.sh           # nettoie
 #
-# Le runtime doit être arrêté (ou tolérer un write concurrent — WAL est activé).
+# Le runtime doit être arrêté (ou tolérer un write concurrent - WAL est activé).
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ fi
 echo "→ Injection des coûts mock dans $DB"
 
 # Tableau : "backend|model|prix_in_per_1k|prix_out_per_1k"
-# Prix réalistes (mai 2026) — purement indicatifs pour le mock.
+# Prix réalistes (mai 2026) - purement indicatifs pour le mock.
 BACKENDS=(
   "openai|gpt-4o|0.0025|0.01"
   "openai|gpt-4o-mini|0.00015|0.0006"
@@ -66,7 +66,7 @@ for ((day_idx=0; day_idx<DAYS; day_idx++)); do
     call_count=$(awk -v w="$weight" 'BEGIN { srand(); print int(3 + w * (rand() * 10)) }')
 
     for ((i = 0; i < call_count; i++)); do
-      # Tokens réalistes — varient par modèle.
+      # Tokens réalistes - varient par modèle.
       case "$backend" in
         openai|anthropic)
           prompt_tokens=$(awk 'BEGIN { srand(); print int(800 + rand() * 4000) }')

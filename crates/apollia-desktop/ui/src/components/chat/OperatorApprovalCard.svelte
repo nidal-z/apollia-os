@@ -196,7 +196,7 @@
         <div class="text-[10px] text-muted-foreground">
           {hasProject
             ? "Tous les assistants utilisés dans ce projet."
-            : "Indisponible — la session n'est rattachée à aucun projet."}
+            : "Indisponible - la session n'est rattachée à aucun projet."}
         </div>
       </Button>
       <Button variant="ghost" size="sm"

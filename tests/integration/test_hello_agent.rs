@@ -1,4 +1,4 @@
-//! Integration tests — full chain with hello_agent.py.
+//! Integration tests - full chain with hello_agent.py.
 //!
 //! Tests the complete path: AIPLoader → AIPBridge → TaskRouter → Coordinator.
 //! Requires Python environment. Gated behind the `python-tests` feature.
@@ -40,7 +40,7 @@ impl ExecutionBackend for AIPBridgeBackend {
     ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
         let bridge = Arc::clone(&self.bridge);
         Box::pin(async move {
-            // Build a minimal context (empty dict — hello_agent doesn't use tools/memory)
+            // Build a minimal context (empty dict - hello_agent doesn't use tools/memory)
             let ctx: PyObject = Python::with_gil(|py| pyo3::types::PyDict::new_bound(py).into());
             bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
         })
@@ -204,7 +204,7 @@ async fn test_invalid_agent_fails_at_load() {
     );
 }
 
-// complementary — agent with manifest() but non-async run() fails validation
+// complementary - agent with manifest() but non-async run() fails validation
 #[tokio::test]
 async fn test_sync_run_fails_validation() {
     // GIVEN a Python file where run() is not async
@@ -234,7 +234,7 @@ async fn test_sync_run_fails_validation() {
     );
 }
 
-// complementary — loading a Python file with no 'agent' variable fails
+// complementary - loading a Python file with no 'agent' variable fails
 #[tokio::test]
 async fn test_missing_agent_variable_fails_load() {
     // GIVEN a valid Python file without a top-level `agent` variable

@@ -9,7 +9,7 @@ import { test, expect, type Page } from "@playwright/test";
  *   (b) hamburger click opens overlay drawer with focus trap.
  *   (c) Settings mobile surfaces the sections trigger.
  *   (d) Onboarding renders offline banner when network probe fails.
- * Visual snapshots are intentionally deferred to a follow-up spec —
+ * Visual snapshots are intentionally deferred to a follow-up spec -
  * this file keeps the behaviour contract green on every run.
  */
 

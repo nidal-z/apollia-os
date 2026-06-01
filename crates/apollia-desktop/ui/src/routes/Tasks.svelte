@@ -66,7 +66,7 @@
       const result: TaskSummary[] = await invoke("list_tasks", { filter: null });
       tasks.set(result);
     } catch {
-      // runtime not ready — keep current state
+      // runtime not ready - keep current state
     }
   }
 
@@ -198,7 +198,7 @@
   });
 
   function formatDurationLong(ms: number | undefined): string {
-    if (ms === undefined || ms === null) return "—";
+    if (ms === undefined || ms === null) return "-";
     if (ms < 1000) return `${ms}ms`;
     if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
     const mins = Math.floor(ms / 60_000);
@@ -207,7 +207,7 @@
   }
 
   function formatDate(iso: string): string {
-    if (!iso) return "—";
+    if (!iso) return "-";
     return new Date(iso).toLocaleString();
   }
 
@@ -217,7 +217,7 @@
   }
 
   onMount(() => {
-    // Page mount — store is already populated by sse.ts watchdog/refresh.
+    // Page mount - store is already populated by sse.ts watchdog/refresh.
   });
 </script>
 
@@ -580,7 +580,7 @@
                   </div>
                   <div class="flex items-baseline gap-3">
                     <dt class="w-[120px] shrink-0 text-muted-foreground">Agent name</dt>
-                    <dd class="text-foreground/85">{selectedTask.agent_name || "—"}</dd>
+                    <dd class="text-foreground/85">{selectedTask.agent_name || "-"}</dd>
                   </div>
                 </dl>
               </Card>

@@ -14,7 +14,7 @@ function scorePct(score: number): number {
   return Math.round(Math.max(0, Math.min(1, score)) * 100);
 }
 
-describe("InjectedMemorySheet — score clamping", () => {
+describe("InjectedMemorySheet - score clamping", () => {
   test("renders 0% for negative scores", () => {
     expect(scorePct(-0.2)).toBe(0);
   });
@@ -29,7 +29,7 @@ describe("InjectedMemorySheet — score clamping", () => {
   });
 });
 
-describe("InjectedEntry — contract", () => {
+describe("InjectedEntry - contract", () => {
   test("payload exposes the five expected fields", () => {
     const entry: InjectedEntry = {
       id: "sem-1",

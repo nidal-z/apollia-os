@@ -2,7 +2,7 @@
  * Humanize low-level backend permission errors into operator-friendly
  * guidance.
  *
- * The mapper is intentionally pattern-based — Meta-LLM fallback happens
+ * The mapper is intentionally pattern-based - Meta-LLM fallback happens
  * elsewhere, this module stays fast, offline, and deterministic.
  */
 
@@ -28,7 +28,7 @@ type Pattern = {
   learn_more_url?: string;
 };
 
-const DOCS_BASE = "https://github.com/nidal-z/apollia-os/wiki";
+const DOCS_BASE = "https://github.com/Apollia-OS/apollia-os/wiki";
 
 const PATTERNS: Pattern[] = [
   {
@@ -99,7 +99,7 @@ const PATTERNS: Pattern[] = [
     regex: /\b(econnrefused|enetunreach|enotfound|dns)\b/i,
     title: "Network unreachable",
     friendly_message:
-      "Apollia could not reach the remote endpoint — the host is down, offline, or unresolvable.",
+      "Apollia could not reach the remote endpoint - the host is down, offline, or unresolvable.",
     suggested_action: "Check your connection and the endpoint URL, then retry.",
   },
   {
@@ -119,7 +119,7 @@ const PATTERNS: Pattern[] = [
     friendly_message:
       "The tool tried to escape its sandbox and was stopped by the runtime.",
     suggested_action:
-      "This is almost always intentional — review what the agent tried to do before granting access.",
+      "This is almost always intentional - review what the agent tried to do before granting access.",
     learn_more_url: `${DOCS_BASE}/Sandbox`,
   },
 ];
@@ -127,7 +127,7 @@ const PATTERNS: Pattern[] = [
 /**
  * Map a raw backend error message to a user-facing payload.
  *
- * Returns `undefined` when no pattern matches — callers should then fall
+ * Returns `undefined` when no pattern matches - callers should then fall
  * back to the Meta-LLM humanizer.
  */
 export function permissionErrorHumanize(raw: string | null | undefined): HumanizedError | undefined {

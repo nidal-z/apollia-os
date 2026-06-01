@@ -1,4 +1,4 @@
-# ADR-112 — Suppression `LlmProxy.stream()` legacy, renommage `stream_complete` → `stream`
+# ADR-112 - Suppression `LlmProxy.stream()` legacy, renommage `stream_complete` → `stream`
 
 **Date :** 2026-05-19
 **Statut :** Accepté
@@ -13,30 +13,30 @@ ce qui crée une confusion structurelle pour l'auteur d'agent.
 
 **État observé au 2026-05-19** (`sdk/apollia/stubs/llm.py`) :
 
-- Ligne 90 : `def stream(self, messages, **kwargs)` — héritage du
+- Ligne 90 : `def stream(self, messages, **kwargs)` - héritage du
   sprint 14, retourne `list[str]` (collecte buffered). Docstring
   ligne 101 indique : "Prefer `stream_complete()` for real
   token-by-token streaming."
-- Ligne 106 : `def stream_complete(self, messages, **kwargs)` — API
+- Ligne 106 : `def stream_complete(self, messages, **kwargs)` - API
   moderne, retourne un async iterator de chunks (token-by-token).
 - Aucune méthode `stream()` n'est plus utilisée par les agents
   bundled. Tous utilisent `stream_complete()` (4 occurrences dans
   `agents/`).
 - `BaseReActAgent` (`sdk/apollia/agents/react.py:495`) check
-  `hasattr(llm, "stream_complete")` pour autoriser le streaming —
+  `hasattr(llm, "stream_complete")` pour autoriser le streaming -
   preuve que `stream()` est mort depuis longtemps.
 
 Conséquences :
 
 - Nouveau venu qui tape `ctx.llm.<tab>` voit `stream` et
-  `stream_complete` — choisit `stream` par habitude (plus court),
+  `stream_complete` - choisit `stream` par habitude (plus court),
   obtient un comportement buffered surprenant, debug pour rien.
 - Doc inconsistante : le nom le plus court désigne la version moins
   bonne.
 - Maintenance double (PyO3 binding + tests + stubs) pour une API
   zombie.
 
-Deuxième problème adjacent — **auto-rewrite des actions shorthand** :
+Deuxième problème adjacent - **auto-rewrite des actions shorthand** :
 
 Dans `sdk/apollia/agents/react.py` (boucle ReAct), si le LLM produit un
 JSON `{"action": "web_search", "query": "..."}` (shorthand où le nom de
@@ -45,7 +45,7 @@ tool est mis directement dans `action` au lieu de
 **ré-écrit silencieusement** ce shorthand en forme canonique. Cette
 indulgence semblait pratique au début, mais en pratique :
 
-- Elle masque les bugs de prompt — l'auteur croit que son prompt est
+- Elle masque les bugs de prompt - l'auteur croit que son prompt est
   bon, alors qu'il devrait être plus strict avec le LLM.
 - Elle complique le debug (la version réécrite n'est pas celle que
   le LLM a effectivement produite).
@@ -53,7 +53,7 @@ indulgence semblait pratique au début, mais en pratique :
   → rewrite injecte `{}` → tool appelé sans args → erreur métier
   cryptique au lieu d'une erreur claire).
 - Aucun autre framework (LangChain, CrewAI, AutoGen) ne fait ce
-  rewrite — c'est une particularité Apollia non-documentée.
+  rewrite - c'est une particularité Apollia non-documentée.
 
 ## Décision
 
@@ -64,7 +64,7 @@ ReAct :**
 2. **Renommage** de `stream_complete()` → `stream()` (la version
    moderne devient la méthode au nom canonique).
 3. **Suppression** de l'auto-rewrite des actions shorthand dans la
-   boucle ReAct — un shorthand devient une `ActionParseError` claire
+   boucle ReAct - un shorthand devient une `ActionParseError` claire
    au lieu d'un magic-fix.
 
 Surface cible :
@@ -125,7 +125,7 @@ def _parse_action(raw: str) -> dict:
 ```
 
 L'`ActionParseError` est émise au runtime via `ctx.events.
-emit_action_parse_error(step, raw, fatal=True)` (ADR-105) — visible
+emit_action_parse_error(step, raw, fatal=True)` (ADR-105) - visible
 en UI builder mode, traçable, debuggable.
 
 ## Alternatives considérées
@@ -155,13 +155,13 @@ demande un nom court.
 **Contre :** option = friction supplémentaire. Default doit être strict
 en v1.
 
-### Option retenue — Suppression franche + renommage
+### Option retenue - Suppression franche + renommage
 
 **Pour :** API minimaliste et claire (`ctx.llm.complete` + `.stream` +
-`.embed` — 3 méthodes nommées idéalement), debug plus simple (un
+`.embed` - 3 méthodes nommées idéalement), debug plus simple (un
 shorthand est une erreur visible), suppression de code mort (~20 LOC
 boucle ReAct + ~30 LOC stream legacy).
-**Compromis acceptés :** breaking — tout agent qui appelait
+**Compromis acceptés :** breaking - tout agent qui appelait
 `stream_complete()` doit renommer en `stream()`. Tout LLM prompt mal
 calibré qui produisait du shorthand doit être renforcé. Effort
 migration ~30 min sur les agents bundled (mécanique).
@@ -173,10 +173,10 @@ migration ~30 min sur les agents bundled (mécanique).
 - `ctx.llm` exposé propre : 3 méthodes (`complete`, `stream`, `embed`).
 - Suppression ~50 LOC totales (stream legacy + shorthand rewrite +
   tests associés).
-- Bugs de prompt mis à nu — l'auteur voit que son prompt produit du
+- Bugs de prompt mis à nu - l'auteur voit que son prompt produit du
   shorthand et le corrige (au lieu que le SDK masque silencieusement).
 - Cohérence avec frameworks modernes (LangChain `stream`, OpenAI SDK
-  `stream=True`, etc.) — courbe d'apprentissage proche zéro.
+  `stream=True`, etc.) - courbe d'apprentissage proche zéro.
 - L'`ActionParseError` traverse `ctx.events` (ADR-105) → visible UI,
   debuggable.
 
@@ -189,7 +189,7 @@ migration ~30 min sur les agents bundled (mécanique).
   L'auteur doit renforcer son prompt (ex. ajouter un exemple positif
   + négatif). Effort estimé < 1h par agent bundled.
 - Pas de bouton "souple" pour des LLM faibles qui produisent du
-  shorthand : ils échoueront. Documenter — c'est un bug à fixer côté
+  shorthand : ils échoueront. Documenter - c'est un bug à fixer côté
   prompt, pas côté SDK.
 
 **À surveiller :**
@@ -198,24 +198,24 @@ migration ~30 min sur les agents bundled (mécanique).
   d'un agent bundled lèvent l'erreur, son prompt est probablement à
   retoucher (signalable).
 - Émergence de besoins streaming custom (ex. yield partiel après
-  parsing JSON delta) — v1.1 si demande.
+  parsing JSON delta) - v1.1 si demande.
 - Modèles locaux faibles (Llama 3 8B) qui produisent souvent du
   shorthand : prévoir des exemples renforcés dans les prompts ReAct
   par défaut.
 
 ## Principes architecturaux impactés
 
-- **Principe #3 — Contrat minimal** : API LLM réduite à 3 méthodes
+- **Principe #3 - Contrat minimal** : API LLM réduite à 3 méthodes
   bien nommées.
-- **Principe #4 — Fail fast** : shorthand devient une erreur visible,
+- **Principe #4 - Fail fast** : shorthand devient une erreur visible,
   pas un magic fix masqué.
-- **Principe #5 — Un acteur, une responsabilité** : le LLM service
-  ne fait plus de "rewrite" — c'est strictement un proxy LLM, le
+- **Principe #5 - Un acteur, une responsabilité** : le LLM service
+  ne fait plus de "rewrite" - c'est strictement un proxy LLM, le
   parsing d'action revient au ReAct loop qui le fait explicitement.
 
 ## Liens
 
-- ADR-101 — `ctx` Protocol (`ctx.llm` exposé)
-- ADR-105 — `ctx.events` (action parse error émis ici)
-- ADR-098 — Decorator-first (ReAct devient utility, sans ce magic fix)
-- ADR-078 — Meta-LLM orchestrator (consommateur de stream/complete)
+- ADR-101 - `ctx` Protocol (`ctx.llm` exposé)
+- ADR-105 - `ctx.events` (action parse error émis ici)
+- ADR-098 - Decorator-first (ReAct devient utility, sans ce magic fix)
+- ADR-078 - Meta-LLM orchestrator (consommateur de stream/complete)

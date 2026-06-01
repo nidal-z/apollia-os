@@ -1,4 +1,4 @@
-# ADR-072 — Outils web natifs : architecture `web_search` + `web_read`
+# ADR-072 - Outils web natifs : architecture `web_search` + `web_read`
 
 **Date :** 2026-04-17
 **Statut :** Accepté
@@ -9,7 +9,7 @@
 
 ## Contexte
 
-Le lancement de v0.1.0 prévoit trois agents de démonstration, dont `veille-assistant` —
+Le lancement de v0.1.0 prévoit trois agents de démonstration, dont `veille-assistant` -
 un agent qui reçoit un sujet, cherche sur le web, lit les articles pertinents, synthétise
 et écrit un rapport. Aujourd'hui, aucun outil web natif n'existe dans `apollia-tools`.
 
@@ -30,7 +30,7 @@ Par ailleurs, l'infrastructure Brave Search MCP mentionnée dans la codebase est
 le `McpServerConfig` skeleton existe (cf. `apollia-mcp/src/config.rs:282`) mais la UI desktop
 de configuration, le câblage keychain et les tests d'intégration ne sont pas livrés. Brave
 via MCP nécessiterait par ailleurs un subprocess Node.js pour la version locale
-(violation du Principe #2 — zéro dépendance externe).
+(violation du Principe #2 - zéro dépendance externe).
 
 ---
 
@@ -38,7 +38,7 @@ via MCP nécessiterait par ailleurs un subprocess Node.js pour la version locale
 
 Nous adoptons une **architecture 2-étages native** pour les outils web d'Apollia :
 
-### Étage 1 — `web_search` avec backends pluggables
+### Étage 1 - `web_search` avec backends pluggables
 
 Un trait `SearchBackend` `pub(crate)` défini dans
 `crates/apollia-tools/src/tools/web_search/backend.rs`, calqué sur les patterns
@@ -47,11 +47,11 @@ existants `SttBackend` (`apollia-stt/src/backend.rs:17-53`) et `LlmRouter`
 
 Deux implémentations :
 
-- **`DuckDuckGoBackend`** (zéro config, toujours présent) — scrape
+- **`DuckDuckGoBackend`** (zéro config, toujours présent) - scrape
   `html.duckduckgo.com/html/`, UA Firefox, matrice statut→erreur explicite
   (`Blocked` vs `RateLimited` vs `ParseError`).
 - **`BraveBackend`** (feature `brave-search`, clé API via env var
-  `BRAVE_SEARCH_API_KEY`) — API JSON documentée d'Brave Search. Enregistrée
+  `BRAVE_SEARCH_API_KEY`) - API JSON documentée d'Brave Search. Enregistrée
   *uniquement* si la clé est présente au runtime (pattern identique à
   `LlmRouter::from_config_with_bus` qui skip + warn quand un backend
   cloud n'a pas sa clé).
@@ -59,13 +59,13 @@ Deux implémentations :
 Priorité : Brave > DDG quand Brave est disponible. Un fallback transparent
 se fait sur DDG quand Brave retourne `Blocked` / `RateLimited` / `BadStatus`.
 
-### Étage 2 — `web_read` (outil distinct)
+### Étage 2 - `web_read` (outil distinct)
 
 Un outil `web_read` qui prend une URL et renvoie le contenu lisible extrait
 (titre + byline + texte). Extraction via `dom_smoothie` (port Rust maintenu
 de Mozilla Readability.js).
 
-Pas de backends pluggables pour web_read — une seule stratégie d'extraction
+Pas de backends pluggables pour web_read - une seule stratégie d'extraction
 suffit, et la sortie plain-text est stable. Si le besoin d'alternatives
 apparaît plus tard (Playwright headless, Python/trafilatura), on refactorera
 à ce moment-là.
@@ -82,7 +82,7 @@ et toute tentative d'invocation retourne `ToolNotAllowed`.
 
 Cette discipline est conforme à Principe #1 (local-first) : aucune requête
 réseau sortante sans consentement explicite par session. La décision
-précédente de gater via `apollia.toml [tools]` a été abandonnée — elle
+précédente de gater via `apollia.toml [tools]` a été abandonnée - elle
 dédoublait le contrôle sans bénéfice sécurité (la case à cocher est déjà
 explicite et permet un contrôle plus fin, au chat près, plutôt qu'une
 bascule globale).
@@ -92,7 +92,7 @@ bascule globale).
 Les deux outils **ignorent** `http_allowlist` (le champ qui gouverne
 `http_fetch`) et gèrent leur propre sécurité :
 
-- `web_search` parle à son backend hardcodé — c'est un détail
+- `web_search` parle à son backend hardcodé - c'est un détail
   d'implémentation, pas une URL fournie par l'agent.
 - `web_read` applique un garde-fou SSRF dédié (voir ci-dessous) sur chaque
   URL soumise par l'agent.
@@ -152,7 +152,7 @@ est laid. Coût du vtable : négligeable vs le round-trip réseau.
 ### E. `web_search` qui fetch + extract intégré (à la Tavily/Exa)
 
 Rejetée. Coupler les deux concerns rend impossible la parallélisation
-sélective (l'agent pourrait vouloir lire 3 URLs sur 10 résultats —
+sélective (l'agent pourrait vouloir lire 3 URLs sur 10 résultats -
 fetch-les-10 gâcherait de la bande passante et des tokens). Deux outils
 distincts gardent le LLM comme decision-maker.
 
@@ -227,7 +227,7 @@ exclure complètement web-search/web-read.
 | `invalid_query` | Query vide ou > 500 chars | Corriger et retry |
 | `backend_not_available` | `backend: "brave"` sans clé | Utiliser `auto` |
 | `all_backends_failed` | Tous les backends ont échoué | Abandonner ou retry plus tard |
-| `no_backends_available` | Liste vide à la construction | Bug de config — signaler |
+| `no_backends_available` | Liste vide à la construction | Bug de config - signaler |
 
 ### `SearchBackendError` (attribué par nom de backend)
 
@@ -277,15 +277,15 @@ exclure complètement web-search/web-read.
    (renvoie URLs + contenu pré-extrait).
 4. **UI desktop** pour configurer backends de recherche et gérer
    `BRAVE_SEARCH_API_KEY` via keychain (remplace l'env var).
-5. **Cache résultats** côté agent (pas côté tool — un tool reste stateless).
+5. **Cache résultats** côté agent (pas côté tool - un tool reste stateless).
 
 ---
 
 ## Références
 
-- `crates/apollia-tools/src/tools/web_search/` — implémentation
-- `crates/apollia-tools/src/tools/web_read/` — implémentation
-- `crates/apollia-tools/src/tools/http_fetch.rs` — pattern de référence pour outil réseau
-- `crates/apollia-llm/src/router.rs` — pattern de référence pour backend-avec-credential
-- `crates/apollia-stt/src/backend.rs:17-53` — pattern `Box<dyn Backend>`
+- `crates/apollia-tools/src/tools/web_search/` - implémentation
+- `crates/apollia-tools/src/tools/web_read/` - implémentation
+- `crates/apollia-tools/src/tools/http_fetch.rs` - pattern de référence pour outil réseau
+- `crates/apollia-llm/src/router.rs` - pattern de référence pour backend-avec-credential
+- `crates/apollia-stt/src/backend.rs:17-53` - pattern `Box<dyn Backend>`
 - LAUNCH-BACKLOG `docs/internal/LAUNCH-BACKLOG.md` bloc 1.3

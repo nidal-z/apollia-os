@@ -13,7 +13,7 @@
   interface Props {
     message: ChatMessageView;
     sessionId: string;
-    /** When false, the bubble is a continuation inside a group — no timestamp footer. */
+    /** When false, the bubble is a continuation inside a group - no timestamp footer. */
     showTimestamp?: boolean;
     /** Visual density. "compact" clamps the max-width at 72 % for embedded contexts. */
     variant?: "default" | "compact";
@@ -38,7 +38,7 @@
     message.tool_calls !== null && message.tool_calls.length > 0,
   );
 
-  // Strip <think>...</think> blocks from rendered content — they are shown via ReasoningSequence.
+  // Strip <think>...</think> blocks from rendered content - they are shown via ReasoningSequence.
   const parsedContentBlocks = $derived(parseStream(message.content ?? ""));
   const cleanContent = $derived(
     parsedContentBlocks
@@ -51,14 +51,14 @@
       parsedContentBlocks.some((b) => b.type === "thinking" && b.closed),
   );
 
-  // Adaptive width — B.2. Compact variant falls back to 72 %.
+  // Adaptive width - B.2. Compact variant falls back to 72 %.
   const widthClass = $derived(
     variant === "compact"
       ? "max-w-[min(78ch,72%)]"
       : "max-w-[min(82ch,92%)] lg:max-w-[min(78ch,80%)]",
   );
 
-  // Relief — Warm Glass shadow + subtle border for agent, gradient accent for user.
+  // Relief - Warm Glass shadow + subtle border for agent, gradient accent for user.
   const bubbleClass = $derived(
     isUser
       ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-2xl rounded-br-sm shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.35)]"
@@ -93,7 +93,7 @@
   <div
     class="relative {widthClass} px-3.5 py-2.5 text-[13px] leading-relaxed {bubbleClass} {!isUser && message.content ? 'pr-10' : ''}"
   >
-    <!-- Copy button — floating, backdrop-blur, always reachable on touch. -->
+    <!-- Copy button - floating, backdrop-blur, always reachable on touch. -->
     {#if message.content && !isUser}
       <button
         onclick={handleCopy}

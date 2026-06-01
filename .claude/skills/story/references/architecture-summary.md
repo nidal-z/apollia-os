@@ -1,4 +1,4 @@
-# Architecture Summary — Apollia OS (Machine-Readable)
+# Architecture Summary - Apollia OS (Machine-Readable)
 
 > Résumé condensé pour les agents IA. Pour la documentation complète, voir `docs/`.
 
@@ -97,12 +97,12 @@ pub enum ProcessState {
 // Ne pas dévier de ce pattern sans ADR
 
 pub struct MonActeur {
-    // état interne PRIVÉ — jamais exposé directement
+    // état interne PRIVÉ - jamais exposé directement
     agents: HashMap<AgentId, AgentEntry>,
     bus: EventBusSender,
 }
 
-// Handle public — la seule interface vers l'acteur
+// Handle public - la seule interface vers l'acteur
 #[derive(Clone)]
 pub struct MonActeurHandle {
     tx: mpsc::Sender<MonActeurMessage>,
@@ -153,7 +153,7 @@ impl MonActeurHandle {
 ## EventBus (apollia-runtime)
 
 ```rust
-// Basé sur tokio::sync::broadcast — buffer 1024
+// Basé sur tokio::sync::broadcast - buffer 1024
 pub type EventBusSender = broadcast::Sender<RuntimeEvent>;
 pub type EventBusReceiver = broadcast::Receiver<RuntimeEvent>;
 
@@ -194,7 +194,7 @@ pub enum SandboxProfile {
     ReadOnly,           // tmpfs ro + PID ns, 128MB, 30s
     FileSystem,         // sandbox rw + PID ns, 256MB, 60s
     NetworkRestricted,  // FileSystem + net ns + iptables whitelist
-    Full,               // Tout autorisé — nécessite dangerous=true
+    Full,               // Tout autorisé - nécessite dangerous=true
 }
 
 // Résolution à INITIALIZING uniquement (fail fast)
@@ -220,7 +220,7 @@ procedural_memories (id, namespace, trigger, steps JSON, success_count, last_use
 -- Recherche plein texte (TOUJOURS présent)
 memory_fts USING fts5(content, tokenize='unicode61')  -- unicode61 OBLIGATOIRE pour le français
 
--- Vectoriel (OPTIONNEL — uniquement si sqlite-vec installé)
+-- Vectoriel (OPTIONNEL - uniquement si sqlite-vec installé)
 memory_vec USING vec0(embedding float[384])
 ```
 

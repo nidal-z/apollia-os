@@ -1,4 +1,4 @@
-//! [`TreeProvider`] — fournit l'arborescence du répertoire courant.
+//! [`TreeProvider`] - fournit l'arborescence du répertoire courant.
 //!
 //! Parcours BFS avec timeout d'une seconde, répertoires système ignorés
 //! (`.git`, `target`, `node_modules`, `__pycache__`, `dist`…).

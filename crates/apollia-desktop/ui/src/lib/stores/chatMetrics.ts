@@ -83,7 +83,7 @@ export async function refreshSessionMetrics(
     });
     metricsBySession.update((all) => ({ ...all, [sessionId]: m }));
   } catch (err) {
-    // Runtime may not be ready yet — keep previous value silently.
+    // Runtime may not be ready yet - keep previous value silently.
     console.debug("chat_session_metrics failed", err);
   }
 }

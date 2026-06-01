@@ -1,4 +1,4 @@
-# ADR-102 — API A2A unifiée (`ctx.a2a`)
+# ADR-102 - API A2A unifiée (`ctx.a2a`)
 
 **Date :** 2026-05-19
 **Statut :** Accepté
@@ -19,7 +19,7 @@ exposées au même niveau.
 |---|---|---|
 | `ctx.send(to_agent, message)` / `ctx.receive(timeout)` | Mailbox fire-and-forget | Présent dans les stubs, **aucun agent en production ne l'utilise** (grep dans `agents/`). Mal documentée (sémantique async floue : push vs poll ?) |
 | `ctx.delegate(agent_id, subtask)` | Sub-task synchrone, raise exception sur erreur | Utilisée par `OrchestratedAgent` historiquement, **0 occurrence** dans les agents bundled non-orchestrated |
-| `ctx.a2a_invoke(skill_id, payload)` / `ctx.a2a_discover(...)` / `ctx.a2a_list_skills()` | Skill-based, returns `AIPResult` sans raise | API moderne (post-sprint 38), utilisée par `agents/veille-ia/director.py` et tests A2A — **API préférée de facto** |
+| `ctx.a2a_invoke(skill_id, payload)` / `ctx.a2a_discover(...)` / `ctx.a2a_list_skills()` | Skill-based, returns `AIPResult` sans raise | API moderne (post-sprint 38), utilisée par `agents/veille-ia/director.py` et tests A2A - **API préférée de facto** |
 
 Conséquences :
 
@@ -27,13 +27,13 @@ Conséquences :
   hérite d'un copier-coller. Sémantiques subtilement différentes (l'une
   raise, l'autre retourne, l'autre est async-only).
 - `ctx.a2a_invoke` retourne un dict shape `AIPResult` que l'agent
-  appelant doit ré-éplucher (`if result["status"] == "failed": ...`) —
+  appelant doit ré-éplucher (`if result["status"] == "failed": ...`) -
   c'est le miroir exact du problème ADR-100 mais côté caller.
 - `ctx.a2a_list_skills()` retourne une liste de skills mais aucun moyen
-  d'en transformer un en "tool" pour `ctx.react` — l'auteur doit
+  d'en transformer un en "tool" pour `ctx.react` - l'auteur doit
   formater à la main le descriptif tool.
 - Pas de notion de "skill_id propagé" propre au caller (cf. mémoire
-  `project_a2a_skill_id_not_propagated`, résolue côté runtime — mais
+  `project_a2a_skill_id_not_propagated`, résolue côté runtime - mais
   l'API caller n'a jamais été nettoyée).
 
 Le pattern visé (FastAPI client, gRPC stub) consiste à exposer un objet
@@ -60,7 +60,7 @@ class A2AService(Protocol):
     ) -> dict:
         """Invoque un skill A2A. Retourne le `data` du skill cible si
         completed. Raise DomainError("A2A_<CODE>", ...) si le skill cible
-        a échoué — le caller reste idiomatique (cf. ADR-100)."""
+        a échoué - le caller reste idiomatique (cf. ADR-100)."""
 
     async def discover(
         self,
@@ -92,7 +92,7 @@ Points clés :
 1. **`SkillDescriptor`** (dataclass publique) expose `id`, `agent`,
    `description`, `input_schema`, `output_schema` (issus de
    l'inférence ADR-099 du skill cible).
-2. **`invoke()` se comporte en idiome caller** (ADR-100) — si le skill
+2. **`invoke()` se comporte en idiome caller** (ADR-100) - si le skill
    cible a `raise DomainError("CODE", msg)`, le caller voit
    `raise DomainError("A2A_CODE", msg)` (préfixe `A2A_` pour distinguer
    l'erreur locale vs distante). Si succès, retourne directement le
@@ -111,34 +111,34 @@ Points clés :
 
 ## Alternatives considérées
 
-### Option A — Conserver les 3 APIs en parallèle, deprecation seulement (rejetée)
+### Option A - Conserver les 3 APIs en parallèle, deprecation seulement (rejetée)
 
 **Pour :** zéro breaking change.
 **Contre :** pérennise la confusion. Empêche l'introduction propre de
 `skill_as_tool` qui aurait besoin de réutiliser un `discover`. Maintien
 de 3× la surface à tester.
 
-### Option B — Un seul appel `ctx.a2a(skill_id, **kwargs)` callable (rejetée)
+### Option B - Un seul appel `ctx.a2a(skill_id, **kwargs)` callable (rejetée)
 
 **Pour :** ultra-minimaliste.
 **Contre :** perte du `discover` et `list_skills` (utiles pour les
 agents qui adaptent leur comportement au catalogue de skills). Mauvais
 mapping IDE (un callable seul est moins explorable qu'un objet).
 
-### Option C — Objets typés `A2AClient(target_agent)` (rejetée)
+### Option C - Objets typés `A2AClient(target_agent)` (rejetée)
 
-**Pour :** style "gRPC stub" — `client = ctx.a2a.client("docx-worker");
+**Pour :** style "gRPC stub" - `client = ctx.a2a.client("docx-worker");
 result = await client.extract(path=...)`.
 **Contre :** demande de connaître l'agent fournisseur en hardcode →
 casse la philosophie skill-based où le caller cible un `skill_id` sans
 savoir qui le sert. Ré-introduit du couplage director↔worker.
 
-### Option retenue — `ctx.a2a` avec 4 méthodes typées
+### Option retenue - `ctx.a2a` avec 4 méthodes typées
 
 **Pour :** surface stable et minimale, sémantique idiom caller (raise
 sur erreur, return dict sur succès), `skill_as_tool` ouvre la voie
 ReAct↔A2A unifié, alignement avec `Ctx` Protocol (ADR-101).
-**Compromis acceptés :** breaking change total — tout director existant
+**Compromis acceptés :** breaking change total - tout director existant
 réécrit (~10 occurrences `ctx.a2a_invoke` dans les agents bundled,
 mécaniques).
 
@@ -148,13 +148,13 @@ mécaniques).
 
 - Une seule façon d'appeler un autre agent. Plus de question "send,
   delegate, ou invoke ?".
-- Le caller bénéficie du pattern exceptions au boundary (ADR-100) — pas
+- Le caller bénéficie du pattern exceptions au boundary (ADR-100) - pas
   besoin de re-disséquer un `AIPResult` dict à chaque appel.
 - `skill_as_tool()` débouche un cas d'usage majeur : un director ReAct
   qui découvre dynamiquement les workers et leur propose comme tools
   au LLM. Pattern utilisé en boucle dans `agents/veille-ia/director.py`,
   qui sera simplifié drastiquement (estimation -150 LOC dispatching).
-- Le runtime Rust expose une seule surface (`A2AService`) — refactor
+- Le runtime Rust expose une seule surface (`A2AService`) - refactor
   PyO3 propre (LOT 7).
 - `apollia inspect` peut afficher les skills disponibles via la même
   API que celle qu'utiliserait l'agent au runtime.
@@ -165,7 +165,7 @@ mécaniques).
   ~10 occurrences.
 - Les agents qui dépendaient de `ctx.delegate(...)` (exception-raising)
   doivent l'adopter via `ctx.a2a.invoke(...)` (qui lève aussi, cf.
-  point 2 ci-dessus) — comportement préservé.
+  point 2 ci-dessus) - comportement préservé.
 - `skill_as_tool` introduit une dépendance API entre `ctx.a2a` et
   `ctx.react` (les deux services se connaissent). Documenter le
   contrat `ToolDescriptor`.
@@ -173,7 +173,7 @@ mécaniques).
 **À surveiller :**
 
 - Performance de `skill_as_tool` au moment de `discover` (un round-trip
-  par tool exposé) — cacher localement la première fois.
+  par tool exposé) - cacher localement la première fois.
 - Pattern director ReAct + workers comme tools : si adoption forte,
   envisager un helper `ctx.a2a.discover_all_as_tools()` (sucre).
 - Sémantique exception caller : si `DomainError("A2A_…")` paraît
@@ -181,19 +181,19 @@ mécaniques).
 
 ## Principes architecturaux impactés
 
-- **Principe #3 — Contrat minimal** : 4 méthodes sous un namespace dédié.
-- **Principe #5 — Un acteur, une responsabilité** : `A2AService` Python
+- **Principe #3 - Contrat minimal** : 4 méthodes sous un namespace dédié.
+- **Principe #5 - Un acteur, une responsabilité** : `A2AService` Python
   s'aligne sur l'acteur A2A côté Rust (`apollia-runtime::a2a`).
-- **Principe #4 — Fail fast** : `discover` lève si skill inconnu — pas
+- **Principe #4 - Fail fast** : `discover` lève si skill inconnu - pas
   d'invocation aveugle.
 
 ## Liens
 
-- ADR-101 — `ctx` Protocol exhaustif (cadre)
-- ADR-098 — Decorator-first (`@skill` génère les skills consommés ici)
-- ADR-099 — Signature inference (alimente `SkillDescriptor.input_schema`)
-- ADR-100 — Exceptions au boundary (sémantique caller alignée)
-- ADR-108 — Suppression mailbox `send/receive` (cousin direct)
-- ADR-049 — A2A skill-based dispatch (si présent — concept fondateur)
+- ADR-101 - `ctx` Protocol exhaustif (cadre)
+- ADR-098 - Decorator-first (`@skill` génère les skills consommés ici)
+- ADR-099 - Signature inference (alimente `SkillDescriptor.input_schema`)
+- ADR-100 - Exceptions au boundary (sémantique caller alignée)
+- ADR-108 - Suppression mailbox `send/receive` (cousin direct)
+- ADR-049 - A2A skill-based dispatch (si présent - concept fondateur)
 - Mémoire `project_a2a_skill_id_not_propagated` (résolution backend déjà
   livrée, API frontend nettoyée ici)

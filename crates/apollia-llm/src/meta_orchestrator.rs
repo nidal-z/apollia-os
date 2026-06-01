@@ -602,7 +602,7 @@ impl MetaLlmOrchestrator {
     ) -> Result<Option<String>, LlmError> {
         // Short-circuit: toggle off means no call and no consumption.
         if !self.settings.is_routine_enabled(routine) {
-            tracing::debug!(routine = ?routine, "meta routine disabled — short-circuit");
+            tracing::debug!(routine = ?routine, "meta routine disabled - short-circuit");
             return Ok(None);
         }
 
@@ -621,7 +621,7 @@ impl MetaLlmOrchestrator {
                 session_id = %session_id,
                 used,
                 budget = counter.budget,
-                "meta budget exceeded — short-circuit"
+                "meta budget exceeded - short-circuit"
             );
             return Ok(None);
         }
@@ -658,11 +658,11 @@ impl MetaLlmOrchestrator {
         let response = match tokio::time::timeout(CALL_TIMEOUT, call).await {
             Ok(Ok(r)) => r,
             Ok(Err(e)) => {
-                tracing::warn!(routine = ?routine, error = %e, "meta llm call failed — fallback None");
+                tracing::warn!(routine = ?routine, error = %e, "meta llm call failed - fallback None");
                 return Ok(None);
             }
             Err(_) => {
-                tracing::warn!(routine = ?routine, "meta llm timeout — fallback None");
+                tracing::warn!(routine = ?routine, "meta llm timeout - fallback None");
                 return Ok(None);
             }
         };

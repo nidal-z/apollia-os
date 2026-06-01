@@ -1,4 +1,4 @@
-# ADR-047 — Multi-LLM Backend Registry : SQLite + binding par agent
+# ADR-047 - Multi-LLM Backend Registry : SQLite + binding par agent
 
 **Date :** 2026-03-31
 **Statut :** Accepté
@@ -29,7 +29,7 @@ trois problèmes bloquants avant la v1 :
 **Contraintes :**
 - Pas d'utilisateurs existants → suppression directe possible, pas de migration
 - Le `LlmRouter` actuel est un wrapper autour d'un seul `Arc<dyn LlmBackend>`
-- Les backends locaux (llama-cpp) sont coûteux en mémoire — V1 : tous chargés au boot.
+- Les backends locaux (llama-cpp) sont coûteux en mémoire - V1 : tous chargés au boot.
   Lazy load / unload sera une story V2.
 - `AgentManifest` est le contrat Python → tout champ ajouté doit être optionnel
 
@@ -39,31 +39,31 @@ trois problèmes bloquants avant la v1 :
 
 Nous adoptons un **registre de backends LLM en SQLite** avec les composants suivants :
 
-1. **Table `llm_backends`** dans `~/.apollia/system.db` — enregistre n backends,
+1. **Table `llm_backends`** dans `~/.apollia/system.db` - enregistre n backends,
    un seul marqué `is_default = true`.
 
-2. **`LlmBackendRepository`** dans `apollia-core` — CRUD synchrone (connexion réservée
+2. **`LlmBackendRepository`** dans `apollia-core` - CRUD synchrone (connexion réservée
    au démarrage), même pattern que `TriggerDefinitionRepository`.
 
-3. **`AgentManifest.llm_backend: Option<String>`** — champ optionnel déclaré en Python.
+3. **`AgentManifest.llm_backend: Option<String>`** - champ optionnel déclaré en Python.
    Si absent ou `None`, l'agent utilise le backend par défaut.
 
-4. **`LlmRouter` multi-backend** — `HashMap<String, Arc<dyn LlmBackend>>` + champ
+4. **`LlmRouter` multi-backend** - `HashMap<String, Arc<dyn LlmBackend>>` + champ
    `default: String`. La méthode `route(agent_manifest)` lit `llm_backend` du manifest
    et renvoie la référence au bon backend.
 
-5. **API REST `/api/v1/llm/backends`** — CRUD complet (list, get, create, update, delete,
+5. **API REST `/api/v1/llm/backends`** - CRUD complet (list, get, create, update, delete,
    set-default) accessible depuis l'app desktop et le CLI.
 
-6. **Secrets par interpolation `${VAR}`** — même pattern que les MCP servers (ADR-044).
+6. **Secrets par interpolation `${VAR}`** - même pattern que les MCP servers (ADR-044).
    Jamais de clé API en clair dans la DB. Les secrets peuvent aussi être stockés via
-   le keyring (APOLLIA_SECRET: prefix — cf. ADR-045).
+   le keyring (APOLLIA_SECRET: prefix - cf. ADR-045).
 
 ---
 
 ## Alternatives considérées
 
-### Option A — Variable d'environnement par agent (rejetée)
+### Option A - Variable d'environnement par agent (rejetée)
 
 Chaque agent lit `APOLLIA_LLM_BACKEND` ou `APOLLIA_LLM_API_KEY` au démarrage.
 
@@ -72,7 +72,7 @@ Chaque agent lit `APOLLIA_LLM_BACKEND` ou `APOLLIA_LLM_API_KEY` au démarrage.
 Principe #3 (contrat minimal). Impossible à gérer depuis l'app desktop. Pas de routing
 centralisé.
 
-### Option B — Fichier de config par agent (rejetée)
+### Option B - Fichier de config par agent (rejetée)
 
 Chaque agent a un fichier `<name>.config.toml` avec son backend LLM et ses overrides.
 
@@ -80,7 +80,7 @@ Chaque agent a un fichier `<name>.config.toml` avec son backend LLM et ses overr
 **Contre :** Prolifération de fichiers. Même problème d'éditabilité runtime que `[llm]`.
 Incohérent avec SQLite pour tous les autres objets.
 
-### Option C — LLM dans AgentManifest uniquement, sans registre central (rejetée)
+### Option C - LLM dans AgentManifest uniquement, sans registre central (rejetée)
 
 L'agent déclare directement la config complète du LLM dans son `manifest()`.
 
@@ -88,7 +88,7 @@ L'agent déclare directement la config complète du LLM dans son `manifest()`.
 **Contre :** Les API keys dans le code Python → catastrophe sécurité. L'agent devient
 responsable de la config d'infra. Impossible de changer de clé sans éditer le Python.
 
-### Option retenue — Registre SQLite + champ `llm_backend` dans le manifest
+### Option retenue - Registre SQLite + champ `llm_backend` dans le manifest
 
 **Pour :** Cohérent avec l'architecture existante (tous les entités en SQLite), séparation
 claire entre "quel backend" (manifest) et "comment ce backend est configuré" (registre),
@@ -99,7 +99,7 @@ gestion centralisée des secrets, éditable depuis le desktop sans redémarrage.
 - Les backends locaux (llama-cpp) sont tous chargés au boot en V1 → consommation mémoire
   si plusieurs modèles lourds sont enregistrés. V2 ajoutera le lazy load.
 - `AgentManifest` gagne un nouveau champ → les agents Python existants doivent être
-  mis à jour (ou ignorer le champ — il est optionnel)
+  mis à jour (ou ignorer le champ - il est optionnel)
 
 ---
 
@@ -176,8 +176,8 @@ pub struct AgentManifest {
 - Rollback facile : changer `is_default` dans la DB suffit
 
 **Négatives / Compromis :**
-- LlmRouter refactorisé — risque de régression sur le routing existant
-- Backends locaux tous chargés au boot en V1 — consommation mémoire si plusieurs GGUF
+- LlmRouter refactorisé - risque de régression sur le routing existant
+- Backends locaux tous chargés au boot en V1 - consommation mémoire si plusieurs GGUF
 - `AgentManifest` s'agrandit (breaking change mineur du contrat Python, optionnel)
 
 **À surveiller :**
@@ -189,14 +189,14 @@ pub struct AgentManifest {
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first :** Respecté. Les API keys restent locales (env vars, keyring).
-  Les appels LLM peuvent être distants si le provider est distant — c'est un choix explicite
+- **Principe #1 - Local-first :** Respecté. Les API keys restent locales (env vars, keyring).
+  Les appels LLM peuvent être distants si le provider est distant - c'est un choix explicite
   de l'utilisateur qui configure le backend.
-- **Principe #2 — Zéro dépendance externe :** Respecté. Pas de nouvelle crate. Le LlmRouter
+- **Principe #2 - Zéro dépendance externe :** Respecté. Pas de nouvelle crate. Le LlmRouter
   existant est étendu, pas remplacé.
-- **Principe #3 — Contrat minimal :** Respecté. `llm_backend` est optionnel dans le manifest.
+- **Principe #3 - Contrat minimal :** Respecté. `llm_backend` est optionnel dans le manifest.
   Les agents existants sans ce champ continuent de fonctionner.
-- **Principe #4 — Fail fast :** Respecté. Si un backend nommé est introuvable au démarrage
+- **Principe #4 - Fail fast :** Respecté. Si un backend nommé est introuvable au démarrage
   de l'agent → warning immédiat + fallback sur le défaut.
 
 ---
@@ -204,6 +204,6 @@ pub struct AgentManifest {
 ## Liens
 
 - Stories associées : STORY-374, STORY-375, STORY-376, STORY-377, STORY-378
-- ADR précédent sur LLM : ADR-020 (LLM moteur embarqué — llama.cpp + feature flags)
+- ADR précédent sur LLM : ADR-020 (LLM moteur embarqué - llama.cpp + feature flags)
 - ADR remplacé partiellement : ADR-020 (la configuration statique TOML est remplacée)
 - Sprint : 28

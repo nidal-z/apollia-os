@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apollia Code Reviewer — post-commit hook
+# Apollia Code Reviewer - post-commit hook
 #
 # Fires the apollia-code-reviewer webhook trigger after each commit.
 #
@@ -12,7 +12,7 @@
 #   Get it after creating the trigger via the Apollia UI or:
 #     apollia trigger list
 #
-# The hook fires silently — it does not block the commit.
+# The hook fires silently - it does not block the commit.
 # Review results appear as tasks in the Apollia UI.
 
 APOLLIA_BASE_URL="${APOLLIA_BASE_URL:-http://127.0.0.1:7771}"
@@ -26,7 +26,7 @@ fi
 COMMIT_HASH=$(git log -1 --format="%H" 2>/dev/null)
 COMMIT_MSG=$(git log -1 --format="%s" 2>/dev/null)
 
-# Fire the trigger — fail silently so the hook never blocks a commit.
+# Fire the trigger - fail silently so the hook never blocks a commit.
 curl -s \
   --max-time 3 \
   -X POST \

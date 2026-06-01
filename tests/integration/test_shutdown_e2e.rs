@@ -1,4 +1,4 @@
-//! Integration tests — graceful shutdown with active tasks.
+//! Integration tests - graceful shutdown with active tasks.
 //!
 //! Tests the full shutdown sequence: drain in-progress tasks → stop agents →
 //! stop actors in reverse order. Uses a mock backend to avoid Python dependency.

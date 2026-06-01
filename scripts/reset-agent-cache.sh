@@ -14,7 +14,7 @@
 #
 #   1. PyO3 keeps every Python agent module in the running interpreter's
 #      memory. Editing agents/assistants/<name>.py on disk has no effect
-#      until the process restarts — the interpreter never re-reads the file.
+#      until the process restarts - the interpreter never re-reads the file.
 #
 #   2. chat.db (+ -wal/-shm) stores every chat session. On restart the
 #      ChatSessionManager restores active sessions, and the UI replays the
@@ -72,7 +72,7 @@ stop_daemon() {
         # Fall back to SIGTERM on whoever owns the Unix socket.
         pid="$(lsof -t -U -- "$SOCKET" 2>/dev/null | head -n1 || true)"
         if [ -n "$pid" ]; then
-            echo "       'apollia-os stop' unavailable — SIGTERM to PID $pid"
+            echo "       'apollia-os stop' unavailable - SIGTERM to PID $pid"
             kill "$pid" 2>/dev/null || true
         fi
     fi
@@ -92,7 +92,7 @@ stop_daemon() {
 stop_daemon
 
 # ── [1/4] Clear Python bytecode cache ─────────────────────────────────────────
-# Safety net — the running interpreter is already gone, so bytecode on disk
+# Safety net - the running interpreter is already gone, so bytecode on disk
 # would be reloaded next start. Clearing avoids stale .pyc shadowing .py.
 echo "[1/4] Clearing __pycache__..."
 find "${APOLLIA_DIR}/agents" -type d -name "__pycache__" \
@@ -101,7 +101,7 @@ find "${AGENTS_SOURCE}" -type d -name "__pycache__" \
     -exec rm -rf {} + 2>/dev/null || true
 
 # ── [2/4] Clear agent memory databases ────────────────────────────────────────
-# Agent memory lives at ~/.apollia/memory/<namespace>.db — clear the WAL and
+# Agent memory lives at ~/.apollia/memory/<namespace>.db - clear the WAL and
 # SHM companion files too or SQLite WAL recovery re-materialises old data.
 remove_sqlite() {
     # $1 = base path (e.g. ~/.apollia/chat.db)
@@ -147,7 +147,7 @@ sync_agent_py() {
         if [ -f "$src" ]; then
             cp "$src" "$dst"
 
-            # Assistants depend on the shared/ helper package — scrub the
+            # Assistants depend on the shared/ helper package - scrub the
             # installed copy and re-sync from source on every reset.
             if [ "$src_dir" = "assistants" ] \
                 && [ -d "${AGENTS_SOURCE}/assistants/shared" ]; then

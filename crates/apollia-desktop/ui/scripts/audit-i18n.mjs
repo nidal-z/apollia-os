@@ -4,7 +4,7 @@
  *
  * Greps every `.svelte` file under `src/` for user-visible strings that
  * look like copy but aren't routed through `$t(...)`. Exits 1 when any
- * match remains outside the whitelist — wire this into CI / a pre-commit
+ * match remains outside the whitelist - wire this into CI / a pre-commit
  * hook once the baseline hits 0.
  *
  * Whitelist rules:
@@ -72,7 +72,7 @@ function scanMarkup(markup) {
 
   // 1) Static text between tags: `>Some Text<`
   //    Capitalized word of 4+ letters (matches Workspace, Thinking, etc.)
-  const textRe = />\s*([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ ,'.?!—–-]{3,})\s*</g;
+  const textRe = />\s*([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ ,'.?!-–-]{3,})\s*</g;
   // 2) Attribute values that contain copy: title / aria-label / placeholder /
   //    alt / subtitle / confirmLabel / cancelLabel / message
   const attrRe =

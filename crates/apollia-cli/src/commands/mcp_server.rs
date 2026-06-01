@@ -41,7 +41,7 @@ pub struct McpServerArgs {
 #[derive(Debug, thiserror::Error)]
 pub enum McpServerCommandError {
     /// Could not determine the user home directory for the default sandbox root.
-    #[error("cannot determine home directory — set --sandbox-root explicitly")]
+    #[error("cannot determine home directory - set --sandbox-root explicitly")]
     NoHomeDir,
     /// A file tool failed to initialise with the given sandbox root.
     #[error("file tool init error: {0}")]
@@ -148,7 +148,7 @@ async fn start_runtime_submit_handler() -> Arc<dyn SubmitTaskHandler> {
             router: handle.router_handle,
         }),
         Err(e) => {
-            tracing::error!(error = %e, "runtime failed to start — submit_task will be unavailable");
+            tracing::error!(error = %e, "runtime failed to start - submit_task will be unavailable");
             // Return a handler that always fails gracefully.
             Arc::new(NoopSubmitHandler)
         }

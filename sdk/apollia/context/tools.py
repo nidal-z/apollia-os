@@ -1,4 +1,4 @@
-"""ctx.tools — native tool invocation + MCP routing."""
+"""ctx.tools - native tool invocation + MCP routing."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class ToolDescriptor(Protocol):
 
 @runtime_checkable
 class ToolProxy(Protocol):
-    """Tool invocation surface — native registry + MCP routing.
+    """Tool invocation surface - native registry + MCP routing.
 
     Tools prefixed with ``mcp:<server>/<name>`` are dispatched to a
     connected MCP server.  All other tool names resolve through the

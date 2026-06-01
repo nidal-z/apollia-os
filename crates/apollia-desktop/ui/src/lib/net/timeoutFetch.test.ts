@@ -1,5 +1,5 @@
 /**
- * Tests for {@link timeoutFetch} — covers happy-path resolution and the
+ * Tests for {@link timeoutFetch} - covers happy-path resolution and the
  * timeout branch. See.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";

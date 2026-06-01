@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title [SDK Python Architecture] — Apollia OS
+title [SDK Python Architecture] - Apollia OS
 
 skinparam package {
   BackgroundColor #f8f8ff

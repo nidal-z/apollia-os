@@ -2,7 +2,7 @@
 name = "apollia-runtime"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — Runtime Core (Supervisor, AgentRegistry, TaskRouter, EventBus, APIServer axum)"
+description = "Apollia OS - Runtime Core (Supervisor, AgentRegistry, TaskRouter, EventBus, APIServer axum)"
 license = "MIT OR Apache-2.0"
 
 [features]
@@ -15,7 +15,7 @@ default = ["cloud", "web-search", "brave-search", "web-read"]
 cloud = ["apollia-llm/cloud"]
 ## Native web search tool (ADR-072).
 web-search = ["apollia-tools/web-search"]
-## Brave Search backend for web_search (ADR-072) — requires BRAVE_SEARCH_API_KEY at runtime.
+## Brave Search backend for web_search (ADR-072) - requires BRAVE_SEARCH_API_KEY at runtime.
 brave-search = ["web-search", "apollia-tools/brave-search"]
 ## Native web_read tool (fetch + Readability extraction, ADR-072).
 web-read = ["apollia-tools/web-read"]

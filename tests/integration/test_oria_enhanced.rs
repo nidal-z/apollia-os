@@ -1,4 +1,4 @@
-//! Integration tests — ORIA Enhanced features.
+//! Integration tests - ORIA Enhanced features.
 //!
 //! 6 independent test scenarios covering:
 //! 1. Tool describe E2E
@@ -425,7 +425,7 @@ async fn test_plan_cache_hit() {
 
 #[tokio::test]
 async fn test_weighted_classifier() {
-    // GIVEN a simple agent (2 tools, 10 steps, no tags) — score < 0.40
+    // GIVEN a simple agent (2 tools, 10 steps, no tags) - score < 0.40
     let simple_manifest = make_manifest(
         "simple-agent",
         vec!["tool_a".to_owned(), "tool_b".to_owned()],
@@ -445,7 +445,7 @@ async fn test_weighted_classifier() {
         "simple agent with 2 tools and 10 steps should be Direct"
     );
 
-    // GIVEN a complex agent (5+ tools, 20 steps, "multi-step" tag) — score >= 0.40
+    // GIVEN a complex agent (5+ tools, 20 steps, "multi-step" tag) - score >= 0.40
     let complex_manifest = make_manifest(
         "complex-agent",
         vec![
@@ -471,7 +471,7 @@ async fn test_weighted_classifier() {
         "complex agent with 5 tools, 20 steps, and multi-step tag should be Orchestrated"
     );
 
-    // GIVEN an agent with only the "multi-step" tag — score = 0.40 (boundary)
+    // GIVEN an agent with only the "multi-step" tag - score = 0.40 (boundary)
     let tag_only_manifest = make_manifest(
         "tag-agent",
         vec!["tool_a".to_owned()],

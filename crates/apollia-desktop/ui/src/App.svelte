@@ -33,7 +33,7 @@
 
   function handleAncillaryKeydown(event: KeyboardEvent) {
     const mod = isMac ? event.metaKey : event.ctrlKey;
-    // A.1.13 — Cmd/Ctrl+T: create a new task (navigates to /tasks and opens dialog).
+    // A.1.13 - Cmd/Ctrl+T: create a new task (navigates to /tasks and opens dialog).
     if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "t") {
       const target = event.target as HTMLElement | null;
       const isEditing =
@@ -69,7 +69,7 @@
     const cleanup = createSSEConnection();
     const disposeShortcuts = installGlobalShortcuts();
 
-    // Design showcase pages — DEV-only, gated out of release builds.
+    // Design showcase pages - DEV-only, gated out of release builds.
     if (import.meta.env.DEV && typeof window !== "undefined") {
       if (window.location.hash === "#design") {
         navigateTo("design");
@@ -82,7 +82,7 @@
       }
     }
 
-    // Initial check — handles the case where OnboardingRequired was emitted
+    // Initial check - handles the case where OnboardingRequired was emitted
     // before this listener attached (e.g. during the splash/loading window).
     void invoke<OnboardingState>("get_onboarding_state")
       .then((state) => {
@@ -91,14 +91,14 @@
         }
       })
       .catch(() => {
-        // Backend unreachable at startup — modal stays closed; the supervisor
+        // Backend unreachable at startup - modal stays closed; the supervisor
         // will retry the OnboardingRequired event once ready.
       })
       .finally(() => {
         ready = true;
       });
 
-    // Live channel — supervisor emits OnboardingRequired at first launch and
+    // Live channel - supervisor emits OnboardingRequired at first launch and
     // OnboardingCompleted once the agent writes onboarding.completed_at.
     let unlistenRuntime: UnlistenFn | null = null;
     void listen<{ category: string; event_type: string }>(
@@ -152,7 +152,7 @@
 </script>
 
 <Tooltip.Provider delayDuration={200}>
-  <!-- Keyboard-first entry points (F.77 / E.45) — visible on
+  <!-- Keyboard-first entry points (F.77 / E.45) - visible on
        focus only. Wait until svelte-i18n has loaded before rendering,
        otherwise `$t(...)` throws "Cannot format a message without
        first setting the initial locale." -->

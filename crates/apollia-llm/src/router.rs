@@ -795,7 +795,7 @@ impl LlmRouter {
         let default = default.into();
         assert!(
             backends.contains_key(&default),
-            "LlmRouter::with_backends — backend '{default}' must be present in backends map"
+            "LlmRouter::with_backends - backend '{default}' must be present in backends map"
         );
         Self {
             backends,
@@ -916,7 +916,7 @@ impl LlmRouter {
             })?
             .ok_or_else(|| LlmError::BackendUnavailable {
                 backend: "default".to_string(),
-                reason: "no default LLM backend in system.db — configure one with is_default=true"
+                reason: "no default LLM backend in system.db - configure one with is_default=true"
                     .to_string(),
             })?
             .name;
@@ -1125,7 +1125,7 @@ impl LlmRouter {
                 tracing::debug!(
                     role = %role,
                     backend = %self.default,
-                    "no [llm.routing] configured — falling back to default backend"
+                    "no [llm.routing] configured - falling back to default backend"
                 );
                 Ok(backend)
             }
@@ -1210,7 +1210,7 @@ fn pick_default_or_fallback(
                 configured_default = %configured_default,
                 fallback = %fallback,
                 available = ?available,
-                "configured default LLM backend unavailable — falling back to first available backend"
+                "configured default LLM backend unavailable - falling back to first available backend"
             );
             Ok((*fallback).clone())
         }

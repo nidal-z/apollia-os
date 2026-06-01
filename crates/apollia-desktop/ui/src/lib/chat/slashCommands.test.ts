@@ -34,7 +34,7 @@ describe("filterCommands", () => {
   });
 
   it("is case-insensitive", () => {
-    // `clear` n'existe plus dans SLASH_COMMANDS — on teste case-insensitivity
+    // `clear` n'existe plus dans SLASH_COMMANDS - on teste case-insensitivity
     // sur `export` (idem `ex` lowercase plus haut, mais en majuscules).
     expect(filterCommands("EX").map((c) => c.id)).toEqual(["export"]);
   });

@@ -1,4 +1,4 @@
-# ADR-056 — Workspace Context, ContextProvider Trait, Memory Namespace & ContextBootstrap
+# ADR-056 - Workspace Context, ContextProvider Trait, Memory Namespace & ContextBootstrap
 
 **Date :** 2026-04-04 (workspace) / 2026-04-15 (namespace + bootstrap)
 **Statut :** Accepté
@@ -11,7 +11,7 @@
 
 ### Workspace context assembly (Sprint 35)
 
-Une analyse comparative Apollia OS vs Claude Code a identifié que l'agent ignore complètement le projet dans lequel il opère. Sans contexte workspace, un agent doit découvrir lui-même la branche git, les fichiers modifiés, le langage dominant — en consommant des steps et tokens précieux.
+Une analyse comparative Apollia OS vs Claude Code a identifié que l'agent ignore complètement le projet dans lequel il opère. Sans contexte workspace, un agent doit découvrir lui-même la branche git, les fichiers modifiés, le langage dominant - en consommant des steps et tokens précieux.
 
 **Besoin :** injecter automatiquement dans le system prompt les métadonnées du projet courant avant chaque appel Reasoner.
 
@@ -19,11 +19,11 @@ Une analyse comparative Apollia OS vs Claude Code a identifié que l'agent ignor
 
 Si `WorkspaceAssembler` est le seul mécanisme, le contexte injecté est limité au périmètre workspace. Il faut distinguer :
 - **Mémoire** (Principe #6) : accumulation de connaissances par l'agent, à son initiative exclusive
-- **Context** : situation courante du runtime au moment de l'exécution — fournie par le runtime
+- **Context** : situation courante du runtime au moment de l'exécution - fournie par le runtime
 
 ### Memory namespace scoping (Sprint 39)
 
-`memory_namespace` dans `AgentManifest` est une chaîne statique. Si `dev-assistant` tourne sur deux projets différents, les deux sessions partagent le même namespace — l'agent peut rappeler des règles du mauvais projet. Le `project_id` existait déjà dans `ChatSession` mais n'avait jamais été propagé jusqu'à `MemoryInterface`.
+`memory_namespace` dans `AgentManifest` est une chaîne statique. Si `dev-assistant` tourne sur deux projets différents, les deux sessions partagent le même namespace - l'agent peut rappeler des règles du mauvais projet. Le `project_id` existait déjà dans `ChatSession` mais n'avait jamais été propagé jusqu'à `MemoryInterface`.
 
 ### ContextBootstrap (Sprint 40)
 
@@ -33,7 +33,7 @@ Les quatre assistants Sprint 39 implémentaient un pattern mémoire ad-hoc avec 
 
 ## Décisions
 
-### 1 — WorkspaceAssembler et crate `apollia-workspace`
+### 1 - WorkspaceAssembler et crate `apollia-workspace`
 
 La crate `apollia-workspace` expose :
 
@@ -42,16 +42,16 @@ La crate `apollia-workspace` expose :
 - **`ApolliamdFinder`** : recherche `APOLLIA.md` en remontant depuis CWD → parents → `$HOME`
 - **`DirectoryTreeBuilder`** : arborescence limitée à 3 niveaux, exclusions `.git`, `node_modules`, `target`
 
-**Rejet de git2 crate :** dépendance dynamique à `libgit2` (C) — incompatible avec Principe #2. Sur les repos sans git, `GitContextCollector` retourne `None` (fail-silent).
+**Rejet de git2 crate :** dépendance dynamique à `libgit2` (C) - incompatible avec Principe #2. Sur les repos sans git, `GitContextCollector` retourne `None` (fail-silent).
 
 **Convention APOLLIA.md :** même priorité que `CLAUDE.md` de Claude Code. Premier fichier trouvé gagne. Si aucun n'existe, le champ est `None`.
 
-### 2 — Trait `ContextProvider` (défini dans `apollia-core`)
+### 2 - Trait `ContextProvider` (défini dans `apollia-core`)
 
 ```rust
 /// Fournisseur de contexte situationnel pour le system prompt.
 /// Distingué de la mémoire (Principe #6) : le Context décrit la situation
-/// courante du runtime — la mémoire est accumulée par l'agent à sa propre initiative.
+/// courante du runtime - la mémoire est accumulée par l'agent à sa propre initiative.
 #[async_trait]
 pub trait ContextProvider: Send + Sync {
     fn provider_id(&self) -> &'static str;
@@ -69,13 +69,13 @@ pub struct ContextSection {
 
 **Trois niveaux d'extension :**
 
-- **Niveau 1 — Rust natif :** implémenter `ContextProvider` dans une crate du workspace
-- **Niveau 2 — Duck-typing Python :** un agent expose `context_providers()` retournant des callables async renvoyant `{ title, content }`
-- **Niveau 3 — Script stdin/stdout JSON :** subprocess recevant `{"cwd": ..., "session_id": ...}` et retournant un `ContextSection` JSON (timeout 500ms)
+- **Niveau 1 - Rust natif :** implémenter `ContextProvider` dans une crate du workspace
+- **Niveau 2 - Duck-typing Python :** un agent expose `context_providers()` retournant des callables async renvoyant `{ title, content }`
+- **Niveau 3 - Script stdin/stdout JSON :** subprocess recevant `{"cwd": ..., "session_id": ...}` et retournant un `ContextSection` JSON (timeout 500ms)
 
 `WorkspaceAssembler` concret unique rejeté car non extensible et incompatible avec les providers Python/scripts.
 
-### 3 — Memory namespace project-scoped
+### 3 - Memory namespace project-scoped
 
 Convention de préfixage `project_id` sur le namespace mémoire effectif :
 
@@ -104,7 +104,7 @@ fn effective_memory_namespace(manifest_namespace: &str, project_id: Option<&str>
 
 Transparent pour l'agent Python : l'agent déclare `"dev-assistant"` dans son manifest, le runtime gère le préfixage automatiquement.
 
-### 4 — ContextBootstrap : protocole SDK officiel
+### 4 - ContextBootstrap : protocole SDK officiel
 
 `ContextBootstrap` est un protocole Python abstrait distribué dans le SDK (`sdk/apollia/bootstrap.py`, version 0.2.0+). Contrat minimal : **2 méthodes abstraites** + **4 méthodes d'infrastructure**.
 
@@ -172,7 +172,7 @@ async def run(self, task, ctx):
 **Invariants du protocole :**
 1. Idempotence : `run_bootstrap()` appelé N fois produit le même état final
 2. Non-destructif : `persist("partial")` ne remplace jamais un `"complete"` existant
-3. Opt-in : pattern Python SDK, pas un contrat AIP — le runtime Rust ne connaît pas `ContextBootstrap`
+3. Opt-in : pattern Python SDK, pas un contrat AIP - le runtime Rust ne connaît pas `ContextBootstrap`
 4. Principe #6 : le bootstrap est à l'initiative de l'agent, jamais injecté par le runtime
 5. Graceful degradation : si `ctx.memory is None`, le protocole retourne des valeurs neutres
 
@@ -182,15 +182,15 @@ async def run(self, task, ctx):
 
 ### Workspace : git2 crate (rejetée)
 
-Dépendance dynamique à `libgit2` (C) — incompatible avec Principe #2. Temps de compilation > 30s. Binary size +5 MB inutile quand un subprocess `git` suffit.
+Dépendance dynamique à `libgit2` (C) - incompatible avec Principe #2. Temps de compilation > 30s. Binary size +5 MB inutile quand un subprocess `git` suffit.
 
 ### ContextProvider : WorkspaceAssembler concret unique (rejetée)
 
-Non extensible — tout nouveau type de contexte requiert de modifier `WorkspaceAssembler`. Viole le Principe #5 si `WorkspaceAssembler` gère plusieurs domaines. Incompatible avec les providers Python.
+Non extensible - tout nouveau type de contexte requiert de modifier `WorkspaceAssembler`. Viole le Principe #5 si `WorkspaceAssembler` gère plusieurs domaines. Incompatible avec les providers Python.
 
 ### Namespace : namespace déclaré par l'agent lui-même (rejetée)
 
-Le `project_id` n'est pas connu à l'écriture du manifest Python — c'est une donnée runtime. Viole le Principe #3 (contrat minimal).
+Le `project_id` n'est pas connu à l'écriture du manifest Python - c'est une donnée runtime. Viole le Principe #3 (contrat minimal).
 
 ### Namespace : table de relation agent/projet séparée (rejetée)
 
@@ -210,7 +210,7 @@ Viole explicitement le Principe #6. Le runtime ne peut pas savoir quelle logique
 
 **Positives :**
 - Timeout global 2s : la collecte workspace ne bloque jamais l'exécution d'une tâche
-- Isolation mémoire complète entre projets — un assistant ne peut plus contaminer son contexte
+- Isolation mémoire complète entre projets - un assistant ne peut plus contaminer son contexte
 - Suppression du pattern copié-collé dans les 4 assistants Sprint 39
 - Économie de tokens : la phase de découverte n'est payée qu'une fois par session
 - Extensibilité : tout nouveau type de contexte est ajouté sans modifier le core
@@ -218,7 +218,7 @@ Viole explicitement le Principe #6. Le runtime ne peut pas savoir quelle logique
 **Négatives / Compromis :**
 - Données orphelines en mémoire si un projet est supprimé sans purge explicite
 - Premier lancement sur un projet vierge : latence 3-5s le temps du bootstrap
-- Double source of truth workspace (`ctx.workspace`) / bootstrap (SQLite) — par design, coexistent
+- Double source of truth workspace (`ctx.workspace`) / bootstrap (SQLite) - par design, coexistent
 
 **Neutres / À surveiller :**
 - Si `git` n'est pas dans `$PATH`, `GitContextCollector` retourne `None` silencieusement (Windows)
@@ -228,10 +228,10 @@ Viole explicitement le Principe #6. Le runtime ne peut pas savoir quelle logique
 
 ## Principes architecturaux impactés
 
-- **Principe #2 — Zéro dépendance externe** : Pas de `libgit2`. Subprocess `git` ubiquitaire, fail-silent si absent.
-- **Principe #3 — Contrat minimal** : `ContextBootstrap` est couche SDK, pas AIP. Aucun agent existant cassé.
-- **Principe #5 — Un acteur, une responsabilité** : chaque `ContextProvider` a une responsabilité unique.
-- **Principe #6 — Mémoire à initiative de l'agent** : Le Context décrit la situation courante. La mémoire est à l'initiative de l'agent. Le bootstrap est déclenché explicitement dans `run()`.
+- **Principe #2 - Zéro dépendance externe** : Pas de `libgit2`. Subprocess `git` ubiquitaire, fail-silent si absent.
+- **Principe #3 - Contrat minimal** : `ContextBootstrap` est couche SDK, pas AIP. Aucun agent existant cassé.
+- **Principe #5 - Un acteur, une responsabilité** : chaque `ContextProvider` a une responsabilité unique.
+- **Principe #6 - Mémoire à initiative de l'agent** : Le Context décrit la situation courante. La mémoire est à l'initiative de l'agent. Le bootstrap est déclenché explicitement dans `run()`.
 
 ---
 

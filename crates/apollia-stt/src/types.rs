@@ -44,7 +44,7 @@ pub struct TranscriptSegment {
 
     /// Score de confiance du backend pour ce segment (0.0 – 1.0).
     ///
-    /// `None` signifie que le backend ne fournit pas de score de confiance —
+    /// `None` signifie que le backend ne fournit pas de score de confiance -
     /// à ne pas confondre avec `Some(0.0)` qui signifierait "confiance nulle".
     /// Par exemple, whisper.cpp ne remonte pas cette métrique par segment.
     pub confidence: Option<f32>,

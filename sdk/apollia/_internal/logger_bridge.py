@@ -4,7 +4,7 @@ The Rust bridge (`apollia-aip/src/bridge.rs::call_run`) invokes
 :func:`configure_agent_logger` once per task, *before* the agent's
 ``__apollia_dispatch__`` / ``run`` coroutine starts. From then on,
 ``ctx.logger.info("…")`` from agent code pipes each record into
-``ctx.log(level, message)`` — which in turn:
+``ctx.log(level, message)`` - which in turn:
 
 1. Writes a structured ``tracing::*`` record on stderr (ops compatibility).
 2. Emits a ``RuntimeEvent::AgentLog`` on the runtime EventBus, picked up
@@ -17,7 +17,7 @@ Re-running ``configure_agent_logger`` swaps the previous handler's ``ctx``
 reference so log records always reach the *current* task's RuntimeContext.
 
 This module is **internal**: agents never import it directly. The handler
-configuration is opaque from the public Ctx Protocol's perspective —
+configuration is opaque from the public Ctx Protocol's perspective -
 agents only see ``ctx.logger`` returning a standard :class:`logging.Logger`.
 """
 
@@ -46,7 +46,7 @@ class CtxLogHandler(logging.Handler):
     falls back to ``info``.
 
     Exceptions raised by ``ctx.log`` are absorbed via
-    :meth:`logging.Handler.handleError` — telemetry must never break the
+    :meth:`logging.Handler.handleError` - telemetry must never break the
     agent loop (same invariant as ``_emit_safe`` in ``apollia.agents.react``).
     """
 
@@ -78,7 +78,7 @@ class CtxLogHandler(logging.Handler):
             level = self.LEVEL_MAP.get(record.levelno, "info")
             msg = self.format(record)
             self._ctx.log(level, msg)
-        except Exception:  # noqa: BLE001 — telemetry must not raise
+        except Exception:  # noqa: BLE001 - telemetry must not raise
             self.handleError(record)
 
 
@@ -105,7 +105,7 @@ def configure_agent_logger(ctx: _CtxWithLog, agent_name: str) -> logging.Logger:
     Returns
     -------
     logging.Logger
-        The shared logger instance — agents store this in ``ctx.logger``.
+        The shared logger instance - agents store this in ``ctx.logger``.
     """
     name_suffix = agent_name or "unknown"
     logger = logging.getLogger(f"apollia.agent.{name_suffix}")
@@ -119,7 +119,7 @@ def configure_agent_logger(ctx: _CtxWithLog, agent_name: str) -> logging.Logger:
             break
 
     if existing is not None:
-        # Idempotent reconfiguration — point the handler to the new ctx
+        # Idempotent reconfiguration - point the handler to the new ctx
         # so a second task on the same Python interpreter doesn't keep
         # logging through a stale RuntimeContext.
         existing.set_ctx(ctx)

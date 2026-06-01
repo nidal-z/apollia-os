@@ -1,4 +1,4 @@
-//! E2E test — application startup and SSE infrastructure connectivity.
+//! E2E test - application startup and SSE infrastructure connectivity.
 
 /// Verifies that the runtime is fully started, the health endpoint confirms a
 /// ready state, and the SSE infrastructure is reachable.
@@ -8,7 +8,7 @@
 /// - The SSE task-stream endpoint responds with a structured HTTP reply (not a
 ///   connection error), confirming the server accepts event-stream connections.
 #[tokio::test]
-#[ignore = "E2E test — requires running runtime and desktop app"]
+#[ignore = "E2E test - requires running runtime and desktop app"]
 async fn test_startup_sse_connect_dashboard_render() {
     super::with_retry(|| async {
         let client = super::http_client()?;

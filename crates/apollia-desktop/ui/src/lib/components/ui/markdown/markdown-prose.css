@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   Apollia Prose — markdown typography for chat bubbles.
+   Apollia Prose - markdown typography for chat bubbles.
    Uses existing CSS variables for seamless theme integration.
    ═══════════════════════════════════════════════════════════ */
 
@@ -183,7 +183,7 @@
 .apollia-prose del { text-decoration: line-through; opacity: 0.7; }
 
 /* ═══════════════════════════════════════════════════════════
-   Highlight.js token colors — mapped to Apollia palette
+   Highlight.js token colors - mapped to Apollia palette
    ═══════════════════════════════════════════════════════════ */
 
 .apollia-prose .hljs-keyword,

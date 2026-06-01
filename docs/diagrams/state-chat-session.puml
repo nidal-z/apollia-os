@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Machine d'état — ChatSession — Apollia OS
+title Machine d'état - ChatSession - Apollia OS
 
 [*] --> Active : CreateSession\nPOST /api/v1/sessions
 
@@ -34,7 +34,7 @@ note right of Processing
 end note
 
 note right of Closed
-  État terminal — lecture seule.
+  État terminal - lecture seule.
   L'historique reste accessible
   dans chat.db mais aucun nouveau
   message n'est accepté.

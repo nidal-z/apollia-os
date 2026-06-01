@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Architecture — Application Desktop (Tauri v2 + Svelte 5) — Apollia OS
+title Architecture - Application Desktop (Tauri v2 + Svelte 5) - Apollia OS
 
 rectangle "Apollia Desktop" as app #1a1a2e {
 
@@ -41,7 +41,7 @@ cli --> runtime : HTTP / socket
 
 note bottom of handle
   RuntimeHandle (ADR-027) :
-  Pas de sérialisation HTTP —
+  Pas de sérialisation HTTP -
   latence minimale.
   CLI fonctionne en parallèle.
 end note

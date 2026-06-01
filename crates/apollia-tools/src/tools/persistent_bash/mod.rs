@@ -170,7 +170,7 @@ impl ToolExecutor for PersistentBashExecutor {
             session_id_str
                 .parse()
                 .map_err(|_| ToolExecutionError::InvalidInput {
-                    message: format!("'session_id' must be a valid UUID — got: '{session_id_str}'"),
+                    message: format!("'session_id' must be a valid UUID - got: '{session_id_str}'"),
                 })?;
 
         let timeout_secs = input["timeout_secs"].as_u64().unwrap_or(30);
@@ -255,7 +255,7 @@ mod tests {
         // THEN
         assert!(
             matches!(result, Err(ToolExecutionError::InvalidInput { .. })),
-            "expected InvalidInput — got: {result:?}"
+            "expected InvalidInput - got: {result:?}"
         );
     }
 
@@ -272,7 +272,7 @@ mod tests {
         // THEN
         assert!(
             matches!(result, Err(ToolExecutionError::InvalidInput { .. })),
-            "expected InvalidInput — got: {result:?}"
+            "expected InvalidInput - got: {result:?}"
         );
     }
 
@@ -333,7 +333,7 @@ mod tests {
         let stdout = result["stdout"].as_str().unwrap_or("");
         assert!(
             cwd.contains("/var") || stdout.contains("/var"),
-            "expected /var — cwd='{cwd}' stdout='{stdout}'"
+            "expected /var - cwd='{cwd}' stdout='{stdout}'"
         );
     }
 
@@ -355,7 +355,7 @@ mod tests {
             Err(ToolExecutionError::ExecutionFailed { code, .. }) => {
                 assert_eq!(code, "syntax_error");
             }
-            other => panic!("expected ExecutionFailed(syntax_error) — got: {other:?}"),
+            other => panic!("expected ExecutionFailed(syntax_error) - got: {other:?}"),
         }
     }
 }

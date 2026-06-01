@@ -1,4 +1,4 @@
-# ADR-004 — Deux modes d'exécution ORIA (Direct + Orchestré)
+# ADR-004 - Deux modes d'exécution ORIA (Direct + Orchestré)
 
 **Date :** 2026-03
 **Statut :** Accepté
@@ -21,19 +21,19 @@ La classification est automatique (l'agent ne choisit pas son mode).
 
 ## Alternatives considérées
 
-### Option A — Mode unique Orchestré (rejetée)
+### Option A - Mode unique Orchestré (rejetée)
 **Pour :** Un seul chemin de code, plus simple à maintenir.
 **Contre :** Appel LLM de planning pour chaque tâche, même les plus simples. Coût prohibitif et latence inutile pour 80% des cas PME.
 
-### Option B — Mode unique Direct (rejetée)
+### Option B - Mode unique Direct (rejetée)
 **Pour :** Simplicité maximale, pas de LLM de planning.
 **Contre :** Impossible pour les tâches genuinement multi-step (ex: "génère un devis complet avec 5 étapes"). L'agent devrait tout gérer lui-même sans guidage.
 
-### Option C — Choix laissé à l'agent (rejetée)
+### Option C - Choix laissé à l'agent (rejetée)
 **Pour :** L'agent connaît le mieux la complexité de ses tâches.
 **Contre :** Trop de configuration pour la cible PME. Comportement non déterministe selon l'agent. Viole Principe #3 (contrat minimal).
 
-### Option retenue — Classification automatique bimodale
+### Option retenue - Classification automatique bimodale
 **Pour :** Optimal pour chaque type de tâche. Transparent pour l'agent. Conforme au contrat minimal.
 **Compromis acceptés :** Deux chemins de code à maintenir. Algorithme de classification doit être fiable.
 
@@ -55,8 +55,8 @@ La classification est automatique (l'agent ne choisit pas son mode).
 
 ## Principes architecturaux impactés
 
-- Principe #3 — Contrat minimal : L'agent ne gère pas le choix de mode.
-- Principe #7 — Garde-fous non-négociables : StepBudget appliqué dans les deux modes.
+- Principe #3 - Contrat minimal : L'agent ne gère pas le choix de mode.
+- Principe #7 - Garde-fous non-négociables : StepBudget appliqué dans les deux modes.
 
 ## Liens
 

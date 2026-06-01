@@ -9,7 +9,7 @@ import {
 
 // ── Minimal polyfill for the Node vitest environment ──────────────────────
 // The disclaimer helpers use `localStorage`. Node 18+ already exposes
-// `crypto.subtle` as a global webcrypto, but `localStorage` is absent —
+// `crypto.subtle` as a global webcrypto, but `localStorage` is absent -
 // provide a tiny in-memory shim.
 if (globalThis.localStorage === undefined) {
   const store = new Map<string, string>();
@@ -31,7 +31,7 @@ if (globalThis.localStorage === undefined) {
 
 // ─── Disclaimer version hashing ────────────────────────────────────────────
 
-describe("WizardStepDisclaimer — version hashing", () => {
+describe("WizardStepDisclaimer - version hashing", () => {
   beforeEach(() => {
     localStorage.clear();
   });
@@ -62,7 +62,7 @@ describe("WizardStepDisclaimer — version hashing", () => {
   });
 });
 
-// ─── ConnectorWizard — advance gating invariants ───────────────────────────
+// ─── ConnectorWizard - advance gating invariants ───────────────────────────
 //
 // We validate the gating rules via the pure predicate helpers documented in
 // the wizard contract (auto-mock of @tauri-apps/api/core would be required
@@ -89,8 +89,8 @@ function authReady(
     .every((v) => (values[v.name] ?? "").trim() !== "");
 }
 
-describe("ConnectorWizard — gating rules", () => {
-  test("disclaimer gating — partial checks block Next", () => {
+describe("ConnectorWizard - gating rules", () => {
+  test("disclaimer gating - partial checks block Next", () => {
     expect(disclaimerReady({ code_on_machine: true })).toBe(false);
     expect(
       disclaimerReady({
@@ -101,7 +101,7 @@ describe("ConnectorWizard — gating rules", () => {
     ).toBe(false);
   });
 
-  test("disclaimer gating — all four unlock Next", () => {
+  test("disclaimer gating - all four unlock Next", () => {
     expect(
       disclaimerReady({
         code_on_machine: true,
@@ -112,23 +112,23 @@ describe("ConnectorWizard — gating rules", () => {
     ).toBe(true);
   });
 
-  test("auth gating — empty required var blocks Next", () => {
+  test("auth gating - empty required var blocks Next", () => {
     const vars = [{ name: "API_KEY", is_required: true }];
     expect(authReady(vars, {})).toBe(false);
     expect(authReady(vars, { API_KEY: "   " })).toBe(false);
   });
 
-  test("auth gating — optional var never blocks Next", () => {
+  test("auth gating - optional var never blocks Next", () => {
     const vars = [{ name: "OPTIONAL_KEY", is_required: false }];
     expect(authReady(vars, {})).toBe(true);
   });
 
-  test("auth gating — filled required var unlocks Next", () => {
+  test("auth gating - filled required var unlocks Next", () => {
     const vars = [{ name: "API_KEY", is_required: true }];
     expect(authReady(vars, { API_KEY: "secret-value" })).toBe(true);
   });
 
-  test("test gating — success OR bypass unlocks, neither blocks", () => {
+  test("test gating - success OR bypass unlocks, neither blocks", () => {
     const canAdvanceTest = (succeeded: boolean, bypass: boolean) =>
       succeeded || bypass;
     expect(canAdvanceTest(false, false)).toBe(false);
@@ -137,7 +137,7 @@ describe("ConnectorWizard — gating rules", () => {
   });
 });
 
-// ─── Humanized test errors — pattern coverage ──────────────────────────────
+// ─── Humanized test errors - pattern coverage ──────────────────────────────
 //
 // The humanizeError helper is inlined in WizardStepTest.svelte but its
 // semantics are covered here: every documented HTTP-ish code funnels into a
@@ -154,7 +154,7 @@ function classify(raw: string): string {
   return "generic";
 }
 
-describe("WizardStepTest — error humanization coverage", () => {
+describe("WizardStepTest - error humanization coverage", () => {
   test("maps 401 to unauthorized", () => {
     expect(classify("HTTP 401 Unauthorized")).toBe("unauthorized");
   });

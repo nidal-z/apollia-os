@@ -20,7 +20,7 @@ from apollia.testing import MockContext
 from apollia.testing.assertions import assert_result_completed
 
 # ---------------------------------------------------------------------------
-# Agent import (filename uses hyphens — requires importlib)
+# Agent import (filename uses hyphens - requires importlib)
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -351,7 +351,7 @@ class TestRunEntryPoint:
 
 
 # ---------------------------------------------------------------------------
-# Topic guides — structure validation
+# Topic guides - structure validation
 # ---------------------------------------------------------------------------
 
 class TestTopicGuideStructure:
@@ -416,47 +416,47 @@ class TestTopicsCoverage:
         """GIVEN a 15-message conversation WHEN memory inspected THEN >= 3 topics."""
         agent = OnboardingAgent()
         llm_texts = [
-            # Turn 1 — identity
+            # Turn 1 - identity
             "Enchanté ! Comment tu t'appelles ? [REMEMBER user.name=Nidal]",
-            # Turn 2 — identity
+            # Turn 2 - identity
             "Nidal, super ! Et tu fais quoi dans la vie ? [REMEMBER user.role=CTO]",
-            # Turn 3 — identity
+            # Turn 3 - identity
             "CTO, beau parcours ! Tu te considères senior ? "
             "[REMEMBER user.expertise_level=senior]",
-            # Turn 4 — domain
+            # Turn 4 - domain
             "Intéressant ! Tu travailles sur quels types de projets ? "
             "[REMEMBER user.domain.type=SaaS B2B]",
-            # Turn 5 — domain
+            # Turn 5 - domain
             "Du SaaS B2B, c'est passionnant. C'est quoi ta stack ? "
             "[REMEMBER user.domain.stack=Rust + Python]",
-            # Turn 6 — tools
+            # Turn 6 - tools
             "Rust et Python, combo puissant ! Tu utilises quel éditeur ? "
             "[REMEMBER user.tools.ide=VSCode]",
-            # Turn 7 — tools
+            # Turn 7 - tools
             "VSCode, classique ! Tu as des outils CLI préférés ? "
             "[REMEMBER user.tools.cli_favorites=ripgrep, fd, jq]",
-            # Turn 8 — preferences
+            # Turn 8 - preferences
             "Bon à savoir ! Tu préfères des réponses détaillées ou concises ? "
             "[REMEMBER user.preferences.verbosity=concise]",
-            # Turn 9 — agents
+            # Turn 9 - agents
             "Noté ! Tu as des tâches répétitives à automatiser ? "
             "[REMEMBER user.agents.pain_points=code review triage]",
-            # Turn 10 — agents
+            # Turn 10 - agents
             "Je vois, la review de code. Tu imagines quoi d'autre ? "
             "[REMEMBER user.agents.workflows=PR review automation]",
-            # Turn 11 — domain
+            # Turn 11 - domain
             "Et des contraintes particulières ? Sécurité, compliance ? "
             "[REMEMBER user.domain.constraints=SOC2]",
-            # Turn 12 — preferences
+            # Turn 12 - preferences
             "Compris pour SOC2. En quelle langue tu préfères qu'on échange ? "
             "[REMEMBER user.preferences.format=markdown]",
-            # Turn 13 — tools
+            # Turn 13 - tools
             "Tu utilises quel terminal au quotidien ? "
             "[REMEMBER user.tools.terminal=kitty]",
-            # Turn 14 — identity
+            # Turn 14 - identity
             "Et tu parles quelles langues ? "
             "[REMEMBER user.languages=fr, en]",
-            # Turn 15 — agents
+            # Turn 15 - agents
             "On a bien avancé ! Tu as des attentes particulières ? "
             "[REMEMBER user.agents.expectations=proactive suggestions]",
         ]
@@ -648,7 +648,7 @@ class TestTopicsMemoryKeysMapping:
 
 
 # ---------------------------------------------------------------------------
-# Onboarding persistence — confidence and no-overwrite
+# Onboarding persistence - confidence and no-overwrite
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio

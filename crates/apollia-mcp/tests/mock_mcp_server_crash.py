@@ -45,7 +45,7 @@ def main():
                     }
                 ]
             })
-            # Exit immediately after tools/list — simulates a server crash
+            # Exit immediately after tools/list - simulates a server crash
             sys.exit(0)
 
 

@@ -1,4 +1,4 @@
--- Migration 004 — execution_plans et plan_steps
+-- Migration 004 - execution_plans et plan_steps
 -- Idempotente : utilise CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
 
 CREATE TABLE IF NOT EXISTS execution_plans (

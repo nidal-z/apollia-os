@@ -6,7 +6,7 @@ skinparam defaultFontSize 11
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Séquence — Agent ContextBootstrap Lifecycle — Apollia OS
+title Séquence - Agent ContextBootstrap Lifecycle - Apollia OS
 
 participant "Agent Python\n(run())" as agent #2d4a22/d4edda
 participant "ContextBootstrap\n(SDK)" as boot #2d4a22/d4edda
@@ -15,7 +15,7 @@ participant "SQLite\n(semantic_memories)" as db #2a3a4a/cce5ff
 participant "Workspace\n(ctx.workspace)" as ws #1a1a2e/e0e0ff
 participant "Tools\n(bash_executor)" as tools #4a3728/f5e6d3
 
-== Session N — Premier démarrage (bootstrap complet) ==
+== Session N - Premier démarrage (bootstrap complet) ==
 
 agent -> boot : await needs_bootstrap(ctx)
 boot -> mem : await recall("bootstrap.status")
@@ -54,7 +54,7 @@ mem -> db : INSERT OR UPDATE semantic_memories
 
 boot --> agent : snapshot
 
-== Session N+1 — Même commit (skip, ~0 tokens) ==
+== Session N+1 - Même commit (skip, ~0 tokens) ==
 
 agent -> boot : await needs_bootstrap(ctx)
 boot -> mem : await recall("bootstrap.status")
@@ -83,7 +83,7 @@ db --> mem : json_snapshot
 mem --> boot : snapshot_dict
 boot --> agent : snapshot
 
-== Session N+2 — Nouveau commit (re-bootstrap) ==
+== Session N+2 - Nouveau commit (re-bootstrap) ==
 
 agent -> boot : await needs_bootstrap(ctx)
 boot -> mem : await recall("bootstrap.status")
@@ -106,7 +106,7 @@ boot --> agent : True
 agent -> boot : await run_bootstrap(ctx)
 note right of agent
   Même séquence que Session N
-  — snapshot mis à jour avec
+  - snapshot mis à jour avec
   nouveau commit hash
 end note
 

@@ -12,8 +12,8 @@
     premium?: boolean;
     /**
      * Surface treatment:
-     * - `"glass"` (default) — warm glassmorphism (`glass-card` + `glass-border`).
-     * - `"solid"` — opaque surface (`bg-card` + `border-border`) for dense
+     * - `"glass"` (default) - warm glassmorphism (`glass-card` + `glass-border`).
+     * - `"solid"` - opaque surface (`bg-card` + `border-border`) for dense
      *   listings / sidebars where the blur backdrop would be noisy.
      */
     surface?: Surface;
@@ -52,7 +52,7 @@
 </div>
 
 <style>
-  /* Spring press (F.1 / F.3) — cubic-bezier tuned for an elastic
+  /* Spring press (F.1 / F.3) - cubic-bezier tuned for an elastic
      return. The hover lift is already owned by `.glass-card-hover`
      (see app.css), so we only refine the pressed state here. */
   .card-spring:active {

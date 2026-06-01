@@ -59,7 +59,7 @@
     /**
      * When provided, the Settings button toggles the shell's
      * ContextDrawer instead of opening the internal Sheet. The internal Sheet
-     * is suppressed in this mode — the parent owns the config panel.
+     * is suppressed in this mode - the parent owns the config panel.
      */
     onconfigtoggle?: () => void;
     /**
@@ -76,12 +76,12 @@
     ondelete?: (sessionId: string) => void;
     /**
      * When true, hides the input bar entirely. Used by onboarding once the
-     * wrap-up panel takes over — the user no longer needs to type.
+     * wrap-up panel takes over - the user no longer needs to type.
      */
     inputHidden?: boolean;
     /**
      * Called when the user triggers "new chat" from an error state
-     * (session not found) — lets the parent open the QuickPicker.
+     * (session not found) - lets the parent open the QuickPicker.
      */
     onnewChat?: () => void;
   }
@@ -120,7 +120,7 @@
   );
   let messagesContainer = $state<HTMLDivElement | undefined>(undefined);
   let userScrolledUp = $state(false);
-  /** B.8 — floating "jump to latest" button visibility + unread count. */
+  /** B.8 - floating "jump to latest" button visibility + unread count. */
   let showScrollToBottom = $state(false);
   let unreadWhileScrolled = $state(0);
   let tokenBuffer = $state("");
@@ -136,14 +136,14 @@
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
 
-  /** Pending tool approval — shown inline when the LLM requests a tool call. */
+  /** Pending tool approval - shown inline when the LLM requests a tool call. */
   let pendingApproval = $state<{
     sessionId: string;
     messageId: string;
     toolName: string;
     inputPreview: string;
   } | null>(null);
-  /** Pending ask_user request — shown inline when the agent needs user input. */
+  /** Pending ask_user request - shown inline when the agent needs user input. */
   let pendingUserInput = $state<{
     requestId: string;
     questions: { id: string; question: string; type: "open" | "single_choice" | "multi_choice"; options?: string[]; hint?: string }[];
@@ -165,7 +165,7 @@
 
   // group consecutive same-role messages within 5 minutes.
   // Memoised by reference: messages array is replaced (not mutated) on every
-  // refresh, so $derived recomputes exactly when needed — no thrash during
+  // refresh, so $derived recomputes exactly when needed - no thrash during
   // streaming (tokenBuffer changes don't affect the committed messages array).
   const messageGroups = $derived(groupMessages(messages ?? []));
 
@@ -186,7 +186,7 @@
   let a2aStartTime = $state<number | null>(null);
   /** Elapsed seconds of current A2A delegation (updated every second). */
   let a2aElapsed = $state<number>(0);
-  /** Live tool call chain for the current LLM turn — cleared on response completion. */
+  /** Live tool call chain for the current LLM turn - cleared on response completion. */
   let liveToolChain = $state<
     { name: string; status: "running" | "done" | "refused"; startedAt: number; durationMs?: number }[]
   >([]);
@@ -423,7 +423,7 @@
     lastSeenMessageCount = count;
   });
 
-  // Live A2A duration timer — updates every second while delegation is active.
+  // Live A2A duration timer - updates every second while delegation is active.
   $effect(() => {
     if (!a2aStartTime) return;
     const interval = setInterval(() => {
@@ -562,7 +562,7 @@
     }
 
     // Attachments v1: inline small payloads as fenced blocks, reference larger
-    // files by absolute path. The backend sees a single user message — the
+    // files by absolute path. The backend sees a single user message - the
     // authoritative tool-side ingestion happens via the filesystem HITL flow.
     let payload = content;
     if (attachments.length > 0) {
@@ -721,7 +721,7 @@
       }
     } catch (err) {
       addToast(
-        `${$t("chat.project_link_failed")} — ${err instanceof Error ? err.message : String(err)}`,
+        `${$t("chat.project_link_failed")} - ${err instanceof Error ? err.message : String(err)}`,
         "error",
       );
     }
@@ -733,8 +733,8 @@
 
   async function exportCorruptedSessionRaw(): Promise<void> {
     // The UX contract is "give me something to send to support". We dump
-    // whatever the backend was able to surface — even if only the raw
-    // error — into a JSON envelope so the user can forward it.
+    // whatever the backend was able to surface - even if only the raw
+    // error - into a JSON envelope so the user can forward it.
     let raw: unknown = null;
     try {
       raw = await invoke("get_chat_session_raw", { sessionId });
@@ -748,7 +748,7 @@
       raw,
     };
     try {
-      // Browser-native download — works inside the Tauri webview without
+      // Browser-native download - works inside the Tauri webview without
       // pulling an extra plugin dependency. The user picks the destination
       // via the OS "Save as" dialog emitted by the anchor click.
       const blob = new Blob([JSON.stringify(envelope, null, 2)], {
@@ -815,7 +815,7 @@
         isStreaming = false;
         scrollToBottom();
       } catch {
-        // Malformed questions_json — ignore, will be re-emitted by backend
+        // Malformed questions_json - ignore, will be re-emitted by backend
       }
     }
 
@@ -826,7 +826,7 @@
   }
 
   // ── Next Steps ─────────────────────────────────────────
-  // Rendered only when the session is closed — acts as a debrief panel.
+  // Rendered only when the session is closed - acts as a debrief panel.
   const sessionEndScope = $derived(sessionScope(sessionId));
   const nextStepsFacts = $derived<NextStepsFacts>({
     recentMessages: messages
@@ -970,7 +970,7 @@
         </div>
       {:else}
         <!-- SummarizedMessagesBanner moved to ContextDrawer's Memory tab
-             — no longer rendered inline in the message list. -->
+             - no longer rendered inline in the message list. -->
 
         {#each messageGroups as group (group.key)}
           {@const firstMsg = group.messages[0]}

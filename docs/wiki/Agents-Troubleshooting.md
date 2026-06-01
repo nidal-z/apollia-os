@@ -1,4 +1,4 @@
-# Agents — Troubleshooting — Apollia OS
+# Agents - Troubleshooting - Apollia OS
 
 > Guide de diagnostic par symptôme. Chaque section commence par le message d'erreur exact ou le comportement observé.
 > Public cible : tous les développeurs d'agents
@@ -119,7 +119,7 @@ apollia-os agent info mon-agent
 
 **Note :** un agent `DEGRADED` peut tout de même traiter des tâches. Si les tâches ne nécessitent pas l'outil manquant, c'est un comportement acceptable.
 
-**Cas particulier — préfixe `a2a:`** : les dépendances `tools_required` / `tools_optional` commençant par `a2a:` (skills inter-agents) ne sont **pas** vérifiées dans le `ToolRegistry` au boot — elles sont résolues d'office par le resolver et leur résolution réelle a lieu à l'invocation via le `ToolProxy` + `A2AInvoker`. Un agent qui ne déclare que des dépendances `a2a:` ne doit donc jamais passer en `DEGRADED` pour cause d'outil manquant.
+**Cas particulier - préfixe `a2a:`** : les dépendances `tools_required` / `tools_optional` commençant par `a2a:` (skills inter-agents) ne sont **pas** vérifiées dans le `ToolRegistry` au boot - elles sont résolues d'office par le resolver et leur résolution réelle a lieu à l'invocation via le `ToolProxy` + `A2AInvoker`. Un agent qui ne déclare que des dépendances `a2a:` ne doit donc jamais passer en `DEGRADED` pour cause d'outil manquant.
 
 ---
 
@@ -233,6 +233,6 @@ apollia-os start
 
 ## Voir aussi
 
-- [INSTALL.md](./INSTALL) — installation complète avec configuration PyO3
-- [Briques CLI](./Briques-CLI) — toutes les commandes de diagnostic
-- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — monitoring en production
+- [INSTALL.md](./INSTALL) - installation complète avec configuration PyO3
+- [Briques CLI](./Briques-CLI) - toutes les commandes de diagnostic
+- [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) - monitoring en production

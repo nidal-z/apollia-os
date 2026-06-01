@@ -85,13 +85,13 @@ impl NotificationChannel for DesktopChannel {
         if std::env::var("DISPLAY").is_err() && std::env::var("DBUS_SESSION_BUS_ADDRESS").is_err() {
             tracing::debug!(
                 event = %notif.event,
-                "DesktopChannel : pas de display/D-Bus — notification ignorée (CI headless)"
+                "DesktopChannel : pas de display/D-Bus - notification ignorée (CI headless)"
             );
             return Ok(());
         }
 
         let agent_name = notif.agent.as_deref().unwrap_or("runtime").to_string();
-        let summary = format!("Apollia OS — {agent_name}");
+        let summary = format!("Apollia OS - {agent_name}");
         let body = notif.message.clone();
         let is_hitl = notif.event == "task.input_required";
         let resume_url = notif

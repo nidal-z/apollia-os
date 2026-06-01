@@ -1,4 +1,4 @@
-# apollia-auth — OAuth2 PKCE et Keyring Multi-Plateforme
+# apollia-auth - OAuth2 PKCE et Keyring Multi-Plateforme
 
 > *Authentification interactive auprès des providers LLM cloud via OAuth2 PKCE (RFC 7636) avec stockage sécurisé dans le keyring OS natif. Crate introduite (ADR-064).*
 
@@ -16,8 +16,8 @@ La crate `apollia-auth` centralise la gestion des tokens OAuth2 pour les provide
 - Exposer les sous-commandes CLI `apollia auth login/status/logout`
 
 **Principe(s) architectural(aux) :**
-- Principe #1 — Local-first : les tokens ne quittent jamais la machine
-- Principe #4 — Fail fast : provider inconnu → `AuthError::UnknownProvider` immédiat
+- Principe #1 - Local-first : les tokens ne quittent jamais la machine
+- Principe #4 - Fail fast : provider inconnu → `AuthError::UnknownProvider` immédiat
 
 **Providers supportés :** `anthropic`, `openai`, `vertex`
 
@@ -43,7 +43,7 @@ crates/apollia-auth/src/
 ### `OAuth2PkceFlow`
 
 ```rust
-/// Flow OAuth2 PKCE complet — RFC 7636.
+/// Flow OAuth2 PKCE complet - RFC 7636.
 #[derive(Debug, Clone)]
 pub struct OAuth2PkceFlow {
     pub code_verifier: String,    // base64url, 43 chars, random
@@ -158,7 +158,7 @@ pub async fn wait_for_callback(
 ```rust
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
-    #[error("state mismatch — possible CSRF")]
+    #[error("state mismatch - possible CSRF")]
     StateMismatch,
     #[error("code manquant dans le callback")]
     MissingCode,
@@ -183,7 +183,7 @@ pub enum AuthError {
 
 ---
 
-## 4. Flow complet — `apollia auth login`
+## 4. Flow complet - `apollia auth login`
 
 ```
 1. bind_ephemeral_port()        → port = 54123
@@ -199,10 +199,10 @@ pub enum AuthError {
 
 ---
 
-## 5. CLI — `apollia auth`
+## 5. CLI - `apollia auth`
 
 ```bash
-# Login interactif — ouvre le browser, attend le callback
+# Login interactif - ouvre le browser, attend le callback
 $ apollia auth login anthropic
   → Ouverture du browser sur https://anthropic.com/oauth/authorize?...
   → En attente du callback sur http://localhost:54123/callback ...
@@ -217,10 +217,10 @@ $ apollia auth status
   ─────────────────────────────────────────────────────────
   PROVIDER    ÉTAT              EXPIRE
   anthropic   ✔ configuré       2026-05-04T10:32:00Z
-  openai      ○ non configuré   —
+  openai      ○ non configuré   -
   vertex      ✔ configuré       2026-04-20T08:00:00Z (expiré)
 
-# Logout — supprime le token du keyring
+# Logout - supprime le token du keyring
 $ apollia auth logout anthropic
   ✔ Token anthropic supprimé du keyring
 
@@ -240,10 +240,10 @@ $ apollia auth status --json
 
 ## 7. Décision architecturale
 
-> **Voir aussi :** [ADR-064](../adr/ADR-064-oauth2-pkce-keyring.md) — OAuth2 PKCE : Keyring Multi-Plateforme vs Fichier Chiffré
+> **Voir aussi :** [ADR-064](../adr/ADR-064-oauth2-pkce-keyring.md) - OAuth2 PKCE : Keyring Multi-Plateforme vs Fichier Chiffré
 
 | Décision | Raison |
 |---|---|
-| `keyring` v3 plutôt qu'un fichier chiffré | Délègue au keyring OS natif — zéro gestion de clé de chiffrement côté Apollia. Principe #1 : local-first sans complexité ajoutée |
-| Serveur callback local (port éphémère) | Ne nécessite pas d'URI de redirection fixe — compatible avec tous les providers OAuth2 |
+| `keyring` v3 plutôt qu'un fichier chiffré | Délègue au keyring OS natif - zéro gestion de clé de chiffrement côté Apollia. Principe #1 : local-first sans complexité ajoutée |
+| Serveur callback local (port éphémère) | Ne nécessite pas d'URI de redirection fixe - compatible avec tous les providers OAuth2 |
 | Pas de stockage en clair dans `apollia.toml` | Les tokens sensibles ne doivent jamais être dans un fichier de configuration versionnable |

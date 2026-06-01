@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * SheetContent — canonical scrollable body region for a `<Sheet>` panel.
+   * SheetContent - canonical scrollable body region for a `<Sheet>` panel.
    *
    * Applies the standard horizontal padding + comfortable vertical rhythm
    * and a flex-1 overflow-y-auto so the content scrolls while the header

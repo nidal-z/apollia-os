@@ -5,7 +5,7 @@
  * message, then optimistically updates the sidebar list so the row swaps
  * "Nouvelle conversation" → generated title without waiting for an SSE refresh.
  *
- * Fully fire-and-forget — never blocks the caller, never surfaces failures
+ * Fully fire-and-forget - never blocks the caller, never surfaces failures
  * to the UI (the placeholder title remains usable, manual rename still works).
  */
 import { invoke } from "@tauri-apps/api/core";
@@ -34,7 +34,7 @@ export function triggerAutoName(sessionId: string, firstMessage: string): void {
         sessions.map((s) => (s.id === sessionId ? { ...s, title } : s)),
       );
     } catch (err: unknown) {
-      // Silent — the placeholder title remains, user can rename manually.
+      // Silent - the placeholder title remains, user can rename manually.
       console.warn("generate_chat_session_name failed:", err);
       // Allow a future retry (e.g. operator types another first message after
       // the LLM error) by clearing the attempted marker.

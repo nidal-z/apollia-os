@@ -1,4 +1,4 @@
--- Migration 007 — installed_agents
+-- Migration 007 - installed_agents
 -- Idempotente : CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
 
 CREATE TABLE IF NOT EXISTS installed_agents (

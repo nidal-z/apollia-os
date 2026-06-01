@@ -1,7 +1,7 @@
 /**
  * Human-friendly labels for automation schedules.
  *
- * Operator vocabulary — never exposes cron digits, payload, or on-busy.
+ * Operator vocabulary - never exposes cron digits, payload, or on-busy.
  * Returns a complete sentence usable inline in an `AutomationScheduleLabel`.
  * Falls back to "Custom schedule" / "Planification personnalisée" with the
  * raw config moved to a tooltip by the caller.
@@ -224,7 +224,7 @@ function extractWebhookSource(config: string): string | null {
     const source = parsed.source ?? parsed.name ?? parsed.path;
     if (typeof source === "string" && source.length > 0) return source;
   } catch {
-    // Not JSON — return first whitespace-free token.
+    // Not JSON - return first whitespace-free token.
   }
   const token = trimmed.split(/\s+/)[0];
   return token.length > 0 ? token : null;
@@ -257,7 +257,7 @@ function webhookLabel(source: string | null, loc: Locale): string {
 /**
  * Turns a trigger definition into operator-friendly language.
  *
- * Returns `{ label, isCustom }` — when `isCustom` is `true`, the caller
+ * Returns `{ label, isCustom }` - when `isCustom` is `true`, the caller
  * should surface the raw expression through a tooltip.
  */
 export function humanizeSchedule(

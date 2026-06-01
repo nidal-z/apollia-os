@@ -1,4 +1,4 @@
-"""ctx.budget — read-only step budget view."""
+"""ctx.budget - read-only step budget view."""
 
 from __future__ import annotations
 

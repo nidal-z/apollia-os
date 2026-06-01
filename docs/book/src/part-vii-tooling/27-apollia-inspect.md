@@ -60,10 +60,10 @@ $ python -m apollia inspect pdf_worker.py
 ╰─────────────────────────────────────────────────────────────────╯
 
 Skills (2):
-  • pdf.read_text — Extract text from a PDF, page by page.
+  • pdf.read_text - Extract text from a PDF, page by page.
     Input:  {path: string!, page_range: string?}
     Output: object
-  • pdf.count_pages — Count the pages of a PDF file.
+  • pdf.count_pages - Count the pages of a PDF file.
     Input:  {path: string!}
     Output: object
 

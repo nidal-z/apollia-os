@@ -170,14 +170,14 @@ pub async fn validate_community_agent(
     if manifest.dangerous_tools_allowed {
         tracing::warn!(
             agent = %manifest.name,
-            "community agent requests dangerous_tools_allowed — user approval required"
+            "community agent requests dangerous_tools_allowed - user approval required"
         );
     }
 
     if skip_tests {
         tracing::warn!(
             agent = %manifest.name,
-            "skipping agent tests — validation coverage is reduced"
+            "skipping agent tests - validation coverage is reduced"
         );
         return Ok(manifest);
     }

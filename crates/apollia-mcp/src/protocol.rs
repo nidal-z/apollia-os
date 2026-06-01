@@ -422,7 +422,7 @@ pub enum ElicitationCreateResult {
 /// A filesystem / URI root the client exposes to the server.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct McpRoot {
-    /// Root URI (e.g. `"file:///Users/nidal/dev/apollia-v2"`).
+    /// Root URI (e.g. `"file:///home/user/projects/apollia"`).
     pub uri: String,
     /// Optional display name shown to the user.
     #[serde(default, skip_serializing_if = "Option::is_none")]

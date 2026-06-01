@@ -1,12 +1,12 @@
 import { describe, test, expect } from "vitest";
 import type { ImpactLevel } from "./RiskBadge.svelte";
 
-// RiskBadge exposes the `ImpactLevel` union as its public type — any consumer
+// RiskBadge exposes the `ImpactLevel` union as its public type - any consumer
 // must be able to narrow the 4 variants without runtime code. These tests
 // lock the contract (variants + round-trip) since the rendered markup is
 // styling-only.
 
-describe("RiskBadge — ImpactLevel contract", () => {
+describe("RiskBadge - ImpactLevel contract", () => {
   test("accepts the 4 documented variants", () => {
     const levels: ImpactLevel[] = ["low", "medium", "high", "critical"];
     expect(levels).toHaveLength(4);

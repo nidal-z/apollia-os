@@ -10,14 +10,14 @@ Patterns retirés :
   - " [Sprint 20]"             → ""
   - "*(Sprint 12, ADR-047)*"   → "*(ADR-047)*"
   - "*(Sprint 12)*"            → ""
-  - " — Sprint 11"             → ""
-  - "Sprint 11 — "             → "" (en titre)
+  - " - Sprint 11"             → ""
+  - "Sprint 11 - "             → "" (en titre)
   - " STORY-097"               → ""
-  - "// Sprint 9 — Triggers"   → "// Triggers"
+  - "// Sprint 9 - Triggers"   → "// Triggers"
   - "// HITL Sprint 11"        → "// HITL"
 
 Préserve les blocs ```...``` (le code Rust/Python comportant des commentaires
-sprint reste touché en surface uniquement — voir CODE_AWARE).
+sprint reste touché en surface uniquement - voir CODE_AWARE).
 
 Usage :
   python3 scripts/lints/strip-sprint-refs.py --dry-run docs/book/src docs/wiki help
@@ -91,8 +91,8 @@ PATTERNS_OUTSIDE_CODE = [
     (re.compile(r"\s*\(STORY-\d+,\s*(ADR-\d+)\)"), r" (\1)"),
     # " (Sprint 12)" → ""
     (re.compile(r"\s*\(Sprint \d+\)"), ""),
-    # " (Sprint 12 — feature flag X)" → " (feature flag X)"
-    (re.compile(r"\(Sprint \d+\s*[—–-]\s*([^)]+)\)"), r"(\1)"),
+    # " (Sprint 12 - feature flag X)" → " (feature flag X)"
+    (re.compile(r"\(Sprint \d+\s*[-–-]\s*([^)]+)\)"), r"(\1)"),
     # " [Sprint 20]" → ""
     (re.compile(r"\s*\[Sprint \d+\]"), ""),
     # " [Sprint 9, CRUD Sprint 17]" / " [Sprint X, Sprint Y]" → ""
@@ -105,10 +105,10 @@ PATTERNS_OUTSIDE_CODE = [
     (re.compile(r"\s*\(depuis Sprint \d+\)"), ""),
 
     # ── Tirets et titres
-    # " — Sprint 11" / " – Sprint 11" / " - Sprint 11" → ""
-    (re.compile(r"\s*[—–-]\s*Sprint \d+(\s*\([^)]*\))?"), ""),
-    # Titre "Sprint 11 — " ou "## Sprint 11 — " → ""
-    (re.compile(r"(^|\n)(#{1,6}\s+)Sprint \d+\s*[—–-]\s*", re.MULTILINE),
+    # " - Sprint 11" / " – Sprint 11" / " - Sprint 11" → ""
+    (re.compile(r"\s*[-–-]\s*Sprint \d+(\s*\([^)]*\))?"), ""),
+    # Titre "Sprint 11 - " ou "## Sprint 11 - " → ""
+    (re.compile(r"(^|\n)(#{1,6}\s+)Sprint \d+\s*[-–-]\s*", re.MULTILINE),
      lambda m: m.group(1) + m.group(2)),
 
     # ── STORY refs
@@ -134,24 +134,24 @@ PATTERNS_OUTSIDE_CODE = [
     # parenthèses vides ORPHELINES uniquement (précédées d'un espace).
     # Ne pas matcher `manifest()` ni `run()` etc.
     (re.compile(r"\s+\(\s*\)"), ""),
-    # espace avant fermeture parenthèse — uniquement si plusieurs (= " )"),
+    # espace avant fermeture parenthèse - uniquement si plusieurs (= " )"),
     # pour ne pas casser des cas légitimes.
     (re.compile(r"  +\)"), ")"),
-    # espace avant ponctuation finale (uniquement . et , — préserver les espaces
+    # espace avant ponctuation finale (uniquement . et , - préserver les espaces
     # insécables avant ; : ! ? typo française).
     (re.compile(r" +([.,])"), r"\1"),
 ]
 
 # À l'intérieur des blocs code, nettoyage des commentaires + annotations.
 PATTERNS_INSIDE_CODE = [
-    # "// Sprint 9 — Triggers" → "// Triggers"
-    (re.compile(r"//\s*Sprint \d+\s*[—–-]\s*"), "// "),
+    # "// Sprint 9 - Triggers" → "// Triggers"
+    (re.compile(r"//\s*Sprint \d+\s*[-–-]\s*"), "// "),
     # "// HITL Sprint 11" → "// HITL"
     (re.compile(r"\bHITL Sprint \d+\b"), "HITL"),
     # "// Sprint 11" en fin de ligne → ""
     (re.compile(r"\s*//\s*Sprint \d+\s*$", re.MULTILINE), ""),
-    # " — Sprint 13" / " - Sprint 13" en commentaire → ""
-    (re.compile(r"\s+[—–-]\s+Sprint \d+\b"), ""),
+    # " - Sprint 13" / " - Sprint 13" en commentaire → ""
+    (re.compile(r"\s+[-–-]\s+Sprint \d+\b"), ""),
     # "[Sprint 20]" → ""
     (re.compile(r"\s*\[Sprint \d+\]"), ""),
     # "← Sprint 9" / "← Sprint 9 (HMAC-SHA256)" dans diagrammes ASCII → ""

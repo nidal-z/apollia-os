@@ -3,9 +3,9 @@
 Le registre communautaire permet aux développeurs tiers de distribuer des Worker Agents qui étendent Apollia OS au-delà des quatre agents bundled.
 
 **V1** : installation depuis un chemin local (`agents/community/`).  
-**V2** (ADR-055) : installation directe depuis une URL Git — **disponible**.
+**V2** (ADR-055) : installation directe depuis une URL Git - **disponible**.
 
-> **Référence technique :** [ADR-055 — Community Registry : distribution Git-based peer-to-peer](./Decisions-Log#adr-055)
+> **Référence technique :** [ADR-055 - Community Registry : distribution Git-based peer-to-peer](./Decisions-Log#adr-055)
 
 ---
 
@@ -25,12 +25,12 @@ Le registre communautaire permet aux développeurs tiers de distribuer des Worke
 
 ```
 my-worker/
-├── agent.py          ← Source de l'agent — obligatoire
-├── manifest.json     ← Métadonnées AIP — obligatoire
-├── requirements.txt  ← Packages pip — optionnel
+├── agent.py          ← Source de l'agent - obligatoire
+├── manifest.json     ← Métadonnées AIP - obligatoire
+├── requirements.txt  ← Packages pip - optionnel
 ├── README.md         ← Description et usage
 └── tests/
-    └── test_smoke.py ← Test de smoke — optionnel mais recommandé
+    └── test_smoke.py ← Test de smoke - optionnel mais recommandé
 ```
 
 ### Contrat AIP
@@ -52,7 +52,7 @@ Le fichier Python doit exposer une variable module-level `agent` dont la classe 
     "version":        "0.1.0",        # semver
     "description":    "...",
     "tools_required": ["bash_executor"],
-    # Optionnel — déclarer explicitement si nécessaire :
+    # Optionnel - déclarer explicitement si nécessaire :
     "dangerous_tools_allowed": False,
 }
 ```
@@ -92,10 +92,10 @@ apollia-os agent update my-worker
 
 L'installeur effectue les vérifications suivantes dans l'ordre :
 
-1. **Manifest conforme** — `manifest()` appelable, schéma `AgentManifest` vérifié.
-2. **Scan sécurité** — si `dangerous_tools_allowed: True`, confirmation opérateur requise.
-3. **Packages pip** — résolution PyPI vérifiée (pas d'installation immédiate).
-4. **Test smoke** — `tests/test_smoke.py` si présent (`pytest`). Un code de sortie non nul bloque l'installation.
+1. **Manifest conforme** - `manifest()` appelable, schéma `AgentManifest` vérifié.
+2. **Scan sécurité** - si `dangerous_tools_allowed: True`, confirmation opérateur requise.
+3. **Packages pip** - résolution PyPI vérifiée (pas d'installation immédiate).
+4. **Test smoke** - `tests/test_smoke.py` si présent (`pytest`). Un code de sortie non nul bloque l'installation.
 
 ### Ignorer les tests
 
@@ -117,7 +117,7 @@ apollia-os agent uninstall my-worker
 
 ### Architecture peer-to-peer
 
-Chaque agent communautaire est un repo Git autonome — le repo **est** le registre. Pas de serveur central requis.
+Chaque agent communautaire est un repo Git autonome - le repo **est** le registre. Pas de serveur central requis.
 
 La découverte optionnelle passe par un index `registry.json` dans un repo Git public (ex. `apollia-os/community-registry`) :
 
@@ -137,7 +137,7 @@ La découverte optionnelle passe par un index `registry.json` dans un repo Git p
 }
 ```
 
-Cet index est optionnel — `apollia-os agent install <git-url>` fonctionne sans lui.
+Cet index est optionnel - `apollia-os agent install <git-url>` fonctionne sans lui.
 
 ### Pas de signature cryptographique en V2
 
@@ -147,7 +147,7 @@ La confiance repose sur l'URL Git présentée à l'utilisateur. La signature GPG
 
 Sur les machines sans `git` (Windows notamment), le runtime utilise la lib Rust `gitoxide` pour cloner le repo.
 
-> **Référence technique :** [ADR-055](./Decisions-Log#adr-055) — décisions détaillées sur le format d'index, la validation, et la sécurité.
+> **Référence technique :** [ADR-055](./Decisions-Log#adr-055) - décisions détaillées sur le format d'index, la validation, et la sécurité.
 
 ---
 
@@ -157,13 +157,13 @@ Sur les machines sans `git` (Windows notamment), le runtime utilise la lib Rust 
 
 Un agent communautaire doit satisfaire **les trois** critères suivants :
 
-1. **Séquence non-triviale** — l'agent effectue un workflow multi-étapes spécifique au domaine. Un wrapper autour d'un seul appel d'outil n'est pas un Worker Agent.
+1. **Séquence non-triviale** - l'agent effectue un workflow multi-étapes spécifique au domaine. Un wrapper autour d'un seul appel d'outil n'est pas un Worker Agent.
 
-2. **Garde-fous domaine codés** — au moins une règle de sécurité doit être encodée dans le code source (pas seulement dans `SYSTEM_PROMPT`). Exemples :
+2. **Garde-fous domaine codés** - au moins une règle de sécurité doit être encodée dans le code source (pas seulement dans `SYSTEM_PROMPT`). Exemples :
    - Prévention SQL injection via requêtes paramétrées
    - Blocage des commandes Git destructives
 
-3. **Suite de tests** — un fichier `tests/test_smoke.py` couvrant au moins un cas d'erreur.
+3. **Suite de tests** - un fichier `tests/test_smoke.py` couvrant au moins un cas d'erreur.
 
 ### Checklist avant soumission
 
@@ -188,8 +188,8 @@ Un agent communautaire doit satisfaire **les trois** critères suivants :
 | `dangerous_tools_allowed` | `False` (mutations requièrent opt-in explicite) |
 
 Garde-fous codés dans l'agent :
-- SELECT-only par défaut — INSERT/UPDATE/DELETE/DROP bloqués sauf `dangerous_tools_allowed: True`.
-- Requêtes paramétrées uniquement — interpolation f-string dans le SQL interdite.
+- SELECT-only par défaut - INSERT/UPDATE/DELETE/DROP bloqués sauf `dangerous_tools_allowed: True`.
+- Requêtes paramétrées uniquement - interpolation f-string dans le SQL interdite.
 - Timeout 30 secondes.
 - Vérification existence fichier + `PRAGMA integrity_check` à la première connexion.
 - Connexion fermée via context manager `with`.
@@ -248,7 +248,7 @@ apollia-os agent install https://github.com/apollia-os/browser-worker.git
 | `dangerous_tools_allowed` | `False` |
 
 Garde-fous codés dans l'agent :
-- `send-email` est une action HITL — l'opérateur doit approuver avant envoi.
+- `send-email` est une action HITL - l'opérateur doit approuver avant envoi.
 - Validation des adresses email avant soumission.
 - Pas de pièces jointes sans `dangerous_tools_allowed: True`.
 
@@ -267,8 +267,8 @@ apollia-os agent install https://github.com/apollia-os/email-worker.git
 | `dangerous_tools_allowed` | `False` |
 
 Garde-fous codés dans l'agent :
-- `send-message` est une action HITL — l'opérateur doit approuver avant envoi.
-- `read-channel` en lecture seule — aucune modification de canal possible.
+- `send-message` est une action HITL - l'opérateur doit approuver avant envoi.
+- `read-channel` en lecture seule - aucune modification de canal possible.
 - Token Slack lu depuis variable d'environnement `SLACK_BOT_TOKEN`, jamais hardcodé.
 
 ```bash

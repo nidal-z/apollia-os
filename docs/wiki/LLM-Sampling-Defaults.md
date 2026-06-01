@@ -1,4 +1,4 @@
-# Sampling Defaults — Résolution par modèle
+# Sampling Defaults - Résolution par modèle
 
 > *Chaque famille de modèle a ses paramètres de sampling officiels (`temperature`, `top_p`, `top_k`, `repetition_penalty`). Apollia les applique automatiquement, fait remonter les défauts officiels HuggingFace au téléchargement, et laisse l'opérateur surcharger localement.*
 
@@ -6,7 +6,7 @@
 
 ## 1. Pourquoi
 
-Un sampler purement déterministe (`greedy`) produit deux fois la même sortie pour la même entrée — incompatible avec un agent qui doit explorer plusieurs angles d'analyse au cours du temps. Un sampler stochastique avec température 0.7 / top-p 0.95 donne du variant mais ignore les recommandations propres à chaque famille (Qwen3 préfère `top_p=0.8 top_k=20`, Llama 3 préfère `temperature=0.6 top_p=0.9`, Phi-3 préfère `temperature=0.5`, etc.).
+Un sampler purement déterministe (`greedy`) produit deux fois la même sortie pour la même entrée - incompatible avec un agent qui doit explorer plusieurs angles d'analyse au cours du temps. Un sampler stochastique avec température 0.7 / top-p 0.95 donne du variant mais ignore les recommandations propres à chaque famille (Qwen3 préfère `top_p=0.8 top_k=20`, Llama 3 préfère `temperature=0.6 top_p=0.9`, Phi-3 préfère `temperature=0.5`, etc.).
 
 Apollia résout les paramètres de sampling **par modèle** au moment de chaque appel d'inférence, à partir de quatre sources superposées avec une précédence stricte.
 
@@ -21,10 +21,10 @@ Apollia résout les paramètres de sampling **par modèle** au moment de chaque 
 │ 2. ~/.apollia/models/sampling-defaults.json (user overrides) │
 │    ↑ écrit auto à chaque download HF (generation_config.json)│
 ├──────────────────────────────────────────────────────────────┤
-│ 3. embedded.toml — table curated dans le binaire             │
+│ 3. embedded.toml - table curated dans le binaire             │
 │    match par GGUF general.architecture + general.name        │
 ├──────────────────────────────────────────────────────────────┤
-│ 4. DEFAULT_TEMPERATURE / TOP_P / TOP_K — fallback global     │
+│ 4. DEFAULT_TEMPERATURE / TOP_P / TOP_K - fallback global     │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -39,7 +39,7 @@ La résolution se fait **champ par champ** avec `fill_missing` : un override uti
 
 ---
 
-## 3. Types publics — `apollia_llm::model_defaults`
+## 3. Types publics - `apollia_llm::model_defaults`
 
 ```rust
 /// Paramètres de sampling. Tous champs Option pour permettre la fusion
@@ -76,29 +76,29 @@ pub fn resolve(hints: &ModelHints<'_>, overrides: &UserOverrides) -> ModelDefaul
 
 ---
 
-## 4. Table embarquée — `embedded.toml`
+## 4. Table embarquée - `embedded.toml`
 
 11 entrées curated shippées dans le binaire, sourcées des `generation_config.json` officiels publiés sur HuggingFace par les éditeurs.
 
 | Famille | `arch_pattern` | `name_pattern` | `temperature` | `top_p` | `top_k` |
 |---|---|---|---|---|---|
 | Qwen3 (thinking) | `qwen3` | `thinking` | 0.6 | 0.95 | 20 |
-| Qwen3 (instruct) | `qwen3` | — | 0.7 | 0.8 | 20 |
-| Qwen2.5 | `qwen2` | — | 0.7 | 0.8 | 20 (`rep_penalty=1.05`) |
-| Llama 3.1+ | `llama` | `llama-3` | 0.6 | 0.9 | — |
-| Llama 2 | `llama` | `llama-2` | 0.6 | 0.9 | — |
-| Mistral Instruct | `llama` | `mistral` | 0.7 | 0.95 | — |
-| Mixtral | `llama` | `mixtral` | 0.7 | 0.95 | — |
-| Phi-3 | `phi3` | — | 0.5 | 0.95 | 40 |
-| Gemma 2 | `gemma2` | — | 0.95 | 0.95 | 64 |
-| Gemma 3 | `gemma3` | — | 1.0 | 0.95 | 64 |
-| DeepSeek R1 | `deepseek2` | `r1` | 0.6 | 0.95 | — |
-| DeepSeek V3 | `deepseek2` | — | 0.7 | 0.95 | — |
+| Qwen3 (instruct) | `qwen3` | - | 0.7 | 0.8 | 20 |
+| Qwen2.5 | `qwen2` | - | 0.7 | 0.8 | 20 (`rep_penalty=1.05`) |
+| Llama 3.1+ | `llama` | `llama-3` | 0.6 | 0.9 | - |
+| Llama 2 | `llama` | `llama-2` | 0.6 | 0.9 | - |
+| Mistral Instruct | `llama` | `mistral` | 0.7 | 0.95 | - |
+| Mixtral | `llama` | `mixtral` | 0.7 | 0.95 | - |
+| Phi-3 | `phi3` | - | 0.5 | 0.95 | 40 |
+| Gemma 2 | `gemma2` | - | 0.95 | 0.95 | 64 |
+| Gemma 3 | `gemma3` | - | 1.0 | 0.95 | 64 |
+| DeepSeek R1 | `deepseek2` | `r1` | 0.6 | 0.95 | - |
+| DeepSeek V3 | `deepseek2` | - | 0.7 | 0.95 | - |
 
 **Règles de matching :**
 - `arch_pattern` est testé contre `general.architecture` du GGUF (lower-case, exact OU prefix terminé par `*`).
 - `name_pattern` est testé contre `general.name` ou le filename GGUF (lower-case, substring).
-- Précédence : entrées plus haut dans le TOML l'emportent — les plus spécifiques en haut (Qwen3 Thinking avant Qwen3 generic).
+- Précédence : entrées plus haut dans le TOML l'emportent - les plus spécifiques en haut (Qwen3 Thinking avant Qwen3 generic).
 
 **Source des valeurs :** chaque entrée du TOML cite l'URL HF de son `generation_config.json` source. Les valeurs numériques sont des faits non-copyrightables (Feist v. Rural / directive 96/9/CE).
 
@@ -127,11 +127,11 @@ Format JSON aplati `{ "<clé>": ModelDefaults }`. La clé peut être un `repo_id
 }
 ```
 
-Le fichier est lu à chaque appel `complete()` / `stream()` (~5 KB, coût négligeable). Toute modification est prise en compte au prochain appel — pas de cache à invalider.
+Le fichier est lu à chaque appel `complete()` / `stream()` (~5 KB, coût négligeable). Toute modification est prise en compte au prochain appel - pas de cache à invalider.
 
 `UserOverrides::upsert` écrit atomiquement (write-then-rename) ; un échec d'écriture ne corrompt pas le fichier existant.
 
-> **Erreurs.** Un fichier présent mais JSON corrompu lève `io::ErrorKind::InvalidData` côté Rust et est loggé en `warn` côté backend embedded — la résolution retombe alors silencieusement sur la table embarquée. Le fichier absent est traité comme une map vide (pas d'erreur).
+> **Erreurs.** Un fichier présent mais JSON corrompu lève `io::ErrorKind::InvalidData` côté Rust et est loggé en `warn` côté backend embedded - la résolution retombe alors silencieusement sur la table embarquée. Le fichier absent est traité comme une map vide (pas d'erreur).
 
 ---
 
@@ -140,7 +140,7 @@ Le fichier est lu à chaque appel `complete()` / `stream()` (~5 KB, coût négli
 Quand un modèle est téléchargé via Apollia (Hub modèles desktop, CLI, ou route HTTP), le `repo_id` HF est propagé jusqu'au downloader. À la fin du téléchargement, `persist_sampling_defaults` :
 
 1. Fetch `https://huggingface.co/{repo_id}/resolve/main/generation_config.json`.
-2. Si le repo direct n'a pas le fichier (cas standard pour Bartowski, Unsloth, mradermacher — quanteurs qui republient seulement le GGUF), résout le **base model** :
+2. Si le repo direct n'a pas le fichier (cas standard pour Bartowski, Unsloth, mradermacher - quanteurs qui republient seulement le GGUF), résout le **base model** :
    - lit `cardData.base_model` de `/api/models/{repo_id}` ;
    - sinon parse les tags `base_model:org/name` (préfère un tag simple ; retombe sur `base_model:quantized:org/name` en dernier recours).
 3. Retry `get_generation_config` sur le base model.
@@ -158,11 +158,11 @@ INFO sampling defaults HF persistés repo="bartowski/Qwen2.5-Coder-7B-Instruct-G
 
 ---
 
-## 7. Indexation par filename — pourquoi pas par repo_id
+## 7. Indexation par filename - pourquoi pas par repo_id
 
 Un même repo HF (`Qwen/Qwen3-30B-A3B-GGUF`) shippe plusieurs quantisations (Q4_K_M, Q5_K_M, Q8_0…). L'opérateur peut télécharger plusieurs d'entre elles. Indexer par filename permet :
 
-- chaque quantisation reçoit son entrée — l'opérateur peut finetuner les params différemment selon la quant ;
+- chaque quantisation reçoit son entrée - l'opérateur peut finetuner les params différemment selon la quant ;
 - au reload d'un modèle, le backend matche directement sur `model_id` (filename sans extension) sans avoir à connaître le repo source.
 
 Les entrées portent des hyperparamètres identiques au moment de l'écriture (toutes proviennent du même `generation_config.json` upstream), mais peuvent diverger ensuite si l'opérateur en édite une.
@@ -196,9 +196,9 @@ Voir [Briques-LLM-Backend §6](./Briques-LLM-Backend) pour le détail du backend
 
 ## 9. Légalité
 
-Les valeurs publiées dans les `generation_config.json` officiels sont des paramètres numériques recommandés par les éditeurs — des **faits non-copyrightables** au sens de Feist v. Rural (US) et de la directive 96/9/CE (UE). La table embarquée cite la source (URL HF) pour chaque entrée et n'inclut que les valeurs numériques, pas le code accompagnant.
+Les valeurs publiées dans les `generation_config.json` officiels sont des paramètres numériques recommandés par les éditeurs - des **faits non-copyrightables** au sens de Feist v. Rural (US) et de la directive 96/9/CE (UE). La table embarquée cite la source (URL HF) pour chaque entrée et n'inclut que les valeurs numériques, pas le code accompagnant.
 
-Le **modèle lui-même** reste sous sa licence (Llama Community License, Qwen License, Gemma Terms, Apache 2.0 selon les cas) — Apollia n'en redistribue rien : l'opérateur télécharge directement depuis HF, on ne fait que lire les hyperparamètres associés.
+Le **modèle lui-même** reste sous sa licence (Llama Community License, Qwen License, Gemma Terms, Apache 2.0 selon les cas) - Apollia n'en redistribue rien : l'opérateur télécharge directement depuis HF, on ne fait que lire les hyperparamètres associés.
 
 ---
 
@@ -224,6 +224,6 @@ cargo test -p apollia-llm --lib hf_registry        # 7 tests (dont 6 sur extract
 
 ## 11. Voir aussi
 
-- [Briques-LLM-Backend §6 EmbeddedBackend](./Briques-LLM-Backend) — sampler, max_tokens, n_ctx clamping
-- [Briques-Desktop §3 Commandes Tauri IPC](./Briques-Desktop) — `start_model_download` avec `repo_id`
-- [Outils-Reference](./Outils-Reference) — outils filesystem (expansion `~`)
+- [Briques-LLM-Backend §6 EmbeddedBackend](./Briques-LLM-Backend) - sampler, max_tokens, n_ctx clamping
+- [Briques-Desktop §3 Commandes Tauri IPC](./Briques-Desktop) - `start_model_download` avec `repo_id`
+- [Outils-Reference](./Outils-Reference) - outils filesystem (expansion `~`)

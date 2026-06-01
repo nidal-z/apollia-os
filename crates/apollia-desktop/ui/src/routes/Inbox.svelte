@@ -79,7 +79,7 @@
     try {
       sessionStorage.setItem(TAB_STORAGE_KEY, next);
     } catch {
-      /* sessionStorage unavailable — non-fatal */
+      /* sessionStorage unavailable - non-fatal */
     }
     if (next === "activity") void loadActivity();
     if (next === "notifications") void loadNotificationLogs();
@@ -94,7 +94,7 @@
   let history = $state<ResolvedChatApproval[]>([]);
   let historyError = $state<string | null>(null);
 
-  // Pending tab — filter chips reduced to "all / approval / ask_user".
+  // Pending tab - filter chips reduced to "all / approval / ask_user".
   type FilterKey = "all" | "approval" | "ask_user";
   let activeFilter = $state<FilterKey>("all");
   let agentFilter = $state<string>("all");
@@ -172,7 +172,7 @@
       const raw = JSON.parse(u.questions_json);
       if (Array.isArray(raw)) parsed = raw;
     } catch {
-      /* ignore — empty list keeps the form harmless */
+      /* ignore - empty list keeps the form harmless */
     }
     const firstQ =
       (parsed[0] as { question?: string } | undefined)?.question ?? "Question";
@@ -442,7 +442,7 @@
       // ask_user resolution is handled through `respondAskUser` /
       // `rejectAskUser` so the structured answers flow back to the agent.
       // This branch only runs for the unlikely outer "Approve / Reject"
-      // path — never invoked from the redesigned form.
+      // path - never invoked from the redesigned form.
       if (!approved && reason) {
         await invoke("respond_user_input_rejected", {
           requestId: item.source.request_id,
@@ -527,7 +527,7 @@
     expandedId = expandedId === item.id ? null : item.id;
   }
 
-  // ── ask_user — structured submit ─────────────────────────────────────────
+  // ── ask_user - structured submit ─────────────────────────────────────────
   async function respondAskUser(item: InboxItem, answers: AskUserAnswer[]): Promise<void> {
     if (item.kind !== "ask_user") return;
     submitting = true;
@@ -549,7 +549,7 @@
    *
    *  Sets the `pendingChatSessionId` store BEFORE navigation so Chat.svelte's
    *  `onMount` subscription picks the right session as soon as the route
-   *  mounts. The previous CustomEvent-based path was a no-op — nothing
+   *  mounts. The previous CustomEvent-based path was a no-op - nothing
    *  in the codebase actually listened for `apollia:chat:open-session`. */
   function openAskUserChat(sessionId: string): void {
     pendingChatSessionId.set(sessionId);
@@ -694,7 +694,7 @@
                   <div>
                     <InboxRow
                       type={rowType(item)}
-                      title={item.summary || "—"}
+                      title={item.summary || "-"}
                       agent={item.agentName}
                       timestamp={relTime(item.suspendedAt)}
                       unread={true}

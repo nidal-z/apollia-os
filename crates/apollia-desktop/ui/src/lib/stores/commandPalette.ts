@@ -5,17 +5,17 @@
  * the derived `$commands` list, filters it via fuzzy search, and executes
  * the selected `action` on Enter.
  *
- * Registration is idempotent per `id` — re-registering a command with
+ * Registration is idempotent per `id` - re-registering a command with
  * the same id overwrites the previous entry. Unregistering is expected
  * in the component's `onMount` cleanup.
  */
 import { writable, derived, get } from "svelte/store";
-// NOSONAR typescript:S1874 — Svelte 4 ComponentType retained for lucide-svelte compat
+// NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 
 /**
  * Local alias for Svelte 4 `ComponentType`. Centralizes deprecation
- * suppression — lucide-svelte's icon exports rely on this legacy alias.
+ * suppression - lucide-svelte's icon exports rely on this legacy alias.
  */
 // NOSONAR typescript:S1874
 type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874

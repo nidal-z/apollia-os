@@ -1,4 +1,4 @@
-"""Tests for apollia.utils.parsing — JSON, code block, XML, and truncate utilities."""
+"""Tests for apollia.utils.parsing - JSON, code block, XML, and truncate utilities."""
 
 from __future__ import annotations
 

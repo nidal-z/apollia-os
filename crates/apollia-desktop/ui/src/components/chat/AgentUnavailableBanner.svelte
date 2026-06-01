@@ -1,10 +1,10 @@
 <script lang="ts">
   /**
-   * AgentUnavailableBanner — inline notice shown when the agent that
+   * AgentUnavailableBanner - inline notice shown when the agent that
    * owns the current session has been uninstalled or is no longer in
    * the agents store.
    *
-   * Purely informative — the conversation keeps rendering so history
+   * Purely informative - the conversation keeps rendering so history
    * stays accessible; new messages will surface the runtime's own error.
    */
   import { t } from "svelte-i18n";
@@ -14,7 +14,7 @@
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
-    /** Missing agent name — surfaced in the banner copy. */
+    /** Missing agent name - surfaced in the banner copy. */
     agentName: string;
   }
 

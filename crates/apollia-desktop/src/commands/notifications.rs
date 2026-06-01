@@ -608,7 +608,7 @@ mod tests {
         // GIVEN a NotificationChannelView with specific events and a label
         let view = NotificationChannelView {
             id: "slack-ops".to_string(),
-            label: Some("Slack — Équipe Ops".to_string()),
+            label: Some("Slack - Équipe Ops".to_string()),
             channel_type: "webhook".to_string(),
             enabled: true,
             config: serde_json::json!({"url": "https://hooks.slack.com/xxx"}),
@@ -626,7 +626,7 @@ mod tests {
 
         // THEN all fields are present
         assert_eq!(json["id"], "slack-ops");
-        assert_eq!(json["label"], "Slack — Équipe Ops");
+        assert_eq!(json["label"], "Slack - Équipe Ops");
         assert_eq!(json["channel_type"], "webhook");
         assert_eq!(json["enabled"], true);
         assert_eq!(json["config"]["url"], "https://hooks.slack.com/xxx");

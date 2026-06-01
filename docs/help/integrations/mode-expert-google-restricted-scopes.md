@@ -41,4 +41,4 @@ En mode expert, vous êtes responsable de votre app OAuth. Apollia n'audite pas 
 
 Si Google Cloud Console vous semble lourd, vous pouvez installer un serveur MCP Gmail communautaire (cherchez `mcp-server-gmail` sur npm ou GitHub). Le serveur tourne localement, utilise vos credentials Google, et expose les outils Gmail via MCP. Voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
 
-> **Référence technique :** [Briques-Auth](https://github.com/nidal-z/apollia-os/wiki/Briques-Auth) , procédure détaillée Google Cloud Console étape par étape, gestion des scopes, responsabilité CASA.
+> **Référence technique :** [Briques-Auth](https://github.com/Apollia-OS/apollia-os/wiki/Briques-Auth) , procédure détaillée Google Cloud Console étape par étape, gestion des scopes, responsabilité CASA.

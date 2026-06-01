@@ -332,7 +332,7 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
                 );
             } else {
                 let count = resp.get("reloaded").and_then(|v| v.as_u64()).unwrap_or(0);
-                println!("✔ Triggers reloaded — {count} active");
+                println!("✔ Triggers reloaded - {count} active");
             }
             exit_codes::SUCCESS
         }
@@ -389,7 +389,7 @@ fn format_trigger_list(resp: &serde_json::Value) {
             .get("last_fired")
             .and_then(|v| v.as_str())
             .map(format_relative_time)
-            .unwrap_or_else(|| "—".to_string());
+            .unwrap_or_else(|| "-".to_string());
         println!(
             "  {:<24} {:<20} {:<12} {:<8} {:<6} {:<6} {}",
             id, agent, kind, enabled, fires, skips, last
@@ -508,8 +508,8 @@ fn format_trigger_logs(resp: &serde_json::Value) {
             fired_at.to_string()
         };
         let status = entry.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-        let task_id = entry.get("task_id").and_then(|v| v.as_str()).unwrap_or("—");
-        let reason = entry.get("reason").and_then(|v| v.as_str()).unwrap_or("—");
+        let task_id = entry.get("task_id").and_then(|v| v.as_str()).unwrap_or("-");
+        let reason = entry.get("reason").and_then(|v| v.as_str()).unwrap_or("-");
         println!("  {date_display}  {status:<8}  {task_id:<36}  {reason}");
     }
 }

@@ -73,7 +73,7 @@ def test_expose_to_module_different_agent_class_raises() -> None:
 
 def test_expose_to_module_overwrites_non_agent_shadow() -> None:
     """If module.agent is a decorator/callable/foreign object (no
-    __apollia_manifest__), it is silently overwritten — this is the case
+    __apollia_manifest__), it is silently overwritten - this is the case
     when the user does `from apollia import agent` at the top of the file."""
     module = _make_module("apollia_test_module_registry_shadow")
 

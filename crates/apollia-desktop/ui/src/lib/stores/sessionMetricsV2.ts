@@ -50,14 +50,14 @@ export const sessionMetricsSlots: Readable<Record<string, SessionMetricsSlot>> =
   subscribe: slots.subscribe,
 };
 
-/** Store dérivé pour une session donnée — retourne un slot vide si inconnu. */
+/** Store dérivé pour une session donnée - retourne un slot vide si inconnu. */
 export function sessionMetricsFor(
   sessionId: string,
 ): Readable<SessionMetricsSlot> {
   return derived(slots, ($s) => $s[sessionId] ?? EMPTY_SLOT);
 }
 
-/** Handler idempotent — exporté pour les tests et pour l'initialisation. */
+/** Handler idempotent - exporté pour les tests et pour l'initialisation. */
 export function handleSessionMetricsUpdated(
   payload: SessionMetricsUpdatedEvent,
 ): void {
@@ -77,7 +77,7 @@ export async function hydrateSessionMetrics(sessionId: string): Promise<void> {
       handleSessionMetricsUpdated({ session_id: sessionId, metrics, alert: "ok" });
     }
   } catch {
-    // Commande absente en dev / pas encore de snapshot — ignorer silencieusement.
+    // Commande absente en dev / pas encore de snapshot - ignorer silencieusement.
   }
 }
 
@@ -102,7 +102,7 @@ export function initSessionMetricsListener(): void {
   });
 }
 
-/** Arrête le listener — utilisé dans les tests. */
+/** Arrête le listener - utilisé dans les tests. */
 export function disposeSessionMetricsListener(): void {
   if (unlisten) {
     unlisten();

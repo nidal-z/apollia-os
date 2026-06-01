@@ -4,7 +4,7 @@
   import type { Snippet } from "svelte";
 
   interface Props {
-    /** Tooltip body — plain string or a snippet for rich content. */
+    /** Tooltip body - plain string or a snippet for rich content. */
     content: string | Snippet;
     /** Preferred placement. */
     side?: "top" | "right" | "bottom" | "left";

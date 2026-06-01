@@ -15,7 +15,7 @@ export const runningTasks = derived(tasks, ($tasks) =>
 );
 
 /**
- * Count of tasks considered "in-flight" — displayed in the sidebar next to
+ * Count of tasks considered "in-flight" - displayed in the sidebar next to
  * "Mon travail". The runtime exposes `submitted` (queued, waiting for the
  * actor pool) and `working` (actively running); both should count toward the
  * visible badge so the operator sees the real backlog.

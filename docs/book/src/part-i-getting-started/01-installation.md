@@ -21,7 +21,7 @@ Pas de Docker. Pas de Kubernetes. Pas de compte cloud.
 ### Depuis les sources
 
 ```bash
-git clone https://github.com/nidal-z/apollia-os.git
+git clone https://github.com/Apollia-OS/apollia-os.git
 cd apollia-os
 ```
 

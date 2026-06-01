@@ -4,7 +4,7 @@ This module holds the *individual* mocks (``MockToolProxy``,
 ``MockLlmProxy``, ``MockMemory``, ``MockLlmResponse``) used by the
 top-level :class:`~apollia.testing.MockContext` factory.
 
-For most agent tests you don't need to import from here directly — use
+For most agent tests you don't need to import from here directly - use
 :func:`apollia.testing.mock` instead::
 
     from apollia.testing import mock
@@ -38,7 +38,7 @@ class MockToolProxy:
         self.responses: dict[str, Any] = responses or {}
         self.calls: list[tuple[str, dict[str, object]]] = []
 
-    async def call(  # NOSONAR S7503 — Protocol contract
+    async def call(  # NOSONAR S7503 - Protocol contract
         self,
         tool_name: str,
         input: dict[str, object] | None = None,
@@ -152,7 +152,7 @@ class MockLlmProxy:
         self.run_tools_calls: list[dict[str, Any]] = []
         self.run_tools_responses: list[str] = []
 
-    async def complete(  # NOSONAR S7503 — Protocol contract
+    async def complete(  # NOSONAR S7503 - Protocol contract
         self,
         messages: list[dict[str, object]] | str,
         **kwargs: Any,
@@ -170,7 +170,7 @@ class MockLlmProxy:
         self.call_count += 1
         if not self.responses:
             raise IndexError(
-                f"MockLlmProxy exhausted after {self.call_count} calls — "
+                f"MockLlmProxy exhausted after {self.call_count} calls - "
                 "no more responses configured"
             )
         return MockLlmResponse(self.responses.pop(0))
@@ -191,7 +191,7 @@ class MockLlmProxy:
             backend=backend,
         )
 
-    async def run_tools(  # NOSONAR S7503 — Protocol contract
+    async def run_tools(  # NOSONAR S7503 - Protocol contract
         self,
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
@@ -219,7 +219,7 @@ class MockLlmProxy:
         self.call_count += 1
         if not self.run_tools_responses:
             raise IndexError(
-                f"MockLlmProxy.run_tools exhausted after {self.call_count} calls — "
+                f"MockLlmProxy.run_tools exhausted after {self.call_count} calls - "
                 "no more responses configured in `run_tools_responses`"
             )
         return self.run_tools_responses.pop(0)
@@ -261,7 +261,7 @@ class MockMemory:
         self.episodes: list[dict[str, Any]] = []
         self.operations: list[dict[str, Any]] = []
 
-    async def record(  # NOSONAR S7503 — Protocol contract
+    async def record(  # NOSONAR S7503 - Protocol contract
         self,
         content: str,
         importance: float | None = None,
@@ -276,7 +276,7 @@ class MockMemory:
         self.episodes.append(entry)
         self.operations.append({"op": "record", **entry})
 
-    async def remember(  # NOSONAR S7503 — Protocol contract
+    async def remember(  # NOSONAR S7503 - Protocol contract
         self,
         key: str,
         value: str,
@@ -319,7 +319,7 @@ class MockMemory:
         self.operations.append({"op": "recall", "key": key, "found": result is not None})
         return result
 
-    async def search(  # NOSONAR S7503 — Protocol contract
+    async def search(  # NOSONAR S7503 - Protocol contract
         self,
         query: str,
         limit: int | None = None,

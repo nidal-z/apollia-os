@@ -21,17 +21,17 @@ Une règle créée auparavant (via le parcours d'onboarding ou la configuration 
 
 **Solution :**
 1. Dans la sidebar, ouvrez **Paramètres → Autorisations**.
-2. Faites défiler la **section Audit récent** en bas de page : elle liste les 20 dernières décisions de permission (autorisé / refusé) avec l'outil, la portée, le numéro de règle appliquée et l'agent concerné. C'est ici que vous identifierez si un refus est dû à une règle persistée — la colonne **décision** affiche `deny` et la colonne suivante précise quelle règle a appliqué le refus.
+2. Faites défiler la **section Audit récent** en bas de page : elle liste les 20 dernières décisions de permission (autorisé / refusé) avec l'outil, la portée, le numéro de règle appliquée et l'agent concerné. C'est ici que vous identifierez si un refus est dû à une règle persistée - la colonne **décision** affiche `deny` et la colonne suivante précise quelle règle a appliqué le refus.
 3. Repérez la règle dans la liste principale **Autorisations actives** au-dessus, puis cliquez sur **Révoquer** (icône corbeille) pour la supprimer si elle est en cause.
 
-   > **Note :** il n'existe pas de bouton *« Toujours refuser »* dans les cartes HITL — un refus est toujours ponctuel. Les règles `deny` proviennent uniquement de la configuration initiale ou d'une édition directe.
+   > **Note :** il n'existe pas de bouton *« Toujours refuser »* dans les cartes HITL - un refus est toujours ponctuel. Les règles `deny` proviennent uniquement de la configuration initiale ou d'une édition directe.
 
 ### 3. L'agent n'a pas accès au dossier ou à l'outil
 
 Apollia restreint par défaut certains chemins et outils sensibles. Une action sur un chemin interdit est refusée sans même afficher de carte d'approbation.
 
 **Solution :**
-1. Si vous voyez la ligne de refus dans l'historique de la Boîte de réception, lisez la raison technique — elle mentionne le chemin ou l'outil concerné.
+1. Si vous voyez la ligne de refus dans l'historique de la Boîte de réception, lisez la raison technique - elle mentionne le chemin ou l'outil concerné.
 2. Si l'accès est légitime, ouvrez **Paramètres → Autorisations** et utilisez la portée *Toujours pour cet assistant* / *Toujours pour ce projet* lors de la **prochaine** approbation (au lieu d'une règle deny). Voir [Approuver ou refuser une action d'agent](../controle/approuver-ou-refuser-une-action.md).
 3. Relancez la tâche depuis le chat.
 
@@ -50,4 +50,4 @@ Si un agent enchaîne plusieurs refus, il peut s'arrêter de lui-même. Cela ind
 2. **Tout révoquer** : si le comportement est devenu incohérent, ouvrez **Paramètres → Autorisations**, cliquez sur **Tout révoquer** (bouton rouge en haut à droite) et sélectionnez la portée concernée (*Ce projet* / *Chat / agent* / *Partout* / *Toutes portées*). Confirmez. Les approbations recommenceront à zéro.
 3. **Dernier recours :** désactiver l'agent depuis sa carte (toggle on/off dans **Mes assistants**), supprimer toutes ses règles dédiées (filtre `agent_id` dans Autorisations), puis le réactiver pour repartir d'une configuration propre.
 
-> **Référence technique :** [Securite-Permissions](https://github.com/nidal-z/apollia-os/wiki/Securite-Permissions) — comprendre comment Apollia décide d'approuver, refuser ou demander pour chaque action sensible.
+> **Référence technique :** [Securite-Permissions](https://github.com/Apollia-OS/apollia-os/wiki/Securite-Permissions) - comprendre comment Apollia décide d'approuver, refuser ou demander pour chaque action sensible.

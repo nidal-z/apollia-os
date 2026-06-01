@@ -1,9 +1,9 @@
 ---
 name: apollia-adr
-description: Créer et maintenir les Architecture Decision Records (ADR) pour le projet Apollia OS. Utilise ce skill quand l'utilisateur dit "crée un ADR", "documente cette décision", "on a décidé de...", "choix architectural", "pourquoi on utilise X plutôt que Y", ou quand une implémentation dévie de la spec initiale et nécessite une justification tracée. Ce skill garantit que toutes les décisions techniques significatives sont documentées avec leur contexte, alternatives, et conséquences — indispensable pour un projet open-source.
+description: Créer et maintenir les Architecture Decision Records (ADR) pour le projet Apollia OS. Utilise ce skill quand l'utilisateur dit "crée un ADR", "documente cette décision", "on a décidé de...", "choix architectural", "pourquoi on utilise X plutôt que Y", ou quand une implémentation dévie de la spec initiale et nécessite une justification tracée. Ce skill garantit que toutes les décisions techniques significatives sont documentées avec leur contexte, alternatives, et conséquences - indispensable pour un projet open-source.
 ---
 
-# Apollia OS — Skill de Création d'ADR
+# Apollia OS - Skill de Création d'ADR
 
 Produit des Architecture Decision Records cohérents, tracés dans `docs/Decisions-Log.md` et dans le répertoire `docs/adr/`.
 
@@ -26,21 +26,21 @@ Produit des Architecture Decision Records cohérents, tracés dans `docs/Decisio
 
 ## Workflow de création
 
-### Étape 1 — Identifier le numéro
+### Étape 1 - Identifier le numéro
 
 Lire `docs/Decisions-Log.md`, trouver le dernier ADR-NNN, incrémenter.
 
-### Étape 2 — Remplir le template
+### Étape 2 - Remplir le template
 
-Utiliser le template ci-dessous. Remplir **toutes** les sections — une section vide = ADR incomplet.
+Utiliser le template ci-dessous. Remplir **toutes** les sections - une section vide = ADR incomplet.
 
-### Étape 3 — Double enregistrement
+### Étape 3 - Double enregistrement
 
 Produire **deux fichiers** :
-1. `docs/adr/ADR-NNN-titre-court.md` — ADR complet standalone
-2. Mise à jour de `docs/Decisions-Log.md` — ajout de l'entrée résumée
+1. `docs/adr/ADR-NNN-titre-court.md` - ADR complet standalone
+2. Mise à jour de `docs/Decisions-Log.md` - ajout de l'entrée résumée
 
-### Étape 4 — Pointer depuis la story
+### Étape 4 - Pointer depuis la story
 
 Si l'ADR est créé pendant l'implémentation d'une story, ajouter dans la section "Liens" de la story :
 ```
@@ -52,7 +52,7 @@ Si l'ADR est créé pendant l'implémentation d'une story, ajouter dans la secti
 ## Template ADR
 
 ```markdown
-# ADR-NNN — Titre court et concret
+# ADR-NNN - Titre court et concret
 
 **Date :** YYYY-MM-DD
 **Statut :** Proposé | Accepté | Remplacé par ADR-NNN | Déprécié
@@ -74,15 +74,15 @@ Si l'ADR est créé pendant l'implémentation d'une story, ajouter dans la secti
 
 ## Alternatives considérées
 
-### Option A — [Nom] (rejetée)
+### Option A - [Nom] (rejetée)
 **Pour :** [avantages]
 **Contre :** [pourquoi rejetée]
 
-### Option B — [Nom] (rejetée)
+### Option B - [Nom] (rejetée)
 **Pour :** [avantages]
 **Contre :** [pourquoi rejetée]
 
-### Option retenue — [Nom]
+### Option retenue - [Nom]
 **Pour :** [avantages qui l'ont emporté]
 **Compromis acceptés :** [ce qu'on sacrifie]
 
@@ -99,7 +99,7 @@ Si l'ADR est créé pendant l'implémentation d'une story, ajouter dans la secti
 
 ## Principes architecturaux impactés
 
-- Principe #N — [nom] : [comment cette décision s'aligne ou s'écarte]
+- Principe #N - [nom] : [comment cette décision s'aligne ou s'écarte]
 
 ## Liens
 
@@ -115,7 +115,7 @@ Si l'ADR est créé pendant l'implémentation d'une story, ajouter dans la secti
 Chaque ADR ajouté dans `docs/Decisions-Log.md` suit ce format condensé :
 
 ```markdown
-## ADR-NNN — Titre court
+## ADR-NNN - Titre court
 
 **Date :** YYYY-MM-DD
 **Statut :** Accepté
@@ -128,7 +128,7 @@ Chaque ADR ajouté dans `docs/Decisions-Log.md` suit ce format condensé :
 
 **Conséquences :** [2-3 points clés]
 
-**Principes impactés :** Principe #N — [nom]
+**Principes impactés :** Principe #N - [nom]
 
 [Détail complet → docs/adr/ADR-NNN-titre.md]
 ```

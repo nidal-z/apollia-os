@@ -1,9 +1,9 @@
-//! Integration tests — StepBudget enforcement in real conditions.
+//! Integration tests - StepBudget enforcement in real conditions.
 //!
 //! Tests that ORIAEngine correctly enforces the tri-dimensional budget
 //! (max_steps, max_tool_calls, wall_clock) and returns BudgetExceeded errors.
 //!
-//! No Python dependency — uses mock AgentRunner implementations.
+//! No Python dependency - uses mock AgentRunner implementations.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -144,7 +144,7 @@ async fn test_budget_enforced_during_slow_execution() {
         max_tool_calls: 100,
         wall_clock_secs: 0, // 0 seconds for determinism in tests
     };
-    // Use a budget that starts exhausted — ORIAEngine enforces it immediately
+    // Use a budget that starts exhausted - ORIAEngine enforces it immediately
     let budget = Arc::new(StepBudget::new(&config));
 
     let engine = ORIAEngine::new();

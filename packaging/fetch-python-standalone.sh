@@ -82,7 +82,7 @@ PYTHON_DIR="${OUT_DIR}/python"
 rm -rf "$PYTHON_DIR"
 echo "==> Extracting to $PYTHON_DIR"
 tar -xzf "$CACHED_ARCHIVE" -C "$OUT_DIR"
-# The tarball extracts as `python/` — already the layout we want.
+# The tarball extracts as `python/` - already the layout we want.
 
 # Strip symbols on Linux to shave ~15 MB; macOS `install_only` is already stripped.
 if [[ "$TARGET" == *"linux"* ]]; then

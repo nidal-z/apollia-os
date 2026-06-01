@@ -1,4 +1,4 @@
-//! [`StyleProvider`] — détection automatique du style de code via LLM.
+//! [`StyleProvider`] - détection automatique du style de code via LLM.
 //!
 //! Provider optionnel : nécessite un [`LlmRouter`] configuré.
 //! Si le LLM est indisponible ou dépasse le timeout, la section est omise
@@ -17,7 +17,7 @@ use crate::style::StyleDetector;
 /// Fournit les conventions de code détectées automatiquement via LLM léger.
 ///
 /// Actif uniquement si un [`LlmRouter`] est fourni à la construction.
-/// La détection est bornée par `config.timeout_ms` — jamais de blocage.
+/// La détection est bornée par `config.timeout_ms` - jamais de blocage.
 pub struct StyleProvider {
     config: StyleProviderConfig,
     llm_router: Option<Arc<LlmRouter>>,

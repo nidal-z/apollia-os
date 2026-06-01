@@ -38,7 +38,7 @@ T = TypeVar("T")
 
 
 class MockContext:
-    """Mock of the full ``Ctx`` Protocol — all 14 service surfaces.
+    """Mock of the full ``Ctx`` Protocol - all 14 service surfaces.
 
     The constructor wires fresh instances of every ``Mock<X>`` service.
     Pre-configure each surface in place::
@@ -101,7 +101,7 @@ def mock(agent_cls: type[T]) -> tuple[T, MockContext]:
     """
     if not hasattr(agent_cls, MANIFEST_ATTR):
         raise ValueError(
-            f"{agent_cls.__name__} is not decorated with @agent — "
+            f"{agent_cls.__name__} is not decorated with @agent - "
             f"missing attribute {MANIFEST_ATTR!r}"
         )
 

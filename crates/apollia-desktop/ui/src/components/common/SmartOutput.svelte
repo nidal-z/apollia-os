@@ -1,5 +1,5 @@
 <!--
-  Smart output renderer — transforms raw JSON output into formatted views.
+  Smart output renderer - transforms raw JSON output into formatted views.
 
   Detects known fields (title, summary, action_items, etc.) and renders them
   with appropriate formatting. Falls back to pre-formatted text for non-JSON.
@@ -64,7 +64,7 @@
     errors: "error",
   };
 
-  /** Rendering order — known fields first in logical order, then unknowns. */
+  /** Rendering order - known fields first in logical order, then unknowns. */
   const FIELD_ORDER: string[] = [
     "title",
     "name",
@@ -300,7 +300,7 @@
             <span class="font-semibold text-warning">{humanizeKey(key)}</span>
             <ul class="mt-1 space-y-0.5">
               {#each toStringArray(value) as item}
-                <li>— {item}</li>
+                <li>- {item}</li>
               {/each}
             </ul>
           </div>
@@ -313,7 +313,7 @@
             <span class="font-semibold text-destructive">{humanizeKey(key)}</span>
             <ul class="mt-1 space-y-0.5">
               {#each toStringArray(value) as item}
-                <li>— {item}</li>
+                <li>- {item}</li>
               {/each}
             </ul>
           </div>
@@ -357,7 +357,7 @@
         </table>
       </div>
     {:else}
-      <!-- Array of primitives — render as list -->
+      <!-- Array of primitives - render as list -->
       <pre
         class="whitespace-pre-wrap rounded glass-border glass-surface p-3 font-mono text-sm"
       >{output}</pre>

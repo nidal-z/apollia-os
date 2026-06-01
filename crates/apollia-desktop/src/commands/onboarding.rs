@@ -4,12 +4,12 @@
 //! in UserMemory (`context.onboarding_*` keys), plus the legacy helpers that
 //! drive the existing chat-based onboarding:
 //!
-//! - [`get_onboarding_state`] — full machine state (new)
-//! - [`advance_onboarding_phase`] — validated phase transition (new)
-//! - [`set_onboarding_profile`] — profile selection (new)
-//! - [`get_onboarding_status`] — backward-compatible completion flag
-//! - [`trigger_onboarding`] — creates an agent-backed chat session
-//! - [`dismiss_onboarding`] — marks onboarding as skipped
+//! - [`get_onboarding_state`] - full machine state (new)
+//! - [`advance_onboarding_phase`] - validated phase transition (new)
+//! - [`set_onboarding_profile`] - profile selection (new)
+//! - [`get_onboarding_status`] - backward-compatible completion flag
+//! - [`trigger_onboarding`] - creates an agent-backed chat session
+//! - [`dismiss_onboarding`] - marks onboarding as skipped
 //!
 //! All data stays local (Principle #1). Structs are serde-typed for the
 //! frontend (Principle #8). Invalid transitions are rejected immediately
@@ -40,7 +40,7 @@ const VALID_PROFILES: [&str; 2] = ["operator", "builder"];
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingPhase {
-    /// Initial landing screen — shown on first launch.
+    /// Initial landing screen - shown on first launch.
     Welcome,
     /// Profile selection: Operator or Builder.
     ProfileChoice,
@@ -52,7 +52,7 @@ pub enum OnboardingPhase {
     GuidedTour,
     /// Summary screen showing achievements and stats.
     Graduation,
-    /// Terminal state — onboarding fully completed.
+    /// Terminal state - onboarding fully completed.
     Done,
 }
 
@@ -222,7 +222,7 @@ pub struct TriggerResult {
 #[derive(Debug, thiserror::Error)]
 pub enum OnboardingError {
     /// The onboarding agent is not registered in the runtime.
-    #[error("onboarding-agent not found — it should be provisioned automatically at startup. Check that Python is available and restart the application.")]
+    #[error("onboarding-agent not found - it should be provisioned automatically at startup. Check that Python is available and restart the application.")]
     AgentNotInstalled,
 
     /// The UserMemory database is unavailable.
@@ -276,7 +276,7 @@ pub fn validate_profile(profile: &str) -> Result<(), OnboardingError> {
 }
 
 // ---------------------------------------------------------------------------
-// Tauri commands — phase machine
+// Tauri commands - phase machine
 // ---------------------------------------------------------------------------
 
 /// Returns the full onboarding state reconstructed from UserMemory.
@@ -316,7 +316,7 @@ pub async fn check_onboarding_finalized() -> Result<bool, String> {
         return Ok(false);
     }
 
-    // (db_filename, namespace_in_table) — the manifest namespace also names
+    // (db_filename, namespace_in_table) - the manifest namespace also names
     // the SQLite file (see `MemoryManager::db_path`), but the semantic table
     // carries a redundant namespace column we must filter on.
     let candidates: [(&str, &str); 2] = [
@@ -400,7 +400,7 @@ pub async fn set_onboarding_profile(
 }
 
 // ---------------------------------------------------------------------------
-// Tauri commands — legacy
+// Tauri commands - legacy
 // ---------------------------------------------------------------------------
 
 /// Returns the current onboarding status (backward-compatible).
@@ -446,7 +446,7 @@ pub async fn dismiss_onboarding(state: State<'_, RuntimeHandle>) -> Result<(), S
 }
 
 // ---------------------------------------------------------------------------
-// Inner logic — phase machine
+// Inner logic - phase machine
 // ---------------------------------------------------------------------------
 
 async fn get_onboarding_state_inner(
@@ -728,7 +728,7 @@ fn persist_state(
 }
 
 // ---------------------------------------------------------------------------
-// Low-level read/write helpers — all operate on internal-state keys
+// Low-level read/write helpers - all operate on internal-state keys
 // ---------------------------------------------------------------------------
 
 fn read_str(repo: &UserMemoryRepository, key: &str) -> Result<Option<String>, OnboardingError> {
@@ -770,7 +770,7 @@ fn write_u64(repo: &UserMemoryRepository, key: &str, value: u64) -> Result<(), O
 }
 
 // ---------------------------------------------------------------------------
-// Inner logic — legacy
+// Inner logic - legacy
 // ---------------------------------------------------------------------------
 
 /// Acquires the `UserMemoryRepository` from the runtime handle.
@@ -787,7 +787,7 @@ fn get_repo(
 /// Scan the onboarding agent's semantic memory and mark every discovered
 /// topic as covered in the user-memory repository.
 ///
-/// A missing or unreadable agent store is a silent no-op — the progress bar
+/// A missing or unreadable agent store is a silent no-op - the progress bar
 /// simply stays at whatever the repository already knows.
 fn auto_mark_discovered_topics(repo: &UserMemoryRepository, agent_db_path: &std::path::Path) {
     if !agent_db_path.exists() {
@@ -924,7 +924,7 @@ async fn get_onboarding_status_inner(
 ///
 /// Writes to the agent's own namespace (`"onboarding-agent"`) under the key
 /// `"onboarding.active_profile"`.  A missing or unwritable memory store is
-/// treated as a non-fatal degradation — the agent falls back to generic
+/// treated as a non-fatal degradation - the agent falls back to generic
 /// questioning without the profile section.
 fn write_profile_to_agent_memory(profile: &str) {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
@@ -934,7 +934,7 @@ fn write_profile_to_agent_memory(profile: &str) {
         .join("onboarding-agent.db");
 
     let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
-        tracing::warn!("onboarding agent memory store not found — profile not injected");
+        tracing::warn!("onboarding agent memory store not found - profile not injected");
         return;
     };
     let sem = apollia_memory::semantic::SemanticMemory::new(&store);
@@ -962,7 +962,7 @@ fn write_profile_to_agent_memory(profile: &str) {
 /// This helper:
 ///   - Forgets every `onboarding_topic_{topic}` entry in the user repo.
 ///   - Forgets every `user.*` and meta `onboarding.*` key in the agent's
-///     semantic namespace (`onboarding.active_profile` is preserved — the
+///     semantic namespace (`onboarding.active_profile` is preserved - the
 ///     caller writes it just after this reset).
 fn reset_onboarding_progress(repo: &UserMemoryRepository) {
     for topic in &ONBOARDING_TOPICS {
@@ -970,7 +970,7 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
         let _ = repo.forget(&key);
     }
 
-    // Both filename/namespace pairs are wiped — the manifest namespace was
+    // Both filename/namespace pairs are wiped - the manifest namespace was
     // renamed from "onboarding-agent" to "onboarding" in v2.x and an install
     // upgraded across that change can have entries in either file. Forgetting
     // to clean the new file caused stale `onboarding.completed_at` to leak
@@ -994,7 +994,7 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
         let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
             tracing::warn!(
                 file = filename,
-                "onboarding agent memory store unreadable — stale entries may persist"
+                "onboarding agent memory store unreadable - stale entries may persist"
             );
             continue;
         };
@@ -1040,13 +1040,13 @@ async fn trigger_onboarding_inner(
 
     // Wipe stale progress (topic marks + agent semantic entries from prior
     // sessions). Without this the progress bar shows 100% before the user
-    // has even sent a single message — see `reset_onboarding_progress`.
+    // has even sent a single message - see `reset_onboarding_progress`.
     if topic.is_none() {
         if let Ok(repo_arc) = get_repo(state) {
             if let Ok(repo) = repo_arc.lock() {
                 reset_onboarding_progress(&repo);
             } else {
-                tracing::warn!("user memory repo poisoned — onboarding reset skipped");
+                tracing::warn!("user memory repo poisoned - onboarding reset skipped");
             }
         }
     }
@@ -1146,14 +1146,14 @@ fn build_onboarding_prompt(topic: &Option<String>) -> String {
         ),
         None => String::from(
             "You are an onboarding assistant for all professionals (not just developers). \
-             First, ALWAYS collect the user's name and role/profession — these are mandatory. \
+             First, ALWAYS collect the user's name and role/profession - these are mandatory. \
              Then cover ALL five topics naturally through conversation. \
-             You MUST cover every single topic before concluding — do not skip any:\n\
-             1. **identity** — name, role/profession, expertise, industry, goals\n\
-             2. **preferences** — communication style, response detail level, language\n\
-             3. **tools** — IDE, AI tools, project management, version control\n\
-             4. **domain** — sector, channels (LinkedIn, website…), current focus\n\
-             5. **agents** — what AI agents or automations they want to use, challenges they face with AI\n\n\
+             You MUST cover every single topic before concluding - do not skip any:\n\
+             1. **identity** - name, role/profession, expertise, industry, goals\n\
+             2. **preferences** - communication style, response detail level, language\n\
+             3. **tools** - IDE, AI tools, project management, version control\n\
+             4. **domain** - sector, channels (LinkedIn, website…), current focus\n\
+             5. **agents** - what AI agents or automations they want to use, challenges they face with AI\n\n\
              Ask questions one at a time. Be conversational, not rigid. \
              Adapt your questions to the user's profession. \
              IMPORTANT: Do NOT conclude the onboarding until you have gathered information on ALL five topics, \
@@ -1163,7 +1163,7 @@ fn build_onboarding_prompt(topic: &Option<String>) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Companion — context table
+// Companion - context table
 // ---------------------------------------------------------------------------
 
 /// Per-route contextual help texts displayed in the Companion panel.
@@ -1207,7 +1207,7 @@ pub struct CompanionSessionResult {
 }
 
 // ---------------------------------------------------------------------------
-// Companion — Tauri commands
+// Companion - Tauri commands
 // ---------------------------------------------------------------------------
 
 /// Returns the contextual help text for the given application route.
@@ -1250,7 +1250,7 @@ async fn create_companion_session_inner(
         "Tu es le Companion Apollia, un assistant contextuel intégré à l'interface. \
          {context_text} \
          Réponds de manière concise et adaptée au contexte de la page. \
-         Tu n'injectes jamais de mémoire automatiquement — c'est l'utilisateur qui décide."
+         Tu n'injectes jamais de mémoire automatiquement - c'est l'utilisateur qui décide."
     );
 
     let manager = state
@@ -1325,7 +1325,7 @@ pub async fn get_companion_enabled(state: State<'_, RuntimeHandle>) -> Result<bo
 }
 
 // ---------------------------------------------------------------------------
-// Companion — tests
+// Companion - tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
@@ -1385,7 +1385,7 @@ mod companion_tests {
 }
 
 // ---------------------------------------------------------------------------
-// AI Setup — types
+// AI Setup - types
 // ---------------------------------------------------------------------------
 
 /// System information used to compute model recommendations in the AI setup step.
@@ -1434,7 +1434,7 @@ pub struct WhisperModelInfo {
 }
 
 // ---------------------------------------------------------------------------
-// AI Setup — Tauri commands
+// AI Setup - Tauri commands
 // ---------------------------------------------------------------------------
 
 /// Returns system information for AI setup model recommendations.
@@ -1456,7 +1456,7 @@ pub async fn get_ai_setup_info() -> Result<SystemInfo, String> {
 /// 3. `~/.cache/lm-studio/models/` (recursive, up to 4 levels deep)
 ///
 /// Results are sorted by file size descending. Missing or unreadable
-/// directories are silently skipped — an empty list is not an error.
+/// directories are silently skipped - an empty list is not an error.
 #[tauri::command]
 pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
     tokio::task::spawn_blocking(|| {
@@ -1603,7 +1603,7 @@ async fn setup_whisper_model_inner(
 }
 
 // ---------------------------------------------------------------------------
-// AI Setup — helper functions
+// AI Setup - helper functions
 // ---------------------------------------------------------------------------
 
 /// Returns current system information synchronously.
@@ -1825,7 +1825,7 @@ fn detect_gpu_basic() -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Guided Tour — types
+// Guided Tour - types
 // ---------------------------------------------------------------------------
 
 /// Interaction descriptor for a tour step that requires user action.
@@ -1870,7 +1870,7 @@ pub struct TourStep {
 }
 
 // ---------------------------------------------------------------------------
-// Guided Tour — step catalogue
+// Guided Tour - step catalogue
 // ---------------------------------------------------------------------------
 
 /// Returns the ordered tour steps for the Operator profile (17 steps, 9 groups).
@@ -2192,7 +2192,7 @@ fn builder_steps() -> Vec<TourStep> {
 }
 
 // ---------------------------------------------------------------------------
-// Guided Tour — synchronous helper (also used in tests)
+// Guided Tour - synchronous helper (also used in tests)
 // ---------------------------------------------------------------------------
 
 /// Returns the 0-based index of a tour step by its id within the given profile.
@@ -2219,7 +2219,7 @@ pub fn get_tour_steps_sync(profile: &str) -> Result<Vec<TourStep>, String> {
 }
 
 // ---------------------------------------------------------------------------
-// Guided Tour — Tauri commands
+// Guided Tour - Tauri commands
 // ---------------------------------------------------------------------------
 
 /// Returns the ordered tour steps for the given user profile.
@@ -2268,7 +2268,7 @@ async fn complete_tour_step_inner(
         let step_idx = steps_index_by_id(&step_id, onboarding.profile.as_deref());
         let should_advance = match step_idx {
             Some(idx) => idx >= onboarding.tour_step_index as usize,
-            None => true, // Unknown step — fall back to legacy behaviour.
+            None => true, // Unknown step - fall back to legacy behaviour.
         };
 
         let next_index = if should_advance {
@@ -2298,7 +2298,7 @@ async fn complete_tour_step_inner(
 }
 
 // ---------------------------------------------------------------------------
-// Guided Tour — tests
+// Guided Tour - tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
@@ -3056,7 +3056,7 @@ mod tests {
         // GIVEN a valid operator profile
         // WHEN validate_profile is called
         let result = validate_profile("operator");
-        // THEN it succeeds — the profile will be injected into agent memory
+        // THEN it succeeds - the profile will be injected into agent memory
         assert!(result.is_ok());
     }
 
@@ -3088,7 +3088,7 @@ mod tests {
 }
 
 // ---------------------------------------------------------------------------
-// Voice commands — types
+// Voice commands - types
 // ---------------------------------------------------------------------------
 
 /// Action resulting from parsing a voice command during the guided tour.
@@ -3118,7 +3118,7 @@ pub enum TourVoiceAction {
 }
 
 // ---------------------------------------------------------------------------
-// Voice commands — pure parsing logic
+// Voice commands - pure parsing logic
 // ---------------------------------------------------------------------------
 
 /// Parses a transcript into a [`TourVoiceAction`].
@@ -3183,7 +3183,7 @@ pub fn parse_voice_command(transcript: &str) -> TourVoiceAction {
 }
 
 // ---------------------------------------------------------------------------
-// Voice commands — Tauri command
+// Voice commands - Tauri command
 // ---------------------------------------------------------------------------
 
 /// Parses a voice transcript into a guided-tour navigation action.
@@ -3206,7 +3206,7 @@ pub async fn process_tour_voice_command(transcript: String) -> Result<TourVoiceA
 }
 
 // ---------------------------------------------------------------------------
-// Voice commands — tests
+// Voice commands - tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
@@ -3371,7 +3371,7 @@ mod voice_command_tests {
 }
 
 // ---------------------------------------------------------------------------
-// Graduation — tests
+// Graduation - tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]

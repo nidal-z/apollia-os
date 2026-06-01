@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence — Timeline Aggregation — Apollia OS
+title Séquence - Timeline Aggregation - Apollia OS
 
 actor "Client HTTP" as client #3a3a3a
 participant "APIServer\n(axum)" as api #1a1a2e

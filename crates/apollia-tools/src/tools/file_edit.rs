@@ -45,7 +45,7 @@ pub enum FileEditError {
     PatternNotFound { path: String },
 
     /// `old_text` appears more than once and `replace_all` is false.
-    #[error("old_text matches {count} times in '{path}' — use replace_all=true or provide more context to make it unique")]
+    #[error("old_text matches {count} times in '{path}' - use replace_all=true or provide more context to make it unique")]
     AmbiguousMatch { path: String, count: usize },
 
     /// `old_text` and `new_text` are identical, no edit would occur.

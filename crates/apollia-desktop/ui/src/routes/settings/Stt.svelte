@@ -404,7 +404,7 @@
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <span class="text-sm text-muted-foreground">{$t('settings.stt_backend')}</span>
-        <span class="text-sm font-mono text-foreground">{$sttStatus?.backend_name ?? "—"}</span>
+        <span class="text-sm font-mono text-foreground">{$sttStatus?.backend_name ?? "-"}</span>
       </div>
 
       {#snippet footer()}

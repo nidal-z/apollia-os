@@ -384,7 +384,7 @@ mod tests {
         // GIVEN the fixture whose first row wraps its URL in /l/?uddg=...
         let results = parse_ddg_html(FIXTURE_RESULTS, 20).expect("parse ok");
         // THEN the target URL is the decoded original, not the DDG wrapper
-        assert_eq!(results[0].url, "https://github.com/nidal-z/apollia-os");
+        assert_eq!(results[0].url, "https://github.com/Apollia-OS/apollia-os");
         // AND naked URLs pass through untouched
         assert_eq!(results[1].url, "https://www.rust-lang.org/");
     }

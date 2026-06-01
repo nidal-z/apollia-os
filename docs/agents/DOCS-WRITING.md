@@ -123,7 +123,7 @@ sentences.
 **Liens internes** (book to wiki) follow the canonical pattern :
 
 ```markdown
-> **Référence technique :** [Nom-Page](https://github.com/nidal-z/apollia-os/wiki/Nom-Page)
+> **Référence technique :** [Nom-Page](https://github.com/Apollia-OS/apollia-os/wiki/Nom-Page)
 ```
 
 **Day-one disclaimer in the Book.** Until the public repo and the wiki are

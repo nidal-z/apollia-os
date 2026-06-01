@@ -1,4 +1,4 @@
-# ADR-065 — Auto-Updater : Binaire Direct + SHA256
+# ADR-065 - Auto-Updater : Binaire Direct + SHA256
 
 **Date :** 2026-04-04
 **Statut :** Accepté
@@ -16,9 +16,9 @@ Apollia OS doit proposer un mécanisme de mise à jour automatique pour les util
 Sans auto-updater, les utilisateurs restent sur des versions obsolètes et n'obtiennent pas les correctifs de sécurité.
 
 **Options évaluées :**
-1. **Binaire direct + SHA256** — vérification d'intégrité du binaire téléchargé
-2. **Package manager** (Homebrew, apt, cargo install) — délègue au système de paquets
-3. **Auto-update via `cargo install`** — recompilation sur la machine cible
+1. **Binaire direct + SHA256** - vérification d'intégrité du binaire téléchargé
+2. **Package manager** (Homebrew, apt, cargo install) - délègue au système de paquets
+3. **Auto-update via `cargo install`** - recompilation sur la machine cible
 
 ---
 
@@ -63,15 +63,15 @@ La distribution binaire directe (pattern Ollama, Tauri, Helix) est suffisante po
 - Remplacement atomique (`rename`) : pas de binaire corrompu en cas d'interruption
 
 **Négatives / Compromis :**
-- Pas de signature GPG en V1 — SHA256 seul ne protège pas contre un serveur GitHub compromis. Ajout de la vérification de signature dans un sprint futur.
-- Le binaire musl (static) est plus gros que les binaires dynamiques — acceptable (distribution unique, pas de package manager à gérer)
+- Pas de signature GPG en V1 - SHA256 seul ne protège pas contre un serveur GitHub compromis. Ajout de la vérification de signature dans un sprint futur.
+- Le binaire musl (static) est plus gros que les binaires dynamiques - acceptable (distribution unique, pas de package manager à gérer)
 
 ---
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : La mise à jour est explicitement déclenchée par l'utilisateur (`apollia-os update apply`). Aucune mise à jour silencieuse en arrière-plan. Conforme.
-- **Principe #4 — Fail fast** : Si SHA256 ne correspond pas → erreur explicite avec le hash attendu vs reçu, binaire non installé. Conforme.
+- **Principe #1 - Local-first** : La mise à jour est explicitement déclenchée par l'utilisateur (`apollia-os update apply`). Aucune mise à jour silencieuse en arrière-plan. Conforme.
+- **Principe #4 - Fail fast** : Si SHA256 ne correspond pas → erreur explicite avec le hash attendu vs reçu, binaire non installé. Conforme.
 
 ---
 

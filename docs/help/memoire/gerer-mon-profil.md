@@ -1,6 +1,6 @@
 # Gérer mon profil
 
-> Pour les operators qui veulent **consulter et modifier** au quotidien ce que tous leurs agents savent d'eux — prénom, rôle, secteur, supervision, contraintes.
+> Pour les operators qui veulent **consulter et modifier** au quotidien ce que tous leurs agents savent d'eux - prénom, rôle, secteur, supervision, contraintes.
 >
 > Cette page couvre **l'édition d'un profil existant**. Si vous lancez Apollia pour la première fois, le parcours guidé peuple les valeurs initiales : voir **[Configurer votre profil au premier lancement](../installation/configurer-votre-profil.md)**.
 
@@ -14,15 +14,15 @@ Ce profil est **local**. Aucune donnée ne quitte votre machine.
 
 **Paramètres → Profil**, accessible depuis l'icône ⚙️ de la sidebar.
 
-![page Paramètres → Profil — 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier,...](../_screenshots/memoire-gerer-mon-profil-1.png)
+![page Paramètres → Profil - 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier,...](../_screenshots/memoire-gerer-mon-profil-1.png)
 
 L'écran est divisé en sections :
 
-- **Identité** — prénom, rôle, secteur, taille d'équipe, objectifs.
-- **Supervision des agents** *(sensible)* — niveau HITL (Human-in-the-Loop), domaines d'autonomie, déclenchement.
-- **Outils & contexte métier** — outils du quotidien, niveau technique, intégrations connectées *(la dernière est sensible)*.
-- **Contraintes** *(sensible)* — souveraineté des données, conformité.
-- **Préférences** — langue préférée, backend LLM par défaut.
+- **Identité** - prénom, rôle, secteur, taille d'équipe, objectifs.
+- **Supervision des agents** *(sensible)* - niveau HITL (Human-in-the-Loop), domaines d'autonomie, déclenchement.
+- **Outils & contexte métier** - outils du quotidien, niveau technique, intégrations connectées *(la dernière est sensible)*.
+- **Contraintes** *(sensible)* - souveraineté des données, conformité.
+- **Préférences** - langue préférée, backend LLM par défaut.
 
 ## Étapes
 
@@ -36,11 +36,11 @@ L'écran est divisé en sections :
 
 Une **pastille** apparaît à côté des champs déjà renseignés et indique l'origine de la valeur :
 
-- **onboarding** — valeur posée par le parcours guidé au premier démarrage. Vous la verrez sur les quelques champs que l'onboarding remplit (prénom, rôle, niveau de supervision, souveraineté des données).
-- **vous** — valeur saisie ou modifiée depuis ce formulaire. Toute modification que vous faites ici remplace l'origine précédente par **vous**.
-- **agent** — valeur déduite par un agent au fil d'une conversation (par exemple un agent qui aurait observé votre rôle dans un échange).
+- **onboarding** - valeur posée par le parcours guidé au premier démarrage. Vous la verrez sur les quelques champs que l'onboarding remplit (prénom, rôle, niveau de supervision, souveraineté des données).
+- **vous** - valeur saisie ou modifiée depuis ce formulaire. Toute modification que vous faites ici remplace l'origine précédente par **vous**.
+- **agent** - valeur déduite par un agent au fil d'une conversation (par exemple un agent qui aurait observé votre rôle dans un échange).
 
-Un champ vide ne porte pas de pastille. Tant que vous ne touchez pas à un champ, la pastille d'origine est préservée — passer le focus dessus sans rien changer ne la remplace pas.
+Un champ vide ne porte pas de pastille. Tant que vous ne touchez pas à un champ, la pastille d'origine est préservée - passer le focus dessus sans rien changer ne la remplace pas.
 
 ## Champs sensibles
 
@@ -57,7 +57,7 @@ Modifier ces champs **ne ré-applique pas automatiquement** vos règles de permi
 
 Plusieurs chemins, selon ce que vous voulez effacer.
 
-### A — Effacer uniquement le profil et reposer les questions
+### A - Effacer uniquement le profil et reposer les questions
 
 Au bas de la page **Paramètres → Profil**, la **Zone danger** propose un bouton **Réinitialiser le profil**. Confirmez dans la modale.
 
@@ -69,13 +69,13 @@ Au bas de la page **Paramètres → Profil**, la **Zone danger** propose un bout
 
 C'est l'option à choisir si vous voulez juste « repasser le questionnaire de configuration » sans toucher au reste.
 
-### B — Repasser uniquement le parcours guidé (sans effacer le profil)
+### B - Repasser uniquement le parcours guidé (sans effacer le profil)
 
 Dans **Paramètres → Zone de danger** (entrée distincte de la sidebar Paramètres), le bouton **Réinitialiser l'onboarding** relance le parcours guidé sans effacer ce qui est déjà renseigné. Utile si vous voulez juste re-télécharger un modèle, recalibrer une intégration ou voir les écrans de bienvenue à nouveau.
 
-### C — Effacer toutes les mémoires (profil + agents + projets)
+### C - Effacer toutes les mémoires (profil + agents + projets)
 
-Dans **Paramètres → Zone de danger**, le bouton **Effacer les mémoires** supprime **toutes** les mémoires Apollia, sur tous les namespaces : profil utilisateur, mémoire des agents, mémoire de projet. C'est plus large que la réinitialisation du profil — à utiliser si vous voulez repartir d'une page complètement blanche côté mémoire (les conversations, agents installés et permissions restent en place).
+Dans **Paramètres → Zone de danger**, le bouton **Effacer les mémoires** supprime **toutes** les mémoires Apollia, sur tous les namespaces : profil utilisateur, mémoire des agents, mémoire de projet. C'est plus large que la réinitialisation du profil - à utiliser si vous voulez repartir d'une page complètement blanche côté mémoire (les conversations, agents installés et permissions restent en place).
 
 > Pour aller encore plus loin (effacer aussi les agents installés, les permissions, les paramètres système), c'est l'option **Réinitialisation usine** au bas de la même Zone de danger.
 
@@ -91,4 +91,4 @@ Dans **Paramètres → Zone de danger**, le bouton **Effacer les mémoires** sup
 - **Le bouton « Réinitialiser le profil » ne relance pas l'onboarding** : ouvrez la sidebar et cliquez sur **Onboarding** pour relancer manuellement.
 - **Un agent ignore votre profil** : tous les agents Python ont accès au profil par défaut. Si l'agent en question est tiers, ouvrez son code (ou contactez son auteur) pour vérifier qu'il lit `ctx.profile`.
 
-> **Référence technique :** [Briques-User-Profile](https://github.com/nidal-z/apollia-os/wiki/Briques-User-Profile) — schéma canonique des champs, source unique de vérité du profil global, contrat SDK Python `ctx.profile.*`.
+> **Référence technique :** [Briques-User-Profile](https://github.com/Apollia-OS/apollia-os/wiki/Briques-User-Profile) - schéma canonique des champs, source unique de vérité du profil global, contrat SDK Python `ctx.profile.*`.

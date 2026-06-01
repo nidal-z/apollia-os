@@ -1,13 +1,13 @@
 import type { ChatMessageView } from "$lib/types";
 
 export interface MessageGroup {
-  /** Role of every message in the group — groups never mix roles. */
+  /** Role of every message in the group - groups never mix roles. */
   role: ChatMessageView["role"];
-  /** Stable key derived from first message id — useful for keyed #each. */
+  /** Stable key derived from first message id - useful for keyed #each. */
   key: string;
   /** Messages in chronological order. */
   messages: ChatMessageView[];
-  /** Timestamp of the first message — used for the group header. */
+  /** Timestamp of the first message - used for the group header. */
   startedAt: string;
 }
 
@@ -22,7 +22,7 @@ function hasToolCalls(msg: ChatMessageView): boolean {
 }
 
 function isSpecial(msg: ChatMessageView): boolean {
-  // Cross-session messages carry a floating badge that must stay anchored —
+  // Cross-session messages carry a floating badge that must stay anchored -
   // keep them standalone so the badge lines up.
   return Boolean(msg.metadata?.cross_session);
 }

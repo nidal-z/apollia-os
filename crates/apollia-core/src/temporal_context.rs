@@ -39,7 +39,7 @@ pub fn temporal_context_block() -> String {
     let home = std::env::var("HOME").unwrap_or_else(|_| "unknown".into());
 
     format!(
-        "## CURRENT ENVIRONMENT (authoritative — overrides any training data cutoff)\n\
+        "## CURRENT ENVIRONMENT (authoritative - overrides any training data cutoff)\n\
          - Date today (ISO 8601): {date_iso} ({weekday})\n\
          - Local time: {local_time} ({tz})\n\
          - UTC time: {utc_time}Z\n\

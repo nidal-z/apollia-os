@@ -1,22 +1,22 @@
-# Guide Onboarding — Apollia OS
+# Guide Onboarding - Apollia OS
 
 > L'onboarding Apollia OS est un **agent conversationnel**, pas un wizard.
 > Pas d'étapes numérotées, pas de formulaires fixes.
 > L'agent s'adapte à l'utilisateur et persiste chaque information en temps réel.
 
-**Décision architecturale** : [ADR-040 — Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
+**Décision architecturale** : [ADR-040 - Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
 
 ---
 
 ## Vue d'ensemble
 
-Au premier lancement d'Apollia OS, le runtime détecte l'absence de mémoire utilisateur et émet un événement `OnboardingRequired`. L'interface (desktop ou CLI) propose alors une conversation guidée par un agent dédié — `onboarding-agent` — qui fait connaissance avec l'utilisateur de manière naturelle.
+Au premier lancement d'Apollia OS, le runtime détecte l'absence de mémoire utilisateur et émet un événement `OnboardingRequired`. L'interface (desktop ou CLI) propose alors une conversation guidée par un agent dédié - `onboarding-agent` - qui fait connaissance avec l'utilisateur de manière naturelle.
 
 Chaque information collectée est persistée **immédiatement** dans la mémoire utilisateur (`UserMemoryRepository`). L'utilisateur peut quitter à tout moment sans perdre les données déjà collectées. Il peut relancer l'onboarding plus tard, intégralement ou sur un domaine spécifique.
 
 ### Flux principal
 
-1. Premier lancement — le runtime détecte une mémoire utilisateur vide
+1. Premier lancement - le runtime détecte une mémoire utilisateur vide
 2. L'événement `OnboardingRequired` est émis via l'EventBus
 3. Le frontend affiche un écran d'accueil avec deux options : "Configurer" ou "Plus tard"
 4. "Configurer" ouvre une session de chat avec `onboarding-agent`
@@ -26,7 +26,7 @@ Chaque information collectée est persistée **immédiatement** dans la mémoire
 
 ### Flux alternatif ("Plus tard")
 
-1. L'utilisateur clique "Plus tard" — l'onboarding est marqué comme "skipped"
+1. L'utilisateur clique "Plus tard" - l'onboarding est marqué comme "skipped"
 2. Le dashboard affiche un badge rappelant que l'onboarding est disponible
 3. L'utilisateur peut déclencher l'onboarding à tout moment via la CLI : `apollia-os onboard`
 
@@ -34,7 +34,7 @@ Chaque information collectée est persistée **immédiatement** dans la mémoire
 
 ## Les 5 domaines
 
-L'agent explore 5 domaines au fil de la conversation. L'**ordre n'est pas fixe** — l'agent s'adapte au flux de la discussion et décide quand et comment aborder chaque domaine.
+L'agent explore 5 domaines au fil de la conversation. L'**ordre n'est pas fixe** - l'agent s'adapte au flux de la discussion et décide quand et comment aborder chaque domaine.
 
 ### 1. Identité
 
@@ -71,7 +71,7 @@ Onglet générique applicable à tous les profils (dev, métier, opérateur).
 |---|---|---|
 | `user.tools.daily` | `string` | Outils du quotidien, liste libre (Excel, Notion, Salesforce, VS Code…) |
 | `user.tech.proficiency` | `string` | Aisance technique : `debutant` / `a-laise` / `expert` |
-| `user.tools.integrations` | `string` | Intégrations Apollia activées (GitHub, Slack, Notion, Gmail) — séparées par virgules |
+| `user.tools.integrations` | `string` | Intégrations Apollia activées (GitHub, Slack, Notion, Gmail) - séparées par virgules |
 
 ### 4. Contraintes (Tier 1 + Tier 2)
 
@@ -207,16 +207,16 @@ Sortie structurée JSON pour intégration machine.
 
 Au premier lancement, l'application affiche un écran de bienvenue avec deux options :
 
-- **"Configurer"** — Ouvre une conversation d'onboarding en plein écran avec une barre de progression par domaine
-- **"Plus tard"** — Ferme l'écran et affiche un badge de rappel dans le dashboard
+- **"Configurer"** - Ouvre une conversation d'onboarding en plein écran avec une barre de progression par domaine
+- **"Plus tard"** - Ferme l'écran et affiche un badge de rappel dans le dashboard
 
 ### Barre de progression
 
 Pendant la conversation, un indicateur visuel `TopicProgressBar` montre l'avancement par domaine :
 
-- **Gris** — Domaine pas encore abordé
-- **Bleu (pulsant)** — Domaine en cours d'exploration
-- **Violet (coche)** — Domaine couvert
+- **Gris** - Domaine pas encore abordé
+- **Bleu (pulsant)** - Domaine en cours d'exploration
+- **Violet (coche)** - Domaine couvert
 
 Le statut est rafraîchi toutes les 4 secondes via le Tauri command `get_onboarding_status`.
 
@@ -241,7 +241,7 @@ Les informations extraites passivement ne remplacent jamais celles déclarées e
 L'utilisateur peut gérer ses mémoires à tout moment :
 
 - **Via l'API REST** : `GET /api/v1/user/memory`, `DELETE /api/v1/user/memory/:key`
-- **Via le desktop** : Settings > Mes Mémoires — valider, corriger, supprimer chaque entrée
+- **Via le desktop** : Settings > Mes Mémoires - valider, corriger, supprimer chaque entrée
 - **Via la CLI** : `apollia-os memory inspect` pour explorer le contenu mémoire
 
 La validation d'une entrée augmente son score de confiance à 0.95. La suppression est immédiate et définitive.
@@ -254,7 +254,7 @@ La validation d'une entrée augmente son score de confiance à 0.95. La suppress
 
 **Fichier** : `agents/onboarding-agent.py`
 
-`OnboardingAgent` hérite de `ConversationalAgent` (SDK). Il utilise le même contrat que tout autre agent — `manifest()` + `run()` async.
+`OnboardingAgent` hérite de `ConversationalAgent` (SDK). Il utilise le même contrat que tout autre agent - `manifest()` + `run()` async.
 
 Le system prompt est bilingue (FR/EN). La langue est détectée automatiquement sur le premier message de l'utilisateur via une heuristique lexicale.
 
@@ -277,13 +277,13 @@ Le system prompt est bilingue (FR/EN). La langue est détectée automatiquement 
 
 ## Diagrammes
 
-- [seq-onboarding-flow.puml](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-onboarding-flow.puml) — Flux d'onboarding complet (premier lancement + re-déclenchement)
+- [seq-onboarding-flow.puml](https://github.com/Apollia-OS/apollia-os/blob/main/docs/diagrams/seq-onboarding-flow.puml) - Flux d'onboarding complet (premier lancement + re-déclenchement)
 
 ---
 
 ## Liens
 
-- [ADR-040 — Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
-- [Brique — Mémoire Utilisateur Globale](Briques-User-Memory.md)
-- [Brique — CLI](Briques-CLI.md)
+- [ADR-040 - Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
+- [Brique - Mémoire Utilisateur Globale](Briques-User-Memory.md)
+- [Brique - CLI](Briques-CLI.md)
 - [Guide RuntimeContext agents Python](Agents-RuntimeContext-Guide.md)

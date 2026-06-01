@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Filesystem HITL modal — refonte.
+   * Filesystem HITL modal - refonte.
    *
    * Behaviour:
    *   - progress bar timeout (via ApprovalTimer)
@@ -29,7 +29,7 @@
   import ApprovalScopeSelect, { type AlwaysAcceptScope } from "./ApprovalScopeSelect.svelte";
 
   interface Props {
-    /** Chat session — only requests for this session will open the modal. */
+    /** Chat session - only requests for this session will open the modal. */
     sessionId: string;
   }
 
@@ -257,7 +257,7 @@
       >{pending.path}</code>
     </div>
 
-    <!-- Preview — unchanged scenarios (diff / content / mode) -->
+    <!-- Preview - unchanged scenarios (diff / content / mode) -->
     {#if pending.preview.kind === "diff"}
       {@const diff = pending.preview}
       <div class="mb-3">

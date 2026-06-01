@@ -14,8 +14,8 @@
     testidPrefix: string;
     /**
      * Visual style :
-     * - `pill` (default) — segmented control with a pill-shaped background.
-     * - `underline` — flat tabs with an active border-bottom indicator.
+     * - `pill` (default) - segmented control with a pill-shaped background.
+     * - `underline` - flat tabs with an active border-bottom indicator.
      */
     variant?: "pill" | "underline";
     class?: string;

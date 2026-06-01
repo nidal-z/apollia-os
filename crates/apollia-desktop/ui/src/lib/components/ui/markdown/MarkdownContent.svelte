@@ -14,7 +14,7 @@
 
   let container = $state<HTMLDivElement | undefined>();
 
-  // Shiki hydration — fires after every render pass.  Idempotent: blocks
+  // Shiki hydration - fires after every render pass.  Idempotent: blocks
   // already highlighted (class `apollia-code-hi`) are skipped so streaming
   // content does not double-highlight.
   $effect(() => {

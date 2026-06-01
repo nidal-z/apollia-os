@@ -212,7 +212,7 @@
         </div>
         <div class="text-[12.5px] text-foreground">
           {$t(`projects.provider_type_${providerType}`)}
-          <span class="text-muted-foreground"> — {$t(`projects.provider_type_${providerType}_desc`)}</span>
+          <span class="text-muted-foreground"> - {$t(`projects.provider_type_${providerType}_desc`)}</span>
         </div>
       </div>
 

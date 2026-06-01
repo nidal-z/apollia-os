@@ -1,10 +1,10 @@
 ---
-title: Agents SDK — Python API Reference
+title: Agents SDK - Python API Reference
 description: Pure API reference for apollia-sdk classes, methods, and utilities. For tutorials, see the book.
 weight: 50
 ---
 
-# Agents SDK — Python API Reference
+# Agents SDK - Python API Reference
 
 **Référence pure des signatures, paramètres, retours et exceptions du SDK Python Apollia.**
 
@@ -59,20 +59,20 @@ Implémente la boucle Reason-Act-Observe avec LLM et outils.
 | Méthode | Signature | Retour | Description |
 |---|---|---|---|
 | `manifest()` | ` -> dict[str, Any]` | Agent metadata dict | Renvoie nom, version, outils requis, mode execution, etc. |
-| `run(task, ctx)` | `async (dict, RuntimeContext) -> dict[str, Any]` | `AIPResult` serialized | Point d'entrée — appelé une fois par tâche |
+| `run(task, ctx)` | `async (dict, RuntimeContext) -> dict[str, Any]` | `AIPResult` serialized | Point d'entrée - appelé une fois par tâche |
 
 **Méthodes publiques** :
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| `react` | `async (task, ctx, user_message, *, extra_context="", pending_tool=None, history=None) -> str \| dict` | `task`: AIP task dict; `ctx`: RuntimeContext; `user_message`: str; `extra_context`: contexte additionnel (str); `pending_tool`: HITL resume (dict \| None); `history`: previous turns (list[dict] \| None) | `str` (final answer) OR `dict` (AIPResult.input_required/failed) | (aucune — dégradation gracieuse) | Cœur de la boucle ReAct. Si `ctx.llm is None` retourne `AIPResult.failed("NO_LLM",...)`. |
-| `get_tool_schemas` | ` -> list[dict[str, Any]]` | — | Schémas d'outils natifs | — | Retourne les 13 outils natifs (bash_executor, file_io, python_executor, ask_user, notebook_read, notebook_edit, etc.) |
+| `react` | `async (task, ctx, user_message, *, extra_context="", pending_tool=None, history=None) -> str \| dict` | `task`: AIP task dict; `ctx`: RuntimeContext; `user_message`: str; `extra_context`: contexte additionnel (str); `pending_tool`: HITL resume (dict \| None); `history`: previous turns (list[dict] \| None) | `str` (final answer) OR `dict` (AIPResult.input_required/failed) | (aucune - dégradation gracieuse) | Cœur de la boucle ReAct. Si `ctx.llm is None` retourne `AIPResult.failed("NO_LLM",...)`. |
+| `get_tool_schemas` | ` -> list[dict[str, Any]]` | - | Schémas d'outils natifs | - | Retourne les 13 outils natifs (bash_executor, file_io, python_executor, ask_user, notebook_read, notebook_edit, etc.) |
 
 **Observabilité automatique (ADR-088, Lot 2).** `react()` instrumente le
 loop pour pousser sur la trace event-sourced (visible dans
 `ExecutionTrace`) :
 - `ctx.emit_thought(thought, step_num)` après chaque parsing JSON
-  d'action — rend la pensée du LLM visible.
+  d'action - rend la pensée du LLM visible.
 - `ctx.emit_action_parse_error(step_num, raw, repair_attempted=True)`
   quand le JSON action est invalide.
 - `ctx.emit_retry(step_num, "action_parse_error", attempt)` avant
@@ -80,7 +80,7 @@ loop pour pousser sur la trace event-sourced (visible dans
 
 Toutes ces émissions passent par un helper `_emit_safe(ctx, method,
 *args)` qui ignore silencieusement l'absence de méthode (`MockContext`
-en test) ou toute exception — la télémétrie ne casse jamais le loop.
+en test) ou toute exception - la télémétrie ne casse jamais le loop.
 
 ---
 
@@ -108,7 +108,7 @@ Agent dialogue uniquement, sans outils. Hérite de `ABC`.
 |---|---|---|---|---|---|
 | `converse` | `async (ctx, user_message, history=None) -> tuple[str, list[dict]]` | `ctx`: RuntimeContext; `user_message`: str; `history`: previous turns (list[dict] \| None) | `(response_text, updated_history)` | `RuntimeError` si `ctx.llm is None` | Persiste dans `ctx.memory` (importance=0.3) si disponible |
 | `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | `AIPResult.completed` | `RuntimeError` si `ctx.llm is None` | Extrait `task["input"]["parts"][0]["text"]` et appelle `converse` |
-| `on_response` | `(response: str) -> str` | `response`: LLM text (overridable) | Texte post-traité | — | Post-processing optionnel (défaut : pas de modification) |
+| `on_response` | `(response: str) -> str` | `response`: LLM text (overridable) | Texte post-traité | - | Post-processing optionnel (défaut : pas de modification) |
 
 ---
 
@@ -126,15 +126,15 @@ Agent piloté par ORIA (mode orchestré). Hérite de `ABC`.
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | — | **`RuntimeError`** (toujours) | ORIA gère l'exécution — `run()` ne doit pas être appelée |
-| `on_plan_complete` | `(self, step_results: dict[str, Any], ctx) -> dict[str, Any]` | `step_results`: `{step_id: result_dict}`; `ctx`: RuntimeContext (overridable) | `{"text": "...",...}` | — | Post-traitement après plan ORIA (défaut : concatène les textes) |
-| `format_step_results` | `(results: dict[str, Any]) -> str` | `results`: step results dict | Texte formaté multi-ligne | — | Helper statique pour formatter les résultats |
+| `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | - | **`RuntimeError`** (toujours) | ORIA gère l'exécution - `run()` ne doit pas être appelée |
+| `on_plan_complete` | `(self, step_results: dict[str, Any], ctx) -> dict[str, Any]` | `step_results`: `{step_id: result_dict}`; `ctx`: RuntimeContext (overridable) | `{"text": "...",...}` | - | Post-traitement après plan ORIA (défaut : concatène les textes) |
+| `format_step_results` | `(results: dict[str, Any]) -> str` | `results`: step results dict | Texte formaté multi-ligne | - | Helper statique pour formatter les résultats |
 
 ---
 
 ### 1.4 WorkerAgent
 
-Agent spécialisé dans un domaine métier. **Hérite de `BaseReActAgent`** — même boucle ReAct, mêmes constantes.
+Agent spécialisé dans un domaine métier. **Hérite de `BaseReActAgent`** - même boucle ReAct, mêmes constantes.
 
 **Helpers fournis** (méthodes d'instance) :
 
@@ -143,7 +143,7 @@ Agent spécialisé dans un domaine métier. **Hérite de `BaseReActAgent`** — 
 | `run_python` | `async (ctx, code, timeout_secs=30) -> dict[str, Any]` | `code`: str Python; `timeout_secs`: int | `{"stdout", "stderr", "exit_code", "duration_ms"}` | Exécute Python via `python_executor` |
 | `check_python_result` | `(result: dict, operation: str) -> str \| dict` | `result`: output de `run_python`; `operation`: str de log | Stdout (`str`) ou `AIPResult.failed` dict | Vérifie `exit_code == 0` |
 | `read_file` | `async (ctx, path: str) -> str` | `path`: chemin fichier | Contenu fichier | Via `file_read` tool |
-| `write_file` | `async (ctx, path: str, content: str) -> None` | `path`: chemin; `content`: str | — | Via `file_write` tool ; crée répertoires |
+| `write_file` | `async (ctx, path: str, content: str) -> None` | `path`: chemin; `content`: str | - | Via `file_write` tool ; crée répertoires |
 | `list_files` | `async (ctx, path: str, recursive: bool=False) -> list[str]` | `path`: répertoire; `recursive`: bool | Chemins relatifs (list[str]) | Via `file_list` tool |
 | `delegate_skill` | `async (ctx, skill_id: str, payload: dict, timeout_secs=120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | Via `ctx.delegate` ; lève `RuntimeError` si skill absent |
 | `domain_error` | `(code: str, message: str, details=None) -> dict[str, Any]` | `code`: stable snake_case (ex: `file_not_found`); `message`: str; `details`: dict \| None | `AIPResult.failed` dict | Codes: `file_not_found`, `corrupted_file`, `parse_error`, `sheet_not_found`, `column_not_found`, `encoding_error`, `python_execution_failed`, `permission_denied` |
@@ -152,8 +152,8 @@ Agent spécialisé dans un domaine métier. **Hérite de `BaseReActAgent`** — 
 
 | Constante | Valeur recommandée | Raison |
 |---|---|---|
-| `MAX_STEPS` | `8` | Plus court que BaseReActAgent (15) — scope délimité |
-| `TEMPERATURE` | `0.1` | Déterministe — le Worker exécute, ne raisonne pas |
+| `MAX_STEPS` | `8` | Plus court que BaseReActAgent (15) - scope délimité |
+| `TEMPERATURE` | `0.1` | Déterministe - le Worker exécute, ne raisonne pas |
 
 ---
 
@@ -173,7 +173,7 @@ Résultat retourné par `run()` pour le runtime.
 | `error_message` | `str \| None` | ✓ | Message erreur (failed) |
 | `input_prompt` | `str \| None` | ✓ | Demande HITL (input_required) |
 | `input_context` | `dict[str, Any] \| None` | ✓ | Contexte HITL (input_required) |
-| `data` | `dict[str, Any]` | — | Données additionnelles (défaut: `{}`) |
+| `data` | `dict[str, Any]` | - | Données additionnelles (défaut: `{}`) |
 
 **Méthodes factory** :
 
@@ -226,7 +226,7 @@ de sortie, tags, profil sandbox, niveau de risque. Ces descripteurs sont
 exposés à Python via la coroutine `ctx.tools.describe(name)` (binding PyO3).
 
 `BaseReActAgent.react()` construit son bloc d'outils dans le system prompt
-en interrogeant le registry pour chaque outil autorisé — pas de duplication
+en interrogeant le registry pour chaque outil autorisé - pas de duplication
 côté SDK, pas de drift possible entre ce que le LLM voit et ce que le
 runtime enforce au dispatch.
 
@@ -276,7 +276,7 @@ descripteur Rust au dispatch.
 
 ## 8. ContextBootstrap (`apollia.bootstrap`)
 
-> ⚠️ **Module non livré** — `sdk/apollia/bootstrap.py` n'existe pas dans la version actuelle du SDK. Cette section documente l'interface prévue ; le module sera ajouté dans un sprint futur.
+> ⚠️ **Module non livré** - `sdk/apollia/bootstrap.py` n'existe pas dans la version actuelle du SDK. Cette section documente l'interface prévue ; le module sera ajouté dans un sprint futur.
 
 Classe abstraite pour que les agents explorent et persistent un contexte cross-session.
 
@@ -294,19 +294,19 @@ Classe abstraite pour que les agents explorent et persistent un contexte cross-s
 | `needs_bootstrap()` | `async (ctx) -> bool` | `ctx`: RuntimeContext | `bool` | Vérifie status + staleness |
 | `load_snapshot()` | `async (ctx) -> dict \| None` | `ctx`: RuntimeContext | Snapshot dict or None | Charge depuis mémoire sémantique |
 | `load_meta()` | `async (ctx) -> dict \| None` | `ctx`: RuntimeContext | Métadonnées dict or None | Charge `{version, created_at, staleness_marker}` |
-| `persist()` | `async (ctx, snapshot, *, staleness_marker,...)` | `ctx`: RuntimeContext; `snapshot`: dict; `staleness_marker`: str | — | Écrit snapshot + meta + status en mémoire |
+| `persist()` | `async (ctx, snapshot, *, staleness_marker,...)` | `ctx`: RuntimeContext; `snapshot`: dict; `staleness_marker`: str | - | Écrit snapshot + meta + status en mémoire |
 
 **Clés mémoire convention** :
 
-- `bootstrap.snapshot` — snapshot JSON complet
-- `bootstrap.meta` — `{version, created_at, staleness_marker}`
-- `bootstrap.status` — `"complete"` \| `"partial"` \| `"missing"`
+- `bootstrap.snapshot` - snapshot JSON complet
+- `bootstrap.meta` - `{version, created_at, staleness_marker}`
+- `bootstrap.status` - `"complete"` \| `"partial"` \| `"missing"`
 
 ---
 
 ## 9. Agent Manifest (`apollia.stubs.manifest`)
 
-`AgentManifestDict` — TypedDict pour typage static manifest.
+`AgentManifestDict` - TypedDict pour typage static manifest.
 
 **Champs clés** :
 
@@ -316,17 +316,17 @@ Classe abstraite pour que les agents explorent et persistent un contexte cross-s
 | `version` | `str` | ✓ | Semver (ex: `"1.0.0"`) |
 | `description` | `str` | ✓ | Texte une ligne |
 | `execution_mode` | `str` | ✓ | `"direct"` (ReAct) ou `"orchestrated"` (ORIA) |
-| `tools_required` | `list[str]` | — | Outils natifs utilisés (ex: `["bash_executor", "file_io"]`) |
-| `tools_requiring_approval` | `list[str]` | — | Outils qui triggent HITL (subset de `tools_required`) |
-| `agent_type` | `str` | — | `"worker"` \| `"assistant"` \| `"system"` |
-| `examples` | `list[str]` | — | Cas d'usage exemple (UI + doc) |
-| `limitations` | `list[str]` | — | Contraintes connues |
-| `setup_notes` | `str` | — | Notes configuration |
-| `packages` | `list[str]` | — | Dépendances pip (ex: `["openpyxl>=3.1.0"]`) |
-| `agent_class` | `str \| None` | — | **Ne pas déclarer.** Renseigné automatiquement par le runtime depuis `agent.__class__.__name__`. Utilisé par l'UI pour afficher un badge de type. |
-| `supports_a2a` | `bool` | — | Accessible via A2A routing (défaut: false) |
-| `skills` | `list[dict]` | — | Skills publiés pour delegation A2A |
-| `user_memory_write` | `bool` | — | Autorise `ctx.memory.remember_user()` — écriture dans `__user__`. Réservé aux agents système (ex. `onboarding-agent`). Défaut: `false`. |
+| `tools_required` | `list[str]` | - | Outils natifs utilisés (ex: `["bash_executor", "file_io"]`) |
+| `tools_requiring_approval` | `list[str]` | - | Outils qui triggent HITL (subset de `tools_required`) |
+| `agent_type` | `str` | - | `"worker"` \| `"assistant"` \| `"system"` |
+| `examples` | `list[str]` | - | Cas d'usage exemple (UI + doc) |
+| `limitations` | `list[str]` | - | Contraintes connues |
+| `setup_notes` | `str` | - | Notes configuration |
+| `packages` | `list[str]` | - | Dépendances pip (ex: `["openpyxl>=3.1.0"]`) |
+| `agent_class` | `str \| None` | - | **Ne pas déclarer.** Renseigné automatiquement par le runtime depuis `agent.__class__.__name__`. Utilisé par l'UI pour afficher un badge de type. |
+| `supports_a2a` | `bool` | - | Accessible via A2A routing (défaut: false) |
+| `skills` | `list[dict]` | - | Skills publiés pour delegation A2A |
+| `user_memory_write` | `bool` | - | Autorise `ctx.memory.remember_user()` - écriture dans `__user__`. Réservé aux agents système (ex. `onboarding-agent`). Défaut: `false`. |
 
 ---
 
@@ -344,19 +344,19 @@ Injecté par le runtime Rust ; type stub PEP 561.
 | `step_budget` | `StepBudgetView` | ✓ | Budget d'exécution restant (lecture seule) |
 | `workspace` | `WorkspaceContext` | ✓ | Contexte workspace collecté au démarrage |
 | `user_context` | `dict[str, list[tuple[str,str]]]` | ✓ | Contexte utilisateur injecté en mode chat |
-| `delegate()` | callable | — | Fonction A2A pour déléguer à autres agents |
+| `delegate()` | callable | - | Fonction A2A pour déléguer à autres agents |
 
 **Méthodes** :
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| `log()` | `(level: str, message: str) -> None` | `level`: `"debug"\|"info"\|"warn"\|"error"`; `message`: str | — | `ValueError` si niveau invalide | Émet via `tracing::` du runtime (traces structurées) |
-| `emit_token()` | `(token: str) -> None` | `token`: str | — | — | Streaming SSE en mode chat ; no-op en mode task |
-| `delegate()` | `async (skill_id: str, payload: dict, timeout_secs: int = 120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | `RuntimeError` si skill absent | — |
-| `send()` | `async (agent_name: str, message: dict) -> None` | `agent_name`: str; `message`: dict JSON | — | `RuntimeError` si `supports_a2a` false | Messagerie inter-agents |
-| `receive()` | `async (timeout_seconds: float \| None = None) -> dict \| None` | `timeout_seconds`: délai max | Message dict ou `None` | `RuntimeError` si `supports_a2a` false | — |
+| `log()` | `(level: str, message: str) -> None` | `level`: `"debug"\|"info"\|"warn"\|"error"`; `message`: str | - | `ValueError` si niveau invalide | Émet via `tracing::` du runtime (traces structurées) |
+| `emit_token()` | `(token: str) -> None` | `token`: str | - | - | Streaming SSE en mode chat ; no-op en mode task |
+| `delegate()` | `async (skill_id: str, payload: dict, timeout_secs: int = 120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | `RuntimeError` si skill absent | - |
+| `send()` | `async (agent_name: str, message: dict) -> None` | `agent_name`: str; `message`: dict JSON | - | `RuntimeError` si `supports_a2a` false | Messagerie inter-agents |
+| `receive()` | `async (timeout_seconds: float \| None = None) -> dict \| None` | `timeout_seconds`: délai max | Message dict ou `None` | `RuntimeError` si `supports_a2a` false | - |
 
-**`StepBudgetView`** — retourné par `ctx.step_budget` :
+**`StepBudgetView`** - retourné par `ctx.step_budget` :
 
 | Propriété | Type | Description |
 |---|---|---|
@@ -395,8 +395,8 @@ Stub pour exécution outils.
 | Méthode | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
 | `call()` | `async (tool_name: str, input: dict[str, object]) -> dict[str, object]` | `tool_name`: str; `input`: args dict | Résultat tool (dict) | Jamais de levée ; dégradation gracieuse si tool absent |
-| `list_tools` | ` -> list[str]` | — | Noms outils disponibles | Immuable par session |
-| `tool_call_count` | ` -> int` | — | Nombre d'appels cumulés | Test helper (mock seulement) |
+| `list_tools` | ` -> list[str]` | - | Noms outils disponibles | Immuable par session |
+| `tool_call_count` | ` -> int` | - | Nombre d'appels cumulés | Test helper (mock seulement) |
 | `describe()` | `async (name: str) -> dict[str, object] \| None` | `name`: str outil | Spec dict ou None | Retourne schéma outil |
 
 ---
@@ -409,15 +409,15 @@ Stub pour mémoire persistante.
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| `record()` | `async (content: str, importance: float \| None = 0.5, task_id: str \| None = None, metadata: dict \| None = None, expires_in: int \| None = None) -> None` | `content`: texte; `importance`: 0–1; `task_id`: tâche courante; `metadata`: dict arbitraire; `expires_in`: TTL en secondes | — | `RuntimeError` si espace namespace épuisé | Persiste en mémoire épisodique |
-| `remember()` | `async (key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key`: str; `value`: str; `source`: optional; `confidence`: 0–1 | — | — | Mémoire sémantique clé/valeur dans le namespace propre de l'agent |
-| `remember_user()` | `async (key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key`: str; `value`: str | — | `RuntimeError` si `user_memory_write ≠ true` | Écriture dans `__user__` (namespace global). Réservé aux agents avec `user_memory_write = true` dans le manifest. |
-| `recall()` | `async (key: str) -> str \| None` | `key`: str | Valeur ou `None` | — | Cherche dans le namespace propre puis dans `__user__` (fallback inconditionnel si `user_manager` configuré). |
-| `recall_entry()` | `async (key: str, injection_reason: str \| None = None) -> dict \| None` | `key`: str | `{key, value, confidence, source, updated_at, expires_at}` ou `None` | — | Retourne entrée avec metadata complète |
-| `recall_all()` | `async (limit: int \| None = 100, injection_reason: str \| None = None) -> list[dict]` | `limit`: max résultats | `list[dict]` — même structure que `recall_entry()` | — | Liste toutes les entrées du namespace |
-| `recall_procedure()` | `async (trigger: str) -> list[dict]` | `trigger`: déclencheur exact | `[{id, trigger, steps, success_count, last_used_at, created_at}]` ou `[]` | — | Mémoire procédurale — workflows appris |
-| `search()` | `async (query: str, limit: int \| None = None) -> list[dict[str, object]]` | `query`: str texte; `limit`: int max results | `[{content, score, source, timestamp}]` | — | Recherche full-text (FTS5) |
-| `forget()` | `async (key: str) -> None` | `key`: str | — | — | Supprime entrée sémantique |
+| `record()` | `async (content: str, importance: float \| None = 0.5, task_id: str \| None = None, metadata: dict \| None = None, expires_in: int \| None = None) -> None` | `content`: texte; `importance`: 0–1; `task_id`: tâche courante; `metadata`: dict arbitraire; `expires_in`: TTL en secondes | - | `RuntimeError` si espace namespace épuisé | Persiste en mémoire épisodique |
+| `remember()` | `async (key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key`: str; `value`: str; `source`: optional; `confidence`: 0–1 | - | - | Mémoire sémantique clé/valeur dans le namespace propre de l'agent |
+| `remember_user()` | `async (key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key`: str; `value`: str | - | `RuntimeError` si `user_memory_write ≠ true` | Écriture dans `__user__` (namespace global). Réservé aux agents avec `user_memory_write = true` dans le manifest. |
+| `recall()` | `async (key: str) -> str \| None` | `key`: str | Valeur ou `None` | - | Cherche dans le namespace propre puis dans `__user__` (fallback inconditionnel si `user_manager` configuré). |
+| `recall_entry()` | `async (key: str, injection_reason: str \| None = None) -> dict \| None` | `key`: str | `{key, value, confidence, source, updated_at, expires_at}` ou `None` | - | Retourne entrée avec metadata complète |
+| `recall_all()` | `async (limit: int \| None = 100, injection_reason: str \| None = None) -> list[dict]` | `limit`: max résultats | `list[dict]` - même structure que `recall_entry()` | - | Liste toutes les entrées du namespace |
+| `recall_procedure()` | `async (trigger: str) -> list[dict]` | `trigger`: déclencheur exact | `[{id, trigger, steps, success_count, last_used_at, created_at}]` ou `[]` | - | Mémoire procédurale - workflows appris |
+| `search()` | `async (query: str, limit: int \| None = None) -> list[dict[str, object]]` | `query`: str texte; `limit`: int max results | `[{content, score, source, timestamp}]` | - | Recherche full-text (FTS5) |
+| `forget()` | `async (key: str) -> None` | `key`: str | - | - | Supprime entrée sémantique |
 
 ---
 
@@ -444,29 +444,29 @@ Génère : `<snake_name>_agent.py` + `test_<snake_name>_agent.py`
 
 ## Voir aussi
 
-- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide.md) — table complète des services injectés
-- [Briques AIP Specification](./Briques-AIP-Specification.md) — contrat AIP complet
-- [Worker Agent Pattern](./Worker-Agent-Pattern.md) — spécialisation agents
-- [Agents ContextBootstrap Guide](./Agents-ContextBootstrap-Guide.md) — bootstrapping cross-session
-- [book ch03–ch04](../../book/src/ch03-intro-aip-et-manifest.md) — apprendre le SDK par l'exemple
-- [ADR-037](../adr/ADR-037-python-sdk-packaging.md) — décision packaging SDK
-- [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) — ContextBootstrap convention
+- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide.md) - table complète des services injectés
+- [Briques AIP Specification](./Briques-AIP-Specification.md) - contrat AIP complet
+- [Worker Agent Pattern](./Worker-Agent-Pattern.md) - spécialisation agents
+- [Agents ContextBootstrap Guide](./Agents-ContextBootstrap-Guide.md) - bootstrapping cross-session
+- [book ch03–ch04](../../book/src/ch03-intro-aip-et-manifest.md) - apprendre le SDK par l'exemple
+- [ADR-037](../adr/ADR-037-python-sdk-packaging.md) - décision packaging SDK
+- [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) - ContextBootstrap convention
 
 ---
 
-## Notes de validation (Axe 1 — inventaire)
+## Notes de validation (Axe 1 - inventaire)
 
 **Signatures cross-check** vs `/docs/internal/audit/01-inventaire-code-livre.md` :
 
-1. ✅ `BaseReActAgent.react` — async, 5 params (task, ctx, user_message, extra_context, pending_tool, history)
-2. ✅ `ConversationalAgent.converse` — async, 3 params (ctx, user_message, history)
-3. ✅ `WorkerAgent.run_python` — async, 3 params (ctx, code, timeout_secs)
-4. ✅ `AIPResult.completed` — static factory (text, data)
-5. ✅ `AIPResult.failed` — static factory (code, message, details)
-6. ✅ `extract_json` — 4 stratégies parsing (full JSON, fence, outermost, repair)
-7. ✅ `ContextBootstrap.is_stale` — abstract, async (ctx)
-8. ✅ `AgentManifestDict` — TypedDict avec champs AIP v2 (agent_type, examples, limitations, setup_notes)
-9. ✅ `ToolProxy.call` — async (tool_name, input) → dict
+1. ✅ `BaseReActAgent.react` - async, 5 params (task, ctx, user_message, extra_context, pending_tool, history)
+2. ✅ `ConversationalAgent.converse` - async, 3 params (ctx, user_message, history)
+3. ✅ `WorkerAgent.run_python` - async, 3 params (ctx, code, timeout_secs)
+4. ✅ `AIPResult.completed` - static factory (text, data)
+5. ✅ `AIPResult.failed` - static factory (code, message, details)
+6. ✅ `extract_json` - 4 stratégies parsing (full JSON, fence, outermost, repair)
+7. ✅ `ContextBootstrap.is_stale` - abstract, async (ctx)
+8. ✅ `AgentManifestDict` - TypedDict avec champs AIP v2 (agent_type, examples, limitations, setup_notes)
+9. ✅ `ToolProxy.call` - async (tool_name, input) → dict
 
 **Mises à jour par rapport aux versions antérieures** :
 

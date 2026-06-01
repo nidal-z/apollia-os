@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * SheetFooter — canonical sticky footer bar for a `<Sheet>` panel.
+   * SheetFooter - canonical sticky footer bar for a `<Sheet>` panel.
    *
    * Mirrors `DialogFooter` but for Sheet contexts : right-aligned action
    * buttons row, top border, comfortable padding. Stays pinned at the

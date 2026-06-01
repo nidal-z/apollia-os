@@ -1,4 +1,4 @@
-# ADR-003 — Duck typing pour l'Agent Interface Protocol (AIP)
+# ADR-003 - Duck typing pour l'Agent Interface Protocol (AIP)
 
 **Date :** 2026-03
 **Statut :** Accepté
@@ -9,7 +9,7 @@
 
 ## Contexte
 
-L'AIP est le contrat entre le runtime Apollia OS et les agents Python. Le runtime doit être adoptable par les développeurs qui ont déjà des agents LangGraph, CrewAI, ou AutoGen existants — forcer l'héritage d'une classe `AIPAgent` créerait une friction à l'adoption et obligerait à modifier tous les agents existants.
+L'AIP est le contrat entre le runtime Apollia OS et les agents Python. Le runtime doit être adoptable par les développeurs qui ont déjà des agents LangGraph, CrewAI, ou AutoGen existants - forcer l'héritage d'une classe `AIPAgent` créerait une friction à l'adoption et obligerait à modifier tous les agents existants.
 
 Le principe #3 impose un "Contrat minimal" : deux méthodes suffisent.
 
@@ -19,19 +19,19 @@ Nous utilisons le duck typing Python : tout objet Python exposant `manifest()` e
 
 ## Alternatives considérées
 
-### Option A — Classe de base obligatoire (rejetée)
+### Option A - Classe de base obligatoire (rejetée)
 **Pour :** Typage statique plus strict, meilleure autocomplétion IDE.
 **Contre :** Oblige tous les agents existants à hériter d'une classe Apollia OS. Friction maximale à l'adoption. Crée une dépendance forte vers `apollia_os` dans chaque agent.
 
-### Option B — `typing.Protocol` Python (rejetée)
+### Option B - `typing.Protocol` Python (rejetée)
 **Pour :** Élégant, compatible mypy/pyright, zero friction runtime.
 **Contre :** Nécessite que l'agent importe le `Protocol` depuis `apollia_os`. Pas de différence pratique avec la classe de base du point de vue de l'import obligatoire.
 
-### Option C — Descripteur YAML/TOML séparé (rejetée)
+### Option C - Descripteur YAML/TOML séparé (rejetée)
 **Pour :** Séparation configuration/code.
 **Contre :** Source de vérité dupliquée : le manifest en YAML + le code de l'agent. Risque de désynchronisation. Plus lourd à maintenir.
 
-### Option retenue — Duck typing + `hasattr` validation
+### Option retenue - Duck typing + `hasattr` validation
 **Pour :** Zero friction : un agent existant avec `manifest()` et `run()` fonctionne sans modification. Principe #3 respecté.
 **Compromis acceptés :** Validation moins stricte au niveau du type checker statique. `AIPWrapper` nécessaire pour les cas edge (agents sans `manifest()`).
 
@@ -45,7 +45,7 @@ Nous utilisons le duck typing Python : tout objet Python exposant `manifest()` e
 **Négatives / Compromis :**
 - Mypy/pyright ne peut pas vérifier statiquement la conformité AIP.
 - `AIPWrapper` doit être maintenu pour couvrir les cas edge.
-- Validation runtime uniquement — pas de feedback IDE avant l'exécution.
+- Validation runtime uniquement - pas de feedback IDE avant l'exécution.
 
 **Neutres / À surveiller :**
 - Compléter `AIPWrapper` pour LangGraph et CrewAI (STORY-025).
@@ -53,8 +53,8 @@ Nous utilisons le duck typing Python : tout objet Python exposant `manifest()` e
 
 ## Principes architecturaux impactés
 
-- Principe #3 — Contrat minimal : `manifest()` + `run()` async suffisent.
-- Principe #4 — Fail fast : validation complète à INITIALIZING, pas à runtime.
+- Principe #3 - Contrat minimal : `manifest()` + `run()` async suffisent.
+- Principe #4 - Fail fast : validation complète à INITIALIZING, pas à runtime.
 
 ## Liens
 

@@ -1,6 +1,6 @@
 """Assertion helpers for Apollia agent test suites.
 
-Synchronous functions that raise :class:`AssertionError` on failure —
+Synchronous functions that raise :class:`AssertionError` on failure -
 directly compatible with ``pytest``.  They inspect both the
 :class:`AIPResult` dicts that agents return and the
 :class:`~apollia.testing.MockContext` services to verify behaviour.

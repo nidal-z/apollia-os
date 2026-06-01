@@ -1,4 +1,4 @@
-"""Tests for ``apollia.cli.inspect`` — the ``apollia inspect`` sub-command."""
+"""Tests for ``apollia.cli.inspect`` - the ``apollia inspect`` sub-command."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from apollia.cli import inspect as inspect_cmd
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Fixtures — temporary agent files
+# Fixtures - temporary agent files
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -141,7 +141,7 @@ def _make_args(path: Path, *, json_mode: bool = False) -> argparse.Namespace:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Happy path — modern @agent module
+# Happy path - modern @agent module
 # ──────────────────────────────────────────────────────────────────────
 
 

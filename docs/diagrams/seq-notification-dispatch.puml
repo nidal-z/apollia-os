@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Sequence — Notification Event Dispatch — Apollia OS
+title Sequence - Notification Event Dispatch - Apollia OS
 
 participant "EventBus" as bus #1a1a2e/e0e0ff
 participant "NotificationEngine\n(acteur Tokio)" as engine #1a1a2e/e0e0ff
@@ -56,7 +56,7 @@ alt WebhookChannel matches event_filter
   end
 end
 
-== HITL — TaskInputRequired (Approve/Reject/Inspect) ==
+== HITL - TaskInputRequired (Approve/Reject/Inspect) ==
 
 bus -> engine : RuntimeEvent::TaskInputRequired\n{ task_id, agent_id, prompt }
 engine -> engine : map_event()\n-> NotificationType::HumanInputRequired\nseverity: Critical

@@ -30,7 +30,7 @@
     /** MCP only: official badge. */
     official?: boolean;
     /**
-     * Primary card action — triggered by clicking the card body or pressing
+     * Primary card action - triggered by clicking the card body or pressing
      * Enter/Space when focused. Typical use: open the manage panel for an
      * installed server, or open the install wizard for a catalogue entry.
      */
@@ -80,7 +80,7 @@
   );
 
   const computedAriaLabel = $derived(
-    ariaLabel ?? (onclick ? `${name} — ouvrir les détails` : name),
+    ariaLabel ?? (onclick ? `${name} - ouvrir les détails` : name),
   );
 </script>
 

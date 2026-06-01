@@ -18,20 +18,20 @@
 
    > **Note :** ce panneau affiche l'historique des tâches exécutées par l'agent. Il ne s'agit pas d'un journal textuel avec niveaux Info/Warning/Error.
 
-4. Chaque ligne de la liste contient déjà l'essentiel — pas besoin de cliquer pour ouvrir un détail :
-   - **Statut** (à gauche) — voir la liste ci-dessous.
+4. Chaque ligne de la liste contient déjà l'essentiel - pas besoin de cliquer pour ouvrir un détail :
+   - **Statut** (à gauche) - voir la liste ci-dessous.
    - **Durée** d'exécution (ex. `850ms`, `2.4s`).
-   - **Horodatage relatif** (ex. `5min ago`) — survolez-le pour voir la date et l'heure exactes.
-   - **Entrée reçue** — la demande qui a déclenché la tâche.
-   - **Résultat** ou **Erreur** — la sortie produite, ou le message d'erreur si la tâche a échoué.
+   - **Horodatage relatif** (ex. `5min ago`) - survolez-le pour voir la date et l'heure exactes.
+   - **Entrée reçue** - la demande qui a déclenché la tâche.
+   - **Résultat** ou **Erreur** - la sortie produite, ou le message d'erreur si la tâche a échoué.
 
 5. Repérez les tâches par leur **statut** :
-   - **Terminée** — tâche exécutée avec succès.
-   - **Échouée** — tâche en erreur, à examiner.
-   - **En cours** — tâche encore en cours d'exécution.
-   - **Approbation** — l'agent attend une décision humaine (à traiter depuis l'Inbox).
-   - **Soumise** — tâche enregistrée, pas encore prise en charge.
-   - **Annulée** — tâche interrompue avant la fin.
+   - **Terminée** - tâche exécutée avec succès.
+   - **Échouée** - tâche en erreur, à examiner.
+   - **En cours** - tâche encore en cours d'exécution.
+   - **Approbation** - l'agent attend une décision humaine (à traiter depuis l'Inbox).
+   - **Soumise** - tâche enregistrée, pas encore prise en charge.
+   - **Annulée** - tâche interrompue avant la fin.
 
 6. **Filtrer la liste** quand il y a beaucoup de tâches :
    - Tapez dans la **barre de recherche** pour ne garder que les tâches dont l'entrée ou le résultat contient ce mot.
@@ -54,4 +54,4 @@ Vous voyez la liste des tâches de l'agent avec leur statut, leur durée et un a
 - **Panneau vide après une exécution :** vérifiez que l'agent est bien démarré (statut ACTIF sur sa carte), puis cliquez sur `↻` pour rafraîchir.
 - **Erreur incompréhensible :** copiez le message et consultez [Un agent est bloqué](../troubleshooting/un-agent-est-bloque.md).
 
-> **Référence technique :** [Ops-Exploitation-et-Debug](https://github.com/nidal-z/apollia-os/wiki/Ops-Exploitation-et-Debug) — interprétation des statuts de tâche, dépannage agent bloqué ou en timeout.
+> **Référence technique :** [Ops-Exploitation-et-Debug](https://github.com/Apollia-OS/apollia-os/wiki/Ops-Exploitation-et-Debug) - interprétation des statuts de tâche, dépannage agent bloqué ou en timeout.

@@ -43,8 +43,8 @@ def expose_to_module(cls: type, instance: Any) -> None:
     module = _resolve_module(cls)
     existing = getattr(module, "agent", None)
     if existing is not None and existing is not instance:
-        # Only a real agent instance — i.e. an instance whose class carries
-        # the generated ``__apollia_manifest__`` marker — blocks the
+        # Only a real agent instance - i.e. an instance whose class carries
+        # the generated ``__apollia_manifest__`` marker - blocks the
         # re-registration. Everything else (the ``agent`` decorator function
         # shadowed by ``from apollia import agent``, a stale binding from a
         # previous load, an unrelated callable) is considered a harmless

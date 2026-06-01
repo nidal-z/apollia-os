@@ -114,7 +114,7 @@ fn build_inactivity_notification() -> Notification {
         timestamp: chrono::Utc::now(),
         task_id: None,
         agent: None,
-        message: "Apollia est en attente — une action de votre part est peut-être requise".into(),
+        message: "Apollia est en attente - une action de votre part est peut-être requise".into(),
         metadata: HashMap::new(),
         severity: Severity::Warning,
     }

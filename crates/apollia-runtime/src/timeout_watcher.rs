@@ -152,7 +152,7 @@ impl TimeoutWatcher {
 
             tracing::warn!(
                 task_id = %task_id_str,
-                "tâche annulée — timeout input_required"
+                "tâche annulée - timeout input_required"
             );
 
             let task_id: TaskId = task_id_str.as_str().into();
@@ -409,7 +409,7 @@ mod tests {
         assert_eq!(
             status.as_deref(),
             Some("input_required"),
-            "statut doit rester 'input_required' — pause indéfinie"
+            "statut doit rester 'input_required' - pause indéfinie"
         );
     }
 }

@@ -198,7 +198,7 @@
   data-testid="create-channel-dialog"
 >
   <div class="space-y-4">
-    <!-- Label (free-form display name) — primary field -->
+    <!-- Label (free-form display name) - primary field -->
     <FormField
       id="channel-label"
       label={$t("notifications.field_label")}

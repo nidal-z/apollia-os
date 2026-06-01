@@ -3,10 +3,10 @@
    * Natural-language automation wizard.
    *
    * Four steps :
-   *   1. Describe — free-form textarea + templates shortcut.
-   *   2. Schedule — human label preview + natural re-ask if confidence is low.
-   *   3. Agent    — pre-selected if matched, dropdown otherwise.
-   *   4. Preview  — final card + "Activer cette automatisation" CTA.
+   *   1. Describe - free-form textarea + templates shortcut.
+   *   2. Schedule - human label preview + natural re-ask if confidence is low.
+   *   3. Agent    - pre-selected if matched, dropdown otherwise.
+   *   4. Preview  - final card + "Activer cette automatisation" CTA.
    *
    * Invokes `meta_parse_automation` (Tauri IPC) to translate the free-form
    * description into a `ParsedAutomation` payload. Never exposes a raw cron
@@ -254,7 +254,7 @@
 
   <div class="mt-6 space-y-4">
     {#if step === 0}
-      <!-- Step 1 — Describe ------------------------------------------------->
+      <!-- Step 1 - Describe ------------------------------------------------->
       <FormField
         id="automation-describe"
         label={$t("automations.wizard.describe_prompt")}
@@ -271,7 +271,7 @@
         />
       </FormField>
     {:else if step === 1}
-      <!-- Step 2 — Schedule ------------------------------------------------->
+      <!-- Step 2 - Schedule ------------------------------------------------->
       <div class="space-y-3">
         <p class="text-sm text-muted-foreground">{$t("automations.wizard.schedule_intro")}</p>
         {#if parsed?.schedule}
@@ -317,7 +317,7 @@
         </FormField>
       </div>
     {:else if step === 2}
-      <!-- Step 3 — Agent ---------------------------------------------------->
+      <!-- Step 3 - Agent ---------------------------------------------------->
       <div class="space-y-3">
         <p class="text-sm text-muted-foreground">{$t("automations.wizard.agent_intro")}</p>
         {#if !parsed?.agent && agentAmbiguities.length > 0}
@@ -328,7 +328,7 @@
           </div>
         {/if}
         <Select bind:value={selectedAgent} aria-label={$t("automations.wizard.agent_select_aria")} data-testid="automation-wizard-agent-select">
-          <option value="" disabled>— {$t("automations.wizard.agent_pick")} —</option>
+          <option value="" disabled>- {$t("automations.wizard.agent_pick")} -</option>
           {#each agents as agent}
             <option value={agent.name}>{agent.name}</option>
           {/each}
@@ -340,7 +340,7 @@
         {/if}
       </div>
     {:else if step === 3}
-      <!-- Step 4 — Preview -------------------------------------------------->
+      <!-- Step 4 - Preview -------------------------------------------------->
       <div class="space-y-3">
         <p class="text-sm text-muted-foreground">{$t("automations.wizard.preview_intro")}</p>
         <div class="rounded-md border border-border bg-background p-4 shadow-sm" data-testid="automation-wizard-preview-card">

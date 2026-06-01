@@ -21,7 +21,7 @@
     /** Demande de permission discriminée par `permission_type`. */
     permission: ApollaPermission;
     /**
-     * Chemin canonique du projet courant — propagé jusqu'au bouton
+     * Chemin canonique du projet courant - propagé jusqu'au bouton
      * « Ce projet » des règles « toujours autoriser ».
      */
     projectPath?: string;

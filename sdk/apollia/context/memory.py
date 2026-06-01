@@ -1,4 +1,4 @@
-"""ctx.memory — episodic + semantic + procedural memory."""
+"""ctx.memory - episodic + semantic + procedural memory."""
 
 from __future__ import annotations
 

@@ -299,14 +299,14 @@ fn format_test_results(results: &[serde_json::Value]) {
                 }
             }
             "error" => error
-                .map(|e| format!("error — {e}"))
+                .map(|e| format!("error - {e}"))
                 .unwrap_or_else(|| "unknown error".to_string()),
             "disabled" => "disabled".to_string(),
             other => other.to_string(),
         };
 
         let mark = if status == "ok" { "✔" } else { "✗" };
-        println!("  {mark} {id:<12} — {detail}");
+        println!("  {mark} {id:<12} - {detail}");
     }
 }
 
@@ -395,7 +395,7 @@ fn format_log_entries(resp: &serde_json::Value) {
             .get("event_name")
             .and_then(|v| v.as_str())
             .unwrap_or("?");
-        let task_id = entry.get("task_id").and_then(|v| v.as_str()).unwrap_or("—");
+        let task_id = entry.get("task_id").and_then(|v| v.as_str()).unwrap_or("-");
 
         // Format per-channel statuses from the JSON map
         let channels_str = entry
