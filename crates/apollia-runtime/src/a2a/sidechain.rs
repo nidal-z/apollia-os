@@ -1,8 +1,8 @@
-//! Sidechain logging, traçabilité structurée des délégations A2A dans SQLite.
+//! Sidechain logging: structured tracing of A2A delegations in SQLite.
 //!
-//! [`SidechainRepository`] persiste chaque délégation dans la table `task_sidechains`.
-//! [`SidechainLogger`] en est le wrapper async best-effort : toute erreur de log
-//! est tracée via `tracing::warn` et ne bloque jamais la délégation.
+//! [`SidechainRepository`] persists each delegation in the `task_sidechains` table.
+//! [`SidechainLogger`] is its best-effort async wrapper: any logging error is
+//! traced via `tracing::warn` and never blocks the delegation.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -13,17 +13,17 @@ use tracing::warn;
 
 use apollia_core::TaskId;
 
-/// Migration SQL appliquée à l'ouverture de la base.
+/// SQL migration applied when the database is opened.
 const MIGRATION_SQL: &str = include_str!("../../migrations/002_task_sidechains.sql");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Error
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Erreurs retournées par les opérations SQLite du sidechain.
+/// Errors returned by the sidechain SQLite operations.
 #[derive(Debug, thiserror::Error)]
 pub enum SidechainError {
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 }
@@ -32,56 +32,56 @@ pub enum SidechainError {
 // Row type
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Ligne retournée par [`SidechainRepository::list_by_parent`].
+/// Row returned by [`SidechainRepository::list_by_parent`].
 #[derive(Debug, Serialize, Clone)]
 pub struct SidechainRow {
-    /// Numéro séquentiel de la délégation pour ce parent (1-based).
+    /// Sequential delegation number for this parent (1-based).
     pub sidechain_n: i64,
-    /// Nom de l'agent cible (ou skill_id utilisé pour la résolution).
+    /// Target agent name (or the skill_id used for resolution).
     pub agent_name: String,
-    /// Statut courant : `"running"`, `"completed"`, ou `"failed"`.
+    /// Current status: `"running"`, `"completed"`, or `"failed"`.
     pub status: String,
-    /// Premiers 500 caractères de l'input.
+    /// First 500 characters of the input.
     pub input_summary: Option<String>,
-    /// Premiers 500 caractères de l'output ou du message d'erreur.
+    /// First 500 characters of the output or the error message.
     pub output_summary: Option<String>,
-    /// Horodatage ISO 8601 de début de délégation.
+    /// ISO 8601 timestamp when the delegation started.
     pub started_at: Option<String>,
-    /// Horodatage ISO 8601 de fin de délégation (`None` si encore en cours).
+    /// ISO 8601 timestamp when the delegation finished (`None` if still running).
     pub completed_at: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Repository (synchrone, rusqlite)
+// Repository (synchronous, rusqlite)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Repository SQLite synchrone pour les délégations A2A.
+/// Synchronous SQLite repository for A2A delegations.
 ///
-/// Toutes les méthodes sont synchrones et doivent être appelées depuis un
-/// thread bloquant (via `tokio::task::spawn_blocking` en contexte async).
+/// All methods are synchronous and must be called from a blocking thread
+/// (via `tokio::task::spawn_blocking` in an async context).
 pub struct SidechainRepository {
     conn: Connection,
 }
 
 impl SidechainRepository {
-    /// Ouvre ou crée la base SQLite au chemin indiqué et applique la migration.
+    /// Opens or creates the SQLite database at the given path and applies the migration.
     pub fn open(path: &Path) -> Result<Self, SidechainError> {
         let conn = Connection::open(path)?;
         conn.execute_batch(MIGRATION_SQL)?;
         Ok(Self { conn })
     }
 
-    /// Crée une base en mémoire pour les tests.
+    /// Creates an in-memory database for tests.
     pub fn new_in_memory() -> Result<Self, SidechainError> {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch(MIGRATION_SQL)?;
         Ok(Self { conn })
     }
 
-    /// Enregistre le début d'une délégation. Retourne `sidechain_n` (1-based).
+    /// Records the start of a delegation. Returns `sidechain_n` (1-based).
     ///
-    /// `sidechain_n` est calculé côté application : `COUNT(*) + 1` pour ce
-    /// `parent_task_id`. Idempotent si appelé plusieurs fois pour le même parent.
+    /// `sidechain_n` is computed application-side as `COUNT(*) + 1` for this
+    /// `parent_task_id`.
     pub fn log_start(
         &self,
         parent_task_id: &str,
@@ -103,7 +103,7 @@ impl SidechainRepository {
         Ok(sidechain_n)
     }
 
-    /// Met à jour une délégation terminée avec son statut final et son résumé d'output.
+    /// Updates a finished delegation with its final status and output summary.
     pub fn log_complete(
         &self,
         parent_task_id: &str,
@@ -120,7 +120,7 @@ impl SidechainRepository {
         Ok(())
     }
 
-    /// Retourne toutes les délégations pour un `parent_task_id`, triées par `sidechain_n`.
+    /// Returns all delegations for a `parent_task_id`, ordered by `sidechain_n`.
     pub fn list_by_parent(
         &self,
         parent_task_id: &str,
@@ -153,23 +153,22 @@ impl SidechainRepository {
 // Logger (async, best-effort)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Wrapper async best-effort autour de [`SidechainRepository`].
+/// Best-effort async wrapper around [`SidechainRepository`].
 ///
-/// Toutes les opérations utilisent `spawn_blocking`. Les erreurs sont loguées
-/// via `tracing::warn` et ne sont jamais propagées, la délégation A2A continue
-/// même si le logging échoue.
+/// All operations use `spawn_blocking`. Errors are logged via `tracing::warn`
+/// and never propagated: the A2A delegation continues even if logging fails.
 #[derive(Clone)]
 pub struct SidechainLogger {
     repository: Arc<Mutex<SidechainRepository>>,
 }
 
 impl SidechainLogger {
-    /// Construit un `SidechainLogger` depuis un repository partagé.
+    /// Builds a `SidechainLogger` from a shared repository.
     pub fn new(repository: Arc<Mutex<SidechainRepository>>) -> Self {
         Self { repository }
     }
 
-    /// Construit un `SidechainLogger` en mémoire pour les tests.
+    /// Builds an in-memory `SidechainLogger` for tests.
     pub fn new_in_memory() -> Result<Self, SidechainError> {
         let repo = SidechainRepository::new_in_memory()?;
         Ok(Self {
@@ -177,9 +176,9 @@ impl SidechainLogger {
         })
     }
 
-    /// Enregistre le début d'une délégation. Retourne `sidechain_n`, ou `0` en cas d'erreur.
+    /// Records the start of a delegation. Returns `sidechain_n`, or `0` on error.
     ///
-    /// `sidechain_n == 0` signale un échec du logging et est ignoré dans [`complete`].
+    /// `sidechain_n == 0` signals a logging failure and is ignored by [`complete`].
     pub async fn start(
         &self,
         parent_task_id: &TaskId,
@@ -211,9 +210,9 @@ impl SidechainLogger {
         }
     }
 
-    /// Met à jour une délégation terminée. Best-effort, les erreurs sont loguées sans propagation.
+    /// Updates a finished delegation. Best-effort: errors are logged, not propagated.
     ///
-    /// `sidechain_n == 0` indique que [`start`] a échoué ; l'appel est ignoré silencieusement.
+    /// `sidechain_n == 0` indicates that [`start`] failed; the call is silently ignored.
     pub async fn complete(
         &self,
         parent_task_id: &TaskId,
@@ -244,7 +243,7 @@ impl SidechainLogger {
         }
     }
 
-    /// Retourne toutes les délégations pour un `parent_task_id`, triées par `sidechain_n`.
+    /// Returns all delegations for a `parent_task_id`, ordered by `sidechain_n`.
     pub async fn list_by_parent(
         &self,
         parent_task_id: &str,
@@ -274,11 +273,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_two_delegations_get_sequential_sidechain_n() {
-        // GIVEN un logger en mémoire et une tâche parent
+        // GIVEN an in-memory logger and a parent task
         let logger = SidechainLogger::new_in_memory().unwrap();
         let parent = TaskId::new_v4();
 
-        // WHEN deux délégations sont enregistrées
+        // WHEN two delegations are recorded
         let n1 = logger
             .start(&parent, "agent-a", &serde_json::json!({"task": "hello"}))
             .await;
@@ -286,14 +285,14 @@ mod tests {
             .start(&parent, "agent-b", &serde_json::json!({"task": "world"}))
             .await;
 
-        // THEN les numéros séquentiels sont 1 et 2
+        // THEN the sequential numbers are 1 and 2
         assert_eq!(n1, 1);
         assert_eq!(n2, 2);
     }
 
     #[tokio::test]
     async fn test_completed_delegation_updates_status() {
-        // GIVEN une délégation en cours
+        // GIVEN a running delegation
         let logger = SidechainLogger::new_in_memory().unwrap();
         let parent = TaskId::new_v4();
         let n = logger
@@ -301,12 +300,12 @@ mod tests {
             .await;
         assert_eq!(n, 1);
 
-        // WHEN la délégation se termine avec succès
+        // WHEN the delegation completes successfully
         logger
             .complete(&parent, n, r#"{"result":"ok"}"#, "completed")
             .await;
 
-        // THEN la row a status = "completed"
+        // THEN the row has status = "completed"
         let rows = logger.list_by_parent(&parent.to_string()).await.unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].status, "completed");
@@ -314,19 +313,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_failed_delegation_sets_status_failed() {
-        // GIVEN une délégation en cours
+        // GIVEN a running delegation
         let logger = SidechainLogger::new_in_memory().unwrap();
         let parent = TaskId::new_v4();
         let n = logger
             .start(&parent, "agent-a", &serde_json::json!({}))
             .await;
 
-        // WHEN la délégation échoue
+        // WHEN the delegation fails
         logger
             .complete(&parent, n, "agent not found", "failed")
             .await;
 
-        // THEN la row a status = "failed"
+        // THEN the row has status = "failed"
         let rows = logger.list_by_parent(&parent.to_string()).await.unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].status, "failed");
@@ -334,43 +333,43 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_with_zero_sidechain_n_is_noop() {
-        // GIVEN un sidechain_n == 0 (start() a échoué)
+        // GIVEN a sidechain_n == 0 (start() failed)
         let logger = SidechainLogger::new_in_memory().unwrap();
         let parent = TaskId::new_v4();
 
-        // WHEN complete() est appelé avec sidechain_n = 0
+        // WHEN complete() is called with sidechain_n = 0
         logger.complete(&parent, 0, "output", "completed").await;
 
-        // THEN aucune row n'est insérée
+        // THEN no row is inserted
         let rows = logger.list_by_parent(&parent.to_string()).await.unwrap();
         assert!(rows.is_empty());
     }
 
     #[tokio::test]
     async fn test_list_by_parent_returns_empty_for_unknown_task() {
-        // GIVEN un logger sans aucune délégation
+        // GIVEN a logger with no delegations
         let logger = SidechainLogger::new_in_memory().unwrap();
 
-        // WHEN on liste pour un parent inconnu
+        // WHEN listing for an unknown parent
         let rows = logger.list_by_parent("unknown-task-id").await.unwrap();
 
-        // THEN la liste est vide
+        // THEN the list is empty
         assert!(rows.is_empty());
     }
 
     #[tokio::test]
     async fn test_input_summary_is_truncated_at_500_chars() {
-        // GIVEN un input très long
+        // GIVEN a very long input
         let logger = SidechainLogger::new_in_memory().unwrap();
         let parent = TaskId::new_v4();
         let long_value: String = "x".repeat(1000);
         let input = serde_json::json!({"data": long_value});
 
-        // WHEN la délégation est enregistrée
+        // WHEN the delegation is recorded
         let n = logger.start(&parent, "agent-a", &input).await;
         assert_eq!(n, 1);
 
-        // THEN l'input_summary est tronquée à 500 chars
+        // THEN input_summary is truncated to 500 chars
         let rows = logger.list_by_parent(&parent.to_string()).await.unwrap();
         assert_eq!(rows.len(), 1);
         if let Some(summary) = &rows[0].input_summary {

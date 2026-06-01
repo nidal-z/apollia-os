@@ -1,111 +1,111 @@
-//! Types de résultat et d'erreur pour le moteur STT.
+//! Result and error types for the STT engine.
 //!
-//! Définit [`TranscriptResult`], [`TranscriptSegment`] et [`SttError`]
-//! utilisés par tous les backends via le trait [`super::SttBackend`].
+//! Defines [`TranscriptResult`], [`TranscriptSegment`] and [`SttError`]
+//! used by all backends through the [`super::SttBackend`] trait.
 
 use serde::{Deserialize, Serialize};
 
-/// Résultat complet d'une transcription audio.
+/// Complete result of an audio transcription.
 ///
-/// Contient le texte intégral, les segments temporels, la langue détectée,
-/// et les métriques de performance (durée audio / temps de traitement).
+/// Holds the full text, time-aligned segments, the detected language,
+/// and performance metrics (audio duration and processing time).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptResult {
-    /// Texte complet transcrit (concaténation de tous les segments).
+    /// Full transcribed text (concatenation of all segments).
     pub full_text: String,
 
-    /// Segments temporels individuels avec timestamps et confiance.
+    /// Individual time-aligned segments with timestamps and confidence.
     pub segments: Vec<TranscriptSegment>,
 
-    /// Langue détectée ou utilisée pour la transcription (code ISO 639-1).
+    /// Language detected or used for the transcription (ISO 639-1 code).
     pub language: Option<String>,
 
-    /// Durée de l'audio source en millisecondes.
+    /// Duration of the source audio in milliseconds.
     pub audio_duration_ms: u64,
 
-    /// Temps de traitement de la transcription en millisecondes.
+    /// Transcription processing time in milliseconds.
     pub processing_time_ms: u64,
 }
 
-/// Segment individuel d'une transcription avec timestamps.
+/// Individual transcription segment with timestamps.
 ///
-/// Chaque segment représente une portion continue de parole
-/// avec ses bornes temporelles et un score de confiance optionnel.
+/// Each segment represents a continuous portion of speech
+/// with its time bounds and an optional confidence score.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptSegment {
-    /// Texte transcrit pour ce segment.
+    /// Transcribed text for this segment.
     pub text: String,
 
-    /// Début du segment en millisecondes depuis le début de l'audio.
+    /// Segment start in milliseconds from the beginning of the audio.
     pub start_ms: u64,
 
-    /// Fin du segment en millisecondes depuis le début de l'audio.
+    /// Segment end in milliseconds from the beginning of the audio.
     pub end_ms: u64,
 
-    /// Score de confiance du backend pour ce segment (0.0 – 1.0).
+    /// Backend confidence score for this segment (0.0 to 1.0).
     ///
-    /// `None` signifie que le backend ne fournit pas de score de confiance -
-    /// à ne pas confondre avec `Some(0.0)` qui signifierait "confiance nulle".
-    /// Par exemple, whisper.cpp ne remonte pas cette métrique par segment.
+    /// `None` means the backend provides no confidence score, which must
+    /// not be confused with `Some(0.0)` that would mean "zero confidence".
+    /// For example, whisper.cpp does not report this metric per segment.
     pub confidence: Option<f32>,
 }
 
-/// Erreurs du moteur STT.
+/// Errors from the STT engine.
 ///
-/// Couvre l'ensemble des cas d'erreur possibles lors du chargement
-/// de modèle, de la transcription, et de la gestion des backends.
+/// Covers all possible error cases during model loading,
+/// transcription, and backend management.
 #[derive(Debug, thiserror::Error)]
 pub enum SttError {
-    /// Le fichier modèle spécifié est introuvable.
+    /// The specified model file could not be found.
     #[error("STT model not found: {path}")]
     ModelNotFound {
-        /// Chemin du modèle recherché.
+        /// Path of the model that was looked up.
         path: String,
     },
 
-    /// Le chargement du modèle a échoué (format invalide, corruption, etc.).
+    /// Loading the model failed (invalid format, corruption, etc.).
     #[error("failed to load STT model: {reason}")]
     ModelLoadFailed {
-        /// Description de l'erreur de chargement.
+        /// Description of the load error.
         reason: String,
     },
 
-    /// La transcription a échoué après le démarrage du traitement.
+    /// Transcription failed after processing had started.
     #[error("transcription failed: {reason}")]
     TranscriptionFailed {
-        /// Description de l'erreur de transcription.
+        /// Description of the transcription error.
         reason: String,
     },
 
-    /// Les données audio fournies sont invalides (mauvais format, vides, etc.).
+    /// The provided audio data is invalid (wrong format, empty, etc.).
     #[error("invalid audio data: {reason}")]
     InvalidAudio {
-        /// Description du problème avec les données audio.
+        /// Description of the problem with the audio data.
         reason: String,
     },
 
-    /// Le backend STT demandé n'est pas disponible (feature non activée, etc.).
+    /// The requested STT backend is not available (feature not enabled, etc.).
     #[error("STT backend unavailable: {backend}")]
     BackendUnavailable {
-        /// Nom du backend indisponible.
+        /// Name of the unavailable backend.
         backend: String,
     },
 
-    /// La transcription a dépassé le délai maximum autorisé.
+    /// Transcription exceeded the maximum allowed time.
     #[error("STT operation timed out after {timeout_ms}ms")]
     Timeout {
-        /// Délai dépassé en millisecondes.
+        /// Exceeded timeout in milliseconds.
         timeout_ms: u64,
     },
 
-    /// Erreur interne inattendue.
+    /// Unexpected internal error.
     #[error("internal STT error: {0}")]
     Internal(String),
 
-    /// Erreur du repository SQLite (ouverture, migration, requête).
+    /// SQLite repository error (open, migration, query).
     #[error("STT repository error: {reason}")]
     Repository {
-        /// Description de l'erreur du repository.
+        /// Description of the repository error.
         reason: String,
     },
 }
@@ -114,9 +114,9 @@ pub enum SttError {
 mod tests {
     use super::*;
 
-    // GIVEN chaque variant de SttError
-    // WHEN on appelle Display
-    // THEN le message contient le contexte attendu
+    // GIVEN each variant of SttError
+    // WHEN Display is called
+    // THEN the message contains the expected context
     #[test]
     fn stt_error_display_contains_context() {
         let err = SttError::ModelNotFound {
@@ -234,9 +234,9 @@ mod tests {
         );
     }
 
-    // GIVEN un TranscriptResult
-    // WHEN on le sérialise en JSON puis le désérialise
-    // THEN le round-trip est fidèle
+    // GIVEN a TranscriptResult
+    // WHEN serialized to JSON and deserialized back
+    // THEN the round-trip is faithful
     #[test]
     fn transcript_result_serde_roundtrip() {
         let result = TranscriptResult {

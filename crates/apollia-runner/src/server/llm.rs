@@ -1,11 +1,10 @@
-//! Handlers axum pour `/llm/*`.
+//! axum handlers for `/llm/*`.
 //!
-//! Cf. [IPC-PROTOCOL §3.4-3.7](../../../../docs/internal/architecture/IPC-PROTOCOL.md) :
-//! - `POST /llm/load_model` : charge un GGUF dans le cache du runner.
-//! - `POST /llm/unload_model` : libère le modèle (VRAM + RAM).
-//! - `POST /llm/complete` : inférence non-streaming.
-//! - `POST /llm/stream` : SSE token-by-token.
-//! - `POST /llm/embed` : non implémenté (UnsupportedOperation).
+//! - `POST /llm/load_model`: loads a GGUF into the runner cache.
+//! - `POST /llm/unload_model`: releases the model (VRAM + RAM).
+//! - `POST /llm/complete`: non-streaming inference.
+//! - `POST /llm/stream`: token-by-token SSE.
+//! - `POST /llm/embed`: not implemented (UnsupportedOperation).
 
 use axum::extract::State;
 #[cfg_attr(not(feature = "local-cpu"), allow(unused_imports))]
@@ -22,10 +21,10 @@ use crate::ipc::Response;
 use super::error::ipc_error_response;
 use super::AppState;
 
-/// Borne supérieure protocolaire pour `max_tokens` (IPC-PROTOCOL §7.2).
+/// Protocol upper bound for `max_tokens`.
 #[cfg(feature = "local-cpu")]
 const MAX_TOKENS_CEILING: u32 = 32_768;
-/// Plage admissible pour `temperature` (IPC-PROTOCOL §7.2).
+/// Admissible range for `temperature`.
 #[cfg(feature = "local-cpu")]
 const TEMPERATURE_RANGE: std::ops::RangeInclusive<f32> = 0.0..=2.0;
 
@@ -175,8 +174,8 @@ pub async fn stream(
                 ev
             }
             Err(err) => {
-                // Sérialise l'erreur en payload data ; le client lit le statut
-                // d'erreur via le champ `ok` de l'enveloppe.
+                // Serialize the error into the data payload; the client reads
+                // the error status via the envelope's `ok` field.
                 let envelope = serde_json::json!({
                     "request_id": request_id,
                     "ok": false,
@@ -208,16 +207,16 @@ pub async fn embed(
     State(_state): State<AppState>,
     Json(_req): Json<Request<EmbedParams>>,
 ) -> AxumResponse {
-    // Embeddings locaux non câblés dans cette release : nécessite un backend
-    // d'embeddings dédié (ex: BGE) qui n'est pas encore intégré au runner.
+    // Local embeddings are not wired up in this release: they require a
+    // dedicated embeddings backend (e.g. BGE) not yet integrated in the runner.
     ipc_error_response(ErrorBody::new(
         ErrorCode::UnsupportedOperation,
         "/llm/embed is not yet implemented in the runner",
     ))
 }
 
-// Les tests dépendent de `validate_complete_params` qui n'existe qu'avec la
-// feature `local-cpu`. Gate identique.
+// These tests depend on `validate_complete_params`, which exists only with the
+// `local-cpu` feature. Same gate applies.
 #[cfg(all(test, feature = "local-cpu"))]
 mod tests {
     use super::*;

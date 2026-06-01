@@ -1,33 +1,33 @@
-//! Construction d'une arborescence textuelle du répertoire courant.
+//! Builds a textual tree of the current directory.
 //!
-//! Parcours BFS avec timeout d'une seconde pour ne jamais bloquer la collecte
-//! sur des systèmes de fichiers lents ou très profonds.
+//! Uses BFS traversal with a one-second timeout so collection never blocks on
+//! slow or very deep filesystems.
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// Construit une arborescence textuelle d'un répertoire, limitée en lignes.
+/// Builds a textual tree of a directory, capped by line count.
 ///
-/// Ignore les répertoires habituellement volumineux et non pertinents pour
-/// un agent IA : `.git`, `target`, `node_modules`, `__pycache__`, `dist`, etc.
+/// Skips directories that are typically large and irrelevant to an AI agent:
+/// `.git`, `target`, `node_modules`, `__pycache__`, `dist`, and similar.
 pub struct DirectoryTreeBuilder;
 
 impl DirectoryTreeBuilder {
-    /// Construit l'arborescence de `cwd` en texte indenté, limitée à `max_lines`.
+    /// Builds the tree of `cwd` as indented text, capped at `max_lines`.
     ///
-    /// Un timeout d'une seconde est appliqué à l'ensemble du parcours.
-    /// Si le timeout est dépassé, retourne `"[arborescence : timeout]"`.
+    /// A one-second timeout covers the whole traversal. On timeout, returns
+    /// `"[arborescence : timeout]"`.
     pub async fn build(cwd: &Path, max_lines: usize) -> String {
         tokio::time::timeout(Duration::from_secs(1), Self::build_inner(cwd, max_lines))
             .await
             .unwrap_or_else(|_| "[arborescence : timeout]".to_owned())
     }
 
-    /// Parcours BFS du répertoire sans timeout (enveloppé par [`build`](Self::build)).
+    /// BFS traversal of the directory without timeout (wrapped by [`build`](Self::build)).
     async fn build_inner(root: &Path, max_lines: usize) -> String {
         let mut lines: Vec<String> = Vec::new();
-        // (chemin du répertoire, profondeur d'indentation)
+        // (directory path, indentation depth)
         let mut queue: VecDeque<(PathBuf, usize)> = VecDeque::new();
         queue.push_back((root.to_owned(), 0));
 
@@ -49,9 +49,9 @@ impl DirectoryTreeBuilder {
         lines.join("\n")
     }
 
-    /// Lit et filtre les enfants directs de `dir`, triés de façon déterministe.
+    /// Reads and filters the direct children of `dir`, sorted deterministically.
     ///
-    /// Retourne un vecteur vide si le répertoire n'est pas lisible.
+    /// Returns an empty vector if the directory is not readable.
     async fn collect_children(dir: &Path) -> Vec<tokio::fs::DirEntry> {
         let mut rd = match tokio::fs::read_dir(dir).await {
             Ok(rd) => rd,
@@ -66,12 +66,12 @@ impl DirectoryTreeBuilder {
             }
         }
 
-        // Tri déterministe : répertoires d'abord, puis fichiers, ordre alphabétique
+        // Deterministic sort by file name (alphabetical).
         children.sort_by_key(|e| e.file_name());
         children
     }
 
-    /// Émet la ligne d'une entrée et, si c'est un répertoire, l'enfile pour BFS.
+    /// Emits the line for an entry and, if it is a directory, enqueues it for BFS.
     async fn emit_entry(
         entry: tokio::fs::DirEntry,
         depth: usize,
@@ -96,7 +96,7 @@ impl DirectoryTreeBuilder {
         }
     }
 
-    /// Retourne `true` si l'entrée doit être ignorée dans l'arborescence.
+    /// Returns `true` if the entry should be excluded from the tree.
     fn should_ignore(name: &str) -> bool {
         matches!(
             name,
@@ -132,7 +132,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_tree_builder_respects_max_lines() {
-        // GIVEN : 20 fichiers dans le répertoire
+        // GIVEN: 20 files in the directory
         let dir = tempfile::tempdir().expect("tempdir");
         for i in 0..20 {
             tokio::fs::write(dir.path().join(format!("file{:02}.txt", i)), "x")

@@ -1,82 +1,82 @@
-//! Trait [`ContextProvider`] et types pour la collecte de contexte situationnel.
+//! [`ContextProvider`] trait and types for collecting situational context.
 //!
-//! Distinction fondamentale avec la mémoire agent :
-//! - **Contexte** : snapshot de l'environnement courant collectée par le runtime.
-//! - **Mémoire** : accumulée par l'agent au fil du temps, à son initiative.
+//! Key distinction from agent memory:
+//! - **Context**: snapshot of the current environment collected by the runtime.
+//! - **Memory**: accumulated by the agent over time, at its own initiative.
 
 use std::path::Path;
 use std::time::Instant;
 
-/// Fournit un snapshot de contexte situationnel avant qu'un agent commence.
+/// Provides a situational context snapshot before an agent starts.
 ///
-/// La mémoire (Principe #6) est à l'initiative de l'agent ; le contexte est
-/// collecté par le runtime avant le premier step, indépendamment de la mémoire.
+/// Memory is supplied at the agent's initiative; context is collected by the
+/// runtime before the first step, independently of memory.
 #[async_trait::async_trait]
 pub trait ContextProvider: Send + Sync {
-    /// Identifiant unique du provider, utilisé comme clé de cache et source des sections.
+    /// Unique provider identifier, used as the cache key and section source.
     fn name(&self) -> &str;
 
-    /// Collecte un snapshot de contexte pour le répertoire `cwd`.
+    /// Collects a context snapshot for the `cwd` directory.
     ///
-    /// Toujours fail-silent : retourner [`ContextSnapshot::with_error`] plutôt
-    /// que propager une erreur. L'agent continue même si ce provider échoue.
+    /// Always fail-silent: return [`ContextSnapshot::with_error`] rather than
+    /// propagating an error. The agent continues even if this provider fails.
     async fn collect(&self, cwd: &Path) -> ContextSnapshot;
 
-    /// Description courte pour les logs et la CLI.
+    /// Short description for logs and the CLI.
     fn description(&self) -> &str {
         ""
     }
 
-    /// Priorité d'affichage dans le system prompt (valeur basse = affiché en premier).
+    /// Display priority in the system prompt (lower value shown first).
     fn priority(&self) -> u8 {
         50
     }
 
-    /// Intervalle de rafraîchissement en secondes.
+    /// Refresh interval in seconds.
     ///
-    /// `None` signifie que le TTL global de l'assembleur s'applique.
+    /// `None` means the assembler's global TTL applies.
     fn refresh_secs(&self) -> Option<u64> {
         None
     }
 
-    /// Retourne `true` si ce provider est applicable dans `cwd`.
+    /// Returns `true` if this provider is applicable in `cwd`.
     ///
-    /// Un provider retournant `false` n'est pas appelé - aucun overhead, aucune erreur.
+    /// A provider returning `false` is never called: no overhead, no error.
     fn is_applicable(&self, cwd: &Path) -> bool {
         let _ = cwd;
         true
     }
 }
 
-/// Snapshot éphémère produit par un [`ContextProvider`].
+/// Ephemeral snapshot produced by a [`ContextProvider`].
 ///
-/// Injecté dans le system prompt de l'agent au démarrage de la session.
-/// Non persisté - recollecté à chaque démarrage de tâche (modulo cache TTL).
+/// Injected into the agent's system prompt at session start. Not persisted:
+/// recollected on every task start (subject to the cache TTL).
 #[derive(Clone)]
 pub struct ContextSnapshot {
-    /// Identifiant du provider source.
+    /// Identifier of the source provider.
     pub source: String,
-    /// Sections de texte à injecter dans le prompt.
+    /// Text sections to inject into the prompt.
     pub sections: Vec<ContextSection>,
-    /// Erreurs non-fatales : timeout, source inaccessible, parse error partiel.
+    /// Non-fatal errors: timeout, unreachable source, partial parse error.
     pub errors: Vec<String>,
-    /// Horodatage de collecte pour le cache TTL.
+    /// Collection timestamp for the cache TTL.
     pub collected_at: Instant,
 }
 
-/// Section de contexte injectée sous un tag `<context name="titre">`.
+/// Context section injected under a `<context name="title">` tag.
 #[derive(Clone)]
 pub struct ContextSection {
-    /// Titre affiché dans le tag `<context name="...">`.
+    /// Title shown in the `<context name="...">` tag.
     pub title: String,
-    /// Contenu textuel de la section.
+    /// Text content of the section.
     pub content: String,
-    /// Nom du provider source de cette section.
+    /// Name of the provider that produced this section.
     pub source: String,
 }
 
 impl ContextSnapshot {
-    /// Construit un snapshot avec une seule section de contenu.
+    /// Builds a snapshot with a single content section.
     pub fn single(source: &str, title: &str, content: impl Into<String>) -> Self {
         let content = content.into();
         Self {
@@ -91,9 +91,9 @@ impl ContextSnapshot {
         }
     }
 
-    /// Construit un snapshot vide - aucun contenu à injecter.
+    /// Builds an empty snapshot: nothing to inject.
     ///
-    /// Retourné quand le provider n'est pas applicable ou que la source est vide.
+    /// Returned when the provider is not applicable or the source is empty.
     pub fn empty(source: &str) -> Self {
         Self {
             source: source.to_owned(),
@@ -103,9 +103,9 @@ impl ContextSnapshot {
         }
     }
 
-    /// Construit un snapshot vide avec une erreur non-fatale.
+    /// Builds an empty snapshot carrying a non-fatal error.
     ///
-    /// L'erreur est tracée mais n'empêche pas l'exécution de l'agent.
+    /// The error is traced but does not prevent the agent from running.
     pub fn with_error(source: &str, error: String) -> Self {
         Self {
             source: source.to_owned(),
@@ -115,7 +115,7 @@ impl ContextSnapshot {
         }
     }
 
-    /// Retourne `true` si le snapshot ne contient aucune section.
+    /// Returns `true` if the snapshot contains no sections.
     pub fn is_empty(&self) -> bool {
         self.sections.is_empty()
     }

@@ -1,7 +1,7 @@
-//! [`GitProvider`] - fournit l'état git du répertoire courant.
+//! [`GitProvider`] exposes the git state of the current directory.
 //!
-//! Collecte la branche courante, le statut des fichiers modifiés et les
-//! commits récents. Inactif hors d'un dépôt git (`is_applicable` retourne `false`).
+//! Collects the current branch, the status of modified files, and recent
+//! commits. Inactive outside a git repository (`is_applicable` returns `false`).
 
 use std::path::Path;
 
@@ -10,16 +10,16 @@ use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlic
 use crate::config::GitProviderConfig;
 use crate::git::GitContextCollector;
 
-/// Fournit l'état git : branche courante, fichiers modifiés, commits récents.
+/// Exposes the git state: current branch, modified files, recent commits.
 ///
-/// Inactif hors d'un dépôt git : [`is_applicable`](GitProvider::is_applicable)
-/// remonte les répertoires parents à la recherche d'un `.git`.
+/// Inactive outside a git repository: [`is_applicable`](GitProvider::is_applicable)
+/// walks up the parent directories looking for a `.git`.
 pub struct GitProvider {
     config: GitProviderConfig,
 }
 
 impl GitProvider {
-    /// Construit un provider git avec la configuration fournie.
+    /// Builds a git provider with the given configuration.
     pub fn new(config: GitProviderConfig) -> Self {
         Self { config }
     }
@@ -45,7 +45,7 @@ impl WorkspaceProvider for GitProvider {
         10
     }
 
-    /// Retourne `false` si `cwd` n'est pas dans un dépôt git.
+    /// Returns `false` if `cwd` is not inside a git repository.
     fn is_applicable(&self, cwd: &Path) -> bool {
         std::iter::successors(Some(cwd), |p| p.parent()).any(|p| p.join(".git").exists())
     }
@@ -89,7 +89,7 @@ mod tests {
 
     #[tokio::test]
     async fn git_provider_inactive_outside_repo() {
-        // GIVEN un répertoire sans .git
+        // GIVEN a directory without .git
         let tmp = tempfile::tempdir().expect("tempdir");
         let provider = GitProvider::default();
         // WHEN / THEN
@@ -98,7 +98,7 @@ mod tests {
 
     #[tokio::test]
     async fn git_provider_active_in_repo() {
-        // GIVEN un répertoire avec .git
+        // GIVEN a directory with .git
         let tmp = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir(tmp.path().join(".git")).expect("create .git");
         let provider = GitProvider::default();
@@ -108,12 +108,12 @@ mod tests {
 
     #[tokio::test]
     async fn git_provider_collects_in_real_repo() {
-        // GIVEN le repo courant
+        // GIVEN the current repo
         let cwd = std::env::current_dir().expect("current_dir");
         let provider = GitProvider::default();
         // WHEN
         let slice = provider.collect(&cwd).await;
-        // THEN - au moins une section git
+        // THEN at least one git section
         assert!(!slice.sections.is_empty(), "expected git section in repo");
         assert!(
             slice.sections[0].content.contains("Branche"),

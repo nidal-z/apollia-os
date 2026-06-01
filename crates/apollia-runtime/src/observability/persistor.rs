@@ -1,14 +1,14 @@
-//! `EventPersistor`, actor SQLite append-only pour `runtime_events.db`.
+//! `EventPersistor`, an append-only SQLite actor for `runtime_events.db`.
 //!
-//! Pattern copié de `apollia_tools::audit::AuditTrailHandle` :
-//! - `tokio::sync::mpsc` borné en entrée, `tokio::task::spawn_blocking`
-//!   dédié à la connexion `rusqlite` (non-`Sync`),
-//! - écritures fire-and-forget pour ne jamais bloquer le thread d'agent,
-//! - schéma versionné via `migrations/006_runtime_events.sql` chargé au
-//!   démarrage (idempotent).
+//! Follows the same pattern as `apollia_tools::audit::AuditTrailHandle`:
+//! - bounded `tokio::sync::mpsc` inbox, with a dedicated
+//!   `tokio::task::spawn_blocking` owning the non-`Sync` `rusqlite` connection,
+//! - fire-and-forget writes so the agent thread never blocks,
+//! - versioned schema loaded at startup (idempotent).
 //!
-//! En Lot 1 le persistor accepte un seul kind d'événement (`AgentLog`).
-//! Les Lots suivants ajouteront thoughts, tool_call_*, llm_call_*, etc.
+//! The persistor maps each `RuntimeEvent` variant that participates in the
+//! event log to a persistable record; variants that do not participate are
+//! skipped.
 
 use std::path::{Path, PathBuf};
 
@@ -21,11 +21,11 @@ use crate::eventbus::EventBusSender;
 
 const CHANNEL_CAPACITY: usize = 1024;
 
-/// Schéma SQL inline, miroir de `migrations/006_runtime_events.sql`.
+/// Inline SQL schema, mirror of the `runtime_events` migration.
 ///
-/// Inclus en `include_str!` aurait nécessité de réorganiser le crate
-/// `apollia-tools` ; on duplique le schéma ici de façon contrôlée jusqu'à
-/// la consolidation (Lot 5).
+/// Pulling it in via `include_str!` would have required reorganizing the
+/// `apollia-tools` crate, so the schema is duplicated here in a controlled
+/// way until the two are consolidated.
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS runtime_events (
     event_id         TEXT PRIMARY KEY,
@@ -56,34 +56,34 @@ BEGIN
 END;
 "#;
 
-/// Erreurs d'ouverture / initialisation du persistor.
+/// Errors raised while opening or initializing the persistor.
 #[derive(Debug, Error)]
 pub enum EventPersistorError {
-    /// Échec d'ouverture du fichier SQLite.
+    /// Failed to open the SQLite file.
     #[error("failed to open runtime_events database at {path}: {source}")]
     OpenFailed {
-        /// Chemin tenté.
+        /// Path that was attempted.
         path: PathBuf,
-        /// Cause sous-jacente.
+        /// Underlying cause.
         source: rusqlite::Error,
     },
-    /// Échec de création du schéma (table, index, trigger).
+    /// Failed to create the schema (table, indexes, trigger).
     #[error("failed to initialize runtime_events schema: {0}")]
     SchemaInitFailed(String),
-    /// Le canal d'initialisation s'est fermé prématurément (thread crashé).
+    /// The init channel closed prematurely (the worker thread crashed).
     #[error("event persistor init channel disconnected")]
     InitDisconnected,
 }
 
-/// Messages internes envoyés à l'acteur.
+/// Internal messages sent to the actor.
 enum PersistorMessage {
-    /// Append fire-and-forget d'un événement.
+    /// Fire-and-forget append of an event.
     Append(Box<RuntimeEventRecord>),
-    /// Arrêt propre de l'acteur après vidage de la file.
+    /// Clean shutdown after the queue has been drained.
     Shutdown,
 }
 
-/// Acteur interne, détient la `Connection` SQLite en exclusivité.
+/// Internal actor that exclusively owns the SQLite `Connection`.
 struct EventPersistor {
     conn: rusqlite::Connection,
     receiver: mpsc::Receiver<PersistorMessage>,
@@ -131,20 +131,20 @@ impl EventPersistor {
     }
 }
 
-/// Handle clonable vers l'acteur.
+/// Clonable handle to the actor.
 ///
-/// Toutes les méthodes sont thread-safe ; plusieurs handles peuvent émettre
-/// vers le même acteur. Les écritures sont fire-and-forget : si le canal est
-/// saturé, l'enregistrement est abandonné avec un `warn!` (backpressure).
+/// All methods are thread-safe; several handles may emit to the same actor.
+/// Writes are fire-and-forget: when the channel is full, the record is
+/// dropped with a `warn!` (backpressure).
 #[derive(Clone)]
 pub struct EventPersistorHandle {
     sender: mpsc::Sender<PersistorMessage>,
 }
 
 impl EventPersistorHandle {
-    /// Ouvre `db_path`, applique le schéma idempotent, et démarre l'acteur
-    /// en arrière-plan. Mode WAL activé pour la concurrence lecture/écriture
-    /// (lectures via `RuntimeEventsRepository` parallèlement aux insertions).
+    /// Opens `db_path`, applies the idempotent schema, and starts the actor
+    /// in the background. WAL mode is enabled for read/write concurrency
+    /// (reads via `RuntimeEventsRepository` run alongside inserts).
     pub async fn open(db_path: &Path) -> Result<Self, EventPersistorError> {
         let db_path = db_path.to_path_buf();
         let (sender, receiver) = mpsc::channel::<PersistorMessage>(CHANNEL_CAPACITY);
@@ -185,11 +185,11 @@ impl EventPersistorHandle {
         Ok(Self { sender })
     }
 
-    /// Append fire-and-forget d'un événement.
+    /// Fire-and-forget append of an event.
     ///
-    /// Si le canal est saturé (>1024 events en attente), l'enregistrement est
-    /// abandonné avec un `warn!` plutôt que de bloquer le thread d'agent.
-    /// L'événement spécial `bus_lagged` du Lot 4 surfacera la perte côté UI.
+    /// When the channel is full (>1024 events pending), the record is dropped
+    /// with a `warn!` rather than blocking the agent thread. A dedicated
+    /// `bus_lagged` event surfaces the loss in the UI.
     pub fn append(&self, record: RuntimeEventRecord) {
         match self
             .sender
@@ -205,20 +205,19 @@ impl EventPersistorHandle {
         }
     }
 
-    /// Arrête l'acteur après vidage de la file.
+    /// Stops the actor after the queue has been drained.
     pub async fn shutdown(&self) {
         let _ = self.sender.send(PersistorMessage::Shutdown).await;
     }
 }
 
-/// Spawn un subscriber EventBus → `EventPersistor`.
+/// Spawns an EventBus subscriber feeding the `EventPersistor`.
 ///
-/// Filtre les `RuntimeEvent` mappables sur un `EventKind` persistable et
-/// route le payload sérialisé vers le persistor. En Lot 1 seul `AgentLog`
-/// est mappé ; les Lots 2+ ajouteront thoughts, tool_call_*, llm_call_*…
+/// Filters the `RuntimeEvent`s that map to a persistable kind and routes the
+/// serialized payload to the persistor.
 ///
-/// Le `JoinHandle` retourné peut être attendu pour vérifier la sortie
-/// propre (le subscriber s'arrête quand l'`EventBus` est fermé).
+/// The returned `JoinHandle` can be awaited to confirm a clean exit (the
+/// subscriber stops when the `EventBus` is closed).
 pub fn spawn_runtime_events_subscriber(
     handle: EventPersistorHandle,
     event_bus: &EventBusSender,
@@ -247,11 +246,10 @@ pub fn spawn_runtime_events_subscriber(
     })
 }
 
-/// Mappe un `RuntimeEvent` vers un `RuntimeEventRecord` persistable.
+/// Maps a `RuntimeEvent` to a persistable `RuntimeEventRecord`.
 ///
-/// Retourne `None` pour les variantes qui ne participent pas (encore) au
-/// log d'événements. Le mapping s'élargit au fil des Lots, chaque ajout
-/// est une simple branche supplémentaire dans le `match`.
+/// Returns `None` for variants that do not participate in the event log.
+/// Each new persisted event type is a single extra arm in the `match`.
 fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
     let now_unix = chrono::Utc::now().timestamp();
     let now_iso = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
@@ -284,7 +282,6 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             })
         }
 
-        // ── Lot 2 ────────────────────────────────────────────────
         RuntimeEvent::Thought {
             task_id,
             agent_id,
@@ -329,10 +326,9 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             ts: now_iso,
             created_at_unix: now_unix,
         }),
-        // Mapping du LlmCallFailed *existant* (pré-Lot 2), porte une
-        // ErrorAnalysis structurée plus riche que les champs ad hoc qu'on
-        // aurait redéfinis. Le payload conserve l'analyse complète pour
-        // que l'UI puisse afficher `category`, `severity`, etc.
+        // This variant carries a structured ErrorAnalysis, richer than the ad
+        // hoc fields we would otherwise have redefined. The payload keeps the
+        // full analysis so the UI can display `category`, `severity`, etc.
         RuntimeEvent::LlmCallFailed {
             backend,
             model,
@@ -341,8 +337,8 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             error,
             analysis,
         } => {
-            // Sans task_id on ne sait pas où raccrocher l'événement -
-            // ignorer (perdu vs `tracing::*` qui aura logué l'erreur).
+            // Without a task_id there is nothing to attach the event to, so
+            // skip it (the error is still logged via `tracing::*`).
             let task_id = task_id?;
             Some(RuntimeEventRecord {
                 event_id: uuid::Uuid::now_v7().to_string(),
@@ -371,8 +367,8 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             tool_name,
             args_json,
         } => Some(RuntimeEventRecord {
-            // L'event_id vient du producteur pour permettre au companion
-            // ToolCallCompleted de le réutiliser comme parent_event_id.
+            // The event_id comes from the producer so the companion
+            // ToolCallCompleted can reuse it as its parent_event_id.
             event_id,
             task_id: task_id.to_string(),
             agent_id: agent_id.to_string(),
@@ -473,8 +469,8 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
         } => Some(RuntimeEventRecord {
             event_id: uuid::Uuid::now_v7().to_string(),
             task_id: task_id.to_string(),
-            // L'agent_id du completed est celui du caller, il est
-            // déduit du started via parent_event_id côté UI.
+            // The completed event's agent_id is the caller's; the UI derives
+            // it from the started event via parent_event_id.
             agent_id: String::new(),
             parent_event_id: Some(parent_event_id),
             correlation_id: None,
@@ -535,7 +531,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             created_at_unix: now_unix,
         }),
 
-        // Variantes hors observability, ignorées.
+        // Variants outside observability are ignored.
         _ => None,
     }
 }
@@ -572,19 +568,19 @@ mod tests {
         handle.shutdown().await;
     }
 
-    /// Lot 2, chaîne tool_call_started → tool_call_completed avec
-    /// `parent_event_id` correctement reliés.
+    /// tool_call_started -> tool_call_completed chain, correctly linked via
+    /// `parent_event_id`.
     #[tokio::test]
     async fn end_to_end_tool_call_pair_links_via_parent_event_id() {
-        // GIVEN un persistor + son subscriber connecté à un EventBus
+        // GIVEN a persistor and its subscriber connected to an EventBus
         let dir = tempdir().expect("tempdir");
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
         let (bus, _rx_keepalive) = EventBus::new();
         let _join = spawn_runtime_events_subscriber(handle.clone(), &bus);
 
-        // WHEN un agent émet un tool_call_started suivi du completed
-        // partageant le même event_id en parent_event_id
+        // WHEN an agent emits a tool_call_started followed by the completed
+        // event sharing the same event_id as parent_event_id
         let started_id = uuid::Uuid::now_v7().to_string();
         bus.send(RuntimeEvent::ToolCallStarted {
             event_id: started_id.clone(),
@@ -611,7 +607,7 @@ mod tests {
         handle.shutdown().await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // THEN les deux événements sont persistés et chaînés via
+        // THEN both events are persisted and chained via
         // parent_event_id == started.event_id
         let repo = RuntimeEventsRepository::open(&db).expect("open repo");
         let rows = repo
@@ -628,19 +624,19 @@ mod tests {
             .find(|r| r.kind == "tool_call_completed")
             .expect("completed");
 
-        // Le started conserve son event_id explicite (générateur côté ToolProxy).
+        // The started event keeps its explicit event_id (generated by ToolProxy).
         assert_eq!(started.event_id, started_id);
-        // Le completed pointe via parent_event_id vers le started.
+        // The completed event points back to the started one via parent_event_id.
         assert_eq!(
             completed.parent_event_id.as_deref(),
             Some(started_id.as_str())
         );
-        // Le payload contient l'output et le succès.
+        // The payload carries the output and the success flag.
         assert!(completed.payload_json.contains("\"success\":true"));
         assert!(completed.payload_json.contains("example.com"));
     }
 
-    /// Lot 2, Thought, Retry et ActionParseError persistent leur step_num.
+    /// Thought, Retry and ActionParseError each persist their step_num.
     #[tokio::test]
     async fn end_to_end_thought_retry_parse_error_record_step_num() {
         let dir = tempdir().expect("tempdir");
@@ -697,19 +693,19 @@ mod tests {
         assert!(retry.payload_json.contains("action_parse_error"));
     }
 
-    /// Smoke test bout-en-bout (Lot 1) :
-    /// RuntimeEvent::AgentLog publié sur l'EventBus → subscriber → persistor
-    /// → repository.list_for_task récupère le record persisté.
+    /// End-to-end smoke test:
+    /// RuntimeEvent::AgentLog published on the EventBus -> subscriber ->
+    /// persistor -> repository.list_for_task retrieves the persisted record.
     #[tokio::test]
     async fn end_to_end_agent_log_flows_through_event_bus() {
-        // GIVEN un persistor + son subscriber connecté à un EventBus
+        // GIVEN a persistor and its subscriber connected to an EventBus
         let dir = tempdir().expect("tempdir");
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
         let (bus, _rx_keepalive) = EventBus::new();
         let _join = spawn_runtime_events_subscriber(handle.clone(), &bus);
 
-        // WHEN un agent émet ctx.log via RuntimeEvent::AgentLog
+        // WHEN an agent emits ctx.log via RuntimeEvent::AgentLog
         bus.send(RuntimeEvent::AgentLog {
             task_id: "task-smoke".into(),
             agent_id: "agent-smoke".into(),
@@ -719,12 +715,12 @@ mod tests {
         })
         .expect("bus send");
 
-        // Laisser le subscriber + l'acteur de persistance traiter.
+        // Give the subscriber and the persistence actor time to process.
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
         handle.shutdown().await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // THEN le repository renvoie l'événement avec le bon kind et payload
+        // THEN the repository returns the event with the right kind and payload
         let repo = RuntimeEventsRepository::open(&db).expect("open repo");
         let rows = repo
             .list_for_task("task-smoke", None, 10)

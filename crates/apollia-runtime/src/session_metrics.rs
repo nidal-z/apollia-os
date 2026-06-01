@@ -1,18 +1,18 @@
-//! Acteur d'agrégation des métriques de session.
+//! Session metrics aggregation actor.
 //!
-//! `SessionMetricsActor` souscrit à l'`EventBus` et maintient une map
-//! `session_id -> SessionMetrics`. Il réagit aux événements suivants :
+//! `SessionMetricsActor` subscribes to the `EventBus` and maintains a
+//! `session_id -> SessionMetrics` map. It reacts to the following events:
 //!
-//! - [`RuntimeEvent::LlmCallCompleted`] → incrémente tokens (non-meta).
-//! - [`RuntimeEvent::ChatToolCallStarted`] / [`RuntimeEvent::ChatToolCallCompleted`]
-//!   → mesure la latence côté actor (pas de `duration_ms` dans l'événement).
-//! - [`RuntimeEvent::ContextCompacted`] → enregistre un `SummarizationEvent`.
-//! - [`RuntimeEvent::MetaLlmBudgetExceeded`] → flagge l'alerte bloquante et
-//!   ré-émet `SessionMetricsUpdated`.
+//! - [`RuntimeEvent::LlmCallCompleted`]: increments tokens (non-meta).
+//! - [`RuntimeEvent::ChatToolCallStarted`] / [`RuntimeEvent::ChatToolCallCompleted`]:
+//!   measures latency on the actor side (the event carries no `duration_ms`).
+//! - [`RuntimeEvent::ContextCompacted`]: records a `SummarizationEvent`.
+//! - [`RuntimeEvent::MetaLlmBudgetExceeded`]: flags the blocking alert and
+//!   re-emits `SessionMetricsUpdated`.
 //!
-//! À chaque mise à jour, émet [`RuntimeEvent::SessionMetricsUpdated`]
-//! avec le snapshot complet et le niveau d'alerte courant. Le frontend
-//! consomme cet événement pour rafraîchir `SessionMetricsPanel`.
+//! On each update, emits [`RuntimeEvent::SessionMetricsUpdated`] with the full
+//! snapshot and the current alert level. The frontend consumes this event to
+//! refresh the session metrics panel.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -27,29 +27,29 @@ use tokio::task::JoinHandle;
 
 use crate::eventbus::EventBusReceiver;
 
-/// Snapshot partagé permettant à l'API/commands d'exposer l'état courant sans
-/// ré-abonner un nouveau receiver.
+/// Shared snapshot letting the API and commands expose current state without
+/// re-subscribing a new receiver.
 ///
-/// Mis à jour à chaque événement consommé par l'actor. Cloné via `Arc`.
+/// Updated on each event consumed by the actor. Cloned via `Arc`.
 pub type SessionMetricsStore = Arc<Mutex<HashMap<String, SessionMetrics>>>;
 
-/// Tool call en cours, sert à mesurer la latence côté actor.
+/// In-flight tool call, used to measure latency on the actor side.
 struct InFlightToolCall {
     session_id: String,
     tool_name: String,
     started_at: Instant,
 }
 
-/// Handle de l'acteur : détient le store partagé et le handle de la task Tokio.
+/// Actor handle: owns the shared store and the Tokio task handle.
 pub struct SessionMetricsActor {
     store: SessionMetricsStore,
     handle: JoinHandle<()>,
 }
 
 impl SessionMetricsActor {
-    /// Démarre l'acteur. Retourne un `SessionMetricsActor` clonable via `store()`.
+    /// Starts the actor. Returns a `SessionMetricsActor` whose store is cloneable via `store()`.
     ///
-    /// L'acteur s'arrête quand l'`EventBus` se ferme.
+    /// The actor stops when the `EventBus` closes.
     pub fn spawn(
         mut rx: EventBusReceiver,
         bus: EventBusSender,
@@ -66,7 +66,7 @@ impl SessionMetricsActor {
         };
 
         let handle = tokio::spawn(async move {
-            // Map tool_call_id (message_id) -> in-flight pour calcul de durée.
+            // Map tool_call_id (message_id) -> in-flight call, for duration computation.
             let mut in_flight: HashMap<String, InFlightToolCall> = HashMap::new();
 
             loop {
@@ -95,28 +95,28 @@ impl SessionMetricsActor {
         Self { store, handle }
     }
 
-    /// Accès au store partagé (snapshots par session_id).
+    /// Access to the shared store (snapshots keyed by session_id).
     pub fn store(&self) -> SessionMetricsStore {
         Arc::clone(&self.store)
     }
 
-    /// Attend la fin de la task. Utile dans les tests.
+    /// Waits for the task to finish. Useful in tests.
     #[cfg(test)]
     pub async fn join(self) {
         let _ = self.handle.await;
     }
 
-    /// Abandonne la task, utilisé au shutdown quand on ne veut pas attendre.
+    /// Aborts the task, used at shutdown when waiting is not desired.
     pub fn abort(self) {
         self.handle.abort();
     }
 }
 
-/// Variante detached : spawn l'acteur et ne retourne que le [`SessionMetricsStore`].
+/// Detached variant: spawns the actor and returns only the [`SessionMetricsStore`].
 ///
-/// La task Tokio vit tant que l'`EventBus` reste ouvert. Utile dans les intégrations
-/// (Tauri desktop) où l'on souhaite juste exposer le store partagé via `app.manage(...)`
-/// sans garder de handle explicite.
+/// The Tokio task lives as long as the `EventBus` stays open. Useful in integrations
+/// (Tauri desktop) where you only want to expose the shared store via `app.manage(...)`
+/// without keeping an explicit handle.
 pub fn spawn_detached(
     rx: EventBusReceiver,
     bus: EventBusSender,
@@ -126,18 +126,18 @@ pub fn spawn_detached(
 ) -> SessionMetricsStore {
     let actor = SessionMetricsActor::spawn(rx, bus, thresholds, context_window_max, token_budget);
     let store = actor.store();
-    // Dropping `actor` n'annule pas la task Tokio : `JoinHandle` n'a pas de `Drop`
-    // qui avorte. La task continue de vivre jusqu'à la fermeture de l'`EventBus`.
+    // Dropping `actor` does not cancel the Tokio task: `JoinHandle` has no `Drop`
+    // that aborts. The task keeps living until the `EventBus` closes.
     drop(actor);
     store
 }
 
-/// Traite un événement et retourne la liste des updates à émettre
-/// (session_id, snapshot, niveau d'alerte).
+/// Processes an event and returns the list of updates to emit
+/// (session_id, snapshot, alert level).
 ///
-/// Isolé dans une fonction pure-ish pour pouvoir tester la logique sans
-/// spawner d'acteur Tokio.
-/// Paramètres de budget partagés par tous les événements traités.
+/// Kept in a (mostly) pure function so the logic can be tested without
+/// spawning a Tokio actor.
+/// Budget parameters shared across all processed events.
 #[derive(Debug, Clone, Copy)]
 struct MetricsBudget {
     thresholds: SessionThresholds,
@@ -163,8 +163,8 @@ fn process_event(
             completion_tokens,
             ..
         } => {
-            // Pas de session_id dans l'événement : on utilise task_id comme clé
-            // par défaut. Si task_id est absent, on retombe sur la session globale.
+            // The event carries no session_id, so task_id is used as the key.
+            // When task_id is absent, fall back to the global session.
             let session_id = task_id.clone().unwrap_or_else(|| "global".to_string());
             let mut guard = store.lock().unwrap_or_else(|e| e.into_inner());
             let m = guard
@@ -214,11 +214,11 @@ fn process_event(
             summary_chars,
             original_messages,
         } => {
-            // `ContextCompacted` ne porte pas de session_id, on applique à toutes
-            // les sessions actives (cas courant : une session active à la fois).
+            // `ContextCompacted` carries no session_id, so it applies to every
+            // active session (the common case is a single active session).
             let mut guard = store.lock().unwrap_or_else(|e| e.into_inner());
             let mut updates = Vec::new();
-            // Estimation grossière : 1 token ≈ 4 caractères.
+            // Rough estimate: 1 token is approximately 4 characters.
             let summary_tokens = (*summary_chars as u64) / 4;
             for (session_id, m) in guard.iter_mut() {
                 let tokens_before = m.context_window_used;
@@ -248,7 +248,7 @@ fn process_event(
             if *budget > 0 {
                 m.token_budget = *budget;
             }
-            // Force l'alerte Block dès que l'événement arrive.
+            // Force the Block alert as soon as the event arrives.
             vec![(session_id.clone(), m.clone(), BudgetAlertLevel::Block)]
         }
 
@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn llm_call_accumulates_tokens_under_task_id() {
-        // GIVEN un store vide et un LlmCallCompleted avec task_id "task-1"
+        // GIVEN an empty store and an LlmCallCompleted with task_id "task-1"
         let store = store();
         let mut in_flight = HashMap::new();
         let event = RuntimeEvent::LlmCallCompleted {
@@ -301,7 +301,7 @@ mod tests {
             },
         );
 
-        // THEN, une mise à jour émise, tokens cumulés dans la session "task-1"
+        // THEN one update is emitted, tokens accumulated in session "task-1"
         assert_eq!(updates.len(), 1);
         let (sid, m, alert) = &updates[0];
         assert_eq!(sid, "task-1");
@@ -312,7 +312,7 @@ mod tests {
 
     #[test]
     fn tool_call_pair_emits_timing() {
-        // GIVEN un ChatToolCallStarted suivi d'un ChatToolCallCompleted
+        // GIVEN a ChatToolCallStarted followed by a ChatToolCallCompleted
         let store = store();
         let mut in_flight = HashMap::new();
         let started = RuntimeEvent::ChatToolCallStarted {
@@ -331,7 +331,7 @@ mod tests {
             analysis: None,
         };
 
-        // WHEN, started puis completed
+        // WHEN started then completed
         let u1 = process_event(
             &started,
             &store,
@@ -356,7 +356,7 @@ mod tests {
             },
         );
 
-        // THEN, un timing ajouté pour la session
+        // THEN a timing is added for the session
         assert_eq!(u2.len(), 1);
         let (sid, m, _alert) = &u2[0];
         assert_eq!(sid, "sess-1");
@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn completed_without_started_is_a_noop() {
-        // GIVEN un completed orphelin (pas de started préalable)
+        // GIVEN an orphan completed event (no prior started)
         let store = store();
         let mut in_flight = HashMap::new();
         let completed = RuntimeEvent::ChatToolCallCompleted {
@@ -389,13 +389,13 @@ mod tests {
                 token_budget: 0,
             },
         );
-        // THEN, aucune update
+        // THEN no update
         assert!(updates.is_empty());
     }
 
     #[test]
     fn threshold_crossing_reports_warning_then_block() {
-        // GIVEN un budget de 1000 et des appels successifs
+        // GIVEN a budget of 1000 and successive calls
         let store = store();
         let mut in_flight = HashMap::new();
         let budget = MetricsBudget {
@@ -415,16 +415,16 @@ mod tests {
             cost_usd: None,
         };
 
-        // WHEN premier appel sous warning
+        // WHEN first call below the warning threshold
         let u1 = process_event(&mk(500), &store, &mut in_flight, budget);
         assert_eq!(u1[0].2, BudgetAlertLevel::Ok);
 
-        // AND deuxième appel franchit 80 %
+        // AND second call crosses 80%
         let u2 = process_event(&mk(350), &store, &mut in_flight, budget);
         // THEN warning
         assert_eq!(u2[0].2, BudgetAlertLevel::Warning);
 
-        // AND troisième appel franchit 100 %
+        // AND third call crosses 100%
         let u3 = process_event(&mk(200), &store, &mut in_flight, budget);
         // THEN block
         assert_eq!(u3[0].2, BudgetAlertLevel::Block);
@@ -432,7 +432,7 @@ mod tests {
 
     #[test]
     fn context_compacted_pushes_summarization_event() {
-        // GIVEN une session avec du contexte
+        // GIVEN a session with some context
         let store = store();
         {
             let mut g = store.lock().unwrap();
@@ -447,7 +447,7 @@ mod tests {
         }
         let mut in_flight = HashMap::new();
 
-        // WHEN un ContextCompacted arrive (résumé de 400 chars remplaçant 20 messages)
+        // WHEN a ContextCompacted arrives (400-char summary replacing 20 messages)
         let event = RuntimeEvent::ContextCompacted {
             summary_chars: 400,
             original_messages: 20,
@@ -463,7 +463,7 @@ mod tests {
             },
         );
 
-        // THEN un SummarizationEvent a été poussé et le contexte réduit
+        // THEN a SummarizationEvent was pushed and the context shrank
         assert_eq!(updates.len(), 1);
         let (_, m, _) = &updates[0];
         assert_eq!(m.summarization_events.len(), 1);
@@ -499,13 +499,13 @@ mod tests {
 
     #[tokio::test]
     async fn actor_aggregates_multi_tool_scenario_and_emits_alert() {
-        // GIVEN un acteur spawné avec un budget bas pour déclencher warning
+        // GIVEN an actor spawned with a low budget to trigger a warning
         let (tx, rx) = EventBus::new();
         let mut consumer = tx.subscribe();
         let actor =
             SessionMetricsActor::spawn(rx, tx.clone(), SessionThresholds::default(), 10_000, 1_000);
 
-        // WHEN, on envoie un scénario multi-tools + LLM
+        // WHEN sending a multi-tool plus LLM scenario
         tx.send(RuntimeEvent::ChatToolCallStarted {
             session_id: "S".into(),
             message_id: "m1".into(),
@@ -535,7 +535,7 @@ mod tests {
         })
         .unwrap();
 
-        // THEN, on observe au moins une SessionMetricsUpdated avec alert Warning ou Block
+        // THEN at least one SessionMetricsUpdated is observed with a Warning or Block alert
         let mut saw_alert = false;
         let timeout = tokio::time::Duration::from_millis(500);
         let deadline = tokio::time::Instant::now() + timeout;
@@ -559,7 +559,7 @@ mod tests {
 
     #[test]
     fn poisoned_mutex_does_not_panic() {
-        // GIVEN un store dont le mutex est empoisonné par un thread qui paniqua pendant le lock
+        // GIVEN a store whose mutex was poisoned by a thread that panicked while holding the lock
         let store: SessionMetricsStore = Arc::new(Mutex::new(HashMap::new()));
         let store_clone = Arc::clone(&store);
         let _ = std::panic::catch_unwind(move || {
@@ -571,7 +571,7 @@ mod tests {
             "mutex should be poisoned after the thread panic"
         );
 
-        // WHEN process_event est appelé sur le store empoisonné
+        // WHEN process_event is called on the poisoned store
         let event = RuntimeEvent::LlmCallCompleted {
             backend: "b".into(),
             model: "m".into(),
@@ -583,7 +583,7 @@ mod tests {
             cost_usd: None,
         };
         let mut in_flight = HashMap::new();
-        // THEN aucune panique, process_event se termine normalement
+        // THEN no panic, process_event completes normally
         let updates = process_event(
             &event,
             &store,

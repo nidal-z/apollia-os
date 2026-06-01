@@ -1,4 +1,4 @@
-//! Serveur HTTP axum exposant les endpoints IPC.
+//! axum HTTP server exposing the IPC endpoints.
 
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -16,19 +16,19 @@ pub mod llm;
 pub mod shutdown;
 pub mod stt;
 
-/// État partagé entre tous les handlers axum.
+/// State shared across all axum handlers.
 #[derive(Clone)]
 pub struct AppState {
     pub model_cache: Arc<ModelCache>,
     pub started_at: SystemTime,
-    /// Sender pour déclencher le shutdown du server depuis le handler.
+    /// Sender used to trigger server shutdown from the handler.
     pub shutdown_tx: Arc<tokio::sync::Mutex<Option<oneshot::Sender<()>>>>,
 
-    /// Backend llama.cpp partagé (`None` si compilé sans feature `local-cpu`).
+    /// Shared llama.cpp backend (`None` when compiled without the `local-cpu` feature).
     #[cfg(feature = "local-cpu")]
     pub llama: Arc<crate::backends::llama_cpp::LlamaCppBackend>,
 
-    /// Backend whisper partagé (`None` si compilé sans feature `local-cpu`).
+    /// Shared whisper backend (`None` when compiled without the `local-cpu` feature).
     #[cfg(feature = "local-cpu")]
     pub whisper: Arc<crate::backends::whisper::WhisperBackend>,
 }
@@ -47,7 +47,7 @@ impl AppState {
     }
 }
 
-/// Construit le router axum avec tous les endpoints.
+/// Builds the axum router with all endpoints.
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/handshake", get(handshake::handle))

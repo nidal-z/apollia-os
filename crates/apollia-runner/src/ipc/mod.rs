@@ -1,7 +1,7 @@
-//! Types IPC partagés entre daemon (`apollia-runtime`) et runner.
+//! IPC types shared between the daemon (`apollia-runtime`) and the runner.
 //!
-//! Le daemon dépend de `apollia-runner` avec `default-features = false` pour
-//! ne consommer que les types IPC sans tirer les backends llama-cpp/whisper.
+//! The daemon depends on `apollia-runner` with `default-features = false` so it
+//! pulls in the IPC types only, without the llama-cpp/whisper backends.
 
 pub mod error;
 pub mod handshake;

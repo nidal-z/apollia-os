@@ -1,27 +1,27 @@
-//! Annonce du port retenu au parent (daemon) via stdout.
+//! Announce the chosen port to the parent (daemon) via stdout.
 //!
-//! Le runner bind sur `127.0.0.1:0` (port choisi par l'OS), puis écrit
-//! `READY <port>\n` sur stdout. Le daemon parse cette ligne avec un timeout
-//! de 10 secondes côté `RunnerSupervisor`.
+//! The runner binds to `127.0.0.1:0` (port chosen by the OS), then writes
+//! `READY <port>\n` to stdout. The daemon parses this line with a 10 second
+//! timeout in `RunnerSupervisor`.
 //!
-//! **Stdout est dédié à ce canal uniquement.** Tout log applicatif va sur
-//! stderr (cf. [observability::logs]).
+//! Stdout is dedicated to this channel only. All application logs go to
+//! stderr (see [observability::logs]).
 
 use std::io::{self, Write};
 
-/// Émet `READY <port>\n` sur le stdout standard puis flush.
+/// Emits `READY <port>\n` to standard stdout, then flushes.
 ///
-/// Retourne `Ok(())` si l'écriture et le flush ont réussi. En cas d'échec,
-/// le daemon hit son timeout `RUNNER_HANDSHAKE_TIMEOUT` et tue le runner.
+/// Returns `Ok(())` if the write and flush succeeded. On failure, the daemon
+/// hits its `RUNNER_HANDSHAKE_TIMEOUT` and kills the runner.
 pub fn announce(port: u16) -> io::Result<()> {
     let stdout = io::stdout();
     let mut handle = stdout.lock();
     announce_to(&mut handle, port)
 }
 
-/// Version testable : écrit dans un writer arbitraire.
+/// Testable variant: writes to an arbitrary writer.
 ///
-/// Utilisée par les tests unitaires avec un `Vec<u8>` mock.
+/// Used by unit tests with a `Vec<u8>` mock.
 pub fn announce_to<W: Write>(writer: &mut W, port: u16) -> io::Result<()> {
     writeln!(writer, "READY {port}")?;
     writer.flush()

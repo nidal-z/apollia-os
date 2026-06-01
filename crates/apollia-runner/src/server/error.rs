@@ -1,4 +1,4 @@
-//! Conversion des erreurs domaine vers ErrorCode + statut HTTP.
+//! Maps domain errors to an ErrorCode plus an HTTP status.
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -6,9 +6,9 @@ use axum::Json;
 
 use crate::ipc::{ErrorBody, ErrorCode, Response as IpcResponse};
 
-/// Helper qui sérialise une erreur IPC en réponse HTTP.
+/// Serializes an IPC error into an HTTP response.
 ///
-/// Le statut HTTP est dérivé du `ErrorCode` :
+/// The HTTP status is derived from the `ErrorCode`:
 ///
 /// | ErrorCode | HTTP |
 /// |---|---|
@@ -31,12 +31,12 @@ pub fn ipc_error_response(error: ErrorBody) -> Response {
     (status, Json(body)).into_response()
 }
 
-/// Convertit une erreur générique en `ErrorBody` `Internal`.
+/// Converts a generic error into an `Internal` `ErrorBody`.
 pub fn internal_error(message: impl Into<String>) -> ErrorBody {
     ErrorBody::new(ErrorCode::Internal, message)
 }
 
-/// Convertit une violation de validation en `ErrorBody` `BadRequest`.
+/// Converts a validation failure into a `BadRequest` `ErrorBody`.
 pub fn bad_request(message: impl Into<String>) -> ErrorBody {
     ErrorBody::new(ErrorCode::BadRequest, message)
 }

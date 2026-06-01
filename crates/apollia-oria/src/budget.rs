@@ -29,11 +29,11 @@ use apollia_core::StepBudgetConfig;
 ///
 /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
 pub struct StepBudget {
-    /// Nombre maximal de steps autorisees.
+    /// Maximum number of steps allowed.
     pub max_steps: u32,
-    /// Nombre maximal d'appels outils autorisees.
+    /// Maximum number of tool calls allowed.
     pub max_tool_calls: u32,
-    /// Duree maximale d'execution.
+    /// Maximum execution duration.
     pub wall_clock_limit: Duration,
     current_steps: AtomicU32,
     current_tool_calls: AtomicU32,
@@ -45,7 +45,7 @@ pub struct StepBudget {
 }
 
 impl StepBudget {
-    /// Cree un nouveau StepBudget a partir de la config.
+    /// Creates a new StepBudget from the config.
     pub fn new(config: &StepBudgetConfig) -> Self {
         let (tx, rx) = oneshot::channel();
         Self {
@@ -60,7 +60,7 @@ impl StepBudget {
         }
     }
 
-    /// Cree un StepBudget avec valeurs effectives = min(agent, runtime) par dimension.
+    /// Creates a StepBudget whose effective values are min(agent, runtime) per dimension.
     pub fn from_capped(agent: &StepBudgetConfig, runtime: &StepBudgetConfig) -> Self {
         let capped = StepBudgetConfig {
             max_steps: agent.max_steps.min(runtime.max_steps),
@@ -70,16 +70,16 @@ impl StepBudget {
         Self::new(&capped)
     }
 
-    /// Retourne `true` si au moins une des trois dimensions est epuisee.
+    /// Returns `true` if at least one of the three dimensions is exhausted.
     pub fn is_exhausted(&self) -> bool {
         self.current_steps.load(Ordering::Relaxed) >= self.max_steps
             || self.current_tool_calls.load(Ordering::Relaxed) >= self.max_tool_calls
             || self.started_at.elapsed() >= self.wall_clock_limit
     }
 
-    /// Incremente le compteur de steps.
+    /// Increments the step counter.
     ///
-    /// Si ce compteur atteint `max_steps`, notifie les waiters de [`wait_for_exhaustion`].
+    /// When this counter reaches `max_steps`, notifies waiters of [`wait_for_exhaustion`].
     ///
     /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
     pub fn increment_steps(&self) {
@@ -89,9 +89,9 @@ impl StepBudget {
         }
     }
 
-    /// Incremente le compteur d'appels outils.
+    /// Increments the tool call counter.
     ///
-    /// Si ce compteur atteint `max_tool_calls`, notifie les waiters de [`wait_for_exhaustion`].
+    /// When this counter reaches `max_tool_calls`, notifies waiters of [`wait_for_exhaustion`].
     ///
     /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
     pub fn increment_tool_calls(&self) {
@@ -140,19 +140,19 @@ impl StepBudget {
         }
     }
 
-    /// Nombre de steps restantes.
+    /// Number of steps remaining.
     pub fn steps_left(&self) -> u32 {
         self.max_steps
             .saturating_sub(self.current_steps.load(Ordering::Relaxed))
     }
 
-    /// Nombre d'appels outils restants.
+    /// Number of tool calls remaining.
     pub fn tool_calls_left(&self) -> u32 {
         self.max_tool_calls
             .saturating_sub(self.current_tool_calls.load(Ordering::Relaxed))
     }
 
-    /// Duree ecoulee depuis le debut de l'execution.
+    /// Time elapsed since execution started.
     pub fn elapsed(&self) -> Duration {
         self.started_at.elapsed()
     }
@@ -197,7 +197,7 @@ impl StepBudget {
         )
     }
 
-    /// Description lisible de la raison d'epuisement (pour les messages d'erreur).
+    /// Human-readable description of the exhaustion reason (for error messages).
     pub fn exhaustion_reason(&self) -> Option<String> {
         if self.current_steps.load(Ordering::Relaxed) >= self.max_steps {
             return Some(format!(
@@ -238,13 +238,13 @@ mod tests {
 
     #[test]
     fn test_new_budget_not_exhausted() {
-        // GIVEN un StepBudgetConfig avec des valeurs par defaut
+        // GIVEN a StepBudgetConfig with default values
         let config = default_config();
 
-        // WHEN on cree un StepBudget
+        // WHEN we create a StepBudget
         let budget = StepBudget::new(&config);
 
-        // THEN is_exhausted() retourne false
+        // THEN is_exhausted() returns false
         assert!(!budget.is_exhausted());
         assert_eq!(budget.steps_left(), 10);
         assert_eq!(budget.tool_calls_left(), 20);
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_steps_exhausted() {
-        // GIVEN un budget avec max_steps = 2
+        // GIVEN a budget with max_steps = 2
         let config = StepBudgetConfig {
             max_steps: 2,
             max_tool_calls: 100,
@@ -260,18 +260,18 @@ mod tests {
         };
         let budget = StepBudget::new(&config);
 
-        // WHEN on incremente 2 fois
+        // WHEN we increment twice
         budget.increment_steps();
         budget.increment_steps();
 
-        // THEN is_exhausted() retourne true et steps_left() == 0
+        // THEN is_exhausted() returns true and steps_left() == 0
         assert!(budget.is_exhausted());
         assert_eq!(budget.steps_left(), 0);
     }
 
     #[test]
     fn test_tool_calls_exhausted() {
-        // GIVEN un budget avec max_tool_calls = 3
+        // GIVEN a budget with max_tool_calls = 3
         let config = StepBudgetConfig {
             max_steps: 100,
             max_tool_calls: 3,
@@ -279,19 +279,19 @@ mod tests {
         };
         let budget = StepBudget::new(&config);
 
-        // WHEN on incremente tool_calls 3 fois
+        // WHEN we increment tool_calls 3 times
         budget.increment_tool_calls();
         budget.increment_tool_calls();
         budget.increment_tool_calls();
 
-        // THEN is_exhausted() retourne true et tool_calls_left() == 0
+        // THEN is_exhausted() returns true and tool_calls_left() == 0
         assert!(budget.is_exhausted());
         assert_eq!(budget.tool_calls_left(), 0);
     }
 
     #[test]
     fn test_wall_clock_exhausted() {
-        // GIVEN un budget avec wall_clock_limit = 1ms
+        // GIVEN a budget with wall_clock_limit = 0s
         let config = StepBudgetConfig {
             max_steps: 100,
             max_tool_calls: 100,
@@ -300,7 +300,7 @@ mod tests {
         let budget = StepBudget::new(&config);
 
         // WHEN (immediate, wall_clock_limit = 0s so already expired)
-        // THEN is_exhausted() retourne true
+        // THEN is_exhausted() returns true
         assert!(budget.is_exhausted());
     }
 
@@ -319,7 +319,7 @@ mod tests {
             wall_clock_secs: 300,
         };
 
-        // WHEN on cree via from_capped()
+        // WHEN we create it via from_capped()
         let budget = StepBudget::from_capped(&agent, &runtime);
 
         // THEN max_steps=10, max_tool_calls=20, wall_clock=300
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_exhaustion_reason_steps() {
-        // GIVEN un budget avec max_steps = 1
+        // GIVEN a budget with max_steps = 1
         let config = StepBudgetConfig {
             max_steps: 1,
             max_tool_calls: 100,
@@ -338,17 +338,17 @@ mod tests {
         };
         let budget = StepBudget::new(&config);
 
-        // WHEN on incremente 1 fois
+        // WHEN we increment once
         budget.increment_steps();
 
-        // THEN exhaustion_reason() contient "steps"
+        // THEN exhaustion_reason() contains "steps"
         let reason = budget.exhaustion_reason().expect("should have reason");
         assert!(reason.contains("steps"), "reason was: {reason}");
     }
 
     #[test]
     fn test_thread_safety_concurrent_increments() {
-        // GIVEN un Arc<StepBudget> avec max_steps = 1000
+        // GIVEN an Arc<StepBudget> with max_steps = 1000
         let config = StepBudgetConfig {
             max_steps: 1000,
             max_tool_calls: 10000,
@@ -356,7 +356,7 @@ mod tests {
         };
         let budget = Arc::new(StepBudget::new(&config));
 
-        // WHEN 10 threads incrementent 100 fois chacun
+        // WHEN 10 threads each increment 100 times
         let mut handles = vec![];
         for _ in 0..10 {
             let b = Arc::clone(&budget);
@@ -370,7 +370,7 @@ mod tests {
             h.join().expect("thread panicked");
         }
 
-        // THEN current_steps == 1000 et is_exhausted() == true
+        // THEN current_steps == 1000 and is_exhausted() == true
         assert!(budget.is_exhausted());
         assert_eq!(budget.steps_left(), 0);
     }
@@ -378,7 +378,7 @@ mod tests {
     /// `wait_for_exhaustion` completes via the oneshot when `increment_steps` exhausts the budget.
     #[tokio::test]
     async fn test_budget_exhaustion_oneshot_notification() {
-        // GIVEN un budget avec max_steps = 1
+        // GIVEN a budget with max_steps = 1
         let config = StepBudgetConfig {
             max_steps: 1,
             max_tool_calls: 100,

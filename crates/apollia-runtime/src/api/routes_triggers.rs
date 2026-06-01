@@ -1,23 +1,23 @@
-//! Routes REST pour la gestion des triggers.
+//! REST routes for trigger management.
 //!
-//! Expose les opérations CRUD sur les triggers via l'API REST du runtime :
-//! - `GET    /api/v1/triggers`             , liste de tous les triggers
-//! - `GET    /api/v1/triggers/:id`         , définition complète + statut runtime
-//! - `POST   /api/v1/triggers`             , créer un trigger
-//! - `PUT    /api/v1/triggers/:id`         , modifier un trigger
-//! - `DELETE /api/v1/triggers/:id`         , supprimer un trigger
-//! - `POST   /api/v1/triggers/:id/fire`    , déclenchement immédiat
-//! - `POST   /api/v1/triggers/:id/enable`  , activation
-//! - `POST   /api/v1/triggers/:id/disable` , désactivation
-//! - `GET    /api/v1/triggers/:id/logs`    , historique SQLite
-//! - `POST   /api/v1/triggers/reload`      , hot reload depuis SQLite
+//! Exposes CRUD operations on triggers through the runtime REST API:
+//! - `GET    /api/v1/triggers`             , list all triggers
+//! - `GET    /api/v1/triggers/:id`         , full definition plus runtime status
+//! - `POST   /api/v1/triggers`             , create a trigger
+//! - `PUT    /api/v1/triggers/:id`         , update a trigger
+//! - `DELETE /api/v1/triggers/:id`         , delete a trigger
+//! - `POST   /api/v1/triggers/:id/fire`    , immediate firing
+//! - `POST   /api/v1/triggers/:id/enable`  , enable
+//! - `POST   /api/v1/triggers/:id/disable` , disable
+//! - `GET    /api/v1/triggers/:id/logs`    , SQLite history
+//! - `POST   /api/v1/triggers/reload`      , hot reload from SQLite
 //!
-//! **Codes de retour partagés :**
-//! - `503`, `TriggerEngine` ou repository non disponible.
-//! - `404`, trigger inconnu.
-//! - `409`, identifiant déjà existant.
-//! - `422`, erreur de validation.
-//! - `200` / `201`, succès.
+//! **Shared return codes:**
+//! - `503`, `TriggerEngine` or repository unavailable.
+//! - `404`, unknown trigger.
+//! - `409`, identifier already exists.
+//! - `422`, validation error.
+//! - `200` / `201`, success.
 
 use axum::{
     extract::{Path, Query, State},
@@ -37,142 +37,142 @@ use crate::coordinator::ExecutionBackend;
 
 // ─── Request types ───────────────────────────────────────────────────────
 
-/// Corps de requête pour `POST /api/v1/triggers`, création d'un trigger.
+/// Request body for `POST /api/v1/triggers`, trigger creation.
 #[derive(Debug, Deserialize)]
 pub struct CreateTriggerRequest {
-    /// Identifiant unique du trigger.
+    /// Unique trigger identifier.
     pub id: String,
-    /// Agent cible.
+    /// Target agent.
     pub agent: Option<String>,
-    /// Indique si le trigger est actif (défaut : `true`).
+    /// Whether the trigger is active (default: `true`).
     pub enabled: Option<bool>,
-    /// Politique quand l'agent est occupé (défaut : `"queue"`).
+    /// Policy when the agent is busy (default: `"queue"`).
     pub on_busy: Option<String>,
-    /// Configuration de la source de déclenchement.
+    /// Trigger source configuration.
     pub source: TriggerSourceInput,
-    /// Template du message d'entrée.
+    /// Input message template.
     pub input_template: Option<String>,
 }
 
-/// Description de la source de déclenchement dans les requêtes create/update.
+/// Trigger source description used in create/update requests.
 #[derive(Debug, Deserialize)]
 pub struct TriggerSourceInput {
-    /// Type de source : `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
+    /// Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
     pub r#type: String,
-    /// Configuration spécifique à la source (champs aplatis via `serde(flatten)`).
+    /// Source-specific configuration (fields flattened via `serde(flatten)`).
     #[serde(flatten)]
     pub config: serde_json::Value,
 }
 
-/// Corps de requête pour `PUT /api/v1/triggers/:id`, modification d'un trigger.
+/// Request body for `PUT /api/v1/triggers/:id`, trigger update.
 #[derive(Debug, Deserialize)]
 pub struct UpdateTriggerRequest {
-    /// Agent cible.
+    /// Target agent.
     pub agent: Option<String>,
-    /// Indique si le trigger est actif.
+    /// Whether the trigger is active.
     pub enabled: Option<bool>,
-    /// Politique quand l'agent est occupé.
+    /// Policy when the agent is busy.
     pub on_busy: Option<String>,
-    /// Configuration de la source de déclenchement.
+    /// Trigger source configuration.
     pub source: TriggerSourceInput,
-    /// Template du message d'entrée.
+    /// Input message template.
     pub input_template: Option<String>,
 }
 
 // ─── Response types ──────────────────────────────────────────────────────
 
-/// Réponse pour les opérations CRUD retournant une définition complète.
+/// Response for CRUD operations returning a full definition.
 #[derive(Debug, Serialize)]
 pub struct TriggerDefinitionResponse {
-    /// Identifiant unique du trigger.
+    /// Unique trigger identifier.
     pub id: String,
-    /// Agent cible.
+    /// Target agent.
     pub agent: Option<String>,
-    /// Indique si le trigger est actif.
+    /// Whether the trigger is active.
     pub enabled: bool,
-    /// Politique quand l'agent est occupé.
+    /// Policy when the agent is busy.
     pub on_busy: String,
-    /// Type de source.
+    /// Source type.
     pub source_type: String,
-    /// Configuration JSON de la source.
+    /// Source JSON configuration.
     pub source_config: serde_json::Value,
-    /// Template du message d'entrée.
+    /// Input message template.
     pub input_template: Option<String>,
-    /// Horodatage de création (ISO 8601).
+    /// Creation timestamp (ISO 8601).
     pub created_at: String,
-    /// Horodatage de dernière modification (ISO 8601).
+    /// Last-modified timestamp (ISO 8601).
     pub updated_at: String,
 }
 
-/// Réponse pour `DELETE /api/v1/triggers/:id`.
+/// Response for `DELETE /api/v1/triggers/:id`.
 #[derive(Debug, Serialize)]
 pub struct DeleteResponse {
-    /// Identifiant du trigger supprimé.
+    /// Identifier of the deleted trigger.
     pub deleted: String,
 }
 
-/// Corps de réponse en cas de succès pour le rechargement.
+/// Success response body for reload.
 #[derive(Serialize)]
 pub struct ReloadResponse {
-    /// Nombre de triggers actifs après rechargement.
+    /// Number of active triggers after reload.
     pub reloaded: usize,
 }
 
-/// Corps de réponse en cas d'erreur.
+/// Error response body.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
-    /// Description de l'erreur.
+    /// Error description.
     pub error: String,
 }
 
-/// Réponse pour `GET /api/v1/triggers/:id`, statut détaillé (legacy).
+/// Response for `GET /api/v1/triggers/:id`, detailed status (legacy).
 #[derive(Serialize)]
 pub struct TriggerDetailResponse {
-    /// Identifiant du trigger.
+    /// Trigger identifier.
     pub id: String,
-    /// Nom de l'agent cible.
+    /// Target agent name.
     pub agent: String,
-    /// Type de source.
+    /// Source type.
     pub source_kind: String,
-    /// Détail de la configuration source (ex : expression cron, intervalle).
+    /// Source configuration detail (e.g. cron expression, interval).
     pub source_detail: String,
-    /// Politique quand l'agent est occupé.
+    /// Policy when the agent is busy.
     pub on_busy: String,
-    /// Trigger actif ou non.
+    /// Whether the trigger is active.
     pub enabled: bool,
-    /// Nombre de fires réussis.
+    /// Number of successful fires.
     pub fire_count: u64,
-    /// Nombre de skips.
+    /// Number of skips.
     pub skip_count: u64,
-    /// Horodatage du dernier fire (RFC3339) ou `null`.
+    /// Last fire timestamp (RFC3339) or `null`.
     pub last_fired: Option<String>,
 }
 
-/// Réponse pour `POST /api/v1/triggers/:id/fire`.
+/// Response for `POST /api/v1/triggers/:id/fire`.
 #[derive(Serialize)]
 pub struct FireResponse {
-    /// Identifiant de la tâche soumise.
+    /// Identifier of the submitted task.
     pub task_id: String,
 }
 
-/// Réponse pour enable/disable.
+/// Response for enable/disable.
 #[derive(Serialize)]
 pub struct OkResponse {
-    /// Message de confirmation.
+    /// Confirmation flag.
     pub ok: bool,
 }
 
-/// Réponse pour `GET /api/v1/triggers/:id/logs`.
+/// Response for `GET /api/v1/triggers/:id/logs`.
 #[derive(Serialize)]
 pub struct LogsResponse {
-    /// Entrées d'historique.
+    /// History entries.
     pub entries: Vec<TriggerHistoryEntry>,
 }
 
-/// Paramètres de query pour `GET /api/v1/triggers/:id/logs`.
+/// Query parameters for `GET /api/v1/triggers/:id/logs`.
 #[derive(Debug, Deserialize)]
 pub struct LogsQuery {
-    /// Nombre maximum d'entrées à retourner (défaut : 20).
+    /// Maximum number of entries to return (default: 20).
     #[serde(default = "default_last")]
     pub last: usize,
 }
@@ -183,7 +183,7 @@ fn default_last() -> usize {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
-/// Convertit une [`TriggerDefinitionRow`] en [`TriggerDefinitionResponse`].
+/// Converts a [`TriggerDefinitionRow`] into a [`TriggerDefinitionResponse`].
 fn row_to_response(row: TriggerDefinitionRow) -> TriggerDefinitionResponse {
     let on_busy = match row.on_busy {
         OnBusy::Queue => "queue".to_string(),
@@ -202,7 +202,7 @@ fn row_to_response(row: TriggerDefinitionRow) -> TriggerDefinitionResponse {
     }
 }
 
-/// Parse le champ `on_busy` depuis la requête (défaut : `"queue"`).
+/// Parses the `on_busy` field from the request (default: `"queue"`).
 fn parse_on_busy(value: Option<&str>) -> Result<OnBusy, (StatusCode, Json<ErrorResponse>)> {
     match value {
         None | Some("queue") => Ok(OnBusy::Queue),
@@ -216,7 +216,7 @@ fn parse_on_busy(value: Option<&str>) -> Result<OnBusy, (StatusCode, Json<ErrorR
     }
 }
 
-/// Mappe une [`DefinitionRepositoryError`] vers un tuple `(StatusCode, Json<ErrorResponse>)`.
+/// Maps a [`DefinitionRepositoryError`] to a `(StatusCode, Json<ErrorResponse>)` tuple.
 fn map_repo_error(err: DefinitionRepositoryError) -> (StatusCode, Json<ErrorResponse>) {
     let (status, msg) = match &err {
         DefinitionRepositoryError::NotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
@@ -231,7 +231,7 @@ fn map_repo_error(err: DefinitionRepositoryError) -> (StatusCode, Json<ErrorResp
     (status, Json(ErrorResponse { error: msg }))
 }
 
-/// Extrait le repository depuis l'état, retourne 503 si absent.
+/// Extracts the repository from state, returns 503 if absent.
 fn require_repo<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
 ) -> Result<
@@ -248,11 +248,11 @@ fn require_repo<B: ExecutionBackend + Clone>(
     })
 }
 
-/// Recharge le `TriggerEngine` depuis les définitions du repository (fire-and-forget).
+/// Reloads the `TriggerEngine` from the repository definitions (fire-and-forget).
 ///
-/// Lit toutes les définitions, les convertit en types riches, et envoie au moteur.
-/// Les erreurs de conversion sont ignorées silencieusement (le trigger reste tel quel
-/// dans la DB, mais ne sera pas chargé en runtime).
+/// Reads all definitions, converts them to rich types, and sends them to the engine.
+/// Conversion errors are silently ignored: the trigger stays as-is in the DB but is
+/// not loaded at runtime.
 async fn reload_engine_from_repo<B: ExecutionBackend + Clone>(state: &AppState<B>) {
     let engine = match &state.trigger_engine {
         Some(e) => e.clone(),
@@ -282,12 +282,12 @@ async fn reload_engine_from_repo<B: ExecutionBackend + Clone>(state: &AppState<B
     engine.reload(rich_defs).await;
 }
 
-/// Retourne la chaîne de type de source pour usage dans `TriggerStatus` fallback.
+/// Returns the source type string for use in the `TriggerStatus` fallback.
 fn source_detail_kind(source: &apollia_triggers::TriggerSourceConfig) -> String {
     source_kind_and_detail(source).0
 }
 
-/// Retourne `(kind, detail)` depuis une [`TriggerSourceConfig`].
+/// Returns `(kind, detail)` from a [`TriggerSourceConfig`].
 fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (String, String) {
     use apollia_triggers::TriggerSourceConfig;
     match source {
@@ -307,10 +307,10 @@ fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (St
 
 // ─── CRUD Handlers ───────────────────────────────────────────────────────
 
-/// `POST /api/v1/triggers`, créer une nouvelle définition de trigger.
+/// `POST /api/v1/triggers`, create a new trigger definition.
 ///
-/// Valide la définition, l'insère dans `triggers.db`, recharge le moteur,
-/// et retourne `201` avec la définition complète (y compris `created_at`).
+/// Validates the definition, inserts it into `triggers.db`, reloads the engine,
+/// and returns `201` with the full definition (including `created_at`).
 pub async fn create_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<CreateTriggerRequest>,
@@ -361,10 +361,10 @@ pub async fn create_trigger<B: ExecutionBackend + Clone>(
     Ok((StatusCode::CREATED, Json(row_to_response(created))))
 }
 
-/// `PUT /api/v1/triggers/:id`, modifier une définition de trigger existante.
+/// `PUT /api/v1/triggers/:id`, update an existing trigger definition.
 ///
-/// Valide la nouvelle définition, la met à jour dans `triggers.db`,
-/// recharge le moteur, et retourne `200` avec la définition mise à jour.
+/// Validates the new definition, updates it in `triggers.db`,
+/// reloads the engine, and returns `200` with the updated definition.
 pub async fn update_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -413,9 +413,9 @@ pub async fn update_trigger<B: ExecutionBackend + Clone>(
     Ok(Json(row_to_response(updated)))
 }
 
-/// `DELETE /api/v1/triggers/:id`, supprimer une définition de trigger.
+/// `DELETE /api/v1/triggers/:id`, delete a trigger definition.
 ///
-/// Supprime de `triggers.db`, recharge le moteur, et retourne `200`.
+/// Removes it from `triggers.db`, reloads the engine, and returns `200`.
 pub async fn delete_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -439,7 +439,7 @@ pub async fn delete_trigger<B: ExecutionBackend + Clone>(
     Ok(Json(DeleteResponse { deleted: id }))
 }
 
-/// `GET /api/v1/triggers/:id`, définition complète + statut runtime.
+/// `GET /api/v1/triggers/:id`, full definition plus runtime status.
 pub async fn get_trigger_by_id<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -472,7 +472,7 @@ pub async fn get_trigger_by_id<B: ExecutionBackend + Clone>(
 
 // ─── Trigger Action Handlers ──────────────────────────────────────────────
 
-/// `GET /api/v1/triggers`, liste de tous les triggers avec leur statut.
+/// `GET /api/v1/triggers`, list all triggers with their status.
 pub async fn list_triggers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> impl IntoResponse {
@@ -491,7 +491,7 @@ pub async fn list_triggers<B: ExecutionBackend + Clone>(
     Json(serde_json::json!({ "triggers": statuses })).into_response()
 }
 
-/// `GET /api/v1/triggers/:id`, statut détaillé d'un trigger (legacy, via TriggerEngine).
+/// `GET /api/v1/triggers/:id`, detailed status of a trigger (legacy, via TriggerEngine).
 pub async fn get_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -560,7 +560,7 @@ pub async fn get_trigger<B: ExecutionBackend + Clone>(
     Json(detail).into_response()
 }
 
-/// `POST /api/v1/triggers/:id/fire`, déclenchement immédiat.
+/// `POST /api/v1/triggers/:id/fire`, immediate firing.
 pub async fn fire_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -600,7 +600,7 @@ pub async fn fire_trigger<B: ExecutionBackend + Clone>(
     }
 }
 
-/// `POST /api/v1/triggers/:id/enable`, active un trigger désactivé.
+/// `POST /api/v1/triggers/:id/enable`, enable a disabled trigger.
 pub async fn enable_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -637,7 +637,7 @@ pub async fn enable_trigger<B: ExecutionBackend + Clone>(
     }
 }
 
-/// `POST /api/v1/triggers/:id/disable`, désactive un trigger actif.
+/// `POST /api/v1/triggers/:id/disable`, disable an active trigger.
 pub async fn disable_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -674,9 +674,9 @@ pub async fn disable_trigger<B: ExecutionBackend + Clone>(
     }
 }
 
-/// `GET /api/v1/triggers/:id/logs`, historique des déclenchements depuis SQLite.
+/// `GET /api/v1/triggers/:id/logs`, firing history from SQLite.
 ///
-/// Le paramètre de query `?last=N` contrôle le nombre d'entrées (défaut : 20).
+/// The `?last=N` query parameter controls the number of entries (default: 20).
 pub async fn get_trigger_logs<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -701,11 +701,11 @@ pub async fn get_trigger_logs<B: ExecutionBackend + Clone>(
 
 // ─── Reload Handler ───────────────────────────────────────────────────────
 
-/// Handler axum pour `POST /api/v1/triggers/reload`.
+/// Axum handler for `POST /api/v1/triggers/reload`.
 ///
-/// Relit les définitions depuis le repository SQLite (plus de TOML),
-/// convertit en types riches, et recharge le `TriggerEngine`.
-/// Émet `TriggersReloaded` sur l'EventBus via le moteur.
+/// Re-reads definitions from the SQLite repository (no longer TOML),
+/// converts them to rich types, and reloads the `TriggerEngine`.
+/// Emits `TriggersReloaded` on the EventBus via the engine.
 pub async fn reload_triggers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> impl IntoResponse {
@@ -802,7 +802,7 @@ mod tests {
         }
     }
 
-    /// Mock minimal du `TaskSubmitter` pour les tests de routes.
+    /// Minimal mock of `TaskSubmitter` for route tests.
     struct MockSubmitter;
 
     impl TaskSubmitter for MockSubmitter {
@@ -822,7 +822,7 @@ mod tests {
         }
     }
 
-    /// Construit un `AppState` minimal pour les tests CRUD.
+    /// Builds a minimal `AppState` for CRUD tests.
     async fn make_state_with_repo(trigger_db_path: &std::path::Path) -> AppState<MockBackend> {
         let (event_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(event_tx.clone());
@@ -876,7 +876,7 @@ mod tests {
         }
     }
 
-    /// Construit un router avec toutes les routes CRUD.
+    /// Builds a router with all CRUD routes.
     fn make_crud_router(state: AppState<MockBackend>) -> Router {
         Router::new()
             .route(
@@ -896,7 +896,7 @@ mod tests {
             .with_state(state)
     }
 
-    /// Crée un body JSON pour un trigger cron valide.
+    /// Creates a JSON body for a valid cron trigger.
     fn cron_trigger_body(id: &str, agent: &str, schedule: &str) -> String {
         serde_json::json!({
             "id": id,
@@ -909,7 +909,7 @@ mod tests {
         .to_string()
     }
 
-    /// Lit le body de la réponse en tant que `serde_json::Value`.
+    /// Reads the response body as a `serde_json::Value`.
     async fn read_body(resp: axum::http::Response<Body>) -> serde_json::Value {
         let bytes = resp
             .into_body()
@@ -924,12 +924,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_trigger_201() {
-        // GIVEN un repository vide
+        // GIVEN an empty repository
         let dir = tempfile::TempDir::new().expect("tempdir");
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
 
-        // WHEN POST /api/v1/triggers avec un trigger cron valide
+        // WHEN POST /api/v1/triggers with a valid cron trigger
         let body = cron_trigger_body("rapport-hebdo", "rapport-agent", "0 0 8 * * MON *");
         let req = Request::builder()
             .method("POST")
@@ -939,7 +939,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("oneshot");
 
-        // THEN 201 avec la définition complète
+        // THEN 201 with the full definition
         assert_eq!(resp.status(), StatusCode::CREATED);
         let json = read_body(resp).await;
         assert_eq!(json["id"], "rapport-hebdo");
@@ -952,7 +952,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_trigger_200() {
-        // GIVEN un trigger "rapport-hebdo" existant
+        // GIVEN an existing "rapport-hebdo" trigger
         let dir = tempfile::TempDir::new().expect("tempdir");
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
@@ -967,7 +967,7 @@ mod tests {
         let resp = router.clone().oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::CREATED);
 
-        // WHEN PUT /api/v1/triggers/rapport-hebdo avec une nouvelle schedule
+        // WHEN PUT /api/v1/triggers/rapport-hebdo with a new schedule
         let update_body = serde_json::json!({
             "agent": "rapport-agent",
             "source": {
@@ -985,7 +985,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("oneshot");
 
-        // THEN 200 avec la définition mise à jour
+        // THEN 200 with the updated definition
         assert_eq!(resp.status(), StatusCode::OK);
         let json = read_body(resp).await;
         assert_eq!(json["id"], "rapport-hebdo");
@@ -999,7 +999,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_trigger_200() {
-        // GIVEN un trigger "rapport-hebdo" existant
+        // GIVEN an existing "rapport-hebdo" trigger
         let dir = tempfile::TempDir::new().expect("tempdir");
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
@@ -1022,7 +1022,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("oneshot");
 
-        // THEN 200 avec {"deleted": "rapport-hebdo"}
+        // THEN 200 with {"deleted": "rapport-hebdo"}
         assert_eq!(resp.status(), StatusCode::OK);
         let json = read_body(resp).await;
         assert_eq!(json["deleted"], "rapport-hebdo");
@@ -1032,7 +1032,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_trigger_200() {
-        // GIVEN un trigger "rapport-hebdo" existant
+        // GIVEN an existing "rapport-hebdo" trigger
         let dir = tempfile::TempDir::new().expect("tempdir");
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
@@ -1055,7 +1055,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("oneshot");
 
-        // THEN 200 avec la définition complète
+        // THEN 200 with the full definition
         assert_eq!(resp.status(), StatusCode::OK);
         let json = read_body(resp).await;
         assert_eq!(json["id"], "rapport-hebdo");
@@ -1065,16 +1065,16 @@ mod tests {
         assert_eq!(json["on_busy"], "queue");
     }
 
-    // ── Cron invalide → 422 ─────────────────────────────────────────────
+    // ── Invalid cron → 422 ──────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_create_invalid_cron_422() {
-        // GIVEN un repository vide
+        // GIVEN an empty repository
         let dir = tempfile::TempDir::new().expect("tempdir");
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
 
-        // WHEN POST avec un cron invalide
+        // WHEN POST with an invalid cron
         let body = cron_trigger_body("bad-cron", "agent", "not-a-cron");
         let req = Request::builder()
             .method("POST")
@@ -1084,7 +1084,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("oneshot");
 
-        // THEN 422 avec message de validation
+        // THEN 422 with a validation message
         assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
         let json = read_body(resp).await;
         let error = json["error"].as_str().expect("error field");
@@ -1098,7 +1098,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_duplicate_409() {
-        // GIVEN un trigger "rapport-hebdo" existant
+        // GIVEN an existing "rapport-hebdo" trigger
         let dir = tempfile::TempDir::new().expect("tempdir");
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
@@ -1113,7 +1113,7 @@ mod tests {
         let resp = router.clone().oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::CREATED);
 
-        // WHEN POST avec le même ID
+        // WHEN POST with the same ID
         let req = Request::builder()
             .method("POST")
             .uri("/api/v1/triggers")
@@ -1122,7 +1122,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("oneshot");
 
-        // THEN 409 avec message "duplicate trigger id"
+        // THEN 409 with message "duplicate trigger id"
         assert_eq!(resp.status(), StatusCode::CONFLICT);
         let json = read_body(resp).await;
         let error = json["error"].as_str().expect("error field");
@@ -1132,11 +1132,11 @@ mod tests {
         );
     }
 
-    // ── ID inexistant → 404 ─────────────────────────────────────────────
+    // ── Nonexistent ID → 404 ────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_update_not_found_404() {
-        // GIVEN un repository vide
+        // GIVEN an empty repository
         let dir = tempfile::TempDir::new().expect("tempdir");
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
@@ -1159,7 +1159,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("oneshot");
 
-        // THEN 404 avec message "trigger not found"
+        // THEN 404 with message "trigger not found"
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let json = read_body(resp).await;
         let error = json["error"].as_str().expect("error field");
@@ -1169,11 +1169,11 @@ mod tests {
         );
     }
 
-    // ── Reload depuis SQLite ─────────────────────────────────────────────
+    // ── Reload from SQLite ───────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_reload_from_sqlite() {
-        // GIVEN un trigger dans la DB
+        // GIVEN a trigger in the DB
         let dir = tempfile::TempDir::new().expect("tempdir");
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
@@ -1196,7 +1196,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("oneshot");
 
-        // THEN 200 avec reloaded >= 1
+        // THEN 200 with reloaded >= 1
         assert_eq!(resp.status(), StatusCode::OK);
         let json = read_body(resp).await;
         assert!(
@@ -1205,11 +1205,11 @@ mod tests {
         );
     }
 
-    // ── Ancien test, 503 si TriggerEngine absent ───────────────────────
+    // ── 503 when TriggerEngine is absent ────────────────────────────────
 
     #[tokio::test]
     async fn test_reload_503_when_no_trigger_engine() {
-        // GIVEN state sans TriggerEngine ni repo
+        // GIVEN state without TriggerEngine or repo
         let (event_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =

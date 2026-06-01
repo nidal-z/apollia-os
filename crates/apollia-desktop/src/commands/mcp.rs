@@ -339,7 +339,7 @@ pub struct ConnectorEnrichmentView {
     pub auth_help_i18n_key: Option<String>,
     /// Default value for the `requires_approval` flag on the created server.
     pub default_requires_approval: bool,
-    /// Env var name carrying a pre-registered OAuth client id (ADR-095).
+    /// Env var name carrying a pre-registered OAuth client id.
     /// Set for providers that require manual dev-portal registration (Figma).
     /// `None` for providers that support CIMD or anonymous DCR.
     pub oauth_pre_registered_client_id_env: Option<String>,
@@ -426,14 +426,14 @@ pub async fn add_mcp_server(
 }
 
 /// Remove an MCP server, delete its configuration from `mcp.db`, and purge
-/// the associated OAuth token from the keychain (ADR-095 follow-up).
+/// the associated OAuth token from the keychain.
 ///
 /// Delegates to `DELETE /api/v1/mcp/servers/{name}` on the embedded runtime
 /// for the DB cleanup, then **idempotently** deletes the keychain entry at
 /// `(apollia-mcp-oauth, <server_name>)` so a future reinstall doesn't
 /// inherit a stale token that would silently fail with `invalid_grant`.
 ///
-/// Keychain deletion errors are logged but not propagated - leaving an
+/// Keychain deletion errors are logged but not propagated: leaving an
 /// orphan keychain entry is preferable to blocking the user from removing
 /// a server they no longer want.
 #[tauri::command]
@@ -462,7 +462,7 @@ pub async fn remove_mcp_server(
 /// Return the raw persisted launch configuration of a server.
 ///
 /// Delegates to `GET /api/v1/mcp/servers/{name}/raw_config`. Used by the
-/// desktop "Modifier les arguments" flow to seed the inline edit form with
+/// desktop "edit arguments" flow to seed the inline edit form with
 /// the current command/args/env (placeholders, never resolved secrets).
 #[tauri::command]
 pub async fn get_mcp_server_raw_config(
@@ -479,7 +479,7 @@ pub async fn get_mcp_server_raw_config(
 /// Delegates to `PUT /api/v1/mcp/servers/{name}/config` on the embedded
 /// runtime, which performs a remove → add (restart) → persist cycle so the
 /// new `command` / `args` / `env` / `transport` take effect immediately.
-/// Used by the desktop "Modifier les arguments" flow on the manage panel,
+/// Used by the desktop "edit arguments" flow on the manage panel,
 /// which lets the operator fix runtime parameters (e.g. allowed directories
 /// for `@modelcontextprotocol/server-filesystem`) without re-running the
 /// full install wizard.
@@ -499,7 +499,7 @@ pub async fn update_mcp_server_config(
 }
 
 /// Tagged response envelope for `test_mcp_connection`, mirroring the
-/// runtime-side `McpConnectionTestResponse` (ADR-095 Phase 4).
+/// runtime-side `McpConnectionTestResponse`.
 ///
 /// The wizard dispatches its Auth step UI on `kind`:
 /// - `success` → list tools, allow continue.
@@ -1057,7 +1057,7 @@ pub async fn delete_mcp_secret(
     secret_store.delete(&key).map_err(|e| e.to_string())
 }
 
-/// Chemin par défaut du fichier SQLite d'approbations MCP.
+/// Default path of the MCP approvals SQLite file.
 fn mcp_approvals_db_path() -> Result<std::path::PathBuf, String> {
     let home = std::env::var("HOME")
         .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
@@ -1066,10 +1066,10 @@ fn mcp_approvals_db_path() -> Result<std::path::PathBuf, String> {
         .join("mcp_approvals.db"))
 }
 
-/// Découvre les serveurs MCP disponibles sur le réseau local via mDNS.
+/// Discover MCP servers available on the local network via mDNS.
 ///
-/// Effectue un scan de 3 secondes pour `_apollia-mcp._tcp.local.`.
-/// Retourne une liste de serveurs découverts avec leur nom, adresses, port et outils.
+/// Runs a 3-second scan for `_apollia-mcp._tcp.local.`.
+/// Returns a list of discovered servers with their name, addresses, port, and tools.
 #[tauri::command]
 pub async fn discover_mcp_servers() -> Result<Vec<serde_json::Value>, String> {
     let discovered = discovery::discover_mcp_servers()
@@ -1089,10 +1089,10 @@ pub async fn discover_mcp_servers() -> Result<Vec<serde_json::Value>, String> {
         .collect())
 }
 
-/// Liste les approbations MCP outil en attente.
+/// List pending MCP tool approvals.
 ///
-/// Lit depuis `~/.apollia/mcp_approvals.db` et retourne les entrées en attente
-/// de décision humaine.
+/// Reads from `~/.apollia/mcp_approvals.db` and returns the entries awaiting
+/// a human decision.
 #[tauri::command]
 pub async fn list_mcp_tool_pending_approvals() -> Result<Vec<serde_json::Value>, String> {
     let db_path = mcp_approvals_db_path()?;
@@ -1122,10 +1122,10 @@ pub async fn list_mcp_tool_pending_approvals() -> Result<Vec<serde_json::Value>,
         .collect())
 }
 
-/// Révoque une approbation MCP pour un serveur et un outil spécifiques.
+/// Revoke an MCP approval for a specific server and tool.
 ///
-/// Supprime l'approbation de `~/.apollia/mcp_approvals.db`.
-/// Retourne `true` si une entrée a été supprimée, `false` si aucune entrée correspondante.
+/// Removes the approval from `~/.apollia/mcp_approvals.db`.
+/// Returns `true` if an entry was removed, `false` if no matching entry existed.
 #[tauri::command]
 pub async fn revoke_mcp_tool_approval(server: String, tool: String) -> Result<bool, String> {
     let db_path = mcp_approvals_db_path()?;
@@ -1144,7 +1144,7 @@ pub async fn revoke_mcp_tool_approval(server: String, tool: String) -> Result<bo
     Ok(true)
 }
 
-// ─── MCP HTTP OAuth IPC (ADR-095 Phase 4) ───────────────────────────────────
+// ─── MCP HTTP OAuth IPC ──────────────────────────────────────────────────────
 
 /// Discovery result emitted by [`mcp_oauth_discover`].
 ///
@@ -1164,7 +1164,7 @@ pub struct McpOAuthDiscoveryResult {
 }
 
 /// Sign-in outcome returned by [`mcp_oauth_login`]. Carries identity claims
-/// for UI display ("Connecté en tant que …").
+/// for UI display ("Signed in as ...").
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpOAuthAccount {
     /// `sub` claim from the access token JWT, when present.
@@ -1183,7 +1183,7 @@ pub struct McpOAuthAccount {
 /// wizard to render the scope selector before the OAuth dance starts.
 ///
 /// Why a separate IPC from `mcp_oauth_login`? The user must see the scope list
-/// (their explicit decision per the ADR) before consenting. Folding both into
+/// (their explicit decision) before consenting. Folding both into
 /// `negotiate_token` would force the browser to open before scope selection.
 #[tauri::command]
 pub async fn mcp_oauth_discover(
@@ -1193,8 +1193,8 @@ pub async fn mcp_oauth_discover(
     let discovery = apollia_auth::McpDiscoveryClient::new()
         .map_err(|e| format!("init discovery client: {e}"))?;
 
-    // 1. PRM - prefer the URL advertised by WWW-Authenticate, then fall back
-    //    to the well-known at the server's origin (ADR-095 §2).
+    // 1. PRM: prefer the URL advertised by WWW-Authenticate, then fall back
+    //    to the well-known at the server's origin.
     let prm = match www_authenticate
         .as_deref()
         .and_then(apollia_auth::parse_www_authenticate)
@@ -1248,7 +1248,7 @@ pub async fn mcp_oauth_discover(
     })
 }
 
-/// Keychain service slot for user-entered OAuth client ids (ADR-095 follow-up).
+/// Keychain service slot for user-entered OAuth client ids.
 ///
 /// Holds the values typed into the wizard's OAuth client id input when the
 /// catalog enrichment declares `oauth_pre_registered_client_id_env` and
@@ -1260,9 +1260,8 @@ const MCP_CLIENT_ID_SERVICE: &str = "apollia-mcp-client-ids";
 /// Resolve a pre-registered OAuth client id, with three fallback layers so
 /// end users get a turnkey experience.
 ///
-/// Lookup order (mirrors the Google/Microsoft connector pattern, ADR-095
-/// follow-up 2026-05-17):
-/// 1. **Runtime env var** matching `env_var` - for dev / power-user override
+/// Lookup order (mirrors the Google/Microsoft connector pattern):
+/// 1. **Runtime env var** matching `env_var`, for dev / power-user override
 ///    (e.g. `APOLLIA_FIGMA_CLIENT_ID=xxx` exported before launch).
 /// 2. **Keychain stored value** - set via the wizard input or settings panel
 ///    by users who don't want to touch env vars but registered their own app.

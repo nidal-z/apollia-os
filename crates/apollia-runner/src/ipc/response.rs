@@ -1,24 +1,24 @@
-//! Envelope de response IPC : `{ok, request_id, data | error}`.
+//! IPC response envelope: `{ok, request_id, data | error}`.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::error::ErrorBody;
 
-/// Envelope générique de toute réponse HTTP du runner vers le daemon.
+/// Generic envelope for every HTTP response from the runner to the daemon.
 ///
-/// Sérialisé en JSON avec un champ `ok` discriminant pour permettre au daemon
-/// de router vers `data` (success) ou `error` (failure) sans deviner.
+/// Serialized to JSON with a discriminating `ok` field so the daemon can route
+/// to `data` (success) or `error` (failure) without guessing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Response<D> {
-    /// Réponse de succès : `{ok: true, request_id, data}`.
+    /// Success response: `{ok: true, request_id, data}`.
     Ok {
         ok: bool,
         request_id: Option<Uuid>,
         data: D,
     },
-    /// Réponse d'erreur : `{ok: false, request_id, error}`.
+    /// Error response: `{ok: false, request_id, error}`.
     Err {
         ok: bool,
         request_id: Option<Uuid>,
@@ -27,7 +27,7 @@ pub enum Response<D> {
 }
 
 impl<D: Serialize> Response<D> {
-    /// Construit une réponse de succès.
+    /// Builds a success response.
     pub fn success(request_id: Uuid, data: D) -> Self {
         Self::Ok {
             ok: true,
@@ -36,7 +36,7 @@ impl<D: Serialize> Response<D> {
         }
     }
 
-    /// Construit une réponse de succès sans request_id (pour `/handshake`).
+    /// Builds a success response without a request_id (for `/handshake`).
     pub fn success_no_id(data: D) -> Self {
         Self::Ok {
             ok: true,
@@ -45,7 +45,7 @@ impl<D: Serialize> Response<D> {
         }
     }
 
-    /// Construit une réponse d'erreur.
+    /// Builds an error response.
     pub fn error(request_id: Option<Uuid>, error: ErrorBody) -> Self {
         Self::Err {
             ok: false,

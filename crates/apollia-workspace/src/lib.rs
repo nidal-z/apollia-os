@@ -1,20 +1,20 @@
-//! Collecteur de contexte workspace pour Apollia OS.
+//! Workspace context collector for Apollia OS.
 //!
-//! Cette crate implémente les [`WorkspaceProvider`]s natifs et l'orchestrateur
-//! [`ProjectRuntime`] qui les compose en parallèle avec cache TTL.
+//! This crate implements the native [`WorkspaceProvider`]s and the
+//! [`ProjectRuntime`] orchestrator that composes them in parallel with a TTL cache.
 //!
 //! # Architecture
 //!
 //! ```text
-//! ProjectRuntime                  ← orchestrateur multi-provider avec cache TTL
-//!   ├── GitProvider               ← branche, statut, commits (WorkspaceProvider)
-//!   ├── RulesProvider             ← fichier de règles APOLLIA.md (WorkspaceProvider)
-//!   ├── TreeProvider              ← arborescence du répertoire (WorkspaceProvider)
-//!   ├── StyleProvider             ← conventions de code via LLM (optionnel)
-//!   └── ScriptProvider            ← script shell produisant du JSON (WorkspaceProvider)
+//! ProjectRuntime                  multi-provider orchestrator with TTL cache
+//!   ├── GitProvider               branch, status, commits (WorkspaceProvider)
+//!   ├── RulesProvider             APOLLIA.md rules file (WorkspaceProvider)
+//!   ├── TreeProvider              directory tree (WorkspaceProvider)
+//!   ├── StyleProvider             code conventions via LLM (optional)
+//!   └── ScriptProvider            shell script producing JSON (WorkspaceProvider)
 //! ```
 //!
-//! # Exemple
+//! # Example
 //!
 //! ```rust,no_run
 //! use apollia_workspace::ProjectRuntime;

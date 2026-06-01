@@ -33,120 +33,120 @@ const MAX_TOOL_OUTPUT_PREVIEW: usize = 500;
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Événement de la timeline d'une tâche.
+/// A single event in a task's execution timeline.
 ///
-/// Chaque variante correspond à un type d'action enregistrée pendant
-/// l'exécution. Le tag JSON `type` utilise `snake_case`.
+/// Each variant maps to a kind of action recorded during execution. The JSON
+/// `type` tag uses `snake_case`.
 #[derive(Debug, Serialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TimelineEvent {
-    /// Transition d'état de la tâche (submitted → running → completed, etc.).
+    /// Task state transition (submitted -> running -> completed, etc.).
     TaskTransition {
-        /// Nom du statut cible.
+        /// Target status name.
         status: String,
-        /// Horodatage ISO 8601 de la transition.
+        /// ISO 8601 timestamp of the transition.
         timestamp: String,
     },
-    /// Démarrage d'un step ORIA (mode orchestré).
+    /// Start of an ORIA step (orchestrated mode).
     StepStarted {
-        /// Identifiant du step.
+        /// Step identifier.
         step_id: String,
-        /// Outil utilisé ou suggéré.
+        /// Tool used or suggested.
         tool: Option<String>,
-        /// Aperçu de l'input (tronqué à 200 chars).
+        /// Input preview (truncated to 200 chars).
         input_preview: Option<String>,
-        /// Horodatage ISO 8601.
+        /// ISO 8601 timestamp.
         timestamp: String,
     },
-    /// Complétion d'un step ORIA.
+    /// Completion of an ORIA step.
     StepCompleted {
-        /// Identifiant du step.
+        /// Step identifier.
         step_id: String,
-        /// Durée d'exécution en millisecondes.
+        /// Execution duration in milliseconds.
         duration_ms: Option<i64>,
-        /// `true` si le step a terminé avec succès.
+        /// `true` if the step finished successfully.
         success: bool,
-        /// Horodatage ISO 8601.
+        /// ISO 8601 timestamp.
         timestamp: String,
     },
-    /// Appel LLM enregistré.
+    /// Recorded LLM call.
     LlmCall {
-        /// Nom du backend (e.g. `"anthropic"`, `"local"`).
+        /// Backend name (e.g. `"anthropic"`, `"local"`).
         backend: String,
-        /// Identifiant du modèle.
+        /// Model identifier.
         model: String,
-        /// Tokens du prompt.
+        /// Prompt tokens.
         prompt_tokens: Option<i64>,
-        /// Tokens de complétion.
+        /// Completion tokens.
         completion_tokens: Option<i64>,
-        /// Coût estimé en USD.
+        /// Estimated cost in USD.
         cost_usd: Option<f64>,
-        /// Latence en millisecondes.
+        /// Latency in milliseconds.
         latency_ms: Option<i64>,
-        /// Horodatage ISO 8601.
+        /// ISO 8601 timestamp.
         timestamp: String,
     },
-    /// Invocation d'un outil natif.
+    /// Invocation of a native tool.
     ToolCall {
-        /// Nom de l'outil.
+        /// Tool name.
         tool_name: String,
-        /// Durée en millisecondes.
+        /// Duration in milliseconds.
         duration_ms: Option<i64>,
-        /// Code de sortie du processus (bash, python).
+        /// Process exit code (bash, python).
         exit_code: Option<i64>,
-        /// `true` si les données ont été tronquées.
+        /// `true` if the data was truncated.
         truncated: bool,
-        /// Aperçu de l'input (args_json), tronqué à 300 chars.
+        /// Input preview (args_json), truncated to 300 chars.
         #[serde(skip_serializing_if = "Option::is_none")]
         input_preview: Option<String>,
-        /// Aperçu de la sortie (stdout + stderr), tronqué à 500 chars.
+        /// Output preview (stdout + stderr), truncated to 500 chars.
         #[serde(skip_serializing_if = "Option::is_none")]
         output_preview: Option<String>,
-        /// Horodatage ISO 8601.
+        /// ISO 8601 timestamp.
         timestamp: String,
     },
-    /// Suspension HITL, l'agent demande une approbation humaine.
+    /// HITL suspension: the agent requests human approval.
     HitlSuspended {
-        /// Prompt affiché à l'opérateur.
+        /// Prompt shown to the operator.
         prompt: String,
-        /// Horodatage ISO 8601 de la suspension.
+        /// ISO 8601 timestamp of the suspension.
         timestamp: String,
     },
-    /// Résolution HITL, l'opérateur a répondu.
+    /// HITL resolution: the operator has responded.
     HitlResolved {
-        /// `true` si approuvé, `false` si rejeté.
+        /// `true` if approved, `false` if rejected.
         approved: bool,
-        /// Raison fournie par l'opérateur.
+        /// Reason provided by the operator.
         reason: Option<String>,
-        /// Durée d'attente en millisecondes.
+        /// Wait duration in milliseconds.
         wait_ms: Option<i64>,
-        /// Horodatage ISO 8601 de la réponse.
+        /// ISO 8601 timestamp of the response.
         timestamp: String,
     },
-    /// Complétion de la tâche (dernier événement).
+    /// Task completion (terminal event).
     TaskCompleted {
-        /// Aperçu de l'output (tronqué à 500 chars).
+        /// Output preview (truncated to 500 chars).
         output_preview: Option<String>,
-        /// Durée totale en millisecondes.
+        /// Total duration in milliseconds.
         duration_ms: Option<i64>,
-        /// Horodatage ISO 8601.
+        /// ISO 8601 timestamp.
         timestamp: String,
     },
 }
 
-/// Réponse de la timeline.
+/// Timeline response.
 #[derive(Debug, Serialize)]
 pub struct TimelineResponse {
-    /// Identifiant de la tâche.
+    /// Task identifier.
     pub task_id: String,
-    /// Événements triés par timestamp ASC.
+    /// Events sorted by timestamp ascending.
     pub events: Vec<TimelineEvent>,
 }
 
-/// Réponse d'erreur structurée.
+/// Structured error response.
 #[derive(Debug, Serialize)]
 pub struct TimelineErrorResponse {
-    /// Message d'erreur.
+    /// Error message.
     pub error: String,
 }
 
@@ -154,11 +154,11 @@ pub struct TimelineErrorResponse {
 // Handler
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `GET /api/v1/tasks/{id}/timeline`, timeline complète d'une tâche.
+/// `GET /api/v1/tasks/{id}/timeline`: full timeline for a task.
 ///
-/// Agrège les données de 5 sources SQLite (hitl.db, plans.db, llm.db, audit.db)
-/// en une timeline unifiée triée par timestamp ASC. Retourne 404 si la tâche
-/// est inconnue de toutes les sources.
+/// Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)
+/// into a unified timeline sorted by timestamp ascending. Returns 404 when the
+/// task is unknown to all sources.
 pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,
@@ -752,11 +752,11 @@ mod tests {
         .expect("audit migration");
     }
 
-    // ── Timeline Mode Direct, ordre chronologique ─────────────────────────
+    // ── Direct-mode timeline, chronological order ─────────────────────────
 
     #[test]
     fn test_ac1_timeline_mode_direct_chronological() {
-        // GIVEN une tâche Mode Direct avec transitions + 2 tool calls
+        // GIVEN a direct-mode task with transitions + 2 tool calls
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
 
@@ -788,7 +788,7 @@ mod tests {
                 .expect("insert invocation");
         }
 
-        // WHEN on lit la timeline (same logic as handler: defer TaskCompleted)
+        // WHEN we read the timeline (same logic as handler: defer TaskCompleted)
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
         let mut completion_data: Option<(Option<String>, Option<i64>)> = None;
         let conn = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
@@ -817,7 +817,7 @@ mod tests {
             ));
         }
 
-        // THEN events dans l'ordre chronologique
+        // THEN events are in chronological order
         assert!(events.len() >= 5, "got {} events", events.len());
 
         let types: Vec<String> = events
@@ -836,11 +836,11 @@ mod tests {
         assert_eq!(types[4], "completed");
     }
 
-    // ── Timeline Mode Orchestré avec steps + LLM calls ────────────────────
+    // ── Orchestrated-mode timeline with steps + LLM calls ─────────────────
 
     #[test]
     fn test_ac2_timeline_orchestrated_with_steps() {
-        // GIVEN une tâche orchestrée avec 2 steps + 1 LLM call
+        // GIVEN an orchestrated task with 2 steps + 1 LLM call
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
 
@@ -885,13 +885,13 @@ mod tests {
         )
         .expect("insert llm call");
 
-        // WHEN on lit la timeline
+        // WHEN we read the timeline
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
         read_plan_steps(&plans, task_id, &mut events);
         read_llm_calls(&llm, task_id, &mut events);
         events.sort_by(|a, b| a.0.cmp(&b.0));
 
-        // THEN contient LlmCall + StepStarted + StepCompleted dans l'ordre
+        // THEN it contains LlmCall + StepStarted + StepCompleted in order
         assert!(events.len() >= 5, "got {} events", events.len());
 
         let types: Vec<&str> = events
@@ -910,11 +910,11 @@ mod tests {
         assert_eq!(types[4], "step_completed"); // s2 10:00:04
     }
 
-    // ── Timeline HITL suspension + résolution ─────────────────────────────
+    // ── HITL suspension + resolution timeline ─────────────────────────────
 
     #[test]
     fn test_ac3_timeline_hitl_suspension_and_resolution() {
-        // GIVEN une approbation avec suspended_at + responded_at
+        // GIVEN an approval with suspended_at + responded_at
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
 
@@ -936,12 +936,12 @@ mod tests {
         )
         .expect("insert approval");
 
-        // WHEN on lit les approbations
+        // WHEN we read the approvals
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
         read_approvals(&conn, task_id, &mut events);
         events.sort_by(|a, b| a.0.cmp(&b.0));
 
-        // THEN contient HitlSuspended puis HitlResolved
+        // THEN it contains HitlSuspended then HitlResolved
         assert_eq!(events.len(), 2, "got {} events", events.len());
 
         match &events[0].1 {
@@ -967,15 +967,15 @@ mod tests {
         }
     }
 
-    // ── Task not found → Err ─────────────────────────────────────────────
+    // ── Task not found -> Err ─────────────────────────────────────────────
 
     #[test]
     fn test_ac4_timeline_task_not_found() {
-        // GIVEN des DBs vides
+        // GIVEN empty DBs
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
 
-        // WHEN on cherche une tâche inexistante
+        // WHEN we look up a nonexistent task
         let events: Vec<(String, TimelineEvent)> = Vec::new();
         let mut task_found = false;
         let conn = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
@@ -988,11 +988,11 @@ mod tests {
         assert!(events.is_empty());
     }
 
-    // ── Tâche en cours → timeline partielle sans TaskCompleted ───────────
+    // ── In-progress task -> partial timeline without TaskCompleted ────────
 
     #[test]
     fn test_ac5_timeline_in_progress_no_task_completed() {
-        // GIVEN une tâche en cours (status = running)
+        // GIVEN an in-progress task (status = running)
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
 
@@ -1008,7 +1008,7 @@ mod tests {
         )
         .expect("insert task");
 
-        // WHEN on lit la timeline
+        // WHEN we read the timeline
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
         if let Some((transitions, _output_text, _duration_ms, status)) =
             read_task_data(&conn, task_id)
@@ -1028,7 +1028,7 @@ mod tests {
             }
         }
 
-        // THEN timeline partielle, pas de TaskCompleted
+        // THEN partial timeline, no TaskCompleted
         assert_eq!(events.len(), 2, "got {} events", events.len());
         let has_completed = events
             .iter()
@@ -1040,17 +1040,17 @@ mod tests {
 
     #[test]
     fn test_truncate_preview_short() {
-        // GIVEN un texte plus court que la limite
-        // WHEN on tronque
-        // THEN le texte est rendu tel quel et le drapeau truncated est false
+        // GIVEN text shorter than the limit
+        // WHEN we truncate
+        // THEN the text is returned unchanged and the truncated flag is false
         assert_eq!(truncate_preview("hello", 10), ("hello".to_string(), false));
     }
 
     #[test]
     fn test_truncate_preview_long() {
-        // GIVEN un texte plus long que la limite
-        // WHEN on tronque à 200 caractères
-        // THEN le résultat se termine par "..." et le drapeau truncated est true
+        // GIVEN text longer than the limit
+        // WHEN we truncate to 200 characters
+        // THEN the result ends with "..." and the truncated flag is true
         let long = "x".repeat(300);
         let (rendered, truncated) = truncate_preview(&long, 200);
         assert!(rendered.ends_with("..."));
@@ -1060,13 +1060,13 @@ mod tests {
 
     #[test]
     fn test_truncate_preview_utf8_boundary() {
-        // GIVEN un texte avec accents (multi-octets) où la limite tombe
-        // exactement sur la frontière d'un 'à' (2 octets en UTF-8)
-        // WHEN on tronque par nombre de caractères, pas d'octets
-        // THEN aucune panique et la troncature respecte les codepoints
-        // (régression : ancienne version slicait par octet et paniquait avec
+        // GIVEN accented (multi-byte) text where the limit falls exactly on
+        // the boundary of an 'à' (2 bytes in UTF-8)
+        // WHEN we truncate by character count, not by bytes
+        // THEN no panic, and truncation respects codepoints
+        // (regression: an earlier version sliced by byte and panicked with
         //  "byte index N is not a char boundary").
-        let text = "à".repeat(300); // 300 chars, 600 octets
+        let text = "à".repeat(300); // 300 chars, 600 bytes
         let (rendered, truncated) = truncate_preview(&text, 200);
         assert!(rendered.ends_with("..."));
         assert_eq!(rendered.chars().count(), 203);
@@ -1075,9 +1075,9 @@ mod tests {
 
     #[test]
     fn test_truncate_preview_exact_length() {
-        // GIVEN un texte de longueur égale à la limite
-        // WHEN on tronque
-        // THEN aucune troncature n'est appliquée
+        // GIVEN text of length equal to the limit
+        // WHEN we truncate
+        // THEN no truncation is applied
         let text = "a".repeat(50);
         let (rendered, truncated) = truncate_preview(&text, 50);
         assert_eq!(rendered.chars().count(), 50);
@@ -1088,7 +1088,7 @@ mod tests {
 
     #[test]
     fn test_ac_tool_call_enrichment_basic() {
-        // GIVEN un tool_invocation avec args_json + stdout
+        // GIVEN a tool_invocation with args_json + stdout
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
 
@@ -1105,11 +1105,11 @@ mod tests {
             )
             .expect("insert invocation");
 
-        // WHEN on lit les tool calls
+        // WHEN we read the tool calls
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
         read_tool_calls(&audit, task_id, &mut events);
 
-        // THEN l'événement contient input_preview et output_preview
+        // THEN the event contains input_preview and output_preview
         assert_eq!(events.len(), 1);
         let (_, event) = &events[0];
         match event {
@@ -1129,7 +1129,7 @@ mod tests {
 
     #[test]
     fn test_ac_tool_call_enrichment_truncation() {
-        // GIVEN un args_json de 400 chars (> MAX_TOOL_INPUT_PREVIEW=300)
+        // GIVEN an args_json of 400 chars (> MAX_TOOL_INPUT_PREVIEW=300)
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
 
@@ -1167,7 +1167,7 @@ mod tests {
 
     #[test]
     fn test_ac_tool_call_enrichment_stderr_combined() {
-        // GIVEN stdout + stderr non-vides
+        // GIVEN non-empty stdout + stderr
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
 

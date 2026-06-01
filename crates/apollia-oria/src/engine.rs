@@ -1101,7 +1101,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_direct_budget_already_exhausted() {
-        // GIVEN un budget deja epuise (max_steps=0)
+        // GIVEN a budget already exhausted (max_steps=0)
         let config = StepBudgetConfig {
             max_steps: 0,
             max_tool_calls: 100,
@@ -1113,10 +1113,10 @@ mod tests {
             result: make_result(),
         };
 
-        // WHEN on appelle execute_direct()
+        // WHEN execute_direct() is called
         let result = engine.execute_direct(make_task(), &runner, budget).await;
 
-        // THEN retourne ORIAError::BudgetExceeded
+        // THEN returns ORIAError::BudgetExceeded
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -1127,7 +1127,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_direct_success() {
-        // GIVEN un budget valide et un runner mock qui retourne Ok(AIPResult)
+        // GIVEN a valid budget and a mock runner returning Ok(AIPResult)
         let config = StepBudgetConfig {
             max_steps: 10,
             max_tool_calls: 20,
@@ -1139,10 +1139,10 @@ mod tests {
             result: make_result(),
         };
 
-        // WHEN on appelle execute_direct()
+        // WHEN execute_direct() is called
         let result = engine.execute_direct(make_task(), &runner, budget).await;
 
-        // THEN retourne Ok(AIPResult) avec le resultat attendu
+        // THEN returns Ok(AIPResult) with the expected result
         assert!(result.is_ok());
         let aip_result = result.expect("should be ok");
         assert_eq!(aip_result.task_id, "task-001");
@@ -1151,7 +1151,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_direct_bridge_error() {
-        // GIVEN un budget valide et un runner mock qui retourne Err
+        // GIVEN a valid budget and a mock runner returning Err
         let config = StepBudgetConfig {
             max_steps: 10,
             max_tool_calls: 20,
@@ -1163,10 +1163,10 @@ mod tests {
             message: "Python exception: crash".into(),
         };
 
-        // WHEN on appelle execute_direct()
+        // WHEN execute_direct() is called
         let result = engine.execute_direct(make_task(), &runner, budget).await;
 
-        // THEN retourne ORIAError::BridgeError
+        // THEN returns ORIAError::BridgeError
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -1177,7 +1177,7 @@ mod tests {
 
     // ── HITL tests ───────────────────────────────────────────
 
-    /// Runner qui retourne InputRequired au premier appel, puis Completed au second.
+    /// Runner returning InputRequired on the first call, then Completed on the second.
     struct MockRunnerInputRequired {
         call_count: std::sync::Arc<std::sync::atomic::AtomicU32>,
     }

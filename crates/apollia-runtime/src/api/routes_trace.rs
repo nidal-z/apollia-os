@@ -1,9 +1,9 @@
-//! `GET /api/v1/tasks/{id}/trace`, event-sourced execution trace (ADR-088).
+//! `GET /api/v1/tasks/{id}/trace`, event-sourced execution trace.
 //!
-//! Source de vérité unique : table `runtime_events` peuplée par
-//! [`crate::observability::EventPersistorHandle`]. Pagination par curseur
-//! UUIDv7 (`?since=<event_id>`), pas d'`OFFSET`, l'ordre lexicographique
-//! des UUIDv7 est l'ordre causal.
+//! Single source of truth: the `runtime_events` table populated by
+//! [`crate::observability::EventPersistorHandle`]. Pagination uses a UUIDv7
+//! cursor (`?since=<event_id>`), not `OFFSET`: the lexicographic order of
+//! UUIDv7 values is the causal order.
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -14,52 +14,52 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::observability::{RuntimeEventRecord, RuntimeEventsRepository};
 
-/// Limite par défaut sur le nombre d'événements retournés par appel.
+/// Default cap on the number of events returned per call.
 ///
-/// Suffit pour rendre 95 % des traces typiques (< 200 events) en un seul
-/// fetch. Les longues traces sont paginées via `?since=<event_id>` avec un
-/// `limit` configurable (jusqu'à 5000).
+/// Enough to render 95% of typical traces (< 200 events) in a single fetch.
+/// Long traces are paginated via `?since=<event_id>` with a configurable
+/// `limit` (up to 5000).
 const DEFAULT_LIMIT: usize = 500;
 
-/// Borne haute pour éviter qu'un client demande l'intégralité d'une base.
+/// Upper bound so a client cannot request an entire database at once.
 const MAX_LIMIT: usize = 5000;
 
-/// Paramètres de query string.
+/// Query string parameters.
 #[derive(Debug, Deserialize)]
 pub struct TraceQuery {
-    /// Curseur de pagination, ne retourne que les événements *strictement*
-    /// après cet `event_id` (UUIDv7 lex-ordonnable). Absent = depuis le début.
+    /// Pagination cursor: returns only events *strictly* after this
+    /// `event_id` (lex-ordered UUIDv7). Absent means from the start.
     #[serde(default)]
     pub since: Option<String>,
-    /// Nombre maximum d'événements à retourner. Borné à `MAX_LIMIT`.
+    /// Maximum number of events to return. Clamped to `MAX_LIMIT`.
     #[serde(default)]
     pub limit: Option<usize>,
 }
 
-/// Réponse JSON.
+/// JSON response.
 #[derive(Debug, Serialize)]
 pub struct TraceResponse {
-    /// Identifiant de la tâche.
+    /// Task identifier.
     pub task_id: String,
-    /// Événements ordonnés chronologiquement (UUIDv7 ASC).
+    /// Events ordered chronologically (UUIDv7 ASC).
     pub events: Vec<RuntimeEventRecord>,
-    /// Curseur à passer en `?since=` au prochain appel pour récupérer la
-    /// suite. `None` quand la page courante atteint la fin connue.
+    /// Cursor to pass as `?since=` on the next call to fetch the rest.
+    /// `None` when the current page reaches the known end.
     pub next_cursor: Option<String>,
 }
 
-/// Réponse d'erreur structurée.
+/// Structured error response.
 #[derive(Debug, Serialize)]
 pub struct TraceErrorResponse {
-    /// Message d'erreur.
+    /// Error message.
     pub error: String,
 }
 
-/// Handler `GET /api/v1/tasks/{id}/trace`.
+/// Handler for `GET /api/v1/tasks/{id}/trace`.
 ///
-/// 200 : `TraceResponse` (peut être vide si la tâche n'a encore produit
-/// aucun événement persisté).
-/// 500 : erreur d'ouverture de la base ou de requête.
+/// 200: `TraceResponse` (may be empty if the task has not yet produced any
+/// persisted event).
+/// 500: error opening the database or running the query.
 pub async fn get_task_trace<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     Query(q): Query<TraceQuery>,
@@ -94,9 +94,9 @@ pub async fn get_task_trace<B: ExecutionBackend + Clone>(
         )
     })?;
 
-    // Curseur : si on a renvoyé exactement `limit` événements, il en reste
-    // probablement d'autres, exposer le dernier event_id comme prochain
-    // curseur. Sinon (page partielle), aucun cursor.
+    // Cursor: if we returned exactly `limit` events, there are probably more,
+    // so expose the last event_id as the next cursor. Otherwise (partial
+    // page), no cursor.
     let next_cursor = if events.len() == limit {
         events.last().map(|e| e.event_id.clone())
     } else {
@@ -110,11 +110,11 @@ pub async fn get_task_trace<B: ExecutionBackend + Clone>(
     }))
 }
 
-/// Résout le chemin de `runtime_events.db` depuis l'`AppState`.
+/// Resolves the path to `runtime_events.db` from the `AppState`.
 ///
-/// Aujourd'hui même heuristique que `routes_timeline::resolve_data_dir`
-/// (`$HOME/.apollia/`). Quand la config dir devient un champ structuré dans
-/// l'`AppState`, déplacer ce helper vers `api::server`.
+/// For now this uses the same heuristic as `routes_timeline::resolve_data_dir`
+/// (`$HOME/.apollia/`). Once the config dir becomes a structured field on the
+/// `AppState`, move this helper into `api::server`.
 fn resolve_runtime_events_db<B: ExecutionBackend + Clone>(
     _state: &AppState<B>,
 ) -> std::path::PathBuf {

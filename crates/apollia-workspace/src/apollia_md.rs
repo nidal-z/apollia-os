@@ -1,26 +1,26 @@
-//! Recherche récursive du fichier `APOLLIA.md` depuis le répertoire courant.
+//! Recursive lookup of the `APOLLIA.md` file starting from the current directory.
 //!
-//! Remonte la hiérarchie de répertoires (CWD → parents) jusqu'à
-//! `apollia_md_search_depth` niveaux. Le contenu est tronqué par middle-trim
-//! pour ne jamais dépasser `apollia_md_max_bytes` octets dans le prompt.
+//! Walks up the directory hierarchy (CWD then parents) up to
+//! `apollia_md_search_depth` levels. The content is middle-trimmed so it never
+//! exceeds `apollia_md_max_bytes` bytes in the prompt.
 
 use std::path::{Path, PathBuf};
 
 use apollia_core::truncate_middle;
 
-/// Recherche et lit le fichier `APOLLIA.md` le plus proche du répertoire donné.
+/// Finds and reads the nearest `APOLLIA.md` file from the given directory.
 ///
-/// Priorité : CWD > parent immédiat > … > racine (limité à `search_depth` niveaux).
+/// Priority: CWD > immediate parent > ... > root (capped at `search_depth` levels).
 pub struct ApolliamdFinder;
 
 impl ApolliamdFinder {
-    /// Recherche `APOLLIA.md` depuis `cwd` vers les répertoires parents.
+    /// Searches for `APOLLIA.md` from `cwd` upward through parent directories.
     ///
-    /// Retourne `Some((chemin, contenu_tronqué))` dès que le fichier est trouvé,
-    /// `None` si aucun fichier n'existe dans la limite de profondeur.
+    /// Returns `Some((path, truncated_content))` as soon as the file is found,
+    /// `None` if no file exists within the depth limit.
     ///
-    /// Le contenu est tronqué à `max_bytes` via middle-trim pour protéger
-    /// la fenêtre de contexte LLM.
+    /// The content is middle-trimmed to `max_bytes` to protect the LLM context
+    /// window.
     pub async fn find(
         cwd: &Path,
         max_bytes: usize,
@@ -48,7 +48,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_apollia_md_finder_in_cwd() {
-        // GIVEN : APOLLIA.md dans le répertoire de travail temporaire
+        // GIVEN: APOLLIA.md in the temporary working directory
         let dir = tempfile::tempdir().expect("tempdir");
         tokio::fs::write(dir.path().join("APOLLIA.md"), "# Rules\nNo magic.")
             .await
@@ -63,7 +63,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_apollia_md_finder_in_parent() {
-        // GIVEN : APOLLIA.md dans le parent, CWD dans un sous-répertoire
+        // GIVEN: APOLLIA.md in the parent, CWD in a subdirectory
         let dir = tempfile::tempdir().expect("tempdir");
         tokio::fs::write(dir.path().join("APOLLIA.md"), "parent rules")
             .await
@@ -80,9 +80,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_apollia_md_absent_returns_none() {
-        // GIVEN : répertoire sans APOLLIA.md (ni dans ses parents dans la limite)
+        // GIVEN: directory without APOLLIA.md (and none in its parents within the limit)
         let dir = tempfile::tempdir().expect("tempdir");
-        // WHEN - profondeur 0 : on ne remonte pas
+        // WHEN - depth 0: we do not walk up
         let result = ApolliamdFinder::find(dir.path(), 8192, 0).await;
         // THEN
         assert!(result.is_none(), "no APOLLIA.md at depth 0");
@@ -90,7 +90,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_apollia_md_content_truncated_to_max_bytes() {
-        // GIVEN : APOLLIA.md de 10 Ko, max_bytes = 100
+        // GIVEN: 10 KB APOLLIA.md, max_bytes = 100
         let dir = tempfile::tempdir().expect("tempdir");
         let big_content = "x".repeat(10_000);
         tokio::fs::write(dir.path().join("APOLLIA.md"), &big_content)
@@ -98,7 +98,7 @@ mod tests {
             .expect("write");
         // WHEN
         let result = ApolliamdFinder::find(dir.path(), 100, 5).await;
-        // THEN - le middle-trim ajoute un message, mais le résultat est < original
+        // THEN - middle-trim adds a marker, but the result is smaller than the original
         assert!(result.is_some());
         let (_, content) = result.unwrap();
         assert!(

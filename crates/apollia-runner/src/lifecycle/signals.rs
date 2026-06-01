@@ -1,13 +1,13 @@
-//! Gestion cross-platform des signaux pour shutdown gracieux.
+//! Cross-platform signal handling for graceful shutdown.
 //!
-//! Le daemon envoie typiquement `SIGTERM` (Unix) ou `CTRL_C_EVENT` (Windows)
-//! quand il veut arrêter le runner. Le runner intercepte et déclenche le
-//! shutdown propre de l'axum server.
+//! The daemon typically sends `SIGTERM` (Unix) or `CTRL_C_EVENT` (Windows)
+//! when it wants to stop the runner. The runner intercepts it and triggers a
+//! clean shutdown of the axum server.
 
-/// Future qui complète quand un signal de shutdown est reçu.
+/// Future that completes when a shutdown signal is received.
 ///
-/// Sur Unix : `SIGINT` (Ctrl+C) ou `SIGTERM`.
-/// Sur Windows : `Ctrl+C` ou `Ctrl+Break`.
+/// On Unix: `SIGINT` (Ctrl+C) or `SIGTERM`.
+/// On Windows: `Ctrl+C` or `Ctrl+Break`.
 pub async fn shutdown_signal() {
     #[cfg(unix)]
     {

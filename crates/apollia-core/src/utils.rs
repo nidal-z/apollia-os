@@ -1,9 +1,9 @@
 //! Utility functions shared across the Apollia runtime.
 
-/// Retourne la plus grande frontière de caractère UTF-8 ≤ `index`.
+/// Returns the largest UTF-8 character boundary that is `<= index`.
 ///
-/// Équivalent stable de la méthode nightly `str::floor_char_boundary`.
-/// Garantit que la valeur retournée est une position valide pour découper `s`.
+/// Stable equivalent of the nightly `str::floor_char_boundary` method.
+/// Guarantees the returned value is a valid position to slice `s`.
 fn floor_char_boundary(s: &str, index: usize) -> usize {
     let mut i = index.min(s.len());
     while i > 0 && !s.is_char_boundary(i) {
@@ -12,20 +12,20 @@ fn floor_char_boundary(s: &str, index: usize) -> usize {
     i
 }
 
-/// Tronque un texte en préservant le début et la fin, en supprimant le milieu.
+/// Truncates text while keeping the head and tail, dropping the middle.
 ///
-/// Évite la perte d'information critique : le début contient le contexte et les
-/// déclarations, la fin contient les résultats récents. Le milieu supprimé est
-/// remplacé par un message indiquant le nombre de lignes perdues.
+/// Avoids losing critical information: the head holds the context and
+/// declarations, the tail holds recent results. The removed middle is replaced
+/// by a message stating how many lines were dropped.
 ///
-/// `max_chars` est exprimé en bytes UTF-8 - proxy raisonnable pour les outputs
-/// d'outils qui sont du texte ASCII ou UTF-8 basique. Les découpages respectent
-/// toujours les frontières de caractères UTF-8 valides.
+/// `max_chars` is expressed in UTF-8 bytes, a reasonable proxy for tool outputs
+/// that are ASCII or basic UTF-8 text. Slicing always respects valid UTF-8
+/// character boundaries.
 ///
-/// # Retourne
+/// # Returns
 ///
-/// - `(original.to_owned(), None)` si `s.len() <= max_chars`.
-/// - `(contenu_tronqué, Some(lignes_supprimées))` si la troncation est appliquée.
+/// - `(original.to_owned(), None)` when `s.len() <= max_chars`.
+/// - `(truncated_content, Some(removed_lines))` when truncation is applied.
 pub fn truncate_middle(s: &str, max_chars: usize) -> (String, Option<usize>) {
     if s.len() <= max_chars {
         return (s.to_owned(), None);
@@ -83,14 +83,14 @@ mod tests {
         assert!(truncated.is_some());
         assert!(result.contains("... ["));
         assert!(result.contains("lignes tronquées] ..."));
-        // Les 20 premiers et 20 derniers chars sont préservés
+        // The first 20 and last 20 chars are preserved
         assert!(result.starts_with(&"A".repeat(20)));
         assert!(result.ends_with(&"A".repeat(20)));
     }
 
     #[test]
     fn test_truncate_middle_line_count_exact() {
-        // GIVEN : 10 lignes de 7 chars = 70 chars, max = 40 → middle supprimé
+        // GIVEN: 10 lines of 7 chars = 70 chars, max = 40, so the middle is dropped
         let lines: Vec<String> = (0..10).map(|i| format!("line{:02}", i)).collect();
         let s = lines.join("\n");
         // WHEN
@@ -103,22 +103,22 @@ mod tests {
 
     #[test]
     fn test_truncate_middle_utf8_safe() {
-        // GIVEN un texte contenant des caractères multi-octets (é = 2 octets)
+        // GIVEN text containing multi-byte characters (é = 2 bytes)
         let s = "ééééé".repeat(1000);
-        // WHEN troncation à une limite qui tombe potentiellement au milieu d'un é
+        // WHEN truncating at a limit that may fall in the middle of an é
         let (result, truncated) = truncate_middle(&s, 101);
-        // THEN pas de panic, le résultat est du UTF-8 valide
+        // THEN no panic, the result is valid UTF-8
         assert!(truncated.is_some());
         assert!(std::str::from_utf8(result.as_bytes()).is_ok());
     }
 
     #[test]
     fn test_truncate_middle_zero_max_chars() {
-        // GIVEN un texte quelconque avec max_chars = 0 (cas dégénéré)
+        // GIVEN arbitrary text with max_chars = 0 (degenerate case)
         let s = "hello world";
         // WHEN
         let (result, truncated) = truncate_middle(s, 0);
-        // THEN tronqué avec message (début et fin vides, tout est "milieu")
+        // THEN truncated with a message (empty head and tail, everything is "middle")
         assert!(truncated.is_some());
         assert!(result.contains("lignes tronquées"));
     }

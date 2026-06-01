@@ -1,62 +1,62 @@
-//! Trait [`WorkspaceProvider`] et types pour la collecte de contexte situationnel.
+//! [`WorkspaceProvider`] trait and types for collecting situational context.
 //!
-//! Un **workspace** est l'ensemble des informations sur l'environnement courant
-//! qu'un agent reçoit avant de commencer à travailler. Ces informations sont
-//! collectées par des [`WorkspaceProvider`]s indépendants, agrégées en un
-//! [`WorkspaceSnapshot`], puis injectées dans le system prompt LLM.
+//! A **workspace** is the set of information about the current environment that
+//! an agent receives before it starts working. This information is collected by
+//! independent [`WorkspaceProvider`]s, aggregated into a [`WorkspaceSnapshot`],
+//! then injected into the LLM system prompt.
 //!
-//! ## Distinction fondamentale avec la mémoire agent
-//! - **Contexte workspace** : snapshot de l'environnement collecté par le runtime.
-//! - **Mémoire** : accumulée par l'agent au fil du temps, à son initiative.
+//! ## Key distinction from agent memory
+//! - **Workspace context**: a snapshot of the environment collected by the runtime.
+//! - **Memory**: accumulated by the agent over time, at its own initiative.
 
 use std::path::Path;
 use std::time::Instant;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Trait principal
+// Main trait
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Fournit une tranche de contexte situationnel avant qu'un agent commence.
+/// Provides a slice of situational context before an agent starts.
 ///
-/// Chaque implémentation représente une source d'information indépendante :
-/// état git, fichier de règles, arborescence, script custom, module Python, etc.
-/// Les providers sont orchestrés en parallèle par [`WorkspaceSnapshot`].
+/// Each implementation represents an independent information source: git state,
+/// a rules file, the directory tree, a custom script, a Python module, etc.
+/// Providers are orchestrated in parallel by [`WorkspaceSnapshot`].
 ///
 /// ## Fail-silent
-/// La méthode [`collect`](WorkspaceProvider::collect) ne doit jamais propager
-/// d'erreur - retourner [`WorkspaceSlice::with_error`] à la place.
-/// L'agent continue même si un provider échoue ou dépasse son timeout.
+/// The [`collect`](WorkspaceProvider::collect) method must never propagate an
+/// error: return [`WorkspaceSlice::with_error`] instead. The agent keeps going
+/// even if a provider fails or exceeds its timeout.
 #[async_trait::async_trait]
 pub trait WorkspaceProvider: Send + Sync {
-    /// Identifiant unique du provider, utilisé comme clé de cache et source des sections.
+    /// Unique provider identifier, used as a cache key and as the source of sections.
     fn name(&self) -> &str;
 
-    /// Collecte une tranche de contexte pour le répertoire `cwd`.
+    /// Collects a context slice for the `cwd` directory.
     ///
-    /// Toujours fail-silent : retourner [`WorkspaceSlice::with_error`] plutôt
-    /// que propager une erreur.
+    /// Always fail-silent: return [`WorkspaceSlice::with_error`] rather than
+    /// propagating an error.
     async fn collect(&self, cwd: &Path) -> WorkspaceSlice;
 
-    /// Description courte pour les logs et la CLI.
+    /// Short description for logs and the CLI.
     fn description(&self) -> &str {
         ""
     }
 
-    /// Priorité d'affichage dans le system prompt (valeur basse = affiché en premier).
+    /// Display priority in the system prompt (lower value is shown first).
     fn priority(&self) -> u8 {
         50
     }
 
-    /// Intervalle de rafraîchissement en secondes.
+    /// Refresh interval in seconds.
     ///
-    /// `None` signifie que le TTL global du runtime s'applique.
+    /// `None` means the runtime global TTL applies.
     fn refresh_secs(&self) -> Option<u64> {
         None
     }
 
-    /// Retourne `true` si ce provider est applicable dans `cwd`.
+    /// Returns `true` if this provider is applicable in `cwd`.
     ///
-    /// Un provider retournant `false` n'est pas appelé - aucun overhead, aucune erreur.
+    /// A provider returning `false` is not called: no overhead, no error.
     fn is_applicable(&self, cwd: &Path) -> bool {
         let _ = cwd;
         true
@@ -64,38 +64,38 @@ pub trait WorkspaceProvider: Send + Sync {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WorkspaceSlice - ce qu'un provider produit
+// WorkspaceSlice - what a provider produces
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Tranche éphémère de contexte produite par un [`WorkspaceProvider`].
+/// Ephemeral context slice produced by a [`WorkspaceProvider`].
 ///
-/// Injectée dans le system prompt de l'agent au démarrage de la session.
-/// Non persistée - recollectée à chaque démarrage de tâche (modulo cache TTL).
+/// Injected into the agent system prompt at session start. Not persisted:
+/// recollected on every task start (modulo the TTL cache).
 #[derive(Clone)]
 pub struct WorkspaceSlice {
-    /// Identifiant du provider source.
+    /// Identifier of the source provider.
     pub source: String,
-    /// Sections de texte à injecter dans le prompt.
+    /// Text sections to inject into the prompt.
     pub sections: Vec<WorkspaceSection>,
-    /// Erreurs non-fatales : timeout, source inaccessible, parse error partiel.
+    /// Non-fatal errors: timeout, unreachable source, partial parse error.
     pub errors: Vec<String>,
-    /// Horodatage de collecte pour le cache TTL.
+    /// Collection timestamp for the TTL cache.
     pub collected_at: Instant,
 }
 
-/// Section de contexte injectée sous un tag `<context name="titre">`.
+/// Context section injected under a `<context name="title">` tag.
 #[derive(Clone)]
 pub struct WorkspaceSection {
-    /// Titre affiché dans le tag `<context name="...">`.
+    /// Title shown in the `<context name="...">` tag.
     pub title: String,
-    /// Contenu textuel de la section.
+    /// Text content of the section.
     pub content: String,
-    /// Nom du provider source de cette section.
+    /// Name of the provider that produced this section.
     pub source: String,
 }
 
 impl WorkspaceSlice {
-    /// Construit une tranche avec une seule section de contenu.
+    /// Builds a slice with a single content section.
     pub fn single(source: &str, title: &str, content: impl Into<String>) -> Self {
         let content = content.into();
         Self {
@@ -110,9 +110,9 @@ impl WorkspaceSlice {
         }
     }
 
-    /// Construit une tranche vide - aucun contenu à injecter.
+    /// Builds an empty slice with no content to inject.
     ///
-    /// Retourné quand le provider n'est pas applicable ou que la source est vide.
+    /// Returned when the provider is not applicable or the source is empty.
     pub fn empty(source: &str) -> Self {
         Self {
             source: source.to_owned(),
@@ -122,9 +122,9 @@ impl WorkspaceSlice {
         }
     }
 
-    /// Construit une tranche vide avec une erreur non-fatale.
+    /// Builds an empty slice carrying a non-fatal error.
     ///
-    /// L'erreur est tracée mais n'empêche pas l'exécution de l'agent.
+    /// The error is traced but does not prevent the agent from running.
     pub fn with_error(source: &str, error: String) -> Self {
         Self {
             source: source.to_owned(),
@@ -134,38 +134,38 @@ impl WorkspaceSlice {
         }
     }
 
-    /// Retourne `true` si la tranche ne contient aucune section.
+    /// Returns `true` if the slice contains no section.
     pub fn is_empty(&self) -> bool {
         self.sections.is_empty()
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WorkspaceSnapshot - agrégation de toutes les tranches
+// WorkspaceSnapshot - aggregation of all slices
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Snapshot complet du workspace, agrégant toutes les tranches produites
-/// par les [`WorkspaceProvider`]s actifs.
+/// Complete workspace snapshot, aggregating every slice produced by the active
+/// [`WorkspaceProvider`]s.
 ///
-/// Créé par le `ProjectRuntime` après collecte parallèle. Injecté dans le
-/// system prompt LLM et exposé à l'agent Python via `ctx.workspace`.
+/// Created by the `ProjectRuntime` after parallel collection. Injected into the
+/// LLM system prompt and exposed to the Python agent via `ctx.workspace`.
 #[derive(Clone, Default)]
 pub struct WorkspaceSnapshot {
-    /// Tranches produites par chaque provider, dans l'ordre de priorité.
+    /// Slices produced by each provider, in priority order.
     pub slices: Vec<WorkspaceSlice>,
 }
 
 impl WorkspaceSnapshot {
-    /// Construit un snapshot à partir d'une liste de tranches.
+    /// Builds a snapshot from a list of slices.
     pub fn new(slices: Vec<WorkspaceSlice>) -> Self {
         Self { slices }
     }
 
-    /// Formate le snapshot pour injection dans un system prompt LLM.
+    /// Formats the snapshot for injection into an LLM system prompt.
     ///
-    /// Chaque section est encapsulée dans un tag `<context name="titre">`.
-    /// Les tranches vides (aucune section) sont omises.
-    /// L'ordre respecte la priorité des providers (déjà triés à la collecte).
+    /// Each section is wrapped in a `<context name="title">` tag. Empty slices
+    /// (no section) are omitted. Order follows provider priority (already sorted
+    /// at collection time).
     pub fn format_for_prompt(&self) -> String {
         let blocks: Vec<String> = self
             .slices
@@ -176,8 +176,8 @@ impl WorkspaceSnapshot {
         blocks.join("\n\n")
     }
 
-    /// Retourne le contenu de la première section dont le titre correspond,
-    /// ou `None` si aucune section ne correspond.
+    /// Returns the content of the first section whose title matches, or `None`
+    /// if no section matches.
     pub fn get_section(&self, title: &str) -> Option<&str> {
         self.slices
             .iter()
@@ -186,7 +186,7 @@ impl WorkspaceSnapshot {
             .map(|s| s.content.as_str())
     }
 
-    /// Retourne `true` si le snapshot ne contient aucune section.
+    /// Returns `true` if the snapshot contains no section.
     pub fn is_empty(&self) -> bool {
         self.slices.iter().all(|s| s.sections.is_empty())
     }

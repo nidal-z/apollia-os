@@ -1,6 +1,6 @@
-//! Helpers pour le format SSE des endpoints `/llm/stream` et `/stt/stream`.
+//! Helpers for the SSE format of the `/llm/stream` and `/stt/stream` endpoints.
 //!
-//! Format conforme à [IPC-PROTOCOL §2.5](../../../../docs/internal/architecture/IPC-PROTOCOL.md) :
+//! SSE wire format:
 //!
 //! ```text
 //! data: {"request_id":"...","ok":true,"chunk":{"text":"Le ","finish_reason":null}}
@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use super::llm::{StreamChunk, TokenUsage};
 
-/// Enveloppe d'un chunk SSE de stream LLM.
+/// Envelope for an SSE chunk in an LLM stream.
 #[derive(Debug, Clone, Serialize)]
 pub struct SseChunk {
     pub request_id: Uuid,
@@ -24,7 +24,7 @@ pub struct SseChunk {
     pub chunk: StreamChunk,
 }
 
-/// Event final `done` qui clôture le stream avec les stats d'usage.
+/// Final `done` event that closes the stream with usage stats.
 #[derive(Debug, Clone, Serialize)]
 pub struct SseDone {
     pub request_id: Uuid,

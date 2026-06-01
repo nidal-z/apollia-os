@@ -178,7 +178,7 @@ pub struct ToolBatchCall {
     pub input: Value,
 }
 
-/// Taille maximale par défaut d'un output d'outil transmis au LLM, en bytes UTF-8.
+/// Default maximum size of a tool output forwarded to the LLM, in UTF-8 bytes.
 const DEFAULT_MAX_OUTPUT_CHARS: usize = 30_000;
 
 /// Maximum number of read-only tool calls driven concurrently in [`ToolDispatcher::execute_batch`].
@@ -348,7 +348,7 @@ impl ToolDispatcher {
             match &decision {
                 PermissionDecision::AutoAllowedSafeList
                 | PermissionDecision::AutoAllowedPrefixRule { .. } => {
-                    // Invocation approuvée - continuer normalement.
+                    // Invocation approved, proceed normally.
                     tracing::debug!(tool = %tool_name, "permission: auto-allowed");
                 }
                 PermissionDecision::AutoDeniedInjection { pattern } => {
@@ -375,7 +375,7 @@ impl ToolDispatcher {
                     });
                 }
                 PermissionDecision::NeedsApproval => {
-                    // Émettre PermissionRequired (fire-and-forget) si un EventBus est disponible.
+                    // Emit PermissionRequired (fire-and-forget) when an EventBus is available.
                     if let Some(sender) = &self.event_bus {
                         let request_id = uuid::Uuid::new_v4().to_string();
                         let event = apollia_core::RuntimeEvent::PermissionRequired {

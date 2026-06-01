@@ -1,7 +1,7 @@
-//! [`TreeProvider`] - fournit l'arborescence du répertoire courant.
+//! [`TreeProvider`], exposes the directory tree of the current working directory.
 //!
-//! Parcours BFS avec timeout d'une seconde, répertoires système ignorés
-//! (`.git`, `target`, `node_modules`, `__pycache__`, `dist`…).
+//! BFS traversal with a one-second timeout; system directories are skipped
+//! (`.git`, `target`, `node_modules`, `__pycache__`, `dist`, etc.).
 
 use std::path::Path;
 
@@ -9,15 +9,15 @@ use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlic
 
 use crate::tree::DirectoryTreeBuilder;
 
-/// Fournit une arborescence textuelle du répertoire courant.
+/// Builds a textual directory tree of the current working directory.
 ///
-/// Utilise [`DirectoryTreeBuilder`] avec un maximum de 100 lignes par défaut.
+/// Uses [`DirectoryTreeBuilder`] with a default cap of 100 lines.
 pub struct TreeProvider {
     max_lines: usize,
 }
 
 impl TreeProvider {
-    /// Construit un provider d'arborescence avec un nombre maximal de lignes.
+    /// Creates a tree provider with the given maximum number of lines.
     pub fn new(max_lines: usize) -> Self {
         Self { max_lines }
     }
@@ -69,7 +69,7 @@ mod tests {
 
     #[tokio::test]
     async fn tree_provider_returns_section() {
-        // GIVEN un répertoire avec quelques fichiers
+        // GIVEN a directory with a few files
         let dir = tempfile::tempdir().expect("tempdir");
         tokio::fs::write(dir.path().join("main.rs"), "fn main() {}")
             .await
@@ -84,7 +84,7 @@ mod tests {
 
     #[tokio::test]
     async fn tree_provider_respects_max_lines() {
-        // GIVEN un répertoire avec 20 fichiers, max_lines = 5
+        // GIVEN a directory with 20 files and max_lines = 5
         let dir = tempfile::tempdir().expect("tempdir");
         for i in 0..20 {
             tokio::fs::write(dir.path().join(format!("f{i}.rs")), "")

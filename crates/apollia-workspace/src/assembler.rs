@@ -1,8 +1,8 @@
-//! [`ProjectRuntime`] - orchestrateur multi-provider avec cache TTL configurable.
+//! [`ProjectRuntime`] - multi-provider orchestrator with a configurable TTL cache.
 //!
-//! Orchestre un ensemble de [`WorkspaceProvider`] en parallèle via
-//! `futures::future::join_all`. Un cache par répertoire évite les I/O répétées
-//! sur les sessions longues.
+//! Orchestrates a set of [`WorkspaceProvider`] in parallel via
+//! `futures::future::join_all`. A per-directory cache avoids repeated I/O
+//! during long sessions.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -17,24 +17,24 @@ use apollia_llm::LlmRouter;
 use crate::config::{GitProviderConfig, RulesProviderConfig, RuntimeConfig, StyleProviderConfig};
 use crate::providers::{GitProvider, RulesProvider, ScriptProvider, StyleProvider, TreeProvider};
 
-/// Cache partagé par répertoire : instant de collecte + snapshot produit.
+/// Per-directory shared cache: collection instant plus the produced snapshot.
 type SnapshotCache = Arc<RwLock<HashMap<PathBuf, (Instant, WorkspaceSnapshot)>>>;
 
-/// Orchestre plusieurs [`WorkspaceProvider`] et assemble un [`WorkspaceSnapshot`].
+/// Orchestrates several [`WorkspaceProvider`] and assembles a [`WorkspaceSnapshot`].
 ///
-/// La collecte est parallèle : chaque provider applicable est lancé simultanément.
-/// Un timeout par provider garantit le fail-silent.
-/// Un cache TTL par répertoire évite les I/O répétées entre deux steps rapprochés.
+/// Collection is parallel: every applicable provider runs simultaneously.
+/// A per-provider timeout guarantees fail-silent behavior.
+/// A per-directory TTL cache avoids repeated I/O between two close steps.
 pub struct ProjectRuntime {
-    /// Providers triés par priorité croissante.
+    /// Providers sorted by ascending priority.
     providers: Vec<Box<dyn WorkspaceProvider>>,
     config: RuntimeConfig,
-    /// Cache par répertoire.
+    /// Per-directory cache.
     cache: SnapshotCache,
 }
 
 impl ProjectRuntime {
-    /// Construit un runtime avec les providers fournis.
+    /// Builds a runtime with the given providers.
     pub fn new(providers: Vec<Box<dyn WorkspaceProvider>>, config: RuntimeConfig) -> Self {
         let mut providers = providers;
         providers.sort_by_key(|p| p.priority());
@@ -45,7 +45,7 @@ impl ProjectRuntime {
         }
     }
 
-    /// Construit un runtime avec le projet par défaut (git + rules + tree).
+    /// Builds a runtime with the default project (git + rules + tree).
     pub fn default_project() -> Self {
         let providers: Vec<Box<dyn WorkspaceProvider>> = vec![
             Box::new(GitProvider::default()),
@@ -55,7 +55,7 @@ impl ProjectRuntime {
         Self::new(providers, RuntimeConfig::default())
     }
 
-    /// Active la détection de style en ajoutant un [`StyleProvider`] avec LLM.
+    /// Enables style detection by adding a [`StyleProvider`] backed by the LLM.
     pub fn with_style_detection(mut self, router: Arc<LlmRouter>) -> Self {
         let style = StyleProvider::new(StyleProviderConfig::default(), router);
         self.providers.push(Box::new(style));
@@ -63,18 +63,18 @@ impl ProjectRuntime {
         self
     }
 
-    /// Ajoute un provider supplémentaire (par exemple un [`ScriptProvider`]).
+    /// Adds an extra provider (for example a [`ScriptProvider`]).
     pub fn with_provider(mut self, provider: Box<dyn WorkspaceProvider>) -> Self {
         self.providers.push(provider);
         self.providers.sort_by_key(|p| p.priority());
         self
     }
 
-    /// Construit un runtime depuis une configuration de providers JSON
-    /// (provenant de la table `project_providers` en SQLite).
+    /// Builds a runtime from a JSON provider configuration
+    /// (read from the `project_providers` table in SQLite).
     ///
-    /// Types supportés : `"git"`, `"rules"`, `"tree"`, `"script"`.
-    /// Le type `"style"` nécessite un `LlmRouter` - utiliser `with_style_detection`.
+    /// Supported types: `"git"`, `"rules"`, `"tree"`, `"script"`.
+    /// The `"style"` type requires an `LlmRouter` - use `with_style_detection`.
     pub fn from_providers_config(
         providers_config: &[ProviderEntry],
         llm_router: Option<Arc<LlmRouter>>,
@@ -153,12 +153,12 @@ impl ProjectRuntime {
         Self::new(providers, RuntimeConfig::default())
     }
 
-    /// Collecte tous les providers applicables en parallèle avec timeout par provider.
+    /// Collects all applicable providers in parallel with a per-provider timeout.
     ///
-    /// Retourne depuis le cache si la dernière collecte date de moins de
+    /// Returns from the cache when the last collection is more recent than
     /// [`context_ttl_secs`](RuntimeConfig::context_ttl_secs).
     pub async fn collect(&self, cwd: &Path) -> WorkspaceSnapshot {
-        // - Lecture cache ------------------------------------------------
+        // - Cache read ---------------------------------------------------
         {
             let guard = self.cache.read().await;
             if let Some((collected_at, ref snapshot)) = guard.get(cwd) {
@@ -174,7 +174,7 @@ impl ProjectRuntime {
             }
         }
 
-        // - Collecte parallèle avec timeout par provider ------------------
+        // - Parallel collection with a per-provider timeout ---------------
         let timeout_secs = self.config.collect_timeout_secs;
         let futures: Vec<_> = self
             .providers
@@ -218,7 +218,7 @@ impl ProjectRuntime {
 
         let snapshot = WorkspaceSnapshot::new(slices);
 
-        // - Mise à jour cache ----------------------------------------------
+        // - Cache update ---------------------------------------------------
         self.cache
             .write()
             .await
@@ -228,7 +228,7 @@ impl ProjectRuntime {
     }
 }
 
-/// Entrée de provider lue depuis la table `project_providers` en SQLite.
+/// Provider entry read from the `project_providers` table in SQLite.
 #[derive(Debug)]
 pub struct ProviderEntry {
     pub provider_type: String,
@@ -245,28 +245,28 @@ mod tests {
 
     #[tokio::test]
     async fn runtime_collects_in_real_repo() {
-        // GIVEN le projet courant (dépôt git)
+        // GIVEN the current project (git repository)
         let runtime = ProjectRuntime::default_project();
         let cwd = std::env::current_dir().expect("current_dir");
         // WHEN
         let snapshot = runtime.collect(&cwd).await;
-        // THEN - au moins une section
+        // THEN - at least one section
         assert!(!snapshot.is_empty(), "expected sections from git repo");
     }
 
     #[tokio::test]
     async fn runtime_cache_hit_on_second_call() {
-        // GIVEN un runtime avec TTL de 60s
+        // GIVEN a runtime with a 60s TTL
         let config = RuntimeConfig {
             context_ttl_secs: 60,
             ..Default::default()
         };
         let runtime = ProjectRuntime::new(vec![Box::new(GitProvider::default())], config);
         let cwd = std::env::current_dir().expect("current_dir");
-        // WHEN deux appels rapides
+        // WHEN two quick calls
         let s1 = runtime.collect(&cwd).await;
         let s2 = runtime.collect(&cwd).await;
-        // THEN même nombre de slices (depuis le cache)
+        // THEN same slice count (served from the cache)
         assert_eq!(
             s1.slices.len(),
             s2.slices.len(),
@@ -276,7 +276,7 @@ mod tests {
 
     #[tokio::test]
     async fn runtime_no_applicable_providers_outside_git() {
-        // GIVEN uniquement un GitProvider dans un répertoire sans .git
+        // GIVEN only a GitProvider in a directory without .git
         let runtime = ProjectRuntime::new(
             vec![Box::new(GitProvider::default())],
             RuntimeConfig::default(),
@@ -284,7 +284,7 @@ mod tests {
         let cwd = std::path::Path::new("/tmp");
         // WHEN
         let snapshot = runtime.collect(cwd).await;
-        // THEN - git provider non applicable, snapshot vide
+        // THEN - git provider not applicable, empty snapshot
         assert!(
             snapshot.is_empty(),
             "no providers applicable outside git repo"
@@ -293,7 +293,7 @@ mod tests {
 
     #[tokio::test]
     async fn format_for_prompt_respects_priority_order() {
-        // GIVEN un snapshot avec deux slices
+        // GIVEN a snapshot with two slices
         use apollia_core::workspace::WorkspaceSection;
         let s1 = WorkspaceSlice {
             source: "git".into(),
@@ -318,7 +318,7 @@ mod tests {
         let snapshot = WorkspaceSnapshot::new(vec![s1, s2]);
         // WHEN
         let prompt = snapshot.format_for_prompt();
-        // THEN - Git apparaît avant Règles
+        // THEN - "Git" appears before "Règles"
         let pos_git = prompt.find("Git").expect("Git not found");
         let pos_rules = prompt.find("Règles").expect("Règles not found");
         assert!(pos_git < pos_rules, "Git must appear before Règles");

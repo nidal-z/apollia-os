@@ -57,9 +57,9 @@ impl SttBackend for RunnerSttBackend {
             "task": "transcribe",
         });
 
-        // SttEngine invoque `transcribe` depuis `spawn_blocking`, on est donc
-        // dans un thread bloquant : `Handle::current().block_on` permet de
-        // dispatcher l'appel async sans deadlock du runtime Tokio.
+        // SttEngine calls `transcribe` from `spawn_blocking`, so we are on a
+        // blocking thread: `Handle::current().block_on` dispatches the async
+        // call without deadlocking the Tokio runtime.
         let handle = Handle::try_current().map_err(|e| SttError::BackendUnavailable {
             backend: format!("no tokio runtime in scope: {e}"),
         })?;

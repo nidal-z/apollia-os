@@ -1317,11 +1317,11 @@ pub fn interpolate_outputs(description: &str, outputs: &HashMap<String, String>)
     result
 }
 
-/// Construit un [`ContextBundle`] minimal pour la replanification.
+/// Builds a minimal [`ContextBundle`] for replanning.
 ///
-/// Le bundle contient uniquement le `task_id` du plan ; les autres champs
-/// (`memory_snapshot`, `available_tools`, `manifest_system_prompt`) sont vides.
-/// Le Reasoner utilise ce contexte pour construire le prompt replanner.
+/// The bundle carries only the plan's `task_id`; the other fields
+/// (`memory_snapshot`, `available_tools`, `manifest_system_prompt`) are empty.
+/// The Reasoner uses this context to build the replanner prompt.
 fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
     use apollia_core::task::AIPTask;
 
@@ -1365,7 +1365,7 @@ mod tests {
     use std::pin::Pin;
     use std::sync::{Arc, Mutex};
 
-    /// Construit un `AgentManifest` minimal pour les tests.
+    /// Builds a minimal `AgentManifest` for tests.
     fn make_manifest() -> AgentManifest {
         serde_json::from_str(
             r#"{"name":"test","version":"0.1.0","description":"test","tools_required":[]}"#,
@@ -2232,7 +2232,7 @@ mod tests {
         }
     }
 
-    /// Mock `CompletionModel` qui tags sa response with the backend name,
+    /// Mock `CompletionModel` that tags its response with the backend name,
     /// so tests can verify which backend handled the request.
     struct TaggedMockModel {
         tag: String,

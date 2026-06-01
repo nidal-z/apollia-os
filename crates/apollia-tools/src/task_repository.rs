@@ -1,14 +1,14 @@
-//! Repository SQLite pour la persistance HITL des tâches.
+//! SQLite repository for HITL task persistence.
 //!
-//! Fournit [`TaskRepository`] qui stocke et restitue les données HITL
-//! (prompt, contexte, réponse humaine) dans une base SQLite locale.
+//! Provides [`TaskRepository`], which stores and restores HITL data
+//! (prompt, context, human response) in a local SQLite database.
 //!
-//! Toutes les méthodes publiques sont `async` et délèguent aux opérations
-//! SQLite bloquantes via `tokio::task::spawn_blocking` - pattern identique
-//! à [`crate::audit::AuditTrail`] (ADR-014).
+//! All public methods are `async` and delegate to blocking SQLite operations
+//! via `tokio::task::spawn_blocking`, the same pattern as
+//! [`crate::audit::AuditTrail`].
 //!
-//! La migration `005_hitl_tables.sql` est appliquée idempotentiellement
-//! à l'appel de [`TaskRepository::open`].
+//! The `005_hitl_tables.sql` migration is applied idempotently when
+//! [`TaskRepository::open`] is called.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -16,10 +16,10 @@ use std::time::Duration;
 use apollia_core::{truncate_with_marker, AIPTask, InputResponseData, ObservabilityConfig};
 use rusqlite::params;
 
-/// SQL de migration embarqué - appliqué idempotentiellement à chaque ouverture.
+/// Embedded migration SQL, applied idempotently on every open.
 const MIGRATION_SQL: &str = include_str!("../migrations/005_hitl_tables.sql");
 
-/// Colonnes à ajouter par la migration observabilité.
+/// Columns added by the observability migration.
 const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("input_text", "TEXT"),
     ("input_truncated", "INTEGER NOT NULL DEFAULT 0"),
@@ -29,7 +29,7 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("transitions_json", "TEXT"),
 ];
 
-/// Colonnes HITL timing à ajouter sur `task_approvals`.
+/// HITL timing columns added to `task_approvals`.
 const HITL_TIMING_COLUMNS: &[(&str, &str)] =
     &[("suspended_at", "TEXT"), ("wait_duration_ms", "INTEGER")];
 
@@ -37,11 +37,11 @@ const HITL_TIMING_COLUMNS: &[(&str, &str)] =
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Ajoute des colonnes à une table si elles n'existent pas encore.
+/// Adds columns to a table if they do not yet exist.
 ///
-/// Utilise `PRAGMA table_info` pour lister les colonnes existantes,
-/// puis exécute `ALTER TABLE ADD COLUMN` uniquement pour les manquantes.
-/// Compatible avec toutes les versions de SQLite (pas de `IF NOT EXISTS`).
+/// Uses `PRAGMA table_info` to list existing columns, then runs
+/// `ALTER TABLE ADD COLUMN` only for the missing ones. Compatible with all
+/// SQLite versions (no `IF NOT EXISTS` clause required).
 fn add_columns_if_missing(
     conn: &rusqlite::Connection,
     table: &str,
@@ -63,55 +63,56 @@ fn add_columns_if_missing(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Erreurs
+// Errors
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Erreurs spécifiques au [`TaskRepository`].
+/// Errors specific to [`TaskRepository`].
 #[derive(Debug, thiserror::Error)]
 pub enum TaskRepoError {
-    /// Aucune tâche trouvée pour le `task_id` donné.
+    /// No task found for the given `task_id`.
     #[error("tâche introuvable : {0}")]
     NotFound(String),
 
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),
 
-    /// Erreur de désérialisation JSON.
+    /// JSON deserialization error.
     #[error("erreur de désérialisation JSON : {0}")]
     Json(#[from] serde_json::Error),
 
-    /// Erreur d'infrastructure (join error spawn_blocking, etc.).
+    /// Infrastructure error (spawn_blocking join error, etc.).
     #[error("erreur interne : {0}")]
     Internal(String),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de retour
+// Return types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Détail observabilité d'une tâche retourné par [`TaskRepository::get_task_detail`].
+/// Task observability detail returned by [`TaskRepository::get_task_detail`].
 #[derive(Debug, Clone)]
 pub struct TaskDetail {
-    /// Texte d'entrée de la tâche (possiblement tronqué).
+    /// Task input text (possibly truncated).
     pub input_text: Option<String>,
-    /// Texte de sortie de la tâche (possiblement tronqué).
+    /// Task output text (possibly truncated).
     pub output_text: Option<String>,
-    /// Durée d'exécution en millisecondes.
+    /// Execution duration in milliseconds.
     pub duration_ms: Option<i64>,
-    /// Horodatage de création ISO8601.
+    /// ISO 8601 creation timestamp.
     pub created_at: String,
 }
 
-/// Ouvre une connexion SQLite et applique la migration HITL idempotentiellement.
+/// Opens a SQLite connection and applies the HITL migration idempotently.
 ///
-/// Appelé par toutes les méthodes du [`TaskRepository`] pour garantir l'intégrité
-/// du schéma même si la base a été supprimée et recréée après le démarrage du runtime.
-/// La migration utilise `CREATE TABLE IF NOT EXISTS` - sans effet sur une base valide.
+/// Called by every [`TaskRepository`] method to guarantee schema integrity even
+/// if the database was deleted and recreated after the runtime started. The
+/// migration uses `CREATE TABLE IF NOT EXISTS`, so it is a no-op on a valid
+/// database.
 ///
-/// Si le fichier principal n'existe pas, les fichiers WAL/SHM résiduels éventuels
-/// sont supprimés avant l'ouverture pour éviter une récupération WAL orpheline
-/// qui laisserait la base sans tables.
+/// If the main file does not exist, any leftover WAL/SHM files are removed
+/// before opening, to avoid an orphan WAL recovery that would leave the
+/// database without tables.
 fn open_conn(path: &std::path::Path) -> Result<rusqlite::Connection, rusqlite::Error> {
     if !path.exists() {
         let _ = std::fs::remove_file(path.with_extension("db-wal"));
@@ -127,29 +128,29 @@ fn open_conn(path: &std::path::Path) -> Result<rusqlite::Connection, rusqlite::E
 // Repository
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Repository SQLite pour la persistance HITL des tâches.
+/// SQLite repository for HITL task persistence.
 ///
-/// Encapsule le chemin de la base SQLite. Chaque méthode ouvre une connexion
-/// dédiée dans `spawn_blocking`, ce qui garantit la compatibilité avec le runtime
-/// Tokio sans partage de connexion entre threads.
+/// Wraps the SQLite database path. Each method opens a dedicated connection
+/// inside `spawn_blocking`, which keeps it compatible with the Tokio runtime
+/// without sharing a connection across threads.
 ///
-/// La migration `005_hitl_tables.sql` est appliquée à [`open`](Self::open).
+/// The `005_hitl_tables.sql` migration is applied in [`open`](Self::open).
 #[derive(Clone)]
 pub struct TaskRepository {
     db_path: PathBuf,
 }
 
 impl TaskRepository {
-    /// Ouvre (ou crée) la base SQLite et applique la migration 005.
+    /// Opens (or creates) the SQLite database and applies the HITL migration.
     ///
-    /// La migration est idempotente (`CREATE TABLE IF NOT EXISTS`), donc sûre
-    /// à rejouer sur une base existante. Active le mode WAL pour la concurrence
-    /// lecture/écriture.
+    /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`), so it is
+    /// safe to replay on an existing database. Enables WAL mode for
+    /// read/write concurrency.
     ///
     /// # Errors
     ///
-    /// Retourne une erreur si le fichier SQLite ne peut pas être ouvert ou si
-    /// la migration échoue (schéma incompatible, permissions, etc.).
+    /// Returns an error if the SQLite file cannot be opened or if the migration
+    /// fails (incompatible schema, permissions, etc.).
     pub async fn open(db_path: &Path) -> Result<Self, TaskRepoError> {
         let path = db_path.to_path_buf();
 
@@ -171,16 +172,16 @@ impl TaskRepository {
         })
     }
 
-    /// Persiste une suspension `input_required` avec son prompt et son contexte JSON.
+    /// Persists an `input_required` suspension with its prompt and JSON context.
     ///
-    /// Insère ou met à jour la ligne dans `tasks` avec `status = 'input_required'`
-    /// et `input_required_at = CURRENT_TIMESTAMP`. Appelé par ORIA avant d'émettre
-    /// `RuntimeEvent::TaskInputRequired` sur l'EventBus.
+    /// Inserts or updates the `tasks` row with `status = 'input_required'` and
+    /// `input_required_at = CURRENT_TIMESTAMP`. Called by ORIA before emitting
+    /// `RuntimeEvent::TaskInputRequired` on the EventBus.
     ///
     /// # Errors
     ///
-    /// - [`TaskRepoError::Json`] si `context` ne peut pas être sérialisé
-    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    /// - [`TaskRepoError::Json`] if `context` cannot be serialized
+    /// - [`TaskRepoError::Sqlite`] on a SQLite error
     pub async fn save_input_required(
         &self,
         task_id: &str,
@@ -218,19 +219,19 @@ impl TaskRepository {
         Ok(())
     }
 
-    // ─── Méthodes HITL timing ──────────────────────────────────────────
+    // ─── HITL timing methods ───────────────────────────────────────────
 
-    /// Enregistre le timestamp de suspension lors d'un `input_required`.
+    /// Records the suspension timestamp for an `input_required` event.
     ///
-    /// Insère une ligne préliminaire dans `task_approvals` avec `suspended_at`
-    /// renseigné et `approved IS NULL`. Le `prompt` et `context_json` sont
-    /// lus depuis la table `tasks` (peuplée par [`save_input_required`]).
+    /// Inserts a preliminary row into `task_approvals` with `suspended_at` set
+    /// and `approved IS NULL`. The `prompt` and `context_json` are read from the
+    /// `tasks` table (populated by [`save_input_required`]).
     ///
-    /// Appelé par ORIA au moment de l'émission de `AIPResult.input_required()`.
+    /// Called by ORIA when emitting `AIPResult.input_required()`.
     ///
     /// # Errors
     ///
-    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    /// - [`TaskRepoError::Sqlite`] on a SQLite error
     pub async fn save_suspended_at(
         &self,
         task_id: &str,
@@ -262,17 +263,17 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Met à jour `responded_at` et calcule `wait_duration_ms` en SQL.
+    /// Updates `responded_at` and computes `wait_duration_ms` in SQL.
     ///
-    /// La durée d'attente est calculée atomiquement en SQL comme la différence
-    /// entre `responded_at` et `suspended_at` en millisecondes, via
-    /// `julianday()`. Cible la ligne en attente (`approved IS NULL`).
+    /// The wait duration is computed atomically in SQL as the difference between
+    /// `responded_at` and `suspended_at` in milliseconds, via `julianday()`.
+    /// Targets the pending row (`approved IS NULL`).
     ///
-    /// Appelé par le `ResumeHandler` au moment de la réponse humaine.
+    /// Called by the `ResumeHandler` when the human responds.
     ///
     /// # Errors
     ///
-    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    /// - [`TaskRepoError::Sqlite`] on a SQLite error
     pub async fn save_response_timing(
         &self,
         task_id: &str,
@@ -301,18 +302,18 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Persiste la réponse humaine et insère une ligne dans `task_approvals`.
+    /// Persists the human response and inserts a row into `task_approvals`.
     ///
-    /// Met à jour `input_response_approved`, `input_response_reason`,
-    /// `input_response_at` et `status` dans `tasks`, puis insère une ligne
-    /// dans `task_approvals` pour l'historique multi-approbation.
-    /// Appelé par le `ResumeHandler` après validation de la réponse.
+    /// Updates `input_response_approved`, `input_response_reason`,
+    /// `input_response_at` and `status` in `tasks`, then inserts a row into
+    /// `task_approvals` for the multi-approval history. Called by the
+    /// `ResumeHandler` after the response is validated.
     ///
     /// # Errors
     ///
-    /// - [`TaskRepoError::NotFound`] si `task_id` est absent de la table `tasks`
-    /// - [`TaskRepoError::Json`] si le contexte ne peut pas être sérialisé
-    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    /// - [`TaskRepoError::NotFound`] if `task_id` is absent from the `tasks` table
+    /// - [`TaskRepoError::Json`] if the context cannot be serialized
+    /// - [`TaskRepoError::Sqlite`] on a SQLite error
     pub async fn save_input_response(
         &self,
         task_id: &str,
@@ -328,7 +329,7 @@ impl TaskRepository {
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
             let conn = open_conn(&path)?;
 
-            // Récupère prompt et step_id pour l'insertion dans task_approvals.
+            // Fetch prompt and step_id for the task_approvals insert.
             let (prompt, step_id): (String, Option<String>) = conn
                 .query_row(
                     "SELECT COALESCE(input_required_prompt, ''), step_id \
@@ -338,7 +339,7 @@ impl TaskRepository {
                 )
                 .map_err(|_| TaskRepoError::NotFound(task_id.clone()))?;
 
-            // Met à jour la ligne tasks avec la décision humaine.
+            // Update the tasks row with the human decision.
             conn.execute(
                 "UPDATE tasks SET \
                      input_response_approved = ?2, \
@@ -389,18 +390,18 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Reconstitue un [`AIPTask`] enrichi pour la reprise après `input_required`.
+    /// Rebuilds an enriched [`AIPTask`] for resuming after `input_required`.
     ///
-    /// Lit les colonnes `input_response_*` depuis `tasks` et construit un `AIPTask`
-    /// avec `is_resumed = true` et `input_response` peuplé avec la décision humaine
-    /// et le contexte JSON original. Appelé par le `ResumeHandler` avant
-    /// de relancer l'agent via ORIA.
+    /// Reads the `input_response_*` columns from `tasks` and builds an `AIPTask`
+    /// with `is_resumed = true` and `input_response` populated with the human
+    /// decision and the original JSON context. Called by the `ResumeHandler`
+    /// before relaunching the agent through ORIA.
     ///
     /// # Errors
     ///
-    /// - [`TaskRepoError::NotFound`] si `task_id` est absent de la table `tasks`
-    /// - [`TaskRepoError::Json`] si le contexte JSON stocké est invalide
-    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    /// - [`TaskRepoError::NotFound`] if `task_id` is absent from the `tasks` table
+    /// - [`TaskRepoError::Json`] if the stored JSON context is invalid
+    /// - [`TaskRepoError::Sqlite`] on a SQLite error
     pub async fn rebuild_for_resume(&self, task_id: &str) -> Result<AIPTask, TaskRepoError> {
         let path = self.db_path.clone();
         let task_id = task_id.to_string();
@@ -408,7 +409,7 @@ impl TaskRepository {
         tokio::task::spawn_blocking(move || -> Result<AIPTask, TaskRepoError> {
             let conn = open_conn(&path)?;
 
-            // Lit les colonnes HITL nécessaires à la reconstruction.
+            // Read the HITL columns needed for reconstruction.
             let (tid, approved_raw, reason, context_json_opt, responded_at_opt): (
                 String,
                 Option<i32>,
@@ -461,14 +462,14 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
-    /// Retourne le statut SQLite d'une tâche, ou `None` si absente de la table `tasks`.
+    /// Returns a task's SQLite status, or `None` if absent from the `tasks` table.
     ///
-    /// Utilisé par le `ResumeHandler` pour vérifier qu'une tâche
-    /// est bien en status `input_required` avant de traiter la reprise.
+    /// Used by the `ResumeHandler` to verify a task is in `input_required`
+    /// status before processing the resume.
     ///
     /// # Errors
     ///
-    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
     pub async fn get_task_status(&self, task_id: &str) -> Result<Option<String>, TaskRepoError> {
         let path = self.db_path.clone();
         let task_id = task_id.to_string();
@@ -490,14 +491,14 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
-    /// Retourne le détail observabilité d'une tâche : input, output, durée, date de création.
+    /// Returns a task's observability detail: input, output, duration, creation date.
     ///
-    /// Retourne `None` si la tâche n'existe pas dans la DB (tâche récente non encore
-    /// persistée, ou tâche soumise avant la migration observabilité).
+    /// Returns `None` if the task does not exist in the database (a recent task
+    /// not yet persisted, or a task submitted before the observability migration).
     ///
     /// # Errors
     ///
-    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
     pub async fn get_task_detail(
         &self,
         task_id: &str,
@@ -530,20 +531,20 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
-    // ─── Méthodes observabilité ──────────────────────────────────────────
+    // ─── Observability methods ───────────────────────────────────────────
 
-    /// Persiste l'input texte d'une tâche avec troncature éventuelle.
+    /// Persists a task's input text, truncating if necessary.
     ///
-    /// Utilise [`truncate_with_marker`] pour couper l'input si sa taille
-    /// dépasse `config.max_input_bytes`. La colonne `input_truncated` est
-    /// mise à 1 si le texte a été tronqué, 0 sinon.
+    /// Uses [`truncate_with_marker`] to cut the input if its size exceeds
+    /// `config.max_input_bytes`. The `input_truncated` column is set to 1 if the
+    /// text was truncated, 0 otherwise.
     ///
-    /// Crée la ligne dans `tasks` via `INSERT ... ON CONFLICT DO UPDATE`
-    /// pour supporter l'appel avant ou après `save_input_required`.
+    /// Creates the `tasks` row via `INSERT ... ON CONFLICT DO UPDATE` so it can
+    /// be called before or after `save_input_required`.
     ///
     /// # Errors
     ///
-    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
     pub async fn save_input(
         &self,
         task_id: &str,
@@ -573,14 +574,14 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Met à jour le nom de l'agent pour une tâche.
+    /// Updates the agent name for a task.
     ///
-    /// Appelé par le coordinateur juste après `save_input` pour renseigner
-    /// le champ `agent_name` (non disponible lors du `INSERT` initial).
+    /// Called by the coordinator just after `save_input` to set the
+    /// `agent_name` field (not available at the initial `INSERT`).
     ///
     /// # Errors
     ///
-    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
     pub async fn set_agent_name(
         &self,
         task_id: &str,
@@ -605,15 +606,15 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Persiste l'output texte d'une tâche avec troncature éventuelle.
+    /// Persists a task's output text, truncating if necessary.
     ///
-    /// Utilise [`truncate_with_marker`] pour couper l'output si sa taille
-    /// dépasse `config.max_output_bytes`. La colonne `output_truncated` est
-    /// mise à 1 si le texte a été tronqué, 0 sinon.
+    /// Uses [`truncate_with_marker`] to cut the output if its size exceeds
+    /// `config.max_output_bytes`. The `output_truncated` column is set to 1 if
+    /// the text was truncated, 0 otherwise.
     ///
     /// # Errors
     ///
-    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    /// - [`TaskRepoError::Sqlite`] on a SQLite error
     pub async fn save_output(
         &self,
         task_id: &str,
@@ -642,16 +643,16 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Ajoute une transition d'état au JSON array `transitions_json`.
+    /// Appends a state transition to the `transitions_json` JSON array.
     ///
-    /// Lit le JSON existant (ou `[]` si absent), pousse
-    /// `{"status": "<status>", "ts": "<timestamp>"}`, et réécrit.
-    /// Les transitions sont ordonnées chronologiquement par ordre d'insertion.
+    /// Reads the existing JSON (or `[]` if absent), pushes
+    /// `{"status": "<status>", "ts": "<timestamp>"}`, and rewrites it.
+    /// Transitions are ordered chronologically by insertion order.
     ///
     /// # Errors
     ///
-    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
-    /// - [`TaskRepoError::Json`] si le JSON existant est invalide
+    /// - [`TaskRepoError::Sqlite`] on a SQLite error
+    /// - [`TaskRepoError::Json`] if the existing JSON is invalid
     pub async fn append_transition(
         &self,
         task_id: &str,
@@ -700,13 +701,13 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
-    /// Enregistre la durée d'exécution en millisecondes.
+    /// Records the execution duration in milliseconds.
     ///
-    /// Appelé par le coordinateur à la completion de la tâche.
+    /// Called by the coordinator when the task completes.
     ///
     /// # Errors
     ///
-    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
     pub async fn set_duration(&self, task_id: &str, duration_ms: i64) -> Result<(), TaskRepoError> {
         let path = self.db_path.clone();
         let task_id = task_id.to_string();
@@ -728,15 +729,15 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Annule une tâche en mettant son statut à `cancelled` dans la DB.
+    /// Cancels a task by setting its status to `cancelled` in the database.
     ///
-    /// Persiste `reason` dans la colonne `input_response_reason` pour la traçabilité.
-    /// Appelé par le `TimeoutWatcher` lors de l'expiration d'une
-    /// suspension `input_required`.
+    /// Persists `reason` in the `input_response_reason` column for traceability.
+    /// Called by the `TimeoutWatcher` when an `input_required` suspension
+    /// expires.
     ///
     /// # Errors
     ///
-    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
     pub async fn cancel_task(&self, task_id: &str, reason: &str) -> Result<(), TaskRepoError> {
         let path = self.db_path.clone();
         let task_id = task_id.to_string();
@@ -760,15 +761,15 @@ impl TaskRepository {
         Ok(())
     }
 
-    /// Retourne les `task_id` en status `input_required` depuis plus longtemps que `older_than`.
+    /// Returns the `task_id`s in `input_required` status for longer than `older_than`.
     ///
-    /// Utilise `strftime('%s', 'now') - strftime('%s', input_required_at)` pour calculer
-    /// les secondes écoulées et les comparer au seuil `older_than.as_secs()`.
-    /// Utilisé par le `TimeoutWatcher` pour annuler les tâches expirées.
+    /// Uses `strftime('%s', 'now') - strftime('%s', input_required_at)` to
+    /// compute the elapsed seconds and compare them to the `older_than.as_secs()`
+    /// threshold. Used by the `TimeoutWatcher` to cancel expired tasks.
     ///
     /// # Errors
     ///
-    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
     pub async fn find_input_required_older_than(
         &self,
         older_than: Duration,
@@ -795,11 +796,11 @@ impl TaskRepository {
         .await
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
-    /// Retourne les informations d'approbation pour une tâche en status `input_required`.
+    /// Returns the approval info for a task in `input_required` status.
     ///
-    /// Lit le prompt, le contexte JSON et le `suspended_at` depuis les tables `tasks` et
-    /// `task_approvals`. Retourne `None` si la tâche n'existe pas ou n'est pas en
-    /// `input_required`.
+    /// Reads the prompt, JSON context, and `suspended_at` from the `tasks` and
+    /// `task_approvals` tables. Returns `None` if the task does not exist or is
+    /// not in `input_required`.
     pub async fn get_approval_info(
         &self,
         task_id: &str,
@@ -849,15 +850,15 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
-    /// Liste les approbations résolues (approuvées ou rejetées) des `days` derniers jours.
+    /// Lists resolved approvals (approved or rejected) from the last `days` days.
     ///
-    /// Retourne au plus `limit` lignes triées par `responded_at` décroissant.
-    /// Lit la table `task_approvals` joinée à `tasks` pour récupérer le `agent_name`.
+    /// Returns at most `limit` rows sorted by `responded_at` descending. Reads
+    /// the `task_approvals` table joined to `tasks` to fetch the `agent_name`.
     ///
     /// # Errors
     ///
-    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
-    /// - [`TaskRepoError::Internal`] si le `spawn_blocking` échoue
+    /// - [`TaskRepoError::Sqlite`] on a SQLite error
+    /// - [`TaskRepoError::Internal`] if the `spawn_blocking` fails
     pub async fn list_resolved_approvals(
         &self,
         limit: u32,
@@ -907,16 +908,16 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
-    /// Retourne les tâches récentes persistées dans SQLite.
+    /// Returns the recent tasks persisted in SQLite.
     ///
-    /// Ordonnées par `created_at DESC`, limitées à `limit` entrées.
-    /// Le statut est déduit de `transitions_json` (dernière transition).
-    /// Utilisé pour afficher l'historique des tâches après un redémarrage
-    /// du runtime (quand le `TaskRouter` en mémoire est vide).
+    /// Sorted by `created_at DESC`, limited to `limit` entries. The status is
+    /// derived from `transitions_json` (last transition). Used to display task
+    /// history after a runtime restart (when the in-memory `TaskRouter` is
+    /// empty).
     ///
     /// # Errors
     ///
-    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
     pub async fn list_recent_tasks(
         &self,
         limit: usize,
@@ -975,14 +976,14 @@ impl TaskRepository {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers internes
+// Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Déduit le statut final d'une tâche depuis `transitions_json`.
+/// Derives a task's final status from `transitions_json`.
 ///
-/// Lit la dernière entrée `{"status": "<status>", "ts": "<timestamp>"}` et
-/// retourne le statut. Retourne `"completed"` si la durée est renseignée et
-/// qu'aucune transition n'est disponible (cas des anciennes tâches).
+/// Reads the last `{"status": "<status>", "ts": "<timestamp>"}` entry and
+/// returns the status. Returns `"completed"` when the duration is set but no
+/// transition is available (the case for older tasks).
 fn derive_status(transitions_json: &Option<String>, duration_ms: Option<i64>) -> String {
     if let Some(status) = last_transition_status(transitions_json) {
         return status;
@@ -995,8 +996,8 @@ fn derive_status(transitions_json: &Option<String>, duration_ms: Option<i64>) ->
     }
 }
 
-/// Extrait le statut de la dernière transition de `transitions_json`, ou `None`
-/// si le JSON est absent, vide, invalide, ou sans champ `status` exploitable.
+/// Extracts the status of the last transition in `transitions_json`, or `None`
+/// if the JSON is absent, empty, invalid, or has no usable `status` field.
 fn last_transition_status(transitions_json: &Option<String>) -> Option<String> {
     let json = transitions_json.as_ref()?;
     if json.is_empty() {
@@ -1008,57 +1009,57 @@ fn last_transition_status(transitions_json: &Option<String>) -> Option<String> {
     Some(status.to_string())
 }
 
-/// Résumé d'une tâche persistée, lue depuis SQLite.
+/// Summary of a persisted task, read from SQLite.
 ///
-/// Utilisé par `list_recent_tasks` pour fournir l'historique des tâches
-/// après un redémarrage du runtime (les tâches terminées ne sont plus en mémoire).
+/// Used by `list_recent_tasks` to provide task history after a runtime restart
+/// (finished tasks are no longer in memory).
 #[derive(Debug, Clone)]
 pub struct PersistedTaskSummary {
-    /// Identifiant unique de la tâche.
+    /// Unique task identifier.
     pub task_id: String,
-    /// Nom de l'agent.
+    /// Agent name.
     pub agent_name: String,
-    /// Statut déduit de `transitions_json` (dernière transition).
+    /// Status derived from `transitions_json` (last transition).
     pub status: String,
-    /// Aperçu du texte d'entrée (tronqué à 120 chars).
+    /// Preview of the input text (truncated to 120 chars).
     pub input_preview: String,
-    /// Texte de sortie.
+    /// Output text.
     pub output_text: Option<String>,
-    /// Durée d'exécution en millisecondes.
+    /// Execution duration in milliseconds.
     pub duration_ms: Option<i64>,
-    /// Date de création ISO 8601.
+    /// ISO 8601 creation date.
     pub created_at: String,
 }
 
-/// Informations d'une approbation en attente, lues depuis SQLite.
+/// Information about a pending approval, read from SQLite.
 #[derive(Debug, Clone)]
 pub struct ApprovalInfo {
-    /// Nom de l'agent (depuis le manifest).
+    /// Agent name (from the manifest).
     pub agent_name: String,
-    /// Prompt affiché à l'utilisateur.
+    /// Prompt displayed to the user.
     pub prompt: String,
-    /// Contexte JSON sérialisé par l'agent.
+    /// JSON context serialized by the agent.
     pub context: serde_json::Value,
-    /// Timestamp ISO 8601 de la suspension.
+    /// ISO 8601 suspension timestamp.
     pub suspended_at: String,
 }
 
-/// Ligne d'une approbation résolue, lue depuis `task_approvals`.
+/// Row of a resolved approval, read from `task_approvals`.
 #[derive(Debug, Clone)]
 pub struct ResolvedApprovalRow {
-    /// Identifiant de la tâche.
+    /// Task identifier.
     pub task_id: String,
-    /// Nom de l'agent.
+    /// Agent name.
     pub agent_name: String,
-    /// `true` si approuvée, `false` si rejetée.
+    /// `true` if approved, `false` if rejected.
     pub approved: bool,
-    /// Raison du rejet (si applicable).
+    /// Rejection reason (if applicable).
     pub reason: Option<String>,
-    /// Timestamp ISO 8601 de la suspension.
+    /// ISO 8601 suspension timestamp.
     pub suspended_at: Option<String>,
-    /// Timestamp ISO 8601 de la réponse.
+    /// ISO 8601 response timestamp.
     pub responded_at: Option<String>,
-    /// Durée d'attente en millisecondes.
+    /// Wait duration in milliseconds.
     pub wait_duration_ms: Option<i64>,
 }
 
@@ -1070,24 +1071,24 @@ pub struct ResolvedApprovalRow {
 mod tests {
     use super::*;
 
-    /// Ouvre un `TaskRepository` sur un fichier temporaire unique.
+    /// Opens a `TaskRepository` on a unique temporary file.
     async fn open_test_repo() -> (TaskRepository, PathBuf) {
         let path = std::env::temp_dir().join(format!("apollia_hitl_{}.db", uuid::Uuid::new_v4()));
         let repo = TaskRepository::open(&path).await.expect("open failed");
         (repo, path)
     }
 
-    // ─── Tests observabilité tasks ────────────────────────────────────
+    // ─── Task observability tests ─────────────────────────────────────
 
-    // Input persisté à la soumission (non tronqué)
+    // Input persisted at submission (not truncated)
 
     #[tokio::test]
     async fn test_story126_ac1_input_persisted() {
-        // GIVEN un TaskRepository en mémoire + un task_id créé via save_input
+        // GIVEN a TaskRepository plus a task_id created via save_input
         let (repo, db_path) = open_test_repo().await;
         let config = ObservabilityConfig::default();
 
-        // WHEN save_input avec un texte court
+        // WHEN save_input with a short text
         repo.save_input("t-126-1", "hello world", &config)
             .await
             .expect("save_input failed");
@@ -1109,11 +1110,11 @@ mod tests {
         assert_eq!(truncated, 0);
     }
 
-    // Input tronqué si supérieur à la limite
+    // Input truncated when larger than the limit
 
     #[tokio::test]
     async fn test_story126_ac2_input_truncated_at_limit() {
-        // GIVEN config avec max_input_bytes = 100
+        // GIVEN config with max_input_bytes = 100
         let (repo, db_path) = open_test_repo().await;
         let config = ObservabilityConfig {
             max_input_bytes: 100,
@@ -1121,12 +1122,12 @@ mod tests {
         };
         let big_text = "x".repeat(500);
 
-        // WHEN save_input avec un texte de 500 octets
+        // WHEN save_input with a 500-byte text
         repo.save_input("t-126-2", &big_text, &config)
             .await
             .expect("save_input failed");
 
-        // THEN input_truncated == 1, input_text contient le marqueur
+        // THEN input_truncated == 1, input_text contains the marker
         let (text, truncated): (String, i32) = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).expect("open db");
             conn.query_row(
@@ -1144,18 +1145,18 @@ mod tests {
         assert!(text.contains("500"), "marker should mention 500 bytes");
     }
 
-    // Output persisté à la completion
+    // Output persisted at completion
 
     #[tokio::test]
     async fn test_story126_ac3_output_persisted() {
-        // GIVEN une tâche existante
+        // GIVEN an existing task
         let (repo, db_path) = open_test_repo().await;
         let config = ObservabilityConfig::default();
         repo.save_input("t-126-3", "input", &config)
             .await
             .expect("save_input failed");
 
-        // WHEN save_output avec un texte court
+        // WHEN save_output with a short text
         repo.save_output("t-126-3", "result output", &config)
             .await
             .expect("save_output failed");
@@ -1177,11 +1178,11 @@ mod tests {
         assert_eq!(truncated, 0);
     }
 
-    // Output tronqué si supérieur à la limite
+    // Output truncated when larger than the limit
 
     #[tokio::test]
     async fn test_story126_ac3_output_truncated_at_limit() {
-        // GIVEN config avec max_output_bytes = 100
+        // GIVEN config with max_output_bytes = 100
         let (repo, db_path) = open_test_repo().await;
         let config = ObservabilityConfig {
             max_output_bytes: 100,
@@ -1192,7 +1193,7 @@ mod tests {
             .expect("save_input failed");
         let big_output = "y".repeat(500);
 
-        // WHEN save_output avec un texte de 500 octets
+        // WHEN save_output with a 500-byte text
         repo.save_output("t-126-3b", &big_output, &config)
             .await
             .expect("save_output failed");
@@ -1213,18 +1214,18 @@ mod tests {
         assert_eq!(truncated, 1);
     }
 
-    // Transitions ordonnées chronologiquement
+    // Transitions ordered chronologically
 
     #[tokio::test]
     async fn test_story126_ac4_transitions_ordered() {
-        // GIVEN une tâche existante
+        // GIVEN an existing task
         let (repo, db_path) = open_test_repo().await;
         let config = ObservabilityConfig::default();
         repo.save_input("t-126-4", "input", &config)
             .await
             .expect("save_input failed");
 
-        // WHEN 3 transitions ajoutées dans l'ordre
+        // WHEN 3 transitions are appended in order
         repo.append_transition("t-126-4", "submitted", "2026-03-13T10:00:00Z")
             .await
             .expect("append 1 failed");
@@ -1235,7 +1236,7 @@ mod tests {
             .await
             .expect("append 3 failed");
 
-        // THEN transitions_json contient 3 éléments dans l'ordre
+        // THEN transitions_json contains 3 elements in order
         let json_str: String = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).expect("open db");
             conn.query_row(
@@ -1258,11 +1259,11 @@ mod tests {
         assert_eq!(transitions[2]["ts"], "2026-03-13T10:00:02Z");
     }
 
-    // Durée mesurée
+    // Duration measured
 
     #[tokio::test]
     async fn test_story126_ac5_duration_recorded() {
-        // GIVEN une tâche existante
+        // GIVEN an existing task
         let (repo, db_path) = open_test_repo().await;
         let config = ObservabilityConfig::default();
         repo.save_input("t-126-5", "input", &config)
@@ -1290,14 +1291,14 @@ mod tests {
         assert_eq!(duration, 250);
     }
 
-    // Colonnes observabilité présentes après migration
+    // Observability columns present after migration
 
     #[tokio::test]
     async fn test_story126_migration_columns_present() {
-        // GIVEN une DB fraîche
+        // GIVEN a fresh database
         let (_, db_path) = open_test_repo().await;
 
-        // WHEN on inspecte les colonnes
+        // WHEN inspecting the columns
         let cols: Vec<String> = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).expect("open");
             let mut stmt = conn
@@ -1311,7 +1312,7 @@ mod tests {
         .await
         .expect("join");
 
-        // THEN les 6 colonnes observabilité sont présentes
+        // THEN the 6 observability columns are present
         for expected in &[
             "input_text",
             "input_truncated",
@@ -1327,16 +1328,16 @@ mod tests {
         }
     }
 
-    // ─── Tests HITL existants ────────────────────────────────────────
+    // ─── Existing HITL tests ─────────────────────────────────────────
 
-    // Migration appliquée au démarrage : colonnes HITL présentes dans tasks
+    // Migration applied at startup: HITL columns present in tasks
 
     #[tokio::test]
     async fn test_ac1_migration_005_colonnes_existantes() {
-        // GIVEN une DB temporaire fraîche
+        // GIVEN a fresh temporary database
         let (_, db_path) = open_test_repo().await;
 
-        // WHEN on inspecte les colonnes via PRAGMA table_info
+        // WHEN inspecting the columns via PRAGMA table_info
         let cols: Vec<String> = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).unwrap();
             let mut stmt = conn
@@ -1350,7 +1351,7 @@ mod tests {
         .await
         .unwrap();
 
-        // THEN les colonnes HITL sont toutes présentes
+        // THEN all the HITL columns are present
         for expected in &[
             "input_required_prompt",
             "input_required_context",
@@ -1365,7 +1366,7 @@ mod tests {
             );
         }
 
-        // ET la table task_approvals est créée
+        // AND the task_approvals table is created
         let tables: Vec<String> = tokio::task::spawn_blocking(|| {
             let conn = rusqlite::Connection::open_in_memory().unwrap();
             conn.execute_batch(MIGRATION_SQL).unwrap();
@@ -1389,11 +1390,11 @@ mod tests {
         );
     }
 
-    // save_input_response() persiste la réponse ET insère dans task_approvals
+    // save_input_response() persists the response and inserts into task_approvals
 
     #[tokio::test]
     async fn test_ac2_save_input_response_persiste() {
-        // GIVEN une tâche créée en status input_required
+        // GIVEN a task created in input_required status
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-hitl-002";
         let context = serde_json::json!({"montant": 12_500});
@@ -1402,7 +1403,7 @@ mod tests {
             .await
             .expect("save_input_required failed");
 
-        // WHEN save_input_response() est appelé avec approved=true
+        // WHEN save_input_response() is called with approved=true
         let response = InputResponseData {
             approved: true,
             reason: None,
@@ -1413,7 +1414,7 @@ mod tests {
             .await
             .expect("save_input_response failed");
 
-        // THEN la ligne tasks est mise à jour avec les valeurs correctes
+        // THEN the tasks row is updated with the correct values
         let db_path_a = db_path.clone();
         let (approved, at, status): (i32, String, String) =
             tokio::task::spawn_blocking(move || {
@@ -1439,7 +1440,7 @@ mod tests {
         assert_eq!(at, "2026-03-09T10:00:00Z");
         assert_eq!(status, "working");
 
-        // ET task_approvals contient exactement une ligne pour ce task_id
+        // AND task_approvals contains exactly one row for this task_id
         let count: i64 = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).unwrap();
             conn.query_row(
@@ -1458,11 +1459,11 @@ mod tests {
         );
     }
 
-    // rebuild_for_resume() reconstitue l'AIPTask avec is_resumed=true
+    // rebuild_for_resume() rebuilds the AIPTask with is_resumed=true
 
     #[tokio::test]
     async fn test_ac3_rebuild_for_resume_is_resumed_true() {
-        // GIVEN une tâche avec response persistée (approved=true)
+        // GIVEN a task with a persisted response (approved=true)
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-resume-003";
         let context = serde_json::json!({"devis": 42});
@@ -1479,7 +1480,7 @@ mod tests {
         };
         repo.save_input_response(task_id, &response).await.unwrap();
 
-        // WHEN rebuild_for_resume() est appelé
+        // WHEN rebuild_for_resume() is called
         let task = repo.rebuild_for_resume(task_id).await.unwrap();
 
         // THEN is_resumed=true, input_response.approved=true, context == original
@@ -1500,11 +1501,11 @@ mod tests {
         );
     }
 
-    // find_input_required_older_than() retourne les tâches expirées
+    // find_input_required_older_than() returns the expired tasks
 
     #[tokio::test]
     async fn test_ac4_find_expired_input_required() {
-        // GIVEN une tâche input_required depuis 25h (manipulée directement en DB)
+        // GIVEN a task input_required for 25h (set directly in the database)
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-expired-004";
 
@@ -1512,7 +1513,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Manipulation directe : on recule input_required_at de 25h
+        // Direct manipulation: push input_required_at back by 25h
         tokio::task::spawn_blocking({
             let path = db_path.clone();
             move || {
@@ -1535,18 +1536,18 @@ mod tests {
             .await
             .unwrap();
 
-        // THEN le task_id est présent dans la liste des expirées
+        // THEN the task_id is present in the expired list
         assert!(
             expired.contains(&task_id.to_string()),
             "task_id doit être dans la liste des expirées ; got={expired:?}"
         );
     }
 
-    // Tâche récente absente de la liste des expirées
+    // Recent task absent from the expired list
 
     #[tokio::test]
     async fn test_ac5_find_recent_not_expired() {
-        // GIVEN une tâche input_required créée maintenant (~0s)
+        // GIVEN a task input_required created just now (~0s)
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-recent-005";
 
@@ -1560,32 +1561,32 @@ mod tests {
             .await
             .unwrap();
 
-        // THEN le task_id n'est PAS dans la liste
+        // THEN the task_id is NOT in the list
         assert!(
             !expired.contains(&task_id.to_string()),
             "tâche récente ne doit PAS être dans les expirées ; got={expired:?}"
         );
     }
 
-    // ─── Tests HITL timing ───────────────────────────────────────────
+    // ─── HITL timing tests ───────────────────────────────────────────
 
-    // suspended_at enregistré à la suspension
+    // suspended_at recorded at suspension
 
     #[tokio::test]
     async fn test_story131_ac1_suspended_at_recorded() {
-        // GIVEN un TaskRepository avec une approbation en attente
+        // GIVEN a TaskRepository with a pending approval
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-131-1";
         repo.save_input_required(task_id, None, "Confirmer ?", &serde_json::json!({}))
             .await
             .expect("save_input_required failed");
 
-        // WHEN save_suspended_at est appelé
+        // WHEN save_suspended_at is called
         repo.save_suspended_at(task_id, None, "2026-03-13T14:30:00.000Z")
             .await
             .expect("save_suspended_at failed");
 
-        // THEN suspended_at est renseigné dans task_approvals
+        // THEN suspended_at is set in task_approvals
         let suspended: String = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).expect("open db");
             conn.query_row(
@@ -1601,11 +1602,11 @@ mod tests {
         assert_eq!(suspended, "2026-03-13T14:30:00.000Z");
     }
 
-    // responded_at enregistré à la réponse (via save_input_response)
+    // responded_at recorded on response (via save_input_response)
 
     #[tokio::test]
     async fn test_story131_ac2_responded_at_recorded() {
-        // GIVEN une approbation avec suspended_at renseigné
+        // GIVEN an approval with suspended_at set
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-131-2";
         repo.save_input_required(task_id, None, "Budget OK ?", &serde_json::json!({}))
@@ -1615,7 +1616,7 @@ mod tests {
             .await
             .expect("save_suspended_at failed");
 
-        // WHEN save_input_response est appelé
+        // WHEN save_input_response is called
         let response = InputResponseData {
             approved: true,
             reason: None,
@@ -1626,7 +1627,7 @@ mod tests {
             .await
             .expect("save_input_response failed");
 
-        // THEN responded_at est bien renseigné dans task_approvals
+        // THEN responded_at is set in task_approvals
         let responded: String = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).expect("open db");
             conn.query_row(
@@ -1642,7 +1643,7 @@ mod tests {
         assert_eq!(responded, "2026-03-13T14:35:00.000Z");
     }
 
-    // wait_duration_ms calculé automatiquement (5 min = 300000ms)
+    // wait_duration_ms computed automatically (5 min = 300000ms)
 
     #[tokio::test]
     async fn test_story131_ac3_wait_duration_calculated() {
@@ -1656,7 +1657,7 @@ mod tests {
             .await
             .expect("save_suspended_at failed");
 
-        // WHEN save_input_response est appelé 5 min plus tard
+        // WHEN save_input_response is called 5 min later
         let response = InputResponseData {
             approved: true,
             reason: None,
@@ -1667,7 +1668,7 @@ mod tests {
             .await
             .expect("save_input_response failed");
 
-        // THEN wait_duration_ms ≈ 300000 (5 min en ms, tolérance ±1000 pour arrondi julianday)
+        // THEN wait_duration_ms is about 300000 (5 min in ms, +/-1000 tolerance for julianday rounding)
         let wait_ms: i64 = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).expect("open db");
             conn.query_row(
@@ -1686,14 +1687,14 @@ mod tests {
         );
     }
 
-    // Index pending créé
+    // Pending index created
 
     #[tokio::test]
     async fn test_story131_ac4_pending_index_exists() {
-        // GIVEN une DB fraîche
+        // GIVEN a fresh database
         let (_, db_path) = open_test_repo().await;
 
-        // WHEN on vérifie les index
+        // WHEN checking the indexes
         let has_index: bool = tokio::task::spawn_blocking(move || {
             let conn = rusqlite::Connection::open(&db_path).expect("open");
             let count: i64 = conn
@@ -1709,15 +1710,15 @@ mod tests {
         .await
         .expect("join failed");
 
-        // THEN l'index existe
+        // THEN the index exists
         assert!(has_index, "idx_task_approvals_pending doit exister");
     }
 
-    // ─── Test list_resolved_approvals ─────────────────────────────────
+    // ─── list_resolved_approvals tests ────────────────────────────────
 
     #[tokio::test]
     async fn test_story141_list_resolved_approvals() {
-        // GIVEN un repo avec une approbation résolue
+        // GIVEN a repo with a resolved approval
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-141-resolved";
         let context = serde_json::json!({"montant": 5000});
@@ -1755,7 +1756,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_story141_list_resolved_excludes_pending() {
-        // GIVEN un repo avec une approbation encore en attente (pas de response)
+        // GIVEN a repo with an approval still pending (no response)
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-141-pending";
 

@@ -64,22 +64,22 @@ pub async fn generate_a2a_tool_specs(a2a_invoker: &A2AInvoker) -> Vec<ToolSpec> 
         .collect()
 }
 
-/// Convertit le format Apollia (`{"<field>": {"type": "...", "description":
-/// "...", "required": bool}}`) en JSON Schema canonique `{"type": "object",
-/// "properties": {...}, "required": [...]}` que les LLM (Claude, OpenAI,
-/// Ollama, ...) savent interpréter pour générer des tool calls valides.
+/// Converts the Apollia format (`{"<field>": {"type": "...", "description":
+/// "...", "required": bool}}`) into canonical JSON Schema `{"type": "object",
+/// "properties": {...}, "required": [...]}` that LLMs (Claude, OpenAI, Ollama,
+/// etc.) can interpret to generate valid tool calls.
 ///
-/// Champs reconnus côté Apollia :
-/// - `type` (string) → recopié tel quel
-/// - `description` (string) → recopié tel quel
-/// - `required` (bool) → consommé pour construire `required: [...]`, retiré
-///   du schéma de la propriété (JSON Schema ne supporte pas `required` au
-///   niveau d'une propriété individuelle)
-/// - tout autre champ (ex: `enum`, `items`, `properties`, `default`) → recopié
-///   tel quel sans transformation
+/// Fields recognized on the Apollia side:
+/// - `type` (string): copied as-is
+/// - `description` (string): copied as-is
+/// - `required` (bool): consumed to build `required: [...]`, then removed from
+///   the property schema (JSON Schema does not support `required` at the level
+///   of an individual property)
+/// - any other field (e.g. `enum`, `items`, `properties`, `default`): copied
+///   as-is without transformation
 ///
-/// Si le schéma fourni n'est pas un objet (rare, par exemple worker mal
-/// formé), retombe sur un schéma ouvert pour ne pas casser l'invocation.
+/// If the provided schema is not an object (rare, e.g. a malformed worker),
+/// falls back to an open schema to avoid breaking the invocation.
 fn apollia_input_schema_to_json_schema(schema: &serde_json::Value) -> serde_json::Value {
     let serde_json::Value::Object(fields) = schema else {
         return default_open_schema();
@@ -90,23 +90,22 @@ fn apollia_input_schema_to_json_schema(schema: &serde_json::Value) -> serde_json
 
     for (field_name, field_def) in fields {
         let serde_json::Value::Object(field_obj) = field_def else {
-            // Définition non-objet (rare, ex: `field: "string"`) : passe la
-            // valeur en `description` brute pour rester safe vis-à-vis de
-            // l'autoparser.
+            // Non-object definition (rare, e.g. `field: "string"`): pass the
+            // value through as a raw `description` to stay safe with the
+            // autoparser.
             let desc = field_def.as_str().unwrap_or("").to_string();
             properties.insert(field_name.clone(), serde_json::json!({"description": desc}));
             continue;
         };
 
-        // On ne retient QUE `description` côté propriété et on consomme
-        // `required` pour le tableau top-level. Les autres champs (`type`,
-        // `enum`, `items`, `properties` imbriqués…) sont volontairement
-        // omis : l'autoparser PEG de llama.cpp essaie de générer une
-        // grammaire complète à partir de chaque propriété et lève une
-        // `std::exception` (rc = -3) sur les types complexes incomplets
-        // (`array` sans `items`, `object` sans `properties` profondes,
-        // unions, etc.). Le LLM se débrouille très bien avec juste
-        // `field_name + description` et l'inférence reste pertinente.
+        // Keep ONLY `description` on the property and consume `required` for
+        // the top-level array. Other fields (`type`, `enum`, `items`, nested
+        // `properties`...) are deliberately omitted: llama.cpp's PEG
+        // autoparser tries to generate a complete grammar from each property
+        // and raises a `std::exception` (rc = -3) on incomplete complex types
+        // (`array` without `items`, `object` without deep `properties`,
+        // unions, etc.). The LLM copes well with just `field_name +
+        // description` and inference stays relevant.
         let description = field_obj
             .get("description")
             .and_then(|v| v.as_str())
@@ -131,7 +130,7 @@ fn apollia_input_schema_to_json_schema(schema: &serde_json::Value) -> serde_json
         );
     }
 
-    // On omet volontairement `additionalProperties` et `required: []` vide.
+    // Deliberately omit `additionalProperties` and an empty `required: []`.
     let mut schema = serde_json::Map::new();
     schema.insert("type".into(), serde_json::Value::String("object".into()));
     schema.insert("properties".into(), serde_json::Value::Object(properties));
@@ -141,7 +140,7 @@ fn apollia_input_schema_to_json_schema(schema: &serde_json::Value) -> serde_json
     serde_json::Value::Object(schema)
 }
 
-/// Schéma ouvert utilisé quand un worker n'expose pas d'`input_schema`.
+/// Open schema used when a worker does not expose an `input_schema`.
 fn default_open_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
@@ -199,11 +198,11 @@ impl ToolInvoker for CompositeToolInvoker {
                 }
             }
 
-            // Pass-through complet du dict `arguments` comme payload A2A -
-            // ce dict est le JSON construit par le LLM à partir du schéma
-            // qu'on lui expose dans `generate_a2a_tool_specs` (lui-même
-            // dérivé de l'`input_schema` du worker). Le runtime A2A l'emballe
-            // dans un `DataPart` côté `delegate_inner`, et le worker le lit
+            // Full pass-through of the `arguments` dict as the A2A payload:
+            // this dict is the JSON built by the LLM from the schema we expose
+            // to it in `generate_a2a_tool_specs` (itself derived from the
+            // worker's `input_schema`). The A2A runtime wraps it in a
+            // `DataPart` on the `delegate_inner` side, and the worker reads it
             // via `extract_a2a_payload(task)`.
             let input = arguments.clone();
 

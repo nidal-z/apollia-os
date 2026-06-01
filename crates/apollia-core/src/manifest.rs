@@ -30,95 +30,95 @@ pub struct MemoryConfig {
     pub auto_purge: bool,
 }
 
-/// Identité et capacités déclarées d'un agent.
+/// Declared identity and capabilities of an agent.
 ///
-/// Source unique de vérité pour la résolution des outils et la configuration
-/// du runtime au démarrage de l'agent (état INITIALIZING).
-/// Retournée par la méthode `manifest()` de chaque agent Python.
+/// Single source of truth for tool resolution and runtime configuration at
+/// agent startup (INITIALIZING state).
+/// Returned by the `manifest()` method of each Python agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentManifest {
-    /// Nom unique de l'agent dans le runtime.
+    /// Unique name of the agent within the runtime.
     pub name: String,
-    /// Version semver (ex: "1.0.0").
+    /// Semver version (e.g. "1.0.0").
     pub version: String,
-    /// Description humaine de l'agent.
+    /// Human-readable description of the agent.
     pub description: String,
-    /// Outils requis - résolution fail-fast à l'état INITIALIZING.
+    /// Required tools, resolved fail-fast at the INITIALIZING state.
     pub tools_required: Vec<String>,
-    /// Outils optionnels - absent → état DEGRADED, pas d'erreur fatale.
+    /// Optional tools: when absent, the agent enters DEGRADED state rather than failing.
     #[serde(default)]
     pub tools_optional: Vec<String>,
-    /// Indique si l'agent supporte le mode streaming (défaut: false).
+    /// Whether the agent supports streaming mode (default: false).
     #[serde(default)]
     pub supports_streaming: bool,
-    /// Indique si l'agent supporte le protocole Agent-to-Agent (défaut: false).
+    /// Whether the agent supports the Agent-to-Agent protocol (default: false).
     #[serde(default)]
     pub supports_a2a: bool,
-    /// Namespace mémoire primaire de l'agent.
+    /// Primary memory namespace of the agent.
     ///
-    /// Valeur déclarée statiquement dans le manifest Python. Le runtime préfixe
-    /// automatiquement avec le `project_id` si l'agent tourne dans un contexte
-    /// projet : namespace effectif = `"{project_id}:{memory_namespace}"`.
+    /// Declared statically in the Python manifest. When the agent runs in a
+    /// project context, the runtime prefixes it automatically with the
+    /// `project_id`: effective namespace = `"{project_id}:{memory_namespace}"`.
     ///
-    /// Si `None`, l'agent n'a pas accès à la mémoire persistante.
+    /// If `None`, the agent has no access to persistent memory.
     #[serde(default)]
     pub memory_namespace: Option<String>,
-    /// Namespaces mémoire partagés accessibles en lecture.
+    /// Shared memory namespaces accessible for reading.
     #[serde(default)]
     pub shared_memory_namespaces: Vec<String>,
-    /// Nombre maximum de tâches concurrentes (défaut: 1).
+    /// Maximum number of concurrent tasks (default: 1).
     #[serde(default = "default_max_concurrent_tasks")]
     pub max_concurrent_tasks: u32,
-    /// Override du budget d'étapes par défaut du runtime (None = utiliser le défaut).
+    /// Override of the runtime default step budget (None = use the default).
     #[serde(default)]
     pub step_budget: Option<StepBudgetConfig>,
-    /// Liste blanche réseau (None = pas d'accès réseau autorisé).
+    /// Network allowlist (None = no network access permitted).
     #[serde(default)]
     pub network_allowlist: Option<Vec<String>>,
-    /// Autorise explicitement l'utilisation d'outils marqués `dangerous=true`.
-    /// `false` par défaut - les outils dangereux sont bloqués sauf opt-in explicite.
+    /// Explicitly allows the use of tools marked `dangerous=true`.
+    /// `false` by default: dangerous tools are blocked unless explicitly opted in.
     #[serde(default)]
     pub dangerous_tools_allowed: bool,
-    /// Tags libres pour le routage et la découverte.
+    /// Free-form tags for routing and discovery.
     #[serde(default)]
     pub tags: Vec<String>,
-    /// Compétences déclaratives de l'agent (utilisées pour la carte A2A).
+    /// Declarative skills of the agent (used to build the A2A card).
     #[serde(default)]
     pub skills: Vec<AgentSkill>,
-    /// Mode d'exécution ORIA : `"auto"` | `"direct"` | `"orchestrated"`.
+    /// ORIA execution mode: `"auto"` | `"direct"` | `"orchestrated"`.
     ///
-    /// - `"auto"` (défaut) : l'heuristique `classify()` décide.
-    /// - `"direct"` : force le Mode Direct quel que soit le manifest.
-    /// - `"orchestrated"` : force le Mode Orchestré quel que soit le manifest.
+    /// - `"auto"` (default): the `classify()` heuristic decides.
+    /// - `"direct"`: forces Direct mode regardless of the manifest.
+    /// - `"orchestrated"`: forces Orchestrated mode regardless of the manifest.
     ///
-    /// Toute valeur inconnue est traitée comme `"auto"` sans erreur.
+    /// Any unknown value is treated as `"auto"` without error.
     #[serde(default = "default_execution_mode")]
     pub execution_mode: String,
-    /// Prompt système fourni à ORIA pour planifier l'exécution orchestrée.
+    /// System prompt given to ORIA to plan orchestrated execution.
     ///
-    /// Requis si `execution_mode = "orchestrated"`.
-    /// Ignoré pour les autres modes.
+    /// Required when `execution_mode = "orchestrated"`.
+    /// Ignored for other modes.
     #[serde(default)]
     pub system_prompt: Option<String>,
-    /// Outils nécessitant une approbation humaine avant exécution en Mode Orchestré.
+    /// Tools requiring human approval before execution in Orchestrated mode.
     ///
-    /// Déclarés par l'agent dans son `manifest()`. Le runtime refuse d'exécuter un step
-    /// utilisant ces outils sans approbation explicite.
-    /// Vide par défaut - aucun outil ne nécessite d'approbation.
+    /// Declared by the agent in its `manifest()`. The runtime refuses to run a step
+    /// using these tools without explicit approval.
+    /// Empty by default: no tool requires approval.
     #[serde(default)]
     pub tools_requiring_approval: Vec<String>,
-    /// Nom du backend LLM à utiliser pour cet agent.
+    /// Name of the LLM backend to use for this agent.
     ///
-    /// Doit correspondre au champ `name` d'une entrée dans `llm_backends` (SQLite system.db).
-    /// Si absent ou `None`, le runtime utilise le backend marqué `is_default = true`.
+    /// Must match the `name` field of an entry in `llm_backends` (SQLite system.db).
+    /// If absent or `None`, the runtime uses the backend marked `is_default = true`.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub llm_backend: Option<String>,
-    /// Paquets pip à installer dans le venv Python de cet agent.
+    /// pip packages to install in this agent's Python venv.
     ///
-    /// Syntaxe pip standard : `"openpyxl>=3.1.0"`, `"pandas==2.1.4"`, `"requests"`.
-    /// Installés une seule fois au `INITIALIZING` via `PythonExecutor::setup_venv()`.
-    /// Vide par défaut - agents sans dépendances Python tierces.
+    /// Standard pip syntax: `"openpyxl>=3.1.0"`, `"pandas==2.1.4"`, `"requests"`.
+    /// Installed once at `INITIALIZING` via `PythonExecutor::setup_venv()`.
+    /// Empty by default: agents without third-party Python dependencies.
     #[serde(default)]
     pub packages: Vec<String>,
     /// Per-agent memory retention policy (`None` = global `[memory]` defaults apply).
@@ -127,150 +127,147 @@ pub struct AgentManifest {
     /// `auto_purge = true` inside this config triggers a purge at runtime startup.
     #[serde(default)]
     pub memory_config: Option<MemoryConfig>,
-    /// Rôle sémantique de l'agent dans le système.
+    /// Semantic role of the agent in the system.
     ///
-    /// - `"worker"`    : agent opérationnel, appelé par d'autres agents via A2A - stateless.
-    /// - `"assistant"` : interlocuteur humain, multi-tour, orchestre des workers.
-    /// - `"system"`    : infrastructure interne (onboarding, supervision…).
-    /// - `None`        : non déclaré - agents antérieurs au contrat v2.
+    /// - `"worker"`    : operational agent, called by other agents via A2A, stateless.
+    /// - `"assistant"` : human interlocutor, multi-turn, orchestrates workers.
+    /// - `"system"`    : internal infrastructure (onboarding, supervision, etc.).
+    /// - `None`        : not declared, agents predating the v2 contract.
     ///
-    /// L'UI utilise ce champ pour catégoriser les agents. `supports_a2a` étant
-    /// vrai pour les deux populations, il ne suffit pas à les distinguer.
+    /// The UI uses this field to categorize agents. Since `supports_a2a` is true
+    /// for both populations, it is not enough to distinguish them.
     #[serde(default)]
     pub agent_type: Option<String>,
 
-    // ── Documentation utilisateur (contrat v2) ────────────────────────────────
+    // ── User documentation (v2 contract) ───────────────────────────────────────
     //
-    // Ces trois champs sont optionnels et destinés aux développeurs d'agents.
-    // Ils permettent de documenter l'agent directement dans le manifest Python,
-    // sans fichier externe susceptible de dériver de l'implémentation.
-    // L'UI Apollia les affiche dans le panneau détail de l'agent.
+    // These three fields are optional and intended for agent developers.
+    // They allow documenting the agent directly in the Python manifest, without
+    // an external file that could drift from the implementation.
+    // The Apollia UI displays them in the agent detail panel.
     //
-    // Philosophie : déclaratif, colocalisé avec le code, sans prose libre.
-    // Référence comparative : Microsoft Copilot (conversation_starters),
+    // Approach: declarative, colocated with the code, no free prose.
+    // Comparable references: Microsoft Copilot (conversation_starters),
     // Hugging Face Model Card (intended use, limitations), MCP (description).
-    // Aucun standard existant ne propose ces trois champs de manière structurée -
-    // c'est un différenciant Apollia.
-    /// Exemples de prompts illustrant les usages typiques de l'agent.
+    // No existing standard offers these three fields in a structured way, which
+    // is an Apollia differentiator.
+    /// Example prompts illustrating typical uses of the agent.
     ///
-    /// Affichés dans l'UI comme des « quick-start chips » cliquables.
-    /// Guideline : 2 à 5 exemples, formulés comme de vraies requêtes utilisateur.
-    /// Vide par défaut - les agents sans exemples n'affichent pas cette section.
+    /// Displayed in the UI as clickable quick-start chips.
+    /// Guideline: 2 to 5 examples, phrased as real user requests.
+    /// Empty by default: agents without examples do not show this section.
     #[serde(default)]
     pub examples: Vec<String>,
 
-    /// Limitations explicites de l'agent : ce qu'il refuse ou ne peut pas faire.
+    /// Explicit limitations of the agent: what it refuses or cannot do.
     ///
-    /// Affichées dans le panneau détail pour définir des attentes réalistes.
-    /// Guideline : 2 à 4 points, formulés à la première personne ou à l'infinitif.
-    /// Vide par défaut - les agents sans limitations déclarées n'affichent pas
-    /// cette section.
+    /// Displayed in the detail panel to set realistic expectations.
+    /// Guideline: 2 to 4 points, phrased in the first person or the infinitive.
+    /// Empty by default: agents without declared limitations do not show this
+    /// section.
     #[serde(default)]
     pub limitations: Vec<String>,
 
-    /// Note de configuration requise avant la première utilisation.
+    /// Note about configuration required before first use.
     ///
-    /// Affichée dans l'UI uniquement quand non-`None`. Doit indiquer clairement
-    /// ce que l'utilisateur doit mettre en place (fichiers, outils, agents
-    /// complémentaires, permissions). Proscrire les listes - un paragraphe court
-    /// suffit.
-    /// `None` signifie : aucun prérequis - l'agent démarre immédiatement.
+    /// Displayed in the UI only when not `None`. Must clearly indicate what the
+    /// user needs to set up (files, tools, complementary agents, permissions).
+    /// Avoid lists, a short paragraph is enough.
+    /// `None` means no prerequisite: the agent starts immediately.
     #[serde(default)]
     pub setup_notes: Option<String>,
 
-    /// Nom de la classe Python source de l'agent (ex: `"VeilleIaAgent"`,
+    /// Name of the source Python class of the agent (e.g. `"VeilleIaAgent"`,
     /// `"ApolliaGuide"`, `"DocxWorker"`).
     ///
-    /// Décision D2 : la classe Python est la source de vérité du type
-    /// d'agent. Renseigné par le validateur AIP à partir de
-    /// `self.__class__.__name__`. `None` pour les agents construits hors
-    /// pipeline PyO3 (tests, fixtures).
+    /// The Python class is the source of truth for the agent type. Filled by the
+    /// AIP validator from `self.__class__.__name__`. `None` for agents built
+    /// outside the PyO3 pipeline (tests, fixtures).
     #[serde(default)]
     pub agent_class: Option<String>,
 
-    /// Autorise l'agent à écrire dans le namespace global `__user__` via
-    /// `ctx.memory.remember_user()`. Faux par défaut - la lecture, elle,
-    /// est toujours disponible via le fallback `recall()`.
+    /// Allows the agent to write to the global `__user__` namespace via
+    /// `ctx.memory.remember_user()`. False by default. Reading is always
+    /// available through the `recall()` fallback.
     ///
-    /// Réservé aux agents système qui possèdent légitimement le profil
-    /// utilisateur (ex. `onboarding-agent`).
+    /// Reserved for system agents that legitimately own the user profile
+    /// (e.g. `onboarding-agent`).
     #[serde(default)]
     pub user_memory_write: bool,
 
-    /// Noms logiques des datasources YAML déclarées via `@agent(datasources=...)`.
+    /// Logical names of the YAML datasources declared via `@agent(datasources=...)`.
     ///
-    /// Chaque nom doit correspondre à un fichier `<agent_dir>/datasources/<name>.yaml`.
-    /// Le runtime charge ces fichiers au boot et les expose via `ctx.datasources.get(name)`.
-    /// Une datasource non déclarée déclenche `FileNotFoundError` côté Python
-    /// même si le fichier existe sur disque (principe least-privilege, ADR-103).
-    /// Vide par défaut - agents sans datasources.
+    /// Each name must match a file `<agent_dir>/datasources/<name>.yaml`.
+    /// The runtime loads these files at boot and exposes them via `ctx.datasources.get(name)`.
+    /// An undeclared datasource raises `FileNotFoundError` on the Python side
+    /// even if the file exists on disk (least-privilege principle).
+    /// Empty by default: agents without datasources.
     #[serde(default)]
     pub datasources: Vec<String>,
 
-    /// Noms logiques des templates Jinja2 déclarés via `@agent(templates=...)`.
+    /// Logical names of the Jinja2 templates declared via `@agent(templates=...)`.
     ///
-    /// Chaque nom doit correspondre à un fichier `<agent_dir>/templates/<name>.{j2,jinja2,jinja}`.
-    /// Le runtime compile ces templates au boot et les expose via
-    /// `ctx.templates.render(name, **context)` (ADR-103).
-    /// Vide par défaut - agents sans templates.
+    /// Each name must match a file `<agent_dir>/templates/<name>.{j2,jinja2,jinja}`.
+    /// The runtime compiles these templates at boot and exposes them via
+    /// `ctx.templates.render(name, **context)`.
+    /// Empty by default: agents without templates.
     #[serde(default)]
     pub templates: Vec<String>,
 
-    /// Noms logiques des secrets déclarés via `@agent(secrets=...)` (ADR-104, LOT 6).
+    /// Logical names of the secrets declared via `@agent(secrets=...)`.
     ///
-    /// Allowlist stricte des clés de credentials que l'agent peut lire depuis
-    /// `ctx.secrets.get(key)`. Le runtime résout chaque clé via le
-    /// [`ToolCredentialStore`](apollia_tools::ToolCredentialStore) chiffré
-    /// (AES-256-GCM) en utilisant le namespace tool `"agent"` (convention LOT 6).
+    /// Strict allowlist of credential keys the agent may read from
+    /// `ctx.secrets.get(key)`. The runtime resolves each key via the encrypted
+    /// [`ToolCredentialStore`](apollia_tools::ToolCredentialStore)
+    /// (AES-256-GCM) using the tool namespace `"agent"`.
     ///
-    /// **Gating** : une clé non déclarée renvoie toujours `None` côté Python,
-    /// même si la valeur existe en base. Conséquence directe du principe
-    /// least-privilege (ADR-104).
+    /// **Gating**: an undeclared key always returns `None` on the Python side,
+    /// even if the value exists in the store. A direct consequence of the
+    /// least-privilege principle.
     ///
-    /// **Lecture seule** : l'agent ne peut pas écrire un secret - les ops les
-    /// gèrent via `apollia-os tools secret set ...` ou l'UI desktop.
-    /// Vide par défaut - agents sans secrets configurés.
+    /// **Read only**: the agent cannot write a secret. Operators manage them via
+    /// `apollia-os tools secret set ...` or the desktop UI.
+    /// Empty by default: agents without configured secrets.
     #[serde(default)]
     pub secrets: Vec<String>,
 }
 
-/// Compétence déclarative d'un agent.
+/// Declarative skill of an agent.
 ///
-/// Utilisée pour construire la carte A2A si `supports_a2a = true`.
+/// Used to build the A2A card when `supports_a2a = true`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentSkill {
-    /// Identifiant unique de la compétence.
+    /// Unique identifier of the skill.
     pub id: String,
-    /// Nom humain de la compétence. Si absent dans le manifest source,
-    /// le runtime peut le dériver de `id`.
+    /// Human-readable name of the skill. If absent in the source manifest,
+    /// the runtime may derive it from `id`.
     #[serde(default)]
     pub name: String,
-    /// Description de ce que fait la compétence.
+    /// Description of what the skill does.
     #[serde(default)]
     pub description: String,
-    /// Modes d'entrée supportés (ex: ["text", "data"]). Vide par défaut
-    /// pour rester rétrocompatible avec les manifests TOML legacy ;
-    /// le décorateur `@skill` côté SDK Python publie `["data"]`.
+    /// Supported input modes (e.g. ["text", "data"]). Empty by default to stay
+    /// backward compatible with legacy TOML manifests; the `@skill` decorator
+    /// on the Python SDK side publishes `["data"]`.
     #[serde(default)]
     pub input_modes: Vec<String>,
-    /// Modes de sortie supportés (ex: ["text", "file"]). Vide par défaut.
+    /// Supported output modes (e.g. ["text", "file"]). Empty by default.
     #[serde(default)]
     pub output_modes: Vec<String>,
-    /// Exemples de payloads valides - propagés au tool descriptor LLM-facing
-    /// pour aider les modèles mid-market / petits à construire un appel correct
-    /// au premier coup. Stocké comme `Vec<Value>` (chaque entrée est un objet
-    /// JSON). Vide par défaut.
+    /// Examples of valid payloads, propagated to the LLM-facing tool descriptor
+    /// to help mid-market and smaller models build a correct call on the first
+    /// try. Stored as `Vec<Value>` (each entry is a JSON object). Empty by
+    /// default.
     #[serde(default)]
     pub examples: Vec<serde_json::Value>,
-    /// Schéma des champs attendus dans la payload A2A.
+    /// Schema of the fields expected in the A2A payload.
     ///
-    /// Format Apollia (custom, plus simple à écrire côté Python que JSON Schema
-    /// complet) : `{ "<field>": { "type": "...", "description": "...",
-    /// "required": true|false } }`. Converti côté runtime en JSON Schema
-    /// canonique au moment d'exposer le skill au LLM (cf.
-    /// `crates/apollia-runtime/src/chat/a2a_tools.rs`). `None` = pas de
-    /// contrat publié (le caller doit deviner - anti-pattern, gate Phase E
-    /// de `apollia-worker-forge`).
+    /// Apollia format (custom, simpler to write on the Python side than full
+    /// JSON Schema): `{ "<field>": { "type": "...", "description": "...",
+    /// "required": true|false } }`. Converted on the runtime side to canonical
+    /// JSON Schema when exposing the skill to the LLM (see
+    /// `crates/apollia-runtime/src/chat/a2a_tools.rs`). `None` = no published
+    /// contract (the caller must guess, which is an anti-pattern).
     #[serde(default)]
     pub input_schema: Option<serde_json::Value>,
 }
@@ -364,32 +361,32 @@ mod tests {
 
     #[test]
     fn test_ac2_tools_requiring_approval_default_empty() {
-        // GIVEN un manifest JSON sans le champ tools_requiring_approval
+        // GIVEN a manifest JSON without the tools_requiring_approval field
         let json = r#"{"name":"test","version":"0.1.0","description":"desc","tools_required":[]}"#;
-        // WHEN on désérialise
+        // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
-        // THEN tools_requiring_approval est vide
+        // THEN tools_requiring_approval is empty
         assert!(manifest.tools_requiring_approval.is_empty());
     }
 
     #[test]
     fn test_ac1_tools_requiring_approval_parsed() {
-        // GIVEN un manifest JSON avec tools_requiring_approval
+        // GIVEN a manifest JSON with tools_requiring_approval
         let json = r#"{
             "name":"test","version":"0.1.0","description":"desc","tools_required":[],
             "tools_requiring_approval":["smtp","http_client"]
         }"#;
-        // WHEN on désérialise
+        // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
-        // THEN la liste est correctement parsée
+        // THEN the list is parsed correctly
         assert_eq!(
             manifest.tools_requiring_approval,
             vec!["smtp", "http_client"]
         );
     }
 
-    // GIVEN un manifest JSON avec "llm_backend": "local-code"
-    // WHEN on désérialise
+    // GIVEN a manifest JSON with "llm_backend": "local-code"
+    // WHEN deserialized
     // THEN llm_backend == Some("local-code")
     #[test]
     fn test_llm_backend_present_extracts_some() {
@@ -404,8 +401,8 @@ mod tests {
         assert_eq!(manifest.llm_backend, Some("local-code".to_string()));
     }
 
-    // GIVEN un manifest JSON sans la clé "llm_backend"
-    // WHEN on désérialise
+    // GIVEN a manifest JSON without the "llm_backend" key
+    // WHEN deserialized
     // THEN llm_backend == None
     #[test]
     fn test_llm_backend_absent_is_none() {
@@ -419,8 +416,8 @@ mod tests {
         assert!(manifest.llm_backend.is_none());
     }
 
-    // GIVEN un manifest JSON avec "llm_backend": null
-    // WHEN on désérialise
+    // GIVEN a manifest JSON with "llm_backend": null
+    // WHEN deserialized
     // THEN llm_backend == None
     #[test]
     fn test_llm_backend_null_is_none() {
@@ -435,9 +432,9 @@ mod tests {
         assert!(manifest.llm_backend.is_none());
     }
 
-    // GIVEN un manifest avec llm_backend = Some(...)
-    // WHEN on sérialise en JSON
-    // THEN le champ apparaît dans le JSON
+    // GIVEN a manifest with llm_backend = Some(...)
+    // WHEN serialized to JSON
+    // THEN the field appears in the JSON
     #[test]
     fn test_llm_backend_serialized_when_some() {
         let json = serde_json::json!({
@@ -452,9 +449,9 @@ mod tests {
         assert!(output.contains("mistral-small"));
     }
 
-    // GIVEN un manifest avec llm_backend = None
-    // WHEN on sérialise en JSON
-    // THEN le champ n'apparaît pas (skip_serializing_if)
+    // GIVEN a manifest with llm_backend = None
+    // WHEN serialized to JSON
+    // THEN the field does not appear (skip_serializing_if)
     #[test]
     fn test_llm_backend_absent_from_json_when_none() {
         let json = serde_json::json!({
@@ -470,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_ac3_tools_requiring_approval_roundtrip() {
-        // GIVEN un AgentManifest avec tools_requiring_approval
+        // GIVEN an AgentManifest with tools_requiring_approval
         let manifest = AgentManifest {
             name: "roundtrip-agent".into(),
             version: "1.0.0".into(),
@@ -507,7 +504,7 @@ mod tests {
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");
         let restored: AgentManifest =
             serde_json::from_str(&json).expect("deserialize must succeed");
-        // THEN pas de perte
+        // THEN no loss
         assert_eq!(
             restored.tools_requiring_approval,
             vec!["smtp", "bash_executor"]
@@ -516,9 +513,9 @@ mod tests {
 
     #[test]
     fn test_packages_field_default() {
-        // GIVEN un manifest JSON sans champ packages
+        // GIVEN a manifest JSON without a packages field
         let json = r#"{"name":"test","version":"1.0.0","description":"","tools_required":[]}"#;
-        // WHEN désérialisé
+        // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
         // THEN packages = vec![]
         assert!(manifest.packages.is_empty());
@@ -526,24 +523,24 @@ mod tests {
 
     #[test]
     fn test_packages_field_populated() {
-        // GIVEN un manifest JSON avec packages
+        // GIVEN a manifest JSON with packages
         let json = r#"{"name":"excel","version":"0.1.0","description":"","tools_required":[],"packages":["openpyxl>=3.1.0"]}"#;
-        // WHEN désérialisé
+        // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
-        // THEN packages contient la valeur
+        // THEN packages contains the value
         assert_eq!(manifest.packages, vec!["openpyxl>=3.1.0"]);
     }
 
     #[test]
     fn test_packages_field_roundtrip() {
-        // GIVEN un manifest JSON avec packages
+        // GIVEN a manifest JSON with packages
         let json = r#"{"name":"pandas-agent","version":"0.1.0","description":"","tools_required":[],"packages":["pandas>=2.0.0"]}"#;
-        // WHEN sérialisé puis désérialisé
+        // WHEN serialized then deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
         let serialized = serde_json::to_string(&manifest).expect("serialize must succeed");
         let restored: AgentManifest =
             serde_json::from_str(&serialized).expect("deserialize roundtrip must succeed");
-        // THEN packages est préservé
+        // THEN packages is preserved
         assert_eq!(restored.packages, vec!["pandas>=2.0.0"]);
     }
 

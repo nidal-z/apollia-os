@@ -78,82 +78,82 @@ pub struct SupervisorConfig {
     /// `None` when the runtime starts without a config file (e.g. tests, `apollia-os start`
     /// without a config file). The `POST /api/v1/triggers/reload` route returns 503 when absent.
     pub config_path: Option<std::path::PathBuf>,
-    /// Configuration du runtime core (capacités EventBus et mailbox).
+    /// Core runtime configuration (EventBus and mailbox capacities).
     ///
-    /// Correspond à la section `[runtime]` dans `apollia.toml`.
-    /// Défaut : [`RuntimeConfig::default()`].
+    /// Maps to the `[runtime]` section in `apollia.toml`.
+    /// Default: [`RuntimeConfig::default()`].
     pub runtime_config: RuntimeConfig,
 
-    /// Configuration Human-in-the-Loop (timeout et intervalle de scan).
+    /// Human-in-the-Loop configuration (timeout and scan interval).
     ///
-    /// Correspond à la section `[hitl]` dans `apollia.toml`.
-    /// Ignoré si `AppState.task_repository` est `None`.
-    /// Défaut : [`HitlConfig::default()`] (24 heures, scan 60 secondes).
+    /// Maps to the `[hitl]` section in `apollia.toml`.
+    /// Ignored when `AppState.task_repository` is `None`.
+    /// Default: [`HitlConfig::default()`] (24 hours, 60-second scan).
     pub hitl_config: HitlConfig,
-    /// Répertoire de données du runtime (ex: `~/.apollia/`).
+    /// Runtime data directory (e.g. `~/.apollia/`).
     ///
-    /// Utilisé pour localiser les bases SQLite (`triggers.db`,
-    /// `notifications.db`, etc.). Doit exister et être accessible en écriture.
-    /// Sert de `base_dir` pour l'ouverture des repositories au boot.
+    /// Used to locate the SQLite databases (`triggers.db`, `notifications.db`,
+    /// etc.). Must exist and be writable. Serves as `base_dir` when opening the
+    /// repositories at boot.
     pub data_dir: std::path::PathBuf,
-    /// Configuration d'observabilité (limites de troncature, flags debug).
+    /// Observability configuration (truncation limits, debug flags).
     ///
-    /// Injectée dans `AppState`, `TriggerEngine`, et `LlmCallRepository`.
-    /// Par défaut : `ObservabilityConfig::default()` (32 KB max input/output).
+    /// Injected into `AppState`, `TriggerEngine`, and `LlmCallRepository`.
+    /// Default: `ObservabilityConfig::default()` (32 KB max input/output).
     pub obs_config: apollia_core::ObservabilityConfig,
-    /// Repository des agents installés.
+    /// Repository of installed agents.
     ///
-    /// `Some` → l'auto-load est activé au boot : les agents `enabled` sont
-    /// chargés via `AgentLoader`, validés et enregistrés dans `AgentRegistry`.
-    /// `None` → l'auto-load est désactivé (compatibilité tests existants).
+    /// `Some` enables auto-load at boot: `enabled` agents are loaded via
+    /// `AgentLoader`, validated, and registered in `AgentRegistry`.
+    /// `None` disables auto-load (compatibility with existing tests).
     pub agent_repository: Option<AgentRepository>,
-    /// Repository des packages installés (migration 008).
+    /// Repository of installed packages.
     ///
-    /// `Some` → la Phase 10.6 valide l'intégrité des packages au boot.
-    /// `None` → la validation est désactivée (rétrocompatibilité).
+    /// `Some` runs package integrity validation at boot.
+    /// `None` disables that validation (backward compatibility).
     pub package_repository: Option<apollia_tools::PackageRepository>,
-    /// Répertoire des agents bundled (ex: `agents/bundled/`).
+    /// Bundled agents directory (e.g. `agents/bundled/`).
     ///
-    /// Si `Some`, `auto_load_bundled_agents` est appelé au boot pour enregistrer
-    /// automatiquement les agents déclarés dans `manifest.json`.
-    /// Si `None` ou si `manifest.json` est absent, l'auto-install est ignoré silencieusement.
+    /// When `Some`, `auto_load_bundled_agents` runs at boot to register the
+    /// agents declared in `manifest.json`. When `None`, or when `manifest.json`
+    /// is absent, auto-install is silently skipped.
     pub bundled_agents_path: Option<std::path::PathBuf>,
 
-    /// Configuration des outils natifs (section `[tools]` de `apollia.toml`).
+    /// Native tools configuration (the `[tools]` section of `apollia.toml`).
     ///
-    /// Propagée par `EmbeddedConfig::apply_toml` → `SupervisorConfig` → `RuntimeHandle`.
-    /// Permet aux agent runners (factory + chat) d'appliquer `web_search`,
-    /// `web_read`, `http_allowlist` et `disabled` lors de la construction
-    /// du `NativeDispatcherConfig`. Défaut : [`apollia_core::ToolsConfig::default()`].
+    /// Propagated by `EmbeddedConfig::apply_toml` into `SupervisorConfig` then
+    /// `RuntimeHandle`. Lets the agent runners (factory + chat) apply
+    /// `web_search`, `web_read`, `http_allowlist`, and `disabled` when building
+    /// the `NativeDispatcherConfig`. Default: [`apollia_core::ToolsConfig::default()`].
     pub tools_config: apollia_core::ToolsConfig,
 }
 
 impl SupervisorConfig {
-    /// Retourne le répertoire des agents bundled, ou `None` s'il n'est pas configuré.
+    /// Returns the bundled agents directory, or `None` when it is not configured.
     pub fn bundled_agents_dir(&self) -> Option<&std::path::Path> {
         self.bundled_agents_path.as_deref()
     }
 }
 
-/// Manifest des agents bundled distribués avec le runtime.
+/// Manifest of the bundled agents shipped with the runtime.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BundledManifest {
-    /// Version du format de manifest (ex : `"1.0.0"`).
+    /// Manifest format version (e.g. `"1.0.0"`).
     pub version: String,
-    /// Liste des agents bundled.
+    /// List of bundled agents.
     pub bundled_agents: Vec<BundledAgentEntry>,
 }
 
-/// Entrée d'un agent dans le manifest bundled.
+/// Entry for a single agent in the bundled manifest.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BundledAgentEntry {
-    /// Nom unique de l'agent (doit correspondre à `manifest().name` dans le fichier Python).
+    /// Unique agent name (must match `manifest().name` in the Python file).
     pub name: String,
-    /// Nom du fichier source relatif au répertoire bundled (ex : `"excel-worker.py"`).
+    /// Source filename relative to the bundled directory (e.g. `"excel-worker.py"`).
     pub file: String,
-    /// Si `true`, l'agent est installé automatiquement au premier boot.
+    /// When `true`, the agent is installed automatically on first boot.
     pub auto_install: bool,
-    /// Description courte de l'agent.
+    /// Short description of the agent.
     pub description: String,
 }
 
@@ -201,10 +201,10 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Used by [`ShutdownController`] to stop the engine before the EventBus closes,
     /// preventing late notifications from being delivered after `apollia-os stop`.
     pub notification_engine: Option<NotificationEngineHandle>,
-    /// Repository des appels LLM, agrégation coûts/tokens.
+    /// LLM call repository, aggregates cost and token usage.
     ///
-    /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
-    /// Partagé entre `AppState` (route REST costs) et le subscriber EventBus.
+    /// `Some` when an `LlmRouter` is configured and `llm_calls.db` is open.
+    /// Shared between `AppState` (the REST costs route) and the EventBus subscriber.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>>,
     /// Handle to the [`ChatSessionManager`] actor.
     ///
@@ -241,10 +241,10 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` when `~/.apollia/mcp.toml` exists and at least one server connected.
     /// `None` when the config file is absent, empty, or all servers failed to start.
     pub mcp_handle: Option<McpClientManagerHandle>,
-    /// Repository des projets (SQLite).
+    /// Projects repository (SQLite).
     ///
-    /// `Some` quand `projects.db` est ouvert avec succès.
-    /// `None` quand l'ouverture a échoué (warning loggé).
+    /// `Some` when `projects.db` opened successfully.
+    /// `None` when the open failed (warning logged).
     pub project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>>,
     /// Supervisor of the local sidecar runner.
     ///
@@ -349,15 +349,14 @@ pub struct Supervisor {
     config: SupervisorConfig,
 }
 
-/// Installe les agents bundled au premier boot.
+/// Install the bundled agents on first boot.
 ///
-/// Lit `<bundled_agents_path>/manifest.json` et, pour chaque entrée avec
-/// `auto_install: true` absente de la base, charge le manifest via `loader`
-/// et persiste un [`apollia_tools::InstalledAgent`] dans `repo`.
+/// Reads `<bundled_agents_path>/manifest.json` and, for each entry marked
+/// `auto_install: true` that is absent from the database, loads the manifest
+/// via `loader` and persists an [`apollia_tools::InstalledAgent`] in `repo`.
 ///
-/// Phase 11 (`list_enabled`) prend ensuite en charge le chargement et
-/// l'enregistrement dans l'`AgentRegistry`. Les erreurs sont toujours loggées
-/// mais ne bloquent jamais le boot.
+/// The later auto-load step (`list_enabled`) then loads and registers them in
+/// `AgentRegistry`. Errors are always logged but never block the boot.
 fn auto_load_bundled_agents(
     bundled_agents_path: Option<&std::path::Path>,
     repo: &AgentRepository,
@@ -527,7 +526,7 @@ impl Supervisor {
     }
 
     /// Phase 4c: open `runtime_events.db` and spawn the runtime-events
-    /// subscriber (ADR-088). Best-effort: failures are logged, never fatal.
+    /// subscriber. Best-effort: failures are logged, never fatal.
     async fn spawn_event_persistor(&self, event_sender: &EventBusSender) {
         let db_path = self.config.data_dir.join("runtime_events.db");
         match crate::observability::EventPersistorHandle::open(&db_path).await {
@@ -962,17 +961,17 @@ impl Supervisor {
             .start_llm_router(&system_db_path, &runner_supervisor)
             .await;
 
-        // Phase 4b: LlmCallRepository, subscriber EventBus pour persister les appels LLM
+        // Phase 4b: LlmCallRepository, an EventBus subscriber that persists LLM calls.
         let llm_call_repository = if llm_router.is_some() {
             self.spawn_llm_call_repository(&event_sender)
         } else {
             None
         };
 
-        // Phase 4c: EventPersistor (ADR-088), log append-only de la trace
-        // d'exécution agent (Lot 1 : AgentLog ; Lots 2+ ajoutent thoughts,
-        // tool_call_*, llm_call_*, etc.). Si l'ouverture échoue, le runtime
-        // continue sans persistance (logs partent toujours dans `tracing`).
+        // Phase 4c: EventPersistor, an append-only log of the agent execution
+        // trace (AgentLog, plus thoughts, tool_call_*, llm_call_*, etc.). If the
+        // open fails, the runtime continues without persistence (logs still go
+        // to `tracing`).
         self.spawn_event_persistor(&event_sender).await;
 
         // Phase 4d: shared ResilienceLayer + event subscriber.
@@ -997,9 +996,9 @@ impl Supervisor {
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
         info!("Supervisor: TaskRouter ready");
 
-        // Phase 6 (pos 7): TriggerEngine, démarré après TaskRouter (besoin du submitter)
+        // Phase 6 (pos 7): TriggerEngine, started after TaskRouter (needs the submitter).
         info!("Supervisor: starting TriggerEngine");
-        // Ouvre le repository de définitions de triggers depuis SQLite.
+        // Open the trigger definition repository from SQLite.
         let trigger_def_db_path = self.config.data_dir.join("triggers_def.db");
         let trigger_def_repo =
             TriggerDefinitionRepository::open(&trigger_def_db_path).map_err(|e| {
@@ -1010,7 +1009,7 @@ impl Supervisor {
             })?;
         let trigger_definitions = load_trigger_definitions(&trigger_def_repo)?;
         let trigger_def_repo = Arc::new(std::sync::Mutex::new(trigger_def_repo));
-        // Ouvre la persistance SQLite des triggers (historique des fires/skips).
+        // Open the SQLite trigger persistence (history of fires/skips).
         let trigger_persistence = open_trigger_persistence(&self.config.data_dir);
         let enabled_count = trigger_definitions.iter().filter(|t| t.enabled).count();
         let trigger_engine = TriggerEngineHandle::spawn(
@@ -1046,7 +1045,7 @@ impl Supervisor {
 
         // Phase 13 (early): UserMemoryRepository, promoted before notifications
         // so we can consult the seed marker + profile name when bootstrapping
-        // the default desktop channel (Item 5 of Notifications v2).
+        // the default desktop channel.
         let user_memory = open_user_memory(&self.config.data_dir);
 
         // open NotificationConfigRepository from SQLite.
@@ -1059,8 +1058,8 @@ impl Supervisor {
                 }
             })?;
 
-        // Item 5: bootstrap a desktop-default channel on first launch.
-        // Idempotent, guarded by a marker in __user__ namespace.
+        // Bootstrap a desktop-default channel on first launch.
+        // Idempotent, guarded by a marker in the __user__ namespace.
         seed_default_desktop_channel_if_needed(&notification_repo, user_memory.as_ref());
 
         // Read channels and global events from SQLite to build NotificationConfig.
@@ -1095,7 +1094,7 @@ impl Supervisor {
         let notification_config_for_engine = notification_config_from_db.clone();
         let notification_repo = Arc::new(std::sync::Mutex::new(notification_repo));
 
-        // NotificationEngine, spawné avant AppState pour passer le handle.
+        // NotificationEngine, spawned before AppState so its handle can be passed in.
         let notification_engine =
             self.spawn_notification_engine(notification_config_for_engine.as_ref(), &event_sender)?;
 
@@ -1109,8 +1108,8 @@ impl Supervisor {
         );
         info!("Supervisor: AgentMailbox ready");
 
-        // Phase 13: UserMemoryRepository was promoted above (before notifications) to
-        // support the Item 5 seed bootstrap of the default desktop channel. Variable
+        // Phase 13: UserMemoryRepository was promoted above (before notifications)
+        // to support the seed bootstrap of the default desktop channel. Variable
         // `user_memory` is already bound by that earlier block.
 
         // Phase 13b: ProjectRepository, SQLite projects.db.
@@ -1153,12 +1152,11 @@ impl Supervisor {
                 }),
                 project_repository.clone(),
                 mcp_handle.clone(),
-                // ADR-096 Phase 3, feed the chat dispatcher the same global
-                // config the Agent-mode dispatcher uses. Native tools needing
-                // app-level config (web_search Brave key, web_read SSRF
-                // settings, http_fetch allowlist, memory_search base dir,
-                // permission_rule_* governance.db) become available across
-                // Chat Libre now too.
+                // Feed the chat dispatcher the same global config the Agent-mode
+                // dispatcher uses. Native tools that need app-level config
+                // (web_search Brave key, web_read SSRF settings, http_fetch
+                // allowlist, memory_search base dir, permission_rule_*
+                // governance.db) become available in free chat too.
                 Some(std::sync::Arc::new(crate::chat::ChatToolsConfig {
                     data_dir: self.config.data_dir.clone(),
                     brave_api_key: None, // resolved lazily by web_search when missing
@@ -1266,7 +1264,7 @@ impl Supervisor {
         };
         info!("Supervisor: APIServer ready");
 
-        // Phase 8 (pos 9): TimeoutWatcher, démarré si task_repository est configuré
+        // Phase 8 (pos 9): TimeoutWatcher, started when task_repository is configured.
         if let Some(ref repo) = task_repository {
             info!("Supervisor: starting TimeoutWatcher");
             let watcher = TimeoutWatcher::new(
@@ -1779,7 +1777,7 @@ fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
-        // ADR-086, gouvernance agent-driven des permissions.
+        // Agent-driven permission governance.
         apollia_tools::tools::permission_rules::PermissionRuleAdd::descriptor(),
         apollia_tools::tools::permission_rules::PermissionRuleRemove::descriptor(),
         apollia_tools::tools::permission_rules::PermissionRuleList::descriptor(),
@@ -1787,7 +1785,7 @@ fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
 
     // Web tools are always advertised in the catalogue (so the UI and agent
     // manifests can reference them) but runtime availability still depends on
-    // `[tools].web_search` / `[tools].web_read` in `apollia.toml`. ADR-072.
+    // `[tools].web_search` / `[tools].web_read` in `apollia.toml`.
     #[cfg(feature = "web-search")]
     descriptors.push(apollia_tools::tools::web_search::WebSearch::descriptor());
 
@@ -2042,8 +2040,8 @@ mod tests {
     fn native_tool_descriptors_returns_expected_count() {
         // GIVEN: the native_tool_descriptors() function
         // WHEN: called
-        // THEN: 16 baseline tools (13 historical + 3 permission_rule_* added
-        // by ADR-086), plus optional web tools when their features are on.
+        // THEN: 16 baseline tools (13 historical + 3 permission_rule_*),
+        // plus optional web tools when their features are on.
         let expected_count =
             16 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
         let descriptors = native_tool_descriptors();
@@ -2164,13 +2162,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_startup_sequence_all_ready() {
-        // GIVEN un Supervisor configure
+        // GIVEN a configured Supervisor
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let (config, _tmp_dir) = test_config(port, socket_path.clone());
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appele
+        // WHEN start() is called
         let result = supervisor
             .start(
                 MockBackend,
@@ -2180,7 +2178,7 @@ mod tests {
             )
             .await;
 
-        // THEN tous les acteurs demarrent et on obtient des handles
+        // THEN all actors start and handles are returned
         assert!(result.is_ok(), "start() should succeed");
         let handles = result.unwrap();
 
@@ -2195,13 +2193,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_all_ready_event_emitted() {
-        // GIVEN un Supervisor configure
+        // GIVEN a configured Supervisor
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let (config, _tmp_dir) = test_config(port, socket_path.clone());
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appele
+        // WHEN start() is called
         let handles = supervisor
             .start(
                 MockBackend,
@@ -2237,7 +2235,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handles_accessible_after_start() {
-        // GIVEN un Supervisor demarre avec succes
+        // GIVEN a Supervisor started successfully
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let (config, _tmp_dir) = test_config(port, socket_path.clone());
@@ -2252,7 +2250,7 @@ mod tests {
             .await
             .unwrap();
 
-        // THEN tous les handles sont presents et utilisables
+        // THEN all handles are present and usable
         // EventBusSender: can send (need a subscriber for broadcast to succeed)
         let _rx = handles.event_sender.subscribe();
         let send_result = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
@@ -2264,11 +2262,10 @@ mod tests {
         assert!(agents.unwrap().is_empty());
 
         // ToolRegistryHandle: can list (native tools should be registered).
-        // Count mirrors native_tool_descriptors(), 16 baseline (13 historical
-        // + 3 permission_rule_* added by ADR-086) + web-search + web-read
-        // when those features are compiled in (ADR-072), plus the connector
-        // tool descriptors registered at Phase 3b (ADR-096 convergence -
-        // Google ops today, Microsoft to come).
+        // Count mirrors native_tool_descriptors(): 16 baseline (13 historical
+        // + 3 permission_rule_*) + web-search + web-read when those features are
+        // compiled in, plus the connector tool descriptors registered at Phase
+        // 3b (Google ops today, Microsoft to come).
         let connector_count = crate::connectors_bridge::all_connector_descriptors().len();
         let expected = 16
             + cfg!(feature = "web-search") as usize
@@ -2340,7 +2337,7 @@ mod tests {
         };
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appele
+        // WHEN start() is called
         let result = supervisor
             .start(
                 MockBackend,
@@ -2350,7 +2347,7 @@ mod tests {
             )
             .await;
 
-        // THEN ActorStartFailed est retourne (port already in use)
+        // THEN ActorStartFailed is returned (port already in use)
         assert!(result.is_err());
         let err = match result {
             Err(e) => e,
@@ -2366,7 +2363,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_restart_tracker_allows_within_limit() {
-        // GIVEN un tracker avec max_restarts=3, window=60s
+        // GIVEN a tracker with max_restarts=3, window=60s
         let spec = ChildSpec {
             name: "test_actor".to_string(),
             restart_policy: RestartPolicy::OnFailure,
@@ -2375,12 +2372,12 @@ mod tests {
         };
         let mut tracker = RestartTracker::new(spec);
 
-        // WHEN on enregistre 3 restarts
+        // WHEN 3 restarts are recorded
         assert!(tracker.record_restart(), "1st restart should be allowed");
         assert!(tracker.record_restart(), "2nd restart should be allowed");
         assert!(tracker.record_restart(), "3rd restart should be allowed");
 
-        // THEN le 4eme est refuse
+        // THEN the 4th is denied
         assert!(
             !tracker.record_restart(),
             "4th restart should be denied (exceeds max_restarts=3)"
@@ -2389,7 +2386,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_max_restarts_exceeded() {
-        // GIVEN un tracker avec max_restarts=2
+        // GIVEN a tracker with max_restarts=2
         let spec = ChildSpec {
             name: "flaky_actor".to_string(),
             restart_policy: RestartPolicy::Always,
@@ -2398,15 +2395,15 @@ mod tests {
         };
         let mut tracker = RestartTracker::new(spec);
 
-        // WHEN on depasse le max
+        // WHEN the max is exceeded
         tracker.record_restart();
         tracker.record_restart();
         let allowed = tracker.record_restart();
 
-        // THEN le restart est refuse
+        // THEN the restart is denied
         assert!(!allowed, "should exceed max_restarts");
 
-        // AND on peut construire l'erreur correspondante
+        // AND the matching error can be constructed
         let err = SupervisorError::MaxRestartsExceeded {
             actor: "flaky_actor".to_string(),
             count: 3,
@@ -2418,17 +2415,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_watch_exits_on_shutdown_requested() {
-        // GIVEN un EventBus et un watch en cours
+        // GIVEN an EventBus and a watch in progress
         let (sender, _rx) = EventBus::new();
         let sender_clone = sender.clone();
 
         let watch_handle = tokio::spawn(async move { watch(&sender_clone, vec![]).await });
 
-        // WHEN ShutdownRequested est emis
+        // WHEN ShutdownRequested is emitted
         tokio::time::sleep(Duration::from_millis(10)).await;
         let _ = sender.send(RuntimeEvent::ShutdownRequested);
 
-        // THEN watch() retourne Ok(())
+        // THEN watch() returns Ok(())
         let result = tokio::time::timeout(Duration::from_secs(2), watch_handle)
             .await
             .expect("watch should exit within 2s")
@@ -2441,7 +2438,7 @@ mod tests {
         // GIVEN / WHEN
         let specs = default_child_specs();
 
-        // THEN 7 specs sont retournees dans l'ordre
+        // THEN 7 specs are returned in order
         assert_eq!(specs.len(), 7);
         assert_eq!(specs[0].name, "event_bus");
         assert_eq!(specs[1].name, "agent_registry");
@@ -2451,7 +2448,7 @@ mod tests {
         assert_eq!(specs[5].name, "trigger_engine");
         assert_eq!(specs[6].name, "api_server");
 
-        // AND les policies sont correctes
+        // AND the policies are correct
         assert_eq!(specs[0].restart_policy, RestartPolicy::Always);
         assert_eq!(specs[4].restart_policy, RestartPolicy::OnFailure);
         assert_eq!(specs[5].restart_policy, RestartPolicy::OnFailure);
@@ -2461,7 +2458,7 @@ mod tests {
     // Supervisor starts successfully with llm_config = None
     #[tokio::test]
     async fn test_ac2_start_without_llm_config_succeeds() {
-        // GIVEN un Supervisor sans section [llm]
+        // GIVEN a Supervisor with no [llm] section
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let config = SupervisorConfig {
@@ -2490,7 +2487,7 @@ mod tests {
         };
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appele
+        // WHEN start() is called
         let handles = supervisor
             .start(
                 MockBackend,
@@ -2501,7 +2498,7 @@ mod tests {
             .await
             .expect("start() doit reussir sans config LLM");
 
-        // THEN llm_router est None et le demarrage s'est deroule normalement
+        // THEN llm_router is None and startup proceeded normally
         assert!(
             handles.llm_router.is_none(),
             "llm_router doit etre None quand llm_config est absent"
@@ -2523,7 +2520,7 @@ mod tests {
         use crate::registry::AgentRegistry;
         use crate::router::TaskRouterHandle;
 
-        // GIVEN un AppState avec llm_router = None
+        // GIVEN an AppState with llm_router = None
         let (event_tx, _event_rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -2563,21 +2560,21 @@ mod tests {
             runner_proxy: None,
         };
 
-        // WHEN on clone l'AppState
+        // WHEN the AppState is cloned
         let cloned = state.clone();
 
-        // THEN le clone preserve une cellule vide (l'Arc est partage,
-        // mais l'option interne reste None apres clone).
+        // THEN the clone preserves an empty cell (the Arc is shared, but the
+        // inner option stays None after clone).
         assert!(
             cloned.llm_router.read().await.is_none(),
             "le clone doit preserver llm_router = None"
         );
     }
 
-    // Supervisor démarre avec 0 triggers ; TriggerEngine toujours présent
+    // Supervisor starts with 0 triggers; TriggerEngine is always present.
     #[tokio::test]
     async fn test_ac3_supervisor_starts_with_zero_triggers() {
-        // GIVEN une config sans triggers
+        // GIVEN a config with no triggers
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let config = SupervisorConfig {
@@ -2606,7 +2603,7 @@ mod tests {
         };
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appele
+        // WHEN start() is called
         let result = supervisor
             .start(
                 MockBackend,
@@ -2616,7 +2613,7 @@ mod tests {
             )
             .await;
 
-        // THEN le demarrage reussit et TriggerEngine est present avec 0 triggers
+        // THEN startup succeeds and TriggerEngine is present with 0 triggers
         assert!(result.is_ok(), "start() doit reussir avec 0 triggers");
         let handles = result.unwrap();
         let trigger_list = handles.trigger_engine.list().await;
@@ -2636,10 +2633,10 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // Supervisor démarre sans section [notifications] sans erreur
+    // Supervisor starts without a [notifications] section and without error.
     #[tokio::test]
     async fn test_ac4_no_notifications_section_starts_ok() {
-        // GIVEN une config sans section [notifications]
+        // GIVEN a config with no [notifications] section
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let config = SupervisorConfig {
@@ -2668,7 +2665,7 @@ mod tests {
         };
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appelé
+        // WHEN start() is called
         let result = supervisor
             .start(
                 MockBackend,
@@ -2678,7 +2675,7 @@ mod tests {
             )
             .await;
 
-        // THEN pas d'erreur, NotificationEngine non démarré silencieusement
+        // THEN no error, NotificationEngine silently not started
         assert!(
             result.is_ok(),
             "démarrage sans [notifications] doit réussir, erreur: {:?}",
@@ -2695,12 +2692,12 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // Triggers chargés depuis SQLite au boot
+    // Triggers loaded from SQLite at boot.
     #[tokio::test]
     async fn test_ac4_trigger_engine_loads_from_sqlite() {
         use apollia_triggers::{TriggerDefinitionRepository, TriggerDefinitionRow};
 
-        // GIVEN une DB triggers_def.db pré-remplie avec 1 trigger
+        // GIVEN a triggers_def.db pre-filled with 1 trigger
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let tmp_dir = tempfile::tempdir().expect("tempdir");
@@ -2741,7 +2738,7 @@ mod tests {
         };
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appelé
+        // WHEN start() is called
         let handles = supervisor
             .start(
                 MockBackend,
@@ -2752,7 +2749,7 @@ mod tests {
             .await
             .expect("start() doit reussir");
 
-        // THEN trigger_engine contient 1 trigger chargé depuis SQLite
+        // THEN trigger_engine holds 1 trigger loaded from SQLite
         let trigger_list = handles.trigger_engine.list().await;
         assert_eq!(
             trigger_list.len(),
@@ -2772,16 +2769,16 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // Boot avec DBs vides crée les bases et démarre sans erreur
+    // Booting with empty DBs creates the databases and starts without error.
     #[tokio::test]
     async fn test_story187_boot_empty_dbs() {
-        // GIVEN un répertoire vide (aucune DB pré-existante)
+        // GIVEN an empty directory (no pre-existing DB)
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let (config, _tmp_dir) = test_config(port, socket_path.clone());
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appelé
+        // WHEN start() is called
         let handles = supervisor
             .start(
                 MockBackend,
@@ -2792,10 +2789,9 @@ mod tests {
             .await
             .expect("boot with empty DBs should succeed");
 
-        // THEN AllReady est émis, 0 triggers ; le NotificationEngine est
-        // démarré car le supervisor seed automatiquement un canal Desktop par
-        // défaut (Item 5, Notifications v2). Le marker dans `user_memory`
-        // empêche le re-seed sur les boots suivants.
+        // THEN AllReady is emitted, 0 triggers; the NotificationEngine is
+        // started because the supervisor auto-seeds a default desktop channel.
+        // The marker in `user_memory` prevents a re-seed on subsequent boots.
         let trigger_list = handles.trigger_engine.list().await;
         assert!(trigger_list.is_empty(), "empty DB should yield 0 triggers");
         assert!(
@@ -2813,9 +2809,9 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // ── Item 5, seed_default_desktop_channel_if_needed (unit) ──────────────
+    // ── seed_default_desktop_channel_if_needed (unit) ──────────────
 
-    /// Helper : (notif_repo, user_memory) initialisés sur tempdirs vierges.
+    /// Helper: (notif_repo, user_memory) initialised on fresh tempdirs.
     fn make_seed_inputs() -> (
         NotificationConfigRepository,
         std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
@@ -2962,10 +2958,10 @@ mod tests {
         assert!(chans.is_empty());
     }
 
-    // AppState contient les 3 repositories après boot
+    // AppState holds the repositories after boot.
     #[tokio::test]
     async fn test_story187_appstate_contains_repos() {
-        // GIVEN un Supervisor avec répertoire vide
+        // GIVEN a Supervisor with an empty directory
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let tmp_dir = tempfile::tempdir().expect("tempdir");
@@ -2990,7 +2986,7 @@ mod tests {
         };
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() réussit
+        // WHEN start() succeeds
         let handles = supervisor
             .start(
                 MockBackend,
@@ -3001,7 +2997,7 @@ mod tests {
             .await
             .expect("start should succeed");
 
-        // THEN les fichiers DB sont créés dans data_dir
+        // THEN the DB files are created in data_dir
         assert!(
             tmp_dir.path().join("triggers_def.db").exists(),
             "triggers_def.db should be created"
@@ -3111,10 +3107,10 @@ mod tests {
         let _ = std::fs::remove_file(socket_path);
     }
 
-    // Les agents enabled sont chargés au boot
+    // Enabled agents are loaded at boot.
     #[tokio::test]
     async fn test_autoload_enabled_agents() {
-        // GIVEN 3 agents installés dont 2 enabled
+        // GIVEN 3 installed agents, 2 of them enabled
         let repo = open_test_repo();
         repo.save(&test_installed_agent("agent-a", true))
             .expect("save a");
@@ -3130,7 +3126,7 @@ mod tests {
 
         let supervisor = Supervisor::new(config);
 
-        // WHEN le Supervisor démarre
+        // WHEN the Supervisor starts
         let handles = supervisor
             .start(
                 MockBackend,
@@ -3141,7 +3137,7 @@ mod tests {
             .await
             .expect("start() should succeed");
 
-        // THEN les 2 agents enabled sont enregistrés dans AgentRegistry
+        // THEN the 2 enabled agents are registered in AgentRegistry
         let agents = handles
             .registry_handle
             .list_agents()
@@ -3152,10 +3148,10 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // Les agents disabled sont ignorés
+    // Disabled agents are ignored.
     #[tokio::test]
     async fn test_autoload_skips_disabled() {
-        // GIVEN 2 agents dont 1 disabled
+        // GIVEN 2 agents, 1 of them disabled
         let repo = open_test_repo();
         repo.save(&test_installed_agent("enabled-agent", true))
             .expect("save enabled");
@@ -3169,7 +3165,7 @@ mod tests {
 
         let supervisor = Supervisor::new(config);
 
-        // WHEN le Supervisor démarre
+        // WHEN the Supervisor starts
         let handles = supervisor
             .start(
                 MockBackend,
@@ -3180,7 +3176,7 @@ mod tests {
             .await
             .expect("start() should succeed");
 
-        // THEN seul l'agent enabled est enregistré
+        // THEN only the enabled agent is registered
         let agents = handles
             .registry_handle
             .list_agents()
@@ -3191,10 +3187,10 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // Un agent en erreur ne bloque pas le boot
+    // A failing agent does not block the boot.
     #[tokio::test]
     async fn test_autoload_corrupted_agent_continues() {
-        // GIVEN 2 agents enabled dont 1 avec un fichier "corrompu"
+        // GIVEN 2 enabled agents, 1 with a "corrupted" file
         let repo = open_test_repo();
         let mut valid = test_installed_agent("valid-agent", true);
         valid.install_path = PathBuf::from("/tmp/agents/valid-agent/agent.py");
@@ -3211,17 +3207,17 @@ mod tests {
 
         let supervisor = Supervisor::new(config);
 
-        // Subscribe avant start() pour capturer AgentLoadFailed
-        // (impossible ici car event_sender est créé dans start())
-        // On vérifie plutôt que le boot réussit et que l'agent valide est chargé
+        // We cannot subscribe before start() to capture AgentLoadFailed because
+        // event_sender is created inside start(). Instead we verify that the boot
+        // succeeds and the valid agent is loaded.
 
-        // WHEN le Supervisor démarre avec un loader qui échoue pour "corrupted"
+        // WHEN the Supervisor starts with a loader that fails for "corrupted"
         let handles = supervisor
             .start(MockBackend, Arc::new(FailingAgentLoader), None, None)
             .await
             .expect("start() should succeed despite corrupted agent");
 
-        // THEN l'agent valide est enregistré
+        // THEN the valid agent is registered
         let agents = handles
             .registry_handle
             .list_agents()
@@ -3232,10 +3228,10 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // Aucun agent installé = boot normal
+    // No installed agents means a normal boot.
     #[tokio::test]
     async fn test_autoload_no_agents_no_error() {
-        // GIVEN une base vide
+        // GIVEN an empty database
         let repo = open_test_repo();
 
         let port = free_port().await;
@@ -3245,7 +3241,7 @@ mod tests {
 
         let supervisor = Supervisor::new(config);
 
-        // WHEN le Supervisor démarre
+        // WHEN the Supervisor starts
         let handles = supervisor
             .start(
                 MockBackend,
@@ -3256,7 +3252,7 @@ mod tests {
             .await
             .expect("start() should succeed with no agents");
 
-        // THEN aucun agent enregistré, pas d'erreur
+        // THEN no agent is registered and there is no error
         let agents = handles
             .registry_handle
             .list_agents()
@@ -3267,10 +3263,10 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // agent_repository = None → auto-load skippé
+    // agent_repository = None skips auto-load.
     #[tokio::test]
     async fn test_autoload_none_repository_skips() {
-        // GIVEN une config sans agent_repository
+        // GIVEN a config without agent_repository
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let (config, _tmp_dir) = test_config(port, socket_path.clone());
@@ -3278,7 +3274,7 @@ mod tests {
 
         let supervisor = Supervisor::new(config);
 
-        // WHEN le Supervisor démarre
+        // WHEN the Supervisor starts
         let handles = supervisor
             .start(
                 MockBackend,
@@ -3289,7 +3285,7 @@ mod tests {
             .await
             .expect("start() should succeed without agent_repository");
 
-        // THEN pas d'agent enregistré, boot normal
+        // THEN no agent registered, normal boot
         let agents = handles
             .registry_handle
             .list_agents()
@@ -3303,10 +3299,10 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // Agent avec packages vide → pas de venv créé, état Active
+    // Agent with empty packages: no venv created, Active state.
     #[tokio::test]
     async fn test_autoload_empty_packages_agent_is_active() {
-        // GIVEN un agent avec packages: []
+        // GIVEN an agent with packages: []
         let repo = open_test_repo();
         repo.save(&test_installed_agent("no-pkg-agent", true))
             .expect("save agent");
@@ -3318,7 +3314,7 @@ mod tests {
 
         let supervisor = Supervisor::new(config);
 
-        // WHEN le Supervisor démarre
+        // WHEN the Supervisor starts
         let handles = supervisor
             .start(
                 MockBackend,
@@ -3329,7 +3325,7 @@ mod tests {
             .await
             .expect("start() should succeed");
 
-        // THEN l'agent est en état Active
+        // THEN the agent is in Active state
         let agents = handles
             .registry_handle
             .list_agents()
@@ -3338,7 +3334,7 @@ mod tests {
         assert_eq!(agents.len(), 1);
         assert_eq!(agents[0].process_state, ProcessState::Active);
 
-        // ET aucun venv n'a été créé dans data_dir/venvs/
+        // AND no venv was created in data_dir/venvs/
         let venv_dir = tmp_dir.path().join("venvs").join("no-pkg-agent");
         assert!(
             !venv_dir.exists(),
@@ -3348,10 +3344,10 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // Agent avec package invalide → état Degraded, autres agents démarrent normalement
+    // Agent with an invalid package: Degraded state, other agents start normally.
     #[tokio::test]
     async fn test_autoload_bad_package_agent_is_degraded() {
-        // GIVEN deux agents : un avec package invalide, un sans packages
+        // GIVEN two agents: one with an invalid package, one without packages
         // Install paths use the agent name as file stem so StubAgentLoader resolves correctly.
         let repo = open_test_repo();
 
@@ -3387,13 +3383,13 @@ mod tests {
 
         let supervisor = Supervisor::new(config);
 
-        // WHEN le Supervisor démarre
+        // WHEN the Supervisor starts
         let handles = supervisor
             .start(MockBackend, Arc::new(PackageAwareLoader), None, None)
             .await
             .expect("start() should succeed despite bad package");
 
-        // THEN les deux agents sont enregistrés
+        // THEN both agents are registered
         let agents = handles
             .registry_handle
             .list_agents()
@@ -3401,7 +3397,7 @@ mod tests {
             .expect("list_agents should succeed");
         assert_eq!(agents.len(), 2, "both agents should be registered");
 
-        // ET l'agent valide est Active
+        // AND the valid agent is Active
         let good = agents
             .iter()
             .find(|a| a.manifest.name == "good-agent")
@@ -3412,7 +3408,7 @@ mod tests {
             "good-agent should be Active"
         );
 
-        // ET l'agent avec mauvais package est Degraded (python3 disponible) ou Active (python3 absent)
+        // AND the agent with a bad package is Degraded (python3 available) or Active (python3 absent)
         let bad = agents
             .iter()
             .find(|a| a.manifest.name == "bad-pkg-agent")
@@ -3522,7 +3518,7 @@ mod tests {
 
     // ── Bundled agents auto-install ──────────────────────────────
 
-    /// Crée un répertoire bundled temporaire avec un manifest.json et des stubs Python.
+    /// Creates a temporary bundled directory with a manifest.json and Python stubs.
     fn setup_bundled_dir(tmp: &tempfile::TempDir, agents: &[(&str, &str)]) -> std::path::PathBuf {
         let bundled_dir = tmp.path().join("bundled");
         std::fs::create_dir_all(&bundled_dir).expect("create bundled dir");
@@ -3558,10 +3554,10 @@ mod tests {
         bundled_dir
     }
 
-    // Pas de manifest.json → pas d'agent installé, pas d'erreur
+    // No manifest.json means no agent installed and no error.
     #[test]
     fn test_no_manifest_no_error() {
-        // GIVEN aucun manifest.json dans le répertoire bundled
+        // GIVEN no manifest.json in the bundled directory
         let tmp = tempfile::tempdir().expect("tempdir");
         let bundled_dir = tmp.path().join("bundled");
         std::fs::create_dir_all(&bundled_dir).expect("create dir");
@@ -3572,22 +3568,22 @@ mod tests {
         let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
         auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
 
-        // THEN aucun agent dans la base
+        // THEN no agent in the database
         let agents = repo.list().expect("list should succeed");
         assert!(agents.is_empty(), "no agents should be installed");
     }
 
-    // bundled_agents_path = None → aucun agent installé, pas d'erreur
+    // bundled_agents_path = None means no agent installed and no error.
     #[test]
     fn test_no_bundled_path_no_error() {
-        // GIVEN bundled_agents_path non configuré
+        // GIVEN bundled_agents_path is not configured
         let repo = open_test_repo();
         let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
 
         // WHEN
         auto_load_bundled_agents(None, &repo, &loader);
 
-        // THEN aucun agent dans la base
+        // THEN no agent in the database
         let agents = repo.list().expect("list should succeed");
         assert!(
             agents.is_empty(),
@@ -3595,10 +3591,10 @@ mod tests {
         );
     }
 
-    // 4 agents dans le manifest, DB vide → 4 agents enregistrés
+    // 4 agents in the manifest, empty DB: 4 agents registered.
     #[test]
     fn test_bundled_agents_auto_installed() {
-        // GIVEN manifest.json avec 4 agents ET aucun agent en DB
+        // GIVEN a manifest.json with 4 agents AND no agent in the DB
         let tmp = tempfile::tempdir().expect("tempdir");
         let bundled_dir = setup_bundled_dir(
             &tmp,
@@ -3616,7 +3612,7 @@ mod tests {
         // WHEN
         auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
 
-        // THEN 4 agents dans la base, tous enabled
+        // THEN 4 agents in the database, all enabled
         let agents = repo.list().expect("list should succeed");
         assert_eq!(agents.len(), 4, "all 4 bundled agents should be installed");
         assert!(
@@ -3630,10 +3626,10 @@ mod tests {
         assert!(names.contains(&"code-worker"));
     }
 
-    // excel-worker déjà en DB → pas ré-installé, 3 autres installés
+    // excel-worker already in the DB: not reinstalled, the 3 others are installed.
     #[test]
     fn test_bundled_agents_skip_existing() {
-        // GIVEN excel-worker déjà installé en DB
+        // GIVEN excel-worker already installed in the DB
         let tmp = tempfile::tempdir().expect("tempdir");
         let bundled_dir = setup_bundled_dir(
             &tmp,
@@ -3654,7 +3650,7 @@ mod tests {
         // WHEN
         auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
 
-        // THEN 4 agents en DB (1 préexistant + 3 nouveaux), excel-worker non dupliqué
+        // THEN 4 agents in the DB (1 pre-existing + 3 new), excel-worker not duplicated
         let agents = repo.list().expect("list should succeed");
         assert_eq!(agents.len(), 4, "4 agents total (1 existing + 3 new)");
         let excel_count = agents.iter().filter(|a| a.name == "excel-worker").count();

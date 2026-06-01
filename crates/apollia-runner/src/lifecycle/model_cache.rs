@@ -6,11 +6,11 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-/// Cache LRU simpliste des modèles chargés.
+/// Minimal LRU cache of loaded models.
 ///
-/// Pour Phase 1, ne fait que tenir une liste des `model_id` actuellement
-/// chargés. Les détails (taille VRAM, LRU eviction) seront ajoutés en
-/// Phase 2 quand le backend réel sera câblé.
+/// For now it only tracks the list of currently loaded `model_id`s. The
+/// details (VRAM size, LRU eviction) will be added once the real backend is
+/// wired in.
 #[derive(Debug, Default)]
 pub struct ModelCache {
     loaded: Mutex<HashMap<String, ModelEntry>>,
@@ -28,25 +28,25 @@ impl ModelCache {
         Self::default()
     }
 
-    /// Liste les `model_id` actuellement chargés.
+    /// Lists the currently loaded `model_id`s.
     pub fn loaded_ids(&self) -> Vec<String> {
         let guard = self.loaded.lock().expect("model cache lock poisoned");
         guard.keys().cloned().collect()
     }
 
-    /// Mémoire totale utilisée par les modèles chargés.
+    /// Total memory used by the loaded models.
     pub fn total_memory_mb(&self) -> u32 {
         let guard = self.loaded.lock().expect("model cache lock poisoned");
         guard.values().map(|e| e.memory_used_mb).sum()
     }
 
-    /// Marque un modèle comme chargé (placeholder pour Phase 2).
+    /// Marks a model as loaded.
     pub fn register(&self, entry: ModelEntry) {
         let mut guard = self.loaded.lock().expect("model cache lock poisoned");
         guard.insert(entry.model_id.clone(), entry);
     }
 
-    /// Retire un modèle du cache.
+    /// Removes a model from the cache.
     pub fn unregister(&self, model_id: &str) -> bool {
         let mut guard = self.loaded.lock().expect("model cache lock poisoned");
         guard.remove(model_id).is_some()

@@ -1,19 +1,19 @@
-//! Couche 2 du moteur de permissions - PrefixRuleEngine SQLite.
+//! Layer 2 of the permission engine: the SQLite PrefixRuleEngine.
 //!
-//! Persiste des règles Allow/Deny par préfixe d'argument dans SQLite.
-//! Permet à l'opérateur (ou au bouton "Toujours autoriser" HITL desktop)
-//! d'ajouter des règles qui survivent aux redémarrages du runtime.
+//! Persists Allow/Deny rules keyed by argument prefix in SQLite.
+//! Lets the operator (or the desktop HITL "Always allow" button) add rules
+//! that survive runtime restarts.
 //!
-//! Schéma SQLite :
+//! SQLite schema:
 //! ```sql
 //! CREATE TABLE permission_rules (
 //!     id           INTEGER PRIMARY KEY AUTOINCREMENT,
 //!     tool_name    TEXT NOT NULL,
 //!     arg_prefix   TEXT,
-//!     action       TEXT NOT NULL,  -- 'allow' ou 'deny'
+//!     action       TEXT NOT NULL,  -- 'allow' or 'deny'
 //!     created_at   INTEGER NOT NULL,
 //!     created_by   TEXT,
-//!     scope        TEXT NOT NULL DEFAULT 'global', -- 'project' ou 'global'
+//!     scope        TEXT NOT NULL DEFAULT 'global', -- 'project' or 'global'
 //!     project_path TEXT,
 //!     expires_at   INTEGER
 //! );
@@ -28,15 +28,15 @@ use crate::error::PermissionError;
 use crate::migrations::add_column_if_missing;
 
 // ─────────────────────────────────────────────
-// Types publics
+// Public types
 // ─────────────────────────────────────────────
 
-/// Action d'une règle de préfixe - Allow ou Deny.
+/// Action of a prefix rule: Allow or Deny.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RuleAction {
-    /// Auto-approuver les invocations correspondant à cette règle.
+    /// Auto-approve invocations matching this rule.
     Allow,
-    /// Auto-refuser les invocations correspondant à cette règle.
+    /// Auto-deny invocations matching this rule.
     Deny,
 }
 
@@ -59,32 +59,32 @@ impl RuleAction {
     }
 }
 
-/// Portée d'une règle de permission.
+/// Scope of a permission rule.
 ///
-/// Détermine où la règle est stockée et comment elle est filtrée lors de l'évaluation.
+/// Determines where the rule is stored and how it is filtered during evaluation.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PermissionScope {
-    /// Règle vivant uniquement en mémoire dans le `PermissionEngine`.
+    /// Rule living only in memory inside the `PermissionEngine`.
     ///
-    /// Disparaît à l'arrêt du process. Jamais persistée en SQLite.
+    /// Disappears when the process stops. Never persisted to SQLite.
     Session,
-    /// Règle persistée et filtrée par chemin canonique du projet courant.
+    /// Rule persisted and filtered by the canonical path of the current project.
     ///
-    /// Ne s'applique qu'aux invocations émises depuis le projet correspondant.
+    /// Applies only to invocations issued from the matching project.
     Project,
-    /// Règle persistée et filtrée par identité de l'agent courant.
+    /// Rule persisted and filtered by the identity of the current agent.
     ///
-    /// S'applique à tout invocation émise par l'agent dont l'`agent_id` matche.
-    /// Indépendante du projet - un agent peut être lancé hors projet.
+    /// Applies to any invocation issued by the agent whose `agent_id` matches.
+    /// Independent of the project: an agent can run outside a project.
     Agent,
-    /// Règle persistée s'appliquant à n'importe quel projet.
+    /// Rule persisted and applying to any project.
     #[default]
     Global,
 }
 
 impl PermissionScope {
-    /// Représentation textuelle stockée en base de données.
+    /// Textual representation stored in the database.
     pub fn as_str(&self) -> &'static str {
         match self {
             PermissionScope::Session => "session",
@@ -94,7 +94,7 @@ impl PermissionScope {
         }
     }
 
-    /// Parse la valeur stockée en base - par défaut `Global` pour les colonnes nulles.
+    /// Parse the value stored in the database, defaulting to `Global` for null columns.
     fn from_db_str(s: &str) -> Result<Self, PermissionError> {
         match s {
             "session" => Ok(PermissionScope::Session),
@@ -108,44 +108,44 @@ impl PermissionScope {
     }
 }
 
-/// Contexte d'évaluation d'une règle scope-aware.
+/// Evaluation context for scope-aware rule matching.
 ///
-/// Communiqué au `PrefixRuleEngine` pour filtrer les règles `Project`/`Agent`.
+/// Passed to the `PrefixRuleEngine` to filter `Project`/`Agent` rules.
 #[derive(Debug, Clone, Default)]
 pub struct ScopeContext {
-    /// Portée associée à l'invocation courante (informatif - non utilisé pour le filtrage).
+    /// Scope of the current invocation (informational, not used for filtering).
     pub scope: PermissionScope,
-    /// Chemin canonique du projet courant (`None` lorsque hors projet).
+    /// Canonical path of the current project (`None` when outside a project).
     pub project_path: Option<PathBuf>,
-    /// Identifiant de l'agent courant (`None` lorsque hors contexte agent).
+    /// Identifier of the current agent (`None` when outside an agent context).
     pub agent_id: Option<String>,
 }
 
-/// Règle de préfixe persistée dans SQLite.
+/// A prefix rule persisted in SQLite.
 ///
-/// Une règle associe un nom d'outil et un préfixe d'argument optionnel à une action.
-/// `arg_prefix = None` signifie que la règle s'applique à tout argument.
+/// A rule binds a tool name and an optional argument prefix to an action.
+/// `arg_prefix = None` means the rule applies to any argument.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrefixRule {
-    /// Identifiant unique (AUTOINCREMENT SQLite). 0 pour une règle non persistée.
+    /// Unique identifier (SQLite AUTOINCREMENT). 0 for a non-persisted rule.
     pub id: i64,
-    /// Nom de l'outil ciblé.
+    /// Name of the targeted tool.
     pub tool_name: String,
-    /// Préfixe de l'argument à matcher (None = tout argument).
+    /// Argument prefix to match (None = any argument).
     pub arg_prefix: Option<String>,
-    /// Action à appliquer si la règle correspond.
+    /// Action to apply when the rule matches.
     pub action: RuleAction,
-    /// Timestamp de création (Unix epoch, secondes).
+    /// Creation timestamp (Unix epoch, seconds).
     pub created_at: i64,
-    /// Nom de l'agent ayant créé la règle (None = opérateur humain).
+    /// Name of the agent that created the rule (None = human operator).
     pub created_by_agent: Option<String>,
-    /// Portée de la règle.
+    /// Scope of the rule.
     pub scope: PermissionScope,
-    /// Chemin canonique du projet (renseigné lorsque `scope == Project`).
+    /// Canonical project path (set when `scope == Project`).
     pub project_path: Option<PathBuf>,
-    /// Identifiant de l'agent (renseigné lorsque `scope == Agent`).
+    /// Agent identifier (set when `scope == Agent`).
     pub agent_id: Option<String>,
-    /// Timestamp Unix d'expiration (None = règle permanente).
+    /// Unix expiration timestamp (None = permanent rule).
     pub expires_at: Option<i64>,
 }
 
@@ -170,20 +170,20 @@ impl Default for PrefixRule {
 // PrefixRuleEngine
 // ─────────────────────────────────────────────
 
-/// Moteur de règles préfixe persistées en SQLite (couche 2).
+/// Engine for prefix rules persisted in SQLite (layer 2).
 ///
-/// Gère le CRUD des règles et évalue les invocations d'outils
-/// en cherchant la règle la plus spécifique (préfixe le plus long) en premier.
+/// Handles rule CRUD and evaluates tool invocations by looking for the most
+/// specific rule (longest prefix) first.
 pub struct PrefixRuleEngine {
     db: Connection,
 }
 
 impl PrefixRuleEngine {
-    /// Ouvre (ou crée) la base SQLite au chemin indiqué et migre le schéma.
+    /// Opens (or creates) the SQLite database at the given path and migrates the schema.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] si l'ouverture ou la migration échoue.
+    /// Returns [`PermissionError::Database`] if opening or migrating fails.
     pub fn new(db_path: &Path) -> Result<Self, PermissionError> {
         let db = Connection::open_with_flags(
             db_path,
@@ -195,20 +195,20 @@ impl PrefixRuleEngine {
         Ok(engine)
     }
 
-    /// Vérifie si l'invocation (`tool_name`, `first_arg`) correspond à une règle persistée.
+    /// Checks whether the invocation (`tool_name`, `first_arg`) matches a persisted rule.
     ///
-    /// Variante rétrocompatible : ne filtre pas par scope (toutes les règles project + global
-    /// sont considérées) mais ignore les règles expirées.
+    /// Backward-compatible variant: does not filter by scope (all project + global
+    /// rules are considered) but ignores expired rules.
     ///
-    /// Les règles sont évaluées par ordre décroissant de spécificité :
-    /// - préfixe le plus long en premier,
-    /// - puis les règles sans préfixe (None).
+    /// Rules are evaluated by decreasing specificity:
+    /// - longest prefix first,
+    /// - then rules without a prefix (None).
     ///
-    /// Retourne la première action correspondante, ou `None` si aucune règle ne correspond.
+    /// Returns the first matching action, or `None` if no rule matches.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn check(
         &self,
         tool_name: &str,
@@ -219,11 +219,11 @@ impl PrefixRuleEngine {
             .map(|(_, action)| action))
     }
 
-    /// Variante de [`check`](Self::check) qui retourne aussi l'identifiant de la règle.
+    /// Variant of [`check`](Self::check) that also returns the rule identifier.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn check_with_id(
         &self,
         tool_name: &str,
@@ -261,21 +261,21 @@ impl PrefixRuleEngine {
         Ok(None)
     }
 
-    /// Évalue les règles avec filtrage scope-aware.
+    /// Evaluates rules with scope-aware filtering.
     ///
-    /// Ordre d'évaluation (du plus spécifique au plus large) :
+    /// Evaluation order (most specific to broadest):
     ///
-    /// 1. Règles DB `scope = 'project'` filtrées par `scope_ctx.project_path`.
-    /// 2. Règles DB `scope = 'agent'` filtrées par `scope_ctx.agent_id`.
-    /// 3. `session_rules` (en mémoire, jamais persistées).
-    /// 4. Règles DB `scope = 'global'`.
+    /// 1. DB rules with `scope = 'project'` filtered by `scope_ctx.project_path`.
+    /// 2. DB rules with `scope = 'agent'` filtered by `scope_ctx.agent_id`.
+    /// 3. `session_rules` (in memory, never persisted).
+    /// 4. DB rules with `scope = 'global'`.
     ///
-    /// À l'intérieur de chaque tier, la règle dont le préfixe est le plus long gagne.
-    /// Les règles expirées (`expires_at` dans le passé) sont ignorées et tracées en warning.
+    /// Within each tier, the rule with the longest prefix wins.
+    /// Expired rules (`expires_at` in the past) are ignored and logged at warning level.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn check_with_scope(
         &self,
         tool_name: &str,
@@ -304,14 +304,14 @@ impl PrefixRuleEngine {
         self.match_in_db_global(tool_name, first_arg, now)
     }
 
-    /// Persiste une nouvelle règle et retourne son identifiant auto-incrémenté.
+    /// Persists a new rule and returns its auto-incremented identifier.
     ///
     /// # Errors
     ///
-    /// - [`PermissionError::InvalidRule`] si `tool_name` est vide, si `scope == Session`
-    ///   (les règles de session vivent en mémoire), ou si `scope == Project` sans
+    /// - [`PermissionError::InvalidRule`] if `tool_name` is empty, if `scope == Session`
+    ///   (session rules live in memory), or if `scope == Project` without a
     ///   `project_path`.
-    /// - [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// - [`PermissionError::Database`] on SQLite error.
     pub fn add_rule(&mut self, rule: &PrefixRule) -> Result<i64, PermissionError> {
         if rule.tool_name.trim().is_empty() {
             return Err(PermissionError::InvalidRule(
@@ -367,25 +367,25 @@ impl PrefixRuleEngine {
         Ok(self.db.last_insert_rowid())
     }
 
-    /// Supprime la règle identifiée par `id`.
+    /// Removes the rule identified by `id`.
     ///
-    /// Silencieux si la règle n'existe pas (utilisez [`remove_rule_checked`](Self::remove_rule_checked)
-    /// pour distinguer les deux cas).
+    /// Silent if the rule does not exist (use [`remove_rule_checked`](Self::remove_rule_checked)
+    /// to distinguish the two cases).
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn remove_rule(&mut self, id: i64) -> Result<(), PermissionError> {
         self.db
             .execute("DELETE FROM permission_rules WHERE id = ?", params![id])?;
         Ok(())
     }
 
-    /// Supprime la règle identifiée par `id` et retourne `true` si une ligne a été supprimée.
+    /// Removes the rule identified by `id` and returns `true` if a row was deleted.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn remove_rule_checked(&mut self, id: i64) -> Result<bool, PermissionError> {
         let affected = self
             .db
@@ -393,16 +393,16 @@ impl PrefixRuleEngine {
         Ok(affected > 0)
     }
 
-    /// Supprime toutes les règles persistées correspondant à *scope* (et
-    /// éventuellement à *project_path* lorsque *scope* est `Project`).
+    /// Removes all persisted rules matching *scope* (and optionally *project_path*
+    /// when *scope* is `Project`).
     ///
-    /// Retourne le nombre de lignes supprimées.
+    /// Returns the number of rows deleted.
     ///
     /// # Errors
     ///
-    /// - [`PermissionError::InvalidRule`] si *scope* est `Session` (les règles
-    ///   de session ne sont pas persistées).
-    /// - [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// - [`PermissionError::InvalidRule`] if *scope* is `Session` (session rules
+    ///   are not persisted).
+    /// - [`PermissionError::Database`] on SQLite error.
     pub fn remove_rules_by_scope(
         &mut self,
         scope: PermissionScope,
@@ -437,13 +437,13 @@ impl PrefixRuleEngine {
         Ok(affected as u32)
     }
 
-    /// Supprime toutes les règles `scope = 'agent'` correspondant à `agent_id`.
+    /// Removes all `scope = 'agent'` rules matching `agent_id`.
     ///
-    /// Retourne le nombre de lignes supprimées.
+    /// Returns the number of rows deleted.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn remove_rules_by_agent(&mut self, agent_id: &str) -> Result<u32, PermissionError> {
         let affected = self.db.execute(
             "DELETE FROM permission_rules WHERE scope = 'agent' AND agent_id = ?",
@@ -452,18 +452,17 @@ impl PrefixRuleEngine {
         Ok(affected as u32)
     }
 
-    /// Supprime toutes les règles dont le champ `created_by` correspond à `created_by`.
+    /// Removes all rules whose `created_by` field matches `created_by`.
     ///
-    /// Utilisé pour les opérations d'audit ou de reset ciblé (ex : nettoyer toutes
-    /// les règles écrites par un agent particulier avant qu'il en propose de
-    /// nouvelles). Les règles `session` (RAM) ne sont pas concernées : elles ne sont
-    /// pas persistées.
+    /// Used for audit or targeted reset operations (for example, clearing all
+    /// rules written by a particular agent before it proposes new ones). `session`
+    /// rules (in RAM) are unaffected since they are not persisted.
     ///
-    /// Retourne le nombre de lignes supprimées.
+    /// Returns the number of rows deleted.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn remove_rules_by_creator(&mut self, created_by: &str) -> Result<u32, PermissionError> {
         let affected = self.db.execute(
             "DELETE FROM permission_rules WHERE created_by = ?",
@@ -472,14 +471,14 @@ impl PrefixRuleEngine {
         Ok(affected as u32)
     }
 
-    /// Liste les règles persistées dont le champ `created_by` correspond.
+    /// Lists persisted rules whose `created_by` field matches.
     ///
-    /// Renvoie les règles triées par identifiant croissant. N'inclut pas les
-    /// règles de session (RAM uniquement, jamais persistées).
+    /// Returns rules sorted by ascending identifier. Does not include session
+    /// rules (RAM only, never persisted).
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn list_rules_by_creator(
         &self,
         created_by: &str,
@@ -499,11 +498,11 @@ impl PrefixRuleEngine {
         Ok(rules)
     }
 
-    /// Liste les règles `scope = 'agent'` filtrées par `agent_id`.
+    /// Lists `scope = 'agent'` rules filtered by `agent_id`.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn list_rules_for_agent(&self, agent_id: &str) -> Result<Vec<PrefixRule>, PermissionError> {
         let mut stmt = self.db.prepare(
             "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
@@ -520,27 +519,27 @@ impl PrefixRuleEngine {
         Ok(rules)
     }
 
-    /// Retourne toutes les règles persistées, triées par identifiant croissant.
+    /// Returns all persisted rules, sorted by ascending identifier.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn list_rules(&self) -> Result<Vec<PrefixRule>, PermissionError> {
         self.list_rules_filtered(None, None)
     }
 
-    /// Retourne les règles persistées, optionnellement filtrées par scope et chemin de projet.
+    /// Returns persisted rules, optionally filtered by scope and project path.
     ///
-    /// - `scope = Some(Project)` + `project_path = Some(p)` : règles du projet `p`.
-    /// - `scope = Some(Project)` + `project_path = None` : toutes règles `project`.
-    /// - `scope = Some(Global)` : règles `global`.
-    /// - `scope = None` : toutes les règles persistées (project + global).
+    /// - `scope = Some(Project)` + `project_path = Some(p)`: rules for project `p`.
+    /// - `scope = Some(Project)` + `project_path = None`: all `project` rules.
+    /// - `scope = Some(Global)`: `global` rules.
+    /// - `scope = None`: all persisted rules (project + global).
     ///
-    /// Les règles `session` ne sont jamais persistées et n'apparaissent donc pas ici.
+    /// `session` rules are never persisted and therefore do not appear here.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn list_rules_filtered(
         &self,
         scope: Option<PermissionScope>,
@@ -551,7 +550,7 @@ impl PrefixRuleEngine {
         let (sql, params): (String, Vec<rusqlite::types::Value>) = match (scope, &project_path_str)
         {
             (Some(PermissionScope::Session), _) => {
-                // Aucune règle persistée n'a scope=session.
+                // No persisted rule has scope=session.
                 return Ok(Vec::new());
             }
             (Some(PermissionScope::Project), Some(p)) => (
@@ -611,7 +610,7 @@ impl PrefixRuleEngine {
     }
 
     // ─────────────────────────────────────────────
-    // Privé
+    // Private
     // ─────────────────────────────────────────────
 
     fn match_in_db_project(
@@ -695,7 +694,7 @@ impl PrefixRuleEngine {
 }
 
 // ─────────────────────────────────────────────
-// Helpers libres
+// Free helpers
 // ─────────────────────────────────────────────
 
 fn current_unix_secs() -> i64 {
@@ -948,7 +947,7 @@ mod tests {
 
     #[test]
     fn list_rules_by_creator_returns_only_matching() {
-        // GIVEN trois règles : deux par "onboarding-agent", une par "user-hitl"
+        // GIVEN three rules: two by "onboarding-agent", one by "user-hitl"
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&rule_with_creator(
@@ -968,12 +967,12 @@ mod tests {
             .add_rule(&rule_with_creator("tool_c", RuleAction::Allow, "user-hitl"))
             .expect("add_rule");
 
-        // WHEN on liste par créateur
+        // WHEN listing by creator
         let rules = engine
             .list_rules_by_creator("onboarding-agent")
             .expect("list_rules_by_creator");
 
-        // THEN seules les deux règles de l'onboarding-agent reviennent
+        // THEN only the two onboarding-agent rules are returned
         assert_eq!(rules.len(), 2);
         assert!(rules
             .iter()
@@ -982,19 +981,19 @@ mod tests {
 
     #[test]
     fn list_rules_by_creator_unknown_returns_empty() {
-        // GIVEN engine vide
+        // GIVEN an empty engine
         let (engine, _tmp) = tmp_engine();
-        // WHEN on liste un créateur inconnu
+        // WHEN listing an unknown creator
         let rules = engine
             .list_rules_by_creator("ghost")
             .expect("list_rules_by_creator");
-        // THEN aucune règle
+        // THEN no rules
         assert!(rules.is_empty());
     }
 
     #[test]
     fn remove_rules_by_creator_deletes_only_matching() {
-        // GIVEN deux règles "onboarding-agent" + une "user-hitl"
+        // GIVEN two "onboarding-agent" rules + one "user-hitl"
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&rule_with_creator(
@@ -1014,12 +1013,12 @@ mod tests {
             .add_rule(&rule_with_creator("tool_c", RuleAction::Allow, "user-hitl"))
             .expect("add_rule");
 
-        // WHEN on supprime par créateur
+        // WHEN removing by creator
         let removed = engine
             .remove_rules_by_creator("onboarding-agent")
             .expect("remove_rules_by_creator");
 
-        // THEN deux règles supprimées, la règle user-hitl reste
+        // THEN two rules deleted, the user-hitl rule remains
         assert_eq!(removed, 2);
         let remaining = engine.list_rules().expect("list_rules");
         assert_eq!(remaining.len(), 1);
@@ -1028,16 +1027,16 @@ mod tests {
 
     #[test]
     fn remove_rules_by_creator_unknown_returns_zero() {
-        // GIVEN une règle existante
+        // GIVEN an existing rule
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&rule_with_creator("tool_a", RuleAction::Allow, "user-hitl"))
             .expect("add_rule");
-        // WHEN on supprime un créateur inexistant
+        // WHEN removing a non-existent creator
         let removed = engine
             .remove_rules_by_creator("ghost")
             .expect("remove_rules_by_creator");
-        // THEN zéro suppression, la règle reste
+        // THEN zero deletions, the rule remains
         assert_eq!(removed, 0);
         assert_eq!(engine.list_rules().expect("list").len(), 1);
     }
@@ -1244,7 +1243,7 @@ mod tests {
 
     #[test]
     fn test_scope_priority_project_over_agent_over_session_over_global() {
-        // Ordre attendu : Project > Agent > Session > Global.
+        // Expected order: Project > Agent > Session > Global.
         let (mut engine, _tmp) = tmp_engine();
         let project = PathBuf::from("/home/user/projet");
         let global_id = engine
@@ -1289,7 +1288,7 @@ mod tests {
             ..PrefixRule::default()
         }];
 
-        // Project gagne avec project_path renseigné.
+        // Project wins when project_path is set.
         let ctx = ScopeContext {
             scope: PermissionScope::Project,
             project_path: Some(project),
@@ -1300,7 +1299,7 @@ mod tests {
             .expect("check_with_scope");
         assert_eq!(hit, Some((project_id_rule, RuleAction::Allow)));
 
-        // Sans projet, Agent gagne sur Session et Global.
+        // Without a project, Agent wins over Session and Global.
         let ctx_no_project = ScopeContext {
             scope: PermissionScope::Agent,
             project_path: None,
@@ -1316,14 +1315,14 @@ mod tests {
             .expect("check_with_scope");
         assert_eq!(hit, Some((agent_id_rule, RuleAction::Deny)));
 
-        // Sans projet ni agent, Session gagne sur Global.
+        // Without a project or agent, Session wins over Global.
         let ctx_bare = ScopeContext::default();
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx_bare, &session)
             .expect("check_with_scope");
         assert_eq!(hit, Some((99, RuleAction::Deny)));
 
-        // Sans rien d'autre, Global gagne en dernier ressort.
+        // With nothing else, Global wins as a last resort.
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx_bare, &[])
             .expect("check_with_scope");

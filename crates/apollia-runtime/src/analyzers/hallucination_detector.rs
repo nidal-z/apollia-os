@@ -1,8 +1,8 @@
 //! Hallucination heuristics for tool outputs.
 //!
 //! Always-on, schema-driven where possible, with a fallback heuristic for
-//! tools that do not declare a JSON schema.
-//! (session-level meta-layer), this module is the single source of truth.
+//! tools that do not declare a JSON schema. For per-output detection this
+//! module is the single source of truth.
 //!
 //! # Heuristic
 //!
@@ -122,39 +122,39 @@ pub fn analysis_from_report(report: &HeuristicReport, raw_output: &str) -> Error
 // Session-level aggregation
 // ─────────────────────────────────────────────
 
-/// Inputs agrégés au niveau session pour calculer un score de risque global.
+/// Session-level aggregated inputs used to compute a global risk score.
 ///
-/// Le runtime remplit cette struct à partir :
-/// - des flags P3 accumulés par `detect_hallucination` sur les outputs d'outils ;
-/// - des gaps d'assertions sans citation (P10) ;
-/// - des contradictions détectées entre thinkings successifs (P11).
+/// The runtime fills this struct from:
+/// - heuristic flags accumulated by `detect_hallucination` on tool outputs;
+/// - assertions made without a supporting citation;
+/// - contradictions detected between successive thinking steps.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct SessionHallucinationInputs {
-    /// Nombre de flags P3 positifs (empty/null/schema violations).
+    /// Number of positive heuristic flags (empty/null/schema violations).
     pub heuristic_flag_count: u32,
-    /// Nombre d'outputs d'outils observés dans la session (dénominateur).
+    /// Number of tool outputs observed in the session (denominator).
     pub total_tool_outputs: u32,
-    /// Nombre d'assertions sans citation (P10).
+    /// Number of assertions made without a citation.
     pub assertion_citation_gaps: u32,
-    /// Nombre total d'assertions (dénominateur pour le ratio).
+    /// Total number of assertions (denominator for the ratio).
     pub total_assertions: u32,
-    /// Nombre de contradictions thinking détectées (P11).
+    /// Number of detected contradictions between thinking steps.
     pub thinking_contradictions: u32,
 }
 
-/// Score agrégé 0-100 + courts facteurs explicatifs. Produit par l'heuristique
-/// toujours-on [`compute_session_hallucination_risk`] ; peut être écrasé par la
-/// routine LLM `GenerateHallucinationRisk` si l'opt-in est actif.
+/// Aggregated score (0-100) plus short explanatory factors. Produced by the
+/// always-on heuristic [`compute_session_hallucination_risk`]; may be
+/// overwritten by the LLM routine `GenerateHallucinationRisk` when opted in.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HallucinationRisk {
     /// Score 0-100.
     pub score: u8,
-    /// Facteurs top (≤ 5), phrases courtes.
+    /// Top factors (at most 5), short phrases.
     pub factors: Vec<String>,
 }
 
 impl HallucinationRisk {
-    /// Safe fallback quand aucun signal n'est disponible (score 0, pas de facteurs).
+    /// Safe fallback when no signal is available (score 0, no factors).
     pub fn zero() -> Self {
         Self {
             score: 0,
@@ -162,7 +162,7 @@ impl HallucinationRisk {
         }
     }
 
-    /// Parse une sortie LLM (tolère les backticks Markdown).
+    /// Parse an LLM output (tolerates Markdown backticks).
     pub fn parse(raw: &str) -> Result<Self, serde_json::Error> {
         let clean = raw
             .trim()
@@ -181,14 +181,14 @@ impl HallucinationRisk {
     }
 }
 
-/// Heuristique déterministe, calcule un score 0-100 à partir des signaux
-/// de session. Toujours-on : coût zéro, aucun LLM.
+/// Deterministic heuristic, computes a 0-100 score from session signals.
+/// Always-on: zero cost, no LLM.
 ///
-/// # Formule
+/// # Formula
 ///
-/// - 40 points pondérés par le ratio `heuristic_flag_count / total_tool_outputs`.
-/// - 40 points pondérés par le ratio `assertion_citation_gaps / total_assertions`.
-/// - 20 points pondérés par `min(1.0, thinking_contradictions / 3.0)`.
+/// - 40 points weighted by the ratio `heuristic_flag_count / total_tool_outputs`.
+/// - 40 points weighted by the ratio `assertion_citation_gaps / total_assertions`.
+/// - 20 points weighted by `min(1.0, thinking_contradictions / 3.0)`.
 pub fn compute_session_hallucination_risk(
     inputs: &SessionHallucinationInputs,
 ) -> HallucinationRisk {

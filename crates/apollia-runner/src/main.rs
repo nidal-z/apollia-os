@@ -14,28 +14,28 @@ use tokio::sync::oneshot;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // 1. Init logging structuré sur stderr (stdout réservé au handshake READY).
+    // 1. Init structured logging on stderr (stdout is reserved for the READY handshake).
     logs::init();
 
-    // 2. Bind TCP loopback sur un port libre choisi par l'OS.
+    // 2. Bind TCP loopback on a free port chosen by the OS.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let port = listener.local_addr()?.port();
 
     tracing::info!(port, "apollia-runner bound to loopback");
 
-    // 3. Préparer le canal de shutdown.
+    // 3. Set up the shutdown channel.
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let state = AppState::new(shutdown_tx);
 
-    // 4. Build router axum.
+    // 4. Build the axum router.
     let app = build_router(state);
 
-    // 5. Annoncer au parent (daemon) qu'on est prêt.
-    //    Doit être fait AVANT axum::serve pour ne pas rater le timeout
-    //    du daemon (`RUNNER_HANDSHAKE_TIMEOUT` = 10s).
+    // 5. Tell the parent (daemon) we are ready.
+    //    Must happen BEFORE axum::serve so we do not miss the daemon's
+    //    handshake timeout (`RUNNER_HANDSHAKE_TIMEOUT` = 10s).
     ready::announce(port)?;
 
-    // 6. Combine signal externe (SIGTERM/Ctrl-C) et signal interne (POST /shutdown).
+    // 6. Combine the external signal (SIGTERM/Ctrl-C) with the internal signal (POST /shutdown).
     let combined_shutdown = async move {
         tokio::select! {
             _ = signals::shutdown_signal() => {
@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    // 7. Sert jusqu'au shutdown.
+    // 7. Serve until shutdown.
     axum::serve(listener, app)
         .with_graceful_shutdown(combined_shutdown)
         .await?;

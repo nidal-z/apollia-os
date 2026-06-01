@@ -309,11 +309,11 @@ where
     )
 }
 
-/// Limite par défaut de hops dans la chaîne de délégation A2A (ADR-D7).
+/// Default hop limit for the A2A delegation chain.
 pub const DEFAULT_A2A_MAX_HOPS: usize = 5;
 
-/// Arguments de [`delegate_inner`] : handles runtime + paramètres de la
-/// délégation A2A (skill ciblé, payload, chaîne courante, garde-fous).
+/// Arguments for [`delegate_inner`]: runtime handles plus the A2A delegation
+/// parameters (target skill, payload, current chain, guardrails).
 pub(crate) struct DelegateInner<'a, B: ExecutionBackend + Clone> {
     pub registry: &'a AgentRegistryHandle,
     pub router: &'a TaskRouterHandle<B>,
@@ -326,8 +326,8 @@ pub(crate) struct DelegateInner<'a, B: ExecutionBackend + Clone> {
     pub max_hops: usize,
 }
 
-/// Logique de délégation A2A, appelable depuis le REST handler et depuis
-/// la [`A2aDelegateFn`] type-erasée.
+/// A2A delegation logic, callable from the REST handler and from the
+/// type-erased [`A2aDelegateFn`].
 pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
     args: DelegateInner<'_, B>,
 ) -> Result<A2aDelegateResult, A2aError> {
@@ -342,33 +342,34 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
         current_agent,
         max_hops,
     } = args;
-    // 1. Résoudre skill_id → agent depuis le registry.
+    // 1. Resolve skill_id to an agent from the registry.
     let entries = registry.list_agents().await?;
     let target = resolve_skill(&entries, skill_id)?;
     let agent_id = target.id.clone();
     let agent_name = target.manifest.name.clone();
 
-    // 2. Valider la chaîne avant toute soumission (cycle + max_hops, ADR-D7).
+    // 2. Validate the chain before any submission (cycle + max_hops guardrails).
     let child_chain = validate_chain(parent_chain, current_agent, &agent_id, max_hops)?;
     let agent_id = agent_id.to_string();
 
     info!(skill_id = %skill_id, agent = %agent_name, "A2A delegation initiated");
 
-    // 3. S'abonner à l'EventBus avant de soumettre (évite une race condition).
+    // 3. Subscribe to the EventBus before submitting (avoids a race condition).
     let mut event_rx = event_bus.subscribe();
 
-    // 4. Construire l'input AIP depuis le payload JSON. Le `skill_id` est
-    //    propagé séparément via `AIPTask.skill_id` (cf. submit_with_chain
-    //    plus bas), les workers multi-skills le lisent via le décorateur
-    //    `@skill` qui se charge du dispatch automatique.
+    // 4. Build the AIP input from the JSON payload. The `skill_id` is propagated
+    //    separately via `AIPTask.skill_id` (see submit_with_chain below);
+    //    multi-skill workers read it through the `@skill` decorator, which
+    //    handles dispatch automatically.
     let input = AIPInput {
         parts: vec![AIPPart::Data(DataPart {
             data: input_payload,
         })],
     };
 
-    // 5. Soumettre la tâche via le TaskRouter avec la chaîne étendue et le
-    //    skill_id ciblé, propagé jusqu'à `AIPTask.skill_id` côté Python.
+    // 5. Submit the task via the TaskRouter with the extended chain and the
+    //    target skill_id, propagated all the way to `AIPTask.skill_id` on the
+    //    Python side.
     let task_id = router
         .submit_with_chain(&agent_id, input, Some(skill_id.to_string()), child_chain)
         .await
@@ -382,7 +383,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
     let task_id_str = task_id.to_string();
     info!(task_id = %task_id_str, agent = %agent_name, "A2A task submitted");
 
-    // 5. Attendre TaskCompleted avec timeout via l'EventBus.
+    // 6. Wait for TaskCompleted with a timeout via the EventBus.
     let wait_result = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         loop {
             match event_rx.recv().await {
@@ -418,7 +419,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                         lagged = n,
                         "A2A EventBus lagged - checking router output directly"
                     );
-                    // Fallback: consulter le routeur directement.
+                    // Fallback: query the router directly.
                     if let Ok(Some(out)) = router.get_output(&task_id_str).await {
                         return Ok(out);
                     }
@@ -427,7 +428,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                     return Err(A2aError::RouterDead);
                 }
                 _ => {
-                    // Pas notre événement, continuer d'attendre.
+                    // Not our event, keep waiting.
                 }
             }
         }
@@ -515,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_resolve_skill_found() {
-        // GIVEN un agent actif avec le skill "read-excel"
+        // GIVEN an active agent with the "read-excel" skill
         let entries = vec![make_a2a_entry(
             "excel-worker",
             true,
@@ -523,17 +524,17 @@ mod tests {
             ProcessState::Active,
         )];
 
-        // WHEN on résout "read-excel"
+        // WHEN resolving "read-excel"
         let result = resolve_skill(&entries, "read-excel");
 
-        // THEN l'agent excel-worker est retourné
+        // THEN the excel-worker agent is returned
         assert!(result.is_ok(), "expected Ok, got: {:?}", result.err());
         assert_eq!(result.unwrap().manifest.name, "excel-worker");
     }
 
     #[test]
     fn test_resolve_skill_not_found_returns_available_list() {
-        // GIVEN un agent actif avec "read-excel" mais pas "unknown-skill"
+        // GIVEN an active agent with "read-excel" but not "unknown-skill"
         let entries = vec![make_a2a_entry(
             "excel-worker",
             true,
@@ -541,10 +542,10 @@ mod tests {
             ProcessState::Active,
         )];
 
-        // WHEN on résout "unknown-skill"
+        // WHEN resolving "unknown-skill"
         let result = resolve_skill(&entries, "unknown-skill");
 
-        // THEN erreur SkillNotFound avec la liste des skills disponibles
+        // THEN a SkillNotFound error with the list of available skills
         assert!(result.is_err());
         match result.unwrap_err() {
             A2aError::SkillNotFound {
@@ -563,16 +564,16 @@ mod tests {
 
     #[test]
     fn test_resolve_skill_ambiguous_returns_conflicting_agents() {
-        // GIVEN deux agents actifs déclarant tous les deux "shared-skill"
+        // GIVEN two active agents both declaring "shared-skill"
         let entries = vec![
             make_a2a_entry("agent-a", true, &["shared-skill"], ProcessState::Active),
             make_a2a_entry("agent-b", true, &["shared-skill"], ProcessState::Active),
         ];
 
-        // WHEN on résout "shared-skill"
+        // WHEN resolving "shared-skill"
         let result = resolve_skill(&entries, "shared-skill");
 
-        // THEN erreur AmbiguousSkill avec les deux agents
+        // THEN an AmbiguousSkill error listing both agents
         assert!(result.is_err());
         match result.unwrap_err() {
             A2aError::AmbiguousSkill { skill_id, agents } => {
@@ -586,7 +587,7 @@ mod tests {
 
     #[test]
     fn test_resolve_skill_excludes_non_a2a_agents() {
-        // GIVEN un agent sans supports_a2a ET un agent avec supports_a2a, même skill
+        // GIVEN one agent without supports_a2a AND one with supports_a2a, same skill
         let entries = vec![
             make_a2a_entry(
                 "generic-agent",
@@ -597,17 +598,17 @@ mod tests {
             make_a2a_entry("excel-worker", true, &["read-excel"], ProcessState::Active),
         ];
 
-        // WHEN on résout "read-excel"
+        // WHEN resolving "read-excel"
         let result = resolve_skill(&entries, "read-excel");
 
-        // THEN seul excel-worker est retourné
+        // THEN only excel-worker is returned
         assert!(result.is_ok());
         assert_eq!(result.unwrap().manifest.name, "excel-worker");
     }
 
     #[test]
     fn test_resolve_skill_excludes_stopped_agents() {
-        // GIVEN un agent stopped avec le bon skill
+        // GIVEN a stopped agent with the right skill
         let entries = vec![make_a2a_entry(
             "excel-worker",
             true,
@@ -615,10 +616,10 @@ mod tests {
             ProcessState::Stopped,
         )];
 
-        // WHEN on résout "read-excel"
+        // WHEN resolving "read-excel"
         let result = resolve_skill(&entries, "read-excel");
 
-        // THEN SkillNotFound car l'agent est stopped
+        // THEN SkillNotFound, because the agent is stopped
         assert!(
             matches!(result.unwrap_err(), A2aError::SkillNotFound { .. }),
             "expected SkillNotFound for stopped agent"
@@ -627,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_resolve_skill_accepts_degraded_agents() {
-        // GIVEN un agent degraded avec le bon skill
+        // GIVEN a degraded agent with the right skill
         let entries = vec![make_a2a_entry(
             "excel-worker",
             true,
@@ -635,26 +636,26 @@ mod tests {
             ProcessState::Degraded,
         )];
 
-        // WHEN on résout "read-excel"
+        // WHEN resolving "read-excel"
         let result = resolve_skill(&entries, "read-excel");
 
-        // THEN l'agent degraded est accepté
+        // THEN the degraded agent is accepted
         assert!(result.is_ok());
         assert_eq!(result.unwrap().manifest.name, "excel-worker");
     }
 
     #[test]
     fn test_a2a_error_response_skill_not_found_structure() {
-        // GIVEN une erreur SkillNotFound
+        // GIVEN a SkillNotFound error
         let err = A2aError::SkillNotFound {
             skill_id: "my-skill".to_string(),
             available: "read-excel, read-csv".to_string(),
         };
 
-        // WHEN on construit la réponse HTTP
+        // WHEN building the HTTP response
         let resp = A2aErrorResponse::from_error(&err);
 
-        // THEN skill_id et available_skills sont présents, conflicting_agents absent
+        // THEN skill_id and available_skills are present, conflicting_agents absent
         assert_eq!(resp.skill_id.as_deref(), Some("my-skill"));
         let avail = resp
             .available_skills
@@ -667,16 +668,16 @@ mod tests {
 
     #[test]
     fn test_a2a_error_response_ambiguous_skill_structure() {
-        // GIVEN une erreur AmbiguousSkill
+        // GIVEN an AmbiguousSkill error
         let err = A2aError::AmbiguousSkill {
             skill_id: "conflict".to_string(),
             agents: "agent-a, agent-b".to_string(),
         };
 
-        // WHEN on construit la réponse HTTP
+        // WHEN building the HTTP response
         let resp = A2aErrorResponse::from_error(&err);
 
-        // THEN conflicting_agents est présent, available_skills absent
+        // THEN conflicting_agents is present, available_skills absent
         assert_eq!(resp.skill_id.as_deref(), Some("conflict"));
         assert!(resp.available_skills.is_none());
         let conflicts = resp
@@ -688,13 +689,13 @@ mod tests {
 
     #[test]
     fn test_a2a_error_response_other_errors_no_extra_fields() {
-        // GIVEN une erreur RouterDead (pas de skill_id ni available)
+        // GIVEN a RouterDead error (no skill_id nor available list)
         let err = A2aError::RouterDead;
 
-        // WHEN on construit la réponse HTTP
+        // WHEN building the HTTP response
         let resp = A2aErrorResponse::from_error(&err);
 
-        // THEN skill_id et listes sont absents
+        // THEN skill_id and the lists are absent
         assert!(resp.skill_id.is_none());
         assert!(resp.available_skills.is_none());
         assert!(resp.conflicting_agents.is_none());
@@ -703,12 +704,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_a2a_rejects_cycle() {
-        // GIVEN une chaîne contenant déjà agent_a
+        // GIVEN a chain already containing agent_a
         let agent_a = AgentId::from("agent-a");
         let agent_b = AgentId::from("agent-b");
         let parent_chain = vec![agent_a.clone()];
 
-        // WHEN agent_b tente de déléguer vers agent_a (déjà dans la chaîne)
+        // WHEN agent_b tries to delegate to agent_a (already in the chain)
         let result = validate_chain(&parent_chain, &agent_b, &agent_a, 5);
 
         // THEN A2aError::CycleDetected
@@ -722,7 +723,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_a2a_rejects_max_hops() {
-        // GIVEN une tâche avec delegation_chain = [a, b, c, d, e] (5 hops)
+        // GIVEN a task with delegation_chain = [a, b, c, d, e] (5 hops)
         let parent_chain: Vec<AgentId> = ["a", "b", "c", "d", "e"]
             .iter()
             .map(|s| AgentId::from(*s))
@@ -730,7 +731,7 @@ mod tests {
         let current = AgentId::from("e");
         let target = AgentId::from("f");
 
-        // WHEN la délégation suivante est tentée avec max_hops = 5
+        // WHEN the next delegation is attempted with max_hops = 5
         let result = validate_chain(&parent_chain, &current, &target, 5);
 
         // THEN A2aError::MaxHopsExceeded { limit: 5 }
@@ -744,15 +745,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_a2a_validate_chain_extends_chain_on_success() {
-        // GIVEN une chaîne courte sans conflit
+        // GIVEN a short chain without conflict
         let parent_chain = vec![AgentId::from("a")];
         let current = AgentId::from("b");
         let target = AgentId::from("c");
 
-        // WHEN la validation passe
+        // WHEN validation passes
         let result = validate_chain(&parent_chain, &current, &target, 5);
 
-        // THEN la chaîne enfant contient parent + current_agent
+        // THEN the child chain contains parent + current_agent
         let child = result.expect("validation must succeed");
         assert_eq!(child.len(), 2);
         assert_eq!(child[0], AgentId::from("a"));
@@ -761,13 +762,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_a2a_rejects_self_invocation() {
-        // GIVEN agent_a tente de se déléguer à lui-même (chaîne vide)
+        // GIVEN agent_a tries to delegate to itself (empty chain)
         let agent_a = AgentId::from("agent-a");
 
         // WHEN
         let result = validate_chain(&[], &agent_a, &agent_a, 5);
 
-        // THEN A2aError::CycleDetected (auto-invocation = cycle de longueur 0)
+        // THEN A2aError::CycleDetected (self-invocation is a zero-length cycle)
         assert!(matches!(result, Err(A2aError::CycleDetected { .. })));
     }
 }

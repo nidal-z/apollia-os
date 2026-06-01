@@ -1,9 +1,9 @@
-//! Audit log immuable des décisions de permissions (SQLite).
+//! Immutable audit log of permission decisions (SQLite).
 //!
-//! Chaque appel à `PermissionEngine::decide()` est enregistré avec :
-//! l'outil invoqué, le premier argument extrait, la décision prise et l'horodatage.
+//! Each call to `PermissionEngine::decide()` is recorded with the invoked
+//! tool, the extracted first argument, the decision taken, and the timestamp.
 //!
-//! Schéma SQLite :
+//! SQLite schema:
 //! ```sql
 //! CREATE TABLE permission_audit (
 //!     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,27 +24,27 @@ use crate::error::PermissionError;
 use crate::migrations::add_column_if_missing;
 
 // ─────────────────────────────────────────────
-// Types publics
+// Public types
 // ─────────────────────────────────────────────
 
-/// Entrée d'audit persistée pour une décision de permission.
+/// Persisted audit entry for a permission decision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionAuditEntry {
-    /// Identifiant unique auto-incrémenté.
+    /// Auto-incremented unique identifier.
     pub id: i64,
-    /// Nom de l'outil invoqué.
+    /// Name of the invoked tool.
     pub tool_name: String,
-    /// Premier argument extrait de l'input (None si absent ou non-string).
+    /// First argument extracted from the input (None if absent or non-string).
     pub first_arg: Option<String>,
-    /// Décision sérialisée en chaîne (ex: "AutoAllowedSafeList").
+    /// Decision serialized as a string (e.g. "AutoAllowedSafeList").
     pub decision: String,
-    /// Timestamp de la décision (Unix epoch, secondes).
+    /// Decision timestamp (Unix epoch, seconds).
     pub decided_at: i64,
-    /// Portée de la règle ayant déclenché la décision, lorsque disponible.
+    /// Scope of the rule that triggered the decision, when available.
     pub scope: Option<String>,
-    /// Identifiant de la règle persistée ayant tranché, le cas échéant.
+    /// Identifier of the persisted rule that decided, if any.
     pub rule_id: Option<i64>,
-    /// Nom de l'agent à l'origine de l'invocation, si renseigné par l'appelant.
+    /// Name of the agent behind the invocation, if provided by the caller.
     pub agent: Option<String>,
 }
 
@@ -52,20 +52,20 @@ pub struct PermissionAuditEntry {
 // PermissionAuditLog
 // ─────────────────────────────────────────────
 
-/// Log d'audit immuable des décisions de permissions.
+/// Immutable audit log of permission decisions.
 ///
-/// Toutes les décisions sont enregistrées en SQLite. Le log est append-only :
-/// aucune entrée n'est jamais modifiée ou supprimée par le runtime.
+/// All decisions are recorded in SQLite. The log is append-only: no entry is
+/// ever modified or deleted by the runtime.
 pub struct PermissionAuditLog {
     db: Connection,
 }
 
 impl PermissionAuditLog {
-    /// Ouvre (ou crée) la base SQLite au chemin indiqué et migre le schéma.
+    /// Opens (or creates) the SQLite database at the given path and migrates the schema.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] si l'ouverture ou la migration échoue.
+    /// Returns [`PermissionError::Database`] if opening or migration fails.
     pub fn new(db_path: &Path) -> Result<Self, PermissionError> {
         let db = Connection::open_with_flags(
             db_path,
@@ -77,11 +77,11 @@ impl PermissionAuditLog {
         Ok(log)
     }
 
-    /// Enregistre une décision de permission dans l'audit log.
+    /// Records a permission decision in the audit log.
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on a SQLite error.
     pub fn record(
         &mut self,
         tool_name: &str,
@@ -106,13 +106,13 @@ impl PermissionAuditLog {
         Ok(())
     }
 
-    /// Retourne les entrées d'audit pour un outil (ou tous les outils si `None`).
+    /// Returns the audit entries for a tool (or all tools if `None`).
     ///
-    /// Les entrées sont triées par `decided_at` décroissant (les plus récentes en premier).
+    /// Entries are sorted by `decided_at` descending (most recent first).
     ///
     /// # Errors
     ///
-    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    /// Returns [`PermissionError::Database`] on a SQLite error.
     pub fn query(
         &self,
         tool_name: Option<&str>,
@@ -144,7 +144,7 @@ impl PermissionAuditLog {
     }
 
     // ─────────────────────────────────────────────
-    // Privé
+    // Private
     // ─────────────────────────────────────────────
 
     fn migrate(&self) -> Result<(), PermissionError> {
@@ -194,7 +194,7 @@ fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<PermissionAuditEntr
     })
 }
 
-/// Sérialise une `PermissionDecision` en chaîne pour l'audit log.
+/// Serializes a `PermissionDecision` to a string for the audit log.
 pub(crate) fn decision_to_str(decision: &PermissionDecision) -> String {
     match decision {
         PermissionDecision::AutoAllowedSafeList => "AutoAllowedSafeList".to_string(),
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn audit_log_persists_and_queries() {
-        // GIVEN un PermissionAuditLog
+        // GIVEN a PermissionAuditLog
         let (mut log, _tmp) = tmp_audit();
         // WHEN record + query
         log.record(
@@ -240,7 +240,7 @@ mod tests {
         let entries = log
             .query(Some("bash_executor"), 10, 0)
             .expect("query must succeed");
-        // THEN les entrées sont persistées et requêtables
+        // THEN entries are persisted and queryable
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].tool_name, "bash_executor");
         assert_eq!(entries[0].first_arg.as_deref(), Some("git status"));

@@ -1,84 +1,84 @@
-//! Repository en lecture pour `runtime_events.db`.
+//! Read repository for `runtime_events.db`.
 //!
-//! L'écriture passe exclusivement par [`super::persistor::EventPersistorHandle`].
-//! Ce module fournit les requêtes paginées que consomment l'API
-//! `GET /api/v1/tasks/{id}/trace` et la routine de purge.
+//! Writes go exclusively through [`super::persistor::EventPersistorHandle`].
+//! This module provides the paginated queries consumed by the
+//! `GET /api/v1/tasks/{id}/trace` API and the purge routine.
 
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use thiserror::Error;
 
-/// Représentation in-memory d'une ligne de `runtime_events`.
+/// In-memory representation of a `runtime_events` row.
 ///
-/// Sérialisable en JSON pour l'API. Le champ `payload_json` reste opaque à
-/// ce niveau ; chaque `kind` définit son schéma propre côté UI / consumers.
+/// Serializable to JSON for the API. The `payload_json` field stays opaque at
+/// this level; each `kind` defines its own schema on the UI / consumer side.
 #[derive(Debug, Clone, Serialize)]
 pub struct RuntimeEventRecord {
-    /// UUID v7, ordonnable lexicographiquement.
+    /// UUID v7, lexicographically orderable.
     pub event_id: String,
-    /// Tâche concernée.
+    /// Task this event belongs to.
     pub task_id: String,
-    /// Agent émetteur.
+    /// Emitting agent.
     pub agent_id: String,
-    /// Self-FK pour nesting (tool_call_completed → tool_call_started, A2A).
+    /// Self-FK for nesting (tool_call_completed under tool_call_started, A2A).
     pub parent_event_id: Option<String>,
-    /// ID partagé sur une chaîne A2A (NULL pour les exécutions racine).
+    /// ID shared across an A2A chain (NULL for root executions).
     pub correlation_id: Option<String>,
-    /// Tour ReAct (NULL hors loop).
+    /// ReAct turn (NULL outside the loop).
     pub step_num: Option<i64>,
-    /// Discriminant, voir `EventKind` côté UI.
+    /// Discriminant, see `EventKind` on the UI side.
     pub kind: String,
-    /// Payload typé par kind, JSON brut.
+    /// Payload typed by kind, raw JSON.
     pub payload_json: String,
-    /// ISO 8601 RFC 3339, millisecondes incluses.
+    /// ISO 8601 RFC 3339, milliseconds included.
     pub ts: String,
-    /// Unix seconds, utilisé par la purge.
+    /// Unix seconds, used by the purge.
     pub created_at_unix: i64,
 }
 
-/// Erreurs de lecture.
+/// Read errors.
 #[derive(Debug, Error)]
 pub enum RepositoryError {
-    /// Échec d'ouverture du fichier SQLite.
+    /// Failed to open the SQLite file.
     #[error("failed to open runtime_events database at {path}: {source}")]
     OpenFailed {
-        /// Chemin tenté.
+        /// Attempted path.
         path: PathBuf,
-        /// Cause SQLite.
+        /// SQLite cause.
         source: rusqlite::Error,
     },
-    /// Erreur SQLite à l'exécution d'une requête.
+    /// SQLite error while executing a query.
     #[error("query failed: {0}")]
     Query(#[from] rusqlite::Error),
 }
 
-/// Repository synchrone (les appels SQLite blocants sont attendus dans
-/// `tokio::task::spawn_blocking` côté handler).
+/// Synchronous repository (blocking SQLite calls are expected to run inside
+/// `tokio::task::spawn_blocking` on the handler side).
 pub struct RuntimeEventsRepository {
     conn: rusqlite::Connection,
 }
 
 impl RuntimeEventsRepository {
-    /// Ouvre la base en lecture seule logique (pas d'écriture via ce handle).
+    /// Opens the database as logically read-only (no writes through this handle).
     pub fn open(db_path: &Path) -> Result<Self, RepositoryError> {
         let conn =
             rusqlite::Connection::open(db_path).map_err(|source| RepositoryError::OpenFailed {
                 path: db_path.to_path_buf(),
                 source,
             })?;
-        // Mode WAL côté lecteur aussi : permet la lecture concurrente sans
-        // blocage par le persistor.
+        // WAL mode on the reader side too: allows concurrent reads without
+        // being blocked by the persistor.
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
         Ok(Self { conn })
     }
 
-    /// Liste les événements d'une tâche, ordonnés chronologiquement (UUIDv7
-    /// → ordre lex == ordre de création).
+    /// Lists a task's events in chronological order (UUIDv7, so lexical order
+    /// equals creation order).
     ///
-    /// `since` : si présent, ne retourne que les événements *strictement*
-    /// après ce `event_id`. Permet la pagination par curseur sans `OFFSET`.
-    /// `limit` : borne supérieure sur le nombre de lignes retournées.
+    /// `since`: if present, returns only events *strictly* after this
+    /// `event_id`. Enables cursor pagination without `OFFSET`.
+    /// `limit`: upper bound on the number of rows returned.
     pub fn list_for_task(
         &self,
         task_id: &str,

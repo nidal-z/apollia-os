@@ -5,123 +5,123 @@ use serde::{Deserialize, Serialize};
 use crate::task::{AIPPart, DataPart, TextPart};
 
 // ─────────────────────────────────────────────
-// HITL - Human-in-the-Loop types (Sprint 11)
+// Human-in-the-Loop types
 // ─────────────────────────────────────────────
 
-/// Données portées par [`AIPResult`] quand `status == InputRequired`.
+/// Data carried by [`AIPResult`] when `status == InputRequired`.
 ///
-/// Persist dans SQLite par le runtime et restituées dans
-/// [`InputResponseData::context`] lors de la reprise.
+/// Persisted to SQLite by the runtime and restored into
+/// [`InputResponseData::context`] on resume.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputRequiredData {
-    /// Prompt affiché à l'utilisateur pour prendre sa décision.
+    /// Prompt shown to the user to make their decision.
     pub prompt: String,
-    /// Contexte JSON sérialisé par l'agent au moment de la suspension.
+    /// JSON context serialized by the agent at suspension time.
     ///
-    /// Le runtime le stocke tel quel dans SQLite et le restitue dans
-    /// [`InputResponseData::context`] lors de la reprise.
+    /// The runtime stores it verbatim in SQLite and restores it into
+    /// [`InputResponseData::context`] on resume.
     pub context: serde_json::Value,
 }
 
-/// Réponse humaine reçue après une suspension `input_required`.
+/// Human response received after an `input_required` suspension.
 ///
-/// Peuplée par `TaskRepository::rebuild_for_resume()` et injectée
-/// dans [`crate::task::AIPTask::input_response`] lors de la reprise.
+/// Populated by `TaskRepository::rebuild_for_resume()` and injected into
+/// [`crate::task::AIPTask::input_response`] on resume.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputResponseData {
-    /// `true` si l'utilisateur a approuvé, `false` si rejeté.
+    /// `true` if the user approved, `false` if rejected.
     pub approved: bool,
-    /// Raison transmise à l'agent - `None` si approuvé, potentiellement peuplé si rejeté.
+    /// Reason passed to the agent: `None` if approved, possibly populated if rejected.
     pub reason: Option<String>,
-    /// Contexte JSON sérialisé par l'agent au moment du suspend, restitué intégralement dans [`InputResponseData::context`].
+    /// JSON context serialized by the agent at suspend time, restored verbatim into [`InputResponseData::context`].
     pub context: serde_json::Value,
-    /// Horodatage ISO 8601 de la décision humaine.
+    /// ISO 8601 timestamp of the human decision.
     pub responded_at: String,
 }
 
-/// Machine d'état d'une tâche individuelle, alignée A2A TaskState.
+/// State machine for an individual task, aligned with A2A TaskState.
 ///
-/// Transitions valides :
+/// Valid transitions:
 /// `Submitted` → `Working` → `Completed`
-///                    ↓           ↑ (reprise après input)
+///                    ↓           ↑ (resume after input)
 ///                `InputRequired` → `Working`
 ///                    ↓
 ///              `Failed` | `Canceled`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
-    /// Tâche reçue, en attente d'un agent disponible.
+    /// Task received, waiting for an available agent.
     Submitted,
-    /// Tâche en cours d'exécution par l'agent.
+    /// Task currently being executed by the agent.
     Working,
-    /// Tâche terminée avec succès.
+    /// Task finished successfully.
     Completed,
-    /// L'agent a rencontré une erreur non récupérable.
+    /// The agent hit a non-recoverable error.
     Failed,
-    /// L'agent attend une entrée humaine pour continuer (Human-in-the-Loop).
+    /// The agent is waiting for human input to continue (Human-in-the-Loop).
     InputRequired,
-    /// Tâche annulée par l'opérateur ou timeout.
+    /// Task canceled by the operator or timed out.
     Canceled,
 }
 
-/// Résultat retourné par l'agent au runtime via le bridge AIP.
+/// Result returned by the agent to the runtime through the AIP bridge.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIPResult {
-    /// Identifiant de la tâche correspondante.
+    /// Identifier of the corresponding task.
     #[serde(default)]
     pub task_id: String,
-    /// Statut final de la tâche.
+    /// Final status of the task.
     pub status: TaskStatus,
-    /// Parties de la réponse produite par l'agent.
+    /// Parts of the response produced by the agent.
     #[serde(default)]
     pub output: Vec<AIPPart>,
-    /// Erreur structurée si `status == Failed`.
+    /// Structured error if `status == Failed`.
     #[serde(default)]
     pub error: Option<AIPError>,
-    /// Artefacts produits par la tâche (fichiers générés, rapports, etc.).
+    /// Artifacts produced by the task (generated files, reports, etc.).
     #[serde(default)]
     pub artifacts: Vec<AIPArtifact>,
-    /// Données de la demande d'approbation si `status == InputRequired`.
+    /// Approval request data if `status == InputRequired`.
     ///
-    /// Peuplé par [`AIPResult::input_required`].
-    /// Persisté dans SQLite par le runtime.
-    /// `None` pour tous les autres statuts.
+    /// Populated by [`AIPResult::input_required`].
+    /// Persisted to SQLite by the runtime.
+    /// `None` for all other statuses.
     #[serde(default)]
     pub input_required_data: Option<InputRequiredData>,
 }
 
-/// Artefact binaire produit par une tâche.
+/// Binary artifact produced by a task.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIPArtifact {
-    /// Nom du fichier ou de l'artefact.
+    /// Name of the file or artifact.
     pub name: String,
-    /// Type MIME (ex: "application/pdf", "text/plain").
+    /// MIME type (e.g. "application/pdf", "text/plain").
     pub mime_type: String,
-    /// Contenu binaire de l'artefact.
+    /// Binary content of the artifact.
     pub data: Vec<u8>,
 }
 
-/// Erreur structurée retournée par l'agent en cas d'échec.
+/// Structured error returned by the agent on failure.
 #[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
 #[error("{code}: {message}")]
 pub struct AIPError {
-    /// Code d'erreur machine (ex: "TIMEOUT", "TOOL_NOT_FOUND").
+    /// Machine error code (e.g. "TIMEOUT", "TOOL_NOT_FOUND").
     pub code: String,
-    /// Message d'erreur lisible par un humain.
+    /// Human-readable error message.
     pub message: String,
-    /// Détails supplémentaires structurés (optionnel).
+    /// Additional structured details (optional).
     pub details: Option<serde_json::Value>,
 }
 
 impl AIPResult {
-    /// Construit un résultat demandant une approbation humaine (Human-in-the-Loop).
+    /// Builds a result requesting human approval (Human-in-the-Loop).
     ///
-    /// Le runtime détecte ce variant via `status == InputRequired`, suspend la tâche,
-    /// persiste `prompt` et `context` dans SQLite, puis notifie l'utilisateur
-    /// sur les canaux configurés.
+    /// The runtime detects this variant via `status == InputRequired`, suspends
+    /// the task, persists `prompt` and `context` to SQLite, then notifies the
+    /// user over the configured channels.
     ///
-    /// À la reprise, `context` est restitué dans [`InputResponseData::context`]
-    /// injecté dans [`crate::task::AIPTask::input_response`].
+    /// On resume, `context` is restored into [`InputResponseData::context`]
+    /// injected into [`crate::task::AIPTask::input_response`].
     pub fn input_required(prompt: &str, context: serde_json::Value) -> Self {
         Self {
             task_id: String::new(),
@@ -136,10 +136,10 @@ impl AIPResult {
         }
     }
 
-    /// Construit un résultat de succès avec un texte de réponse.
+    /// Builds a success result with a response text.
     ///
-    /// Raccourci utilisé par `execute_orchestrated` pour la concaténation automatique
-    /// des outputs de steps (fallback quand `on_plan_complete()` est absent).
+    /// Shortcut used by `execute_orchestrated` to auto-concatenate step outputs
+    /// (fallback when `on_plan_complete()` is absent).
     pub fn completed(text: &str) -> Self {
         Self {
             task_id: String::new(),
@@ -153,9 +153,9 @@ impl AIPResult {
         }
     }
 
-    /// Construit un résultat d'échec avec un code et un message structurés.
+    /// Builds a failure result with a structured code and message.
     ///
-    /// Raccourci utilisé par `ActorLoop` pour les erreurs de budget, de step ou de plan.
+    /// Shortcut used by `ActorLoop` for budget, step, or plan errors.
     pub fn failed(code: &str, message: &str) -> Self {
         Self {
             task_id: String::new(),
@@ -171,13 +171,13 @@ impl AIPResult {
         }
     }
 
-    /// Construit un résultat de succès avec les outputs de chaque step sérialisés en JSON.
+    /// Builds a success result with each step's output serialized to JSON.
     ///
-    /// Utilisé par `ActorLoop` en fin d'exécution orchestrée pour transmettre
-    /// les résultats step par step au hook `on_plan_complete()`.
+    /// Used by `ActorLoop` at the end of orchestrated execution to pass the
+    /// per-step results to the `on_plan_complete()` hook.
     ///
-    /// La `HashMap<step_id → output>` est sérialisée dans `output[0]`
-    /// comme `AIPPart::Data`, avec fallback `AIPPart::Text` si la sérialisation échoue.
+    /// The `HashMap<step_id, output>` is serialized into `output[0]` as
+    /// `AIPPart::Data`, falling back to `AIPPart::Text` if serialization fails.
     pub fn completed_with_steps(steps: HashMap<String, String>) -> Self {
         let part = match serde_json::to_value(&steps) {
             Ok(val) => AIPPart::Data(DataPart { data: val }),

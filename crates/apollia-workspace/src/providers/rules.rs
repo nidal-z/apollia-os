@@ -1,8 +1,8 @@
-//! [`RulesProvider`] - fournit le fichier de règles projet.
+//! [`RulesProvider`] provides the project rules file.
 //!
-//! Cherche un fichier de règles (par défaut `APOLLIA.md`) en remontant la
-//! hiérarchie de répertoires depuis le CWD. Le contenu est injecté tel quel
-//! dans le system prompt sous la section "Règles du projet".
+//! Searches for a rules file (`APOLLIA.md` by default) by walking up the
+//! directory hierarchy from the CWD. The content is injected verbatim into
+//! the system prompt under the "Project rules" section.
 
 use std::path::Path;
 
@@ -11,17 +11,17 @@ use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlic
 use crate::apollia_md::ApolliamdFinder;
 use crate::config::RulesProviderConfig;
 
-/// Fournit le contenu du fichier de règles projet (APOLLIA.md ou personnalisé).
+/// Provides the content of the project rules file (APOLLIA.md or a custom name).
 ///
-/// Le fichier est cherché depuis `cwd` vers les répertoires parents, jusqu'à
-/// `config.search_depth` niveaux. Le contenu est tronqué à `config.max_bytes`
-/// pour protéger la fenêtre de contexte LLM.
+/// The file is searched from `cwd` upward through parent directories, up to
+/// `config.search_depth` levels. The content is truncated to `config.max_bytes`
+/// to protect the LLM context window.
 pub struct RulesProvider {
     config: RulesProviderConfig,
 }
 
 impl RulesProvider {
-    /// Construit un provider de règles avec la configuration fournie.
+    /// Builds a rules provider with the given configuration.
     pub fn new(config: RulesProviderConfig) -> Self {
         Self { config }
     }
@@ -48,9 +48,9 @@ impl WorkspaceProvider for RulesProvider {
     }
 
     async fn collect(&self, cwd: &Path) -> WorkspaceSlice {
-        // Utilise ApolliamdFinder mais avec le nom de fichier configurable.
-        // Pour l'instant, si le fichier configuré n'est pas "APOLLIA.md", on cherche
-        // directement dans le CWD et les parents avec le nom fourni.
+        // Reuse ApolliamdFinder, but allow a configurable file name. When the
+        // configured name is not "APOLLIA.md", search the CWD and its parents
+        // directly with the provided name.
         let result = if self.config.file_name == "APOLLIA.md" {
             ApolliamdFinder::find(cwd, self.config.max_bytes, self.config.search_depth).await
         } else {
@@ -79,7 +79,7 @@ impl WorkspaceProvider for RulesProvider {
     }
 }
 
-/// Cherche un fichier de règles par nom depuis `cwd` vers les parents.
+/// Searches for a rules file by name from `cwd` upward through parents.
 async fn find_rules_file(
     cwd: &Path,
     file_name: &str,
@@ -108,7 +108,7 @@ mod tests {
 
     #[tokio::test]
     async fn rules_provider_finds_default_file() {
-        // GIVEN un répertoire avec APOLLIA.md
+        // GIVEN a directory containing APOLLIA.md
         let dir = tempfile::tempdir().expect("tempdir");
         tokio::fs::write(
             dir.path().join("APOLLIA.md"),
@@ -126,7 +126,7 @@ mod tests {
 
     #[tokio::test]
     async fn rules_provider_empty_when_no_file() {
-        // GIVEN un répertoire sans fichier de règles
+        // GIVEN a directory with no rules file
         let dir = tempfile::tempdir().expect("tempdir");
         let provider = RulesProvider::default();
         // WHEN
@@ -137,7 +137,7 @@ mod tests {
 
     #[tokio::test]
     async fn rules_provider_custom_file_name() {
-        // GIVEN un fichier de règles avec un nom custom
+        // GIVEN a rules file with a custom name
         let dir = tempfile::tempdir().expect("tempdir");
         tokio::fs::write(dir.path().join("PROJECT.md"), "Custom rules here.")
             .await

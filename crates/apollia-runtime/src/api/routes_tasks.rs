@@ -196,7 +196,7 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
                 TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Canceled
             );
             // The router stores the *same* output text for both Completed and
-            // Failed tasks (the coordinator encodes [CODE] message details=…
+            // Failed tasks (the coordinator encodes [CODE] message details=...
             // when a worker reports failure). Route it to `result` on success
             // and `error` on failure so a single GET tells the CLI the full
             // story without having to also tail the SSE stream.
@@ -274,53 +274,51 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ResumeHandler, POST /api/v1/tasks/{id}/resume
-// ─────────────────────────────────────────────────────────────────────────────
 
-/// Body de la requête `POST /api/v1/tasks/{id}/resume`.
+/// Request body for `POST /api/v1/tasks/{id}/resume`.
 ///
-/// L'opérateur transmet sa décision (`approved`) et une raison optionnelle.
-/// Le champ `approved` est obligatoire, son absence provoque HTTP 422.
+/// The operator submits a decision (`approved`) and an optional reason.
+/// The `approved` field is mandatory; omitting it produces HTTP 422.
 #[derive(Debug, Deserialize)]
 pub struct ResumeRequest {
-    /// `true` pour approuver, `false` pour rejeter.
+    /// `true` to approve, `false` to reject.
     pub approved: bool,
-    /// Raison de la décision, optionnelle, surtout utile en cas de rejet.
+    /// Reason for the decision, optional, mainly useful when rejecting.
     pub reason: Option<String>,
 }
 
-/// Réponse de la route `POST /api/v1/tasks/{id}/resume`.
+/// Response body for `POST /api/v1/tasks/{id}/resume`.
 ///
-/// Retournée avec HTTP 200 quand la reprise est enregistrée avec succès.
+/// Returned with HTTP 200 when the resume is recorded successfully.
 #[derive(Debug, Serialize)]
 pub struct ResumeResponse {
-    /// Identifiant de la tâche reprise.
+    /// Identifier of the resumed task.
     pub task_id: String,
-    /// Décision de l'opérateur.
+    /// Operator decision.
     pub approved: bool,
-    /// Nouveau statut de la tâche (`"working"` après approbation ou rejet).
+    /// New task status (`"working"` after approval or rejection).
     pub status: String,
 }
 
-/// Handler pour `POST /api/v1/tasks/{id}/resume`.
+/// Handler for `POST /api/v1/tasks/{id}/resume`.
 ///
-/// Valide que la tâche est en status `input_required`, persiste la décision
-/// humaine dans SQLite, émet `RuntimeEvent::TaskResumed` sur l'EventBus,
-/// et reconstruit l'`AIPTask` enrichi pour la relance ORIA.
+/// Validates that the task is in `input_required` status, persists the human
+/// decision to SQLite, emits `RuntimeEvent::TaskResumed` on the EventBus,
+/// and rebuilds the enriched `AIPTask` for the ORIA relaunch.
 ///
-/// ## Codes HTTP
-/// - `200 OK`, reprise enregistrée avec succès
-/// - `404 Not Found`, tâche inconnue du système HITL
-/// - `409 Conflict`, tâche connue mais pas en status `input_required`
-/// - `503 Service Unavailable`, HITL non configuré (`task_repository` absent)
-/// - `500 Internal Server Error`, erreur SQLite ou interne
+/// ## HTTP codes
+/// - `200 OK`, resume recorded successfully
+/// - `404 Not Found`, task unknown to the HITL system
+/// - `409 Conflict`, task known but not in `input_required` status
+/// - `503 Service Unavailable`, HITL not configured (`task_repository` absent)
+/// - `500 Internal Server Error`, SQLite or internal error
 pub async fn resume_task<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,
     Json(body): Json<ResumeRequest>,
 ) -> Result<Json<ResumeResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // ── Vérifier que le TaskRepository est disponible ────────────────────────
+    // Check that the TaskRepository is available.
     let repo = match state.task_repository.as_ref() {
         Some(r) => r,
         None => {
@@ -333,7 +331,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         }
     };
 
-    // ── vérifier le statut via TaskRepository ─────────────────
+    // Check the status via the TaskRepository.
     let db_status = repo.get_task_status(&task_id).await.map_err(|e| {
         tracing::error!(task_id = %task_id, error = %e, "get_task_status failed");
         (
@@ -345,7 +343,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
     })?;
 
     match db_status.as_deref() {
-        // tâche absente de la table tasks → 404
+        // Task absent from the tasks table: 404.
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
@@ -354,7 +352,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
                 }),
             ));
         }
-        // tâche présente mais pas en input_required → 409
+        // Task present but not in input_required: 409.
         Some(status) if status != "input_required" => {
             return Err((
                 StatusCode::CONFLICT,
@@ -368,7 +366,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         _ => {}
     }
 
-    // ── Construire la réponse humaine avec horodatage ISO 8601 ───────────────
+    // Build the human response with an ISO 8601 timestamp.
     let responded_at = chrono::Utc::now().to_rfc3339();
     let input_response = InputResponseData {
         approved: body.approved,
@@ -377,7 +375,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         responded_at,
     };
 
-    // ── durabilité avant notification, DB write avant EventBus ───────
+    // Durability before notification: write to the DB before the EventBus.
     repo.save_input_response(&task_id, &input_response)
         .await
         .map_err(|e| {
@@ -390,16 +388,16 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
             )
         })?;
 
-    // ── Émettre TaskResumed sur l'EventBus ──────────────────────────────────
+    // Emit TaskResumed on the EventBus.
     let _ = state.event_sender.send(RuntimeEvent::TaskResumed {
         task_id: TaskId::from(task_id.as_str()),
         approved: body.approved,
     });
 
-    // ── Reconstruire l'AIPTask enrichi et résoudre le oneshot ORIA ──
+    // Rebuild the enriched AIPTask and resolve the ORIA oneshot.
     match repo.rebuild_for_resume(&task_id).await {
         Ok(enriched_task) => {
-            // Résoudre le oneshot PendingApprovals pour débloquer execute_direct()
+            // Resolve the PendingApprovals oneshot to unblock execute_direct().
             if let Some(pending) = state.pending_approvals.as_ref() {
                 match pending.resolve(
                     &task_id,
@@ -750,10 +748,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_task_returns_202() {
-        // GIVEN un agent actif avec coordinateur
+        // GIVEN an active agent with a coordinator
         let (router, agent_id) = test_router_with_agent().await;
 
-        // WHEN POST /api/v1/tasks avec agent_id valide
+        // WHEN POST /api/v1/tasks with a valid agent_id
         let body = serde_json::json!({
             "agent_id": agent_id,
             "input": {"prompt": "Bonjour"}
@@ -766,7 +764,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 202 Accepted avec task_id et status "submitted"
+        // THEN 202 Accepted with a task_id and status "submitted"
         assert_eq!(resp.status(), StatusCode::ACCEPTED);
         let json = body_json(resp).await;
         assert_eq!(json["status"], "submitted");
@@ -776,10 +774,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_task_unknown_agent_returns_404() {
-        // GIVEN aucun agent "ghost-agent" enregistre
+        // GIVEN no agent "ghost-agent" registered
         let router = test_router();
 
-        // WHEN POST /api/v1/tasks avec agent_id "ghost-agent"
+        // WHEN POST /api/v1/tasks with agent_id "ghost-agent"
         let body = serde_json::json!({
             "agent_id": "ghost-agent",
             "input": {"prompt": "Hello"}
@@ -792,7 +790,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 404 avec erreur
+        // THEN 404 with an error
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let json = body_json(resp).await;
         assert!(json["error"]
@@ -803,7 +801,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_task_invalid_body_returns_400() {
-        // GIVEN un body JSON invalide (champ manquant)
+        // GIVEN an invalid JSON body (missing field)
         let router = test_router();
 
         let req = Request::builder()
@@ -820,7 +818,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_task_status_returns_200() {
-        // GIVEN une tache soumise
+        // GIVEN a submitted task
         let (router, agent_id) = test_router_with_agent().await;
 
         // Submit a task first
@@ -846,7 +844,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec le statut
+        // THEN 200 with the status
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["task_id"], task_id);
@@ -855,7 +853,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_task_not_found_returns_404() {
-        // GIVEN aucune tache "unknown-task"
+        // GIVEN no task "unknown-task"
         let router = test_router();
 
         // WHEN GET /api/v1/tasks/unknown-task
@@ -876,8 +874,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_cancel_task_returns_200() {
-        // GIVEN une tache soumise sur un backend bloquant (jamais termine)
-        // Utilise NeverMockBackend pour eviter la race condition entre TaskCompleted et Cancel
+        // GIVEN a task submitted on a blocking backend (never completes)
+        // Uses NeverMockBackend to avoid the race condition between TaskCompleted and Cancel
         let (router, agent_id) = test_router_with_blocking_agent().await;
 
         // Submit a task first
@@ -904,18 +902,16 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec status "canceled"
+        // THEN 200 with status "canceled"
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["task_id"], task_id);
         assert_eq!(json["status"], "canceled");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Tests ResumeHandler, POST /api/v1/tasks/{id}/resume
-    // ─────────────────────────────────────────────────────────────────────────
+    // ResumeHandler tests, POST /api/v1/tasks/{id}/resume
 
-    /// Ouvre un `TaskRepository` sur un fichier temporaire unique.
+    /// Open a `TaskRepository` on a unique temporary file.
     async fn open_test_repo() -> apollia_tools::TaskRepository {
         let path = std::env::temp_dir().join(format!("apollia_resume_{}.db", uuid::Uuid::new_v4()));
         apollia_tools::TaskRepository::open(&path)
@@ -923,7 +919,7 @@ mod tests {
             .expect("TaskRepository::open failed")
     }
 
-    /// Construit un Router avec la route resume et un `TaskRepository` actif.
+    /// Build a Router with the resume route and an active `TaskRepository`.
     async fn resume_router_with_repo(repo: apollia_tools::TaskRepository) -> axum::Router {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
@@ -968,11 +964,11 @@ mod tests {
             .with_state(state)
     }
 
-    // Approbation valide → 200 OK + TaskResumed émis sur EventBus
+    // Valid approval: 200 OK + TaskResumed emitted on the EventBus
 
     #[tokio::test]
     async fn test_ac1_resume_approve_returns_200() {
-        // GIVEN une tâche en status input_required dans le HITL DB
+        // GIVEN a task in input_required status in the HITL DB
         let repo = open_test_repo().await;
         let task_id = "t-0042";
         repo.save_input_required(task_id, None, "Confirmer ?", &serde_json::json!({}))
@@ -991,7 +987,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec approved=true et status="working"
+        // THEN 200 with approved=true and status="working"
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["task_id"], task_id);
@@ -999,11 +995,11 @@ mod tests {
         assert_eq!(json["status"], "working");
     }
 
-    // Rejet valide avec raison → 200 OK
+    // Valid rejection with reason: 200 OK
 
     #[tokio::test]
     async fn test_ac2_resume_reject_with_reason() {
-        // GIVEN une tâche en status input_required
+        // GIVEN a task in input_required status
         let repo = open_test_repo().await;
         let task_id = "t-0043";
         repo.save_input_required(task_id, None, "Budget OK ?", &serde_json::json!({}))
@@ -1025,24 +1021,24 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec approved=false et status="working"
+        // THEN 200 with approved=false and status="working"
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["approved"], false);
         assert_eq!(json["status"], "working");
     }
 
-    // Tâche pas en input_required → 409 CONFLICT
+    // Task not in input_required: 409 CONFLICT
 
     #[tokio::test]
     async fn test_ac3_resume_not_input_required_returns_409() {
-        // GIVEN une tâche en status working (input_required → save_input_response → working)
+        // GIVEN a task in working status (input_required, save_input_response, working)
         let repo = open_test_repo().await;
         let task_id = "t-0044";
         repo.save_input_required(task_id, None, "Prompt", &serde_json::json!({}))
             .await
             .expect("save_input_required failed");
-        // Transition vers working via save_input_response
+        // Transition to working via save_input_response
         let resp_data = apollia_core::InputResponseData {
             approved: true,
             reason: None,
@@ -1055,7 +1051,7 @@ mod tests {
 
         let router = resume_router_with_repo(repo).await;
 
-        // WHEN POST /resume { "approved": true } sur tâche déjà en working
+        // WHEN POST /resume { "approved": true } on a task already in working
         let body = serde_json::json!({ "approved": true });
         let req = Request::builder()
             .method("POST")
@@ -1078,15 +1074,15 @@ mod tests {
         );
     }
 
-    // Tâche inexistante → 404 NOT FOUND
+    // Nonexistent task: 404 NOT FOUND
 
     #[tokio::test]
     async fn test_ac4_resume_task_not_found_returns_404() {
-        // GIVEN un TaskRepository vide (aucune tâche)
+        // GIVEN an empty TaskRepository (no tasks)
         let repo = open_test_repo().await;
         let router = resume_router_with_repo(repo).await;
 
-        // WHEN POST /resume sur un task_id inexistant
+        // WHEN POST /resume on a nonexistent task_id
         let body = serde_json::json!({ "approved": true });
         let req = Request::builder()
             .method("POST")
@@ -1106,7 +1102,7 @@ mod tests {
         );
     }
 
-    // ─── json_to_aip_input unit tests ────────────────────────────────────────
+    // json_to_aip_input unit tests
 
     /// A2A-aligned format with a TextPart must deserialize directly (not wrapped).
     #[test]

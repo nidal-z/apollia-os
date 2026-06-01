@@ -3,7 +3,7 @@
 //! These routes expose agent lifecycle management via the API. They delegate
 //! to [`AgentRegistryHandle`] for state reads and transitions.
 //!
-//! Agent loading is abstracted via the [`AgentLoader`] trait (ADR-019) to keep
+//! Agent loading is abstracted via the [`AgentLoader`] trait to keep
 //! `apollia-runtime` decoupled from PyO3/apollia-aip.
 
 use std::path::Path;
@@ -20,7 +20,7 @@ use crate::registry::AgentRegistryError;
 
 use apollia_core::{AgentManifest, ProcessState};
 
-/// Trait for loading and validating Python agent modules (ADR-019).
+/// Trait for loading and validating Python agent modules.
 ///
 /// Abstracts away the PyO3-based AIP loading so that `apollia-runtime` does
 /// not depend on `apollia-aip`. The concrete implementation lives in `apollia-cli`.
@@ -32,7 +32,7 @@ pub trait AgentLoader: Send + Sync {
     fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String>;
 }
 
-/// Factory for creating per-agent execution backends (ADR-019 extension).
+/// Factory for creating per-agent execution backends.
 ///
 /// Abstracts away PyO3/AIPBridge creation so that `apollia-runtime` remains
 /// decoupled from `apollia-aip`. The concrete implementation lives in `apollia-cli`.
@@ -164,7 +164,7 @@ fn state_to_string(state: &ProcessState) -> String {
     }
 }
 
-/// Load an agent manifest via the [`AgentLoader`] trait (ADR-019).
+/// Load an agent manifest via the [`AgentLoader`] trait.
 ///
 /// Delegates to the concrete loader injected in `AppState`.
 /// Returns a structured error response on failure.
@@ -238,7 +238,7 @@ pub async fn list_agents<B: ExecutionBackend + Clone>(
 
 /// Handler for `POST /api/v1/agents`.
 ///
-/// Loads the Python agent module via [`AgentLoader`] (ADR-019), validates
+/// Loads the Python agent module via [`AgentLoader`], validates
 /// AIP duck typing, registers the agent with its real manifest, transitions
 /// to Active (or Degraded if optional tools are missing), and creates an
 /// [`ExecutionCoordinator`] registered with the [`TaskRouter`].
@@ -256,14 +256,14 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
 ) -> Result<(StatusCode, Json<AgentResponse>), (StatusCode, Json<ErrorResponse>)> {
     let manifest = load_manifest(state.agent_loader.as_ref(), &req.agent_path)?;
 
-    // Délègue la résolution des outils à `apollia_tools::resolve` (source unique).
-    // Le resolver gère les dépendances A2A (préfixe `a2a:`) qui ne sont pas dans
-    // le ToolRegistry et ne doivent pas faire passer l'agent en DEGRADED.
+    // Delegate tool resolution to `apollia_tools::resolve` (single source).
+    // The resolver handles A2A dependencies (`a2a:` prefix), which are not in
+    // the ToolRegistry and must not push the agent into DEGRADED.
     let has_missing_optional = match &state.tool_registry_handle {
         Some(registry) => match apollia_tools::resolve(&manifest, registry).await {
             Ok(report) => matches!(report.status, apollia_tools::ResolutionStatus::Degraded),
             Err(e) => {
-                // tools_required manquant → 400 Bad Request (Principe #4 fail-fast).
+                // Missing tools_required: 400 Bad Request (fail fast at startup).
                 return Err((
                     StatusCode::BAD_REQUEST,
                     Json(ErrorResponse {
@@ -718,7 +718,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_agents_returns_all() {
-        // GIVEN 2 agents enregistres
+        // GIVEN 2 registered agents
         let (router, registry) = test_router();
         let id1 = registry
             .register(test_manifest("hello-agent"))
@@ -752,7 +752,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec 2 agents
+        // THEN 200 with 2 agents
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         let agents = json["agents"].as_array().expect("agents array");
@@ -761,7 +761,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_agents_empty() {
-        // GIVEN aucun agent
+        // GIVEN no agents
         let (router, _) = test_router();
 
         // WHEN GET /api/v1/agents
@@ -771,7 +771,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec []
+        // THEN 200 with []
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         let agents = json["agents"].as_array().expect("agents array");
@@ -780,10 +780,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_agent_returns_201() {
-        // GIVEN un router vide
+        // GIVEN an empty router
         let (router, _) = test_router();
 
-        // WHEN POST /api/v1/agents avec agent_path
+        // WHEN POST /api/v1/agents with agent_path
         let body = serde_json::json!({"agent_path": "/path/to/hello_agent.py"});
         let req = Request::builder()
             .method("POST")
@@ -793,7 +793,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 201 Created avec agent_id et state "active"
+        // THEN 201 Created with agent_id and state "active"
         assert_eq!(resp.status(), StatusCode::CREATED);
         let json = body_json(resp).await;
         assert_eq!(json["state"], "active");
@@ -803,7 +803,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_agent_detail() {
-        // GIVEN un agent "hello-agent" ACTIVE
+        // GIVEN a "hello-agent" in ACTIVE state
         let (router, registry) = test_router();
         let agent_id = registry
             .register(test_manifest("hello-agent"))
@@ -821,7 +821,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec detail complet incluant manifest
+        // THEN 200 with full detail including manifest
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["agent_id"], agent_id.as_str());
@@ -832,7 +832,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_agent_by_name() {
-        // GIVEN un agent enregistré sous le nom "my-agent"
+        // GIVEN an agent registered under the name "my-agent"
         let (router, registry) = test_router();
         let agent_id = registry
             .register(test_manifest("my-agent"))
@@ -843,14 +843,14 @@ mod tests {
             .await
             .expect("activate");
 
-        // WHEN GET /api/v1/agents/my-agent (nom humain, pas UUID)
+        // WHEN GET /api/v1/agents/my-agent (human name, not UUID)
         let req = Request::builder()
             .uri("/api/v1/agents/my-agent")
             .body(Body::empty())
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec le bon agent_id et le manifest
+        // THEN 200 with the correct agent_id and the manifest
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["agent_id"], agent_id.as_str());
@@ -860,7 +860,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_agent_not_found() {
-        // GIVEN aucun agent "ghost"
+        // GIVEN no "ghost" agent
         let (router, _) = test_router();
 
         // WHEN GET /api/v1/agents/ghost
@@ -881,7 +881,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_agent_active() {
-        // GIVEN un agent ACTIVE
+        // GIVEN an ACTIVE agent
         let (router, registry) = test_router();
         let agent_id = registry
             .register(test_manifest("hello-agent"))
@@ -900,7 +900,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec state "stopped", cycle Stopping→Stopped complété atomiquement
+        // THEN 200 with state "stopped", Stopping->Stopped cycle completed atomically
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["agent_id"], agent_id.as_str());
@@ -909,7 +909,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_agent_by_name() {
-        // GIVEN un agent ACTIVE enregistré sous le nom "my-agent"
+        // GIVEN an ACTIVE agent registered under the name "my-agent"
         let (router, registry) = test_router();
         let agent_id = registry
             .register(test_manifest("my-agent"))
@@ -920,7 +920,7 @@ mod tests {
             .await
             .expect("activate");
 
-        // WHEN DELETE /api/v1/agents/my-agent (nom humain, pas UUID)
+        // WHEN DELETE /api/v1/agents/my-agent (human name, not UUID)
         let req = Request::builder()
             .method("DELETE")
             .uri("/api/v1/agents/my-agent")
@@ -928,7 +928,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec le canonical UUID et state "stopped"
+        // THEN 200 with the canonical UUID and state "stopped"
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["agent_id"], agent_id.as_str());
@@ -937,7 +937,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_agent_registry_state_is_stopped() {
-        // GIVEN un agent ACTIVE
+        // GIVEN an ACTIVE agent
         let (router, registry) = test_router();
         let agent_id = registry
             .register(test_manifest("hello-agent"))
@@ -957,7 +957,7 @@ mod tests {
         let resp = router.oneshot(req).await.expect("request failed");
         assert_eq!(resp.status(), StatusCode::OK);
 
-        // THEN l'etat dans le registre est bien Stopped (pas Stopping)
+        // THEN the registry state is Stopped (not Stopping)
         let entry = registry
             .get_agent(agent_id.as_str())
             .await
@@ -968,7 +968,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_agent_already_stopped() {
-        // GIVEN un agent STOPPED
+        // GIVEN a STOPPED agent
         let (router, registry) = test_router();
         let agent_id = registry
             .register(test_manifest("hello-agent"))
@@ -1002,10 +1002,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_agent_invalid_python_returns_400() {
-        // GIVEN un loader qui echoue toujours
+        // GIVEN a loader that always fails
         let (router, _) = test_router_with_loader(Arc::new(FailingAgentLoader));
 
-        // WHEN POST /api/v1/agents avec un fichier invalide
+        // WHEN POST /api/v1/agents with an invalid file
         let body = serde_json::json!({"agent_path": "/path/to/broken.py"});
         let req = Request::builder()
             .method("POST")
@@ -1015,7 +1015,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 400 avec erreur claire
+        // THEN 400 with a clear error
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let json = body_json(resp).await;
         let error = json["error"].as_str().expect("error str");
@@ -1093,7 +1093,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_agent_with_optional_tools_degraded() {
-        // GIVEN un loader qui retourne un manifest avec tools_optional
+        // GIVEN a loader that returns a manifest with tools_optional
         struct DegradedLoader;
         impl AgentLoader for DegradedLoader {
             fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
@@ -1143,7 +1143,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 201 avec state "degraded"
+        // THEN 201 with state "degraded"
         assert_eq!(resp.status(), StatusCode::CREATED);
         let json = body_json(resp).await;
         assert_eq!(json["state"], "degraded");
@@ -1151,9 +1151,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_agent_with_a2a_optional_dep_is_active() {
-        // GIVEN, un agent qui ne déclare que des dépendances A2A en tools_optional.
-        // Le ToolRegistry est vide ; la résolution A2A se fait à l'invocation, pas au boot.
-        // L'agent doit donc démarrer en Active, pas Degraded.
+        // GIVEN an agent that declares only A2A dependencies in tools_optional.
+        // The ToolRegistry is empty; A2A resolution happens at invocation, not at boot.
+        // The agent must therefore start Active, not Degraded.
         struct A2aOnlyLoader;
         impl AgentLoader for A2aOnlyLoader {
             fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
@@ -1250,7 +1250,7 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 201 avec state "active" (pas "degraded")
+        // THEN 201 with state "active" (not "degraded")
         assert_eq!(resp.status(), StatusCode::CREATED);
         let json = body_json(resp).await;
         assert_eq!(

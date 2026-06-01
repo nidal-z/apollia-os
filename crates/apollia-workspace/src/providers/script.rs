@@ -1,7 +1,7 @@
-//! [`ScriptProvider`] - provider de contexte via script shell ou binaire.
+//! [`ScriptProvider`], a context provider backed by a shell script or binary.
 //!
-//! Le script est exécuté dans `cwd` et doit écrire son résultat JSON sur stdout.
-//! Format attendu :
+//! The script runs in `cwd` and must write its JSON result to stdout.
+//! Expected format:
 //! ```json
 //! { "sections": [{"title": "...", "content": "..."}], "errors": [] }
 //! ```
@@ -12,22 +12,22 @@ use std::time::Duration;
 use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice};
 use serde::Deserialize;
 
-/// Provider de contexte qui exécute un script et parse son output JSON.
+/// Context provider that runs a script and parses its JSON output.
 ///
-/// Fail-silent : si le script est absent, échoue ou produit un JSON invalide,
-/// retourne un [`WorkspaceSlice::with_error`] sans panic.
+/// Fail-silent: if the script is missing, fails, or produces invalid JSON, it
+/// returns a [`WorkspaceSlice::with_error`] without panicking.
 pub struct ScriptProvider {
-    /// Nom unique du provider.
+    /// Unique provider name.
     name: String,
-    /// Chemin vers le script ou binaire à exécuter.
+    /// Path to the script or binary to execute.
     path: PathBuf,
-    /// Timeout d'exécution en millisecondes.
+    /// Execution timeout in milliseconds.
     timeout_ms: u64,
-    /// Priorité d'affichage dans le system prompt.
+    /// Display priority in the system prompt.
     priority: u8,
 }
 
-/// Output JSON attendu du script.
+/// JSON output expected from the script.
 #[derive(Deserialize)]
 struct ScriptOutput {
     #[serde(default)]
@@ -36,7 +36,7 @@ struct ScriptOutput {
     errors: Vec<String>,
 }
 
-/// Section JSON produite par un script.
+/// JSON section produced by a script.
 #[derive(Deserialize)]
 struct ScriptSection {
     title: String,
@@ -44,9 +44,9 @@ struct ScriptSection {
 }
 
 impl ScriptProvider {
-    /// Construit un provider script avec les paramètres fournis.
+    /// Builds a script provider from the given parameters.
     ///
-    /// `timeout_ms` - timeout d'exécution du script. `0` désactive le timeout.
+    /// `timeout_ms` is the script execution timeout. `0` disables the timeout.
     pub fn new(
         name: impl Into<String>,
         path: impl Into<PathBuf>,
@@ -76,10 +76,10 @@ impl WorkspaceProvider for ScriptProvider {
         "Script shell ou binaire produisant du JSON sur stdout"
     }
 
-    /// Exécute le script et parse son output JSON.
+    /// Runs the script and parses its JSON output.
     ///
-    /// Retourne [`WorkspaceSlice::with_error`] si le script échoue,
-    /// dépasse le timeout, ou produit un JSON invalide.
+    /// Returns [`WorkspaceSlice::with_error`] if the script fails, exceeds the
+    /// timeout, or produces invalid JSON.
     async fn collect(&self, cwd: &Path) -> WorkspaceSlice {
         let source = self.name.clone();
         let timeout = if self.timeout_ms > 0 {
@@ -178,12 +178,12 @@ mod tests {
 
     #[tokio::test]
     async fn script_provider_missing_binary_returns_error_slice() {
-        // GIVEN un provider avec un chemin de script inexistant
+        // GIVEN a provider pointing at a non-existent script path
         let tmp = tempfile::tempdir().expect("tempdir");
         let provider = ScriptProvider::new("test", "/nonexistent/script.sh", 500, 50);
         // WHEN
         let slice = provider.collect(tmp.path()).await;
-        // THEN - fail-silent : pas de panic, erreur dans slice.errors
+        // THEN fail-silent: no panic, error recorded in slice.errors
         assert!(slice.is_empty());
         assert!(!slice.errors.is_empty());
     }

@@ -1,8 +1,9 @@
-//! A2AInvoker, orchestrateur de haut niveau pour les invocations inter-agents par skill ID.
+//! A2AInvoker, high-level orchestrator for inter-agent invocations by skill ID.
 //!
-//! Gère le cycle complet d'une invocation A2A :
-//! résolution du skill (état `Active` requis), émission des événements runtime,
-//! délégation au TaskRouter avec timeout, et construction du résultat structuré.
+//! Handles the full lifecycle of an A2A invocation:
+//! skill resolution (`Active` state required), runtime event emission,
+//! delegation to the TaskRouter with a timeout, and construction of the
+//! structured result.
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -47,197 +48,197 @@ fn build_aip_result_from_flattened_output(flattened: &str) -> AIPResult {
     AIPResult::completed(flattened)
 }
 
-/// Configuration de contexte d'exécution pour un agent invoqué via A2A.
+/// Execution context configuration for an agent invoked via A2A.
 ///
-/// Produite par [`A2AInvoker::build_a2a_context`] et consommée par le runtime
-/// lors de la construction du [`RuntimeContext`] PyO3 pour la tâche déléguée.
+/// Produced by [`A2AInvoker::build_a2a_context`] and consumed by the runtime
+/// when building the PyO3 [`RuntimeContext`] for the delegated task.
 ///
-/// La lecture du namespace global `__user__` est désormais inconditionnelle
-/// (toujours active dès qu'un `user_manager` est fourni au `MemoryInterface`).
-/// Cette config ne contrôle plus que les *écritures* dans `__user__` -
-/// réservées aux agents dont le manifest déclare `user_memory_write = true`.
+/// Reading the global `__user__` namespace is now unconditional (always active
+/// as soon as a `user_manager` is provided to the `MemoryInterface`). This
+/// config only controls *writes* to `__user__`, which are reserved for agents
+/// whose manifest declares `user_memory_write = true`.
 #[derive(Debug, Clone)]
 pub struct RuntimeContextConfig {
-    /// Si `true`, l'agent peut écrire dans le namespace `__user__` via
-    /// `ctx.memory.remember_user()`. Par défaut `false`, les invocations A2A
-    /// n'octroient jamais ce droit, c'est le manifest qui décide.
+    /// If `true`, the agent may write to the `__user__` namespace via
+    /// `ctx.memory.remember_user()`. Defaults to `false`: A2A invocations
+    /// never grant this right, the manifest decides.
     pub user_memory_writable: bool,
-    /// Limite de hops de la chaîne de délégation A2A (ADR-D7).
+    /// Hop limit for the A2A delegation chain.
     ///
-    /// `None` → défaut runtime (5). Paramétrable post-release via la table
-    /// `system.db runtime_config` (EXP-03). Pour v0.1.0 : champ optionnel
-    /// avec défaut 5, non persisté.
+    /// `None` falls back to the runtime default (5). Optional field with a
+    /// default of 5, not persisted; configurable later via the
+    /// `system.db runtime_config` table.
     pub a2a_max_hops: Option<usize>,
 }
 
-/// Erreurs structurées retournées par [`A2AInvoker`].
+/// Structured errors returned by [`A2AInvoker`].
 ///
-/// Surface d'erreur orientée métier, distincte des erreurs de bas niveau
-/// [`crate::a2a::A2aError`] qui couvrent la couche de délégation.
+/// A domain-oriented error surface, distinct from the low-level
+/// [`crate::a2a::A2aError`] that covers the delegation layer.
 #[derive(Debug, thiserror::Error)]
 pub enum A2AError {
-    /// Aucun agent A2A disponible ne déclare le skill demandé.
+    /// No available A2A agent declares the requested skill.
     #[error("skill '{skill_id}' not found - available: {available:?}")]
     SkillNotFound {
-        /// Identifiant du skill demandé.
+        /// Identifier of the requested skill.
         skill_id: String,
-        /// Liste des skill IDs disponibles dans les agents A2A actifs ou dégradés.
+        /// Skill IDs available across active or degraded A2A agents.
         available: Vec<String>,
     },
 
-    /// Un agent déclare le skill mais n'est pas en état `Active`.
+    /// An agent declares the skill but is not in the `Active` state.
     ///
-    /// Seul l'état `Active` est accepté pour l'invocation (fail-fast, Principe #4).
+    /// Only the `Active` state is accepted for invocation (fail-fast).
     #[error("agent '{agent_name}' is not active (state: {state})")]
     AgentNotActive {
-        /// Nom de l'agent cible.
+        /// Name of the target agent.
         agent_name: String,
-        /// État actuel de l'agent (ex: `"Degraded"`, `"Stopping"`).
+        /// Current state of the agent (e.g. `"Degraded"`, `"Stopping"`).
         state: String,
     },
 
-    /// L'invocation A2A a expiré avant que le Worker Agent ne réponde.
+    /// The A2A invocation timed out before the Worker Agent responded.
     #[error(
         "A2A invocation timed out after {timeout_secs}s (skill: {skill_id}, agent: {agent_name})"
     )]
     Timeout {
-        /// Identifiant du skill invoqué.
+        /// Identifier of the invoked skill.
         skill_id: String,
-        /// Nom de l'agent cible.
+        /// Name of the target agent.
         agent_name: String,
-        /// Timeout configuré en secondes.
+        /// Configured timeout in seconds.
         timeout_secs: u64,
     },
 
-    /// Le Worker Agent a retourné un résultat d'échec.
+    /// The Worker Agent returned a failure result.
     #[error("agent '{agent_name}' execution failed: {message}")]
     ExecutionFailed {
-        /// Nom de l'agent cible.
+        /// Name of the target agent.
         agent_name: String,
-        /// Raison de l'échec.
+        /// Reason for the failure.
         message: String,
     },
 
-    /// Erreur de communication avec le registry ou le router.
+    /// Communication error with the registry or the router.
     #[error("A2A infrastructure error: {0}")]
     RegistryError(String),
 
-    /// La profondeur de récursivité A2A maximale est atteinte.
+    /// The maximum A2A recursion depth was reached.
     ///
-    /// Appliqué par le runtime avant résolution du skill (Principe #7).
-    /// Protège contre les chaînes récursives infinies entre agents.
+    /// Enforced by the runtime before skill resolution. Guards against
+    /// infinite recursive chains between agents.
     #[error("a2a max depth {max_depth} exceeded (current: {current_depth}, caller: {caller}, skill: {skill_id})")]
     MaxDepthExceeded {
-        /// Profondeur courante de l'invocation.
+        /// Current depth of the invocation.
         current_depth: u32,
-        /// Profondeur maximale configurée.
+        /// Configured maximum depth.
         max_depth: u32,
-        /// Nom de l'agent initiateur.
+        /// Name of the initiating agent.
         caller: String,
-        /// Identifiant du skill demandé.
+        /// Identifier of the requested skill.
         skill_id: String,
     },
 
-    /// Un agent tente de s'invoquer lui-même via un skill A2A.
+    /// An agent tries to invoke itself via an A2A skill.
     ///
-    /// Appliqué après résolution du skill cible. Empêche les boucles
-    /// directes où un agent expose un skill et l'invoque ensuite lui-même.
+    /// Enforced after target skill resolution. Prevents direct loops where an
+    /// agent exposes a skill and then invokes it on itself.
     #[error("agent '{agent_name}' cannot invoke itself via skill '{skill_id}'")]
     SelfInvocation {
-        /// Nom de l'agent qui tente l'auto-invocation.
+        /// Name of the agent attempting self-invocation.
         agent_name: String,
-        /// Identifiant du skill cible.
+        /// Identifier of the target skill.
         skill_id: String,
     },
 
-    /// Le timeout cumulé de la chaîne A2A est dépassé.
+    /// The cumulative A2A chain timeout was exceeded.
     ///
-    /// Déclenché soit immédiatement si le `chain_deadline` est déjà expiré
-    /// à l'entrée de `invoke()`, soit après la délégation si c'est le
-    /// `chain_deadline` (et non l'`invocation_timeout`) qui a expiré en premier.
+    /// Triggered either immediately if the `chain_deadline` is already expired
+    /// on entry to `invoke()`, or after delegation when it is the
+    /// `chain_deadline` (and not the `invocation_timeout`) that expired first.
     #[error("a2a chain timeout exceeded (caller: {caller}, skill: {skill_id})")]
     ChainTimeoutExceeded {
-        /// Nom de l'agent initiateur.
+        /// Name of the initiating agent.
         caller: String,
-        /// Identifiant du skill demandé.
+        /// Identifier of the requested skill.
         skill_id: String,
     },
 }
 
-/// Résultat d'une invocation A2A réussie.
+/// Result of a successful A2A invocation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AInvocationResult {
-    /// Résultat AIP retourné par le Worker Agent.
+    /// AIP result returned by the Worker Agent.
     pub result: AIPResult,
-    /// Nom du Worker Agent qui a traité l'invocation.
+    /// Name of the Worker Agent that handled the invocation.
     pub agent_name: String,
-    /// Identifiant du skill invoqué.
+    /// Identifier of the invoked skill.
     pub skill_id: String,
-    /// Durée totale de l'invocation en millisecondes.
+    /// Total invocation duration in milliseconds.
     pub duration_ms: u64,
 }
 
-/// Informations de découverte d'un skill A2A.
+/// Discovery information for an A2A skill.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ASkillInfo {
-    /// Identifiant unique du skill (ex: `"read-excel"`).
+    /// Unique skill identifier (e.g. `"read-excel"`).
     pub id: String,
-    /// Nom humain du skill.
+    /// Human-readable skill name.
     pub name: String,
-    /// Description de ce que fait le skill.
+    /// Description of what the skill does.
     pub description: String,
-    /// Modes d'entrée supportés (ex: `["text", "data"]`).
+    /// Supported input modes (e.g. `["text", "data"]`).
     pub input_modes: Vec<String>,
-    /// Modes de sortie supportés (ex: `["text", "file"]`).
+    /// Supported output modes (e.g. `["text", "file"]`).
     pub output_modes: Vec<String>,
-    /// Schéma Apollia des champs de payload (cf. `AgentSkill::input_schema`).
+    /// Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).
     #[serde(default)]
     pub input_schema: Option<serde_json::Value>,
-    /// Exemples de payloads valides, propagés au tool descriptor LLM-facing
-    /// (cf. `AgentSkill::examples`). Vide par défaut.
+    /// Examples of valid payloads, propagated to the LLM-facing tool descriptor
+    /// (cf. `AgentSkill::examples`). Empty by default.
     #[serde(default)]
     pub examples: Vec<serde_json::Value>,
 }
 
-/// Carte de découverte d'un agent A2A.
+/// Discovery card for an A2A agent.
 ///
-/// Retournée par [`A2AInvoker::discover`] et [`A2AInvoker::list_agent_cards`].
+/// Returned by [`A2AInvoker::discover`] and [`A2AInvoker::list_agent_cards`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AAgentCard {
-    /// Nom unique de l'agent.
+    /// Unique agent name.
     pub name: String,
-    /// Version semver de l'agent.
+    /// Agent semver version.
     pub version: String,
-    /// Description de l'agent.
+    /// Agent description.
     pub description: String,
-    /// Skills déclarés par cet agent.
+    /// Skills declared by this agent.
     pub skills: Vec<A2ASkillInfo>,
-    /// Tags associés à cet agent.
+    /// Tags associated with this agent.
     pub tags: Vec<String>,
 }
 
-/// Entrée dans la liste des skills disponibles.
+/// Entry in the list of available skills.
 ///
-/// Retournée par [`A2AInvoker::list_skills`] et utilisée par `ctx.a2a_list_skills()`.
+/// Returned by [`A2AInvoker::list_skills`] and used by `ctx.a2a_list_skills()`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillListing {
-    /// Identifiant du skill.
+    /// Skill identifier.
     pub skill_id: String,
-    /// Nom de l'agent qui fournit ce skill.
+    /// Name of the agent that provides this skill.
     pub agent_name: String,
-    /// Nom humain du skill.
+    /// Human-readable skill name.
     pub skill_name: String,
-    /// Description du skill.
+    /// Skill description.
     pub description: String,
-    /// Schéma Apollia des champs de payload (cf. `AgentSkill::input_schema`).
-    /// Utilisé par `generate_a2a_tool_specs` pour exposer le contrat réel
-    /// du worker au LLM (au lieu d'un schéma générique).
+    /// Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).
+    /// Used by `generate_a2a_tool_specs` to expose the worker's real contract
+    /// to the LLM (instead of a generic schema).
     #[serde(default)]
     pub input_schema: Option<serde_json::Value>,
 }
 
-/// Paramètres d'une invocation A2A via [`A2AInvoker::invoke`] : skill ciblé,
-/// payload, appelant, et garde-fous de profondeur / timeout de chaîne.
+/// Parameters of an A2A invocation via [`A2AInvoker::invoke`]: target skill,
+/// payload, caller, and depth / chain-timeout guards.
 pub struct A2AInvokeRequest<'a> {
     pub skill_id: &'a str,
     pub input: serde_json::Value,
@@ -247,35 +248,35 @@ pub struct A2AInvokeRequest<'a> {
     pub chain_deadline: Option<Instant>,
 }
 
-/// Orchestrateur de haut niveau pour les invocations inter-agents par skill ID.
+/// High-level orchestrator for inter-agent invocations by skill ID.
 ///
-/// Orchestre le cycle complet d'une invocation A2A :
-/// 1. Application des garde-fous (profondeur, auto-invocation, timeout de chaîne)
-/// 2. Résolution du `skill_id` → agent (état `Active` requis, Principe #4)
-/// 3. Émission de [`RuntimeEvent::A2AInvocationStarted`]
-/// 4. Délégation via le TaskRouter avec timeout effectif (Principe #7)
-/// 5. Émission de [`RuntimeEvent::A2AInvocationCompleted`]
-/// 6. Construction du [`A2AInvocationResult`]
+/// Orchestrates the full lifecycle of an A2A invocation:
+/// 1. Apply the guards (depth, self-invocation, chain timeout)
+/// 2. Resolve `skill_id` to an agent (`Active` state required)
+/// 3. Emit [`RuntimeEvent::A2AInvocationStarted`]
+/// 4. Delegate via the TaskRouter with the effective timeout
+/// 5. Emit [`RuntimeEvent::A2AInvocationCompleted`]
+/// 6. Build the [`A2AInvocationResult`]
 ///
-/// N'est pas un acteur Tokio, struct clonable avec des handles internes.
+/// Not a Tokio actor: a clonable struct holding internal handles.
 #[derive(Clone)]
 pub struct A2AInvoker {
     registry: AgentRegistryHandle,
     delegate_fn: A2aDelegateFn,
     event_bus: EventBusSender,
-    /// Configuration des garde-fous appliqués à chaque invocation.
+    /// Configuration of the guards applied to every invocation.
     config: A2AConfig,
-    /// Logger de sidechains, `None` si la base SQLite n'est pas disponible.
+    /// Sidechain logger, `None` if the SQLite database is unavailable.
     sidechain_logger: Option<crate::a2a::sidechain::SidechainLogger>,
-    /// Store de télémétrie A2A, `None` si l'observabilité par skill est désactivée.
+    /// A2A telemetry store, `None` if per-skill observability is disabled.
     telemetry: Option<TelemetryHandle>,
 }
 
 impl A2AInvoker {
-    /// Construit un `A2AInvoker` depuis les handles runtime et la configuration A2A.
+    /// Builds an `A2AInvoker` from the runtime handles and the A2A config.
     ///
-    /// Générique sur `B: ExecutionBackend`, le résultat est non-générique grâce
-    /// à l'erasure de type opérée par [`make_delegate_fn`].
+    /// Generic over `B: ExecutionBackend`; the result is non-generic thanks to
+    /// the type erasure performed by [`make_delegate_fn`].
     pub fn new<B>(
         registry: AgentRegistryHandle,
         router: TaskRouterHandle<B>,
@@ -301,41 +302,41 @@ impl A2AInvoker {
         }
     }
 
-    /// Attache un [`SidechainLogger`] à cet invoker pour la traçabilité des délégations.
+    /// Attaches a [`SidechainLogger`] to this invoker for delegation traceability.
     ///
-    /// Retourne `self` pour un usage en chaîne de construction.
+    /// Returns `self` for use in a builder chain.
     pub fn with_sidechain_logger(mut self, logger: crate::a2a::sidechain::SidechainLogger) -> Self {
         self.sidechain_logger = Some(logger);
         self
     }
 
-    /// Attache un [`TelemetryHandle`] pour agréger la télémétrie par skill.
+    /// Attaches a [`TelemetryHandle`] to aggregate per-skill telemetry.
     pub fn with_telemetry(mut self, telemetry: TelemetryHandle) -> Self {
         self.telemetry = Some(telemetry);
         self
     }
 
-    /// Retourne le [`TelemetryHandle`] attaché, si disponible.
+    /// Returns the attached [`TelemetryHandle`], if any.
     pub fn telemetry(&self) -> Option<&TelemetryHandle> {
         self.telemetry.as_ref()
     }
 
-    /// Retourne le [`SidechainLogger`] attaché, si disponible.
+    /// Returns the attached [`SidechainLogger`], if any.
     pub fn sidechain_logger(&self) -> Option<&crate::a2a::sidechain::SidechainLogger> {
         self.sidechain_logger.as_ref()
     }
 
-    /// Délègue une tâche à un agent cible avec logging sidechain best-effort.
+    /// Delegates a task to a target agent with best-effort sidechain logging.
     ///
-    /// Enregistre le début de la délégation dans `task_sidechains` avant l'invocation,
-    /// puis met à jour le statut (`"completed"` ou `"failed"`) après.
-    /// Si le [`SidechainLogger`] est absent ou si le logging échoue, la délégation
-    /// se poursuit normalement, le logging est toujours best-effort.
+    /// Records the start of the delegation in `task_sidechains` before the
+    /// invocation, then updates the status (`"completed"` or `"failed"`) after.
+    /// If the [`SidechainLogger`] is absent or logging fails, the delegation
+    /// proceeds normally: logging is always best-effort.
     ///
     /// # Arguments
     ///
-    /// - `parent_task_id` : identifiant de la tâche parente qui initie la délégation.
-    /// - Autres arguments : identiques à [`invoke`].
+    /// - `parent_task_id`: identifier of the parent task that initiates the delegation.
+    /// - Other arguments: same as [`invoke`].
     #[allow(clippy::too_many_arguments)]
     pub async fn invoke_with_logging(
         &self,
@@ -377,36 +378,37 @@ impl A2AInvoker {
         result
     }
 
-    /// Invoque un Worker Agent par son `skill_id`.
+    /// Invokes a Worker Agent by its `skill_id`.
     ///
-    /// Applique les garde-fous dans l'ordre suivant avant toute délégation :
-    /// 1. Profondeur de récursivité (`a2a_depth >= config.max_depth` → [`A2AError::MaxDepthExceeded`])
-    /// 2. Timeout de chaîne expiré (`chain_deadline` déjà passé → [`A2AError::ChainTimeoutExceeded`])
-    /// 3. Auto-invocation (caller == agent cible → [`A2AError::SelfInvocation`])
+    /// Applies the guards in this order before any delegation:
+    /// 1. Recursion depth (`a2a_depth >= config.max_depth` -> [`A2AError::MaxDepthExceeded`])
+    /// 2. Expired chain timeout (`chain_deadline` already passed -> [`A2AError::ChainTimeoutExceeded`])
+    /// 3. Self-invocation (caller == target agent -> [`A2AError::SelfInvocation`])
     ///
-    /// Résout ensuite le skill, valide l'état `Active`, délègue via le TaskRouter,
-    /// et retourne un [`A2AInvocationResult`] enrichi.
+    /// Then resolves the skill, validates the `Active` state, delegates via the
+    /// TaskRouter, and returns an enriched [`A2AInvocationResult`].
     ///
-    /// Le `timeout` effectif est le minimum entre `timeout` et le délai résiduel
-    /// du `chain_deadline`. Si le timeout résulte du `chain_deadline`, l'erreur est
-    /// [`A2AError::ChainTimeoutExceeded`] plutôt que [`A2AError::Timeout`].
+    /// The effective `timeout` is the minimum of `timeout` and the remaining
+    /// delay of `chain_deadline`. If the timeout comes from `chain_deadline`,
+    /// the error is [`A2AError::ChainTimeoutExceeded`] rather than
+    /// [`A2AError::Timeout`].
     ///
     /// # Arguments
     ///
-    /// - `a2a_depth` : profondeur courante de la chaîne (0 pour l'invocation racine).
-    /// - `chain_deadline` : deadline cumulé de la chaîne ; `None` à la première
-    ///   invocation, initialisé à `now + chain_timeout_secs` et propagé ensuite.
+    /// - `a2a_depth`: current depth of the chain (0 for the root invocation).
+    /// - `chain_deadline`: cumulative chain deadline; `None` on the first
+    ///   invocation, initialized to `now + chain_timeout_secs` and propagated after.
     ///
     /// # Errors
     ///
-    /// - [`A2AError::MaxDepthExceeded`] si `a2a_depth >= config.max_depth`.
-    /// - [`A2AError::ChainTimeoutExceeded`] si le deadline de chaîne est expiré.
-    /// - [`A2AError::SelfInvocation`] si l'agent tente de s'invoquer lui-même.
-    /// - [`A2AError::SkillNotFound`] si aucun agent A2A disponible ne déclare le skill.
-    /// - [`A2AError::AgentNotActive`] si l'agent cible n'est pas en état `Active`.
-    /// - [`A2AError::Timeout`] si la durée d'exécution dépasse le timeout d'invocation.
-    /// - [`A2AError::ExecutionFailed`] si le Worker Agent retourne un échec.
-    /// - [`A2AError::RegistryError`] en cas d'erreur de communication avec le registry.
+    /// - [`A2AError::MaxDepthExceeded`] if `a2a_depth >= config.max_depth`.
+    /// - [`A2AError::ChainTimeoutExceeded`] if the chain deadline is expired.
+    /// - [`A2AError::SelfInvocation`] if the agent tries to invoke itself.
+    /// - [`A2AError::SkillNotFound`] if no available A2A agent declares the skill.
+    /// - [`A2AError::AgentNotActive`] if the target agent is not in the `Active` state.
+    /// - [`A2AError::Timeout`] if execution exceeds the invocation timeout.
+    /// - [`A2AError::ExecutionFailed`] if the Worker Agent returns a failure.
+    /// - [`A2AError::RegistryError`] on a communication error with the registry.
     pub async fn invoke(
         &self,
         request: A2AInvokeRequest<'_>,
@@ -419,7 +421,7 @@ impl A2AInvoker {
             timeout,
             chain_deadline,
         } = request;
-        // ── Garde-fou 1 : profondeur de récursivité ────────────────────────────
+        // Guard 1: recursion depth.
         if a2a_depth >= self.config.max_depth {
             let detail = format!(
                 "recursion depth {a2a_depth} reaches max_depth {} (caller: {caller}, skill: {skill_id})",
@@ -439,8 +441,8 @@ impl A2AInvoker {
             });
         }
 
-        // ── Garde-fou 2 : timeout cumulé de chaîne ────────────────────────────
-        // Initialiser le deadline à la première invocation de la chaîne.
+        // Guard 2: cumulative chain timeout.
+        // Initialize the deadline on the first invocation of the chain.
         let effective_deadline = chain_deadline.unwrap_or_else(|| {
             Instant::now() + Duration::from_secs(self.config.chain_timeout_secs)
         });
@@ -449,7 +451,7 @@ impl A2AInvoker {
 
         let (effective_timeout_secs, governed_by_chain) = match chain_remaining {
             None => {
-                // Deadline déjà expiré avant même de commencer.
+                // Deadline already expired before we even start.
                 let detail = format!(
                     "chain deadline already expired before invocation (caller: {caller}, skill: {skill_id})"
                 );
@@ -468,7 +470,7 @@ impl A2AInvoker {
                 let invocation_timeout = timeout
                     .unwrap_or_else(|| Duration::from_secs(self.config.invocation_timeout_secs));
                 if remaining < invocation_timeout {
-                    // Le chain_deadline expire avant l'invocation_timeout.
+                    // The chain_deadline expires before the invocation_timeout.
                     (remaining.as_secs().max(1), true)
                 } else {
                     (invocation_timeout.as_secs(), false)
@@ -476,7 +478,7 @@ impl A2AInvoker {
             }
         };
 
-        // ── Résolution du skill ────────────────────────────────────────────────
+        // Skill resolution.
         let entries = self
             .registry
             .list_agents()
@@ -523,7 +525,7 @@ impl A2AInvoker {
 
         let agent_name = target.manifest.name.clone();
 
-        // ── Garde-fou 3 : auto-invocation ─────────────────────────────────────
+        // Guard 3: self-invocation.
         if agent_name == caller {
             let detail =
                 format!("agent '{caller}' resolved as its own target for skill '{skill_id}'");
@@ -679,10 +681,10 @@ impl A2AInvoker {
         })
     }
 
-    /// Découvre l'agent qui expose `skill_id` et retourne sa carte de découverte.
+    /// Discovers the agent that exposes `skill_id` and returns its discovery card.
     ///
-    /// Cherche dans les agents `supports_a2a = true` en état `Active` ou `Degraded`.
-    /// Retourne `None` si aucun agent disponible ne déclare ce skill.
+    /// Searches agents with `supports_a2a = true` in `Active` or `Degraded` state.
+    /// Returns `None` if no available agent declares this skill.
     pub async fn discover(&self, skill_id: &str) -> Result<Option<A2AAgentCard>, A2AError> {
         let entries = self
             .registry
@@ -706,10 +708,10 @@ impl A2AInvoker {
         Ok(card)
     }
 
-    /// Liste toutes les cartes de découverte des agents A2A disponibles.
+    /// Lists all discovery cards for available A2A agents.
     ///
-    /// Inclut les agents en état `Active` ou `Degraded` avec `supports_a2a = true`.
-    /// La liste est triée par nom d'agent.
+    /// Includes agents in `Active` or `Degraded` state with `supports_a2a = true`.
+    /// The list is sorted by agent name.
     pub async fn list_agent_cards(&self) -> Result<Vec<A2AAgentCard>, A2AError> {
         let entries = self
             .registry
@@ -733,9 +735,9 @@ impl A2AInvoker {
         Ok(cards)
     }
 
-    /// Liste tous les skills disponibles, toutes cartes A2A confondues.
+    /// Lists every available skill across all A2A cards.
     ///
-    /// Retourne une liste plate de [`SkillListing`], triée par `skill_id`.
+    /// Returns a flat list of [`SkillListing`], sorted by `skill_id`.
     pub async fn list_skills(&self) -> Result<Vec<SkillListing>, A2AError> {
         let cards = self.list_agent_cards().await?;
 
@@ -756,11 +758,11 @@ impl A2AInvoker {
         Ok(skills)
     }
 
-    /// Vérifie la compatibilité semver entre `required_version` et la version
-    /// advertised par le Worker qui fournit `skill_id`.
+    /// Checks semver compatibility between `required_version` and the version
+    /// advertised by the Worker that provides `skill_id`.
     ///
-    /// Émet un [`RuntimeEvent::A2ACompatibilityWarning`] sur l'EventBus si un
-    /// mismatch est détecté. Retourne `Ok(None)` si les versions sont compatibles.
+    /// Emits a [`RuntimeEvent::A2ACompatibilityWarning`] on the EventBus if a
+    /// mismatch is detected. Returns `Ok(None)` if the versions are compatible.
     pub async fn check_skill_compatibility(
         &self,
         skill_id: &str,
@@ -827,13 +829,13 @@ impl A2AInvoker {
         Ok(Some(enriched))
     }
 
-    /// Construit la configuration de contexte d'exécution pour un agent invoqué via A2A.
+    /// Builds the execution context configuration for an agent invoked via A2A.
     ///
-    /// La lecture du namespace `__user__` est gérée directement par le
-    /// `MemoryInterface` (toujours active dès qu'un `user_manager` est fourni)
-    /// et n'a plus besoin d'être encodée dans cette config. Les écritures
-    /// restent interdites par défaut, elles sont autorisées uniquement
-    /// quand le manifest déclare `user_memory_write = true`.
+    /// Reading the `__user__` namespace is handled directly by the
+    /// `MemoryInterface` (always active as soon as a `user_manager` is provided)
+    /// and no longer needs to be encoded in this config. Writes stay forbidden
+    /// by default and are allowed only when the manifest declares
+    /// `user_memory_write = true`.
     pub fn build_a2a_context(&self) -> RuntimeContextConfig {
         RuntimeContextConfig {
             user_memory_writable: false,
@@ -841,7 +843,7 @@ impl A2AInvoker {
         }
     }
 
-    /// Constructeur de test, injecte une `A2aDelegateFn` personnalisée et une config.
+    /// Test constructor: injects a custom `A2aDelegateFn` and a config.
     #[doc(hidden)]
     pub fn new_for_test(
         registry: AgentRegistryHandle,
@@ -860,7 +862,7 @@ impl A2AInvoker {
     }
 }
 
-/// Convertit une [`AgentEntry`] en [`A2AAgentCard`].
+/// Converts an [`AgentEntry`] into an [`A2AAgentCard`].
 fn to_agent_card(entry: &AgentEntry) -> A2AAgentCard {
     let skills = entry
         .manifest
@@ -886,7 +888,7 @@ fn to_agent_card(entry: &AgentEntry) -> A2AAgentCard {
     }
 }
 
-/// Mappe une [`crate::a2a::A2aError`] vers une [`A2AError`] de haut niveau.
+/// Maps a [`crate::a2a::A2aError`] onto a high-level [`A2AError`].
 fn map_delegate_err(
     err: crate::a2a::A2aError,
     skill_id: &str,
@@ -1030,7 +1032,7 @@ mod tests {
         )
     }
 
-    // ── Pure function tests ────────────────────────────────────────────────────
+    // Pure function tests.
 
     #[test]
     fn test_a2a_error_skill_not_found_message() {
@@ -1185,11 +1187,11 @@ mod tests {
         assert_eq!(restored.skills[0].id, "read-excel");
     }
 
-    // ── Registry-based async tests ────────────────────────────────────────────
+    // Registry-based async tests.
 
     #[tokio::test]
     async fn test_invoke_unknown_skill_returns_skill_not_found_with_available() {
-        // GIVEN excel-worker Active avec "read-excel", invoke pour "unknown-skill"
+        // GIVEN excel-worker Active with "read-excel", invoke for "unknown-skill"
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
         let agent_id = registry
@@ -1223,7 +1225,7 @@ mod tests {
             })
             .await;
 
-        // THEN Err(SkillNotFound) avec available contenant "read-excel" et "edit-excel"
+        // THEN Err(SkillNotFound) with available containing "read-excel" and "edit-excel"
         match result.expect_err("expected error") {
             A2AError::SkillNotFound {
                 skill_id,
@@ -1245,7 +1247,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invoke_degraded_agent_returns_not_active() {
-        // GIVEN excel-worker Degraded avec "read-excel"
+        // GIVEN excel-worker Degraded with "read-excel"
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
         let agent_id = registry
@@ -1280,7 +1282,7 @@ mod tests {
             })
             .await;
 
-        // THEN Err(AgentNotActive) avec state == "Degraded"
+        // THEN Err(AgentNotActive) with state == "Degraded"
         match result.expect_err("expected error") {
             A2AError::AgentNotActive { agent_name, state } => {
                 assert_eq!(agent_name, "excel-worker");
@@ -1292,7 +1294,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invoke_active_agent_succeeds_and_emits_events() {
-        // GIVEN excel-worker Active, delegate retourne Ok
+        // GIVEN excel-worker Active, delegate returns Ok
         let (bus_tx, mut bus_rx) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
         let agent_id = registry
@@ -1324,7 +1326,7 @@ mod tests {
             .await
             .expect("invoke failed");
 
-        // THEN résultat correct
+        // THEN result is correct
         assert_eq!(result.skill_id, "read-excel");
         assert_eq!(result.agent_name, "excel-worker");
         assert!(
@@ -1334,7 +1336,7 @@ mod tests {
         );
         assert_eq!(result.result.status, apollia_core::TaskStatus::Completed);
 
-        // THEN A2AInvocationStarted émis
+        // THEN A2AInvocationStarted emitted
         let mut found_started = false;
         let mut found_completed = false;
         loop {
@@ -1360,7 +1362,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invoke_timeout_returns_a2a_timeout_error() {
-        // GIVEN excel-worker Active, delegate retourne Timeout
+        // GIVEN excel-worker Active, delegate returns Timeout
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
         let agent_id = registry
@@ -1400,7 +1402,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_discover_returns_agent_card() {
-        // GIVEN excel-worker enregistré et Active
+        // GIVEN excel-worker registered and Active
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
         let agent_id = registry
@@ -1429,14 +1431,14 @@ mod tests {
             .expect("discover failed")
             .expect("expected Some(card)");
 
-        // THEN carte correcte
+        // THEN card is correct
         assert_eq!(card.name, "excel-worker");
         assert_eq!(card.skills.len(), 2);
     }
 
     #[tokio::test]
     async fn test_discover_unknown_skill_returns_none() {
-        // GIVEN registry vide
+        // GIVEN empty registry
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
         let invoker = A2AInvoker::new_for_test(
@@ -1455,7 +1457,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_agent_cards_returns_sorted_active_agents() {
-        // GIVEN 2 agents A2A Active (zebra-worker avant alpha-worker dans l'ordre d'insertion)
+        // GIVEN 2 Active A2A agents (zebra-worker before alpha-worker in insertion order)
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
 
@@ -1483,7 +1485,7 @@ mod tests {
         // WHEN
         let cards = invoker.list_agent_cards().await.expect("list failed");
 
-        // THEN triées par nom, alpha-worker en premier
+        // THEN sorted by name, alpha-worker first
         assert_eq!(cards.len(), 2);
         assert_eq!(cards[0].name, "alpha-worker");
         assert_eq!(cards[1].name, "zebra-worker");
@@ -1491,7 +1493,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_skills_aggregates_all_a2a_skills() {
-        // GIVEN 2 agents A2A avec des skills distincts
+        // GIVEN 2 A2A agents with distinct skills
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
 
@@ -1519,7 +1521,7 @@ mod tests {
         // WHEN
         let skills = invoker.list_skills().await.expect("list failed");
 
-        // THEN 3 skills triés par skill_id
+        // THEN 3 skills sorted by skill_id
         assert_eq!(skills.len(), 3);
         assert_eq!(skills[0].skill_id, "edit-excel");
         assert_eq!(skills[1].skill_id, "read-csv");
@@ -1527,7 +1529,7 @@ mod tests {
     }
 }
 
-// ── A2A garde-fous ────────────────────────────────────────────────────────────
+// A2A guards.
 #[cfg(test)]
 mod a2a_guard_tests {
     use super::*;
@@ -1632,7 +1634,7 @@ mod a2a_guard_tests {
 
     #[tokio::test]
     async fn test_max_depth_blocks_deep_recursion() {
-        // GIVEN A2AInvoker avec max_depth = 2, a2a_depth = 2
+        // GIVEN A2AInvoker with max_depth = 2, a2a_depth = 2
         let config = A2AConfig {
             max_depth: 2,
             ..A2AConfig::default()
@@ -1640,7 +1642,7 @@ mod a2a_guard_tests {
         let (invoker, _) =
             make_active_invoker_with_config("excel-worker", &["read-excel"], config).await;
 
-        // WHEN invoke avec a2a_depth = 2 (= max_depth)
+        // WHEN invoke with a2a_depth = 2 (= max_depth)
         let result = invoker
             .invoke(A2AInvokeRequest {
                 skill_id: "read-excel",
@@ -1652,7 +1654,7 @@ mod a2a_guard_tests {
             })
             .await;
 
-        // THEN MaxDepthExceeded avec les champs corrects
+        // THEN MaxDepthExceeded with the correct fields
         match result.expect_err("expected MaxDepthExceeded") {
             A2AError::MaxDepthExceeded {
                 current_depth,
@@ -1679,7 +1681,7 @@ mod a2a_guard_tests {
         let (invoker, _) =
             make_active_invoker_with_config("excel-worker", &["read-excel"], config).await;
 
-        // WHEN invoke avec a2a_depth = 1 (< max_depth)
+        // WHEN invoke with a2a_depth = 1 (< max_depth)
         let result = invoker
             .invoke(A2AInvokeRequest {
                 skill_id: "read-excel",
@@ -1691,7 +1693,7 @@ mod a2a_guard_tests {
             })
             .await;
 
-        // THEN pas d'erreur de profondeur, invocation réussit
+        // THEN no depth error, invocation succeeds
         assert!(
             result.is_ok(),
             "depth 1 < max_depth 3 should succeed, got: {result:?}"
@@ -1700,12 +1702,12 @@ mod a2a_guard_tests {
 
     #[tokio::test]
     async fn test_self_invocation_blocked() {
-        // GIVEN excel-worker enregistré avec skill "read-excel"
+        // GIVEN excel-worker registered with skill "read-excel"
         let (invoker, _) =
             make_active_invoker_with_config("excel-worker", &["read-excel"], A2AConfig::default())
                 .await;
 
-        // WHEN excel-worker s'invoque lui-même via le skill "read-excel"
+        // WHEN excel-worker invokes itself via the skill "read-excel"
         let result = invoker
             .invoke(A2AInvokeRequest {
                 skill_id: "read-excel",
@@ -1717,7 +1719,7 @@ mod a2a_guard_tests {
             })
             .await;
 
-        // THEN SelfInvocation avec les champs corrects
+        // THEN SelfInvocation with the correct fields
         match result.expect_err("expected SelfInvocation") {
             A2AError::SelfInvocation {
                 agent_name,
@@ -1732,12 +1734,12 @@ mod a2a_guard_tests {
 
     #[tokio::test]
     async fn test_chain_deadline_initialized_on_first_call() {
-        // GIVEN chain_deadline = None (première invocation de la chaîne)
+        // GIVEN chain_deadline = None (first invocation of the chain)
         let (invoker, _) =
             make_active_invoker_with_config("excel-worker", &["read-excel"], A2AConfig::default())
                 .await;
 
-        // WHEN invoke avec chain_deadline = None
+        // WHEN invoke with chain_deadline = None
         let result = invoker
             .invoke(A2AInvokeRequest {
                 skill_id: "read-excel",
@@ -1749,7 +1751,7 @@ mod a2a_guard_tests {
             })
             .await;
 
-        // THEN le deadline est initialisé à l'avenir, pas de ChainTimeoutExceeded
+        // THEN the deadline is initialized in the future, no ChainTimeoutExceeded
         assert!(
             result.is_ok(),
             "first call with chain_deadline=None must succeed (deadline initialized to future), got: {result:?}"
@@ -1758,13 +1760,13 @@ mod a2a_guard_tests {
 
     #[tokio::test]
     async fn test_chain_timeout_exceeded() {
-        // GIVEN chain_deadline dans le passé (expiré il y a 1 seconde)
+        // GIVEN chain_deadline in the past (expired 1 second ago)
         let past_deadline = Instant::now() - Duration::from_secs(1);
         let (invoker, _) =
             make_active_invoker_with_config("excel-worker", &["read-excel"], A2AConfig::default())
                 .await;
 
-        // WHEN invoke avec chain_deadline expiré
+        // WHEN invoke with expired chain_deadline
         let result = invoker
             .invoke(A2AInvokeRequest {
                 skill_id: "read-excel",
@@ -1776,7 +1778,7 @@ mod a2a_guard_tests {
             })
             .await;
 
-        // THEN ChainTimeoutExceeded immédiat
+        // THEN immediate ChainTimeoutExceeded
         match result.expect_err("expected ChainTimeoutExceeded") {
             A2AError::ChainTimeoutExceeded { caller, skill_id } => {
                 assert_eq!(caller, "director");
@@ -1788,7 +1790,7 @@ mod a2a_guard_tests {
 
     #[tokio::test]
     async fn test_guard_event_emitted_on_max_depth() {
-        // GIVEN EventBus receiver + max_depth = 1
+        // GIVEN EventBus receiver and max_depth = 1
         let config = A2AConfig {
             max_depth: 1,
             ..A2AConfig::default()
@@ -1796,7 +1798,7 @@ mod a2a_guard_tests {
         let (invoker, mut bus_rx) =
             make_active_invoker_with_config("excel-worker", &["read-excel"], config).await;
 
-        // WHEN invoke avec a2a_depth = max_depth
+        // WHEN invoke with a2a_depth = max_depth
         let _ = invoker
             .invoke(A2AInvokeRequest {
                 skill_id: "read-excel",
@@ -1808,7 +1810,7 @@ mod a2a_guard_tests {
             })
             .await;
 
-        // THEN A2AGuardTriggered { guard_type: "max_depth" } émis
+        // THEN A2AGuardTriggered { guard_type: "max_depth" } emitted
         let mut found = false;
         while let Ok(event) = bus_rx.try_recv() {
             if let RuntimeEvent::A2AGuardTriggered {
@@ -1832,11 +1834,11 @@ mod a2a_guard_tests {
 
     #[test]
     fn test_a2a_config_defaults() {
-        // GIVEN A2AConfig désérialisé depuis JSON vide (toutes valeurs par défaut)
+        // GIVEN A2AConfig deserialized from empty JSON (all default values)
         let config: A2AConfig =
             serde_json::from_str("{}").expect("deserialization of empty object failed");
 
-        // THEN valeurs par défaut saines
+        // THEN sane default values
         assert_eq!(config.max_depth, 3);
         assert_eq!(config.invocation_timeout_secs, 120);
         assert_eq!(config.chain_timeout_secs, 300);
@@ -1844,18 +1846,18 @@ mod a2a_guard_tests {
 
     #[test]
     fn test_a2a_config_round_trip() {
-        // GIVEN une config avec des valeurs personnalisées
+        // GIVEN a config with custom values
         let config = A2AConfig {
             max_depth: 5,
             invocation_timeout_secs: 60,
             chain_timeout_secs: 600,
         };
 
-        // WHEN sérialisation/désérialisation
+        // WHEN serialized then deserialized
         let json = serde_json::to_string(&config).expect("serialization failed");
         let restored: A2AConfig = serde_json::from_str(&json).expect("deserialization failed");
 
-        // THEN valeurs préservées
+        // THEN values are preserved
         assert_eq!(restored.max_depth, 5);
         assert_eq!(restored.invocation_timeout_secs, 60);
         assert_eq!(restored.chain_timeout_secs, 600);

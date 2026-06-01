@@ -1,21 +1,21 @@
-//! Moteur de permissions 3 couches - point d'entrée principal.
+//! Three-layer permission engine, main entry point.
 //!
-//! `PermissionEngine::decide()` évalue chaque invocation d'outil dans l'ordre suivant :
+//! `PermissionEngine::decide()` evaluates each tool invocation in this order:
 //!
-//! 1. **Couche 3 - InjectionDetector** (priorité absolue, bloquant)
-//!    Vérifie tous les arguments string pour détecter des patterns shell dangereux.
+//! 1. **Layer 3, InjectionDetector** (absolute priority, blocking)
+//!    Scans every string argument for dangerous shell patterns.
 //!
-//! 2. **Couche 1 - SafeList** (config opérateur, vide par défaut)
-//!    Auto-approuve les invocations explicitement configurées par l'opérateur.
+//! 2. **Layer 1, SafeList** (operator config, empty by default)
+//!    Auto-approves invocations explicitly configured by the operator.
 //!
-//! 3. **Couche 2 - PrefixRuleEngine** (règles SQLite persistées)
-//!    Auto-approuve ou auto-refuse selon les règles enregistrées par l'opérateur
-//!    ou le bouton "Toujours autoriser" HITL desktop.
+//! 3. **Layer 2, PrefixRuleEngine** (persisted SQLite rules)
+//!    Auto-approves or auto-denies based on rules saved by the operator
+//!    or by the desktop HITL "Always allow" button.
 //!
-//! 4. **Fallback** → `NeedsApproval`
-//!    Toute invocation sans correspondance demande une approbation humaine.
+//! 4. **Fallback**, `NeedsApproval`
+//!    Any invocation without a match requires human approval.
 //!
-//! Toutes les décisions sont persistées dans `PermissionAuditLog` (immuable).
+//! Every decision is persisted in `PermissionAuditLog` (immutable).
 
 use std::path::Path;
 
@@ -31,39 +31,39 @@ use crate::prefix_rule_engine::{
 };
 use crate::safe_list::SafeList;
 
-/// Marqueur `created_by` apposé aux règles ingérées depuis `PermissionsConfig.safe_commands`
-/// au démarrage du moteur (ADR-086 - source unique `governance.db`).
+/// `created_by` marker stamped on rules ingested from `PermissionsConfig.safe_commands`
+/// at engine startup (single source of truth: `governance.db`).
 pub const CONFIG_IMPORT_CREATOR: &str = "config-import";
 
 // ─────────────────────────────────────────────
 // PermissionDecision
 // ─────────────────────────────────────────────
 
-/// Décision émise par `PermissionEngine::decide()`.
+/// Decision emitted by `PermissionEngine::decide()`.
 ///
-/// Le runtime utilise cette décision pour émettre un événement
-/// `RuntimeEvent::PermissionRequired` (NeedsApproval) ou retourner
-/// `ToolError::PermissionDenied` (AutoDenied*).
+/// The runtime uses this decision to emit a `RuntimeEvent::PermissionRequired`
+/// event (NeedsApproval) or to return `ToolError::PermissionDenied`
+/// (AutoDenied*).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PermissionDecision {
-    /// Invocation auto-approuvée par la SafeList opérateur (couche 1).
+    /// Invocation auto-approved by the operator SafeList (layer 1).
     AutoAllowedSafeList,
-    /// Invocation auto-approuvée par une règle préfixe SQLite (couche 2).
+    /// Invocation auto-approved by a SQLite prefix rule (layer 2).
     AutoAllowedPrefixRule {
-        /// Identifiant de la règle ayant déclenché l'approbation.
+        /// Identifier of the rule that triggered the approval.
         rule_id: i64,
     },
-    /// Invocation auto-refusée par une règle préfixe SQLite (couche 2).
+    /// Invocation auto-denied by a SQLite prefix rule (layer 2).
     AutoDeniedPrefixRule {
-        /// Identifiant de la règle ayant déclenché le refus.
+        /// Identifier of the rule that triggered the denial.
         rule_id: i64,
     },
-    /// Invocation bloquée par détection d'injection shell (couche 3).
+    /// Invocation blocked by shell injection detection (layer 3).
     AutoDeniedInjection {
-        /// Nom du pattern d'injection détecté (ex : `";"`, `"$("`, ...).
+        /// Name of the detected injection pattern (e.g. `";"`, `"$("`, ...).
         pattern: String,
     },
-    /// Aucune couche n'a tranché - l'approbation humaine est requise.
+    /// No layer made a call: human approval is required.
     NeedsApproval,
 }
 
@@ -71,10 +71,10 @@ pub enum PermissionDecision {
 // PermissionEngine
 // ─────────────────────────────────────────────
 
-/// Moteur de permissions 3 couches.
+/// Three-layer permission engine.
 ///
-/// Doit être instancié une fois par runtime et partagé via `Arc<Mutex<PermissionEngine>>`
-/// lorsque plusieurs acteurs en ont besoin concurrentiellement.
+/// Instantiate once per runtime and share via `Arc<Mutex<PermissionEngine>>`
+/// when several actors need it concurrently.
 pub struct PermissionEngine {
     safe_list: SafeList,
     prefix_rules: PrefixRuleEngine,
@@ -86,22 +86,21 @@ pub struct PermissionEngine {
 }
 
 impl PermissionEngine {
-    /// Construit un `PermissionEngine` depuis la configuration et le chemin SQLite.
+    /// Builds a `PermissionEngine` from the configuration and the SQLite path.
     ///
-    /// Le même fichier SQLite est utilisé par le `PrefixRuleEngine` et le `PermissionAuditLog`.
+    /// The same SQLite file backs both the `PrefixRuleEngine` and the `PermissionAuditLog`.
     ///
     /// # Errors
     ///
-    /// - [`PermissionError::Database`] si l'initialisation SQLite échoue.
+    /// - [`PermissionError::Database`] if SQLite initialization fails.
     pub fn new(config: &PermissionsConfig, db_path: &Path) -> Result<Self, PermissionError> {
         let mut prefix_rules = PrefixRuleEngine::new(db_path)?;
         let safe_list = SafeList::from_config(config);
 
-        // ADR-086 - Migration idempotente de la SafeList TOML vers governance.db.
-        // Au premier boot avec une SafeList non vide, on ingère chaque pattern en
-        // tant que règle Allow scope=Global avec created_by="config-import". Les
-        // boots suivants détectent les règles déjà présentes et n'en réécrivent
-        // aucune.
+        // Idempotent migration of the TOML SafeList into governance.db.
+        // On the first boot with a non-empty SafeList, each pattern is ingested
+        // as an Allow rule with scope=Global and created_by="config-import".
+        // Later boots detect the rules already present and rewrite none of them.
         migrate_safe_list_to_governance(&mut prefix_rules, &safe_list)?;
 
         Ok(Self {
@@ -115,53 +114,53 @@ impl PermissionEngine {
         })
     }
 
-    /// Ajoute une règle de session (mémoire uniquement, jamais persistée).
+    /// Adds a session rule (in memory only, never persisted).
     ///
-    /// Utilisé par le bouton "Toujours autoriser pour cette session" du dialog HITL.
-    /// La règle disparaît à l'arrêt du process.
+    /// Used by the HITL dialog's "Always allow for this session" button.
+    /// The rule disappears when the process stops.
     ///
-    /// La règle est forcée à `scope = Session` quel que soit le scope du `PrefixRule` reçu,
-    /// pour éviter qu'une règle session entre par mégarde dans le chemin DB.
+    /// The rule is forced to `scope = Session` regardless of the incoming
+    /// `PrefixRule` scope, so a session rule cannot accidentally enter the DB path.
     pub fn add_session_rule(&mut self, mut rule: PrefixRule) {
         rule.scope = PermissionScope::Session;
         rule.project_path = None;
         self.session_rules.push(rule);
     }
 
-    /// Vide la liste des règles de session (à appeler en fin de process si besoin).
+    /// Clears the session rules (call at process end if needed).
     pub fn clear_session_rules(&mut self) {
         self.session_rules.clear();
     }
 
-    /// Définit le contexte de scope courant utilisé par `decide()` lorsqu'une règle
-    /// `Project` doit être filtrée par chemin.
+    /// Sets the current scope context used by `decide()` when a `Project` rule
+    /// must be filtered by path.
     pub fn set_scope_context(&mut self, ctx: ScopeContext) {
         self.scope_context = Some(ctx);
     }
 
-    /// Retourne une vue immuable du contexte de scope courant.
+    /// Returns an immutable view of the current scope context.
     pub fn scope_context(&self) -> Option<&ScopeContext> {
         self.scope_context.as_ref()
     }
 
-    /// Retourne une vue immuable des règles de session en mémoire.
+    /// Returns an immutable view of the in-memory session rules.
     pub fn session_rules(&self) -> &[PrefixRule] {
         &self.session_rules
     }
 
-    /// Évalue les 3 couches de permission pour une invocation d'outil.
+    /// Evaluates the 3 permission layers for a tool invocation.
     ///
-    /// Ordre d'évaluation :
-    /// 1. InjectionDetector (couche 3, priorité absolue)
-    /// 2. SafeList (couche 1, config opérateur)
-    /// 3. PrefixRuleEngine (couche 2, règles SQLite)
+    /// Evaluation order:
+    /// 1. InjectionDetector (layer 3, absolute priority)
+    /// 2. SafeList (layer 1, operator config)
+    /// 3. PrefixRuleEngine (layer 2, SQLite rules)
     /// 4. NeedsApproval (fallback)
     ///
-    /// La décision est systématiquement enregistrée dans l'audit log.
+    /// The decision is always recorded in the audit log.
     ///
     /// # Errors
     ///
-    /// - [`PermissionError::Database`] si l'audit log ne peut pas être écrit.
+    /// - [`PermissionError::Database`] if the audit log cannot be written.
     pub fn decide(
         &mut self,
         tool_name: &str,
@@ -170,7 +169,7 @@ impl PermissionEngine {
     ) -> Result<PermissionDecision, PermissionError> {
         let first_arg = extract_first_arg(input);
 
-        // ── Couche 3 : InjectionDetector (priorité absolue) ─────────────────
+        // ── Layer 3: InjectionDetector (absolute priority) ──────────────────
         if self.injection_detection_enabled {
             let suspicious_value = find_suspicious_string(input, &self.injection_detector);
             if let Some(pattern) = suspicious_value {
@@ -188,7 +187,7 @@ impl PermissionEngine {
             }
         }
 
-        // ── Couche 1 : SafeList ──────────────────────────────────────────────
+        // ── Layer 1: SafeList ────────────────────────────────────────────────
         if self.safe_list.matches(tool_name, first_arg.as_deref()) {
             let decision = PermissionDecision::AutoAllowedSafeList;
             tracing::debug!(tool = %tool_name, "auto-allowed by safe list");
@@ -197,7 +196,7 @@ impl PermissionEngine {
             return Ok(decision);
         }
 
-        // ── Couche 2 : PrefixRuleEngine ──────────────────────────────────────
+        // ── Layer 2: PrefixRuleEngine ────────────────────────────────────────
         let prefix_hit = match &self.scope_context {
             Some(ctx) => self.prefix_rules.check_with_scope(
                 tool_name,
@@ -221,7 +220,7 @@ impl PermissionEngine {
             return Ok(decision);
         }
 
-        // ── Fallback : NeedsApproval ─────────────────────────────────────────
+        // ── Fallback: NeedsApproval ──────────────────────────────────────────
         let decision = PermissionDecision::NeedsApproval;
         tracing::debug!(tool = %tool_name, "needs human approval");
         self.audit_log
@@ -229,33 +228,33 @@ impl PermissionEngine {
         Ok(decision)
     }
 
-    /// Expose le `PrefixRuleEngine` pour permettre l'ajout de règles depuis l'extérieur
-    /// (par exemple, via le bouton "Toujours autoriser" HITL desktop).
+    /// Exposes the `PrefixRuleEngine` so rules can be added from outside
+    /// (for example, via the desktop HITL "Always allow" button).
     pub fn prefix_rules_mut(&mut self) -> &mut PrefixRuleEngine {
         &mut self.prefix_rules
     }
 
-    /// Expose le `PermissionAuditLog` en lecture seule pour les requêtes d'audit.
+    /// Exposes the `PermissionAuditLog` read-only for audit queries.
     pub fn audit_log(&self) -> &PermissionAuditLog {
         &self.audit_log
     }
 }
 
 // ─────────────────────────────────────────────
-// Helpers privés
+// Private helpers
 // ─────────────────────────────────────────────
 
-/// Extrait le premier argument string de l'input JSON.
+/// Extracts the first string argument from the JSON input.
 ///
-/// Stratégie : essaie d'abord les clés courantes des outils natifs
+/// Strategy: try the common native-tool keys first
 /// (`cmd`, `command`, `path`, `query`, `input`, `text`, `content`, `prompt`),
-/// puis prend la première valeur string trouvée dans l'objet.
-/// Si l'input est directement une string, la retourne telle quelle.
+/// then take the first string value found in the object.
+/// If the input is itself a string, return it as is.
 fn extract_first_arg(input: &Value) -> Option<String> {
     match input {
         Value::String(s) => Some(s.clone()),
         Value::Object(map) => {
-            // Essayer les clés courantes des outils natifs en priorité.
+            // Try the common native-tool keys first.
             const PRIORITY_KEYS: &[&str] = &[
                 "cmd", "command", "path", "query", "input", "text", "content", "prompt",
             ];
@@ -265,7 +264,7 @@ fn extract_first_arg(input: &Value) -> Option<String> {
                     return Some(s.clone());
                 }
             }
-            // Fallback : première valeur string trouvée dans l'objet.
+            // Fallback: first string value found in the object.
             map.values().find_map(|v| {
                 if let Value::String(s) = v {
                     Some(s.clone())
@@ -278,10 +277,10 @@ fn extract_first_arg(input: &Value) -> Option<String> {
     }
 }
 
-/// Cherche un pattern d'injection dans toutes les valeurs string de l'input JSON.
+/// Looks for an injection pattern across every string value in the JSON input.
 ///
-/// Inspecte récursivement les strings dans les objets et les tableaux.
-/// Retourne le nom du premier pattern détecté, ou `None`.
+/// Recursively inspects strings inside objects and arrays.
+/// Returns the name of the first detected pattern, or `None`.
 fn find_suspicious_string(input: &Value, detector: &InjectionDetector) -> Option<String> {
     match input {
         Value::String(s) => detector.detected_pattern(s),
@@ -294,15 +293,15 @@ fn find_suspicious_string(input: &Value, detector: &InjectionDetector) -> Option
 }
 
 // ─────────────────────────────────────────────
-// Migration SafeList → governance.db (ADR-086)
+// SafeList migration into governance.db
 // ─────────────────────────────────────────────
 
-/// Ingère les patterns `SafeList` parsés en règles `permission_rules` avec
-/// `created_by="config-import"` lorsqu'aucune règle de cet auteur n'existe encore.
+/// Ingests parsed `SafeList` patterns as `permission_rules` with
+/// `created_by="config-import"` when no rule from that author exists yet.
 ///
-/// Idempotent : un second appel après une migration réussie est un no-op (la
-/// présence d'au moins une règle `created_by="config-import"` court-circuite
-/// l'import).
+/// Idempotent: a second call after a successful migration is a no-op (the
+/// presence of at least one `created_by="config-import"` rule short-circuits
+/// the import).
 fn migrate_safe_list_to_governance(
     prefix_rules: &mut PrefixRuleEngine,
     safe_list: &SafeList,
@@ -424,7 +423,7 @@ mod tests {
 
     #[test]
     fn engine_empty_safe_list_needs_approval() {
-        // GIVEN un PermissionEngine avec SafeList vide (défaut)
+        // GIVEN a PermissionEngine with an empty SafeList (default)
         let (mut engine, _tmp) = engine_with_config(empty_config());
         let manifest = dummy_manifest();
         // WHEN
@@ -437,7 +436,7 @@ mod tests {
 
     #[test]
     fn engine_layer1_configured_command_auto_allowed() {
-        // GIVEN un PermissionEngine avec SafeList configurée pour "git status"
+        // GIVEN a PermissionEngine with SafeList configured for "git status"
         let (mut engine, _tmp) =
             engine_with_config(config_with_safe_cmd("bash_executor(git status)"));
         let manifest = dummy_manifest();
@@ -451,8 +450,8 @@ mod tests {
 
     #[test]
     fn engine_injection_overrides_safe_list() {
-        // GIVEN un PermissionEngine avec SafeList pour la commande injectée
-        // ET une commande avec command substitution
+        // GIVEN a PermissionEngine with SafeList for the injected command
+        // AND a command with command substitution
         let (mut engine, _tmp) = engine_with_config(config_with_safe_cmd(
             "bash_executor(git status $(rm -rf /))",
         ));
@@ -465,7 +464,7 @@ mod tests {
                 &manifest,
             )
             .expect("decide");
-        // THEN couche 3 a priorité absolue
+        // THEN layer 3 takes absolute priority
         assert!(matches!(
             decision,
             PermissionDecision::AutoDeniedInjection { .. }
@@ -474,7 +473,7 @@ mod tests {
 
     #[test]
     fn engine_unknown_tool_needs_approval() {
-        // GIVEN un PermissionEngine sans règle applicable
+        // GIVEN a PermissionEngine with no applicable rule
         let (mut engine, _tmp) = engine_with_config(empty_config());
         let manifest = dummy_manifest();
         // WHEN
@@ -487,7 +486,7 @@ mod tests {
 
     #[test]
     fn engine_layer2_prefix_rule_allows_git_push() {
-        // GIVEN un PermissionEngine avec règle "bash_executor(git:*)" Allow
+        // GIVEN a PermissionEngine with an Allow rule "bash_executor(git:*)"
         let (mut engine, _tmp) = engine_with_config(empty_config());
         use crate::prefix_rule_engine::{PrefixRule, RuleAction};
         let rule = PrefixRule {
@@ -511,10 +510,10 @@ mod tests {
 
     #[test]
     fn engine_injection_detected_on_non_safe_command() {
-        // GIVEN un PermissionEngine complet
+        // GIVEN a fully configured PermissionEngine
         let (mut engine, _tmp) = engine_with_config(empty_config());
         let manifest = dummy_manifest();
-        // WHEN commande avec command substitution
+        // WHEN a command with command substitution
         let decision = engine
             .decide(
                 "bash_executor",
@@ -531,7 +530,7 @@ mod tests {
 
     #[test]
     fn engine_injection_detection_disabled_skips_check() {
-        // GIVEN un PermissionEngine avec injection_detection = false
+        // GIVEN a PermissionEngine with injection_detection = false
         let config = PermissionsConfig {
             safe_commands: vec![],
             injection_detection: false,
@@ -540,7 +539,7 @@ mod tests {
         };
         let (mut engine, _tmp) = engine_with_config(config);
         let manifest = dummy_manifest();
-        // WHEN commande avec injection mais detection désactivée
+        // WHEN a command with injection but detection disabled
         let decision = engine
             .decide(
                 "bash_executor",
@@ -548,7 +547,7 @@ mod tests {
                 &manifest,
             )
             .expect("decide");
-        // THEN NeedsApproval (pas AutoDeniedInjection)
+        // THEN NeedsApproval (not AutoDeniedInjection)
         assert_eq!(decision, PermissionDecision::NeedsApproval);
     }
 
@@ -571,7 +570,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────
-    // Migration SafeList → governance.db (ADR-086)
+    // SafeList migration into governance.db
     // ─────────────────────────────────────────────
 
     fn config_with_safe_cmds(cmds: Vec<&str>) -> PermissionsConfig {
@@ -585,14 +584,14 @@ mod tests {
 
     #[test]
     fn migrate_safe_list_imports_patterns_on_first_boot() {
-        // GIVEN une config avec deux entrées safe_commands et une DB fraîche
+        // GIVEN a config with two safe_commands entries and a fresh DB
         let db_file = NamedTempFile::new().expect("tempfile");
         let config = config_with_safe_cmds(vec!["bash_executor(git status)", "file_read"]);
 
-        // WHEN on construit le moteur
+        // WHEN building the engine
         let engine = PermissionEngine::new(&config, db_file.path()).expect("engine init");
 
-        // THEN deux règles config-import existent en DB
+        // THEN two config-import rules exist in the DB
         let imported = engine
             .prefix_rules
             .list_rules_by_creator(CONFIG_IMPORT_CREATOR)
@@ -616,17 +615,17 @@ mod tests {
 
     #[test]
     fn migrate_safe_list_is_idempotent() {
-        // GIVEN une DB partagée et une config avec un pattern
+        // GIVEN a shared DB and a config with one pattern
         let db_file = NamedTempFile::new().expect("tempfile");
         let config = config_with_safe_cmds(vec!["bash_executor(pwd)"]);
 
-        // WHEN on construit le moteur deux fois sur la même DB
+        // WHEN building the engine twice on the same DB
         {
             let _engine = PermissionEngine::new(&config, db_file.path()).expect("init 1");
         }
         let engine2 = PermissionEngine::new(&config, db_file.path()).expect("init 2");
 
-        // THEN une seule règle config-import existe (pas de doublons)
+        // THEN a single config-import rule exists (no duplicates)
         let imported = engine2
             .prefix_rules
             .list_rules_by_creator(CONFIG_IMPORT_CREATOR)
@@ -636,14 +635,14 @@ mod tests {
 
     #[test]
     fn migrate_safe_list_empty_config_creates_no_rule() {
-        // GIVEN une config sans safe_commands
+        // GIVEN a config with no safe_commands
         let db_file = NamedTempFile::new().expect("tempfile");
         let config = empty_config();
 
-        // WHEN on construit le moteur
+        // WHEN building the engine
         let engine = PermissionEngine::new(&config, db_file.path()).expect("init");
 
-        // THEN aucune règle config-import
+        // THEN no config-import rule
         let imported = engine
             .prefix_rules
             .list_rules_by_creator(CONFIG_IMPORT_CREATOR)

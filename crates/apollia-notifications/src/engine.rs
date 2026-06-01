@@ -686,7 +686,7 @@ fn build_recap_notification(
     dropped_count: u32,
     window_seconds: u32,
 ) -> Notification {
-    let total = dropped_count.saturating_add(1); // inclut le drop initial + ceux pendant la fenêtre
+    let total = dropped_count.saturating_add(1); // initial drop plus those during the window
     let message = format!(
         "{} événements « {} » au cours des {} dernières secondes",
         total, sample.event, window_seconds,
@@ -702,9 +702,9 @@ fn build_recap_notification(
     }
 }
 
-/// Transforme un [`RuntimeEvent`] en [`Notification`] dans le contexte de `run()`.
+/// Turns a [`RuntimeEvent`] into a [`Notification`] in the context of `run()`.
 ///
-/// Fonctions libres utilisées après destructuration de `self` dans [`NotificationEngine::run`].
+/// Free function used after destructuring `self` in [`NotificationEngine::run`].
 fn map_event_with(
     _config: &NotificationConfig,
     _channels: &[Box<dyn NotificationChannel>],
@@ -714,14 +714,14 @@ fn map_event_with(
     event_filter::map_event(base_url, event)
 }
 
-/// Dispatche une notification à tous les canaux qui l'acceptent.
+/// Dispatches a notification to every channel that accepts it.
 ///
-/// Pour chaque canal, appelle [`NotificationChannel::accepts`] puis
-/// [`NotificationChannel::send`]. Les erreurs sont loggées en `warn!` sans
-/// interrompre le dispatch vers les canaux suivants.
+/// For each channel, calls [`NotificationChannel::accepts`] then
+/// [`NotificationChannel::send`]. Errors are logged at `warn!` without
+/// interrupting dispatch to the remaining channels.
 ///
-/// Retourne une map `channel_id → Option<error_message>` pour les canaux
-/// qui ont accepté la notification (`None` = succès, `Some(msg)` = erreur).
+/// Returns a map `channel_id -> Option<error_message>` for the channels that
+/// accepted the notification (`None` = success, `Some(msg)` = error).
 async fn dispatch_notif(
     config: &NotificationConfig,
     channels: &[Box<dyn NotificationChannel>],
@@ -749,11 +749,11 @@ async fn dispatch_notif(
     results
 }
 
-/// Écrit une entrée dans `notification_logs` (table SQLite dans `hitl.db`).
+/// Writes an entry into `notification_logs` (SQLite table in `hitl.db`).
 ///
-/// `channel_results` : map `channel_id → None` (succès) ou `Some(msg)` (erreur).
-/// La table est créée idempotentiellement si elle n'existe pas.
-/// Les erreurs sont loggées en `warn!` sans propagation - le logging est best-effort.
+/// `channel_results`: map `channel_id -> None` (success) or `Some(msg)` (error).
+/// The table is created idempotently if it does not exist.
+/// Errors are logged at `warn!` without propagation; logging is best-effort.
 fn write_notification_log(
     db_path: &std::path::Path,
     notif: &Notification,
@@ -783,7 +783,7 @@ fn write_notification_log(
         return;
     }
 
-    // Sérialise les résultats par canal : { "desktop": "ok" | "erreur..." }
+    // Serialize the per-channel results: { "desktop": "ok" | "error..." }
     let channels_json: serde_json::Map<String, serde_json::Value> = channel_results
         .iter()
         .map(|(id, err)| {
@@ -795,7 +795,7 @@ fn write_notification_log(
         })
         .collect();
 
-    // Premier canal en erreur → champ `error` global
+    // First channel in error populates the global `error` field.
     let global_error: Option<String> = channel_results
         .values()
         .find_map(|e| e.as_deref().map(str::to_string));
@@ -831,7 +831,7 @@ mod tests {
         Arc,
     };
 
-    /// Canal mock pour les tests unitaires.
+    /// Mock channel for unit tests.
     struct MockChannel {
         name: String,
         enabled: bool,
@@ -870,7 +870,7 @@ mod tests {
 
     #[test]
     fn test_ac3_accepts_subset_events_filters_correctly() {
-        // GIVEN canal configuré avec un sous-ensemble d'événements
+        // GIVEN a channel configured with a subset of events
         let channel = MockChannel {
             name: "slack".into(),
             enabled: true,
@@ -884,16 +884,16 @@ mod tests {
             "agent.degraded".into(),
         ]);
 
-        // WHEN / THEN - agent.degraded rejeté car absent de la liste du canal
+        // WHEN / THEN agent.degraded is rejected: absent from the channel list
         assert!(!channel.accepts("agent.degraded", &config));
-        // ET - les événements listés sont acceptés
+        // AND the listed events are accepted
         assert!(channel.accepts("task.input_required", &config));
         assert!(channel.accepts("task.failed", &config));
     }
 
     #[test]
     fn test_ac4_accepts_wildcard_all_events() {
-        // GIVEN canal configuré avec le wildcard "*"
+        // GIVEN a channel configured with the "*" wildcard
         let channel = MockChannel {
             name: "monitoring".into(),
             enabled: true,
@@ -907,7 +907,7 @@ mod tests {
             "agent.degraded".into(),
         ]);
 
-        // WHEN / THEN - tous les événements de la liste globale sont acceptés
+        // WHEN / THEN every event in the global list is accepted
         assert!(channel.accepts("task.input_required", &config));
         assert!(channel.accepts("task.failed", &config));
         assert!(channel.accepts("agent.degraded", &config));
@@ -915,7 +915,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac5_channel_error_does_not_stop_other_channels() {
-        // GIVEN deux canaux : "desktop" OK, "slack" retourne une erreur
+        // GIVEN two channels: "desktop" OK, "slack" returns an error
         let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
 
         let desktop_count = Arc::new(AtomicU32::new(0));
@@ -949,10 +949,10 @@ mod tests {
         );
         let handle = engine.spawn();
 
-        // Laisser l'engine s'abonner au bus
+        // Let the engine subscribe to the bus.
         tokio::task::yield_now().await;
 
-        // WHEN - envoi d'un événement
+        // WHEN we send an event
         tx.send(RuntimeEvent::TaskInputRequired {
             task_id: TaskId::from("t-001"),
             prompt: "Confirmer ?".into(),
@@ -960,20 +960,20 @@ mod tests {
         })
         .expect("envoi échoue");
 
-        // Laisser le dispatch s'exécuter
+        // Let the dispatch run.
         tokio::task::yield_now().await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // Arrêter proprement via handle
+        // Shut down gracefully via the handle.
         handle.shutdown().await;
 
-        // THEN - desktop a bien reçu la notification malgré l'erreur slack
+        // THEN desktop received the notification despite the slack error
         assert_eq!(desktop_count.load(Ordering::SeqCst), 1);
     }
 
     #[test]
     fn test_map_event_delegates_to_event_filter() {
-        // GIVEN - NotificationEngine délègue map_event à event_filter::map_event
+        // GIVEN NotificationEngine delegates map_event to event_filter::map_event
         let (tx, _rx) = tokio::sync::broadcast::channel(16);
         let engine = NotificationEngine::new(
             make_config(vec![]),
@@ -1038,7 +1038,7 @@ mod tests {
         crate::event_filter::warn_unknown_events(&events);
     }
 
-    /// Vérifie que ChannelConfig se désérialise correctement depuis TOML-compatible JSON.
+    /// Verifies that ChannelConfig deserializes correctly from TOML-compatible JSON.
     #[test]
     fn test_channel_config_deserialize() {
         let json = r#"{
@@ -1141,7 +1141,7 @@ mod tests {
         assert!(!engine.cost_threshold_already_notified);
     }
 
-    // ── Throttle (Item 4) ───────────────────────────────────────────────────
+    // Throttle tests
 
     fn throttle_config(channel_id: &str, event: &str, min_interval: u32) -> NotificationConfig {
         NotificationConfig {

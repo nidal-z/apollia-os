@@ -1,11 +1,11 @@
-//! Route `POST /webhooks/:id`, réception de webhooks avec vérification HMAC-SHA256.
+//! Route `POST /webhooks/:id`, webhook reception with HMAC-SHA256 verification.
 //!
-//! **Ordre des vérifications (Principe #4, Fail fast) :**
-//! 1. TriggerEngine disponible ? → 503
-//! 2. Trigger connu et de type webhook ? → 404
-//! 3. Header `X-Apollia-Signature` présent ? → 401
-//! 4. Signature HMAC-SHA256 correcte ? → 401
-//! 5. Forward vers `TriggerEngineHandle::send_webhook_event()` → 200
+//! Verification order (fail fast):
+//! 1. TriggerEngine available? -> 503
+//! 2. Trigger known and of webhook type? -> 404
+//! 3. `X-Apollia-Signature` header present? -> 401
+//! 4. HMAC-SHA256 signature correct? -> 401
+//! 5. Forward to `TriggerEngineHandle::send_webhook_event()` -> 200
 
 use axum::{
     body::Bytes,
@@ -23,30 +23,30 @@ use crate::coordinator::ExecutionBackend;
 
 // ─── Handler ──────────────────────────────────────────────────────────────
 
-/// Handler axum pour `POST /webhooks/:id`.
+/// Axum handler for `POST /webhooks/:id`.
 ///
-/// Vérifie la signature HMAC-SHA256 de la requête avant de forwarder l'événement
-/// au [`TriggerEngineHandle`]. Retourne 503 si le TriggerEngine n'est pas démarré,
-/// 404 si le trigger est inconnu, 401 si la signature est absente ou invalide, 200 sinon.
+/// Verifies the request HMAC-SHA256 signature before forwarding the event to
+/// the [`TriggerEngineHandle`]. Returns 503 if the TriggerEngine is not started,
+/// 404 if the trigger is unknown, 401 if the signature is absent or invalid, 200 otherwise.
 pub async fn handle_webhook<B: ExecutionBackend + Clone>(
     Path(trigger_id): Path<String>,
     State(state): State<AppState<B>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
-    // 0. TriggerEngine disponible ?
+    // 0. TriggerEngine available?
     let engine = match &state.trigger_engine {
         Some(e) => e.clone(),
         None => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
     };
 
-    // 1. Trouver la définition du trigger (webhook uniquement)
+    // 1. Find the trigger definition (webhook only)
     let def = match engine.find_webhook(&trigger_id).await {
         Some(d) => d,
         None => return StatusCode::NOT_FOUND.into_response(),
     };
 
-    // 2. Récupérer la signature du header
+    // 2. Read the signature from the header
     let signature = match headers
         .get("X-Apollia-Signature")
         .and_then(|v| v.to_str().ok())
@@ -55,22 +55,22 @@ pub async fn handle_webhook<B: ExecutionBackend + Clone>(
         None => return StatusCode::UNAUTHORIZED.into_response(),
     };
 
-    // 3. Extraire le secret depuis la définition du trigger
+    // 3. Extract the secret from the trigger definition
     let secret = match &def.source {
         TriggerSourceConfig::Webhook { secret } => secret.clone(),
         _ => {
-            // Ne peut pas arriver : find_webhook filtre déjà les non-webhook
+            // Unreachable: find_webhook already filters out non-webhook sources
             tracing::error!(trigger_id = %trigger_id, "source non-webhook retournée par find_webhook");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
 
-    // 4. Vérifier HMAC-SHA256 (constant-time)
+    // 4. Verify HMAC-SHA256 (constant-time)
     if !verify_hmac(&secret, &body, &signature) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
-    // 5. Forwarder vers TriggerEngine (fire-and-forget)
+    // 5. Forward to TriggerEngine (fire-and-forget)
     let body_str = String::from_utf8_lossy(&body).into_owned();
     let hdrs = headers
         .iter()
@@ -88,12 +88,12 @@ pub async fn handle_webhook<B: ExecutionBackend + Clone>(
 
 // ─── verify_hmac ──────────────────────────────────────────────────────────
 
-/// Vérifie la signature HMAC-SHA256 d'un body.
+/// Verifies the HMAC-SHA256 signature of a body.
 ///
-/// La signature doit être au format `"sha256=<hex>"`.
-/// Utilise [`constant_time_eq::constant_time_eq`] pour éviter les timing attacks.
+/// The signature must be in the `"sha256=<hex>"` format.
+/// Uses [`constant_time_eq::constant_time_eq`] to avoid timing attacks.
 ///
-/// Retourne `true` uniquement si la signature est correcte.
+/// Returns `true` only if the signature is correct.
 pub fn verify_hmac(secret: &str, body: &[u8], signature: &str) -> bool {
     let expected = match signature.strip_prefix("sha256=") {
         Some(s) => s,
@@ -107,7 +107,7 @@ pub fn verify_hmac(secret: &str, body: &[u8], signature: &str) -> bool {
     mac.update(body);
     let computed = hex::encode(mac.finalize().into_bytes());
 
-    // Comparaison constante-time, évite les timing attacks
+    // Constant-time comparison, avoids timing attacks
     constant_time_eq::constant_time_eq(computed.as_bytes(), expected.as_bytes())
 }
 
@@ -117,7 +117,7 @@ pub fn verify_hmac(secret: &str, body: &[u8], signature: &str) -> bool {
 mod tests {
     use super::*;
 
-    /// Calcule la signature HMAC-SHA256 d'un body pour les tests.
+    /// Computes the HMAC-SHA256 signature of a body for the tests.
     fn compute_hmac(secret: &str, body: &[u8]) -> String {
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
         mac.update(body);
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_ac5_verify_hmac_wrong_signature() {
-        // GIVEN, signature de même longueur mais incorrecte
+        // GIVEN, signature of the same length but incorrect
         let sig = "sha256=0000000000000000000000000000000000000000000000000000000000000000";
         // WHEN / THEN
         assert!(!verify_hmac("secret", b"body", sig));
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_ac5_verify_hmac_missing_prefix() {
-        // GIVEN, signature sans le préfixe "sha256="
+        // GIVEN, signature without the "sha256=" prefix
         let sig = "deadbeef";
         // WHEN / THEN
         assert!(!verify_hmac("secret", b"body", sig));
@@ -152,10 +152,10 @@ mod tests {
 
     #[test]
     fn test_ac5_verify_hmac_wrong_body() {
-        // GIVEN, signature calculée sur un body différent
+        // GIVEN, signature computed over a different body
         let secret = "mon-secret";
         let sig = compute_hmac(secret, b"payload");
-        // WHEN / THEN, body différent
+        // WHEN / THEN, different body
         assert!(!verify_hmac(secret, b"other-payload", &sig));
     }
 }

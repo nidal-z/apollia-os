@@ -1,68 +1,68 @@
-//! Configuration du runtime Apollia OS.
+//! Apollia OS runtime configuration.
 //!
-//! Définit les sections de configuration lues depuis `apollia.toml` :
-//! - [`RuntimeConfig`] - section `[runtime]` pour la capacité de l'EventBus et des mailboxes.
-//! - [`A2AConfig`] - section `[a2a]` pour le routing inter-agents.
-//! - [`HitlConfig`] - section `[hitl]` pour le watcher Human-in-the-Loop.
-//! - [`ORIAConfig`] - section `[oria]` pour le moteur Observer-Reasoner-Actor.
-//! - [`ApiConfig`] - section `[api]` pour le listener TCP et le socket Unix.
+//! Defines the configuration sections read from `apollia.toml`:
+//! - [`RuntimeConfig`]: `[runtime]` section for EventBus and mailbox capacity.
+//! - [`A2AConfig`]: `[a2a]` section for inter-agent routing.
+//! - [`HitlConfig`]: `[hitl]` section for the Human-in-the-Loop watcher.
+//! - [`ORIAConfig`]: `[oria]` section for the Observer-Reasoner-Actor engine.
+//! - [`ApiConfig`]: `[api]` section for the TCP listener and the Unix socket.
 //!
-//! Tous les champs ont des valeurs par défaut saines via [`Default`].
+//! Every field has a sane default via [`Default`].
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
 // ─────────────────────────────────────────────
-// Erreurs
+// Errors
 // ─────────────────────────────────────────────
 
-/// Erreur de validation de la configuration au démarrage.
+/// Configuration validation error raised at startup.
 ///
-/// Produite par les méthodes `validate()` des configs de section.
-/// Le runtime doit traiter ces erreurs comme des erreurs fatales (Principe #4 - Fail fast).
+/// Produced by the `validate()` methods of the section configs. The runtime
+/// must treat these as fatal errors (fail-fast principle).
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    /// Une valeur de configuration est hors des bornes acceptables.
+    /// A configuration value lies outside the acceptable range.
     #[error("invalid configuration value for '{field}': {reason}")]
     InvalidValue {
-        /// Chemin du champ en notation pointée, par exemple `"oria.max_replans"`.
+        /// Field path in dotted notation, for example `"oria.max_replans"`.
         field: String,
-        /// Description lisible de la contrainte non respectée.
+        /// Human-readable description of the violated constraint.
         reason: String,
     },
 
-    /// Une valeur numérique est hors des bornes `[min, max]` attendues.
+    /// A numeric value is outside the expected `[min, max]` range.
     #[error("configuration field '{key}' = {actual} is out of bounds (expected [{min}, {max}])")]
     OutOfBounds {
-        /// Chemin du champ en notation pointée.
+        /// Field path in dotted notation.
         key: String,
-        /// Valeur minimale acceptable (inclusive).
+        /// Inclusive lower bound.
         min: String,
-        /// Valeur maximale acceptable (inclusive).
+        /// Inclusive upper bound.
         max: String,
-        /// Valeur effectivement fournie.
+        /// Value actually supplied.
         actual: String,
     },
 
-    /// Le répertoire parent du socket Unix n'existe pas.
+    /// The parent directory of the Unix socket does not exist.
     #[error("unix_socket parent directory does not exist: '{path}'")]
     SocketParentMissing {
-        /// Chemin du socket Unix configuré.
+        /// Configured Unix socket path.
         path: String,
     },
 }
 
-/// Valide qu'une valeur numérique est dans l'intervalle `[min, max]` (inclus).
+/// Validates that a numeric value lies in the inclusive interval `[min, max]`.
 ///
-/// Retourne [`ConfigError::OutOfBounds`] si `value < min || value > max`.
+/// Returns [`ConfigError::OutOfBounds`] if `value < min || value > max`.
 ///
-/// # Paramètres
+/// # Parameters
 ///
-/// - `key` : nom du champ en notation pointée (ex : `"runtime.eventbus_capacity"`).
-/// - `value` : valeur à valider.
-/// - `min` : borne inférieure inclusive.
-/// - `max` : borne supérieure inclusive.
+/// - `key`: field name in dotted notation (e.g. `"runtime.eventbus_capacity"`).
+/// - `value`: value to validate.
+/// - `min`: inclusive lower bound.
+/// - `max`: inclusive upper bound.
 pub fn validate_bounds<T>(key: &str, value: T, min: T, max: T) -> Result<(), ConfigError>
 where
     T: PartialOrd + std::fmt::Display,
@@ -82,37 +82,37 @@ where
 // RuntimeConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du runtime core (section `[runtime]` dans `apollia.toml`).
+/// Core runtime configuration (`[runtime]` section in `apollia.toml`).
 ///
-/// Contrôle la capacité des infrastructures de communication interne :
-/// le channel broadcast de l'EventBus et les mailboxes acteur.
-/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+/// Controls the capacity of the internal communication infrastructure: the
+/// EventBus broadcast channel and the actor mailboxes. Every field has a sane
+/// default via [`Default`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
-    /// Capacité du channel broadcast EventBus.
+    /// EventBus broadcast channel capacity.
     ///
-    /// Nombre maximal d'événements bufferisés avant que les receivers lents
-    /// reçoivent [`tokio::sync::broadcast::error::RecvError::Lagged`].
-    /// Défaut : 1024. Bornes : [64, 65536].
+    /// Maximum number of buffered events before slow receivers get
+    /// [`tokio::sync::broadcast::error::RecvError::Lagged`].
+    /// Default: 1024. Bounds: [64, 65536].
     #[serde(default = "default_eventbus_capacity")]
     pub eventbus_capacity: usize,
 
-    /// Capacité maximale d'une mailbox acteur.
+    /// Maximum capacity of an actor mailbox.
     ///
-    /// Nombre maximal de messages en attente par agent dans le [`AgentMailbox`].
-    /// Au-delà, `send()` retourne `MailboxError::QueueFull`.
-    /// Défaut : 100. Bornes : [10, 10000].
+    /// Maximum number of pending messages per agent in the [`AgentMailbox`].
+    /// Beyond it, `send()` returns `MailboxError::QueueFull`.
+    /// Default: 100. Bounds: [10, 10000].
     #[serde(default = "default_mailbox_capacity")]
     pub mailbox_capacity: usize,
 
-    /// Timeout de démarrage du runtime en secondes.
+    /// Runtime startup timeout in seconds.
     ///
-    /// Temps maximum alloué pour charger tous les composants au démarrage,
-    /// y compris le chargement des modèles LLM locaux. Les modèles volumineux
-    /// (ex. 70B–400B) peuvent nécessiter plusieurs minutes.
-    /// Défaut : 300. Aucune borne maximale (0 désactive le timeout).
+    /// Maximum time allotted to load every component at startup, including
+    /// local LLM models. Large models (e.g. 70B to 400B) can take several
+    /// minutes.
+    /// Default: 300. No upper bound (0 disables the timeout).
     ///
-    /// Exemple `apollia.toml` :
+    /// `apollia.toml` example:
     /// ```toml
     /// [runtime]
     /// startup_timeout_secs = 600
@@ -132,10 +132,10 @@ impl Default for RuntimeConfig {
 }
 
 impl RuntimeConfig {
-    /// Valide les bornes de la configuration runtime au démarrage (Principe #4 - Fail fast).
+    /// Validates the runtime configuration bounds at startup (fail-fast).
     ///
-    /// - `eventbus_capacity` : doit être dans [64, 65536].
-    /// - `mailbox_capacity` : doit être dans [10, 10000].
+    /// - `eventbus_capacity`: must be in [64, 65536].
+    /// - `mailbox_capacity`: must be in [10, 10000].
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "runtime.eventbus_capacity",
@@ -164,39 +164,39 @@ fn default_mailbox_capacity() -> usize {
 // A2AConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du routing A2A appliquée par le runtime.
+/// A2A routing configuration enforced by the runtime.
 ///
-/// Contrôle les trois garde-fous automatiques déclenchés lors des invocations
-/// inter-agents : profondeur de récursivité, timeout par invocation,
-/// et timeout cumulé de la chaîne.
+/// Controls the three automatic safeguards triggered during inter-agent
+/// invocations: recursion depth, per-invocation timeout, and cumulative chain
+/// timeout.
 ///
-/// Les valeurs par défaut sont conçues pour la majorité des cas d'usage :
-/// `max_depth = 3`, `invocation_timeout_secs = 120`, `chain_timeout_secs = 300`.
-/// Tous les champs peuvent être surchargés dans `apollia.toml` sous `[a2a]`.
+/// Defaults are tuned for the majority of use cases: `max_depth = 3`,
+/// `invocation_timeout_secs = 120`, `chain_timeout_secs = 300`. Every field can
+/// be overridden in `apollia.toml` under `[a2a]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AConfig {
-    /// Profondeur maximale de récursivité A2A autorisée.
+    /// Maximum allowed A2A recursion depth.
     ///
-    /// Une valeur de `3` signifie qu'une chaîne peut atteindre trois niveaux
-    /// d'imbrication avant d'être bloquée. La vérification est appliquée
-    /// par le runtime avant chaque invocation, non contournable côté agent.
+    /// A value of `3` means a chain can reach three nesting levels before being
+    /// blocked. The check is enforced by the runtime before each invocation and
+    /// cannot be bypassed from the agent side.
     #[serde(default = "default_max_depth")]
     pub max_depth: u32,
 
-    /// Timeout par invocation A2A individuelle, en secondes.
+    /// Timeout for a single A2A invocation, in seconds.
     ///
-    /// Appliqué à chaque appel `invoke()` indépendamment de la chaîne globale.
-    /// Une invocation dépassant ce délai est annulée.
+    /// Applied to each `invoke()` call independently of the overall chain. An
+    /// invocation exceeding this delay is cancelled.
     #[serde(default = "default_invocation_timeout")]
     pub invocation_timeout_secs: u64,
 
-    /// Timeout cumulé de la chaîne A2A complète, en secondes.
+    /// Cumulative timeout for the whole A2A chain, in seconds.
     ///
-    /// Initialisé à la première invocation d'une chaîne (`chain_deadline = None`).
-    /// Le délai résiduel est utilisé comme borne supérieure pour toutes les
-    /// invocations suivantes dans la même chaîne, empêchant les chaînes longues
-    /// de monopoliser les ressources au-delà de ce budget total.
-    /// Défaut : 300. Bornes : [10, 3600].
+    /// Initialized on the first invocation of a chain (`chain_deadline = None`).
+    /// The remaining budget is used as the upper bound for every subsequent
+    /// invocation in the same chain, preventing long chains from monopolizing
+    /// resources beyond this total budget.
+    /// Default: 300. Bounds: [10, 3600].
     #[serde(default = "default_chain_timeout")]
     pub chain_timeout_secs: u64,
 }
@@ -212,9 +212,9 @@ impl Default for A2AConfig {
 }
 
 impl A2AConfig {
-    /// Valide les bornes de la configuration A2A au démarrage (Principe #4 - Fail fast).
+    /// Validates the A2A configuration bounds at startup (fail-fast).
     ///
-    /// - `chain_timeout_secs` : doit être dans [10, 3600].
+    /// - `chain_timeout_secs`: must be in [10, 3600].
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds("a2a.chain_timeout_secs", self.chain_timeout_secs, 10, 3600)?;
         Ok(())
@@ -237,28 +237,28 @@ fn default_chain_timeout() -> u64 {
 // HitlConfig
 // ─────────────────────────────────────────────
 
-/// Configuration Human-in-the-Loop (section `[hitl]` dans `apollia.toml`).
+/// Human-in-the-Loop configuration (`[hitl]` section in `apollia.toml`).
 ///
-/// Contrôle le comportement du `TimeoutWatcher` : durée maximale d'attente
-/// d'approbation humaine et fréquence de scan des tâches expirées.
-/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+/// Controls the `TimeoutWatcher` behavior: maximum wait for human approval and
+/// the scan frequency for expired tasks. Every field has a sane default via
+/// [`Default`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct HitlConfig {
-    /// Durée maximale d'attente d'approbation humaine, en heures.
+    /// Maximum wait for human approval, in hours.
     ///
-    /// `None` (défaut) : la tâche reste en pause indéfiniment jusqu'à réponse
-    /// explicite de l'opérateur. `Some(n)` : annulation automatique après `n` heures.
-    /// Bornes si `Some` : [1, 168] (1 heure à 7 jours).
+    /// `None` (default): the task stays paused indefinitely until the operator
+    /// responds. `Some(n)`: automatic cancellation after `n` hours.
+    /// Bounds when `Some`: [1, 168] (1 hour to 7 days).
     ///
-    /// Ne pas configurer de timeout global sauf si l'agent en demande un explicitement.
+    /// Do not set a global timeout unless an agent explicitly requests one.
     #[serde(default)]
     pub timeout_hours: Option<u64>,
 
-    /// Intervalle de scan des tâches HITL expirées, en secondes.
+    /// Scan interval for expired HITL tasks, in seconds.
     ///
-    /// Fréquence à laquelle le `TimeoutWatcher` vérifie les tâches suspirées.
-    /// Défaut : 60. Bornes : [10, 3600].
-    /// Ignoré si `timeout_hours` est `None`.
+    /// How often the `TimeoutWatcher` checks suspended tasks.
+    /// Default: 60. Bounds: [10, 3600].
+    /// Ignored when `timeout_hours` is `None`.
     #[serde(default = "default_scan_interval_secs")]
     pub scan_interval_secs: u64,
 }
@@ -273,10 +273,10 @@ impl Default for HitlConfig {
 }
 
 impl HitlConfig {
-    /// Valide les bornes de la configuration HITL au démarrage (Principe #4 - Fail fast).
+    /// Validates the HITL configuration bounds at startup (fail-fast).
     ///
-    /// - `timeout_hours` : si `Some`, doit être dans [1, 168].
-    /// - `scan_interval_secs` : doit être dans [10, 3600].
+    /// - `timeout_hours`: if `Some`, must be in [1, 168].
+    /// - `scan_interval_secs`: must be in [10, 3600].
     pub fn validate(&self) -> Result<(), ConfigError> {
         if let Some(h) = self.timeout_hours {
             validate_bounds("hitl.timeout_hours", h, 1, 168)?;
@@ -294,80 +294,76 @@ fn default_scan_interval_secs() -> u64 {
 // ORIAConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du moteur ORIA (Observer-Reasoner-Actor).
+/// ORIA engine configuration (Observer-Reasoner-Actor).
 ///
-/// Correspond à la section `[oria]` dans `apollia.toml`.
-/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+/// Maps to the `[oria]` section in `apollia.toml`. Every field has a sane
+/// default via [`Default`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct ORIAConfig {
-    /// Nombre maximal de replans autorisés par exécution orchestrée.
+    /// Maximum number of replans allowed per orchestrated run.
     ///
-    /// Contrôle combien de fois l'agent peut re-planifier suite à un échec
-    /// ou un changement de contexte. Validé au démarrage : doit être compris
-    /// entre 0 et 10 inclus.
+    /// Controls how many times the agent may re-plan after a failure or a
+    /// context change. Validated at startup: must be between 0 and 10 inclusive.
     ///
-    /// - `0` : aucun replan autorisé - la tâche échoue au premier plan raté.
-    /// - `2` : valeur par défaut (comportement historique).
-    /// - `10` : borne haute acceptée.
+    /// - `0`: no replan allowed, the task fails on the first failed plan.
+    /// - `2`: default value.
+    /// - `10`: accepted upper bound.
     #[serde(default = "default_max_replans")]
     pub max_replans: u32,
 
-    /// Seuil de confiance au-delà duquel l'Observer classifie une tâche comme Orchestrated.
+    /// Confidence threshold above which the Observer classifies a task as Orchestrated.
     ///
-    /// L'Observer calcule un score de complexité pondéré. Si ce score ≥ seuil,
-    /// la tâche est exécutée en mode Orchestrated (planification LLM).
-    /// Défaut : 0.40. Bornes : [0.0, 1.0].
+    /// The Observer computes a weighted complexity score. If that score is at or
+    /// above the threshold, the task runs in Orchestrated mode (LLM planning).
+    /// Default: 0.40. Bounds: [0.0, 1.0].
     #[serde(default = "default_orchestrated_threshold")]
     pub orchestrated_threshold: f64,
 
-    /// Longueur maximale de l'output d'un step stocké en mémoire épisodique.
+    /// Maximum length of a step output stored in episodic memory.
     ///
-    /// Tronque les sorties trop longues avant leur écriture en mémoire épisodique,
-    /// pour limiter la consommation de contexte LLM lors des recalls futurs.
-    /// Défaut : 200. Bornes : [50, 10000].
+    /// Truncates over-long outputs before writing them to episodic memory, to
+    /// limit LLM context consumption on future recalls.
+    /// Default: 200. Bounds: [50, 10000].
     #[serde(default = "default_step_memory_max_chars")]
     pub step_memory_max_chars: usize,
 
-    /// Intervalle de vérification du StepBudget restant, en millisecondes.
+    /// Polling interval for the remaining StepBudget, in milliseconds.
     ///
-    /// Le runtime interroge le budget à cette fréquence pour détecter l'épuisement
-    /// pendant l'exécution directe. Trop court gaspille du CPU ; trop long
-    /// retarde la détection.
-    /// Défaut : 100. Bornes : [10, 5000].
+    /// The runtime queries the budget at this frequency to detect exhaustion
+    /// during direct execution. Too short wastes CPU; too long delays detection.
+    /// Default: 100. Bounds: [10, 5000].
     #[serde(default = "default_budget_poll_ms")]
     pub budget_poll_ms: u64,
 
-    /// Seuil de déclenchement du compactage automatique (0.0–1.0).
+    /// Automatic compaction trigger threshold (0.0 to 1.0).
     ///
-    /// Fraction de la fenêtre de contexte LLM à partir de laquelle `ContextManager`
-    /// compacte l'historique de conversation avant chaque appel au Reasoner.
-    /// `0.80` laisse 20% de headroom pour au moins 1 tour supplémentaire complet.
-    /// Défaut : 0.80. Bornes : [0.0, 1.0].
+    /// Fraction of the LLM context window at which `ContextManager` compacts the
+    /// conversation history before each Reasoner call.
+    /// `0.80` leaves 20% headroom for at least one more full turn.
+    /// Default: 0.80. Bounds: [0.0, 1.0].
     #[serde(default = "default_compact_threshold")]
     pub context_compact_threshold: f32,
 
-    /// Longueur maximale du résumé généré lors du compactage, en caractères.
+    /// Maximum length of the summary produced during compaction, in characters.
     ///
-    /// Borne haute appliquée à la sortie LLM lors de la synthèse de l'historique.
-    /// `4000` correspond à ~1000 tokens - suffisant pour capturer l'état d'une
-    /// tâche complexe avec fichiers modifiés et prochaines étapes.
-    /// Défaut : 4000. Bornes : [500, 32000].
+    /// Upper bound applied to the LLM output when synthesizing the history.
+    /// `4000` is about 1000 tokens, enough to capture the state of a complex
+    /// task with modified files and next steps.
+    /// Default: 4000. Bounds: [500, 32000].
     #[serde(default = "default_summary_max_chars")]
     pub context_summary_max_chars: usize,
 
-    /// Température LLM pour le Plan A (conservateur) lors du binary feedback.
+    /// LLM temperature for Plan A (conservative) during binary feedback.
     ///
-    /// Basse température → sortie déterministe et conservatrice.
-    /// Technique standard de sampling LLM : basse temp = conservateur.
-    /// Défaut : 0.3. Bornes : [0.0, 2.0].
+    /// Low temperature yields deterministic, conservative output.
+    /// Default: 0.3. Bounds: [0.0, 2.0].
     #[serde(default = "default_plan_alternatives_temp_a")]
     pub plan_alternatives_temp_a: f32,
 
-    /// Température LLM pour le Plan B (exploratoire) lors du binary feedback.
+    /// LLM temperature for Plan B (exploratory) during binary feedback.
     ///
-    /// Haute température → sortie créative et exploratoire.
-    /// Technique standard de sampling LLM : haute temp = exploratoire.
-    /// Défaut : 0.8. Bornes : [0.0, 2.0].
+    /// High temperature yields creative, exploratory output.
+    /// Default: 0.8. Bounds: [0.0, 2.0].
     #[serde(default = "default_plan_alternatives_temp_b")]
     pub plan_alternatives_temp_b: f32,
 }
@@ -388,16 +384,16 @@ impl Default for ORIAConfig {
 }
 
 impl ORIAConfig {
-    /// Valide la configuration ORIA au démarrage (Principe #4 - Fail fast).
+    /// Validates the ORIA configuration at startup (fail-fast).
     ///
-    /// - `max_replans` : doit être entre 0 et 10 inclus.
-    /// - `orchestrated_threshold` : doit être dans [0.0, 1.0].
-    /// - `step_memory_max_chars` : doit être dans [50, 10000].
-    /// - `budget_poll_ms` : doit être dans [10, 5000].
-    /// - `context_compact_threshold` : doit être dans [0.0, 1.0].
-    /// - `context_summary_max_chars` : doit être dans [500, 32000].
-    /// - `plan_alternatives_temp_a` : doit être dans [0.0, 2.0].
-    /// - `plan_alternatives_temp_b` : doit être dans [0.0, 2.0].
+    /// - `max_replans`: must be between 0 and 10 inclusive.
+    /// - `orchestrated_threshold`: must be in [0.0, 1.0].
+    /// - `step_memory_max_chars`: must be in [50, 10000].
+    /// - `budget_poll_ms`: must be in [10, 5000].
+    /// - `context_compact_threshold`: must be in [0.0, 1.0].
+    /// - `context_summary_max_chars`: must be in [500, 32000].
+    /// - `plan_alternatives_temp_a`: must be in [0.0, 2.0].
+    /// - `plan_alternatives_temp_b`: must be in [0.0, 2.0].
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.max_replans > 10 {
             return Err(ConfigError::InvalidValue {
@@ -487,20 +483,19 @@ fn default_summary_max_chars() -> usize {
 // TriggersConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du moteur de triggers (section `[triggers]` dans `apollia.toml`).
+/// Trigger engine configuration (`[triggers]` section in `apollia.toml`).
 ///
-/// Contrôle le comportement de la file d'attente bornée utilisée par
-/// [`OnBusyPolicy::Queue`] quand un agent est occupé au moment du fire.
-/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+/// Controls the bounded queue used by [`OnBusyPolicy::Queue`] when an agent is
+/// busy at fire time. Every field has a sane default via [`Default`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct TriggersConfig {
-    /// Capacité maximale de la file d'attente bornée FIFO par agent.
+    /// Maximum capacity of the per-agent bounded FIFO queue.
     ///
-    /// Utilisé par `OnBusyPolicy::Queue { max_depth }` pour limiter le nombre
-    /// de triggers en attente par agent. Quand la file est pleine, le trigger
-    /// est droppé et `RuntimeEvent::TriggerQueueFull` est émis.
-    /// `0` désactive la borne (déconseillé en production).
-    /// Défaut : 10. Bornes : [0, 10000].
+    /// Used by `OnBusyPolicy::Queue { max_depth }` to cap the number of pending
+    /// triggers per agent. When the queue is full, the trigger is dropped and
+    /// `RuntimeEvent::TriggerQueueFull` is emitted.
+    /// `0` disables the bound (not recommended in production).
+    /// Default: 10. Bounds: [0, 10000].
     #[serde(default = "default_trigger_queue_max_depth")]
     pub queue_max_depth: usize,
 }
@@ -514,9 +509,9 @@ impl Default for TriggersConfig {
 }
 
 impl TriggersConfig {
-    /// Valide les bornes de la configuration triggers au démarrage (Principe #4 - Fail fast).
+    /// Validates the trigger configuration bounds at startup (fail-fast).
     ///
-    /// - `queue_max_depth` : doit être dans [0, 10000].
+    /// - `queue_max_depth`: must be in [0, 10000].
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds("triggers.queue_max_depth", self.queue_max_depth, 0, 10_000)?;
         Ok(())
@@ -531,39 +526,39 @@ fn default_trigger_queue_max_depth() -> usize {
 // ApiConfig
 // ─────────────────────────────────────────────
 
-/// Configuration de l'API REST locale (section `[api]` dans `apollia.toml`).
+/// Local REST API configuration (`[api]` section in `apollia.toml`).
 ///
-/// Contrôle le binding TCP, l'authentification par token statique,
-/// et le chemin du socket Unix local.
-/// Le socket Unix reste non authentifié - seul le propriétaire du fichier socket y accède.
+/// Controls TCP binding, static token authentication, and the local Unix
+/// socket path. The Unix socket stays unauthenticated: only the owner of the
+/// socket file can access it.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ApiConfig {
-    /// Adresse IP sur laquelle binder le listener TCP.
+    /// IP address to bind the TCP listener to.
     ///
-    /// Défaut : `"127.0.0.1"` - loopback uniquement, inaccessible depuis le réseau.
+    /// Default: `"127.0.0.1"`, loopback only, unreachable from the network.
     #[serde(default = "default_api_bind")]
     pub bind: String,
 
-    /// Port TCP du serveur REST.
+    /// TCP port of the REST server.
     ///
-    /// Défaut : `7771`.
+    /// Default: `7771`.
     #[serde(default = "default_api_port")]
     pub port: u16,
 
-    /// Exiger un token Bearer sur toutes les connexions TCP entrantes.
+    /// Require a Bearer token on every inbound TCP connection.
     ///
-    /// Quand `true` (défaut), chaque requête TCP doit porter un header
-    /// `Authorization: Bearer <token>` valide. Les requêtes sans header ou avec
-    /// un token invalide reçoivent un `401 Unauthorized`.
-    /// Le socket Unix n'est jamais soumis à cette vérification.
+    /// When `true` (default), each TCP request must carry a valid
+    /// `Authorization: Bearer <token>` header. Requests without a header or with
+    /// an invalid token get `401 Unauthorized`.
+    /// The Unix socket is never subject to this check.
     #[serde(default = "default_require_token")]
     pub require_token: bool,
 
-    /// Chemin du socket Unix local.
+    /// Local Unix socket path.
     ///
-    /// Utilisé par la CLI et l'application desktop pour communiquer avec
-    /// le runtime sans authentification (accès local uniquement).
-    /// Défaut : `/tmp/apollia.sock`. Le répertoire parent doit exister.
+    /// Used by the CLI and the desktop app to talk to the runtime without
+    /// authentication (local access only).
+    /// Default: `/tmp/apollia.sock`. The parent directory must exist.
     #[serde(default = "default_unix_socket")]
     pub unix_socket: PathBuf,
 }
@@ -580,13 +575,13 @@ impl Default for ApiConfig {
 }
 
 impl ApiConfig {
-    /// Valide la configuration de l'API au démarrage (Principe #4 - Fail fast).
+    /// Validates the API configuration at startup (fail-fast).
     ///
-    /// Vérifie que le répertoire parent du socket Unix existe.
-    /// Un socket Unix dont le répertoire parent est absent ne peut pas être bindé.
+    /// Checks that the parent directory of the Unix socket exists. A Unix socket
+    /// whose parent directory is missing cannot be bound.
     pub fn validate(&self) -> Result<(), ConfigError> {
         let parent = self.unix_socket.parent().unwrap_or_else(|| {
-            // Fallback: racine - toujours accessible
+            // Fallback to root, which is always accessible.
             std::path::Path::new("/")
         });
         if !parent.exists() {
@@ -618,30 +613,30 @@ fn default_unix_socket() -> PathBuf {
 // ToolsConfig
 // ─────────────────────────────────────────────
 
-/// Configuration des outputs d'outils natifs (section `[tools]` dans `apollia.toml`).
+/// Native tool output configuration (`[tools]` section in `apollia.toml`).
 ///
-/// Contrôle les limites appliquées par le runtime aux outputs des outils natifs
-/// avant leur transmission au LLM. Protège la fenêtre de contexte LLM contre
-/// les outputs volumineux (Principe #7 - Garde-fous non-négociables).
+/// Controls the limits the runtime applies to native tool outputs before
+/// forwarding them to the LLM. Protects the LLM context window against large
+/// outputs (one of the non-negotiable safeguards).
 #[derive(Debug, Clone, Deserialize)]
 pub struct ToolsConfig {
-    /// Taille maximale d'un output d'outil transmis au LLM, en bytes UTF-8.
+    /// Maximum size of a tool output forwarded to the LLM, in UTF-8 bytes.
     ///
-    /// Les outputs dépassant cette limite sont tronqués par la stratégie
-    /// "middle-trim" : le début et la fin sont préservés, le milieu supprimé
-    /// et remplacé par un message indiquant le nombre de lignes perdues.
-    /// Défaut : 30 000. Bornes : [10, 1 000 000].
+    /// Outputs exceeding this limit are truncated with a "middle-trim" strategy:
+    /// the start and end are preserved, the middle is removed and replaced by a
+    /// message stating how many lines were lost.
+    /// Default: 30 000. Bounds: [10, 1 000 000].
     #[serde(default = "default_max_output_chars")]
     pub max_output_chars: usize,
 
-    /// Pattern regex d'extraction de paths depuis l'output bash.
+    /// Regex pattern for extracting paths from bash output.
     ///
-    /// Utilisé par `FilePathExtractor` pour parser la réponse du LLM léger.
-    /// Défaut : `None` - le pattern intégré (chemins Unix POSIX.1-2017 §3.265
-    /// et Windows UNC RFC 8089) est appliqué.
-    /// Configurable pour des environnements avec des conventions de nommage custom.
+    /// Used by `FilePathExtractor` to parse the lightweight LLM response.
+    /// Default: `None`, meaning the built-in pattern (Unix paths per
+    /// POSIX.1-2017 and Windows UNC per RFC 8089) is applied.
+    /// Configurable for environments with custom naming conventions.
     ///
-    /// Exemple `apollia.toml` :
+    /// `apollia.toml` example:
     /// ```toml
     /// [tools]
     /// # file_path_extraction_pattern = "(?:/[^\\s]+)"
@@ -649,20 +644,20 @@ pub struct ToolsConfig {
     #[serde(default)]
     pub file_path_extraction_pattern: Option<String>,
 
-    /// Outils natifs désactivés statiquement par l'opérateur dans `apollia.toml`.
+    /// Native tools statically disabled by the operator in `apollia.toml`.
     ///
-    /// Les noms listés ici sont retirés du dispatcher au boot - toute invocation
-    /// se solde par `UnknownTool`. Cette liste est complémentaire de la table
-    /// `tools` de `governance.db` : un outil désactivé dans l'un ou l'autre est
-    /// inactif. Défaut : `[]`.
+    /// The names listed here are removed from the dispatcher at boot, so any
+    /// invocation results in `UnknownTool`. This list complements the `tools`
+    /// table in `governance.db`: a tool disabled in either one is inactive.
+    /// Default: `[]`.
     #[serde(default)]
     pub disabled: Vec<String>,
 
-    /// Configuration de l'outil natif `web_search`.
+    /// Configuration of the native `web_search` tool.
     #[serde(default)]
     pub web_search: WebSearchConfig,
 
-    /// Configuration de l'outil natif `web_read`.
+    /// Configuration of the native `web_read` tool.
     #[serde(default)]
     pub web_read: WebReadConfig,
 }
@@ -680,13 +675,13 @@ impl Default for ToolsConfig {
 }
 
 impl ToolsConfig {
-    /// Valide les bornes de la configuration tools au démarrage (Principe #4 - Fail fast).
+    /// Validates the tools configuration bounds at startup (fail-fast).
     ///
-    /// - `max_output_chars` : doit être dans [10, 1 000 000].
-    /// - `web_search.brave.max_results` : doit être dans [1, 20].
-    /// - `web_search.brave.timeout_secs` et `web_search.duckduckgo.timeout_secs` : `[1, 120]`.
-    /// - `web_search.duckduckgo.max_response_kb` : `[16, 16 384]`.
-    /// - `web_read.timeout_secs` : `[1, 120]`. `web_read.max_response_kb` : `[64, 32 768]`.
+    /// - `max_output_chars`: must be in [10, 1 000 000].
+    /// - `web_search.brave.max_results`: must be in [1, 20].
+    /// - `web_search.brave.timeout_secs` and `web_search.duckduckgo.timeout_secs`: `[1, 120]`.
+    /// - `web_search.duckduckgo.max_response_kb`: `[16, 16 384]`.
+    /// - `web_read.timeout_secs`: `[1, 120]`. `web_read.max_response_kb`: `[64, 32 768]`.
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "tools.max_output_chars",
@@ -708,29 +703,29 @@ fn default_max_output_chars() -> usize {
 // WebSearchConfig
 // ─────────────────────────────────────────────
 
-/// Configuration de l'outil `web_search` (section `[tools.web_search]`).
+/// Configuration of the `web_search` tool (`[tools.web_search]` section).
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct WebSearchConfig {
-    /// Backend préféré : `auto`, `duckduckgo`, ou `brave`. Défaut : `auto`.
+    /// Preferred backend: `auto`, `duckduckgo`, or `brave`. Default: `auto`.
     #[serde(default)]
     pub backend: WebSearchBackend,
 
-    /// Si `true`, le boot échoue lorsque le backend sélectionné n'est pas
-    /// opérationnel (ex. : `backend = "brave"` sans clé d'API). Défaut : `false`.
+    /// If `true`, boot fails when the selected backend is not operational
+    /// (e.g. `backend = "brave"` without an API key). Default: `false`.
     #[serde(default)]
     pub require_configured: bool,
 
-    /// Configuration spécifique au backend Brave Search.
+    /// Brave Search backend configuration.
     #[serde(default)]
     pub brave: BraveBackendConfig,
 
-    /// Configuration spécifique au backend DuckDuckGo.
+    /// DuckDuckGo backend configuration.
     #[serde(default)]
     pub duckduckgo: DuckDuckGoBackendConfig,
 }
 
 impl WebSearchConfig {
-    /// Valide les bornes des sous-configurations de backend.
+    /// Validates the bounds of the backend sub-configurations.
     pub fn validate(&self) -> Result<(), ConfigError> {
         self.brave.validate()?;
         self.duckduckgo.validate()?;
@@ -738,33 +733,33 @@ impl WebSearchConfig {
     }
 }
 
-/// Choix du backend `web_search` exposé par `apollia.toml`.
+/// `web_search` backend choice exposed by `apollia.toml`.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum WebSearchBackend {
-    /// Sélection automatique : DuckDuckGo en premier, Brave si configuré.
+    /// Automatic selection: DuckDuckGo first, Brave if configured.
     #[default]
     Auto,
-    /// Forcer DuckDuckGo (zero-config, toujours disponible).
+    /// Force DuckDuckGo (zero-config, always available).
     DuckDuckGo,
-    /// Forcer Brave Search - requiert une clé API valide.
+    /// Force Brave Search, requires a valid API key.
     Brave,
 }
 
-/// Configuration du backend Brave (section `[tools.web_search.brave]`).
+/// Brave backend configuration (`[tools.web_search.brave]` section).
 #[derive(Debug, Clone, Deserialize)]
 pub struct BraveBackendConfig {
-    /// Variable d'environnement contenant la clé API Brave.
-    /// Défaut : `"BRAVE_SEARCH_API_KEY"`.
+    /// Environment variable holding the Brave API key.
+    /// Default: `"BRAVE_SEARCH_API_KEY"`.
     #[serde(default = "default_brave_env_var")]
     pub api_key_env_var: String,
 
-    /// Timeout de requête HTTP en secondes. Défaut : 15. Bornes : [1, 120].
+    /// HTTP request timeout in seconds. Default: 15. Bounds: [1, 120].
     #[serde(default = "default_web_timeout_secs")]
     pub timeout_secs: u64,
 
-    /// Nombre maximum de résultats demandés à Brave par requête.
-    /// Défaut : 10. Bornes : [1, 20].
+    /// Maximum number of results requested from Brave per query.
+    /// Default: 10. Bounds: [1, 20].
     #[serde(default = "default_brave_max_results")]
     pub max_results: u8,
 }
@@ -780,7 +775,7 @@ impl Default for BraveBackendConfig {
 }
 
 impl BraveBackendConfig {
-    /// Valide les bornes des champs numériques.
+    /// Validates the bounds of the numeric fields.
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "tools.web_search.brave.timeout_secs",
@@ -798,15 +793,15 @@ impl BraveBackendConfig {
     }
 }
 
-/// Configuration du backend DuckDuckGo (section `[tools.web_search.duckduckgo]`).
+/// DuckDuckGo backend configuration (`[tools.web_search.duckduckgo]` section).
 #[derive(Debug, Clone, Deserialize)]
 pub struct DuckDuckGoBackendConfig {
-    /// Timeout de requête HTTP en secondes. Défaut : 15. Bornes : [1, 120].
+    /// HTTP request timeout in seconds. Default: 15. Bounds: [1, 120].
     #[serde(default = "default_web_timeout_secs")]
     pub timeout_secs: u64,
 
-    /// Taille maximale de la réponse HTTP en kilo-octets avant abandon.
-    /// Défaut : 1024. Bornes : [16, 16 384].
+    /// Maximum HTTP response size in kilobytes before giving up.
+    /// Default: 1024. Bounds: [16, 16 384].
     #[serde(default = "default_ddg_max_response_kb")]
     pub max_response_kb: u32,
 }
@@ -821,7 +816,7 @@ impl Default for DuckDuckGoBackendConfig {
 }
 
 impl DuckDuckGoBackendConfig {
-    /// Valide les bornes des champs numériques.
+    /// Validates the bounds of the numeric fields.
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "tools.web_search.duckduckgo.timeout_secs",
@@ -839,19 +834,19 @@ impl DuckDuckGoBackendConfig {
     }
 }
 
-/// Configuration de l'outil `web_read` (section `[tools.web_read]`).
+/// Configuration of the `web_read` tool (`[tools.web_read]` section).
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebReadConfig {
-    /// Timeout de requête HTTP en secondes. Défaut : 20. Bornes : [1, 120].
+    /// HTTP request timeout in seconds. Default: 20. Bounds: [1, 120].
     #[serde(default = "default_webread_timeout_secs")]
     pub timeout_secs: u64,
 
-    /// Taille maximale de la réponse HTTP en kilo-octets avant abandon.
-    /// Défaut : 2048 (2 Mo). Bornes : [64, 32 768].
+    /// Maximum HTTP response size in kilobytes before giving up.
+    /// Default: 2048 (2 MB). Bounds: [64, 32 768].
     #[serde(default = "default_webread_max_response_kb")]
     pub max_response_kb: u32,
 
-    /// Active le garde anti-SSRF (rejet des hôtes privés/loopback). Défaut : `true`.
+    /// Enables the anti-SSRF guard (rejects private and loopback hosts). Default: `true`.
     #[serde(default = "default_true")]
     pub ssrf_guard: bool,
 }
@@ -867,7 +862,7 @@ impl Default for WebReadConfig {
 }
 
 impl WebReadConfig {
-    /// Valide les bornes des champs numériques.
+    /// Validates the bounds of the numeric fields.
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "tools.web_read.timeout_secs",
@@ -917,19 +912,19 @@ fn default_true() -> bool {
 // McpConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du module MCP (section `[mcp]` dans `apollia.toml`).
+/// MCP module configuration (`[mcp]` section in `apollia.toml`).
 ///
-/// Contrôle les comportements de la couche MCP exposés par le runtime :
-/// TTL des approbations HITL persistées en SQLite.
-/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+/// Controls the MCP-layer behaviors exposed by the runtime: TTL of the HITL
+/// approvals persisted in SQLite. Every field has a sane default via
+/// [`Default`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct McpConfig {
-    /// Durée de validité des approbations HITL MCP, en heures.
+    /// Validity duration of MCP HITL approvals, in hours.
     ///
-    /// Quand un opérateur exécute `apollia mcp set-approval`, l'entrée dans
-    /// `mcp_approvals` est créée avec `expires_at = now + approval_ttl_hours`.
-    /// La valeur `0` désactive l'expiration (approbation permanente).
-    /// Défaut : 24. Bornes : [0, 8760] (0 h à 1 an).
+    /// When an operator runs `apollia mcp set-approval`, the `mcp_approvals`
+    /// entry is created with `expires_at = now + approval_ttl_hours`. A value of
+    /// `0` disables expiration (permanent approval).
+    /// Default: 24. Bounds: [0, 8760] (0 h to 1 year).
     #[serde(default = "default_approval_ttl_hours")]
     pub approval_ttl_hours: u64,
 }
@@ -943,9 +938,9 @@ impl Default for McpConfig {
 }
 
 impl McpConfig {
-    /// Valide les bornes de la configuration MCP au démarrage (Principe #4 - Fail fast).
+    /// Validates the MCP configuration bounds at startup (fail-fast).
     ///
-    /// - `approval_ttl_hours` : doit être dans [0, 8760].
+    /// - `approval_ttl_hours`: must be in [0, 8760].
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "mcp.approval_ttl_hours",
@@ -965,46 +960,47 @@ fn default_approval_ttl_hours() -> u64 {
 // PermissionsConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du moteur de permissions (section `[permissions]` dans `apollia.toml`).
+/// Permission engine configuration (`[permissions]` section in `apollia.toml`).
 ///
-/// Contrôle les trois couches du moteur de permissions :
-/// - SafeList (couche 1) : commandes auto-approuvées sans HITL.
-/// - PrefixRuleEngine (couche 2) : règles préfixe persistées en SQLite.
-/// - InjectionDetector (couche 3) : détection des patterns shell dangereux.
+/// Controls the three layers of the permission engine:
+/// - SafeList (layer 1): commands auto-approved without HITL.
+/// - PrefixRuleEngine (layer 2): prefix rules persisted in SQLite.
+/// - InjectionDetector (layer 3): detection of dangerous shell patterns.
 ///
-/// La SafeList est **vide par défaut** - l'opérateur définit explicitement
-/// ce qui est sûr (principe de moindre privilège, OWASP ASVS V1.4, CWE-272).
+/// The SafeList is **empty by default**: the operator explicitly defines what
+/// is safe (least-privilege principle, OWASP ASVS V1.4, CWE-272).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct PermissionsConfig {
-    /// Commandes auto-approuvées sans HITL, configurées par l'opérateur.
+    /// Commands auto-approved without HITL, configured by the operator.
     ///
-    /// Format : `"tool_name(arg_text)"` ou `"tool_name"`.
-    /// Exemples : `"bash_executor(git status)"`, `"bash_executor(git log)"`.
-    /// **Vide par défaut** - aucune commande n'est auto-approuvée sans configuration explicite.
+    /// Format: `"tool_name(arg_text)"` or `"tool_name"`.
+    /// Examples: `"bash_executor(git status)"`, `"bash_executor(git log)"`.
+    /// **Empty by default**: no command is auto-approved without explicit
+    /// configuration.
     #[serde(default)]
     pub safe_commands: Vec<String>,
 
-    /// Active la détection d'injections shell (couche 3, priorité absolue).
+    /// Enables shell-injection detection (layer 3, absolute priority).
     ///
-    /// Défaut : `true`. Désactiver uniquement pour les environnements de test contrôlés.
+    /// Default: `true`. Disable only for controlled test environments.
     #[serde(default = "default_injection_detection")]
     pub injection_detection: bool,
 
-    /// Durée de vie des règles préfixe SQLite, en heures.
+    /// Lifetime of SQLite prefix rules, in hours.
     ///
-    /// Défaut : 168 (7 jours). Les règles plus anciennes peuvent être purgées par maintenance.
+    /// Default: 168 (7 days). Older rules may be purged by maintenance.
     #[serde(default = "default_prefix_rule_ttl_hours")]
     pub prefix_rule_ttl_hours: u64,
 
-    /// Chemin de la base SQLite consolidée (governance.db).
+    /// Path to the consolidated SQLite database (governance.db).
     ///
-    /// Cette base unique contient les tables `permission_rules`, `permission_audit`,
-    /// `tools` et `tool_credentials`. Elle remplace l'ancienne `permissions.db` :
-    /// au premier démarrage avec une `permissions.db` existante, le runtime la
-    /// migre automatiquement vers `governance.db` et conserve une sauvegarde
-    /// `permissions.db.bak`.
+    /// This single database holds the `permission_rules`, `permission_audit`,
+    /// `tools` and `tool_credentials` tables. It replaces the former
+    /// `permissions.db`: on the first start with an existing `permissions.db`,
+    /// the runtime migrates it automatically to `governance.db` and keeps a
+    /// `permissions.db.bak` backup.
     ///
-    /// Défaut : `~/.apollia/governance.db`.
+    /// Default: `~/.apollia/governance.db`.
     #[serde(default = "default_permissions_db_path")]
     pub db_path: std::path::PathBuf,
 }
@@ -1036,78 +1032,78 @@ fn default_permissions_db_path() -> std::path::PathBuf {
 // BashValidatorConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du validateur bash pré-exécution (section `[tools.bash]` dans `apollia.toml`).
+/// Pre-execution bash validator configuration (`[tools.bash]` section in `apollia.toml`).
 ///
-/// Contrôle deux mécanismes de protection appliqués par `BashValidator` avant
-/// chaque invocation de `BashExecutor` :
-/// - La classification des risques par catégorie (`RiskClassifier`), synchrone et rapide.
-/// - La validation syntaxique via `bash -n -c`, asynchrone avec timeout.
+/// Controls two protection mechanisms `BashValidator` applies before each
+/// `BashExecutor` invocation:
+/// - Per-category risk classification (`RiskClassifier`), synchronous and fast.
+/// - Syntax validation via `bash -n -c`, asynchronous with a timeout.
 ///
-/// Toutes les catégories sont **activées** (`block_* = true`) mais les listes de patterns
-/// sont **vides par défaut** : aucun blocage n'est appliqué sans configuration explicite
-/// (principe opt-in - l'opérateur définit ce qu'il veut bloquer).
+/// All categories are **enabled** (`block_* = true`) but the pattern lists are
+/// **empty by default**: no blocking happens without explicit configuration
+/// (opt-in: the operator defines what to block).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct BashValidatorConfig {
-    /// Active le blocage des commandes d'accès réseau sortant.
+    /// Enables blocking of outbound network-access commands.
     ///
-    /// Référence : OWASP A10:2021 (SSRF) et Principe #1 Apollia (local-first).
-    /// Défaut : `true`. Aucun blocage effectif sans `network_egress_patterns`.
+    /// Reference: OWASP A10:2021 (SSRF) and the Apollia local-first principle.
+    /// Default: `true`. No effective blocking without `network_egress_patterns`.
     #[serde(default = "default_block_flag")]
     pub block_network_egress: bool,
 
-    /// Active le blocage des opérations destructrices irréversibles.
+    /// Enables blocking of irreversible destructive operations.
     ///
-    /// Référence : NIST SP 800-190 §4.4.
-    /// Défaut : `true`. Aucun blocage effectif sans `destructive_patterns`.
+    /// Reference: NIST SP 800-190 §4.4.
+    /// Default: `true`. No effective blocking without `destructive_patterns`.
     #[serde(default = "default_block_flag")]
     pub block_destructive: bool,
 
-    /// Active le blocage des élévations de privilèges.
+    /// Enables blocking of privilege escalations.
     ///
-    /// Référence : CWE-269 (Improper Privilege Management).
-    /// Défaut : `true`. Aucun blocage effectif sans `privilege_patterns`.
+    /// Reference: CWE-269 (Improper Privilege Management).
+    /// Default: `true`. No effective blocking without `privilege_patterns`.
     #[serde(default = "default_block_flag")]
     pub block_privilege_escalation: bool,
 
-    /// Active le blocage des commandes d'épuisement de ressources.
+    /// Enables blocking of resource-exhaustion commands.
     ///
-    /// Référence : CWE-400 (Uncontrolled Resource Consumption).
-    /// Défaut : `true`. Aucun blocage effectif sans `exhaustion_patterns`.
+    /// Reference: CWE-400 (Uncontrolled Resource Consumption).
+    /// Default: `true`. No effective blocking without `exhaustion_patterns`.
     #[serde(default = "default_block_flag")]
     pub block_resource_exhaustion: bool,
 
-    /// Patterns déclenchant la catégorie `NetworkEgress`.
+    /// Patterns triggering the `NetworkEgress` category.
     ///
-    /// Chaque entrée est une sous-chaîne recherchée dans la commande (ex: `"curl"`, `"wget"`).
-    /// Vide par défaut - l'opérateur définit les patterns selon les outils installés.
+    /// Each entry is a substring searched in the command (e.g. `"curl"`, `"wget"`).
+    /// Empty by default: the operator defines patterns based on installed tools.
     #[serde(default)]
     pub network_egress_patterns: Vec<String>,
 
-    /// Patterns déclenchant la catégorie `DestructiveOp`.
+    /// Patterns triggering the `DestructiveOp` category.
     ///
-    /// Exemples : `"rm -rf /"`, `"dd if="`, `"mkfs"`.
-    /// Vide par défaut.
+    /// Examples: `"rm -rf /"`, `"dd if="`, `"mkfs"`.
+    /// Empty by default.
     #[serde(default)]
     pub destructive_patterns: Vec<String>,
 
-    /// Patterns déclenchant la catégorie `PrivilegeEscalation`.
+    /// Patterns triggering the `PrivilegeEscalation` category.
     ///
-    /// Exemples : `"sudo"`, `"su "`, `"chmod 777 /"`.
-    /// Vide par défaut.
+    /// Examples: `"sudo"`, `"su "`, `"chmod 777 /"`.
+    /// Empty by default.
     #[serde(default)]
     pub privilege_patterns: Vec<String>,
 
-    /// Patterns déclenchant la catégorie `ResourceExhaustion`.
+    /// Patterns triggering the `ResourceExhaustion` category.
     ///
-    /// Exemples : `":(){ :|:& };:"` (fork bomb).
-    /// Vide par défaut.
+    /// Examples: `":(){ :|:& };:"` (fork bomb).
+    /// Empty by default.
     #[serde(default)]
     pub exhaustion_patterns: Vec<String>,
 
-    /// Timeout de la validation syntaxique `bash -n -c`, en millisecondes.
+    /// Timeout for `bash -n -c` syntax validation, in milliseconds.
     ///
-    /// Au-delà de cette durée, `BashValidator::validate_syntax()` retourne
-    /// `SyntaxValidationTimeout`. Défaut : 1000ms. Bornes : [100, 10000].
+    /// Beyond this delay, `BashValidator::validate_syntax()` returns
+    /// `SyntaxValidationTimeout`. Default: 1000ms. Bounds: [100, 10000].
     #[serde(default = "default_syntax_check_timeout_ms")]
     pub syntax_check_timeout_ms: u64,
 }
@@ -1129,9 +1125,9 @@ impl Default for BashValidatorConfig {
 }
 
 impl BashValidatorConfig {
-    /// Valide les bornes de la configuration bash validator au démarrage (Principe #4 - Fail fast).
+    /// Validates the bash validator configuration bounds at startup (fail-fast).
     ///
-    /// - `syntax_check_timeout_ms` : doit être dans [100, 10000].
+    /// - `syntax_check_timeout_ms`: must be in [100, 10000].
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "tools.bash.syntax_check_timeout_ms",
@@ -1155,20 +1151,20 @@ fn default_syntax_check_timeout_ms() -> u64 {
 // RegistryConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du registry de pipelines communautaires (section `[registry]` dans `apollia.toml`).
+/// Community pipeline registry configuration (`[registry]` section in `apollia.toml`).
 ///
-/// Indique l'URL du dépôt Git public depuis lequel `apollia pipeline install` télécharge
-/// les templates. Les URLs GitHub (`https://github.com/org/repo`) sont automatiquement
-/// converties en URLs de contenu brut par le `PipelineRegistry`.
-/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+/// Holds the URL of the public Git repository from which `apollia pipeline
+/// install` downloads templates. GitHub URLs (`https://github.com/org/repo`)
+/// are converted automatically to raw-content URLs by the `PipelineRegistry`.
+/// Every field has a sane default via [`Default`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistryConfig {
-    /// URL du dépôt Git du registry de pipelines communautaires.
+    /// Git repository URL of the community pipeline registry.
     ///
-    /// Format GitHub : `https://github.com/org/repo`.
-    /// Le `PipelineRegistry` convertit automatiquement cette URL en URL de contenu brut
-    /// (`raw.githubusercontent.com`).
-    /// Défaut : `"https://github.com/apollia-os/pipelines"`.
+    /// GitHub format: `https://github.com/org/repo`.
+    /// The `PipelineRegistry` converts this URL automatically to a raw-content
+    /// URL (`raw.githubusercontent.com`).
+    /// Default: `"https://github.com/apollia-os/pipelines"`.
     #[serde(default = "default_pipeline_registry_url")]
     pub pipeline_registry_url: String,
 }
@@ -1189,25 +1185,25 @@ fn default_pipeline_registry_url() -> String {
 // FilesystemRiskConfig
 // ─────────────────────────────────────────────
 
-/// Listes de paths système utilisés par `RiskClassifier::classify_filesystem`.
+/// System path lists used by `RiskClassifier::classify_filesystem`.
 ///
-/// Configurable via `apollia.toml` sous `[tools.filesystem]`.
+/// Configurable via `apollia.toml` under `[tools.filesystem]`.
 ///
-/// `credential_paths` are expanded relative to `$HOME` at runtime.
-/// Writing to a system or credential path always produces `RiskLevel::High`.
-/// Reading credential paths remains `RiskLevel::Low` (ADR-069).
+/// `credential_paths` are expanded relative to `$HOME` at runtime. Writing to a
+/// system or credential path always produces `RiskLevel::High`. Reading
+/// credential paths stays `RiskLevel::Low`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FilesystemRiskConfig {
-    /// Paths système : écriture = High.
+    /// System paths: writing = High.
     ///
-    /// Défaut : `["/etc", "/usr", "/bin", "/sbin", "/boot", "/var/log"]`.
+    /// Default: `["/etc", "/usr", "/bin", "/sbin", "/boot", "/var/log"]`.
     #[serde(default = "default_system_paths")]
     pub system_paths: Vec<std::path::PathBuf>,
 
-    /// Paths credentials : écriture = High, lecture reste Low (ADR-069).
+    /// Credential paths: writing = High, reading stays Low.
     ///
-    /// Défaut : `["$HOME/.ssh", "$HOME/.aws/credentials", "$HOME/.gnupg"]`
-    /// (résolus relatifs à `$HOME` au chargement de la config).
+    /// Default: `["$HOME/.ssh", "$HOME/.aws/credentials", "$HOME/.gnupg"]`
+    /// (resolved relative to `$HOME` when the config is loaded).
     #[serde(default = "default_credential_paths")]
     pub credential_paths: Vec<std::path::PathBuf>,
 }
@@ -1240,16 +1236,16 @@ impl Default for FilesystemRiskConfig {
 // LlmRoutingConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du routing LLM par niveau de précision (section `[llm.routing]` dans `apollia.toml`).
+/// Per-precision LLM routing configuration (`[llm.routing]` section in `apollia.toml`).
 ///
-/// Découple les appels LLM selon deux axes naturels issus des scaling laws (Kaplan et al., 2020) :
-/// - tâches de raisonnement profond → backend précis mais coûteux
-/// - tâches d'extraction légère → backend rapide et économique
+/// Splits LLM calls along two natural axes from the scaling laws (Kaplan et al., 2020):
+/// - deep-reasoning tasks: precise but expensive backend
+/// - lightweight extraction tasks: fast and cheap backend
 ///
-/// La section `[llm.routing]` est **obligatoire** - son absence est une erreur fatale au démarrage
-/// (Principe #4 - Fail fast). Configurer les deux champs explicitement dans `apollia.toml`.
+/// The `[llm.routing]` section is **mandatory**: its absence is a fatal error
+/// at startup (fail-fast). Set both fields explicitly in `apollia.toml`.
 ///
-/// Exemple `apollia.toml` :
+/// `apollia.toml` example:
 /// ```toml
 /// [llm.routing]
 /// precise = "claude-opus-4-6"
@@ -1257,16 +1253,16 @@ impl Default for FilesystemRiskConfig {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmRoutingConfig {
-    /// Backend pour les tâches de raisonnement profond (planification ORIA, analyse, jugement).
+    /// Backend for deep-reasoning tasks (ORIA planning, analysis, judgment).
     ///
-    /// Critère : tâche où une erreur a un impact élevé ou nécessite de la nuance.
-    /// Doit correspondre au nom d'un backend déclaré dans `[[llm.backends]]`.
+    /// Criterion: a task where an error has high impact or needs nuance.
+    /// Must match the name of a backend declared in `[[llm.backends]]`.
     pub precise: String,
 
-    /// Backend pour les tâches d'extraction légère (métadonnées, résumés, classification, paths).
+    /// Backend for lightweight extraction tasks (metadata, summaries, classification, paths).
     ///
-    /// Critère : tâche déterministe, résultat vérifiable, faible coût d'erreur.
-    /// Doit correspondre au nom d'un backend déclaré dans `[[llm.backends]]`.
+    /// Criterion: a deterministic task with verifiable output and low error cost.
+    /// Must match the name of a backend declared in `[[llm.backends]]`.
     pub fast: String,
 }
 
@@ -1274,26 +1270,25 @@ pub struct LlmRoutingConfig {
 // LlmRunnerConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du sidecar runner LLM local (section `[llm.runner]` dans `apollia.toml`).
+/// Local LLM sidecar runner configuration (`[llm.runner]` section in `apollia.toml`).
 ///
-/// Permet à l'utilisateur de forcer un backend précis (`cuda`, `rocm`, `vulkan`,
-/// `metal`, `cpu`) ou de laisser la détection automatique choisir (`auto`).
+/// Lets the user force a specific backend (`cuda`, `rocm`, `vulkan`, `metal`,
+/// `cpu`) or let automatic detection choose (`auto`).
 ///
-/// Voir `docs/internal/architecture/GPU-DETECTION.md` pour la hiérarchie de décision
-/// complète et le module `apollia_runtime::runner_supervisor::gpu_detection` pour
-/// l'implémentation.
+/// See the `apollia_runtime::runner_supervisor::gpu_detection` module for the
+/// decision hierarchy and its implementation.
 ///
-/// Exemple `apollia.toml` :
+/// `apollia.toml` example:
 /// ```toml
 /// [llm.runner]
-/// backend = "vulkan"   # auto (défaut) | cuda | rocm | vulkan | metal | cpu
+/// backend = "vulkan"   # auto (default) | cuda | rocm | vulkan | metal | cpu
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmRunnerConfig {
-    /// Backend forcé par l'opérateur, ou `"auto"` pour laisser la détection décider.
+    /// Backend forced by the operator, or `"auto"` to let detection decide.
     ///
-    /// Valeurs acceptées : `"auto"`, `"cuda"`, `"rocm"`, `"vulkan"`, `"metal"`, `"cpu"`.
-    /// Toute autre valeur est traitée comme `"auto"` avec un warning au démarrage.
+    /// Accepted values: `"auto"`, `"cuda"`, `"rocm"`, `"vulkan"`, `"metal"`, `"cpu"`.
+    /// Any other value is treated as `"auto"` with a warning at startup.
     #[serde(default = "default_runner_backend")]
     pub backend: String,
 }
@@ -1314,24 +1309,24 @@ fn default_runner_backend() -> String {
 // VertexConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du backend Google Vertex AI.
+/// Google Vertex AI backend configuration.
 ///
-/// Auth via Application Default Credentials (ADC) - fichier
-/// `~/.config/gcloud/application_default_credentials.json` ou variable
-/// d'environnement `GOOGLE_APPLICATION_CREDENTIALS`.
+/// Auth via Application Default Credentials (ADC): the
+/// `~/.config/gcloud/application_default_credentials.json` file or the
+/// `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
 ///
-/// La section `[llm.vertex]` dans `apollia.toml` est optionnelle.
-/// Si absente, `enabled` vaut `false` et le backend n'est pas chargé.
+/// The `[llm.vertex]` section in `apollia.toml` is optional. When absent,
+/// `enabled` is `false` and the backend is not loaded.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VertexConfig {
-    /// Activer ce backend (false par défaut).
+    /// Enable this backend (false by default).
     #[serde(default)]
     pub enabled: bool,
-    /// ID du projet GCP (ex: `"my-gcp-project"`).
+    /// GCP project ID (e.g. `"my-gcp-project"`).
     pub project_id: String,
-    /// Région Vertex AI (ex: `"us-east5"`, `"europe-west1"`).
+    /// Vertex AI region (e.g. `"us-east5"`, `"europe-west1"`).
     pub location: String,
-    /// ID du modèle Anthropic publié sur Vertex (ex: `"claude-sonnet-4-6@20251001"`).
+    /// ID of the Anthropic model published on Vertex (e.g. `"claude-sonnet-4-6@20251001"`).
     pub model_id: String,
 }
 
@@ -1339,31 +1334,31 @@ pub struct VertexConfig {
 // FilesystemConfig / JournalConfig
 // ─────────────────────────────────────────────
 
-/// Configuration du journal réversible filesystem (section `[filesystem.journal]` dans `apollia.toml`).
+/// Reversible filesystem journal configuration (`[filesystem.journal]` section in `apollia.toml`).
 ///
-/// Contrôle le journal qui persiste l'état précédent de chaque mutation native avant
-/// qu'elle soit appliquée. Permet à `apollia rollback` de restaurer le disque après
-/// qu'un agent a effectué des opérations indésirables (ADR-069 §Couche 3).
+/// Controls the journal that persists the prior state of each native mutation
+/// before it is applied. Lets `apollia rollback` restore the disk after an
+/// agent performs unwanted operations.
 ///
-/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+/// Every field has a sane default via [`Default`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct JournalConfig {
-    /// Active le journal réversible. Défaut : `true`.
+    /// Enables the reversible journal. Default: `true`.
     ///
-    /// Quand `false`, `FileWrite` et `FileEdit` mutent sans enregistrement.
-    /// Désactiver uniquement pour les environnements de test contrôlés.
+    /// When `false`, `FileWrite` and `FileEdit` mutate without recording.
+    /// Disable only for controlled test environments.
     #[serde(default = "default_journal_enabled")]
     pub enabled: bool,
 
-    /// Nombre maximal de sessions conservées sur disque avant purge de la plus ancienne.
+    /// Maximum number of sessions kept on disk before the oldest is purged.
     ///
-    /// Défaut : 50. Bornes : [1, 10 000].
+    /// Default: 50. Bounds: [1, 10 000].
     #[serde(default = "default_journal_max_sessions")]
     pub max_sessions: usize,
 
-    /// Répertoire racine du journal. `~` est résolu au démarrage.
+    /// Journal root directory. `~` is resolved at startup.
     ///
-    /// Défaut : `~/.apollia/journal`.
+    /// Default: `~/.apollia/journal`.
     #[serde(default = "default_journal_root")]
     pub root: PathBuf,
 }
@@ -1379,9 +1374,9 @@ impl Default for JournalConfig {
 }
 
 impl JournalConfig {
-    /// Valide les bornes de la configuration journal au démarrage (Principe #4 - Fail fast).
+    /// Validates the journal configuration bounds at startup (fail-fast).
     ///
-    /// - `max_sessions` : doit être dans [1, 10 000].
+    /// - `max_sessions`: must be in [1, 10 000].
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "filesystem.journal.max_sessions",
@@ -1392,9 +1387,9 @@ impl JournalConfig {
         Ok(())
     }
 
-    /// Résout `~` dans `root` vers le répertoire home effectif.
+    /// Resolves `~` in `root` to the effective home directory.
     ///
-    /// Retourne le chemin résolu, sans modifier `self`.
+    /// Returns the resolved path without modifying `self`.
     pub fn resolved_root(&self) -> PathBuf {
         let s = self.root.to_string_lossy();
         if s.starts_with("~/") {
@@ -1420,19 +1415,19 @@ fn default_journal_root() -> PathBuf {
     PathBuf::from("~/.apollia/journal")
 }
 
-/// Configuration filesystem de l'agent (section `[filesystem]` dans `apollia.toml`).
+/// Agent filesystem configuration (`[filesystem]` section in `apollia.toml`).
 ///
-/// Regroupe toutes les sous-configurations liées aux opérations sur le système de fichiers :
-/// actuellement, le journal réversible (ADR-069).
+/// Groups every sub-configuration related to filesystem operations: currently
+/// the reversible journal.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct FilesystemConfig {
-    /// Sous-section dédiée au journal réversible (ADR-069 §Couche 3).
+    /// Sub-section dedicated to the reversible journal.
     #[serde(default)]
     pub journal: JournalConfig,
 }
 
 impl FilesystemConfig {
-    /// Valide la configuration filesystem au démarrage (Principe #4 - Fail fast).
+    /// Validates the filesystem configuration at startup (fail-fast).
     pub fn validate(&self) -> Result<(), ConfigError> {
         self.journal.validate()
     }
@@ -1446,7 +1441,7 @@ impl FilesystemConfig {
 mod tests {
     use super::*;
 
-    // ── AC-1 : config absente → tous les défauts préservés ─────────────────
+    // ── Absent config preserves every default ──────────────────────────────
 
     #[test]
     fn test_default_config_preserves_all_defaults() {
@@ -1472,7 +1467,7 @@ mod tests {
         hitl.validate().expect("default HitlConfig must be valid");
     }
 
-    // ── AC-2 : valeurs custom → utilisées ──────────────────────────────────
+    // ── Custom values are honored ──────────────────────────────────────────
 
     #[test]
     fn test_custom_eventbus_capacity_used() {
@@ -1562,7 +1557,7 @@ mod tests {
         cfg.validate().expect("/tmp parent must exist");
     }
 
-    // ── AC-3 : valeur hors bornes → erreur au démarrage ────────────────────
+    // ── Out-of-bounds value fails at startup ───────────────────────────────
 
     #[test]
     fn test_eventbus_capacity_below_min_fails() {
@@ -1771,7 +1766,7 @@ mod tests {
         cfg.validate().expect("valid bounds");
     }
 
-    // ── AC-3 : orchestrated_threshold hors bornes ───────────────────────────
+    // ── orchestrated_threshold out of bounds ────────────────────────────────
 
     #[test]
     fn test_orchestrated_threshold_above_1_fails() {
@@ -1809,7 +1804,7 @@ mod tests {
         );
     }
 
-    // ── AC-4 : step_memory_max_chars hors bornes ────────────────────────────
+    // ── step_memory_max_chars out of bounds ─────────────────────────────────
 
     #[test]
     fn test_step_memory_max_chars_below_50_fails() {
@@ -1890,7 +1885,7 @@ mod tests {
 
     #[test]
     fn test_tools_config_default_values() {
-        // GIVEN config par défaut
+        // GIVEN the default config
         let cfg = ToolsConfig::default();
         // THEN
         assert_eq!(cfg.max_output_chars, 30_000);
@@ -1899,7 +1894,7 @@ mod tests {
 
     #[test]
     fn test_tools_config_serde_override() {
-        // GIVEN un TOML avec une valeur custom
+        // GIVEN a TOML with a custom value
         let toml = r#"max_output_chars = 100"#;
         // WHEN
         let cfg: ToolsConfig = toml::from_str(toml).expect("valid toml");

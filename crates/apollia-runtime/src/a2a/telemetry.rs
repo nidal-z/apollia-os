@@ -1,11 +1,11 @@
-//! Telemetry A2A par skill.
+//! Per-skill A2A telemetry.
 //!
-//! Agrégation in-memory (rolling window de 100 invocations par skill) des métriques
-//! d'invocations A2A : latence moyenne, taux de succès, tokens consommés. Trace
-//! également la provenance des steps pour permettre le drill-down TimelineGlobal.
+//! In-memory aggregation (rolling window of 100 invocations per skill) of A2A
+//! invocation metrics: average latency, success rate, tokens consumed. Also
+//! records step provenance to enable global timeline drill-down.
 //!
-//! Toujours-on : le coût est minimal (anneau borné de 100 éléments par skill).
-//! La persistance optionnelle se fait toutes les 5 minutes via [`TelemetryStore::flush`].
+//! Always on: the cost is minimal (bounded ring of 100 elements per skill).
+//! Optional persistence runs every 5 minutes via [`TelemetryStore::flush`].
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -13,71 +13,71 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-/// Nombre maximum d'invocations conservées dans la fenêtre glissante par skill.
+/// Maximum number of invocations kept in the rolling window per skill.
 pub const ROLLING_WINDOW_SIZE: usize = 100;
 
-/// Clé d'agrégation : `(agent_name, skill_id)` identifie un skill unique
-/// dans le contexte d'un Worker Agent donné.
+/// Aggregation key: `(agent_name, skill_id)` identifies a unique skill
+/// within the context of a given Worker Agent.
 pub type TelemetryKey = (String, String);
 
-/// Enregistrement d'une invocation individuelle dans la fenêtre glissante.
+/// Record of a single invocation in the rolling window.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InvocationRecord {
-    /// Durée de l'invocation en millisecondes.
+    /// Invocation duration in milliseconds.
     pub duration_ms: u64,
-    /// `true` si l'invocation s'est terminée avec succès.
+    /// `true` if the invocation completed successfully.
     pub success: bool,
-    /// Tokens consommés par cette invocation (0 si inconnu).
+    /// Tokens consumed by this invocation (0 if unknown).
     pub tokens: u64,
-    /// Horodatage Unix (millisecondes) de fin d'invocation.
+    /// Unix timestamp (milliseconds) when the invocation ended.
     pub timestamp_ms: u64,
 }
 
-/// Vue agrégée de la télémétrie d'un skill, calculée à la demande depuis
-/// la fenêtre glissante.
+/// Aggregated view of a skill's telemetry, computed on demand from
+/// the rolling window.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ASkillTelemetry {
-    /// Nom du skill (ex: `"read-excel"`).
+    /// Skill name (e.g. `"read-excel"`).
     pub skill_name: String,
-    /// Version advertised du Worker Agent qui fournit le skill.
+    /// Version advertised by the Worker Agent that provides the skill.
     pub version: String,
-    /// Nombre total d'invocations dans la fenêtre glissante courante.
+    /// Total number of invocations in the current rolling window.
     pub invocations: u64,
-    /// Latence moyenne en millisecondes sur la fenêtre.
+    /// Average latency in milliseconds over the window.
     pub avg_latency_ms: u64,
-    /// Taux de succès sur la fenêtre, entre 0.0 et 1.0.
+    /// Success rate over the window, between 0.0 and 1.0.
     pub success_rate: f64,
-    /// Somme des tokens consommés sur la fenêtre.
+    /// Sum of tokens consumed over the window.
     pub tokens_consumed: u64,
 }
 
-/// Provenance d'un step dans une chaîne A2A, clé partagée avec TimelineGlobal
-/// pour le drill-down.
+/// Provenance of a step in an A2A chain. The step id is shared with the
+/// global timeline to enable drill-down.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AStepProvenance {
-    /// Identifiant unique du step (clé partagée avec la timeline conversation).
+    /// Unique step identifier (shared with the conversation timeline).
     pub step_id: String,
-    /// Extrait de l'entrée, tronqué à 240 caractères.
+    /// Input excerpt, truncated to 240 characters.
     pub input_excerpt: String,
-    /// Extrait de la sortie, tronqué à 240 caractères. `None` si invocation
-    /// toujours en cours ou échec avant production d'output.
+    /// Output excerpt, truncated to 240 characters. `None` if the invocation
+    /// is still running or failed before producing output.
     pub output_excerpt: Option<String>,
-    /// Nom de l'agent initiateur (caller / Director).
+    /// Name of the initiating agent (caller / Director).
     pub agent_from: String,
-    /// Nom de l'agent ciblé (Worker).
+    /// Name of the target agent (Worker).
     pub agent_to: String,
-    /// Identifiant du step parent dans la chaîne A2A, `None` pour le step racine.
+    /// Identifier of the parent step in the A2A chain, `None` for the root step.
     pub parent_step: Option<String>,
-    /// Identifiant du skill invoqué.
+    /// Identifier of the invoked skill.
     pub skill_id: String,
-    /// Horodatage Unix (millisecondes) de création du step.
+    /// Unix timestamp (milliseconds) when the step was created.
     pub timestamp_ms: u64,
 }
 
-/// Longueur maximale d'un extrait input/output.
+/// Maximum length of an input/output excerpt.
 pub const EXCERPT_MAX_CHARS: usize = 240;
 
-/// Tronque une chaîne à [`EXCERPT_MAX_CHARS`] caractères, avec ellipse.
+/// Truncates a string to [`EXCERPT_MAX_CHARS`] characters, with an ellipsis.
 pub fn make_excerpt(s: &str) -> String {
     if s.chars().count() <= EXCERPT_MAX_CHARS {
         s.to_string()
@@ -87,10 +87,10 @@ pub fn make_excerpt(s: &str) -> String {
     }
 }
 
-/// Stockage des fenêtres glissantes de télémétrie et des provenances de steps.
+/// Storage for telemetry rolling windows and step provenance.
 ///
-/// Partagé entre acteurs via `Arc`. Les écritures passent par des mutex courts
-/// en lecture/écriture, pas de contention significative au volume attendu.
+/// Shared between actors via `Arc`. Writes go through short read/write locks,
+/// with no significant contention at the expected volume.
 #[derive(Debug, Default)]
 pub struct TelemetryStore {
     windows: RwLock<HashMap<TelemetryKey, VecDeque<InvocationRecord>>>,
@@ -98,16 +98,16 @@ pub struct TelemetryStore {
     steps: RwLock<Vec<A2AStepProvenance>>,
 }
 
-/// Handle clonable vers un [`TelemetryStore`].
+/// Clonable handle to a [`TelemetryStore`].
 pub type TelemetryHandle = Arc<TelemetryStore>;
 
 impl TelemetryStore {
-    /// Construit un store vide.
+    /// Builds an empty store.
     pub fn new() -> TelemetryHandle {
         Arc::new(Self::default())
     }
 
-    /// Enregistre une invocation terminée.
+    /// Records a completed invocation.
     pub async fn record_invocation(
         &self,
         agent_name: &str,
@@ -129,7 +129,7 @@ impl TelemetryStore {
         versions.insert(key, version.to_string());
     }
 
-    /// Enregistre un step de provenance (garde les 10 000 derniers pour borne mémoire).
+    /// Records a provenance step (keeps the last 10,000 to bound memory).
     pub async fn record_step(&self, step: A2AStepProvenance) {
         const MAX_STEPS: usize = 10_000;
         let mut steps = self.steps.write().await;
@@ -140,9 +140,9 @@ impl TelemetryStore {
         steps.push(step);
     }
 
-    /// Calcule la vue agrégée pour `(agent_name, skill_id)`.
+    /// Computes the aggregated view for `(agent_name, skill_id)`.
     ///
-    /// Retourne `None` si aucune invocation n'a été enregistrée pour cette clé.
+    /// Returns `None` if no invocation has been recorded for this key.
     pub async fn telemetry_for(
         &self,
         agent_name: &str,
@@ -174,7 +174,7 @@ impl TelemetryStore {
         })
     }
 
-    /// Retourne la télémétrie agrégée pour tous les skills enregistrés.
+    /// Returns aggregated telemetry for all recorded skills.
     pub async fn all_telemetry(&self) -> Vec<A2ASkillTelemetry> {
         let windows = self.windows.read().await;
         let versions = self.versions.read().await;
@@ -201,7 +201,7 @@ impl TelemetryStore {
         out
     }
 
-    /// Retourne les steps de provenance filtrés par `skill_id` (ou tous si `None`).
+    /// Returns provenance steps filtered by `skill_id` (or all if `None`).
     pub async fn steps_for(&self, skill_id: Option<&str>) -> Vec<A2AStepProvenance> {
         let steps = self.steps.read().await;
         match skill_id {
@@ -210,12 +210,12 @@ impl TelemetryStore {
         }
     }
 
-    /// Point d'extension pour la persistance (appelé toutes les 5 min).
+    /// Extension point for persistence (called every 5 minutes).
     ///
-    /// Implémentation courante : no-op. Une persistance SQLite pourra être
-    /// branchée ici sans modifier l'API publique.
+    /// Current implementation: no-op. SQLite persistence can be wired in here
+    /// without changing the public API.
     pub async fn flush(&self) {
-        // no-op, le store est in-memory pour cette release.
+        // no-op: the store is in-memory for this release.
     }
 }
 
@@ -242,10 +242,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_record_invocation_aggregates() {
-        // GIVEN un store vide
+        // GIVEN an empty store
         let store = TelemetryStore::new();
 
-        // WHEN on enregistre 3 invocations
+        // WHEN we record 3 invocations
         store
             .record_invocation("worker-a", "read-excel", "1.0.0", rec(100, true, 50))
             .await;
@@ -256,7 +256,7 @@ mod tests {
             .record_invocation("worker-a", "read-excel", "1.0.0", rec(300, false, 10))
             .await;
 
-        // THEN la télémétrie agrège correctement
+        // THEN the telemetry aggregates correctly
         let tel = store.telemetry_for("worker-a", "read-excel").await.unwrap();
         assert_eq!(tel.invocations, 3);
         assert_eq!(tel.avg_latency_ms, 200);
@@ -267,7 +267,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rolling_window_caps_at_100() {
-        // GIVEN un store et 150 invocations
+        // GIVEN a store and 150 invocations
         let store = TelemetryStore::new();
         for _ in 0..150 {
             store
@@ -275,28 +275,28 @@ mod tests {
                 .await;
         }
 
-        // WHEN on lit la télémétrie
+        // WHEN we read the telemetry
         let tel = store.telemetry_for("w", "s").await.unwrap();
 
-        // THEN la fenêtre est capée à 100
+        // THEN the window is capped at 100
         assert_eq!(tel.invocations, ROLLING_WINDOW_SIZE as u64);
     }
 
     #[tokio::test]
     async fn test_missing_key_returns_none() {
-        // GIVEN un store vide
+        // GIVEN an empty store
         let store = TelemetryStore::new();
 
-        // WHEN on interroge une clé inconnue
+        // WHEN we query an unknown key
         let tel = store.telemetry_for("nope", "missing").await;
 
-        // THEN on obtient None
+        // THEN we get None
         assert!(tel.is_none());
     }
 
     #[tokio::test]
     async fn test_all_telemetry_sorted_by_skill_name() {
-        // GIVEN un store avec deux skills
+        // GIVEN a store with two skills
         let store = TelemetryStore::new();
         store
             .record_invocation("w", "zeta", "1.0.0", rec(10, true, 0))
@@ -305,10 +305,10 @@ mod tests {
             .record_invocation("w", "alpha", "1.0.0", rec(20, true, 0))
             .await;
 
-        // WHEN on liste tout
+        // WHEN we list all of them
         let all = store.all_telemetry().await;
 
-        // THEN le tri alphabétique est respecté
+        // THEN the alphabetical sort is respected
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].skill_name, "alpha");
         assert_eq!(all[1].skill_name, "zeta");
@@ -316,7 +316,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_step_provenance_filter() {
-        // GIVEN un store avec deux steps de skills différents
+        // GIVEN a store with two steps from different skills
         let store = TelemetryStore::new();
         store
             .record_step(A2AStepProvenance {
@@ -343,11 +343,11 @@ mod tests {
             })
             .await;
 
-        // WHEN on filtre par skill
+        // WHEN we filter by skill
         let reads = store.steps_for(Some("read")).await;
         let all = store.steps_for(None).await;
 
-        // THEN le filtrage est correct
+        // THEN the filtering is correct
         assert_eq!(reads.len(), 1);
         assert_eq!(reads[0].step_id, "s1");
         assert_eq!(all.len(), 2);

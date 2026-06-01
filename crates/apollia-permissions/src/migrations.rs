@@ -1,14 +1,14 @@
-//! Helpers SQLite partagés pour les migrations idempotentes du schéma de gouvernance.
+//! Shared SQLite helpers for idempotent governance schema migrations.
 //!
-//! Ces helpers permettent d'ajouter une colonne à une table existante sans
-//! échouer si la colonne est déjà présente - utile lors de la migration
-//! d'une base `permissions.db` legacy vers le schéma `governance.db` étendu.
+//! These helpers add a column to an existing table without failing if the
+//! column is already present, useful when migrating a legacy `permissions.db`
+//! to the extended `governance.db` schema.
 
 use rusqlite::Connection;
 
 use crate::error::PermissionError;
 
-/// Indique si la table `table` contient déjà la colonne `column`.
+/// Returns whether `table` already contains `column`.
 pub(crate) fn column_exists(
     conn: &Connection,
     table: &str,
@@ -26,7 +26,7 @@ pub(crate) fn column_exists(
     Ok(false)
 }
 
-/// Exécute un `ALTER TABLE ADD COLUMN` uniquement si la colonne est absente.
+/// Runs an `ALTER TABLE ADD COLUMN` only when the column is absent.
 pub(crate) fn add_column_if_missing(
     conn: &Connection,
     table: &str,

@@ -1,74 +1,74 @@
 //! Session replay.
 //!
-//! Stocke en mémoire (et, à terme, en SQLite `session_events (session_id, ts,
-//! kind, payload_json)`) les événements d'une session pour permettre un
-//! re-jeu chronologique dans le frontend (`SessionReplayControls.svelte`).
+//! Stores session events in memory (and eventually in the SQLite
+//! `session_events (session_id, ts, kind, payload_json)` table) so the frontend
+//! (`SessionReplayControls.svelte`) can replay them chronologically.
 //!
-//! Ce module expose :
-//! - [`SessionEvent`], une entrée horodatée catégorisée (tool/memory/hitl/a2a/error).
-//! - [`SessionEventKind`], l'enum des catégories affichées par le scrubber.
-//! - [`ReplayState`], l'état partagé avec le frontend (index, vitesse, lecture).
-//! - [`SessionEventLog`], un log append-only en mémoire, cloné par session.
+//! This module exposes:
+//! - [`SessionEvent`], a categorized timestamped entry (tool/memory/hitl/a2a/error).
+//! - [`SessionEventKind`], the enum of categories shown by the scrubber.
+//! - [`ReplayState`], the state shared with the frontend (index, speed, playback).
+//! - [`SessionEventLog`], an in-memory append-only log, cloned per session.
 //!
-//! Le câblage complet (EventBus → SessionEventLog → SQLite) est suivi dans une
-//! story ultérieure. Le contrat sérialisable ici est suffisant pour exercer
-//! l'UI via `commands::session_meta` avec des fixtures.
+//! Full wiring (EventBus to SessionEventLog to SQLite) is handled separately.
+//! The serializable contract here is enough to exercise the UI via
+//! `commands::session_meta` with fixtures.
 
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
-/// Catégorie d'événement affichée comme marqueur dans le scrubber global.
+/// Event category shown as a marker in the global scrubber.
 ///
-/// Le `correlation_id` porté par [`SessionEvent`] permet au frontend de
-/// réaliser le drill-down partagé (step_id pour A2A, tool_call_id pour tools,
-/// hitl_id pour les approbations).
+/// The `correlation_id` carried by [`SessionEvent`] lets the frontend perform
+/// the shared drill-down (step_id for A2A, tool_call_id for tools, hitl_id for
+/// approvals).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionEventKind {
-    /// Invocation d'outil (correlation_id = tool_call_id).
+    /// Tool invocation (correlation_id = tool_call_id).
     Tool,
-    /// Écriture/lecture mémoire.
+    /// Memory read/write.
     Memory,
-    /// Pause HITL (correlation_id = hitl_id).
+    /// HITL pause (correlation_id = hitl_id).
     Hitl,
-    /// Invocation A2A (correlation_id = step_id).
+    /// A2A invocation (correlation_id = step_id).
     A2a,
-    /// Erreur tool/LLM/runtime.
+    /// Tool/LLM/runtime error.
     Error,
 }
 
-/// Événement horodaté persisté pour le replay et le scrubber.
+/// Timestamped event persisted for replay and the scrubber.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionEvent {
     /// ISO-8601 UTC ("2026-04-20T12:34:56.789Z").
     pub ts: String,
-    /// Catégorie pour le filtrage/marqueurs.
+    /// Category for filtering and markers.
     pub kind: SessionEventKind,
-    /// Label court pour le tooltip (≤ 60 chars conseillés).
+    /// Short label for the tooltip (60 chars or fewer recommended).
     pub label: String,
-    /// Id partagé pour le drill-down (voir doc [`SessionEventKind`]).
+    /// Shared id for the drill-down (see [`SessionEventKind`] docs).
     #[serde(default)]
     pub correlation_id: Option<String>,
-    /// Payload sérialisé (détail brut cliquable dans le panneau).
+    /// Serialized payload (raw detail, clickable in the panel).
     #[serde(default)]
     pub payload_json: serde_json::Value,
 }
 
-/// État de lecture transmis au frontend pour contrôler `SessionReplayControls`.
+/// Playback state sent to the frontend to drive `SessionReplayControls`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplayState {
-    /// Index de l'événement courant (0-based).
+    /// Index of the current event (0-based).
     pub cursor: usize,
-    /// Nombre total d'événements du log.
+    /// Total number of events in the log.
     pub total: usize,
-    /// `true` si la lecture automatique est active.
+    /// `true` when automatic playback is active.
     pub playing: bool,
-    /// Multiplicateur de vitesse (1.0 / 2.0 / 5.0).
+    /// Speed multiplier (1.0 / 2.0 / 5.0).
     pub speed: f32,
 }
 
 impl ReplayState {
-    /// État initial : curseur à 0, en pause, vitesse 1x.
+    /// Initial state: cursor at 0, paused, speed 1x.
     pub fn initial(total: usize) -> Self {
         Self {
             cursor: 0,
@@ -79,23 +79,23 @@ impl ReplayState {
     }
 }
 
-/// Log append-only thread-safe des événements d'une session.
+/// Thread-safe append-only log of a session's events.
 ///
-/// Cloner le log partage le même stockage interne (Arc+Mutex). Les événements
-/// sont triés par horodatage à l'insertion, un `push` hors-ordre coûte un
-/// re-tri O(n log n), acceptable pour un flux ≤ quelques centaines d'events.
+/// Cloning the log shares the same internal storage (Arc+Mutex). Events are
+/// sorted by timestamp on insertion; an out-of-order `push` costs an O(n log n)
+/// re-sort, acceptable for a stream of at most a few hundred events.
 #[derive(Debug, Clone, Default)]
 pub struct SessionEventLog {
     inner: Arc<Mutex<Vec<SessionEvent>>>,
 }
 
 impl SessionEventLog {
-    /// Crée un log vide.
+    /// Creates an empty log.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Ajoute un événement. Re-trie si `ts` précède le dernier.
+    /// Adds an event. Re-sorts if `ts` precedes the last entry.
     pub fn push(&self, event: SessionEvent) {
         let mut guard = self.inner.lock().expect("SessionEventLog poisoned");
         let needs_sort = guard.last().map(|last| event.ts < last.ts).unwrap_or(false);
@@ -105,22 +105,22 @@ impl SessionEventLog {
         }
     }
 
-    /// Retourne une copie triée des événements.
+    /// Returns a sorted copy of the events.
     pub fn snapshot(&self) -> Vec<SessionEvent> {
         self.inner.lock().expect("SessionEventLog poisoned").clone()
     }
 
-    /// Nombre d'événements actuellement stockés.
+    /// Number of events currently stored.
     pub fn len(&self) -> usize {
         self.inner.lock().expect("SessionEventLog poisoned").len()
     }
 
-    /// `true` si aucun événement n'est stocké.
+    /// `true` when no event is stored.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Filtre les événements par catégorie (utile pour les marqueurs du scrubber).
+    /// Filters events by category (useful for scrubber markers).
     pub fn filter_kinds(&self, kinds: &[SessionEventKind]) -> Vec<SessionEvent> {
         self.snapshot()
             .into_iter()

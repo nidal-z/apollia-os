@@ -552,7 +552,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_config_defaults() {
-        // GIVEN ShutdownConfig par defaut
+        // GIVEN a default ShutdownConfig
         let config = ShutdownConfig::default();
 
         // THEN drain_timeout_secs = 30
@@ -561,7 +561,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_broadcasts_event() {
-        // GIVEN un ShutdownController avec un EventBus
+        // GIVEN a ShutdownController with an EventBus
         let (controller, event_sender, socket_path) = setup_env(MockBackend::instant()).await;
         let mut rx = event_sender.subscribe();
 
@@ -573,10 +573,10 @@ mod tests {
             }
         }
 
-        // WHEN shutdown() est appele
+        // WHEN shutdown() is called
         let _ = controller.shutdown().await;
 
-        // THEN ShutdownRequested est broadcast
+        // THEN ShutdownRequested is broadcast
         // Collect all events received
         let mut found_shutdown = false;
         loop {
@@ -598,7 +598,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drain_waits_for_tasks() {
-        // GIVEN une tache en cours qui termine en 200ms
+        // GIVEN an in-progress task that finishes in 200ms
         let (event_sender, _rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -695,10 +695,10 @@ mod tests {
             mcp_handle: None,
         });
 
-        // WHEN shutdown() est appele
+        // WHEN shutdown() is called
         let result = controller.shutdown().await;
 
-        // THEN drain retourne Ok (task completed within timeout)
+        // THEN drain returns Ok (task completed within timeout)
         assert!(result.is_ok(), "drain should succeed, got: {result:?}");
 
         let _ = std::fs::remove_file(&socket_path);
@@ -706,7 +706,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drain_timeout_cancels_tasks() {
-        // GIVEN une tache qui ne se termine jamais
+        // GIVEN a task that never completes
         let (event_sender, _rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
         let router_handle: TaskRouterHandle<NeverBackend> =
@@ -787,7 +787,7 @@ mod tests {
         let api_handle = api.start().await.unwrap();
         tokio::time::sleep(Duration::from_millis(20)).await;
 
-        // WHEN drain(1s) est appele (timeout court pour le test)
+        // WHEN drain(1s) is called (short timeout for the test)
         let config = ShutdownConfig {
             drain_timeout_secs: 1,
         };
@@ -803,7 +803,7 @@ mod tests {
 
         let result = controller.shutdown().await;
 
-        // THEN DrainTimeout est retourne
+        // THEN DrainTimeout is returned
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -822,7 +822,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_actors_stopped_in_reverse_order() {
-        // GIVEN tous les acteurs demarres
+        // GIVEN all actors started
         let (controller, event_sender, socket_path) = setup_env(MockBackend::instant()).await;
         let mut rx = event_sender.subscribe();
 
@@ -846,10 +846,10 @@ mod tests {
             }
         }
 
-        // WHEN stop_all() est appele via shutdown()
+        // WHEN stop_all() is called via shutdown()
         let _ = controller.shutdown().await;
 
-        // THEN l'agent est passe a Stopped (events emis)
+        // THEN the agent has transitioned to Stopped (events emitted)
         let mut found_agent_stopped = false;
         loop {
             match rx.try_recv() {
@@ -889,15 +889,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_no_tasks_completes_immediately() {
-        // GIVEN un runtime sans taches en cours
+        // GIVEN a runtime with no in-progress tasks
         let (controller, _event_sender, socket_path) = setup_env(MockBackend::instant()).await;
 
-        // WHEN shutdown() est appele
+        // WHEN shutdown() is called
         let start = tokio::time::Instant::now();
         let result = controller.shutdown().await;
         let elapsed = start.elapsed();
 
-        // THEN shutdown complete rapidement (pas d'attente de drain)
+        // THEN shutdown completes quickly (no drain wait)
         assert!(result.is_ok());
         assert!(
             elapsed < Duration::from_secs(1),
@@ -909,7 +909,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_agents_transitions_all_states() {
-        // GIVEN des agents dans differents etats
+        // GIVEN agents in different states
         let (event_sender, _rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -1015,9 +1015,9 @@ mod tests {
         // Small delay for actor message processing
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // THEN: Active and Initializing agents should now be Stopped
-        // (Registry might be dead after shutdown, so we verify via events)
-        // The fact that shutdown() completed without panicking validates the transitions
+        // THEN Active and Initializing agents should now be Stopped.
+        // The registry might be dead after shutdown, so we verify via events.
+        // The fact that shutdown() completed without panicking validates the transitions.
 
         let _ = std::fs::remove_file(&socket_path);
     }

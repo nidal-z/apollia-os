@@ -1,13 +1,13 @@
-//! Providers natifs de contexte workspace pour Apollia OS.
+//! Native workspace context providers for Apollia OS.
 //!
-//! Chaque provider implémente [`WorkspaceProvider`](apollia_core::workspace::WorkspaceProvider)
-//! et représente une source d'information indépendante :
+//! Each provider implements [`WorkspaceProvider`](apollia_core::workspace::WorkspaceProvider)
+//! and represents an independent information source:
 //!
-//! - [`GitProvider`] - branche, statut git, commits récents
-//! - [`RulesProvider`] - fichier de règles projet (APOLLIA.md ou custom)
-//! - [`TreeProvider`] - arborescence du répertoire courant
-//! - [`StyleProvider`] - conventions de code détectées via LLM (optionnel)
-//! - [`ScriptProvider`] - script shell produisant du JSON sur stdout
+//! - [`GitProvider`] - branch, git status, recent commits
+//! - [`RulesProvider`] - project rules file (APOLLIA.md or custom)
+//! - [`TreeProvider`] - tree of the current directory
+//! - [`StyleProvider`] - code conventions detected via LLM (optional)
+//! - [`ScriptProvider`] - shell script producing JSON on stdout
 
 pub mod git;
 pub mod rules;

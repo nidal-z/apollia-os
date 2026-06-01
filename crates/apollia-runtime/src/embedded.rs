@@ -28,44 +28,44 @@ use apollia_triggers::TriggerEngineHandle;
 
 /// Default timeout (in seconds) to wait for the Supervisor to emit `AllReady`.
 ///
-/// 300 s (5 min) accommodates large local models (70B–400B, multi-shard).
+/// 300 s (5 min) accommodates large local models (70B-400B, multi-shard).
 /// Override via `[runtime] startup_timeout_secs` in `apollia.toml`.
 const DEFAULT_STARTUP_TIMEOUT_SECS: u64 = 300;
 
-/// Handle vers le runtime embarqué, contenant tous les handles d'acteurs.
+/// Handle to the embedded runtime, holding every actor handle.
 ///
-/// Passé à Tauri via `manage()` pour être accessible dans les commandes IPC.
-/// Tous les champs sont `Clone + Send + Sync`. Les handles qui n'implémentent
-/// pas `Clone` nativement sont wrappés dans `Arc`.
+/// Passed to Tauri via `manage()` so it is reachable from IPC commands.
+/// All fields are `Clone + Send + Sync`. Handles that do not implement
+/// `Clone` natively are wrapped in `Arc`.
 #[derive(Clone)]
 pub struct RuntimeHandle {
-    /// Sender pour publier des événements sur l'EventBus.
+    /// Sender for publishing events on the EventBus.
     pub event_sender: EventBusSender,
-    /// Handle vers l'AgentRegistry.
+    /// Handle to the AgentRegistry.
     pub registry_handle: AgentRegistryHandle,
-    /// Handle vers le ToolRegistry.
+    /// Handle to the ToolRegistry.
     pub tool_registry_handle: ToolRegistryHandle,
-    /// Handle vers le TaskRouter.
+    /// Handle to the TaskRouter.
     pub router_handle: TaskRouterHandle<DynBackend>,
-    /// Handle vers l'APIServer (pour shutdown). Wrappé dans `Arc` car
-    /// `APIServerHandle` n'implémente pas `Clone` (watch::Sender interne).
+    /// Handle to the APIServer (for shutdown). Wrapped in `Arc` because
+    /// `APIServerHandle` does not implement `Clone` (internal watch::Sender).
     pub api_handle: Arc<APIServerHandle>,
-    /// Routeur LLM optionnel.
+    /// Optional LLM router.
     pub llm_router: Option<Arc<LlmRouter>>,
-    /// Handle vers le TriggerEngine.
+    /// Handle to the TriggerEngine.
     pub trigger_engine: TriggerEngineHandle,
-    /// Handle vers l'AuditTrail optionnel.
+    /// Optional handle to the AuditTrail.
     pub audit_trail: Option<AuditTrailHandle>,
-    /// Accès au TaskRepository pour lecture.
+    /// Read access to the TaskRepository.
     pub task_repository: Option<Arc<TaskRepository>>,
-    /// Approbations en attente.
+    /// Pending approvals.
     pub pending_approvals: Option<Arc<PendingApprovals>>,
-    /// Handle vers le NotificationEngine optionnel. Wrappé dans `Arc` car
-    /// `NotificationEngineHandle` n'implémente pas `Clone`.
+    /// Optional handle to the NotificationEngine. Wrapped in `Arc` because
+    /// `NotificationEngineHandle` does not implement `Clone`.
     pub notification_engine: Option<Arc<NotificationEngineHandle>>,
-    /// Repository des appels LLM, agrégation coûts/tokens.
+    /// LLM call repository, aggregates costs and tokens.
     ///
-    /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
+    /// `Some` when an `LlmRouter` is configured and `llm_calls.db` is open.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<apollia_llm::LlmCallRepository>>>,
     /// Handle to the [`ChatSessionManager`] actor.
     ///
@@ -95,24 +95,24 @@ pub struct RuntimeHandle {
     ///
     /// Separate connection for read operations. `None` when STT is disabled.
     pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
-    /// Repository des projets, gestion des contextes workspace par projet.
+    /// Project repository, manages per-project workspace contexts.
     ///
-    /// `Some` quand `projects.db` est ouvert avec succès au démarrage.
+    /// `Some` when `projects.db` opened successfully on startup.
     pub project_repository: Option<Arc<ProjectRepository>>,
-    /// Handle vers le MCP client manager.
+    /// Handle to the MCP client manager.
     ///
-    /// `Some` quand le supervisor a démarré le manager (toujours en v0.1.1+
-    /// même sans servers installés). Consommé par les agent runners pour
-    /// construire un `McpToolExecutor` par tool MCP enregistré et l'injecter
-    /// dans le ToolDispatcher de l'agent.
+    /// `Some` when the supervisor started the manager (always in v0.1.1+
+    /// even without servers installed). Consumed by the agent runners to
+    /// build one `McpToolExecutor` per registered MCP tool and inject it
+    /// into the agent's ToolDispatcher.
     pub mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
-    /// Configuration des outils natifs (web_search, web_read, disabled, http_allowlist).
+    /// Native tools configuration (web_search, web_read, disabled, http_allowlist).
     ///
-    /// Issue de la section `[tools]` de `apollia.toml` (ou défaut si absent).
-    /// Consommée par les agent runners pour configurer le `NativeDispatcherConfig`
-    /// et le merge des outils désactivés statiquement.
+    /// Comes from the `[tools]` section of `apollia.toml` (or default if absent).
+    /// Consumed by the agent runners to configure the `NativeDispatcherConfig`
+    /// and to merge in statically disabled tools.
     pub tools_config: apollia_core::ToolsConfig,
-    /// Port TCP de l'APIServer.
+    /// TCP port of the APIServer.
     pub api_port: u16,
     /// Supervisor of the local sidecar runner.
     ///
@@ -124,76 +124,75 @@ pub struct RuntimeHandle {
     pub runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
 }
 
-/// Erreur retournée par [`init_embedded()`].
+/// Error returned by [`init_embedded()`].
 #[derive(Debug, thiserror::Error)]
 pub enum EmbeddedError {
-    /// Le Supervisor a échoué au démarrage.
+    /// The Supervisor failed to start.
     #[error("supervisor startup failed: {0}")]
     SupervisorFailed(#[from] SupervisorError),
-    /// Timeout en attendant `AllReady`.
+    /// Timed out waiting for `AllReady`.
     #[error("runtime did not become ready within {0}s")]
     StartupTimeout(u64),
-    /// Le thread runtime a paniqué.
+    /// The runtime thread panicked.
     #[error("runtime thread panicked")]
     RuntimeThreadPanicked,
 }
 
-/// Configuration pour [`init_embedded()`].
+/// Configuration for [`init_embedded()`].
 ///
-/// Permet de surcharger le port TCP, le chemin du socket Unix, et les
-/// timeouts. Les valeurs par défaut correspondent au comportement standard
-/// de `apollia-os start`.
+/// Allows overriding the TCP port, the Unix socket path, and the timeouts.
+/// The default values match the standard behavior of `apollia-os start`.
 pub struct EmbeddedConfig {
-    /// Port TCP pour l'APIServer (défaut : 7771).
+    /// TCP port for the APIServer (default: 7771).
     pub tcp_port: u16,
-    /// Chemin du socket Unix (défaut : `/tmp/apollia.sock`).
+    /// Unix socket path (default: `/tmp/apollia.sock`).
     pub socket_path: PathBuf,
-    /// Répertoire de données du runtime (défaut : `~/.apollia/`).
+    /// Runtime data directory (default: `~/.apollia/`).
     pub data_dir: PathBuf,
-    /// Timeout de démarrage du Supervisor en secondes (défaut : 30).
+    /// Supervisor startup timeout in seconds (default: 30).
     pub startup_timeout_secs: u64,
-    /// Configuration d'observabilité.
+    /// Observability configuration.
     pub obs_config: ObservabilityConfig,
-    /// Agent loader pour charger les agents Python.
+    /// Agent loader used to load Python agents.
     pub agent_loader: Arc<dyn AgentLoader>,
-    /// Backend factory pour créer les backends d'exécution par agent.
+    /// Backend factory used to create per-agent execution backends.
     pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
-    /// Configuration LLM optionnelle parsée depuis `apollia.toml`.
+    /// Optional LLM configuration parsed from `apollia.toml`.
     pub llm_config: Option<apollia_llm::LlmConfig>,
-    /// Chemin du fichier `apollia.toml` chargé, requis pour le hot reload des triggers.
+    /// Path of the loaded `apollia.toml` file, required for trigger hot reload.
     pub config_path: Option<PathBuf>,
-    /// Repository des agents installés, requis pour l'auto-load au boot.
+    /// Repository of installed agents, required for auto-load at boot.
     pub agent_repository: Option<AgentRepository>,
-    /// Répertoire des agents bundled pour l'auto-install au premier boot.
+    /// Directory of bundled agents for auto-install on first boot.
     ///
-    /// Si `None` ou si `manifest.json` est absent, l'auto-install est ignoré.
+    /// If `None` or if `manifest.json` is absent, auto-install is skipped.
     pub bundled_agents_path: Option<PathBuf>,
     /// Chat Agent runner, enables Chat Agent mode in the ChatSessionManager.
     /// When `None`, Agent mode sessions will fail at message time.
     pub chat_agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
 
-    /// Configuration du runtime core (EventBus, mailbox).
+    /// Core runtime configuration (EventBus, mailbox).
     ///
-    /// Correspond à la section `[runtime]` dans `apollia.toml`.
-    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    /// Maps to the `[runtime]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
     pub runtime_config: RuntimeConfig,
 
-    /// Configuration Human-in-the-Loop (timeout HITL, scan interval).
+    /// Human-in-the-Loop configuration (HITL timeout, scan interval).
     ///
-    /// Correspond à la section `[hitl]` dans `apollia.toml`.
-    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    /// Maps to the `[hitl]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
     pub hitl_config: HitlConfig,
 
-    /// Configuration A2A (chain timeout).
+    /// A2A configuration (chain timeout).
     ///
-    /// Correspond à la section `[a2a]` dans `apollia.toml`.
-    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    /// Maps to the `[a2a]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
     pub a2a_config: A2AConfig,
 
-    /// Configuration des outils natifs (web_search, web_read, disabled).
+    /// Native tools configuration (web_search, web_read, disabled).
     ///
-    /// Correspond à la section `[tools]` dans `apollia.toml`.
-    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    /// Maps to the `[tools]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
     pub tools_config: apollia_core::ToolsConfig,
 }
 
@@ -224,11 +223,11 @@ impl Default for EmbeddedConfig {
 }
 
 impl EmbeddedConfig {
-    /// Applique toutes les sections parsables de `apollia.toml` à cette config.
+    /// Applies every parsable section of `apollia.toml` to this config.
     ///
-    /// Parse `[llm]`, `[runtime]`, `[hitl]`, `[a2a]`, et `[api]` en une seule passe.
-    /// Les erreurs de parsing sont ignorées silencieusement, le runtime démarre
-    /// avec les valeurs par défaut si une section est absente ou invalide.
+    /// Parses `[llm]`, `[runtime]`, `[hitl]`, `[a2a]`, and `[api]` in a single pass.
+    /// Parse errors are silently ignored: the runtime starts with default
+    /// values when a section is absent or invalid.
     pub fn apply_toml(mut self, content: &str) -> Self {
         #[derive(serde::Deserialize)]
         struct TomlSections {
@@ -269,18 +268,18 @@ impl EmbeddedConfig {
     }
 }
 
-/// Démarre le runtime Apollia en mode embarqué.
+/// Starts the Apollia runtime in embedded mode.
 ///
-/// Crée un thread dédié avec un Tokio runtime, démarre le Supervisor,
-/// attend l'événement `AllReady`, puis retourne un [`RuntimeHandle`].
+/// Spawns a dedicated thread with a Tokio runtime, starts the Supervisor,
+/// waits for the `AllReady` event, then returns a [`RuntimeHandle`].
 ///
-/// Le socket Unix reste actif pour permettre l'utilisation simultanée de la CLI.
+/// The Unix socket stays active so the CLI can be used concurrently.
 ///
 /// # Errors
 ///
-/// - [`EmbeddedError::SupervisorFailed`] si le Supervisor échoue au démarrage.
-/// - [`EmbeddedError::StartupTimeout`] si `AllReady` n'est pas reçu dans le délai.
-/// - [`EmbeddedError::RuntimeThreadPanicked`] si le thread runtime panique.
+/// - [`EmbeddedError::SupervisorFailed`] if the Supervisor fails to start.
+/// - [`EmbeddedError::StartupTimeout`] if `AllReady` is not received in time.
+/// - [`EmbeddedError::RuntimeThreadPanicked`] if the runtime thread panics.
 pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError> {
     let (result_tx, result_rx) = std::sync::mpsc::channel::<Result<RuntimeHandle, EmbeddedError>>();
     let startup_timeout_secs = config.startup_timeout_secs;

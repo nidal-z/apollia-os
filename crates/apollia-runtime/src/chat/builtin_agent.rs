@@ -1,8 +1,8 @@
 //! BuiltInChatAgent, Rust-native ReAct loop for Chat Libre mode.
 //!
-//! Implements the core reasoning loop: LLM → tool call → approval → result → LLM.
-//! Protected by [`StepBudget`] (Principle #7) and integrated with the HITL
-//! approval flow via [`PendingChatApprovals`].
+//! Implements the core reasoning loop: LLM, tool call, approval, result, LLM.
+//! Protected by [`StepBudget`] (the runtime step safeguard) and integrated with
+//! the HITL approval flow via [`PendingChatApprovals`].
 //!
 //! Uses `LlmRouter.stream()` for token-by-token streaming.
 //! Each token emits a `ChatToken` RuntimeEvent on the EventBus so the SSE
@@ -39,9 +39,7 @@ const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 /// Default number of recent messages in the sliding context window.
 pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 
-// ─────────────────────────────────────────────
-// NativeChatToolInvoker, production tool execution
-// ─────────────────────────────────────────────
+// NativeChatToolInvoker: production tool execution
 
 /// Parameters for attaching HITL filesystem support to a `NativeChatToolInvoker`.
 pub(crate) struct HitlInvokerParams {
@@ -58,20 +56,20 @@ pub(crate) struct HitlInvokerParams {
 /// Each tool invocation is fully async (no `block_in_place`).
 ///
 /// The sandbox root scopes all file operations to a specific directory.
-/// It is resolved once per session from the project's `workspace_path` (ADR-069).
+/// It is resolved once per session from the project's `workspace_path`.
 ///
 /// When HITL filesystem support is enabled (via [`NativeChatToolInvoker::with_hitl_support`]),
 /// write operations are classified by risk level before execution. Operations with
 /// `RiskLevel::Medium` or higher suspend the tool call and wait for user approval
 /// via `HitlFilesystemModal` in the desktop UI.
 pub struct NativeChatToolInvoker {
-    // ADR-096 Phase 4, the fields below used to back the hardcoded
-    // `invoke_*` fast path. With the convergence, all tools (including
-    // HITL-sensitive ones) flow through `fallback_dispatcher` and the
-    // executors carry their own per-session context. The fields are
-    // retained for backward compatibility with existing builder methods
-    // (`with_hitl_support`, `with_ask_user_support`, …); their values are
-    // ignored by `invoke()`. Will be removed in a follow-up refactor.
+    // The fields below used to back the hardcoded `invoke_*` fast path.
+    // After convergence, all tools (including HITL-sensitive ones) flow
+    // through `fallback_dispatcher` and the executors carry their own
+    // per-session context. The fields are retained for backward
+    // compatibility with existing builder methods (`with_hitl_support`,
+    // `with_ask_user_support`, etc.); their values are ignored by
+    // `invoke()`. To be removed in a follow-up refactor.
     #[allow(
         dead_code,
         reason = "ADR-096 P4 back-compat field, written by with_hitl_support/with_ask_user_support, removed in the follow-up invoker refactor"
@@ -123,7 +121,7 @@ pub struct NativeChatToolInvoker {
     /// any provider-specific [`ToolInvoker`] (e.g.
     /// `GoogleChatToolInvoker`). This is the convergence path that
     /// replaces the per-family special-case fields previously bolted on
-    /// the invoker (cf. ADR-098).
+    /// the invoker.
     fallback_dispatcher: Option<Arc<dyn ToolInvoker>>,
 }
 
@@ -222,7 +220,7 @@ impl NativeChatToolInvoker {
     /// Returns `Err(String)` with a human-readable reason if denied.
     /// Awaits user decision if the operation is Medium or above and not in allow rules.
     ///
-    /// ADR-096 Phase 4, superseded by [`crate::chat::native_wrappers::HitlFilesystemGuard`].
+    /// Superseded by [`crate::chat::native_wrappers::HitlFilesystemGuard`].
     #[allow(
         dead_code,
         reason = "ADR-096 P4, kept as the reference implementation behind the invoke_* methods listed below until they are deleted"
@@ -242,12 +240,12 @@ impl NativeChatToolInvoker {
             &self.risk_config,
         );
 
-        // Safe and Low → no friction needed.
+        // Safe and Low: no friction needed.
         if level < RiskLevel::Medium {
             return Ok(());
         }
 
-        // Check session allow rules (AC-5).
+        // Check session allow rules.
         let rule_key = format!("{}:{}", op.as_str(), level.as_str());
         if let Some(ref rules) = self.fs_allow_rules {
             let guard = rules.lock().expect("fs_allow_rules lock poisoned");
@@ -256,7 +254,7 @@ impl NativeChatToolInvoker {
             }
         }
 
-        // No pending store → fallback approve (invoker running without HITL support).
+        // No pending store: fall back to approve (invoker running without HITL support).
         let (event_bus, pending_fs, session_id) = match (
             self.event_bus.as_ref(),
             self.pending_fs.as_ref(),
@@ -346,10 +344,10 @@ impl NativeChatToolInvoker {
         .to_string())
     }
 
-    // `file_read` migrated to the shared ToolDispatcher (ADR-096 Phase 2) -
-    // the executor is registered by `chat::manager::resolve_workspace_for_session`
-    // and reached via `fallback_dispatcher`. No HITL inline → safe to leave
-    // the dispatcher's permission engine in charge.
+    // `file_read` migrated to the shared ToolDispatcher: the executor is
+    // registered by `chat::manager::resolve_workspace_for_session` and
+    // reached via `fallback_dispatcher`. No inline HITL, so the
+    // dispatcher's permission engine stays in charge.
 
     /// Execute `file_write` with the given JSON arguments.
     #[allow(
@@ -401,7 +399,7 @@ impl NativeChatToolInvoker {
         Ok(serde_json::json!({"written": true}).to_string())
     }
 
-    // `file_list` migrated, see Phase 2 ADR-096. Reached via fallback dispatcher.
+    // `file_list` migrated to the shared dispatcher. Reached via fallback dispatcher.
 
     /// Execute `file_edit` with the given JSON arguments.
     #[allow(
@@ -443,7 +441,7 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 
-    // `file_glob` + `file_grep` migrated, see Phase 2 ADR-096.
+    // `file_glob` + `file_grep` migrated to the shared dispatcher.
     // Both reached via fallback dispatcher.
 
     /// Execute `http_fetch` with the given JSON arguments.
@@ -520,8 +518,8 @@ impl NativeChatToolInvoker {
     /// Execute `memory_search` with the given JSON arguments.
     ///
     /// Searches the user's local memory store (`~/.apollia/memory/user.db`) using
-    /// FTS5 full-text search. The namespace is fixed to `"user"` in chat libre mode
-    ///, agents have their own namespaced databases.
+    /// FTS5 full-text search. The namespace is fixed to `"user"` in chat libre mode;
+    /// agents have their own namespaced databases.
     #[allow(
         dead_code,
         reason = "ADR-096 P4, replaced by MemorySearchTool with per-session namespace via fallback_dispatcher"
@@ -541,7 +539,7 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 
-    // `notebook_read` migrated, see Phase 2 ADR-096.
+    // `notebook_read` migrated to the shared dispatcher.
 
     /// Execute `notebook_edit` with the given JSON arguments.
     ///
@@ -588,11 +586,11 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&result).map_err(|e| format!("ask_user serialization: {e}"))
     }
 
-    // `web_search` + `web_read` migrated to the shared ToolDispatcher in
-    // ADR-096 Phase 3, see `chat::manager::resolve_workspace_for_session`
-    // for the executor wiring. The dispatcher reads the operator's Brave
-    // key + `apollia.toml` web cfg, so Chat Libre, Agent mode and Triggers
-    // now share the same backend priority and SSRF settings.
+    // `web_search` + `web_read` migrated to the shared ToolDispatcher; see
+    // `chat::manager::resolve_workspace_for_session` for the executor
+    // wiring. The dispatcher reads the operator's Brave key + `apollia.toml`
+    // web cfg, so Chat Libre, Agent mode and Triggers now share the same
+    // backend priority and SSRF settings.
 }
 
 #[async_trait::async_trait]
@@ -602,11 +600,11 @@ impl ToolInvoker for NativeChatToolInvoker {
         tool_name: &str,
         arguments: &serde_json::Value,
     ) -> Result<String, String> {
-        // ADR-096 Phase 4, full convergence. Every native goes through
-        // the `fallback_dispatcher`: HITL-sensitive ones wrapped in
+        // Full convergence: every native tool goes through the
+        // `fallback_dispatcher`. HITL-sensitive ones are wrapped in
         // `HitlFilesystemGuard`, `http_fetch` via `DynamicAllowlistHttpFetch`,
         // everything else as stock executors. No fast path, no special
-        // cases, single permission engine + audit trail path across
+        // cases, a single permission engine + audit trail path across
         // Chat Libre / Chat Agent / Triggers.
         match self.fallback_dispatcher.as_ref() {
             Some(invoker) => invoker.invoke(tool_name, arguments).await,
@@ -722,13 +720,13 @@ pub struct BuiltInChatAgentDeps {
 /// Rust-native chat agent implementing a ReAct loop for Chat Libre mode.
 ///
 /// Stateless, all mutable state is passed as parameters to [`execute`](Self::execute).
-/// Tool execution is delegated to a [`ToolInvoker`] (ADR-015 pattern).
+/// Tool execution is delegated to a [`ToolInvoker`].
 pub struct BuiltInChatAgent {
     /// LLM router for completion calls.
     llm_router: Arc<LlmRouter>,
     /// Tool registry for resolving tool descriptors into LLM-compatible specs.
     tool_registry: ToolRegistryHandle,
-    /// Tool invoker for actual tool execution (ADR-015).
+    /// Tool invoker for actual tool execution.
     tool_invoker: Arc<dyn ToolInvoker>,
     /// Event bus for emitting chat lifecycle events.
     event_bus: EventBusSender,
@@ -736,8 +734,8 @@ pub struct BuiltInChatAgent {
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Optional A2A invoker for discovering worker agent skills as virtual tools.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Gestionnaire de fenêtre de contexte, compacte `llm_messages` dans la boucle ReAct
-    /// quand les messages accumulés dépassent le seuil de la fenêtre du modèle.
+    /// Context window manager: compacts `llm_messages` inside the ReAct loop
+    /// when accumulated messages exceed the model's window threshold.
     context_manager: ContextManager,
     /// Optional handle to the `MetaLlmOrchestrator`, used to produce the
     /// `ToolCallRationale` narrated before each tool execution.
@@ -821,8 +819,8 @@ impl BuiltInChatAgent {
         self
     }
 
-    /// Attache un `MetaOrchestratorHandle` pour générer les `ToolCallRationale`
-    ///. Noop si `None`.
+    /// Attach a `MetaOrchestratorHandle` to generate `ToolCallRationale`s.
+    /// No-op when `None`.
     pub fn with_meta_handle(mut self, handle: Option<MetaOrchestratorHandle>) -> Self {
         self.meta_handle = handle;
         self
@@ -830,8 +828,8 @@ impl BuiltInChatAgent {
 
     /// Build the effective system prompt with optional user memory injection.
     ///
-    /// Prepends the authoritative temporal/environment block (ADR-096 Step 0)
-    /// at the **top** of the prompt so the LLM treats current date + time +
+    /// Prepends the authoritative temporal/environment block at the **top**
+    /// of the prompt so the LLM treats current date + time +
     /// timezone as ground truth, not as one fact among its priors. Then
     /// appends the user persona block when configured.
     pub fn build_system_prompt(&self, base_prompt: &str) -> String {
@@ -863,7 +861,7 @@ impl BuiltInChatAgent {
         prompt
     }
 
-    /// Execute a complete exchange: user message → LLM stream → tool calls → response.
+    /// Execute a complete exchange: user message, LLM stream, tool calls, response.
     ///
     /// Uses `LlmRouter.stream()` to produce tokens one by one, emitting a
     /// [`RuntimeEvent::ChatToken`] for each token received. The ReAct loop
@@ -929,7 +927,7 @@ impl BuiltInChatAgent {
         let mut reasoning_fragments: Vec<String> = Vec::new();
 
         loop {
-            // Principle #7, budget check before every LLM call
+            // Step safeguard: budget check before every LLM call
             if budget.is_exhausted() {
                 let reason = budget
                     .exhaustion_reason()
@@ -1422,8 +1420,8 @@ impl BuiltInChatAgent {
             return Some(analysis);
         }
 
-        // Success path: only flag if heuristic fires (no schema validators
-        // wired up yet, that comes with / per-tool registry).
+        // Success path: only flag if the heuristic fires (no schema
+        // validators are wired up yet; those come with the per-tool registry).
         let report = detect_hallucination(output, None);
         if report.is_suspect() {
             Some(analysis_from_report(&report, output))
@@ -1596,9 +1594,9 @@ impl BuiltInChatAgent {
 
         let output_preview = truncate_preview(&output);
 
-        // ── Static analysis (always-on) ─────────────────────────────────────
-        // Always-on : run the static error classifier (on failure) and the
-        // hallucination heuristic (on every output). Opt-in: when the
+        // Static analysis (always-on): run the static error classifier (on
+        // failure) and the hallucination heuristic (on every output).
+        // Opt-in: when the
         // analysis falls back to `Unknown`, ask the meta-LLM to humanise
         // the message via `MetaRoutine::GenerateErrorExplanation`.
         let analysis = self
@@ -1637,7 +1635,7 @@ impl BuiltInChatAgent {
 /// injected as a system message between the system prompt and the windowed
 /// history to preserve context from older messages.
 ///
-/// Message order: system prompt → [summary] → windowed history → user message.
+/// Message order: system prompt, [summary], windowed history, user message.
 fn build_llm_messages(
     system_prompt: &str,
     history: &[ChatMessage],
@@ -2986,7 +2984,7 @@ mod tests {
         let repo = UserMemoryRepository::new(&db_path).expect("open user memory db");
 
         // Categories from the legacy `(category, key, value)` test fixtures
-        // are ignored, storage is flat under ADR-087.
+        // are ignored; storage is flat.
         for (_category, key, value) in entries {
             repo.set(key, value, WrittenBy::User).expect("set entry");
         }
@@ -3020,8 +3018,8 @@ mod tests {
         let prompt = agent.build_system_prompt("Base prompt.");
 
         // THEN the prompt opens with the authoritative environment block
-        // (ADR-096 Step 0, temporal context now leads the prompt) and
-        // still carries the base prompt + user persona section.
+        // (temporal context now leads the prompt) and still carries the
+        // base prompt + user persona section.
         assert!(prompt.starts_with("## CURRENT ENVIRONMENT"));
         assert!(prompt.contains("Base prompt."));
         assert!(prompt.contains("## User Persona"));

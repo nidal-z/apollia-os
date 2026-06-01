@@ -9,12 +9,13 @@ use tokio::sync::Semaphore;
 
 use crate::eventbus::EventBusSender;
 
-/// Trait abstraisant le backend d'execution (ORIA ou mock pour les tests).
+/// Abstracts the execution backend (ORIA or a mock for tests).
 ///
-/// Suit le meme pattern que `ToolExecutor` (ADR-015) et `AgentRunner` (ADR-016) :
-/// un trait injectable pour decoupler le coordinateur du moteur d'execution concret.
+/// An injectable trait that decouples the coordinator from the concrete
+/// execution engine, mirroring the pattern used by `ToolExecutor` and
+/// `AgentRunner`.
 pub trait ExecutionBackend: Send + Sync + 'static {
-    /// Execute une tache et retourne le resultat.
+    /// Executes a task and returns its result.
     fn execute(
         &self,
         task: AIPTask,
@@ -47,45 +48,45 @@ impl ExecutionBackend for DynBackend {
     }
 }
 
-/// Erreurs du coordinateur d'execution.
+/// Errors from the execution coordinator.
 #[derive(Debug, thiserror::Error)]
 pub enum CoordinatorError {
-    /// Limite de concurrence atteinte pour cet agent.
+    /// Concurrency limit reached for this agent.
     #[error("concurrency limit reached for agent '{0}' (max_concurrent_tasks)")]
     ConcurrencyLimitReached(AgentId),
 
-    /// Echec de l'execution de la tache.
+    /// Task execution failed.
     #[error("execution failed: {0}")]
     ExecutionFailed(String),
 }
 
-/// Coordinateur d'execution pour un agent actif.
+/// Execution coordinator for one active agent.
 ///
-/// Gere la concurrence des taches via un semaphore Tokio.
-/// Un coordinateur est cree par agent actif et possede son propre semaphore.
-/// Persiste les donnees d'observabilite (input/output/transitions/duration)
-/// dans le [`TaskRepository`] si disponible.
+/// Manages task concurrency through a Tokio semaphore. One coordinator is
+/// created per active agent and owns its own semaphore. When a
+/// [`TaskRepository`] is available, it persists observability data
+/// (input, output, transitions, duration).
 pub struct ExecutionCoordinator<B: ExecutionBackend> {
     agent_id: AgentId,
-    /// Nom humain de l'agent (manifest.name), persisté dans la DB d'observabilité.
+    /// Human-readable agent name (manifest.name), persisted in the observability database.
     agent_name: String,
     concurrency: Arc<Semaphore>,
     event_bus: EventBusSender,
     backend: Arc<B>,
-    /// Repository SQLite pour la persistance d'observabilité, `None` en tests.
+    /// SQLite repository for observability persistence, `None` in tests.
     task_repo: Option<Arc<TaskRepository>>,
-    /// Configuration de troncature pour l'observabilité.
+    /// Truncation configuration for observability.
     obs_config: ObservabilityConfig,
 }
 
 impl<B: ExecutionBackend> ExecutionCoordinator<B> {
-    /// Cree un nouveau coordinateur pour l'agent donne.
+    /// Creates a new coordinator for the given agent.
     ///
     /// # Arguments
-    /// - `agent_id` : identifiant de l'agent
-    /// - `max_concurrent` : nombre maximal de taches en parallele (defaut: 1)
-    /// - `event_bus` : canal d'emission des evenements runtime
-    /// - `backend` : backend d'execution (ORIA ou mock)
+    /// - `agent_id`: agent identifier
+    /// - `max_concurrent`: maximum number of tasks running in parallel (default: 1)
+    /// - `event_bus`: channel for emitting runtime events
+    /// - `backend`: execution backend (ORIA or mock)
     pub fn new(
         agent_id: AgentId,
         max_concurrent: u32,
@@ -103,10 +104,10 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
         }
     }
 
-    /// Configure le repository d'observabilité pour la persistance des données de tâche.
+    /// Sets the observability repository used to persist task data.
     ///
-    /// Quand configuré, le coordinateur persiste automatiquement l'input, l'output,
-    /// les transitions d'état et la durée de chaque tâche.
+    /// When configured, the coordinator automatically persists the input,
+    /// output, state transitions, and duration of each task.
     pub fn with_task_repository(
         mut self,
         repo: Arc<TaskRepository>,
@@ -117,23 +118,23 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
         self
     }
 
-    /// Configure le nom humain de l'agent (manifest.name).
+    /// Sets the human-readable agent name (manifest.name).
     ///
-    /// Persisté dans la colonne `agent_name` de la table `tasks` pour
-    /// permettre l'affichage de l'historique après un redémarrage du runtime.
+    /// Persisted in the `agent_name` column of the `tasks` table so history
+    /// can still be displayed after a runtime restart.
     pub fn with_agent_name(mut self, name: String) -> Self {
         self.agent_name = name;
         self
     }
 
-    /// Soumet une tache pour execution.
+    /// Submits a task for execution.
     ///
-    /// Tente d'acquerir un permit sur le semaphore :
-    /// - Si obtenu : spawne une tache Tokio, emet `TaskStarted`, retourne `JoinHandle`
-    /// - Si semaphore plein : retourne `ConcurrencyLimitReached`
+    /// Tries to acquire a semaphore permit:
+    /// - On success: spawns a Tokio task, emits `TaskStarted`, returns a `JoinHandle`
+    /// - When the semaphore is full: returns `ConcurrencyLimitReached`
     ///
-    /// Le permit est libere automatiquement quand la tache spawnee termine
-    /// (via drop du `OwnedSemaphorePermit` dans la closure).
+    /// The permit is released automatically when the spawned task finishes
+    /// (the `OwnedSemaphorePermit` is dropped inside the closure).
     pub fn submit_task(
         &self,
         task: AIPTask,
@@ -151,7 +152,7 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             backend: Arc::clone(&self.backend),
             task_repo: self.task_repo.clone(),
             obs_config: self.obs_config.clone(),
-            // Extraire le texte de l'input pour la persistance d'observabilité.
+            // Extract the input text for observability persistence.
             input_text: aip_input_to_text(&task.input),
             task,
         };
@@ -161,13 +162,13 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
         Ok(handle)
     }
 
-    /// Retourne le nombre de permits disponibles (taches pouvant etre acceptees).
+    /// Returns the number of available permits (tasks that can still be accepted).
     pub fn available_permits(&self) -> usize {
         self.concurrency.available_permits()
     }
 }
 
-/// Contexte capturé pour l'exécution d'une tâche soumise dans la task Tokio.
+/// Context captured to run a submitted task inside the spawned Tokio task.
 struct SubmittedTaskCtx<B: ExecutionBackend> {
     agent_id: AgentId,
     agent_name_for_db: String,
@@ -180,15 +181,15 @@ struct SubmittedTaskCtx<B: ExecutionBackend> {
     task: AIPTask,
 }
 
-/// Exécute une tâche soumise : persistance d'observabilité, émission des
-/// événements de cycle de vie, et exécution via le backend.
+/// Runs a submitted task: observability persistence, lifecycle event
+/// emission, and execution through the backend.
 ///
-/// Le `permit` est consommé ici et libéré au drop quand la fonction termine.
+/// The `permit` is consumed here and released on drop when the function ends.
 async fn run_submitted_task<B: ExecutionBackend>(
     ctx: SubmittedTaskCtx<B>,
     permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<AIPResult, CoordinatorError> {
-    // Le permit est move dans la fonction, libere au drop.
+    // The permit is moved into the function and released on drop.
     let _permit = permit;
 
     let SubmittedTaskCtx {
@@ -205,7 +206,7 @@ async fn run_submitted_task<B: ExecutionBackend>(
 
     let started_at = Instant::now();
 
-    // Persistance observabilité : input + agent_name + transition "submitted"
+    // Observability: persist input, agent_name, and the "submitted" transition.
     persist_submission(
         task_repo.as_deref(),
         &task_id,
@@ -215,13 +216,12 @@ async fn run_submitted_task<B: ExecutionBackend>(
     )
     .await;
 
-    // Emettre TaskStarted
     let _ = event_bus.send(RuntimeEvent::TaskStarted {
         agent_id: agent_id.clone(),
         task_id: task_id.clone(),
     });
 
-    // Persistance observabilité : transition "running"
+    // Observability: persist the "running" transition.
     if let Some(repo) = task_repo.as_deref() {
         if let Err(e) = repo
             .append_transition(task_id.as_str(), "running", &now_rfc3339())
@@ -231,7 +231,6 @@ async fn run_submitted_task<B: ExecutionBackend>(
         }
     }
 
-    // Executer via le backend
     let result = backend.execute(task).await;
 
     let elapsed_ms = started_at.elapsed().as_millis() as i64;
@@ -239,7 +238,7 @@ async fn run_submitted_task<B: ExecutionBackend>(
     let is_success = task_is_success(&result, &agent_id, &task_id);
     let output = build_output_text(&result);
 
-    // Persistance observabilité : output + transition terminale + durée
+    // Observability: persist output, the terminal transition, and duration.
     persist_completion(CompletionRecord {
         repo: task_repo.as_deref(),
         task_id: &task_id,
@@ -260,7 +259,7 @@ async fn run_submitted_task<B: ExecutionBackend>(
     result.map_err(CoordinatorError::ExecutionFailed)
 }
 
-/// Persiste l'input, le nom d'agent et la transition "submitted".
+/// Persists the input, the agent name, and the "submitted" transition.
 async fn persist_submission(
     repo: Option<&TaskRepository>,
     task_id: &TaskId,
@@ -285,7 +284,7 @@ async fn persist_submission(
     }
 }
 
-/// Inputs pour [`persist_completion`].
+/// Inputs for [`persist_completion`].
 struct CompletionRecord<'a> {
     repo: Option<&'a TaskRepository>,
     task_id: &'a TaskId,
@@ -295,7 +294,7 @@ struct CompletionRecord<'a> {
     obs_config: &'a ObservabilityConfig,
 }
 
-/// Persiste l'output, la transition terminale et la durée.
+/// Persists the output, the terminal transition, and the duration.
 async fn persist_completion(record: CompletionRecord<'_>) {
     let CompletionRecord {
         repo,
@@ -327,11 +326,12 @@ async fn persist_completion(record: CompletionRecord<'_>) {
     }
 }
 
-/// Détermine si la tâche a réussi.
+/// Determines whether the task succeeded.
 ///
-/// `is_success` doit refléter le statut côté Python, pas seulement la réussite
-/// de l'appel Rust. Un `Ok(AIPResult { status: Failed, .. })` signifie que
-/// l'agent a explicitement signalé un échec et doit propager `success=false`.
+/// `is_success` must reflect the status reported on the Python side, not just
+/// the success of the Rust call. An `Ok(AIPResult { status: Failed, .. })`
+/// means the agent explicitly signaled a failure and must propagate
+/// `success=false`.
 fn task_is_success(
     result: &Result<AIPResult, String>,
     agent_id: &AgentId,
@@ -351,10 +351,10 @@ fn task_is_success(
     }
 }
 
-/// Construit le texte d'output persisté/émis pour la tâche.
+/// Builds the output text persisted and emitted for the task.
 ///
-/// Pour `Err`, on remonte la chaîne d'erreur. Pour `Ok(failed)`, on inclut le
-/// code/message/details du worker afin de surfacer la cause réelle.
+/// For `Err`, the error string is surfaced. For `Ok(failed)`, the worker's
+/// code, message, and details are included so the real cause is visible.
 fn build_output_text(result: &Result<AIPResult, String>) -> Option<String> {
     match result {
         Ok(aip_result) => {
@@ -399,7 +399,7 @@ fn aip_input_to_text(input: &apollia_core::AIPInput) -> String {
         .join(" ")
 }
 
-/// Retourne l'instant courant formaté RFC 3339 sans dépendance chrono.
+/// Returns the current instant formatted as RFC 3339, without a chrono dependency.
 fn now_rfc3339() -> String {
     let now = std::time::SystemTime::now();
     let duration = now
@@ -412,7 +412,7 @@ fn now_rfc3339() -> String {
     let minutes = (time_secs % 3600) / 60;
     let seconds = time_secs % 60;
 
-    // Calcul de la date à partir de l'epoch (algorithme civil)
+    // Date from epoch days using the civil-from-days algorithm.
     let z = days + 719468;
     let era = z / 146097;
     let doe = z - era * 146097;
@@ -485,10 +485,10 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use tokio::sync::broadcast;
 
-    /// Backend mock qui retourne un resultat configurable.
+    /// Mock backend returning a configurable result.
     struct MockBackend {
         should_fail: AtomicBool,
-        /// Duree d'attente simulee avant de retourner le resultat.
+        /// Simulated wait before returning the result.
         delay: std::time::Duration,
     }
 
@@ -556,14 +556,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_task_returns_join_handle() {
-        // GIVEN un coordinator avec max_concurrent=1
+        // GIVEN a coordinator with max_concurrent=1
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
         let coord = ExecutionCoordinator::new("agent-1".into(), 1, tx, MockBackend::success());
 
-        // WHEN on soumet une tache
+        // WHEN a task is submitted
         let handle = coord.submit_task(make_task("task-1"));
 
-        // THEN submit_task retourne Ok(JoinHandle)
+        // THEN submit_task returns Ok(JoinHandle)
         assert!(handle.is_ok());
         let result = handle.unwrap().await.expect("join failed");
         assert!(result.is_ok());
@@ -572,7 +572,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrency_limit_sequential() {
-        // GIVEN un coordinator avec max_concurrent=1
+        // GIVEN a coordinator with max_concurrent=1
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
         let coord = ExecutionCoordinator::new(
             "agent-1".into(),
@@ -581,15 +581,15 @@ mod tests {
             MockBackend::success_with_delay(std::time::Duration::from_millis(200)),
         );
 
-        // AND une tache deja en cours d'execution
+        // AND a task already running
         let _handle1 = coord
             .submit_task(make_task("task-1"))
             .expect("first submit should succeed");
 
-        // WHEN on soumet une deuxieme tache
+        // WHEN a second task is submitted
         let result = coord.submit_task(make_task("task-2"));
 
-        // THEN retourne ConcurrencyLimitReached
+        // THEN it returns ConcurrencyLimitReached
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -600,7 +600,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrency_limit_parallel() {
-        // GIVEN un coordinator avec max_concurrent=3
+        // GIVEN a coordinator with max_concurrent=3
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
         let coord = ExecutionCoordinator::new(
             "agent-1".into(),
@@ -609,17 +609,17 @@ mod tests {
             MockBackend::success_with_delay(std::time::Duration::from_millis(200)),
         );
 
-        // WHEN on soumet 3 taches simultanement
+        // WHEN 3 tasks are submitted at once
         let h1 = coord.submit_task(make_task("task-1"));
         let h2 = coord.submit_task(make_task("task-2"));
         let h3 = coord.submit_task(make_task("task-3"));
 
-        // THEN toutes sont acceptees
+        // THEN all are accepted
         assert!(h1.is_ok());
         assert!(h2.is_ok());
         assert!(h3.is_ok());
 
-        // AND une 4eme retourne ConcurrencyLimitReached
+        // AND a 4th returns ConcurrencyLimitReached
         let h4 = coord.submit_task(make_task("task-4"));
         assert!(h4.is_err());
         assert!(matches!(
@@ -630,11 +630,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_task_started_event_emitted() {
-        // GIVEN un coordinator et un receiver sur l'EventBus
+        // GIVEN a coordinator and a receiver on the EventBus
         let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(64);
         let coord = ExecutionCoordinator::new("agent-1".into(), 1, tx, MockBackend::success());
 
-        // WHEN on soumet une tache
+        // WHEN a task is submitted
         let handle = coord
             .submit_task(make_task("task-42"))
             .expect("submit should succeed");
@@ -643,7 +643,7 @@ mod tests {
             .expect("join failed")
             .expect("execution failed");
 
-        // THEN un RuntimeEvent::TaskStarted est recu avec le bon agent_id et task_id
+        // THEN a RuntimeEvent::TaskStarted is received with the right agent_id and task_id
         let event = rx.recv().await.expect("should receive TaskStarted");
         assert!(
             matches!(&event, RuntimeEvent::TaskStarted { agent_id, task_id }
@@ -654,11 +654,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_task_completed_event_emitted() {
-        // GIVEN un coordinator et un receiver sur l'EventBus
+        // GIVEN a coordinator and a receiver on the EventBus
         let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(64);
         let coord = ExecutionCoordinator::new("agent-1".into(), 1, tx, MockBackend::success());
 
-        // WHEN une tache termine (succes)
+        // WHEN a task finishes (success)
         let handle = coord
             .submit_task(make_task("task-99"))
             .expect("submit should succeed");
@@ -667,7 +667,7 @@ mod tests {
             .expect("join failed")
             .expect("execution failed");
 
-        // THEN un RuntimeEvent::TaskCompleted est recu avec success=true
+        // THEN a RuntimeEvent::TaskCompleted is received with success=true
         // (skip TaskStarted first)
         let _started = rx.recv().await.expect("should receive TaskStarted");
         let completed = rx.recv().await.expect("should receive TaskCompleted");
@@ -680,21 +680,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_permit_released_on_failure() {
-        // GIVEN un coordinator avec max_concurrent=1
+        // GIVEN a coordinator with max_concurrent=1
         let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(64);
         let coord = ExecutionCoordinator::new("agent-1".into(), 1, tx, MockBackend::failing());
 
-        // AND une tache qui echoue
+        // AND a task that fails
         let handle = coord
             .submit_task(make_task("task-fail"))
             .expect("submit should succeed");
         let result = handle.await.expect("join failed");
         assert!(result.is_err(), "execution should have failed");
 
-        // THEN available_permits() == 1 (permit libere)
+        // THEN available_permits() == 1 (permit released)
         assert_eq!(coord.available_permits(), 1);
 
-        // AND on peut soumettre une nouvelle tache
+        // AND a new task can be submitted
         let handle2 = coord.submit_task(make_task("task-retry"));
         assert!(handle2.is_ok(), "should be able to submit after failure");
 

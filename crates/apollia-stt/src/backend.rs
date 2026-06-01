@@ -1,34 +1,34 @@
-//! Trait [`SttBackend`] - interface commune pour tous les moteurs STT.
+//! Trait [`SttBackend`]: common interface for all STT engines.
 //!
-//! Le trait est **object-safe** (`Box<dyn SttBackend>`) et **synchrone** :
-//! l'appelant est responsable de wrapper les appels dans `spawn_blocking`
-//! pour ne pas bloquer le runtime Tokio.
+//! The trait is **object-safe** (`Box<dyn SttBackend>`) and **synchronous**:
+//! the caller is responsible for wrapping calls in `spawn_blocking`
+//! so the Tokio runtime is not blocked.
 
 use crate::types::{SttError, TranscriptResult};
 
-/// Interface commune pour les backends de transcription audio.
+/// Common interface for audio transcription backends.
 ///
-/// Implémenté par chaque moteur STT (whisper.cpp, candle-whisper, etc.).
-/// Le trait est `Send + Sync` pour permettre l'utilisation derrière un `Arc`
-/// et le passage entre tâches Tokio via `spawn_blocking`.
+/// Implemented by each STT engine (whisper.cpp, candle-whisper, etc.).
+/// The trait is `Send + Sync` so it can be used behind an `Arc`
+/// and passed between Tokio tasks via `spawn_blocking`.
 ///
-/// Les méthodes sont **synchrones** : l'inférence STT est CPU/GPU-bound,
-/// l'appelant utilise `tokio::task::spawn_blocking` pour l'exécuter.
+/// The methods are **synchronous**: STT inference is CPU/GPU-bound, so the
+/// caller runs them through `tokio::task::spawn_blocking`.
 pub trait SttBackend: Send + Sync {
-    /// Nom lisible du backend (ex: `"whisper-cpp"`, `"candle-whisper"`).
+    /// Human-readable backend name (e.g. `"whisper-cpp"`, `"candle-whisper"`).
     fn name(&self) -> &str;
 
-    /// Transcrit un buffer audio PCM f32 mono.
+    /// Transcribes a mono f32 PCM audio buffer.
     ///
     /// # Arguments
     ///
-    /// * `audio` - Échantillons PCM f32 normalisés [-1.0, 1.0], mono.
-    /// * `sample_rate` - Fréquence d'échantillonnage en Hz (typiquement 16000).
-    /// * `language_hint` - Code langue ISO 639-1 optionnel (ex: `"fr"`, `"en"`).
+    /// * `audio` - f32 PCM samples normalized to [-1.0, 1.0], mono.
+    /// * `sample_rate` - Sample rate in Hz (typically 16000).
+    /// * `language_hint` - Optional ISO 639-1 language code (e.g. `"fr"`, `"en"`).
     ///
-    /// # Erreurs
+    /// # Errors
     ///
-    /// Retourne [`SttError`] si la transcription échoue.
+    /// Returns [`SttError`] if transcription fails.
     fn transcribe(
         &self,
         audio: &[f32],
@@ -36,18 +36,18 @@ pub trait SttBackend: Send + Sync {
         language_hint: Option<&str>,
     ) -> Result<TranscriptResult, SttError>;
 
-    /// Détecte la langue dominante dans un buffer audio.
+    /// Detects the dominant language in an audio buffer.
     ///
-    /// Implémentation par défaut : retourne `Ok(None)` (détection non supportée).
-    /// Les backends qui supportent la détection de langue overrident cette méthode.
+    /// Default implementation: returns `Ok(None)` (detection unsupported).
+    /// Backends that support language detection override this method.
     fn detect_language(&self, audio: &[f32]) -> Result<Option<String>, SttError> {
         let _ = audio;
         Ok(None)
     }
 
-    /// Libère les ressources du backend (modèle GPU, mémoire, etc.).
+    /// Releases the backend's resources (GPU model, memory, etc.).
     ///
-    /// Implémentation par défaut : no-op. Les backends avec des ressources lourdes
-    /// (GPU memory, mmap) overrident cette méthode.
+    /// Default implementation: no-op. Backends holding heavy resources
+    /// (GPU memory, mmap) override this method.
     fn unload(&self) {}
 }

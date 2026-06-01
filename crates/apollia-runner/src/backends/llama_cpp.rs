@@ -37,30 +37,30 @@ const DEFAULT_TOP_K: i32 = 40;
 /// Lower bound on `n_ctx` so a short prompt still has working headroom.
 const MIN_CTX_SIZE: u32 = 1024;
 
-/// Entrée d'un modèle chargé en VRAM/RAM.
+/// Entry for a model loaded into VRAM/RAM.
 struct LoadedModel {
-    /// Modèle llama.cpp prêt à servir.
+    /// llama.cpp model ready to serve.
     model: Arc<LlamaModel>,
-    /// Backend llama.cpp partagé entre tous les modèles (singleton).
+    /// llama.cpp backend shared across all models (singleton).
     backend: Arc<LlamaBackend>,
-    /// `n_ctx` configuré au chargement (informatif, repris dans la réponse).
+    /// `n_ctx` set at load time (informational, echoed in the response).
     context_size: u32,
-    /// Estimation grossière de la VRAM utilisée (taille du fichier en MiB).
+    /// Rough estimate of VRAM used (file size in MiB).
     memory_used_mb: u32,
 }
 
-// SAFETY: `LlamaModel` / `LlamaBackend` du crate llama-cpp-2 sont thread-safe ;
-// la création de `LlamaContext` est faite à chaque requête, jamais partagée.
+// SAFETY: `LlamaModel` / `LlamaBackend` from the llama-cpp-2 crate are
+// thread-safe; `LlamaContext` is created per request and never shared.
 unsafe impl Send for LoadedModel {}
 unsafe impl Sync for LoadedModel {}
 
-/// Backend d'inférence in-process via llama.cpp.
+/// In-process inference backend backed by llama.cpp.
 ///
-/// Détient un cache `model_id -> LoadedModel` partagé entre les handlers axum
-/// via un `Arc`. Le `LlamaBackend` global est initialisé paresseusement la
-/// première fois qu'un modèle est chargé.
+/// Holds a `model_id -> LoadedModel` cache shared across the axum handlers via
+/// an `Arc`. The global `LlamaBackend` is initialized lazily the first time a
+/// model is loaded.
 pub struct LlamaCppBackend {
-    /// Cache des modèles actuellement chargés, indexé par `model_id`.
+    /// Cache of currently loaded models, keyed by `model_id`.
     models: Mutex<HashMap<String, Arc<LoadedModel>>>,
 }
 
@@ -70,12 +70,12 @@ impl Default for LlamaCppBackend {
     }
 }
 
-/// Singleton global pour `LlamaBackend` : `LlamaBackend::init()` ne peut être
-/// appelé qu'une seule fois par process (atomic interne).
+/// Global singleton for `LlamaBackend`: `LlamaBackend::init()` may only be
+/// called once per process (internal atomic).
 static LLAMA_BACKEND: Mutex<Option<Arc<LlamaBackend>>> = Mutex::new(None);
 
-/// Acquiert ou initialise le `LlamaBackend` global (à appeler depuis un thread
-/// bloquant uniquement : `LlamaBackend::init()` n'est pas async-safe).
+/// Acquires or initializes the global `LlamaBackend` (call from a blocking
+/// thread only: `LlamaBackend::init()` is not async-safe).
 fn acquire_backend() -> Result<Arc<LlamaBackend>, ErrorBody> {
     let mut guard = LLAMA_BACKEND
         .lock()
@@ -104,27 +104,27 @@ fn inference_failed(msg: impl Into<String>) -> ErrorBody {
 }
 
 impl LlamaCppBackend {
-    /// Crée un backend vide : aucun modèle chargé tant que `/llm/load_model`
-    /// n'est pas appelé.
+    /// Creates an empty backend: no model is loaded until `/llm/load_model`
+    /// is called.
     pub fn new() -> Self {
         Self {
             models: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Liste les `model_id` actuellement chargés (utile pour `/health`).
+    /// Lists the currently loaded `model_id`s (useful for `/health`).
     pub fn loaded_ids(&self) -> Vec<String> {
         let guard = self.models.lock().expect("llama models lock poisoned");
         guard.keys().cloned().collect()
     }
 
-    /// Mémoire totale (MiB) reportée par les modèles chargés.
+    /// Total memory (MiB) reported by the loaded models.
     pub fn total_memory_mb(&self) -> u32 {
         let guard = self.models.lock().expect("llama models lock poisoned");
         guard.values().map(|m| m.memory_used_mb).sum()
     }
 
-    /// Décharge un modèle. Retourne `true` s'il était chargé.
+    /// Unloads a model. Returns `true` if it was loaded.
     pub fn unload(&self, model_id: &str) -> bool {
         let mut guard = self.models.lock().expect("llama models lock poisoned");
         guard.remove(model_id).is_some()
@@ -135,17 +135,17 @@ impl LlamaCppBackend {
         guard.get(model_id).cloned()
     }
 
-    /// Charge un fichier GGUF depuis le disque (`POST /llm/load_model`).
+    /// Loads a GGUF file from disk (`POST /llm/load_model`).
     ///
-    /// Le chargement est exécuté dans un `spawn_blocking` car
-    /// `LlamaModel::load_from_file` est synchrone et coûteux (mmap + parse).
+    /// Loading runs inside a `spawn_blocking` because
+    /// `LlamaModel::load_from_file` is synchronous and expensive (mmap + parse).
     pub async fn load_model(&self, params: LoadModelParams) -> Result<LoadModelData, ErrorBody> {
         let started = Instant::now();
 
         let model_path = params.model_path.clone();
-        // Convention IPC : `n_gpu_layers = -1` signifie "toutes les couches
-        // sur GPU". On le mappe vers le sentinelle 999 historique utilisé par
-        // le backend embedded ; toute valeur >= 0 est conservée.
+        // IPC convention: `n_gpu_layers = -1` means "all layers on GPU". Map it
+        // to the legacy 999 sentinel used by the embedded backend; any value
+        // >= 0 is kept as-is.
         let n_gpu_layers: u32 = if params.n_gpu_layers < 0 {
             999
         } else {
@@ -203,7 +203,7 @@ impl LlamaCppBackend {
         })
     }
 
-    /// Inférence non-streaming (`POST /llm/complete`).
+    /// Non-streaming inference (`POST /llm/complete`).
     pub async fn complete(&self, params: CompleteParams) -> Result<CompleteData, ErrorBody> {
         let entry = self.get_model(&params.model_id).ok_or_else(|| {
             ErrorBody::new(
@@ -275,12 +275,12 @@ impl LlamaCppBackend {
         })
     }
 
-    /// Streaming token-by-token (`POST /llm/stream`).
+    /// Token-by-token streaming (`POST /llm/stream`).
     ///
-    /// Renvoie un `Stream` qui fournit :
-    /// - `Ok(StreamChunk)` pour chaque token décodé (texte partiel).
-    /// - `Ok(StreamChunk { finish_reason: Some(...) })` final pour clôturer.
-    /// - `Err(ErrorBody)` si l'inférence échoue.
+    /// Returns a `Stream` that yields:
+    /// - `Ok(StreamChunk)` for each decoded token (partial text).
+    /// - a final `Ok(StreamChunk { finish_reason: Some(...) })` to close.
+    /// - `Err(ErrorBody)` if inference fails.
     pub async fn stream(
         &self,
         params: CompleteParams,
@@ -351,15 +351,15 @@ impl LlamaCppBackend {
     }
 }
 
-/// Borne `n_ctx` entre [`MIN_CTX_SIZE`, `n_ctx_train`] (quand connu).
+/// Clamps `n_ctx` to [`MIN_CTX_SIZE`, `n_ctx_train`] (when known).
 fn clamp_ctx_size(model: &LlamaModel, requested: u32) -> u32 {
     let trained = model.n_ctx_train();
     let upper = if trained > 0 { trained } else { u32::MAX };
     requested.max(MIN_CTX_SIZE).min(upper)
 }
 
-/// Construit le prompt formaté via le template embarqué dans le GGUF (fallback
-/// chatml). Retourne aussi le nombre de tokens du prompt.
+/// Builds the formatted prompt using the template embedded in the GGUF
+/// (chatml fallback). Also returns the prompt token count.
 fn build_prompt(
     model: &LlamaModel,
     messages: &[ChatMessage],
@@ -393,7 +393,7 @@ fn build_prompt(
     Ok((prompt, tokens.len() as u32))
 }
 
-/// Construit le sampler de tail (greedy si `temperature <= 0`, sinon stochastique).
+/// Builds the tail sampler (greedy if `temperature <= 0`, otherwise stochastic).
 fn build_sampler(temperature: f32, top_p: f32, top_k: i32, seed: Option<u64>) -> LlamaSampler {
     if temperature <= 0.0 {
         return LlamaSampler::greedy();
@@ -414,7 +414,7 @@ fn build_sampler(temperature: f32, top_p: f32, top_k: i32, seed: Option<u64>) ->
     ])
 }
 
-/// Résultat brut d'une inférence non-streaming.
+/// Raw result of a non-streaming inference.
 struct CompleteRaw {
     text: String,
     prompt_tokens: u32,
@@ -424,7 +424,7 @@ struct CompleteRaw {
     decode_ms: u64,
 }
 
-/// Inférence synchrone complète (appelée depuis `spawn_blocking`).
+/// Full synchronous inference (called from `spawn_blocking`).
 #[allow(clippy::too_many_arguments)]
 fn run_complete(
     model: &LlamaModel,
@@ -515,8 +515,8 @@ fn run_complete(
     })
 }
 
-/// Inférence streaming : appelle `on_piece` à chaque token décodé, retourne le
-/// `FinishReason` final.
+/// Streaming inference: calls `on_piece` for each decoded token, returns the
+/// final `FinishReason`.
 #[allow(clippy::too_many_arguments)]
 fn run_stream<F>(
     model: &LlamaModel,
@@ -579,7 +579,7 @@ where
             .unwrap_or_default();
 
         if on_piece(piece).is_err() {
-            // Receiver dropped : client a abandonné.
+            // Receiver dropped: the client gave up.
             finish_reason = FinishReason::Abort;
             break;
         }
@@ -599,14 +599,14 @@ where
         finish_reason = FinishReason::Length;
     }
 
-    // Silence unused warning on prompt_tokens : conservé pour symétrie avec
-    // run_complete (futur : émettre les stats d'usage en fin de stream).
+    // Silence the unused warning on prompt_tokens: kept for symmetry with
+    // run_complete (future: emit usage stats at the end of the stream).
     let _ = prompt_tokens;
 
     Ok(finish_reason)
 }
 
-/// Vérifie qu'un chemin GGUF existe et termine bien par `.gguf`.
+/// Checks that a GGUF path exists and ends with `.gguf`.
 pub fn validate_model_path(path: &Path) -> Result<(), ErrorBody> {
     if !path.is_absolute() {
         return Err(ErrorBody::new(

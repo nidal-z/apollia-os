@@ -1,12 +1,12 @@
-//! Détection automatique des conventions de code via échantillonnage + LLM léger.
+//! Automatic detection of code conventions via sampling plus a lightweight LLM.
 //!
-//! [`StyleDetector`] identifie l'extension dominante du projet, échantillonne
-//! un nombre configurable de fichiers source, puis interroge le backend LLM
-//! par défaut pour en extraire les conventions de code en bullet points.
+//! [`StyleDetector`] identifies the project's dominant file extension, samples
+//! a configurable number of source files, then queries the default LLM backend
+//! to extract the code conventions as bullet points.
 //!
-//! L'appel LLM est borné par un timeout configurable (`style_detection_timeout_ms`).
-//! Toute erreur (LLM indisponible, timeout, répertoire vide) produit `None`
-//! sans propager d'erreur vers l'appelant.
+//! The LLM call is bounded by a configurable timeout (`style_detection_timeout_ms`).
+//! Any error (LLM unavailable, timeout, empty directory) yields `None` without
+//! propagating an error to the caller.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -16,15 +16,15 @@ use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
 
 use crate::config::StyleProviderConfig;
 
-/// Extensions exclues de la détection du langage dominant.
+/// Extensions excluded from dominant-language detection.
 ///
-/// On veut uniquement des fichiers de code source - pas de configuration,
-/// documentation, ni métadonnées de build.
+/// Only source code files are wanted, not configuration, documentation, or
+/// build metadata.
 const EXCLUDED_EXTENSIONS: &[&str] = &[
     "md", "toml", "json", "lock", "yaml", "yml", "txt", "log", "xml", "csv",
 ];
 
-/// Répertoires ignorés lors du parcours récursif.
+/// Directories skipped during the recursive walk.
 const SKIPPED_DIRS: &[&str] = &[
     "target",
     "node_modules",
@@ -34,23 +34,23 @@ const SKIPPED_DIRS: &[&str] = &[
     "__pycache__",
 ];
 
-/// Détecte automatiquement les conventions de code du projet via LLM léger.
+/// Automatically detects the project's code conventions via a lightweight LLM.
 ///
-/// Non-bloquant : l'appel LLM est borné par `config.style_detection_timeout_ms`.
-/// Retourne `None` si le répertoire est vide, si le LLM est indisponible,
-/// ou si le timeout est dépassé.
+/// Non-blocking: the LLM call is bounded by `config.style_detection_timeout_ms`.
+/// Returns `None` if the directory is empty, the LLM is unavailable, or the
+/// timeout is exceeded.
 pub struct StyleDetector;
 
 impl StyleDetector {
-    /// Détecte les conventions de code du projet via échantillonnage + LLM léger.
+    /// Detects the project's code conventions via sampling plus a lightweight LLM.
     ///
-    /// Étapes :
-    /// 1. Identifie l'extension dominante sur 2 niveaux de répertoires.
-    /// 2. Échantillonne jusqu'à `config.style_sample_count` fichiers de cette extension.
-    /// 3. Lit `config.style_sample_lines_per_file` lignes par fichier (head + tail).
-    /// 4. Appelle le backend LLM par défaut avec timeout `config.style_detection_timeout_ms`.
+    /// Steps:
+    /// 1. Identify the dominant extension across 2 directory levels.
+    /// 2. Sample up to `config.style_sample_count` files of that extension.
+    /// 3. Read `config.style_sample_lines_per_file` lines per file (head plus tail).
+    /// 4. Call the default LLM backend with timeout `config.style_detection_timeout_ms`.
     ///
-    /// Retourne `None` si : répertoire sans fichiers source, LLM timeout, ou LLM indisponible.
+    /// Returns `None` if: the directory has no source files, the LLM times out, or the LLM is unavailable.
     pub async fn detect(
         cwd: &Path,
         llm_router: &LlmRouter,
@@ -110,11 +110,11 @@ impl StyleDetector {
         }
     }
 
-    /// Retourne l'extension de fichier la plus fréquente dans le répertoire (récursif, 2 niveaux).
+    /// Returns the most frequent file extension in the directory (recursive, 2 levels).
     ///
-    /// Exclut les extensions non-source (`.md`, `.toml`, `.json`, `.lock`, `.yaml`…)
-    /// et les répertoires système (`target`, `node_modules`…).
-    /// Retourne `None` si aucun fichier source n'est trouvé.
+    /// Excludes non-source extensions (`.md`, `.toml`, `.json`, `.lock`, `.yaml`, ...)
+    /// and system directories (`target`, `node_modules`, ...).
+    /// Returns `None` if no source file is found.
     pub async fn dominant_extension(cwd: &Path) -> Option<String> {
         let cwd = cwd.to_path_buf();
         tokio::task::spawn_blocking(move || {
@@ -130,18 +130,18 @@ impl StyleDetector {
         .flatten()
     }
 
-    /// Retourne jusqu'à `max_count` fichiers de l'extension donnée avec distribution régulière.
+    /// Returns up to `max_count` files of the given extension with even distribution.
     ///
-    /// Si le nombre de fichiers trouvés est inférieur ou égal à `max_count`,
-    /// tous les fichiers sont retournés. Sinon, une sélection espacée régulièrement
-    /// garantit une représentation de l'ensemble du projet.
+    /// If the number of files found is less than or equal to `max_count`, all
+    /// files are returned. Otherwise, an evenly spaced selection ensures the
+    /// whole project is represented.
     async fn sample_files(cwd: &Path, ext: &str, max_count: usize) -> Vec<PathBuf> {
         let cwd = cwd.to_path_buf();
         let ext = ext.to_owned();
         tokio::task::spawn_blocking(move || {
             let mut all: Vec<PathBuf> = Vec::new();
             collect_files_recursive(&cwd, &ext, 0, 2, &mut all);
-            all.sort(); // ordre déterministe
+            all.sort(); // deterministic order
             if all.len() <= max_count {
                 return all;
             }
@@ -152,11 +152,11 @@ impl StyleDetector {
         .unwrap_or_default()
     }
 
-    /// Lit jusqu'à `lines_per_file` lignes par fichier (head + tail 50/50).
+    /// Reads up to `lines_per_file` lines per file (head plus tail, 50/50).
     ///
-    /// Chaque fichier est préfixé par son nom pour contextualiser les extraits.
-    /// Si le fichier ne dépasse pas `lines_per_file` lignes, il est inclus en entier.
-    /// Les fichiers illisibles sont silencieusement ignorés.
+    /// Each file is prefixed with its name to give the excerpts context.
+    /// If the file does not exceed `lines_per_file` lines, it is included whole.
+    /// Unreadable files are silently skipped.
     async fn collect_samples(files: &[PathBuf], lines_per_file: usize) -> String {
         let half = (lines_per_file / 2).max(1);
         let mut parts = Vec::with_capacity(files.len());
@@ -188,7 +188,7 @@ impl StyleDetector {
     }
 }
 
-/// Parcourt `dir` récursivement jusqu'à `max_depth` niveaux et compte les extensions source.
+/// Walks `dir` recursively up to `max_depth` levels and counts source extensions.
 fn collect_extensions_recursive(
     dir: &Path,
     depth: usize,
@@ -220,7 +220,7 @@ fn collect_extensions_recursive(
     }
 }
 
-/// Parcourt `dir` récursivement jusqu'à `max_depth` niveaux et collecte les fichiers de `ext`.
+/// Walks `dir` recursively up to `max_depth` levels and collects files matching `ext`.
 fn collect_files_recursive(
     dir: &Path,
     ext: &str,
@@ -263,7 +263,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dominant_extension_rust_project() {
-        // GIVEN : répertoire avec *.rs (5 fichiers) et 1 README.md
+        // GIVEN: directory with *.rs (5 files) and 1 README.md
         let dir = tempfile::tempdir().unwrap();
         for i in 0..5 {
             tokio::fs::write(dir.path().join(format!("file{i}.rs")), "fn main() {}")
@@ -281,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dominant_extension_empty_dir() {
-        // GIVEN : répertoire vide
+        // GIVEN: empty directory
         let dir = tempfile::tempdir().unwrap();
         // WHEN
         let ext = StyleDetector::dominant_extension(dir.path()).await;
@@ -291,7 +291,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dominant_extension_excludes_non_source() {
-        // GIVEN : répertoire avec uniquement des fichiers exclus
+        // GIVEN: directory containing only excluded files
         let dir = tempfile::tempdir().unwrap();
         tokio::fs::write(dir.path().join("config.toml"), "[x]")
             .await
@@ -310,14 +310,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_sample_files_respects_max_count() {
-        // GIVEN : répertoire avec 10 fichiers .rs
+        // GIVEN: directory with 10 .rs files
         let dir = tempfile::tempdir().unwrap();
         for i in 0..10 {
             tokio::fs::write(dir.path().join(format!("f{i}.rs")), "fn f() {}")
                 .await
                 .unwrap();
         }
-        // WHEN : max_count = 3
+        // WHEN: max_count = 3
         let files = StyleDetector::sample_files(dir.path(), "rs", 3).await;
         // THEN
         assert!(
@@ -329,7 +329,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sample_files_fewer_than_max() {
-        // GIVEN : répertoire avec 2 fichiers .rs, max_count = 7
+        // GIVEN: directory with 2 .rs files, max_count = 7
         let dir = tempfile::tempdir().unwrap();
         for i in 0..2 {
             tokio::fs::write(dir.path().join(format!("f{i}.rs")), "fn f() {}")
@@ -338,20 +338,20 @@ mod tests {
         }
         // WHEN
         let files = StyleDetector::sample_files(dir.path(), "rs", 7).await;
-        // THEN : tous les fichiers retournés
+        // THEN: all files are returned
         assert_eq!(files.len(), 2);
     }
 
     #[tokio::test]
     async fn test_collect_samples_truncates_long_files() {
-        // GIVEN : fichier de 500 lignes
+        // GIVEN: a 500-line file
         let dir = tempfile::tempdir().unwrap();
         let content: String = (0..500).map(|i| format!("line {i}\n")).collect();
         let path = dir.path().join("big.rs");
         tokio::fs::write(&path, &content).await.unwrap();
-        // WHEN : lines_per_file = 20
+        // WHEN: lines_per_file = 20
         let result = StyleDetector::collect_samples(&[path], 20).await;
-        // THEN : contient le marqueur de troncature
+        // THEN: contains the truncation marker
         assert!(
             result.contains("lines omitted"),
             "expected truncation marker"
@@ -360,14 +360,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_collect_samples_short_file_not_truncated() {
-        // GIVEN : fichier de 5 lignes
+        // GIVEN: a 5-line file
         let dir = tempfile::tempdir().unwrap();
         let content = "fn a() {}\nfn b() {}\nfn c() {}\nfn d() {}\nfn e() {}";
         let path = dir.path().join("short.rs");
         tokio::fs::write(&path, content).await.unwrap();
         // WHEN
         let result = StyleDetector::collect_samples(&[path], 20).await;
-        // THEN : pas de marqueur de troncature
+        // THEN: no truncation marker
         assert!(!result.contains("lines omitted"));
         assert!(result.contains("fn a()"));
     }

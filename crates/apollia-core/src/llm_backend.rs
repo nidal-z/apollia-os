@@ -1,10 +1,10 @@
-//! Registre des backends LLM persisté dans `system.db`.
+//! LLM backend registry persisted in `system.db`.
 //!
-//! [`LlmBackendRepository`] est un wrapper synchrone autour de `rusqlite` -
-//! même pattern que `PlanRepository`. Toutes les méthodes sont synchrones ;
-//! les acteurs Tokio les appellent via `spawn_blocking` si nécessaire.
+//! [`LlmBackendRepository`] is a synchronous wrapper around `rusqlite`, the
+//! same pattern as `PlanRepository`. All methods are synchronous; Tokio actors
+//! call them via `spawn_blocking` when needed.
 //!
-//! La migration est embarquée et appliquée idempotentiellement à l'ouverture.
+//! The migration is embedded and applied idempotently on open.
 
 use std::cell::RefCell;
 use std::path::Path;
@@ -36,36 +36,36 @@ CREATE TABLE IF NOT EXISTS llm_backends (
 // Types
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Configuration d'un backend LLM enregistré dans `system.db`.
+/// Configuration of an LLM backend stored in `system.db`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmBackendConfig {
-    /// Nom unique (ex. `"local-code"`, `"mistral-small"`). Pattern : `[a-z0-9_-]+`.
+    /// Unique name (e.g. `"local-code"`, `"mistral-small"`). Pattern: `[a-z0-9_-]+`.
     pub name: String,
-    /// Fournisseur LLM.
+    /// LLM provider.
     pub provider: LlmProvider,
-    /// Nom du modèle ou chemin GGUF absolu.
+    /// Model name or absolute GGUF path.
     pub model: String,
-    /// Paramètres provider-spécifiques (JSON). Peut contenir `"${VAR}"` pour les secrets.
+    /// Provider-specific parameters (JSON). May contain `"${VAR}"` for secrets.
     pub config_json: serde_json::Value,
-    /// Si `false`, le backend n'est pas chargé au démarrage.
+    /// When `false`, the backend is not loaded at startup.
     pub enabled: bool,
-    /// Si `true`, utilisé par les agents sans champ `llm_backend` explicite.
+    /// When `true`, used by agents that lack an explicit `llm_backend` field.
     pub is_default: bool,
 }
 
-/// Fournisseur LLM supporté.
+/// Supported LLM provider.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LlmProvider {
-    /// Backend llama.cpp embarqué (GGUF local).
+    /// Embedded llama.cpp backend (local GGUF).
     LlamaCpp,
-    /// API OpenAI ou compatible OpenAI (LM Studio, vLLM).
+    /// OpenAI API or OpenAI-compatible API (LM Studio, vLLM).
     OpenAi,
-    /// API Mistral AI.
+    /// Mistral AI API.
     Mistral,
-    /// API Anthropic.
+    /// Anthropic API.
     Anthropic,
-    /// Ollama local.
+    /// Local Ollama.
     Ollama,
 }
 
@@ -100,37 +100,37 @@ impl TryFrom<&str> for LlmProvider {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Erreurs
+// Errors
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Erreurs possibles du [`LlmBackendRepository`].
+/// Errors returned by [`LlmBackendRepository`].
 #[derive(Debug, Error)]
 pub enum LlmBackendError {
-    /// Aucun backend trouvé pour ce nom.
+    /// No backend found for the given name.
     #[error("backend '{0}' not found")]
     NotFound(String),
 
-    /// Un backend par défaut existe déjà.
+    /// A default backend already exists.
     #[error("a default backend already exists: '{0}'")]
     DefaultAlreadyExists(String),
 
-    /// Suppression du backend par défaut refusée.
+    /// Refused to delete the default backend.
     #[error("cannot delete the default backend - set another default first")]
     CannotDeleteDefault,
 
-    /// Nom de backend invalide (doit correspondre à `[a-z0-9_-]+`).
+    /// Invalid backend name (must match `[a-z0-9_-]+`).
     #[error("invalid backend name '{0}': only [a-z0-9_-] allowed")]
     InvalidName(String),
 
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
 
-    /// Erreur de sérialisation JSON.
+    /// JSON serialization error.
     #[error("serialization error: {0}")]
     Serialization(String),
 
-    /// Erreur I/O lors de la synchronisation vers `apollia.toml`.
+    /// I/O error while syncing to `apollia.toml`.
     #[error("io error syncing to toml: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -140,8 +140,8 @@ pub enum LlmBackendError {
 // ────────────────────────────────────────────────────────────────────────────
 
 fn validate_name(name: &str) -> Result<(), LlmBackendError> {
-    // Pattern évalué une seule fois grâce au `Regex::new` - pas de `OnceLock` nécessaire
-    // car la validation est appelée peu fréquemment (opérations d'écriture uniquement).
+    // No `OnceLock` needed: validation runs rarely (write operations only),
+    // so recompiling the pattern each call is acceptable.
     let re = Regex::new(r"^[a-z0-9_-]+$").expect("static pattern is valid");
     if name.is_empty() || !re.is_match(name) {
         return Err(LlmBackendError::InvalidName(name.to_string()));
@@ -153,26 +153,27 @@ fn validate_name(name: &str) -> Result<(), LlmBackendError> {
 // Repository
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Repository CRUD pour les backends LLM persistés dans `system.db`.
+/// CRUD repository for LLM backends persisted in `system.db`.
 ///
-/// Encapsule une connexion `rusqlite` derrière un [`RefCell`] afin d'offrir
-/// une API `&self` sur toutes les méthodes tout en autorisant l'emprunt
-/// mutable nécessaire aux transactions atomiques.
+/// Wraps a `rusqlite` connection behind a [`RefCell`] so that every method can
+/// expose a `&self` API while still allowing the mutable borrow needed for
+/// atomic transactions.
 ///
-/// **Thread safety :** `LlmBackendRepository` n'est pas `Send` (car `RefCell`).
-/// Il doit être créé et utilisé dans le même thread, ou passé à `spawn_blocking`.
+/// **Thread safety:** `LlmBackendRepository` is not `Send` (because of
+/// `RefCell`). It must be created and used on the same thread, or passed to
+/// `spawn_blocking`.
 pub struct LlmBackendRepository {
     conn: RefCell<Connection>,
 }
 
 impl LlmBackendRepository {
-    /// Ouvre (ou crée) `system.db` au chemin donné et applique la migration.
+    /// Opens (or creates) `system.db` at the given path and applies the migration.
     ///
-    /// La migration est idempotente (`CREATE TABLE IF NOT EXISTS`), donc sûre
-    /// à réexécuter sur une base existante.
+    /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`), so it is safe
+    /// to re-run on an existing database.
     ///
     /// # Errors
-    /// Retourne [`LlmBackendError::Db`] si l'ouverture ou la migration échoue.
+    /// Returns [`LlmBackendError::Db`] if opening or migrating fails.
     pub fn open(path: &Path) -> Result<Self, LlmBackendError> {
         let conn = Connection::open(path)?;
         conn.execute_batch(MIGRATION_SQL)?;
@@ -181,15 +182,15 @@ impl LlmBackendRepository {
         })
     }
 
-    /// Crée ou met à jour un backend. Valide le nom avant insertion.
+    /// Creates or updates a backend. Validates the name before insertion.
     ///
-    /// Si `config.is_default` est `true`, tous les autres backends sont d'abord
-    /// démarcés (`is_default = 0`) dans la même transaction.
+    /// If `config.is_default` is `true`, all other backends are first cleared
+    /// (`is_default = 0`) within the same transaction.
     ///
     /// # Errors
-    /// - [`LlmBackendError::InvalidName`] si le nom ne respecte pas `[a-z0-9_-]+`.
-    /// - [`LlmBackendError::Db`] pour toute erreur SQLite.
-    /// - [`LlmBackendError::Serialization`] si `config_json` ne peut pas être sérialisé.
+    /// - [`LlmBackendError::InvalidName`] if the name does not match `[a-z0-9_-]+`.
+    /// - [`LlmBackendError::Db`] for any SQLite error.
+    /// - [`LlmBackendError::Serialization`] if `config_json` cannot be serialized.
     pub fn save(&self, config: &LlmBackendConfig) -> Result<(), LlmBackendError> {
         validate_name(&config.name)?;
 
@@ -246,10 +247,10 @@ impl LlmBackendRepository {
         Ok(())
     }
 
-    /// Retourne tous les backends (actifs et inactifs), triés par nom.
+    /// Returns all backends (enabled and disabled), sorted by name.
     ///
     /// # Errors
-    /// Retourne [`LlmBackendError::Db`] ou [`LlmBackendError::Serialization`].
+    /// Returns [`LlmBackendError::Db`] or [`LlmBackendError::Serialization`].
     pub fn list(&self) -> Result<Vec<LlmBackendConfig>, LlmBackendError> {
         let conn = self.conn.borrow();
         let mut stmt = conn.prepare(
@@ -283,10 +284,10 @@ impl LlmBackendRepository {
         Ok(configs)
     }
 
-    /// Trouve un backend par nom exact. Retourne `None` si introuvable.
+    /// Finds a backend by exact name. Returns `None` if not found.
     ///
     /// # Errors
-    /// Retourne [`LlmBackendError::Db`] ou [`LlmBackendError::Serialization`].
+    /// Returns [`LlmBackendError::Db`] or [`LlmBackendError::Serialization`].
     pub fn find_by_name(&self, name: &str) -> Result<Option<LlmBackendConfig>, LlmBackendError> {
         let conn = self.conn.borrow();
         let mut stmt = conn.prepare(
@@ -321,10 +322,10 @@ impl LlmBackendRepository {
         }
     }
 
-    /// Retourne le backend marqué `is_default = true`, ou `None` si aucun.
+    /// Returns the backend flagged `is_default = true`, or `None` if there is none.
     ///
     /// # Errors
-    /// Retourne [`LlmBackendError::Db`] ou [`LlmBackendError::Serialization`].
+    /// Returns [`LlmBackendError::Db`] or [`LlmBackendError::Serialization`].
     pub fn find_default(&self) -> Result<Option<LlmBackendConfig>, LlmBackendError> {
         let conn = self.conn.borrow();
         let mut stmt = conn.prepare(
@@ -360,15 +361,15 @@ impl LlmBackendRepository {
         }
     }
 
-    /// Marque `name` comme backend par défaut.
+    /// Marks `name` as the default backend.
     ///
-    /// L'ancien défaut (s'il existe) est démarcé atomiquement dans la même transaction.
+    /// The previous default (if any) is cleared atomically in the same transaction.
     ///
     /// # Errors
-    /// - [`LlmBackendError::NotFound`] si `name` n'existe pas dans la DB.
-    /// - [`LlmBackendError::Db`] pour toute erreur SQLite.
+    /// - [`LlmBackendError::NotFound`] if `name` does not exist in the DB.
+    /// - [`LlmBackendError::Db`] for any SQLite error.
     pub fn set_default(&self, name: &str) -> Result<(), LlmBackendError> {
-        // find_by_name emprunte conn puis relâche avant borrow_mut ci-dessous.
+        // find_by_name borrows conn and releases it before the borrow_mut below.
         if self.find_by_name(name)?.is_none() {
             return Err(LlmBackendError::NotFound(name.to_string()));
         }
@@ -391,14 +392,14 @@ impl LlmBackendRepository {
         Ok(())
     }
 
-    /// Supprime un backend.
+    /// Deletes a backend.
     ///
     /// # Errors
-    /// - [`LlmBackendError::NotFound`] si `name` est absent.
-    /// - [`LlmBackendError::CannotDeleteDefault`] si `name` est le backend par défaut.
-    /// - [`LlmBackendError::Db`] pour toute erreur SQLite.
+    /// - [`LlmBackendError::NotFound`] if `name` is absent.
+    /// - [`LlmBackendError::CannotDeleteDefault`] if `name` is the default backend.
+    /// - [`LlmBackendError::Db`] for any SQLite error.
     pub fn delete(&self, name: &str) -> Result<(), LlmBackendError> {
-        // find_by_name emprunte conn puis relâche avant le borrow ci-dessous.
+        // find_by_name borrows conn and releases it before the borrow below.
         match self.find_by_name(name)? {
             None => return Err(LlmBackendError::NotFound(name.to_string())),
             Some(b) if b.is_default => return Err(LlmBackendError::CannotDeleteDefault),
@@ -415,10 +416,10 @@ impl LlmBackendRepository {
 // TOML sync helpers
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Supprime tous les blocs `[[llm.backends]]` du contenu TOML donné.
+/// Removes every `[[llm.backends]]` block from the given TOML content.
 ///
-/// Chaque bloc commence à la ligne `[[llm.backends]]` et se termine juste avant
-/// la prochaine ligne d'en-tête de section (`[...` ou `[[...`).
+/// Each block starts at the `[[llm.backends]]` line and ends just before the
+/// next section header line (`[...` or `[[...`).
 fn strip_llm_backends_blocks(content: &str) -> String {
     let mut result: Vec<&str> = Vec::new();
     let mut in_backends = false;
@@ -447,7 +448,7 @@ fn strip_llm_backends_blocks(content: &str) -> String {
     }
 }
 
-/// Génère un bloc TOML `[[llm.backends]]` depuis un [`LlmBackendConfig`].
+/// Builds a `[[llm.backends]]` TOML block from an [`LlmBackendConfig`].
 fn backend_to_toml_block(cfg: &LlmBackendConfig) -> String {
     let mut lines = vec![
         "[[llm.backends]]".to_string(),
@@ -489,18 +490,18 @@ fn backend_to_toml_block(cfg: &LlmBackendConfig) -> String {
 }
 
 impl LlmBackendRepository {
-    /// Synchronise tous les backends DB → section `[[llm.backends]]` dans `apollia.toml`.
+    /// Syncs every DB backend into the `[[llm.backends]]` section of `apollia.toml`.
     ///
-    /// - Lit `toml_path` (crée le fichier si absent).
-    /// - Supprime les anciens blocs `[[llm.backends]]`.
-    /// - Ajoute un bloc auto-généré pour chaque backend présent en DB.
-    /// - Réécrit le fichier atomiquement.
+    /// - Reads `toml_path` (creates the file if absent).
+    /// - Removes the old `[[llm.backends]]` blocks.
+    /// - Appends an auto-generated block for each backend present in the DB.
+    /// - Rewrites the file atomically.
     ///
-    /// Un commentaire sentinel indique que la section est gérée automatiquement.
+    /// A sentinel comment marks the section as automatically managed.
     ///
     /// # Errors
-    /// - [`LlmBackendError::Db`] si la lecture DB échoue.
-    /// - [`LlmBackendError::Io`] si le fichier ne peut pas être lu ou écrit.
+    /// - [`LlmBackendError::Db`] if the DB read fails.
+    /// - [`LlmBackendError::Io`] if the file cannot be read or written.
     pub fn sync_to_toml(&self, toml_path: &Path) -> Result<(), LlmBackendError> {
         let backends = self.list()?;
 
@@ -540,8 +541,8 @@ impl LlmBackendRepository {
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Valeurs brutes d'une ligne `llm_backends` - regroupées pour garder la
-/// signature de [`row_to_config`] lisible.
+/// Raw values from an `llm_backends` row, grouped to keep the
+/// [`row_to_config`] signature readable.
 struct RawBackendRow {
     name: String,
     provider_str: String,
@@ -551,7 +552,7 @@ struct RawBackendRow {
     is_default: bool,
 }
 
-/// Construit un [`LlmBackendConfig`] depuis les valeurs brutes d'une ligne SQLite.
+/// Builds an [`LlmBackendConfig`] from the raw values of a SQLite row.
 fn row_to_config(row: RawBackendRow) -> Result<LlmBackendConfig, LlmBackendError> {
     let provider = LlmProvider::try_from(row.provider_str.as_str())?;
     let config_json: serde_json::Value = serde_json::from_str(&row.config_json_str)
@@ -592,9 +593,9 @@ mod tests {
         }
     }
 
-    // GIVEN un repository vide
+    // GIVEN an empty repository
     // WHEN  save() + list()
-    // THEN  la liste contient le backend sauvegardé
+    // THEN  the list contains the saved backend
     #[test]
     fn test_ac1_save_and_list() {
         let (repo, _dir) = make_repo();
@@ -610,9 +611,9 @@ mod tests {
         assert!(!list[0].is_default);
     }
 
-    // GIVEN deux backends, "a" est le défaut
+    // GIVEN two backends, "a" is the default
     // WHEN  set_default("b")
-    // THEN  exactement 1 backend avec is_default=true, c'est "b"
+    // THEN  exactly 1 backend has is_default=true, and it is "b"
     #[test]
     fn test_ac2_set_default_replaces_previous() {
         let (repo, _dir) = make_repo();
@@ -631,9 +632,9 @@ mod tests {
         assert_eq!(defaults[0].name, "b");
     }
 
-    // GIVEN un backend "a" marqué is_default=true
+    // GIVEN a backend "a" flagged is_default=true
     // WHEN  delete("a")
-    // THEN  LlmBackendError::CannotDeleteDefault retourné, "a" toujours présent
+    // THEN  LlmBackendError::CannotDeleteDefault returned, "a" still present
     #[test]
     fn test_ac3_cannot_delete_default() {
         let (repo, _dir) = make_repo();
@@ -646,18 +647,18 @@ mod tests {
         assert!(repo.find_by_name("a").unwrap().is_some());
     }
 
-    // GIVEN un repository vide
-    // WHEN  find_by_name("inexistant")
-    // THEN  Ok(None) retourné
+    // GIVEN an empty repository
+    // WHEN  find_by_name("nonexistent")
+    // THEN  Ok(None) returned
     #[test]
     fn test_ac4_find_by_name_missing_returns_none() {
         let (repo, _dir) = make_repo();
         assert!(repo.find_by_name("ghost").unwrap().is_none());
     }
 
-    // GIVEN backends présents mais aucun is_default=true
+    // GIVEN backends present but none with is_default=true
     // WHEN  find_default()
-    // THEN  Ok(None) retourné
+    // THEN  Ok(None) returned
     #[test]
     fn test_ac5_find_default_none_when_no_default() {
         let (repo, _dir) = make_repo();
@@ -665,9 +666,9 @@ mod tests {
         assert!(repo.find_default().unwrap().is_none());
     }
 
-    // GIVEN un backend non-défaut
+    // GIVEN a non-default backend
     // WHEN  delete()
-    // THEN  backend supprimé, list() retourne vide
+    // THEN  backend removed, list() returns empty
     #[test]
     fn test_delete_non_default_succeeds() {
         let (repo, _dir) = make_repo();
@@ -678,9 +679,9 @@ mod tests {
         assert!(repo.list().unwrap().is_empty());
     }
 
-    // GIVEN un backend inexistant
+    // GIVEN a nonexistent backend
     // WHEN  delete()
-    // THEN  LlmBackendError::NotFound retourné
+    // THEN  LlmBackendError::NotFound returned
     #[test]
     fn test_delete_not_found() {
         let (repo, _dir) = make_repo();
@@ -690,9 +691,9 @@ mod tests {
         ));
     }
 
-    // GIVEN un backend inexistant
+    // GIVEN a nonexistent backend
     // WHEN  set_default()
-    // THEN  LlmBackendError::NotFound retourné
+    // THEN  LlmBackendError::NotFound returned
     #[test]
     fn test_set_default_not_found() {
         let (repo, _dir) = make_repo();
@@ -702,9 +703,9 @@ mod tests {
         ));
     }
 
-    // GIVEN un backend existant
-    // WHEN  save() avec un nom invalide (majuscules)
-    // THEN  LlmBackendError::InvalidName retourné
+    // GIVEN an existing backend
+    // WHEN  save() with an invalid name (uppercase)
+    // THEN  LlmBackendError::InvalidName returned
     #[test]
     fn test_invalid_name_rejected() {
         let (repo, _dir) = make_repo();
@@ -715,9 +716,9 @@ mod tests {
         ));
     }
 
-    // GIVEN un contenu TOML avec deux blocs [[llm.backends]] et d'autres sections
+    // GIVEN TOML content with two [[llm.backends]] blocks and other sections
     // WHEN  strip_llm_backends_blocks()
-    // THEN  les blocs backends sont supprimés, le reste est préservé
+    // THEN  the backend blocks are removed, the rest is preserved
     #[test]
     fn test_strip_llm_backends_blocks_preserves_other_sections() {
         let input = "[runtime]\ndata_dir = \"~/.apollia\"\n\n[[llm.backends]]\nname = \"local\"\ntype = \"embedded\"\n\n[[llm.backends]]\nname = \"remote\"\ntype = \"api\"\n\n[api]\nbind = \"127.0.0.1:7771\"\n";
@@ -728,9 +729,9 @@ mod tests {
         assert!(!result.contains("name = \"local\""));
     }
 
-    // GIVEN un contenu TOML sans aucun bloc [[llm.backends]]
+    // GIVEN TOML content with no [[llm.backends]] block
     // WHEN  strip_llm_backends_blocks()
-    // THEN  le contenu est inchangé (modulo trailing newline)
+    // THEN  the content is unchanged (apart from the trailing newline)
     #[test]
     fn test_strip_llm_backends_blocks_noop_when_absent() {
         let input = "[runtime]\ndata_dir = \"~/.apollia\"\n";
@@ -739,9 +740,9 @@ mod tests {
         assert!(!result.contains("[[llm.backends]]"));
     }
 
-    // GIVEN un backend llama-cpp avec device et quantization
+    // GIVEN a llama-cpp backend with device and quantization
     // WHEN  backend_to_toml_block()
-    // THEN  le bloc TOML contient les champs attendus
+    // THEN  the TOML block contains the expected fields
     #[test]
     fn test_backend_to_toml_block_embedded() {
         let cfg = LlmBackendConfig {
@@ -760,9 +761,9 @@ mod tests {
         assert!(block.contains("q4_k_m"));
     }
 
-    // GIVEN un repository avec un backend
-    // WHEN  sync_to_toml() vers un fichier temporaire
-    // THEN  le fichier contient le bloc [[llm.backends]]
+    // GIVEN a repository with one backend
+    // WHEN  sync_to_toml() to a temporary file
+    // THEN  the file contains the [[llm.backends]] block
     #[test]
     fn test_sync_to_toml_writes_backends() {
         let (repo, dir) = make_repo();
@@ -784,9 +785,9 @@ mod tests {
         assert!(content.contains("\"local\""));
     }
 
-    // GIVEN un fichier TOML existant avec un ancien backend, et un backend différent en DB
+    // GIVEN an existing TOML file with an old backend, and a different backend in the DB
     // WHEN  sync_to_toml()
-    // THEN  l'ancien backend est remplacé par le nouveau, le reste du TOML est préservé
+    // THEN  the old backend is replaced by the new one, the rest of the TOML is preserved
     #[test]
     fn test_sync_to_toml_replaces_old_backends() {
         let (repo, dir) = make_repo();
@@ -815,9 +816,9 @@ mod tests {
         assert!(content.contains("\"new\""), "new backend present");
     }
 
-    // GIVEN un backend sauvegardé
-    // WHEN  find_default() après save(is_default=true)
-    // THEN  le défaut est retourné
+    // GIVEN a saved backend
+    // WHEN  find_default() after save(is_default=true)
+    // THEN  the default is returned
     #[test]
     fn test_find_default_returns_default() {
         let (repo, _dir) = make_repo();
@@ -827,9 +828,9 @@ mod tests {
         assert_eq!(default.unwrap().name, "main");
     }
 
-    // GIVEN deux backends avec is_default=true successifs
-    // WHEN  save() du second (is_default=true)
-    // THEN  un seul défaut dans la liste
+    // GIVEN two successive backends with is_default=true
+    // WHEN  save() of the second (is_default=true)
+    // THEN  only one default in the list
     #[test]
     fn test_save_second_default_replaces_first() {
         let (repo, _dir) = make_repo();

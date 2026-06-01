@@ -1,8 +1,8 @@
-//! [`StyleProvider`] - détection automatique du style de code via LLM.
+//! [`StyleProvider`]: automatic code-style detection via LLM.
 //!
-//! Provider optionnel : nécessite un [`LlmRouter`] configuré.
-//! Si le LLM est indisponible ou dépasse le timeout, la section est omise
-//! silencieusement sans bloquer la collecte des autres providers.
+//! Optional provider: requires a configured [`LlmRouter`].
+//! If the LLM is unavailable or exceeds the timeout, the section is silently
+//! omitted without blocking collection from the other providers.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -14,17 +14,17 @@ use apollia_llm::LlmRouter;
 use crate::config::StyleProviderConfig;
 use crate::style::StyleDetector;
 
-/// Fournit les conventions de code détectées automatiquement via LLM léger.
+/// Provides code conventions detected automatically via a lightweight LLM.
 ///
-/// Actif uniquement si un [`LlmRouter`] est fourni à la construction.
-/// La détection est bornée par `config.timeout_ms` - jamais de blocage.
+/// Active only when an [`LlmRouter`] is supplied at construction.
+/// Detection is bounded by `config.timeout_ms`, so it never blocks.
 pub struct StyleProvider {
     config: StyleProviderConfig,
     llm_router: Option<Arc<LlmRouter>>,
 }
 
 impl StyleProvider {
-    /// Construit un provider de style avec un backend LLM.
+    /// Builds a style provider backed by an LLM.
     pub fn new(config: StyleProviderConfig, llm_router: Arc<LlmRouter>) -> Self {
         Self {
             config,
@@ -32,7 +32,7 @@ impl StyleProvider {
         }
     }
 
-    /// Construit un provider de style sans LLM (retourne toujours une tranche vide).
+    /// Builds a style provider without an LLM (always returns an empty slice).
     pub fn disabled() -> Self {
         Self {
             config: StyleProviderConfig::default(),

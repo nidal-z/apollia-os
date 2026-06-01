@@ -72,7 +72,7 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub registry_handle: AgentRegistryHandle,
     /// Sender side of the runtime event bus.
     pub event_sender: EventBusSender,
-    /// Agent loader for Python module loading (ADR-019).
+    /// Agent loader for Python module loading.
     pub agent_loader: Arc<dyn AgentLoader>,
     /// Execution backend, cloned per coordinator on agent start.
     pub backend: B,
@@ -98,19 +98,19 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `None` in unit tests or when HITL is not configured.
     /// The resume route returns 503 when this is `None`.
     pub task_repository: Option<Arc<TaskRepository>>,
-    /// Registre HITL des approbations en attente, partagé entre routes et ORIAEngine.
+    /// HITL registry of pending approvals, shared between routes and the ORIAEngine.
     ///
-    /// `ResumeHandler` appelle `pending_approvals.resolve()` pour débloquer
-    /// `execute_direct()` qui attend sur le oneshot channel.
-    /// `None` quand le HITL n'est pas configuré, `resume_task` logue un warning.
+    /// `ResumeHandler` calls `pending_approvals.resolve()` to unblock
+    /// `execute_direct()`, which is waiting on the oneshot channel.
+    /// `None` when HITL is not configured; `resume_task` logs a warning.
     pub pending_approvals: Option<Arc<PendingApprovals>>,
-    /// Configuration des canaux de notification chargée depuis `apollia.toml`.
+    /// Notification channel configuration loaded from `apollia.toml`.
     ///
-    /// Utilisée par `GET /api/v1/notifications/channels` et
+    /// Used by `GET /api/v1/notifications/channels` and
     /// `POST /api/v1/notifications/test`.
-    /// `None` si aucune section `[notifications]` n'est présente dans la config.
+    /// `None` when no `[notifications]` section is present in the config.
     pub notification_config: Option<NotificationConfig>,
-    /// Factory for creating per-agent execution backends (ADR-019 extension).
+    /// Factory for creating per-agent execution backends.
     ///
     /// `Some` in production, creates real `AIPBridge` backends with tool access.
     /// `None` in tests, falls back to `state.backend.clone()` (MockBackend/NoopBackend).
@@ -125,31 +125,31 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` in production, opened by the Supervisor from `~/.apollia/audit.db`.
     /// `None` in tests, the `/api/v1/audit` routes return 503 when `None`.
     pub audit_trail: Option<AuditTrailHandle>,
-    /// Configuration de troncature pour l'observabilité des tâches.
+    /// Truncation configuration for task observability.
     ///
-    /// Passée aux `ExecutionCoordinator` pour la persistance input/output/transitions.
+    /// Passed to the `ExecutionCoordinator` for persisting input/output/transitions.
     pub obs_config: apollia_core::ObservabilityConfig,
-    /// Repository des appels LLM, agrégation coûts/tokens.
+    /// LLM call repository, aggregates cost and token usage.
     ///
-    /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
-    /// `None` en tests ou quand aucun backend LLM n'est configuré.
+    /// `Some` when an `LlmRouter` is configured and `llm_calls.db` is open.
+    /// `None` in tests or when no LLM backend is configured.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>>,
-    /// Repository CRUD des définitions de triggers.
+    /// CRUD repository for trigger definitions.
     ///
-    /// Ouvert par le Supervisor depuis `data_dir/triggers.db`.
-    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD.
-    /// `None` en tests unitaires.
+    /// Opened by the Supervisor from `data_dir/triggers.db`.
+    /// Shared between boot (initial read) and the REST CRUD routes.
+    /// `None` in unit tests.
     pub trigger_def_repo: Option<Arc<std::sync::Mutex<TriggerDefinitionRepository>>>,
-    /// Repository CRUD de la configuration des notifications.
+    /// CRUD repository for the notification configuration.
     ///
-    /// Ouvert par le Supervisor depuis `data_dir/notifications.db`.
-    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD.
-    /// `None` en tests unitaires.
+    /// Opened by the Supervisor from `data_dir/notifications.db`.
+    /// Shared between boot (initial read) and the REST CRUD routes.
+    /// `None` in unit tests.
     pub notification_repo: Option<Arc<std::sync::Mutex<NotificationConfigRepository>>>,
-    /// Handle vers le [`NotificationEngine`] pour hot-reload après CRUD.
+    /// Handle to the [`NotificationEngine`] for hot-reload after CRUD.
     ///
-    /// Permet aux routes REST de déclencher un rechargement des canaux après
-    /// une mutation dans `notifications.db`. `None` en tests unitaires.
+    /// Lets the REST routes trigger a channel reload after a mutation in
+    /// `notifications.db`. `None` in unit tests.
     pub notification_engine_handle: Option<NotificationEngineHandle>,
     /// Handle to the [`ChatSessionManager`] actor.
     ///
@@ -192,11 +192,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Opened by the Supervisor at startup from `data_dir/mcp.db`.
     /// `None` in unit tests. Mutation routes return 503 when `None`.
     pub mcp_server_repo: Option<Arc<std::sync::Mutex<apollia_mcp::McpServerRepository>>>,
-    /// Repository CRUD des backends LLM.
+    /// CRUD repository for LLM backends.
     ///
-    /// Ouvert par le Supervisor depuis `data_dir/system.db`.
-    /// Partagé entre le boot (chargement du LlmRouter) et les routes REST CRUD.
-    /// `None` en tests unitaires ou quand `system.db` n'a pas pu être ouvert.
+    /// Opened by the Supervisor from `data_dir/system.db`.
+    /// Shared between boot (loading the LlmRouter) and the REST CRUD routes.
+    /// `None` in unit tests or when `system.db` could not be opened.
     pub llm_backend_repo: Option<Arc<std::sync::Mutex<LlmBackendRepository>>>,
     /// STT configuration repository, persists and reads the singleton `stt_config`
     /// row in `system.db`.
@@ -205,11 +205,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `None` in tests or when `system.db` could not be opened.
     /// Config routes return 503 when `None`.
     pub stt_config_repo: Option<Arc<std::sync::Mutex<SttConfigRepository>>>,
-    /// Orchestrateur A2A de haut niveau, invocations inter-agents par skill ID.
+    /// High-level A2A orchestrator, agent-to-agent invocations by skill ID.
     ///
-    /// `Some` après l'initialisation du runtime avec registry + router + event_bus.
-    /// `None` en tests unitaires. Les routes `/api/v1/a2a/skills` et
-    /// `/api/v1/a2a/invoke` retournent 503 quand `None`.
+    /// `Some` after the runtime is initialized with registry + router + event_bus.
+    /// `None` in unit tests. The `/api/v1/a2a/skills` and
+    /// `/api/v1/a2a/invoke` routes return 503 when `None`.
     pub a2a_invoker: Option<Arc<crate::a2a::A2AInvoker>>,
     /// Shared circuit-breaker registry observed by the runtime event subscriber.
     ///
@@ -368,7 +368,7 @@ async fn health_handler() -> Json<HealthResponse> {
 ///
 /// Emits [`RuntimeEvent::ShutdownRequested`] on the EventBus. The caller
 /// (typically `apollia-os start`) listens for this event to trigger
-/// graceful shutdown (ADR-018).
+/// graceful shutdown.
 async fn shutdown_handler<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<ShutdownResponse> {
@@ -432,9 +432,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/tasks/:id/stream", get(stream_task::<B>))
         .route("/api/v1/tasks/:id/resume", post(resume_task::<B>))
         .route("/api/v1/tasks/:id/review", post(post_review::<B>))
-        // Timeline route (legacy, ADR-088 deprecation candidate)
+        // Timeline route (legacy, deprecation candidate)
         .route("/api/v1/tasks/:id/timeline", get(get_task_timeline::<B>))
-        // Event-sourced trace (ADR-088, Lot 1)
+        // Event-sourced trace
         .route("/api/v1/tasks/:id/trace", get(get_task_trace::<B>))
         // Tool routes
         .route("/api/v1/tools", get(list_tools::<B>))
@@ -801,7 +801,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_endpoint_returns_ok() {
-        // GIVEN un APIServer avec un router minimal
+        // GIVEN an APIServer with a minimal router
         let state = test_app_state();
         let router = build_router(state);
 
@@ -825,7 +825,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_tcp_listener_binds_successfully() {
-        // GIVEN un port libre
+        // GIVEN a free port
         let port = free_port().await;
         let socket_path = temp_socket_path();
         let state = test_app_state();
@@ -837,10 +837,10 @@ mod tests {
         };
         let server = APIServer::new(config, state);
 
-        // WHEN start() est appele
+        // WHEN start() is called
         let handle = server.start().await.unwrap();
 
-        // THEN le serveur repond sur TCP
+        // THEN the server responds over TCP
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let resp = http_get_via_tcp(port).await;
         assert_eq!(resp, r#"{"status":"ok"}"#);
@@ -853,7 +853,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_unix_socket_listener_binds_successfully() {
-        // GIVEN un chemin socket temporaire
+        // GIVEN a temporary socket path
         let socket_path = temp_socket_path();
         let port = free_port().await;
         let state = test_app_state();
@@ -865,10 +865,10 @@ mod tests {
         };
         let server = APIServer::new(config, state);
 
-        // WHEN start() est appele
+        // WHEN start() is called
         let handle = server.start().await.unwrap();
 
-        // THEN le serveur repond sur Unix socket
+        // THEN the server responds over the Unix socket
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let resp = http_get_via_unix(&socket_path).await;
         assert_eq!(resp, r#"{"status":"ok"}"#);
@@ -881,7 +881,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stale_socket_cleanup() {
-        // GIVEN un fichier socket existant (stale)
+        // GIVEN an existing (stale) socket file
         let socket_path = temp_socket_path();
         std::fs::write(&socket_path, b"stale").unwrap();
         assert!(socket_path.exists());
@@ -896,10 +896,10 @@ mod tests {
         };
         let server = APIServer::new(config, state);
 
-        // WHEN start() est appele
+        // WHEN start() is called
         let handle = server.start().await.unwrap();
 
-        // THEN le fichier stale est supprime et le bind reussit
+        // THEN the stale file is removed and the bind succeeds
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let resp = http_get_via_unix(&socket_path).await;
         assert_eq!(resp, r#"{"status":"ok"}"#);
@@ -912,7 +912,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_stops_server() {
-        // GIVEN un APIServer demarre
+        // GIVEN a started APIServer
         let socket_path = temp_socket_path();
         let port = free_port().await;
         let state = test_app_state();
@@ -930,11 +930,11 @@ mod tests {
         let resp = http_get_via_tcp(port).await;
         assert_eq!(resp, r#"{"status":"ok"}"#);
 
-        // WHEN shutdown() est appele
+        // WHEN shutdown() is called
         handle.shutdown();
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        // THEN le serveur ne repond plus
+        // THEN the server no longer responds
         let result = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await;
         assert!(
             result.is_err(),
@@ -946,7 +946,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_route_returns_404() {
-        // GIVEN un APIServer avec le router
+        // GIVEN an APIServer with the router
         let state = test_app_state();
         let router = build_router(state);
 

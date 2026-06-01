@@ -1,12 +1,12 @@
 //! ChatSessionManager, Tokio actor managing chat session lifecycle.
 //!
-//! Central entry point for the Sprint 18 chat subsystem. Handles session
+//! Central entry point for the chat subsystem. Handles session
 //! creation, message routing, tool approval resolution, and lifecycle events.
 //! Persists in SQLite via [`ChatSessionRepository`] and emits
 //! [`RuntimeEvent`] on the EventBus.
 //!
 //! The chat path does NOT go through the `TaskRouter`, it has its own
-//! execution path (ADR-034).
+//! execution path.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -25,10 +25,10 @@ use apollia_tools::chat_libre_config::ChatLibreConfigRepository;
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
 use apollia_tools::{ProjectRepository, ToolRegistryHandle};
 
-/// Identifiant logique de l'agent système "Apollia Chat".
+/// Logical identifier of the system agent "Apollia Chat".
 ///
-/// Sert de clé pour les règles de permission `scope = 'agent'` et la config
-/// libre persistée dans `governance.db`.
+/// Used as the key for `scope = 'agent'` permission rules and for the
+/// free-chat config persisted in `governance.db`.
 pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
 
 /// Subset of the runtime's native-tool config the chat dispatcher needs to
@@ -38,8 +38,8 @@ pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
 /// [`resolve_workspace_for_session`].
 ///
 /// Supervisor populates this once at boot from `apollia.toml` + `data_dir`.
-/// Phase 3 of ADR-096, convergence of Chat Libre's native tool execution
-/// with Agent mode + Triggers.
+/// Part of converging free-chat native tool execution with the Agent mode
+/// and Triggers pipeline.
 #[derive(Clone)]
 pub struct ChatToolsConfig {
     /// Root data directory (`~/.apollia` typical), used to derive
@@ -53,28 +53,23 @@ pub struct ChatToolsConfig {
     pub tools_config: apollia_core::ToolsConfig,
 }
 
-/// Snapshot d'une autorisation tool-level scope=session pour une session active.
+/// Snapshot of a tool-level `scope=session` authorization for an active session.
 ///
-/// Renvoyé par `ChatHandle::list_session_authorizations` afin que le desktop
-/// puisse afficher les autorisations in-memory dans Settings > Permissions
-/// (les règles `scope = 'session'` ne sont jamais persistées).
+/// Returned by `ChatHandle::list_session_authorizations` so the desktop can
+/// display in-memory authorizations in Settings > Permissions (`scope =
+/// 'session'` rules are never persisted).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SessionAuthorizationView {
-    /// Identifiant unique de la session.
+    /// Unique session identifier.
     pub session_id: String,
-    /// Titre de la session (None pour les sessions sans titre).
+    /// Session title (None for untitled sessions).
     pub session_title: Option<String>,
-    /// Mode de la session (`"libre"` | `"agent"` | `"companion"`).
+    /// Session mode (`"libre"` | `"agent"` | `"companion"`).
     pub mode: String,
-    /// Nom de l'outil auto-autorisé pendant cette session.
+    /// Name of the tool auto-authorized during this session.
     pub tool_name: String,
 }
 
-/// Charge depuis `governance.db` la configuration "chat libre" et la liste des
-/// outils auto-autorisés (règles `scope = 'agent'` + action `allow` pour
-/// `apollia:chat`). Fallback silencieux sur les valeurs par défaut si la base
-/// est absente, vide, ou en erreur, aucune régression sur les sessions Libre
-/// existantes.
 /// Merge the session's authorized tools with the live Chat-Libre overrides
 /// (additive: never removes an in-session authorization). Overrides are only
 /// applied for [`ChatMode::Libre`]; other modes return the base set as-is.
@@ -110,8 +105,8 @@ fn load_chat_libre_overrides() -> ChatLibreOverrides {
     out
 }
 
-/// Applique la config "chat libre" (`chat_libre_config`) aux overrides.
-/// Fallback silencieux si la base est absente/illisible.
+/// Apply the free-chat config (`chat_libre_config`) to the overrides.
+/// Silent fallback if the database is absent or unreadable.
 fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Path) {
     let Ok(repo) = ChatLibreConfigRepository::open(db_path) else {
         return;
@@ -122,11 +117,10 @@ fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Pa
     if !cfg.system_prompt.trim().is_empty() {
         out.system_prompt = Some(cfg.system_prompt);
     }
-    // chat_libre_config.allowed_tools = outils auto-autorisés (skip HITL)
-    // selon la copie UX "Outils autorisés sans confirmation".
-    // On les ajoute à pre_authorized_tools, pas à available_tools : le
-    // LLM voit toujours l'ensemble du registre, mais ces outils-ci ne
-    // déclenchent plus de popup.
+    // chat_libre_config.allowed_tools are the auto-authorized tools (HITL
+    // skipped), matching the UX label "tools allowed without confirmation".
+    // They go into pre_authorized_tools, not available_tools: the LLM still
+    // sees the whole registry, but these tools no longer trigger a popup.
     for tool in cfg.allowed_tools {
         out.pre_authorized_tools.insert(tool);
     }
@@ -137,8 +131,8 @@ fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Pa
     }
 }
 
-/// Ajoute aux overrides les outils auto-autorisés via les règles `allow`
-/// scopées sur l'agent `apollia:chat`. Fallback silencieux en cas d'erreur.
+/// Add to the overrides the tools auto-authorized via `allow` rules scoped to
+/// the `apollia:chat` agent. Silent fallback on error.
 fn apply_chat_prefix_allow_rules(out: &mut ChatLibreOverrides, db_path: &std::path::Path) {
     let Ok(engine) = PrefixRuleEngine::new(db_path) else {
         return;
@@ -175,7 +169,7 @@ struct LibreSessionDefaults {
 ///
 /// - `system_prompt` : prepended to the caller's prompt when set.
 /// - `llm_backend`   : recorded on the session for downstream routing.
-/// - `pre_authorized`: agent-scoped allow rules → seed authorized_tools so the
+/// - `pre_authorized`: agent-scoped allow rules seed authorized_tools so the
 ///   chat ReAct loop skips HITL for them.
 fn apply_libre_overrides(is_libre: bool, prompt: &mut String) -> LibreSessionDefaults {
     if !is_libre {
@@ -517,10 +511,6 @@ async fn build_session_invoker(
     Ok(ResolvedSessionInvoker { invoker, workspace })
 }
 
-/// Persiste une règle `allow` scopée dans `governance.db` pour `tool_name`.
-/// Utilisé par le bouton "Toujours autoriser" du chat selon le scope choisi
-/// par l'opérateur. Best-effort : log et continue en cas d'échec (l'autorisation
-/// in-memory dans `session.authorized_tools` reste en place).
 /// Trace-log the enriched approval metadata (reject reason / always-accept
 /// scope) without touching the `log_tool_approval` SQL schema.
 fn log_resolution_metadata(
@@ -552,6 +542,11 @@ fn log_resolution_metadata(
     }
 }
 
+/// Persist a scoped `allow` rule in `governance.db` for `tool_name`.
+///
+/// Driven by the chat "Always allow" button according to the scope the
+/// operator picked. Best-effort: logs and continues on failure (the in-memory
+/// authorization in `session.authorized_tools` stays in place).
 fn persist_chat_allow_rule(
     scope: apollia_permissions::PermissionScope,
     project_path: Option<std::path::PathBuf>,
@@ -976,7 +971,7 @@ struct ChatSessionManager {
     runtime_budget: StepBudgetConfig,
     /// Pending tool approval channels (operator HITL).
     pending_chat_approvals: PendingChatApprovals,
-    /// Pending filesystem HITL approval channels (ADR-069 Couche 2).
+    /// Pending filesystem HITL approval channels.
     pending_fs_approvals: PendingFilesystemApprovals,
     /// Optional user memory repository for system prompt enrichment.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
@@ -988,18 +983,18 @@ struct ChatSessionManager {
     a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Optional project context provider for injecting project context into system prompts.
     project_context: Option<Arc<dyn ProjectContextProvider>>,
-    /// Optional project repository for resolving workspace_path per session (ADR-069).
+    /// Optional project repository for resolving workspace_path per session.
     project_repo: Option<Arc<ProjectRepository>>,
     /// Pending user input registry for the `ask_user` tool.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
-    /// MCP manager handle, populated when the supervisor's Phase 3b
+    /// MCP manager handle, populated when the supervisor's MCP bootstrap
     /// succeeds. Propagated to `NativeChatToolInvoker` per session so
     /// chat-libre invocations of `mcp:<server>/<tool>` can be routed
     /// through the manager.
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
     /// Operator config bundled at supervisor boot (data dir, brave key,
     /// tools_config) for the chat dispatcher. `None` in tests / minimal
-    /// runtimes, falls back to the Phase 2 minimal dispatcher.
+    /// runtimes, falls back to the minimal dispatcher.
     chat_tools_config: Option<Arc<ChatToolsConfig>>,
     /// Map of pending `ask_user` entries, keyed by request_id.
     /// Populated by the background drain task, resolved by `ResolveUserInput`.
@@ -1760,7 +1755,7 @@ impl ChatSessionManager {
                 .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
 
             // Companion sessions are intentionally isolated from user memory and
-            // cross-session history (Principle #6, memory at agent initiative).
+            // cross-session history (memory stays at the agent's initiative).
             // The companion helps with the platform, not the user's personal context.
             let session_user_memory = if session.mode == ChatMode::Companion {
                 None
@@ -1780,12 +1775,12 @@ impl ChatSessionManager {
                 is_first_message && !is_companion,
             );
             let available_tools = session.available_tools.clone();
-            // Live merge : on relit governance.db à chaque message pour que les
-            // changements de configuration Apollia Chat (outils auto-autorisés,
-            // règles agent-scoped) s'appliquent aux sessions Libre déjà ouvertes
-            // sans avoir à fermer/rouvrir la conversation. La fusion est purement
-            // additive : on n'enlève jamais d'autorisation accordée pendant la
-            // session, on en ajoute si la config a été enrichie depuis.
+            // Live merge: governance.db is re-read on every message so Apollia
+            // Chat config changes (auto-authorized tools, agent-scoped rules)
+            // apply to already-open Libre sessions without closing/reopening the
+            // conversation. The merge is purely additive: an authorization
+            // granted during the session is never removed, only added to if the
+            // config has been enriched since.
             let authorized_tools =
                 merge_live_authorized_tools(&session.authorized_tools, &session.mode);
             let pending_approvals = self.pending_chat_approvals.clone();
@@ -1800,7 +1795,7 @@ impl ChatSessionManager {
             let llm_for_summarize = self.llm_router.clone();
 
             // Capture project context and repo for async injection in spawned task.
-            // The invoker is created per-session inside the task (ADR-069).
+            // The invoker is created per-session inside the task.
             let project_ctx = self.project_context.clone();
             let session_project_id = session.project_id.clone();
             let project_repo_for_session = self.project_repo.clone();
@@ -2099,11 +2094,11 @@ impl ChatSessionManager {
 
         // AlwaysAccept: dispatch persistence by scope.
         // - ThisTool / ThisSession: in-memory only (session.authorized_tools).
-        // - ThisAgent  : règle scope='agent' dans governance.db (agent_id dérivé du mode).
-        // - ThisProject: règle scope='project' dans governance.db (workspace_path du projet courant).
-        // - Global     : règle scope='global' dans governance.db.
+        // - ThisAgent  : scope='agent' rule in governance.db (agent_id derived from the mode).
+        // - ThisProject: scope='project' rule in governance.db (workspace_path of the current project).
+        // - Global     : scope='global' rule in governance.db.
         if let ToolDecision::AlwaysAccept { scope } = &decision {
-            // Toujours mettre à jour la session courante (autorisation immédiate).
+            // Always update the current session (immediate authorization).
             session.authorized_tools.insert(tool_name.to_string());
 
             // Capture the scope-resolution inputs before releasing the session
@@ -2112,11 +2107,11 @@ impl ChatSessionManager {
             let session_agent_name = session.agent_name.clone();
             let session_project_id = session.project_id.clone();
 
-            // chat.db.authorized_tools : écrit pour préserver l'autorisation si
-            // le runtime crash en cours de session. Conservé pour les scopes
-            // ThisTool/ThisSession (sinon ils seraient perdus à un restart). Pour
-            // les scopes persistants, c'est redondant avec governance.db mais
-            // sans effet de bord, sera nettoyé dans une étape ultérieure.
+            // chat.db.authorized_tools: written to preserve the authorization if
+            // the runtime crashes mid-session. Kept for the ThisTool/ThisSession
+            // scopes (otherwise they would be lost on restart). For the
+            // persistent scopes it is redundant with governance.db but has no
+            // side effect, to be cleaned up later.
             let now = now_rfc3339();
             if let Err(e) = self.repository.authorize_tool(session_id, tool_name, &now) {
                 warn!(error = %e, "Failed to persist tool authorization");
@@ -2183,7 +2178,7 @@ impl ChatSessionManager {
         use super::types::AlwaysAcceptScope;
         match scope {
             AlwaysAcceptScope::ThisTool | AlwaysAcceptScope::ThisSession => {
-                // Pas de persistance dans governance.db, purement in-session.
+                // No governance.db persistence, purely in-session.
             }
             AlwaysAcceptScope::ThisAgent => {
                 let agent_id = match session_mode {
@@ -2696,7 +2691,7 @@ impl ChatSessionManager {
                 .get_authorized_tools(&row.id)
                 .unwrap_or_default();
             // Libre sessions: also seed from governance.db agent-scoped allow
-            // rules so cross-session "Toujours autoriser" decisions survive.
+            // rules so cross-session "always allow" decisions survive.
             if mode == ChatMode::Libre {
                 let overrides = load_chat_libre_overrides();
                 for tool in overrides.pre_authorized_tools {
@@ -2793,9 +2788,9 @@ async fn resolve_workspace_for_session(
         invoker = invoker.with_ask_user_support(pending);
     }
 
-    // Convergence point (ADR-096 Phase 2): every tool outside the native
-    // hardcoded fast path, MCP, Google connectors, read-only natives,
-    // future providers, is resolved through a single `ToolDispatcher`.
+    // Convergence point: every tool outside the native hardcoded fast path,
+    // MCP, Google connectors, read-only natives, future providers, is
+    // resolved through a single `ToolDispatcher`.
     // The dispatcher applies the same permission engine + audit trail as
     // the Agent-mode pipeline. HITL-sensitive natives (file_write/edit,
     // bash, python_executor, notebook_edit) stay in the fast path because
@@ -2810,14 +2805,14 @@ async fn resolve_workspace_for_session(
 
     let sandbox_root = workspace_path.clone().unwrap_or_else(std::env::temp_dir);
 
-    // Phase 3, when the supervisor handed us a `ChatToolsConfig`, build the
-    // full native dispatcher (same factory the Agent-mode + Triggers pipeline
-    // uses). This pulls in web_search, web_read, http_fetch, memory_search,
+    // When the supervisor handed us a `ChatToolsConfig`, build the full native
+    // dispatcher (same factory the Agent-mode + Triggers pipeline uses). This
+    // pulls in web_search, web_read, http_fetch, memory_search,
     // permission_rule_* and ask_user with the operator's `apollia.toml` cfg.
     // HITL-sensitive natives (bash, python_executor, file_write/edit,
     // notebook_edit) stay disabled from the dispatcher so the fast path
-    // continues to drive their inline approval flow, that migration is
-    // tracked as Phase 4 (HITL → EventBus events).
+    // continues to drive their inline approval flow; migrating that flow to
+    // EventBus events is tracked separately.
     let dispatcher = if let Some(cfg) = chat_tools_config.as_ref() {
         build_full_chat_dispatcher(FullDispatcherParams {
             cfg,
@@ -2911,8 +2906,8 @@ struct FullDispatcherParams<'a> {
     extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
 }
 
-/// Build the full ADR-096 Phase 4 chat dispatcher (every native flows through
-/// the dispatcher, HITL-sensitive natives wrapped, dynamic http_fetch).
+/// Build the full chat dispatcher (every native flows through the dispatcher,
+/// HITL-sensitive natives wrapped, dynamic http_fetch).
 fn build_full_chat_dispatcher(
     params: FullDispatcherParams<'_>,
 ) -> apollia_tools::executor::ToolDispatcher {
@@ -2926,9 +2921,9 @@ fn build_full_chat_dispatcher(
         mut extra_executors,
     } = params;
     // We disable the dispatcher's default versions of:
-    //   - file_write / file_edit / notebook_edit / bash / python →
+    //   - file_write / file_edit / notebook_edit / bash / python:
     //     re-added below wrapped in `HitlFilesystemGuard`.
-    //   - http_fetch → re-added as `DynamicAllowlistHttpFetch`.
+    //   - http_fetch: re-added as `DynamicAllowlistHttpFetch`.
     //
     // The remaining natives (file_read/list/glob/grep, notebook_read,
     // web_search, web_read, memory_search, ask_user, permission_rule_*)
@@ -3117,11 +3112,11 @@ impl ChatSessionManagerHandle {
         project_context: Option<Arc<dyn ProjectContextProvider>>,
         project_repo: Option<Arc<ProjectRepository>>,
         mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
-        // ADR-096 Phase 3, supervisor-built config so the chat dispatcher
-        // can include config-dependent natives (web_search, web_read,
-        // http_fetch, memory_search, permission_rule_*) alongside MCP +
-        // connectors. `None` keeps the Phase 2 behaviour (only read-only
-        // file tools in the dispatcher, the rest in the fast path).
+        // Supervisor-built config so the chat dispatcher can include
+        // config-dependent natives (web_search, web_read, http_fetch,
+        // memory_search, permission_rule_*) alongside MCP + connectors.
+        // `None` keeps the minimal behaviour (only read-only file tools in
+        // the dispatcher, the rest in the fast path).
         chat_tools_config: Option<Arc<ChatToolsConfig>>,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
@@ -3381,8 +3376,8 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
-    /// Liste les autorisations in-memory (scope=session) sur les sessions
-    /// actives. Renvoie un vecteur vide si l'acteur ne répond pas.
+    /// List the in-memory (scope=session) authorizations on active sessions.
+    /// Returns an empty vector if the actor does not respond.
     pub async fn list_session_authorizations(&self) -> Vec<SessionAuthorizationView> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
@@ -3396,8 +3391,8 @@ impl ChatSessionManagerHandle {
         reply_rx.await.unwrap_or_default()
     }
 
-    /// Retire une autorisation `scope=session` d'une session active.
-    /// Retourne `true` si l'entrée existait et a été retirée.
+    /// Remove a `scope=session` authorization from an active session.
+    /// Returns `true` if the entry existed and was removed.
     pub async fn revoke_session_authorization(
         &self,
         session_id: String,

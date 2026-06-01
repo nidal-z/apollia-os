@@ -322,7 +322,7 @@ fn extract_dow(folded: &str) -> Option<(u32, &'static str, &'static str)> {
 /// Looks up an agent by name/id in a known list. Case-insensitive matching on
 /// the raw name and on the "folded" name (no accents, lowercase).
 fn match_agent(folded: &str, known: &[String]) -> Option<AgentMatch> {
-    // On fait un match descendant : on teste d'abord les noms les plus longs.
+    // Match longest names first to avoid a shorter name shadowing a longer one.
     let mut sorted = known.to_vec();
     sorted.sort_by_key(|s| std::cmp::Reverse(s.len()));
     for name in &sorted {

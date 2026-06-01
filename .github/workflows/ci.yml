@@ -217,6 +217,20 @@ jobs:
           grep -rnE 'github[.]com/(nidal-z|nidalzoumit[a])/' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist --exclude-dir=.vitepress . && rc=1 || true
           [ "$rc" = 0 ] || { echo "::error::PII / dead domain / stale slug found"; exit 1; }
 
+  # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
+  python-types:
+    name: Python Type Check (SDK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install mypy
+      - name: mypy (strict, apollia package)
+        working-directory: sdk
+        run: mypy apollia
+
   # ── Link check : catches broken local doc links (offline, no external flake) ─
   links:
     name: Doc Link Check

@@ -1,8 +1,8 @@
-//! Types partagés pour le binary feedback RLHF - deux plans alternatifs.
+//! Shared types for the RLHF feedback loop: two alternative plans.
 //!
-//! Défini dans `apollia-core` pour être utilisé par `apollia-oria` (génération),
-//! `apollia-memory` (persistance du choix), `apollia-cli` (affichage terminal)
-//! et `apollia-desktop` (composant Svelte) sans dépendance circulaire.
+//! Defined in `apollia-core` so it can be used by `apollia-oria` (generation),
+//! `apollia-memory` (persisting the choice), `apollia-cli` (terminal display)
+//! and `apollia-desktop` (Svelte component) without a circular dependency.
 
 use serde::{Deserialize, Serialize};
 
@@ -10,38 +10,38 @@ use serde::{Deserialize, Serialize};
 // Step / Plan
 // ─────────────────────────────────────────────
 
-/// Un step individuel dans un [`TaskPlan`].
+/// A single step within a [`TaskPlan`].
 ///
-/// Représentation partagée utilisée dans le contexte du binary feedback -
-/// distincte de `ExecutionPlan` / `PlanStep` interne à `apollia-oria`.
+/// Shared representation used in the feedback loop context, distinct from the
+/// `ExecutionPlan` / `PlanStep` types internal to `apollia-oria`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskPlanStep {
-    /// Identifiant unique dans le plan (ex: `"s1"`, `"s2"`).
+    /// Unique identifier within the plan (e.g. `"s1"`, `"s2"`).
     pub step_id: String,
-    /// Description en langage naturel de l'action à réaliser.
+    /// Natural-language description of the action to perform.
     pub description: String,
-    /// Outil suggéré par le LLM (optionnel).
+    /// Tool suggested by the LLM (optional).
     #[serde(default)]
     pub tool_hint: Option<String>,
-    /// Identifiants des steps dont ce step dépend.
+    /// Identifiers of the steps this step depends on.
     #[serde(default)]
     pub depends_on: Vec<String>,
-    /// Hint optionnel pour router ce step vers un backend LLM spécifique.
+    /// Optional hint to route this step to a specific LLM backend.
     #[serde(default)]
     pub model_hint: Option<String>,
 }
 
-/// Plan d'exécution sérialisable partagé entre les crates.
+/// Serializable execution plan shared across crates.
 ///
-/// Utilisé comme représentation canonique dans [`PlanAlternatives`]
-/// et dans les événements [`RuntimeEvent::PlanAlternativesGenerated`].
+/// Used as the canonical representation in [`PlanAlternatives`]
+/// and in [`RuntimeEvent::PlanAlternativesGenerated`] events.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskPlan {
-    /// Identifiant unique du plan (UUID v4).
+    /// Unique plan identifier (UUID v4).
     pub plan_id: String,
-    /// Identifiant de la tâche associée.
+    /// Identifier of the associated task.
     pub task_id: String,
-    /// Steps à exécuter.
+    /// Steps to execute.
     pub steps: Vec<TaskPlanStep>,
 }
 
@@ -49,20 +49,20 @@ pub struct TaskPlan {
 // PlanAlternatives
 // ─────────────────────────────────────────────
 
-/// Deux plans alternatifs générés en parallèle par le Reasoner.
+/// Two alternative plans generated in parallel by the Reasoner.
 ///
-/// Plan A est produit à basse température (déterministe, conservateur).
-/// Plan B est produit à haute température (créatif, exploratoire).
-/// Le `session_id` corrèle la génération avec le choix de l'opérateur.
+/// Plan A is produced at low temperature (deterministic, conservative).
+/// Plan B is produced at high temperature (creative, exploratory).
+/// The `session_id` correlates the generation with the operator's choice.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanAlternatives {
-    /// Plan A : température basse - déterministe et conservateur.
+    /// Plan A: low temperature, deterministic and conservative.
     pub plan_a: TaskPlan,
-    /// Plan B : température haute - créatif et exploratoire.
+    /// Plan B: high temperature, creative and exploratory.
     pub plan_b: TaskPlan,
-    /// Identifiant de session pour la corrélation avec [`PlanChoice`].
+    /// Session identifier for correlation with [`PlanChoice`].
     pub session_id: String,
-    /// Timestamp Unix de génération (secondes).
+    /// Unix timestamp of generation (seconds).
     pub generated_at: i64,
 }
 
@@ -70,31 +70,31 @@ pub struct PlanAlternatives {
 // PlanChoice / ChosenPlan
 // ─────────────────────────────────────────────
 
-/// Choix de l'opérateur entre les deux plans alternatifs.
+/// The operator's choice between the two alternative plans.
 ///
-/// Persisté en SQLite par `PlanChoiceStore::log_plan_choice()` pour constituer
-/// le signal RLHF. Local uniquement - jamais envoyé à l'extérieur (Principe #1).
+/// Persisted to SQLite by `PlanChoiceStore::log_plan_choice()` to form the
+/// RLHF signal. Local only: never sent off the machine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChoice {
-    /// Identifiant de session correspondant à [`PlanAlternatives::session_id`].
+    /// Session identifier matching [`PlanAlternatives::session_id`].
     pub session_id: String,
-    /// Plan choisi par l'opérateur.
+    /// Plan chosen by the operator.
     pub chosen: ChosenPlan,
-    /// Timestamp Unix du choix (secondes).
+    /// Unix timestamp of the choice (seconds).
     pub chosen_at: i64,
 }
 
-/// Identifie lequel des deux plans alternatifs a été choisi.
+/// Identifies which of the two alternative plans was chosen.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ChosenPlan {
-    /// Plan A : le plan conservateur à basse température.
+    /// Plan A: the conservative, low-temperature plan.
     PlanA,
-    /// Plan B : le plan exploratoire à haute température.
+    /// Plan B: the exploratory, high-temperature plan.
     PlanB,
 }
 
 impl ChosenPlan {
-    /// Retourne la représentation textuelle utilisée dans la table `plan_choices`.
+    /// Returns the text representation used in the `plan_choices` table.
     pub fn as_db_str(&self) -> &str {
         match self {
             ChosenPlan::PlanA => "plan_a",

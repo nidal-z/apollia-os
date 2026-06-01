@@ -1,59 +1,59 @@
 use serde::{Deserialize, Serialize};
 
-/// Budget de tokens accumulé sur la durée d'une session ou d'une tâche.
+/// Token budget accumulated over the lifetime of a session or task.
 ///
-/// Accumulé à chaque appel LLM via [`TokenBudget::merge`].
-/// Sérialisable pour la persistance dans `~/.apollia/session_costs.jsonl`
-/// et le transport via l'API REST.
+/// Accumulated on each LLM call via [`TokenBudget::merge`].
+/// Serializable for persistence in `~/.apollia/session_costs.jsonl`
+/// and transport over the REST API.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TokenBudget {
-    /// Tokens en entrée (prompt), cumulés sur tous les appels de la session.
+    /// Input (prompt) tokens, summed across all calls in the session.
     pub input_tokens: u64,
-    /// Tokens générés (completion), cumulés sur tous les appels.
+    /// Generated (completion) tokens, summed across all calls.
     pub output_tokens: u64,
-    /// Tokens lus depuis le cache Anthropic (coût ~90% inférieur à l'input normal).
+    /// Tokens read from the Anthropic cache (roughly 90% cheaper than normal input).
     pub cache_read_tokens: u64,
-    /// Tokens écrits dans le cache Anthropic (coût légèrement supérieur à l'input).
+    /// Tokens written to the Anthropic cache (slightly more expensive than input).
     pub cache_write_tokens: u64,
-    /// Coût total estimé en USD, cumulé sur tous les appels.
+    /// Total estimated cost in USD, summed across all calls.
     pub cost_usd: f64,
-    /// Latence cumulée des appels API en millisecondes.
+    /// Cumulative API call latency in milliseconds.
     pub api_duration_ms: u64,
-    /// Durée wall-clock totale de la session en millisecondes.
+    /// Total wall-clock duration of the session in milliseconds.
     pub wall_duration_ms: u64,
-    /// Time to First Token - latence jusqu'au premier token reçu (ms).
+    /// Time to First Token: latency until the first token is received (ms).
     ///
-    /// `None` si la session ne contient aucun appel streaming, ou si non mesuré.
-    /// Défini sur le premier appel streaming de la session.
+    /// `None` if the session has no streaming call, or if it was not measured.
+    /// Set on the first streaming call of the session.
     pub ttft_ms: Option<u64>,
-    /// Durée du streaming depuis le premier byte jusqu'au dernier chunk (ms).
+    /// Streaming duration from the first byte to the last chunk (ms).
     pub streaming_duration_ms: u64,
 }
 
-/// Compteurs d'un appel LLM unique, agrégés dans un [`TokenBudget`] via
+/// Counters for a single LLM call, aggregated into a [`TokenBudget`] via
 /// [`TokenBudget::merge`].
 ///
-/// `prompt_tokens` / `completion_tokens` correspondent aux champs équivalents
-/// de `TokenUsage`. `cost_usd` est le coût calculé pour cet appel. `api_ms`
-/// est la latence mesurée de l'appel HTTP.
+/// `prompt_tokens` / `completion_tokens` map to the equivalent fields of
+/// `TokenUsage`. `cost_usd` is the cost computed for this call. `api_ms` is the
+/// measured latency of the HTTP call.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TokenUsageDelta {
-    /// Tokens de prompt consommés par l'appel.
+    /// Prompt tokens consumed by the call.
     pub prompt_tokens: u32,
-    /// Tokens de complétion produits par l'appel.
+    /// Completion tokens produced by the call.
     pub completion_tokens: u32,
-    /// Tokens lus depuis le cache de prompt.
+    /// Tokens read from the prompt cache.
     pub cache_read: u32,
-    /// Tokens écrits dans le cache de prompt.
+    /// Tokens written to the prompt cache.
     pub cache_write: u32,
-    /// Coût calculé pour cet appel, en USD.
+    /// Cost computed for this call, in USD.
     pub cost_usd: f64,
-    /// Latence mesurée de l'appel HTTP, en millisecondes.
+    /// Measured latency of the HTTP call, in milliseconds.
     pub api_ms: u64,
 }
 
 impl TokenBudget {
-    /// Fusionne les compteurs d'un appel LLM dans ce budget.
+    /// Merges the counters of an LLM call into this budget.
     pub fn merge(&mut self, delta: TokenUsageDelta) {
         self.input_tokens += u64::from(delta.prompt_tokens);
         self.output_tokens += u64::from(delta.completion_tokens);
@@ -63,10 +63,10 @@ impl TokenBudget {
         self.api_duration_ms += delta.api_ms;
     }
 
-    /// Formate le budget pour un affichage CLI lisible par un humain.
+    /// Formats the budget for a human-readable CLI display.
     ///
-    /// Format : `"Tokens: X input / Y output / Z cache-read - $0.00XX USD (TTFT: Xms, wall: Xms)"`
-    /// Le segment TTFT est omis si [`ttft_ms`](TokenBudget::ttft_ms) est `None`.
+    /// Format: `"Tokens: X input / Y output / Z cache-read - $0.00XX USD (TTFT: Xms, wall: Xms)"`
+    /// The TTFT segment is omitted when [`ttft_ms`](TokenBudget::ttft_ms) is `None`.
     pub fn format_summary(&self) -> String {
         let ttft_segment = self
             .ttft_ms
@@ -92,7 +92,7 @@ mod tests {
     fn test_token_budget_merge_accumulates() {
         // GIVEN
         let mut budget = TokenBudget::default();
-        // WHEN - deux appels successifs identiques
+        // WHEN: two identical successive calls
         let delta = TokenUsageDelta {
             prompt_tokens: 100,
             completion_tokens: 50,

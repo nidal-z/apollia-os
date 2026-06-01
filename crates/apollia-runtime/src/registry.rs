@@ -8,38 +8,38 @@ use apollia_core::{AgentId, AgentManifest, ProcessState, RuntimeEvent};
 
 use crate::eventbus::EventBusSender;
 
-/// Entrée dans le registry pour un agent enregistré.
+/// Registry entry for a registered agent.
 #[derive(Debug, Clone)]
 pub struct AgentEntry {
-    /// Identifiant unique généré à l'enregistrement (UUID v4).
+    /// Unique identifier generated at registration (UUID v4).
     pub id: AgentId,
-    /// Manifest déclaré par l'agent à l'enregistrement.
+    /// Manifest declared by the agent at registration.
     pub manifest: AgentManifest,
-    /// État courant du processus agent.
+    /// Current state of the agent process.
     pub process_state: ProcessState,
-    /// Instant de l'enregistrement, pour calculer l'uptime.
+    /// Registration instant, used to compute uptime.
     pub registered_at: Instant,
 }
 
-/// Erreurs possibles des opérations sur le registry.
+/// Possible errors from registry operations.
 #[derive(Debug, thiserror::Error)]
 pub enum AgentRegistryError {
-    /// L'agent demandé n'existe pas dans le registry.
+    /// The requested agent does not exist in the registry.
     #[error("Agent '{0}' introuvable dans le registry")]
     NotFound(AgentId),
-    /// La transition d'état demandée viole la machine d'état de `ProcessState`.
+    /// The requested state transition violates the `ProcessState` state machine.
     #[error("Transition d'état invalide : {from:?} → {to:?}")]
     InvalidTransition {
         from: ProcessState,
         to: ProcessState,
     },
-    /// Le canal vers l'acteur est fermé, l'acteur s'est arrêté.
+    /// The channel to the actor is closed: the actor has stopped.
     #[error("L'acteur AgentRegistry est mort (canal fermé)")]
     ActorDead,
 }
 
-// Messages internes, enum privé, jamais exposé publiquement.
-// AgentManifest est boxé dans Register pour éviter une variante de taille disproportionnée.
+// Internal messages, private enum, never exposed publicly.
+// AgentManifest is boxed in Register to avoid an oversized enum variant.
 enum RegistryMessage {
     Register {
         manifest: Box<AgentManifest>,
@@ -71,23 +71,23 @@ enum RegistryMessage {
     Shutdown,
 }
 
-/// Acteur interne du registry, état privé, jamais exposé directement.
+/// Internal registry actor, private state, never exposed directly.
 ///
-/// Toute interaction passe par [`AgentRegistryHandle`].
-/// La construction se fait uniquement via [`AgentRegistry::spawn`].
+/// All interaction goes through [`AgentRegistryHandle`].
+/// Construction happens only via [`AgentRegistry::spawn`].
 pub struct AgentRegistry {
     agents: HashMap<AgentId, AgentEntry>,
-    /// Index secondaire : manifest.name → AgentId pour lookup par nom.
+    /// Secondary index: manifest.name to AgentId for name lookup.
     name_index: HashMap<String, AgentId>,
     bus: EventBusSender,
 }
 
 impl AgentRegistry {
-    /// Spawn l'acteur dans un Tokio task et retourne son [`AgentRegistryHandle`] public.
+    /// Spawns the actor in a Tokio task and returns its public [`AgentRegistryHandle`].
     ///
-    /// Le canal mpsc a une capacité de 256 messages. L'acteur s'arrête
-    /// naturellement quand tous les handles sont droppés (canal fermé),
-    /// ou explicitement sur réception de [`RegistryMessage::Shutdown`].
+    /// The mpsc channel has a capacity of 256 messages. The actor stops
+    /// naturally when all handles are dropped (channel closed),
+    /// or explicitly upon receiving [`RegistryMessage::Shutdown`].
     pub fn spawn(bus: EventBusSender) -> AgentRegistryHandle {
         let (tx, rx) = mpsc::channel(256);
         let registry = Self {
@@ -214,24 +214,24 @@ impl AgentRegistry {
     }
 }
 
-/// Handle public vers l'acteur `AgentRegistry`, clonable, thread-safe.
+/// Public handle to the `AgentRegistry` actor, clonable, thread-safe.
 ///
-/// Obtenu via [`AgentRegistry::spawn`]. Chaque clone partage le même acteur
-/// sous-jacent. Toutes les méthodes sont async et retournent
-/// [`AgentRegistryError::ActorDead`] si l'acteur s'est arrêté.
+/// Obtained via [`AgentRegistry::spawn`]. Every clone shares the same
+/// underlying actor. All methods are async and return
+/// [`AgentRegistryError::ActorDead`] if the actor has stopped.
 #[derive(Clone)]
 pub struct AgentRegistryHandle {
     tx: mpsc::Sender<RegistryMessage>,
 }
 
 impl AgentRegistryHandle {
-    /// Enregistre un nouvel agent avec son manifest.
+    /// Registers a new agent with its manifest.
     ///
-    /// Retourne l'[`AgentId`] généré (UUID v4).
-    /// L'agent est créé en état [`ProcessState::Initializing`] et
-    /// [`RuntimeEvent::AgentRegistered`] est publié sur l'EventBus.
-    /// Si un agent du même nom existe déjà (cycle stop/restart), l'ancienne entrée
-    /// est évincée avant l'insertion du nouvel enregistrement.
+    /// Returns the generated [`AgentId`] (UUID v4).
+    /// The agent is created in state [`ProcessState::Initializing`] and
+    /// [`RuntimeEvent::AgentRegistered`] is published on the EventBus.
+    /// If an agent with the same name already exists (stop/restart cycle), the old
+    /// entry is evicted before inserting the new registration.
     pub async fn register(&self, manifest: AgentManifest) -> Result<AgentId, AgentRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -244,9 +244,9 @@ impl AgentRegistryHandle {
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)?
     }
 
-    /// Retire un agent du registry et publie [`RuntimeEvent::AgentStopped`].
+    /// Removes an agent from the registry and publishes [`RuntimeEvent::AgentStopped`].
     ///
-    /// Retourne [`AgentRegistryError::NotFound`] si l'agent n'existe pas.
+    /// Returns [`AgentRegistryError::NotFound`] if the agent does not exist.
     pub async fn unregister(&self, id: &str) -> Result<(), AgentRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -259,10 +259,10 @@ impl AgentRegistryHandle {
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)?
     }
 
-    /// Met à jour l'état [`ProcessState`] d'un agent.
+    /// Updates an agent's [`ProcessState`].
     ///
-    /// Retourne [`AgentRegistryError::InvalidTransition`] si la transition
-    /// est refusée par la machine d'état de `ProcessState`.
+    /// Returns [`AgentRegistryError::InvalidTransition`] if the transition
+    /// is rejected by the `ProcessState` state machine.
     pub async fn update_state(
         &self,
         id: &str,
@@ -280,7 +280,7 @@ impl AgentRegistryHandle {
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)?
     }
 
-    /// Retourne l'AgentId correspondant à un nom de manifest, ou `None`.
+    /// Returns the AgentId matching a manifest name, or `None`.
     pub async fn find_by_name(&self, name: &str) -> Result<Option<AgentId>, AgentRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -293,9 +293,9 @@ impl AgentRegistryHandle {
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)
     }
 
-    /// Retourne l'entrée d'un agent ou `None` s'il n'est pas enregistré.
+    /// Returns an agent's entry, or `None` if it is not registered.
     ///
-    /// L'absence d'un agent n'est pas une erreur.
+    /// The absence of an agent is not an error.
     pub async fn get_agent(&self, id: &str) -> Result<Option<AgentEntry>, AgentRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -308,7 +308,7 @@ impl AgentRegistryHandle {
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)
     }
 
-    /// Retourne tous les agents actuellement enregistrés.
+    /// Returns all currently registered agents.
     pub async fn list_agents(&self) -> Result<Vec<AgentEntry>, AgentRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -318,7 +318,7 @@ impl AgentRegistryHandle {
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)
     }
 
-    /// Retourne tous les agents dont `manifest.supports_a2a == true`.
+    /// Returns all agents where `manifest.supports_a2a == true`.
     pub async fn list_a2a_agents(&self) -> Result<Vec<AgentEntry>, AgentRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -328,10 +328,10 @@ impl AgentRegistryHandle {
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)
     }
 
-    /// Demande l'arrêt de l'acteur (fire-and-forget).
+    /// Requests the actor to stop (fire-and-forget).
     ///
-    /// Les messages déjà en file sont traités avant l'arrêt.
-    /// Si l'acteur est déjà mort, l'erreur est silencieusement ignorée.
+    /// Messages already queued are processed before stopping.
+    /// If the actor is already dead, the error is silently ignored.
     pub fn shutdown(&self) {
         let _ = self.tx.try_send(RegistryMessage::Shutdown);
     }
@@ -452,7 +452,7 @@ mod tests {
         let (bus_tx, mut bus_rx) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
         let id = handle.register(test_manifest("agent-test")).await.unwrap();
-        let _ = bus_rx.recv().await; // consommer AgentRegistered
+        let _ = bus_rx.recv().await; // consume AgentRegistered
 
         // WHEN
         let result = handle.update_state(id.as_str(), ProcessState::Active).await;
@@ -478,7 +478,7 @@ mod tests {
             .await
             .unwrap();
 
-        // WHEN, Stopped → Active est invalide
+        // WHEN, Stopped to Active is invalid
         let result = handle.update_state(id.as_str(), ProcessState::Active).await;
 
         // THEN
@@ -507,7 +507,7 @@ mod tests {
         let (bus_tx, mut bus_rx) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
         let id = handle.register(test_manifest("agent-test")).await.unwrap();
-        let _ = bus_rx.recv().await; // consommer AgentRegistered
+        let _ = bus_rx.recv().await; // consume AgentRegistered
 
         // WHEN
         let result = handle.unregister(id.as_str()).await;
@@ -525,7 +525,7 @@ mod tests {
         let handle = AgentRegistry::spawn(bus_tx);
         let handle2 = handle.clone();
 
-        // WHEN, deux appels concurrent via deux handles distincts
+        // WHEN, two concurrent calls via two distinct handles
         let (r1, r2) = tokio::join!(
             handle.register(test_manifest("agent-a")),
             handle2.register(test_manifest("agent-b")),
@@ -585,15 +585,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_by_name_returns_uuid_after_register() {
-        // GIVEN un agent enregistre avec manifest.name = "hello-agent"
+        // GIVEN an agent registered with manifest.name = "hello-agent"
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
         let registered_id = handle.register(test_manifest("hello-agent")).await.unwrap();
 
-        // WHEN registry.find_by_name("hello-agent") est appele
+        // WHEN registry.find_by_name("hello-agent") is called
         let result = handle.find_by_name("hello-agent").await;
 
-        // THEN Some(agent_uuid) est retourne
+        // THEN Some(agent_uuid) is returned
         assert!(result.is_ok());
         let found = result.unwrap();
         assert_eq!(found, Some(registered_id));
@@ -601,40 +601,40 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_by_name_unknown_name_returns_none() {
-        // GIVEN aucun agent avec manifest.name = "fantome"
+        // GIVEN no agent with manifest.name = "fantome"
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
 
-        // WHEN registry.find_by_name("fantome") est appele
+        // WHEN registry.find_by_name("fantome") is called
         let result = handle.find_by_name("fantome").await;
 
-        // THEN None est retourne
+        // THEN None is returned
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), None);
     }
 
     #[tokio::test]
     async fn test_find_by_name_cleared_after_unregister() {
-        // GIVEN un agent "hello-agent" enregistre
+        // GIVEN a registered agent "hello-agent"
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
         let agent_id = handle.register(test_manifest("hello-agent")).await.unwrap();
 
-        // Verifie que le nom est indexe avant unregister
+        // Verify the name is indexed before unregister
         let before = handle.find_by_name("hello-agent").await.unwrap();
         assert_eq!(before, Some(agent_id.clone()));
 
-        // WHEN l'agent est retire via unregister
+        // WHEN the agent is removed via unregister
         handle.unregister(agent_id.as_str()).await.unwrap();
 
-        // THEN find_by_name("hello-agent") retourne None
+        // THEN find_by_name("hello-agent") returns None
         let after = handle.find_by_name("hello-agent").await.unwrap();
         assert_eq!(after, None);
     }
 
     #[tokio::test]
     async fn test_list_a2a_agents_filters_correctly() {
-        // GIVEN 3 agents : 2 avec supports_a2a, 1 sans
+        // GIVEN 3 agents: 2 with supports_a2a, 1 without
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
         handle
@@ -650,10 +650,10 @@ mod tests {
             .await
             .unwrap();
 
-        // WHEN list_a2a_agents est appelé
+        // WHEN list_a2a_agents is called
         let a2a_agents = handle.list_a2a_agents().await.unwrap();
 
-        // THEN seuls les 2 agents A2A sont retournés
+        // THEN only the 2 A2A agents are returned
         assert_eq!(a2a_agents.len(), 2);
         assert!(a2a_agents.iter().all(|e| e.manifest.supports_a2a));
     }
@@ -663,7 +663,7 @@ mod tests {
         // Regression: stopping then restarting an A2A agent must produce a fresh
         // AgentId and not leave stale entries in the registry.
 
-        // GIVEN spec-assistant enregistré et actif
+        // GIVEN spec-assistant registered and active
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
         let id1 = handle
@@ -678,7 +678,7 @@ mod tests {
             .await
             .unwrap();
 
-        // WHEN l'agent est arrêté puis redémarré
+        // WHEN the agent is stopped then restarted
         handle
             .update_state(id1.as_str(), ProcessState::Stopping)
             .await
@@ -695,7 +695,7 @@ mod tests {
             .await
             .expect("re-registration should succeed");
 
-        // THEN un nouvel id est produit, et list_agents ne contient qu'une entrée
+        // THEN a fresh id is produced, and list_agents holds only one entry
         assert_ne!(id1, id2, "restart must produce a fresh AgentId");
         let agents = handle.list_agents().await.unwrap();
         assert_eq!(agents.len(), 1, "no stale entry should remain");

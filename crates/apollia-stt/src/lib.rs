@@ -1,10 +1,10 @@
 //! Apollia OS Speech-to-Text interfaces.
 //!
-//! Cette crate fournit :
-//! - Le trait [`SttBackend`] (object-safe, `Send + Sync`) pour abstraire les moteurs STT.
-//! - Les types [`TranscriptResult`], [`TranscriptSegment`] pour les résultats de transcription.
-//! - L'enum [`SttError`] pour les erreurs STT.
-//! - Le repository SQLite des transcriptions persistées.
+//! This crate provides:
+//! - The [`SttBackend`] trait (object-safe, `Send + Sync`) to abstract STT engines.
+//! - The [`TranscriptResult`], [`TranscriptSegment`] types for transcription results.
+//! - The [`SttError`] enum for STT errors.
+//! - The SQLite repository for persisted transcriptions.
 //!
 //! The whisper.cpp inference engine itself lives in the `apollia-runner`
 //! crate (sidecar process). The daemon uses `RunnerSttBackend`
@@ -24,8 +24,8 @@ pub use types::{SttError, TranscriptResult, TranscriptSegment};
 mod tests {
     use super::*;
 
-    // GIVEN le trait SttBackend
-    // WHEN on crée un Box<dyn SttBackend>
+    // GIVEN the SttBackend trait
+    // WHEN a Box<dyn SttBackend> is created
     // THEN it compiles, the trait is object-safe
     #[test]
     fn stt_backend_is_object_safe() {

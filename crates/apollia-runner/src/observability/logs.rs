@@ -1,15 +1,14 @@
-//! Logger structuré JSON Lines sur stderr.
+//! Structured JSON Lines logger on stderr.
 //!
-//! **Critique** : stdout est réservé à la communication handshake avec le
-//! parent (daemon). Tout log doit aller sur stderr pour ne pas polluer.
-//! Cf. [IPC-PROTOCOL §1.2](../../../../docs/internal/architecture/IPC-PROTOCOL.md).
+//! Critical: stdout is reserved for the handshake communication with the
+//! parent (daemon). All logs must go to stderr to avoid polluting it.
 
 use std::io;
 
-/// Initialise le logger en mode JSON Lines vers stderr.
+/// Initializes the logger in JSON Lines mode to stderr.
 ///
-/// Le niveau de log par défaut est `info`. Override possible via la variable
-/// d'environnement `RUST_LOG` (format `tracing_subscriber::EnvFilter` standard).
+/// The default log level is `info`. It can be overridden via the `RUST_LOG`
+/// environment variable (standard `tracing_subscriber::EnvFilter` format).
 pub fn init() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));

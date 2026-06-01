@@ -1,38 +1,38 @@
-//! Codes d'erreur normalisés et body d'erreur sérialisable.
+//! Normalized error codes and serializable error body.
 
 use serde::{Deserialize, Serialize};
 
-/// Codes d'erreur normalisés.
+/// Normalized error codes.
 ///
-/// La liste est extensible MINEUREMENT (nouveau variant) sans casser le
-/// protocole. Le retrait d'un variant = changement MAJEUR.
+/// The list can grow with a MINOR change (a new variant) without breaking the
+/// protocol. Removing a variant is a MAJOR change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorCode {
-    /// LLM call avant `/llm/load_model`.
+    /// LLM call before `/llm/load_model`.
     ModelNotLoaded,
-    /// Chargement GGUF impossible (chemin invalide, fichier corrompu, etc.).
+    /// GGUF load failed (invalid path, corrupted file, etc.).
     ModelLoadFailed,
-    /// GPU memory dépassée pendant le chargement ou l'inférence.
+    /// GPU memory exceeded during load or inference.
     BackendOom,
-    /// Inférence échouée (kernel crash, runtime error).
+    /// Inference failed (kernel crash, runtime error).
     InferenceFailed,
-    /// JSON malformé ou params invalides.
+    /// Malformed JSON or invalid params.
     BadRequest,
-    /// Endpoint pas implémenté par ce backend (ex: STT sur vulkan).
+    /// Endpoint not implemented by this backend (e.g. STT on vulkan).
     UnsupportedOperation,
-    /// Bug runner interne, ne devrait pas arriver.
+    /// Internal runner bug, should not happen.
     Internal,
 }
 
-/// Body sérialisable d'une erreur IPC.
+/// Serializable body of an IPC error.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorBody {
-    /// Code d'erreur normalisé.
+    /// Normalized error code.
     pub code: ErrorCode,
-    /// Message lisible par humain, lowercase, pas de point final.
+    /// Human-readable message, lowercase, no trailing period.
     pub message: String,
-    /// Détails contextuels optionnels (ex: chemin, valeur reçue, etc.).
+    /// Optional contextual details (e.g. path, received value, etc.).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
 }

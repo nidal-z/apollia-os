@@ -23,7 +23,7 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 
 use crate::ipc::{ErrorBody, ErrorCode, TranscribeData, TranscribeParams, TranscribeSegment};
 
-/// Fréquence d'échantillonnage attendue par whisper.cpp.
+/// Sample rate expected by whisper.cpp.
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
 fn internal(msg: impl Into<String>) -> ErrorBody {
@@ -39,21 +39,21 @@ fn bad_request(msg: impl Into<String>) -> ErrorBody {
     ErrorBody::new(ErrorCode::BadRequest, msg)
 }
 
-/// Entrée d'un modèle whisper chargé.
+/// A loaded whisper model.
 struct LoadedWhisper {
     ctx: WhisperContext,
     memory_used_mb: u32,
 }
 
-// SAFETY: `WhisperContext` est `Send + Sync` selon l'API whisper-rs ; chaque
-// requête crée un `state` séparé via `create_state()`.
+// SAFETY: `WhisperContext` is `Send + Sync` per the whisper-rs API; each
+// request creates a separate `state` via `create_state()`.
 unsafe impl Send for LoadedWhisper {}
 unsafe impl Sync for LoadedWhisper {}
 
 /// Backend STT in-process via whisper.cpp.
 ///
-/// Détient un cache `model_id -> WhisperContext` partagé entre les handlers
-/// axum via un `Arc`.
+/// Holds a `model_id -> WhisperContext` cache shared across the axum
+/// handlers via an `Arc`.
 pub struct WhisperBackend {
     models: Mutex<HashMap<String, std::sync::Arc<LoadedWhisper>>>,
 }
@@ -91,15 +91,15 @@ impl WhisperBackend {
         guard.get(model_id).cloned()
     }
 
-    /// Charge paresseusement le modèle whisper si `model_id` n'est pas encore en cache.
+    /// Lazily fetches the whisper model if `model_id` is not yet cached.
     ///
-    /// Le chemin du modèle est dérivé de l'`audio_path` ? Non : whisper n'a pas
-    /// d'endpoint séparé `/stt/load_model` dans la spec actuelle. Le mapping
-    /// `model_id -> chemin disque` est porté par le daemon ; le runner reçoit
-    /// uniquement `model_id` et suppose le modèle déjà chargé.
+    /// The model path is not derived from `audio_path`: whisper has no
+    /// separate `/stt/load_model` endpoint in the current spec. The
+    /// `model_id -> disk path` mapping is owned by the daemon; the runner
+    /// receives only `model_id` and assumes the model is already loaded.
     ///
-    /// Si tu veux supporter un chargement à la volée, ajoute un champ
-    /// `model_path` à `TranscribeParams` (extension MINOR du protocole).
+    /// To support on-the-fly loading, add a `model_path` field to
+    /// `TranscribeParams` (a MINOR protocol extension).
     async fn ensure_loaded(&self, model_id: &str) -> Result<std::sync::Arc<LoadedWhisper>, ErrorBody> {
         if let Some(m) = self.get(model_id) {
             return Ok(m);
@@ -110,11 +110,11 @@ impl WhisperBackend {
         ))
     }
 
-    /// Charge explicitement un modèle GGML/GGUF whisper depuis un chemin disque.
+    /// Explicitly loads a whisper GGML/GGUF model from a disk path.
     ///
-    /// Le runner n'expose pas (encore) cet appel via HTTP : il sera invoqué par
-    /// le daemon lors d'une extension future du protocole IPC. Pour l'instant,
-    /// utilisé uniquement par les tests d'intégration.
+    /// The runner does not (yet) expose this call over HTTP: it will be
+    /// invoked by the daemon in a future IPC protocol extension. For now it
+    /// is used only by integration tests.
     pub async fn load_model(
         &self,
         model_id: String,
@@ -151,7 +151,7 @@ impl WhisperBackend {
         Ok(())
     }
 
-    /// Transcrit un fichier WAV (`POST /stt/transcribe`).
+    /// Transcribes a WAV file (`POST /stt/transcribe`).
     pub async fn transcribe(
         &self,
         params: TranscribeParams,
@@ -181,7 +181,7 @@ impl WhisperBackend {
     }
 }
 
-/// Charge un WAV depuis le disque et le normalise en mono 16 kHz f32.
+/// Loads a WAV from disk and normalizes it to mono 16 kHz f32.
 fn load_and_resample_wav(path: &Path) -> Result<Vec<f32>, ErrorBody> {
     if !path.exists() {
         return Err(bad_request(format!(

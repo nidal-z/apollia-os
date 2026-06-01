@@ -1,8 +1,8 @@
-//! `POST /shutdown` : arrêt propre du runner.
+//! `POST /shutdown`: graceful runner shutdown.
 //!
-//! Appelé par le daemon avant de tuer le runner. Le runner s'engage à exit
-//! dans le délai annoncé (`exit_in_ms`). Au-delà, le daemon envoie SIGTERM
-//! puis SIGKILL.
+//! Called by the daemon before killing the runner. The runner commits to exit
+//! within the announced delay (`exit_in_ms`). Past that, the daemon sends
+//! SIGTERM then SIGKILL.
 
 use axum::extract::State;
 use axum::Json;
@@ -18,12 +18,12 @@ pub struct ShutdownData {
 }
 
 pub async fn handle(State(state): State<AppState>) -> Json<Response<ShutdownData>> {
-    // Délai annoncé : 200 ms est suffisant pour fermer les fichiers de
-    // modèles mappés et libérer la VRAM.
+    // Announced delay: 200 ms is enough to close mapped model files and
+    // release the VRAM.
     let exit_in_ms = 200;
 
-    // Trigger le shutdown du serveur axum (graceful_shutdown).
-    // On utilise oneshot car le receiver est passé à axum::serve.
+    // Trigger the axum server shutdown (graceful_shutdown).
+    // A oneshot is used because the receiver is handed to axum::serve.
     let mut guard = state.shutdown_tx.lock().await;
     if let Some(tx) = guard.take() {
         let _ = tx.send(());

@@ -25,6 +25,7 @@ import base64
 import dataclasses
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from apollia.errors import (
@@ -204,7 +205,7 @@ def _from_skill_not_found(exc: SkillNotFound) -> dict[str, Any]:
 
 # Dispatch table: each entry maps an exception type to a builder function.
 # Ordered: first match wins, so subclasses must appear before parents.
-_EXCEPTION_DISPATCH: tuple[tuple[type, Any], ...] = (
+_EXCEPTION_DISPATCH: tuple[tuple[type, Callable[[Any], dict[str, Any]]], ...] = (
     (DomainError, lambda exc: failed(exc.code, exc.message, exc.details)),
     (NeedHumanInput, lambda exc: input_required(exc.prompt, exc.context)),
     (PayloadError, _from_payload_error),

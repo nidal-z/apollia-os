@@ -1,8 +1,8 @@
-//! Types pour `/handshake`, `/health`, `/info`.
+//! Types for `/handshake`, `/health`, `/info`.
 
 use serde::{Deserialize, Serialize};
 
-/// Backend backing le runner courant. Annoncé au daemon via `/handshake`.
+/// Backend powering the current runner. Announced to the daemon via `/handshake`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Backend {
@@ -14,7 +14,7 @@ pub enum Backend {
 }
 
 impl Backend {
-    /// Backend activé à la compile selon les features Cargo.
+    /// Backend selected at compile time based on Cargo features.
     pub const fn from_features() -> Self {
         #[cfg(feature = "local-cuda")]
         return Self::Cuda;
@@ -43,9 +43,9 @@ impl Backend {
     }
 }
 
-/// Info GPU découverte par le runner au boot.
+/// GPU information discovered by the runner at boot.
 ///
-/// `None` pour le backend CPU.
+/// `None` for the CPU backend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GpuInfoDto {
     pub vendor: String,
@@ -57,7 +57,7 @@ pub struct GpuInfoDto {
     pub driver_version: Option<String>,
 }
 
-/// Payload de réponse pour `GET /handshake`.
+/// Response payload for `GET /handshake`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HandshakeData {
     pub protocol_version: String,
@@ -69,7 +69,7 @@ pub struct HandshakeData {
     pub max_concurrent_requests: u32,
 }
 
-/// Payload de réponse pour `GET /health`.
+/// Response payload for `GET /health`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthData {
     pub uptime_secs: u64,

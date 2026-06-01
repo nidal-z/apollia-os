@@ -1,11 +1,11 @@
-//! Routes REST pour le routing A2A (Agent-to-Agent).
+//! REST routes for A2A (Agent-to-Agent) routing.
 //!
-//! Expose :
-//! - `GET  /api/v1/a2a/agents`         , liste les agents A2A actifs avec leurs skills
-//! - `POST /api/v1/a2a/delegate`        , délègue une tâche à un Worker Agent par skill ID
-//! - `GET  /api/v1/a2a/skills`          , liste plate de tous les skills A2A disponibles
-//! - `POST /api/v1/a2a/invoke`          , invocation haut niveau via [`A2AInvoker`]
-//! - `GET  /api/v1/tasks/:id/sidechains`, arborescence des délégations A2A d'une tâche parent
+//! Exposes:
+//! - `GET  /api/v1/a2a/agents`         , lists active A2A agents with their skills
+//! - `POST /api/v1/a2a/delegate`        , delegates a task to a Worker Agent by skill ID
+//! - `GET  /api/v1/a2a/skills`          , flat list of all available A2A skills
+//! - `POST /api/v1/a2a/invoke`          , high-level invocation via [`A2AInvoker`]
+//! - `GET  /api/v1/tasks/:id/sidechains`, delegation tree of a parent task's A2A calls
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -22,62 +22,62 @@ use crate::a2a::{
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
-/// Timeout par défaut des délégations A2A en secondes.
+/// Default timeout for A2A delegations, in seconds.
 const DEFAULT_DELEGATE_TIMEOUT_SECS: u64 = 120;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de réponse, GET /api/v1/a2a/agents
+// Response types, GET /api/v1/a2a/agents
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Skill déclaré par un agent A2A.
+/// Skill declared by an A2A agent.
 #[derive(Debug, Serialize)]
 pub struct A2aSkillDto {
-    /// Identifiant unique du skill.
+    /// Unique skill identifier.
     pub id: String,
-    /// Nom humain du skill.
+    /// Human-readable skill name.
     pub name: String,
-    /// Description de ce que fait le skill.
+    /// Description of what the skill does.
     pub description: String,
-    /// Modes d'entrée supportés (ex: `["text", "data"]`).
+    /// Supported input modes (e.g. `["text", "data"]`).
     pub input_modes: Vec<String>,
-    /// Modes de sortie supportés (ex: `["text", "file"]`).
+    /// Supported output modes (e.g. `["text", "file"]`).
     pub output_modes: Vec<String>,
 }
 
-/// Entrée dans la liste des agents A2A.
+/// Entry in the A2A agent list.
 #[derive(Debug, Serialize)]
 pub struct A2aAgentDto {
-    /// Identifiant unique de l'agent (UUID v4).
+    /// Unique agent identifier (UUID v4).
     pub agent_id: String,
-    /// Nom de l'agent tel que déclaré dans son manifest.
+    /// Agent name as declared in its manifest.
     pub name: String,
-    /// Version semver de l'agent.
+    /// Agent semver version.
     pub version: String,
-    /// État courant du processus (`active`, `degraded`, etc.).
+    /// Current process state (`active`, `degraded`, etc.).
     pub state: String,
-    /// Skills déclarés par cet agent.
+    /// Skills declared by this agent.
     pub skills: Vec<A2aSkillDto>,
 }
 
-/// Corps de réponse pour `GET /api/v1/a2a/agents`.
+/// Response body for `GET /api/v1/a2a/agents`.
 #[derive(Debug, Serialize)]
 pub struct A2aAgentsResponse {
-    /// Agents A2A actifs avec leurs skills.
+    /// Active A2A agents with their skills.
     pub agents: Vec<A2aAgentDto>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de requête, POST /api/v1/a2a/delegate
+// Request types, POST /api/v1/a2a/delegate
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Corps de requête pour `POST /api/v1/a2a/delegate`.
+/// Request body for `POST /api/v1/a2a/delegate`.
 #[derive(Debug, Deserialize)]
 pub struct DelegateRequest {
-    /// Identifiant du skill cible (ex: `"read-excel"`).
+    /// Target skill identifier (e.g. `"read-excel"`).
     pub skill_id: String,
-    /// Payload JSON transmis au Worker Agent comme input.
+    /// JSON payload passed to the Worker Agent as input.
     pub input: serde_json::Value,
-    /// Timeout de la délégation en secondes (défaut: 120).
+    /// Delegation timeout in seconds (default: 120).
     #[serde(default)]
     pub timeout_secs: Option<u64>,
 }
@@ -86,10 +86,10 @@ pub struct DelegateRequest {
 // Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Handler pour `GET /api/v1/a2a/agents`.
+/// Handler for `GET /api/v1/a2a/agents`.
 ///
-/// Retourne tous les agents avec `supports_a2a = true` en état actif ou dégradé,
-/// avec leurs skills déclarés.
+/// Returns all agents with `supports_a2a = true` in active or degraded state,
+/// along with their declared skills.
 pub async fn list_a2a_agents<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<A2aAgentsResponse>, (StatusCode, Json<A2aErrorResponse>)> {
@@ -137,17 +137,17 @@ pub async fn list_a2a_agents<B: ExecutionBackend + Clone>(
     Ok(Json(A2aAgentsResponse { agents }))
 }
 
-/// Handler pour `POST /api/v1/a2a/delegate`.
+/// Handler for `POST /api/v1/a2a/delegate`.
 ///
-/// Résout le `skill_id` vers un Worker Agent actif, soumet la tâche, attend la
-/// complétion (avec timeout), et retourne le résultat structuré.
+/// Resolves `skill_id` to an active Worker Agent, submits the task, waits for
+/// completion (with timeout), and returns the structured result.
 pub async fn delegate<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<DelegateRequest>,
 ) -> Result<Json<A2aDelegateResult>, (StatusCode, Json<A2aErrorResponse>)> {
     let timeout_secs = req.timeout_secs.unwrap_or(DEFAULT_DELEGATE_TIMEOUT_SECS);
 
-    // Délégation initiée depuis l'API REST → chaîne vide, agent appelant fictif.
+    // Delegation initiated from the REST API: empty chain, synthetic calling agent.
     let rest_caller = apollia_core::AgentId::from("__rest_api__");
     delegate_inner(DelegateInner {
         registry: &state.registry_handle,
@@ -166,31 +166,31 @@ pub async fn delegate<B: ExecutionBackend + Clone>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de réponse, GET /api/v1/a2a/skills
+// Response types, GET /api/v1/a2a/skills
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Corps de réponse pour `GET /api/v1/a2a/skills`.
+/// Response body for `GET /api/v1/a2a/skills`.
 #[derive(Debug, Serialize)]
 pub struct A2aSkillsResponse {
-    /// Liste plate de tous les skills A2A disponibles.
+    /// Flat list of all available A2A skills.
     pub skills: Vec<SkillListing>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types de requête, POST /api/v1/a2a/invoke
+// Request types, POST /api/v1/a2a/invoke
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Corps de requête pour `POST /api/v1/a2a/invoke`.
+/// Request body for `POST /api/v1/a2a/invoke`.
 #[derive(Debug, Deserialize)]
 pub struct InvokeRequest {
-    /// Identifiant du skill cible (ex: `"read-excel"`).
+    /// Target skill identifier (e.g. `"read-excel"`).
     pub skill_id: String,
-    /// Payload JSON transmis au Worker Agent comme input.
+    /// JSON payload passed to the Worker Agent as input.
     pub input: serde_json::Value,
-    /// Nom du caller (Director Agent), utilisé pour l'observabilité.
+    /// Caller name (Director Agent), used for observability.
     #[serde(default)]
     pub caller: Option<String>,
-    /// Timeout de l'invocation en secondes (défaut: 120).
+    /// Invocation timeout in seconds (default: 120).
     #[serde(default)]
     pub timeout_secs: Option<u64>,
 }
@@ -199,10 +199,10 @@ pub struct InvokeRequest {
 // Handlers, GET /api/v1/a2a/skills
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Handler pour `GET /api/v1/a2a/skills`.
+/// Handler for `GET /api/v1/a2a/skills`.
 ///
-/// Retourne la liste plate de tous les skills A2A disponibles via l'[`A2AInvoker`].
-/// Retourne 503 si l'invoker n'est pas initialisé.
+/// Returns the flat list of all available A2A skills via the [`A2AInvoker`].
+/// Returns 503 if the invoker is not initialized.
 pub async fn list_a2a_skills<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<A2aSkillsResponse>, (StatusCode, Json<A2aErrorResponse>)> {
@@ -233,11 +233,11 @@ pub async fn list_a2a_skills<B: ExecutionBackend + Clone>(
     Ok(Json(A2aSkillsResponse { skills }))
 }
 
-/// Handler pour `POST /api/v1/a2a/invoke`.
+/// Handler for `POST /api/v1/a2a/invoke`.
 ///
-/// Invoque un Worker Agent par skill ID via l'[`A2AInvoker`].
-/// Retourne 503 si l'invoker n'est pas initialisé.
-/// Retourne 404 si le skill est introuvable, 503 si l'agent n'est pas actif.
+/// Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
+/// Returns 503 if the invoker is not initialized.
+/// Returns 404 if the skill is not found, 503 if the agent is not active.
 pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<InvokeRequest>,
@@ -275,11 +275,11 @@ pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
 // Handler, GET /api/v1/tasks/{task_id}/sidechains
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Handler pour `GET /api/v1/tasks/{task_id}/sidechains`.
+/// Handler for `GET /api/v1/tasks/{task_id}/sidechains`.
 ///
-/// Retourne l'ensemble des délégations A2A enregistrées pour la tâche parente.
-/// Retourne 404 si aucune délégation n'est trouvée pour ce `task_id`.
-/// Retourne 503 si le sidechain logger n'est pas initialisé.
+/// Returns all A2A delegations recorded for the parent task.
+/// Returns 404 if no delegation is found for this `task_id`.
+/// Returns 503 if the sidechain logger is not initialized.
 pub async fn get_task_sidechains<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,
@@ -339,7 +339,7 @@ pub async fn get_task_sidechains<B: ExecutionBackend + Clone>(
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Convertit un [`ProcessState`] en label string.
+/// Converts a [`ProcessState`] into a string label.
 fn state_label(state: &ProcessState) -> String {
     match state {
         ProcessState::Initializing => "initializing",
@@ -351,7 +351,7 @@ fn state_label(state: &ProcessState) -> String {
     .to_string()
 }
 
-/// Convertit une [`A2aError`] en réponse HTTP axum avec statut approprié.
+/// Converts an [`A2aError`] into an axum HTTP response with the appropriate status.
 fn a2a_err_response(err: A2aError) -> (StatusCode, Json<A2aErrorResponse>) {
     let status = match &err {
         A2aError::SkillNotFound { .. } => StatusCode::NOT_FOUND,
@@ -366,7 +366,7 @@ fn a2a_err_response(err: A2aError) -> (StatusCode, Json<A2aErrorResponse>) {
     (status, Json(A2aErrorResponse::from_error(&err)))
 }
 
-/// Convertit une [`A2aError`] encapsulant une erreur registry en réponse HTTP.
+/// Converts an [`A2aError`] wrapping a registry error into an HTTP response.
 fn registry_err_response(err: A2aError) -> (StatusCode, Json<A2aErrorResponse>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -374,7 +374,7 @@ fn registry_err_response(err: A2aError) -> (StatusCode, Json<A2aErrorResponse>) 
     )
 }
 
-/// Convertit une [`A2AError`] (invoker de haut niveau) en réponse HTTP axum.
+/// Converts an [`A2AError`] (high-level invoker) into an axum HTTP response.
 fn a2a_invoker_err_response(err: A2AError) -> (StatusCode, Json<A2aErrorResponse>) {
     let status = match &err {
         A2AError::SkillNotFound { .. } => StatusCode::NOT_FOUND,

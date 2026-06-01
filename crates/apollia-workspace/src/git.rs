@@ -1,39 +1,39 @@
-//! Collecteur de contexte git via sous-processus.
+//! Git context collector via subprocesses.
 //!
-//! Toutes les commandes git sont lancées via [`tokio::process::Command`].
-//! Aucune dépendance `git2` - zéro dépendance C supplémentaire (Principe #2).
-//! Toute erreur (git absent, répertoire hors dépôt) est absorbée silencieusement.
+//! All git commands run through [`tokio::process::Command`]. No `git2`
+//! dependency, which keeps the build free of extra C dependencies.
+//! Any error (git missing, directory outside a repo) is swallowed silently.
 
 use std::path::Path;
 
-/// Résultat brut de la collecte git pour un répertoire donné.
+/// Raw result of git collection for a given directory.
 ///
-/// Tous les champs sont optionnels ou ont un défaut inerte - jamais de panic
-/// si git est absent ou si le répertoire n'est pas un dépôt.
+/// Every field is optional or has an inert default, so it never panics when
+/// git is missing or the directory is not a repository.
 #[derive(Debug, Default)]
 pub struct GitResult {
-    /// Branche courante (`git branch --show-current`). `None` hors dépôt.
+    /// Current branch (`git branch --show-current`). `None` outside a repo.
     pub branch: Option<String>,
-    /// Output de `git status --short` tronqué, ou `None` si working tree propre / hors dépôt.
+    /// Truncated `git status --short` output, or `None` if the working tree is clean or outside a repo.
     pub status: Option<String>,
-    /// 5 derniers commits (`git log --oneline -n5`).
+    /// Last 5 commits (`git log --oneline -n5`).
     pub recent_commits: Vec<String>,
-    /// `true` si `git status --short` produit un output vide.
+    /// `true` when `git status --short` produces empty output.
     pub is_clean: bool,
 }
 
-/// Collecte le contexte git d'un répertoire via des sous-processus.
+/// Collects a directory's git context via subprocesses.
 ///
-/// Toutes les méthodes sont fail-silent : une erreur git (commande absente,
-/// répertoire hors dépôt, permissions) produit des valeurs `None` ou vides
-/// sans jamais émettre de log `ERROR`.
+/// Every method is fail-silent: a git error (missing command, directory
+/// outside a repo, permissions) yields `None` or empty values without ever
+/// emitting an `ERROR` log.
 pub struct GitContextCollector;
 
 impl GitContextCollector {
-    /// Collecte la branche, le statut et les commits récents du dépôt git en `cwd`.
+    /// Collects the branch, status, and recent commits of the git repo at `cwd`.
     ///
-    /// Lance trois sous-processus en séquence. Chacun est indépendant :
-    /// l'échec de l'un n'empêche pas les autres.
+    /// Runs three subprocesses in sequence. Each is independent: a failure in
+    /// one does not prevent the others.
     pub async fn collect(cwd: &Path, git_status_max_lines: usize) -> GitResult {
         let branch = Self::run_git(cwd, &["branch", "--show-current"])
             .await
@@ -67,10 +67,10 @@ impl GitContextCollector {
         }
     }
 
-    /// Lance une commande git avec les arguments donnés dans `cwd`.
+    /// Runs a git command with the given arguments in `cwd`.
     ///
-    /// Retourne `Some(stdout)` si la commande réussit (exit code 0 et UTF-8 valide),
-    /// `None` dans tous les autres cas.
+    /// Returns `Some(stdout)` when the command succeeds (exit code 0 and valid
+    /// UTF-8), `None` in every other case.
     async fn run_git(cwd: &Path, args: &[&str]) -> Option<String> {
         let output = tokio::process::Command::new("git")
             .args(args)
@@ -93,7 +93,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_git_collector_in_repo() {
-        // GIVEN : CWD = répertoire du repo Apollia lui-même
+        // GIVEN: CWD is the Apollia repo directory itself
         let cwd = std::env::current_dir().expect("current_dir");
         // WHEN
         let result = GitContextCollector::collect(&cwd, 200).await;
@@ -106,7 +106,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_git_collector_outside_repo() {
-        // GIVEN : /tmp n'est pas un dépôt git
+        // GIVEN: /tmp is not a git repository
         let cwd = std::path::Path::new("/tmp");
         // WHEN
         let result = GitContextCollector::collect(cwd, 200).await;
@@ -117,12 +117,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_git_status_max_lines_respected() {
-        // GIVEN : repo avec au moins un fichier modifié (ou pas - on teste la limite)
+        // GIVEN: a repo with at least one modified file (or not, we are testing the limit)
         let cwd = std::env::current_dir().expect("current_dir");
         let max_lines = 2;
         // WHEN
         let result = GitContextCollector::collect(&cwd, max_lines).await;
-        // THEN - si du statut existe, il ne dépasse pas max_lines lignes
+        // THEN: if any status exists, it does not exceed max_lines lines
         if let Some(status) = &result.status {
             assert!(
                 status.lines().count() <= max_lines,

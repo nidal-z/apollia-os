@@ -1,13 +1,13 @@
-//! Repository SQLite pour la persistance des projets.
+//! SQLite repository for project persistence.
 //!
-//! Fournit [`ProjectRepository`] qui stocke projets, documents attachés,
-//! providers de contexte, et templates dans une base SQLite locale (`projects.db`).
+//! Provides [`ProjectRepository`], which stores projects, attached documents,
+//! context providers, and templates in a local SQLite database (`projects.db`).
 //!
-//! La migration `008_projects.sql` est appliquée idempotentiellement
-//! à l'appel de [`ProjectRepository::open`].
+//! The `008_projects.sql` migration is applied idempotently when
+//! [`ProjectRepository::open`] is called.
 //!
-//! Toutes les méthodes de mutation sont synchrones ; les wrappers async
-//! utilisent `tokio::task::spawn_blocking`.
+//! All mutation methods are synchronous; the async wrappers use
+//! `tokio::task::spawn_blocking`.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -15,17 +15,17 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-/// SQL de migration embarqué - appliqué idempotentiellement à chaque ouverture.
+/// Embedded migration SQL, applied idempotently on each open.
 const MIGRATION_SQL: &str = include_str!("../migrations/008_projects.sql");
 
-/// Migration 009 - table de jointure project_agents.
+/// Migration 009: the project_agents join table.
 const MIGRATION_009_SQL: &str = include_str!("../migrations/009_project_agents.sql");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Résumé d'un projet (liste).
+/// Project summary (list view).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectSummary {
     pub id: String,
@@ -33,11 +33,11 @@ pub struct ProjectSummary {
     pub description: Option<String>,
     pub created_at: String,
     pub updated_at: String,
-    /// Chemin du répertoire de travail associé (pour les providers git/rules/tree).
+    /// Associated working directory (used by the git/rules/tree providers).
     pub workspace_path: Option<String>,
 }
 
-/// Détail complet d'un projet avec ses documents, providers et agents liés.
+/// Full project detail with its documents, providers, and linked agents.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectDetail {
     pub id: String,
@@ -46,15 +46,15 @@ pub struct ProjectDetail {
     pub instructions: Option<String>,
     pub created_at: String,
     pub updated_at: String,
-    /// Chemin du répertoire de travail associé (pour les providers git/rules/tree).
+    /// Associated working directory (used by the git/rules/tree providers).
     pub workspace_path: Option<String>,
     pub documents: Vec<ProjectDocument>,
     pub providers: Vec<ProjectProviderRow>,
-    /// Noms des agents associés au projet.
+    /// Names of the agents linked to the project.
     pub agents: Vec<String>,
 }
 
-/// Document attaché à un projet.
+/// Document attached to a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectDocument {
     pub id: String,
@@ -65,7 +65,7 @@ pub struct ProjectDocument {
     pub uploaded_at: String,
 }
 
-/// Provider de contexte configuré pour un projet.
+/// Context provider configured for a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectProviderRow {
     pub id: String,
@@ -78,7 +78,7 @@ pub struct ProjectProviderRow {
     pub priority: u8,
 }
 
-/// Template de projet prédéfini.
+/// Predefined project template.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectTemplate {
     pub id: String,
@@ -89,7 +89,7 @@ pub struct ProjectTemplate {
     pub created_at: String,
 }
 
-/// Patch partiel pour la mise à jour d'un projet.
+/// Partial patch for updating a project.
 #[derive(Debug, Default)]
 pub struct ProjectPatch {
     pub name: Option<String>,
@@ -99,29 +99,29 @@ pub struct ProjectPatch {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Erreurs
+// Errors
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Erreurs du repository projets.
+/// Errors raised by the project repository.
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectRepositoryError {
-    /// Erreur SQLite sous-jacente.
+    /// Underlying SQLite error.
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),
 
-    /// Projet introuvable.
+    /// Project not found.
     #[error("projet '{0}' introuvable")]
     NotFound(String),
 
-    /// Erreur de sérialisation JSON.
+    /// JSON serialization error.
     #[error("erreur JSON : {0}")]
     Json(#[from] serde_json::Error),
 
-    /// Échec d'une tâche `spawn_blocking`.
+    /// A `spawn_blocking` task failed.
     #[error("erreur tâche async : {0}")]
     SpawnError(String),
 
-    /// Le verrou interne a été empoisonné.
+    /// The internal lock was poisoned.
     #[error("verrou interne empoisonné")]
     LockPoisoned,
 }
@@ -130,23 +130,23 @@ pub enum ProjectRepositoryError {
 // Repository
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Repository SQLite pour les projets.
+/// SQLite repository for projects.
 ///
-/// Encapsule une connexion SQLite vers `projects.db`. La migration
-/// `008_projects.sql` est appliquée à [`open`](Self::open).
-/// Le mode WAL est activé pour la concurrence lecture/écriture.
+/// Wraps a SQLite connection to `projects.db`. The `008_projects.sql`
+/// migration is applied in [`open`](Self::open). WAL mode is enabled for
+/// concurrent reads and writes.
 ///
-/// Clonable via `Arc` - chaque clone partage la même connexion.
+/// Cloneable through `Arc`: every clone shares the same connection.
 #[derive(Clone)]
 pub struct ProjectRepository {
     conn: Arc<Mutex<Connection>>,
 }
 
 impl ProjectRepository {
-    /// Ouvre (ou crée) la base SQLite et applique la migration 008.
+    /// Opens (or creates) the SQLite database and applies migration 008.
     ///
-    /// La migration est idempotente (`CREATE TABLE IF NOT EXISTS`).
-    /// Active le mode WAL pour la concurrence.
+    /// The migration is idempotent (`CREATE TABLE IF NOT EXISTS`).
+    /// Enables WAL mode for concurrency.
     pub fn open(path: &Path) -> Result<Self, ProjectRepositoryError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
@@ -161,7 +161,7 @@ impl ProjectRepository {
         })
     }
 
-    /// Liste tous les projets (ordre alphabétique par nom).
+    /// Lists all projects (alphabetical by name).
     pub fn list_projects(&self) -> Result<Vec<ProjectSummary>, ProjectRepositoryError> {
         let conn = self
             .conn
@@ -184,7 +184,7 @@ impl ProjectRepository {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    /// Retourne le détail complet d'un projet, incluant documents et providers.
+    /// Returns the full project detail, including documents and providers.
     pub fn get_project(&self, id: &str) -> Result<ProjectDetail, ProjectRepositoryError> {
         let conn = self
             .conn
@@ -273,7 +273,7 @@ impl ProjectRepository {
         })
     }
 
-    /// Crée un nouveau projet. Retourne son `id` (UUID v4).
+    /// Creates a new project. Returns its `id` (UUID v4).
     pub fn create_project(
         &self,
         name: impl Into<String>,
@@ -295,7 +295,7 @@ impl ProjectRepository {
         Ok(id)
     }
 
-    /// Met à jour les champs non-nuls d'un projet. Retourne `false` si introuvable.
+    /// Updates the non-null fields of a project. Returns `false` if not found.
     pub fn update_project(
         &self,
         id: &str,
@@ -340,7 +340,7 @@ impl ProjectRepository {
         Ok(n > 0)
     }
 
-    /// Supprime un projet et ses documents/providers en cascade.
+    /// Deletes a project and cascades to its documents and providers.
     pub fn delete_project(&self, id: &str) -> Result<bool, ProjectRepositoryError> {
         let conn = self
             .conn
@@ -350,7 +350,7 @@ impl ProjectRepository {
         Ok(n > 0)
     }
 
-    /// Attache un document à un projet. Retourne l'`id` du document.
+    /// Attaches a document to a project. Returns the document `id`.
     pub fn add_document(
         &self,
         project_id: &str,
@@ -372,7 +372,7 @@ impl ProjectRepository {
         Ok(id)
     }
 
-    /// Supprime un document par son `id`. Retourne `false` si introuvable.
+    /// Removes a document by its `id`. Returns `false` if not found.
     pub fn remove_document(&self, doc_id: &str) -> Result<bool, ProjectRepositoryError> {
         let conn = self
             .conn
@@ -385,7 +385,7 @@ impl ProjectRepository {
         Ok(n > 0)
     }
 
-    /// Liste les providers configurés pour un projet, triés par priorité.
+    /// Lists the providers configured for a project, sorted by priority.
     pub fn list_providers(
         &self,
         project_id: &str,
@@ -413,11 +413,11 @@ impl ProjectRepository {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    /// Insère ou met à jour un provider pour un projet.
+    /// Inserts or updates a provider for a project.
     ///
-    /// Si `provider_id` est `Some(id)` et qu'une ligne avec cet id existe pour
-    /// ce projet, elle est mise à jour. Sinon, une nouvelle ligne est insérée
-    /// avec un UUID frais. Retourne l'id de la ligne effectivement affectée.
+    /// If `provider_id` is `Some(id)` and a row with that id exists for this
+    /// project, it is updated. Otherwise a new row is inserted with a fresh
+    /// UUID. Returns the id of the row that was actually affected.
     #[allow(clippy::too_many_arguments)]
     pub fn set_provider(
         &self,
@@ -463,7 +463,7 @@ impl ProjectRepository {
             if updated > 0 {
                 return Ok(id.to_owned());
             }
-            // Fall through to INSERT if the id was unknown - keeps callers
+            // Fall through to INSERT if the id was unknown: keeps callers
             // resilient if a stale id is passed (e.g. after a delete).
         }
 
@@ -486,7 +486,7 @@ impl ProjectRepository {
         Ok(new_id)
     }
 
-    /// Liste tous les templates de projets disponibles (builtins + custom).
+    /// Lists all available project templates (built-in and custom).
     pub fn list_templates(&self) -> Result<Vec<ProjectTemplate>, ProjectRepositoryError> {
         let conn = self
             .conn
@@ -509,10 +509,10 @@ impl ProjectRepository {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    /// Insère les templates builtins s'ils n'existent pas déjà (`INSERT OR IGNORE`).
+    /// Inserts the built-in templates if they do not already exist (`INSERT OR IGNORE`).
     ///
-    /// Appelé au démarrage du Supervisor pour garantir que les templates de base
-    /// sont toujours disponibles, même sur une première installation.
+    /// Called at supervisor startup so the base templates are always available,
+    /// even on a fresh installation.
     pub fn seed_builtin_templates(&self) -> Result<(), ProjectRepositoryError> {
         let now = now_rfc3339();
         let conn = self
@@ -520,7 +520,7 @@ impl ProjectRepository {
             .lock()
             .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
 
-        // Template "Développement Git" - providers git + rules + tree
+        // "Développement Git" template: git + rules + tree providers
         let git_providers = serde_json::json!([
             {"provider_type": "git",   "name": "Git Status",    "enabled": true, "priority": 10},
             {"provider_type": "rules", "name": "Project Rules",  "enabled": true, "priority": 20},
@@ -541,7 +541,7 @@ impl ProjectRepository {
             ],
         )?;
 
-        // Template "Vide" - aucun provider
+        // "Vide" template: no providers
         conn.execute(
             "INSERT OR IGNORE INTO project_templates
                 (id, name, description, providers_config_json, is_builtin, created_at)
@@ -560,7 +560,7 @@ impl ProjectRepository {
 
     // ─── Agent linking ─────────────────────────────────────────────────────────
 
-    /// Associe un agent à un projet. Idempotent (`INSERT OR IGNORE`).
+    /// Links an agent to a project. Idempotent (`INSERT OR IGNORE`).
     pub fn add_agent(
         &self,
         project_id: &str,
@@ -579,7 +579,7 @@ impl ProjectRepository {
         Ok(())
     }
 
-    /// Dissocie un agent d'un projet.
+    /// Unlinks an agent from a project.
     pub fn remove_agent(
         &self,
         project_id: &str,
@@ -596,7 +596,7 @@ impl ProjectRepository {
         Ok(n > 0)
     }
 
-    /// Liste les noms d'agents associés à un projet.
+    /// Lists the agent names linked to a project.
     pub fn list_agents(&self, project_id: &str) -> Result<Vec<String>, ProjectRepositoryError> {
         let conn = self
             .conn
@@ -611,7 +611,7 @@ impl ProjectRepository {
         Ok(agents)
     }
 
-    /// Liste les IDs de projets auxquels un agent appartient.
+    /// Lists the IDs of the projects an agent belongs to.
     pub fn list_projects_for_agent(
         &self,
         agent_name: &str,
@@ -630,7 +630,7 @@ impl ProjectRepository {
 
     // ─── Provider management ─────────────────────────────────────────────────
 
-    /// Supprime un provider de contexte.
+    /// Removes a context provider.
     pub fn remove_provider(&self, provider_id: &str) -> Result<bool, ProjectRepositoryError> {
         let conn = self
             .conn
@@ -643,7 +643,7 @@ impl ProjectRepository {
         Ok(n > 0)
     }
 
-    /// Active ou désactive un provider de contexte.
+    /// Enables or disables a context provider.
     pub fn toggle_provider(
         &self,
         provider_id: &str,
@@ -662,7 +662,7 @@ impl ProjectRepository {
 
     // ─── Async wrappers ───────────────────────────────────────────────────────
 
-    /// Async wrapper pour [`list_projects`](Self::list_projects).
+    /// Async wrapper for [`list_projects`](Self::list_projects).
     pub async fn list_projects_async(&self) -> Result<Vec<ProjectSummary>, ProjectRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.list_projects())
@@ -670,7 +670,7 @@ impl ProjectRepository {
             .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper pour [`get_project`](Self::get_project).
+    /// Async wrapper for [`get_project`](Self::get_project).
     pub async fn get_project_async(
         &self,
         id: String,
@@ -681,7 +681,7 @@ impl ProjectRepository {
             .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper pour [`create_project`](Self::create_project).
+    /// Async wrapper for [`create_project`](Self::create_project).
     pub async fn create_project_async(
         &self,
         name: String,
@@ -697,7 +697,7 @@ impl ProjectRepository {
         .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper pour [`update_project`](Self::update_project).
+    /// Async wrapper for [`update_project`](Self::update_project).
     pub async fn update_project_async(
         &self,
         id: String,
@@ -709,7 +709,7 @@ impl ProjectRepository {
             .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper pour [`delete_project`](Self::delete_project).
+    /// Async wrapper for [`delete_project`](Self::delete_project).
     pub async fn delete_project_async(&self, id: String) -> Result<bool, ProjectRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.delete_project(&id))
@@ -717,7 +717,7 @@ impl ProjectRepository {
             .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper pour [`add_document`](Self::add_document).
+    /// Async wrapper for [`add_document`](Self::add_document).
     pub async fn add_document_async(
         &self,
         project_id: String,
@@ -733,7 +733,7 @@ impl ProjectRepository {
         .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper pour [`remove_document`](Self::remove_document).
+    /// Async wrapper for [`remove_document`](Self::remove_document).
     pub async fn remove_document_async(
         &self,
         doc_id: String,
@@ -744,7 +744,7 @@ impl ProjectRepository {
             .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper pour [`list_templates`](Self::list_templates).
+    /// Async wrapper for [`list_templates`](Self::list_templates).
     pub async fn list_templates_async(
         &self,
     ) -> Result<Vec<ProjectTemplate>, ProjectRepositoryError> {
@@ -754,7 +754,7 @@ impl ProjectRepository {
             .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
-    /// Async wrapper pour [`seed_builtin_templates`](Self::seed_builtin_templates).
+    /// Async wrapper for [`seed_builtin_templates`](Self::seed_builtin_templates).
     pub async fn seed_builtin_templates_async(&self) -> Result<(), ProjectRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.seed_builtin_templates())
