@@ -236,6 +236,7 @@ mod tests {
             repeat_penalty: 1.1,
             seed: None,
             stop: vec![],
+            tools: None,
         }
     }
 

@@ -22,12 +22,14 @@ use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::model::{
+    AddBos, ChatTemplateResult, LlamaChatMessage, LlamaChatTemplate, LlamaModel,
+};
 use llama_cpp_2::sampling::LlamaSampler;
 
 use crate::ipc::{
     ChatMessage, CompleteData, CompleteParams, ErrorBody, ErrorCode, FinishReason, LoadModelData,
-    LoadModelParams, Role, StreamChunk, Timing, TokenUsage,
+    LoadModelParams, Role, StreamChunk, Timing, TokenUsage, ToolCall,
 };
 
 /// Sampling defaults applied when the request leaves the corresponding fields
@@ -159,7 +161,7 @@ impl LlamaCppBackend {
             .map(|m| (m.len() / (1024 * 1024)) as u32)
             .unwrap_or(0);
 
-        let (backend, model) = tokio::task::spawn_blocking(move || -> Result<_, ErrorBody> {
+        let (backend, model, arch) = tokio::task::spawn_blocking(move || -> Result<_, ErrorBody> {
             let backend = acquire_backend()?;
 
             let mut model_params = LlamaModelParams::default().with_n_gpu_layers(n_gpu_layers);
@@ -169,7 +171,9 @@ impl LlamaCppBackend {
             let model = LlamaModel::load_from_file(&backend, &model_path, &model_params)
                 .map_err(|e| load_failed(format!("model load failed: {e}")))?;
 
-            Ok::<_, ErrorBody>((backend, model))
+            let arch = model.meta_val_str("general.architecture").unwrap_or_default();
+
+            Ok::<_, ErrorBody>((backend, model, arch))
         })
         .await
         .map_err(|e| internal(format!("model load task panicked: {e}")))??;
@@ -200,6 +204,7 @@ impl LlamaCppBackend {
             load_time_ms: started.elapsed().as_millis() as u64,
             context_size,
             memory_used_mb,
+            arch,
         })
     }
 
@@ -227,6 +232,7 @@ impl LlamaCppBackend {
         };
         let seed = params.seed;
         let messages = params.messages.clone();
+        let tools_json = params.tools.as_ref().map(|t| t.to_string());
 
         let model = entry.model.clone();
         let backend = entry.backend.clone();
@@ -243,6 +249,7 @@ impl LlamaCppBackend {
                 top_p,
                 top_k,
                 seed,
+                tools_json.as_deref(),
             )
         })
         .await
@@ -251,6 +258,7 @@ impl LlamaCppBackend {
         let total_ms = started.elapsed().as_millis() as u64;
         let CompleteRaw {
             text,
+            tool_calls,
             prompt_tokens,
             completion_tokens,
             finish_reason,
@@ -272,6 +280,7 @@ impl LlamaCppBackend {
                 decode_ms,
                 total_ms,
             },
+            tool_calls,
         })
     }
 
@@ -309,6 +318,7 @@ impl LlamaCppBackend {
         };
         let seed = params.seed;
         let messages = params.messages.clone();
+        let tools_json = params.tools.as_ref().map(|t| t.to_string());
 
         let model = entry.model.clone();
         let backend = entry.backend.clone();
@@ -327,6 +337,7 @@ impl LlamaCppBackend {
                 top_p,
                 top_k,
                 seed,
+                tools_json.as_deref(),
                 |piece| tx.blocking_send(Ok(StreamChunk {
                     text: piece,
                     finish_reason: None,
@@ -358,39 +369,145 @@ fn clamp_ctx_size(model: &LlamaModel, requested: u32) -> u32 {
     requested.max(MIN_CTX_SIZE).min(upper)
 }
 
+/// Collapses consecutive same-role turns into a single turn.
+///
+/// Strict chat templates (Mistral, Gemma) raise when the role sequence does not
+/// strictly alternate user/assistant after an optional leading system turn.
+/// The daemon legitimately produces non-alternating sequences: tool results are
+/// folded into `user` turns, so back-to-back tool calls yield consecutive
+/// `user` messages, and a context summary is sent as a second `system` turn.
+/// Merging adjacent same-role turns (joined by a blank line) keeps the rendered
+/// prompt faithful while satisfying the template contract. Lenient templates
+/// (ChatML) render the merged sequence identically.
+fn normalize_roles(messages: &[ChatMessage]) -> Vec<(&'static str, String)> {
+    let mut out: Vec<(&'static str, String)> = Vec::with_capacity(messages.len());
+    for m in messages {
+        let role = match m.role {
+            Role::System => "system",
+            Role::User => "user",
+            Role::Assistant => "assistant",
+        };
+        match out.last_mut() {
+            Some((prev_role, prev_content)) if *prev_role == role => {
+                prev_content.push_str("\n\n");
+                prev_content.push_str(&m.content);
+            }
+            _ => out.push((role, m.content.clone())),
+        }
+    }
+    out
+}
+
 /// Builds the formatted prompt using the template embedded in the GGUF
-/// (chatml fallback). Also returns the prompt token count.
+/// (chatml fallback). Returns the full [`ChatTemplateResult`] (the prompt plus
+/// the `chat_format` / parser needed to decode tool calls from the response)
+/// and the prompt token count.
 fn build_prompt(
     model: &LlamaModel,
     messages: &[ChatMessage],
-) -> Result<(String, u32), ErrorBody> {
+    tools: Option<&str>,
+) -> Result<(ChatTemplateResult, u32), ErrorBody> {
     let template = model.chat_template(None).unwrap_or_else(|_| {
         LlamaChatTemplate::new("chatml").expect("chatml template must be valid")
     });
 
-    let chat_msgs: Vec<LlamaChatMessage> = messages
-        .iter()
-        .map(|m| {
-            let role = match m.role {
-                Role::System => "system",
-                Role::User => "user",
-                Role::Assistant => "assistant",
-            };
-            LlamaChatMessage::new(role.to_string(), m.content.clone())
+    let chat_msgs: Vec<LlamaChatMessage> = normalize_roles(messages)
+        .into_iter()
+        .map(|(role, content)| {
+            LlamaChatMessage::new(role.to_string(), content)
                 .map_err(|e| inference_failed(format!("invalid chat message: {e}")))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     let result = model
-        .apply_chat_template_with_tools_oaicompat(&template, &chat_msgs, None, None, true)
+        .apply_chat_template_with_tools_oaicompat(&template, &chat_msgs, tools, None, true)
         .map_err(|e| inference_failed(format!("chat template failed: {e}")))?;
 
-    let prompt = result.prompt;
-    let tokens = model
-        .str_to_token(&prompt, AddBos::Always)
-        .map_err(|e| inference_failed(format!("tokenization failed: {e}")))?;
+    let prompt_tokens = model
+        .str_to_token(&result.prompt, AddBos::Always)
+        .map_err(|e| inference_failed(format!("tokenization failed: {e}")))?
+        .len() as u32;
 
-    Ok((prompt, tokens.len() as u32))
+    Ok((result, prompt_tokens))
+}
+
+/// Decodes the model's raw output into display text plus structured tool calls.
+///
+/// When the request carried tools, the model's own chat-template parser
+/// (`common_chat`, selected via `chat_format`) splits the response into clean
+/// content and tool calls, in the model's native convention. With no tools the
+/// raw text is returned verbatim (the validated tool-free path is untouched).
+fn parse_completion(
+    template_result: &ChatTemplateResult,
+    raw_text: String,
+) -> (String, Vec<ToolCall>) {
+    if !template_result.parse_tool_calls {
+        return (raw_text, Vec::new());
+    }
+
+    let parsed_json = match template_result.parse_response_oaicompat(&raw_text, false) {
+        Ok(json) => json,
+        Err(e) => {
+            // The parser is best-effort: on failure keep the raw text so the
+            // user still sees the answer rather than losing the turn.
+            tracing::warn!(error = %e, "tool-call parse failed, returning raw text");
+            return (raw_text, Vec::new());
+        }
+    };
+
+    let value: serde_json::Value = match serde_json::from_str(&parsed_json) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "tool-call parse produced invalid JSON, returning raw text");
+            return (raw_text, Vec::new());
+        }
+    };
+
+    let content = value
+        .get("content")
+        .and_then(|c| c.as_str())
+        .unwrap_or(&raw_text)
+        .to_string();
+
+    let tool_calls = value
+        .get("tool_calls")
+        .and_then(|tc| tc.as_array())
+        .map(|arr| {
+            arr.iter()
+                .enumerate()
+                .filter_map(|(i, call)| oai_tool_call(call, i))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    (content, tool_calls)
+}
+
+/// Converts one OpenAI-format `tool_calls[]` entry into the IPC [`ToolCall`].
+///
+/// OpenAI nests the call under `function` and encodes `arguments` as a JSON
+/// string; we parse that string back into a value, falling back to a string
+/// node if it is not valid JSON.
+fn oai_tool_call(call: &serde_json::Value, index: usize) -> Option<ToolCall> {
+    let function = call.get("function").unwrap_or(call);
+    let name = function.get("name")?.as_str()?.to_string();
+    let arguments = match function.get("arguments") {
+        Some(serde_json::Value::String(s)) => {
+            serde_json::from_str(s).unwrap_or(serde_json::Value::String(s.clone()))
+        }
+        Some(other) => other.clone(),
+        None => serde_json::json!({}),
+    };
+    let id = call
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("call_{index}"));
+    Some(ToolCall {
+        id,
+        name,
+        arguments,
+    })
 }
 
 /// Builds the tail sampler (greedy if `temperature <= 0`, otherwise stochastic).
@@ -417,6 +534,7 @@ fn build_sampler(temperature: f32, top_p: f32, top_k: i32, seed: Option<u64>) ->
 /// Raw result of a non-streaming inference.
 struct CompleteRaw {
     text: String,
+    tool_calls: Vec<ToolCall>,
     prompt_tokens: u32,
     completion_tokens: u32,
     finish_reason: FinishReason,
@@ -436,10 +554,11 @@ fn run_complete(
     top_p: f32,
     top_k: i32,
     seed: Option<u64>,
+    tools: Option<&str>,
 ) -> Result<CompleteRaw, ErrorBody> {
-    let (prompt, prompt_tokens) = build_prompt(model, messages)?;
+    let (template_result, prompt_tokens) = build_prompt(model, messages, tools)?;
     let tokens = model
-        .str_to_token(&prompt, AddBos::Always)
+        .str_to_token(&template_result.prompt, AddBos::Always)
         .map_err(|e| inference_failed(format!("tokenization failed: {e}")))?;
 
     let needed = prompt_tokens.saturating_add(max_tokens).max(context_size);
@@ -456,7 +575,7 @@ fn run_complete(
     let prefill_start = Instant::now();
     let mut batch = LlamaBatch::new(n_ctx as usize, 1);
     let last_index = tokens.len().saturating_sub(1) as i32;
-    for (i, token) in (0_i32..).zip(tokens.into_iter()) {
+    for (i, token) in (0_i32..).zip(tokens) {
         batch
             .add(token, i, &[0], i == last_index)
             .map_err(|e| inference_failed(format!("batch add failed: {e}")))?;
@@ -505,8 +624,11 @@ fn run_complete(
 
     let decode_ms = decode_start.elapsed().as_millis() as u64;
 
+    let (text, tool_calls) = parse_completion(&template_result, generated);
+
     Ok(CompleteRaw {
-        text: generated,
+        text,
+        tool_calls,
         prompt_tokens,
         completion_tokens,
         finish_reason,
@@ -528,14 +650,15 @@ fn run_stream<F>(
     top_p: f32,
     top_k: i32,
     seed: Option<u64>,
+    tools: Option<&str>,
     mut on_piece: F,
 ) -> Result<FinishReason, ErrorBody>
 where
     F: FnMut(String) -> Result<(), tokio::sync::mpsc::error::SendError<Result<StreamChunk, ErrorBody>>>,
 {
-    let (prompt, prompt_tokens) = build_prompt(model, messages)?;
+    let (template_result, prompt_tokens) = build_prompt(model, messages, tools)?;
     let tokens = model
-        .str_to_token(&prompt, AddBos::Always)
+        .str_to_token(&template_result.prompt, AddBos::Always)
         .map_err(|e| inference_failed(format!("tokenization failed: {e}")))?;
 
     let needed = prompt_tokens.saturating_add(max_tokens).max(context_size);
@@ -550,7 +673,7 @@ where
 
     let mut batch = LlamaBatch::new(n_ctx as usize, 1);
     let last_index = tokens.len().saturating_sub(1) as i32;
-    for (i, token) in (0_i32..).zip(tokens.into_iter()) {
+    for (i, token) in (0_i32..).zip(tokens) {
         batch
             .add(token, i, &[0], i == last_index)
             .map_err(|e| inference_failed(format!("batch add failed: {e}")))?;
@@ -633,6 +756,120 @@ pub fn validate_model_path(path: &Path) -> Result<(), ErrorBody> {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    fn msg(role: Role, content: &str) -> ChatMessage {
+        ChatMessage {
+            role,
+            content: content.to_string(),
+        }
+    }
+
+    #[test]
+    fn normalize_merges_consecutive_user_turns() {
+        // GIVEN a sequence with back-to-back user turns (e.g. folded tool results)
+        let messages = [
+            msg(Role::System, "sys"),
+            msg(Role::User, "hello"),
+            msg(Role::Assistant, "hi"),
+            msg(Role::User, "tool result A"),
+            msg(Role::User, "tool result B"),
+        ];
+
+        // WHEN normalizing the role sequence
+        let out = normalize_roles(&messages);
+
+        // THEN consecutive user turns collapse into one, preserving content
+        assert_eq!(
+            out,
+            vec![
+                ("system", "sys".to_string()),
+                ("user", "hello".to_string()),
+                ("assistant", "hi".to_string()),
+                ("user", "tool result A\n\ntool result B".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn normalize_merges_consecutive_system_turns() {
+        // GIVEN a system prompt followed by a context-summary system turn
+        let messages = [
+            msg(Role::System, "prompt"),
+            msg(Role::System, "summary"),
+            msg(Role::User, "hello"),
+        ];
+
+        // WHEN normalizing
+        let out = normalize_roles(&messages);
+
+        // THEN the two system turns merge and strict alternation is preserved
+        assert_eq!(
+            out,
+            vec![
+                ("system", "prompt\n\nsummary".to_string()),
+                ("user", "hello".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn normalize_leaves_alternating_sequence_untouched() {
+        // GIVEN an already strictly-alternating sequence
+        let messages = [
+            msg(Role::System, "sys"),
+            msg(Role::User, "a"),
+            msg(Role::Assistant, "b"),
+            msg(Role::User, "c"),
+        ];
+
+        // WHEN normalizing
+        let out = normalize_roles(&messages);
+
+        // THEN it is unchanged
+        assert_eq!(
+            out,
+            vec![
+                ("system", "sys".to_string()),
+                ("user", "a".to_string()),
+                ("assistant", "b".to_string()),
+                ("user", "c".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn oai_tool_call_parses_openai_function_entry() {
+        // GIVEN an OpenAI-shaped tool call with arguments encoded as a JSON string
+        let call = serde_json::json!({
+            "id": "abc",
+            "type": "function",
+            "function": { "name": "list_files", "arguments": "{\"path\":\"/tmp\"}" }
+        });
+
+        // WHEN converting it to the IPC tool call
+        let tc = oai_tool_call(&call, 0).expect("should parse");
+
+        // THEN id/name are taken verbatim and arguments are decoded into a value
+        assert_eq!(tc.id, "abc");
+        assert_eq!(tc.name, "list_files");
+        assert_eq!(tc.arguments, serde_json::json!({ "path": "/tmp" }));
+    }
+
+    #[test]
+    fn oai_tool_call_synthesizes_id_when_missing() {
+        // GIVEN a call without an id and arguments already as an object
+        let call = serde_json::json!({
+            "function": { "name": "now", "arguments": { "tz": "UTC" } }
+        });
+
+        // WHEN converting at index 2
+        let tc = oai_tool_call(&call, 2).expect("should parse");
+
+        // THEN a deterministic fallback id is synthesized
+        assert_eq!(tc.id, "call_2");
+        assert_eq!(tc.name, "now");
+        assert_eq!(tc.arguments, serde_json::json!({ "tz": "UTC" }));
+    }
 
     #[test]
     fn validate_rejects_relative_path() {

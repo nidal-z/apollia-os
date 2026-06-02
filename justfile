@@ -122,6 +122,10 @@ runner-debug-suffixed backend:
     cargo build -p apollia-runner --features local-{{backend}}
     cp "target/debug/apollia-runner" "target/debug/apollia-runner-{{backend}}"
     chmod +x "target/debug/apollia-runner-{{backend}}" || true
+    # On macOS, `cp` invalidates the linker-signed adhoc signature, so the
+    # kernel SIGKILLs the copy at launch ("Code Signature Invalid"). Re-sign
+    # adhoc to restore execution.
+    if [ "$(uname)" = "Darwin" ]; then codesign --force --sign - "target/debug/apollia-runner-{{backend}}"; fi
 
 # macOS dev defaults: Metal + CPU fallback
 runners-dev-macos:

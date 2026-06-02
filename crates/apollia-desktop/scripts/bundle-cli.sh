@@ -120,6 +120,12 @@ for backend in $RUNNERS; do
     dst="${STAGING}/runners/apollia-runner-${backend}${BIN_EXT}"
     cp "$src" "$dst"
     chmod +x "$dst" || true
+    # On macOS, `cp` invalidates the linker-signed adhoc signature, so the
+    # kernel SIGKILLs the staged runner at launch ("Code Signature Invalid").
+    # Re-sign adhoc here; the bundle is re-signed as a whole by Tauri afterwards.
+    case "$RUNNER_TARGET" in
+        *-apple-darwin) codesign --force --sign - "$dst" ;;
+    esac
     echo "    staged $(basename "$dst")"
 done
 

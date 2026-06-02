@@ -7,8 +7,9 @@ use std::time::Instant;
 
 use apollia_llm::types::{
     ChatMessage, CompletionModel, CompletionRequest, CompletionResponse, FinishReason,
-    MessageContent, Role, StreamChunk, TokenUsage,
+    MessageContent, Role, StreamChunk, TokenUsage, ToolCall,
 };
+use apollia_llm::model_defaults::{resolve, ModelDefaults, ModelHints, UserOverrides};
 use apollia_llm::LlmError;
 use futures::Stream;
 use serde_json::Value;
@@ -26,6 +27,9 @@ pub struct RunnerLlmBackend {
     model_path: String,
     /// True after the first successful `load_model` on the runner.
     loaded: std::sync::Mutex<bool>,
+    /// Per-model sampling defaults, resolved once at load time from the model
+    /// family (user override file then embedded table). Empty until loaded.
+    defaults: std::sync::OnceLock<ModelDefaults>,
 }
 
 impl RunnerLlmBackend {
@@ -41,6 +45,7 @@ impl RunnerLlmBackend {
             model_id,
             model_path,
             loaded: std::sync::Mutex::new(false),
+            defaults: std::sync::OnceLock::new(),
         })
     }
 
@@ -62,7 +67,7 @@ impl RunnerLlmBackend {
             "use_mlock": false,
         });
 
-        let _data: Value = self
+        let data: Value = self
             .proxy
             .post_json("/llm/load_model", params)
             .await
@@ -71,8 +76,39 @@ impl RunnerLlmBackend {
                 reason: format!("load_model via runner: {e}"),
             })?;
 
+        let arch = data.get("arch").and_then(|v| v.as_str()).unwrap_or("");
+        let _ = self.defaults.set(self.resolve_defaults(arch));
+
         *self.loaded.lock().expect("loaded-state mutex poisoned") = true;
         Ok(())
+    }
+
+    /// Resolves per-model sampling defaults through the shared `model_defaults`
+    /// resolver: user override file (`sampling-defaults.json`) first, then the
+    /// embedded per-family table, keyed by the GGUF `arch` and file name.
+    fn resolve_defaults(&self, arch: &str) -> ModelDefaults {
+        let file_name = std::path::Path::new(&self.model_path)
+            .file_name()
+            .and_then(|n| n.to_str());
+        let hints = ModelHints {
+            arch: if arch.is_empty() { None } else { Some(arch) },
+            name: file_name,
+            file_name,
+            model_id: Some(&self.model_id),
+            ..Default::default()
+        };
+        let overrides = UserOverrides::load(&UserOverrides::default_path()).unwrap_or_default();
+        let resolved = resolve(&hints, &overrides);
+        tracing::info!(
+            backend = %self.backend_name,
+            arch = %arch,
+            temperature = ?resolved.temperature,
+            top_p = ?resolved.top_p,
+            top_k = ?resolved.top_k,
+            repetition_penalty = ?resolved.repetition_penalty,
+            "runner sampling defaults resolved"
+        );
+        resolved
     }
 
     fn map_messages(messages: &[ChatMessage]) -> Vec<Value> {
@@ -100,17 +136,80 @@ impl RunnerLlmBackend {
             .collect()
     }
 
+    /// Serializes the request's tools into the OpenAI `tools` array shape the
+    /// runner forwards to the model's chat template. Returns `None` when the
+    /// request carries no tools, which disables tool rendering for that call.
+    fn map_tools(req: &CompletionRequest) -> Option<Value> {
+        if req.tools.is_empty() {
+            return None;
+        }
+        Some(Value::Array(
+            req.tools
+                .iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "type": "function",
+                        "function": {
+                            "name": t.name,
+                            "description": t.description,
+                            "parameters": t.parameters,
+                        }
+                    })
+                })
+                .collect(),
+        ))
+    }
+
+    /// Maps the runner's `tool_calls` payload into `apollia-llm` tool calls.
+    ///
+    /// The runner already decoded the model output through the GGUF's own chat
+    /// template parser, so this is a straight shape conversion. Entries missing
+    /// a name are skipped rather than failing the whole response.
+    fn parse_tool_calls(data: &Value) -> Vec<ToolCall> {
+        data.get("tool_calls")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|tc| {
+                        Some(ToolCall {
+                            id: tc.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                            name: tc.get("name").and_then(|v| v.as_str())?.to_string(),
+                            arguments: tc
+                                .get("arguments")
+                                .cloned()
+                                .unwrap_or_else(|| serde_json::json!({})),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn complete_params(&self, req: &CompletionRequest) -> Value {
+        // Precedence per field: explicit request value, then the resolved
+        // per-model default, then a hard global fallback.
+        let defaults = self.defaults.get();
+        let temperature = req
+            .temperature
+            .or_else(|| defaults.and_then(|d| d.temperature))
+            .unwrap_or(0.7);
+        let top_p = defaults.and_then(|d| d.top_p).unwrap_or(0.95);
+        let top_k = defaults.and_then(|d| d.top_k).unwrap_or(40);
+        let repeat_penalty = defaults
+            .and_then(|d| d.repetition_penalty)
+            .unwrap_or(1.1);
+
         serde_json::json!({
             "model_id": self.model_id,
             "messages": Self::map_messages(&req.messages),
             "max_tokens": req.max_tokens.unwrap_or(512),
-            "temperature": req.temperature.unwrap_or(0.7),
-            "top_p": 0.95,
-            "top_k": 40,
-            "repeat_penalty": 1.1,
+            "temperature": temperature,
+            "top_p": top_p,
+            "top_k": top_k,
+            "repeat_penalty": repeat_penalty,
             "seed": req.seed,
             "stop": Vec::<String>::new(),
+            "tools": Self::map_tools(req),
         })
     }
 }
@@ -148,18 +247,26 @@ impl CompletionModel for RunnerLlmBackend {
             })
             .unwrap_or_default();
 
-        let finish_reason = match data
-            .get("finish_reason")
-            .and_then(|v| v.as_str())
-            .unwrap_or("stop")
-        {
-            "length" => FinishReason::Length,
-            _ => FinishReason::Stop,
+        let tool_calls = Self::parse_tool_calls(&data);
+
+        // Tool calls take precedence: the agent loop branches on them before
+        // the textual finish reason.
+        let finish_reason = if !tool_calls.is_empty() {
+            FinishReason::ToolCalls
+        } else {
+            match data
+                .get("finish_reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("stop")
+            {
+                "length" => FinishReason::Length,
+                _ => FinishReason::Stop,
+            }
         };
 
         Ok(CompletionResponse {
             content: text,
-            tool_calls: Vec::new(),
+            tool_calls,
             usage,
             finish_reason,
             latency_ms: started.elapsed().as_millis() as u64,
@@ -171,13 +278,18 @@ impl CompletionModel for RunnerLlmBackend {
         &self,
         req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        // Minimal: delegate to complete() and return the text as a single
-        // chunk. Real SSE streaming is wired up later (parse the
-        // text/event-stream and re-emit StreamChunk::Text).
+        // Minimal: delegate to complete() and replay the result as a short
+        // chunk sequence (text, then one chunk per tool call). Real SSE
+        // streaming is wired up later (parse the text/event-stream live).
         let resp = self.complete(req).await?;
-        let chunk = StreamChunk::Text(resp.content);
-        let stream = futures::stream::once(async move { Ok(chunk) });
-        Ok(Box::pin(stream))
+        let mut chunks: Vec<Result<StreamChunk, LlmError>> = Vec::new();
+        if !resp.content.is_empty() {
+            chunks.push(Ok(StreamChunk::Text(resp.content)));
+        }
+        for call in resp.tool_calls {
+            chunks.push(Ok(StreamChunk::ToolCall(call)));
+        }
+        Ok(Box::pin(futures::stream::iter(chunks)))
     }
 
     fn is_available(&self) -> bool {
@@ -190,5 +302,90 @@ impl CompletionModel for RunnerLlmBackend {
 
     fn model_id(&self) -> &str {
         &self.model_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_llm::types::ToolSpec;
+
+    #[test]
+    fn parse_tool_calls_maps_runner_payload() {
+        // GIVEN a runner response carrying one structured tool call
+        let data = serde_json::json!({
+            "text": "",
+            "tool_calls": [
+                { "id": "x1", "name": "list_files", "arguments": { "path": "/tmp" } }
+            ]
+        });
+
+        // WHEN parsing the tool calls
+        let calls = RunnerLlmBackend::parse_tool_calls(&data);
+
+        // THEN the shape is carried through verbatim
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].id, "x1");
+        assert_eq!(calls[0].name, "list_files");
+        assert_eq!(calls[0].arguments, serde_json::json!({ "path": "/tmp" }));
+    }
+
+    #[test]
+    fn parse_tool_calls_empty_when_absent() {
+        // GIVEN a response with no tool_calls field
+        let data = serde_json::json!({ "text": "hello" });
+
+        // WHEN parsing
+        let calls = RunnerLlmBackend::parse_tool_calls(&data);
+
+        // THEN none are produced
+        assert!(calls.is_empty());
+    }
+
+    #[test]
+    fn map_tools_returns_none_when_request_has_no_tools() {
+        // GIVEN a request with an empty tool list
+        let req = CompletionRequest::default();
+
+        // WHEN mapping its tools to the runner payload
+        let mapped = RunnerLlmBackend::map_tools(&req);
+
+        // THEN no tools array is sent, leaving the template in tool-free mode
+        assert!(mapped.is_none());
+    }
+
+    #[test]
+    fn map_tools_emits_openai_function_shape() {
+        // GIVEN a request carrying one tool spec
+        let req = CompletionRequest {
+            tools: vec![ToolSpec {
+                name: "list_files".to_string(),
+                description: "List files in a directory.".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": { "path": { "type": "string" } },
+                    "required": ["path"]
+                }),
+            }],
+            ..Default::default()
+        };
+
+        // WHEN mapping its tools
+        let mapped = RunnerLlmBackend::map_tools(&req).expect("tools must be present");
+
+        // THEN the OpenAI `{type: function, function: {...}}` shape is produced
+        let expected = serde_json::json!([{
+            "type": "function",
+            "function": {
+                "name": "list_files",
+                "description": "List files in a directory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": { "path": { "type": "string" } },
+                    "required": ["path"]
+                }
+            }
+        }]);
+        assert_eq!(mapped, expected);
     }
 }

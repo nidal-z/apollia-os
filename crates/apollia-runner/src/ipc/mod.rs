@@ -15,7 +15,8 @@ pub use error::{ErrorBody, ErrorCode};
 pub use handshake::{Backend, GpuInfoDto, HandshakeData, HealthData};
 pub use llm::{
     ChatMessage, CompleteData, CompleteParams, EmbedData, EmbedParams, FinishReason,
-    LoadModelData, LoadModelParams, Role, StreamChunk, Timing, TokenUsage, UnloadModelParams,
+    LoadModelData, LoadModelParams, Role, StreamChunk, Timing, TokenUsage, ToolCall,
+    UnloadModelParams,
 };
 pub use request::Request;
 pub use response::Response;

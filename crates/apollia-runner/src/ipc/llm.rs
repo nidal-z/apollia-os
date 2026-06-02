@@ -50,6 +50,10 @@ pub struct LoadModelData {
     pub load_time_ms: u64,
     pub context_size: u32,
     pub memory_used_mb: u32,
+    /// GGUF `general.architecture` (e.g. `qwen3`, `llama`), empty if absent.
+    /// Lets the daemon resolve per-family sampling defaults.
+    #[serde(default)]
+    pub arch: String,
 }
 
 /// Params for `POST /llm/unload_model`.
@@ -77,6 +81,12 @@ pub struct CompleteParams {
     pub seed: Option<u64>,
     #[serde(default)]
     pub stop: Vec<String>,
+    /// OpenAI-format tool specs (`[{"type":"function","function":{...}}]`).
+    /// Rendered into the prompt by the model's own chat template, so each
+    /// tokenizer family advertises tools in its native convention. `None`
+    /// disables tool use for this request.
+    #[serde(default)]
+    pub tools: Option<serde_json::Value>,
 }
 
 fn default_max_tokens() -> u32 {
@@ -122,6 +132,18 @@ pub struct Timing {
     pub total_ms: u64,
 }
 
+/// A tool call parsed from the model output.
+///
+/// Produced by the model's own chat template parser (`common_chat`), so the
+/// shape is uniform across tokenizer families (Qwen, Mistral, Hermes, ...).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    /// Arguments object the model passed to the tool.
+    pub arguments: serde_json::Value,
+}
+
 /// Response from `POST /llm/complete`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompleteData {
@@ -129,6 +151,10 @@ pub struct CompleteData {
     pub finish_reason: FinishReason,
     pub usage: TokenUsage,
     pub timing: Timing,
+    /// Tool calls parsed from the response, empty when the model produced none
+    /// (or when the request carried no tools).
+    #[serde(default)]
+    pub tool_calls: Vec<ToolCall>,
 }
 
 /// SSE chunk from `POST /llm/stream`.

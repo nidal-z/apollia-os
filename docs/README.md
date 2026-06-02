@@ -12,7 +12,7 @@ limite à son rôle et cite les autres.
 | Tu es… | Tu cherches à… | Va dans |
 |---|---|---|
 | **Opérateur** (utilisateur Desktop, non-développeur) | accomplir une tâche dans l'app | [`docs/help/`](./help/) |
-| **Développeur découvrant Apollia** | apprendre en faisant, exemples concrets | [`docs/book/`](./book/) |
+| **Développeur découvrant Apollia ou utilisant le SDK Python** | apprendre en faisant, exemples concrets, guide SDK complet (49 chapitres, 9 parties) | [`docs/book/`](./book/) |
 | **Développeur expérimenté** | référence technique exhaustive | [`docs/wiki/`](./wiki/) (⚠️ refonte en cours, voir bannière) |
 | **Mainteneur** | comprendre une décision passée | [`docs/adr/`](./adr/) |
 | **LLM / agent IA** | règles de code, conventions, patterns | [`docs/agents/`](./agents/) |
@@ -30,16 +30,41 @@ article = une tâche. Pas de vocabulaire interne (jamais "acteur",
 
 **Audience** : utilisateur final non-développeur.
 
-### 📘 [`docs/book/`](./book/) - Pédagogique mdBook
+### 📘 [`docs/book/`](./book/) - Pédagogique mdBook + guide SDK Python complet
 
-"Le Rust Book mais pour Apollia". Apprendre en faisant, 1-2 exemples par
-concept, progression chapitres. Français. Build : `mdbook build docs/book/`.
+"Le Rust Book mais pour Apollia". 49 chapitres, 9 parties, français. Build :
+`mdbook build docs/book/`.
+
+**C'est le guide de référence pour utiliser le SDK Python Apollia AgentKit.**
+Au programme :
+
+- **Partie I** : installation + 4 quickstarts (agent conversationnel, worker,
+  director, orchestré).
+- **Partie II** : les décorateurs (`@agent`, `@skill`, `@on_message`,
+  `@orchestrated`).
+- **Partie III** : le protocole `Ctx` et ses 14 services
+  (llm, memory, tools, a2a, datasources, templates, secrets, events,
+  logger, profile, workspace, stt, notify, budget).
+- **Partie IV** : design LLM-friendly (`Annotated` descriptions, examples,
+  schémas `TypedDict`).
+- **Partie V** : gestion des erreurs (`DomainError`, `NeedHumanInput`).
+- **Partie VI** : tests (mock, assertions, eval suites).
+- **Partie VII** : outillage (`apollia inspect`, `apollia new`).
+- **Partie VIII** : vue d'ensemble du runtime Rust côté dev externe.
+- **Partie IX** : projet capstone (multi-agent end-to-end).
+- **Annexes A-G** : diagrammes, glossaire, principes, roadmap, vision,
+  index ADRs, FAQ.
 
 Le book ne **duplique jamais** une table de référence présente dans le
 wiki. Il lie. Pattern : `> **Référence technique :**
 [Nom-Page](URL-wiki)`.
 
-**Audience** : développeur qui découvre Apollia.
+Point d'entrée pour un dev externe : commence par
+[`sdk/README.md`](../sdk/README.md) (quickstart 1 page), puis ouvre le
+book.
+
+**Audience** : développeur qui découvre Apollia ou qui code des agents
+Python avec le SDK.
 
 ### 📚 [`docs/wiki/`](./wiki/) - Référence technique (refonte en cours)
 
