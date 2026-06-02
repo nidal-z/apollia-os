@@ -541,6 +541,10 @@
     },
     "status": {
       "connected": "Connected",
+      "unverified": "Reachable",
+      "degraded": "Degraded",
+      "needs_reauth": "Reconnection needed",
+      "unavailable": "Unavailable",
       "disconnected": "Disconnected",
       "error": "Error",
       "not_configured": "Not configured"
@@ -680,6 +684,11 @@
       "test_button": "Test",
       "test_testing": "Testing…",
       "test_ok": "Connection OK - {count} tools",
+      "test_working": "Working - {count} tools, last operation succeeded",
+      "test_reachable": "Reachable - {count} tools listed, not yet verified by an operation",
+      "test_degraded": "Reachable, but recent operations failed",
+      "test_needs_reauth": "Reachable, but authorization expired",
+      "test_operator_attention": "Attention needed - reconnect or check the authorizations",
       "test_failed": "Test failed",
       "reconnect_button": "Reconnect",
       "reconnecting": "Reconnecting…",

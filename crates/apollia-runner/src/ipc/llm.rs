@@ -32,10 +32,22 @@ pub struct LoadModelParams {
     pub use_mmap: bool,
     #[serde(default)]
     pub use_mlock: bool,
+    /// Number of persistent inference slots to spawn for this model. Each slot
+    /// owns its own context (KV cache) and reuses prompt prefixes across turns.
+    /// `0` is treated as 1.
+    #[serde(default = "default_slot_count")]
+    pub slot_count: u32,
 }
 
+/// `n_ctx` is a CAP on the working window, not a fixed size: `0` means "use the
+/// model's full trained window". The runner sizes each slot to this (or less if
+/// memory is tight, via adaptive probing).
 fn default_n_ctx() -> u32 {
-    4096
+    0
+}
+
+fn default_slot_count() -> u32 {
+    1
 }
 fn default_n_gpu_layers() -> i32 {
     -1
@@ -54,6 +66,18 @@ pub struct LoadModelData {
     /// Lets the daemon resolve per-family sampling defaults.
     #[serde(default)]
     pub arch: String,
+    /// Maximum context window the model was trained for (GGUF
+    /// `<arch>.context_length`). The supervisor caches this to drive the
+    /// default generation budget and model-aware context compaction. `0` when
+    /// the metadata is absent.
+    #[serde(default)]
+    pub n_ctx_train: u32,
+    /// Effective working window each slot was actually allocated with (tokens).
+    /// May be below `n_ctx_train` when the full window did not fit in memory or
+    /// was capped. Compaction must size to THIS, not `n_ctx_train`, because the
+    /// runner rejects prompts beyond it.
+    #[serde(default)]
+    pub effective_ctx: u32,
 }
 
 /// Params for `POST /llm/unload_model`.
@@ -89,8 +113,12 @@ pub struct CompleteParams {
     pub tools: Option<serde_json::Value>,
 }
 
+/// `0` is a sentinel meaning "generate up to the model's remaining context
+/// window" (resolved by the backend once the prompt is tokenized). This is the
+/// default so a caller that does not specify a cap gets the full window rather
+/// than an arbitrary truncation.
 fn default_max_tokens() -> u32 {
-    256
+    0
 }
 fn default_temperature() -> f32 {
     0.7

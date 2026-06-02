@@ -20,7 +20,7 @@ use axum::{
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::{
     McpClientManagerHandle, McpConnectionTestResult, McpServerDetail, McpServerStatus,
-    McpToolSummary,
+    McpToolSummary, ProbeSpec,
 };
 use apollia_mcp::session::McpSession;
 use apollia_mcp::McpServerRepository;
@@ -36,6 +36,10 @@ pub fn mcp_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/mcp/servers", get(list_servers::<B>))
         .route("/api/v1/mcp/servers", post(add_server::<B>))
         .route("/api/v1/mcp/servers/test", post(test_connection))
+        .route(
+            "/api/v1/mcp/servers/:name/test",
+            post(test_live_server::<B>),
+        )
         .route("/api/v1/mcp/servers/:name", get(get_server_detail::<B>))
         .route("/api/v1/mcp/servers/:name", delete(remove_server::<B>))
         .route(
@@ -336,9 +340,45 @@ async fn test_connection(
                     protocol_version: "2024-11-05".to_string(),
                     tools,
                     test_duration_ms,
+                    live_health: None,
                 },
             }))
         }
+        Err(apollia_mcp::session::McpSessionError::Unauthorized {
+            www_authenticate, ..
+        }) => Ok(Json(McpConnectionTestResponse::OauthRequired {
+            www_authenticate,
+        })),
+        Err(other) => Err(json_err(StatusCode::BAD_REQUEST, other)),
+    }
+}
+
+/// Body for [`test_live_server`]: the optional read-only probe to run against
+/// the live session, supplied by the desktop from the connector enrichment.
+#[derive(serde::Deserialize, Default)]
+struct TestLiveRequest {
+    /// Read-only probe declared for this connector, when any.
+    #[serde(default)]
+    probe: Option<ProbeSpec>,
+}
+
+/// `POST /api/v1/mcp/servers/:name/test`, Test an already-installed server.
+///
+/// Re-handshakes the live session for reachability, then runs the optional
+/// read-only probe to exercise real operational access (scopes, grants). The
+/// response `result.live_health` carries the operational verdict, so the
+/// desktop can distinguish "reachable" from "actually working".
+///
+/// Response shape mirrors [`test_connection`]: `success` (with `live_health`),
+/// `oauth_required`, or `400`.
+async fn test_live_server<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(name): Path<String>,
+    Json(req): Json<TestLiveRequest>,
+) -> Result<Json<McpConnectionTestResponse>, JsonError> {
+    let handle = require_mcp_handle(&state)?;
+    match handle.test_live_server(&name, req.probe).await {
+        Ok(result) => Ok(Json(McpConnectionTestResponse::Success { result })),
         Err(apollia_mcp::session::McpSessionError::Unauthorized {
             www_authenticate, ..
         }) => Ok(Json(McpConnectionTestResponse::OauthRequired {
@@ -534,6 +574,7 @@ mod tests {
                 error: None,
                 package: None,
                 transport: "stdio".to_string(),
+                health: apollia_core::McpHealth::Healthy { verified: false },
             },
             tools: vec![],
             config: McpServerConfigView {
@@ -569,6 +610,7 @@ mod tests {
                 error: None,
                 package: None,
                 transport: "stdio".to_string(),
+                health: apollia_core::McpHealth::Healthy { verified: false },
             },
             tools: vec![
                 McpToolSummary {
@@ -618,6 +660,7 @@ mod tests {
                 error: None,
                 package: None,
                 transport: "stdio".to_string(),
+                health: apollia_core::McpHealth::Healthy { verified: false },
             },
             McpServerStatus {
                 name: "sqlite".to_string(),
@@ -631,6 +674,7 @@ mod tests {
                 error: None,
                 package: None,
                 transport: "stdio".to_string(),
+                health: apollia_core::McpHealth::Healthy { verified: false },
             },
         ];
         // WHEN serialized

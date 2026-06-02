@@ -17,6 +17,7 @@ pub mod approvals;
 pub mod config;
 pub mod discovery;
 pub mod executor;
+mod health;
 pub mod jsonrpc;
 pub mod manager;
 pub mod protocol;

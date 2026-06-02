@@ -541,6 +541,10 @@
     },
     "status": {
       "connected": "Connecté",
+      "unverified": "Joignable",
+      "degraded": "Dégradé",
+      "needs_reauth": "Reconnexion requise",
+      "unavailable": "Indisponible",
       "disconnected": "Déconnecté",
       "error": "Erreur",
       "not_configured": "Non configuré"
@@ -680,6 +684,11 @@
       "test_button": "Tester",
       "test_testing": "Test en cours…",
       "test_ok": "Connexion OK - {count} outils",
+      "test_working": "Opérationnel - {count} outils, dernière opération réussie",
+      "test_reachable": "Joignable - {count} outils listés, pas encore vérifié par une opération",
+      "test_degraded": "Joignable, mais des opérations récentes ont échoué",
+      "test_needs_reauth": "Joignable, mais l'autorisation a expiré",
+      "test_operator_attention": "Attention requise - reconnecte ou vérifie les autorisations",
       "test_failed": "Test échoué",
       "reconnect_button": "Reconnecter",
       "reconnecting": "Reconnexion…",

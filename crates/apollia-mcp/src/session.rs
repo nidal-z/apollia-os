@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use apollia_core::McpHealth;
 use tokio::sync::{oneshot, Mutex};
 use tracing::{debug, warn};
 
@@ -239,6 +240,12 @@ pub struct McpSession {
     tools: Vec<McpToolDefinition>,
     /// Instant at which the session was successfully started.
     started_at: std::time::Instant,
+    /// Operational health, mutated by the manager after each operation.
+    ///
+    /// Initialised to `Healthy { verified: false }`: the handshake passed but no
+    /// real operation has yet proven the server's scopes/grants. Lives here so
+    /// it stays owned by the manager actor (no shared lock across actors).
+    health: McpHealth,
     /// Background dispatch task: reads from the transport and routes responses.
     _dispatch_task: tokio::task::JoinHandle<()>,
 }
@@ -288,6 +295,7 @@ impl McpSession {
             },
             tools: Vec::new(),
             started_at: std::time::Instant::now(),
+            health: McpHealth::Healthy { verified: false },
             _dispatch_task: dispatch_task,
         };
 
@@ -516,6 +524,17 @@ impl McpSession {
     /// Returns the configuration used to start this session.
     pub fn config(&self) -> &McpServerConfig {
         &self.config
+    }
+
+    /// Returns the current operational health of this session.
+    pub fn health(&self) -> &McpHealth {
+        &self.health
+    }
+
+    /// Overwrite the operational health. Called by the manager after each
+    /// operation has been classified.
+    pub(crate) fn set_health(&mut self, health: McpHealth) {
+        self.health = health;
     }
 
     /// Execute a tool on this MCP server via `tools/call`.

@@ -26,7 +26,7 @@ use serde_json::Value;
 use apollia_tools::executor::{ToolExecutionError, ToolExecutor};
 
 use crate::manager::McpClientManagerHandle;
-use crate::protocol::ToolCallContent;
+use crate::protocol::extract_text_parts;
 
 // ─── public types ────────────────────────────────────────────────────────────
 
@@ -245,25 +245,12 @@ impl ToolExecutor for McpToolExecutor {
     }
 }
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-/// Collect all [`ToolCallContent::Text`] items and join them with `"\n"`.
-fn extract_text_parts(content: &[ToolCallContent]) -> String {
-    content
-        .iter()
-        .filter_map(|c| match c {
-            ToolCallContent::Text { text } => Some(text.as_str()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 // ─── tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::ToolCallContent;
 
     #[test]
     fn parse_tool_name_valid() {

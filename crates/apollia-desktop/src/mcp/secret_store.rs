@@ -84,12 +84,20 @@ impl SecretStore {
     }
 
     /// Removes a secret from the OS keychain.
+    ///
+    /// Idempotent: deleting a key that has no stored entry returns `Ok(())`
+    /// instead of an error. A missing entry is the intended end state of a
+    /// delete, and OAuth-based servers never persist a static secret for their
+    /// `${...}` placeholders, so a strict delete here would abort the disconnect
+    /// flow before the connection record and OAuth token get purged. Mirrors
+    /// `apollia_auth::KeyringSecretStore::delete`.
     pub fn delete(&self, key: &str) -> Result<(), SecretStoreError> {
         let entry = keyring::Entry::new(&self.service_name, key)
             .map_err(|e| SecretStoreError::BackendUnavailable(e.to_string()))?;
-        entry
-            .delete_credential()
-            .map_err(|e| SecretStoreError::DeleteFailed(e.to_string()))
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(SecretStoreError::DeleteFailed(e.to_string())),
+        }
     }
 
     /// Lists stored key names for a given MCP server.
@@ -209,5 +217,25 @@ mod tests {
             matches!(result, Err(SecretStoreError::NotFound(_))),
             "expected NotFound, got: {result:?}"
         );
+    }
+
+    /// Deleting a key that was never stored succeeds as a no-op.
+    ///
+    /// Guards the disconnect flow: OAuth-based servers carry env placeholders
+    /// with no matching static secret, so a strict delete would abort removal.
+    ///
+    /// Requires a live OS keychain (skipped in headless CI).
+    #[test]
+    #[ignore = "requires live OS keychain"]
+    fn delete_missing_secret_is_idempotent() {
+        let store = SecretStore::new();
+        let key = "nonexistent-server:NONEXISTENT_KEY_apollia_test_ephemeral_delete";
+
+        // GIVEN a key that was never stored
+        // WHEN we delete it
+        let result = store.delete(key);
+
+        // THEN the delete succeeds instead of erroring
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
     }
 }

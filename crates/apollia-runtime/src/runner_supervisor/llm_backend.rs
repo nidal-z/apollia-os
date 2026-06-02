@@ -30,6 +30,14 @@ pub struct RunnerLlmBackend {
     /// Per-model sampling defaults, resolved once at load time from the model
     /// family (user override file then embedded table). Empty until loaded.
     defaults: std::sync::OnceLock<ModelDefaults>,
+    /// Model's trained context window (tokens), cached from `load_model`.
+    /// Drives the router's model-aware context limit for compaction. Unset
+    /// (and `0` is treated as unknown) until the first successful load.
+    n_ctx_train: std::sync::OnceLock<u32>,
+    /// Effective working window each slot was actually allocated with. The
+    /// runner rejects prompts beyond it, so compaction must size to THIS rather
+    /// than `n_ctx_train` (which may be larger than what fit in memory).
+    effective_ctx: std::sync::OnceLock<u32>,
 }
 
 impl RunnerLlmBackend {
@@ -46,6 +54,8 @@ impl RunnerLlmBackend {
             model_path,
             loaded: std::sync::Mutex::new(false),
             defaults: std::sync::OnceLock::new(),
+            n_ctx_train: std::sync::OnceLock::new(),
+            effective_ctx: std::sync::OnceLock::new(),
         })
     }
 
@@ -61,10 +71,15 @@ impl RunnerLlmBackend {
         let params = serde_json::json!({
             "model_id": self.model_id,
             "model_path": self.model_path,
-            "n_ctx": 4096,
+            // `0` = use the model's full trained window (the runner sizes each
+            // slot to it, shrinking adaptively only if memory is tight).
+            "n_ctx": 0,
             "n_gpu_layers": -1,
             "use_mmap": true,
             "use_mlock": false,
+            // One persistent inference slot: reuses the prompt prefix across
+            // turns. Concurrent calls to this model serialize on the slot.
+            "slot_count": 1,
         });
 
         let data: Value = self
@@ -78,6 +93,19 @@ impl RunnerLlmBackend {
 
         let arch = data.get("arch").and_then(|v| v.as_str()).unwrap_or("");
         let _ = self.defaults.set(self.resolve_defaults(arch));
+
+        // Cache the model's trained window and the slot's effective window so
+        // the router can size compaction to what the runner actually allocated.
+        if let Some(train) = data.get("n_ctx_train").and_then(|v| v.as_u64()) {
+            if train > 0 {
+                let _ = self.n_ctx_train.set(train as u32);
+            }
+        }
+        if let Some(eff) = data.get("effective_ctx").and_then(|v| v.as_u64()) {
+            if eff > 0 {
+                let _ = self.effective_ctx.set(eff as u32);
+            }
+        }
 
         *self.loaded.lock().expect("loaded-state mutex poisoned") = true;
         Ok(())
@@ -202,7 +230,10 @@ impl RunnerLlmBackend {
         serde_json::json!({
             "model_id": self.model_id,
             "messages": Self::map_messages(&req.messages),
-            "max_tokens": req.max_tokens.unwrap_or(512),
+            // `0` = "fill the model's remaining context window" (resolved by the
+            // runner after tokenization). A caller that does not set max_tokens
+            // gets the full window instead of an arbitrary truncation.
+            "max_tokens": req.max_tokens.unwrap_or(0),
             "temperature": temperature,
             "top_p": top_p,
             "top_k": top_k,
@@ -302,6 +333,15 @@ impl CompletionModel for RunnerLlmBackend {
 
     fn model_id(&self) -> &str {
         &self.model_id
+    }
+
+    fn context_window(&self) -> Option<usize> {
+        // Prefer the slot's effective window (what the runner will accept);
+        // fall back to the trained window before the first load reports back.
+        self.effective_ctx
+            .get()
+            .or_else(|| self.n_ctx_train.get())
+            .map(|&n| n as usize)
     }
 }
 

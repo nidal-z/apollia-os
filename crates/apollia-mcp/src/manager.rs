@@ -9,13 +9,14 @@ use std::collections::{HashMap, HashSet};
 
 use tokio::sync::{mpsc, oneshot};
 
-use apollia_core::{EventBusSender, RuntimeEvent, SandboxProfile};
+use apollia_core::{EventBusSender, McpHealth, RuntimeEvent, SandboxProfile};
 use apollia_tools::descriptor::{McpTransport, ToolDescriptor, ToolKind};
 use apollia_tools::registry::ToolRegistryHandle;
 
 use crate::approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
-use crate::protocol::ToolCallResult;
+use crate::health::OpOutcome;
+use crate::protocol::{extract_text_parts, ToolCallResult};
 use crate::session::{McpSession, McpSessionError};
 
 // ─── commands ────────────────────────────────────────────────────────────────
@@ -56,6 +57,13 @@ enum McpCommand {
     /// Test a config without persisting a session: spawn, handshake, tools/list, then kill.
     TestConnection {
         config: McpServerConfig,
+        reply: oneshot::Sender<Result<McpConnectionTestResult, McpSessionError>>,
+    },
+    /// Test an already-installed server: re-handshake plus an optional read-only
+    /// probe against the live session. Reports `live_health`.
+    TestLiveServer {
+        server_name: String,
+        probe: Option<ProbeSpec>,
         reply: oneshot::Sender<Result<McpConnectionTestResult, McpSessionError>>,
     },
     /// Check whether a named server requires HITL approval for all its tools.
@@ -115,12 +123,17 @@ pub struct McpServerStatus {
     pub uptime_secs: Option<u64>,
     /// ISO 8601 timestamp of the last tool call (`None` if the server has never been called).
     pub last_call_at: Option<String>,
-    /// Error message when the server is in a degraded state.
+    /// Error message when the server is in a degraded state. Derived from
+    /// [`McpServerStatus::health`]; `None` only when healthy.
     pub error: Option<String>,
     /// Package identifier (e.g. `@notionhq/notion-mcp-server`), when identifiable.
     pub package: Option<String>,
     /// Transport protocol declared in the configuration (e.g. `"stdio"`).
     pub transport: String,
+    /// Operational health, orthogonal to `connected`. A session can be
+    /// `connected` (process alive) yet `Degraded` or `NeedsReauth`. The UI badge
+    /// is driven by this, not by `connected`.
+    pub health: McpHealth,
 }
 
 /// Detailed information for a single MCP server, including its tool list.
@@ -177,6 +190,24 @@ pub struct McpConnectionTestResult {
     pub tools: Vec<McpToolSummary>,
     /// Wall-clock duration of the test in milliseconds.
     pub test_duration_ms: u64,
+    /// Live operational health of the already-installed session, when the test
+    /// targets one. `None` for a pre-install wizard test (no live session). A
+    /// `Some(Degraded | NeedsReauth)` means the handshake is reachable but real
+    /// operations are not succeeding: callers must not report a plain "OK".
+    #[serde(default)]
+    pub live_health: Option<McpHealth>,
+}
+
+/// Read-only probe used by the live-server test to exercise real operational
+/// access (scopes, grants) beyond the handshake. Declared per connector as
+/// data, never code: see the desktop `enrichments.json` `health_probe` field.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProbeSpec {
+    /// Local tool name to invoke on the server (e.g. `"get-users"`).
+    pub tool: String,
+    /// Static arguments for the probe call. `None` for parameterless tools.
+    #[serde(default)]
+    pub args: Option<serde_json::Value>,
 }
 
 /// Clonable handle to the [`McpClientManager`] actor.
@@ -202,8 +233,12 @@ struct McpClientManager {
     /// While a name is in this set, any `CallTool` targeting that server
     /// is rejected with [`McpSessionError::ServerReloading`].
     reloading: HashSet<String>,
-    /// Optional event bus for emitting [`RuntimeEvent::McpServerReloaded`].
+    /// Optional event bus for emitting [`RuntimeEvent::McpServerReloaded`] and
+    /// [`RuntimeEvent::McpServerHealthChanged`].
     event_bus: Option<EventBusSender>,
+    /// ISO 8601 timestamp of the last tool call per server. Feeds
+    /// [`McpServerStatus::last_call_at`]; updated on every call outcome.
+    last_call_at: HashMap<String, String>,
     /// Optional SQLite-backed HITL approval store.
     ///
     /// When `Some`, every `CallTool` directed to a server with
@@ -265,7 +300,18 @@ impl McpClientManagerHandle {
 
                     sessions.insert(server_name, session);
                 }
-                Err(e) => log_session_start_error(&server_name, &e),
+                Err(e) => {
+                    log_session_start_error(&server_name, &e);
+                    // Surface a never-started server as NeedsReauth/Unavailable so
+                    // the UI does not silently drop it. The actor is not yet
+                    // running, so emit directly on the bus.
+                    if let Some(ref tx) = event_bus {
+                        let _ = tx.send(RuntimeEvent::McpServerHealthChanged {
+                            name: server_name.clone(),
+                            health: crate::health::from_start_error(&e),
+                        });
+                    }
+                }
             }
         }
 
@@ -275,6 +321,7 @@ impl McpClientManagerHandle {
             tool_registry: tool_registry.clone(),
             reloading: HashSet::new(),
             event_bus,
+            last_call_at: HashMap::new(),
             approvals,
         };
         tokio::spawn(actor.run());
@@ -457,6 +504,30 @@ impl McpClientManagerHandle {
             .map_err(|_| McpSessionError::ServerExited { server: name })?
     }
 
+    /// Test an already-installed server: re-handshake for reachability plus an
+    /// optional read-only probe against the live session. The returned
+    /// [`McpConnectionTestResult::live_health`] carries the operational verdict.
+    pub async fn test_live_server(
+        &self,
+        server_name: &str,
+        probe: Option<ProbeSpec>,
+    ) -> Result<McpConnectionTestResult, McpSessionError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::TestLiveServer {
+                server_name: server_name.to_string(),
+                probe,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: server_name.to_string(),
+            })?;
+        reply_rx.await.map_err(|_| McpSessionError::ServerExited {
+            server: server_name.to_string(),
+        })?
+    }
+
     /// Update the `requires_approval` flag for the named server in-memory.
     ///
     /// The change is applied immediately; callers are responsible for persisting
@@ -636,7 +707,7 @@ impl McpClientManager {
             "MCP server added"
         );
         self.register_session_tools(&name, &session).await;
-        let status = build_status(&name, &session);
+        let status = build_status(&name, &session, self.last_call_at.get(&name).map(String::as_str));
         self.sessions.insert(name, session);
         Ok(status)
     }
@@ -758,8 +829,62 @@ impl McpClientManager {
             protocol_version: "2024-11-05".to_string(),
             tools,
             test_duration_ms: start.elapsed().as_millis() as u64,
+            live_health: None,
         };
         session.shutdown().await;
+        Ok(result)
+    }
+
+    /// Test an already-installed server: re-handshake for reachability, then run
+    /// an optional read-only probe against the live session to exercise real
+    /// operational access. The probe bypasses HITL (it is a system health check,
+    /// not an agent action) and updates the live session's health, so the badge
+    /// reflects the verdict and a [`RuntimeEvent::McpServerHealthChanged`] fires.
+    async fn handle_test_live_server(
+        &mut self,
+        server_name: String,
+        probe: Option<ProbeSpec>,
+    ) -> Result<McpConnectionTestResult, McpSessionError> {
+        let config = match self.sessions.get(&server_name) {
+            Some(session) => session.config().clone(),
+            None => {
+                return Err(McpSessionError::ServerExited {
+                    server: server_name,
+                });
+            }
+        };
+
+        let mut result = Self::handle_test_connection(config).await?;
+
+        if let Some(probe) = probe {
+            // Only run a probe whose tool the server actually exposes. A
+            // misconfigured or absent probe tool then degrades gracefully to a
+            // reachability-only verdict instead of a false "not found" failure.
+            let probe_available = self
+                .sessions
+                .get(&server_name)
+                .map(|s| s.tools().iter().any(|t| t.name == probe.tool))
+                .unwrap_or(false);
+            if probe_available {
+                let call = {
+                    let Some(session) = self.sessions.get(&server_name) else {
+                        return Err(McpSessionError::ServerExited {
+                            server: server_name,
+                        });
+                    };
+                    session.call_tool(&probe.tool, probe.args).await
+                };
+                self.record_call_outcome(&server_name, &call);
+            } else {
+                tracing::debug!(
+                    server = %server_name,
+                    probe = %probe.tool,
+                    "mcp.health_probe_skipped_unknown_tool"
+                );
+            }
+        }
+
+        result.live_health = self.sessions.get(&server_name).map(|s| s.health().clone());
         Ok(result)
     }
 
@@ -768,7 +893,7 @@ impl McpClientManager {
     /// Returns `Some(result)` to be forwarded to the caller, or `None` when a
     /// pending-approval reply has already been sent by this method.
     async fn handle_call_tool(
-        &self,
+        &mut self,
         server_name: String,
         tool_name: String,
         arguments: Option<serde_json::Value>,
@@ -779,20 +904,72 @@ impl McpClientManager {
             }));
         }
 
-        let session = match self.sessions.get(&server_name) {
-            Some(session) => session,
-            None => {
-                return Some(Err(McpSessionError::ServerExited {
-                    server: server_name,
-                }));
-            }
-        };
-
+        // Approval gate first; its immutable borrow is fully released before the
+        // await below.
         if let Some(pending) = self.register_pending_approval(&server_name, &tool_name, &arguments) {
             return pending;
         }
 
-        Some(session.call_tool(&tool_name, arguments).await)
+        // Build and await the call inside a scope so the immutable borrow of
+        // `self.sessions` ends before `record_call_outcome` takes `&mut self`.
+        let result = {
+            let session = match self.sessions.get(&server_name) {
+                Some(session) => session,
+                None => {
+                    return Some(Err(McpSessionError::ServerExited {
+                        server: server_name,
+                    }));
+                }
+            };
+            session.call_tool(&tool_name, arguments).await
+        };
+
+        self.record_call_outcome(&server_name, &result);
+        Some(result)
+    }
+
+    /// Classify a tool-call outcome and update the session's health, emitting
+    /// [`RuntimeEvent::McpServerHealthChanged`] only when the state changes.
+    fn record_call_outcome(
+        &mut self,
+        server_name: &str,
+        result: &Result<ToolCallResult, McpSessionError>,
+    ) {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.last_call_at
+            .insert(server_name.to_string(), now.clone());
+
+        // Keep the joined error text alive past the borrow handed to next_health.
+        let error_text = match result {
+            Ok(r) if r.is_error.unwrap_or(false) => Some(extract_text_parts(&r.content)),
+            _ => None,
+        };
+        let outcome = match (result, error_text.as_deref()) {
+            (Ok(_), Some(text)) => OpOutcome::ToolError(text),
+            (Ok(_), None) => OpOutcome::Success,
+            (Err(e), _) => OpOutcome::SessionError(e),
+        };
+
+        let Some(session) = self.sessions.get_mut(server_name) else {
+            return;
+        };
+        let prev = session.health().clone();
+        let next = crate::health::next_health(&prev, outcome, &now);
+        if next != prev {
+            session.set_health(next.clone());
+            self.emit_health_changed(server_name, next);
+        }
+    }
+
+    /// Publish a health transition on the event bus (no-op without a bus).
+    fn emit_health_changed(&self, name: &str, health: McpHealth) {
+        if let Some(ref tx) = self.event_bus {
+            let _ = tx.send(RuntimeEvent::McpServerHealthChanged {
+                name: name.to_string(),
+                health,
+            });
+        }
+        tracing::info!(server = %name, "mcp.health_changed");
     }
 
     /// If the session requires approval and the call is not yet approved, register
@@ -853,7 +1030,10 @@ impl McpClientManager {
         let config = old_session.config().clone();
         old_session.shutdown().await;
         let new_session = McpSession::start(config, Some(&DefaultMcpSecretResolver)).await?;
-        let status = build_status(&server_name, &new_session);
+        // A restart resets the live session; a stale last_call_at would be
+        // misleading, so clear it and report no prior call.
+        self.last_call_at.remove(&server_name);
+        let status = build_status(&server_name, &new_session, None);
         self.sessions.insert(server_name, new_session);
         Ok(status)
     }
@@ -901,6 +1081,15 @@ impl McpClientManager {
 
                 McpCommand::TestConnection { config, reply } => {
                     let result = Self::handle_test_connection(config).await;
+                    let _ = reply.send(result);
+                }
+
+                McpCommand::TestLiveServer {
+                    server_name,
+                    probe,
+                    reply,
+                } => {
+                    let result = self.handle_test_live_server(server_name, probe).await;
                     let _ = reply.send(result);
                 }
 
@@ -953,15 +1142,21 @@ impl McpClientManager {
     fn collect_statuses(&self) -> Vec<McpServerStatus> {
         self.sessions
             .iter()
-            .map(|(name, session)| build_status(name, session))
+            .map(|(name, session)| {
+                build_status(name, session, self.last_call_at.get(name).map(String::as_str))
+            })
             .collect()
     }
 
     /// Build the detail view for a single server, if it exists.
     fn server_detail(&self, server_name: &str) -> Option<McpServerDetail> {
-        self.sessions
-            .get(server_name)
-            .map(|session| build_detail(server_name, session))
+        self.sessions.get(server_name).map(|session| {
+            build_detail(
+                server_name,
+                session,
+                self.last_call_at.get(server_name).map(String::as_str),
+            )
+        })
     }
 
     /// Whether the named server requires per-tool approval (false if unknown).
@@ -1135,7 +1330,15 @@ fn log_session_start_error(server_name: &str, e: &McpSessionError) {
 }
 
 /// Build an enriched [`McpServerStatus`] snapshot from a live session.
-fn build_status(name: &str, session: &McpSession) -> McpServerStatus {
+fn build_status(name: &str, session: &McpSession, last_call_at: Option<&str>) -> McpServerStatus {
+    let health = session.health().clone();
+    let error = match &health {
+        McpHealth::Healthy { .. } => None,
+        McpHealth::Degraded { last_error, .. } => Some(last_error.clone()),
+        McpHealth::NeedsReauth { reason } | McpHealth::Unavailable { reason } => {
+            Some(reason.clone())
+        }
+    };
     McpServerStatus {
         name: name.to_string(),
         server_info: session.server_info().name.clone(),
@@ -1144,15 +1347,16 @@ fn build_status(name: &str, session: &McpSession) -> McpServerStatus {
         connected: true,
         pid: session.pid(),
         uptime_secs: Some(session.uptime_secs()),
-        last_call_at: None,
-        error: None,
+        last_call_at: last_call_at.map(str::to_string),
+        error,
         package: None,
         transport: session.config().transport.clone(),
+        health,
     }
 }
 
 /// Build a [`McpServerDetail`] from a live session, redacting secret env values.
-fn build_detail(name: &str, session: &McpSession) -> McpServerDetail {
+fn build_detail(name: &str, session: &McpSession, last_call_at: Option<&str>) -> McpServerDetail {
     let config = session.config();
     let tools = session
         .tools()
@@ -1176,7 +1380,7 @@ fn build_detail(name: &str, session: &McpSession) -> McpServerDetail {
     };
 
     McpServerDetail {
-        status: build_status(name, session),
+        status: build_status(name, session, last_call_at),
         tools,
         config: config_view,
     }
@@ -1214,6 +1418,7 @@ mod tests {
             error: None,
             package: None,
             transport: "stdio".to_string(),
+            health: McpHealth::Healthy { verified: false },
         };
         // WHEN serialized to JSON
         let json = serde_json::to_value(&status).unwrap();
@@ -1288,6 +1493,7 @@ mod tests {
             error: Some("process exited".to_string()),
             package: None,
             transport: "stdio".to_string(),
+            health: McpHealth::Healthy { verified: false },
         };
         // WHEN
         let json = serde_json::to_value(&status).unwrap();
@@ -1325,6 +1531,7 @@ mod tests {
                 error: None,
                 package: None,
                 transport: "stdio".to_string(),
+                health: McpHealth::Healthy { verified: false },
             },
             McpServerStatus {
                 name: "sqlite".to_string(),
@@ -1338,6 +1545,7 @@ mod tests {
                 error: None,
                 package: None,
                 transport: "stdio".to_string(),
+                health: McpHealth::Healthy { verified: false },
             },
         ];
         // WHEN serialized
@@ -1364,6 +1572,7 @@ mod tests {
                 error: None,
                 package: None,
                 transport: "stdio".to_string(),
+                health: McpHealth::Healthy { verified: false },
             },
             tools: vec![McpToolSummary {
                 full_name: "mcp:notion/search".to_string(),
@@ -1446,6 +1655,7 @@ mod tests {
                 input_schema: serde_json::json!({"type": "object"}),
             }],
             test_duration_ms: 200,
+            live_health: None,
         };
         // WHEN serialized
         let json = serde_json::to_value(&result).unwrap();
@@ -1471,6 +1681,7 @@ mod tests {
                 error: None,
                 package: None,
                 transport: "stdio".to_string(),
+                health: McpHealth::Healthy { verified: false },
             },
             tools: vec![
                 McpToolSummary {

@@ -1292,7 +1292,30 @@ export interface McpServerStatusView {
   error: string | null;
   package: string | null;
   transport: string;
+  /** Operational health, orthogonal to `connected`. Drives the status badge. */
+  health: McpHealth;
 }
+
+/**
+ * Operational health of an MCP server, mirrored from `apollia_core::McpHealth`.
+ *
+ * Discriminated by `state`. `connected` (process alive) and `health` are
+ * orthogonal: a server can be connected yet `degraded` or `needs_reauth`.
+ */
+export type McpHealth =
+  | { state: "healthy"; verified: boolean }
+  | {
+      state: "degraded";
+      category: ErrorCategory;
+      last_error: string;
+      consecutive_failures: number;
+      since: string;
+    }
+  | { state: "needs_reauth"; reason: string }
+  | { state: "unavailable"; reason: string };
+
+/** UI severity bucket for {@link McpHealth}. */
+export type McpHealthSeverity = "ok" | "warn" | "reauth" | "error";
 
 /** MCP server detail including its tool list, returned by `get_mcp_server_detail`. */
 export interface McpServerDetailView {
@@ -1431,6 +1454,12 @@ export interface McpConnectionTestResultView {
   protocol_version: string;
   tools: McpToolSummaryView[];
   test_duration_ms: number;
+  /**
+   * Operational health of the live session this test targeted. `null` for a
+   * pre-install wizard test. `degraded` / `needs_reauth` mean the handshake is
+   * reachable but real operations are not succeeding: do not report a plain OK.
+   */
+  live_health?: McpHealth | null;
 }
 
 /**

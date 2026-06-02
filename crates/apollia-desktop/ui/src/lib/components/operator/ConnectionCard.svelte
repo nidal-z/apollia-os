@@ -6,7 +6,12 @@
   import Card from "./Card.svelte";
 
   export type ConnectionVariant = "apollia" | "mcp";
-  export type ConnectionStatus = "active" | "error" | "syncing" | "idle";
+  export type ConnectionStatus =
+    | "active"
+    | "attention"
+    | "error"
+    | "syncing"
+    | "idle";
 
   interface Props {
     variant?: ConnectionVariant;
@@ -72,11 +77,13 @@
   const statusInfo = $derived(
     status === "active"
       ? { color: "hsl(var(--success))", glow: true }
-      : status === "error"
-        ? { color: "hsl(var(--destructive))", glow: true }
-        : status === "syncing"
-          ? { color: "hsl(var(--info))", glow: true }
-          : { color: "hsl(var(--muted-foreground))", glow: false },
+      : status === "attention"
+        ? { color: "hsl(var(--warning))", glow: true }
+        : status === "error"
+          ? { color: "hsl(var(--destructive))", glow: true }
+          : status === "syncing"
+            ? { color: "hsl(var(--info))", glow: true }
+            : { color: "hsl(var(--muted-foreground))", glow: false },
   );
 
   const computedAriaLabel = $derived(

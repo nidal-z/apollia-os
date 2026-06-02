@@ -882,6 +882,7 @@ fn main() {
             commands::mcp::get_mcp_server_raw_config,
             commands::mcp::update_mcp_server_config,
             commands::mcp::test_mcp_connection,
+            commands::mcp::test_mcp_live_server,
             commands::mcp::mcp_oauth_discover,
             commands::mcp::mcp_oauth_resolve_client_id,
             commands::mcp::mcp_oauth_store_client_id,

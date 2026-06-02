@@ -33,6 +33,15 @@ pub trait CompletionModel: Send + Sync {
 
     /// Identifier of the loaded model (e.g. `llama3.2-3b-q4`, `claude-haiku-4-5-20251001`).
     fn model_id(&self) -> &str;
+
+    /// Maximum context window of the loaded model, in tokens, when known.
+    ///
+    /// Lets the router size context compaction to the real model window instead
+    /// of a generic fallback. Returns `None` when the backend cannot report it
+    /// (e.g. before the first load, or cloud backends without a fixed window).
+    fn context_window(&self) -> Option<usize> {
+        None
+    }
 }
 
 /// Unified inference request for all backends.

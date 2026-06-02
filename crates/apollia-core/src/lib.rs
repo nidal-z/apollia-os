@@ -24,6 +24,7 @@ pub mod events;
 pub mod hitl_request;
 pub mod llm_backend;
 pub mod manifest;
+pub mod mcp_health;
 pub mod notebook;
 pub mod observability;
 pub mod pending_approvals;
@@ -57,6 +58,7 @@ pub use events::{
 pub use hitl_request::{HitlRequest, ImpactLevel, RiskAnalysis};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
+pub use mcp_health::{McpHealth, McpHealthSeverity};
 pub use notebook::{CellType, JupyterCell, NotebookEditOp};
 pub use observability::{truncate_with_marker, ObservabilityConfig};
 pub use pending_approvals::{PendingApprovalError, PendingApprovals};

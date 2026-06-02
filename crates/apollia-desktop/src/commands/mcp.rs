@@ -7,7 +7,7 @@
 use apollia_mcp::approvals::McpApprovalStore;
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::discovery;
-use apollia_mcp::manager::{McpConnectionTestResult, McpServerDetail, McpServerStatus};
+use apollia_mcp::manager::{McpConnectionTestResult, McpServerDetail, McpServerStatus, ProbeSpec};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -535,6 +535,47 @@ pub async fn test_mcp_connection(
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
     let json = http_post_json(state.api_port, "/api/v1/mcp/servers/test", &body).await?;
+    serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
+}
+
+/// Resolve the connector's declared read-only probe for an installed server.
+///
+/// Matches the server's persisted config against the bundled enrichments by
+/// remote URL (the case that matters for OAuth connectors like Notion, whose
+/// grant/workspace issues only surface on a real call). Returns `None` when the
+/// server has no matching enrichment or no declared `health_probe`, in which
+/// case the Test reports reachability only.
+async fn resolve_health_probe(api_port: u16, name: &str) -> Option<ProbeSpec> {
+    let path = format!("/api/v1/mcp/servers/{name}/raw_config");
+    let json = http_get_json(api_port, &path).await.ok()?;
+    let config: McpServerConfig = serde_json::from_value(json).ok()?;
+    let enrichments = crate::mcp::enrichments::load_builtin_enrichments();
+    let enrichment = enrichments.iter().find(|e| {
+        config.url.is_some() && e.remote_url.as_deref() == config.url.as_deref()
+    })?;
+    let probe = enrichment.health_probe.as_ref()?;
+    Some(ProbeSpec {
+        tool: probe.tool.clone(),
+        args: probe.args.clone(),
+    })
+}
+
+/// Test an already-installed MCP server.
+///
+/// Delegates to `POST /api/v1/mcp/servers/{name}/test` on the embedded runtime.
+/// Re-handshakes the live session for reachability and, when the connector
+/// declares a read-only `health_probe`, exercises real operational access. The
+/// response `result.live_health` carries the verdict, so the UI can tell
+/// "reachable" apart from "actually working".
+#[tauri::command]
+pub async fn test_mcp_live_server(
+    state: State<'_, RuntimeHandle>,
+    name: String,
+) -> Result<McpConnectionTestResponse, String> {
+    let probe = resolve_health_probe(state.api_port, &name).await;
+    let path = format!("/api/v1/mcp/servers/{name}/test");
+    let body = serde_json::json!({ "probe": probe });
+    let json = http_post_json(state.api_port, &path, &body).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
 }
 

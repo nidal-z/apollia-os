@@ -10,6 +10,8 @@
 //! Implements IPC protocol v1 (`/llm/load_model`, `/llm/unload_model`,
 //! `/llm/complete`, `/llm/stream`).
 
+mod slot;
+
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::path::Path;
@@ -20,7 +22,6 @@ use std::time::Instant;
 use futures::Stream;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
-use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{
     AddBos, ChatTemplateResult, LlamaChatMessage, LlamaChatTemplate, LlamaModel,
@@ -28,9 +29,11 @@ use llama_cpp_2::model::{
 use llama_cpp_2::sampling::LlamaSampler;
 
 use crate::ipc::{
-    ChatMessage, CompleteData, CompleteParams, ErrorBody, ErrorCode, FinishReason, LoadModelData,
-    LoadModelParams, Role, StreamChunk, Timing, TokenUsage, ToolCall,
+    ChatMessage, CompleteData, CompleteParams, ErrorBody, ErrorCode, LoadModelData, LoadModelParams,
+    Role, StreamChunk, Timing, TokenUsage, ToolCall,
 };
+
+use slot::{conversation_fingerprint, InferenceRequest, SlotJob, SlotPool};
 
 /// Sampling defaults applied when the request leaves the corresponding fields
 /// at their zero value.
@@ -38,23 +41,27 @@ const DEFAULT_TOP_P: f32 = 0.95;
 const DEFAULT_TOP_K: i32 = 40;
 /// Lower bound on `n_ctx` so a short prompt still has working headroom.
 const MIN_CTX_SIZE: u32 = 1024;
+/// Upper bound on the number of persistent inference slots per model.
+const MAX_SLOTS: u32 = 8;
+/// Working window used when the GGUF reports no trained context and no cap.
+const DEFAULT_CTX_FALLBACK: u32 = 8192;
 
 /// Entry for a model loaded into VRAM/RAM.
+///
+/// Holds no `LlamaModel`/`LlamaContext` directly: those live inside the slot
+/// threads ([`SlotPool`]), each owning its own persistent context and a shared
+/// `Arc<LlamaModel>`. This struct is therefore plain `Send + Sync` with no
+/// `unsafe` impl: every llama.cpp handle is confined to a slot thread.
 struct LoadedModel {
-    /// llama.cpp model ready to serve.
-    model: Arc<LlamaModel>,
-    /// llama.cpp backend shared across all models (singleton).
-    backend: Arc<LlamaBackend>,
-    /// `n_ctx` set at load time (informational, echoed in the response).
+    /// Effective context window each slot was created with (tokens).
     context_size: u32,
+    /// Model's trained context window (GGUF `<arch>.context_length`), `0` if absent.
+    n_ctx_train: u32,
     /// Rough estimate of VRAM used (file size in MiB).
     memory_used_mb: u32,
+    /// Persistent inference slots holding the KV caches for this model.
+    slots: SlotPool,
 }
-
-// SAFETY: `LlamaModel` / `LlamaBackend` from the llama-cpp-2 crate are
-// thread-safe; `LlamaContext` is created per request and never shared.
-unsafe impl Send for LoadedModel {}
-unsafe impl Sync for LoadedModel {}
 
 /// In-process inference backend backed by llama.cpp.
 ///
@@ -144,6 +151,7 @@ impl LlamaCppBackend {
     pub async fn load_model(&self, params: LoadModelParams) -> Result<LoadModelData, ErrorBody> {
         let started = Instant::now();
 
+        let model_id = params.model_id.clone();
         let model_path = params.model_path.clone();
         // IPC convention: `n_gpu_layers = -1` means "all layers on GPU". Map it
         // to the legacy 999 sentinel used by the embedded backend; any value
@@ -153,7 +161,10 @@ impl LlamaCppBackend {
         } else {
             params.n_gpu_layers as u32
         };
-        let requested_n_ctx = params.n_ctx.max(MIN_CTX_SIZE);
+        // `n_ctx` is an optional cap on the working window: `0` means "use the
+        // model's full trained window". Slots pre-allocate this much KV.
+        let ctx_cap = params.n_ctx;
+        let slot_count = params.slot_count.clamp(1, MAX_SLOTS);
         let use_mmap = params.use_mmap;
         let use_mlock = params.use_mlock;
 
@@ -161,7 +172,7 @@ impl LlamaCppBackend {
             .map(|m| (m.len() / (1024 * 1024)) as u32)
             .unwrap_or(0);
 
-        let (backend, model, arch) = tokio::task::spawn_blocking(move || -> Result<_, ErrorBody> {
+        let (loaded, arch) = tokio::task::spawn_blocking(move || -> Result<_, ErrorBody> {
             let backend = acquire_backend()?;
 
             let mut model_params = LlamaModelParams::default().with_n_gpu_layers(n_gpu_layers);
@@ -170,41 +181,68 @@ impl LlamaCppBackend {
 
             let model = LlamaModel::load_from_file(&backend, &model_path, &model_params)
                 .map_err(|e| load_failed(format!("model load failed: {e}")))?;
-
             let arch = model.meta_val_str("general.architecture").unwrap_or_default();
+            let n_ctx_train = model.n_ctx_train();
 
-            Ok::<_, ErrorBody>((backend, model, arch))
+            // Default to the model's full window; an explicit cap shrinks it.
+            let model_window = if n_ctx_train > 0 {
+                n_ctx_train
+            } else if ctx_cap > 0 {
+                ctx_cap
+            } else {
+                DEFAULT_CTX_FALLBACK
+            };
+            let target = if ctx_cap > 0 {
+                model_window.min(ctx_cap)
+            } else {
+                model_window
+            }
+            .max(MIN_CTX_SIZE);
+
+            let model = Arc::new(model);
+            // Find the largest context that actually allocates (adaptive
+            // halving): "the most open window that fits" without failing the load.
+            let effective_ctx = probe_context_size(&model, &backend, target)?;
+            let slots = SlotPool::spawn(&model, &backend, effective_ctx, slot_count)?;
+
+            Ok::<_, ErrorBody>((
+                LoadedModel {
+                    context_size: effective_ctx,
+                    n_ctx_train,
+                    memory_used_mb,
+                    slots,
+                },
+                arch,
+            ))
         })
         .await
         .map_err(|e| internal(format!("model load task panicked: {e}")))??;
 
-        let context_size = clamp_ctx_size(&model, requested_n_ctx);
-
-        let entry = Arc::new(LoadedModel {
-            model: Arc::new(model),
-            backend,
-            context_size,
-            memory_used_mb,
-        });
+        let context_size = loaded.context_size;
+        let n_ctx_train = loaded.n_ctx_train;
 
         {
             let mut guard = self.models.lock().expect("llama models lock poisoned");
-            guard.insert(params.model_id.clone(), entry);
+            guard.insert(model_id.clone(), Arc::new(loaded));
         }
 
         tracing::info!(
-            model_id = %params.model_id,
+            model_id = %model_id,
             load_time_ms = started.elapsed().as_millis() as u64,
             context_size,
+            n_ctx_train,
+            slot_count,
             "llama model loaded"
         );
 
         Ok(LoadModelData {
-            model_id: params.model_id,
+            model_id,
             load_time_ms: started.elapsed().as_millis() as u64,
             context_size,
             memory_used_mb,
             arch,
+            n_ctx_train,
+            effective_ctx: context_size,
         })
     }
 
@@ -218,69 +256,30 @@ impl LlamaCppBackend {
         })?;
 
         let started = Instant::now();
-        let max_tokens = params.max_tokens.max(1);
-        let temperature = params.temperature;
-        let top_p = if params.top_p > 0.0 {
-            params.top_p
-        } else {
-            DEFAULT_TOP_P
-        };
-        let top_k = if params.top_k > 0 {
-            params.top_k as i32
-        } else {
-            DEFAULT_TOP_K
-        };
-        let seed = params.seed;
-        let messages = params.messages.clone();
-        let tools_json = params.tools.as_ref().map(|t| t.to_string());
-
-        let model = entry.model.clone();
-        let backend = entry.backend.clone();
-        let context_size = entry.context_size;
-
-        let result = tokio::task::spawn_blocking(move || {
-            run_complete(
-                &model,
-                &backend,
-                &messages,
-                context_size,
-                max_tokens,
-                temperature,
-                top_p,
-                top_k,
-                seed,
-                tools_json.as_deref(),
-            )
-        })
-        .await
-        .map_err(|e| internal(format!("complete task panicked: {e}")))??;
-
-        let total_ms = started.elapsed().as_millis() as u64;
-        let CompleteRaw {
-            text,
-            tool_calls,
-            prompt_tokens,
-            completion_tokens,
-            finish_reason,
-            prefill_ms,
-            decode_ms,
-        } = result;
+        let (req, fingerprint) = build_request(params);
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        entry
+            .slots
+            .dispatch(fingerprint, SlotJob::Complete { req, reply: reply_tx })?;
+        let out = reply_rx
+            .await
+            .map_err(|_| inference_failed("slot dropped before replying"))??;
 
         Ok(CompleteData {
-            text,
-            finish_reason,
+            text: out.text,
+            finish_reason: out.finish_reason,
             usage: TokenUsage {
-                prompt_tokens,
-                completion_tokens,
-                total_tokens: prompt_tokens + completion_tokens,
+                prompt_tokens: out.prompt_tokens,
+                completion_tokens: out.completion_tokens,
+                total_tokens: out.prompt_tokens + out.completion_tokens,
             },
             timing: Timing {
                 queue_ms: 0,
-                prefill_ms,
-                decode_ms,
-                total_ms,
+                prefill_ms: out.prefill_ms,
+                decode_ms: out.decode_ms,
+                total_ms: started.elapsed().as_millis() as u64,
             },
-            tool_calls,
+            tool_calls: out.tool_calls,
         })
     }
 
@@ -293,10 +292,7 @@ impl LlamaCppBackend {
     pub async fn stream(
         &self,
         params: CompleteParams,
-    ) -> Result<
-        Pin<Box<dyn Stream<Item = Result<StreamChunk, ErrorBody>> + Send>>,
-        ErrorBody,
-    > {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, ErrorBody>> + Send>>, ErrorBody> {
         let entry = self.get_model(&params.model_id).ok_or_else(|| {
             ErrorBody::new(
                 ErrorCode::ModelNotLoaded,
@@ -304,69 +300,94 @@ impl LlamaCppBackend {
             )
         })?;
 
-        let max_tokens = params.max_tokens.max(1);
-        let temperature = params.temperature;
-        let top_p = if params.top_p > 0.0 {
-            params.top_p
-        } else {
-            DEFAULT_TOP_P
-        };
-        let top_k = if params.top_k > 0 {
-            params.top_k as i32
-        } else {
-            DEFAULT_TOP_K
-        };
-        let seed = params.seed;
-        let messages = params.messages.clone();
-        let tools_json = params.tools.as_ref().map(|t| t.to_string());
-
-        let model = entry.model.clone();
-        let backend = entry.backend.clone();
-        let context_size = entry.context_size;
-
+        let (req, fingerprint) = build_request(params);
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<StreamChunk, ErrorBody>>(32);
-
-        tokio::task::spawn_blocking(move || {
-            let result = run_stream(
-                &model,
-                &backend,
-                &messages,
-                context_size,
-                max_tokens,
-                temperature,
-                top_p,
-                top_k,
-                seed,
-                tools_json.as_deref(),
-                |piece| tx.blocking_send(Ok(StreamChunk {
-                    text: piece,
-                    finish_reason: None,
-                })),
-            );
-
-            match result {
-                Ok(finish_reason) => {
-                    // Emit final chunk with finish_reason set.
-                    let _ = tx.blocking_send(Ok(StreamChunk {
-                        text: String::new(),
-                        finish_reason: Some(finish_reason),
-                    }));
-                }
-                Err(err) => {
-                    let _ = tx.blocking_send(Err(err));
-                }
-            }
-        });
+        entry
+            .slots
+            .dispatch(fingerprint, SlotJob::Stream { req, tx })?;
 
         Ok(Box::pin(tokio_stream::wrappers::ReceiverStream::new(rx)))
     }
 }
 
-/// Clamps `n_ctx` to [`MIN_CTX_SIZE`, `n_ctx_train`] (when known).
-fn clamp_ctx_size(model: &LlamaModel, requested: u32) -> u32 {
-    let trained = model.n_ctx_train();
-    let upper = if trained > 0 { trained } else { u32::MAX };
-    requested.max(MIN_CTX_SIZE).min(upper)
+/// Build the owned [`InferenceRequest`] for a slot and the routing fingerprint.
+///
+/// Resolves sampling defaults exactly as before (zero `top_p`/`top_k` fall back
+/// to the family defaults; `max_tokens == 0` is forwarded as the
+/// "full window" sentinel).
+fn build_request(params: CompleteParams) -> (InferenceRequest, u64) {
+    let fingerprint = conversation_fingerprint(&params.messages);
+    let top_p = if params.top_p > 0.0 {
+        params.top_p
+    } else {
+        DEFAULT_TOP_P
+    };
+    let top_k = if params.top_k > 0 {
+        params.top_k as i32
+    } else {
+        DEFAULT_TOP_K
+    };
+    let req = InferenceRequest {
+        tools_json: params.tools.as_ref().map(|t| t.to_string()),
+        messages: params.messages,
+        max_tokens: params.max_tokens,
+        temperature: params.temperature,
+        top_p,
+        top_k,
+        seed: params.seed,
+    };
+    (req, fingerprint)
+}
+
+/// Find the largest context window that actually allocates, starting at
+/// `target` and halving on failure down to [`MIN_CTX_SIZE`].
+///
+/// Honours "the most open window possible" without failing the load on
+/// large-context models that cannot fit their full window in available memory.
+/// The probe context is dropped immediately; slots create their own at the
+/// returned size.
+fn probe_context_size(
+    model: &LlamaModel,
+    backend: &LlamaBackend,
+    target: u32,
+) -> Result<u32, ErrorBody> {
+    let mut size = target.max(MIN_CTX_SIZE);
+    loop {
+        let params = LlamaContextParams::default()
+            .with_n_ctx(NonZeroU32::new(size))
+            .with_n_batch(size);
+        match model.new_context(backend, params) {
+            Ok(_ctx) => return Ok(size),
+            Err(e) => {
+                if size <= MIN_CTX_SIZE {
+                    return Err(load_failed(format!(
+                        "context allocation failed even at minimum {MIN_CTX_SIZE}: {e}"
+                    )));
+                }
+                let next = (size / 2).max(MIN_CTX_SIZE);
+                tracing::warn!(attempted = size, next, "context allocation failed, halving");
+                size = next;
+            }
+        }
+    }
+}
+
+/// Resolve how many tokens to generate for one request, given the slot's fixed
+/// context window and the already-tokenized prompt length.
+///
+/// `max_tokens == 0` means "fill the remaining window": the budget is the slot
+/// window minus the prompt. The slot's context is already allocated to this
+/// window (memory was bounded once, at slot creation, via the adaptive probe),
+/// so generation can safely use all of the remaining space. An explicit
+/// `max_tokens` is honoured but capped at the remaining window so generation
+/// never overruns the context.
+fn resolve_effective_max(model_window: u32, prompt_tokens: u32, max_tokens: u32) -> u32 {
+    let remaining = model_window.saturating_sub(prompt_tokens).max(1);
+    if max_tokens == 0 {
+        remaining
+    } else {
+        max_tokens.min(remaining)
+    }
 }
 
 /// Collapses consecutive same-role turns into a single turn.
@@ -531,203 +552,6 @@ fn build_sampler(temperature: f32, top_p: f32, top_k: i32, seed: Option<u64>) ->
     ])
 }
 
-/// Raw result of a non-streaming inference.
-struct CompleteRaw {
-    text: String,
-    tool_calls: Vec<ToolCall>,
-    prompt_tokens: u32,
-    completion_tokens: u32,
-    finish_reason: FinishReason,
-    prefill_ms: u64,
-    decode_ms: u64,
-}
-
-/// Full synchronous inference (called from `spawn_blocking`).
-#[allow(clippy::too_many_arguments)]
-fn run_complete(
-    model: &LlamaModel,
-    backend: &LlamaBackend,
-    messages: &[ChatMessage],
-    context_size: u32,
-    max_tokens: u32,
-    temperature: f32,
-    top_p: f32,
-    top_k: i32,
-    seed: Option<u64>,
-    tools: Option<&str>,
-) -> Result<CompleteRaw, ErrorBody> {
-    let (template_result, prompt_tokens) = build_prompt(model, messages, tools)?;
-    let tokens = model
-        .str_to_token(&template_result.prompt, AddBos::Always)
-        .map_err(|e| inference_failed(format!("tokenization failed: {e}")))?;
-
-    let needed = prompt_tokens.saturating_add(max_tokens).max(context_size);
-    let n_ctx = clamp_ctx_size(model, needed);
-
-    let ctx_params = LlamaContextParams::default()
-        .with_n_ctx(NonZeroU32::new(n_ctx))
-        .with_n_batch(n_ctx);
-
-    let mut ctx = model
-        .new_context(backend, ctx_params)
-        .map_err(|e| inference_failed(format!("context creation failed: {e}")))?;
-
-    let prefill_start = Instant::now();
-    let mut batch = LlamaBatch::new(n_ctx as usize, 1);
-    let last_index = tokens.len().saturating_sub(1) as i32;
-    for (i, token) in (0_i32..).zip(tokens) {
-        batch
-            .add(token, i, &[0], i == last_index)
-            .map_err(|e| inference_failed(format!("batch add failed: {e}")))?;
-    }
-    ctx.decode(&mut batch)
-        .map_err(|e| inference_failed(format!("initial decode failed: {e}")))?;
-    let prefill_ms = prefill_start.elapsed().as_millis() as u64;
-
-    let decode_start = Instant::now();
-    let mut n_cur = batch.n_tokens();
-    let n_max = n_cur + max_tokens as i32;
-    let mut decoder = encoding_rs::UTF_8.new_decoder();
-    let mut sampler = build_sampler(temperature, top_p, top_k, seed);
-    let mut generated = String::new();
-    let mut completion_tokens: u32 = 0;
-    let mut finish_reason = FinishReason::Length;
-
-    while n_cur < n_max {
-        let token = sampler.sample(&ctx, batch.n_tokens() - 1);
-        sampler.accept(token);
-
-        if model.is_eog_token(token) {
-            finish_reason = FinishReason::Eos;
-            break;
-        }
-
-        let piece = model
-            .token_to_piece(token, &mut decoder, true, None)
-            .unwrap_or_default();
-        generated.push_str(&piece);
-        completion_tokens += 1;
-
-        batch.clear();
-        batch
-            .add(token, n_cur, &[0], true)
-            .map_err(|e| inference_failed(format!("batch add failed: {e}")))?;
-        n_cur += 1;
-
-        ctx.decode(&mut batch)
-            .map_err(|e| inference_failed(format!("decode failed: {e}")))?;
-    }
-
-    if completion_tokens >= max_tokens {
-        finish_reason = FinishReason::Length;
-    }
-
-    let decode_ms = decode_start.elapsed().as_millis() as u64;
-
-    let (text, tool_calls) = parse_completion(&template_result, generated);
-
-    Ok(CompleteRaw {
-        text,
-        tool_calls,
-        prompt_tokens,
-        completion_tokens,
-        finish_reason,
-        prefill_ms,
-        decode_ms,
-    })
-}
-
-/// Streaming inference: calls `on_piece` for each decoded token, returns the
-/// final `FinishReason`.
-#[allow(clippy::too_many_arguments)]
-fn run_stream<F>(
-    model: &LlamaModel,
-    backend: &LlamaBackend,
-    messages: &[ChatMessage],
-    context_size: u32,
-    max_tokens: u32,
-    temperature: f32,
-    top_p: f32,
-    top_k: i32,
-    seed: Option<u64>,
-    tools: Option<&str>,
-    mut on_piece: F,
-) -> Result<FinishReason, ErrorBody>
-where
-    F: FnMut(String) -> Result<(), tokio::sync::mpsc::error::SendError<Result<StreamChunk, ErrorBody>>>,
-{
-    let (template_result, prompt_tokens) = build_prompt(model, messages, tools)?;
-    let tokens = model
-        .str_to_token(&template_result.prompt, AddBos::Always)
-        .map_err(|e| inference_failed(format!("tokenization failed: {e}")))?;
-
-    let needed = prompt_tokens.saturating_add(max_tokens).max(context_size);
-    let n_ctx = clamp_ctx_size(model, needed);
-
-    let ctx_params = LlamaContextParams::default()
-        .with_n_ctx(NonZeroU32::new(n_ctx))
-        .with_n_batch(n_ctx);
-    let mut ctx = model
-        .new_context(backend, ctx_params)
-        .map_err(|e| inference_failed(format!("context creation failed: {e}")))?;
-
-    let mut batch = LlamaBatch::new(n_ctx as usize, 1);
-    let last_index = tokens.len().saturating_sub(1) as i32;
-    for (i, token) in (0_i32..).zip(tokens) {
-        batch
-            .add(token, i, &[0], i == last_index)
-            .map_err(|e| inference_failed(format!("batch add failed: {e}")))?;
-    }
-    ctx.decode(&mut batch)
-        .map_err(|e| inference_failed(format!("initial decode failed: {e}")))?;
-
-    let mut n_cur = batch.n_tokens();
-    let n_max = n_cur + max_tokens as i32;
-    let mut decoder = encoding_rs::UTF_8.new_decoder();
-    let mut sampler = build_sampler(temperature, top_p, top_k, seed);
-    let mut completion_tokens: u32 = 0;
-    let mut finish_reason = FinishReason::Length;
-
-    while n_cur < n_max {
-        let token = sampler.sample(&ctx, batch.n_tokens() - 1);
-        sampler.accept(token);
-
-        if model.is_eog_token(token) {
-            finish_reason = FinishReason::Eos;
-            break;
-        }
-
-        let piece = model
-            .token_to_piece(token, &mut decoder, true, None)
-            .unwrap_or_default();
-
-        if on_piece(piece).is_err() {
-            // Receiver dropped: the client gave up.
-            finish_reason = FinishReason::Abort;
-            break;
-        }
-        completion_tokens += 1;
-
-        batch.clear();
-        batch
-            .add(token, n_cur, &[0], true)
-            .map_err(|e| inference_failed(format!("batch add failed: {e}")))?;
-        n_cur += 1;
-
-        ctx.decode(&mut batch)
-            .map_err(|e| inference_failed(format!("decode failed: {e}")))?;
-    }
-
-    if completion_tokens >= max_tokens {
-        finish_reason = FinishReason::Length;
-    }
-
-    // Silence the unused warning on prompt_tokens: kept for symmetry with
-    // run_complete (future: emit usage stats at the end of the stream).
-    let _ = prompt_tokens;
-
-    Ok(finish_reason)
-}
 
 /// Checks that a GGUF path exists and ends with `.gguf`.
 pub fn validate_model_path(path: &Path) -> Result<(), ErrorBody> {
@@ -762,6 +586,62 @@ mod tests {
             role,
             content: content.to_string(),
         }
+    }
+
+    #[test]
+    fn budget_zero_fills_small_model_window() {
+        // GIVEN an 8k model and a 1000-token prompt, no explicit cap
+        // WHEN resolving the budget with the sentinel 0
+        let budget = resolve_effective_max(8192, 1000, 0);
+        // THEN the whole remaining window is available (no 512 truncation)
+        assert_eq!(budget, 8192 - 1000);
+    }
+
+    #[test]
+    fn budget_zero_uses_full_window_on_large_context_model() {
+        // GIVEN a large-window slot and a small prompt, no explicit cap
+        // WHEN resolving the budget
+        let budget = resolve_effective_max(131_072, 1000, 0);
+        // THEN the whole remaining window is available (no artificial cap): the
+        // slot already allocated this window, so generation may use all of it.
+        assert_eq!(budget, 131_072 - 1000);
+    }
+
+    #[test]
+    fn budget_zero_with_large_prompt_keeps_full_remaining_window() {
+        // GIVEN a 40k slot and a 33k prompt (e.g. summarizing a long page)
+        // WHEN resolving the budget
+        let budget = resolve_effective_max(40_960, 33_516, 0);
+        // THEN the budget is the real remaining window, not a tiny leftover
+        // (this is the bug that truncated long-page summaries at 512 tokens).
+        assert_eq!(budget, 40_960 - 33_516);
+    }
+
+    #[test]
+    fn explicit_max_tokens_is_capped_at_remaining_window() {
+        // GIVEN a 4k model, a 3000-token prompt, and a request for 4000 tokens
+        // WHEN resolving the budget
+        let budget = resolve_effective_max(4096, 3000, 4000);
+        // THEN it is clamped to the remaining window so generation never overruns
+        assert_eq!(budget, 4096 - 3000);
+    }
+
+    #[test]
+    fn explicit_max_tokens_honoured_when_it_fits() {
+        // GIVEN ample remaining window and an explicit 800-token request
+        // WHEN resolving the budget
+        let budget = resolve_effective_max(8192, 1000, 800);
+        // THEN the explicit value is honoured verbatim
+        assert_eq!(budget, 800);
+    }
+
+    #[test]
+    fn budget_never_zero_when_prompt_exceeds_window() {
+        // GIVEN a prompt that already exceeds the model window (overflow)
+        // WHEN resolving with an explicit cap
+        let budget = resolve_effective_max(4096, 5000, 1000);
+        // THEN at least one token is allowed (no zero-length generation)
+        assert_eq!(budget, 1);
     }
 
     #[test]

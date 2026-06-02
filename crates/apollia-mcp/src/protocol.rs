@@ -204,6 +204,21 @@ pub enum ToolCallContent {
     },
 }
 
+/// Collect every [`ToolCallContent::Text`] item and join them with `"\n"`.
+///
+/// Single source for both the executor (LLM-facing output) and the manager
+/// (health classification), so the joined-text shape stays consistent.
+pub(crate) fn extract_text_parts(content: &[ToolCallContent]) -> String {
+    content
+        .iter()
+        .filter_map(|c| match c {
+            ToolCallContent::Text { text } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 // ─── Resources (server capability) ───────────────────────────────────────────
 
 /// A resource exposed by an MCP server.

@@ -41,9 +41,11 @@ fn validate_complete_params(p: &CompleteParams) -> Result<(), ErrorBody> {
     if p.messages.is_empty() {
         return Err(bad("messages must not be empty"));
     }
-    if p.max_tokens == 0 || p.max_tokens > MAX_TOKENS_CEILING {
+    // `0` is the "use the model's remaining context window" sentinel; the
+    // backend resolves it after tokenization. Any explicit value is bounded.
+    if p.max_tokens > MAX_TOKENS_CEILING {
         return Err(bad(format!(
-            "max_tokens must be in 1..={MAX_TOKENS_CEILING}, got {}",
+            "max_tokens must be 0 (full window) or in 1..={MAX_TOKENS_CEILING}, got {}",
             p.max_tokens
         )));
     }

@@ -1133,15 +1133,17 @@ impl LlmRouter {
         }
     }
 
-    /// Return the estimated context window size in tokens.
+    /// Return the context window size in tokens used to size compaction.
     ///
-    /// Used by `ContextManager` to compute utilization and decide whether
-    /// compaction is needed. The `200_000` value matches the `claude-sonnet`
-    /// window: conservative and valid for all cloud backends. Local backends
-    /// usually have smaller windows; early compaction is preferable to a
-    /// `context_length_exceeded`.
+    /// Prefers the active backend's reported window (e.g. a local model's
+    /// trained context, once loaded) so compaction fires before the model
+    /// overflows. Falls back to `200_000` (the `claude-sonnet` window,
+    /// conservative for cloud backends and before the local model has loaded).
     pub fn context_limit(&self) -> usize {
-        200_000
+        self.backends
+            .get(&self.default)
+            .and_then(|backend| backend.context_window())
+            .unwrap_or(200_000)
     }
 
     /// Return the session `CancellationToken` to cancel in-flight calls.

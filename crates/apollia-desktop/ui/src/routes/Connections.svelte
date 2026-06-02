@@ -31,6 +31,7 @@
     AgentListItem,
     ConnectorEnrichmentView,
     McpConnectionTestResponse,
+    McpHealth,
     McpServerDetailView,
     McpServerStatusView,
     RegistryServerView,
@@ -40,6 +41,7 @@
   } from "../components/integrations/McpDisclaimerDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
   import { navigateToSettings } from "$lib/router";
+  import { uiMode } from "$lib/stores/mode";
   import ConnectionStatusIndicator from "../components/integrations/ConnectionStatusIndicator.svelte";
   import ConnectionErrorModal from "../components/connections/ConnectionErrorModal.svelte";
   import { rankSuggestions } from "../components/connections/ConnectionSuggestions.svelte";
@@ -67,7 +69,7 @@
   let catalogLimit = $state(CATALOG_PAGE);
 
   // Filter state
-  type StatusFilter = "all" | "active" | "error" | "idle";
+  type StatusFilter = "all" | "active" | "attention" | "error" | "idle";
   let statusFilter = $state<StatusFilter>("all");
   let mcpFilter = $state<"all" | "installed" | "official" | "community">("all");
 
@@ -101,7 +103,7 @@
   let catalogueOpen = $state(false);
   let catalogueTab = $state<CatalogueTab>("discover");
 
-  // ── MCP detail state (inlined from OperatorServerManage.svelte) ───────
+  // ── MCP detail state (manage: test / reconnect / disconnect) ──────────
   // When the user selects an MCP server in the sidebar, the detail right
   // pane needs the full McpServerDetailView (tools list, config, env keys,
   // …). We fetch it lazily and re-fetch on selection change.
@@ -112,10 +114,20 @@
   let approvalLevel = $state<ApprovalLevel>("ask");
   let approvalPending = $state(false);
   let approvalError = $state<string | null>(null);
-  type TestState = "idle" | "testing" | "ok" | "error";
+  type TestState =
+    | "idle"
+    | "testing"
+    | "ok"
+    | "unverified"
+    | "degraded"
+    | "needs_reauth"
+    | "error";
   let testState = $state<TestState>("idle");
-  let testStatus = $state<McpServerStatusView | null>(null);
+  let testToolCount = $state(0);
+  /** Builder-mode technical detail captured from the last test. */
+  let testDetail = $state<string | null>(null);
   let testError = $state<string | null>(null);
+  const isOperator = $derived($uiMode === "operator");
   let reconnecting = $state(false);
   let reconnectError = $state<string | null>(null);
   let confirmDisconnect = $state(false);
@@ -151,7 +163,7 @@
     const name = selection.name;
     mcpDetail = null;
     testState = "idle";
-    testStatus = null;
+    testDetail = null;
     testError = null;
     reconnectError = null;
     confirmDisconnect = false;
@@ -449,16 +461,43 @@
     const name = selection.name;
     testState = "testing";
     testError = null;
-    testStatus = null;
+    testDetail = null;
     try {
-      const refreshed = await invoke<McpServerDetailView>("get_mcp_server_detail", {
+      // Re-handshake for reachability plus the connector's read-only probe; the
+      // verdict comes from live_health, not a bare "connected" flag.
+      const res = await invoke<McpConnectionTestResponse>("test_mcp_live_server", {
         name,
       });
-      mcpDetail = refreshed;
-      testStatus = refreshed.status;
-      testState = refreshed.status.connected ? "ok" : "error";
-      if (!refreshed.status.connected) {
-        testError = refreshed.status.error ?? $t("integrations.manage.test_failed");
+      if (res.kind === "oauth_required") {
+        testState = "needs_reauth";
+        return;
+      }
+      testToolCount = res.tools.length;
+      const health = res.live_health ?? null;
+      // Reflect the verdict on the live badge immediately.
+      if (mcpDetail && health) {
+        mcpDetail = {
+          ...mcpDetail,
+          status: { ...mcpDetail.status, health },
+        };
+      }
+      switch (health?.state) {
+        case undefined:
+        case "healthy":
+          testState = health?.state === "healthy" && !health.verified ? "unverified" : "ok";
+          break;
+        case "degraded":
+          testState = "degraded";
+          testDetail = `${health.category} - ${health.last_error}`;
+          break;
+        case "needs_reauth":
+          testState = "needs_reauth";
+          testDetail = health.reason;
+          break;
+        case "unavailable":
+          testState = "error";
+          testError = health.reason;
+          break;
       }
     } catch (err: unknown) {
       testState = "error";
@@ -472,7 +511,7 @@
     reconnecting = true;
     reconnectError = null;
     testState = "idle";
-    testStatus = null;
+    testDetail = null;
     try {
       const updated = await invoke<McpServerStatusView>("restart_mcp_server", {
         name,
@@ -871,9 +910,15 @@
   }
 
   function statusOf(server: McpServerStatusView): ConnectionStatus {
-    if (server.error) return "error";
-    if (server.connected) return "active";
-    return "idle";
+    switch (server.health.state) {
+      case "healthy":
+        return "active";
+      case "degraded":
+      case "needs_reauth":
+        return "attention";
+      case "unavailable":
+        return "error";
+    }
   }
 
   function syncLabel(server: McpServerStatusView): string | undefined {
@@ -938,11 +983,12 @@
     return null;
   }
 
-  const activeCount = $derived(servers.filter((s) => s.connected && !s.error).length);
-  const errorCount = $derived(servers.filter((s) => !!s.error).length);
-  const idleCount = $derived(
-    servers.filter((s) => !s.connected && !s.error).length,
+  const activeCount = $derived(servers.filter((s) => statusOf(s) === "active").length);
+  const attentionCount = $derived(
+    servers.filter((s) => statusOf(s) === "attention").length,
   );
+  const errorCount = $derived(servers.filter((s) => statusOf(s) === "error").length);
+  const idleCount = $derived(servers.filter((s) => statusOf(s) === "idle").length);
 
   const filteredServers = $derived(
     servers.filter((s) => {
@@ -1057,9 +1103,10 @@
   const sortedServers = $derived.by(() => {
     const score: Record<ConnectionStatus, number> = {
       error: 0,
-      active: 1,
-      syncing: 2,
-      idle: 3,
+      attention: 1,
+      active: 2,
+      syncing: 3,
+      idle: 4,
     };
     return [...filteredServers].sort((a, b) => {
       const sa = score[statusOf(a)] ?? 99;
@@ -1353,6 +1400,46 @@
     void refreshNativeStatus();
   });
 
+  // Live health: reflect McpServerHealthChanged on the badge without a manual
+  // refresh, so a server that degrades mid-session (e.g. a Notion 404 from an
+  // agent tool call) turns amber on the spot.
+  $effect(() => {
+    type Envelope = {
+      category: string;
+      event_type: string;
+      payload: Record<string, unknown>;
+    };
+    let unlisten: UnlistenFn | null = null;
+    let disposed = false;
+    void listen<Envelope>("runtime-event", (event) => {
+      if (event.payload.event_type !== "McpServerHealthChanged") return;
+      const inner = event.payload.payload?.McpServerHealthChanged as
+        | { name: string; health: McpHealth }
+        | undefined;
+      if (!inner) return;
+      servers = servers.map((s) =>
+        s.name === inner.name ? { ...s, health: inner.health } : s,
+      );
+      if (
+        mcpDetail &&
+        selection?.kind === "mcp" &&
+        selection.name === inner.name
+      ) {
+        mcpDetail = {
+          ...mcpDetail,
+          status: { ...mcpDetail.status, health: inner.health },
+        };
+      }
+    }).then((fn) => {
+      if (disposed) fn();
+      else unlisten = fn;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  });
+
   // Avoid unused-binding warning from prop.
   $effect(() => {
     void onNavigateTasks;
@@ -1381,6 +1468,7 @@
           {#each [
             { key: "all" as const, label: "Tous", color: "hsl(var(--muted-foreground))", count: servers.length },
             { key: "active" as const, label: "Actifs", color: "hsl(var(--success))", count: activeCount },
+            { key: "attention" as const, label: "Attention", color: "hsl(var(--warning))", count: attentionCount },
             { key: "error" as const, label: "Erreur", color: "hsl(var(--destructive))", count: errorCount },
             { key: "idle" as const, label: "Inactif", color: "hsl(var(--muted-foreground))", count: idleCount },
           ] as f (f.key)}
@@ -1471,9 +1559,11 @@
             {@const isActiveSel = selection?.kind === "mcp" && selection.name === server.name}
             {@const accentColor = st === "active"
               ? "hsl(var(--success))"
-              : st === "error"
-                ? "hsl(var(--destructive))"
-                : "hsl(var(--muted-foreground))"}
+              : st === "attention"
+                ? "hsl(var(--warning))"
+                : st === "error"
+                  ? "hsl(var(--destructive))"
+                  : "hsl(var(--muted-foreground))"}
             <Button variant="ghost" size="auto"
               type="button"
               onclick={() => (selection = { kind: "mcp", name: server.name })}
@@ -1491,12 +1581,14 @@
                   <span class="text-[12.5px] truncate text-foreground" style:font-weight={isActiveSel ? 600 : 500}>{label}</span>
                   {#if st === 'active'}
                     <StatusDot color="hsl(var(--success))" glow size={5} />
+                  {:else if st === 'attention'}
+                    <StatusDot color="hsl(var(--warning))" glow size={5} />
                   {:else if st === 'error'}
                     <StatusDot color="hsl(var(--destructive))" glow size={5} />
                   {/if}
                 </div>
                 <div class="text-[10.5px] text-muted-foreground mt-0.5 truncate">
-                  {syncLabel(server) ?? (st === 'error' ? 'Erreur' : st === 'active' ? `${server.tools_count} outil${server.tools_count !== 1 ? 's' : ''}` : 'Inactif')}
+                  {syncLabel(server) ?? (st === 'error' ? 'Erreur' : st === 'attention' ? 'Attention' : st === 'active' ? `${server.tools_count} outil${server.tools_count !== 1 ? 's' : ''}` : 'Inactif')}
                 </div>
               </div>
             </Button>
@@ -1713,14 +1805,14 @@
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1">
-                  <Badge variant={st === "active" ? "success" : st === "error" ? "danger" : "neutral"} size="sm" outline={st === "idle"}>
+                  <Badge variant={st === "active" ? "success" : st === "attention" ? "warning" : st === "error" ? "danger" : "neutral"} size="sm" outline={st === "idle"}>
                     {#snippet icon()}
                       <StatusDot
-                        color={st === "active" ? "hsl(var(--success))" : st === "error" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))"}
-                        glow={st === "active"}
+                        color={st === "active" ? "hsl(var(--success))" : st === "attention" ? "hsl(var(--warning))" : st === "error" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))"}
+                        glow={st === "active" || st === "attention"}
                       />
                     {/snippet}
-                    {st === "active" ? "actif" : st === "error" ? "erreur" : "inactif"}
+                    {st === "active" ? "actif" : st === "attention" ? "attention" : st === "error" ? "erreur" : "inactif"}
                   </Badge>
                   {#if syncLabel(server)}
                     <span class="text-[10.5px] text-muted-foreground">{syncLabel(server)}</span>
@@ -1773,7 +1865,7 @@
                   <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
                     Connexion
                   </div>
-                  <ConnectionStatusIndicator connected={mcpDetail.status.connected} error={mcpDetail.status.error} />
+                  <ConnectionStatusIndicator health={mcpDetail.status.health} />
                   <div class="flex items-center gap-1.5 text-[11.5px] text-muted-foreground mt-2">
                     <Wrench size={11} />
                     <span data-testid="mcp-tools-count">
@@ -1800,9 +1892,25 @@
                   {/if}
                 </Card>
 
-                {#if testState === "ok" && testStatus}
+                {#if testState === "ok"}
                   <p class="text-[12.5px] text-success" data-testid="mcp-test-ok">
-                    ✓ {$t("integrations.manage.test_ok", { values: { count: testStatus.tools_count } })}
+                    ✓ {$t("integrations.manage.test_working", { values: { count: testToolCount } })}
+                  </p>
+                {:else if testState === "unverified"}
+                  <p class="text-[12.5px] text-muted-foreground" data-testid="mcp-test-unverified">
+                    {$t("integrations.manage.test_reachable", { values: { count: testToolCount } })}
+                  </p>
+                {:else if testState === "degraded" || testState === "needs_reauth"}
+                  <p class="text-[12.5px] text-warning-a11y" data-testid="mcp-test-attention">
+                    {#if isOperator}
+                      {$t("integrations.manage.test_operator_attention")}
+                    {:else}
+                      {$t(
+                        testState === "needs_reauth"
+                          ? "integrations.manage.test_needs_reauth"
+                          : "integrations.manage.test_degraded",
+                      )}{#if testDetail} - {testDetail}{/if}
+                    {/if}
                   </p>
                 {:else if testState === "error"}
                   <p class="text-[12.5px] text-destructive" data-testid="mcp-test-error">

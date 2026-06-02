@@ -2,6 +2,8 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::mcp_health::McpHealth;
+
 /// Write handle on the EventBus: clonable, shareable between actors.
 ///
 /// Public alias defined in `apollia-core` so that `apollia-llm` (and any other
@@ -297,6 +299,19 @@ pub enum RuntimeEvent {
         old_tools: Vec<String>,
         /// Names of the tools exposed by the new session.
         new_tools: Vec<String>,
+    },
+
+    /// An MCP server's operational health changed.
+    ///
+    /// Emitted by the `McpClientManager` actor on session start (success or
+    /// failure), on a transport 401 turning into [`McpHealth::NeedsReauth`], and
+    /// on tool-call outcome classification. Lets the desktop badge reflect
+    /// reality without a manual refresh.
+    McpServerHealthChanged {
+        /// Name of the MCP server.
+        name: String,
+        /// New operational health.
+        health: McpHealth,
     },
 
     /// An LLM backend is loading (before `load()` or HTTP initialization).

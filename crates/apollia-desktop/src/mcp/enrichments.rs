@@ -114,6 +114,26 @@ pub struct ConnectorEnrichment {
     /// "free" for those. New entries should always set this.
     #[serde(default)]
     pub cost_model: Option<CostModel>,
+    /// Optional read-only probe used by the "Test" action to verify operational
+    /// access (scopes, grants) beyond the handshake. Pure data: declaring it for
+    /// a new connector is one JSON entry, never code. `None` means the Test
+    /// reports reachability only ("not yet verified by an operation").
+    #[serde(default)]
+    pub health_probe: Option<EnrichmentHealthProbe>,
+}
+
+/// Declarative read-only probe for the connection Test.
+///
+/// Names a side-effect-free tool the Test can call to prove the credential
+/// actually grants access (e.g. Notion `get-users` / `users.list`). Kept as
+/// data here so no per-connector code is required.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnrichmentHealthProbe {
+    /// Local tool name to invoke on the server (e.g. `"get-users"`).
+    pub tool: String,
+    /// Static arguments for the probe call. Omit for parameterless tools.
+    #[serde(default)]
+    pub args: Option<serde_json::Value>,
 }
 
 /// User-facing cost classification for a connector.
