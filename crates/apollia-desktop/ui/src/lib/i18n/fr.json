@@ -2710,6 +2710,8 @@
     "delete_session": "Supprimer",
     "delete_confirm": "Supprimer cette conversation ?",
     "copy_message": "Copier",
+    "empty_response_operator": "Je n'ai pas réussi à formuler une réponse à cette demande. Reformule-la ou réessaie.",
+    "empty_response_builder": "Aucune réponse textuelle n'a été produite. Le détail du raisonnement et des outils ci-dessus indique ce qui s'est passé.",
     "send_hint": "Entrée pour envoyer",
     "hints": {
       "send": "pour envoyer",

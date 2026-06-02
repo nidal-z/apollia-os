@@ -2710,6 +2710,8 @@
     "delete_session": "Delete",
     "delete_confirm": "Delete this conversation?",
     "copy_message": "Copy",
+    "empty_response_operator": "I couldn't produce a response for this request. Try rephrasing it or asking again.",
+    "empty_response_builder": "No text response was produced. See the reasoning and tool details above for what happened.",
     "send_hint": "Enter to send",
     "hints": {
       "send": "to send",

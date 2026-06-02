@@ -8,6 +8,8 @@ export const CHAT_KEYS = {
   inputPlaceholder: "chat.input_placeholder",
   firstMessagePlaceholder: "chat.first_message_placeholder",
   thinking: "chat.thinking",
+  emptyResponseOperator: "chat.empty_response_operator",
+  emptyResponseBuilder: "chat.empty_response_builder",
   streamingThought: "chat.streaming_thought",
   recordingHotkeyHint: "chat.recording_hotkey_hint",
   template: {

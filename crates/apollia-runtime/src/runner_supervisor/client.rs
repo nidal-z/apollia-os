@@ -9,11 +9,39 @@ use uuid::Uuid;
 
 use super::error::RunnerError;
 
+/// Formats a `reqwest::Error` with its full source chain.
+///
+/// `reqwest::Error`'s own `Display` stops at "error sending request for url
+/// (...)" and hides the underlying cause (timeout, connection reset, refused).
+/// Walking `source()` keeps those causes in the daemon logs.
+fn http_err(e: reqwest::Error) -> RunnerError {
+    use std::error::Error;
+    let mut msg = e.to_string();
+    let mut src = e.source();
+    while let Some(s) = src {
+        msg.push_str(": ");
+        msg.push_str(&s.to_string());
+        src = s.source();
+    }
+    RunnerError::Http(msg)
+}
+
+/// Timeout for control-plane GETs (handshake, health): these must answer fast.
+const CONTROL_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Timeout for data-plane POSTs (load_model, complete, transcribe). Local
+/// inference is effectively unbounded: a large model compiles Metal kernels on
+/// the first call, prefills a big tool-augmented prompt, and may emit a long
+/// reasoning block before answering. A short cap would abort legitimate work,
+/// surfacing as "error sending request". The generous bound still catches a
+/// genuinely wedged runner.
+const DATA_TIMEOUT: Duration = Duration::from_secs(600);
+
 /// HTTP client that talks to the runner via 127.0.0.1:<port>.
 ///
-/// Wraps `reqwest::Client` with: default 60-second timeout, base URL pinned to
-/// the port selected at spawn, deserialization into the IPC types of the
-/// `apollia-runner` crate.
+/// Wraps `reqwest::Client`: short per-request timeout on control-plane GETs,
+/// generous timeout on data-plane POSTs, base URL pinned to the port selected
+/// at spawn, deserialization into the IPC types of the `apollia-runner` crate.
 #[derive(Clone)]
 pub struct RunnerClient {
     http: Client,
@@ -22,9 +50,16 @@ pub struct RunnerClient {
 
 impl RunnerClient {
     pub fn new(port: u16) -> Result<Self, RunnerError> {
+        // No global request timeout: it is applied per-request so inference is
+        // not capped by the control-plane bound.
+        //
+        // `pool_max_idle_per_host(0)` disables idle keep-alive reuse: between
+        // the infrequent, long inference calls the runner can close an idle
+        // pooled socket, and reusing it surfaces as "error sending request".
+        // A fresh connection per call is negligible on loopback.
         let http = Client::builder()
-            .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(5))
+            .pool_max_idle_per_host(0)
             .build()
             .map_err(|e| RunnerError::Http(e.to_string()))?;
         Ok(Self {
@@ -43,9 +78,10 @@ impl RunnerClient {
         let resp = self
             .http
             .get(&url)
+            .timeout(CONTROL_TIMEOUT)
             .send()
             .await
-            .map_err(|e| RunnerError::Http(e.to_string()))?;
+            .map_err(http_err)?;
         if !resp.status().is_success() {
             return Err(RunnerError::Http(format!(
                 "GET {} returned {}",
@@ -55,7 +91,7 @@ impl RunnerClient {
         }
         resp.json::<D>()
             .await
-            .map_err(|e| RunnerError::Http(e.to_string()))
+            .map_err(http_err)
     }
 
     /// POST JSON, parse JSON response.
@@ -68,10 +104,11 @@ impl RunnerClient {
         let resp = self
             .http
             .post(&url)
+            .timeout(DATA_TIMEOUT)
             .json(body)
             .send()
             .await
-            .map_err(|e| RunnerError::Http(e.to_string()))?;
+            .map_err(http_err)?;
         if !resp.status().is_success() {
             // Try to parse a normalized ErrorBody.
             let status = resp.status();
@@ -98,7 +135,7 @@ impl RunnerClient {
         }
         resp.json::<D>()
             .await
-            .map_err(|e| RunnerError::Http(e.to_string()))
+            .map_err(http_err)
     }
 
     /// Generate a UUID v4 `request_id` for log correlation.

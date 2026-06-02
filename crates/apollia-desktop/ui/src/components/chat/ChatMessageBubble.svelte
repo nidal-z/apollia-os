@@ -51,6 +51,21 @@
       parsedContentBlocks.some((b) => b.type === "thinking" && b.closed),
   );
 
+  // A finalized agent turn that produced only reasoning and/or failed tool
+  // calls leaves cleanContent empty. ChatMessageBubble only renders committed
+  // messages (live tokens go through StreamingMessage), so an empty agent
+  // bubble here is a terminated exchange with no user-facing text, never a
+  // mid-stream frame. Surface a mode-adapted notice instead of a blank bubble;
+  // builder mode points to the reasoning/tool detail already shown above.
+  const isEmptyAgentResponse = $derived(
+    !isUser && cleanContent.trim() === "",
+  );
+  const emptyResponseLabel = $derived(
+    isOperator
+      ? $t("chat.empty_response_operator")
+      : $t("chat.empty_response_builder"),
+  );
+
   // Adaptive width - B.2. Compact variant falls back to 72 %.
   const widthClass = $derived(
     variant === "compact"
@@ -114,16 +129,23 @@
       </button>
     {/if}
 
-    {#if message.content}
-      {#if isUser}
+    {#if isUser}
+      {#if message.content}
         <p class="whitespace-pre-wrap break-words">{message.content}</p>
-      {:else}
-        <MessageRenderer
-          content={cleanContent}
-          citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
-        />
-        <LinkPreviewList content={cleanContent} />
       {/if}
+    {:else if isEmptyAgentResponse}
+      <p
+        class="whitespace-pre-wrap break-words italic text-muted-foreground/80"
+        data-testid="chat-empty-response-{message.id}"
+      >
+        {emptyResponseLabel}
+      </p>
+    {:else}
+      <MessageRenderer
+        content={cleanContent}
+        citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
+      />
+      <LinkPreviewList content={cleanContent} />
     {/if}
 
     {#if showTimestamp}
