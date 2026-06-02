@@ -6,7 +6,6 @@ import json
 from typing import Any
 
 import pytest
-
 from apollia._internal.dispatch import (
     dispatch_message,
     dispatch_skill,
@@ -94,13 +93,7 @@ def test_extract_payload_from_data_part() -> None:
 
 
 def test_extract_payload_from_text_part_json() -> None:
-    task = {
-        "input": {
-            "parts": [
-                {"type": "text", "text": json.dumps({"path": "a.pdf"})}
-            ]
-        }
-    }
+    task = {"input": {"parts": [{"type": "text", "text": json.dumps({"path": "a.pdf"})}]}}
     assert extract_task_payload(task) == {"path": "a.pdf"}
 
 
@@ -114,9 +107,9 @@ def test_extract_payload_empty() -> None:
 # ────────────────────── dispatch_skill ──────────────────────
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_skill_happy_path() -> None:
-    async def handler(self: Any, path: str, ctx: Any) -> str:  # noqa: ARG001  # NOSONAR
+    async def handler(self: Any, path: str, ctx: Any) -> str:  # NOSONAR
         return f"read:{path}"
 
     agent = _build_agent_with_skill(
@@ -135,9 +128,9 @@ async def test_dispatch_skill_happy_path() -> None:
     assert result["output"] == [{"type": "text", "text": "read:a.pdf"}]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_skill_sync_handler() -> None:
-    def handler(self: Any, x: int) -> dict[str, int]:  # noqa: ARG001
+    def handler(self: Any, x: int) -> dict[str, int]:
         return {"doubled": x * 2}
 
     agent = _build_agent_with_skill(
@@ -156,7 +149,7 @@ async def test_dispatch_skill_sync_handler() -> None:
     assert result["output"] == [{"type": "data", "data": {"doubled": 42}}]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_skill_unknown() -> None:
     agent = _build_agent_with_skill(
         handler_name="h",
@@ -171,9 +164,9 @@ async def test_dispatch_skill_unknown() -> None:
     assert "known" in result["error"]["details"]["known"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_skill_payload_error() -> None:
-    def handler(self: Any, path: str) -> str:  # noqa: ARG001
+    def handler(self: Any, path: str) -> str:
         return path
 
     agent = _build_agent_with_skill(
@@ -193,9 +186,9 @@ async def test_dispatch_skill_payload_error() -> None:
     assert result["error"]["details"]["field"] == "path"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_skill_domain_error() -> None:
-    def handler(self: Any, path: str) -> str:  # noqa: ARG001
+    def handler(self: Any, path: str) -> str:
         raise DomainError("FILE_NOT_FOUND", "missing", {"path": path})
 
     agent = _build_agent_with_skill(
@@ -215,9 +208,9 @@ async def test_dispatch_skill_domain_error() -> None:
     assert result["error"]["details"] == {"path": "x"}
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_skill_need_human_input() -> None:
-    def handler(self: Any, path: str) -> str:  # noqa: ARG001
+    def handler(self: Any, path: str) -> str:
         raise NeedHumanInput("Approve?", {"path": path})
 
     agent = _build_agent_with_skill(
@@ -236,9 +229,9 @@ async def test_dispatch_skill_need_human_input() -> None:
     assert result["input_required_data"]["prompt"] == "Approve?"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_skill_generic_exception() -> None:
-    def handler(self: Any, path: str) -> str:  # noqa: ARG001
+    def handler(self: Any, path: str) -> str:
         raise ValueError("oops")
 
     agent = _build_agent_with_skill(
@@ -257,9 +250,9 @@ async def test_dispatch_skill_generic_exception() -> None:
     assert result["error"]["code"] == "EXECUTION_FAILED"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_skill_returns_dict() -> None:
-    def handler(self: Any) -> dict[str, str]:  # noqa: ARG001
+    def handler(self: Any) -> dict[str, str]:
         return {"k": "v"}
 
     agent = _build_agent_with_skill(
@@ -275,10 +268,12 @@ async def test_dispatch_skill_returns_dict() -> None:
 # ────────────────────── dispatch_message ──────────────────────
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_message_happy_path() -> None:
     class Agent:
-        async def handle(self, message: str, history: list[dict[str, Any]], ctx: Any) -> str:  # NOSONAR
+        async def handle(
+            self, message: str, history: list[dict[str, Any]], ctx: Any
+        ) -> str:  # NOSONAR
             assert isinstance(history, list)
             return f"echo:{message}"
 
@@ -289,7 +284,7 @@ async def test_dispatch_message_happy_path() -> None:
     assert result["output"] == [{"type": "text", "text": "echo:hello"}]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_message_no_handler() -> None:
     class Agent:
         pass
@@ -300,7 +295,7 @@ async def test_dispatch_message_no_handler() -> None:
     assert result["error"]["code"] == "NO_HANDLER"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_message_traps_exception() -> None:
     class Agent:
         def handle(self, message: str, history: list[dict[str, Any]], ctx: Any) -> str:
@@ -316,9 +311,9 @@ async def test_dispatch_message_traps_exception() -> None:
 # ────────────────────── dispatch_task ──────────────────────
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_task_routes_skill() -> None:
-    def handler(self: Any, path: str) -> str:  # noqa: ARG001
+    def handler(self: Any, path: str) -> str:
         return f"r:{path}"
 
     agent = _build_agent_with_skill(
@@ -340,7 +335,7 @@ async def test_dispatch_task_routes_skill() -> None:
     assert result["status"] == "completed"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_task_routes_message() -> None:
     class Agent:
         def handle(self, message: str, history: list[dict[str, Any]], ctx: Any) -> str:
@@ -354,7 +349,7 @@ async def test_dispatch_task_routes_message() -> None:
     assert result["output"][0]["text"] == "echo:hi"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_dispatch_task_no_handler() -> None:
     class Agent:
         pass
@@ -369,11 +364,11 @@ async def test_dispatch_task_no_handler() -> None:
 # ────────────────────── enriched error surfaces ──────────────────────
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_payload_error_lists_expected_fields_in_details() -> None:
     """The dispatch boundary preserves ``expected`` / ``unexpected`` from PayloadError details."""
 
-    def handler(self: Any, path: str) -> str:  # noqa: ARG001
+    def handler(self: Any, path: str) -> str:
         return path
 
     agent = _build_agent_with_skill(
@@ -395,11 +390,11 @@ async def test_payload_error_lists_expected_fields_in_details() -> None:
     assert details["expected"] == ["path"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_payload_error_did_you_mean_propagated() -> None:
     """A close typo surfaces a ``did_you_mean`` hint through the AIPResult details."""
 
-    def handler(self: Any, path: str, mode: str = "fast") -> str:  # noqa: ARG001
+    def handler(self: Any, path: str, mode: str = "fast") -> str:
         return path
 
     agent = _build_agent_with_skill(
@@ -424,11 +419,11 @@ async def test_payload_error_did_you_mean_propagated() -> None:
     assert result["error"]["details"]["did_you_mean"] == "mode"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_skill_not_found_lists_known_skills() -> None:
     """A missing skill_id surfaces the list of available skills for steering the LLM."""
 
-    def handler(self: Any) -> str:  # noqa: ARG001
+    def handler(self: Any) -> str:
         return "ok"
 
     agent = _build_agent_with_skill(
@@ -444,11 +439,11 @@ async def test_skill_not_found_lists_known_skills() -> None:
     assert result["error"]["details"]["known"] == ["chart.bar"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_payload_error_type_mismatch_carries_typed_details() -> None:
     """A type mismatch surfaces ``expected_type``/``actual_type`` for LLM repair."""
 
-    def handler(self: Any, count: int) -> str:  # noqa: ARG001
+    def handler(self: Any, count: int) -> str:
         return str(count)
 
     agent = _build_agent_with_skill(

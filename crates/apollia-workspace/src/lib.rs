@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Workspace context collector for Apollia OS.
 //!
 //! This crate implements the native [`WorkspaceProvider`]s and the

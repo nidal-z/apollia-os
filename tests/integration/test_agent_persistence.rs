@@ -143,6 +143,9 @@ fn test_manifest(name: &str, version: &str) -> AgentManifest {
         setup_notes: None,
         agent_class: None,
         user_memory_write: false,
+        datasources: vec![],
+        templates: vec![],
+        secrets: vec![],
     }
 }
 
@@ -203,6 +206,7 @@ fn test_supervisor_config(
         agent_repository,
         bundled_agents_path: None,
         package_repository: None,
+        tools_config: apollia_core::ToolsConfig::default(),
     }
 }
 

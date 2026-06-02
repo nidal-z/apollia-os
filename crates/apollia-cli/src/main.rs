@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS CLI binary entry point.
 //!
 //! Command structure follows a noun-verb pattern:

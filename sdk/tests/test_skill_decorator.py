@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import pytest
-
 from apollia._internal.manifest import SKILL_ATTR
 from apollia.errors import AgentConfigError
 from apollia.skills import skill
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Marker placement
@@ -153,7 +151,7 @@ def test_skill_on_sync_method_raises() -> None:
     with pytest.raises(AgentConfigError, match="async def"):
 
         @skill("pdf.read")
-        def fn(self: object) -> dict[str, str]:  # noqa: E306
+        def fn(self: object) -> dict[str, str]:
             return {}
 
 

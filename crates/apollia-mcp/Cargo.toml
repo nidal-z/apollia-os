@@ -28,3 +28,6 @@ chrono        = { workspace = true }
 axum     = { workspace = true }
 tempfile = "3"
 tokio    = { workspace = true }
+
+[lints]
+workspace = true

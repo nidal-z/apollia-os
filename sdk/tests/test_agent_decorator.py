@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-
 from apollia._internal.manifest import (
     AGENT_META_ATTR,
     MANIFEST_ATTR,
@@ -22,7 +21,6 @@ from apollia.errors import AgentConfigError
 from apollia.messages import on_message
 from apollia.orchestration import orchestrated
 from apollia.skills import skill
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Module fixture helper
@@ -173,9 +171,7 @@ def test_agent_dispatch_hook_routes_to_skill() -> None:
         inst.__apollia_dispatch__(  # type: ignore[attr-defined]
             {
                 "skill_id": "math.add",
-                "input": {
-                    "parts": [{"type": "data", "data": {"a": 2, "b": 3}}]
-                },
+                "input": {"parts": [{"type": "data", "data": {"a": 2, "b": 3}}]},
             },
             SimpleNamespace(logger=None),
         )
@@ -296,7 +292,7 @@ def test_agent_init_with_defaults_ok() -> None:
     A = agent(name="a", version="0.1.0", description="d")(A)
     instance = get_module_agent(mod_name)
     assert instance is not None
-    assert getattr(instance, "x") == 1
+    assert instance.x == 1
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -324,9 +320,7 @@ def test_agent_orchestrated_plus_on_message_raises() -> None:
     @orchestrated(system_prompt="x")
     class A:
         @on_message
-        async def chat(
-            self, message: str, history: list, ctx: Any
-        ) -> str:
+        async def chat(self, message: str, history: list, ctx: Any) -> str:
             return "ok"
 
     A.__module__ = mod_name
@@ -420,7 +414,10 @@ def test_agent_packages_must_be_tuple() -> None:
     A.__module__ = mod_name
     with pytest.raises(AgentConfigError, match="packages"):
         agent(
-            name="a", version="0.1.0", description="d", packages=["bad"]  # type: ignore[arg-type]  # NOSONAR
+            name="a",
+            version="0.1.0",
+            description="d",
+            packages=["bad"],  # type: ignore[arg-type]  # NOSONAR
         )(A)
 
 
@@ -447,9 +444,7 @@ def test_agent_conversational_execution_mode() -> None:
 
     class A:
         @on_message
-        async def chat(
-            self, message: str, history: list, ctx: Any
-        ) -> str:
+        async def chat(self, message: str, history: list, ctx: Any) -> str:
             return "hi"
 
     A.__module__ = mod_name

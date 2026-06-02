@@ -117,9 +117,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: taiki-e/install-action@mdbook
-      - run: mdbook build book
+      - run: mdbook build docs/book
       - name: Generate sitemap + robots
-        run: bash docs/book/scripts/gen-sitemap.sh book.apollia.fr target/book
+        run: bash docs/book/scripts/gen-sitemap.sh book.apollia.fr docs/target/book
 
   doc-charte:
     name: Doc Charte L1.4

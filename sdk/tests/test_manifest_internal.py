@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from apollia._internal.manifest import (
     ON_MESSAGE_ATTR,
     ON_MESSAGE_HANDLER_ATTR,

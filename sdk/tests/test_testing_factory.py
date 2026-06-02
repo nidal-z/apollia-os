@@ -7,7 +7,6 @@ import types
 from typing import Any
 
 import pytest
-
 from apollia.agent import agent
 from apollia.errors import DomainError
 from apollia.messages import on_message
@@ -25,7 +24,6 @@ from apollia.testing import (
     assert_tool_called,
     mock,
 )
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Module-fixture machinery
@@ -74,9 +72,7 @@ def _make_simple_agent() -> type:
             return f"echo:{message}"
 
     SimpleAgent.__module__ = mod_name
-    decorated = agent(
-        name="simple", version="0.1.0", description="trivial test agent"
-    )(SimpleAgent)
+    decorated = agent(name="simple", version="0.1.0", description="trivial test agent")(SimpleAgent)
     return decorated
 
 
@@ -116,7 +112,7 @@ def test_mock_returns_instance_and_ctx() -> None:
     assert callable(agent_instance.invoke_message)
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_invoke_skill_happy_path() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
@@ -125,14 +121,14 @@ async def test_invoke_skill_happy_path() -> None:
     assert result["output"][0]["data"] == {"echoed": 42}
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_invoke_skill_domain_error_to_failed() -> None:
     agent_instance, _ctx = mock(_make_simple_agent())
     result = await agent_instance.invoke_skill("foo.fail")
     assert_result_failed(result, code="bad_input")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_ctx_llm_responses_queue_consumed() -> None:
     # GIVEN a pre-loaded MockLlmProxy queue
     ctx = MockContext()
@@ -145,7 +141,7 @@ async def test_ctx_llm_responses_queue_consumed() -> None:
     assert r2.content == "second"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_ctx_events_emit_token_tracked() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
@@ -153,7 +149,7 @@ async def test_ctx_events_emit_token_tracked() -> None:
     assert ctx.events.tokens == ["x=7"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_ctx_a2a_invoke_tracked() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
@@ -165,7 +161,7 @@ async def test_ctx_a2a_invoke_tracked() -> None:
     assert ctx.a2a.invoke_calls == [("child.worker", {"value": 3})]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_ctx_datasources_preconfigured() -> None:
     # GIVEN pre-loaded datasource values
     ctx = MockContext()
@@ -179,7 +175,7 @@ async def test_ctx_datasources_preconfigured() -> None:
         ctx.datasources.get("missing")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_invoke_message_dispatches_to_on_message() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     result = await agent_instance.invoke_message("ping")
@@ -192,7 +188,7 @@ async def test_invoke_message_dispatches_to_on_message() -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_assert_skill_called_passes_and_fails() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
@@ -203,7 +199,7 @@ async def test_assert_skill_called_passes_and_fails() -> None:
         assert_skill_called(ctx, "never.invoked")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_assert_emitted_token_passes_and_fails() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
@@ -214,7 +210,7 @@ async def test_assert_emitted_token_passes_and_fails() -> None:
         assert_emitted_token(ctx, contains="not-emitted")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_assert_emitted_thought_passes_and_fails() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
@@ -225,7 +221,7 @@ async def test_assert_emitted_thought_passes_and_fails() -> None:
         assert_emitted_thought(fresh_ctx)
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_assert_memory_recorded_passes_and_fails() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
@@ -238,7 +234,7 @@ async def test_assert_memory_recorded_passes_and_fails() -> None:
         assert_memory_recorded(ctx, key="never_set")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_assert_tool_called_passes_and_fails() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
@@ -249,7 +245,7 @@ async def test_assert_tool_called_passes_and_fails() -> None:
         assert_tool_called(ctx, "never")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_assert_template_rendered_passes_and_fails() -> None:
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)

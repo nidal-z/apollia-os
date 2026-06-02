@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from apollia.utils.assertion import (
     Citation,
     assert_with_confidence,

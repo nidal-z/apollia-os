@@ -127,6 +127,9 @@ fn make_manifest(
         setup_notes: None,
         agent_class: None,
         user_memory_write: false,
+        datasources: vec![],
+        templates: vec![],
+        secrets: vec![],
     }
 }
 
@@ -134,6 +137,7 @@ fn make_task(text: &str) -> AIPTask {
     AIPTask {
         task_id: uuid::Uuid::new_v4().to_string(),
         context_id: "ctx-test".to_owned(),
+        skill_id: None,
         input: AIPInput {
             parts: vec![AIPPart::Text(TextPart {
                 text: text.to_owned(),

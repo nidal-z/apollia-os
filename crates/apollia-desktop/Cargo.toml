@@ -74,3 +74,7 @@ path = "tests/e2e/mod.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+[lints.rust]
+# FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
+unsafe_code = "allow"

@@ -53,6 +53,9 @@ fn make_channel(url: &str) -> WebhookChannel {
         signing_secret: None,
         min_severity: Severity::Info,
     })
+    // Opt out of the SSRF guard so these in-process tests can reach the
+    // 127.0.0.1 mock server (the guard is on by default in production).
+    .with_ssrf_guard(false)
 }
 
 // ── Payload JSON Apollia vérifié avec mock HTTP server ────────────────

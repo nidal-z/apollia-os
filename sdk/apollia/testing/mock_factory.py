@@ -72,9 +72,7 @@ class MockContext:
 
     def log(self, level: str, message: str) -> None:
         """Compatibility shim for code that calls ``ctx.log(level, msg)``."""
-        self.logger.log(
-            getattr(logging, level.upper(), logging.INFO), message
-        )
+        self.logger.log(getattr(logging, level.upper(), logging.INFO), message)
 
 
 def mock(agent_cls: type[T]) -> tuple[T, MockContext]:
@@ -108,9 +106,7 @@ def mock(agent_cls: type[T]) -> tuple[T, MockContext]:
     instance = agent_cls()
     ctx = MockContext()
 
-    async def invoke_skill(
-        skill_id: str, **kwargs: Any
-    ) -> dict[str, Any]:
+    async def invoke_skill(skill_id: str, **kwargs: Any) -> dict[str, Any]:
         """Invoke a ``@skill`` handler directly with the mock ctx."""
         return await dispatch_skill(instance, skill_id, kwargs, ctx)
 
@@ -119,9 +115,7 @@ def mock(agent_cls: type[T]) -> tuple[T, MockContext]:
         history: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Invoke the ``@on_message`` handler directly with the mock ctx."""
-        return await dispatch_message(
-            instance, message, history or [], ctx
-        )
+        return await dispatch_message(instance, message, history or [], ctx)
 
     instance.invoke_skill = invoke_skill  # type: ignore[attr-defined]
     instance.invoke_message = invoke_message  # type: ignore[attr-defined]

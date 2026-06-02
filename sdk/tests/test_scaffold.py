@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from apollia.cli.scaffold import (
     scaffold_agent,
     to_class_name,
@@ -47,7 +46,9 @@ class TestScaffoldAgent:
 
     def test_scaffold_react_agent(self, tmp_path: str) -> None:
         agent_path, test_path = scaffold_agent(
-            "hello", agent_type="react", output_dir=str(tmp_path),
+            "hello",
+            agent_type="react",
+            output_dir=str(tmp_path),
         )
 
         assert os.path.isfile(agent_path)
@@ -69,7 +70,9 @@ class TestScaffoldAgent:
 
     def test_scaffold_conversational_agent(self, tmp_path: str) -> None:
         agent_path, _test_path = scaffold_agent(
-            "chat-bot", agent_type="conversational", output_dir=str(tmp_path),
+            "chat-bot",
+            agent_type="conversational",
+            output_dir=str(tmp_path),
         )
 
         assert os.path.isfile(agent_path)
@@ -82,7 +85,9 @@ class TestScaffoldAgent:
 
     def test_scaffold_orchestrated_agent(self, tmp_path: str) -> None:
         agent_path, _test_path = scaffold_agent(
-            "planner", agent_type="orchestrated", output_dir=str(tmp_path),
+            "planner",
+            agent_type="orchestrated",
+            output_dir=str(tmp_path),
         )
 
         agent_src = open(agent_path, encoding="utf-8").read()
@@ -103,7 +108,9 @@ class TestScaffoldAgent:
     def test_scaffold_creates_output_dir(self, tmp_path: str) -> None:
         nested = os.path.join(str(tmp_path), "sub", "dir")
         agent_path, _test_path = scaffold_agent(
-            "nested", agent_type="react", output_dir=nested,
+            "nested",
+            agent_type="react",
+            output_dir=nested,
         )
         assert os.path.isfile(agent_path)
 
@@ -127,16 +134,16 @@ class TestScaffoldWorkerAgent:
     def test_scaffold_worker_creates_files(self, tmp_path: str) -> None:
         """The scaffolding creates agent and test files at the expected paths."""
         agent_path, test_path = scaffold_agent(
-            "test-worker", agent_type="worker", output_dir=str(tmp_path),
+            "test-worker",
+            agent_type="worker",
+            output_dir=str(tmp_path),
         )
 
         assert os.path.isfile(agent_path)
         assert os.path.isfile(test_path)
 
         # Agent lands in agents/ subdirectory with the original kebab-case name.
-        assert agent_path == str(
-            os.path.join(str(tmp_path), "agents", "test-worker.py")
-        )
+        assert agent_path == str(os.path.join(str(tmp_path), "agents", "test-worker.py"))
         # Test lands in agents/tests/ with snake_case prefix.
         assert test_path == str(
             os.path.join(str(tmp_path), "agents", "tests", "test_test_worker.py")
@@ -145,7 +152,9 @@ class TestScaffoldWorkerAgent:
     def test_scaffold_worker_agent_content(self, tmp_path: str) -> None:
         """Generated agent file contains the canonical decorator constructs."""
         agent_path, _ = scaffold_agent(
-            "test-worker", agent_type="worker", output_dir=str(tmp_path),
+            "test-worker",
+            agent_type="worker",
+            output_dir=str(tmp_path),
         )
         src = open(agent_path, encoding="utf-8").read()
 
@@ -159,7 +168,8 @@ class TestScaffoldWorkerAgent:
         assert "agent_instance" not in src
 
     def test_scaffold_worker_agent_generated_is_valid_python(
-        self, tmp_path: str,
+        self,
+        tmp_path: str,
     ) -> None:
         """The generated agent file compiles as valid Python.
 
@@ -168,17 +178,22 @@ class TestScaffoldWorkerAgent:
         compile + structural checks above are sufficient at scaffold time.
         """
         agent_path, _ = scaffold_agent(
-            "test-worker", agent_type="worker", output_dir=str(tmp_path),
+            "test-worker",
+            agent_type="worker",
+            output_dir=str(tmp_path),
         )
         src = open(agent_path, encoding="utf-8").read()
         compile(src, agent_path, "exec")
 
     def test_scaffold_worker_generated_files_are_valid_python(
-        self, tmp_path: str,
+        self,
+        tmp_path: str,
     ) -> None:
         """Both generated files are syntactically valid Python."""
         agent_path, test_path = scaffold_agent(
-            "my-domain", agent_type="worker", output_dir=str(tmp_path),
+            "my-domain",
+            agent_type="worker",
+            output_dir=str(tmp_path),
         )
         compile(open(agent_path, encoding="utf-8").read(), agent_path, "exec")
         compile(open(test_path, encoding="utf-8").read(), test_path, "exec")

@@ -7,7 +7,6 @@ import types
 from typing import Any
 
 import pytest
-
 from apollia._internal.module_registry import expose_to_module, get_module_agent
 from apollia.errors import AgentConfigError
 
@@ -64,7 +63,7 @@ def test_expose_to_module_different_agent_class_raises() -> None:
         __apollia_manifest__: dict[str, Any] = {"name": "other", "version": "0.0.0"}
 
     OtherAgent.__module__ = module.__name__
-    setattr(module, "OtherAgent", OtherAgent)
+    module.OtherAgent = OtherAgent
 
     expose_to_module(cls_a, instance_a)
     with pytest.raises(AgentConfigError):

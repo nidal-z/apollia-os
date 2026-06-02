@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # Importability
 
 
@@ -72,9 +71,7 @@ def test_subprotocol_is_runtime_checkable(module_path: str, name: str) -> None:
     proto = getattr(mod, name)
     # ``runtime_checkable`` Protocols pass an empty object as not an instance,
     # but the marker attribute exists on the class.
-    assert getattr(proto, "_is_runtime_protocol", False), (
-        f"{name} is not @runtime_checkable"
-    )
+    assert getattr(proto, "_is_runtime_protocol", False), f"{name} is not @runtime_checkable"
 
 
 def test_ctx_is_runtime_checkable() -> None:

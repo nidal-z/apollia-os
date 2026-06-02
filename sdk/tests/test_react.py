@@ -6,11 +6,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
 from apollia import react
 from apollia.errors import DomainError
 from apollia.testing.mocks import MockLlmProxy
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Public API surface
@@ -19,14 +17,14 @@ from apollia.testing.mocks import MockLlmProxy
 
 def test_react_importable_from_apollia_root() -> None:
     """``react`` must be exported from the top-level ``apollia`` package."""
-    from apollia import react as imported  # noqa: F401
+    from apollia import react as imported
 
     assert callable(imported)
 
 
 def test_react_importable_from_apollia_react_module() -> None:
     """``apollia.react.react`` must be the canonical import path."""
-    from apollia.react import react as imported  # noqa: F401
+    from apollia.react import react as imported
 
     assert callable(imported)
 
@@ -62,7 +60,7 @@ class _StubCtx:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_react_happy_path_returns_final_answer() -> None:
     """GIVEN an LLM that produces a final string,
     WHEN ``react()`` is awaited with a tool descriptor,
@@ -100,7 +98,7 @@ async def test_react_happy_path_returns_final_answer() -> None:
     assert call["messages"][1]["content"] == "What is the capital of France?"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_react_without_tools_passes_empty_list() -> None:
     """``tools=None`` is normalized to an empty list (pure chat mode)."""
     llm = MockLlmProxy()
@@ -125,7 +123,7 @@ async def test_react_without_tools_passes_empty_list() -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_react_max_steps_zero_raises_domain_error() -> None:
     """``max_steps=0`` is rejected before reaching the LLM."""
     llm = MockLlmProxy()
@@ -146,7 +144,7 @@ async def test_react_max_steps_zero_raises_domain_error() -> None:
     assert llm.run_tools_calls == []
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_react_negative_max_steps_raises_domain_error() -> None:
     llm = MockLlmProxy()
     ctx = _StubCtx(llm)
@@ -166,7 +164,7 @@ async def test_react_negative_max_steps_raises_domain_error() -> None:
 # Observability
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_react_stream_true_emits_thought() -> None:
     """When ``stream=True`` and ``ctx.events`` exposes ``emit_thought``,
     the helper surfaces a single marker event (step=0)."""
@@ -189,7 +187,7 @@ async def test_react_stream_true_emits_thought() -> None:
     assert kwargs.get("step") == 0
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_react_stream_false_does_not_emit_thought() -> None:
     """``stream=False`` suppresses the observability marker."""
     llm = MockLlmProxy()
@@ -208,7 +206,7 @@ async def test_react_stream_false_does_not_emit_thought() -> None:
     events.emit_thought.assert_not_called()
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_react_events_failure_does_not_break_run() -> None:
     """A broken ``emit_thought`` implementation must not abort the run."""
     llm = MockLlmProxy()

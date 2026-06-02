@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 # Common parameter descriptor strings reused across the legacy mirror.
 _SANDBOX_PATH_DESC = "str - relative path inside the sandbox (required)"
 _BOOL_OPT_FALSE_DESC = "bool (optional, default false)"
@@ -63,8 +62,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "content": "str - full file content to write (required)",
         },
         "example": (
-            '{"path": ".apollia/tasks/user-auth.md", '
-            '"content": "# TaskSpec: User Auth\\n..."}'
+            '{"path": ".apollia/tasks/user-auth.md", ' '"content": "# TaskSpec: User Auth\\n..."}'
         ),
     },
     "file_edit": {
@@ -80,10 +78,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "new_text": "str - replacement text (required)",
             "replace_all": _BOOL_OPT_FALSE_DESC,
         },
-        "example": (
-            '{"path": "src/main.rs", "old_text": "fn foo()", '
-            '"new_text": "fn bar()"}'
-        ),
+        "example": ('{"path": "src/main.rs", "old_text": "fn foo()", ' '"new_text": "fn bar()"}'),
     },
     "file_list": {
         "description": (
@@ -208,14 +203,11 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
         ),
         "parameters": {
             "url": "str - public HTTP/HTTPS URL (required)",
-            "max_chars": "int (optional) - max chars returned in content "
-                          "(default 30000)",
-            "include_metadata": "bool (optional, default true) - include "
-                                 "title and byline",
+            "max_chars": "int (optional) - max chars returned in content " "(default 30000)",
+            "include_metadata": "bool (optional, default true) - include " "title and byline",
         },
         "example": (
-            '{"url": "https://www.anthropic.com/news/claude-4-7-release", '
-            '"max_chars": 20000}'
+            '{"url": "https://www.anthropic.com/news/claude-4-7-release", ' '"max_chars": 20000}'
         ),
     },
     "python_executor": {
@@ -231,8 +223,7 @@ NATIVE_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     },
     "notebook_read": {
         "description": (
-            "Read a Jupyter notebook (.ipynb). Returns its cell list with "
-            "sources and outputs."
+            "Read a Jupyter notebook (.ipynb). Returns its cell list with " "sources and outputs."
         ),
         "parameters": {
             "path": "str - relative path to the .ipynb file (required)",
@@ -269,16 +260,11 @@ def describe_tool(tool_name: str) -> str:
                 f"    Description: Delegate a task to another agent via A2A "
                 f"(skill '{skill}'). Pass the task payload as args; the "
                 f"remote agent's manifest defines the expected shape.\n"
-                f"    Example args: {{\"task\": \"<description>\", ...}}"
+                f'    Example args: {{"task": "<description>", ...}}'
             )
-        return (
-            f"  {tool_name}: (no schema available - use empty args {{}} to "
-            f"probe)"
-        )
+        return f"  {tool_name}: (no schema available - use empty args {{}} to " f"probe)"
 
-    params = "\n".join(
-        f"      {k}: {v}" for k, v in schema["parameters"].items()
-    )
+    params = "\n".join(f"      {k}: {v}" for k, v in schema["parameters"].items())
     return (
         f"  {tool_name}:\n"
         f"    Description: {schema['description']}\n"
@@ -291,9 +277,7 @@ def build_tools_block(tool_names: list[str]) -> str:
     """Build the tools section of the system prompt (legacy, offline)."""
     if not tool_names:
         return "No tools are available - provide a final answer directly."
-    return "Available tools:\n\n" + "\n\n".join(
-        describe_tool(name) for name in tool_names
-    )
+    return "Available tools:\n\n" + "\n\n".join(describe_tool(name) for name in tool_names)
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +355,7 @@ def _build_example_args(input_schema: dict[str, Any]) -> str:
         raw_type = prop.get("type", "string")
         if isinstance(raw_type, list):
             raw_type = next((t for t in raw_type if t != "null"), "string")
-        if "enum" in prop and prop["enum"]:
+        if prop.get("enum"):
             example[name] = prop["enum"][0]
         elif raw_type == "string":
             example[name] = f"<{name}>"

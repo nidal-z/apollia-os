@@ -78,7 +78,7 @@ class CtxLogHandler(logging.Handler):
             level = self.LEVEL_MAP.get(record.levelno, "info")
             msg = self.format(record)
             self._ctx.log(level, msg)
-        except Exception:  # noqa: BLE001 - telemetry must not raise
+        except Exception:  # - telemetry must not raise
             self.handleError(record)
 
 
@@ -102,7 +102,7 @@ def configure_agent_logger(ctx: _CtxWithLog, agent_name: str) -> logging.Logger:
         Logical agent name from the manifest, used as the logger suffix.
         Empty / falsy values fall back to ``"unknown"``.
 
-    Returns
+    Returns:
     -------
     logging.Logger
         The shared logger instance - agents store this in ``ctx.logger``.

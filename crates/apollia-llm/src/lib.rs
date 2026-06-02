@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! `apollia-llm`, cloud LLM clients for Apollia OS.
 //!
 //! Local inference backends (llama-cpp) no longer live here: they are hosted

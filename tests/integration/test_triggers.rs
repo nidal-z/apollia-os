@@ -148,6 +148,7 @@ async fn test_ac2_file_watch_create_submits_task() {
         source: TriggerSourceConfig::FileWatch {
             path: dir.path().to_path_buf(),
             events: vec![FileEventKind::Create],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: vec![],
         },

@@ -8,9 +8,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
-
 from apollia.cli import inspect as inspect_cmd
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Fixtures - temporary agent files
@@ -21,7 +19,7 @@ def _write(path: Path, content: str) -> None:
     path.write_text(textwrap.dedent(content), encoding="utf-8")
 
 
-@pytest.fixture
+@pytest.fixture()
 def modern_agent(tmp_path: Path) -> Path:
     """A minimal ``@agent``-decorated worker with one ``@skill``."""
     path = tmp_path / "modern_agent.py"
@@ -59,7 +57,7 @@ def modern_agent(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.fixture
+@pytest.fixture()
 def legacy_agent(tmp_path: Path) -> Path:
     """A legacy agent: top-level ``manifest()`` function + ``agent`` instance
     whose class is *not* decorated with ``@agent``."""
@@ -106,7 +104,7 @@ def legacy_agent(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.fixture
+@pytest.fixture()
 def broken_agent(tmp_path: Path) -> Path:
     """A module that raises at import time."""
     path = tmp_path / "broken_agent.py"
@@ -121,7 +119,7 @@ def broken_agent(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.fixture
+@pytest.fixture()
 def no_agent_module(tmp_path: Path) -> Path:
     """A module that loads cleanly but exposes no agent / manifest."""
     path = tmp_path / "no_agent.py"
@@ -148,9 +146,7 @@ def _make_args(path: Path, *, json_mode: bool = False) -> argparse.Namespace:
 class TestModernAgent:
     """Inspection of a class decorated with ``@agent``."""
 
-    def test_exit_code_zero(
-        self, modern_agent: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_exit_code_zero(self, modern_agent: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """GIVEN a valid modern agent WHEN inspect runs THEN exit code is 0."""
         rc = inspect_cmd.inspect_command(_make_args(modern_agent))
         assert rc == 0
@@ -268,9 +264,7 @@ class TestFailureModes:
         self, broken_agent: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """In JSON mode, load failures land in ``errors`` not stderr text."""
-        rc = inspect_cmd.inspect_command(
-            _make_args(broken_agent, json_mode=True)
-        )
+        rc = inspect_cmd.inspect_command(_make_args(broken_agent, json_mode=True))
         assert rc == 1
         out = capsys.readouterr().out
         payload = json.loads(out)

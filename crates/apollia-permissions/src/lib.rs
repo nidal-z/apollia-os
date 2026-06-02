@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS three-layer permission engine.
 //!
 //! Evaluates every tool invocation before execution through three ordered layers:

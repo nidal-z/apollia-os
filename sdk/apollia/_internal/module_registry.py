@@ -23,9 +23,7 @@ __all__ = [
 def _resolve_module(cls: type) -> Any:
     module = inspect.getmodule(cls)
     if module is None:
-        raise AgentConfigError(
-            f"Cannot resolve defining module for class {cls.__name__}"
-        )
+        raise AgentConfigError(f"Cannot resolve defining module for class {cls.__name__}")
     return module
 
 
@@ -56,7 +54,7 @@ def expose_to_module(cls: type, instance: Any) -> None:
                 f"Module '{module.__name__}' already declares an 'agent' of "
                 f"class {existing_cls.__name__}; cannot register {cls.__name__}"
             )
-    setattr(module, "agent", instance)
+    module.agent = instance
 
 
 def get_module_agent(module_name: str) -> Any | None:

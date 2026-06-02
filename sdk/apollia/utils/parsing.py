@@ -191,11 +191,7 @@ def _repair_unescaped_quotes_in_long_strings(text: str) -> str | None:
         if escaped == value:
             continue
 
-        repaired = (
-            repaired[: open_quote_pos + 1]
-            + escaped
-            + repaired[close_pos:]
-        )
+        repaired = repaired[: open_quote_pos + 1] + escaped + repaired[close_pos:]
         repaired_any = True
 
     return repaired if repaired_any else None
@@ -246,7 +242,7 @@ def _escape_inner_unescaped_quotes(value: str) -> str:
             i += 2
             continue
         if ch == '"':
-            out.append("\\\"")
+            out.append('\\"')
         else:
             out.append(ch)
         i += 1

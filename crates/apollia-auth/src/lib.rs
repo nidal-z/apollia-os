@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS: OAuth2 PKCE authentication crate.
 //!
 //! Provides an interactive OAuth2 PKCE login flow (RFC 7636) with:

@@ -34,9 +34,7 @@ C = TypeVar("C", bound=type)
 
 def _check_required_str(name: str, value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise AgentConfigError(
-            f"@agent: '{name}' must be a non-empty string"
-        )
+        raise AgentConfigError(f"@agent: '{name}' must be a non-empty string")
     return value
 
 
@@ -47,9 +45,7 @@ def _check_string_tuple(name: str, value: Any) -> tuple[str, ...]:
         )
     for item in value:
         if not isinstance(item, str) or not item:
-            raise AgentConfigError(
-                f"@agent: '{name}' must contain non-empty strings, got {item!r}"
-            )
+            raise AgentConfigError(f"@agent: '{name}' must contain non-empty strings, got {item!r}")
     return value
 
 
@@ -80,9 +76,7 @@ def _check_init_takes_no_required_args(cls: type) -> None:
 
 def _check_optional_str(name: str, value: Any) -> None:
     if value is not None and (not isinstance(value, str) or not value):
-        raise AgentConfigError(
-            f"@agent: {name!r} must be a non-empty string or None"
-        )
+        raise AgentConfigError(f"@agent: {name!r} must be a non-empty string or None")
 
 
 def _check_optional_dict(name: str, value: Any) -> None:
@@ -90,7 +84,7 @@ def _check_optional_dict(name: str, value: Any) -> None:
         raise AgentConfigError(f"@agent: {name!r} must be a dict or None")
 
 
-def agent(  # noqa: PLR0913  # NOSONAR S107: public decorator API surface
+def agent(  # NOSONAR S107: public decorator API surface
     *,
     name: str,
     version: str,
@@ -157,18 +151,14 @@ def agent(  # noqa: PLR0913  # NOSONAR S107: public decorator API surface
     templates_v = _check_string_tuple("templates", templates)
     secrets_v = _check_string_tuple("secrets", secrets)
     tools_required_v = _check_string_tuple("tools_required", tools_required)
-    shared_memory_v = _check_string_tuple(
-        "shared_memory_namespaces", shared_memory_namespaces
-    )
+    shared_memory_v = _check_string_tuple("shared_memory_namespaces", shared_memory_namespaces)
     _check_optional_str("memory_namespace", memory_namespace)
     _check_optional_dict("step_budget", step_budget)
     _check_optional_str("agent_type", agent_type)
 
     def decorator(cls: C) -> C:
         if not isinstance(cls, type):
-            raise AgentConfigError(
-                f"@agent must decorate a class, got {type(cls).__name__}"
-            )
+            raise AgentConfigError(f"@agent must decorate a class, got {type(cls).__name__}")
 
         _check_init_takes_no_required_args(cls)
 
@@ -231,14 +221,10 @@ def agent(  # noqa: PLR0913  # NOSONAR S107: public decorator API surface
         )
 
         # Attach the dispatch hook the Rust bridge will call.
-        async def __apollia_dispatch__(
-            self: Any, task: dict[str, Any], ctx: Any
-        ) -> dict[str, Any]:
+        async def __apollia_dispatch__(self: Any, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
             return await dispatch_task(self, task, ctx)
 
-        __apollia_dispatch__.__qualname__ = (
-            f"{cls.__qualname__}.__apollia_dispatch__"
-        )
+        __apollia_dispatch__.__qualname__ = f"{cls.__qualname__}.__apollia_dispatch__"
         cls.__apollia_dispatch__ = __apollia_dispatch__  # type: ignore[attr-defined]
 
         # Auto-instantiate and expose to the defining module.

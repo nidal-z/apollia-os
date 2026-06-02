@@ -257,6 +257,8 @@ fn build_chat_app_state(
         None, // no A2A invoker in tests
         None, // no project context in tests
         None, // no project repo in tests
+        None, // no MCP handle in tests
+        None, // no chat tools config in tests
     )
     .expect("ChatSessionManager spawn");
 
@@ -266,7 +268,7 @@ fn build_chat_app_state(
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
         backend: MockBackend,
-        llm_router: Some(llm_router),
+        llm_router: apollia_runtime::api::server::shared_llm_router_from(Some(llm_router)),
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -291,6 +293,8 @@ fn build_chat_app_state(
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     };
 
     (state, event_rx)

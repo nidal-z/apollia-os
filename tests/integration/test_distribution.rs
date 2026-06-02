@@ -107,6 +107,9 @@ fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
         setup_notes: None,
         agent_class: None,
         user_memory_write: false,
+        datasources: vec![],
+        templates: vec![],
+        secrets: vec![],
     };
     InstalledAgent {
         name: name.to_string(),
@@ -145,6 +148,7 @@ fn supervisor_config(
         agent_repository: repo,
         bundled_agents_path,
         package_repository: None,
+        tools_config: apollia_core::ToolsConfig::default(),
     }
 }
 

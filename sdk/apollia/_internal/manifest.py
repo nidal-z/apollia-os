@@ -95,7 +95,8 @@ class SkillEntry:
 
 def _iter_methods(cls: type) -> list[tuple[str, Any]]:
     """Return ``(name, function)`` tuples for every method of ``cls`` and
-    its MRO, with subclasses overriding base classes (i.e. MRO order)."""
+    its MRO, with subclasses overriding base classes (i.e. MRO order).
+    """
     seen: set[str] = set()
     result: list[tuple[str, Any]] = []
     for klass in cls.__mro__:
@@ -157,9 +158,7 @@ def collect_skills(cls: type) -> dict[str, SkillEntry]:
             continue
         skill_id = meta.get("id") or name
         if skill_id in registry:
-            raise AgentConfigError(
-                f"Duplicate @skill id '{skill_id}' on class {cls.__name__}"
-            )
+            raise AgentConfigError(f"Duplicate @skill id '{skill_id}' on class {cls.__name__}")
         input_schema = signature_to_input_schema(fn)
         output_schema = return_to_output_schema(fn)
         explicit_desc = meta.get("description") or ""
@@ -204,9 +203,7 @@ def find_orchestrated_config(cls: type) -> dict[str, Any] | None:
         cfg = klass.__dict__.get(ORCHESTRATED_ATTR)
         if cfg is not None:
             if not isinstance(cfg, dict):
-                raise AgentConfigError(
-                    f"{ORCHESTRATED_ATTR} on {klass.__name__} must be a dict"
-                )
+                raise AgentConfigError(f"{ORCHESTRATED_ATTR} on {klass.__name__} must be a dict")
             return cfg
     return None
 
@@ -267,9 +264,7 @@ def build_manifest(
     templates_l = _check_string_tuple("templates", templates)
     secrets_l = _check_string_tuple("secrets", secrets)
     tools_l = _check_string_tuple("tools_required", tools_required)
-    shared_mem_l = _check_string_tuple(
-        "shared_memory_namespaces", shared_memory_namespaces
-    )
+    shared_mem_l = _check_string_tuple("shared_memory_namespaces", shared_memory_namespaces)
 
     skills_registry = collect_skills(cls)
     on_message_handler = find_on_message_handler(cls)

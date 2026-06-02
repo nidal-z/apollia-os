@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS Speech-to-Text interfaces.
 //!
 //! This crate provides:

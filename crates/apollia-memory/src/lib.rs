@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS: Memory Engine.
 //!
 //! Sovereign, local-first memory persistence via SQLite + FTS5.

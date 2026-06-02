@@ -136,7 +136,7 @@ async fn build_app_state_with_repos(
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
         backend: MockBackend,
-        llm_router: None,
+        llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: Some(engine_handle),
         config_path: None,
         task_repository: None,
@@ -161,6 +161,8 @@ async fn build_app_state_with_repos(
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     }
 }
 
@@ -621,10 +623,12 @@ async fn test_boot_with_prepopulated_db() {
             NotificationConfigRepository::open(&notifications_db).expect("open notifications.db");
         let row = NotificationChannelRow {
             id: "pre-existing-channel".into(),
+            label: None,
             channel_type: "desktop".into(),
             enabled: true,
             config_json: serde_json::json!({}),
             events_json: Some(vec!["task.completed".into()]),
+            min_interval_seconds: 0,
             created_at: String::new(),
             updated_at: String::new(),
         };

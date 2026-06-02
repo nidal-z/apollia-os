@@ -24,7 +24,7 @@ use apollia_llm::{
     StreamChunk, TokenUsage,
 };
 use apollia_oria::{
-    actor::{ActorLoop, ToolProxyTrait},
+    actor::{ActorLoop, StepDeps, ToolProxyTrait},
     budget::StepBudget,
     engine::{AIPAgent, ORIAEngine},
     observer::ContextBundle,
@@ -267,7 +267,15 @@ async fn test_ac1_plan_4_steps_execute_sequentiellement() {
 
     // WHEN
     let result = actor
-        .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+        .execute(
+            StepDeps {
+                tool_proxy: &proxy,
+                llm_router: &llm,
+                budget: &budget,
+                reasoner: &reasoner,
+            },
+            &resilience,
+        )
         .await;
 
     // THEN - Completed
@@ -328,7 +336,15 @@ async fn test_ac2_depends_on_respectes() {
 
     // WHEN
     let result = actor
-        .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+        .execute(
+            StepDeps {
+                tool_proxy: &proxy,
+                llm_router: &llm,
+                budget: &budget,
+                reasoner: &reasoner,
+            },
+            &resilience,
+        )
         .await;
     assert_eq!(
         result.status,
@@ -387,7 +403,15 @@ async fn test_ac3_budget_epuise_step_3_sur_5() {
 
     // WHEN
     let result = actor
-        .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+        .execute(
+            StepDeps {
+                tool_proxy: &proxy,
+                llm_router: &llm,
+                budget: &budget,
+                reasoner: &reasoner,
+            },
+            &resilience,
+        )
         .await;
 
     // THEN - Failed with STEP_BUDGET_EXCEEDED
@@ -448,7 +472,15 @@ async fn test_ac4_replanification_step_echec() {
 
     // WHEN
     let result = actor
-        .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+        .execute(
+            StepDeps {
+                tool_proxy: &proxy,
+                llm_router: &llm,
+                budget: &budget,
+                reasoner: &reasoner,
+            },
+            &resilience,
+        )
         .await;
 
     // THEN - Completed after s1 ok, s2 fail → replan → s2b ok
@@ -503,7 +535,15 @@ async fn test_ac5_max_replan_exceeded() {
 
     // WHEN
     let result = actor
-        .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+        .execute(
+            StepDeps {
+                tool_proxy: &proxy,
+                llm_router: &llm,
+                budget: &budget,
+                reasoner: &reasoner,
+            },
+            &resilience,
+        )
         .await;
 
     // THEN - Failed with MAX_REPLAN_EXCEEDED
@@ -600,6 +640,9 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 setup_notes: None,
                 agent_class: None,
                 user_memory_write: false,
+                datasources: vec![],
+                templates: vec![],
+                secrets: vec![],
             }
         }
         // has_on_plan_complete() returns false by default - auto-concat is used

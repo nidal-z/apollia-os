@@ -12,7 +12,6 @@ import asyncio
 from typing import Any
 
 import pytest
-
 from apollia.tools.schemas import (
     NATIVE_TOOL_SCHEMAS,
     build_tools_block,
@@ -20,7 +19,6 @@ from apollia.tools.schemas import (
     describe_tool,
     render_descriptor,
 )
-
 
 # ---------------------------------------------------------------------------
 # Legacy synchronous path (offline fallback)
@@ -79,7 +77,11 @@ class _StubToolProxy:
     def __init__(self, descriptors: dict[str, dict[str, Any] | None]) -> None:
         self._descriptors = descriptors
 
-    async def describe(self, name: str) -> dict[str, Any] | None:  # NOSONAR python:S7503: async signature required by the ToolProxy Protocol under test
+    async def describe(
+        self, name: str
+    ) -> (
+        dict[str, Any] | None
+    ):  # NOSONAR python:S7503: async signature required by the ToolProxy Protocol under test
         return self._descriptors.get(name)
 
 
@@ -148,9 +150,7 @@ def test_build_tools_block_from_ctx_uses_runtime_descriptors() -> None:
             "description": "Echoes input back.",
             "input_schema": {
                 "type": "object",
-                "properties": {
-                    "msg": {"type": "string", "description": "Message."}
-                },
+                "properties": {"msg": {"type": "string", "description": "Message."}},
                 "required": ["msg"],
             },
         }

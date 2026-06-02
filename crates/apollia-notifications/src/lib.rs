@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Decoupled notification system for Apollia OS.
 //!
 //! This crate centralizes the notification logic:

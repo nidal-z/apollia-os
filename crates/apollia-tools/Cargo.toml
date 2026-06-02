@@ -43,3 +43,7 @@ memory-search = ["dep:apollia-memory"]
 [dev-dependencies]
 tempfile = "3.14"
 tokio    = { workspace = true }
+
+[lints.rust]
+# FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
+unsafe_code = "allow"

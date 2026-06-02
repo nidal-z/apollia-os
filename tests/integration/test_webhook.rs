@@ -151,7 +151,7 @@ async fn build_webhook_state(
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
         backend: MockBackend,
-        llm_router: None,
+        llm_router: apollia_runtime::api::server::empty_shared_llm_router(),
         trigger_engine: Some(engine_handle),
         config_path: None,
         task_repository: None,
@@ -176,6 +176,8 @@ async fn build_webhook_state(
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     };
     (state, submit_count)
 }

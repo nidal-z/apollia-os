@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS shared types.
 //!
 //! `apollia-core` is the dependency foundation of the entire workspace.

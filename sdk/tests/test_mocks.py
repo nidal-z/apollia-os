@@ -1,11 +1,10 @@
 """Tests for apollia.testing.mocks - low-level mock proxies."""
 
 import pytest
-
 from apollia.testing import MockContext, MockLlmProxy, MockMemory, MockToolProxy
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_context_wires_all_surfaces():
     """The factory-built MockContext exposes every ctx.* surface."""
     ctx = MockContext()
@@ -26,7 +25,7 @@ async def test_mock_context_wires_all_surfaces():
     assert ctx.logger is not None
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_context_surfaces_are_isolated_per_instance():
     """Each MockContext() yields fresh, independent surface mocks."""
     ctx1 = MockContext()
@@ -36,7 +35,7 @@ async def test_mock_context_surfaces_are_isolated_per_instance():
     assert ctx1.events is not ctx2.events
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_tool_proxy_records_calls():
     """MockToolProxy records each call and returns the configured response."""
     proxy = MockToolProxy({"bash": {"output": "ok", "exit_code": 0}})
@@ -48,7 +47,7 @@ async def test_mock_tool_proxy_records_calls():
     assert proxy.tool_call_count() == 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_tool_proxy_assert_called_with():
     """assert_called_with passes for matching calls and fails otherwise."""
     proxy = MockToolProxy({"bash": {"output": "ok"}})
@@ -64,7 +63,7 @@ async def test_mock_tool_proxy_assert_called_with():
         proxy.assert_called_with("bash", {"cmd": "pwd"})
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_tool_proxy_unknown_tool_raises():
     """Calling an unconfigured tool raises KeyError."""
     proxy = MockToolProxy({"bash": {"output": "ok"}})
@@ -73,7 +72,7 @@ async def test_mock_tool_proxy_unknown_tool_raises():
         await proxy.call("python", {})
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_tool_proxy_list_and_describe():
     """list_tools and describe expose configured tool metadata."""
     proxy = MockToolProxy({"bash": {"output": "ok"}, "python": {"output": "hi"}})
@@ -87,7 +86,7 @@ async def test_mock_tool_proxy_list_and_describe():
     assert await proxy.describe("unknown") is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_llm_proxy_sequential_responses():
     """MockLlmProxy returns responses in FIFO order then raises on exhaustion."""
     proxy = MockLlmProxy([{"content": "first"}, {"content": "second"}])
@@ -105,7 +104,7 @@ async def test_mock_llm_proxy_sequential_responses():
         await proxy.complete("prompt3")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_llm_proxy_chat():
     """MockLlmProxy.chat() delegates to complete() and records the call."""
     proxy = MockLlmProxy([{"content": "reply"}])
@@ -118,7 +117,7 @@ async def test_mock_llm_proxy_chat():
     assert proxy.default_backend == "mock"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_llm_proxy_assert_called_count_failure():
     """assert_called_count raises when actual differs from expected."""
     proxy = MockLlmProxy([{"content": "a"}])
@@ -128,7 +127,7 @@ async def test_mock_llm_proxy_assert_called_count_failure():
         proxy.assert_called_count(5)
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_memory_record_and_recall():
     """MockMemory stores episodic events and semantic key/values."""
     mem = MockMemory()
@@ -143,7 +142,7 @@ async def test_mock_memory_record_and_recall():
     assert len(mem.operations) == 3
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_memory_recall_missing_key():
     """Recalling a non-existent key returns None."""
     mem = MockMemory()
@@ -151,7 +150,7 @@ async def test_mock_memory_recall_missing_key():
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_memory_forget():
     """forget() removes the entry and records the operation."""
     mem = MockMemory()
@@ -163,7 +162,7 @@ async def test_mock_memory_forget():
     assert forget_op["existed"] is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_memory_forget_nonexistent():
     """forget() on a missing key records existed=False."""
     mem = MockMemory()
@@ -173,7 +172,7 @@ async def test_mock_memory_forget_nonexistent():
     assert forget_op["existed"] is False
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_mock_memory_search():
     """search() returns entries whose key contains the query string."""
     mem = MockMemory()

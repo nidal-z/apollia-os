@@ -12,14 +12,12 @@ import types
 from types import SimpleNamespace
 from typing import Any
 
-
 from apollia._internal.manifest import MANIFEST_ATTR
 from apollia.agent import agent
 from apollia.errors import DomainError, NeedHumanInput
 from apollia.messages import on_message
 from apollia.orchestration import orchestrated
 from apollia.skills import skill
-
 
 _COUNTER = 0
 
@@ -54,9 +52,7 @@ def test_pure_skill_agent_dispatches_skill() -> None:
         TestPdf().__apollia_dispatch__(  # type: ignore[attr-defined]
             {
                 "skill_id": "pdf.read",
-                "input": {
-                    "parts": [{"type": "data", "data": {"path": "a.pdf"}}]
-                },
+                "input": {"parts": [{"type": "data", "data": {"path": "a.pdf"}}]},
             },
             SimpleNamespace(logger=None),
         )
@@ -95,9 +91,7 @@ def test_pure_conversational_agent_dispatches_message() -> None:
 
     class Chat:
         @on_message
-        async def chat(
-            self, message: str, history: list, ctx: Any
-        ) -> str:
+        async def chat(self, message: str, history: list, ctx: Any) -> str:
             return f"echo:{message}"
 
     Chat.__module__ = mod_name
@@ -217,9 +211,7 @@ def test_multi_skill_agent_routes_correctly() -> None:
         inst.__apollia_dispatch__(  # type: ignore[attr-defined]
             {
                 "skill_id": "calc.add",
-                "input": {
-                    "parts": [{"type": "data", "data": {"a": 2, "b": 3}}]
-                },
+                "input": {"parts": [{"type": "data", "data": {"a": 2, "b": 3}}]},
             },
             ctx,
         )
@@ -228,9 +220,7 @@ def test_multi_skill_agent_routes_correctly() -> None:
         inst.__apollia_dispatch__(  # type: ignore[attr-defined]
             {
                 "skill_id": "calc.mul",
-                "input": {
-                    "parts": [{"type": "data", "data": {"a": 4, "b": 5}}]
-                },
+                "input": {"parts": [{"type": "data", "data": {"a": 4, "b": 5}}]},
             },
             ctx,
         )

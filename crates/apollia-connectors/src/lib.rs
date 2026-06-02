@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS: native SaaS connectors.
 //!
 //! This crate implements connectors that bind Apollia agents to external SaaS

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from apollia.testing import (
     MockContext,
     assert_llm_called,
@@ -149,9 +148,7 @@ class TestAssertToolCalled:
 
     def test_counts_only_matching_tool(self) -> None:
         ctx = MockContext()
-        ctx.tools.calls.extend(
-            [("bash", {}), ("file_io", {}), ("bash", {})]
-        )
+        ctx.tools.calls.extend([("bash", {}), ("file_io", {}), ("bash", {})])
         assert_tool_called(ctx, "bash", times=2)
         assert_tool_called(ctx, "file_io", times=1)
 

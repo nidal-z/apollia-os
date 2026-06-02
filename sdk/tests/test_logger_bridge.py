@@ -16,7 +16,6 @@ import logging
 from typing import Any
 
 import pytest
-
 from apollia._internal.logger_bridge import (
     CtxLogHandler,
     configure_agent_logger,

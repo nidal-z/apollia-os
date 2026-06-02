@@ -51,7 +51,7 @@ class MockA2A:
         skill_id: str,
         input: dict[str, Any] | None = None,
         *,
-        timeout_secs: int = 120,  # noqa: ARG002  # NOSONAR S1172: Protocol kwarg
+        timeout_secs: int = 120,  # NOSONAR S1172: Protocol kwarg
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Record the call and return the configured response.
@@ -94,9 +94,7 @@ class MockDatasources:
 
     def get(self, name: str) -> Any:
         if name not in self.values:
-            raise FileNotFoundError(
-                f"Datasource '{name}' not configured in mock"
-            )
+            raise FileNotFoundError(f"Datasource '{name}' not configured in mock")
         return self.values[name]
 
     def list_names(self) -> list[str]:
@@ -122,9 +120,7 @@ class MockTemplates:
     def render(self, name: str, **context: Any) -> str:
         self.render_calls.append((name, dict(context)))
         if name not in self.templates:
-            raise FileNotFoundError(
-                f"Template '{name}' not configured in mock"
-            )
+            raise FileNotFoundError(f"Template '{name}' not configured in mock")
         result = self.templates[name]
         for key, value in context.items():
             result = result.replace(f"{{{{ {key} }}}}", str(value))
@@ -174,9 +170,7 @@ class MockEvents:
     def emit_retry(self, *, step: int, reason: str, count: int) -> None:
         self.retries.append((step, reason, count))
 
-    def emit_action_parse_error(
-        self, *, step: int, raw: str, fatal: bool = False
-    ) -> None:
+    def emit_action_parse_error(self, *, step: int, raw: str, fatal: bool = False) -> None:
         self.action_parse_errors.append((step, raw, fatal))
 
 
@@ -249,10 +243,7 @@ class MockWorkspace:
 
     @property
     def sections(self) -> list[dict[str, str]]:
-        return [
-            {"title": k, "content": v}
-            for k, v in self.section_map.items()
-        ]
+        return [{"title": k, "content": v} for k, v in self.section_map.items()]
 
 
 # ctx.stt

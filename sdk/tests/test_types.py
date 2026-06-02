@@ -88,10 +88,8 @@ def test_version():
 
 def test_new_public_api_exports():
     """New decorator-first API is exported from apollia root."""
-    from apollia import agent, skill, on_message, orchestrated, DomainError, NeedHumanInput
+    from apollia import DomainError, NeedHumanInput, agent, on_message, orchestrated, skill
 
     assert all(callable(x) for x in (agent, skill, on_message, orchestrated))
     assert DomainError is not None
     assert NeedHumanInput is not None
-
-

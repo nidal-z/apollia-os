@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! `apollia-triggers`: core types and trigger engine for Apollia OS.
 //!
 //! This crate provides:

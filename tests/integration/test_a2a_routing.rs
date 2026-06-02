@@ -17,7 +17,7 @@ use apollia_runtime::{
     eventbus::EventBus,
     registry::{AgentRegistry, AgentRegistryHandle},
     router::TaskRouterHandle,
-    A2AError, A2AInvoker, EventBusSender,
+    A2AError, A2AInvokeRequest, A2AInvoker, EventBusSender,
 };
 use serde_json::json;
 
@@ -65,6 +65,8 @@ fn make_skill(id: &str) -> AgentSkill {
         description: format!("Compétence de test : {id}"),
         input_modes: vec!["text".to_string()],
         output_modes: vec!["text".to_string()],
+        examples: vec![],
+        input_schema: None,
     }
 }
 
@@ -98,6 +100,9 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         setup_notes: None,
         agent_class: None,
         user_memory_write: false,
+        datasources: vec![],
+        templates: vec![],
+        secrets: vec![],
     }
 }
 
@@ -161,14 +166,14 @@ async fn test_full_a2a_routing_success() {
 
     // WHEN invoke("read-excel", ...) est appelé depuis "director"
     let result = invoker
-        .invoke(
-            "read-excel",
-            json!({"text": "test"}),
-            "director",
-            0,
-            None,
-            None,
-        )
+        .invoke(A2AInvokeRequest {
+            skill_id: "read-excel",
+            input: json!({"text": "test"}),
+            caller: "director",
+            a2a_depth: 0,
+            timeout: None,
+            chain_deadline: None,
+        })
         .await;
 
     // THEN le résultat est Ok avec agent_name, skill_id et duration correctement renseignés
@@ -205,7 +210,14 @@ async fn test_skill_not_found_lists_available() {
 
     // WHEN invoke("nonexistent-skill", ...) est appelé
     let result = invoker
-        .invoke("nonexistent-skill", json!({}), "director", 0, None, None)
+        .invoke(A2AInvokeRequest {
+            skill_id: "nonexistent-skill",
+            input: json!({}),
+            caller: "director",
+            a2a_depth: 0,
+            timeout: None,
+            chain_deadline: None,
+        })
         .await;
 
     // THEN Err(SkillNotFound) avec les skills disponibles dans `available`
@@ -241,7 +253,14 @@ async fn test_degraded_agent_rejected() {
 
     // WHEN invoke("read-excel", ...) est appelé
     let result = invoker
-        .invoke("read-excel", json!({}), "director", 0, None, None)
+        .invoke(A2AInvokeRequest {
+            skill_id: "read-excel",
+            input: json!({}),
+            caller: "director",
+            a2a_depth: 0,
+            timeout: None,
+            chain_deadline: None,
+        })
         .await;
 
     // THEN Err(AgentNotActive) avec le nom et l'état courant de l'agent
@@ -272,14 +291,14 @@ async fn test_timeout_respected() {
 
     // WHEN invoke(..., timeout: Some(500ms)) est appelé
     let result = invoker
-        .invoke(
-            "slow-skill",
-            json!({}),
-            "director",
-            0,
-            Some(Duration::from_millis(500)),
-            None,
-        )
+        .invoke(A2AInvokeRequest {
+            skill_id: "slow-skill",
+            input: json!({}),
+            caller: "director",
+            a2a_depth: 0,
+            timeout: Some(Duration::from_millis(500)),
+            chain_deadline: None,
+        })
         .await;
 
     // THEN Err(Timeout) reçu avec les identifiants corrects
@@ -350,7 +369,14 @@ async fn test_events_emitted() {
 
     // WHEN invoke("read-excel", ...) est appelé et complété
     invoker
-        .invoke("read-excel", json!({}), "director", 0, None, None)
+        .invoke(A2AInvokeRequest {
+            skill_id: "read-excel",
+            input: json!({}),
+            caller: "director",
+            a2a_depth: 0,
+            timeout: None,
+            chain_deadline: None,
+        })
         .await
         .expect("l'invocation doit réussir");
 

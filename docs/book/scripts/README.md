@@ -3,13 +3,13 @@
 ## `gen-sitemap.sh`
 
 Génère `sitemap.xml` + `robots.txt` dans le build mdBook. À appeler après
-`mdbook build book` parce que mdBook n'a pas de sitemap natif.
+`mdbook build docs/book` parce que mdBook n'a pas de sitemap natif.
 
 ### Usage local
 
 ```bash
-mdbook build book
-bash book/scripts/gen-sitemap.sh book.apollia.fr target/book/html
+mdbook build docs/book
+bash docs/book/scripts/gen-sitemap.sh book.apollia.fr docs/target/book
 ```
 
 ### Usage CI/CD
@@ -22,8 +22,8 @@ sitemap.xml + robots.txt` après le build mdBook.
 Dans **Cloudflare Pages → Settings → Builds & deployments → Build
 configurations**, configurer :
 
-- **Build command** : `mdbook build book && bash book/scripts/gen-sitemap.sh book.apollia.fr target/book/html`
-- **Build output directory** : `target/book/html`
+- **Build command** : `mdbook build docs/book && bash docs/book/scripts/gen-sitemap.sh book.apollia.fr docs/target/book`
+- **Build output directory** : `docs/target/book`
 - **Root directory** : (vide, racine du repo)
 
 ### Vérification post-déploiement

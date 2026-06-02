@@ -269,18 +269,14 @@ def _schema_for_dict(args: tuple[Any, ...]) -> dict[str, Any]:
         return {"type": "object"}
     key_ann, value_ann = args
     if key_ann is not str and key_ann is not Any:
-        raise SchemaError(
-            f"Unsupported dict key type {key_ann!r}; only str keys are supported."
-        )
+        raise SchemaError(f"Unsupported dict key type {key_ann!r}; only str keys are supported.")
     return {
         "type": "object",
         "additionalProperties": annotation_to_schema(value_ann),
     }
 
 
-def _schema_for_generic_origin(
-    origin: Any, args: tuple[Any, ...]
-) -> dict[str, Any] | None:
+def _schema_for_generic_origin(origin: Any, args: tuple[Any, ...]) -> dict[str, Any] | None:
     """Schema for parameterised generics: Literal, Union, list/tuple/dict."""
     if origin is Literal:
         return _schema_for_literal(args)
@@ -523,8 +519,7 @@ def _validate_anyof(value: Any, schema: dict[str, Any], path: str) -> None:
 def _validate_type_decl(value: Any, type_decl: Any, path: str) -> None:
     actual_type = _python_type_name(value)
     raise PayloadError(
-        f"{path or '<root>'}: expected type {_format_type_decl(type_decl)}, "
-        f"got {actual_type}",
+        f"{path or '<root>'}: expected type {_format_type_decl(type_decl)}, " f"got {actual_type}",
         field=path or None,
         details={
             "field": path or None,
@@ -543,9 +538,7 @@ def _validate_items(value: list[Any], items_schema: dict[str, Any], path: str) -
         _validate_value(item, items_schema, _index_path(path, idx))
 
 
-def _validate_prefix_items(
-    value: list[Any], prefix_items: list[Any], path: str
-) -> None:
+def _validate_prefix_items(value: list[Any], prefix_items: list[Any], path: str) -> None:
     for idx, sub_schema in enumerate(prefix_items):
         if idx >= len(value):
             break
@@ -564,11 +557,7 @@ def _validate_array_value(value: list[Any], schema: dict[str, Any], path: str) -
 def _is_array_type(type_decl: Any, value: Any) -> bool:
     if type_decl == "array":
         return True
-    return (
-        isinstance(type_decl, list)
-        and "array" in type_decl
-        and isinstance(value, list)
-    )
+    return isinstance(type_decl, list) and "array" in type_decl and isinstance(value, list)
 
 
 def _is_object_type(type_decl: Any) -> bool:
@@ -617,9 +606,7 @@ def _raise_missing_field(req: str, required: Any, field_path: str) -> None:
     )
 
 
-def _raise_unexpected_field(
-    key: str, expected: list[str], field_path: str
-) -> None:
+def _raise_unexpected_field(key: str, expected: list[str], field_path: str) -> None:
     suggestion = _suggest(key, expected)
     msg = f"Unexpected field '{field_path}'. Expected fields: {expected}."
     details: dict[str, Any] = {"unexpected": key, "expected": expected}
@@ -629,18 +616,14 @@ def _raise_unexpected_field(
     raise PayloadError(msg, field=field_path, details=details)
 
 
-def _check_required_fields(
-    value: dict[str, Any], required: Any, path: str
-) -> None:
+def _check_required_fields(value: dict[str, Any], required: Any, path: str) -> None:
     for req in required:
         if req not in value:
             req_path = f"{path}.{req}" if path else req
             _raise_missing_field(req, required, req_path)
 
 
-def _validate_object_value(
-    value: dict[str, Any], schema: dict[str, Any], path: str
-) -> None:
+def _validate_object_value(value: dict[str, Any], schema: dict[str, Any], path: str) -> None:
     properties = schema.get("properties", {})
     required = schema.get("required", [])
     additional = schema.get("additionalProperties", True)

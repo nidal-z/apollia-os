@@ -16,7 +16,7 @@ use apollia_llm::types::{
     CompletionRequest, CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage,
 };
 use apollia_llm::{CompletionModel, LlmRouter};
-use apollia_memory::user_memory::{UserMemoryCategory, UserMemoryRepository, UserMemorySource};
+use apollia_memory::user_memory::{UserMemoryRepository, WrittenBy};
 use apollia_runtime::chat::{
     extract_user_memory, ChatMessage, ChatRole, ExtractionResult, UserMemoryExtractor,
 };
@@ -83,16 +83,13 @@ fn mock_router(response: &str) -> LlmRouter {
 }
 
 /// Create a temporary [`UserMemoryRepository`] in the given directory.
-fn create_user_memory(
-    dir: &Path,
-    entries: &[(UserMemoryCategory, &str, &str, UserMemorySource)],
-) -> UserMemoryRepository {
+fn create_user_memory(dir: &Path, entries: &[(&str, &str, WrittenBy)]) -> UserMemoryRepository {
     let db_path = dir.join("user_memory.db");
     let repo =
         UserMemoryRepository::new(&db_path).expect("UserMemoryRepository::new should succeed");
-    for (cat, key, value, source) in entries {
-        repo.store(*cat, key, value, *source)
-            .expect("store entry should succeed");
+    for (key, value, written_by) in entries {
+        repo.set(key, value, written_by.clone())
+            .expect("set entry should succeed");
     }
     repo
 }
@@ -191,8 +188,8 @@ async fn test_onboarding_agent_e2e() {
         .await
         .expect("extraction should succeed");
 
-    // Persist extracted entries with onboarding source (simulating agent behavior)
-    persist_extraction(&repo, &extraction, UserMemorySource::Onboarding);
+    // Persist extracted entries with onboarding provenance (simulating agent behavior)
+    persist_extraction(&repo, &extraction, WrittenBy::Onboarding);
 
     // Mark topics as covered (simulating agent's post-conversation bookkeeping)
     repo.mark_topic_covered("identity").expect("mark identity");
@@ -202,22 +199,12 @@ async fn test_onboarding_agent_e2e() {
     repo.set_last_onboarding_session("2026-06-24T10:05:00Z")
         .expect("set session timestamp");
 
-    // THEN - at least 3 entries exist with source onboarding
-    let all_prefs = repo
-        .recall(UserMemoryCategory::Preferences, 50)
-        .expect("recall preferences");
-    let all_habits = repo
-        .recall(UserMemoryCategory::Habits, 50)
-        .expect("recall habits");
-    let all_context = repo
-        .recall(UserMemoryCategory::Context, 50)
-        .expect("recall context");
+    // THEN - at least 3 entries exist with onboarding provenance
+    let all_entries = repo.list_all().expect("list_all");
 
-    let onboarding_entries: Vec<_> = all_prefs
+    let onboarding_entries: Vec<_> = all_entries
         .iter()
-        .chain(all_habits.iter())
-        .chain(all_context.iter())
-        .filter(|e| e.source == UserMemorySource::Onboarding)
+        .filter(|e| e.written_by == WrittenBy::Onboarding)
         .collect();
 
     assert!(
@@ -226,14 +213,15 @@ async fn test_onboarding_agent_e2e() {
         onboarding_entries.len()
     );
 
-    // Verify categories are populated
+    // Verify the extracted information spans canonical and free-form keys
+    let keys: Vec<&str> = all_entries.iter().map(|e| e.key.as_str()).collect();
     assert!(
-        !all_prefs.is_empty(),
-        "preferences should contain at least 1 entry"
+        keys.contains(&"name"),
+        "canonical context key 'name' should be stored"
     );
     assert!(
-        !all_context.is_empty(),
-        "context should contain at least 1 entry"
+        keys.contains(&"language"),
+        "preference key 'language' should be stored"
     );
 
     // Verify onboarding state is recorded
@@ -255,8 +243,8 @@ async fn test_onboarding_agent_e2e() {
         .recall_all_for_injection(50)
         .expect("recall_all_for_injection");
     assert!(
-        injection.contains("Category: preferences"),
-        "injection should contain preferences"
+        injection.contains("Section:"),
+        "injection should be grouped into sections"
     );
     assert!(
         injection.contains("francais"),
@@ -311,12 +299,7 @@ async fn test_subsequent_launch_no_onboarding() {
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = create_user_memory(
         dir.path(),
-        &[(
-            UserMemoryCategory::Preferences,
-            "language",
-            "fr",
-            UserMemorySource::Onboarding,
-        )],
+        &[("preferences.language", "fr", WrittenBy::Onboarding)],
     );
     let event_bus = make_event_bus();
     let mut rx = event_bus.subscribe();
@@ -357,24 +340,9 @@ async fn test_onboarding_retrigger_topic() {
     let repo = create_user_memory(
         dir.path(),
         &[
-            (
-                UserMemoryCategory::Context,
-                "name",
-                "Nidal",
-                UserMemorySource::Onboarding,
-            ),
-            (
-                UserMemoryCategory::Context,
-                "role",
-                "CTO",
-                UserMemorySource::Onboarding,
-            ),
-            (
-                UserMemoryCategory::Preferences,
-                "language",
-                "francais",
-                UserMemorySource::Onboarding,
-            ),
+            ("name", "Nidal", WrittenBy::Onboarding),
+            ("role", "CTO", WrittenBy::Onboarding),
+            ("preferences.language", "francais", WrittenBy::Onboarding),
         ],
     );
     repo.mark_topic_covered("identity").expect("mark identity");
@@ -466,34 +434,24 @@ async fn test_onboarding_retrigger_topic() {
         .expect("extraction should succeed");
 
     // Persist new entries
-    persist_extraction(&repo, &extraction, UserMemorySource::Onboarding);
+    persist_extraction(&repo, &extraction, WrittenBy::Onboarding);
 
-    // THEN - new preference entries are persisted
-    let prefs = repo
-        .recall(UserMemoryCategory::Preferences, 50)
-        .expect("recall preferences");
-    assert!(
-        prefs.len() >= 2,
-        "should have at least 2 preference entries (language + new ones), got {}",
-        prefs.len()
-    );
-
-    let keys: Vec<&str> = prefs.iter().map(|e| e.key.as_str()).collect();
+    // THEN - new preference entries are persisted alongside the pre-existing ones
+    let all = repo.list_all().expect("list_all");
+    let keys: Vec<&str> = all.iter().map(|e| e.key.as_str()).collect();
     assert!(
         keys.contains(&"output_format"),
         "output_format should be stored"
     );
     assert!(keys.contains(&"verbosity"), "verbosity should be stored");
-    assert!(keys.contains(&"language"), "language should be preserved");
 
-    // AND - existing context entries are untouched
-    // (context also contains onboarding_topic_* markers from mark_topic_covered)
-    let ctx = repo
-        .recall(UserMemoryCategory::Context, 50)
-        .expect("recall context");
-    let ctx_keys: Vec<&str> = ctx.iter().map(|e| e.key.as_str()).collect();
-    assert!(ctx_keys.contains(&"name"), "name should be preserved");
-    assert!(ctx_keys.contains(&"role"), "role should be preserved");
+    // AND - existing entries are untouched (name, role, the original language)
+    assert!(keys.contains(&"name"), "name should be preserved");
+    assert!(keys.contains(&"role"), "role should be preserved");
+    assert!(
+        keys.contains(&"preferences.language"),
+        "original language preference should be preserved"
+    );
 
     // AND - covered topics are preserved
     let covered = repo.get_covered_topics().expect("get_covered_topics");
@@ -505,7 +463,7 @@ async fn test_onboarding_retrigger_topic() {
 
 /// GIVEN a chat session of 10 messages mentioning user tools and preferences
 /// WHEN the session closes and the UserMemoryExtractor runs
-/// THEN entries are created with source=chat_inference and confidence=0.5
+/// THEN entries are created with the chat-extractor provenance
 ///      AND running the same extraction again produces no duplicates
 #[tokio::test]
 async fn test_passive_enrichment_post_session() {
@@ -538,30 +496,31 @@ async fn test_passive_enrichment_post_session() {
     {
         let guard = repo_arc.lock().expect("lock should not be poisoned");
 
-        let prefs = guard
-            .recall(UserMemoryCategory::Preferences, 10)
-            .expect("recall preferences");
-        assert_eq!(prefs.len(), 1);
-        assert_eq!(prefs[0].key, "ide");
-        assert_eq!(prefs[0].value, "Neovim");
-        assert_eq!(prefs[0].source, UserMemorySource::ChatInference);
-        assert!(
-            (prefs[0].confidence - 0.5).abs() < f64::EPSILON,
-            "confidence should be 0.5"
+        let ide = guard
+            .get("ide")
+            .expect("get ide")
+            .expect("ide entry should be stored");
+        assert_eq!(ide.value, "Neovim");
+        assert_eq!(
+            ide.written_by,
+            WrittenBy::Agent("chat-extractor".to_owned()),
+            "chat-inferred entries carry the chat-extractor provenance"
         );
 
-        let habits = guard
-            .recall(UserMemoryCategory::Habits, 10)
-            .expect("recall habits");
-        assert_eq!(habits.len(), 1);
-        assert_eq!(habits[0].key, "vcs");
-        assert_eq!(habits[0].source, UserMemorySource::ChatInference);
+        let vcs = guard
+            .get("vcs")
+            .expect("get vcs")
+            .expect("vcs entry should be stored");
+        assert_eq!(
+            vcs.written_by,
+            WrittenBy::Agent("chat-extractor".to_owned())
+        );
 
-        let ctx = guard
-            .recall(UserMemoryCategory::Context, 10)
-            .expect("recall context");
-        assert_eq!(ctx.len(), 1);
-        assert_eq!(ctx[0].key, "stack");
+        let stack = guard
+            .get("stack")
+            .expect("get stack")
+            .expect("stack entry should be stored");
+        assert_eq!(stack.value, "Rust + Python");
     }
 
     // WHEN - second extraction with same data (simulate duplicate session)
@@ -578,49 +537,33 @@ async fn test_passive_enrichment_post_session() {
     {
         let guard = repo_arc.lock().expect("lock");
 
-        // Total entries unchanged
-        let all_prefs = guard
-            .recall(UserMemoryCategory::Preferences, 50)
-            .expect("recall");
-        let all_habits = guard
-            .recall(UserMemoryCategory::Habits, 50)
-            .expect("recall");
-        let all_ctx = guard
-            .recall(UserMemoryCategory::Context, 50)
-            .expect("recall");
-        let total = all_prefs.len() + all_habits.len() + all_ctx.len();
+        // Total entries unchanged after dedup
+        let total = guard.list_all().expect("list_all").len();
         assert_eq!(total, 3, "total entries should remain 3 after dedup");
     }
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
-/// Persist an [`ExtractionResult`] into the [`UserMemoryRepository`] with the given source.
+/// Persist an [`ExtractionResult`] into the [`UserMemoryRepository`] with the given provenance.
+///
+/// Storage is flat: the preferences/habits/context buckets are an extraction
+/// hint only, so every entry is written under its bare key.
 fn persist_extraction(
     repo: &UserMemoryRepository,
     extraction: &ExtractionResult,
-    source: UserMemorySource,
+    written_by: WrittenBy,
 ) {
     for entry in &extraction.preferences {
-        repo.store(
-            UserMemoryCategory::Preferences,
-            &entry.key,
-            &entry.value,
-            source,
-        )
-        .expect("store preference");
+        repo.set(&entry.key, &entry.value, written_by.clone())
+            .expect("set preference");
     }
     for entry in &extraction.habits {
-        repo.store(UserMemoryCategory::Habits, &entry.key, &entry.value, source)
-            .expect("store habit");
+        repo.set(&entry.key, &entry.value, written_by.clone())
+            .expect("set habit");
     }
     for entry in &extraction.context {
-        repo.store(
-            UserMemoryCategory::Context,
-            &entry.key,
-            &entry.value,
-            source,
-        )
-        .expect("store context");
+        repo.set(&entry.key, &entry.value, written_by.clone())
+            .expect("set context");
     }
 }

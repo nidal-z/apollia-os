@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal, NamedTuple, Optional, TypedDict, Union
 
 import pytest
-
 from apollia._internal.inference import (
     annotation_to_schema,
     return_to_output_schema,
@@ -18,7 +17,7 @@ from apollia.errors import PayloadError, SchemaError
 
 # Module-level helpers (need to be resolvable by ``get_type_hints`` under
 # ``from __future__ import annotations``).
-class Ctx:  # noqa: N801 - name is the exclusion key
+class Ctx:  # - name is the exclusion key
     """Stand-in for the runtime ``Ctx`` protocol - recognised by name."""
 
 
@@ -425,9 +424,7 @@ def test_annotated_string_description_propagated() -> None:
 
 
 def test_annotated_list_description_propagated() -> None:
-    schema = annotation_to_schema(
-        Annotated[list[int], "List of integer indices to fetch"]
-    )
+    schema = annotation_to_schema(Annotated[list[int], "List of integer indices to fetch"])
     assert schema["type"] == "array"
     assert schema["items"] == {"type": "integer"}
     assert schema["description"] == "List of integer indices to fetch"
@@ -435,9 +432,7 @@ def test_annotated_list_description_propagated() -> None:
 
 def test_annotated_with_optional_type() -> None:
     """Annotated wrapping Optional/Union surfaces both ``nullable`` and ``description``."""
-    schema = annotation_to_schema(
-        Annotated[str | None, "Optional chart title shown at the top"]
-    )
+    schema = annotation_to_schema(Annotated[str | None, "Optional chart title shown at the top"])
     # Compact nullable form preserved + description added.
     assert schema["type"] == "string"
     assert schema["nullable"] is True
@@ -452,9 +447,7 @@ def test_annotated_no_string_metadata_is_passthrough() -> None:
 
 def test_annotated_chained_metadata() -> None:
     """Multiple string metadata entries are space-joined into a single description."""
-    schema = annotation_to_schema(
-        Annotated[int, "Page index", "0-based, must be < total_pages"]
-    )
+    schema = annotation_to_schema(Annotated[int, "Page index", "0-based, must be < total_pages"])
     assert schema["type"] == "integer"
     assert schema["description"] == "Page index 0-based, must be < total_pages"
 

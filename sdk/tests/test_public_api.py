@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 
-
-
 def test_top_level_decorators_importable() -> None:
     import apollia
 
@@ -67,9 +65,7 @@ def test_legacy_top_level_imports_removed() -> None:
 
     # The old API was: from apollia import WorkerAgent, BaseReActAgent, ...
     assert not hasattr(apollia, "WorkerAgent") or "WorkerAgent" not in apollia.__all__
-    assert not hasattr(apollia, "BaseReActAgent") or (
-        "BaseReActAgent" not in apollia.__all__
-    )
+    assert not hasattr(apollia, "BaseReActAgent") or ("BaseReActAgent" not in apollia.__all__)
     # AIPResult is now internal.
     assert "AIPResult" not in apollia.__all__
 

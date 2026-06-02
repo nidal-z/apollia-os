@@ -172,7 +172,7 @@ async def dispatch_skill(
         result = handler(**kwargs)
         result = await _maybe_await(result)
         return from_handler_return(result)
-    except BaseException as exc:  # noqa: BLE001
+    except BaseException as exc:
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
         return from_exception(exc, logger=logger)
@@ -192,9 +192,9 @@ async def dispatch_message(
     """
     logger = _logger_from_ctx(ctx)
     try:
-        handler_name = getattr(
-            type(agent_instance), ON_MESSAGE_HANDLER_ATTR, None
-        ) or getattr(agent_instance, ON_MESSAGE_HANDLER_ATTR, None)
+        handler_name = getattr(type(agent_instance), ON_MESSAGE_HANDLER_ATTR, None) or getattr(
+            agent_instance, ON_MESSAGE_HANDLER_ATTR, None
+        )
         if handler_name is None:
             return failed("NO_HANDLER", "agent has no @on_message handler")
         handler = getattr(agent_instance, handler_name)
@@ -213,7 +213,7 @@ async def dispatch_message(
             result = handler(**kwargs)
         result = await _maybe_await(result)
         return from_handler_return(result)
-    except BaseException as exc:  # noqa: BLE001
+    except BaseException as exc:
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
         return from_exception(exc, logger=logger)
@@ -241,9 +241,9 @@ async def dispatch_task(
             payload = extract_task_payload(task)
             return await dispatch_skill(agent_instance, skill_id, payload, ctx)
 
-        has_on_message = getattr(
-            type(agent_instance), ON_MESSAGE_HANDLER_ATTR, None
-        ) or getattr(agent_instance, ON_MESSAGE_HANDLER_ATTR, None)
+        has_on_message = getattr(type(agent_instance), ON_MESSAGE_HANDLER_ATTR, None) or getattr(
+            agent_instance, ON_MESSAGE_HANDLER_ATTR, None
+        )
         if has_on_message:
             message = extract_task_message(task)
             history = task.get("history") if isinstance(task.get("history"), list) else []
@@ -253,7 +253,7 @@ async def dispatch_task(
             "NO_HANDLER",
             "agent has neither @skill nor @on_message handler for this task",
         )
-    except BaseException as exc:  # noqa: BLE001
+    except BaseException as exc:
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
         return from_exception(exc, logger=logger)

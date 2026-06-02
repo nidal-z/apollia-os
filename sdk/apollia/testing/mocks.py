@@ -88,8 +88,7 @@ class MockToolProxy:
         called_names = [n for n, _ in self.calls]
         if name not in called_names:
             raise AssertionError(
-                f"Tool '{name}' was never called. "
-                f"Calls recorded: {called_names}"
+                f"Tool '{name}' was never called. " f"Calls recorded: {called_names}"
             )
 
     def assert_called_with(self, name: str, args: dict[str, object]) -> None:
@@ -101,8 +100,7 @@ class MockToolProxy:
         if (name, args) not in self.calls:
             matching = [(n, a) for n, a in self.calls if n == name]
             raise AssertionError(
-                f"Tool '{name}' was not called with {args}. "
-                f"Matching calls: {matching}"
+                f"Tool '{name}' was not called with {args}. " f"Matching calls: {matching}"
             )
 
 
@@ -236,9 +234,7 @@ class MockLlmProxy:
             AssertionError: If the actual count differs.
         """
         if self.call_count != expected:
-            raise AssertionError(
-                f"Expected {expected} LLM calls, got {self.call_count}"
-            )
+            raise AssertionError(f"Expected {expected} LLM calls, got {self.call_count}")
 
 
 class MockMemory:
@@ -292,26 +288,30 @@ class MockMemory:
 
         if confidence is not None and key in self.confidences:
             if self.confidences[key] > effective_confidence:
-                self.operations.append({
-                    "op": "remember",
-                    "key": key,
-                    "value": value,
-                    "source": source,
-                    "confidence": effective_confidence,
-                    "skipped": True,
-                })
+                self.operations.append(
+                    {
+                        "op": "remember",
+                        "key": key,
+                        "value": value,
+                        "source": source,
+                        "confidence": effective_confidence,
+                        "skipped": True,
+                    }
+                )
                 return
 
         self.store[key] = value
         self.confidences[key] = effective_confidence
-        self.operations.append({
-            "op": "remember",
-            "key": key,
-            "value": value,
-            "source": source,
-            "confidence": effective_confidence,
-            "skipped": False,
-        })
+        self.operations.append(
+            {
+                "op": "remember",
+                "key": key,
+                "value": value,
+                "source": source,
+                "confidence": effective_confidence,
+                "skipped": False,
+            }
+        )
 
     async def recall(self, key: str) -> str | None:  # NOSONAR S7503
         """Retrieve a value by key from semantic memory."""

@@ -14,7 +14,8 @@ use apollia_llm::types::{
     CompletionRequest, CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage,
 };
 use apollia_llm::{CompletionModel, LlmRouter, ToolInvoker};
-use apollia_memory::user_memory::{UserMemoryCategory, UserMemoryRepository, UserMemorySource};
+use apollia_memory::user_memory::{UserMemoryRepository, WrittenBy};
+use apollia_runtime::chat::builtin_agent::BuiltInChatAgentDeps;
 use apollia_runtime::chat::{
     extract_user_memory, summarize, BuiltInChatAgent, ChatMessage, ChatRole, ChatSessionRepository,
 };
@@ -106,16 +107,17 @@ fn mock_router(response: &str) -> LlmRouter {
 }
 
 /// Create a temporary [`UserMemoryRepository`] and populate it.
-fn create_user_memory(
-    dir: &Path,
-    entries: &[(UserMemoryCategory, &str, &str, UserMemorySource)],
-) -> UserMemoryRepository {
+///
+/// Each entry is a flat canonical profile key plus its provenance, matching the
+/// redesigned [`UserMemoryRepository`] API (flat `__user__` namespace, no
+/// per-category tables).
+fn create_user_memory(dir: &Path, entries: &[(&str, &str, WrittenBy)]) -> UserMemoryRepository {
     let db_path = dir.join("user_memory.db");
     let repo =
         UserMemoryRepository::new(&db_path).expect("UserMemoryRepository::new should succeed");
-    for (cat, key, value, source) in entries {
-        repo.store(*cat, key, value, *source)
-            .expect("store entry should succeed");
+    for (key, value, written_by) in entries {
+        repo.set(key, value, written_by.clone())
+            .expect("set entry should succeed");
     }
     repo
 }
@@ -181,66 +183,50 @@ fn make_event_bus() -> EventBusSender {
 
 // ─── Scenario 1 ──────────────────────────────────────────────────────────────
 
-/// GIVEN a UserMemoryRepository with 3 entries across categories
+/// GIVEN a UserMemoryRepository with 3 entries across profile sections
 /// WHEN BuiltInChatAgent builds the system prompt
-/// THEN the prompt contains the "User Context" block with all 3 entries
+/// THEN the prompt contains the "User Persona" block with the entries
 #[tokio::test]
 async fn test_user_memory_store_recall_injection() {
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = create_user_memory(
         dir.path(),
         &[
-            (
-                UserMemoryCategory::Preferences,
-                "language",
-                "francais",
-                UserMemorySource::UserExplicit,
-            ),
-            (
-                UserMemoryCategory::Habits,
-                "working_hours",
-                "9h-18h",
-                UserMemorySource::AgentObservation,
-            ),
-            (
-                UserMemoryCategory::Context,
-                "current_project",
-                "apollia-os",
-                UserMemorySource::Onboarding,
-            ),
+            ("preferences.language", "francais", WrittenBy::User),
+            ("role", "senior developer", WrittenBy::Onboarding),
+            ("domain.sector", "apollia-os", WrittenBy::Onboarding),
         ],
     );
 
-    // Verify recall works per category
-    let prefs = repo
-        .recall(UserMemoryCategory::Preferences, 10)
-        .expect("recall preferences");
-    assert_eq!(prefs.len(), 1);
-    assert_eq!(prefs[0].key, "language");
-    assert_eq!(prefs[0].value, "francais");
+    // Verify recall works per key
+    let language = repo
+        .get("preferences.language")
+        .expect("get preferences.language")
+        .expect("preferences.language present");
+    assert_eq!(language.key, "preferences.language");
+    assert_eq!(language.value, "francais");
 
-    let habits = repo
-        .recall(UserMemoryCategory::Habits, 10)
-        .expect("recall habits");
-    assert_eq!(habits.len(), 1);
-    assert_eq!(habits[0].key, "working_hours");
+    let role = repo.get("role").expect("get role").expect("role present");
+    assert_eq!(role.key, "role");
+    assert_eq!(role.value, "senior developer");
 
-    let ctx = repo
-        .recall(UserMemoryCategory::Context, 10)
-        .expect("recall context");
-    assert_eq!(ctx.len(), 1);
-    assert_eq!(ctx[0].key, "current_project");
+    let sector = repo
+        .get("domain.sector")
+        .expect("get domain.sector")
+        .expect("domain.sector present");
+    assert_eq!(sector.key, "domain.sector");
+    assert_eq!(sector.value, "apollia-os");
 
     // Verify the injection text is formatted correctly
     let injection_text = repo
         .recall_all_for_injection(50)
         .expect("recall_all_for_injection");
-    assert!(injection_text.contains("Category: preferences"));
-    assert!(injection_text.contains("- language: francais"));
-    assert!(injection_text.contains("Category: habits"));
-    assert!(injection_text.contains("- working_hours: 9h-18h"));
-    assert!(injection_text.contains("Category: context"));
-    assert!(injection_text.contains("- current_project: apollia-os"));
+    assert!(injection_text.contains("Section: identity"));
+    assert!(injection_text.contains("- role: senior developer"));
+    assert!(injection_text.contains("Section: work"));
+    assert!(injection_text.contains("- domain.sector: apollia-os"));
+    assert!(injection_text.contains("Section: preferences"));
+    assert!(injection_text.contains("- preferences.language: francais"));
 
     // Verify injection into BuiltInChatAgent system prompt
     let repo_arc = Arc::new(Mutex::new(repo));
@@ -249,17 +235,19 @@ async fn test_user_memory_store_recall_injection() {
     let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopToolInvoker);
     let event_bus = make_event_bus();
 
-    let agent = BuiltInChatAgent::new(
-        router,
+    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+        llm_router: router,
         tool_registry,
         tool_invoker,
         event_bus,
-        Some(repo_arc),
-        None, // no A2A invoker in tests
-    );
+        user_memory: Some(repo_arc),
+        a2a_invoker: None,
+    });
 
     let prompt = agent.build_system_prompt("Base system prompt.");
-    assert!(prompt.starts_with("Base system prompt."));
+    // Production prepends a temporal context block, so the base prompt is
+    // present but no longer the leading line.
+    assert!(prompt.contains("Base system prompt."));
     // Production now uses recall_persona_brief with "## User Persona" header
     assert!(prompt.contains("## User Persona"));
     assert!(prompt.contains("francais"));
@@ -294,41 +282,41 @@ async fn test_extraction_post_session() {
     assert_eq!(result.context.len(), 1);
     assert_eq!(result.context[0].key, "role");
 
-    // Simulate store_extraction: persist extracted entries into the repository
+    // Simulate store_extraction: persist extracted entries into the repository.
+    // Extracted preference keys map onto the flat `preferences.<key>` namespace;
+    // context keys map onto their canonical flat key.
     for entry in &result.preferences {
-        repo.store(
-            UserMemoryCategory::Preferences,
-            &entry.key,
+        repo.set(
+            &format!("preferences.{}", entry.key),
             &entry.value,
-            UserMemorySource::ChatInference,
+            WrittenBy::Agent("chat-extractor".to_owned()),
         )
-        .expect("store preference");
+        .expect("set preference");
     }
     for entry in &result.context {
-        repo.store(
-            UserMemoryCategory::Context,
+        repo.set(
             &entry.key,
             &entry.value,
-            UserMemorySource::ChatInference,
+            WrittenBy::Agent("chat-extractor".to_owned()),
         )
-        .expect("store context");
+        .expect("set context");
     }
 
     // Verify the extracted entries are persisted
-    let prefs = repo
-        .recall(UserMemoryCategory::Preferences, 10)
-        .expect("recall preferences");
-    assert_eq!(prefs.len(), 1);
-    assert_eq!(prefs[0].key, "language");
-    assert_eq!(prefs[0].value, "francais");
-    assert_eq!(prefs[0].source, UserMemorySource::ChatInference);
+    let language = repo
+        .get("preferences.language")
+        .expect("get preferences.language")
+        .expect("preferences.language present");
+    assert_eq!(language.key, "preferences.language");
+    assert_eq!(language.value, "francais");
+    assert_eq!(
+        language.written_by,
+        WrittenBy::Agent("chat-extractor".to_owned())
+    );
 
-    let ctx = repo
-        .recall(UserMemoryCategory::Context, 10)
-        .expect("recall context");
-    assert_eq!(ctx.len(), 1);
-    assert_eq!(ctx[0].key, "role");
-    assert_eq!(ctx[0].value, "senior developer at Acme Corp");
+    let role = repo.get("role").expect("get role").expect("role present");
+    assert_eq!(role.key, "role");
+    assert_eq!(role.value, "senior developer at Acme Corp");
 }
 
 // ─── Scenario 3 ──────────────────────────────────────────────────────────────
@@ -452,51 +440,21 @@ async fn test_cross_session_recall() {
 
 // ─── Scenario 5 ──────────────────────────────────────────────────────────────
 
-/// GIVEN a UserMemoryRepository with entries in 3 categories
+/// GIVEN a UserMemoryRepository with entries across 3 sections
 /// WHEN an agent retrieves user context via recall_all_for_injection
-/// THEN the result contains all 3 non-empty categories properly formatted
+/// THEN the result contains all sections properly formatted and ordered
 #[tokio::test]
 async fn test_agent_mode_user_context() {
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = create_user_memory(
         dir.path(),
         &[
-            (
-                UserMemoryCategory::Preferences,
-                "language",
-                "francais",
-                UserMemorySource::UserExplicit,
-            ),
-            (
-                UserMemoryCategory::Preferences,
-                "output_format",
-                "markdown",
-                UserMemorySource::UserExplicit,
-            ),
-            (
-                UserMemoryCategory::Habits,
-                "review_frequency",
-                "daily",
-                UserMemorySource::AgentObservation,
-            ),
-            (
-                UserMemoryCategory::Habits,
-                "working_hours",
-                "9h-18h",
-                UserMemorySource::ChatInference,
-            ),
-            (
-                UserMemoryCategory::Context,
-                "role",
-                "senior developer",
-                UserMemorySource::Onboarding,
-            ),
-            (
-                UserMemoryCategory::Context,
-                "team",
-                "platform",
-                UserMemorySource::Onboarding,
-            ),
+            ("preferences.language", "francais", WrittenBy::User),
+            ("preferences.llm", "markdown", WrittenBy::User),
+            ("role", "senior developer", WrittenBy::Onboarding),
+            ("goals", "daily", WrittenBy::Agent("observer".to_owned())),
+            ("domain.sector", "platform", WrittenBy::Onboarding),
+            ("domain.team_size", "9h-18h", WrittenBy::Agent("chat".to_owned())),
         ],
     );
 
@@ -504,43 +462,44 @@ async fn test_agent_mode_user_context() {
         .recall_all_for_injection(50)
         .expect("recall_all_for_injection");
 
-    // All 3 categories should be present
+    // All 3 sections should be present
     assert!(
-        context_block.contains("Category: preferences"),
-        "preferences category missing"
+        context_block.contains("Section: identity"),
+        "identity section missing"
     );
     assert!(
-        context_block.contains("Category: habits"),
-        "habits category missing"
+        context_block.contains("Section: work"),
+        "work section missing"
     );
     assert!(
-        context_block.contains("Category: context"),
-        "context category missing"
+        context_block.contains("Section: preferences"),
+        "preferences section missing"
     );
 
-    // Entries within each category
-    assert!(context_block.contains("- language: francais"));
-    assert!(context_block.contains("- output_format: markdown"));
-    assert!(context_block.contains("- review_frequency: daily"));
-    assert!(context_block.contains("- working_hours: 9h-18h"));
+    // Entries within each section
+    assert!(context_block.contains("- preferences.language: francais"));
+    assert!(context_block.contains("- preferences.llm: markdown"));
+    assert!(context_block.contains("- goals: daily"));
+    assert!(context_block.contains("- domain.team_size: 9h-18h"));
     assert!(context_block.contains("- role: senior developer"));
-    assert!(context_block.contains("- team: platform"));
+    assert!(context_block.contains("- domain.sector: platform"));
 
-    // Verify categories appear in order: preferences < habits < context
+    // Verify sections appear in schema order: identity < work < preferences
+    let identity_pos = context_block
+        .find("Section: identity")
+        .expect("identity found");
+    let work_pos = context_block.find("Section: work").expect("work found");
     let pref_pos = context_block
-        .find("Category: preferences")
+        .find("Section: preferences")
         .expect("preferences found");
-    let habit_pos = context_block
-        .find("Category: habits")
-        .expect("habits found");
-    let ctx_pos = context_block
-        .find("Category: context")
-        .expect("context found");
     assert!(
-        pref_pos < habit_pos,
-        "preferences should appear before habits"
+        identity_pos < work_pos,
+        "identity should appear before work"
     );
-    assert!(habit_pos < ctx_pos, "habits should appear before context");
+    assert!(
+        work_pos < pref_pos,
+        "work should appear before preferences"
+    );
 
     // Verify the block can be injected into a BuiltInChatAgent system prompt
     let repo_arc = Arc::new(Mutex::new(repo));
@@ -549,14 +508,14 @@ async fn test_agent_mode_user_context() {
     let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopToolInvoker);
     let event_bus = make_event_bus();
 
-    let agent = BuiltInChatAgent::new(
-        router,
+    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+        llm_router: router,
         tool_registry,
         tool_invoker,
         event_bus,
-        Some(repo_arc),
-        None, // no A2A invoker in tests
-    );
+        user_memory: Some(repo_arc),
+        a2a_invoker: None,
+    });
 
     let prompt = agent.build_system_prompt("You are a helpful assistant.");
     // Production now uses recall_persona_brief with "## User Persona" header

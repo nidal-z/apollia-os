@@ -35,9 +35,7 @@ def to_class_name(name: str) -> str:
     Returns:
         PascalCase name ending in ``Agent`` (e.g. ``'MyAgent'``).
     """
-    pascal = "".join(
-        part.capitalize() for part in name.replace("_", "-").split("-")
-    )
+    pascal = "".join(part.capitalize() for part in name.replace("_", "-").split("-"))
     if not pascal.lower().endswith("agent"):
         pascal += "Agent"
     return pascal
@@ -283,8 +281,7 @@ def scaffold_agent(
     """
     if agent_type not in VALID_AGENT_TYPES:
         msg = (
-            f"Invalid agent type '{agent_type}'. "
-            f"Must be one of: {', '.join(VALID_AGENT_TYPES)}"
+            f"Invalid agent type '{agent_type}'. " f"Must be one of: {', '.join(VALID_AGENT_TYPES)}"
         )
         raise ValueError(msg)
 

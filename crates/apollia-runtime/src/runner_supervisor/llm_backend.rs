@@ -47,7 +47,7 @@ impl RunnerLlmBackend {
     /// Load the model on the runner if not already done. Idempotent.
     async fn ensure_loaded(&self) -> Result<(), LlmError> {
         {
-            let guard = self.loaded.lock().unwrap();
+            let guard = self.loaded.lock().expect("loaded-state mutex poisoned");
             if *guard {
                 return Ok(());
             }
@@ -71,7 +71,7 @@ impl RunnerLlmBackend {
                 reason: format!("load_model via runner: {e}"),
             })?;
 
-        *self.loaded.lock().unwrap() = true;
+        *self.loaded.lock().expect("loaded-state mutex poisoned") = true;
         Ok(())
     }
 

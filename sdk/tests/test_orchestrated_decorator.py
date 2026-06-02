@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from apollia._internal.manifest import ORCHESTRATED_ATTR
 from apollia.errors import AgentConfigError
 from apollia.orchestration import orchestrated

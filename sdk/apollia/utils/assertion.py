@@ -6,7 +6,7 @@ dropping inline ``[cite:<id>]`` pointers. The runtime (``apollia-runtime``
 ``confidence_parser``) parses these markers server-side and the desktop UI
 renders confidence badges and clickable citation footnotes.
 
-Example
+Example:
 -------
 
 .. code-block:: python
@@ -33,16 +33,15 @@ responsible for passing plain text (no raw ``[conf:…]`` markers).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from typing import Iterable, Literal
+from typing import Literal
 
 ConfidenceLevel = Literal["high", "medium", "low"]
 SourceType = Literal["web", "document", "tool", "memory", "other"]
 
 _VALID_LEVELS: frozenset[str] = frozenset({"high", "medium", "low"})
-_VALID_SOURCE_TYPES: frozenset[str] = frozenset(
-    {"web", "document", "tool", "memory", "other"}
-)
+_VALID_SOURCE_TYPES: frozenset[str] = frozenset({"web", "document", "tool", "memory", "other"})
 
 
 @dataclass(frozen=True)
@@ -67,13 +66,9 @@ class Citation:
         if not self.id or not self.id.strip():
             raise ValueError("Citation.id must be a non-empty string")
         if "," in self.id or "]" in self.id or "[" in self.id:
-            raise ValueError(
-                "Citation.id may not contain '[', ']' or ',' characters"
-            )
+            raise ValueError("Citation.id may not contain '[', ']' or ',' characters")
         if self.source_type not in _VALID_SOURCE_TYPES:
-            raise ValueError(
-                f"Citation.source_type must be one of {sorted(_VALID_SOURCE_TYPES)}"
-            )
+            raise ValueError(f"Citation.source_type must be one of {sorted(_VALID_SOURCE_TYPES)}")
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-serialisable dict, dropping ``None`` fields."""
@@ -113,15 +108,11 @@ def assert_with_confidence(
             already contains ``[conf:…]`` / ``[/conf]`` markers.
     """
     if level not in _VALID_LEVELS:
-        raise ValueError(
-            f"level must be one of {sorted(_VALID_LEVELS)}, got {level!r}"
-        )
+        raise ValueError(f"level must be one of {sorted(_VALID_LEVELS)}, got {level!r}")
     if "[conf:" in text or "[/conf]" in text:
         raise ValueError("text must not already contain [conf:...] markers")
 
-    cite_markers = "".join(
-        f"[cite:{c.id}]" for c in (citations or ())
-    )
+    cite_markers = "".join(f"[cite:{c.id}]" for c in (citations or ()))
     return f"[conf:{level}]{text}{cite_markers}[/conf]"
 
 

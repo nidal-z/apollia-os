@@ -60,9 +60,7 @@ def assert_result_completed(
         text = aip_result_text(result)
         if contains not in text:
             preview = text[:_TEXT_PREVIEW_LIMIT]
-            raise AssertionError(
-                f"Expected result text to contain '{contains}', got: '{preview}'"
-            )
+            raise AssertionError(f"Expected result text to contain '{contains}', got: '{preview}'")
 
 
 def assert_result_failed(
@@ -87,9 +85,7 @@ def assert_result_failed(
         error = result.get("error") or {}
         actual_code = error.get("code", "")
         if actual_code != code:
-            raise AssertionError(
-                f"Expected error code '{code}', got '{actual_code}'"
-            )
+            raise AssertionError(f"Expected error code '{code}', got '{actual_code}'")
 
 
 def assert_result_input_required(result: dict[str, Any]) -> None:
@@ -107,7 +103,7 @@ def assert_result_input_required(result: dict[str, Any]) -> None:
 
 
 def assert_skill_called(
-    ctx: "MockContext",
+    ctx: MockContext,
     skill_id: str,
     *,
     times: int | None = None,
@@ -139,7 +135,7 @@ def assert_skill_called(
 
 
 def assert_tool_called(
-    ctx: "MockContext",
+    ctx: MockContext,
     tool_name: str,
     *,
     times: int | None = None,
@@ -169,7 +165,7 @@ def assert_tool_called(
 
 
 def assert_llm_called(
-    ctx: "MockContext",
+    ctx: MockContext,
     *,
     times: int | None = None,
 ) -> None:
@@ -186,18 +182,15 @@ def assert_llm_called(
 
     if times is None:
         if actual_count == 0:
-            raise AssertionError(
-                "Expected LLM to be called, but it was never called"
-            )
+            raise AssertionError("Expected LLM to be called, but it was never called")
     elif actual_count != times:
         raise AssertionError(
-            f"Expected LLM to be called {times} times, "
-            f"was called {actual_count} times"
+            f"Expected LLM to be called {times} times, " f"was called {actual_count} times"
         )
 
 
 def assert_emitted_token(
-    ctx: "MockContext",
+    ctx: MockContext,
     *,
     contains: str | None = None,
 ) -> None:
@@ -217,13 +210,11 @@ def assert_emitted_token(
     if contains is not None:
         joined = "".join(ctx.events.tokens)
         if contains not in joined:
-            raise AssertionError(
-                f"Emitted tokens {joined!r} do not contain {contains!r}"
-            )
+            raise AssertionError(f"Emitted tokens {joined!r} do not contain {contains!r}")
 
 
 def assert_emitted_thought(
-    ctx: "MockContext",
+    ctx: MockContext,
     *,
     contains: str | None = None,
 ) -> None:
@@ -243,13 +234,11 @@ def assert_emitted_thought(
     if contains is not None:
         joined = " ".join(t[0] for t in ctx.events.thoughts)
         if contains not in joined:
-            raise AssertionError(
-                f"Emitted thoughts {joined!r} do not contain {contains!r}"
-            )
+            raise AssertionError(f"Emitted thoughts {joined!r} do not contain {contains!r}")
 
 
 def assert_memory_recorded(
-    ctx: "MockContext",
+    ctx: MockContext,
     *,
     key: str | None = None,
 ) -> None:
@@ -272,13 +261,11 @@ def assert_memory_recorded(
             )
     else:
         if not ctx.memory.episodes:
-            raise AssertionError(
-                "No episodic memory was recorded via ctx.memory.record"
-            )
+            raise AssertionError("No episodic memory was recorded via ctx.memory.record")
 
 
 def assert_template_rendered(
-    ctx: "MockContext",
+    ctx: MockContext,
     name: str,
 ) -> None:
     """Verify ``ctx.templates.render(name, ...)`` was called.
@@ -292,9 +279,7 @@ def assert_template_rendered(
     """
     names = [c[0] for c in ctx.templates.render_calls]
     if name not in names:
-        raise AssertionError(
-            f"Template {name!r} was not rendered (rendered: {names})"
-        )
+        raise AssertionError(f"Template {name!r} was not rendered (rendered: {names})")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -310,13 +295,9 @@ def _assert_status(result: dict[str, Any], expected: str) -> None:
     """
     actual = result.get("status")
     if actual is None:
-        raise AssertionError(
-            f"Expected result status '{expected}', but 'status' key is missing"
-        )
+        raise AssertionError(f"Expected result status '{expected}', but 'status' key is missing")
     if actual != expected:
-        raise AssertionError(
-            f"Expected result status '{expected}', got '{actual}'"
-        )
+        raise AssertionError(f"Expected result status '{expected}', got '{actual}'")
 
 
 __all__ = [

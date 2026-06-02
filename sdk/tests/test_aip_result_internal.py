@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 import pytest
-
 from apollia._internal.aip_result import (
     completed,
     failed,
@@ -24,7 +23,6 @@ from apollia.errors import (
     SchemaError,
     SkillNotFound,
 )
-
 
 # ──────────────────────────── builders ────────────────────────────
 
@@ -186,9 +184,7 @@ def test_from_exception_payload_error_field() -> None:
 
 
 def test_from_exception_payload_error_with_extra_details() -> None:
-    result = from_exception(
-        PayloadError("bad", field="x", details={"hint": "see schema"})
-    )
+    result = from_exception(PayloadError("bad", field="x", details={"hint": "see schema"}))
     assert result["error"]["details"] == {"field": "x", "hint": "see schema"}
 
 

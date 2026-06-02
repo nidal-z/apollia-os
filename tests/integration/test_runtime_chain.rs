@@ -19,6 +19,7 @@ use std::time::Duration;
 use apollia_core::{AIPResult, AIPTask, TaskStatus};
 use apollia_runtime::{
     api::routes_agents::StubAgentLoader,
+    api::server::empty_shared_llm_router,
     api::{APIServer, APIServerConfig, APIServerHandle, AppState},
     coordinator::ExecutionBackend,
     eventbus::EventBus,
@@ -82,7 +83,7 @@ fn build_app_state() -> AppState<MockBackend> {
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
         backend: MockBackend,
-        llm_router: None,
+        llm_router: empty_shared_llm_router(),
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -107,6 +108,8 @@ fn build_app_state() -> AppState<MockBackend> {
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     }
 }
 

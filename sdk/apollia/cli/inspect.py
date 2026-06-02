@@ -100,9 +100,7 @@ def _coerce_manifest(raw: Any) -> dict[str, Any]:
     """
     if isinstance(raw, dict):
         return raw
-    raise AgentConfigError(
-        f"manifest() returned a {type(raw).__name__}, expected dict"
-    )
+    raise AgentConfigError(f"manifest() returned a {type(raw).__name__}, expected dict")
 
 
 def _extract_agent_data(
@@ -135,9 +133,7 @@ def _extract_agent_data(
                         "description": getattr(entry, "description", ""),
                         "input_schema": getattr(entry, "input_schema", {}),
                         "output_schema": getattr(entry, "output_schema", {}),
-                        "requires_approval": getattr(
-                            entry, "requires_approval", False
-                        ),
+                        "requires_approval": getattr(entry, "requires_approval", False),
                         "dangerous": getattr(entry, "dangerous", False),
                     }
                 )
@@ -158,8 +154,7 @@ def _extract_agent_data(
     top_manifest = getattr(module, "manifest", None)
     if callable(top_manifest):
         warnings.append(
-            "No `agent` singleton found; using top-level manifest() function "
-            "(legacy layout)."
+            "No `agent` singleton found; using top-level manifest() function " "(legacy layout)."
         )
         manifest = _coerce_manifest(top_manifest())
         skills_legacy = _skills_from_legacy_manifest(manifest)
@@ -233,9 +228,7 @@ def _format_schema_brief(schema: Any) -> str:
         return t if isinstance(t, str) else _NONE_LABEL
     raw_required = schema.get("required")
     required: set[str] = (
-        {r for r in raw_required if isinstance(r, str)}
-        if isinstance(raw_required, list)
-        else set()
+        {r for r in raw_required if isinstance(r, str)} if isinstance(raw_required, list) else set()
     )
     parts = [
         f"{pname}: {_prop_type_label(prop)}{'!' if pname in required else '?'}"
@@ -393,9 +386,7 @@ def _emit_error(
         print(f"✗ {stderr_text}", file=sys.stderr)
 
 
-def _load_module_for_inspect(
-    path: Path, json_mode: bool
-) -> tuple[ModuleType | None, int]:
+def _load_module_for_inspect(path: Path, json_mode: bool) -> tuple[ModuleType | None, int]:
     """Load the agent module; return ``(module, exit_code)``.
 
     ``exit_code`` is ``0`` on success (caller continues) or a non-zero
@@ -410,7 +401,7 @@ def _load_module_for_inspect(
     except ValueError as exc:
         _emit_error(json_mode, error_text=str(exc), stderr_text=str(exc))
         return None, 2
-    except Exception as exc:  # noqa: BLE001 - surface every load error
+    except Exception as exc:  # - surface every load error
         message = f"Failed to load module: {exc}"
         _emit_error(
             json_mode,

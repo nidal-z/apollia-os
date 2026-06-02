@@ -142,8 +142,7 @@ def _dict_to_markdown_table(data: dict[str, Any]) -> str:
         return "| Key | Value |\n| --- | --- |"
 
     rows = [
-        f"| {_escape_pipe(str(key))} | {_escape_pipe(str(value))} |"
-        for key, value in data.items()
+        f"| {_escape_pipe(str(key))} | {_escape_pipe(str(value))} |" for key, value in data.items()
     ]
     header = "| Key | Value |"
     separator = "| --- | --- |"

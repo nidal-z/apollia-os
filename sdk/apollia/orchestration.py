@@ -36,15 +36,11 @@ def orchestrated(*, system_prompt: str) -> Callable[[C], C]:
         AgentConfigError: if ``system_prompt`` is not a non-empty string.
     """
     if not isinstance(system_prompt, str) or not system_prompt.strip():
-        raise AgentConfigError(
-            "@orchestrated requires a non-empty string system_prompt"
-        )
+        raise AgentConfigError("@orchestrated requires a non-empty string system_prompt")
 
     def decorator(cls: C) -> C:
         if not isinstance(cls, type):
-            raise AgentConfigError(
-                f"@orchestrated must decorate a class, got {type(cls).__name__}"
-            )
+            raise AgentConfigError(f"@orchestrated must decorate a class, got {type(cls).__name__}")
         setattr(cls, ORCHESTRATED_ATTR, {"system_prompt": system_prompt})
         return cls
 

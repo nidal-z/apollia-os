@@ -16,6 +16,7 @@ use apollia_core::{
     A2AConfig, AIPResult, AIPTask, AgentId, AgentManifest, AgentSkill, ProcessState, RuntimeEvent,
 };
 use apollia_runtime::{
+    a2a::A2AInvokeRequest,
     coordinator::{ExecutionBackend, ExecutionCoordinator},
     eventbus::EventBus,
     registry::{AgentRegistry, AgentRegistryHandle},
@@ -68,6 +69,8 @@ fn make_skill(id: &str) -> AgentSkill {
         description: format!("Skill de test : {id}"),
         input_modes: vec!["text".to_string()],
         output_modes: vec!["text".to_string()],
+        examples: vec![],
+        input_schema: None,
     }
 }
 
@@ -101,6 +104,9 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         setup_notes: None,
         agent_class: None,
         user_memory_write: false,
+        datasources: vec![],
+        templates: vec![],
+        secrets: vec![],
     }
 }
 
@@ -164,14 +170,14 @@ async fn test_max_depth_blocks_deep_recursion() {
 
     // WHEN invoke est appelé avec a2a_depth = 2 (atteint le plafond)
     let result = invoker
-        .invoke(
-            "read-excel",
-            json!({"text": "data"}),
-            "director",
-            2,
-            None,
-            None,
-        )
+        .invoke(A2AInvokeRequest {
+            skill_id: "read-excel",
+            input: json!({"text": "data"}),
+            caller: "director",
+            a2a_depth: 2,
+            timeout: None,
+            chain_deadline: None,
+        })
         .await;
 
     // THEN MaxDepthExceeded est retourné avec le contexte complet
@@ -207,7 +213,14 @@ async fn test_self_invocation_blocked() {
 
     // WHEN excel-worker invoque "read-excel" en tant que caller
     let result = invoker
-        .invoke("read-excel", json!({}), "excel-worker", 0, None, None)
+        .invoke(A2AInvokeRequest {
+            skill_id: "read-excel",
+            input: json!({}),
+            caller: "excel-worker",
+            a2a_depth: 0,
+            timeout: None,
+            chain_deadline: None,
+        })
         .await;
 
     // THEN SelfInvocation est retourné avec le nom de l'agent et le skill ciblé
@@ -235,14 +248,14 @@ async fn test_chain_timeout_propagated() {
 
     // WHEN invoke est appelé avec un chain_deadline déjà expiré
     let result = invoker
-        .invoke(
-            "read-excel",
-            json!({}),
-            "director",
-            0,
-            None,
-            Some(expired_deadline),
-        )
+        .invoke(A2AInvokeRequest {
+            skill_id: "read-excel",
+            input: json!({}),
+            caller: "director",
+            a2a_depth: 0,
+            timeout: None,
+            chain_deadline: Some(expired_deadline),
+        })
         .await;
 
     // THEN ChainTimeoutExceeded (ou Timeout) est retourné immédiatement sans bloquer
@@ -277,7 +290,14 @@ async fn test_guard_event_emitted() {
 
     // WHEN invoke déclenche le garde-fou max_depth (depth = 1 == max_depth = 1)
     let _ = invoker
-        .invoke("extract-pdf", json!({}), "director", 1, None, None)
+        .invoke(A2AInvokeRequest {
+            skill_id: "extract-pdf",
+            input: json!({}),
+            caller: "director",
+            a2a_depth: 1,
+            timeout: None,
+            chain_deadline: None,
+        })
         .await;
 
     // THEN A2AGuardTriggered est dans le buffer avec guard_type = "max_depth"

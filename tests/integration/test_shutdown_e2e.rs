@@ -18,7 +18,7 @@ use apollia_runtime::{
     eventbus::EventBus,
     registry::AgentRegistry,
     router::TaskRouterHandle,
-    shutdown::{ShutdownConfig, ShutdownController},
+    shutdown::{ShutdownConfig, ShutdownController, ShutdownControllerDeps},
 };
 
 // --- Mock backends ---
@@ -118,6 +118,9 @@ fn test_manifest(name: &str) -> AgentManifest {
         setup_notes: None,
         agent_class: None,
         user_memory_write: false,
+        datasources: vec![],
+        templates: vec![],
+        secrets: vec![],
     }
 }
 
@@ -177,7 +180,7 @@ async fn test_shutdown_drains_active_tasks() {
         event_sender: event_sender.clone(),
         agent_loader: std::sync::Arc::new(StubAgentLoader),
         backend: MockBackend::slow(Duration::from_millis(300)),
-        llm_router: None,
+        llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -202,6 +205,8 @@ async fn test_shutdown_drains_active_tasks() {
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -216,17 +221,17 @@ async fn test_shutdown_drains_active_tasks() {
     tokio::time::sleep(Duration::from_millis(20)).await;
 
     // WHEN ShutdownController drains with 5s timeout
-    let controller = ShutdownController::new(
-        ShutdownConfig {
+    let controller = ShutdownController::new(ShutdownControllerDeps {
+        config: ShutdownConfig {
             drain_timeout_secs: 5,
         },
-        event_sender.clone(),
+        event_sender: event_sender.clone(),
         api_handle,
-        router,
-        registry,
-        None,
-        None,
-    );
+        router_handle: router,
+        registry_handle: registry,
+        notification_engine: None,
+        mcp_handle: None,
+    });
 
     let start = tokio::time::Instant::now();
     let result = controller.shutdown().await;
@@ -274,7 +279,7 @@ async fn test_shutdown_stops_all_agents() {
         event_sender: event_sender.clone(),
         agent_loader: std::sync::Arc::new(StubAgentLoader),
         backend: MockBackend::slow(Duration::ZERO),
-        llm_router: None,
+        llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -299,6 +304,8 @@ async fn test_shutdown_stops_all_agents() {
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -315,17 +322,17 @@ async fn test_shutdown_stops_all_agents() {
     let mut event_rx = event_sender.subscribe();
 
     // WHEN shutdown is triggered
-    let controller = ShutdownController::new(
-        ShutdownConfig {
+    let controller = ShutdownController::new(ShutdownControllerDeps {
+        config: ShutdownConfig {
             drain_timeout_secs: 5,
         },
-        event_sender.clone(),
+        event_sender: event_sender.clone(),
         api_handle,
-        router,
-        registry,
-        None,
-        None,
-    );
+        router_handle: router,
+        registry_handle: registry,
+        notification_engine: None,
+        mcp_handle: None,
+    });
     let _ = controller.shutdown().await;
 
     // THEN AgentStopped event is emitted for the agent
@@ -361,7 +368,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         event_sender: event_sender.clone(),
         agent_loader: std::sync::Arc::new(StubAgentLoader),
         backend: MockBackend::slow(Duration::ZERO),
-        llm_router: None,
+        llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -386,6 +393,8 @@ async fn test_shutdown_broadcasts_requested_event() {
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -402,17 +411,17 @@ async fn test_shutdown_broadcasts_requested_event() {
     let mut event_rx = event_sender.subscribe();
 
     // WHEN ShutdownController::shutdown() is called
-    let controller = ShutdownController::new(
-        ShutdownConfig {
+    let controller = ShutdownController::new(ShutdownControllerDeps {
+        config: ShutdownConfig {
             drain_timeout_secs: 1,
         },
-        event_sender.clone(),
+        event_sender: event_sender.clone(),
         api_handle,
-        router,
-        registry,
-        None,
-        None,
-    );
+        router_handle: router,
+        registry_handle: registry,
+        notification_engine: None,
+        mcp_handle: None,
+    });
     let _ = controller.shutdown().await;
 
     // THEN ShutdownRequested is broadcast on the EventBus
@@ -470,7 +479,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         event_sender: event_sender.clone(),
         agent_loader: std::sync::Arc::new(StubAgentLoader),
         backend: NeverBackend,
-        llm_router: None,
+        llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -495,6 +504,8 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -509,17 +520,17 @@ async fn test_shutdown_drain_timeout_force_cancels() {
     tokio::time::sleep(Duration::from_millis(20)).await;
 
     // WHEN drain timeout is 1s (short for tests)
-    let controller = ShutdownController::new(
-        ShutdownConfig {
+    let controller = ShutdownController::new(ShutdownControllerDeps {
+        config: ShutdownConfig {
             drain_timeout_secs: 1,
         },
         event_sender,
         api_handle,
-        router,
-        registry,
-        None,
-        None,
-    );
+        router_handle: router,
+        registry_handle: registry,
+        notification_engine: None,
+        mcp_handle: None,
+    });
 
     let result = controller.shutdown().await;
 

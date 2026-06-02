@@ -32,7 +32,6 @@ from apollia.context.templates import TemplatesInterface
 from apollia.context.tools import ToolProxy
 from apollia.context.workspace import WorkspaceContext
 
-
 # ──────────────────────────────────────────────────────────────────────
 # Multi-modal content (Vision API typing)
 # ──────────────────────────────────────────────────────────────────────
@@ -214,13 +213,9 @@ class AIPResult:
         return AIPResult(status="failed", error_code=code, error_message=message)
 
     @staticmethod
-    def input_required(
-        prompt: str, context: dict[str, Any] | None = None
-    ) -> AIPResult:
+    def input_required(prompt: str, context: dict[str, Any] | None = None) -> AIPResult:
         """Create an input-required result (HITL)."""
-        return AIPResult(
-            status="input_required", input_prompt=prompt, input_context=context
-        )
+        return AIPResult(status="input_required", input_prompt=prompt, input_context=context)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for runtime consumption.

@@ -24,9 +24,7 @@ _SKILL_ID_RE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$")
 
 def _validate_skill_id(skill_id: Any) -> str:
     if not isinstance(skill_id, str) or not skill_id:
-        raise AgentConfigError(
-            "@skill requires a non-empty string skill_id"
-        )
+        raise AgentConfigError("@skill requires a non-empty string skill_id")
     if not _SKILL_ID_RE.match(skill_id):
         raise AgentConfigError(
             f"@skill id {skill_id!r} is invalid: must match "
@@ -102,9 +100,7 @@ def skill(
 
     def decorator(fn: F) -> F:
         if not callable(fn):
-            raise AgentConfigError(
-                f"@skill must decorate a callable, got {type(fn).__name__}"
-            )
+            raise AgentConfigError(f"@skill must decorate a callable, got {type(fn).__name__}")
         if not inspect.iscoroutinefunction(fn):
             raise AgentConfigError(
                 f"@skill {validated_id!r}: method '{getattr(fn, '__name__', '?')}' "
@@ -112,8 +108,7 @@ def skill(
             )
         if getattr(fn, SKILL_ATTR, None) is not None:
             raise AgentConfigError(
-                f"@skill already applied to method "
-                f"'{getattr(fn, '__name__', '?')}'"
+                f"@skill already applied to method " f"'{getattr(fn, '__name__', '?')}'"
             )
         setattr(
             fn,

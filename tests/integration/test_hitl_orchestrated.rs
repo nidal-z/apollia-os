@@ -17,7 +17,7 @@ use apollia_llm::{
     StreamChunk, TokenUsage,
 };
 use apollia_oria::{
-    actor::{ActorLoop, ToolProxyTrait},
+    actor::{ActorLoop, StepDeps as ActorStepDeps, ToolProxyTrait},
     budget::StepBudget,
     plan::{ExecutionPlan, PlanStep},
     plan_repository::PlanRepository,
@@ -237,7 +237,15 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
     });
 
     let result = actor
-        .execute(tool_proxy.as_ref(), &llm, &budget, &resilience, &reasoner)
+        .execute(
+            ActorStepDeps {
+                tool_proxy: tool_proxy.as_ref(),
+                llm_router: &llm,
+                budget: &budget,
+                reasoner: &reasoner,
+            },
+            &resilience,
+        )
         .await;
     resolver.await.expect("resolver must not panic");
 
@@ -374,7 +382,15 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
     });
 
     let result = actor
-        .execute(&tool_proxy, &llm, &budget, &resilience, &reasoner)
+        .execute(
+            ActorStepDeps {
+                tool_proxy: &tool_proxy,
+                llm_router: &llm,
+                budget: &budget,
+                reasoner: &reasoner,
+            },
+            &resilience,
+        )
         .await;
     resolver.await.expect("resolver must not panic");
 

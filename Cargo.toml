@@ -53,6 +53,17 @@ authors = ["Nidal Zoumita <admin@apollia.fr>"]
 repository = "https://github.com/Apollia-OS/apollia-os"
 homepage = "https://apollia.fr"
 
+# Workspace-wide lints. Gated crates opt in via `[lints] workspace = true`.
+# unsafe is denied except in the FFI / proc-macro crates (apollia-aip, apollia-desktop,
+# apollia-runner, apollia-tools), which carry an explicit per-crate allow.
+# Bare `unwrap()` is denied in production; test code re-allows it via
+# `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]`.
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+
 # Centralize all dependency versions here.
 # Individual crates use { workspace = true } - never specify versions inline.
 [workspace.dependencies]

@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! `apollia-mcp`: MCP client and server for Apollia OS.
 //!
 //! Provides configuration parsing, JSON-RPC transport, session lifecycle,

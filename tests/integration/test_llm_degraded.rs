@@ -17,7 +17,10 @@ use std::sync::Arc;
 use apollia_core::{AIPResult, AIPTask, AgentId, RuntimeEvent};
 use apollia_llm::{LlmConfig, LlmRouter, ObservabilityConfig};
 use apollia_runtime::{
-    api::{routes_agents::StubAgentLoader, APIServer, APIServerConfig, AppState},
+    api::{
+        routes_agents::StubAgentLoader, server::empty_shared_llm_router, APIServer, APIServerConfig,
+        AppState,
+    },
     coordinator::{DynBackend, ExecutionBackend},
     eventbus::EventBus,
     registry::AgentRegistry,
@@ -91,7 +94,7 @@ async fn test_runtime_starts_without_llm_router() {
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
         backend: NeverMockBackend,
-        llm_router: None, // aucun LLM configuré
+        llm_router: empty_shared_llm_router(), // aucun LLM configuré
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -116,6 +119,8 @@ async fn test_runtime_starts_without_llm_router() {
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     };
 
     // WHEN l'APIServer démarre
@@ -208,6 +213,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         pricing_overrides: HashMap::new(),
         cost_alert_threshold_usd: None,
         vertex: None,
+        runner: apollia_core::config::LlmRunnerConfig::default(),
     };
 
     // WHEN LlmRouter::from_config() échoue (backend absent)
@@ -234,7 +240,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
         backend: NeverMockBackend,
-        llm_router: None,
+        llm_router: empty_shared_llm_router(),
         trigger_engine: None,
         config_path: None,
         task_repository: None,
@@ -259,6 +265,8 @@ async fn test_runtime_continues_after_llm_init_failure() {
         llm_backend_repo: None,
         stt_config_repo: None,
         a2a_invoker: None,
+        resilience_layer: None,
+        runner_proxy: None,
     };
 
     let api = APIServer::new(

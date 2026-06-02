@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 //! Apollia OS ORIA Engine (Observer-Reasoner-Actor).
 //!
 //! The execution engine that drives agent reasoning:
