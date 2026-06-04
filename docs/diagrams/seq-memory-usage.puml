@@ -54,7 +54,7 @@ store --> mgr : Vec<MemorySearchResult>
 mgr --> iface : Ok(results)
 iface --> agent : [\n  {"content": "...", "score": 0.92, "type": "episodic"},\n  {"content": "...", "score": 0.71, "type": "semantic"}\n]
 
-== ctx.memory.recall_entry() - Métadonnées complètes (Sprint 40) ==
+== ctx.memory.recall_entry() - Métadonnées complètes ==
 
 agent -> iface : await ctx.memory.recall_entry(\n  "client.dupont_sa.budget_max"\n)
 
@@ -69,7 +69,7 @@ store --> mgr : Option<SemanticEntry>
 mgr --> iface : Ok(entry_or_none)
 iface --> agent : {"key": "...", "value": "15000",\n  "confidence": 1.0, "source": "agent:crm",\n  "updated_at": "2026-03-05T14:30:00Z",\n  "expires_at": null}
 
-== ctx.memory.recall_all() - Lister le namespace (Sprint 40) ==
+== ctx.memory.recall_all() - Lister le namespace ==
 
 agent -> iface : await ctx.memory.recall_all(\n  limit=50\n)
 

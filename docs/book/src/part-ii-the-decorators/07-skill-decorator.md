@@ -165,8 +165,8 @@ Le boundary du dispatcher emballe automatiquement votre `dict` en `AIPResult.com
 
 ## ADRs
 
-- `ADR-098` : Decorator-first
-- `ADR-099` : Signature inference comme schéma I/O
-- `ADR-109` : `AIPResult` interne au SDK
+- `ADR-023` : Decorator-first
+- `ADR-023` : Signature inference comme schéma I/O
+- `ADR-024` : `AIPResult` interne au SDK
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

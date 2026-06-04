@@ -106,8 +106,8 @@ Pour les écritures vers le profil utilisateur (non sensibles, par exemple `user
 
 ## ADRs
 
-- `ADR-064` : OAuth2 PKCE keyring
-- `ADR-094` : Linux keyring fallback strategy
-- `ADR-104` : SDK secrets read-only gating
+- `ADR-016` : OAuth2 PKCE keyring
+- `ADR-016` : Linux keyring fallback strategy
+- `ADR-024` : SDK secrets read-only gating
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

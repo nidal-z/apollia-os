@@ -16,7 +16,7 @@ Deux modes d'execution coexistent :
 | **Chat Libre** | `BuiltInChatAgent` (Rust pur, boucle ReAct) | Oui (token-by-token) | Non |
 | **Chat Agent** | `AgentChatExecutor` (Python via `AIPBridge`) | Non (reponse bloc) | Oui |
 
-Le Chat emprunte un chemin d'execution separe du `TaskRouter` (cf. ADR-034). Le `ChatSessionManager` est un acteur Tokio dedie, position 13 dans la sequence de demarrage du Supervisor.
+Le Chat emprunte un chemin d'execution separe du `TaskRouter` (cf. ADR-022). Le `ChatSessionManager` est un acteur Tokio dedie, position 13 dans la sequence de demarrage du Supervisor.
 
 La persistance repose sur `chat.db`, une base SQLite dediee contenant trois tables : sessions, messages et autorisations d'outils.
 
@@ -641,7 +641,7 @@ pub struct PastSessionSummary {
 
 ## Voir aussi
 
-- [ADR-034 - Chat hybride](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) - decision architecturale
+- [ADR-022 - Chat hybride](../adr/ADR-022-chat-subsystem.md) - decision architecturale
 - [Runtime Core](./Briques-Runtime-Core.md) - Supervisor et acteurs Tokio
 - [Memory Engine](./Briques-Memory-Engine.md) - UserMemoryRepository et namespace `__user__`
 - [Notifications](./Briques-Notifications.md) - evenement `chat.approval_required`

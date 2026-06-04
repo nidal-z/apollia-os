@@ -58,7 +58,7 @@ Sub-`AGENTS.md` files apply locally to their subtree and override the root
 
 | Path | Scope |
 |---|---|
-| `crates/apollia-cli/AGENTS.md` | CLI binary, ADR-008 noun-verb, exit codes 0-5 |
+| `crates/apollia-cli/AGENTS.md` | CLI binary, ADR-004 noun-verb, exit codes 0-5 |
 | `crates/apollia-aip/AGENTS.md` | PyO3 bridge, `Bound<'py, T>`, `pyo3-async-runtimes` |
 | `crates/apollia-oria/AGENTS.md` | ORIA engine, StepBudget, ResilienceLayer, plan cache |
 | `crates/apollia-runtime/AGENTS.md` | EventBus, actor supervisor, axum API |

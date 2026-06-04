@@ -160,9 +160,9 @@
       transition:slide={{ duration: 150 }}
       data-testid="operator-approval-scope-menu-{toolCall.tool_name}"
     >
-      <Button variant="ghost" size="sm"
+      <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("this_session")}
         data-testid="operator-approval-scope-session-{toolCall.tool_name}"
@@ -171,10 +171,10 @@
         <div class="text-[10px] text-muted-foreground">
           Jusqu'à la fermeture de ce chat.
         </div>
-      </Button>
-      <Button variant="ghost" size="sm"
+      </button>
+      <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("this_agent")}
         data-testid="operator-approval-scope-agent-{toolCall.tool_name}"
@@ -183,10 +183,10 @@
         <div class="text-[10px] text-muted-foreground">
           Apollia Chat (ou l'agent courant) ne demandera plus.
         </div>
-      </Button>
-      <Button variant="ghost" size="sm"
+      </button>
+      <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         disabled={isProcessing || !hasProject}
         onclick={() => handleAlwaysAccept("this_project")}
         data-testid="operator-approval-scope-project-{toolCall.tool_name}"
@@ -198,10 +198,10 @@
             ? "Tous les assistants utilisés dans ce projet."
             : "Indisponible - la session n'est rattachée à aucun projet."}
         </div>
-      </Button>
-      <Button variant="ghost" size="sm"
+      </button>
+      <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 transition-colors disabled:opacity-50"
         disabled={isProcessing}
         onclick={() => handleAlwaysAccept("global")}
         data-testid="operator-approval-scope-global-{toolCall.tool_name}"
@@ -210,7 +210,7 @@
         <div class="text-[10px] text-warning">
           Tous les assistants, tous les projets.
         </div>
-      </Button>
+      </button>
     </div>
   {/if}
 </div>

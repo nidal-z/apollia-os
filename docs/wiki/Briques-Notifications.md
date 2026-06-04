@@ -1,6 +1,6 @@
 # Notifications Engine - Alertes découplées pour les agents
 
-> *La crate `apollia-notifications` centralise la logique de notification d'Apollia OS : un `NotificationEngine` s'abonne à l'EventBus et dispatche 6 événements critiques vers des canaux configurables (desktop natif OS, webhooks HTTP), sans jamais bloquer le runtime. (ADR-033), les canaux et événements se gèrent via API REST CRUD et application desktop.*
+> *La crate `apollia-notifications` centralise la logique de notification d'Apollia OS : un `NotificationEngine` s'abonne à l'EventBus et dispatche 6 événements critiques vers des canaux configurables (desktop natif OS, webhooks HTTP), sans jamais bloquer le runtime. (ADR-014), les canaux et événements se gèrent via API REST CRUD et application desktop.*
 
 ---
 
@@ -346,7 +346,7 @@ Les métadonnées de `chat.approval_required` contiennent :
 
 ## 4. Gestion des notifications - CRUD SQLite
 
-(ADR-033), les canaux de notification et les événements globaux sont persistés en SQLite (`~/.apollia/notifications.db`) et se gèrent via l'API REST ou l'application desktop. La section `[notifications]` de `apollia.toml` n'est plus utilisée.
+(ADR-014), les canaux de notification et les événements globaux sont persistés en SQLite (`~/.apollia/notifications.db`) et se gèrent via l'API REST ou l'application desktop. La section `[notifications]` de `apollia.toml` n'est plus utilisée.
 
 ### 4.1 Créer un canal via API
 
@@ -739,4 +739,4 @@ impl NotificationEngine {
 
 ---
 
-*Voir aussi : [API-HTTP-Workspace](./API-HTTP-Workspace#notifications--crud-) · [ADR-024](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) · [Briques-Runtime-Core](./Briques-Runtime-Core) · [Briques-Triggers](./Briques-Triggers)*
+*Voir aussi : [API-HTTP-Workspace](./API-HTTP-Workspace#notifications--crud-) · [ADR-014](./Decisions-Log) · [ADR-014](../adr/ADR-014-operational-config-triggers-notifications.md) · [Briques-Runtime-Core](./Briques-Runtime-Core) · [Briques-Triggers](./Briques-Triggers)*

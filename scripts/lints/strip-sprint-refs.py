@@ -6,9 +6,9 @@ sprint (Sprint-Summary.md, Decisions-Log.md, Roadmap.md, appendix-e).
 
 Patterns retirés :
   - " (Sprint 12)"             → ""
-  - " (Sprint 12, ADR-047)"    → " (ADR-047)"
+  - " (Sprint 12, ADR-008)"    → " (ADR-008)"
   - " [Sprint 20]"             → ""
-  - "*(Sprint 12, ADR-047)*"   → "*(ADR-047)*"
+  - "*(Sprint 12, ADR-008)*"   → "*(ADR-008)*"
   - "*(Sprint 12)*"            → ""
   - " - Sprint 11"             → ""
   - "Sprint 11 - "             → "" (en titre)
@@ -72,7 +72,7 @@ PATTERNS_OUTSIDE_CODE = [
     # ── Parenthèses et notes d'aside
     # "*(Sprint 8 + 28)*" / "*(Sprint 24 + 28)*" → ""
     (re.compile(r"\s*\*\(Sprint \d+(?:\s*\+\s*\d+)+\)\*"), ""),
-    # "*(Sprint 12, ADR-047)*" → "*(ADR-047)*"
+    # "*(Sprint 12, ADR-008)*" → "*(ADR-008)*"
     (re.compile(r"\*\(Sprint \d+,\s*(ADR-\d+)\)\*"), r"*(\1)*"),
     # "*(Sprint 12)*" → ""
     (re.compile(r"\s*\*\(Sprint \d+\)\*"), ""),
@@ -83,7 +83,7 @@ PATTERNS_OUTSIDE_CODE = [
     (re.compile(r"\*\*Sprint \d+\*\*\s*:\s*"), ""),
     # "← nouveau Sprint 8" / "← Sprint 8" en commentaire → ""
     (re.compile(r"\s*←\s*(?:nouveau\s+)?Sprint \d+"), ""),
-    # " (Sprint 12, ADR-047)" → " (ADR-047)"
+    # " (Sprint 12, ADR-008)" → " (ADR-008)"
     (re.compile(r"\s*\(Sprint \d+,\s*(ADR-\d+)\)"), r" (\1)"),
     # " (Sprint 12, STORY-NNN)" → ""
     (re.compile(r"\s*\(Sprint \d+,\s*STORY-\d+\)"), ""),
@@ -162,7 +162,7 @@ PATTERNS_INSIDE_CODE = [
     (re.compile(r",\s*Sprint \d+\)"), ")"),
     # "comportement par défaut avant Sprint 37" → "comportement par défaut historique"
     (re.compile(r"\s+avant Sprint \d+"), " historique"),
-    # "*(Sprint 28, ADR-047)*" → "*(ADR-047)*"
+    # "*(Sprint 28, ADR-008)*" → "*(ADR-008)*"
     (re.compile(r"\*\(Sprint \d+,\s*(ADR-\d+)\)\*"), r"*(\1)*"),
     # "(Sprint NN, ADR-XXX)" → "(ADR-XXX)"
     (re.compile(r"\s*\(Sprint \d+,\s*(ADR-\d+)\)"), r" (\1)"),

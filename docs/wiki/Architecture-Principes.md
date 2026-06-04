@@ -17,7 +17,7 @@
 - Aucun telemetry, aucun "phone home"
 
 **Pourquoi ce principe existe :**
-Apollia a démarré comme un SaaS cloud (voir [ADR-010](../decisions/adr-010-pivot-saas-vers-runtime-rust-open-source) pour le récit du pivot). L'architecture cloud rendait impossible la souveraineté réelle des données : les données transitaient par l'infrastructure cloud pour être indexées et traitées. Les retours des prospects PME étaient clairs : "On veut bien essayer, mais nos données client ne peuvent pas sortir de chez nous."
+Apollia a démarré comme un SaaS cloud (voir [ADR-001](../decisions/adr-010-pivot-saas-vers-runtime-rust-open-source) pour le récit du pivot). L'architecture cloud rendait impossible la souveraineté réelle des données : les données transitaient par l'infrastructure cloud pour être indexées et traitées. Les retours des prospects PME étaient clairs : "On veut bien essayer, mais nos données client ne peuvent pas sortir de chez nous."
 
 La solution n'était pas d'améliorer les garanties contractuelles. C'était de rendre le cloud techniquement inutile.
 

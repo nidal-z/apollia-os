@@ -99,16 +99,6 @@ conventions internes.
 
 ---
 
-## Ce qui n'est PAS ici
-
-- **Documentation interne sprint / release** : `docs/internal/`
-  (gitignored, reste local).
-- **Specs en chantier** : `docs/specs/` (gitignored).
-- **Atlas conceptuel R&D personnel** : Notion `PORTAIL TECH` (privé,
-  consulté par le mainteneur en sessions R&D).
-
----
-
 ## Convention de mise à jour
 
 | Type de changement | Corpus à mettre à jour |

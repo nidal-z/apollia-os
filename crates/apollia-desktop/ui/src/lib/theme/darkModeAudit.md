@@ -1,4 +1,4 @@
-# Dark mode audit - chat surface (US-SP42-035, B.54)
+# Dark mode audit - chat surface
 
 **Scope** : `src/components/chat/*.svelte` (27 composants identifiés).
 **Date** : 2026-04-19.
@@ -32,11 +32,11 @@ Les tokens de référence (`--primary`, `--card`, `--foreground`, `--border`, `-
 | 15 | `AskUserSummary.svelte` | ✅ | tokens purs |
 | 16 | `AttachmentChip.svelte` | ✅ | tokens purs |
 | 17 | `ChatConfigPanel.svelte` | ✅ | wrapper, pas de style direct |
-| 18 | `ChatConfigPanelBody.svelte` | ✅ | `aria-invalid` ring/destructive tokens (US-SP42-035) |
-| 19 | `ChatConversation.svelte` | ✅ | corrigé US-SP42-035 : streaming bubble utilise `border-border/40` (ex-`border-neutral/10`) |
+| 18 | `ChatConfigPanelBody.svelte` | ✅ | `aria-invalid` ring/destructive tokens |
+| 19 | `ChatConversation.svelte` | ✅ | corrigé : streaming bubble utilise `border-border/40` (ex-`border-neutral/10`) |
 | 20 | `ChatConversationHeader.svelte` | ✅ | tokens purs |
 | 21 | `ChatInput.svelte` | ✅ | tokens purs |
-| 22 | `ChatMessageBubble.svelte` | ✅ | corrigé US-SP42-035 : `border-border/40` côté agent (ex-`border-neutral/10`) |
+| 22 | `ChatMessageBubble.svelte` | ✅ | corrigé : `border-border/40` côté agent (ex-`border-neutral/10`) |
 | 23 | `ChatSessionCard.svelte` | ⚠️ | `bg-amber-500 text-white` sur le badge "fork" (l.231) - volontaire pour contraste max sur glass, acceptable en dark |
 | 24 | `ChatSessionsSidebar.svelte` | ✅ | tokens purs |
 | 25 | `ChatShell.svelte` | ✅ | tokens purs |
@@ -58,7 +58,7 @@ Les tokens de référence (`--primary`, `--card`, `--foreground`, `--border`, `-
 | 41 | `ReasoningCard.svelte` | ✅ | tokens purs |
 | 42 | `ReasoningCardShell.svelte` | ✅ | tokens purs |
 | 43 | `ReasoningSequence.svelte` | ✅ | tokens purs |
-| 44 | `RichLinkPreview.svelte` | ✅ | tokens purs (US-SP42-035) |
+| 44 | `RichLinkPreview.svelte` | ✅ | tokens purs |
 | 45 | `RuntimeDisconnectedBanner.svelte` | ✅ | tokens purs |
 | 46 | `ScrollToBottomButton.svelte` | ✅ | tokens purs |
 | 47 | `SessionFilters.svelte` | ✅ | tokens purs |
@@ -68,13 +68,13 @@ Les tokens de référence (`--primary`, `--card`, `--foreground`, `--border`, `-
 | 51 | `ShortcutsHelpDialog.svelte` | ✅ | tokens purs |
 | 52 | `SlashCommandMenu.svelte` | ✅ | tokens purs |
 | 53 | `StreamingCursor.svelte` | ✅ | tokens purs |
-| 54 | `StreamingMessage.svelte` | ✅ | créé US-SP42-035, tokens purs |
+| 54 | `StreamingMessage.svelte` | ✅ | tokens purs |
 | 55 | `StreamingText.svelte` | ✅ | tokens purs |
 | 56 | `SummarizedMessagesBanner.svelte` | ✅ | tokens purs |
 | 57 | `TemplateCard.svelte` | ✅ | tokens purs |
 | 58 | `ThinkingBadge.svelte` | ✅ | tokens purs |
 
-## Correctifs appliqués dans cette story
+## Correctifs appliqués
 
 1. `ChatMessageBubble.svelte:50` - `border-neutral/10` → `border-border/40` (bordures visibles en dark).
 2. `ChatConversation.svelte` - streaming bubble extrait dans `StreamingMessage.svelte` avec `border-border/40`.
@@ -85,7 +85,7 @@ Les tokens de référence (`--primary`, `--card`, `--foreground`, `--border`, `-
 
 ## Reste-à-faire
 
-- Captures automatisées Playwright (light + dark) : reportées à un sprint dédié (US-SP42-036 proposée - setup infra Playwright commun).
+- Captures automatisées Playwright (light + dark) : reportées (setup infra Playwright commun).
 - Audit a11y spécifique contrast-ratio (WCAG AA) sur les zones semi-transparentes `glass-surface`.
 
 ## Méthodologie de reproduction

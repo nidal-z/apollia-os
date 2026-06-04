@@ -292,9 +292,9 @@ pub enum McpConfigWriteError {
 
 ---
 
-## 7. Transports HTTP/SSE *(ADR-046)*
+## 7. Transports HTTP/SSE *(ADR-017)*
 
-(ADR-046) introduit une architecture de **transport abstrait** pour connecter des serveurs MCP distants. La crate expose le trait `McpTransport` avec trois implémentations selectionnées dynamiquement selon le champ `transport` de `McpServerConfig`.
+(ADR-017) introduit une architecture de **transport abstrait** pour connecter des serveurs MCP distants. La crate expose le trait `McpTransport` avec trois implémentations selectionnées dynamiquement selon le champ `transport` de `McpServerConfig`.
 
 ### Trait McpTransport
 
@@ -323,7 +323,7 @@ Transport historique : spawn d'un subprocess, stdin/stdout pipes.
 - `shutdown()` : envoie `SIGTERM`, attend 5 secondes, puis `SIGKILL`
 - `pid` : retourne le PID du subprocess
 
-### StreamableHttpTransport *(ADR-046)*
+### StreamableHttpTransport *(ADR-017)*
 
 Fichier : `crates/apollia-mcp/src/transport/http.rs`
 
@@ -348,7 +348,7 @@ Server → 200 OK      Mcp-Session-Id: abc123          ← extrait au 1er échan
 - **shutdown** : no-op - HTTP n'a pas de connexion persistante à fermer
 - **Erreurs** : `TransportError::Io("HTTP 401")` pour code non-2xx, `TransportError::Io("timeout")` si dépassement
 
-### SseTransport *(ADR-046)*
+### SseTransport *(ADR-017)*
 
 Fichier : `crates/apollia-mcp/src/transport/sse.rs`
 
@@ -525,12 +525,12 @@ Si deux outils produisent le même `full_name` (impossible par construction, mai
 
 ## 11. Décisions architecturales
 
-Voir [ADR-044](./Decisions-Log#adr-044--client-mcp--architecture-transport-lifecycle) et [ADR-046](../adr/ADR-046-transport-http-sse-mcp.md) pour les justifications complètes.
+Voir [ADR-017](../adr/ADR-017-mcp-client-transport-server.md) et [ADR-017](../adr/ADR-017-mcp-client-transport-server.md) pour les justifications complètes.
 
 | Décision | Raison |
 |---|---|
 | Crate `apollia-mcp` dédiée (pas dans `apollia-tools`) | Responsabilité unique - subprocess lifecycle + protocole réseau orthogonal aux outils Rust purs |
-| Transport stdio uniquement en V1, HTTP/SSE en | Local-first ; HTTP/SSE ajoutés quand ~70% du MCP Registry a migré vers les remotes (ADR-046) |
+| Transport stdio uniquement en V1, HTTP/SSE en | Local-first ; HTTP/SSE ajoutés quand ~70% du MCP Registry a migré vers les remotes (ADR-017) |
 | Implémentation native JSON-RPC 2.0 | Principe #2 - zéro SDK MCP tiers dans le binaire |
 | `McpClientManager` comme acteur Tokio | Principe #5 - zéro état partagé, toutes les mutations via channel `mpsc` |
 | Trait `McpTransport` au lieu de type enum | Architecture extensible, facilite le testing (mock transport), aligne avec l'enum dans `apollia-tools` |
@@ -541,7 +541,7 @@ Voir [ADR-044](./Decisions-Log#adr-044--client-mcp--architecture-transport-lifec
 
 ## 12. Mode Serveur MCP
 
- (ADR-062), Apollia OS peut fonctionner en **mode serveur MCP** : en plus d'être client MCP, il expose ses outils natifs à des clients externes (Claude Desktop, VS Code Copilot Chat, Cursor).
+ (ADR-017), Apollia OS peut fonctionner en **mode serveur MCP** : en plus d'être client MCP, il expose ses outils natifs à des clients externes (Claude Desktop, VS Code Copilot Chat, Cursor).
 
 ### McpStdioServer
 
@@ -597,7 +597,7 @@ crates/apollia-cli/src/commands/
 └── mcp_server.rs       ← Sous-commande `apollia mcp-server` (nouveau)
 ```
 
-> **Voir aussi :** [ADR-062](../adr/ADR-062-mcp-server-mode.md) - justification du transport stdio et des 9 outils
+> **Voir aussi :** [ADR-017](../adr/ADR-017-mcp-client-transport-server.md) - justification du transport stdio et des 9 outils
 
 ---
 
@@ -786,4 +786,4 @@ $ apollia mcp revoke-approval code-tools bash_exec
 - [MCP - Intégration](./MCP-Integration) - alignement Apollia OS ↔ standard MCP
 - [Briques Tool Registry](./Briques-Tool-Registry) - section 10 : outils MCP dans le registry
 - [API-HTTP-Observability](./API-HTTP-Observability#mcp--adr-044) - section MCP : `/api/v1/mcp/*`
-- [ADR-046](../adr/ADR-046-transport-http-sse-mcp.md) - décision transport HTTP/SSE pour serveurs MCP distants
+- [ADR-017](../adr/ADR-017-mcp-client-transport-server.md) - décision transport HTTP/SSE pour serveurs MCP distants

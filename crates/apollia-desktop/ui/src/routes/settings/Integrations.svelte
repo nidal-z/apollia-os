@@ -635,7 +635,6 @@
                     proprement. Le code backend et les composants Svelte sont
                     conservés (`oauth_google_picker_session`, `GoogleDrivePicker.svelte`,
                     `oauth_add_picked_drive_folder`, etc.) pour un re-enable rapide.
-                    Voir ADR-097.
                   -->
                   {#if false}
                     <div class="space-y-2 pt-2 border-t border-border/40">

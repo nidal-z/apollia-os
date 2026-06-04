@@ -158,7 +158,7 @@ async def chat_v2(self, ...): ...   # ⇒ AgentConfigError au @agent
 
 ## ADRs
 
-- `ADR-098` : Decorator-first
-- `ADR-040` : Pattern agent conversationnel
+- `ADR-023` : Decorator-first
+- `ADR-027` : Pattern agent conversationnel
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

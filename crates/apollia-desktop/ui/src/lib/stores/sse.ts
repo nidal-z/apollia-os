@@ -5,7 +5,7 @@
  * and dispatches to the appropriate Svelte stores.  A watchdog triggers a
  * full IPC refresh if no event is received within 10 seconds.
  *
- * Replaces the previous 3-second polling loop (ADR-030).
+ * Replaces the previous 3-second polling loop.
  */
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";

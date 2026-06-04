@@ -216,7 +216,7 @@ L'Actor est le composant qui traduit les steps en appels concrets aux outils, ob
 
 ### 4.1 Boucle Actor en Mode Orchestré
 
-L'`ActorLoop` exécute un `ExecutionPlan` en ordre topologique. En Mode Orchestré (Option B - ADR-022), `agent.run` n'est **jamais** appelé pendant les steps : ORIA appelle les outils et le LLM directement via `ToolProxyTrait`.
+L'`ActorLoop` exécute un `ExecutionPlan` en ordre topologique. En Mode Orchestré (Option B - ADR-005), `agent.run` n'est **jamais** appelé pendant les steps : ORIA appelle les outils et le LLM directement via `ToolProxyTrait`.
 
 ```rust
 /// Abstraction du ToolProxy pour l'ActorLoop - permet les tests sans PyO3.
@@ -249,7 +249,7 @@ impl StepError {
 }
 ```
 
-### 4.0 StepContext - Observation per-step *(ADR-035)*
+### 4.0 StepContext - Observation per-step *(ADR-005)*
 
 L'`ActorLoop` maintient un `StepContext` qui accumule les résultats des steps précédents et les injecte dans le contexte LLM de chaque step suivant. Ceci permet une **observation per-step en mode Orchestré** - le LLM voit les outputs des steps déjà exécutés.
 
@@ -276,7 +276,7 @@ const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
 const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 ```
 
-**Principe #6 relaxé en Orchestré (ADR-035) :** En mode Direct, le Principe #6 ("mémoire à initiative de l'agent") reste strict - aucune injection automatique. En mode Orchestré, ORIA injecte le `StepContext` et enregistre les épisodes car l'agent Python n'est pas appelé pendant les steps.
+**Principe #6 relaxé en Orchestré (ADR-005) :** En mode Direct, le Principe #6 ("mémoire à initiative de l'agent") reste strict - aucune injection automatique. En mode Orchestré, ORIA injecte le `StepContext` et enregistre les épisodes car l'agent Python n'est pas appelé pendant les steps.
 
 Pipeline d'exécution de l'`ActorLoop` :
 
@@ -656,7 +656,7 @@ $ apollia-os tools reset-circuit mcp_erp_acme
   ✔ Circuit breaker de mcp_erp_acme réinitialisé (→ CLOSED)
 ```
 
-### 7.3 Plan Cache - Réutilisation de plans *(ADR-036)*
+### 7.3 Plan Cache - Réutilisation de plans *(ADR-005)*
 
 Le Plan Cache permet de réutiliser des plans d'exécution précédemment générés pour des tâches similaires, évitant un appel LLM coûteux au Reasoner.
 
@@ -694,7 +694,7 @@ pub fn compute_cache_key(
 
 La clé est un hash SHA-256 de `{agent_name}:{agent_version}:{sorted_tools}:{normalized_text_500chars}`. La normalisation du texte inclut : minuscules, collapse espaces multiples, troncature à 500 caractères.
 
-**Stratégie (ADR-036) :**
+**Stratégie (ADR-005) :**
 - **TTL :** 7 jours (via `evict_expired(max_age_days)`)
 - **Persistance :** `~/.apollia/plan_cache.db` (SQLite)
 - **Cache hit :** émet `RuntimeEvent::PlanCacheHit` sur l'EventBus
@@ -905,20 +905,20 @@ AIPResult → Runtime Core
 | Classification Transient / Permanent | Retry uniquement sur ce qui peut se résoudre |
 | Modèle Reasoner = même LLM que l'agent (fallback) | Simplicité MVP - `model_hint` per-step disponible si multi-modèle souhaité |
 | StepBudget exposé à l'agent (lecture seule) | Agent peut adapter sa stratégie proactivement |
-| Scoring pondéré 7 facteurs (ADR-035) | Classification plus fine que les seuils booléens - tient compte de la mémoire et de la longueur de l'input |
-| Per-step observation en mode Orchestré (ADR-035) | Injection delta dans le contexte LLM de chaque step - Principe #6 relaxé uniquement en Orchestré |
-| Plan Cache SHA-256 avec TTL 7j (ADR-036) | Évite les appels LLM répétitifs pour des tâches similaires - local-first, SQLite |
+| Scoring pondéré 7 facteurs (ADR-005) | Classification plus fine que les seuils booléens - tient compte de la mémoire et de la longueur de l'input |
+| Per-step observation en mode Orchestré (ADR-005) | Injection delta dans le contexte LLM de chaque step - Principe #6 relaxé uniquement en Orchestré |
+| Plan Cache SHA-256 avec TTL 7j (ADR-005) | Évite les appels LLM répétitifs pour des tâches similaires - local-first, SQLite |
 | `model_hint` per-step | Le Reasoner peut router chaque step vers un backend LLM différent - fallback transparent si introuvable |
 | Mémoire épisodique fire-and-forget per-step | Traçabilité sans blocage - même pattern que AuditTrail |
-| HITL via `oneshot` channel + `PendingApprovals` (ADR-023) | Suspension pure sans polling - le budget ne progresse pas ; résolution thread-safe via HashMap de senders |
-| Reprise HITL par re-appel `agent.run` avec `is_resumed=True` (ADR-023) | Pas de nouveau point d'entrée - contrat minimal préservé (Principe #3) ; l'agent voit explicitement qu'il reprend via `task.is_resumed` |
-| `tools_requiring_approval` dans le manifest (ADR-023) | Déclaration décentralisée côté agent - le runtime n'a pas à connaître la sémantique métier de chaque outil |
+| HITL via `oneshot` channel + `PendingApprovals` (ADR-013) | Suspension pure sans polling - le budget ne progresse pas ; résolution thread-safe via HashMap de senders |
+| Reprise HITL par re-appel `agent.run` avec `is_resumed=True` (ADR-013) | Pas de nouveau point d'entrée - contrat minimal préservé (Principe #3) ; l'agent voit explicitement qu'il reprend via `task.is_resumed` |
+| `tools_requiring_approval` dans le manifest (ADR-013) | Déclaration décentralisée côté agent - le runtime n'a pas à connaître la sémantique métier de chaque outil |
 | `TimeoutWatcher` scan périodique (60s) | Pas de timer par tâche - un seul acteur gère tous les timeouts, O(n) SQLite au lieu de O(n) timers en mémoire |
-| Observabilité par step (ADR-026) | Input rendu, output, outil utilisé, erreur détaillée, durée - chaque step est une boîte ouverte |
+| Observabilité par step (ADR-012) | Input rendu, output, outil utilisé, erreur détaillée, durée - chaque step est une boîte ouverte |
 
 ---
 
-## 11. Gestion de la fenêtre de contexte *(ADR-058)*
+## 11. Gestion de la fenêtre de contexte *(ADR-005)*
 
 ### 11.1 `ContextManager`
 
@@ -984,11 +984,11 @@ pub fn estimate_tokens(messages: &[ChatMessage]) -> u32 {
 context_compact_threshold = 0.80    # Seuil de déclenchement (défaut : 80%)
 ```
 
-> **Référence technique :** [ADR-058](../adr/ADR-058-context-window-management.md)
+> **Référence technique :** [ADR-005](../adr/ADR-005-oria-execution-model.md)
 
 ---
 
-## 12. Workspace Context *(ADR-056)*
+## 12. Workspace Context *(ADR-010)*
 
 ### 12.1 Injection dans le system prompt
 
@@ -1050,13 +1050,13 @@ $ apollia-os workspace status
   Cache      : frais (collecté il y a 2s)
 ```
 
-> **Référence technique :** [ADR-056](../adr/ADR-056-workspace-context-assembly.md) | [Briques-Workspace](./Briques-Workspace.md)
+> **Référence technique :** [ADR-010](../adr/ADR-010-memory-context-architecture.md) | [Briques-Workspace](./Briques-Workspace.md)
 
 ---
 
 ## 13. Binary Feedback - Deux Plans Alternatifs
 
- (ADR-063), le Reasoner peut générer deux plans en parallèle pour permettre à l'opérateur de choisir et fournir un signal de supervision structuré.
+ (ADR-012), le Reasoner peut générer deux plans en parallèle pour permettre à l'opérateur de choisir et fournir un signal de supervision structuré.
 
 ### `plan_with_alternatives`
 
@@ -1137,7 +1137,7 @@ plan_alternatives_temp_a = 0.3  # plan conservateur
 plan_alternatives_temp_b = 0.8  # plan exploratoire
 ```
 
-> **Voir aussi :** [ADR-063](../adr/ADR-063-binary-feedback-rlhf.md) - Binary feedback RLHF
+> **Voir aussi :** [ADR-012](../adr/ADR-012-observability-feedback.md) - Binary feedback RLHF
 
 ---
 

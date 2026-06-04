@@ -15,7 +15,7 @@
   import { Button } from "$lib/components/ui/button";
   import { TabBar } from "$lib/components/ui/tabs";
 
-  // ADR-087 - the per-user profile is edited from `Paramètres → Profil`.
+  // The per-user profile is edited from `Paramètres → Profil`.
   // This page is the namespace explorer only (sidebar with classified
   // namespaces + entries list + detail sheet).  Selecting `__user__` shows
   // a banner redirecting to the Profile settings page.

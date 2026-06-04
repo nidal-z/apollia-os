@@ -166,4 +166,4 @@ Apollia OS est conçu pour les contextes où la souveraineté des données est n
 - [Architecture Principes](./Architecture-Principes) - Principe #1 Local-first
 - [Sécurité Sandbox Isolation](./Securite-Sandbox-Isolation) - Linux namespaces
 - [Sécurité Guardrails](./Securite-Guardrails) - StepBudget et circuit breakers
-- [ADR-010](../adr/ADR-010-pivot-saas-vers-runtime-rust-open-source) - contexte du pivot vers local-first
+- [ADR-001](../adr/ADR-001-foundations-stack.md) - contexte du pivot vers local-first

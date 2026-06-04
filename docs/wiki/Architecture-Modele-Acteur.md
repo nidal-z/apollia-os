@@ -97,7 +97,7 @@ STOPPING → STOPPED
 
 **Double écoute :**
 - TCP `0.0.0.0:7771` via `axum::serve`
-- Unix socket `/tmp/apollia.sock` via `hyper-util` boucle accept manuelle (ADR-017)
+- Unix socket `/tmp/apollia.sock` via `hyper-util` boucle accept manuelle (ADR-001)
 
 **Shutdown :** via `watch::channel` - `graceful_shutdown` signal propre.
 
@@ -134,7 +134,7 @@ EventBus → AgentRegistry → TaskRouter → APIServer
 - Chat Agent : délègue à `AIPBridge.call_run` (agent Python installé)
 - HITL inline : tous les outils requièrent approbation (Accept/Refuse/AlwaysAccept)
 - Persistance `chat.db` SQLite (sessions, messages, autorisations)
-- Chemin d'exécution séparé du `TaskRouter` (ADR-034)
+- Chemin d'exécution séparé du `TaskRouter` (ADR-022)
 
 ### 8. AgentMailbox
 
@@ -169,7 +169,7 @@ impl AgentMailboxHandle {
 }
 ```
 
-### 9. EventPersistor (ADR-088)
+### 9. EventPersistor (ADR-019)
 
 **Rôle :** persister la trajectoire d'exécution agent (thoughts ReAct,
 tool calls, ctx.log, retries, A2A invocations) dans une table SQLite
@@ -305,9 +305,9 @@ Cette règle est vérifiable à la compilation : `AgentRegistry` (l'acteur) n'es
 
 - [Architecture Principes](./Architecture-Principes) - Principe #5 : Un acteur, une responsabilité
 - [Briques Runtime Core](./Briques-Runtime-Core) - détail des composants Runtime
-- [ADR-011](../adr/ADR-011-agentid-taskid-string-aliases-dans-core) - AgentId / TaskId comme string aliases
-- [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) - Unix socket avec hyper-util
+- [ADR-001](../adr/ADR-001-foundations-stack.md) - AgentId / TaskId comme string aliases
+- [ADR-001](../adr/ADR-001-foundations-stack.md) - Unix socket avec hyper-util
 - [Briques Chat](./Briques-Chat) - détail du sous-système de chat
-- [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline) - Chat hybride : sessions, streaming, HITL inline
-- [ADR-035](../adr/ADR-035-per-step-observation-orchestrated) - Per-step observation en mode Orchestré
-- [ADR-036](../adr/ADR-036-plan-cache-strategy) - Stratégie de cache de plans
+- [ADR-022](../adr/ADR-022-chat-subsystem.md) - Chat hybride : sessions, streaming, HITL inline
+- [ADR-005](../adr/ADR-005-oria-execution-model.md) - Per-step observation en mode Orchestré
+- [ADR-005](../adr/ADR-005-oria-execution-model.md) - Stratégie de cache de plans

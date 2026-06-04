@@ -251,9 +251,9 @@ Pour les lire en cours d'exécution depuis un agent, c'est `ctx.budget` (cf. [ch
 
 ## ADRs
 
-- `ADR-006` : REST + JSON API locale
-- `ADR-017` : hyper-util Unix socket serving
-- `ADR-033` : Config opérateur en SQLite
-- `ADR-051` : API auth
+- `ADR-001` : REST + JSON API locale
+- `ADR-001` : hyper-util Unix socket serving
+- `ADR-014` : Config opérateur en SQLite
+- `ADR-016` : API auth
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

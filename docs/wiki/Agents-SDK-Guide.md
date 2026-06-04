@@ -20,7 +20,7 @@ $ python3 -c "import apollia; print(apollia.__version__)"
 0.3.0
 ```
 
-Requiert Python 3.10+. Zéro dépendance runtime (ADR-037).
+Requiert Python 3.10+. Zéro dépendance runtime (ADR-023).
 
 ---
 
@@ -68,7 +68,7 @@ Implémente la boucle Reason-Act-Observe avec LLM et outils.
 | `react` | `async (task, ctx, user_message, *, extra_context="", pending_tool=None, history=None) -> str \| dict` | `task`: AIP task dict; `ctx`: RuntimeContext; `user_message`: str; `extra_context`: contexte additionnel (str); `pending_tool`: HITL resume (dict \| None); `history`: previous turns (list[dict] \| None) | `str` (final answer) OR `dict` (AIPResult.input_required/failed) | (aucune - dégradation gracieuse) | Cœur de la boucle ReAct. Si `ctx.llm is None` retourne `AIPResult.failed("NO_LLM",...)`. |
 | `get_tool_schemas` | ` -> list[dict[str, Any]]` | - | Schémas d'outils natifs | - | Retourne les 13 outils natifs (bash_executor, file_io, python_executor, ask_user, notebook_read, notebook_edit, etc.) |
 
-**Observabilité automatique (ADR-088, Lot 2).** `react()` instrumente le
+**Observabilité automatique (ADR-019, Lot 2).** `react()` instrumente le
 loop pour pousser sur la trace event-sourced (visible dans
 `ExecutionTrace`) :
 - `ctx.emit_thought(thought, step_num)` après chaque parsing JSON
@@ -449,31 +449,8 @@ Génère : `<snake_name>_agent.py` + `test_<snake_name>_agent.py`
 - [Worker Agent Pattern](./Worker-Agent-Pattern.md) - spécialisation agents
 - [Agents ContextBootstrap Guide](./Agents-ContextBootstrap-Guide.md) - bootstrapping cross-session
 - [book ch03–ch04](../../book/src/ch03-intro-aip-et-manifest.md) - apprendre le SDK par l'exemple
-- [ADR-037](../adr/ADR-037-python-sdk-packaging.md) - décision packaging SDK
-- [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) - ContextBootstrap convention
-
----
-
-## Notes de validation (Axe 1 - inventaire)
-
-**Signatures cross-check** vs `/docs/internal/audit/01-inventaire-code-livre.md` :
-
-1. ✅ `BaseReActAgent.react` - async, 5 params (task, ctx, user_message, extra_context, pending_tool, history)
-2. ✅ `ConversationalAgent.converse` - async, 3 params (ctx, user_message, history)
-3. ✅ `WorkerAgent.run_python` - async, 3 params (ctx, code, timeout_secs)
-4. ✅ `AIPResult.completed` - static factory (text, data)
-5. ✅ `AIPResult.failed` - static factory (code, message, details)
-6. ✅ `extract_json` - 4 stratégies parsing (full JSON, fence, outermost, repair)
-7. ✅ `ContextBootstrap.is_stale` - abstract, async (ctx)
-8. ✅ `AgentManifestDict` - TypedDict avec champs AIP v2 (agent_type, examples, limitations, setup_notes)
-9. ✅ `ToolProxy.call` - async (tool_name, input) → dict
-
-**Mises à jour par rapport aux versions antérieures** :
-
-- Ajout `AgentManifestDict` TypedDict (remplace usage raw dict pour manifest)
-- Ajout `ContextBootstrap` classe abstraite pour convention cross-session
-- Champs AIP v2 (agent_type, examples, limitations, setup_notes) dans manifest
-- Ajout `WorkerAgent` avec helpers (run_python, read_file, delegate_skill, domain_error)
+- [ADR-023](../adr/ADR-023-sdk-agentkit-design.md) - décision packaging SDK
+- [ADR-010](../adr/ADR-010-memory-context-architecture.md) - ContextBootstrap convention
 
 ---
 

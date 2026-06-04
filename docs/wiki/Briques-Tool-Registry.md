@@ -247,7 +247,7 @@ result = await ctx.tools.mcp_database.query(sql="SELECT * FROM clients")
 >      migrate to file_read/file_write/file_edit/file_list/file_glob/file_grep
 > ```
 >
-> Voir ADR-043 pour la justification de la décomposition atomique.
+> Voir ADR-006 pour la justification de la décomposition atomique.
 
 ---
 
@@ -500,7 +500,7 @@ GET /api/v1/tools/:name     → Détail complet d'un outil (ToolDescriptor)
 
 ## 9. ToolExecutor - Interface unifiée d'exécution
 
-Le introduit un trait `ToolExecutor` et un routeur `ToolDispatcher` pour unifier l'invocation des outils natifs via une interface JSON générique. Voir ADR-043.
+Le introduit un trait `ToolExecutor` et un routeur `ToolDispatcher` pour unifier l'invocation des outils natifs via une interface JSON générique. Voir ADR-006.
 
 ### 9.1 Trait `ToolExecutor`
 
@@ -695,19 +695,19 @@ Chaque méthode : lit le fichier courant, applique la mutation en mémoire, vali
 | MVP sans Docker | Zéro dépendance, fonctionne sur tout Linux, évolutif vers nsjail |
 | Audit log SQLite local | Souveraineté complète, format lisible, zéro service externe |
 | `network_allowlist` dans manifest | Principe du moindre privilège - whitelist explicite |
-| Décomposition atomique des outils fichiers (ADR-043) | `file_io` monolithique remplacé par 6 outils à responsabilité unique - testabilité, composabilité, erreurs typées par cas d'usage |
-| `ToolExecutor` trait + `ToolDispatcher` (ADR-043) | Interface JSON unifiée - découplage registry/dispatch, ajout d'outils sans modifier le routeur |
+| Décomposition atomique des outils fichiers (ADR-006) | `file_io` monolithique remplacé par 6 outils à responsabilité unique - testabilité, composabilité, erreurs typées par cas d'usage |
+| `ToolExecutor` trait + `ToolDispatcher` (ADR-006) | Interface JSON unifiée - découplage registry/dispatch, ajout d'outils sans modifier le routeur |
 | Feature flags `http` et `memory-search` | `http_fetch` et `memory_search` sont opt-in à la compilation - binaire minimal par défaut, zéro surface d'attaque réseau inutile |
 | `SandboxRoot` comme type dédié | Centralisation de la logique anti-traversal - un seul endroit à auditer, impossibilité d'oublier la validation |
 | Naming `mcp:{server}/{tool}` | Namespace explicite - évite les collisions avec les outils natifs, lisible dans les manifests agents et les logs audit |
 | `McpClientManager` comme acteur unique | Pattern acteur Tokio strict - zéro état partagé, toutes les mutations de sessions passent par le channel `mpsc` |
 | `McpConfigWriter` séparé de `McpClientManager` | Séparation I/O disque / état runtime - le writer est synchrone et stateless, le manager ne touche jamais le disque directement |
 | `McpToolExecutor` implémente `ToolExecutor` | Les outils MCP sont indiscernables des outils natifs pour le `ToolDispatcher` - ajout de l'intégration MCP sans modifier le chemin d'exécution existant |
-| Transport stdio V1 uniquement (ADR-043) | Local-first : le serveur MCP est un subprocess local, zéro appel réseau initié sans action explicite de l'utilisateur |
+| Transport stdio V1 uniquement (ADR-006) | Local-first : le serveur MCP est un subprocess local, zéro appel réseau initié sans action explicite de l'utilisateur |
 
 ---
 
-## 12. Concurrence d'outils *(ADR-059)*
+## 12. Concurrence d'outils *(ADR-006)*
 
 ### 12.1 Champ `is_read_only` sur `ToolDescriptor`
 
@@ -765,7 +765,7 @@ impl ToolDispatcher {
 
 **Gain mesuré :** 20 appels `file_grep` sériels × 50ms = 1 000ms → `join_all` ≈ 50ms (facteur 20×).
 
-> **Référence technique :** [ADR-059](../adr/ADR-059-concurrent-tool-execution.md)
+> **Référence technique :** [ADR-006](../adr/ADR-006-tool-subsystem.md)
 
 ---
 
@@ -1062,7 +1062,7 @@ result = await ctx.tools.notebook_edit.run(
 
 | Décision | Justification |
 |---|---|
-| `is_read_only = false` par défaut | Conservateur - pas de régression sur les outils futurs (ADR-059) |
+| `is_read_only = false` par défaut | Conservateur - pas de régression sur les outils futurs (ADR-006) |
 | Batch mixte → sériel | Ordre des effets garanti - sécurité > performance sur les batches hétérogènes |
 | Semaphore(10) sur les batches read-only | Évite la saturation des fd système et les pics CPU sur les machines contraintes |
 | Marqueur UUID dans `persistent_bash` | Détection fiable de fin de commande même si l'output contient des chaînes arbitraires |
@@ -1122,7 +1122,7 @@ pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "web_search", "web_read",
     "memory_search",
     "ask_user",
-    // ADR-086 - gouvernance agent-driven des permissions.
+    // ADR-015 - gouvernance agent-driven des permissions.
     "permission_rule_add",
     "permission_rule_remove",
     "permission_rule_list",
@@ -1232,7 +1232,7 @@ pub struct NativeDispatcherConfig {
     /// Configuration de l'outil `web_read` issue de `[tools.web_read]` dans `apollia.toml`.
     /// Pilote le timeout HTTP, la taille maximale de réponse et le garde anti-SSRF.
     pub web_read_config: WebReadConfig,
-    /// Chemin vers `governance.db` pour les outils `permission_rule_*` (ADR-086).
+    /// Chemin vers `governance.db` pour les outils `permission_rule_*` (ADR-015).
     /// Quand `None`, ces trois outils ne sont pas enregistrés dans le dispatcher.
     pub governance_db_path: Option<PathBuf>,
 }

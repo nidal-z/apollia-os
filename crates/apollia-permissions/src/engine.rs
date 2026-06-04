@@ -344,7 +344,7 @@ fn migrate_safe_list_to_governance(
 
     tracing::info!(
         count = imported,
-        "safe_list migrated to governance.db (ADR-086)"
+        "safe_list migrated to governance.db"
     );
     Ok(())
 }

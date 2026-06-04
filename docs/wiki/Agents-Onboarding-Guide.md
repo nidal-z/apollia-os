@@ -4,7 +4,7 @@
 > Pas d'étapes numérotées, pas de formulaires fixes.
 > L'agent s'adapte à l'utilisateur et persiste chaque information en temps réel.
 
-**Décision architecturale** : [ADR-040 - Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
+**Décision architecturale** : [ADR-027 - Onboarding comme agent conversationnel](../adr/ADR-027-onboarding-agent.md)
 
 ---
 
@@ -283,7 +283,7 @@ Le system prompt est bilingue (FR/EN). La langue est détectée automatiquement 
 
 ## Liens
 
-- [ADR-040 - Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
+- [ADR-027 - Onboarding comme agent conversationnel](../adr/ADR-027-onboarding-agent.md)
 - [Brique - Mémoire Utilisateur Globale](Briques-User-Memory.md)
 - [Brique - CLI](Briques-CLI.md)
 - [Guide RuntimeContext agents Python](Agents-RuntimeContext-Guide.md)

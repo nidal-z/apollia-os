@@ -4,7 +4,7 @@ skinparam backgroundColor #FEFEFE
 skinparam sequenceArrowThickness 1.5
 skinparam sequenceParticipantBorderColor #333333
 
-title Flux d'onboarding v2.1 (ADR-086) - Apollia OS
+title Flux d'onboarding v2.1 (ADR-015) - Apollia OS
 
 actor User
 participant "Supervisor" as Sup
@@ -46,7 +46,7 @@ alt Configurer
     UI --> User : affichage (tags retirés)
   end
 
-  == Phase 2 - Écriture clés meta + règles de permissions (ADR-086) ==
+  == Phase 2 - Écriture clés meta + règles de permissions (ADR-015) ==
 
   Agent -> Mem : remember("onboarding.profile_type", "operator|builder")
   Agent -> Mem : remember("onboarding.version", "2.1")
@@ -61,7 +61,7 @@ alt Configurer
       Appel HITL-gated :
       le dialog desktop demande confirmation.
       L'utilisateur valide ou refuse chaque règle.
-      (ADR-086 - agent never bypasses HITL)
+      (ADR-015 - agent never bypasses HITL)
     end note
     Tools --> Agent : Ok(rule_id) | UserDenied
   end

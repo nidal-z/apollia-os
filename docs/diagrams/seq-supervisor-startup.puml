@@ -43,7 +43,7 @@ sup -> tools : register(file_read, file_write,\n  file_edit, file_list, file_glo
 sup -> tools : register(http_fetch, memory_search)
 note right of sup : ✔ Phase 3 - ToolRegistry prêt\n(10 outils natifs enregistrés)
 
-' Phase 3b - MCP (Sprint 26, ADR-044)
+' Phase 3b - MCP (ADR-017)
 alt mcp.toml présent dans data_dir
   sup -> mcp : McpClientManagerHandle::start(\n  McpConfig::load(mcp.toml),\n  tool_registry\n)
   mcp -> mcp : itérer sur [[servers]]
@@ -101,7 +101,7 @@ api -> api : bind Unix socket\nbind TCP :7771
 api --> sup : APIServerHandle
 note right of sup : ✔ Phase 6 - APIServer prêt\n/tmp/apollia.sock · :7771
 
-' Phase 7 - triggers depuis SQLite (Sprint 17, ADR-033)
+' Phase 7 - triggers depuis SQLite (ADR-014)
 sup -> sup : TriggerDefinitionRepository::open(\n  data_dir/triggers_def.db\n)
 sup -> sup : charger définitions SQLite\n(defs invalides → warn!, skip)
 sup -> trig : TriggerEngine::start(\n  defs_from_sqlite, event_sender\n)
@@ -109,10 +109,10 @@ trig -> trig : spawn sources\n(cron, interval, oneshot,\nfile_watch, webhook)
 trig --> sup : TriggerEngineHandle
 note right of sup : ✔ Phase 7 - TriggerEngine prêt\n(N triggers actifs)\nRepository → Arc<Mutex<>> dans AppState
 
-' Phase 8 - optionnelle (Sprint 9 Dashboard, géré via APIServer)
+' Phase 8 - optionnelle (Dashboard, géré via APIServer)
 note right of sup : ✔ Phase 8 - Dashboard HTMX\nembarqué dans APIServer\n(GET /dashboard)
 
-' Phase 9 - notifications depuis SQLite (Sprint 17, ADR-033)
+' Phase 9 - notifications depuis SQLite (ADR-014)
 sup -> sup : NotificationConfigRepository::open(\n  data_dir/notifications.db\n)
 alt canaux configurés dans SQLite
   sup -> notif : NotificationEngine::new(\n  config_from_sqlite, channels, event_sender\n)
@@ -123,14 +123,14 @@ else base SQLite vide
   note right of sup : ⚠ Phase 9 - NotificationEngine absent\naucune notification envoyée
 end
 
-' Phase 13 - Chat (Sprint 18, ADR-034)
+' Phase 13 - Chat (ADR-022)
 sup -> chat : ChatSessionManager::spawn(\n  event_sender, llm_router,\n  tool_registry, agent_loader,\n  runtime_budget\n)
 chat -> chat : ChatSessionRepository::open(\n  data_dir/chat.db\n)
 chat -> chat : restore authorized_tools\nfrom SQLite
 chat --> sup : ChatSessionManagerHandle
 note right of sup : ✔ Phase 13 - ChatSessionManager prêt\n(chat.db ouvert, autorisations restaurées)
 
-' Phase 15 - STT (Sprint 24, ADR-041)
+' Phase 15 - STT (ADR-009)
 alt stt.enabled = true dans apollia.toml
   sup -> sup : SttRepository::open(\n  data_dir/stt.db\n) [spawn_blocking]
   sup -> sup : try_load_backend()\n  WhisperCppBackend::load(model_path)\n  [spawn_blocking]

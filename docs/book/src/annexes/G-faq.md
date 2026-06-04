@@ -77,7 +77,7 @@ Cf. [Partie IV](../part-iv-llm-friendly-design/19-annotated-descriptions.md). Un
 
 ### Apollia tourne sur Windows ?
 
-Pas en v0.1. Le runtime Linux et macOS est officiellement supporté. Windows est sur la roadmap (cf. ADR-052), mais le sandbox via user namespaces n'a pas d'équivalent natif. Solution intermédiaire : WSL2.
+Pas en v0.1. Le runtime Linux et macOS est officiellement supporté. Windows est sur la roadmap (cf. ADR-003), mais le sandbox via user namespaces n'a pas d'équivalent natif. Solution intermédiaire : WSL2.
 
 ### Mes données quittent-elles la machine ?
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Lightweight accessibility audit (US-SP42-007 - D.49 / E.48 / F.76).
+ * Lightweight accessibility audit (D.49 / E.48 / F.76).
  *
  * Rules:
  *   1. Every `<button …>` that contains only a lucide-svelte icon

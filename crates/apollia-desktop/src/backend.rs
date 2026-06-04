@@ -524,6 +524,11 @@ async fn build_mcp_executors(
     let Some(handle) = mcp_handle else {
         return execs;
     };
+    // Agent-initiative resource tools: the two read-only resource tools route
+    // through the same MCP client manager handle as the per-server tools.
+    execs.extend(apollia_mcp::mcp_resources::build_mcp_resource_executors(
+        &Some(handle.clone()),
+    ));
     for status in handle.status().await {
         if !status.connected {
             continue;

@@ -72,7 +72,7 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
   }
 
   rectangle "apollia-auth\n(OAuth2 PKCE)" as auth #1a1a2e {
-    component "OAuth2 PKCE flow\nToken Keyring\nAuto-refresh (ADR-064)" as authengine
+    component "OAuth2 PKCE flow\nToken Keyring\nAuto-refresh (ADR-016)" as authengine
   }
 
   rectangle "apollia-notifications\n(Notifications Engine)" as notifications #1a1a2e {

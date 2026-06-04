@@ -31,7 +31,17 @@
     detectSlashPrefix,
     filterCommands,
   } from "$lib/chat/slashCommands";
+  import {
+    type McpResourceView,
+    type PinnedResource,
+    detectMentionQuery,
+    filterResources,
+    fetchMcpResources,
+    buildPinnedPrefix,
+  } from "$lib/chat/mcpResources";
   import SlashCommandMenu from "./SlashCommandMenu.svelte";
+  import MentionResourceMenu from "./MentionResourceMenu.svelte";
+  import PinnedResourceChip from "./PinnedResourceChip.svelte";
   import AttachmentChip from "./AttachmentChip.svelte";
   import InputHints from "./InputHints.svelte";
   import { Button } from "$lib/components/ui/button";
@@ -104,6 +114,21 @@
   let slashCommands = $state<SlashCommand[]>([]);
   let slashIndex = $state(0);
 
+  // ── MCP resource @-mention picker (user-initiative path) ──────────────────
+  // When the user types `@`, a picker lists MCP resources from connected
+  // servers. Selecting one PINS it; on send, pinned resources are prepended as
+  // an explicit system-prefix block. Nothing is auto-injected.
+  let mentionQuery = $state<string | null>(null);
+  let mentionLoading = $state(false);
+  let mentionIndex = $state(0);
+  let allResources = $state<McpResourceView[]>([]);
+  let resourcesLoaded = $state(false);
+  let pinnedResources = $state<PinnedResource[]>([]);
+
+  const filteredMentionResources = $derived(
+    mentionQuery === null ? [] : filterResources(allResources, mentionQuery),
+  );
+
   const limiter = new ChatRateLimiter();
 
   // reactive rate-limit state so the Send button can be
@@ -161,7 +186,9 @@
 
   const canSend = $derived(
     !disabled &&
-      (value.trim().length > 0 || attachments.length > 0) &&
+      (value.trim().length > 0 ||
+        attachments.length > 0 ||
+        pinnedResources.length > 0) &&
       rateBlockedReason === null,
   );
 
@@ -292,6 +319,66 @@
     }
   });
 
+  $effect(() => {
+    // React to value changes for @-mention detection. The cursor position is
+    // read from the live textarea (not a reactive dep), so we re-read it each
+    // time `value` changes.
+    const cursor = textareaEl?.selectionStart ?? value.length;
+    const query = detectMentionQuery(value, cursor);
+    if (query === null) {
+      mentionQuery = null;
+      mentionIndex = 0;
+      return;
+    }
+    mentionQuery = query;
+    if (mentionIndex >= filteredMentionResources.length) mentionIndex = 0;
+    if (!resourcesLoaded) {
+      void loadResources();
+    }
+  });
+
+  async function loadResources(): Promise<void> {
+    if (resourcesLoaded || mentionLoading) return;
+    mentionLoading = true;
+    try {
+      allResources = await fetchMcpResources();
+    } finally {
+      resourcesLoaded = true;
+      mentionLoading = false;
+    }
+  }
+
+  function pinResource(resource: McpResourceView): void {
+    const exists = pinnedResources.some(
+      (p) => p.server === resource.server && p.uri === resource.uri,
+    );
+    if (!exists) {
+      pinnedResources = [
+        ...pinnedResources,
+        { server: resource.server, uri: resource.uri, name: resource.name },
+      ];
+    }
+    // Strip the in-progress `@token` from the textarea.
+    const cursor = textareaEl?.selectionStart ?? value.length;
+    const upto = value.slice(0, cursor);
+    const at = upto.lastIndexOf("@");
+    if (at >= 0) {
+      value = value.slice(0, at) + value.slice(cursor);
+    }
+    mentionQuery = null;
+    mentionIndex = 0;
+    queueMicrotask(() => {
+      autoResize();
+      textareaEl?.focus();
+    });
+  }
+
+  function unpinResource(server: string, uri: string): void {
+    pinnedResources = pinnedResources.filter(
+      (p) => !(p.server === server && p.uri === uri),
+    );
+  }
+
   function autoResize() {
     if (!textareaEl) return;
     textareaEl.style.height = "auto";
@@ -304,6 +391,34 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    // @-mention picker navigation wins when it's open with at least one entry.
+    if (mentionQuery !== null && filteredMentionResources.length > 0) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        mentionIndex = (mentionIndex + 1) % filteredMentionResources.length;
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        mentionIndex =
+          (mentionIndex - 1 + filteredMentionResources.length) %
+          filteredMentionResources.length;
+        return;
+      }
+      if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
+        event.preventDefault();
+        const resource = filteredMentionResources[mentionIndex];
+        if (resource) pinResource(resource);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        mentionQuery = null;
+        mentionIndex = 0;
+        return;
+      }
+    }
+
     // Slash-menu navigation wins when it's open.
     if (slashPrefix !== null && slashCommands.length > 0) {
       if (event.key === "ArrowDown") {
@@ -361,7 +476,8 @@
   function send() {
     if (disabled) return;
     const trimmed = value.trim();
-    if (!trimmed && attachments.length === 0) return;
+    if (!trimmed && attachments.length === 0 && pinnedResources.length === 0)
+      return;
 
     const check = limiter.check();
     if (!check.allowed) {
@@ -374,10 +490,17 @@
     refreshRateState();
     ensureRateBlockTimer();
 
+    // Prepend the pinned MCP resources as an explicit system-prefix block. This
+    // is the user-initiative path: the user chose these, so they ride along
+    // this single turn, then the pin list is cleared.
+    const prefix = buildPinnedPrefix(pinnedResources);
+    const content = prefix ? `${prefix}${trimmed}` : trimmed;
+
     const payload = attachments;
-    onsend(trimmed, payload);
+    onsend(content, payload);
     value = "";
     attachments = [];
+    pinnedResources = [];
     if (textareaEl) textareaEl.style.height = "auto";
   }
 
@@ -473,6 +596,20 @@
 </script>
 
 <div class="border-t border-border/30 px-4 pb-2 pt-2" data-testid="chat-input">
+  {#if pinnedResources.length > 0}
+    <div
+      class="mb-2 flex flex-wrap gap-1.5"
+      data-testid="chat-pinned-resource-list"
+    >
+      {#each pinnedResources as pin (pin.server + "::" + pin.uri)}
+        <PinnedResourceChip
+          resource={pin}
+          onremove={() => unpinResource(pin.server, pin.uri)}
+        />
+      {/each}
+    </div>
+  {/if}
+
   {#if attachments.length > 0}
     <div
       class="mb-2 flex flex-wrap gap-1.5"
@@ -503,6 +640,16 @@
         selectedIndex={slashIndex}
         onselect={(cmd) => runCommand(cmd)}
         onhover={(i) => (slashIndex = i)}
+      />
+    {/if}
+
+    {#if mentionQuery !== null}
+      <MentionResourceMenu
+        resources={filteredMentionResources}
+        selectedIndex={mentionIndex}
+        loading={mentionLoading && !resourcesLoaded}
+        onselect={(resource) => pinResource(resource)}
+        onhover={(i) => (mentionIndex = i)}
       />
     {/if}
 

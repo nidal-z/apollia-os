@@ -1,4 +1,4 @@
-# packaging/ - scripts de release DMG/AppImage (ADR-073, ADR-074)
+# packaging/ - scripts de release DMG/AppImage (ADR-028, ADR-028)
 
 Ce dossier contient tout ce qui est nécessaire pour assembler une release
 auto-contenue d'Apollia OS : Python embarqué + site-packages curé, binaire CLI,

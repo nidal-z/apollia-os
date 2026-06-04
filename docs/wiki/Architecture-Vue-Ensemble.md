@@ -69,7 +69,7 @@ graph TB
 ```
 ┌─ APOLLIA DESKTOP (Tauri v2 + Svelte 5) ──────────────────────────┐
 │  WebView · Commandes IPC · SSE Stores (agents/tasks/hitl)         │
-│  init_embedded() → RuntimeHandle (ADR-027)                        │
+│  init_embedded() → RuntimeHandle (ADR-020)                        │
 └───────────────────────────┬───────────────────────────────────────┘
                             │ in-process
 ┌───────────────────────────▼───────────────────────────────────────┐
@@ -124,7 +124,7 @@ graph TB
                     └───────────────────────────┘
 ```
 
-### 1.2 Architecture multi-runner (ADR-113)
+### 1.2 Architecture multi-runner (ADR-007)
 
 À partir de v0.1.0, Apollia OS sépare l'inférence LLM/STT du daemon principal via un pattern sidecar inspiré d'Ollama et LM Studio. Le binaire `apollia-os` détecte le GPU au boot et spawn un process enfant `apollia-runner-{backend}` qui contient l'engine d'inférence (`llama-cpp-2` + `whisper-rs`). Communication daemon ↔ runner via HTTP/JSON sur loopback TCP.
 
@@ -153,7 +153,7 @@ graph TB
 - Évolutivité : ajouter un backend (Intel oneAPI, ANE) = ajouter une feature du crate `apollia-runner`.
 
 **Détails techniques :**
-- Décision : [ADR-113](../adr/ADR-113-multi-runner-sidecar-architecture.md)
+- Décision : [ADR-007](../adr/ADR-007-inference-multi-runner-sidecar.md)
 - Protocole IPC : [IPC-PROTOCOL.md](../internal/architecture/IPC-PROTOCOL.md)
 - Structure crate `apollia-runner` : [CRATE-LAYOUT.md](../internal/architecture/CRATE-LAYOUT.md)
 - Plan packaging : [PACKAGING-PLAN.md](../internal/architecture/PACKAGING-PLAN.md)

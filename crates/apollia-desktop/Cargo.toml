@@ -6,7 +6,7 @@ description = "Apollia OS - Desktop application (Tauri v2 + embedded runtime)"
 license = "MIT OR Apache-2.0"
 
 [features]
-# ADR-113 multi-runner : les backends d'inférence locale vivent dans le crate
+# Multi-runner : les backends d'inférence locale vivent dans le crate
 # `apollia-runner` (sidecar). Le desktop ne forward plus de features `local-*`
 # ou `stt-*` au runtime - l'inférence est dispatchée au runner via IPC HTTP.
 default = ["cloud"]

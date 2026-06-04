@@ -4,7 +4,7 @@
 > and before editing this crate.
 
 The CLI is the human-facing entry point and the machine-facing scripting
-surface. Both are first-class. Adherence to ADR-008 (noun-verb commands)
+surface. Both are first-class. Adherence to ADR-004 (noun-verb commands)
 and to exit code 0-5 semantics is what keeps scripts portable across
 releases.
 
@@ -12,7 +12,7 @@ releases.
 
 ## 1. Command shape
 
-ADR-008. Every command is `apollia <noun> <verb> [args]`. Never
+ADR-004. Every command is `apollia <noun> <verb> [args]`. Never
 `<verb> <noun>`.
 
 ```

@@ -53,7 +53,7 @@
   let envValuesDraft = $state<Record<string, string>>({}); // plain (non-secret) env values
   let secretRotateValues = $state<Record<string, string>>({}); // new secret material per key
   /** Env keys whose value is `${APOLLIA_OAUTH}` - managed via the OAuth
-   *  orchestrator, not through static rotation (ADR-095 Phase 5). */
+   *  orchestrator, not through static rotation. */
   let oauthEnvHeaders = $state<string[]>([]);
   let oauthReconnecting = $state(false);
   let oauthReconnectError = $state<string | null>(null);
@@ -103,7 +103,7 @@
   /** True when an env-map value is the dynamic OAuth placeholder. The token
    *  itself lives in the keychain under `mcp_oauth:{server_name}`; the
    *  transport resolves it through `apollia-auth::ensure_fresh_token` at each
-   *  request (ADR-095 Phases 2-4). */
+   *  request. */
   function isOAuthPlaceholder(value: string): boolean {
     return value === "${APOLLIA_OAUTH}";
   }
@@ -169,7 +169,7 @@
   const plainEnvKeys = $derived(Object.keys(envValuesDraft).sort());
   const secretEnvKeys = $derived(Object.keys(secretRotateValues).sort());
 
-  // ── OAuth reconnect (ADR-095 Phase 5) ────────────────────────────────────────
+  // ── OAuth reconnect ────────────────────────────────────────
 
   /** Re-run the MCP OAuth flow for this server. Re-uses `mcp_oauth_login` -
    *  idempotent at the orchestrator level: a fresh token simply overwrites the
@@ -411,7 +411,7 @@
     {/if}
 
     {#if oauthEnvHeaders.length > 0}
-      <!-- OAuth (ADR-095 Phase 5) - the token is managed by the orchestrator,
+      <!-- OAuth - the token is managed by the orchestrator,
            never exposed to the user. Surface its presence + offer a sign-in
            refresh button so the operator can rotate without uninstalling. -->
       <Card class="p-[14px_16px] space-y-2.5" data-testid="mcp-settings-oauth">

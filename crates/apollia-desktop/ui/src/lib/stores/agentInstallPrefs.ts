@@ -9,8 +9,8 @@
  * Par défaut : `false` (sécurité par défaut - toute install qui touche
  * pip doit être explicitement consentie).
  *
- * Persisté en localStorage (pattern aligné sur `mode.ts`). ADR-029
- * impose que `apollia.toml` reste read-only depuis l'UI, donc on évite
+ * Persisté en localStorage (pattern aligné sur `mode.ts`). `apollia.toml`
+ * reste read-only depuis l'UI, donc on évite
  * d'y écrire ce genre de préférence.
  */
 import { writable } from "svelte/store";

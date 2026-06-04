@@ -122,9 +122,9 @@ L'usage typique : peupler `ctx.memory` avec des entrées vectorisées pour reche
 
 ## ADRs
 
-- `ADR-101` : Ctx exhaustif et typé
-- `ADR-047` : Multi-LLM backend registry
-- `ADR-057` : Prompt caching strategy
-- `ADR-112` : Stream cleanup et rename
+- `ADR-024` : Ctx exhaustif et typé
+- `ADR-008` : Multi-LLM backend registry
+- `ADR-008` : Prompt caching strategy
+- `ADR-024` : Stream cleanup et rename
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

@@ -20,7 +20,7 @@
     arg: RegistryPackageArgView;
   }
 
-  /** Auth-step probe mode (ADR-095 Phase 5). Drives the branch this component
+  /** Auth-step probe mode. Drives the branch this component
    *  renders: `oauth` shows the scope selector + sign-in button, `static`
    *  shows the legacy token fields, `none` shows just the help text. */
   export type AuthProbeMode =
@@ -46,7 +46,7 @@
      *  that the MCP server is provided by a desktop app rather than a cloud
      *  service (Figma Dev Mode, future similar integrations). */
     localLoopback?: boolean;
-    // ── ADR-095 Phase 5 props ──────────────────────────────────────────────
+    // ── OAuth probe props ──────────────────────────────────────────────
     /** Result of the auth-step probe (defaults to `"idle"` for legacy callers). */
     probeMode?: AuthProbeMode;
     /** Probe / discovery error message, surfaced under the form. */
@@ -250,7 +250,7 @@
   {/if}
 
   {#if isOAuthMode}
-    <!-- OAuth mode (ADR-095 Phase 5). Renders the scope selector + sign-in
+    <!-- OAuth mode. Renders the scope selector + sign-in
          affordance instead of asking the user to paste an Authorization
          Bearer value. The actual token is fetched, stored in the keychain,
          and rotated transparently by `apollia-auth::mcp_oauth_orchestrator`. -->

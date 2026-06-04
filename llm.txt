@@ -57,7 +57,7 @@ apollia-v2/
 ├── docs/
 │   ├── wiki/               ← Technical reference (71 files: Architecture, Briques, API, etc.)
 │   ├── help/               ← End-user help (34 articles, desktop app context)
-│   ├── adr/                ← 70 Architecture Decision Records (ADR-001 to ADR-082, non-contiguous)
+│   ├── adr/                ← 70 Architecture Decision Records (ADR-001 to ADR-015, non-contiguous)
 │   ├── diagrams/           ← PlantUML sources (46 .puml files)
 │   └── internal/           ← Private: stories, sprints, specs, fact-checking
 │
@@ -93,7 +93,7 @@ Act      → execute tool calls, emit events
 Iterate  → until StepBudget exhausted, task done, or HITL pause
 ```
 
-Two execution modes (ADR-004):
+Two execution modes (ADR-005):
 - **Direct** (atomic): agent handles its own ReAct loop in `run()`
 - **Orchestrated**: ORIA generates a multi-step plan; agent is declarative
 
@@ -135,7 +135,7 @@ The runtime enforces this budget - it cannot be bypassed by agent code.
 
 ### Agent Contract (AIP - Agent Interface Protocol)
 
-Minimal duck-typing contract (ADR-003):
+Minimal duck-typing contract (ADR-023):
 
 ```python
 def manifest() -> dict:
@@ -222,14 +222,14 @@ Three layers (all in SQLite FTS5):
 - **Semantic:** searchable knowledge fragments
 - **Procedural:** `learn_procedure(trigger, steps)` / `recall_procedure(trigger)`
 
-Memory is **always at agent initiative** (ADR-007) - the runtime never auto-injects.
-Namespace convention: `{project_id}:{manifest_namespace}` (ADR-056).
+Memory is **always at agent initiative** (ADR-010) - the runtime never auto-injects.
+Namespace convention: `{project_id}:{manifest_namespace}` (ADR-010).
 
 ---
 
 ## Permission Model
 
-Three scope layers (ADR-061, ADR-082), stored in `~/.apollia/governance.db`:
+Three scope layers (ADR-015, ADR-015), stored in `~/.apollia/governance.db`:
 
 | Scope | Storage | Lifetime |
 |---|---|---|
@@ -244,7 +244,7 @@ shows an approval card; CLI uses `apollia task resume <id> --approve|--reject`.
 
 ## CLI Reference
 
-Pattern: `apollia-os <noun> <verb>` (ADR-008)
+Pattern: `apollia-os <noun> <verb>` (ADR-004)
 
 ```
 apollia-os start                    # boot runtime
@@ -318,7 +318,7 @@ Default locale: system → FR fallback.
 | SDK guide | `docs/wiki/Agents-SDK-Guide.md` |
 | RuntimeContext reference | `docs/wiki/Agents-RuntimeContext-Guide.md` |
 | Design system | `docs/wiki/DESIGN-SYSTEM.md` |
-| All ADRs | `docs/adr/` (ADR-001 to ADR-082) |
+| All ADRs | `docs/adr/` (ADR-001 to ADR-015) |
 | ADR summary | `docs/wiki/Decisions-Log.md` |
 | Pedagogical book | `docs/book/src/` (build: `mdbook build docs/book/`) |
 
@@ -329,8 +329,8 @@ Default locale: system → FR fallback.
 **Status:** v0.1.0-preview. Single-maintainer, source-available. Local-first
 Rust runtime for autonomous AI agents.
 
-**ADR count:** 70 active (numbered ADR-001 to ADR-082; superseded ones merged or
-removed). Latest: ADR-082, Tool Governance Architecture (unified governance.db,
+**ADR count:** 70 active (numbered ADR-001 to ADR-015; superseded ones merged or
+removed). Latest: ADR-015, Tool Governance Architecture (unified governance.db,
 scope-aware ToolRegistry, 3-scope HITL).
 
 **Known stubs (not yet live):**
@@ -344,8 +344,7 @@ scope-aware ToolRegistry, 3-scope HITL).
 
 **Before starting any task:**
 1. Read `AGENTS.md` - non-negotiable rules (error handling, actor pattern, commits)
-2. Check `docs/internal/STORIES/sprint-index.md` for current work context
-3. For any new architectural decision, create an ADR in `docs/adr/`
+2. For any new architectural decision, create an ADR in `docs/adr/`
 
 **Running things:**
 ```bash

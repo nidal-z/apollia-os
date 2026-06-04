@@ -51,7 +51,7 @@ note over router
   3. Backend absent → AgentDegraded
 end note
 
-== Routing par niveau de précision (Sprint 36) ==
+== Routing par niveau de précision ==
 
 participant "Reasoner\n(ORIA)" as reasoner #1a1a2e
 participant "FilePathExtractor\n(apollia-tools)" as fpe #1a1a2e

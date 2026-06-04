@@ -462,32 +462,67 @@ fn parse_completion(
     template_result: &ChatTemplateResult,
     raw_text: String,
 ) -> (String, Vec<ToolCall>) {
-    if !template_result.parse_tool_calls {
-        return (raw_text, Vec::new());
+    // Preferred path: the model's native chat-template parser, used only when
+    // the template advertised tool support.
+    let native = if template_result.parse_tool_calls {
+        native_tool_calls(template_result, &raw_text)
+    } else {
+        None
+    };
+    if let Some((content, calls)) = &native {
+        if !calls.is_empty() {
+            return (content.clone(), calls.clone());
+        }
     }
 
-    let parsed_json = match template_result.parse_response_oaicompat(&raw_text, false) {
+    // Fallback: many GGUF chat templates (Hermes / Qwen lineage) instruct the
+    // model to emit `<tool_call>{...}</tool_call>` tags, but llama.cpp does not
+    // always detect that format, so the native parser yields nothing and the
+    // call would leak to the user as plain text. Recover those tags ourselves.
+    let (content, tool_calls) = extract_tag_tool_calls(&raw_text);
+    if !tool_calls.is_empty() {
+        tracing::debug!(
+            count = tool_calls.len(),
+            "recovered tool calls from <tool_call> tags (native parser found none)"
+        );
+        return (content, tool_calls);
+    }
+
+    // No tool calls anywhere: keep the native cleaned content if we have it,
+    // otherwise the raw text verbatim (the validated tool-free path).
+    match native {
+        Some((content, _)) => (content, Vec::new()),
+        None => (raw_text, Vec::new()),
+    }
+}
+
+/// Run llama.cpp's own OpenAI-compat response parser. Returns the cleaned
+/// content plus any structured tool calls, or `None` when the parser fails
+/// (so the caller can fall back to a tag scan).
+fn native_tool_calls(
+    template_result: &ChatTemplateResult,
+    raw_text: &str,
+) -> Option<(String, Vec<ToolCall>)> {
+    let parsed_json = match template_result.parse_response_oaicompat(raw_text, false) {
         Ok(json) => json,
         Err(e) => {
-            // The parser is best-effort: on failure keep the raw text so the
-            // user still sees the answer rather than losing the turn.
-            tracing::warn!(error = %e, "tool-call parse failed, returning raw text");
-            return (raw_text, Vec::new());
+            tracing::warn!(error = %e, "native tool-call parse failed, falling back to tag scan");
+            return None;
         }
     };
 
     let value: serde_json::Value = match serde_json::from_str(&parsed_json) {
         Ok(v) => v,
         Err(e) => {
-            tracing::warn!(error = %e, "tool-call parse produced invalid JSON, returning raw text");
-            return (raw_text, Vec::new());
+            tracing::warn!(error = %e, "native tool-call parse produced invalid JSON, falling back to tag scan");
+            return None;
         }
     };
 
     let content = value
         .get("content")
         .and_then(|c| c.as_str())
-        .unwrap_or(&raw_text)
+        .unwrap_or(raw_text)
         .to_string();
 
     let tool_calls = value
@@ -501,7 +536,50 @@ fn parse_completion(
         })
         .unwrap_or_default();
 
-    (content, tool_calls)
+    Some((content, tool_calls))
+}
+
+/// Recover Hermes / Qwen style `<tool_call>{...}</tool_call>` calls from raw
+/// model output. Returns the text with the recognized tag blocks removed plus
+/// the parsed calls. A tag whose inner payload is not a JSON tool call is left
+/// verbatim in the content and produces no call.
+fn extract_tag_tool_calls(raw_text: &str) -> (String, Vec<ToolCall>) {
+    const OPEN: &str = "<tool_call>";
+    const CLOSE: &str = "</tool_call>";
+
+    let mut tool_calls = Vec::new();
+    let mut content = String::new();
+    let mut rest = raw_text;
+
+    while let Some(open_at) = rest.find(OPEN) {
+        let after_open = open_at + OPEN.len();
+        let Some(close_rel) = rest[after_open..].find(CLOSE) else {
+            // Unterminated tag: stop scanning, keep the remainder verbatim.
+            break;
+        };
+        let close_at = after_open + close_rel;
+        let block_end = close_at + CLOSE.len();
+        let inner = rest[after_open..close_at].trim();
+
+        let call = serde_json::from_str::<serde_json::Value>(inner)
+            .ok()
+            .and_then(|value| oai_tool_call(&value, tool_calls.len()));
+
+        match call {
+            Some(call) => {
+                content.push_str(&rest[..open_at]);
+                tool_calls.push(call);
+            }
+            None => {
+                // Not a tool call we understand: preserve the block as text.
+                content.push_str(&rest[..block_end]);
+            }
+        }
+        rest = &rest[block_end..];
+    }
+    content.push_str(rest);
+
+    (content.trim().to_string(), tool_calls)
 }
 
 /// Converts one OpenAI-format `tool_calls[]` entry into the IPC [`ToolCall`].
@@ -777,5 +855,82 @@ mod tests {
         let backend = LlamaCppBackend::new();
         assert!(backend.loaded_ids().is_empty());
         assert_eq!(backend.total_memory_mb(), 0);
+    }
+
+    #[test]
+    fn tag_scan_recovers_single_qwen_tool_call() {
+        // GIVEN Hermes/Qwen output with one <tool_call> block (object arguments)
+        let raw = "Sure, writing it now.\n<tool_call>{\"name\": \"gdrive.workspace_write\", \"arguments\": {\"name\": \"bateau.txt\", \"content\": \"hello\"}}</tool_call>";
+
+        // WHEN scanning for tag-style tool calls
+        let (content, calls) = extract_tag_tool_calls(raw);
+
+        // THEN one call is recovered and the tag is stripped from the content
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "gdrive.workspace_write");
+        assert_eq!(
+            calls[0].arguments,
+            serde_json::json!({ "name": "bateau.txt", "content": "hello" })
+        );
+        assert_eq!(content, "Sure, writing it now.");
+    }
+
+    #[test]
+    fn tag_scan_recovers_multiple_tool_calls() {
+        // GIVEN two consecutive <tool_call> blocks
+        let raw = "<tool_call>{\"name\": \"a\", \"arguments\": {}}</tool_call><tool_call>{\"name\": \"b\", \"arguments\": {\"x\": 1}}</tool_call>";
+
+        // WHEN scanning
+        let (content, calls) = extract_tag_tool_calls(raw);
+
+        // THEN both calls are recovered with synthesized ids and content is empty
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].name, "a");
+        assert_eq!(calls[0].id, "call_0");
+        assert_eq!(calls[1].name, "b");
+        assert_eq!(calls[1].id, "call_1");
+        assert_eq!(content, "");
+    }
+
+    #[test]
+    fn tag_scan_leaves_plain_text_untouched() {
+        // GIVEN ordinary prose with no tool-call tags
+        let raw = "Here is the summary you asked for, no tools needed.";
+
+        // WHEN scanning
+        let (content, calls) = extract_tag_tool_calls(raw);
+
+        // THEN nothing is extracted and the text is preserved
+        assert!(calls.is_empty());
+        assert_eq!(content, raw);
+    }
+
+    #[test]
+    fn tag_scan_keeps_malformed_block_as_text_without_panicking() {
+        // GIVEN a <tool_call> block whose inner payload is not valid JSON
+        let raw = "before <tool_call>not json at all</tool_call> after";
+
+        // WHEN scanning
+        let (content, calls) = extract_tag_tool_calls(raw);
+
+        // THEN no call is produced and the block is preserved verbatim
+        assert!(calls.is_empty());
+        assert_eq!(
+            content,
+            "before <tool_call>not json at all</tool_call> after"
+        );
+    }
+
+    #[test]
+    fn tag_scan_ignores_unterminated_tag() {
+        // GIVEN an opening tag with no closing tag (truncated generation)
+        let raw = "thinking <tool_call>{\"name\": \"a\"";
+
+        // WHEN scanning
+        let (content, calls) = extract_tag_tool_calls(raw);
+
+        // THEN nothing is extracted and the remainder is kept
+        assert!(calls.is_empty());
+        assert_eq!(content, "thinking <tool_call>{\"name\": \"a\"");
     }
 }

@@ -1,7 +1,7 @@
 /**
  * Translates shell commands and tool calls into human-readable action
  * sentences for the operator skin. Extracted from `TaskTimeline.svelte`
- * (ADR-088, Lot 3) so it's reusable by `TraceEventCard` and unit-testable
+ * so it's reusable by `TraceEventCard` and unit-testable
  * in isolation.
  *
  * The functions here are pure - no Svelte / DOM / store dependencies.

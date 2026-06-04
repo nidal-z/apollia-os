@@ -94,7 +94,7 @@ jobs:
         if: always()
         run: ./target/debug/apollia-os stop || true
 
-  # ── Multi-runner CPU E2E (ADR-113) ─────────────────────────────────────────
+  # ── Multi-runner CPU E2E ───────────────────────────────────────────────────
   # Spawn le daemon + le sidecar runner CPU sur les 3 OS, vérifie le
   # handshake HTTP loopback et l'inférence end-to-end sur un GGUF léger.
   multirunner-cpu-e2e:
@@ -163,7 +163,7 @@ jobs:
             --target ${{ matrix.triple }} \
             runner_supervisor:: -- --test-threads=1
 
-  # ── Feature matrix sanity (apollia-runner backends, ADR-113) ───────────────
+  # ── Feature matrix sanity (apollia-runner backends) ────────────────────────
   feature-matrix:
     name: Feature ${{ matrix.crate }} (${{ matrix.feature }})
     if: |

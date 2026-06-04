@@ -22,9 +22,9 @@
 | `stt-metal` | `--features stt-metal` | macOS Apple Silicon (M1+) |
 | `stt-cuda` | `--features stt-cuda` | GPU NVIDIA + CUDA toolkit |
 
-Les feature flags suivent le meme pattern que `apollia-llm` (ADR-020). Le modele `.bin` (format GGML) est un fichier de donnees dans `~/.apollia/models/` - jamais compile dans le binaire.
+Les feature flags suivent le meme pattern que `apollia-llm` (ADR-008). Le modele `.bin` (format GGML) est un fichier de donnees dans `~/.apollia/models/` - jamais compile dans le binaire.
 
-**Decision architecturale (ADR-041) :** whisper-rs (whisper.cpp FFI) est le backend V1. La roadmap prevoit candle-whisper (inference Rust native) en V2, et Voxtral (modele Mistral specialise audio) en V3. Le trait `SttBackend` permet cette evolution sans casser l'API.
+**Decision architecturale (ADR-009) :** whisper-rs (whisper.cpp FFI) est le backend V1. La roadmap prevoit candle-whisper (inference Rust native) en V2, et Voxtral (modele Mistral specialise audio) en V3. Le trait `SttBackend` permet cette evolution sans casser l'API.
 
 ---
 
@@ -481,7 +481,7 @@ Positionnement : centre-bas de l'ecran principal (350x80 px logiques, marge de 4
 
 ### Settings
 
-Section STT dans la page Parametres - affichage read-only de la configuration courante (conforme ADR-029 : la configuration structurelle est dans `apollia.toml`, pas editable depuis l'UI).
+Section STT dans la page Parametres - affichage read-only de la configuration courante (conforme ADR-020 : la configuration structurelle est dans `apollia.toml`, pas editable depuis l'UI).
 
 ---
 
@@ -515,7 +515,7 @@ Tous les sous-commandes supportent le flag global `--json` pour une sortie machi
 
 ## 11. Configuration `[stt]`
 
-Section `[stt]` dans `apollia.toml` (separation structurelle TOML / operationnelle SQLite conforme ADR-033).
+Section `[stt]` dans `apollia.toml` (separation structurelle TOML / operationnelle SQLite conforme ADR-014).
 
 ```toml
 [stt]
@@ -549,13 +549,13 @@ trigger_mode = "toggle"        # "toggle" | "push_to_talk"
 | Decision | Justification |
 |---|---|
 | Trait synchrone `SttBackend` | L'inference STT est CPU/GPU-bound, pas I/O-bound. L'appelant wrappe dans `spawn_blocking`. Simplifie les implementations de backends. |
-| Feature flags pour backends | Meme pattern que `apollia-llm` (ADR-020). Permet de compiler sans whisper.cpp pour les environnements sans C++ toolchain. |
-| whisper-rs V1, candle V2, Voxtral V3 (ADR-041) | whisper.cpp est le moteur le plus mature et performant. candle-whisper eliminera la dependance C++ FFI. Voxtral explorera les modeles audio next-gen. |
+| Feature flags pour backends | Meme pattern que `apollia-llm` (ADR-008). Permet de compiler sans whisper.cpp pour les environnements sans C++ toolchain. |
+| whisper-rs V1, candle V2, Voxtral V3 (ADR-009) | whisper.cpp est le moteur le plus mature et performant. candle-whisper eliminera la dependance C++ FFI. Voxtral explorera les modeles audio next-gen. |
 | Thread OS dedie pour `cpal::Stream` | Core Audio sur macOS impose une affinite de thread - `cpal::Stream` n'est pas `Send`. Le buffer partage `Arc<Mutex<Vec<f32>>>` permet la communication cross-thread. |
 | Resample rubato sinc | Qualite superieure aux algorithmes lineaires pour la conversion 48 kHz → 16 kHz. Le surcout CPU est negligeable face a l'inference. |
 | `SttRepository` separe dans l'`AppState` | SQLite WAL supporte les lecteurs concurrents. Le Supervisor ouvre deux connexions : une pour l'acteur (ecriture), une pour les routes API (lecture). |
 | Degradation gracieuse dans le Supervisor | Modele absent ou chargement echoue → `stt_engine = None`, runtime continue. Aucun panic, routes API retournent 503. Conforme Principe #4 (Fail fast au demarrage pour les erreurs detectables). |
-| Settings read-only dans l'UI (ADR-029) | La configuration STT est structurelle (`apollia.toml`), pas operationnelle. L'UI affiche mais ne modifie pas. |
+| Settings read-only dans l'UI (ADR-020) | La configuration STT est structurelle (`apollia.toml`), pas operationnelle. L'UI affiche mais ne modifie pas. |
 
 ---
 

@@ -94,7 +94,7 @@ Le runtime est conçu pour le cas PME / poste de travail / serveur de bureau, pa
 ## ADRs
 
 - `ADR-001` : Rust comme langage runtime
-- `ADR-014` : Bridge PyO3 async
-- `ADR-026` : Observabilité complète et timeline
+- `ADR-002` : Bridge PyO3 async
+- `ADR-012` : Observabilité complète et timeline
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

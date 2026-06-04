@@ -174,9 +174,9 @@ except DomainError as exc:
 
 ## ADRs
 
-- `ADR-049` : A2A routing inter-agents
-- `ADR-101` : Ctx exhaustif
-- `ADR-102` : SDK A2A API unifiée
-- `ADR-108` : SDK mailbox A2A suppression (alignement sur `ctx.a2a`)
+- `ADR-025` : A2A routing inter-agents
+- `ADR-024` : Ctx exhaustif
+- `ADR-024` : SDK A2A API unifiée
+- `ADR-024` : SDK mailbox A2A suppression (alignement sur `ctx.a2a`)
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

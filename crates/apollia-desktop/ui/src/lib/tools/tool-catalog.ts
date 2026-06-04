@@ -219,7 +219,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     dangerous: false,
     defaultEnabled: false,
   },
-  // ── Research (web tools - ADR-072) ─────────
+  // ── Research (web tools) ─────────
   {
     id: "web_search",
     icon: Compass,

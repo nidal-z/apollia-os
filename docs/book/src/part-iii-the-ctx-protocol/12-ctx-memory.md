@@ -113,7 +113,7 @@ Astuce de recall court : pour un agent conversationnel, recherchez sur le dernie
 
 ## Export et import
 
-Pour la portabilité et les sauvegardes (cf. ADR-066).
+Pour la portabilité et les sauvegardes (cf. ADR-010).
 
 ```python
 snapshot = await ctx.memory.export()
@@ -156,10 +156,10 @@ L'import est additif : il ne supprime pas les entrées existantes. Pour repartir
 
 ## ADRs
 
-- `ADR-007` : Mémoire à l'initiative de l'agent (principe #6)
-- `ADR-054` : Memory episodic consolidation
-- `ADR-066` : Memory export/import format
-- `ADR-070` : Memory namespace project-scoped
-- `ADR-087` : User profile redesign
+- `ADR-010` : Mémoire à l'initiative de l'agent (principe #6)
+- `ADR-010` : Memory episodic consolidation
+- `ADR-010` : Memory export/import format
+- `ADR-010` : Memory namespace project-scoped
+- `ADR-011` : User profile redesign
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

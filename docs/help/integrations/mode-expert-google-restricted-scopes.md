@@ -19,13 +19,13 @@ Ce mode s'adresse aux power users familiers avec Google Cloud Console. Si vous n
    ```
 3. **Reconnecter Google** dans Apollia. L'écran de consentement affichera **votre** app et proposera les scopes restricted.
 
-Les outils restricted (`gmail.search`, `gmail.get`, `gmail.reply`, `gmail.list_labels`, `gdrive.search`, `gdrive.list_all`) deviennent disponibles automatiquement, détectés via les `granted_scopes` du token.
+Les outils restricted dédiés (`gmail.search`, `gmail.get`, `gmail.reply`, `gmail.list_labels`, `gdrive.search`, `gdrive.list_all`) sont à venir : ils seront détectés automatiquement via les `granted_scopes` du token une fois livrés. En attendant, Expert Mode sert surtout à brancher votre propre client OAuth, sans passer par l'app partagée Apollia.
 
 ## Vérification
 
 - L'écran de consentement Google affiche le nom de votre app, pas "Apollia OS".
-- Sous "Comptes connectés", les `granted_scopes` listés incluent un scope restricted.
-- Lancez `gmail.search query:"is:unread"` depuis un chat, le résultat est non vide si vous avez des mails non lus.
+- Sous "Comptes connectés", les `granted_scopes` listés incluent le scope restricted accordé.
+- Les outils qui exploitent ces scopes restricted étant à venir, la vérification se limite pour l'instant au nom de l'app et aux `granted_scopes`.
 
 ## Si ça ne marche pas
 

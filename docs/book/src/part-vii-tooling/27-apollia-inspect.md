@@ -206,6 +206,6 @@ Pour ces dimensions, complétez par des tests fonctionnels et une eval suite.
 
 ## ADRs
 
-- `ADR-110` : `apollia inspect` CLI
+- `ADR-004` : `apollia inspect` CLI
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

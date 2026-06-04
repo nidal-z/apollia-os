@@ -20,6 +20,7 @@ pub mod executor;
 mod health;
 pub mod jsonrpc;
 pub mod manager;
+pub mod mcp_resources;
 pub mod protocol;
 pub mod server;
 pub mod server_repository;

@@ -14,7 +14,7 @@
 
 L'API HTTP locale est exposée sur deux transports :
 - **Unix socket** : `/tmp/apollia.sock` - recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-051)
+- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-016)
 
 Tous les endpoints retournent du JSON.
 
@@ -882,7 +882,7 @@ Purge toutes les entrées du cache de plans.
 
 ## Chat
 
-7 endpoints pour la gestion des sessions de chat interactif. Chemin d'exécution séparé du TaskRouter (ADR-034).
+7 endpoints pour la gestion des sessions de chat interactif. Chemin d'exécution séparé du TaskRouter (ADR-022).
 
 ### Créer une session
 
@@ -1101,7 +1101,7 @@ curl --unix-socket /tmp/apollia.sock http://localhost/api/v1/health
 - [Briques Runtime Core](./Briques-Runtime-Core) - implémentation APIServer axum
 - [A2A-ACP-Alignement](./A2A-ACP-Alignement) - spécification des guards et de l'A2AInvoker
 - [Briques Chat](./Briques-Chat) - sous-système de chat complet
-- [ADR-006](../adr/ADR-006-rest-json-api-locale) - pourquoi REST JSON plutôt qu'une autre API
-- [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) - Unix socket avec hyper-util
-- [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) - chat hybride : sessions, streaming, HITL inline
-- [ADR-050](../adr/ADR-050) - distribution Worker Agents, registre communautaire
+- [ADR-001](../adr/ADR-001-foundations-stack.md) - pourquoi REST JSON plutôt qu'une autre API
+- [ADR-001](../adr/ADR-001-foundations-stack.md) - Unix socket avec hyper-util
+- [ADR-022](../adr/ADR-022-chat-subsystem.md) - chat hybride : sessions, streaming, HITL inline
+- [ADR-026](../adr/ADR-026-agent-install-distribution.md) - distribution Worker Agents, registre communautaire

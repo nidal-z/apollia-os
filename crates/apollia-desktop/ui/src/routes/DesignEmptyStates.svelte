@@ -33,14 +33,14 @@
   <header>
     <h1 class="text-display-lg text-foreground">Empty states</h1>
     <p class="mt-2 text-sm text-muted-foreground md:text-base">
-      Canonical <code class="text-[11px]">&lt;EmptyState&gt;</code> component &mdash; 7 variants sourced from
+      Canonical <code class="text-[11px]">&lt;EmptyState&gt;</code> component - 7 variants sourced from
       <code class="text-[11px]">$lib/i18n/strings/empty-states</code>. Copies tonales, primary + secondary CTA, slot
       <code class="text-[11px]">trailing</code> pour une stat contextuelle.
     </p>
     {#if reduced}
       <p class="mt-3 text-xs font-medium text-warning-foreground">
         <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-warning align-middle"></span>
-        Reduced motion is active &mdash; entrance animations are collapsed.
+        Reduced motion is active - entrance animations are collapsed.
       </p>
     {/if}
   </header>

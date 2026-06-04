@@ -115,7 +115,7 @@ async-trait = "0.1"
 # cloud backends (OpenAI-compatible + Anthropic) - [feature = "cloud"]
 async-openai = "0.28"
 reqwest = { version = "0.12", features = ["json", "stream"] }
-# llama-cpp-2 = bindings Rust safe pour llama.cpp - ADR-042
+# llama-cpp-2 = bindings Rust safe pour llama.cpp
 # Compilation statique, binaire unique, 30+ architectures GGUF.
 llama-cpp-2 = "0.1.144"
 # llama-cpp-sys-2 = bindings FFI bruts - requis pour `llama_model_load_from_splits`
@@ -185,7 +185,7 @@ notify = "6"
 pyo3 = { version = "0.24", features = ["auto-initialize"] }
 pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
 
-# --- Agent runtime (apollia-aip) - YAML datasources + Jinja2 templates (ADR-103) ---
+# --- Agent runtime (apollia-aip) - YAML datasources + Jinja2 templates ---
 serde_yaml = "0.9"
 minijinja = { version = "2", default-features = false, features = ["builtins", "serde"] }
 

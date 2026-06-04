@@ -1,52 +1,38 @@
-# ADR-NNN - Titre court et concret
+# ADR-NNN: Short concrete title
 
-**Date :** YYYY-MM-DD
-**Statut :** Proposé | Accepté | Remplacé par ADR-NNN | Déprécié
-**Sprint :** N (ou "Pré-implémentation")
+- Status: Accepted
+- Date: YYYY-MM-DD
 
----
+## Context
 
-## Contexte
+The situation that requires a decision: the concrete problem, the constraints that
+apply, and why the decision must be taken now.
 
-[La situation qui nécessite une décision. Inclure :
-- Le problème concret rencontré
-- Les contraintes qui s'appliquent
-- Pourquoi la décision doit être prise maintenant]
+## Decision
 
-## Décision
+One clear sentence starting with "We adopt ..." or "We use ...", followed by the
+specifics: the mechanism, the key types or crates, the contract.
 
-[La décision en une phrase claire commençant par "Nous utilisons X" ou "Nous adoptons Y".]
+## Alternatives considered
 
-## Alternatives considérées
+### Name (rejected)
+- Pros: advantages
+- Cons: reason for rejection
 
-### Option A - [Nom] (rejetée)
-**Pour :** [avantages]
-**Contre :** [raison du rejet]
+### Chosen: Name
+- Pros: the advantages that carried the decision
+- Trade-offs: what is sacrificed
 
-### Option B - [Nom] (rejetée)
-**Pour :** [avantages]
-**Contre :** [raison du rejet]
+## Consequences
 
-### Option retenue - [Nom]
-**Pour :** [avantages qui ont emporté la décision]
-**Compromis acceptés :** [ce qu'on sacrifie]
+- Positive: ...
+- Negative / trade-off: ...
+- Watch: a point to monitor
 
-## Conséquences
+## Architectural principles
 
-**Positives :**
-- [conséquence positive]
+- Principle #N (name): how this decision aligns or deviates
 
-**Négatives / Compromis :**
-- [compromis accepté]
+## Related
 
-**À surveiller :**
-- [point à monitorer dans les sprints suivants]
-
-## Principes architecturaux impactés
-
-- Principe #N - [nom] : [alignement ou écart]
-
-## Liens
-
-- Story associée : STORY-NNN
-- ADR précédent sur le même sujet : ADR-NNN (si applicable)
+- [ADR-MMM](ADR-MMM-slug.md) one-line reason

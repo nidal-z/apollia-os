@@ -66,7 +66,7 @@ impl OAuth2PkceFlow {
 /// challenge, and the CSRF state parameter.
 pub fn build_auth_url(provider: &ProviderConfig, flow: &OAuth2PkceFlow) -> String {
     let scopes = provider.scopes.join(" ");
-    format!(
+    let mut url = format!(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256",
         provider.auth_url,
         urlencoding::encode(&provider.client_id),
@@ -74,7 +74,16 @@ pub fn build_auth_url(provider: &ProviderConfig, flow: &OAuth2PkceFlow) -> Strin
         urlencoding::encode(&scopes),
         urlencoding::encode(&flow.state),
         urlencoding::encode(&flow.code_challenge),
-    )
+    );
+    // Google needs `access_type=offline` to return a refresh token, and
+    // `prompt=consent` so that reconnecting an already-authorized account
+    // actually re-grants newly requested scopes (without it, Google replays the
+    // existing grant and silently omits the new scopes). `include_granted_scopes`
+    // keeps previously granted scopes during this incremental re-consent.
+    if provider.name == "google" {
+        url.push_str("&access_type=offline&prompt=consent&include_granted_scopes=true");
+    }
+    url
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -93,6 +102,49 @@ mod tests {
         assert!(!verifier.contains('='));
         assert!(!verifier.contains('+'));
         assert!(!verifier.contains('/'));
+    }
+
+    #[test]
+    fn build_auth_url_adds_google_consent_params() {
+        // GIVEN a Google provider config and a flow
+        let provider = ProviderConfig {
+            name: "google",
+            auth_url: "https://accounts.google.com/o/oauth2/v2/auth",
+            token_url: "https://oauth2.googleapis.com/token",
+            client_id: "cid".to_string(),
+            client_secret: Some("sec".to_string()),
+            scopes: vec!["openid", "https://www.googleapis.com/auth/tasks"],
+        };
+        let flow = OAuth2PkceFlow::new(8080);
+
+        // WHEN the auth URL is built
+        let url = build_auth_url(&provider, &flow);
+
+        // THEN it forces re-consent and offline access so reconnecting re-grants new scopes
+        assert!(url.contains("access_type=offline"));
+        assert!(url.contains("prompt=consent"));
+        assert!(url.contains("include_granted_scopes=true"));
+    }
+
+    #[test]
+    fn build_auth_url_omits_google_params_for_microsoft() {
+        // GIVEN a Microsoft provider config
+        let provider = ProviderConfig {
+            name: "microsoft",
+            auth_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+            token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+            client_id: "cid".to_string(),
+            client_secret: None,
+            scopes: vec!["User.Read", "offline_access"],
+        };
+        let flow = OAuth2PkceFlow::new(8080);
+
+        // WHEN the auth URL is built
+        let url = build_auth_url(&provider, &flow);
+
+        // THEN the Google-specific params are not appended
+        assert!(!url.contains("access_type=offline"));
+        assert!(!url.contains("prompt=consent"));
     }
 
     #[test]

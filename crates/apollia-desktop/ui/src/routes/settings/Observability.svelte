@@ -1,7 +1,7 @@
 <script lang="ts" context="module">
   /**
    * Settings → Observability - fenêtre de la config `[observability]` du
-   * fichier `apollia.toml` (ADR-088, Lot 3).
+   * fichier `apollia.toml`.
    *
    * Pour la phase MVP, on affiche les valeurs courantes en lecture seule
    * et on offre un bouton « Modifier dans apollia.toml » qui ouvre le

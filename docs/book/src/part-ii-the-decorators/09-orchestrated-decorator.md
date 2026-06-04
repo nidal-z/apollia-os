@@ -139,8 +139,8 @@ Le détail (cache de plans, observations par étape, intégration HITL) est dans
 
 ## ADRs
 
-- `ADR-022` : ORIA mode orchestré (architecture)
-- `ADR-035` : Observation par étape
-- `ADR-098` : Decorator-first
+- `ADR-005` : ORIA mode orchestré (architecture)
+- `ADR-005` : Observation par étape
+- `ADR-023` : Decorator-first
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

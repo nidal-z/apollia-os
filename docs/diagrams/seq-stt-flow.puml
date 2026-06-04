@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence - STT Flow (hotkey → capture → transcribe → clipboard) - Sprint 24, ADR-041
+title Séquence - STT Flow (hotkey → capture → transcribe → clipboard) - ADR-009
 
 actor "Utilisateur" as user #3a3a3a/ffffff
 participant "HotkeyListener" as hotkey #1a1a2e/e0e0ff

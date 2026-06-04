@@ -201,4 +201,4 @@ pub enum TaskStatus {
 - [Architecture Vue d'ensemble](./Architecture-Vue-Ensemble) - les deux machines d'état expliquées dans leur contexte
 - [Architecture Modèle Acteur](./Architecture-Modele-Acteur) - AgentRegistry et TaskRouter
 - [Briques ORIA Engine](./Briques-ORIA-Engine) - StepBudget et les transitions TaskState
-- [ADR-004](../adr/ADR-004-deux-modes-execution-oria) - pourquoi deux machines d'état séparées
+- [ADR-005](../adr/ADR-005-oria-execution-model.md) - pourquoi deux machines d'état séparées

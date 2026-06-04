@@ -209,7 +209,7 @@ Pour un test end-to-end d'un orchestré (avec moteur ORIA), il faudra un test d'
 
 ## ADRs
 
-- `ADR-098` : Decorator-first (testabilité = bénéfice direct)
-- `ADR-101` : Ctx Protocol (mockable trivialement)
+- `ADR-023` : Decorator-first (testabilité = bénéfice direct)
+- `ADR-024` : Ctx Protocol (mockable trivialement)
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

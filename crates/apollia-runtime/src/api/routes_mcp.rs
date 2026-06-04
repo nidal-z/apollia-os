@@ -19,8 +19,8 @@ use axum::{
 
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::{
-    McpClientManagerHandle, McpConnectionTestResult, McpServerDetail, McpServerStatus,
-    McpToolSummary, ProbeSpec,
+    McpClientManagerHandle, McpConnectionTestResult, McpResourceSummary, McpServerDetail,
+    McpServerStatus, McpToolSummary, ProbeSpec,
 };
 use apollia_mcp::session::McpSession;
 use apollia_mcp::McpServerRepository;
@@ -35,6 +35,7 @@ pub fn mcp_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/mcp/servers", get(list_servers::<B>))
         .route("/api/v1/mcp/servers", post(add_server::<B>))
+        .route("/api/v1/mcp/resources", get(list_resources::<B>))
         .route("/api/v1/mcp/servers/test", post(test_connection))
         .route(
             "/api/v1/mcp/servers/:name/test",
@@ -100,6 +101,24 @@ async fn list_servers<B: ExecutionBackend + Clone>(
         None => Vec::new(),
     };
     Json(statuses)
+}
+
+/// `GET /api/v1/mcp/resources`, List MCP resources aggregated across servers.
+///
+/// Returns the same data as the agent-facing `mcp_resources_list` tool: one
+/// entry per resource exposed by a connected MCP server, tagged with its owning
+/// server. Feeds the desktop @-mention picker.
+///
+/// Returns an empty array (not an error) when no MCP configuration is active,
+/// so the picker degrades to "no resources" rather than a failure state.
+async fn list_resources<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Json<Vec<McpResourceSummary>> {
+    let resources = match &state.mcp_handle {
+        Some(handle) => handle.list_resources().await,
+        None => Vec::new(),
+    };
+    Json(resources)
 }
 
 /// `GET /api/v1/mcp/servers/:name`, Get detailed info for a specific MCP server.
@@ -696,6 +715,38 @@ mod tests {
         };
         // THEN the result is an empty list
         assert!(statuses.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_resources_empty_without_mcp_handle() {
+        // GIVEN no MCP handle is configured
+        let mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle> = None;
+        // WHEN the resource list is built
+        let resources = match &mcp_handle {
+            Some(handle) => handle.list_resources().await,
+            None => Vec::new(),
+        };
+        // THEN the result is an empty list (picker degrades to "no resources")
+        assert!(resources.is_empty());
+    }
+
+    #[test]
+    fn test_resource_summary_serialization() {
+        // GIVEN an aggregated resource summary
+        let summary = McpResourceSummary {
+            server: "notion".to_string(),
+            uri: "notion://page/123".to_string(),
+            name: "Roadmap".to_string(),
+            mime_type: Some("text/markdown".to_string()),
+            description: Some("Product roadmap page".to_string()),
+        };
+        // WHEN serialized
+        let json = serde_json::to_value(&summary).unwrap();
+        // THEN the server tag and fields are present
+        assert_eq!(json["server"], "notion");
+        assert_eq!(json["uri"], "notion://page/123");
+        assert_eq!(json["name"], "Roadmap");
+        assert_eq!(json["mime_type"], "text/markdown");
     }
 
     #[test]

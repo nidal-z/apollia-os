@@ -49,13 +49,19 @@
       id: "google",
       name: "Google Workspace",
       description:
-        "Gmail (envoi + brouillons), Google Calendar, Google Drive Workspace.",
+        "Gmail, Agenda, Drive, Sheets, Docs, Slides, Tasks, Forms, YouTube.",
       scopes: [
         { id: "mail.send", label: "Envoyer des emails (Gmail)" },
-        { id: "mail.compose", label: "Brouillons (Gmail)" },
+        { id: "mail.drafts", label: "Créer des brouillons (Gmail)" },
         { id: "calendar.read", label: "Lire l'agenda" },
         { id: "calendar.write", label: "Créer/modifier des événements" },
         { id: "drive.workspace", label: "Espace Drive de l'agent" },
+        { id: "sheets", label: "Google Sheets (créer/lire/écrire)" },
+        { id: "docs", label: "Google Docs (créer/lire/écrire)" },
+        { id: "slides", label: "Google Slides (créer)" },
+        { id: "tasks", label: "Google Tasks" },
+        { id: "forms", label: "Google Forms (créer)" },
+        { id: "youtube", label: "YouTube (lecture seule)" },
       ],
     },
     {

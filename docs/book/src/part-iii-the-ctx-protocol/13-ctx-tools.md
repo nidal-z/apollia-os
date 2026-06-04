@@ -123,11 +123,11 @@ L'agent déclare bien `tools_required=("bash_executor", "file_read")` dans `@age
 
 ## ADRs
 
-- `ADR-015` : ToolExecutor trait abstraction
-- `ADR-043` : Décomposition atomique des outils
-- `ADR-044` : Client MCP natif
-- `ADR-061` : Permission engine 3 layers
-- `ADR-082` : Tool governance unifiée
-- `ADR-096` : Tool execution paths convergence
+- `ADR-002` : ToolExecutor trait abstraction
+- `ADR-006` : Décomposition atomique des outils
+- `ADR-017` : Client MCP natif
+- `ADR-015` : Permission engine 3 layers
+- `ADR-015` : Tool governance unifiée
+- `ADR-006` : Tool execution paths convergence
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

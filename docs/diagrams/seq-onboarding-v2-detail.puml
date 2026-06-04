@@ -7,7 +7,7 @@ skinparam defaultFontSize 12
 skinparam defaultFontName "Helvetica"
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence Onboarding v2.1 (ADR-086) - Flux complet - Apollia OS
+title Séquence Onboarding v2.1 (ADR-015) - Flux complet - Apollia OS
 
 participant "Desktop (UI)" as ui #2d4a22
 participant "Supervisor" as sup #1a1a2e

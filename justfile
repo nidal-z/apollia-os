@@ -106,7 +106,7 @@ fmt:
     cargo fmt --all
 
 # -----------------------------------------------------------------------------
-# Runner sidecar (ADR-113)
+# Runner sidecar
 # -----------------------------------------------------------------------------
 
 # Build debug runner for one backend and keep unsuffixed binary

@@ -780,9 +780,9 @@ apollia-os agent run slack-worker "Résume les messages #sales de cette semaine"
 ## Références
 
 - [Matrice de décision - Capabilities](Decision-Matrix-Capabilities.md)
-- [ADR-048 - Worker Agents : expertise de domaine compilée](../adr/ADR-048-worker-agents-expertise-domaine.md)
-- [ADR-049 - Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
-- [ADR-050 - Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+- [ADR-025 - Worker Agents : expertise de domaine compilée](../adr/ADR-025-worker-agents-a2a-routing.md)
+- [ADR-025 - Routing A2A inter-agents](../adr/ADR-025-worker-agents-a2a-routing.md)
+- [ADR-026 - Distribution Worker Agents](../adr/ADR-026-agent-install-distribution.md)
 - [Community Agent Registry](Community-Agent-Registry.md)
 - [Benchmark : Worker Agent vs generic-agent](../benchmarks/worker-agent-benchmark.md)
 - [Guide SDK Agent](Agents-SDK-Guide.md)

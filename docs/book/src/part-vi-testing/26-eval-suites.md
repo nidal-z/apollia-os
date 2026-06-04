@@ -183,7 +183,7 @@ Un agent bien testé a les deux.
 
 ## ADRs
 
-- `ADR-098` : Decorator-first
-- `ADR-063` : Binary feedback / RLHF (pose le cadre eval terrain)
+- `ADR-023` : Decorator-first
+- `ADR-012` : Binary feedback / RLHF (pose le cadre eval terrain)
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

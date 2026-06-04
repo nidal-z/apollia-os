@@ -272,9 +272,9 @@ Le socket Unix et l'API TCP restent actifs : la CLI fonctionne en parallèle du 
 
 ## ADRs
 
-- `ADR-014` : Bridge PyO3 async
-- `ADR-017` : hyper-util Unix socket serving
-- `ADR-018` : CLI bootstrap sans Supervisor (mode dégradé pour `apollia inspect`)
-- `ADR-027` : Desktop Tauri runtime embarqué
+- `ADR-002` : Bridge PyO3 async
+- `ADR-001` : hyper-util Unix socket serving
+- `ADR-004` : CLI bootstrap sans Supervisor (mode dégradé pour `apollia inspect`)
+- `ADR-020` : Desktop Tauri runtime embarqué
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

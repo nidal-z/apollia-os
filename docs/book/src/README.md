@@ -121,7 +121,7 @@ Le book suit le pattern de *The Rust Programming Language* : des chapitres court
 
 > **Convention book et wiki.** Le book est pédagogique : chaque concept est introduit avec un ou deux exemples concrets. La référence technique exhaustive (specs complètes, tables de paramètres, codes d'erreur) vivra dans le wiki. Quand un chapitre couvre 80 % d'un sujet, un encadré `> **Référence technique :** Page-Name` vous renverra au reste.
 
-> **ADRs et wiki disponibles prochainement.** À la sortie de la v0.1.0, les ADRs (décisions architecturales) et le wiki ne sont pas encore publiés en ligne. Le book mentionne leurs identifiants (`ADR-098`, `Briques-SDK`, etc.) à titre de marqueurs. Quand vous voyez `(disponible prochainement)`, le contenu existe en interne et sera publié dans une révision proche. En attendant, le book est conçu pour être autoportant : tout ce qu'il faut pour écrire un agent Apollia est dans ces pages.
+> **ADRs et wiki disponibles prochainement.** À la sortie de la v0.1.0, les ADRs (décisions architecturales) et le wiki ne sont pas encore publiés en ligne. Le book mentionne leurs identifiants (`ADR-023`, `Briques-SDK`, etc.) à titre de marqueurs. Quand vous voyez `(disponible prochainement)`, le contenu existe en interne et sera publié dans une révision proche. En attendant, le book est conçu pour être autoportant : tout ce qu'il faut pour écrire un agent Apollia est dans ces pages.
 
 ---
 

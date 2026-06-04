@@ -231,12 +231,12 @@ L'audit trail est persisté en local SQLite, jamais envoyé à l'extérieur. C'e
 
 ## ADRs
 
-- `ADR-005` : Sandbox sans Docker
+- `ADR-023` : Sandbox sans Docker
 - `ADR-012` : Sandbox devmode macOS
-- `ADR-044` : Client MCP natif
-- `ADR-052` : Windows sandbox
-- `ADR-061` : Permission engine 3 layers
-- `ADR-082` : Tool governance unifiée
-- `ADR-096` : Tool execution paths convergence
+- `ADR-001` : Client MCP natif
+- `ADR-003` : Windows sandbox
+- `ADR-002` : Permission engine 3 layers
+- `ADR-002` : Tool governance unifiée
+- `ADR-001` : Tool execution paths convergence
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

@@ -190,10 +190,10 @@ Bonne pratique : utilisez `notify` pour les événements **dignes d'attention hu
 
 ## ADRs
 
-- `ADR-024` : Notifications trait + channel JSON
-- `ADR-038` : Global user memory
-- `ADR-041` : STT embarqué (whisper-rs)
-- `ADR-056` : Workspace context assembly
-- `ADR-087` : User profile redesign
+- `ADR-014` : Notifications trait + channel JSON
+- `ADR-011` : Global user memory
+- `ADR-009` : STT embarqué (whisper-rs)
+- `ADR-010` : Workspace context assembly
+- `ADR-011` : User profile redesign
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

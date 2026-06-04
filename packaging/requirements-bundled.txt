@@ -1,5 +1,5 @@
 # Apollia OS - "batteries included" Python site-packages bundled into the
-# desktop DMG/AppImage (ADR-074 §1.b).
+# desktop DMG/AppImage.
 #
 # These packages are pre-installed in the bundled Python distribution so that
 # workers (excel, csv, pdf, …) can import them without any runtime pip install.

@@ -77,7 +77,7 @@ esac
 
 echo "==> CLI binary staged at ${STAGING}/apollia-os"
 
-# ── Step 2b - Runners (ADR-113 sidecars) ──────────────────────────────────────
+# ── Step 2b - Runners (sidecars) ──────────────────────────────────────
 # `APOLLIA_DESKTOP_RUNNERS` selects which runner backends to build and stage
 # alongside the daemon. Examples :
 #   APOLLIA_DESKTOP_RUNNERS=cpu                # CPU only (minimal)

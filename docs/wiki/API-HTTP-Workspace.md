@@ -14,7 +14,7 @@
 
 L'API HTTP locale est exposée sur deux transports :
 - **Unix socket** : `/tmp/apollia.sock` - recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-051)
+- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-016)
 
 Tous les endpoints retournent du JSON.
 
@@ -377,6 +377,6 @@ Voir [API-HTTP-Agents - Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-htt
 - [API-HTTP-Observability](./API-HTTP-Observability) - audit, timeline, approvals, user, dashboard, STT, MCP
 - [Briques Triggers](./Briques-Triggers) - moteur de déclenchement
 - [Briques Notifications](./Briques-Notifications) - canaux de notification et moteur HITL
-- [ADR-021](../adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) - décisions TOML/HMAC/hot reload
-- [ADR-024](../adr/ADR-024) - décisions système de notifications (canaux, événements, SQLite)
-- [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) - config opérateur SQLite (CRUD triggers/notifications)
+- [ADR-014](../adr/ADR-014-operational-config-triggers-notifications.md) - décisions TOML/HMAC/hot reload
+- [ADR-014](../adr/ADR-014-operational-config-triggers-notifications.md) - décisions système de notifications (canaux, événements, SQLite)
+- [ADR-014](../adr/ADR-014-operational-config-triggers-notifications.md) - config opérateur SQLite (CRUD triggers/notifications)

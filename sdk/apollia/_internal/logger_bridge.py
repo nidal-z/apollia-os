@@ -9,7 +9,7 @@ The Rust bridge (`apollia-aip/src/bridge.rs::call_run`) invokes
 1. Writes a structured ``tracing::*`` record on stderr (ops compatibility).
 2. Emits a ``RuntimeEvent::AgentLog`` on the runtime EventBus, picked up
    by the ``EventPersistor`` and exposed via
-   ``GET /api/v1/tasks/{task_id}/trace`` (ADR-088).
+   ``GET /api/v1/tasks/{task_id}/trace``.
 
 The handler is **idempotent**: configuring the same logger twice (e.g. when
 two tasks run back-to-back on the same agent) does not duplicate records.

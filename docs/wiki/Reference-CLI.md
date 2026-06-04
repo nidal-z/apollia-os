@@ -1,7 +1,7 @@
 # `apollia-os` - référence CLI
 
 > Référence technique exhaustive, complémentaire au [book pédagogique][book].
-> Snapshot **2026-05-27** (sprint CLI v0.1.0 - rattrapage + polish).
+> Snapshot **2026-05-27**.
 >
 > Tous les exemples supposent que le binaire `apollia-os` est sur le `PATH` et
 > que le daemon est démarré (sauf mention "local-first").
@@ -186,7 +186,7 @@ Version + build profile + features actives.
 Snapshot agrégé : tâches récentes, coûts LLM, statistiques d'audit.
 
 ### `trace <task_id> [--format human|json]`
-Trace event-sourced d'une tâche (ADR-088).
+Trace event-sourced d'une tâche (ADR-019).
 
 ### `hitl`
 Alias pour `task list --pending-approval`.
@@ -240,13 +240,11 @@ Configuration du Chat Libre (`governance.db`).
 ## Decisions
 
 Les choix architecturaux derrière le CLI sont tracés dans :
-- ADR-008 - pattern noun-verb
-- ADR-064 - OAuth2 PKCE + keyring
-- ADR-088 - trace event-sourced
-- ADR-098 - SDK Python rebuild (impacte `agent install` / `agent new`)
+- ADR-004 - pattern noun-verb
+- ADR-016 - OAuth2 PKCE + keyring
+- ADR-019 - trace event-sourced
+- ADR-023 - SDK Python rebuild (impacte `agent install` / `agent new`)
 - [docs/wiki/Briques-CLI.md][briques] - spec d'origine
-- [docs/internal/release/CLI-STATE.md][state] - état pré-release v0.1.0 + gaps Desktop attendus
 
 [book]: ../../book/src
 [briques]: ./Briques-CLI.md
-[state]: ../internal/release/CLI-STATE.md

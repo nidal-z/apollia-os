@@ -1,10 +1,9 @@
 <script lang="ts">
   /**
-   * `ExecutionTrace` - vue conversation-like d'une exécution agent
-   * (ADR-088, Lot 3).
+   * `ExecutionTrace` - vue conversation-like d'une exécution agent.
    *
    * Source unique : table `runtime_events` exposée via la commande Tauri
-   * `get_task_trace` (replay) et le bus `"trace-event"` (live, Lot 4).
+   * `get_task_trace` (replay) et le bus `"trace-event"` (live).
    *
    * Trois contextes d'embedding :
    * - `task` : dans `TaskDetail.svelte`, remplace `TaskTimeline`.

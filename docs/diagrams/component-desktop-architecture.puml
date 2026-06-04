@@ -14,7 +14,7 @@ rectangle "Apollia Desktop" as app #1a1a2e {
     rectangle "init_embedded(config)\nthread apollia-runtime\ntokio::Runtime" as init #1a1a2e
     rectangle "RuntimeHandle\n(handles acteurs)" as handle #1a1a2e
     rectangle "#[tauri::command]\n29+ commandes IPC" as commands #1a1a2e
-    rectangle "EventBus → Tauri Events\nbridge (ADR-030)" as bridge #1a1a2e
+    rectangle "EventBus → Tauri Events\nbridge (ADR-020)" as bridge #1a1a2e
     rectangle "System Tray" as tray #1a1a2e
   }
 
@@ -40,7 +40,7 @@ commands --> keychain : secrets MCP
 cli --> runtime : HTTP / socket
 
 note bottom of handle
-  RuntimeHandle (ADR-027) :
+  RuntimeHandle (ADR-020) :
   Pas de sérialisation HTTP -
   latence minimale.
   CLI fonctionne en parallèle.

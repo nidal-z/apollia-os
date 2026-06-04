@@ -239,7 +239,7 @@ jobs:
           fi
 
       # ── Build ─────────────────────────────────────────────────────────────
-      # ADR-113 : depuis le refactor multi-runner, apollia-cli n'expose plus
+      # Depuis le refactor multi-runner, apollia-cli n'expose plus
       # que la feature `cloud`. Les features `local-*` / `stt-*` historiques
       # de `matrix.features` ne s'appliquent plus qu'au runner (filtrées par
       # l'étape "Extract runner feature" ci-dessous). On force ici `cloud`
@@ -260,7 +260,7 @@ jobs:
             --no-default-features \
             --features "$CLI_FEATS"
 
-      # ADR-113 : build apollia-runner avec la feature backend correspondante.
+      # Build apollia-runner avec la feature backend correspondante.
       # Extrait local-{cpu,cuda,rocm,vulkan,metal} de matrix.features.
       # Pour les presets sans local-* (cloud only), pas de runner buildé.
       - name: Extract runner feature

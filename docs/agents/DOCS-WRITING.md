@@ -128,7 +128,7 @@ sentences.
 
 **Day-one disclaimer in the Book.** Until the public repo and the wiki are
 fully linked, the Book does not emit `docs/adr/...` or `wiki/...` URLs.
-ADRs are cited by bare identifier (`ADR-095`) with a global warning in
+ADRs are cited by bare identifier (`ADR-018`) with a global warning in
 the introduction : "Detailed cross-references will be activated when the
 public wiki is online."
 
@@ -346,7 +346,7 @@ until launch :
 
 - `crates/apollia-runtime/src/eventbus.rs` (code source)
 - `docs/agents/ARCHITECTURE.md` §C (LLM rules)
-- `docs/adr/ADR-026` (decision)
+- `docs/adr/ADR-012` (decision)
 
 Once the repo is public, these mentions can be promoted to links in a
 post-launch pass.

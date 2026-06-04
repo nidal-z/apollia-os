@@ -70,7 +70,7 @@ Mandatory shape :
 
 ---
 
-## 3. `Ctx` protocol (ADR-101)
+## 3. `Ctx` protocol (ADR-024)
 
 `Ctx` is the capability bundle the runtime injects. The skill body
 interacts with the world only through `ctx`. The stubs in
@@ -93,7 +93,7 @@ Sub-protocols :
 |---|---|
 | `MemoryCtx` | `recall(query, limit=10)`, `write(...)`, `forget(...)` |
 | `ToolCtx` | `invoke(name, **args)`, `list_available()` |
-| `SecretsCtx` | `read(key)` (read-only, ADR-104) |
+| `SecretsCtx` | `read(key)` (read-only, ADR-024) |
 | `ConfigCtx` | `workspace()`, `profile()` |
 | `InputCtx` | `next()` (awaits operator response after `NeedHumanInput`) |
 
@@ -108,7 +108,7 @@ wins and the implementation is broken.
 
 ---
 
-## 4. TypedDict schemas (ADR-098, ADR-111)
+## 4. TypedDict schemas (ADR-023, ADR-024)
 
 Schemas live in `<agent>/schemas.py`. The file must NOT contain
 `from __future__ import annotations`. PEP 563 turns annotations into
@@ -143,7 +143,7 @@ Rules :
 
 ---
 
-## 5. Exceptions (ADR-098)
+## 5. Exceptions (ADR-023)
 
 Hierarchy rooted at `AgentError` :
 
@@ -165,7 +165,7 @@ Rules :
 
 ---
 
-## 6. Datasources and templates (ADR-103)
+## 6. Datasources and templates (ADR-024)
 
 The runtime loads datasources and templates declared in the agent
 TOML (`[datasources]`, `[templates]`). They are exposed read-only via

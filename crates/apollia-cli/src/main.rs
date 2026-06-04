@@ -326,6 +326,17 @@ enum Commands {
     /// table and exits 0 when healthy, 1 when at least one check errors.
     Doctor,
 
+    /// Statically inspect a Python agent file (no runtime required).
+    ///
+    /// Loads the agent module in isolation, introspects its manifest, and
+    /// checks declared datasources, templates, secrets, and permissions
+    /// without starting the runtime. Exits 0 when the inspection succeeds
+    /// (warnings allowed), 1 when it fails.
+    Inspect {
+        /// Path to the agent `.py` file.
+        path: PathBuf,
+    },
+
     /// Tail or follow the runtime log file.
     ///
     /// Defaults to `~/.apollia/logs/runtime.log`. When this file is absent
@@ -546,6 +557,7 @@ fn main() {
 
     let json = cli.json;
     let quiet = cli.quiet;
+    let no_color = cli.no_color;
     let exit_code = rt.block_on(async {
         match cli.command {
             Commands::Start { port } => run_start(cli.socket, port).await,
@@ -616,6 +628,7 @@ fn main() {
             }
             Commands::PlanCache { command } => commands::plan_cache::run(&command, json),
             Commands::Doctor => commands::doctor::run(cli.socket, json).await,
+            Commands::Inspect { path } => commands::inspect::run(&path, json, quiet, no_color),
             Commands::Logs(args) => commands::logs::run(&args, json).await,
             Commands::Version => commands::version::run(json),
             Commands::Connector { command } => commands::connector::run(&command, json).await,
@@ -1878,5 +1891,57 @@ mod tests {
                 command: WorkspaceCommand::Status
             }
         ));
+    }
+
+    // ── inspect command parsing ───────────────────────────────────
+
+    #[test]
+    fn test_cli_parses_inspect_with_path() {
+        // GIVEN "apollia-os inspect agent.py"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "inspect", "agent.py"]);
+        // THEN Commands::Inspect with the path captured, no global flags
+        match &cli.command {
+            Commands::Inspect { path } => assert_eq!(path, &PathBuf::from("agent.py")),
+            other => panic!("expected Commands::Inspect, got {other:?}"),
+        }
+        assert!(!cli.json);
+        assert!(!cli.quiet);
+    }
+
+    #[test]
+    fn test_cli_parses_inspect_json() {
+        // GIVEN "apollia-os inspect agent.py --json"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "inspect", "agent.py", "--json"]);
+        // THEN global json=true and the path is captured
+        match &cli.command {
+            Commands::Inspect { path } => assert_eq!(path, &PathBuf::from("agent.py")),
+            other => panic!("expected Commands::Inspect, got {other:?}"),
+        }
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn test_cli_parses_inspect_quiet() {
+        // GIVEN "apollia-os inspect agent.py --quiet"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "inspect", "agent.py", "--quiet"]);
+        // THEN global quiet=true and the path is captured
+        match &cli.command {
+            Commands::Inspect { path } => assert_eq!(path, &PathBuf::from("agent.py")),
+            other => panic!("expected Commands::Inspect, got {other:?}"),
+        }
+        assert!(cli.quiet);
+    }
+
+    #[test]
+    fn test_cli_parses_inspect_no_color() {
+        // GIVEN "apollia-os inspect agent.py --no-color"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "inspect", "agent.py", "--no-color"]);
+        // THEN global no_color=true
+        assert!(matches!(cli.command, Commands::Inspect { .. }));
+        assert!(cli.no_color);
     }
 }

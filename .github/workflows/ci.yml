@@ -6,8 +6,6 @@
 # Ce qui n'est PAS ici :
 #   - Build/release artifacts → release.yml (sur tag v*)
 #   - E2E desktop, compile-cuda sanity, coverage profonde → nightly.yml
-#
-# Cf. docs/internal/release/BUILD.md pour l'architecture CI complète.
 
 name: CI
 

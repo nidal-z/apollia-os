@@ -160,10 +160,19 @@ fn build_provider_with_scopes(
             for s in scopes {
                 let g = match s.as_str() {
                     "mail.send" => GoogleScope::MailSend,
+                    "mail.drafts" => GoogleScope::MailDraftsCreate,
+                    // Restricted `gmail.compose`: Expert Mode only, kept for
+                    // power users who supply their own OAuth client.
                     "mail.compose" => GoogleScope::MailCompose,
                     "calendar.read" => GoogleScope::CalendarRead,
                     "calendar.write" => GoogleScope::CalendarWrite,
                     "drive.workspace" => GoogleScope::DriveWorkspace,
+                    "sheets" => GoogleScope::SheetsReadWrite,
+                    "docs" => GoogleScope::DocsReadWrite,
+                    "slides" => GoogleScope::SlidesReadWrite,
+                    "tasks" => GoogleScope::Tasks,
+                    "forms" => GoogleScope::FormsReadWrite,
+                    "youtube" => GoogleScope::YouTubeReadOnly,
                     "openid" => GoogleScope::OpenId,
                     "email" => GoogleScope::Email,
                     "profile" => GoogleScope::Profile,

@@ -91,7 +91,7 @@ En test, un service peut être absent si votre mock customisé ne l'implémente 
 
 ## ADRs
 
-- `ADR-101` : Ctx exhaustif et typé via Protocol
-- `ADR-098` : Decorator-first (le contrat qui injecte ctx)
+- `ADR-024` : Ctx exhaustif et typé via Protocol
+- `ADR-023` : Decorator-first (le contrat qui injecte ctx)
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

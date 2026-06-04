@@ -140,7 +140,7 @@ Les trois s'additionnent. Une skill avec une bonne description, des annotations 
 
 ## ADRs
 
-- `ADR-099` : Signature inference comme schéma I/O
+- `ADR-023` : Signature inference comme schéma I/O
 - Release `AGENTKIT-REBUILD-2026-05-19` section 2026-05-20 : LLM tool descriptor optimization
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

@@ -221,37 +221,17 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AlwaysRequireApproval,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Send an email via Gmail.\n\nWhen to use: when the user explicitly asks to email someone.\nInputs: to (email), subject (string), body (plain text), optional cc, bcc.\nApproval: required.\nSide effects: sends an email from the connected account.",
+        description: "Send an email via Gmail.\n\nWhen to use: when the user explicitly asks to email or send something to someone. This is the only tool that actually sends; do NOT fall back to gmail.compose_draft when the user asked to send. If sending fails (e.g. missing send permission), report the error instead of silently creating a draft.\nInputs: to (email), subject (string), body (plain text), optional cc, bcc.\nApproval: required.\nReturns: {\"sent\": true, \"message_id\", \"thread_id\"} once delivered.\nSide effects: sends an email from the connected account.",
     },
     OperationSpec {
         id: "gmail.compose_draft",
         service: "gmail",
         action: "compose_draft",
-        scopes_required: &["mail.compose"],
+        scopes_required: &["mail.drafts"],
         approval: ApprovalPolicy::AlwaysRequireApproval,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Create a draft email in the user's Drafts folder.\n\nWhen to use: when the user wants to prepare an email but not send it yet.\nInputs: to (email), subject (string), body (plain text), optional cc, bcc.\nApproval: required.\nSide effects: creates a draft visible in the user's Gmail Drafts folder.",
-    },
-    OperationSpec {
-        id: "gmail.list_drafts",
-        service: "gmail",
-        action: "list_drafts",
-        scopes_required: &["mail.compose"],
-        approval: ApprovalPolicy::AutoApprove,
-        input_schema: serde_json::Value::Null,
-        output_schema: serde_json::Value::Null,
-        description: "List the user's existing draft emails.\n\nWhen to use: to find a previously composed draft.\nInputs: max_results (integer).\nApproval: not required.\nSide effects: none.",
-    },
-    OperationSpec {
-        id: "gmail.delete_draft",
-        service: "gmail",
-        action: "delete_draft",
-        scopes_required: &["mail.compose"],
-        approval: ApprovalPolicy::AlwaysRequireApproval,
-        input_schema: serde_json::Value::Null,
-        output_schema: serde_json::Value::Null,
-        description: "Delete a draft email by id.\n\nWhen to use: when the user wants to discard a draft.\nInputs: draft_id (string).\nApproval: required.\nSide effects: permanently removes the draft.",
+        description: "Create a draft email in the user's Drafts folder. This does NOT send. When the user asks to send, use gmail.send instead.\n\nWhen to use: only when the user explicitly wants to prepare an email without sending it.\nInputs: to (email), subject (string), body (plain text), optional cc, bcc.\nApproval: required.\nReturns: {\"sent\": false, \"draft_id\", \"thread_id\"}.\nSide effects: creates a draft visible in the user's Gmail Drafts folder.",
     },
     OperationSpec {
         id: "gcal.list_events",
@@ -644,7 +624,6 @@ mod tests {
     #[test]
     fn test_read_operations_auto_approve() {
         let reads = [
-            "gmail.list_drafts",
             "gcal.list_events",
             "gdrive.workspace_read",
         ];

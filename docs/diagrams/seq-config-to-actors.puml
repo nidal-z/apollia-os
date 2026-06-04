@@ -26,9 +26,9 @@ participant "NotificationEngine\n(pos 8)" as notif #1a1a2e/e0e0ff
 
 toml -> cfg : std::fs::read_to_string(path)
 cfg -> cfg : toml::from_str::<RawApolliaCConfig>(content)
-note right : ApolliaCConfig { llm, budget, runtime }\n[agents] section optionnelle\nTriggers/notifications → SQLite (Sprint 17, ADR-033)
+note right : ApolliaCConfig { llm, budget, runtime }\n[agents] section optionnelle\nTriggers/notifications → SQLite (ADR-014)
 
-cfg --> sup : ApolliaCConfig →\nSupervisorConfig {\n  llm_config: Option<LlmConfig>,\n  data_dir, startup_timeout_secs, ...\n}\nNote: triggers/notifications\nlus depuis SQLite (ADR-033, Sprint 17)
+cfg --> sup : ApolliaCConfig →\nSupervisorConfig {\n  llm_config: Option<LlmConfig>,\n  data_dir, startup_timeout_secs, ...\n}\nNote: triggers/notifications\nlus depuis SQLite (ADR-014)
 
 == Supervisor::start() - Démarrage séquentiel ==
 
@@ -54,7 +54,7 @@ note right : Position 5 - dépend de AgentRegistry\nreçoit event_bus pour obser
 
 sup -> sup : TriggerDefinitionRepository::open(\n  data_dir/triggers_def.db\n)
 sup -> trig : TriggerEngineHandle::spawn(\n  defs_from_sqlite,\n  router_handle,\n  event_sender,\n  ...\n)
-note right : Position 6 - définitions depuis SQLite\n(Sprint 17, ADR-033)\nRepository → Arc<Mutex<>> dans AppState
+note right : Position 6 - définitions depuis SQLite\n(ADR-014)\nRepository → Arc<Mutex<>> dans AppState
 
 sup -> api : APIServer::bind(\n  api_config (socket_path + tcp_port),\n  AppState { registry, router, tools,\n    llm_router, trigger_engine, ... }\n)
 note right : Position 7 - écoute sur :\n- Unix socket (/tmp/apollia.sock)\n- TCP localhost:7771\nRoutes : /api/v1/{agents,tasks,\ntriggers,llm,dashboard,health,shutdown}
@@ -62,7 +62,7 @@ note right : Position 7 - écoute sur :\n- Unix socket (/tmp/apollia.sock)\n- TC
 sup -> sup : NotificationConfigRepository::open(\n  data_dir/notifications.db\n)
 alt canaux dans SQLite
   sup -> notif : build_channels(config_from_sqlite)\n→ NotificationEngine::spawn(\n  channels, event_bus\n)
-  note right : Position 9 - config depuis SQLite\n(Sprint 17, ADR-033)\nCanaux : desktop (notify-rust),\nwebhook (HTTP)\nRepository → Arc<Mutex<>> dans AppState
+  note right : Position 9 - config depuis SQLite\n(ADR-014)\nCanaux : desktop (notify-rust),\nwebhook (HTTP)\nRepository → Arc<Mutex<>> dans AppState
 else base SQLite vide
   sup -> sup : notification_engine = None
 end

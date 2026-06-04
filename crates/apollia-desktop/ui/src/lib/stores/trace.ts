@@ -1,5 +1,5 @@
 /**
- * Store des traces d'exécution event-sourced (ADR-088, Lot 3).
+ * Store des traces d'exécution event-sourced.
  *
  * Deux sources de données fusionnées par task_id :
  * 1. `loadTrace(taskId)` - fetch initial paginé via la commande Tauri

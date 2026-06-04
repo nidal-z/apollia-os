@@ -166,7 +166,7 @@ Le code reste très court. Toute la logique de formatting et de configuration vi
 
 ## ADRs
 
-- `ADR-056` : Workspace context assembly (APOLLIA.md)
-- `ADR-103` : SDK datasources et templates runtime
+- `ADR-010` : Workspace context assembly (APOLLIA.md)
+- `ADR-024` : SDK datasources et templates runtime
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

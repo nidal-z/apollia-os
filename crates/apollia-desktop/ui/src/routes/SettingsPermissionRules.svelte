@@ -27,7 +27,7 @@
   let confirmingAll = $state(false);
   let confirmText = $state("");
 
-  // ADR-086 - filtre rapide par auteur. Permet à l'opérateur de retrouver
+  // Filtre rapide par auteur. Permet à l'opérateur de retrouver
   // les règles posées par l'onboarding-agent vs ses propres règles HITL vs
   // celles importées du config.
   let creatorFilter = $state<string>("all");
@@ -123,7 +123,7 @@
             <th class="px-3 py-2">{$t("permissions.rules.col_tool")}</th>
             <th class="px-3 py-2">{$t("permissions.rules.col_scope")}</th>
             <th class="px-3 py-2">{$t("permissions.rules.col_agent")}</th>
-            <!-- ADR-086 - colonne auteur (created_by) -->
+            <!-- Colonne auteur (created_by) -->
             <th class="px-3 py-2" title="Auteur ayant créé la règle (HITL, agent, config…)">
               Auteur
             </th>

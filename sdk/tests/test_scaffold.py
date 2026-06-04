@@ -164,7 +164,7 @@ class TestScaffoldWorkerAgent:
         assert 'agent_type="worker"' in src
         assert "@skill(" in src
         # No legacy `agent = MyClass()` trailer: the @agent decorator
-        # auto-instantiates the class (cf. ADR-107).
+        # auto-instantiates the class.
         assert "agent_instance" not in src
 
     def test_scaffold_worker_agent_generated_is_valid_python(

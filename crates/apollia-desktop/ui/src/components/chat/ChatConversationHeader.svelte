@@ -35,6 +35,7 @@
   import A2AWorkerBadge from "./A2AWorkerBadge.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
 
   interface Props {
     session: ChatSessionDetail | null;
@@ -83,6 +84,7 @@
   }: Props = $props();
 
   let linkOpen = $state(false);
+  let deleteConfirmOpen = $state(false);
   let editing = $state(false);
   let draftTitle = $state("");
   let titleInput = $state<HTMLInputElement | undefined>(undefined);
@@ -178,7 +180,7 @@
         void startEdit();
         return;
       case "delete":
-        ondelete();
+        deleteConfirmOpen = true;
         return;
       case "drawer":
         onconfigtoggle?.();
@@ -481,3 +483,14 @@
     </div>
   </div>
 </div>
+
+<ConfirmDialog
+  open={deleteConfirmOpen}
+  title={$t("chat.delete_confirm_title")}
+  message={$t("chat.delete_confirm_message")}
+  confirmLabel={$t("chat.delete_session")}
+  cancelLabel={$t("common.cancel")}
+  onclose={() => (deleteConfirmOpen = false)}
+  onconfirm={() => { deleteConfirmOpen = false; ondelete(); }}
+  data-testid="chat-header-delete-confirm"
+/>

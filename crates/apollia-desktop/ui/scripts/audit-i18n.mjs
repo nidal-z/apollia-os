@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Hardcoded UI string audit (US-SP42-008).
+ * Hardcoded UI string audit.
  *
  * Greps every `.svelte` file under `src/` for user-visible strings that
  * look like copy but aren't routed through `$t(...)`. Exits 1 when any

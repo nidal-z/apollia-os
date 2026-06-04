@@ -199,4 +199,4 @@ Voir [API-HTTP-Observability - Timeline](./API-HTTP-Observability#get-apiv1tasks
 
 ---
 
-*Voir aussi : [Briques Runtime Core](./Briques-Runtime-Core) · [Briques Triggers](./Briques-Triggers) · [API-HTTP-Observability](./API-HTTP-Observability) · [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature)*
+*Voir aussi : [Briques Runtime Core](./Briques-Runtime-Core) · [Briques Triggers](./Briques-Triggers) · [API-HTTP-Observability](./API-HTTP-Observability) · [ADR-012](../adr/ADR-012-observability-feedback.md)*

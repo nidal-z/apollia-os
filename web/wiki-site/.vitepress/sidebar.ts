@@ -134,7 +134,6 @@ export const sidebar: DefaultTheme.Sidebar = [
     text: 'Historique',
     collapsed: true,
     items: [
-      { text: 'Sprint Summary', link: '/Sprint-Summary' },
       { text: 'Roadmap', link: '/Roadmap' },
       { text: 'Décisions (ADR)', link: '/Decisions-Log' },
     ],

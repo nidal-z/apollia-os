@@ -6,18 +6,18 @@ description = "Apollia OS - Runtime Core (Supervisor, AgentRegistry, TaskRouter,
 license = "MIT OR Apache-2.0"
 
 [features]
-# ADR-113 multi-runner : les backends locaux d'inférence (llama-cpp, whisper)
+# Multi-runner : les backends locaux d'inférence (llama-cpp, whisper)
 # sont hébergés par le crate `apollia-runner` en tant que process enfant.
 # Aucune feature `local-*` n'est exposée par le daemon : la couche
 # d'inférence locale n'est plus directement compilée ici.
 default = ["cloud", "web-search", "brave-search", "web-read"]
 ## Active les backends cloud (Anthropic, OpenAI-compatible, etc.).
 cloud = ["apollia-llm/cloud"]
-## Native web search tool (ADR-072).
+## Native web search tool.
 web-search = ["apollia-tools/web-search"]
-## Brave Search backend for web_search (ADR-072) - requires BRAVE_SEARCH_API_KEY at runtime.
+## Brave Search backend for web_search - requires BRAVE_SEARCH_API_KEY at runtime.
 brave-search = ["web-search", "apollia-tools/brave-search"]
-## Native web_read tool (fetch + Readability extraction, ADR-072).
+## Native web_read tool (fetch + Readability extraction).
 web-read = ["apollia-tools/web-read"]
 
 [dependencies]
@@ -59,7 +59,7 @@ toml               = { workspace = true }
 hound              = { workspace = true }
 base64             = { workspace = true }
 dirs               = "5"
-# Client HTTP pour RunnerProxy (ADR-113).
+# Client HTTP pour RunnerProxy.
 reqwest            = { workspace = true, features = ["json", "stream"] }
 # WAV temporaire pour RunnerSttBackend (sérialise les buffers PCM avant
 # de les envoyer au runner via /stt/transcribe).

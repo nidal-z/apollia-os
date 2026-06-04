@@ -161,7 +161,7 @@ Le schéma inféré contient les descriptions à chaque niveau, donnant au LLM u
 
 ## ADRs
 
-- `ADR-099` : Signature inference comme schéma I/O
+- `ADR-023` : Signature inference comme schéma I/O
 - Release `AGENTKIT-REBUILD-2026-05-19` section 2026-05-20 : Annotated + examples + TypedDict
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

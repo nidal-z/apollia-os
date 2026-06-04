@@ -11,11 +11,13 @@
 //!
 //! # Scope policy: v0.1.0 power user
 //!
-//! Only Google scopes classified by Google as **sensitive** or **non-sensitive**
-//! are included. Restricted scopes (`gmail.readonly`, `gmail.modify`,
-//! `drive.readonly`, `drive`) are NOT exposed here; they require Google CASA
-//! Tier 2 audit (~$5-15k/year) and would shift the cost model. Power users who
-//! need restricted scopes go through their own OAuth app (Expert Mode, cf.
+//! The default tier requests only scopes Google classifies as **sensitive** or
+//! **non-sensitive** (free verification). Restricted scopes (`gmail.readonly`,
+//! `gmail.modify`, `gmail.compose`, `drive.readonly`, `drive`) require a Google
+//! CASA security assessment and would shift the cost model, so they are NOT in
+//! the default set. Draft creation uses the sensitive `gmail.drafts.create`
+//! scope; full draft management (`gmail.compose`, now restricted) and inbox
+//! read stay behind Expert Mode (the user's own OAuth client, cf.
 //! `docs/help/integrations/mode-expert-google-restricted-scopes.md`).
 
 use crate::providers::ProviderConfig;
@@ -30,7 +32,13 @@ use crate::providers::ProviderConfig;
 pub enum GoogleScope {
     /// Send mail via Gmail (`gmail.send`). Sensitive scope, free OAuth verification.
     MailSend,
-    /// Create / list / delete drafts (`gmail.compose`). Sensitive, free.
+    /// Create drafts (`gmail.drafts.create`). Sensitive, free OAuth
+    /// verification. Default draft capability; cannot list or delete drafts.
+    MailDraftsCreate,
+    /// Create / list / delete drafts (`gmail.compose`). RESTRICTED scope:
+    /// Google reclassified `gmail.compose` as restricted, so it now requires a
+    /// CASA security assessment. Reserved for Expert Mode (the user's own OAuth
+    /// client), never requested by the default tier.
     MailCompose,
     /// Read-only calendar access (`calendar.readonly`). Sensitive, free.
     CalendarRead,
@@ -73,6 +81,7 @@ impl GoogleScope {
     pub const fn oauth_scope(self) -> &'static str {
         match self {
             Self::MailSend => "https://www.googleapis.com/auth/gmail.send",
+            Self::MailDraftsCreate => "https://www.googleapis.com/auth/gmail.drafts.create",
             Self::MailCompose => "https://www.googleapis.com/auth/gmail.compose",
             Self::CalendarRead => "https://www.googleapis.com/auth/calendar.readonly",
             Self::CalendarWrite => "https://www.googleapis.com/auth/calendar.events",

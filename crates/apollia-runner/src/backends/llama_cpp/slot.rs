@@ -399,7 +399,7 @@ fn generate(
         if let Some(tx) = stream_tx {
             if tx
                 .blocking_send(Ok(StreamChunk {
-                    text: piece,
+                    text: piece.clone(),
                     finish_reason: None,
                 }))
                 .is_err()
@@ -408,9 +408,11 @@ fn generate(
                 finish_reason = FinishReason::Abort;
                 break;
             }
-        } else {
-            generated.push_str(&piece);
         }
+        // Accumulate in every mode so tool calls can be recovered after
+        // generation, including on the streaming path (where the live tokens
+        // were already forwarded verbatim).
+        generated.push_str(&piece);
         completion_tokens += 1;
 
         batch.clear();
@@ -448,10 +450,14 @@ fn generate(
     // discards their KV tail.
     *cached_tokens = new_tokens;
 
-    // Streaming emits raw pieces and never parses tool calls (parity with the
-    // previous behaviour); only the complete path parses.
+    // The complete path returns cleaned content plus structured tool calls.
+    // The streaming path already forwarded the live tokens, so it keeps an
+    // empty text but still recovers tool calls from the accumulated output so
+    // the consumer can execute them. Suppressing the tag text from the live
+    // stream is a separate concern, for when real SSE tool streaming lands.
     let (text, tool_calls) = if stream_tx.is_some() {
-        (String::new(), Vec::new())
+        let (_streamed, calls) = parse_completion(&template_result, generated);
+        (String::new(), calls)
     } else {
         parse_completion(&template_result, generated)
     };

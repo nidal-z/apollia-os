@@ -295,7 +295,7 @@ class AccountingBootstrap(ContextBootstrap):
 
 - **Latence premier lancement** : 3-5s de discovery lors du premier bootstrap (git, fichiers, détection stack)
 - **Pas de `update_partial`** : modifier un champ du snapshot nécessite un re-bootstrap complet
-- **Pas de cross-agent** : le namespace mémoire isole les snapshots (ADR-070). Deux agents ne partagent pas un bootstrap
+- **Pas de cross-agent** : le namespace mémoire isole les snapshots (ADR-010). Deux agents ne partagent pas un bootstrap
 - **Snapshots obsolètes** : si `is_stale()` ne retourne jamais `True`, les données vieillissent sans limite. Recommandation : toujours inclure un marqueur temporel
 
 ---
@@ -305,5 +305,5 @@ class AccountingBootstrap(ContextBootstrap):
 - [Agents SDK Guide](./Agents-SDK-Guide) - référence complète du SDK Python
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) - référence `ctx.*`
 - [Briques Memory Engine](./Briques-Memory-Engine) - architecture mémoire sous-jacente
-- [ADR-070](../adr/ADR-070-memory-namespace-project-scoped.md) - Memory namespace project-scoped
-- [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) - ContextBootstrap convention
+- [ADR-010](../adr/ADR-010-memory-context-architecture.md) - Memory namespace project-scoped
+- [ADR-010](../adr/ADR-010-memory-context-architecture.md) - ContextBootstrap convention

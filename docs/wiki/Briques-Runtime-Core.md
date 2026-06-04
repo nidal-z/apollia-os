@@ -51,7 +51,7 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 4.   LlmRouter              → backends LLM (embedded + cloud)
      └── LlmBackendRepository → persistence des backends
      └── LlmCallRepository  → subscriber EventBus pour logging des coûts LLM
-     └── EventPersistor     → subscriber EventBus pour la trace event-sourced (ADR-088)
+     └── EventPersistor     → subscriber EventBus pour la trace event-sourced (ADR-019)
 5.   TaskRouter             → dispatch des tâches vers les agents
 6.   TriggerEngine          → moteur de déclenchement automatique
      └── ouvre TriggerDefinitionRepository (triggers_def.db)
@@ -70,13 +70,13 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
      └── lit agents/bundled/manifest.json, installe les 4 agents si absents de la DB
 ```
 
-> **Note :** Il n'existe pas d'acteur `MemoryEngine` distinct. Les accès mémoire passent par des repositories SQLite directs (`Arc<Mutex<T>>` dans `AppState`), conformément à ADR-033. L'`APIServer` est démarré en position 12 (dernier acteur de service) afin que toutes les routes soient disponibles seulement une fois tous les composants prêts.
+> **Note :** Il n'existe pas d'acteur `MemoryEngine` distinct. Les accès mémoire passent par des repositories SQLite directs (`Arc<Mutex<T>>` dans `AppState`), conformément à ADR-014. L'`APIServer` est démarré en position 12 (dernier acteur de service) afin que toutes les routes soient disponibles seulement une fois tous les composants prêts.
 
-(ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
+(ADR-014), le Supervisor ouvre les repositories SQLite pour les triggers et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
 
 Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal avant de démarrer le suivant. **Démarrage séquentiel strict** - pas de démarrage parallèle qui masquerait des dépendances. Le timeout est **global** (pas par acteur) : 10s en mode CLI, 300s en mode embarqué (`EmbeddedConfig`).
 
-### 2.2 Mode embarqué (Desktop - ADR-027)
+### 2.2 Mode embarqué (Desktop - ADR-020)
 
 L'application desktop Tauri utilise `init_embedded` pour démarrer le runtime dans un thread dédié :
 
@@ -107,7 +107,7 @@ pub struct ChildSpec {
 
 Si un acteur dépasse `max_restarts` dans `restart_window_secs` : arrêt du runtime entier avec `exit(1)`. Le système préfère un arrêt net à un état incohérent.
 
-### 2.4 RunnerSupervisor (ADR-113, v0.1.0+)
+### 2.4 RunnerSupervisor (ADR-007, v0.1.0+)
 
 Acteur dédié à la gestion du process enfant `apollia-runner-{backend}`. Spawné par le `Supervisor` principal en Phase 4 (avant l'init de `LlmRouter`).
 
@@ -124,10 +124,10 @@ Acteur dédié à la gestion du process enfant `apollia-runner-{backend}`. Spawn
 
 **RunnerProxy** : implémente `CompletionModel` (de `apollia-llm`) et `SttBackend` (de `apollia-stt`) en forwardant chaque appel via reqwest HTTP vers le runner. Transparent pour le `LlmRouter` et les agents Python.
 
-**Pourquoi ce pattern :** ADR-113 documente le choix architectural et les alternatives rejetées. En bref : isolation des kernels GPU notoirement instables (ROCm Linux, Vulkan AMD), 1 installer unique par OS au lieu de 5 SKUs, extensibilité future (Intel oneAPI, ANE, runners distants).
+**Pourquoi ce pattern :** ADR-007 documente le choix architectural et les alternatives rejetées. En bref : isolation des kernels GPU notoirement instables (ROCm Linux, Vulkan AMD), 1 installer unique par OS au lieu de 5 SKUs, extensibilité future (Intel oneAPI, ANE, runners distants).
 
 **Détails techniques :**
-- [ADR-113](../adr/ADR-113-multi-runner-sidecar-architecture.md) : décision d'architecture
+- [ADR-007](../adr/ADR-007-inference-multi-runner-sidecar.md) : décision d'architecture
 - [IPC-PROTOCOL.md](../internal/architecture/IPC-PROTOCOL.md) : protocole HTTP/JSON complet
 - [GPU-DETECTION.md](../internal/architecture/GPU-DETECTION.md) : algo détection cross-platform
 - [CRATE-LAYOUT.md](../internal/architecture/CRATE-LAYOUT.md) : structure de `apollia-runner` et `runner_supervisor`
@@ -321,8 +321,8 @@ GET    /api/v1/notifications/events         → Événements globaux
 PUT    /api/v1/notifications/events         → Définir événements globaux
 
 # Observabilité
-GET    /api/v1/tasks/{id}/timeline          → Chronologie unifiée (5 sources SQLite, ADR-026)
-GET    /api/v1/tasks/{id}/trace             → Trace event-sourced paginée (ADR-088)
+GET    /api/v1/tasks/{id}/timeline          → Chronologie unifiée (5 sources SQLite, ADR-012)
+GET    /api/v1/tasks/{id}/trace             → Trace event-sourced paginée (ADR-019)
 GET    /api/v1/tasks/{id}/trace?since=…&limit=… → Page suivante (curseur UUIDv7)
 ```
 
@@ -763,7 +763,7 @@ L'`EventBus` est un canal broadcast en mémoire - par construction, les
 événements perdus ne peuvent pas être relus. Pour la **trajectoire
 d'exécution agent** (thoughts ReAct, tool calls, ctx.log, retries,
 A2A invocations), un **EventPersistor** souscrit au bus et écrit chaque
-événement dans une table append-only `runtime_events` (ADR-088).
+événement dans une table append-only `runtime_events` (ADR-019).
 
 **Module** : `crates/apollia-runtime/src/observability/`
 
@@ -928,16 +928,16 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD - 
 | REST JSON (pas gRPC) | Debuggable avec curl, pas de génération protobuf, CLI simple |
 | SSE pour streaming | Unidirectionnel suffisant, compatible tout client HTTP |
 | Graceful shutdown avec drain 30s | Jamais de tâche perdue silencieusement |
-| `apollia.toml` structurel + SQLite opérationnel | TOML pour la config immuable, SQLite pour les triggers/notifications CRUD (ADR-033) |
-| HITL via `oneshot` channel dans ORIA | Suspension sans polling, reprise déterministe via `ResumeHandler` (ADR-023) |
+| `apollia.toml` structurel + SQLite opérationnel | TOML pour la config immuable, SQLite pour les triggers/notifications CRUD (ADR-014) |
+| HITL via `oneshot` channel dans ORIA | Suspension sans polling, reprise déterministe via `ResumeHandler` (ADR-013) |
 | `TimeoutWatcher` scan 60s | Tâches orphelines nettoyées automatiquement sans intervention utilisateur |
-| `ChatSessionManager` séparé du `TaskRouter` (Phase 13) | Chat = sessions longues stateful, TaskRouter = fire-and-forget stateless. Sémantiques incompatibles (ADR-034) |
+| `ChatSessionManager` séparé du `TaskRouter` (Phase 13) | Chat = sessions longues stateful, TaskRouter = fire-and-forget stateless. Sémantiques incompatibles (ADR-022) |
 | `NotificationEngine` optionnel (Phase 9) | Zéro overhead si `[notifications]` absent - runtime léger par défaut |
-| Timeline API agrégée server-side (ADR-026) | 5 sources SQLite lues en parallèle, triées, retournées en JSON - pas de calcul client |
-| Troncature configurable `ObservabilityConfig` (ADR-026) | UTF-8 safe, marqueur `[TRONQUÉ - N octets total]`, jamais de rejet - observabilité partielle > aucune |
-| `SkillIndex` dans `AgentRegistry` (ADR-049) | Index inversé skill_id → agent_name - pas un acteur séparé, cohérence garantie par le même acteur que l'état agent (Principe #5) |
+| Timeline API agrégée server-side (ADR-012) | 5 sources SQLite lues en parallèle, triées, retournées en JSON - pas de calcul client |
+| Troncature configurable `ObservabilityConfig` (ADR-012) | UTF-8 safe, marqueur `[TRONQUÉ - N octets total]`, jamais de rejet - observabilité partielle > aucune |
+| `SkillIndex` dans `AgentRegistry` (ADR-025) | Index inversé skill_id → agent_name - pas un acteur séparé, cohérence garantie par le même acteur que l'état agent (Principe #5) |
 | `A2AInvoker` timeout 120s | Invocations A2A synchrones - timeout explicite évite que le Director Agent soit bloqué indéfiniment si le Worker Agent plante |
-| Auto-installation des agents bundled (ADR-050) | 4 agents bundled auto-installés au premier boot via `agents/bundled/manifest.json` - idempotent (pas de réinstallation si déjà présent) |
+| Auto-installation des agents bundled (ADR-026) | 4 agents bundled auto-installés au premier boot via `agents/bundled/manifest.json` - idempotent (pas de réinstallation si déjà présent) |
 | `A2AToolsProvider` | Injecte dynamiquement les skills A2A comme outils virtuels `a2a:{skill_id}` dans la boucle ReAct ORIA - backward-compatible (sans agents A2A = pas de changement) |
 | Garde-fous A2A | `validate_chain()` applique deux protections non-contournables : détection de cycle (self-invocation incluse) et limite de hops (`DEFAULT_A2A_MAX_HOPS = 5`). La chaîne est propagée via `AIPTask::delegation_chain` et étendue à chaque délégation par `delegate_inner()`. `chain_timeout` est un garde-fou temporel complémentaire (Principe #7). |
 
@@ -1020,7 +1020,7 @@ Hot reload via `FileTimestampCache` si le répertoire `.apollia/commands/` est m
 ## 12. Diagrammes de référence
 
 - [Démarrage ordonné Supervisor](https://github.com/Apollia-OS/apollia-os/blob/main/docs/diagrams/seq-supervisor-startup.puml) - 13 phases, TriggerEngine → NotificationEngine → ChatSessionManager
-- [CRUD Config opérationnelle](https://github.com/Apollia-OS/apollia-os/blob/main/docs/diagrams/seq-config-crud.puml) - POST → SQLite → Engine.reload (ADR-033)
+- [CRUD Config opérationnelle](https://github.com/Apollia-OS/apollia-os/blob/main/docs/diagrams/seq-config-crud.puml) - POST → SQLite → Engine.reload (ADR-014)
 - [HITL Flow complet](https://github.com/Apollia-OS/apollia-os/blob/main/docs/diagrams/seq-hitl-flow.puml) - suspend → notify → approve/reject → resume
 - [Task Lifecycle](https://github.com/Apollia-OS/apollia-os/blob/main/docs/diagrams/seq-task-lifecycle.puml) - flux complet soumission → résultat
 - [Timeline Aggregation](https://github.com/Apollia-OS/apollia-os/blob/main/docs/diagrams/seq-timeline-aggregation.puml) - agrégation 5 sources → chronologie unifiée

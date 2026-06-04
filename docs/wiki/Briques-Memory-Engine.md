@@ -411,7 +411,7 @@ volontairement **partagé entre tous les agents** sans opt-in. Cette mémoire
 n'est pas dédiée à `apollia-guide` ni à un agent particulier - c'est une
 ressource transverse qui sert à tout consommateur.
 
-Trois mécanismes assurent cette généricité (ADR-087) :
+Trois mécanismes assurent cette généricité (ADR-011) :
 
 ### 1. Namespace global `__user__`
 
@@ -447,7 +447,7 @@ system prompt sans intervention de l'agent. Seul le mode **Companion**
 est isolé (Principe #6 strict - l'agent compagnon ne reçoit pas le
 contexte utilisateur).
 
-### Clés profil canoniques (ADR-087, clés plates)
+### Clés profil canoniques (ADR-011, clés plates)
 
 | Section | Clés | Tier |
 |---|---|---|
@@ -569,7 +569,7 @@ Le préfixage est transparent pour le code Python de l'agent - il s'applique lor
 - Workers non affectés (pas de `project_id` dans leur contexte)
 - Pas de changement de schéma SQLite
 
-> **Voir aussi :** [ADR-070](../adr/ADR-070-memory-namespace-project-scoped.md) - Memory namespace project-scoped
+> **Voir aussi :** [ADR-010](../adr/ADR-010-memory-context-architecture.md) - Memory namespace project-scoped
 
 ---
 
@@ -592,7 +592,7 @@ La purge est **asynchrone et non-bloquante** au démarrage. Elle ne ralentit pas
 |---|---|---|
 | `STEP_MEMORY_OUTPUT_MAX_CHARS` | `200` | Limite maximale en caractères de la sortie d'un step mémorisée dans la mémoire épisodique. Au-delà, le contenu est tronqué avec un suffixe `[truncated]`. Configurable via `memory.step_output_max_chars` dans `apollia.toml`. |
 
-La troncature est appliquée systématiquement par le runtime lors de l'appel `ctx.memory.record` depuis ORIA. Elle borne la croissance de la base épisodique sans heuristique de consolidation (voir [ADR-054](../adr/ADR-054-memory-episodic-consolidation.md)).
+La troncature est appliquée systématiquement par le runtime lors de l'appel `ctx.memory.record` depuis ORIA. Elle borne la croissance de la base épisodique sans heuristique de consolidation (voir [ADR-010](../adr/ADR-010-memory-context-architecture.md)).
 
 ---
 
@@ -863,7 +863,7 @@ $ apollia memory purge --agent crm-agent --type all --older-than 30
 
 ## 8. Export / Import de mémoire
 
-, la mémoire d'un agent peut être exportée vers un fichier JSON gzip et réimportée sur une autre machine (ADR-066).
+, la mémoire d'un agent peut être exportée vers un fichier JSON gzip et réimportée sur une autre machine (ADR-010).
 
 ### Format - JSON gzip
 
@@ -912,7 +912,7 @@ $ apollia memory import --agent crm-agent --input future.apollia-mem.gz
 | `Merge` (défaut) | `INSERT OR IGNORE` - préserve les données existantes | `apollia memory import` |
 | `Replace` | `DELETE` + `INSERT` - écrase tout le namespace | `apollia memory import --replace` |
 
-> **Voir aussi :** [ADR-066](../adr/ADR-066-memory-export-import-format.md) - Format JSON Gzip, migration de schéma
+> **Voir aussi :** [ADR-010](../adr/ADR-010-memory-context-architecture.md) - Format JSON Gzip, migration de schéma
 
 ---
 

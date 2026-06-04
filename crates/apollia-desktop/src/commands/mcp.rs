@@ -7,7 +7,9 @@
 use apollia_mcp::approvals::McpApprovalStore;
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::discovery;
-use apollia_mcp::manager::{McpConnectionTestResult, McpServerDetail, McpServerStatus, ProbeSpec};
+use apollia_mcp::manager::{
+    McpConnectionTestResult, McpResourceSummary, McpServerDetail, McpServerStatus, ProbeSpec,
+};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -394,6 +396,19 @@ pub async fn list_mcp_servers(
 ) -> Result<Vec<McpServerStatus>, String> {
     let json = http_get_json(state.api_port, "/api/v1/mcp/servers").await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server list: {e}"))
+}
+
+/// List MCP resources aggregated across every connected server.
+///
+/// Delegates to `GET /api/v1/mcp/resources` on the embedded runtime. Backs the
+/// chat @-mention picker (user-initiative path). Returns an empty list when no
+/// MCP server is connected.
+#[tauri::command]
+pub async fn list_mcp_resources(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Vec<McpResourceSummary>, String> {
+    let json = http_get_json(state.api_port, "/api/v1/mcp/resources").await?;
+    serde_json::from_value(json).map_err(|e| format!("failed to parse resource list: {e}"))
 }
 
 /// Get detailed information for a single MCP server.

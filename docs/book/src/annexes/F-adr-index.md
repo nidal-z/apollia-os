@@ -8,157 +8,59 @@ Au moment de la sortie de la v0.1.0, les ADRs ne sont pas encore publiées en li
 
 ## Fondations runtime
 
-- `ADR-001` : Rust comme langage runtime.
-- `ADR-002` : SQLite comme moteur de persistance.
-- `ADR-003` : Duck typing pour AIP (contrat minimal `manifest` + `run`).
-- `ADR-005` : Sandbox sans Docker (Linux user namespaces natifs).
-- `ADR-006` : REST + JSON API locale.
-- `ADR-008` : Pattern noun-verb pour la CLI.
-- `ADR-010` : Pivot SaaS vers runtime Rust open-source.
-- `ADR-014` : Bridge PyO3 async (`spawn_blocking` + `asyncio.run`).
+- `ADR-001` : vision et fondations de la stack (Rust, Tokio, SQLite, contrat AIP).
+- `ADR-002` : bridge PyO3 et découplage par traits entre runtime et Python.
+- `ADR-003` : sandbox, modèle de confiance des agents et périmètre des plateformes.
+- `ADR-004` : conception de la CLI (noun-verb, commande `inspect`).
 
 ---
 
-## Acteurs et concurrence
+## Moteur et exécution
 
-- `ADR-015` : `ToolExecutor` trait abstraction.
-- `ADR-016` : `AgentRunner` trait abstraction.
-- `ADR-017` : `hyper-util` pour le serving Unix socket.
-- `ADR-018` : Bootstrap CLI sans Supervisor (mode dégradé `inspect`).
-- `ADR-019` : `AgentLoader` trait, découplage runtime et PyO3.
-
----
-
-## Moteur ORIA et orchestrated
-
-- `ADR-022` : Mode orchestré ORIA, option B.
-- `ADR-035` : Observation par étape en orchestrated.
-- `ADR-036` : Stratégie plan cache.
-- `ADR-053` : Pipeline fanout et loops.
+- `ADR-005` : modèle d'exécution ORIA (modes direct et orchestré).
+- `ADR-006` : sous-système d'outils et outils natifs.
+- `ADR-007` : runtime d'inférence en sidecar multi-runner.
+- `ADR-008` : backends LLM, gestion des modèles et transparence.
+- `ADR-009` : moteur de reconnaissance vocale (speech-to-text).
 
 ---
 
-## Mémoire
+## État et gouvernance
 
-- `ADR-007` : Mémoire à l'initiative de l'agent (principe #6).
-- `ADR-009` : Tokenizer FTS5 `unicode61`.
-- `ADR-038` : Global user memory.
-- `ADR-039` : Conversation memory management.
-- `ADR-054` : Memory episodic consolidation.
-- `ADR-058` : Context window management.
-- `ADR-066` : Memory export/import format.
-- `ADR-070` : Memory namespace project-scoped.
-- `ADR-071` : Context bootstrap convention.
-- `ADR-087` : User profile redesign.
+- `ADR-010` : architecture mémoire et assemblage de contexte.
+- `ADR-011` : profil utilisateur canonique.
+- `ADR-012` : observabilité et feedback sur les plans.
+- `ADR-013` : human-in-the-loop (HITL).
+- `ADR-014` : config opérationnelle, triggers et notifications.
+- `ADR-015` : gouvernance des permissions et des outils.
+- `ADR-016` : secrets, stockage keyring et authentification de l'API locale.
 
 ---
 
-## LLM
+## Connectivité MCP et connecteurs
 
-- `ADR-020` : `apollia-llm` moteur embarqué, modèles externes feature-flags.
-- `ADR-042` : Remplacement de mistral-rs par llama-cpp statique.
-- `ADR-047` : Multi-LLM backend registry.
-- `ADR-057` : Prompt caching strategy.
-- `ADR-067` : Bedrock SigV4 vs SDK.
-- `ADR-068` : Vertex ADC vs service account.
+- `ADR-017` : client MCP, transport et mode serveur.
+- `ADR-018` : client OAuth MCP et orchestration.
+- `ADR-019` : connecteurs natifs et intégrations.
 
 ---
 
-## Outils et sandbox
+## Desktop et frontend
 
-- `ADR-012` : Sandbox devmode macOS.
-- `ADR-043` : Décomposition atomique des outils.
-- `ADR-044` : Client MCP natif.
-- `ADR-046` : Transport HTTP + SSE pour MCP.
-- `ADR-052` : Windows sandbox.
-- `ADR-059` : Concurrent tool execution.
-- `ADR-061` : Permission engine 3 layers (session, project, global).
-- `ADR-062` : MCP server mode.
-- `ADR-082` : Tool governance unifiée.
-- `ADR-091` : Catalogue MCP statique, registry vs marketplace.
-- `ADR-092` : Exposition resources MCP côté agent ReAct.
-- `ADR-093` : Sampling MCP HITL pre-approval.
-- `ADR-095` : MCP OAuth orchestrator end-to-end.
-- `ADR-096` : Tool execution paths convergence.
+- `ADR-020` : architecture de l'application desktop.
+- `ADR-021` : design system frontend et internationalisation (i18n).
+- `ADR-022` : sous-système de chat.
 
 ---
 
-## HITL et notifications
+## SDK et agents
 
-- `ADR-023` : HITL `is_resumed`, `input_response`, `tools_requiring_approval`.
-- `ADR-024` : `apollia-notifications` trait + channel JSON fixe.
-
----
-
-## A2A et pipelines
-
-- `ADR-025` : `apollia-pipelines`, TOML déclaratif, HITL intégré.
-- `ADR-049` : A2A routing inter-agents.
-
----
-
-## Triggers
-
-- `ADR-021` : Triggers TOML, HMAC, hot reload.
-
----
-
-## Desktop
-
-- `ADR-027` : Apollia Desktop, processus unique Tauri runtime embarqué.
-- `ADR-028` : Frontend Svelte, UX-first.
-- `ADR-029` : Settings en lecture seule.
-- `ADR-030` : EventBus + Tauri events (remplace polling).
-- `ADR-031` : i18n svelte-i18n (FR + EN).
-- `ADR-034` : Chat hybride, sessions, streaming, HITL inline.
-- `ADR-045` : Page Integrations, wizard générique.
-- `ADR-065` : Auto-updater distribution.
-- `ADR-097` : Google Drive picker integration.
-
----
-
-## STT et observabilité
-
-- `ADR-026` : Observabilité complète, persistance timeline, troncature.
-- `ADR-041` : Moteur STT embarqué (whisper-rs), trait `SttBackend`.
-
----
-
-## Auth et OAuth
-
-- `ADR-051` : API auth.
-- `ADR-064` : OAuth2 PKCE keyring.
-- `ADR-094` : Linux keyring fallback strategy.
-
----
-
-## Workspace et contexte
-
-- `ADR-033` : Config opérateur en SQLite.
-- `ADR-056` : Workspace context assembly (APOLLIA.md).
-- `ADR-060` : ContextProvider trait.
-- `ADR-069` : Autonomie filesystem, friction graduée, journal réversible.
-
----
-
-## Apollia AgentKit v0.5 (refonte SDK)
-
-Les décisions qui définissent le SDK Python decorator-first :
-
-- `ADR-098` : Apollia AgentKit, decorator-first.
-- `ADR-099` : Signature inference comme schéma I/O.
-- `ADR-100` : Exceptions typées au boundary.
-- `ADR-101` : Ctx exhaustif et typé via Protocol (14 services).
-- `ADR-102` : SDK A2A API unifiée.
-- `ADR-103` : SDK datasources et templates runtime.
-- `ADR-104` : SDK secrets read-only gating.
-- `ADR-105` : SDK events types publics.
-- `ADR-106` : SDK logger structure.
-- `ADR-107` : SDK auto module instance.
-- `ADR-108` : SDK mailbox A2A suppression.
-- `ADR-109` : SDK AIPResult interne.
-- `ADR-110` : `apollia inspect` CLI.
-- `ADR-112` : SDK stream cleanup et rename.
+- `ADR-023` : conception du SDK Python / AgentKit.
+- `ADR-024` : contrat runtime du SDK (`ctx`).
+- `ADR-025` : worker agents et routing A2A.
+- `ADR-026` : installation des agents, format de bundle et distribution.
+- `ADR-027` : agent d'onboarding.
+- `ADR-028` : distribution de release, updater et signature de code.
 
 ---
 

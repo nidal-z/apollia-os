@@ -205,6 +205,6 @@ Si vous avez des milliers de triggers (cas extrême), envisagez de regrouper par
 ## ADRs
 
 - `ADR-021` : Triggers TOML, HMAC, hot reload (note : la persistance TOML a été remplacée par SQLite v0.5+)
-- `ADR-033` : Config opérateur en SQLite
+- `ADR-014` : Config opérateur en SQLite
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

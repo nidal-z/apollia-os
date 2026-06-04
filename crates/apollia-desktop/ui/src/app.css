@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════
-   Design tokens v2 - ADR-077
-   Sprint 42 - elevation, warmth dark, rim lights, primary
+   Design tokens v2
+   Elevation, warmth dark, rim lights, primary
    scale. The only source of truth for shadows / brand surfaces.
    ═══════════════════════════════════════════════════════════ */
 @layer base {
@@ -336,7 +336,7 @@
     box-shadow: var(--shadow-elev-2);
   }
 
-  /* ── Card hover - lift with warm glow (spring-like, US-SP42-005) ── */
+  /* ── Card hover - lift with warm glow (spring-like) ── */
   .glass-card-hover {
     @apply glass-card;
     transition:
@@ -386,7 +386,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Hover utilities (US-SP42-009) - `.hover-lift` for cards,
+     Hover utilities - `.hover-lift` for cards,
      `.hover-glow` for CTAs. Both respect prefers-reduced-motion
      via the global rule at the bottom of this file.
      ═════════════════════════════════════════════════════════ */
@@ -419,7 +419,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Glass relief levels (US-SP42-009) - 3 canonical levels
+     Glass relief levels - 3 canonical levels
      aligned with elevation shadows. Aliases on top of the
      existing `.glass-card` / `.glass-panel` primitives:
        level-1 → cards (shadow-elev-2)
@@ -469,7 +469,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Placeholder contrast (US-SP42-009, A.4.4) - force min
+     Placeholder contrast (A.4.4) - force min
      opacity so placeholders remain legible ≥ AA against
      surface-1 in both themes.
      ═════════════════════════════════════════════════════════ */
@@ -535,7 +535,7 @@
     @apply backdrop-blur-sm;
   }
 
-  /* Warm modal backdrop (US-SP42-012 - F.56). Warm cast vs the neutral
+  /* Warm modal backdrop (F.56). Warm cast vs the neutral
      `app-backdrop` so overlays feel anchored in the parchment palette. */
   .backdrop-warm {
     background-color: rgba(60, 40, 20, 0.40);
@@ -552,7 +552,7 @@
   }
 
   /* ═════════════════════════════════════════════════════════
-     Global focus rings (US-SP42-007 - F.2, F.43, D.52)
+     Global focus rings (F.2, F.43, D.52)
      Every natively focusable element gets a primary ring on
      :focus-visible. Components that render a custom shadow on
      focus (buttons / inputs with their own variants) can opt
@@ -646,7 +646,7 @@
   .text-danger-a11y  { color: hsl(var(--text-danger)); }
 
   /* ═════════════════════════════════════════════════════════
-     Gradient utilities (F.35, US-SP42-005)
+     Gradient utilities (F.35)
      ═════════════════════════════════════════════════════════ */
   .bg-gradient-primary {
     background-image: var(--gradient-primary);
@@ -795,7 +795,7 @@
   to { transform: rotate(360deg); }
 }
 
-/* Progress bar indeterminate - 30 % fill travels across track in 1.5 s (US-SP42-019). */
+/* Progress bar indeterminate - 30 % fill travels across track in 1.5 s. */
 @keyframes progress-indeterminate {
   0%   { left: -30%; }
   100% { left: 100%; }
@@ -931,7 +931,7 @@
 .v4-glow   { animation: v4-glow 2s ease-in-out infinite; }
 
 /* ═══════════════════════════════════════════════════════════
-   Reduced motion (US-SP42-005) - honour OS preference by
+   Reduced motion - honour OS preference by
    collapsing every animation and transition to a near-instant
    step. Spring transforms become static.
    ═══════════════════════════════════════════════════════════ */

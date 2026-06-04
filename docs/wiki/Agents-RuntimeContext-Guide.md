@@ -203,8 +203,8 @@ Lecture seule. Permet à l'agent de s'adapter proactivement avant épuisement.
 Logs émis vers deux canaux en parallèle :
 
 1. **`tracing::*`** du runtime (stderr, format structuré opérateur).
-2. **`runtime_events.db`** comme `RuntimeEvent::AgentLog` (ADR-088,
-   ADR-088 Lot 1) - visible dans la trace `ExecutionTrace` de l'UI et
+2. **`runtime_events.db`** comme `RuntimeEvent::AgentLog` (ADR-019,
+   ADR-019 Lot 1) - visible dans la trace `ExecutionTrace` de l'UI et
    requêtable via `GET /api/v1/tasks/:id/trace`.
 
 ### Signature
@@ -227,7 +227,7 @@ ctx.log("warn", f"budget low: {ctx.step_budget.steps_remaining} steps left")
 ### Méthodes d'observabilité ReAct
 
 Trois méthodes complémentaires pour pousser des événements typés dans la
-trace event-sourced (ADR-088 Lot 2). Utilisées par le SDK `react.py`
+trace event-sourced (ADR-019 Lot 2). Utilisées par le SDK `react.py`
 pour exposer thoughts / retries / parse errors. Toutes *fire-and-forget*
 (no-op silencieux si task_id ou bus absents).
 

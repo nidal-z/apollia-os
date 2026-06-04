@@ -98,6 +98,19 @@ enum McpCommand {
     ListPendingApprovals {
         reply: oneshot::Sender<Result<Vec<PendingApprovalEntry>, McpApprovalError>>,
     },
+    /// Aggregate `resources/list` across every connected session.
+    ListResources {
+        reply: oneshot::Sender<Vec<McpResourceSummary>>,
+    },
+    /// Read a single resource (`resources/read`) from one server.
+    ///
+    /// When `server_name` is `None`, the manager resolves the owning server by
+    /// scanning the per-session resource caches for a matching `uri`.
+    ReadResource {
+        server_name: Option<String>,
+        uri: String,
+        reply: oneshot::Sender<Result<McpResourcePayload, McpSessionError>>,
+    },
     /// Gracefully shut down all sessions and stop the actor loop.
     Shutdown,
 }
@@ -208,6 +221,43 @@ pub struct ProbeSpec {
     /// Static arguments for the probe call. `None` for parameterless tools.
     #[serde(default)]
     pub args: Option<serde_json::Value>,
+}
+
+/// One MCP resource entry, flattened with its owning server name.
+///
+/// Aggregated by [`McpClientManagerHandle::list_resources`] across every
+/// connected session so both the ReAct agent (`mcp_resources_list` tool) and
+/// the desktop @-mention picker consume a single uniform list.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpResourceSummary {
+    /// Server the resource belongs to (as declared in the configuration).
+    pub server: String,
+    /// Stable URI identifying the resource.
+    pub uri: String,
+    /// Display name for the UI.
+    pub name: String,
+    /// MIME type when known (e.g. `"text/plain"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Optional one-line description.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Content of a single resource read via `resources/read`, flattened to plain
+/// text plus the owning server and MIME type.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpResourcePayload {
+    /// Server the resource was read from.
+    pub server: String,
+    /// Resource URI that was read.
+    pub uri: String,
+    /// MIME type of the first content part, when the server provided one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Text content of all returned parts, joined with newlines. Binary-only
+    /// parts (base64 blobs) are skipped here.
+    pub text: String,
 }
 
 /// Clonable handle to the [`McpClientManager`] actor.
@@ -371,6 +421,58 @@ impl McpClientManagerHandle {
             return Vec::new();
         }
         reply_rx.await.unwrap_or_default()
+    }
+
+    /// Aggregate `resources/list` across every connected MCP server.
+    ///
+    /// Returns one [`McpResourceSummary`] per resource, tagged with its owning
+    /// server. Servers that do not advertise the `resources` capability are
+    /// skipped without a round-trip. Returns an empty `Vec` when no server is
+    /// connected or the actor has already shut down.
+    pub async fn list_resources(&self) -> Vec<McpResourceSummary> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(McpCommand::ListResources { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Read a single resource (`resources/read`).
+    ///
+    /// When `server_name` is `Some`, the call is routed directly to that
+    /// session. When `None`, the manager resolves the owning server by matching
+    /// `uri` against the per-session resource list.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpSessionError::ServerExited`] when the actor channel is
+    /// closed, when the named server is unknown, or when no connected server
+    /// exposes a resource with the given `uri`. Propagates any
+    /// [`McpSessionError`] raised by the underlying `resources/read` call.
+    pub async fn read_resource(
+        &self,
+        server_name: Option<&str>,
+        uri: &str,
+    ) -> Result<McpResourcePayload, McpSessionError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::ReadResource {
+                server_name: server_name.map(str::to_string),
+                uri: uri.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: server_name.unwrap_or("?").to_string(),
+            })?;
+        reply_rx.await.map_err(|_| McpSessionError::ServerExited {
+            server: server_name.unwrap_or("?").to_string(),
+        })?
     }
 
     /// Check whether a server requires HITL approval for all its tools.
@@ -1130,6 +1232,18 @@ impl McpClientManager {
                     let _ = reply.send(self.handle_list_pending_approvals());
                 }
 
+                McpCommand::ListResources { reply } => {
+                    let _ = reply.send(self.handle_list_resources().await);
+                }
+
+                McpCommand::ReadResource {
+                    server_name,
+                    uri,
+                    reply,
+                } => {
+                    let _ = reply.send(self.handle_read_resource(server_name, &uri).await);
+                }
+
                 McpCommand::Shutdown => {
                     self.shutdown_all().await;
                     break;
@@ -1233,6 +1347,101 @@ impl McpClientManager {
             Some(store) => store.list_pending(),
             None => Ok(Vec::new()),
         }
+    }
+
+    /// Aggregate `resources/list` across every connected session.
+    ///
+    /// Servers that do not advertise the `resources` capability are skipped
+    /// without a round-trip. A per-server failure is logged and skipped; it
+    /// never aborts the aggregation of the others.
+    async fn handle_list_resources(&self) -> Vec<McpResourceSummary> {
+        let mut out: Vec<McpResourceSummary> = Vec::new();
+        for (server_name, session) in &self.sessions {
+            if session.capabilities().resources.is_none() {
+                continue;
+            }
+            match session.list_resources().await {
+                Ok(result) => {
+                    for resource in result.resources {
+                        out.push(McpResourceSummary {
+                            server: server_name.clone(),
+                            uri: resource.uri,
+                            name: resource.name,
+                            mime_type: resource.mime_type,
+                            description: resource.description,
+                        });
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        server = %server_name,
+                        error = %e,
+                        "mcp.resources_list_failed"
+                    );
+                }
+            }
+        }
+        out
+    }
+
+    /// Resolve and read a single resource via `resources/read`.
+    ///
+    /// When `server_name` is `None`, the owning server is resolved by matching
+    /// `uri` against each connected session's resource list.
+    async fn handle_read_resource(
+        &self,
+        server_name: Option<String>,
+        uri: &str,
+    ) -> Result<McpResourcePayload, McpSessionError> {
+        let resolved = match server_name {
+            Some(name) => name,
+            None => self.resolve_resource_server(uri).await.ok_or_else(|| {
+                McpSessionError::ServerExited {
+                    server: format!("(none exposes resource {uri})"),
+                }
+            })?,
+        };
+
+        let session = self
+            .sessions
+            .get(&resolved)
+            .ok_or_else(|| McpSessionError::ServerExited {
+                server: resolved.clone(),
+            })?;
+
+        let result = session.read_resource(uri).await?;
+        let mime_type = result
+            .contents
+            .iter()
+            .find_map(|c| c.mime_type.clone());
+        let text = result
+            .contents
+            .iter()
+            .filter_map(|c| c.text.as_deref())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        Ok(McpResourcePayload {
+            server: resolved,
+            uri: uri.to_string(),
+            mime_type,
+            text,
+        })
+    }
+
+    /// Find the first connected server that exposes a resource with `uri`.
+    async fn resolve_resource_server(&self, uri: &str) -> Option<String> {
+        for (server_name, session) in &self.sessions {
+            if session.capabilities().resources.is_none() {
+                continue;
+            }
+            if let Ok(result) = session.list_resources().await {
+                if result.resources.iter().any(|r| r.uri == uri) {
+                    return Some(server_name.clone());
+                }
+            }
+        }
+        None
     }
 
     /// Shut down every live session and clear the session map.

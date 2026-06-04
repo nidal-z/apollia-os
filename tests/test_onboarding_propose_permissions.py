@@ -1,4 +1,4 @@
-"""Tests for onboarding-agent ADR-086 permission proposal logic.
+"""Tests for onboarding-agent permission proposal logic.
 
 Validates ``_persist_proposed_permission_rules`` (renamed from
 ``_propose_permission_rules`` in plan v2) :

@@ -1,6 +1,6 @@
 # Sécurité - Sandbox et Isolation - Apollia OS
 
-> Comment Apollia OS isole l'exécution des outils système et protège l'API REST locale : Linux namespaces, authentification par token, sandbox Windows 3 couches (ADR-052).
+> Comment Apollia OS isole l'exécution des outils système et protège l'API REST locale : Linux namespaces, authentification par token, sandbox Windows 3 couches (ADR-003).
 > Public cible : administrateur système, contributeur Rust
 
 ---
@@ -16,7 +16,7 @@ Apollia OS utilise les **Linux user namespaces** (via `unshare`) pour isoler l'e
 
 La commande `unshare` crée un environnement isolé avec ses propres identifiants utilisateur (`--user`), son propre filesystem (`--mount`) et sa propre pile réseau (`--net`). L'outil s'exécute comme root dans son namespace (uid 0) mais n'a aucun privilège réel sur le système hôte.
 
-Cette approche implémente le Principe #2 (Zéro dépendance externe) et ADR-005.
+Cette approche implémente le Principe #2 (Zéro dépendance externe) et ADR-023.
 
 ---
 
@@ -146,7 +146,7 @@ Distributions qui activent les user namespaces par défaut : Ubuntu 22.04+, Debi
 
 ---
 
-## Authentification API TCP (ADR-051)
+## Authentification API TCP (ADR-002)
 
 L'API REST TCP `:7771` est protégée par un token statique.
 
@@ -175,13 +175,13 @@ apollia-os config show-token    # afficher le token courant
 apollia-os config rotate-token  # régénérer un nouveau token (redémarre le runtime)
 ```
 
-> **Référence technique :** [ADR-051](./Decisions-Log#adr-051)
+> **Référence technique :** [ADR-016](../adr/ADR-016-secrets-keyring-api-auth.md)
 
 ---
 
-## Sandbox Windows - modèle Chromium 3 couches *(ADR-052 - déploiement différé)*
+## Sandbox Windows - modèle Chromium 3 couches *(ADR-003 - déploiement différé)*
 
-L'ADR-052 définit la stratégie de sandbox pour Windows natif (implémentation différée). Le design est formalisé et implémentable dès qu'un environnement Windows est disponible.
+L'ADR-003 définit la stratégie de sandbox pour Windows natif (implémentation différée). Le design est formalisé et implémentable dès qu'un environnement Windows est disponible.
 
 **Architecture 3 couches :**
 
@@ -195,7 +195,7 @@ L'ADR-052 définit la stratégie de sandbox pour Windows natif (implémentation 
 
 **Portabilité :** tout le code Windows est dans `crates/apollia-tools/src/sandbox_windows.rs` sous `#[cfg(target_os = "windows")]`. Zéro impact sur la compilation Linux/macOS.
 
-> **Référence technique :** [ADR-052](./Decisions-Log#adr-052) · [ADR-005](../adr/ADR-005-sandbox-sans-docker) (sandbox Linux)
+> **Référence technique :** [ADR-003](../adr/ADR-003-sandbox-trust-platform-scope.md) · [ADR-003](../adr/ADR-003-sandbox-trust-platform-scope.md) (sandbox Linux)
 
 ---
 
@@ -250,7 +250,7 @@ Pour les opérations classées Medium ou High, un modal desktop affiche :
 - Le **chemin et contenu** pour les suppressions
 - 3 actions : **Approuver**, **Refuser**, **Approuver toujours** (pour ce type d'opération dans cette session)
 
-> **Référence technique :** [ADR-069](../adr/ADR-069-autonomie-filesystem-friction-graduee-journal-reversible.md)
+> **Référence technique :** [ADR-015](../adr/ADR-015-permission-tool-governance.md)
 
 ---
 
@@ -273,7 +273,7 @@ Pour les opérations classées Medium ou High, un modal desktop affiche :
 - [Architecture Principes](./Architecture-Principes) - Principe #2 Zéro dépendance externe
 - [Sécurité Local-First](./Securite-Local-First) - souveraineté des données, token API
 - [Sécurité Guardrails](./Securite-Guardrails) - StepBudget
-- [ADR-005](../adr/ADR-005-sandbox-sans-docker) - pourquoi namespaces plutôt que Docker
-- [ADR-012](../adr/ADR-012-sandbox-devmode-macos) - mode dev macOS
-- [ADR-051](../adr/ADR-051-api-auth) - authentification API TCP
-- [ADR-052](../adr/ADR-052-windows-sandbox) - sandbox Windows 3 couches
+- [ADR-003](../adr/ADR-003-sandbox-trust-platform-scope.md) - pourquoi namespaces plutôt que Docker
+- [ADR-003](../adr/ADR-003-sandbox-trust-platform-scope.md) - mode dev macOS
+- [ADR-016](../adr/ADR-016-secrets-keyring-api-auth.md) - authentification API TCP
+- [ADR-003](../adr/ADR-003-sandbox-trust-platform-scope.md) - sandbox Windows 3 couches

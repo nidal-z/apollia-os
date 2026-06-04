@@ -17,7 +17,7 @@ export interface AlwaysAcceptRule {
   created_at: string;
   last_used_at?: string;
   /**
-   * Identifiant de l'auteur de la règle (ADR-086).
+   * Identifiant de l'auteur de la règle.
    *
    * Valeurs typiques : `"user-hitl"` (bouton « toujours autoriser »),
    * `"user-settings"` (édition manuelle UI), `"onboarding-agent"` (ou tout autre

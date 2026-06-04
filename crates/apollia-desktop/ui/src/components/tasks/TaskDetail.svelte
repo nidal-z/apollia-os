@@ -224,7 +224,7 @@
             {/if}
           </div>
           <div class="px-4 py-3" data-testid="task-timeline-section">
-            <!-- ADR-088 Lot 3 - remplace TaskTimeline.svelte par la vue
+            <!-- Remplace TaskTimeline.svelte par la vue
                  conversation-like event-sourced. Le skin operator/builder
                  est hérité du store $uiMode global. -->
             <ExecutionTrace

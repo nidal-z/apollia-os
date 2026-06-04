@@ -1,7 +1,5 @@
 # Roadmap - Apollia OS
 
-> Pour la roadmap interne détaillée : voir `docs/internal/roadmap/`.
-
 ## v0.1 - Foundation (mars 2026)
 
 **Focus :** Runtime stable, agent Python fonctionnel, CLI opérationnelle.

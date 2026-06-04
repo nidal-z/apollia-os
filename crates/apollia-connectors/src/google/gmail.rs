@@ -1,9 +1,9 @@
 //! Gmail client: `send`, `compose_draft`, `list_drafts`, `delete_draft`.
 //!
-//! Free-tier scope policy: only non-restricted / "sensitive" scopes are used
-//! (`gmail.send`, `gmail.compose`). No inbox read / search / modify in v0.1.0,
-//! those require restricted scopes (CASA Tier 2). Power users who want full
-//! Gmail access go through Expert Mode (their own OAuth app).
+//! Free-tier scope policy: the default tier uses only sensitive / non-restricted
+//! scopes (`gmail.send`, `gmail.drafts.create`). Inbox read / search / modify and
+//! full draft management (`gmail.compose`, list/delete drafts) need restricted
+//! scopes (CASA), so they stay behind Expert Mode (the user's own OAuth app).
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use reqwest::Method;
@@ -169,7 +169,7 @@ impl GmailClient {
 
     /// Create a draft message visible in the user's Drafts folder.
     ///
-    /// Uses the `gmail.compose` scope.
+    /// Uses the sensitive `gmail.drafts.create` scope (free verification).
     pub async fn compose_draft<F, Fut>(
         &self,
         mail: &ComposeMail,

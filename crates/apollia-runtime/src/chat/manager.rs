@@ -2800,8 +2800,9 @@ async fn resolve_workspace_for_session(
     // MCP executors, one per tool currently exposed by a connected server.
     collect_mcp_executors(mcp_handle, &mut extra_executors).await;
 
-    // SaaS connectors, Google today, Microsoft next.
+    // SaaS connectors: Google + Microsoft 365.
     extra_executors.extend(crate::connectors_bridge::build_google_executors());
+    extra_executors.extend(crate::connectors_bridge::build_microsoft_executors());
 
     let sandbox_root = workspace_path.clone().unwrap_or_else(std::env::temp_dir);
 
@@ -2878,6 +2879,11 @@ async fn collect_mcp_executors(
     let Some(handle) = mcp_handle else {
         return;
     };
+    // Agent-initiative resource tools: the two read-only resource tools route
+    // through the same MCP client manager handle as the per-server tools.
+    extra_executors.extend(apollia_mcp::mcp_resources::build_mcp_resource_executors(
+        &Some(handle.clone()),
+    ));
     for status in handle.status().await {
         if !status.connected {
             continue;

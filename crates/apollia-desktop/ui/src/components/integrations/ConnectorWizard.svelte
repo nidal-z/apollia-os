@@ -79,7 +79,7 @@
   let finalizeError = $state<string | null>(null);
   let showFirstTour = $state(false);
 
-  // ── Auth-step probe + OAuth state (ADR-095 Phase 5) ────────────────────────
+  // ── Auth-step probe + OAuth state ────────────────────────
   // When the user enters the Auth step on a `remote` connector, we probe the
   // server (no auth) once to detect whether it needs OAuth, a static token,
   // or nothing. The result drives which UI branch the step renders.
@@ -445,7 +445,7 @@
     argValues = { ...argValues, [index]: value };
   }
 
-  // ── Probe + OAuth discovery (ADR-095 Phase 5) ──────────────────────────────
+  // ── Probe + OAuth discovery ──────────────────────────────
 
   /** Build a no-auth probe config for the Auth step pre-flight. Only meaningful
    *  for remote connectors - package mode (stdio) needs its env to spawn at all,
@@ -508,7 +508,7 @@
       });
       oauthDiscovery = result;
 
-      // ADR-095 follow-up: when the enrichment declares a pre-registered
+      // When the enrichment declares a pre-registered
       // OAuth client id env var, resolve it now so we can surface a
       // guidance error BEFORE the user clicks "Sign in" (saves a wasted
       // browser round-trip for AS that don't support CIMD/DCR - Figma).
@@ -525,7 +525,7 @@
 
       // Scope selection depends on the auth path:
       // - Generic CIMD/DCR (no override): PRM-published scopes are valid at
-      //   the AS, default them all checked per ADR-095 user decision.
+      //   the AS, default them all checked.
       // - Pre-registered override (Figma): scopes are fixed at the dev
       //   portal where the user created the OAuth app. Sending the PRM
       //   scopes (`mcp:connect` in Figma's case) to the standard OAuth

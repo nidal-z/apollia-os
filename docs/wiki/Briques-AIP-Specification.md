@@ -52,7 +52,7 @@ def manifest(self):
         "dangerous_tools_allowed": False,  # bool - défaut: False
         "tools_requiring_approval": [],    # list[str] - outils nécessitant approbation humaine (Mode Orchestré)
 
-        # LLM backend *(ADR-047)*
+        # LLM backend *(ADR-008)*
         "llm_backend": None,           # str | None - nom d'un backend dans system.db ; None = défaut runtime
 
         # Protocoles
@@ -503,7 +503,7 @@ if schema:
 ### ctx.emit_thought / emit_retry / emit_action_parse_error - Trace ReAct
 
 Trois méthodes d'observabilité qui poussent un événement typé sur la
-trace event-sourced (ADR-088). Utilisées par le SDK ReAct (`react.py`)
+trace event-sourced (ADR-019). Utilisées par le SDK ReAct (`react.py`)
 pour rendre visibles les pensées du LLM, les retries et les erreurs de
 parsing dans `ExecutionTrace`. Toutes sont *fire-and-forget* : no-op
 silencieux si la `task_id` ou l'`EventBus` ne sont pas configurés (mode
@@ -856,7 +856,7 @@ Le SDK Python (`pip install -e./sdk`) fournit des type stubs PEP 561 pour toutes
 - `LlmProxy` - `sdk/apollia/stubs/llm.pyi`
 - `MemoryInterface` - `sdk/apollia/stubs/memory.pyi`
 
-Ces stubs activent l'autocomplete IDE et la validation `mypy` pour les agents Python. Le SDK propose également des classes de base optionnelles (`BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent`) et une infrastructure de test avec `MockContext`. Voir [Agents SDK Guide](./Agents-SDK-Guide) et [ADR-037](../adr/ADR-037-python-sdk-packaging).
+Ces stubs activent l'autocomplete IDE et la validation `mypy` pour les agents Python. Le SDK propose également des classes de base optionnelles (`BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent`) et une infrastructure de test avec `MockContext`. Voir [Agents SDK Guide](./Agents-SDK-Guide) et [ADR-023](../adr/ADR-023-sdk-agentkit-design.md).
 
 ---
 
@@ -866,6 +866,6 @@ Ces stubs activent l'autocomplete IDE et la validation `mypy` pour les agents Py
 - [Agents Quickstart](./Agents-Quickstart) - démarrer en 5 minutes
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) - référence complète des services
 - [Architecture Vue d'ensemble](./Architecture-Vue-Ensemble) - AIP dans le contexte global
-- [ADR-003](../adr/ADR-003-duck-typing-aip) - pourquoi duck typing plutôt que classe de base
-- [ADR-014](../adr/ADR-014-bridge-spawn-blocking-asyncio-run) - bridge async Rust → Python
-- [ADR-037](../adr/ADR-037-python-sdk-packaging) - packaging Python SDK
+- [ADR-023](../adr/ADR-023-sdk-agentkit-design.md) - pourquoi duck typing plutôt que classe de base
+- [ADR-002](../adr/ADR-002-pyo3-bridge-decoupling.md) - bridge async Rust → Python
+- [ADR-023](../adr/ADR-023-sdk-agentkit-design.md) - packaging Python SDK

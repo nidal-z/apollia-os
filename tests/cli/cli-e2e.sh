@@ -26,8 +26,6 @@
 #   APOLLIA_TEST_VERBOSE     0|1 (default 0). Dump stdout/stderr on FAIL.
 #
 # Exit code: 0 when every assertion passed, 1 otherwise.
-#
-# Coverage matrix: docs/internal/release/plan-release.md §C (sprint 2026-05-27).
 
 set -uo pipefail
 

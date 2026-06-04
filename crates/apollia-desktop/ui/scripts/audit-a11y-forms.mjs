@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Form-field label audit (US-SP42-007 - F.76 / E.50).
+ * Form-field label audit (F.76 / E.50).
  *
  * Every `<Input …/>` (or Select/Textarea) in a .svelte file must
  * either:

@@ -2,7 +2,7 @@
 
 > Quand utiliser un MCP Tool, un Worker Agent, le Mode Direct ou le Mode Orchestré ?
 
-Ce document est destiné aux **builders** qui créent ou composent des agents avec Apollia OS. Il synthétise les décisions architecturales formalisées dans ADR-048 et ADR-049.
+Ce document est destiné aux **builders** qui créent ou composent des agents avec Apollia OS. Il synthétise les décisions architecturales formalisées dans ADR-025 et ADR-025.
 
 ---
 
@@ -80,14 +80,14 @@ La résilience runtime est-elle critique (tâche longue, panne partielle inaccep
 | ORIA Mode Orchestré | ✅ Stable | |
 | Worker Agent | ✅ Stable | |
 | A2A (discovery + invocation) | ✅ Livré | |
-| Pipeline TOML | ❌ Retiré v0.1.0 | - rebuild prévu v1.0 (spec n8n-like, voir ADR-085) |
+| Pipeline TOML | ❌ Retiré v0.1.0 | - rebuild prévu v1.0 (spec n8n-like, voir ADR-015) |
 
 ---
 
 ## Références
 
-- [ADR-048 - Worker Agents : expertise de domaine compilée](../adr/ADR-048-worker-agents-expertise-domaine.md)
-- [ADR-049 - Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
+- [ADR-025 - Worker Agents : expertise de domaine compilée](../adr/ADR-025-worker-agents-a2a-routing.md)
+- [ADR-025 - Routing A2A inter-agents](../adr/ADR-025-worker-agents-a2a-routing.md)
 - [Benchmark : Worker Agent vs generic-agent](../benchmarks/worker-agent-benchmark.md)
 - [Worker Agent Pattern](Worker-Agent-Pattern.md)
 - [Architecture des Capabilities (idéation §5)](../internal/strategy/capabilities-architecture-ideation.md)

@@ -126,10 +126,10 @@ Le binaire Desktop embarque le runtime Rust complet. Aucune installation sépar�
 
 ## ADRs
 
-- `ADR-027` : Desktop Tauri processus unique, runtime embarqué
-- `ADR-028` : Frontend Svelte, UX-first
-- `ADR-030` : EventBus + Tauri events (remplace polling)
-- `ADR-031` : i18n svelte-i18n (FR + EN)
-- `ADR-065` : Auto-updater distribution
+- `ADR-008` : Desktop Tauri processus unique, runtime embarqué
+- `ADR-008` : Frontend Svelte, UX-first
+- `ADR-008` : EventBus + Tauri events (remplace polling)
+- `ADR-020` : i18n svelte-i18n (FR + EN)
+- `ADR-020` : Auto-updater distribution
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

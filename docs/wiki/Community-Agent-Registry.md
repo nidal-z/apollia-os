@@ -3,9 +3,9 @@
 Le registre communautaire permet aux développeurs tiers de distribuer des Worker Agents qui étendent Apollia OS au-delà des quatre agents bundled.
 
 **V1** : installation depuis un chemin local (`agents/community/`).  
-**V2** (ADR-055) : installation directe depuis une URL Git - **disponible**.
+**V2** (ADR-026) : installation directe depuis une URL Git - **disponible**.
 
-> **Référence technique :** [ADR-055 - Community Registry : distribution Git-based peer-to-peer](./Decisions-Log#adr-055)
+> **Référence technique :** [ADR-026 - Community Registry : distribution Git-based peer-to-peer](../adr/ADR-026-agent-install-distribution.md)
 
 ---
 
@@ -147,7 +147,7 @@ La confiance repose sur l'URL Git présentée à l'utilisateur. La signature GPG
 
 Sur les machines sans `git` (Windows notamment), le runtime utilise la lib Rust `gitoxide` pour cloner le repo.
 
-> **Référence technique :** [ADR-055](./Decisions-Log#adr-055) - décisions détaillées sur le format d'index, la validation, et la sécurité.
+> **Référence technique :** [ADR-026](../adr/ADR-026-agent-install-distribution.md) - décisions détaillées sur le format d'index, la validation, et la sécurité.
 
 ---
 
@@ -277,4 +277,4 @@ apollia-os agent install https://github.com/apollia-os/slack-worker.git
 
 ---
 
-*Voir aussi : [Worker-Agent-Pattern](./Worker-Agent-Pattern) · [ADR-048](./Decisions-Log#adr-048) · [ADR-050](./Decisions-Log#adr-050) · [ADR-055](./Decisions-Log#adr-055)*
+*Voir aussi : [Worker-Agent-Pattern](./Worker-Agent-Pattern) · [ADR-025](../adr/ADR-025-worker-agents-a2a-routing.md) · [ADR-026](../adr/ADR-026-agent-install-distribution.md) · [ADR-026](../adr/ADR-026-agent-install-distribution.md)*

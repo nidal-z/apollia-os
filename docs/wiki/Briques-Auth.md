@@ -1,6 +1,6 @@
 # apollia-auth - OAuth2 PKCE et Keyring Multi-Plateforme
 
-> *Authentification interactive auprès des providers LLM cloud via OAuth2 PKCE (RFC 7636) avec stockage sécurisé dans le keyring OS natif. Crate introduite (ADR-064).*
+> *Authentification interactive auprès des providers LLM cloud via OAuth2 PKCE (RFC 7636) avec stockage sécurisé dans le keyring OS natif. Crate introduite (ADR-016).*
 
 ---
 
@@ -240,7 +240,7 @@ $ apollia auth status --json
 
 ## 7. Décision architecturale
 
-> **Voir aussi :** [ADR-064](../adr/ADR-064-oauth2-pkce-keyring.md) - OAuth2 PKCE : Keyring Multi-Plateforme vs Fichier Chiffré
+> **Voir aussi :** [ADR-016](../adr/ADR-016-secrets-keyring-api-auth.md) - OAuth2 PKCE : Keyring Multi-Plateforme vs Fichier Chiffré
 
 | Décision | Raison |
 |---|---|

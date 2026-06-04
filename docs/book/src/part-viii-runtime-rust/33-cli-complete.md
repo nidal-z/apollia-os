@@ -220,7 +220,7 @@ python -m apollia new <name> --type <worker|conversational|react|orchestrated>
 
 ## ADRs
 
-- `ADR-008` : Pattern noun-verb pour la CLI
-- `ADR-018` : Bootstrap CLI sans Supervisor
+- `ADR-004` : Pattern noun-verb pour la CLI
+- `ADR-004` : Bootstrap CLI sans Supervisor
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

@@ -1,7 +1,7 @@
 # Breakpoints responsive - Apollia Desktop
 
 > Source de vérité pour tous les breakpoints utilisés dans `apollia-desktop/ui`.
-> Défini par US-SP42-002 et adossé à l'ADR-076.
+> Adossé à l'ADR-021.
 > Toute déviation (breakpoint custom, largeur en px dans le code) est un bug à corriger.
 
 ---
@@ -70,8 +70,6 @@ Un lint visuel doit être passé aux 4 largeurs critiques avant merge :
 | `768 px`   | charnière `sm → md`         |
 | `1024 px`  | charnière `md → lg` - laptop builder |
 | `1440 px`  | desktop confort             |
-
-Checklist QA complète : [`docs/internal/STORIES/sprint-42/responsive-qa.md`](../../../../../docs/internal/STORIES/sprint-42/responsive-qa.md).
 
 Grep de garde (devrait retourner 0 occurrences en dehors des exceptions) :
 

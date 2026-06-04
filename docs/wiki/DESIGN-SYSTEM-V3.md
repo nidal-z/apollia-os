@@ -406,7 +406,7 @@ on veut un ajustement fin. Garde la gamme cohérente avec les valeurs ci-dessus.
 | `px-3 py-2` | Sidebar footer CTA wrapper. |
 | `gap-2.5` | Espacement icon+text horizontal standard. |
 
-### Couleurs sémantiques (tokens CSS ADR-077)
+### Couleurs sémantiques (tokens CSS ADR-021)
 
 | Token | Usage |
 |---|---|

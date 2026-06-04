@@ -10,8 +10,8 @@
  *  - a single place to audit coverage when a new zone appears,
  *  - compile-time errors when a referenced key is renamed in the JSON.
  *
- * See ADR-076 (docs/adr/ADR-076-i18n-frontend.md) for the key naming
- * convention and catalog organisation rationale.
+ * The key naming convention and catalog organisation follow the i18n
+ * frontend conventions documented for the project.
  */
 export * from "./empty-states";
 export * from "./common";

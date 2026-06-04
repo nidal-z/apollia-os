@@ -654,7 +654,7 @@ fn load_state_from_memory(repo: &UserMemoryRepository) -> Result<OnboardingState
 /// Persists the full `OnboardingState` to UserMemory internal-state keys.
 ///
 /// All keys are stamped with the `__` prefix in storage so they stay hidden
-/// from the user profile listing (ADR-087).
+/// from the user profile listing.
 fn persist_state(
     repo: &UserMemoryRepository,
     state: &OnboardingState,

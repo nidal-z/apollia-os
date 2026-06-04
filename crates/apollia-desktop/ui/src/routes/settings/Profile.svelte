@@ -23,7 +23,7 @@
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
 
   // ---------------------------------------------------------------------------
-  // ADR-087 - Profile keys are stored flat in `__user__`.  The schema is
+  // Profile keys are stored flat in `__user__`.  The schema is
   // declared in Rust (PROFILE_SCHEMA); the form below mirrors it manually.
   // ---------------------------------------------------------------------------
 

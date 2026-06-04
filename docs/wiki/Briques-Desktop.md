@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Architecture - Processus unique (ADR-027)
+## 1. Architecture - Processus unique (ADR-020)
 
 L'application desktop est une crate Tauri v2 (`apollia-desktop`) qui demarre le runtime Apollia en interne via `init_embedded`. Un seul binaire distribue a la fois le runtime Rust et le frontend Svelte.
 
@@ -64,7 +64,7 @@ crates/apollia-desktop/
 │       ├── tool_governance.rs ← governance_list_tools, governance_set_tool_enabled, governance_get/set_tool_config, governance_*_credential, governance_list_permission_rules, governance_revoke_permission_rule, governance_revoke_all_rules, governance_list_audit
 │       ├── chat_libre.rs      ← get_chat_libre_config, update_chat_libre_config, list_chat_permission_rules, delete_chat_permission_rule, list_active_chat_session_authorizations, revoke_chat_session_authorization
 │       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache
-│       ├── trace.rs            ← get_task_trace (ADR-088 - vue ExecutionTrace)
+│       ├── trace.rs            ← get_task_trace (ADR-019 - vue ExecutionTrace)
 │       ├── config.rs          ← get_config, open_config_in_editor
 │       ├── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
 │       └── stt.rs             ← get_stt_status, list_transcriptions, delete_transcription, transcribe_file, list_stt_models
@@ -234,7 +234,7 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 | `get_llm_daily_costs` | `days: Option<u32>` | `Vec<LlmDailyCostEntry>` |
 | `get_task_trace` | `taskId: String, since?: String, limit?: usize` | `TraceResponse { taskId, events, nextCursor }` |
 
-`get_task_trace` (ADR-088) délègue à l'endpoint REST
+`get_task_trace` (ADR-019) délègue à l'endpoint REST
 `/api/v1/tasks/:id/trace` exposé par le runtime, parse `payload_json`
 brut serveur en `Value` exploitable côté TS, et retourne les événements
 paginés par curseur UUIDv7. Source unique consommée par le composant
@@ -404,7 +404,7 @@ pub struct UpdateCheckResult {
 
 ---
 
-## 4. Frontend Svelte (ADR-028)
+## 4. Frontend Svelte (ADR-020)
 
 ### 4.1 Stack
 
@@ -433,7 +433,7 @@ type Route =
   | "memory"         // 2 onglets : User Memory (chips Préférences/Habitudes/Contexte) + Memory (sidebar namespaces classifiés Profil/Agents/Projets/Autres + filtre type Épisodique/Sémantique/Procédurale + FTS5 + Sheet détail JSON pretty-print)
   | "notifications"  // Canaux, test, historique
   | "observability"  // Timeline, audit trail, couts LLM
-  | "settings";      // Configuration lecture seule (ADR-029)
+  | "settings";      // Configuration lecture seule (ADR-020)
 ```
 
 Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe - routing par store client-side. L'onboarding est gere separement par `App.svelte` via le store `onboardingModalOpen` (modal overlay, pas une route).
@@ -552,11 +552,11 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 **Integrations** - Route `/integrations`, catégorie "Infrastructure". Le rendu change selon le mode actif : mode **Operator** affiche "Connexions" (OperatorConnectionCard + OperatorCatalogue + ConnectorWizard 5 étapes + OperatorServerManage) ; mode **Builder** affiche "MCP Servers" (BuilderServerRow + BuilderServerDetail + BuilderRegistryBrowser). Le catalogue est alimenté par le `RegistryClient` qui interroge `registry.modelcontextprotocol.io` avec cache local JSON (`~/.apollia/cache/mcp-registry.json`). Les secrets saisis dans le wizard sont stockés dans l'OS Keychain via le `SecretStore` (crate `keyring`). Le disclaimer de sécurité MCP s'affiche une seule fois (persisté dans `localStorage`). Les cartes affichent `TrustBadge` (Official / Verified / Community / Custom) et `ConnectionStatusIndicator`. i18n complet EN + FR (clés `integrations.*`). Voir [Guide Intégrations](./Integrations-Guide) pour la documentation utilisateur.
 
-**Transcriptions** - Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav,.mp3,.ogg,.m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule - ADR-029) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
+**Transcriptions** - Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav,.mp3,.ogg,.m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule - ADR-020) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
 
 **Settings** - Vue multi-onglets. Navigation gauche (`SettingsNav.svelte`) regroupée en sections.
 
-- *Configuration* - lecture seule nettoyee (ADR-029). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor` via `open::that`.
+- *Configuration* - lecture seule nettoyee (ADR-020). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor` via `open::that`.
 - *Outils* (`/settings/tools`, `Tools.svelte`) - gouvernance des outils natifs. Liste les outils (`governance_list_tools`) avec toggle enable/disable (`ToolCard.svelte`). Bouton "Configurer" ouvre `ToolConfigDrawer.svelte` (panel latéral Sheet) pour les outils exposant une config : `web_search` (backend Auto/DDG/Brave, timeouts, résultats max, `require_configured`) et `web_read` (timeout, taille max, garde SSRF). `CredentialField.svelte` gère les credentials (Brave API key) : saisie masquée, enregistrement via `governance_set_credential`, suppression via `governance_delete_credential`, test live via `governance_test_credential`. Store réactif `toolGovernance.ts` applique un état optimiste pour les toggles avec rollback automatique si l'IPC échoue.
 - *Permissions* (`/settings/permissions`, `Permissions.svelte`) - 3 sections :
   - **Sessions actives** - autorisations in-memory (`scope=session`) des sessions de chat en cours. Chargees via `list_active_chat_session_authorizations`, révocables via `revoke_chat_session_authorization`. Disparaissent a la fermeture de la session. Badge *Session* orange sur chaque entree.
@@ -708,11 +708,11 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 
 ## 11. Decisions architecturales
 
-- **ADR-027** - Processus unique Tauri + runtime embarque
-- **ADR-028** - Frontend Svelte : UX first, UI sprint dedie
-- **ADR-029** - Settings lecture seule (round-trip TOML detruirait les commentaires)
-- **ADR-033** - Config operateur SQLite : separation structurel (TOML) / operationnel (SQLite)
-- **ADR-041** - Moteur STT embarqué : whisper-rs V1, trait SttBackend
+- **ADR-020** - Processus unique Tauri + runtime embarque
+- **ADR-020** - Frontend Svelte : UX first, UI sprint dedie
+- **ADR-020** - Settings lecture seule (round-trip TOML detruirait les commentaires)
+- **ADR-014** - Config operateur SQLite : separation structurel (TOML) / operationnel (SQLite)
+- **ADR-009** - Moteur STT embarqué : whisper-rs V1, trait SttBackend
 
 ---
 

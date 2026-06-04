@@ -14,7 +14,7 @@
 
 L'API HTTP locale est exposée sur deux transports :
 - **Unix socket** : `/tmp/apollia.sock` - recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-051)
+- **TCP** : `http://localhost:7771` - compatible avec tout client HTTP, **authentification requise** (ADR-016)
 
 Tous les endpoints retournent du JSON.
 
@@ -514,7 +514,7 @@ Met à jour la configuration STT (upsert). Remplace le singleton en base.
 
 ---
 
-## MCP *(ADR-044)*
+## MCP *(ADR-017)*
 
 ### GET /api/v1/mcp/servers
 
@@ -650,6 +650,6 @@ Voir [API-HTTP-Agents - Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-htt
 - [Briques MCP](./Briques-MCP) - spécification crate apollia-mcp
 - [MCP - Guide utilisateur](./MCP-Guide-Utilisateur) - configuration mcp.toml, exemples serveurs MCP
 - [Briques User Memory](./Briques-User-Memory) - mémoire utilisateur
-- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) - observabilité complète, timeline, troncature
-- [ADR-041](../adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) - décisions moteur STT (whisper-rs, trait SttBackend)
-- [ADR-044](../adr/ADR-044-client-mcp.md) - décisions client MCP (transport stdio, McpClientManager, HITL)
+- [ADR-012](../adr/ADR-012-observability-feedback.md) - observabilité complète, timeline, troncature
+- [ADR-009](../adr/ADR-009-speech-to-text.md) - décisions moteur STT (whisper-rs, trait SttBackend)
+- [ADR-017](../adr/ADR-017-mcp-client-transport-server.md) - décisions client MCP (transport stdio, McpClientManager, HITL)

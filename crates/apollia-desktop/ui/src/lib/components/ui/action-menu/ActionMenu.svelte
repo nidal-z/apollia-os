@@ -30,6 +30,8 @@
   }
 
   interface Props {
+    /** Controlled/bindable open state. Defaults to internally managed. */
+    open?: boolean;
     /** Static list of menu items. Mutually exclusive with `body`. */
     items?: ActionMenuItem[];
     /** Custom content snippet (full control over the menu body). */
@@ -49,6 +51,7 @@
   }
 
   let {
+    open = $bindable(false),
     items,
     body,
     triggerSlot,
@@ -59,7 +62,6 @@
     "data-testid": testid,
   }: Props = $props();
 
-  let open = $state(false);
   function close() {
     open = false;
   }

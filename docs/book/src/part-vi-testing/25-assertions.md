@@ -224,7 +224,7 @@ C'est moins lisible que les helpers, mais ça reste lisible et précis.
 
 ## ADRs
 
-- `ADR-098` : Decorator-first (testabilité native)
-- `ADR-101` : Ctx Protocol (interactions mockables)
+- `ADR-023` : Decorator-first (testabilité native)
+- `ADR-024` : Ctx Protocol (interactions mockables)
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

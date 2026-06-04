@@ -67,7 +67,7 @@ Rules :
 
 ## 3. OAuth and token lifecycle
 
-ADR-064 + ADR-089. Apollia supports multi-account OAuth2 PKCE for Google
+ADR-016 + ADR-018. Apollia supports multi-account OAuth2 PKCE for Google
 and Microsoft. Tokens are stored via `SecretStore`. Refresh is automatic
 with singleflight to prevent concurrent refresh races.
 
@@ -133,13 +133,13 @@ Scopes : `session`, `project`, `global`. The closest scope wins.
 Audit table is append-only. Never delete a row programmatically. The
 operator can prune by date via `apollia audit prune --before <date>`.
 
-ADR-086.
+ADR-015.
 
 ---
 
 ## 6. Filesystem isolation
 
-ADR-069. Filesystem access from agents goes through `apollia-tools`
+ADR-015. Filesystem access from agents goes through `apollia-tools`
 sandbox. A reversible journal logs every write.
 
 Rules :

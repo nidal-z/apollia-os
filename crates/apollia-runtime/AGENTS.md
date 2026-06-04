@@ -130,8 +130,8 @@ SQLite + `rusqlite` + FTS5. WAL journal mode.
 
 Databases :
 - `~/.apollia/runtime.db` : tasks, audit trail, sessions.
-- `~/.apollia/agents.db` : agent registry (ADR-032).
-- `~/.apollia/governance.db` : permissions, audit (ADR-086).
+- `~/.apollia/agents.db` : agent registry (ADR-026).
+- `~/.apollia/governance.db` : permissions, audit (ADR-015).
 - `~/.apollia/memory/<agent>.db` : per-agent memory (`apollia-memory`).
 
 Migration pattern : `CREATE TABLE IF NOT EXISTS` at first connection

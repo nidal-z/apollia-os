@@ -89,7 +89,7 @@ class MonAgent:
 # Output stdout : {"title": "CI Status", "content": "Build: ✓ / Tests: 142 passing"}
 ```
 
-> **Référence technique :** [ADR-060](../adr/ADR-060-context-provider-trait.md)
+> **Référence technique :** [ADR-010](../adr/ADR-010-memory-context-architecture.md)
 
 ---
 
@@ -124,7 +124,7 @@ impl WorkspaceAssembler {
 
 ### 4.1 `GitContextCollector`
 
-Collecte les informations git via subprocess `git` (pas de `libgit2` - voir ADR-056) :
+Collecte les informations git via subprocess `git` (pas de `libgit2` - voir ADR-010) :
 
 ```rust
 pub struct GitContextCollector { pub cwd: PathBuf }
@@ -279,10 +279,10 @@ apollia-os workspace show
 
 | Décision | Justification |
 |---|---|
-| Subprocess `git` (rejet `git2`) | Zéro dépendance C, binary size +0 MB, fail-silent si git absent (ADR-056) |
+| Subprocess `git` (rejet `git2`) | Zéro dépendance C, binary size +0 MB, fail-silent si git absent (ADR-010) |
 | TTL 30s | Évite les I/O répétées sur les sessions longues sans staleness significative |
 | Timeout global 2s | La collecte ne bloque jamais l'exécution d'une tâche |
-| `ContextProvider` trait (rejet implémentation concrète unique) | Extensibilité Rust/Python/script - 3 niveaux d'extension (ADR-060) |
+| `ContextProvider` trait (rejet implémentation concrète unique) | Extensibilité Rust/Python/script - 3 niveaux d'extension (ADR-010) |
 | `is_applicable` sur le trait | Évite les appels inutiles (ex. git hors repo) |
 | APOLLIA.md priorité CWD > parents > $HOME | Convention identique à CLAUDE.md - comportement attendu par les développeurs |
 | Exclusions arborescence | `.git/`, `node_modules/`, `target/` exclus par défaut - tokens économisés |
@@ -331,7 +331,7 @@ Vérifie : correctness, performance, sécurité.
 
 ## 11. Workspace par session
 
-(ADR-069), chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` injecte ce chemin dans chaque outil natif.
+(ADR-015), chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` injecte ce chemin dans chaque outil natif.
 
 ### Résolution du workspace_path
 
@@ -361,6 +361,6 @@ Le `NativeChatToolInvoker` (refactoré) reçoit le `workspace_path` à l'initial
 ## Voir aussi
 
 - [Briques ORIA Engine - Workspace Context](./Briques-ORIA-Engine.md#workspace-context) - injection dans le system prompt
-- [ADR-056](../adr/ADR-056-workspace-context-assembly.md) - Workspace Context Assembly
-- [ADR-060](../adr/ADR-060-context-provider-trait.md) - ContextProvider trait
+- [ADR-010](../adr/ADR-010-memory-context-architecture.md) - Workspace Context Assembly
+- [ADR-010](../adr/ADR-010-memory-context-architecture.md) - ContextProvider trait
 - [Briques LLM Backend](./Briques-LLM-Backend.md) - TokenBudget et Prompt Caching

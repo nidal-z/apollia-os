@@ -103,7 +103,7 @@ Vous découvrirez le détail de chaque mécanisme dans les parties suivantes : `
 
 ---
 
-## Auto-instanciation (ADR-107)
+## Auto-instanciation (ADR-023)
 
 À l'import, `@agent` exécute `cls()` et expose l'instance via `module.agent`. Pas de ligne `agent = MyClass()` à écrire ni à oublier. Le bridge PyO3 récupère cette instance par `getattr(module, "agent")`.
 
@@ -152,7 +152,7 @@ C'est ce que lit `apollia inspect`, ce que sérialise le bridge PyO3, et ce sur 
 
 ## ADRs
 
-- `ADR-098` : Decorator-first comme contrat unifié
-- `ADR-107` : Auto-instanciation et exposition au module
+- `ADR-023` : Decorator-first comme contrat unifié
+- `ADR-023` : Auto-instanciation et exposition au module
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

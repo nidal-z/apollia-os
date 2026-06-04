@@ -14,7 +14,7 @@
 | `OpenAICompatibleClient` | `cloud` | HTTP REST (async-openai) | ❌ cloud |
 | `AnthropicClient` | `cloud` | HTTP REST (reqwest) | ❌ cloud |
 
-(ADR-047), la configuration des backends est **persistée dans SQLite** (`~/.apollia/system.db`) via `LlmBackendRepository` dans `apollia-core`. Le `LlmRouter` charge les backends au démarrage depuis ce registre. Chaque agent peut déclarer le backend qu'il souhaite utiliser via le champ `llm_backend` de son manifest.
+(ADR-004), la configuration des backends est **persistée dans SQLite** (`~/.apollia/system.db`) via `LlmBackendRepository` dans `apollia-core`. Le `LlmRouter` charge les backends au démarrage depuis ce registre. Chaque agent peut déclarer le backend qu'il souhaite utiliser via le champ `llm_backend` de son manifest.
 
 **Principe fondamental :** le modèle `.gguf` n'est jamais compilé dans le binaire - c'est un fichier de données dans `~/.apollia/models/`. Le moteur d'inférence est compilé via `[feature = "local"]`. Les clients cloud sont compilés via `[feature = "cloud"]` (activé par défaut).
 
@@ -134,7 +134,7 @@ pub enum LlmError {
 
 ---
 
-## 4. LlmBackendRepository - Registre SQLite *(ADR-047)*
+## 4. LlmBackendRepository - Registre SQLite *(ADR-004)*
 
 La configuration des backends LLM est désormais persistée dans `~/.apollia/system.db` (table `llm_backends`). `LlmBackendRepository` est défini dans `apollia-core` et suit le même pattern que `TriggerDefinitionRepository`.
 
@@ -239,7 +239,7 @@ impl LlmRouter {
 
 ## 6. EmbeddedBackend - Feature `local`
 
-Inférence in-process via `llama.cpp` (ADR-042). Le modèle `.gguf` est chargé depuis `~/.apollia/models/`.
+Inférence in-process via `llama.cpp` (ADR-008). Le modèle `.gguf` est chargé depuis `~/.apollia/models/`.
 
 La configuration du backend est dans `system.db` (voir section 4). Exemple de `config_json` pour un backend llama-cpp :
 
@@ -384,7 +384,7 @@ Sortie JSON (`apollia model list --json`) :
 }
 ```
 
-Décision architecturale : voir [ADR-075 - Chargement de modèles GGUF multi-fichiers](../adr/ADR-075-gguf-multi-file-loading.md).
+Décision architecturale : voir [ADR-004 - Chargement de modèles GGUF multi-fichiers](../adr/ADR-004-cli-design.md).
 
 ### 6.1 Sampler stochastique avec seed dynamique
 
@@ -704,7 +704,7 @@ let router = LlmRouter::with_backends(
 
 ---
 
-## 14. Prompt Caching *(ADR-057)*
+## 14. Prompt Caching *(ADR-004)*
 
 `AnthropicClient` envoie systématiquement l'en-tête `anthropic-beta: prompt-caching-2024-07-31` et pose trois breakpoints `cache_control: { type: "ephemeral" }` dans chaque requête :
 
@@ -730,11 +730,11 @@ Les backends `OpenAICompatibleClient` et `OllamaClient` ne supportent pas le pro
 
 **Monitoring :** `~/.apollia/session_costs.jsonl` trace `cache_read_input_tokens` et `cache_write_input_tokens` par session pour vérifier le hit-rate.
 
-> **Référence technique :** [ADR-057](../adr/ADR-057-prompt-caching-strategy.md)
+> **Référence technique :** [ADR-004](../adr/ADR-004-cli-design.md)
 
 ---
 
-## 15. Retry Policy *(ADR-057)*
+## 15. Retry Policy *(ADR-004)*
 
 Tous les backends cloud implémentent une politique de retry exponentiel avec jitter. La `RetryPolicy` est définie dans `crates/apollia-llm/src/retry.rs` :
 
@@ -894,7 +894,7 @@ cost_alert_threshold_usd = 0.50
 
 ## 9. Google Vertex AI
 
- (ADR-068), Apollia supporte Google Vertex AI comme backend LLM via `aiplatform.googleapis.com`. L'authentification utilise Application Default Credentials (ADC) avec cache mémoire et refresh automatique.
+ (ADR-004), Apollia supporte Google Vertex AI comme backend LLM via `aiplatform.googleapis.com`. L'authentification utilise Application Default Credentials (ADC) avec cache mémoire et refresh automatique.
 
 ### `VertexConfig`
 
@@ -949,7 +949,7 @@ impl VertexClient {
 1. Variable d'environnement `GOOGLE_APPLICATION_CREDENTIALS`
 2. `~/.config/gcloud/application_default_credentials.json`
 
-Seul le type `authorized_user` (credentials `gcloud auth application-default login`) est supporté. Les clés de service JSON sont hors périmètre - voir [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md).
+Seul le type `authorized_user` (credentials `gcloud auth application-default login`) est supporté. Les clés de service JSON sont hors périmètre - voir [ADR-004](../adr/ADR-004-cli-design.md).
 
 **Refresh automatique :** le token ADC est rafraîchi via `https://oauth2.googleapis.com/token` 60 secondes avant expiration. Le cache est en mémoire (`Arc<Mutex<Option<GoogleToken>>>`).
 
@@ -958,13 +958,13 @@ Seul le type `authorized_user` (credentials `gcloud auth application-default log
 - `429` → retry selon `RetryPolicy` existant
 - Corps de requête : identique à l'API Anthropic Messages (`anthropic-version: vertex-2023-10-16`)
 
-> **Voir aussi :** [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) - justification ADC vs clé de service
+> **Voir aussi :** [ADR-004](../adr/ADR-004-cli-design.md) - justification ADC vs clé de service
 
 ---
 
 ## 10. AWS Bedrock
 
- (ADR-067), Apollia supporte AWS Bedrock comme backend LLM via SigV4 natif (sans le SDK AWS complet).
+ (ADR-004), Apollia supporte AWS Bedrock comme backend LLM via SigV4 natif (sans le SDK AWS complet).
 
 ### `BedrockConfig`
 
@@ -992,7 +992,7 @@ model_id = "anthropic.claude-sonnet-4-6-20251001-v1:0"
 
 **Credentials AWS :** résolus via la chaîne standard AWS (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` ou `~/.aws/credentials`). La signature SigV4 est calculée nativement sans dépendance au SDK AWS.
 
-> **Voir aussi :** [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) - justification aws-sigv4 natif vs SDK complet
+> **Voir aussi :** [ADR-004](../adr/ADR-004-cli-design.md) - justification aws-sigv4 natif vs SDK complet
 
 ---
 
@@ -1004,10 +1004,10 @@ model_id = "anthropic.claude-sonnet-4-6-20251001-v1:0"
 - [API-HTTP-Agents](./API-HTTP-Agents#get-apiv1llmbackends-) - endpoints CRUD `/api/v1/llm/backends`
 - [Config apollia.toml](./Config-apollia-toml) - section `[llm.observability]`
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) - `apollia-os llm status/ping/chat`
-- [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) - Google Vertex AI : ADC vs clé de service
-- [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) - AWS Bedrock : aws-sigv4 natif vs SDK complet
-- [ADR-057](../adr/ADR-057-prompt-caching-strategy.md) - Prompt Caching Strategy
-- [ADR-047](../adr/ADR-047-multi-llm-backend-registry.md) - Multi-LLM Backend Registry (SQLite)
-- [ADR-042](../adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md) - remplacement mistral-rs par llama.cpp
-- [ADR-020](../adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) - feature flags LLM
-- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md) - observabilité complète
+- [ADR-004](../adr/ADR-004-cli-design.md) - Google Vertex AI : ADC vs clé de service
+- [ADR-004](../adr/ADR-004-cli-design.md) - AWS Bedrock : aws-sigv4 natif vs SDK complet
+- [ADR-004](../adr/ADR-004-cli-design.md) - Prompt Caching Strategy
+- [ADR-004](../adr/ADR-004-cli-design.md) - Multi-LLM Backend Registry (SQLite)
+- [ADR-008](../adr/ADR-008-llm-backends-model-management.md) - remplacement mistral-rs par llama.cpp
+- [ADR-004](../adr/ADR-004-cli-design.md) - feature flags LLM
+- [ADR-012](../adr/ADR-012-observability-feedback.md) - observabilité complète

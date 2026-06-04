@@ -3,7 +3,7 @@
 Dedicated meta-chat surface: knows every product capability, tutorials, and
 can suggest actionable deep-links rendered by the frontend as buttons.
 
-Principles (ADR-073):
+Principles:
   - Never allocates a separate LLM. Reuses ``ctx.llm`` → the user's
     configured backend. Local backend → fully offline. Cloud backend →
     same API key, same consent.

@@ -54,7 +54,7 @@ _logger = logging.getLogger("onboarding-agent")
 MEMORY_SOURCE: str = "onboarding"
 ONBOARDING_VERSION: str = "2.2"
 
-# ADR-086 - l'agent propose les règles de permissions correspondant aux
+# L'agent propose les règles de permissions correspondant aux
 # préférences profil collectées, en passant par les outils natifs HITL-gated
 # `permission_rule_add` / `permission_rule_list`. La table ci-dessous décrit
 # l'intention par défaut ; chaque appel d'outil est confirmé par l'utilisateur
@@ -205,7 +205,7 @@ souhaites."
 
 Après ton message de clôture, le runtime applique automatiquement les règles \
 de permissions correspondant aux préférences collectées via des appels \
-`permission_rule_add` HITL-gated (cf. ADR-086). L'utilisateur valide chaque \
+`permission_rule_add` HITL-gated. L'utilisateur valide chaque \
 règle dans une boîte de dialogue. Tu n'as pas besoin d'émettre ces appels \
 dans ton message - ils sont déclenchés par le code de finalisation.
 
@@ -381,7 +381,7 @@ async def _remember(
     """Persist a single onboarding fact.
 
     ``user.*`` keys describe the operator and are written to the canonical
-    user profile via ``ctx.profile.set`` (ADR-087).  The ``user.`` prefix is
+    user profile via ``ctx.profile.set``.  The ``user.`` prefix is
     stripped on storage so the flat key matches the profile schema.
     Other keys (``onboarding.*``) remain in the agent's own namespace -
     they describe the run, not the user.
@@ -405,7 +405,7 @@ async def _remember(
 async def _all_keys_present(ctx: Any, keys: tuple[str, ...]) -> bool:
     """True iff every ``key`` in ``keys`` resolves to a non-empty memory entry.
 
-    Routes ``user.*`` keys to ``ctx.profile`` (ADR-087) and every other key
+    Routes ``user.*`` keys to ``ctx.profile`` and every other key
     to the agent's own memory namespace.
     """
     for key in keys:
@@ -625,7 +625,7 @@ async def _build_progress_note(ctx: Any) -> str:
 
 
 async def _persist_proposed_permission_rules(ctx: Any) -> None:
-    """Sérialise les règles de permissions dérivées du profil dans la mémoire (ADR-086).
+    """Sérialise les règles de permissions dérivées du profil dans la mémoire.
 
     L'agent NE crée pas les règles directement - il écrit la liste sérialisée
     sous la clé ``onboarding.proposed_rules`` (JSON). Le desktop lit cette
@@ -636,7 +636,7 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     ``executor.rs:NeedsApproval → PermissionDenied`` qui empêchait les
     cartes d'apparaître quand l'agent appelait ``permission_rule_add``.
 
-    Matrice (cf. plan v2 §1) :
+    Matrice :
 
     Souveraineté
       local-only       → deny http_fetch https:// + http://     (scope global)
@@ -788,7 +788,7 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
     durably persisted.
 
     Just before writing ``completed_at`` (and so before the desktop unlocks),
-    the agent persists the proposed permission rules to memory (ADR-086).
+    the agent persists the proposed permission rules to memory.
     The desktop then renders them as approval cards in the onboarding modal
     and applies them via direct ``PrefixRuleEngine`` calls (Tauri command
     ``apply_proposed_permission_rule``).
@@ -804,7 +804,7 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
     suggested = suggested_hint if suggested_hint else _compute_suggested_agents(role, hitl)
     await _remember(ctx, "onboarding.suggested_agents", json.dumps(suggested))
 
-    # ADR-086 - sérialise les propositions de règles. Le desktop les rend
+    # Sérialise les propositions de règles. Le desktop les rend
     # comme cartes d'approbation dans la modale onboarding (post-chat).
     await _persist_proposed_permission_rules(ctx)
 
@@ -829,11 +829,11 @@ _SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
     tags=("onboarding", "conversational"),
     memory_namespace="onboarding",
     agent_type="system",
-    # ADR-086 - accès aux outils permission_rule_* pour proposer les règles
+    # Accès aux outils permission_rule_* pour proposer les règles
     # dérivées du profil (HITL-gated).
     tools_required=("permission_rule_add", "permission_rule_list"),
     # Only this system agent owns the user profile and may write into the
-    # global `__user__` namespace via ctx.profile.set (ADR-087).
+    # global `__user__` namespace via ctx.profile.set.
     user_memory_write=True,
     step_budget={"max_steps": 6, "max_tool_calls": 10, "wall_clock_secs": 600},
 )

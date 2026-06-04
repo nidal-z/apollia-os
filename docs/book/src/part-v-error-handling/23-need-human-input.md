@@ -150,8 +150,8 @@ L'UI Desktop affiche la notification, l'utilisateur clique, arrive sur le prompt
 
 ## ADRs
 
-- `ADR-023` : HITL `is_resumed`, `input_response`, `tools_requiring_approval`
-- `ADR-100` : Exceptions typées au boundary
-- `ADR-109` : AIPResult interne au SDK
+- `ADR-013` : HITL `is_resumed`, `input_response`, `tools_requiring_approval`
+- `ADR-024` : Exceptions typées au boundary
+- `ADR-024` : AIPResult interne au SDK
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

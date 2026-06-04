@@ -78,7 +78,7 @@ Flux : `SkillIndex.resolve(skill_id)` → validation état `Active` → construc
 - Conflit de skill_id détecté au `register` - pas au runtime (Principe #4 - fail fast)
 - `A2AError::SkillNotFound` inclut la liste des skills disponibles si résolution échoue
 
-**Trust model A2A** (ADR-049) :
+**Trust model A2A** (ADR-025) :
 - La lecture du namespace global `__user__` est **inconditionnelle** pour tout agent avec `memory_namespace`
 - Les écritures dans `__user__` requièrent `user_memory_write = true` dans le manifest (non accordé par A2A)
 - Les écritures standard restent confinées au namespace propre de l'agent invoqué
@@ -98,7 +98,7 @@ Flux : `SkillIndex.resolve(skill_id)` → validation état `Active` → construc
 $ apollia-os agent list --supports-a2a
 ```
 
-Décision architecturale : [ADR-049 - Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
+Décision architecturale : [ADR-025 - Routing A2A inter-agents](../adr/ADR-025-worker-agents-a2a-routing.md)
 
 ### Garde-fous A2A - livré
 
@@ -121,7 +121,7 @@ chain_timeout_secs = 300
 
 Chaque déclenchement de garde-fou émet un `RuntimeEvent::A2AGuardTriggered` sur l'EventBus avec `guard_type`, `caller`, `skill_id` et `detail`.
 
-Décision architecturale : [ADR-050 - Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+Décision architecturale : [ADR-026 - Distribution Worker Agents](../adr/ADR-026-agent-install-distribution.md)
 
 ### A2AToolsProvider - Workers comme outils ORIA - livré
 
@@ -316,7 +316,7 @@ Cela signifie que la migration vers A2A ou ACP complets, si et quand ces standar
 - [Architecture Machines d'État](./Architecture-Machines-Etat) - ProcessState et TaskState
 - [Worker Agent Pattern](./Worker-Agent-Pattern) - créer un Worker invocable via A2A
 - [Matrice de décision - Capabilities](./Decision-Matrix-Capabilities) - quand utiliser A2A vs MCP vs Worker
-- [ADR-049 - Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
-- [ADR-050 - Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+- [ADR-025 - Routing A2A inter-agents](../adr/ADR-025-worker-agents-a2a-routing.md)
+- [ADR-026 - Distribution Worker Agents](../adr/ADR-026-agent-install-distribution.md)
 - [Sécurité Guardrails](./Securite-Guardrails) - garde-fous A2A détaillés
 - [Community Agent Registry](./Community-Agent-Registry) - registre communautaire

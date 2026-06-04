@@ -150,9 +150,9 @@ Le Protocol n'expose aucune méthode pour ajuster le budget. Si vous voulez plus
 
 ## ADRs
 
-- `ADR-026` : Observabilité complète et timeline
-- `ADR-030` : EventBus + Tauri events
-- `ADR-105` : SDK events types publics
-- `ADR-106` : SDK logger structure
+- `ADR-012` : Observabilité complète et timeline
+- `ADR-020` : EventBus + Tauri events
+- `ADR-024` : SDK events types publics
+- `ADR-024` : SDK logger structure
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

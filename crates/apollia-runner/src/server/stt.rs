@@ -1,6 +1,4 @@
 //! Handlers axum pour `/stt/*`.
-//!
-//! Cf. [IPC-PROTOCOL §3.8](../../../../docs/internal/architecture/IPC-PROTOCOL.md).
 
 use axum::extract::State;
 #[cfg_attr(not(feature = "local-cpu"), allow(unused_imports))]

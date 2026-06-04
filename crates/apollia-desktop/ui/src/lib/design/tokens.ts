@@ -1,5 +1,5 @@
 /**
- * Design tokens v2 - ADR-077.
+ * Design tokens v2.
  *
  * Typed references to CSS variables declared in `src/app.css`. Prefer these
  * exports over raw CSS variable strings so that renames (or a future move to

@@ -102,7 +102,7 @@ serves humans and scripts.
 shell-out around. A CLI that only emits JSON is a CLI that humans hate.
 
 **How.** clap v4 with global `--json`, `--quiet`, `--socket`. Exit codes
-0 success / 1 general / 2 runtime / 3 task / 4 timeout / 5 interrupt. ADR-008.
+0 success / 1 general / 2 runtime / 3 task / 4 timeout / 5 interrupt. ADR-004.
 
 ---
 
@@ -111,7 +111,7 @@ shell-out around. A CLI that only emits JSON is a CLI that humans hate.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                       apollia-cli                            │
-│       (ADR-008 noun-verb, exit codes 0-5, --json global)    │
+│       (ADR-004 noun-verb, exit codes 0-5, --json global)    │
 └──────────────────────────┬──────────────────────────────────┘
                            │ HTTP over Unix socket / TCP 7771
 ┌──────────────────────────▼──────────────────────────────────┐
@@ -193,7 +193,7 @@ Source : `crates/apollia-core/src/budget.rs`,
 Audit log is SQLite, append-only, no deletes. Each tool invocation produces
 a decision record.
 
-Source : `crates/apollia-permissions/`, ADR-086.
+Source : `crates/apollia-permissions/`, ADR-015.
 
 ### SecretStore
 
@@ -208,7 +208,7 @@ Source : `crates/apollia-auth/src/secret_storage.rs`. See
 ### McpClientManager
 
 Actor that owns the pool of MCP clients (stdio, HTTP, SSE backends). Hot
-reload through SQLite triggers. Health probes documented in ADR-095.
+reload through SQLite triggers. Health probes documented in ADR-018.
 
 Source : `crates/apollia-mcp/`.
 
@@ -217,7 +217,7 @@ Source : `crates/apollia-mcp/`.
 Config-driven backend selection. `[llm.routing]` in the agent TOML drives
 routing. Backends : `llama-cpp-2` (local), Anthropic, OpenAI, Ollama, Vertex.
 
-Source : `crates/apollia-llm/src/router.rs`, ADR-047.
+Source : `crates/apollia-llm/src/router.rs`, ADR-008.
 
 ### SQLite persistence
 
@@ -234,7 +234,7 @@ Source : `crates/apollia-runtime/src/chat/repository.rs`,
 `Bound<'py, T>` everywhere on the boundary. `pyo3-async-runtimes` for
 async interop. `RuntimeContext` exposed via stubs in `sdk/apollia/stubs/`.
 
-Source : `crates/apollia-aip/`, ADR-073.
+Source : `crates/apollia-aip/`, ADR-028.
 
 ---
 
@@ -279,25 +279,25 @@ These ADRs are load-bearing. If you touch the area, read the ADR.
 | ADR | Subject | Owner area |
 |---|---|---|
 | ADR-025 | TOML pipelines, declarative orchestration, HITL | apollia-oria, apollia-runtime |
-| ADR-026 | Observability, runtime events, SQLite timeline, TTL | apollia-runtime |
-| ADR-032 | Agent install, SQLite registry, venv per agent | apollia-workspace |
-| ADR-047 | Multi-backend LLM registry, LlmRouter | apollia-llm |
-| ADR-050 | Worker agent distribution, standalone | sdk, agents |
-| ADR-056 | Workspace context assembly, ContextProvider | apollia-core, apollia-workspace |
-| ADR-069 | Filesystem friction, reversible journal | apollia-tools |
-| ADR-072 | Web tools, search + read, pluggable backends | apollia-tools |
-| ADR-075 | GGUF multi-file loading | apollia-llm |
-| ADR-077 | Design tokens v2, elevation, warmth, rim lights | apollia-desktop |
-| ADR-086 | Permissions, 3-layer engine, single source SQLite | apollia-permissions |
-| ADR-095 | MCP OAuth orchestrator, end-to-end | apollia-auth, apollia-mcp |
-| ADR-098 | SDK decorator-first, manifest-last | sdk |
-| ADR-101 | SDK Ctx protocol, exhaustive surface | sdk |
-| ADR-103 | SDK datasources + templates, runtime exposure | sdk, apollia-workspace |
-| ADR-104 | SDK secrets read-only gating | sdk, apollia-auth |
-| ADR-110 | `apollia-inspect` CLI for diagnostics | apollia-cli |
-| ADR-111 | SDK vision, typing, memory I/O | sdk |
-| ADR-112 | SDK stream cleanup, rename | sdk |
-| ADR-113 | Multi-runner sidecar architecture | apollia-runner, apollia-runtime |
+| ADR-012 | Observability, runtime events, SQLite timeline, TTL | apollia-runtime |
+| ADR-026 | Agent install, SQLite registry, venv per agent | apollia-workspace |
+| ADR-008 | Multi-backend LLM registry, LlmRouter | apollia-llm |
+| ADR-026 | Worker agent distribution, standalone | sdk, agents |
+| ADR-010 | Workspace context assembly, ContextProvider | apollia-core, apollia-workspace |
+| ADR-015 | Filesystem friction, reversible journal | apollia-tools |
+| ADR-006 | Web tools, search + read, pluggable backends | apollia-tools |
+| ADR-008 | GGUF multi-file loading | apollia-llm |
+| ADR-021 | Design tokens v2, elevation, warmth, rim lights | apollia-desktop |
+| ADR-015 | Permissions, 3-layer engine, single source SQLite | apollia-permissions |
+| ADR-018 | MCP OAuth orchestrator, end-to-end | apollia-auth, apollia-mcp |
+| ADR-023 | SDK decorator-first, manifest-last | sdk |
+| ADR-024 | SDK Ctx protocol, exhaustive surface | sdk |
+| ADR-024 | SDK datasources + templates, runtime exposure | sdk, apollia-workspace |
+| ADR-024 | SDK secrets read-only gating | sdk, apollia-auth |
+| ADR-004 | `apollia-inspect` CLI for diagnostics | apollia-cli |
+| ADR-024 | SDK vision, typing, memory I/O | sdk |
+| ADR-024 | SDK stream cleanup, rename | sdk |
+| ADR-007 | Multi-runner sidecar architecture | apollia-runner, apollia-runtime |
 
 Full index : `docs/wiki/Decisions-Log.md`.
 

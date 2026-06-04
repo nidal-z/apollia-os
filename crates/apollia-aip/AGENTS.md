@@ -102,7 +102,7 @@ The runtime never sees a `PyErr`. It sees `AipError` or a downstream
 
 ## 4. Manifest extraction
 
-Manifests follow ADR-098. The decorator-built manifest is read from the
+Manifests follow ADR-023. The decorator-built manifest is read from the
 class attribute, not by introspecting the methods at every call.
 
 ```rust
@@ -131,7 +131,7 @@ Methods exposed to Python :
 - `ctx.memory.recall(query: str, limit: int = 10) -> list[Memory]`
 - `ctx.memory.write(...)`
 - `ctx.tool.invoke(name: str, **args) -> ToolResult`
-- `ctx.secrets.read(key: str) -> str | None` (read-only, ADR-104)
+- `ctx.secrets.read(key: str) -> str | None` (read-only, ADR-024)
 - `ctx.config.workspace() -> dict`
 - `ctx.config.profile() -> Literal["local_only", "cloud_allowed"]`
 

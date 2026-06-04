@@ -296,6 +296,15 @@ const OPERATIONS: &[OperationSpec] = &[
     },
 ];
 
+/// All operations exposed by the Microsoft 365 connector.
+///
+/// Static accessor mirroring [`crate::google::operations`], consumed by
+/// `apollia-runtime::connectors_bridge` to derive tool descriptors without a
+/// live `MicrosoftConnector` instance.
+pub fn operations() -> &'static [OperationSpec] {
+    OPERATIONS
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

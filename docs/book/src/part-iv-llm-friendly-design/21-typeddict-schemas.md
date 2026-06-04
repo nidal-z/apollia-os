@@ -200,7 +200,7 @@ Si vous voulez de la validation runtime stricte (au-delà de ce que fait le boun
 
 ## ADRs
 
-- `ADR-099` : Signature inference comme schéma I/O (TypedDict supportés nativement)
+- `ADR-023` : Signature inference comme schéma I/O (TypedDict supportés nativement)
 - Release `AGENTKIT-REBUILD-2026-05-19` section 2026-05-20 : TypedDict canon pour LLM tool descriptors
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

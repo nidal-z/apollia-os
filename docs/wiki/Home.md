@@ -94,7 +94,7 @@
 |---|---|
 | [Exploitation & Debug](./Ops-Exploitation-et-Debug) | Monitoring, diagnostics, logs |
 | [Roadmap](./Roadmap-Implementation) | v0.1 → v0.2 → v1.0 |
-| [Décisions Architecturales](./Decisions-Log) | ADR-001 à ADR-019 |
+| [Décisions Architecturales](./Decisions-Log) | ADR-001 à ADR-002 |
 
 ---
 

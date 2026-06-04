@@ -30,5 +30,4 @@ curl http://127.0.0.1:38492/handshake | jq .
 
 ## References
 
-- Protocol spec: [docs/internal/architecture/IPC-PROTOCOL.md](../../docs/internal/architecture/IPC-PROTOCOL.md)
-- Crate layout: [docs/internal/architecture/CRATE-LAYOUT.md](../../docs/internal/architecture/CRATE-LAYOUT.md)
+- Crate source: `crates/apollia-runner/src/`

@@ -8,8 +8,7 @@
    *   - footer = actions (Skip / Skip with default / Submit) + waiting timer
    *   - role="alertdialog" + Esc cancels the card, Enter submits when allowed
    *
-   * Post-submit the card collapses to `AskUserSummary` - behaviour preserved
-   * from v1 (cf. docs/internal/UX-UI-AUDIT-CHAT-COMPONENTS-ORPHELINS.md §3.2).
+   * Post-submit the card collapses to `AskUserSummary`.
    */
 
   import { onMount, tick } from "svelte";

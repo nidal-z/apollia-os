@@ -51,8 +51,6 @@ pub async fn build_google_executors() -> Vec<Box<dyn ToolExecutor>> {
     let op_ids = [
         "gmail.send",
         "gmail.compose_draft",
-        "gmail.list_drafts",
-        "gmail.delete_draft",
         "gcal.list_events",
         "gcal.get_event",
         "gcal.create_event",
@@ -158,8 +156,7 @@ impl ToolExecutor for GoogleToolExecutor {
     fn is_read_only(&self) -> bool {
         matches!(
             self.op_id,
-            "gmail.list_drafts"
-                | "gcal.list_events"
+            "gcal.list_events"
                 | "gcal.get_event"
                 | "gdrive.workspace_list"
                 | "gdrive.workspace_read"
@@ -186,8 +183,6 @@ async fn dispatch_google(
     match exec.op_id {
         "gmail.send" => gmail_send(exec, input).await,
         "gmail.compose_draft" => gmail_compose_draft(exec, input).await,
-        "gmail.list_drafts" => gmail_list_drafts(exec, input).await,
-        "gmail.delete_draft" => gmail_delete_draft(exec, input).await,
         "gcal.list_events" => gcal_list_events(exec, input).await,
         "gcal.get_event" => gcal_get_event(exec, input).await,
         "gcal.create_event" => gcal_create_event(exec, input).await,
@@ -253,6 +248,25 @@ fn map_connector_err(e: apollia_connectors::error::ConnectorError) -> ToolExecut
     }
 }
 
+/// Like [`map_connector_err`] but turns a 403 / post-refresh 401 on Gmail send
+/// into an actionable "reconnect with send permission" message, since that is
+/// almost always a missing send scope rather than a transient upstream error.
+fn map_gmail_send_err(e: apollia_connectors::error::ConnectorError) -> ToolExecutionError {
+    use apollia_connectors::error::ConnectorError;
+    match e {
+        ConnectorError::Upstream { status: 403, .. } | ConnectorError::Unauthorized { .. } => {
+            ToolExecutionError::ExecutionFailed {
+                code: "gmail_send_permission".into(),
+                message: "Gmail refused the send: the connected account likely did not grant send \
+                          permission. Reconnect Google with \"Envoyer des emails (Gmail)\" enabled, \
+                          then retry. Do not create a draft as a substitute."
+                    .into(),
+            }
+        }
+        other => map_connector_err(other),
+    }
+}
+
 // ─── Gmail ───────────────────────────────────────────────────────────────────
 
 fn extract_compose(input: &Value) -> Result<ComposeMail, ToolExecutionError> {
@@ -276,8 +290,8 @@ async fn gmail_send(exec: &GoogleToolExecutor, input: Value) -> Result<Value, To
         .gmail()
         .send(&mail, &token, refresh)
         .await
-        .map_err(map_connector_err)?;
-    Ok(json!({"id": result.id, "thread_id": result.thread_id}))
+        .map_err(map_gmail_send_err)?;
+    Ok(json!({"sent": true, "message_id": result.id, "thread_id": result.thread_id}))
 }
 
 async fn gmail_compose_draft(
@@ -285,7 +299,7 @@ async fn gmail_compose_draft(
     input: Value,
 ) -> Result<Value, ToolExecutionError> {
     let mail = extract_compose(&input)?;
-    let scopes = [GoogleScope::MailCompose];
+    let scopes = [GoogleScope::MailDraftsCreate];
     let (account, token) = exec.bearer_for(&scopes).await?;
     let refresh =
         GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
@@ -295,47 +309,7 @@ async fn gmail_compose_draft(
         .compose_draft(&mail, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(json!({"id": result.id, "thread_id": result.thread_id}))
-}
-
-async fn gmail_list_drafts(
-    exec: &GoogleToolExecutor,
-    input: Value,
-) -> Result<Value, ToolExecutionError> {
-    let max_results = input_get_u32_or(&input, "max_results", 20);
-    let scopes = [GoogleScope::MailCompose];
-    let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh =
-        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
-    let drafts = exec
-        .connector
-        .gmail()
-        .list_drafts(max_results, &token, refresh)
-        .await
-        .map_err(map_connector_err)?;
-    Ok(
-        serde_json::to_value(&drafts).map_err(|e| ToolExecutionError::ExecutionFailed {
-            code: "serialise".into(),
-            message: e.to_string(),
-        })?,
-    )
-}
-
-async fn gmail_delete_draft(
-    exec: &GoogleToolExecutor,
-    input: Value,
-) -> Result<Value, ToolExecutionError> {
-    let draft_id = input_get_str(&input, "draft_id")?;
-    let scopes = [GoogleScope::MailCompose];
-    let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh =
-        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
-    exec.connector
-        .gmail()
-        .delete_draft(&draft_id, &token, refresh)
-        .await
-        .map_err(map_connector_err)?;
-    Ok(json!({"deleted": true, "draft_id": draft_id}))
+    Ok(json!({"sent": false, "draft_id": result.id, "thread_id": result.thread_id}))
 }
 
 // ─── Calendar ────────────────────────────────────────────────────────────────

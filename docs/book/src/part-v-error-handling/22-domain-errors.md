@@ -174,7 +174,7 @@ raise DomainError("PATH_TOO_LONG", f"path is {len(path)} chars (max 4096)")
 
 ## ADRs
 
-- `ADR-100` : Exceptions typées au boundary
-- `ADR-109` : AIPResult interne au SDK
+- `ADR-024` : Exceptions typées au boundary
+- `ADR-024` : AIPResult interne au SDK
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

@@ -204,4 +204,4 @@ systemctl start apollia-os
 - [Config apollia.toml](./Config-apollia-toml) - toutes les options de configuration
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) - monitoring et debug en production
 - [Sécurité Sandbox Isolation](./Securite-Sandbox-Isolation) - Linux namespaces détaillés
-- [ADR-005](../adr/ADR-005-sandbox-sans-docker) - pourquoi namespaces plutôt que Docker
+- [ADR-003](../adr/ADR-003-sandbox-trust-platform-scope.md) - pourquoi namespaces plutôt que Docker

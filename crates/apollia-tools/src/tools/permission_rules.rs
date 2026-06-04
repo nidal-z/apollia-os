@@ -256,7 +256,7 @@ impl PermissionRuleAdd {
             rule_id = id,
             tool = %rule.tool_name,
             agent = %self.agent_id,
-            "permission_rule_add (ADR-086)"
+            "permission_rule_add"
         );
         Ok(PermissionRuleAddOutput { rule_id: id })
     }
@@ -267,8 +267,7 @@ impl PermissionRuleAdd {
             name: "permission_rule_add".to_string(),
             version: "1.0.0".to_string(),
             description: "Persist a new permission rule in governance.db. The rule is tagged \
-                with the calling agent's identity in `created_by`. Subject to HITL approval \
-                (ADR-082, ADR-086)."
+                with the calling agent's identity in `created_by`. Subject to HITL approval."
                 .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({
@@ -375,7 +374,7 @@ impl PermissionRuleRemove {
             name: "permission_rule_remove".to_string(),
             version: "1.0.0".to_string(),
             description: "Remove a permission rule from governance.db by id. Subject to HITL \
-                approval (ADR-082, ADR-086)."
+                approval."
                 .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({
@@ -502,7 +501,7 @@ impl PermissionRuleList {
             name: "permission_rule_list".to_string(),
             version: "1.0.0".to_string(),
             description: "List permission rules from governance.db, optionally filtered by \
-                tool_name, created_by or scope. Read-only (ADR-086)."
+                tool_name, created_by or scope. Read-only."
                 .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({

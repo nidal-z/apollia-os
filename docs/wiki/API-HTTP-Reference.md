@@ -66,5 +66,5 @@ Principaux endpoints couverts :
 
 - [Briques CLI](./Briques-CLI) - wrapper CLI sur cette API
 - [Briques Runtime Core](./Briques-Runtime-Core) - implémentation APIServer axum
-- [ADR-006](../adr/ADR-006-rest-json-api-locale) - pourquoi REST JSON plutôt qu'une autre API
-- [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) - Unix socket avec hyper-util
+- [ADR-001](../adr/ADR-001-foundations-stack.md) - pourquoi REST JSON plutôt qu'une autre API
+- [ADR-001](../adr/ADR-001-foundations-stack.md) - Unix socket avec hyper-util

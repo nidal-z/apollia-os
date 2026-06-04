@@ -10,7 +10,7 @@ Apollia OS is a local-first runtime for autonomous AI agents.
 - **Triggers**: Cron, interval, file watch, and webhook triggers to automate agent runs.
 - **Pipelines**: DAG-based pipelines with fan-out/fan-in, HITL approval steps, and fallback.
 - **A2A**: Director/Worker delegation pattern for multi-agent collaboration.
-- **Agent Packages**: Distributable agent packages described by `agent.toml` (ADR-081).
+- **Agent Packages**: Distributable agent packages described by `agent.toml` (ADR-026).
 - **LLM backends**: llama.cpp (local), Ollama, Anthropic Claude, OpenAI.
 - **MCP**: Native MCP client for tool servers (stdio, HTTP, SSE).
 - **Desktop app**: Tauri-based desktop app with Svelte UI for all operations.

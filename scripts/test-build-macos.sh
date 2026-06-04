@@ -163,7 +163,7 @@ cd "$PROJECT_ROOT"
 if $SKIP_CODESIGN; then
     echo "==> Skipping codesigning step (--skip-codesign)"
 else
-    echo "==> Post-bundle - patch install_names + ad-hoc sign (ADR-073)"
+    echo "==> Post-bundle - patch install_names + ad-hoc sign"
     cd "${PROJECT_ROOT}/crates/apollia-desktop"
 
     export TAURI_TARGET_TRIPLE="$TARGET_TRIPLE"

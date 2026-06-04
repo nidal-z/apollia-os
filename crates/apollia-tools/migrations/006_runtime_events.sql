@@ -5,7 +5,7 @@
 -- d'exécution d'un agent. Couvre : ctx.log, thoughts ReAct, tool calls,
 -- LLM calls, retries, A2A invocations, transitions HITL, etc.
 --
--- Voir ADR-088 - Event-sourced observability via `runtime_events`.
+-- Event-sourced observability via `runtime_events`.
 
 CREATE TABLE IF NOT EXISTS runtime_events (
     -- UUID v7 (ordonnable lexicographiquement par création).

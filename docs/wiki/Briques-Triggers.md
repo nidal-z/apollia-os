@@ -1,6 +1,6 @@
 # Triggers Engine - Déclenchement automatique des agents
 
-> *La crate `apollia-triggers` expose un moteur déclaratif pour déclencher des agents automatiquement via des règles persistées en SQLite : cron, interval, file watch, webhooks HMAC-SHA256. Les triggers se créent, modifient et suppriment via l'API REST ou l'application desktop (ADR-033).*
+> *La crate `apollia-triggers` expose un moteur déclaratif pour déclencher des agents automatiquement via des règles persistées en SQLite : cron, interval, file watch, webhooks HMAC-SHA256. Les triggers se créent, modifient et suppriment via l'API REST ou l'application desktop (ADR-014).*
 
 ---
 
@@ -8,7 +8,7 @@
 
 Le `TriggerEngine` est un acteur Tokio positionné en **position 6** dans la séquence de démarrage du Supervisor (après le `LlmRouter`). Il gère un ensemble de `TriggerDefinition` persistées en SQLite (`~/.apollia/triggers_def.db`) et déclenche des tâches vers le `TaskRouter` selon les événements reçus.
 
-Les triggers ne sont plus déclarés dans `apollia.toml` - ils sont gérés exclusivement via SQLite + API REST CRUD (ADR-033). L'opérateur crée, modifie et supprime ses triggers depuis l'application desktop ou via `curl`.
+Les triggers ne sont plus déclarés dans `apollia.toml` - ils sont gérés exclusivement via SQLite + API REST CRUD (ADR-014). L'opérateur crée, modifie et supprime ses triggers depuis l'application desktop ou via `curl`.
 
 ```
 triggers_def.db (SQLite)
@@ -52,7 +52,7 @@ triggers_def.db (SQLite)
 
 ## 2. Gestion des triggers - CRUD SQLite
 
-(ADR-033), les triggers sont persistés en SQLite (`~/.apollia/triggers_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[triggers]]` de `apollia.toml` n'est plus utilisée.
+(ADR-014), les triggers sont persistés en SQLite (`~/.apollia/triggers_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[triggers]]` de `apollia.toml` n'est plus utilisée.
 
 ### 2.1 Créer un trigger via API
 
@@ -317,7 +317,7 @@ pub enum TriggerDefinitionError {
 }
 ```
 
-Le repository est wrappé dans `Arc<Mutex<TriggerDefinitionRepository>>` dans `AppState` (ADR-033). Les mutations sont rares (opérateur humain), pas de contention en pratique.
+Le repository est wrappé dans `Arc<Mutex<TriggerDefinitionRepository>>` dans `AppState` (ADR-014). Les mutations sont rares (opérateur humain), pas de contention en pratique.
 
 **Validation avant écriture** (`apollia-triggers/src/validation.rs`) :
 - Le champ `agent` est obligatoire et non vide
@@ -441,7 +441,7 @@ github-push           deploy-agent    webhook   ✓        8      1      2026-03
 
 ## 9. Hot Reload
 
-Le hot reload est déclenché automatiquement après chaque opération CRUD via l'API REST. Le pattern est : **écriture SQLite → engine.reload** (ADR-033, Option A).
+Le hot reload est déclenché automatiquement après chaque opération CRUD via l'API REST. Le pattern est : **écriture SQLite → engine.reload** (ADR-014, Option A).
 
 ```bash
 # Créer un trigger via API → reload automatique
@@ -552,4 +552,4 @@ TriggerQueueFull {
 
 ---
 
-*Voir aussi : [Configuration apollia.toml](./Config-apollia-toml) · [Dashboard Observabilité](./Dashboard-Observabilite) · [ADR-021](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md)*
+*Voir aussi : [Configuration apollia.toml](./Config-apollia-toml) · [Dashboard Observabilité](./Dashboard-Observabilite) · [ADR-021](./Decisions-Log) · [ADR-014](../adr/ADR-014-operational-config-triggers-notifications.md)*

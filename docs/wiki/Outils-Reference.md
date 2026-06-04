@@ -682,13 +682,13 @@ Recherche en mémoire locale par full-text search (FTS5/BM25). Accès restreint 
 
 ---
 
-## Outils Gouvernance (ADR-086)
+## Outils Gouvernance (ADR-015)
 
 Ces trois outils permettent aux agents de lire et de proposer des règles de permission dans `governance.db`. Les écritures (`add` / `remove`) passent systématiquement par le HITL standard - l'utilisateur valide chaque règle.
 
 ### `permission_rule_add`
 
-Persiste une nouvelle règle `Allow` ou `Deny` dans `governance.db`. HITL obligatoire (ADR-082).
+Persiste une nouvelle règle `Allow` ou `Deny` dans `governance.db`. HITL obligatoire (ADR-015).
 
 **Input**
 
@@ -792,4 +792,4 @@ Liste les règles persistées. Lecture seule, pas de HITL.
 
 - [Briques-Tool-Registry.md](Briques-Tool-Registry.md) - spécification complète du Tool Registry : cycle de vie, sandbox, StepBudget, feature flags, et implémentation des outils natifs
 - [Agents-RuntimeContext-Guide.md](Agents-RuntimeContext-Guide.md) - guide complet du RuntimeContext : comment les agents déclarent leurs besoins en outils et interagissent avec le runtime
-- [Briques-Permissions.md](Briques-Permissions.md) - moteur de permissions 3 couches, gouvernance `governance.db`, ADR-086
+- [Briques-Permissions.md](Briques-Permissions.md) - moteur de permissions 3 couches, gouvernance `governance.db`, ADR-015

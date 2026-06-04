@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, FolderOpen } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
   import { Button } from "$lib/components/ui/button";
+  import { ActionMenu } from "$lib/components/ui/action-menu";
 
   export type ConversationState =
     | "active"
@@ -53,8 +55,14 @@
   const isUnread = $derived(rowStateProp === "unread" || (unreadCount !== undefined && unreadCount > 0));
 
   const hasMenu = $derived(Boolean(onrename || ondelete));
+
+  // Kebab menu open state - bound to the canonical ActionMenu/Popover. Kept
+  // only to reset the delete-confirmation step whenever the menu closes (e.g.
+  // the user dismisses by clicking outside while the confirm strip is shown).
   let menuOpen = $state(false);
-  let menuRoot = $state<HTMLDivElement | undefined>(undefined);
+  $effect(() => {
+    if (!menuOpen) confirmingDelete = false;
+  });
 
   // Inline edit state - entered via double-click on the title or the
   // kebab "Renommer" entry. Enter/blur commits, Escape cancels.
@@ -62,21 +70,17 @@
   let editValue = $state("");
   let editInput = $state<HTMLInputElement | undefined>(undefined);
 
-  // Inline delete-confirmation state - gating misclicks. The destructive
-  // action only runs when the user explicitly clicks "Confirmer". The
-  // "Confirmer" button lives in a stable strip that is NOT torn down by
-  // the click that opens it (unlike the kebab menu), so the callback can
-  // run synchronously without Svelte's reactive re-render swallowing it.
+  // Inline delete-confirmation step, rendered inside the action-menu popover.
+  // The destructive action only runs on an explicit "Confirmer" click.
   let confirmingDelete = $state(false);
 
-  function startEdit(): void {
+  async function startEdit(): Promise<void> {
     if (!onrename) return;
     editValue = title;
     editing = true;
-    queueMicrotask(() => {
-      editInput?.focus();
-      editInput?.select();
-    });
+    await tick();
+    editInput?.focus();
+    editInput?.select();
   }
 
   function commitEdit(): void {
@@ -95,7 +99,7 @@
   function onTitleDblClick(ev: MouseEvent): void {
     if (!onrename) return;
     ev.stopPropagation();
-    startEdit();
+    void startEdit();
   }
 
   function onEditKeydown(ev: KeyboardEvent): void {
@@ -112,77 +116,22 @@
     }
   }
 
-  // NOTE: do NOT call `ev.stopPropagation()` / `ev.preventDefault()` in any
-  // of the menu-related handlers below. Svelte 5's listener attachment for
-  // freshly-mounted elements interacts badly with stopped clicks here - it
-  // produced an intermittent "1 click in 2" failure on the menu items.
-  // The row-level `onRowClick` already filters out clicks whose target lives
-  // inside `menuRoot`, so propagation is harmless.
-  function toggleMenu(): void {
-    menuOpen = !menuOpen;
-    if (!menuOpen) confirmingDelete = false;
-  }
-
-  function handleRename(): void {
-    menuOpen = false;
-    confirmingDelete = false;
-    startEdit();
-  }
-
-  /** Menu entry: swaps the popover content to the confirmation buttons. */
-  function handleDeleteRequest(): void {
-    confirmingDelete = true;
-  }
-
-  /** Confirmation popover "Confirmer" - actually fires the delete callback. */
-  function handleDeleteConfirm(): void {
-    ondelete?.();
-  }
-
-  function handleDeleteCancel(): void {
-    confirmingDelete = false;
-    menuOpen = false;
-  }
-
-  /** Guard: swallow row-level clicks whose target lives inside the menu
-      or the confirmation strip. Prevents misroute to ChatConversation. */
+  /** Guard: row-level navigation ignores clicks on the kebab trigger (the
+      menu content itself is portaled, so it never bubbles here) and clicks
+      while inline editing or confirming a delete. */
   function onRowClick(ev: MouseEvent): void {
-    const target = ev.target as Node | null;
-    if (menuRoot && target && menuRoot.contains(target)) return;
+    const target = ev.target as HTMLElement | null;
+    if (target?.closest("[data-conversation-row-actions]")) return;
     if (editing || confirmingDelete) return;
     onclick?.(ev);
   }
   function onRowKeydown(ev: KeyboardEvent): void {
     if (ev.key !== "Enter") return;
-    const target = ev.target as Node | null;
-    if (menuRoot && target && menuRoot.contains(target)) return;
+    const target = ev.target as HTMLElement | null;
+    if (target?.closest("[data-conversation-row-actions]")) return;
     if (editing || confirmingDelete) return;
     onclick?.(ev as unknown as MouseEvent);
   }
-
-  function handleDocumentClick(ev: MouseEvent): void {
-    if (!menuOpen) return;
-    if (!menuRoot) return;
-    // Use composedPath() instead of contains(target) - when a click on a
-    // menu item triggers a Svelte re-render that unmounts the clicked
-    // element (e.g. clicking "Supprimer" flips `confirmingDelete=true`,
-    // which unmounts the menu popover containing the Supprimer button),
-    // the target node is detached from the DOM by the time this bubble
-    // handler runs. `menuRoot.contains(detachedNode)` then returns false
-    // and the menu would be wrongly closed. `composedPath()` captures
-    // the path at dispatch time, so menuRoot is still in it.
-    const path = ev.composedPath();
-    if (!path.includes(menuRoot)) {
-      menuOpen = false;
-      confirmingDelete = false;
-    }
-  }
-
-  $effect(() => {
-    if (!menuOpen) return;
-    document.addEventListener("click", handleDocumentClick);
-    return () => document.removeEventListener("click", handleDocumentClick);
-  });
 </script>
 
 <div
@@ -263,70 +212,82 @@
     </span>
   {/if}
   {#if hasMenu}
-    <div class="relative self-center" bind:this={menuRoot}>
-      <button
-        type="button"
-        onclick={toggleMenu}
-        class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-muted/60 hover:text-foreground focus:opacity-100 {isActive || menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}"
-        aria-label="Actions"
-        aria-expanded={menuOpen}
+    <div class="self-center" data-conversation-row-actions>
+      <ActionMenu
+        bind:open={menuOpen}
+        align="end"
+        class="min-w-[10rem]"
+        triggerLabel="Actions"
         data-testid="conversation-row-menu-button"
       >
-        <MoreHorizontal size={12} />
-      </button>
-      {#if menuOpen && !confirmingDelete}
-        <div
-          class="absolute right-0 top-full z-30 mt-1 min-w-[10rem] rounded-md border border-border/50 bg-card py-1 shadow-elev-2"
-          role="menu"
-          data-testid="conversation-row-menu"
-        >
-          {#if onrename}
-            <Button variant="ghost" size="sm"
-              type="button"
-              role="menuitem"
-              onclick={handleRename}
-              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-              data-testid="conversation-row-menu-rename"
-            >
-              <Edit3 size={12} /> Renommer
-            </Button>
-          {/if}
-          {#if ondelete}
-            <Button variant="ghost" size="sm"
-              type="button"
-              role="menuitem"
-              onclick={handleDeleteRequest}
-              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10"
-              data-testid="conversation-row-menu-delete"
-            >
-              <Trash2 size={12} /> Supprimer
-            </Button>
-          {/if}
-        </div>
-      {/if}
-      {#if menuOpen && confirmingDelete}
-        <div
-          class="absolute right-0 top-full z-30 mt-1 flex min-w-[10rem] items-center gap-1 rounded-md border border-border/50 bg-card px-2 py-1 shadow-elev-2"
-          data-testid="conversation-row-delete-confirm"
-        >
-          <Button variant="ghost" size="sm"
+        {#snippet triggerSlot(props)}
+          <button
             type="button"
-            onclick={handleDeleteConfirm}
-            class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-[11px] font-semibold text-white hover:bg-destructive/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
-            data-testid="conversation-row-delete-confirm-btn"
+            {...props}
+            class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 {isActive
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100'}"
+            aria-label="Actions"
+            data-testid="conversation-row-menu-button"
           >
-            <Check size={11} /> Confirmer
-          </Button>
-          <Button variant="ghost" size="sm"
-            type="button"
-            onclick={handleDeleteCancel}
-            class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-            data-testid="conversation-row-delete-cancel-btn"
-          >
-            <X size={11} /> Annuler
-          </Button>
-        </div>
-      {/if}
+            <MoreHorizontal size={12} />
+          </button>
+        {/snippet}
+        {#snippet body({ close })}
+          {#if confirmingDelete}
+            <div
+              class="flex items-center gap-1 px-1 py-0.5"
+              data-testid="conversation-row-delete-confirm"
+            >
+              <Button variant="ghost" size="sm"
+                type="button"
+                onclick={() => { ondelete?.(); confirmingDelete = false; close(); }}
+                class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-[11px] font-semibold text-white hover:bg-destructive/90"
+                data-testid="conversation-row-delete-confirm-btn"
+              >
+                <Check size={11} /> Confirmer
+              </Button>
+              <Button variant="ghost" size="sm"
+                type="button"
+                onclick={() => { confirmingDelete = false; close(); }}
+                class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                data-testid="conversation-row-delete-cancel-btn"
+              >
+                <X size={11} /> Annuler
+              </Button>
+            </div>
+          {:else}
+            <ul class="flex flex-col gap-0.5" role="menu" data-testid="conversation-row-menu">
+              {#if onrename}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => { close(); void startEdit(); }}
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
+                    data-testid="conversation-row-menu-rename"
+                  >
+                    <Edit3 size={12} /> Renommer
+                  </button>
+                </li>
+              {/if}
+              {#if ondelete}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => { confirmingDelete = true; }}
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-destructive hover:bg-destructive/10"
+                    data-testid="conversation-row-menu-delete"
+                  >
+                    <Trash2 size={12} /> Supprimer
+                  </button>
+                </li>
+              {/if}
+            </ul>
+          {/if}
+        {/snippet}
+      </ActionMenu>
     </div>
   {/if}
 </div>

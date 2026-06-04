@@ -1,4 +1,4 @@
-// ─── Agent Packages (ADR-081) ─────────────────────────────────────────────
+// ─── Agent Packages ─────────────────────────────────────────────
 
 /** Résumé d'un agent dans un package. */
 export interface PackageAgentSummary {
@@ -944,7 +944,7 @@ export interface AgentMessage {
   sent_at: string;
 }
 
-// ─── User Profile (ADR-087) ───────────────────────────────────────────────────
+// ─── User Profile ───────────────────────────────────────────────────
 
 /** Canonical schema field exposed by get_profile_schema. */
 export interface ProfileFieldView {
@@ -1444,7 +1444,7 @@ export interface ConnectorEnrichmentView {
   /** Env var name carrying a pre-registered OAuth client id for AS that
    *  don't support CIMD or anonymous DCR (Figma). The wizard resolves the
    *  env var via `mcp_oauth_resolve_client_id` and passes the value to
-   *  `mcp_oauth_login`. ADR-095 follow-up (2026-05-17). */
+   *  `mcp_oauth_login`. */
   oauth_pre_registered_client_id_env: string | null;
 }
 
@@ -1463,7 +1463,7 @@ export interface McpConnectionTestResultView {
 }
 
 /**
- * Tagged envelope returned by `test_mcp_connection` (ADR-095 Phase 4).
+ * Tagged envelope returned by `test_mcp_connection`.
  *
  * The wizard dispatches its Auth step UI on `kind`:
  * - `success` → list tools, allow continue.
@@ -1474,7 +1474,7 @@ export type McpConnectionTestResponse =
   | ({ kind: "success" } & McpConnectionTestResultView)
   | { kind: "oauth_required"; www_authenticate: string };
 
-/** Discovery payload returned by `mcp_oauth_discover` (ADR-095 Phase 4). */
+/** Discovery payload returned by `mcp_oauth_discover`. */
 export interface McpOAuthDiscoveryResult {
   as_url: string;
   scopes_supported: string[];
@@ -1482,7 +1482,7 @@ export interface McpOAuthDiscoveryResult {
   registration_supported: boolean;
 }
 
-/** Sign-in outcome returned by `mcp_oauth_login` (ADR-095 Phase 4). */
+/** Sign-in outcome returned by `mcp_oauth_login`. */
 export interface McpOAuthAccount {
   sub: string | null;
   email: string | null;

@@ -34,7 +34,7 @@ bridge -> bridge : serde_json::to_string(&task)\n→ task_json: String
 bridge -> pyo3 : Python::with_gil()\nclone_ref(py) agent, aip_result_class, input_response_class
 
 bridge -> spawn : tokio::task::spawn_blocking(|| { ... })
-note right : GIL jamais tenu sur\nles workers Tokio\n(ADR-014)
+note right : GIL jamais tenu sur\nles workers Tokio\n(ADR-002)
 
 activate spawn
 spawn -> pyo3 : Python::with_gil(|py| { ... })

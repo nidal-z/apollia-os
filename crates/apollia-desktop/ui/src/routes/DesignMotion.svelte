@@ -45,7 +45,7 @@
       {#if reduced}
         <p class="mt-2 text-xs font-medium text-warning-foreground">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-warning align-middle"></span>
-          Reduced motion is active &mdash; animations are collapsed.
+          Reduced motion is active - animations are collapsed.
         </p>
       {/if}
     </div>
@@ -88,7 +88,7 @@
   <!-- Spring list items -->
   <section class="space-y-3">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-      List-item spring &mdash; <code class="text-[10px]">.list-item-spring</code>
+      List-item spring - <code class="text-[10px]">.list-item-spring</code>
     </h2>
     <p class="text-xs text-muted-foreground/70">
       stiffness {spring.default.stiffness} · damping {spring.default.damping}
@@ -109,7 +109,7 @@
   <!-- Page transition -->
   <section class="space-y-3">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-      Page transition &mdash; <code class="text-[10px]">&lt;PageTransition&gt;</code>
+      Page transition - <code class="text-[10px]">&lt;PageTransition&gt;</code>
     </h2>
     <div class="flex items-center gap-3">
       <Button size="sm" variant="outline" onclick={() => refreshKey++}>

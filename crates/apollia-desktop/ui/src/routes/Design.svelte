@@ -50,8 +50,7 @@
     <div>
       <h1 class="text-2xl font-semibold tracking-tight">Design tokens v2</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        Elevation scale, warm dark palette, rim lights &amp; primary utilities
-        &mdash; ADR-077.
+        Elevation scale, warm dark palette, rim lights &amp; primary utilities.
       </p>
     </div>
     <div class="flex items-center gap-2">
@@ -133,7 +132,7 @@
   <!-- Surface / palette -->
   <section class="space-y-3">
     <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-      Surface palette &mdash; {$themeMode ?? "light"}
+      Surface palette - {$themeMode ?? "light"}
     </h2>
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {#each surfaces as { key, cssVar } (key)}

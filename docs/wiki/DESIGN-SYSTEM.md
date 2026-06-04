@@ -3,7 +3,7 @@
 **Version:** 2.0
 **Last Updated:** 2026-04-27 (based on live codebase exploration)
 **Stack:** Tauri v2 + Svelte 5 + Tailwind 3.4 + lucide-svelte + bits-ui
-**Design Tokens:** ADR-077 (Design tokens v2 - elevation, warmth dark, rim lights)
+**Design Tokens:** ADR-021 (Design tokens v2 - elevation, warmth dark, rim lights)
 **Reference:** `crates/apollia-desktop/ui/src/`
 
 ---
@@ -1153,7 +1153,7 @@ if (prefersReducedMotion()) {
 | `crates/apollia-desktop/ui/src/lib/components/ui/` | All primitive components |
 | `crates/apollia-desktop/ui/src/lib/i18n/en.json` | English translation keys |
 | `crates/apollia-desktop/ui/src/lib/i18n/fr.json` | French translation keys |
-| `docs/adr/ADR-077-design-tokens-v2.md` | Full design decision record |
+| `docs/adr/ADR-021-design-system-i18n.md` | Full design decision record |
 
 ---
 

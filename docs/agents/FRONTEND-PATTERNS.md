@@ -9,7 +9,7 @@ Stack : Tauri v2 + Svelte 5 + TypeScript strict + Tailwind 3.4 + lucide-svelte
 + bits-ui + svelte-i18n v4.
 
 Authoritative design reference : `docs/wiki/DESIGN-SYSTEM.md` (1160 lines,
-HSL tokens, components, ADR-077). This file does not duplicate that catalogue.
+HSL tokens, components, ADR-021). This file does not duplicate that catalogue.
 It encodes the rules an LLM must follow when consuming or extending it.
 
 ---
@@ -93,7 +93,7 @@ Categories of tokens (see `wiki/DESIGN-SYSTEM.md` for the full table) :
   `--info`.
 - **Text** : `--foreground`, `--text-muted`, `--text-success`, `--text-warning`,
   `--text-danger` (A11y-verified contrasts).
-- **Elevation** : ADR-077 elevation tokens with rim lights for dark warmth.
+- **Elevation** : ADR-021 elevation tokens with rim lights for dark warmth.
 - **Gradients** : `--gradient-primary`, `--gradient-surface`,
   `--gradient-accent`.
 - **Glass** : `--glass-border-light`, `--glass-border-dark`, with hover

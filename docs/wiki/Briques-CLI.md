@@ -812,7 +812,7 @@ $ apollia auth logout anthropic
 
 Providers supportés : `anthropic`, `openai`, `vertex`.
 
-> **Voir aussi :** [Briques Auth](./Briques-Auth.md) · [ADR-064](../adr/ADR-064-oauth2-pkce-keyring.md)
+> **Voir aussi :** [Briques Auth](./Briques-Auth.md) · [ADR-016](../adr/ADR-016-secrets-keyring-api-auth.md)
 
 ### `apollia update`
 
@@ -838,7 +838,7 @@ $ apollia update --check
   ✔ Apollia OS est à jour (0.2.0)
 ```
 
-> **Voir aussi :** [ADR-065](../adr/ADR-065-auto-updater-distribution.md)
+> **Voir aussi :** [ADR-028](../adr/ADR-028-release-updater-code-signing.md)
 
 ### `apollia mcp set-approval` / `list-pending` / `revoke-approval`
 

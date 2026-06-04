@@ -5,10 +5,10 @@
 > Il **DÉCIDE** quoi en faire. Ce n'est **JAMAIS** un filtre déterministe qui modifie le comportement du runtime (Principe #6 - mémoire à initiative de l'agent).
 
 **Décisions architecturales** :
-- [ADR-007 - Mémoire à initiative de l'agent](../adr/ADR-007-memoire-initiative-agent.md)
-- [ADR-038 - Mémoire utilisateur globale](../adr/ADR-038-global-user-memory.md) (amendée par ADR-087)
-- [ADR-040 - Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
-- [ADR-087 - Profil utilisateur canonique avec schéma déclaratif](../adr/ADR-087-user-profile-redesign.md)
+- [ADR-010 - Mémoire à initiative de l'agent](../adr/ADR-010-memory-context-architecture.md)
+- [ADR-011 - Mémoire utilisateur globale](../adr/ADR-011-user-profile.md) (amendée par ADR-011)
+- [ADR-027 - Onboarding comme agent conversationnel](../adr/ADR-027-onboarding-agent.md)
+- [ADR-011 - Profil utilisateur canonique avec schéma déclaratif](../adr/ADR-011-user-profile.md)
 
 ---
 
@@ -101,7 +101,7 @@ Trois variantes (`WrittenBy { Onboarding, User, Agent(String) }`) sérialisées 
 | `user` | Édition explicite depuis Settings → Profil ou IPC opérateur |
 | `agent:<name>` | Observation d'un agent en cours de tâche (ex. `agent:chat-extractor`) |
 
-Pas de score `confidence` exposé, pas de badge `validated`, pas d'enum `category` - supprimés en V1 (ADR-087).
+Pas de score `confidence` exposé, pas de badge `validated`, pas d'enum `category` - supprimés en V1 (ADR-011).
 
 ### IPC Tauri
 
@@ -139,7 +139,7 @@ Sans la permission manifest, `set`/`update` lèvent `RuntimeError`. La permissio
 
 ### Injection en chat mode
 
-En chat mode, `BuiltInChatAgent` injecte un snapshot du profil dans le system prompt via `recall_all_for_injection` ou `recall_persona_brief`. Le LLM reçoit cette information comme **un outil**, jamais comme une contrainte. Cf. ADR-007 / ADR-038.
+En chat mode, `BuiltInChatAgent` injecte un snapshot du profil dans le system prompt via `recall_all_for_injection` ou `recall_persona_brief`. Le LLM reçoit cette information comme **un outil**, jamais comme une contrainte. Cf. ADR-010 / ADR-011.
 
 L'injection est marquée dans le prompt par un en-tête `Section: <name>` (ex. `Section: identity`). Le compteur `user_memory_injected` côté `ConversationStatsView` détecte ces marqueurs.
 

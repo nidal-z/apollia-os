@@ -1409,9 +1409,22 @@ async fn register_builtin_tools(tool_registry_handle: &ToolRegistryHandle) {
             );
         }
     }
+    // MCP resource tools (agent-initiative path). Advertised regardless of
+    // whether any MCP server is connected; the matching executors are wired
+    // per agent when an MCP handle exists.
+    for descriptor in apollia_mcp::mcp_resources::mcp_resource_descriptors() {
+        let tool_name = descriptor.name.clone();
+        if let Err(e) = tool_registry_handle.register(descriptor).await {
+            warn!(
+                error = %e,
+                tool = %tool_name,
+                "failed to register MCP resource tool descriptor"
+            );
+        }
+    }
     info!(
         connector_tools = connector_descriptor_count,
-        "Supervisor: ToolRegistry ready (native + connector tools registered)"
+        "Supervisor: ToolRegistry ready (native + connector + MCP resource tools registered)"
     );
 }
 
@@ -2261,16 +2274,15 @@ mod tests {
         assert!(agents.is_ok());
         assert!(agents.unwrap().is_empty());
 
-        // ToolRegistryHandle: can list (native tools should be registered).
-        // Count mirrors native_tool_descriptors(): 16 baseline (13 historical
-        // + 3 permission_rule_*) + web-search + web-read when those features are
-        // compiled in, plus the connector tool descriptors registered at Phase
-        // 3b (Google ops today, Microsoft to come).
+        // ToolRegistryHandle: can list. The count is derived from the same
+        // sources `register_builtin_tools` registers, so it stays correct as
+        // native tools, connector ops, and MCP resource tools evolve while
+        // still catching a registration that silently drops a descriptor:
+        // native tools + connector descriptors (Google + Microsoft 365) + the
+        // always-advertised MCP resource tools.
         let connector_count = crate::connectors_bridge::all_connector_descriptors().len();
-        let expected = 16
-            + cfg!(feature = "web-search") as usize
-            + cfg!(feature = "web-read") as usize
-            + connector_count;
+        let mcp_resource_count = apollia_mcp::mcp_resources::mcp_resource_descriptors().len();
+        let expected = native_tool_descriptors().len() + connector_count + mcp_resource_count;
         let tools = handles.tool_registry_handle.list().await;
         assert!(tools.is_ok());
         assert_eq!(

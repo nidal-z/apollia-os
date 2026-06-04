@@ -141,7 +141,7 @@ ssrf_guard = true
 [api]
 # Adresse IP sur laquelle binder le listener TCP.
 # Défaut : 127.0.0.1 (loopback uniquement - inaccessible depuis le réseau)
-# ⚠️  Ne passer à 0.0.0.0 que dans des contextes contrôlés (VM, CI) - voir ADR-051.
+# ⚠️  Ne passer à 0.0.0.0 que dans des contextes contrôlés (VM, CI) - voir ADR-016.
 bind = "127.0.0.1"
 
 # Port TCP du serveur REST.
@@ -161,7 +161,7 @@ require_token = true
 unix_socket = "/tmp/apollia.sock"
 ```
 
-> **Sécurité :** Le token `~/.apollia/api-token` est comparé à temps constant (pas de timing attack). Le runtime refuse de démarrer si le fichier a des permissions trop ouvertes (`0640`, `0644`, etc.). Voir [ADR-051](./Decisions-Log#adr-051) et [Securite-Local-First](./Securite-Local-First).
+> **Sécurité :** Le token `~/.apollia/api-token` est comparé à temps constant (pas de timing attack). Le runtime refuse de démarrer si le fichier a des permissions trop ouvertes (`0640`, `0644`, etc.). Voir [ADR-016](../adr/ADR-016-secrets-keyring-api-auth.md) et [Securite-Local-First](./Securite-Local-First).
 
 ### [oria]
 
@@ -177,7 +177,7 @@ max_replans = 2
 orchestrated_threshold = 0.40
 
 # Limite de caractères de la sortie d'un step mémorisée dans la mémoire épisodique.
-# Au-delà, le contenu est tronqué avec [truncated]. Voir ADR-054 et STEP_MEMORY_OUTPUT_MAX_CHARS.
+# Au-delà, le contenu est tronqué avec [truncated]. Voir ADR-010 et STEP_MEMORY_OUTPUT_MAX_CHARS.
 # Défaut : 200. Bornes : [50, 10000].
 step_memory_max_chars = 200
 
@@ -229,7 +229,7 @@ db_path = "~/.apollia/governance.db"
 
 ```toml
 [filesystem.journal]
-# Active le journal réversible (ADR-069).
+# Active le journal réversible (ADR-015).
 # Défaut : true
 enabled = true
 
@@ -393,7 +393,7 @@ response = await ctx.llm.chat(
 ### [observability] - Capture trace d'exécution
 
 Contrôle ce qui est persisté dans `~/.apollia/runtime_events.db` par
-l'`EventPersistor` (ADR-088). Toutes les captures sont **`true` par
+l'`EventPersistor` (ADR-019). Toutes les captures sont **`true` par
 défaut** (local-first - la promesse Apollia est la transparence
 totale). Désactivable granulairement.
 
@@ -417,7 +417,7 @@ capture_agent_logs    = true
 # Rétention en jours avant purge automatique (90 par défaut, cohérent avec audit.db).
 retention_days        = 90
 
-# Champs pré-existants (troncature legacy ADR-026)
+# Champs pré-existants (troncature legacy ADR-012)
 max_input_bytes       = 32768
 max_output_bytes      = 32768
 max_tool_output_bytes = 10240
@@ -437,7 +437,7 @@ debug_log_prompt      = false
 
 > **Déprécié :** la configuration STT est désormais dans `~/.apollia/system.db` (table `stt_config`), gérée via `GET/PUT /api/v1/stt/config` ou l'app desktop. Si cette section est présente dans `apollia.toml`, un warning est émis au démarrage mais le boot continue normalement.
 
-La section `[stt]` configure le moteur STT embarqué (ADR-041). Elle est **optionnelle** - le runtime démarre sans STT si la table `stt_config` est absente.
+La section `[stt]` configure le moteur STT embarqué (ADR-009). Elle est **optionnelle** - le runtime démarre sans STT si la table `stt_config` est absente.
 
 ```toml
 [stt]

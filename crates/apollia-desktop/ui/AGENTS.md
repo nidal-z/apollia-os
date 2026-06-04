@@ -21,7 +21,7 @@ src/
 ├── app.html                # HTML shell
 ├── styles/
 │   ├── app.css             # HSL custom properties (light + dark)
-│   └── tokens.css          # design tokens (ADR-077)
+│   └── tokens.css          # design tokens (ADR-021)
 ├── lib/
 │   ├── ipc/                # typed Tauri command wrappers, one file per domain
 │   ├── stores/             # svelte/store-based shared state
@@ -138,7 +138,7 @@ All colors, spacings, radii, shadows come from CSS custom properties in
 <div class="bg-card text-card-foreground">
 ```
 
-ADR-077 defines the v2 token set : elevation, warmth dark, rim lights.
+ADR-021 defines the v2 token set : elevation, warmth dark, rim lights.
 Read it before touching `styles/`.
 
 Adding a new token :

@@ -229,7 +229,7 @@ L'adapter est un raccourci. À terme, réécrire en patterns natifs Apollia donn
 
 ## ADRs
 
-- `ADR-003` : Duck typing AIP (le contrat minimal qui permet l'adaptation)
-- `ADR-098` : Decorator-first
+- `ADR-023` : Duck typing AIP (le contrat minimal qui permet l'adaptation)
+- `ADR-023` : Decorator-first
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

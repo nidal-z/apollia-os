@@ -123,6 +123,6 @@ Une fois le fichier généré, les étapes typiques :
 
 ## ADRs
 
-- `ADR-098` : Decorator-first (le template suit le canon)
+- `ADR-023` : Decorator-first (le template suit le canon)
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

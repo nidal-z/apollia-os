@@ -8,7 +8,7 @@ Définitions des termes techniques utilisés dans la documentation.
 
 **Acteur Tokio** - Pattern de concurrence utilisé par le runtime : chaque composant (EventBus, AgentRegistry, TaskRouter...) est une tâche asynchrone qui possède exclusivement son état et communique avec les autres par messages via un canal `mpsc`. Aucun état partagé entre acteurs. Inspiré du [blog post d'Alice Ryhl](https://ryhl.io/blog/actors-with-tokio/).
 
-**AIP** (Agent Interface Protocol) - Le contrat minimal entre un agent Python et le runtime Rust. Deux fonctions suffisent : `manifest()` (qui décrit l'agent) et `async def run(task, ctx)` (qui exécute une tâche). Voir ADR-003.
+**AIP** (Agent Interface Protocol) - Le contrat minimal entre un agent Python et le runtime Rust. Deux fonctions suffisent : `manifest()` (qui décrit l'agent) et `async def run(task, ctx)` (qui exécute une tâche). Voir ADR-023.
 
 **ActorLoop** - Le composant d'ORIA qui exécute un plan step par step en mode orchestré. Il appelle les outils, gère les erreurs, et applique le StepBudget à chaque étape.
 
@@ -18,7 +18,7 @@ Définitions des termes techniques utilisés dans la documentation.
 
 ## D
 
-**Duck typing** - Convention Python où le runtime vérifie la présence de méthodes (`manifest()`, `run()`) plutôt qu'un héritage de classe. Votre agent n'a pas besoin d'hériter d'une classe de base - il suffit d'implémenter les bonnes méthodes. Voir ADR-003.
+**Duck typing** - Convention Python où le runtime vérifie la présence de méthodes (`manifest()`, `run()`) plutôt qu'un héritage de classe. Votre agent n'a pas besoin d'hériter d'une classe de base - il suffit d'implémenter les bonnes méthodes. Voir ADR-023.
 
 ## E
 

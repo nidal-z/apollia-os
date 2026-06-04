@@ -208,14 +208,6 @@
               supported: true,
             },
             {
-              labelKey: "connections.capabilities.entries.gmail_list_drafts",
-              supported: true,
-            },
-            {
-              labelKey: "connections.capabilities.entries.gmail_delete_draft",
-              supported: true,
-            },
-            {
               labelKey: "connections.capabilities.entries.gmail_read_inbox",
               detailKey: "connections.capabilities.entries.gmail_read_inbox_detail",
               supported: false,
@@ -390,17 +382,29 @@
         },
       ];
     }
-    // Microsoft - wired the same way; capability list mirrors connector_providers.rs.
+    // Microsoft - capability list mirrors the wired ops in connectors_bridge.rs.
     return [
       {
         key: "outlook_mail",
         entries: [
           {
-            labelKey: "connections.capabilities.entries.outlook_send",
+            labelKey: "connections.capabilities.entries.outlook_search",
             supported: true,
           },
           {
             labelKey: "connections.capabilities.entries.outlook_read",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.outlook_send",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.outlook_reply",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.outlook_folders",
             supported: true,
           },
         ],
@@ -413,7 +417,15 @@
             supported: true,
           },
           {
-            labelKey: "connections.capabilities.entries.outlook_cal_write",
+            labelKey: "connections.capabilities.entries.outlook_cal_create",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.outlook_cal_update",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.outlook_cal_delete",
             supported: true,
           },
         ],
@@ -422,12 +434,22 @@
         key: "onedrive",
         entries: [
           {
+            labelKey: "connections.capabilities.entries.onedrive_search",
+            supported: true,
+          },
+          {
             labelKey: "connections.capabilities.entries.onedrive_read",
+            detailKey: "connections.capabilities.entries.onedrive_detail",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.onedrive_recent",
             supported: true,
           },
           {
             labelKey: "connections.capabilities.entries.onedrive_write",
-            supported: true,
+            detailKey: "connections.capabilities.entries.onedrive_write_detail",
+            supported: false,
           },
         ],
       },

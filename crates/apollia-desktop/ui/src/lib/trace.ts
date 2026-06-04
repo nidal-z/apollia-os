@@ -1,5 +1,5 @@
 /**
- * Types pour la trace d'exécution event-sourced (ADR-088).
+ * Types pour la trace d'exécution event-sourced.
  *
  * Discriminated union sur `kind` : chaque variant a un payload typé. Les
  * `RuntimeEventDto` proviennent soit de `invoke("get_task_trace", ...)`

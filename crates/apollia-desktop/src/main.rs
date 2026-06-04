@@ -876,6 +876,7 @@ fn main() {
             commands::onboarding::process_tour_voice_command,
             commands::mcp::list_mcp_enrichments,
             commands::mcp::list_mcp_servers,
+            commands::mcp::list_mcp_resources,
             commands::mcp::get_mcp_server_detail,
             commands::mcp::add_mcp_server,
             commands::mcp::remove_mcp_server,

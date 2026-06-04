@@ -172,7 +172,7 @@ short description`.
 `SecretStore` backends (Keyring or AgeFile). See `docs/agents/SECURITY.md`.
 
 **NEVER ADR or wiki URLs in `docs/book/` day-one.** Cite ADRs by their bare
-identifier (`ADR-095`) with a global warning in the book introduction that
+identifier (`ADR-018`) with a global warning in the book introduction that
 hyperlinks will be activated post-launch.
 
 **NEVER CSS values in designer briefs.** The designer knows the charter. Briefs
@@ -225,7 +225,7 @@ Reason: maintains the discipline that exposed every CLI bug in the Sprint 43 E2E
 sweep.
 
 **NEVER reintroduce `op` as a skill dispatch key in A2A workers.** Full `skill_id`
-propagation is the canonical path (resolved 2026-05-19). See ADR-098 onward.
+propagation is the canonical path (resolved 2026-05-19). See ADR-023 onward.
 
 **NEVER commit with a failing `cargo test --workspace`.** Pre-commit hook enforces
 this; do not bypass.
