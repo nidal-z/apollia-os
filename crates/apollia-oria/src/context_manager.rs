@@ -1,23 +1,24 @@
 //! `ContextManager`: automatic management of the LLM context window.
 //!
 //! Detects when the conversation history approaches the model limit and compacts
-//! it via an LLM summary. The original system prompt (messages\[0\]) is always
-//! preserved; everything else is replaced by a user message containing the
-//! synthesized summary.
+//! it through a graduated pipeline. The original system prompt (messages\[0\]) is
+//! always preserved.
 //!
-//! ## Compaction strategy
+//! ## Graduated compaction
 //!
 //! ```text
 //! maybe_compact(&messages, &llm)
-//!   |-- estimate_tokens(messages)  ->  estimated_tokens
-//!   |-- estimated_tokens / context_limit < threshold  ->  returns messages unchanged
-//!   `-- estimated_tokens / context_limit >= threshold
-//!         |-- summarize(messages, llm)  ->  summary (max summary_max_chars)
-//!         `-- returns [messages[0], User("[Resume...]\n\n{summary}")]
+//!   |-- tier 1: offload oversized tool results to disk (when a store is set)
+//!   |-- count_tokens / context_limit < threshold  ->  returns messages unchanged
+//!   |-- tier 2: keep the last K messages verbatim, summarize the older middle
+//!   |     `-- under the limit now  ->  returns [system, summary, recent K...]
+//!   `-- tier 3: still over  ->  replace everything by a single global summary
 //! ```
 //!
-//! On an LLM failure during synthesis, a fallback text is used
-//! (no crash on a transient error).
+//! On an LLM failure during synthesis, a fallback text is used, so a transient
+//! error never crashes the loop.
+
+use std::sync::Arc;
 
 use apollia_core::ORIAConfig;
 use apollia_llm::{
@@ -44,35 +45,79 @@ pub struct ContextManager {
     ///
     /// ~1000 tokens at 4 chars/token, enough to capture the state of a complex task.
     summary_max_chars: usize,
+    /// Number of most recent messages kept verbatim during tier-2 compaction.
+    ///
+    /// Only the older middle of the history is summarized. The system prompt
+    /// (messages\[0\]) is always preserved on top of this count.
+    recent_verbatim_count: usize,
+    /// Optional store enabling tier-1 offload of oversized tool results.
+    ///
+    /// When `None`, tier 1 is skipped and the pipeline starts at the threshold
+    /// check. Injected via [`ContextManager::with_tool_offload`].
+    tool_offload: Option<Arc<ToolOffloadStore>>,
+    /// Character length above which a `ToolResult` content is offloaded to disk.
+    tool_offload_threshold_chars: usize,
 }
 
 impl ContextManager {
-    /// Create a `ContextManager` with explicit threshold and summary budget.
-    pub fn new(compact_threshold: f32, summary_max_chars: usize) -> Self {
+    /// Create a `ContextManager` with explicit threshold and budgets.
+    ///
+    /// `tool_offload` is the optional tier-1 store; pass `None` to skip offload.
+    /// `tool_offload_threshold_chars` is the per-`ToolResult` size above which a
+    /// result is written to disk. `recent_verbatim_count` is the number of trailing
+    /// messages kept verbatim during tier-2 compaction.
+    pub fn new(
+        compact_threshold: f32,
+        summary_max_chars: usize,
+        recent_verbatim_count: usize,
+        tool_offload: Option<Arc<ToolOffloadStore>>,
+        tool_offload_threshold_chars: usize,
+    ) -> Self {
         Self {
             compact_threshold,
             summary_max_chars,
+            recent_verbatim_count,
+            tool_offload,
+            tool_offload_threshold_chars,
         }
     }
 
     /// Create a `ContextManager` from the `[oria]` section of `apollia.toml`.
+    ///
+    /// The tier-1 store is left unset (`None`): it requires a workspace path
+    /// resolved at agent startup and is injected later via
+    /// [`ContextManager::with_tool_offload`].
     pub fn from_config(config: &ORIAConfig) -> Self {
         Self::new(
             config.context_compact_threshold,
             config.context_summary_max_chars,
+            config.recent_verbatim_count,
+            None,
+            config.tool_offload_threshold_chars,
         )
     }
 
-    /// Check whether the messages exceed the threshold and compact if needed.
+    /// Inject the tier-1 offload store, enabling oversized tool-result offload.
+    pub fn with_tool_offload(mut self, store: Arc<ToolOffloadStore>) -> Self {
+        self.tool_offload = Some(store);
+        self
+    }
+
+    /// Run the graduated compaction pipeline and return `(messages, was_compacted)`.
     ///
-    /// Returns `(resulting_messages, was_compacted)`.
+    /// Stages:
+    /// - Tier 1: when a tool-offload store is configured, oversized `ToolResult`
+    ///   contents are written to disk and replaced by a compact stub.
+    /// - Threshold check on the real token count: under it, the (possibly
+    ///   offloaded) messages are returned with `was_compacted = false`.
+    /// - Tier 2: the system prompt and the last `recent_verbatim_count` messages
+    ///   are kept verbatim; the older middle is replaced by one summary message.
+    /// - Tier 3: if tier 2 is still over the limit, the whole history is replaced
+    ///   by a single global summary (`[system, summary]`).
     ///
-    /// When `was_compacted = true`:
-    /// - `result[0]`: the original `messages[0]` preserved verbatim (system prompt)
-    /// - `result[1]`: `User`, an LLM summary of the whole conversation
-    ///
-    /// When `was_compacted = false`, the messages are returned unchanged.
-    /// If `messages` is empty or has a single message, returns unchanged.
+    /// When `was_compacted = false`, `result[0]` is always the original
+    /// `messages[0]`. If `messages` is empty or has a single message, it is
+    /// returned unchanged.
     pub async fn maybe_compact(
         &self,
         messages: &[ChatMessage],
@@ -82,16 +127,32 @@ impl ContextManager {
             return (messages.to_vec(), false);
         }
 
-        let estimated = Self::estimate_tokens(messages);
-        let limit = llm.context_limit();
+        // Tier 1: offload oversized tool results before measuring the window.
+        let messages: Vec<ChatMessage> = match &self.tool_offload {
+            Some(store) => {
+                self.offload_large_tool_results(messages, store, self.tool_offload_threshold_chars)
+            }
+            None => messages.to_vec(),
+        };
 
-        if (estimated as f32 / limit as f32) < self.compact_threshold {
-            return (messages.to_vec(), false);
+        let limit = llm.context_limit();
+        let over_threshold = |msgs: &[ChatMessage]| {
+            (llm.count_tokens(msgs) as f32 / limit as f32) >= self.compact_threshold
+        };
+
+        if !over_threshold(&messages) {
+            return (messages, false);
         }
 
-        let summary = self.summarize(messages, llm).await;
+        // Tier 2: keep the recent tail verbatim, summarize the older middle.
+        let compacted = self.compact_graduated(&messages, llm).await;
+        if !over_threshold(&compacted) {
+            return (compacted, true);
+        }
 
-        let compacted = vec![
+        // Tier 3: collapse the whole history into a single global summary.
+        let summary = self.summarize(&messages, llm).await;
+        let fallback = vec![
             messages[0].clone(),
             ChatMessage {
                 role: Role::User,
@@ -103,7 +164,50 @@ impl ContextManager {
             },
         ];
 
-        (compacted, true)
+        (fallback, true)
+    }
+
+    /// Tier-2 compaction: preserve the system prompt and the last
+    /// `recent_verbatim_count` messages verbatim, replacing the older middle with
+    /// a single summary message.
+    ///
+    /// Returns the messages unchanged when there are not enough older messages to
+    /// be worth summarizing (`len <= recent_verbatim_count + 1`).
+    async fn compact_graduated(
+        &self,
+        messages: &[ChatMessage],
+        llm: &LlmRouter,
+    ) -> Vec<ChatMessage> {
+        let total = messages.len();
+        if total <= self.recent_verbatim_count + 1 {
+            return messages.to_vec();
+        }
+
+        let recent_start = total - self.recent_verbatim_count;
+        let system = &messages[0];
+        let old_messages = &messages[1..recent_start];
+        let recent_messages = &messages[recent_start..];
+
+        let old_summary = if old_messages.is_empty() {
+            String::new()
+        } else {
+            self.summarize_partial(old_messages, llm).await
+        };
+
+        let mut result = Vec::with_capacity(2 + recent_messages.len());
+        result.push(system.clone());
+        if !old_summary.is_empty() {
+            result.push(ChatMessage {
+                role: Role::User,
+                content: MessageContent::Text(format!(
+                    "[Résumé des échanges précédents]\n\n{}",
+                    old_summary
+                )),
+                cache_control: None,
+            });
+        }
+        result.extend_from_slice(recent_messages);
+        result
     }
 
     /// Estimate the token count of a list of messages.
@@ -172,32 +276,43 @@ impl ContextManager {
             .collect()
     }
 
-    /// Generate an LLM summary of the history, truncated to `summary_max_chars`.
+    /// Generate a global LLM summary of the whole history (tier 3), truncated to
+    /// `summary_max_chars`.
     ///
     /// Uses the `LlmRouter`'s default backend. On an error (network, model
     /// unavailable), returns a fallback text without propagating the error.
     async fn summarize(&self, messages: &[ChatMessage], llm: &LlmRouter) -> String {
-        let history = messages
-            .iter()
-            .map(|m| {
-                let role_str = match m.role {
-                    Role::System => "System",
-                    Role::User => "User",
-                    Role::Assistant => "Assistant",
-                    Role::Tool => "Tool",
-                };
-                let preview = message_text_preview(m, 500);
-                format!("{role_str}: {preview}")
-            })
-            .collect::<Vec<_>>()
-            .join("\n\n");
-
         let prompt = format!(
             "Summarize this agent conversation history concisely (max {} chars). \
              Preserve: current task objective, decisions made, files modified, pending steps.\n\n{}",
-            self.summary_max_chars, history
+            self.summary_max_chars,
+            render_history(messages),
         );
+        self.run_summary(prompt, llm).await
+    }
 
+    /// Summarize an older segment of the history (tier 2), truncated to
+    /// `summary_max_chars`.
+    ///
+    /// The prompt is tuned to preserve the operational state needed to keep
+    /// reasoning on the recent verbatim tail: active task, key decisions, files
+    /// modified, errors and their fixes, and pending next steps. Falls back to a
+    /// placeholder on backend error; never panics.
+    async fn summarize_partial(&self, messages: &[ChatMessage], llm: &LlmRouter) -> String {
+        let prompt = format!(
+            "Summarize this earlier segment of an agent conversation concisely (max {} chars). \
+             Preserve: the active task objective, key decisions made, files modified, \
+             errors encountered and their fixes, and pending next steps.\n\n{}",
+            self.summary_max_chars,
+            render_history(messages),
+        );
+        self.run_summary(prompt, llm).await
+    }
+
+    /// Run a summarization `prompt` against the default backend and truncate the
+    /// output to `summary_max_chars` (on a UTF-8 boundary). Returns a fallback
+    /// text when no backend is available or the call fails.
+    async fn run_summary(&self, prompt: String, llm: &LlmRouter) -> String {
         let backend = match llm.get(None) {
             Some(b) => b,
             None => {
@@ -218,14 +333,7 @@ impl ContextManager {
             })
             .await
         {
-            Ok(resp) => {
-                let text = resp.content;
-                if text.len() > self.summary_max_chars {
-                    text[..self.summary_max_chars].to_owned()
-                } else {
-                    text
-                }
-            }
+            Ok(resp) => truncate_on_char_boundary(resp.content, self.summary_max_chars),
             Err(e) => {
                 tracing::warn!(error = %e, "context summarization failed, using fallback");
                 fallback_summary()
@@ -238,6 +346,35 @@ impl ContextManager {
 
 fn fallback_summary() -> String {
     "[Résumé indisponible]\n\n[Session continue avec contexte compacté]".to_owned()
+}
+
+/// Render messages as a role-prefixed, length-capped transcript for summarization.
+fn render_history(messages: &[ChatMessage]) -> String {
+    messages
+        .iter()
+        .map(|m| {
+            let role_str = match m.role {
+                Role::System => "System",
+                Role::User => "User",
+                Role::Assistant => "Assistant",
+                Role::Tool => "Tool",
+            };
+            format!("{role_str}: {}", message_text_preview(m, 500))
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// Truncate `s` to at most `max_bytes`, never splitting a UTF-8 code point.
+fn truncate_on_char_boundary(s: String, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    s[..end].to_owned()
 }
 
 /// Returns the total character length of the text content in a `ChatMessage`.
@@ -338,6 +475,14 @@ mod tests {
         LlmRouter::with_backends(map, "mock")
     }
 
+    fn message_text(msg: &ChatMessage) -> &str {
+        match &msg.content {
+            MessageContent::Text(s) => s.as_str(),
+            MessageContent::ToolResult { content, .. } => content.as_str(),
+            MessageContent::WithToolCalls { text, .. } => text.as_str(),
+        }
+    }
+
     // Tests
 
     /// GIVEN a history estimated at 60% of the window
@@ -346,7 +491,7 @@ mod tests {
     #[tokio::test]
     async fn test_no_compact_below_threshold() {
         // GIVEN
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
         let messages = vec![
             ChatMessage::system("system prompt"),
             ChatMessage::user("hi"),
@@ -367,7 +512,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_above_threshold() {
         // GIVEN
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
         // 600_000 chars / 4 * 1.2 = 180_000 tokens, 90% of 200_000
         let big_content = "x".repeat(600_000);
         let messages = vec![
@@ -412,7 +557,7 @@ mod tests {
     #[tokio::test]
     async fn test_fallback_when_no_backend() {
         // GIVEN
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
         let big_content = "x".repeat(600_000);
         let messages = vec![
             ChatMessage::system("system"),
@@ -438,7 +583,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_messages_no_compact() {
         // GIVEN
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
         let llm = LlmRouter::empty();
 
         // WHEN
@@ -447,6 +592,103 @@ mod tests {
         // THEN
         assert!(!was_compacted);
         assert!(result.is_empty());
+    }
+
+    // Tier-2 graduated compaction
+
+    /// GIVEN a 20-message history above threshold and recent_verbatim_count = 6
+    /// WHEN maybe_compact is called
+    /// THEN the system prompt and the last 6 messages are preserved verbatim and
+    ///      the older middle is replaced by a single summary message
+    #[tokio::test]
+    async fn test_tier2_keeps_recent_verbatim_and_summarizes_old() {
+        // GIVEN
+        let manager = ContextManager::new(0.80, 4000, 6, None, 8000);
+        let mut messages = vec![ChatMessage::system("system prompt")];
+        // 13 large older messages push the history over the 80% threshold.
+        for i in 0..13 {
+            messages.push(ChatMessage::user(format!("{} {}", "x".repeat(45_000), i)));
+        }
+        // 6 small recent messages must survive verbatim.
+        for i in 0..6 {
+            messages.push(ChatMessage::user(format!("recent message {i}")));
+        }
+        let llm = make_llm(MockSummaryModel::with_response("compact summary"));
+
+        // WHEN
+        let (result, was_compacted) = manager.maybe_compact(&messages, &llm).await;
+
+        // THEN
+        assert!(was_compacted);
+        assert_eq!(result.len(), 8); // system + summary + 6 recent
+        assert_eq!(result[0].role, Role::System);
+        assert_eq!(message_text(&result[0]), "system prompt");
+        let summary_text = message_text(&result[1]);
+        assert!(summary_text.contains("[Résumé des échanges précédents]"));
+        assert!(summary_text.contains("compact summary"));
+        for i in 0..6 {
+            assert_eq!(message_text(&result[2 + i]), format!("recent message {i}"));
+        }
+    }
+
+    /// GIVEN a history whose recent tail alone still exceeds the threshold
+    /// WHEN maybe_compact is called
+    /// THEN tier 3 collapses everything to [system, global summary]
+    #[tokio::test]
+    async fn test_tier3_fallback_when_tier2_insufficient() {
+        // GIVEN
+        let manager = ContextManager::new(0.80, 4000, 6, None, 8000);
+        let mut messages = vec![ChatMessage::system("system")];
+        // Even the recent 6 messages are huge, so tier 2 cannot get under the limit.
+        for i in 0..10 {
+            messages.push(ChatMessage::user(format!("{} {}", "y".repeat(100_000), i)));
+        }
+        let llm = make_llm(MockSummaryModel::with_response("global summary"));
+
+        // WHEN
+        let (result, was_compacted) = manager.maybe_compact(&messages, &llm).await;
+
+        // THEN
+        assert!(was_compacted);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].role, Role::System);
+        let summary_text = message_text(&result[1]);
+        assert!(summary_text.contains("[Résumé de la conversation précédente]"));
+        assert!(summary_text.contains("global summary"));
+    }
+
+    /// GIVEN a history that drops below threshold once its big tool result is offloaded
+    /// WHEN maybe_compact runs with a tool-offload store injected
+    /// THEN tier 1 offload happens, no tier 2/3 compaction, was_compacted = false
+    #[tokio::test]
+    async fn test_tier1_offload_below_threshold_no_compaction() {
+        // GIVEN
+        let dir = TempDir::new().expect("tempdir");
+        let store = Arc::new(ToolOffloadStore::new(dir.path().to_path_buf()));
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000).with_tool_offload(store);
+        // One oversized tool result drives the pre-offload history over the threshold.
+        let big = "z".repeat(700_000);
+        let messages = vec![
+            ChatMessage::system("system"),
+            ChatMessage::tool_result("call_01", &big),
+        ];
+        let llm = make_llm(MockSummaryModel::with_response("unused"));
+
+        // WHEN
+        let (result, was_compacted) = manager.maybe_compact(&messages, &llm).await;
+
+        // THEN
+        assert!(!was_compacted);
+        assert_eq!(result.len(), 2);
+        let stub = match &result[1].content {
+            MessageContent::ToolResult { content, .. } => content,
+            _ => panic!("expected ToolResult"),
+        };
+        assert!(stub.starts_with("[resultat deporte:"));
+        assert!(std::fs::read_dir(dir.path())
+            .expect("readdir")
+            .next()
+            .is_some());
     }
 
     // Tier-1 microcompaction: offload_large_tool_results
@@ -464,7 +706,7 @@ mod tests {
         let store = ToolOffloadStore::new(dir.path().to_path_buf());
         let big = "x\n".repeat(4500); // 9000 chars, 4500 lines
         let messages = vec![ChatMessage::tool_result("call_01", &big)];
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
 
         // WHEN
         let result = manager.offload_large_tool_results(&messages, &store, 8000);
@@ -495,7 +737,7 @@ mod tests {
         let dir = TempDir::new().expect("tempdir");
         let store = ToolOffloadStore::new(dir.path().to_path_buf());
         let messages = vec![ChatMessage::tool_result("call_01", &"x".repeat(100))];
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
 
         // WHEN
         let result = manager.offload_large_tool_results(&messages, &store, 8000);
@@ -525,7 +767,7 @@ mod tests {
             " ".repeat(9000)
         );
         let messages = vec![ChatMessage::tool_result("call_01", &stub)];
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
 
         // WHEN
         let result = manager.offload_large_tool_results(&messages, &store, 8000);
@@ -551,7 +793,7 @@ mod tests {
         let store = ToolOffloadStore::new(dir.path().join("does-not-exist"));
         let big = "x".repeat(9000);
         let messages = vec![ChatMessage::tool_result("call_01", &big)];
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
 
         // WHEN
         let result = manager.offload_large_tool_results(&messages, &store, 8000);
@@ -577,7 +819,7 @@ mod tests {
             ChatMessage::user(big.clone()),
             ChatMessage::assistant(big.clone()),
         ];
-        let manager = ContextManager::new(0.80, 4000);
+        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
 
         // WHEN
         let result = manager.offload_large_tool_results(&messages, &store, 8000);
