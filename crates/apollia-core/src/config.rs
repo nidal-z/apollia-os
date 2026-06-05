@@ -53,6 +53,17 @@ pub enum ConfigError {
         /// Configured Unix socket path.
         path: String,
     },
+
+    /// `[llm.routing.hybrid] frontier` is empty or absent.
+    #[error("hybrid routing requires a non-empty frontier backend name")]
+    HybridFrontierMissing,
+
+    /// `[llm.routing.hybrid] cost_ceiling_usd` is not strictly positive.
+    #[error("hybrid routing cost_ceiling_usd must be > 0.0, got {value}")]
+    HybridCeilingInvalid {
+        /// The invalid value supplied.
+        value: f64,
+    },
 }
 
 /// Validates that a numeric value lies in the inclusive interval `[min, max]`.
@@ -1602,6 +1613,66 @@ pub struct LlmRoutingConfig {
     /// Criterion: a deterministic task with verifiable output and low error cost.
     /// Must match the name of a backend declared in `[[llm.backends]]`.
     pub fast: String,
+
+    /// Optional hybrid routing section for frontier escalation.
+    ///
+    /// Declared under `[llm.routing.hybrid]`. `None` (the default) disables
+    /// escalation: behavior is local-only and unchanged. When present, the
+    /// router may escalate to a frontier backend under a per-session cost
+    /// ceiling.
+    ///
+    /// `apollia.toml` example:
+    /// ```toml
+    /// [llm.routing.hybrid]
+    /// frontier         = "claude-opus-4-6"
+    /// cost_ceiling_usd = 1.00
+    /// ```
+    #[serde(default)]
+    pub hybrid: Option<HybridRoutingConfig>,
+}
+
+/// Hybrid routing configuration for optional frontier escalation.
+///
+/// Declared under `[llm.routing.hybrid]` in `apollia.toml`. When this section is
+/// absent, routing behaves as before (local-only, no escalation). When present,
+/// both `frontier` and `cost_ceiling_usd` are required and validated at startup.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HybridRoutingConfig {
+    /// Name of the frontier backend to use when an escalation signal fires.
+    ///
+    /// Must match the name of a backend declared in `[[llm.backends]]`.
+    /// Cannot be empty.
+    pub frontier: String,
+
+    /// Hard per-session cost ceiling in USD.
+    ///
+    /// Escalation is skipped when `session_cost_usd >= cost_ceiling_usd`.
+    /// Must be strictly positive (`> 0.0`). Typical value: `1.00`.
+    pub cost_ceiling_usd: f64,
+}
+
+impl HybridRoutingConfig {
+    /// Validate the hybrid routing config.
+    ///
+    /// Called by the Supervisor at startup, after deserialization and before the
+    /// router is built, so a misconfiguration is caught before the first request
+    /// (fail fast, Principle #4).
+    ///
+    /// # Errors
+    ///
+    /// - [`ConfigError::HybridFrontierMissing`] if `frontier` is empty.
+    /// - [`ConfigError::HybridCeilingInvalid`] if `cost_ceiling_usd <= 0.0`.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.frontier.is_empty() {
+            return Err(ConfigError::HybridFrontierMissing);
+        }
+        if self.cost_ceiling_usd <= 0.0 {
+            return Err(ConfigError::HybridCeilingInvalid {
+                value: self.cost_ceiling_usd,
+            });
+        }
+        Ok(())
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -2654,5 +2725,106 @@ mod autonomy_tests {
         assert_eq!(budget.max_steps, expected.max_steps);
         assert_eq!(budget.max_tool_calls, expected.max_tool_calls);
         assert_eq!(budget.wall_clock_secs, expected.wall_clock_secs);
+    }
+
+    // ── HybridRoutingConfig (STORY-556) ────────────────────────────────────
+
+    #[test]
+    fn test_hybrid_absent_deserializes_to_none() {
+        // GIVEN a routing TOML without a hybrid section
+        let toml_str = r#"
+            precise = "local"
+            fast    = "local"
+        "#;
+
+        // WHEN it is deserialized
+        let routing: LlmRoutingConfig = toml::from_str(toml_str).expect("valid toml");
+
+        // THEN hybrid is None
+        assert!(routing.hybrid.is_none());
+    }
+
+    #[test]
+    fn test_hybrid_complete_deserializes_correctly() {
+        // GIVEN a routing TOML with a complete hybrid section
+        let toml_str = r#"
+            precise = "local"
+            fast    = "local"
+            [hybrid]
+            frontier         = "claude-opus-4-6"
+            cost_ceiling_usd = 2.00
+        "#;
+
+        // WHEN it is deserialized
+        let routing: LlmRoutingConfig = toml::from_str(toml_str).expect("valid toml");
+
+        // THEN hybrid is Some with the supplied values
+        let h = routing.hybrid.expect("hybrid should be Some");
+        assert_eq!(h.frontier, "claude-opus-4-6");
+        assert!((h.cost_ceiling_usd - 2.00).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_validate_rejects_zero_ceiling() {
+        // GIVEN a hybrid config with a zero ceiling
+        let cfg = HybridRoutingConfig {
+            frontier: "claude-opus-4-6".to_owned(),
+            cost_ceiling_usd: 0.0,
+        };
+
+        // WHEN validate is called
+        let result = cfg.validate();
+
+        // THEN it is rejected as an invalid ceiling
+        assert!(matches!(
+            result,
+            Err(ConfigError::HybridCeilingInvalid { .. })
+        ));
+    }
+
+    #[test]
+    fn test_validate_rejects_empty_frontier() {
+        // GIVEN a hybrid config with an empty frontier
+        let cfg = HybridRoutingConfig {
+            frontier: String::new(),
+            cost_ceiling_usd: 1.00,
+        };
+
+        // WHEN validate is called
+        let result = cfg.validate();
+
+        // THEN it is rejected as a missing frontier
+        assert!(matches!(result, Err(ConfigError::HybridFrontierMissing)));
+    }
+
+    #[test]
+    fn test_validate_rejects_negative_ceiling() {
+        // GIVEN a hybrid config with a negative ceiling
+        let cfg = HybridRoutingConfig {
+            frontier: "claude-opus-4-6".to_owned(),
+            cost_ceiling_usd: -0.5,
+        };
+
+        // WHEN validate is called
+        let result = cfg.validate();
+
+        // THEN it is rejected as an invalid ceiling carrying the negative value
+        assert!(matches!(
+            result,
+            Err(ConfigError::HybridCeilingInvalid { value }) if value < 0.0
+        ));
+    }
+
+    #[test]
+    fn test_validate_accepts_complete_hybrid() {
+        // GIVEN a valid hybrid config
+        let cfg = HybridRoutingConfig {
+            frontier: "claude-opus-4-6".to_owned(),
+            cost_ceiling_usd: 1.00,
+        };
+
+        // WHEN validate is called
+        // THEN it succeeds
+        assert!(cfg.validate().is_ok());
     }
 }
