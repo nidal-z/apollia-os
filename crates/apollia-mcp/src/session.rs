@@ -203,6 +203,22 @@ pub enum McpSessionError {
         /// omitted the header, unusual but technically allowed).
         www_authenticate: String,
     },
+
+    /// The full schema for a tool could not be fetched on demand.
+    ///
+    /// Produced by [`McpSession::fetch_tool_schema`] when the tool name is not
+    /// known to the server, or when the on-demand `tools/list` round-trip fails
+    /// at the transport level. In [`LoadingMode::Deferred`] this is the typed
+    /// failure that replaces a silently empty schema (principle: fail fast).
+    #[error("server '{server}' schema fetch failed for tool '{tool}': {cause}")]
+    SchemaFetchFailed {
+        /// MCP server name.
+        server: String,
+        /// Tool name within the server.
+        tool: String,
+        /// Underlying cause: a transport error message or `"tool not found"`.
+        cause: String,
+    },
 }
 
 /// Build the human-readable `stderr_hint` suffix for handshake / call timeout
@@ -214,6 +230,40 @@ fn format_stderr_hint(tail: &[String]) -> String {
         return String::new();
     }
     format!("; stderr: {}", tail.join(" | "))
+}
+
+// ─── loading mode ──────────────────────────────────────────────────────────
+
+/// Strategy for loading MCP tool schemas at session start.
+///
+/// `Eager` preserves the historical behavior: every tool schema is fetched at
+/// boot via `tools/list` and stored in [`McpSession::tools`]. `Deferred` fetches
+/// only a lightweight name/description index at boot
+/// ([`McpSession::tool_index`]); full schemas are fetched and cached on first
+/// use via [`McpSession::fetch_tool_schema`]. Deferred mode keeps the context
+/// cost near zero for large MCP ecosystems on local models with narrow windows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoadingMode {
+    /// Load all tool schemas during `start()`. This is the default and the
+    /// backward-compatible path for [`McpSession::start`].
+    Eager,
+    /// Load only the index of tool names and descriptions at boot. Full schemas
+    /// are fetched and cached on first use.
+    Deferred,
+}
+
+/// A lightweight entry in the deferred tool index.
+///
+/// Populated from a `tools/list` response when running in
+/// [`LoadingMode::Deferred`]. The tool's `input_schema` is intentionally
+/// omitted to keep the index cheap; it is fetched on demand by
+/// [`McpSession::fetch_tool_schema`].
+#[derive(Debug, Clone)]
+pub struct ToolIndexEntry {
+    /// Tool name within the server (e.g. `"search_pages"`).
+    pub name: String,
+    /// Human-readable description, when provided by the server.
+    pub description: Option<String>,
 }
 
 // ─── session ─────────────────────────────────────────────────────────────────
@@ -236,8 +286,27 @@ pub struct McpSession {
     capabilities: ServerCapabilities,
     /// Server identity received during the initialize handshake.
     server_info: ServerInfo,
-    /// Tools discovered via `tools/list`.
+    /// Free-text operator guidance returned by the server in `initialize`,
+    /// or `None` when the server omitted the `instructions` field.
+    instructions: Option<String>,
+    /// Tools discovered via `tools/list`. Populated in [`LoadingMode::Eager`];
+    /// stays empty in [`LoadingMode::Deferred`] (see `tool_index`).
     tools: Vec<McpToolDefinition>,
+    /// Loading strategy chosen at construction time.
+    loading_mode: LoadingMode,
+    /// Lightweight index of tool names and descriptions.
+    ///
+    /// Populated by `discover_tools_index` in [`LoadingMode::Deferred`] after the
+    /// boot `tools/list`. Empty in [`LoadingMode::Eager`] (schemas live in
+    /// `tools`).
+    tool_index: Vec<ToolIndexEntry>,
+    /// Cache of full JSON schemas keyed by tool name.
+    ///
+    /// Populated lazily by [`McpSession::fetch_tool_schema`] in
+    /// [`LoadingMode::Deferred`]. Stays empty in [`LoadingMode::Eager`], where
+    /// schemas are read directly from `tools`. Owned by the session, never shared
+    /// across actors.
+    schema_cache: HashMap<String, serde_json::Value>,
     /// Instant at which the session was successfully started.
     started_at: std::time::Instant,
     /// Operational health, mutated by the manager after each operation.
@@ -251,15 +320,45 @@ pub struct McpSession {
 }
 
 impl McpSession {
-    /// Connect the transport and perform the MCP `initialize` handshake.
+    /// Connect the transport and perform the MCP `initialize` handshake in the
+    /// default [`LoadingMode::Eager`].
     ///
     /// Resolves `${VAR}` placeholders in `config.env` before spawning. Placeholders
     /// prefixed with `APOLLIA_SECRET:` are resolved via `secret_store` when provided.
-    /// On success, returns a session that is ready to accept `tools/list` and
-    /// `tools/call` requests.
+    /// On success, returns a session whose every tool schema is already loaded and
+    /// ready to accept `tools/list` and `tools/call` requests.
+    ///
+    /// Equivalent to [`McpSession::start_with_mode`] with [`LoadingMode::Eager`];
+    /// the signature is preserved for backward compatibility.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpSessionError`] when the subprocess cannot be spawned, the
+    /// `initialize` handshake fails or times out, or `tools/list` cannot be read.
     pub async fn start(
         config: McpServerConfig,
         secret_store: Option<&dyn SecretResolver>,
+    ) -> Result<Self, McpSessionError> {
+        Self::start_with_mode(config, secret_store, LoadingMode::Eager).await
+    }
+
+    /// Connect the transport and perform the MCP `initialize` handshake with an
+    /// explicit [`LoadingMode`].
+    ///
+    /// In [`LoadingMode::Eager`] this behaves exactly like [`McpSession::start`]:
+    /// all tool schemas are fetched at boot. In [`LoadingMode::Deferred`] only the
+    /// lightweight tool index (names and descriptions) is populated at boot;
+    /// schemas are fetched on demand via [`McpSession::fetch_tool_schema`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpSessionError`] when the subprocess cannot be spawned, the
+    /// `initialize` handshake fails or times out, or the boot `tools/list` cannot
+    /// be read.
+    pub async fn start_with_mode(
+        config: McpServerConfig,
+        secret_store: Option<&dyn SecretResolver>,
+        mode: LoadingMode,
     ) -> Result<Self, McpSessionError> {
         let resolved_env =
             config
@@ -293,14 +392,21 @@ impl McpSession {
                 name: String::new(),
                 version: None,
             },
+            instructions: None,
             tools: Vec::new(),
+            loading_mode: mode,
+            tool_index: Vec::new(),
+            schema_cache: HashMap::new(),
             started_at: std::time::Instant::now(),
             health: McpHealth::Healthy { verified: false },
             _dispatch_task: dispatch_task,
         };
 
         session.initialize().await?;
-        session.discover_tools().await?;
+        match mode {
+            LoadingMode::Eager => session.discover_tools().await?,
+            LoadingMode::Deferred => session.discover_tools_index().await?,
+        }
 
         Ok(session)
     }
@@ -352,6 +458,7 @@ impl McpSession {
 
         self.capabilities = init_result.capabilities;
         self.server_info = init_result.server_info;
+        self.instructions = init_result.instructions;
 
         self.send_notification("notifications/initialized", None)
             .await?;
@@ -384,6 +491,45 @@ impl McpSession {
         }
 
         self.tools = result.tools;
+        Ok(())
+    }
+
+    /// Discover only the lightweight tool index (names and descriptions) via
+    /// `tools/list`.
+    ///
+    /// Called at the end of `start_with_mode` in [`LoadingMode::Deferred`]. The
+    /// full `tools/list` response is parsed, but only `{name, description}` is
+    /// retained in `tool_index`; the `tools` field stays empty and schemas are
+    /// fetched on demand by [`McpSession::fetch_tool_schema`].
+    async fn discover_tools_index(&mut self) -> Result<(), McpSessionError> {
+        let timeout_secs = self.config.init_timeout_secs;
+        let response = self.send_request("tools/list", None, timeout_secs).await?;
+
+        let result: ToolsListResult =
+            serde_json::from_value(response).map_err(|e| McpSessionError::InitializeFailed {
+                server: self.config.name.clone(),
+                cause: e.to_string(),
+            })?;
+
+        self.tool_index = result
+            .tools
+            .into_iter()
+            .map(|tool| ToolIndexEntry {
+                name: tool.name,
+                description: tool.description,
+            })
+            .collect();
+
+        tracing::info!(
+            server = %self.config.name,
+            tools_count = self.tool_index.len(),
+            "MCP deferred tool index discovered"
+        );
+
+        if self.tool_index.is_empty() {
+            tracing::warn!(server = %self.config.name, "MCP server exposes no tools");
+        }
+
         Ok(())
     }
 
@@ -490,9 +636,94 @@ impl McpSession {
         &self.server_info
     }
 
+    /// Returns the server-level `instructions` from the `initialize` handshake,
+    /// or `None` when the server omitted them.
+    ///
+    /// The value is returned verbatim; an empty string is reported as
+    /// `Some("")`, leaving the decision to treat it as absent to the caller.
+    pub fn instructions(&self) -> Option<&str> {
+        self.instructions.as_deref()
+    }
+
     /// Returns the tools discovered via `tools/list`, or an empty slice before discovery.
+    ///
+    /// Populated in [`LoadingMode::Eager`]. In [`LoadingMode::Deferred`] this is
+    /// empty; use [`McpSession::tool_index`] instead.
     pub fn tools(&self) -> &[McpToolDefinition] {
         &self.tools
+    }
+
+    /// Returns the lightweight tool index, populated in [`LoadingMode::Deferred`].
+    ///
+    /// Returns an empty slice in [`LoadingMode::Eager`] (use [`McpSession::tools`]
+    /// instead).
+    pub fn tool_index(&self) -> &[ToolIndexEntry] {
+        &self.tool_index
+    }
+
+    /// Fetch and cache the full JSON schema for a named tool.
+    ///
+    /// In [`LoadingMode::Eager`] the schema is read from the already-loaded
+    /// `tools` slice with no network round-trip. In [`LoadingMode::Deferred`] the
+    /// first miss triggers a single `tools/list` call whose every schema is
+    /// cached; subsequent calls for any tool are served from `schema_cache`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpSessionError::SchemaFetchFailed`] when the tool name is not
+    /// known to the server, or when the on-demand `tools/list` round-trip fails
+    /// at the transport level.
+    pub async fn fetch_tool_schema(
+        &mut self,
+        tool_name: &str,
+    ) -> Result<serde_json::Value, McpSessionError> {
+        match self.loading_mode {
+            LoadingMode::Eager => self
+                .tools
+                .iter()
+                .find(|tool| tool.name == tool_name)
+                .map(|tool| tool.input_schema.clone())
+                .ok_or_else(|| McpSessionError::SchemaFetchFailed {
+                    server: self.config.name.clone(),
+                    tool: tool_name.to_string(),
+                    cause: "tool not found".to_string(),
+                }),
+            LoadingMode::Deferred => {
+                if let Some(schema) = self.schema_cache.get(tool_name) {
+                    return Ok(schema.clone());
+                }
+
+                let timeout_secs = self.config.init_timeout_secs;
+                let response = self
+                    .send_request("tools/list", None, timeout_secs)
+                    .await
+                    .map_err(|e| McpSessionError::SchemaFetchFailed {
+                        server: self.config.name.clone(),
+                        tool: tool_name.to_string(),
+                        cause: e.to_string(),
+                    })?;
+
+                let result: ToolsListResult = serde_json::from_value(response).map_err(|e| {
+                    McpSessionError::SchemaFetchFailed {
+                        server: self.config.name.clone(),
+                        tool: tool_name.to_string(),
+                        cause: e.to_string(),
+                    }
+                })?;
+
+                for tool in result.tools {
+                    self.schema_cache.insert(tool.name, tool.input_schema);
+                }
+
+                self.schema_cache.get(tool_name).cloned().ok_or_else(|| {
+                    McpSessionError::SchemaFetchFailed {
+                        server: self.config.name.clone(),
+                        tool: tool_name.to_string(),
+                        cause: "tool not found".to_string(),
+                    }
+                })
+            }
+        }
     }
 
     /// Returns whether every tool call to this server requires HITL approval.
@@ -822,6 +1053,32 @@ mod tests {
         // WHEN / THEN
         assert!(error.to_string().contains("notion"));
         assert!(error.to_string().contains("command not found"));
+    }
+
+    #[test]
+    fn test_schema_fetch_failed_display() {
+        // GIVEN a deferred-mode schema fetch failure
+        let error = McpSessionError::SchemaFetchFailed {
+            server: "notion".to_string(),
+            tool: "search_pages".to_string(),
+            cause: "tool not found".to_string(),
+        };
+        // WHEN / THEN the message carries server, tool, and cause
+        let display = error.to_string();
+        assert!(display.contains("notion"));
+        assert!(display.contains("search_pages"));
+        assert!(display.contains("tool not found"));
+    }
+
+    #[test]
+    fn test_loading_mode_is_copy_and_comparable() {
+        // GIVEN the two loading modes
+        let eager = LoadingMode::Eager;
+        // WHEN copied (Copy) and compared (Eq)
+        let also_eager = eager;
+        // THEN equality and inequality hold without moving the value
+        assert_eq!(eager, also_eager);
+        assert_ne!(LoadingMode::Eager, LoadingMode::Deferred);
     }
 
     #[test]

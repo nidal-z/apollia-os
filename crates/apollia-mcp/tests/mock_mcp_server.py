@@ -27,7 +27,8 @@ def main():
             respond(request_id, {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "mock-mcp-server", "version": "1.0.0"}
+                "serverInfo": {"name": "mock-mcp-server", "version": "1.0.0"},
+                "instructions": "Use this mock server for echo and add tools."
             })
         elif method == "notifications/initialized":
             pass  # notification, no response

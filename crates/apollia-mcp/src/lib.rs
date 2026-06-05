@@ -27,6 +27,7 @@ pub mod server_repository;
 pub mod server_tools;
 pub mod server_types;
 pub mod session;
+pub mod tool_search;
 pub mod transport;
 
 pub use approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};

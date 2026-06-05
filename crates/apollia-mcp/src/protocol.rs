@@ -82,6 +82,14 @@ pub struct InitializeResult {
     /// Identity of the connected server.
     #[serde(rename = "serverInfo")]
     pub server_info: ServerInfo,
+    /// Free-text operator guidance returned by the server.
+    ///
+    /// Defined by the MCP spec (2025-11-25) as an optional field in the
+    /// `initialize` response. Servers that omit it deserialize to `None`; no
+    /// retry or degradation is triggered. Filtering an empty string (`Some("")`)
+    /// is left to the caller.
+    #[serde(default)]
+    pub instructions: Option<String>,
 }
 
 /// Capabilities advertised by the server in `initialize` response.
@@ -579,6 +587,69 @@ mod tests {
         assert_eq!(result.protocol_version, "2024-11-05");
         assert_eq!(result.server_info.name, "test-server");
         assert!(result.capabilities.tools.is_some());
+    }
+
+    #[test]
+    fn test_initialize_result_with_instructions() {
+        // GIVEN an initialize response that carries server instructions
+        let json_str = r#"{
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "serverInfo": {"name": "notion"},
+            "instructions": "Use this server for Notion pages."
+        }"#;
+        // WHEN deserialized
+        let result: InitializeResult = serde_json::from_str(json_str).unwrap();
+        // THEN the instructions are surfaced verbatim
+        assert_eq!(
+            result.instructions.as_deref(),
+            Some("Use this server for Notion pages.")
+        );
+    }
+
+    #[test]
+    fn test_initialize_result_without_instructions_is_none() {
+        // GIVEN an initialize response that omits the instructions field
+        let json_str = r#"{
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "serverInfo": {"name": "notion"}
+        }"#;
+        // WHEN deserialized
+        let result: InitializeResult = serde_json::from_str(json_str).unwrap();
+        // THEN deserialization succeeds and instructions are absent
+        assert!(result.instructions.is_none());
+    }
+
+    #[test]
+    fn test_initialize_result_empty_instructions_is_some_empty() {
+        // GIVEN an initialize response with an empty instructions string
+        let json_str = r#"{
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "serverInfo": {"name": "notion"},
+            "instructions": ""
+        }"#;
+        // WHEN deserialized
+        let result: InitializeResult = serde_json::from_str(json_str).unwrap();
+        // THEN the empty value is preserved as Some(""), not filtered to None
+        assert_eq!(result.instructions.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn test_initialize_result_wrong_instructions_type_errors() {
+        // GIVEN an initialize response where instructions is a number
+        let json = json!({
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "serverInfo": {"name": "notion"},
+            "instructions": 42
+        });
+        // WHEN deserialized into InitializeResult
+        let result: Result<InitializeResult, _> = serde_json::from_value(json);
+        // THEN a serde error is produced (no panic), which the session maps to
+        // McpSessionError::InitializeFailed
+        assert!(result.is_err());
     }
 
     #[test]
