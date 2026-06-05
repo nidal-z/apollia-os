@@ -153,9 +153,6 @@ mod tests {
         // THEN is_ok holds, and not for the others
         assert!(McpHealth::Healthy { verified: false }.is_ok());
         assert!(McpHealth::Healthy { verified: true }.is_ok());
-        assert!(!McpHealth::NeedsReauth {
-            reason: "x".into()
-        }
-        .is_ok());
+        assert!(!McpHealth::NeedsReauth { reason: "x".into() }.is_ok());
     }
 }

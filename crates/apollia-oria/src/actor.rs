@@ -1086,12 +1086,7 @@ impl ActorLoop {
                         self.persist_step_failure(&step_id, &e.to_string());
                         self.emit_step_failed(&step_id, &e.to_string(), true);
                         return self
-                            .replan_and_continue(
-                                step_id,
-                                e.to_string(),
-                                completed_outputs,
-                                deps,
-                            )
+                            .replan_and_continue(step_id, e.to_string(), completed_outputs, deps)
                             .await;
                     }
 
@@ -1142,7 +1137,10 @@ impl ActorLoop {
     /// Shared by every error arm before more specific plan-level handling.
     /// DB errors are logged and ignored (fire-and-forget).
     fn persist_step_failure(&self, step_id: &str, error_msg: &str) {
-        if let Err(e) = self.db.save_step_error(step_id, &self.plan.plan_id, error_msg) {
+        if let Err(e) = self
+            .db
+            .save_step_error(step_id, &self.plan.plan_id, error_msg)
+        {
             tracing::warn!(error = %e, step_id = %step_id, "save_step_error DB call failed (ignored)");
         }
         if let Err(e) = self.db.fail_step(&self.plan.plan_id, step_id, error_msg) {
@@ -1283,7 +1281,10 @@ impl ActorLoop {
             tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
         }
         let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
-        if let Err(e) = self.db.save_step_tool(step_id, &self.plan.plan_id, actual_tool) {
+        if let Err(e) = self
+            .db
+            .save_step_tool(step_id, &self.plan.plan_id, actual_tool)
+        {
             tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
         }
     }

@@ -498,7 +498,12 @@ impl ResilienceLayer {
                 }
                 Err(err_msg) => {
                     let error_class = error_classifier(&err_msg);
-                    attempts.push(build_failed_attempt(attempt, started_at, &err_msg, &error_class));
+                    attempts.push(build_failed_attempt(
+                        attempt,
+                        started_at,
+                        &err_msg,
+                        &error_class,
+                    ));
 
                     if error_class != ErrorClass::Transient {
                         return (Err(ResilienceError::ExecutionFailed(err_msg)), attempts);
