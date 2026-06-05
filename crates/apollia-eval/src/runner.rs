@@ -1,0 +1,415 @@
+//! The evaluation runner: executes each task N times and aggregates metrics.
+//!
+//! The runner orchestrates; the [`RuntimeClient`] (injected) talks to the
+//! runtime; [`crate::metrics`] holds the records. The client is a trait so the
+//! runner is testable in pure Rust with a mock, without a live daemon. A run
+//! whose client call errors, or whose assertion fails, counts as a failure
+//! without stopping the aggregation.
+
+use std::future::Future;
+use std::path::Path;
+
+use regex::Regex;
+
+use crate::metrics::{RunMetrics, SuiteReport, TaskReport};
+use crate::suite::{Assertion, EvalSuite, EvalTask, OutputChannel};
+use crate::EvalError;
+
+/// Drives the live runtime for one agent task. Injected so the runner is testable.
+pub trait RuntimeClient: Send + Sync {
+    /// Runs one task once, returning the raw outcome or a typed error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EvalError::Runtime`] when the task cannot be driven against the
+    /// runtime (connection refused, timeout, protocol error).
+    fn run_once(
+        &self,
+        task: &EvalTask,
+    ) -> impl Future<Output = Result<RunOutcome, EvalError>> + Send;
+}
+
+/// The raw outcome of a single task run, before assertions are applied.
+#[derive(Debug, Clone)]
+pub struct RunOutcome {
+    /// Streamed standard output of the run.
+    pub stdout: String,
+    /// Final result text of the run.
+    pub result: String,
+    /// Exit code reported by the runtime.
+    pub exit_code: i32,
+    /// Number of execution steps.
+    pub steps: u32,
+    /// Number of tool calls.
+    pub tool_calls: u32,
+    /// Wall-clock duration in milliseconds.
+    pub wall_clock_ms: u64,
+    /// Cost of the run in US dollars.
+    pub cost_usd: f64,
+}
+
+/// Runs an [`EvalSuite`] against an injected [`RuntimeClient`].
+pub struct EvalRunner<C: RuntimeClient> {
+    client: C,
+}
+
+impl<C: RuntimeClient> EvalRunner<C> {
+    /// Creates a runner over the given client.
+    pub fn new(client: C) -> Self {
+        Self { client }
+    }
+
+    /// Runs every task in the suite `runs` times and aggregates the metrics.
+    ///
+    /// # Errors
+    ///
+    /// Always returns `Ok`: a client error on one run is recorded as a failed
+    /// run rather than aborting the suite. The `Result` is kept for forward
+    /// compatibility with fail-fast modes.
+    pub async fn run_suite(&self, suite: &EvalSuite) -> Result<SuiteReport, EvalError> {
+        let mut tasks = Vec::with_capacity(suite.tasks.len());
+        for task in &suite.tasks {
+            tasks.push(self.run_task(task).await);
+        }
+        Ok(SuiteReport {
+            suite: suite.name.clone(),
+            tasks,
+        })
+    }
+
+    /// Runs one task `task.runs` times and aggregates it into a [`TaskReport`].
+    async fn run_task(&self, task: &EvalTask) -> TaskReport {
+        let mut runs_detail = Vec::with_capacity(task.runs as usize);
+        for run_index in 0..task.runs {
+            runs_detail.push(self.run_one(task, run_index).await);
+        }
+        aggregate(task, runs_detail)
+    }
+
+    /// Runs one task once and turns the outcome into a [`RunMetrics`].
+    async fn run_one(&self, task: &EvalTask, run_index: u32) -> RunMetrics {
+        match self.client.run_once(task).await {
+            Ok(outcome) => {
+                let failure_reason = self.evaluate_assertions(&task.assertions, &outcome);
+                RunMetrics {
+                    task_id: task.id.clone(),
+                    run_index,
+                    passed: failure_reason.is_none(),
+                    failure_reason,
+                    exit_code: outcome.exit_code,
+                    steps: outcome.steps,
+                    tool_calls: outcome.tool_calls,
+                    wall_clock_ms: outcome.wall_clock_ms,
+                    cost_usd: outcome.cost_usd,
+                }
+            }
+            Err(error) => RunMetrics {
+                task_id: task.id.clone(),
+                run_index,
+                passed: false,
+                failure_reason: Some(error.to_string()),
+                exit_code: -1,
+                steps: 0,
+                tool_calls: 0,
+                wall_clock_ms: 0,
+                cost_usd: 0.0,
+            },
+        }
+    }
+
+    /// Evaluates the deterministic assertions against a run outcome.
+    ///
+    /// Returns the reason of the first failing assertion, or `None` when all
+    /// hold. [`Assertion::LlmJudge`] is skipped here (non-blocking); it is wired
+    /// in by the judge layer.
+    fn evaluate_assertions(
+        &self,
+        assertions: &[Assertion],
+        outcome: &RunOutcome,
+    ) -> Option<String> {
+        for assertion in assertions {
+            let failure = match assertion {
+                Assertion::ExitCode { equals } => (outcome.exit_code != *equals).then(|| {
+                    format!(
+                        "exit code {} did not equal expected {}",
+                        outcome.exit_code, equals
+                    )
+                }),
+                Assertion::FileExists { path } => (!Path::new(path).exists())
+                    .then(|| format!("expected file does not exist: {path}")),
+                Assertion::Regex { on, pattern } => check_regex(on, pattern, outcome),
+                // Skipped here; the judge layer wires this in.
+                Assertion::LlmJudge { .. } => None,
+            };
+            if failure.is_some() {
+                return failure;
+            }
+        }
+        None
+    }
+}
+
+/// Selects the channel and checks the regex, returning a failure reason or `None`.
+fn check_regex(on: &OutputChannel, pattern: &str, outcome: &RunOutcome) -> Option<String> {
+    let haystack = match on {
+        OutputChannel::Stdout => &outcome.stdout,
+        OutputChannel::Result => &outcome.result,
+    };
+    match Regex::new(pattern) {
+        Ok(re) if re.is_match(haystack) => None,
+        Ok(_) => Some(format!("pattern /{pattern}/ did not match {on:?}")),
+        Err(error) => Some(format!("invalid regex /{pattern}/: {error}")),
+    }
+}
+
+/// Aggregates the per-run records of one task into a [`TaskReport`].
+fn aggregate(task: &EvalTask, runs_detail: Vec<RunMetrics>) -> TaskReport {
+    let runs = runs_detail.len() as u32;
+    let passed = runs_detail.iter().filter(|r| r.passed).count() as u32;
+    let success_rate = if runs == 0 {
+        0.0
+    } else {
+        f64::from(passed) / f64::from(runs)
+    };
+
+    let steps: Vec<u32> = runs_detail.iter().map(|r| r.steps).collect();
+    let tool_calls: Vec<u32> = runs_detail.iter().map(|r| r.tool_calls).collect();
+    let wall: Vec<u64> = runs_detail.iter().map(|r| r.wall_clock_ms).collect();
+    let total_cost_usd = runs_detail.iter().map(|r| r.cost_usd).sum();
+
+    TaskReport {
+        task_id: task.id.clone(),
+        runs,
+        success_rate,
+        median_steps: median(&steps),
+        median_tool_calls: median(&tool_calls),
+        p50_wall_clock_ms: percentile(&wall, 50.0),
+        p95_wall_clock_ms: percentile(&wall, 95.0),
+        total_cost_usd,
+        runs_detail,
+    }
+}
+
+/// Returns the median of `values`, or `0` when empty.
+///
+/// For an even count, the two middle values are averaged (integer division).
+fn median(values: &[u32]) -> u32 {
+    if values.is_empty() {
+        return 0;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_unstable();
+    let mid = sorted.len() / 2;
+    if sorted.len() % 2 == 1 {
+        sorted[mid]
+    } else {
+        (sorted[mid - 1] + sorted[mid]) / 2
+    }
+}
+
+/// Returns the `p`-th percentile of `values` by the nearest-rank method, or `0`
+/// when empty. `p` is a percentage in `[0.0, 100.0]`.
+fn percentile(values: &[u64], p: f64) -> u64 {
+    if values.is_empty() {
+        return 0;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_unstable();
+    let rank = (p / 100.0 * sorted.len() as f64).ceil() as usize;
+    let index = rank.saturating_sub(1).min(sorted.len() - 1);
+    sorted[index]
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    use super::*;
+
+    fn ok_outcome() -> RunOutcome {
+        RunOutcome {
+            stdout: "ok".to_string(),
+            result: "done".to_string(),
+            exit_code: 0,
+            steps: 4,
+            tool_calls: 2,
+            wall_clock_ms: 100,
+            cost_usd: 0.01,
+        }
+    }
+
+    /// A client that always succeeds with a fixed outcome.
+    struct AlwaysPassClient;
+
+    impl RuntimeClient for AlwaysPassClient {
+        async fn run_once(&self, _task: &EvalTask) -> Result<RunOutcome, EvalError> {
+            Ok(ok_outcome())
+        }
+    }
+
+    /// A client that fails on the `fail_on`-th call (1-based) and succeeds otherwise.
+    struct FailOnNthClient {
+        fail_on: u32,
+        counter: AtomicU32,
+    }
+
+    impl RuntimeClient for FailOnNthClient {
+        async fn run_once(&self, _task: &EvalTask) -> Result<RunOutcome, EvalError> {
+            let nth = self.counter.fetch_add(1, Ordering::SeqCst) + 1;
+            if nth == self.fail_on {
+                Err(EvalError::Runtime("simulated socket failure".to_string()))
+            } else {
+                Ok(ok_outcome())
+            }
+        }
+    }
+
+    fn task(id: &str, runs: u32, assertions: Vec<Assertion>) -> EvalTask {
+        EvalTask {
+            id: id.to_string(),
+            prompt: "do a thing".to_string(),
+            runs,
+            agent: None,
+            assertions,
+        }
+    }
+
+    // AC-1
+    #[tokio::test]
+    async fn test_run_suite_all_pass_reports_full_success() {
+        // GIVEN a 1-task suite, runs=5, an always-pass client and a passing assertion
+        let suite = EvalSuite {
+            name: "all-pass".to_string(),
+            tasks: vec![task("t1", 5, vec![Assertion::ExitCode { equals: 0 }])],
+        };
+        let runner = EvalRunner::new(AlwaysPassClient);
+
+        // WHEN running the suite
+        let report = runner
+            .run_suite(&suite)
+            .await
+            .expect("run_suite is infallible");
+
+        // THEN the single task reports a perfect success rate and the medians
+        assert_eq!(report.tasks.len(), 1);
+        let task_report = &report.tasks[0];
+        assert_eq!(task_report.runs, 5);
+        assert!((task_report.success_rate - 1.0).abs() < f64::EPSILON);
+        assert_eq!(task_report.median_steps, 4);
+        assert_eq!(task_report.median_tool_calls, 2);
+        assert_eq!(task_report.p50_wall_clock_ms, 100);
+        assert!((task_report.total_cost_usd - 0.05).abs() < 1e-9);
+    }
+
+    // AC-2 (error case)
+    #[tokio::test]
+    async fn test_run_suite_one_client_error_is_counted_not_panicked() {
+        // GIVEN a client that errors on run 2 of 4
+        let suite = EvalSuite {
+            name: "flaky".to_string(),
+            tasks: vec![task("t1", 4, vec![])],
+        };
+        let runner = EvalRunner::new(FailOnNthClient {
+            fail_on: 2,
+            counter: AtomicU32::new(0),
+        });
+
+        // WHEN running the suite
+        let report = runner
+            .run_suite(&suite)
+            .await
+            .expect("run_suite is infallible");
+
+        // THEN the failed run is counted, the rest aggregate, success_rate is 0.75
+        let task_report = &report.tasks[0];
+        assert_eq!(task_report.runs, 4);
+        assert!((task_report.success_rate - 0.75).abs() < f64::EPSILON);
+        let failed: Vec<&RunMetrics> = task_report
+            .runs_detail
+            .iter()
+            .filter(|r| !r.passed)
+            .collect();
+        assert_eq!(failed.len(), 1);
+        assert!(failed[0]
+            .failure_reason
+            .as_deref()
+            .unwrap_or_default()
+            .contains("simulated socket failure"));
+    }
+
+    // AC-3 (assertion failure on a runtime-success run)
+    #[tokio::test]
+    async fn test_run_marked_failed_when_file_exists_assertion_fails() {
+        // GIVEN a runtime-success run but a FileExists assertion on a missing path
+        let suite = EvalSuite {
+            name: "assert-fail".to_string(),
+            tasks: vec![task(
+                "t1",
+                2,
+                vec![Assertion::FileExists {
+                    path: "/apollia/does/not/exist/42".to_string(),
+                }],
+            )],
+        };
+        let runner = EvalRunner::new(AlwaysPassClient);
+
+        // WHEN running the suite
+        let report = runner
+            .run_suite(&suite)
+            .await
+            .expect("run_suite is infallible");
+
+        // THEN every run is failed with the assertion reason
+        let task_report = &report.tasks[0];
+        assert!((task_report.success_rate - 0.0).abs() < f64::EPSILON);
+        assert!(task_report.runs_detail.iter().all(|r| !r.passed
+            && r.failure_reason
+                .as_deref()
+                .unwrap_or_default()
+                .contains("does not exist")));
+    }
+
+    // AC-4
+    #[tokio::test]
+    async fn test_empty_suite_returns_empty_report() {
+        // GIVEN a suite with no tasks
+        let suite = EvalSuite {
+            name: "empty".to_string(),
+            tasks: vec![],
+        };
+        let runner = EvalRunner::new(AlwaysPassClient);
+
+        // WHEN running the suite
+        let report = runner
+            .run_suite(&suite)
+            .await
+            .expect("run_suite is infallible");
+
+        // THEN the report is empty, no error
+        assert_eq!(report.suite, "empty");
+        assert!(report.tasks.is_empty());
+    }
+
+    #[test]
+    fn test_percentile_on_known_series() {
+        // GIVEN a known ten-value series
+        let series: Vec<u64> = (1..=10).map(|n| n * 10).collect();
+
+        // WHEN computing p50 and p95 by nearest rank
+        // THEN p50 is the 5th value and p95 is the 10th
+        assert_eq!(percentile(&series, 50.0), 50);
+        assert_eq!(percentile(&series, 95.0), 100);
+        // AND an empty series yields zero, not a panic
+        assert_eq!(percentile(&[], 50.0), 0);
+    }
+
+    #[test]
+    fn test_median_even_and_empty() {
+        // GIVEN an even-length series and an empty one
+        // WHEN computing the median
+        // THEN the even case averages the two middle values, the empty case is zero
+        assert_eq!(median(&[10, 20, 30, 40]), 25);
+        assert_eq!(median(&[7]), 7);
+        assert_eq!(median(&[]), 0);
+    }
+}

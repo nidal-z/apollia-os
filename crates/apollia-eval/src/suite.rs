@@ -97,6 +97,10 @@ pub enum EvalError {
         #[source]
         source: std::io::Error,
     },
+
+    /// Driving a task against the runtime failed (connection, timeout, protocol).
+    #[error("runtime error: {0}")]
+    Runtime(String),
 }
 
 impl EvalSuite {
