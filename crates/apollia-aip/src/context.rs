@@ -2701,6 +2701,7 @@ mod tool_proxy_a2a_tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         }
     }
 

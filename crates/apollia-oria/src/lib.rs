@@ -24,6 +24,7 @@ pub mod reasoner;
 pub mod resilience;
 pub mod tool_offload;
 pub mod topo;
+pub mod verification;
 
 pub use resilience::{
     CircuitBreaker, CircuitBreakerSnapshot, CircuitState, ErrorClass, ResilienceError,

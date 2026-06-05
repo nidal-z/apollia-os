@@ -110,6 +110,7 @@ fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
         datasources: vec![],
         templates: vec![],
         secrets: vec![],
+        check_commands: vec![],
     };
     InstalledAgent {
         name: name.to_string(),

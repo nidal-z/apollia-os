@@ -163,6 +163,7 @@ fn onboarding_manifest() -> AgentManifest {
         datasources: vec![],
         templates: vec![],
         secrets: vec![],
+        check_commands: vec![],
     }
 }
 
@@ -269,6 +270,7 @@ fn apollia_guide_manifest() -> AgentManifest {
         datasources: vec![],
         templates: vec![],
         secrets: vec![],
+        check_commands: vec![],
     }
 }
 

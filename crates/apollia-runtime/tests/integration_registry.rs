@@ -34,6 +34,7 @@ fn make_manifest(name: &str) -> AgentManifest {
         datasources: vec![],
         templates: vec![],
         secrets: vec![],
+        check_commands: vec![],
     }
 }
 

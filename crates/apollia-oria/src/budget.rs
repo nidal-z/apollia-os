@@ -328,6 +328,27 @@ mod tests {
         assert_eq!(budget.wall_clock_limit, Duration::from_secs(300));
     }
 
+    // An autonomy tier budget is clamped to the runtime ceiling by from_capped.
+    #[test]
+    fn test_autonomy_tier_budget_clamped_to_runtime_ceiling() {
+        // GIVEN a BoundedAutonomous tier (max_steps = 300) and a ceiling at 100
+        let lc = apollia_core::AutonomyLevelConfig::default_for(
+            apollia_core::AutonomyLevel::BoundedAutonomous,
+        );
+        let ceiling = StepBudgetConfig {
+            max_steps: 100,
+            max_tool_calls: 200,
+            wall_clock_secs: 600,
+        };
+
+        // WHEN building the effective StepBudget via from_capped
+        let budget = StepBudget::from_capped(&lc.budget, &ceiling);
+
+        // THEN the runtime ceiling wins on the constrained dimension
+        assert_eq!(budget.max_steps, 100);
+        assert!(!budget.is_exhausted());
+    }
+
     #[test]
     fn test_exhaustion_reason_steps() {
         // GIVEN a budget with max_steps = 1

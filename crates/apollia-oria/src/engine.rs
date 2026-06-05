@@ -444,11 +444,7 @@ impl ORIAEngine {
     /// ## Mode Orchestrated
     /// Delegates to [`execute_orchestrated_plan`]:
     /// validate, plan, persist, ActorLoop, concat outputs.
-    pub async fn execute(
-        &self,
-        task: AIPTask,
-        agent: &(dyn AIPAgent + Send + Sync),
-    ) -> AIPResult {
+    pub async fn execute(&self, task: AIPTask, agent: &(dyn AIPAgent + Send + Sync)) -> AIPResult {
         let manifest = agent.manifest();
         let mode = classify(
             &task,
@@ -1677,6 +1673,7 @@ mod orchestrated_tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         }
     }
 
@@ -1829,6 +1826,7 @@ mod orchestrated_tests {
                 datasources: vec![],
                 templates: vec![],
                 secrets: vec![],
+                check_commands: vec![],
             },
         };
         let task = AIPTask::default();

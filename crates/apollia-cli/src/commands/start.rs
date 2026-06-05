@@ -1970,6 +1970,7 @@ agent = A()
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         };
 
         struct MockOrchestratedAgent {

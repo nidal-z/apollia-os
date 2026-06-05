@@ -967,6 +967,7 @@ mod tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         }
     }
 
@@ -1586,6 +1587,7 @@ mod a2a_guard_tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         }
     }
 

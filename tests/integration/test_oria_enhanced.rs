@@ -130,6 +130,7 @@ fn make_manifest(
         datasources: vec![],
         templates: vec![],
         secrets: vec![],
+        check_commands: vec![],
     }
 }
 

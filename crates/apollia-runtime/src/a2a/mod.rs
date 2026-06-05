@@ -508,6 +508,7 @@ mod tests {
                 datasources: vec![],
                 templates: vec![],
                 secrets: vec![],
+                check_commands: vec![],
             },
             process_state: state,
             registered_at: Instant::now(),

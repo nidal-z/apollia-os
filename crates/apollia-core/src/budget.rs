@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::config::{AutonomyLevel, AutonomyLevelConfig};
+
 /// Execution budget configuration declared by the agent in its AgentManifest.
 ///
 /// These values are maximum suggestions. The runtime (ORIA StepBudget) applies
@@ -39,6 +41,17 @@ impl StepBudgetConfig {
             max_tool_calls: 200,
             wall_clock_secs: 1200,
         }
+    }
+}
+
+impl AutonomyLevel {
+    /// Effective (uncapped) budget suggested for this tier.
+    ///
+    /// This is the default per-tier budget (see [`AutonomyLevelConfig::default_for`]).
+    /// It is always capped afterwards by `StepBudget::from_capped` against the
+    /// runtime ceiling, so it never raises the budget above the runtime bound.
+    pub fn effective_budget(self) -> StepBudgetConfig {
+        AutonomyLevelConfig::default_for(self).budget
     }
 }
 

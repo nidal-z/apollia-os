@@ -377,6 +377,7 @@ mod tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         }
     }
 
@@ -424,6 +425,7 @@ mod tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         }
     }
 
