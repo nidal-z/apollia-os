@@ -962,3 +962,38 @@ mod tests {
         assert_eq!(content, "thinking <tool_call>{\"name\": \"a\"");
     }
 }
+
+/// Compile-time verification that `llama-cpp-2` exposes the grammar sampler
+/// surface this backend will build on. These tests assert the API contract,
+/// not runtime behavior: loading a real model needs a GGUF file, so the
+/// constrained-decode path is exercised by integration, not here.
+#[cfg(all(test, feature = "local-cpu"))]
+mod spike_gbnf_tests {
+    use llama_cpp_2::model::LlamaModel;
+    use llama_cpp_2::sampling::LlamaSampler;
+    use llama_cpp_2::GrammarError;
+
+    #[test]
+    fn grammar_symbol_has_expected_signature() {
+        // GIVEN the llama-cpp-2 version resolved in Cargo.lock
+        // WHEN binding LlamaSampler::grammar as a typed function pointer
+        // THEN the symbol exists with the (model, grammar_str, grammar_root) signature
+        let _grammar_fn: fn(&LlamaModel, &str, &str) -> Result<LlamaSampler, GrammarError> =
+            LlamaSampler::grammar;
+    }
+
+    #[test]
+    fn grammar_error_variants_are_accessible() {
+        // GIVEN the grammar sampler error type re-exported at the crate root
+        // WHEN matching one of its variants
+        // THEN GrammarError is accessible with the documented variant set
+        let err = GrammarError::NullGrammar;
+        assert!(matches!(
+            err,
+            GrammarError::RootNotFound
+                | GrammarError::TriggerWordNullBytes
+                | GrammarError::GrammarNullBytes
+                | GrammarError::NullGrammar
+        ));
+    }
+}
