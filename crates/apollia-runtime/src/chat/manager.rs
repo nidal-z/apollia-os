@@ -506,6 +506,9 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
             &budget,
             summary.as_deref(),
             context_window_size,
+            None,
+            None,
+            None,
         )
         .await;
 

@@ -24,6 +24,10 @@ use apollia_mcp::tool_search::{tool_search_input_schema, ToolIndexSnapshot};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::context_manager::ContextManager;
+use apollia_oria::verification::{
+    CheckFailure, CheckInvoker, CheckOutcome, Correction, CriticPass, CriticReport,
+    VerificationLoop,
+};
 use apollia_tools::ToolRegistryHandle;
 
 use super::types::{
@@ -750,6 +754,174 @@ pub struct ChatAgentResponse {
     pub tokens_used: TokenUsage,
     /// Concatenated thinking/reasoning blocks extracted from `<think>...</think>` tags.
     pub thinking_trace: Option<String>,
+    /// Present when the autonomy tier is at least supervised and verification ran.
+    /// `None` for the assisted tier or when verification was skipped.
+    pub verification_report: Option<ConsolidatedVerificationReport>,
+}
+
+/// Consolidated result of the full post-run verification pass (checks + critic).
+#[derive(Debug, Clone)]
+pub struct ConsolidatedVerificationReport {
+    /// True when all checks passed and the critic found no corrections.
+    pub passed: bool,
+    /// Failures from the programmed check commands.
+    pub check_failures: Vec<CheckFailure>,
+    /// Corrections proposed by the LLM critic.
+    pub corrections: Vec<Correction>,
+    /// Number of retry iterations performed (0 when verification passed first time).
+    pub retry_iterations: u32,
+}
+
+/// Owned state threaded through the verification retry loop.
+///
+/// Carrying the conversation buffer and the latest response by value (rather
+/// than borrowing them in the retry closure) keeps the closure's future free of
+/// borrowed locals, so the spawned execute future stays `Send`.
+struct RetryCarry {
+    /// The running LLM message buffer, appended with each correction turn.
+    messages: Vec<LlmChatMessage>,
+    /// The most recent terminal response from the ReAct loop.
+    last_response: ChatAgentResponse,
+}
+
+/// Maximum number of verification retry iterations per run.
+///
+/// Bounded to a small number so a failing check cannot loop indefinitely; each
+/// retry still consumes from the shared [`StepBudget`].
+const VERIFICATION_MAX_RETRIES: u32 = 2;
+
+/// A [`CheckInvoker`] that never executes anything.
+///
+/// Chat Libre declares no manifest check commands, so the [`VerificationLoop`]
+/// resolves an empty command list and never calls the invoker. This placeholder
+/// satisfies the generic bound without spawning processes.
+struct NoopCheckInvoker;
+
+impl CheckInvoker for NoopCheckInvoker {
+    async fn invoke_check(&self, _command: &str) -> Result<CheckOutcome, String> {
+        Ok(CheckOutcome {
+            exit_code: 0,
+            stderr: String::new(),
+        })
+    }
+}
+
+/// Run the optional critic pass, treating an absent critic as a skipped success.
+async fn run_critic_pass(
+    critic: Option<&CriticPass>,
+    objective: &str,
+    output: &str,
+) -> CriticReport {
+    match critic {
+        Some(critic) => critic.run(objective, output).await,
+        None => CriticReport {
+            passed: true,
+            corrections: Vec::new(),
+            skipped: true,
+        },
+    }
+}
+
+/// Build the correction message injected into the LLM context for a retry turn.
+///
+/// Emits an XML-like, English block listing the failed checks and the critic
+/// corrections, followed by an instruction to address them. The format is meant
+/// to be parsed by the model, not displayed to the user.
+fn correction_message(check_failures: &[CheckFailure], corrections: &[Correction]) -> String {
+    let mut msg = String::from("<verification_feedback>\n  <check_failures>\n");
+    for failure in check_failures {
+        msg.push_str(&format!(
+            "    <check command=\"{}\" exit_code=\"{}\">{}</check>\n",
+            failure.command, failure.exit_code, failure.stderr
+        ));
+    }
+    msg.push_str("  </check_failures>\n  <corrections>\n");
+    for correction in corrections {
+        msg.push_str(&format!(
+            "    <correction kind=\"{}\">\n      <description>{}</description>\n      \
+             <suggestion>{}</suggestion>\n    </correction>\n",
+            correction.kind, correction.description, correction.suggestion
+        ));
+    }
+    msg.push_str("  </corrections>\n");
+    msg.push_str(
+        "  <instruction>Please address the issues above and provide a corrected \
+         output.</instruction>\n",
+    );
+    msg.push_str("</verification_feedback>");
+    msg
+}
+
+/// Run the post-loop verification (checks + critic) with a bounded retry.
+///
+/// Returns `None` when the tier is assisted or when no [`VerificationLoop`] is
+/// configured. Otherwise it runs the checks and the optional critic on the
+/// initial output; on failure it injects a correction and re-runs the loop via
+/// `retry_fn`, up to `max_retries` times, stopping early when the budget is
+/// exhausted. The budget is the hard ceiling: no retry starts once it is spent.
+///
+/// The retry state `state` is threaded by value through `retry_fn`, which always
+/// returns it back alongside the new output (or an error). Owning the state
+/// avoids capturing borrowed locals in the retry closure, which keeps the
+/// returned future `Send` for `tokio::spawn`. The second tuple element is the
+/// final state so the caller can recover the latest run's response.
+#[allow(clippy::too_many_arguments)]
+async fn run_verification_with_retry<I, S, F, Fut>(
+    autonomy: &AutonomyLevel,
+    verification: Option<&VerificationLoop>,
+    critic: Option<&CriticPass>,
+    invoker: &I,
+    objective: &str,
+    agent_output: &str,
+    budget: &StepBudget,
+    max_retries: u32,
+    initial_state: S,
+    mut retry_fn: F,
+) -> (Option<ConsolidatedVerificationReport>, S)
+where
+    I: CheckInvoker,
+    F: FnMut(S, String) -> Fut,
+    Fut: std::future::Future<Output = (Result<String, ChatError>, S)>,
+{
+    if matches!(autonomy, AutonomyLevel::Assisted) {
+        return (None, initial_state);
+    }
+    let Some(verification) = verification else {
+        return (None, initial_state);
+    };
+
+    let mut state = initial_state;
+    let mut current_output = agent_output.to_string();
+    let mut retry_iterations = 0;
+
+    let mut check_report = verification.run(invoker).await;
+    let mut critic_report = run_critic_pass(critic, objective, &current_output).await;
+    let mut passed = check_report.passed && critic_report.passed;
+
+    while !passed && retry_iterations < max_retries && !budget.is_exhausted() {
+        let message = correction_message(&check_report.failures, &critic_report.corrections);
+        let (result, next_state) = retry_fn(state, message).await;
+        state = next_state;
+        match result {
+            Ok(new_output) => current_output = new_output,
+            Err(error) => {
+                tracing::warn!(error = %error, "chat.verification.retry_failed");
+                break;
+            }
+        }
+        retry_iterations += 1;
+        check_report = verification.run(invoker).await;
+        critic_report = run_critic_pass(critic, objective, &current_output).await;
+        passed = check_report.passed && critic_report.passed;
+    }
+
+    let report = ConsolidatedVerificationReport {
+        passed,
+        check_failures: check_report.failures,
+        corrections: critic_report.corrections,
+        retry_iterations,
+    };
+    (Some(report), state)
 }
 
 /// Dependencies required to construct a [`BuiltInChatAgent`].
@@ -826,6 +998,7 @@ struct ToolCallContext<'a> {
 
 /// Borrowed identifiers shared by every tool call in a single ReAct turn
 /// (the per-call [`ToolCall`] is supplied separately while iterating).
+#[derive(Clone, Copy)]
 struct ToolCallContextIds<'a> {
     session_id: &'a str,
     message_id: &'a str,
@@ -972,6 +1145,9 @@ impl BuiltInChatAgent {
         budget: &StepBudget,
         summary: Option<&str>,
         context_window_size: usize,
+        autonomy: Option<&AutonomyLevel>,
+        verification: Option<&VerificationLoop>,
+        critic: Option<&CriticPass>,
     ) -> Result<ChatAgentResponse, ChatError> {
         let custom_prompt = if system_prompt.is_empty() {
             None
@@ -1004,6 +1180,93 @@ impl BuiltInChatAgent {
             summary,
             context_window_size,
         );
+
+        let ids = ToolCallContextIds {
+            session_id,
+            message_id,
+            pending_approvals,
+        };
+        let first = self
+            .run_react_loop(
+                &mut llm_messages,
+                &tool_specs,
+                authorized_tools,
+                budget,
+                ids,
+            )
+            .await?;
+
+        // Post-run verification with bounded retry, gated by the autonomy tier.
+        // The verification loop and critic are injected by the manager; when the
+        // tier is assisted, or neither is configured, this is a no-op.
+        let Some(level) = autonomy else {
+            return Ok(first);
+        };
+        let invoker = NoopCheckInvoker;
+        let initial_output = first.content.clone();
+        let tool_specs_ref: &[ToolSpec] = &tool_specs;
+        let carry = RetryCarry {
+            messages: llm_messages,
+            last_response: first,
+        };
+        let (report, carry) = run_verification_with_retry(
+            level,
+            verification,
+            critic,
+            &invoker,
+            user_message,
+            &initial_output,
+            budget,
+            VERIFICATION_MAX_RETRIES,
+            carry,
+            move |mut state: RetryCarry, correction: String| async move {
+                state.messages.push(LlmChatMessage::user(correction));
+                match self
+                    .run_react_loop(
+                        &mut state.messages,
+                        tool_specs_ref,
+                        authorized_tools,
+                        budget,
+                        ids,
+                    )
+                    .await
+                {
+                    Ok(next) => {
+                        let output = next.content.clone();
+                        state.last_response = next;
+                        (Ok(output), state)
+                    }
+                    Err(error) => (Err(error), state),
+                }
+            },
+        )
+        .await;
+        let mut response = carry.last_response;
+        response.verification_report = report;
+        Ok(response)
+    }
+
+    /// Run the ReAct loop to completion and return the terminal response.
+    ///
+    /// Drives the stream/tool-call cycle until the LLM produces a final text
+    /// response, the stream errors, or the [`StepBudget`] is exhausted. The
+    /// caller owns `llm_messages`, so it can append a correction turn and call
+    /// this again for a bounded verification retry.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::BudgetExhausted`] if the step budget is exceeded.
+    /// - [`ChatError::InternalError`] for LLM backend failures.
+    async fn run_react_loop(
+        &self,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        tool_specs: &[ToolSpec],
+        authorized_tools: &HashSet<String>,
+        budget: &StepBudget,
+        ids: ToolCallContextIds<'_>,
+    ) -> Result<ChatAgentResponse, ChatError> {
+        let session_id = ids.session_id;
+        let message_id = ids.message_id;
         let total_usage = TokenUsage {
             prompt_tokens: 0,
             completion_tokens: 0,
@@ -1034,12 +1297,11 @@ impl BuiltInChatAgent {
             budget.increment_steps();
 
             // Compact context if messages approach the model's context limit.
-            self.maybe_compact_context(&mut llm_messages, session_id)
-                .await;
+            self.maybe_compact_context(llm_messages, session_id).await;
 
             let request = CompletionRequest {
                 messages: llm_messages.clone(),
-                tools: tool_specs.clone(),
+                tools: tool_specs.to_vec(),
                 ..Default::default()
             };
 
@@ -1081,14 +1343,10 @@ impl BuiltInChatAgent {
                             accumulated_text: &accumulated_text,
                             tool_calls: &tool_calls,
                             budget,
-                            ids: ToolCallContextIds {
-                                session_id,
-                                message_id,
-                                pending_approvals,
-                            },
+                            ids,
                         },
                         &mut reasoning_fragments,
-                        &mut llm_messages,
+                        llm_messages,
                         &mut acc,
                     )
                     .await;
@@ -1158,6 +1416,7 @@ impl BuiltInChatAgent {
             newly_authorized: acc.newly_authorized,
             tokens_used: total_usage,
             thinking_trace,
+            verification_report: None,
         }
     }
 
@@ -1255,6 +1514,7 @@ impl BuiltInChatAgent {
             newly_authorized: acc.newly_authorized,
             tokens_used: total_usage,
             thinking_trace: None,
+            verification_report: None,
         }
     }
 
@@ -2207,6 +2467,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await;
 
@@ -2264,6 +2527,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await;
 
@@ -2331,6 +2597,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await;
 
@@ -2396,6 +2665,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await;
 
@@ -2464,6 +2736,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await;
 
@@ -2513,6 +2788,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await;
 
@@ -2625,6 +2903,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await
             .expect("should succeed");
@@ -2730,6 +3011,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await
             .expect("should succeed");
@@ -2785,6 +3069,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await
             .expect("should succeed");
@@ -2875,6 +3162,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await
             .expect("should return partial content, not error");
@@ -2994,6 +3284,9 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
             )
             .await
             .expect("should succeed");
@@ -3466,5 +3759,282 @@ mod tests {
             .unwrap();
         // THEN the returned full_name is the directly-invocable identifier
         assert_eq!(out["matches"][0]["full_name"], "mcp:notion/search_pages");
+    }
+}
+
+#[cfg(test)]
+mod verification_wire_tests {
+    use super::*;
+    use apollia_core::StepBudgetConfig;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::{Arc as StdArc, Mutex as StdMutex};
+
+    /// Mock invoker driven by a fixed response sequence; counts every call.
+    struct CountingInvoker {
+        responses: StdArc<StdMutex<Vec<Result<CheckOutcome, String>>>>,
+        call_count: StdArc<AtomicU32>,
+    }
+
+    impl CountingInvoker {
+        fn with_sequence(seq: Vec<Result<CheckOutcome, String>>) -> Self {
+            Self {
+                responses: StdArc::new(StdMutex::new(seq)),
+                call_count: StdArc::new(AtomicU32::new(0)),
+            }
+        }
+
+        fn call_count(&self) -> u32 {
+            self.call_count.load(Ordering::SeqCst)
+        }
+    }
+
+    impl CheckInvoker for CountingInvoker {
+        async fn invoke_check(&self, _command: &str) -> Result<CheckOutcome, String> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            let mut seq = self.responses.lock().unwrap_or_else(|e| e.into_inner());
+            if seq.is_empty() {
+                Ok(CheckOutcome {
+                    exit_code: 0,
+                    stderr: String::new(),
+                })
+            } else {
+                seq.remove(0)
+            }
+        }
+    }
+
+    fn ok_check() -> Result<CheckOutcome, String> {
+        Ok(CheckOutcome {
+            exit_code: 0,
+            stderr: String::new(),
+        })
+    }
+
+    fn failed_check() -> Result<CheckOutcome, String> {
+        Ok(CheckOutcome {
+            exit_code: 1,
+            stderr: "echec".into(),
+        })
+    }
+
+    // AC-1: supervised tier, checks pass, no retry.
+    #[tokio::test]
+    async fn test_ac1_supervised_checks_pass_no_retry() {
+        // GIVEN a passing check and a disabled critic at the supervised tier
+        let invoker = CountingInvoker::with_sequence(vec![ok_check()]);
+        let loop_ = VerificationLoop::new(vec!["cargo test".into()], vec![]);
+        let critic = CriticPass::disabled();
+        let budget = StepBudget::new(&StepBudgetConfig {
+            max_steps: 10,
+            max_tool_calls: 20,
+            wall_clock_secs: 300,
+        });
+        let autonomy = AutonomyLevel::Supervised;
+
+        // WHEN running verification with retry
+        let (report, ()) = run_verification_with_retry(
+            &autonomy,
+            Some(&loop_),
+            Some(&critic),
+            &invoker,
+            "objectif",
+            "sortie",
+            &budget,
+            VERIFICATION_MAX_RETRIES,
+            (),
+            |(), _correction: String| async { (Ok("sortie corrigee".to_string()), ()) },
+        )
+        .await;
+
+        // THEN it passes on the first run, no retry, one invocation
+        let report = report.expect("report attendu pour palier supervised");
+        assert!(report.passed);
+        assert_eq!(report.retry_iterations, 0);
+        assert_eq!(invoker.call_count(), 1);
+    }
+
+    // AC-3: budget exhausted before retry, report returned cleanly.
+    #[tokio::test]
+    async fn test_ac3_budget_exhausted_no_retry() {
+        // GIVEN a failing check and a budget with no steps left
+        let budget = StepBudget::new(&StepBudgetConfig {
+            max_steps: 0,
+            max_tool_calls: 20,
+            wall_clock_secs: 300,
+        });
+        let invoker = CountingInvoker::with_sequence(vec![failed_check()]);
+        let loop_ = VerificationLoop::new(vec!["cargo test".into()], vec![]);
+        let critic = CriticPass::disabled();
+        let autonomy = AutonomyLevel::Supervised;
+
+        // WHEN running verification with retry
+        let (report, ()) = run_verification_with_retry(
+            &autonomy,
+            Some(&loop_),
+            Some(&critic),
+            &invoker,
+            "objectif",
+            "sortie",
+            &budget,
+            VERIFICATION_MAX_RETRIES,
+            (),
+            |(), _correction: String| async { (Ok("sortie".to_string()), ()) },
+        )
+        .await;
+
+        // THEN no retry is attempted and a failing report is returned, not an error
+        let report = report.expect("report attendu meme quand budget epuise");
+        assert!(!report.passed);
+        assert_eq!(report.retry_iterations, 0);
+    }
+
+    // AC-4: assisted tier skips verification entirely.
+    #[tokio::test]
+    async fn test_ac4_assisted_no_verification() {
+        // GIVEN the assisted tier
+        let invoker = CountingInvoker::with_sequence(vec![]);
+        let loop_ = VerificationLoop::new(vec!["cargo test".into()], vec![]);
+        let critic = CriticPass::disabled();
+        let budget = StepBudget::new(&StepBudgetConfig {
+            max_steps: 10,
+            max_tool_calls: 20,
+            wall_clock_secs: 300,
+        });
+        let autonomy = AutonomyLevel::Assisted;
+
+        // WHEN running verification with retry
+        let (report, ()) = run_verification_with_retry(
+            &autonomy,
+            Some(&loop_),
+            Some(&critic),
+            &invoker,
+            "objectif",
+            "sortie",
+            &budget,
+            VERIFICATION_MAX_RETRIES,
+            (),
+            |(), _correction: String| async { (Ok("sortie".to_string()), ()) },
+        )
+        .await;
+
+        // THEN nothing runs and no report is produced
+        assert!(
+            report.is_none(),
+            "Assisted ne doit pas lancer la verification"
+        );
+        assert_eq!(invoker.call_count(), 0);
+    }
+
+    // AC-5: persistent failures stop at the retry bound.
+    #[tokio::test]
+    async fn test_ac5_max_retries_bounded() {
+        // GIVEN checks that always fail and ample budget
+        let invoker = CountingInvoker::with_sequence(vec![
+            failed_check(),
+            failed_check(),
+            failed_check(),
+            failed_check(),
+        ]);
+        let loop_ = VerificationLoop::new(vec!["cargo test".into()], vec![]);
+        let critic = CriticPass::disabled();
+        let budget = StepBudget::new(&StepBudgetConfig {
+            max_steps: 50,
+            max_tool_calls: 100,
+            wall_clock_secs: 300,
+        });
+        let autonomy = AutonomyLevel::Supervised;
+
+        // WHEN running verification with retry
+        let (report, ()) = run_verification_with_retry(
+            &autonomy,
+            Some(&loop_),
+            Some(&critic),
+            &invoker,
+            "objectif",
+            "sortie",
+            &budget,
+            VERIFICATION_MAX_RETRIES,
+            (),
+            |(), _correction: String| async { (Ok("sortie".to_string()), ()) },
+        )
+        .await;
+
+        // THEN exactly max_retries iterations ran (initial + 2 = 3 invocations)
+        let report = report.expect("report attendu");
+        assert!(!report.passed);
+        assert_eq!(report.retry_iterations, VERIFICATION_MAX_RETRIES);
+        assert_eq!(invoker.call_count(), VERIFICATION_MAX_RETRIES + 1);
+    }
+
+    // AC-2: a failure on the first run that the retry resolves.
+    #[tokio::test]
+    async fn test_ac2_retry_resolves_failure() {
+        // GIVEN a check that fails once then passes
+        let invoker = CountingInvoker::with_sequence(vec![failed_check(), ok_check()]);
+        let loop_ = VerificationLoop::new(vec!["cargo test".into()], vec![]);
+        let critic = CriticPass::disabled();
+        let budget = StepBudget::new(&StepBudgetConfig {
+            max_steps: 50,
+            max_tool_calls: 100,
+            wall_clock_secs: 300,
+        });
+        let autonomy = AutonomyLevel::Supervised;
+        let retry_calls = StdArc::new(AtomicU32::new(0));
+        let retry_calls_inner = StdArc::clone(&retry_calls);
+
+        // WHEN running verification with retry
+        let (report, ()) = run_verification_with_retry(
+            &autonomy,
+            Some(&loop_),
+            Some(&critic),
+            &invoker,
+            "objectif",
+            "sortie initiale",
+            &budget,
+            VERIFICATION_MAX_RETRIES,
+            (),
+            move |(), _correction: String| {
+                let counter = StdArc::clone(&retry_calls_inner);
+                async move {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    (Ok("sortie corrigee".to_string()), ())
+                }
+            },
+        )
+        .await;
+
+        // THEN the retry ran once and the final report passes
+        let report = report.expect("report attendu");
+        assert!(report.passed);
+        assert_eq!(report.retry_iterations, 1);
+        assert_eq!(retry_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(invoker.call_count(), 2);
+    }
+
+    // correction_message embeds both failed checks and critic corrections.
+    #[test]
+    fn test_correction_message_contains_failures_and_corrections() {
+        // GIVEN one check failure and one critic correction
+        let failures = vec![CheckFailure {
+            command: "cargo test".into(),
+            exit_code: 1,
+            stderr: "boom".into(),
+        }];
+        let corrections = vec![Correction {
+            kind: "missing_file".into(),
+            description: "fichier absent".into(),
+            suggestion: "creer le fichier".into(),
+        }];
+
+        // WHEN building the correction message
+        let message = correction_message(&failures, &corrections);
+
+        // THEN it carries both pieces and the instruction wrapper
+        assert!(message.contains("cargo test"));
+        assert!(message.contains("boom"));
+        assert!(message.contains("missing_file"));
+        assert!(message.contains("creer le fichier"));
+        assert!(message.contains("<verification_feedback>"));
+        assert!(message.contains("Please address the issues"));
     }
 }

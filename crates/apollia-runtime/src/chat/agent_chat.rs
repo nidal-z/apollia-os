@@ -407,6 +407,7 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
             ..Default::default()
         },
         thinking_trace,
+        verification_report: None,
     }
 }
 
