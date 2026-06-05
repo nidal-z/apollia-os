@@ -643,6 +643,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 datasources: vec![],
                 templates: vec![],
                 secrets: vec![],
+                check_commands: vec![],
             }
         }
         // has_on_plan_complete() returns false by default - auto-concat is used

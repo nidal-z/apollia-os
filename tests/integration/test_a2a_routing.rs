@@ -103,6 +103,7 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         datasources: vec![],
         templates: vec![],
         secrets: vec![],
+        check_commands: vec![],
     }
 }
 

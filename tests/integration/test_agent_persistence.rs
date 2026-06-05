@@ -146,6 +146,7 @@ fn test_manifest(name: &str, version: &str) -> AgentManifest {
         datasources: vec![],
         templates: vec![],
         secrets: vec![],
+        check_commands: vec![],
     }
 }
 

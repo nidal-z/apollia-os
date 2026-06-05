@@ -230,6 +230,16 @@ pub struct AgentManifest {
     /// Empty by default: agents without configured secrets.
     #[serde(default)]
     pub secrets: Vec<String>,
+
+    /// Shell commands to run as a verification pass after a completed run.
+    ///
+    /// Each entry is a full shell command string (e.g. `"cargo test -p my-agent"`).
+    /// Commands are executed in order by the verification loop via an injected
+    /// invoker. Empty by default: no verification commands declared. A
+    /// project-config fallback is applied by the loop when this field is empty.
+    /// See ADR-029.
+    #[serde(default)]
+    pub check_commands: Vec<String>,
 }
 
 /// Declarative skill of an agent.
@@ -310,6 +320,7 @@ mod tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -352,6 +363,7 @@ mod tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -499,6 +511,7 @@ mod tests {
             datasources: vec![],
             templates: vec![],
             secrets: vec![],
+            check_commands: vec![],
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");
@@ -599,5 +612,44 @@ mod tests {
             .expect("memory_config preserved");
         assert_eq!(cfg2.episodic_retention_days, Some(7));
         assert!(cfg2.auto_purge);
+    }
+
+    #[test]
+    fn test_check_commands_defaults_empty_when_absent() {
+        // GIVEN a manifest JSON without a check_commands field
+        let json = serde_json::json!({
+            "name": "agent",
+            "version": "1.0.0",
+            "description": "desc",
+            "tools_required": ["file_io"]
+        });
+        // WHEN deserialized
+        let manifest: AgentManifest = serde_json::from_value(json).expect("deserialize");
+        // THEN check_commands defaults to an empty vector (retro-compatible)
+        assert!(manifest.check_commands.is_empty());
+    }
+
+    #[test]
+    fn test_check_commands_roundtrip_preserves_values() {
+        // GIVEN a manifest JSON declaring two check commands
+        let json = serde_json::json!({
+            "name": "agent",
+            "version": "1.0.0",
+            "description": "desc",
+            "tools_required": ["bash_executor"],
+            "check_commands": ["cargo test -p my-agent", "cargo clippy"]
+        });
+        // WHEN deserialized and re-serialized
+        let manifest: AgentManifest = serde_json::from_value(json).expect("deserialize");
+        let serialized = serde_json::to_string(&manifest).expect("serialize");
+        let restored: AgentManifest = serde_json::from_str(&serialized).expect("roundtrip");
+        // THEN the declared commands survive the roundtrip in order
+        assert_eq!(
+            restored.check_commands,
+            vec![
+                "cargo test -p my-agent".to_string(),
+                "cargo clippy".to_string()
+            ]
+        );
     }
 }
