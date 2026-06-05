@@ -25,6 +25,8 @@ use apollia_llm::{
     LlmRouter,
 };
 
+use crate::tool_offload::{OffloadRef, ToolOffloadStore};
+
 // ContextManager
 
 /// Manages the LLM context window: detects threshold overruns and compacts.
@@ -111,6 +113,63 @@ impl ContextManager {
     pub fn estimate_tokens(messages: &[ChatMessage]) -> usize {
         let total_chars: usize = messages.iter().map(message_char_len).sum();
         ((total_chars as f32) / 4.0 * 1.2) as usize
+    }
+
+    /// Offload `ToolResult` messages exceeding `threshold_chars` to disk.
+    ///
+    /// Returns a new message list where each oversized `ToolResult` content is
+    /// written to `store` and replaced by the compact stub
+    /// `[resultat deporte: <ref>, N lignes]`. Messages that are not
+    /// `ToolResult`, whose content is below the threshold, or that already carry
+    /// a stub are returned unchanged. On a write error the original content is
+    /// kept inline and a `warn` is emitted. This method is synchronous, never
+    /// panics, and never returns an error to the caller.
+    pub fn offload_large_tool_results(
+        &self,
+        messages: &[ChatMessage],
+        store: &ToolOffloadStore,
+        threshold_chars: usize,
+    ) -> Vec<ChatMessage> {
+        messages
+            .iter()
+            .map(|msg| {
+                let (tool_call_id, content) = match &msg.content {
+                    MessageContent::ToolResult {
+                        tool_call_id,
+                        content,
+                    } => (tool_call_id, content),
+                    _ => return msg.clone(),
+                };
+                // Idempotence (stub already present) takes precedence over size.
+                if content.starts_with("[resultat deporte:") || content.len() < threshold_chars {
+                    return msg.clone();
+                }
+                let line_count = content.lines().count();
+                let oref = OffloadRef::new_unique();
+                match store.write(&oref, content) {
+                    Ok(()) => ChatMessage {
+                        role: msg.role.clone(),
+                        content: MessageContent::ToolResult {
+                            tool_call_id: tool_call_id.clone(),
+                            content: format!(
+                                "[resultat deporte: {}, {} lignes]",
+                                oref.filename(),
+                                line_count
+                            ),
+                        },
+                        cache_control: msg.cache_control.clone(),
+                    },
+                    Err(e) => {
+                        tracing::warn!(
+                            tool_call_id = %tool_call_id,
+                            error = %e,
+                            "tool_offload.write_failed_keeping_inline"
+                        );
+                        msg.clone()
+                    }
+                }
+            })
+            .collect()
     }
 
     /// Generate an LLM summary of the history, truncated to `summary_max_chars`.
@@ -388,5 +447,149 @@ mod tests {
         // THEN
         assert!(!was_compacted);
         assert!(result.is_empty());
+    }
+
+    // Tier-1 microcompaction: offload_large_tool_results
+
+    use crate::tool_offload::ToolOffloadStore;
+    use tempfile::TempDir;
+
+    /// GIVEN a 9000-char ToolResult and a 8000-char threshold
+    /// WHEN offload_large_tool_results is called
+    /// THEN the message becomes a stub and the full content lands on disk
+    #[test]
+    fn test_offload_large_tool_result() {
+        // GIVEN
+        let dir = TempDir::new().expect("tempdir");
+        let store = ToolOffloadStore::new(dir.path().to_path_buf());
+        let big = "x\n".repeat(4500); // 9000 chars, 4500 lines
+        let messages = vec![ChatMessage::tool_result("call_01", &big)];
+        let manager = ContextManager::new(0.80, 4000);
+
+        // WHEN
+        let result = manager.offload_large_tool_results(&messages, &store, 8000);
+
+        // THEN
+        assert_eq!(result.len(), 1);
+        let stub = match &result[0].content {
+            MessageContent::ToolResult { content, .. } => content,
+            _ => panic!("expected ToolResult"),
+        };
+        assert!(stub.starts_with("[resultat deporte:"));
+        assert!(stub.contains("4500 lignes]"));
+        let entry = std::fs::read_dir(dir.path())
+            .expect("readdir")
+            .next()
+            .expect("one offloaded file")
+            .expect("dir entry");
+        let written = std::fs::read_to_string(entry.path()).expect("read offloaded file");
+        assert_eq!(written, big);
+    }
+
+    /// GIVEN a 100-char ToolResult below the threshold
+    /// WHEN offload_large_tool_results is called
+    /// THEN the message is unchanged and no file is created
+    #[test]
+    fn test_small_tool_result_unchanged() {
+        // GIVEN
+        let dir = TempDir::new().expect("tempdir");
+        let store = ToolOffloadStore::new(dir.path().to_path_buf());
+        let messages = vec![ChatMessage::tool_result("call_01", &"x".repeat(100))];
+        let manager = ContextManager::new(0.80, 4000);
+
+        // WHEN
+        let result = manager.offload_large_tool_results(&messages, &store, 8000);
+
+        // THEN
+        match &result[0].content {
+            MessageContent::ToolResult { content, .. } => assert_eq!(content.len(), 100),
+            _ => panic!("expected ToolResult"),
+        }
+        assert!(std::fs::read_dir(dir.path())
+            .expect("readdir")
+            .next()
+            .is_none());
+    }
+
+    /// GIVEN a ToolResult already carrying a stub (and over threshold)
+    /// WHEN offload_large_tool_results is called
+    /// THEN it is returned as-is and no new file is created (idempotence)
+    #[test]
+    fn test_idempotent_stub_not_reprocessed() {
+        // GIVEN
+        let dir = TempDir::new().expect("tempdir");
+        let store = ToolOffloadStore::new(dir.path().to_path_buf());
+        // Stub prefix, padded above the threshold to prove the guard wins.
+        let stub = format!(
+            "[resultat deporte: offload-abc.txt, 10 lignes]{}",
+            " ".repeat(9000)
+        );
+        let messages = vec![ChatMessage::tool_result("call_01", &stub)];
+        let manager = ContextManager::new(0.80, 4000);
+
+        // WHEN
+        let result = manager.offload_large_tool_results(&messages, &store, 8000);
+
+        // THEN
+        match &result[0].content {
+            MessageContent::ToolResult { content, .. } => assert_eq!(content, &stub),
+            _ => panic!("expected ToolResult"),
+        }
+        assert!(std::fs::read_dir(dir.path())
+            .expect("readdir")
+            .next()
+            .is_none());
+    }
+
+    /// GIVEN a store whose directory does not exist (write fails)
+    /// WHEN offload_large_tool_results is called on an oversized ToolResult
+    /// THEN the content stays inline and no error is propagated
+    #[test]
+    fn test_write_error_keeps_content_inline() {
+        // GIVEN
+        let dir = TempDir::new().expect("tempdir");
+        let store = ToolOffloadStore::new(dir.path().join("does-not-exist"));
+        let big = "x".repeat(9000);
+        let messages = vec![ChatMessage::tool_result("call_01", &big)];
+        let manager = ContextManager::new(0.80, 4000);
+
+        // WHEN
+        let result = manager.offload_large_tool_results(&messages, &store, 8000);
+
+        // THEN
+        match &result[0].content {
+            MessageContent::ToolResult { content, .. } => assert_eq!(content, &big),
+            _ => panic!("expected ToolResult"),
+        }
+    }
+
+    /// GIVEN System, User, Assistant messages (none are ToolResult)
+    /// WHEN offload_large_tool_results is called
+    /// THEN they pass through untouched and no file is created
+    #[test]
+    fn test_non_tool_result_messages_unchanged() {
+        // GIVEN
+        let dir = TempDir::new().expect("tempdir");
+        let store = ToolOffloadStore::new(dir.path().to_path_buf());
+        let big = "x".repeat(9000);
+        let messages = vec![
+            ChatMessage::system(big.clone()),
+            ChatMessage::user(big.clone()),
+            ChatMessage::assistant(big.clone()),
+        ];
+        let manager = ContextManager::new(0.80, 4000);
+
+        // WHEN
+        let result = manager.offload_large_tool_results(&messages, &store, 8000);
+
+        // THEN
+        assert_eq!(result.len(), 3);
+        assert!(matches!(result[0].content, MessageContent::Text(_)));
+        assert!(matches!(result[1].content, MessageContent::Text(_)));
+        assert!(matches!(result[2].content, MessageContent::Text(_)));
+        assert!(std::fs::read_dir(dir.path())
+            .expect("readdir")
+            .next()
+            .is_none());
     }
 }

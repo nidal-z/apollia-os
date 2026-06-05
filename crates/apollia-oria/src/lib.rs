@@ -22,6 +22,7 @@ pub mod plan_cache;
 pub mod plan_repository;
 pub mod reasoner;
 pub mod resilience;
+pub mod tool_offload;
 pub mod topo;
 
 pub use resilience::{
