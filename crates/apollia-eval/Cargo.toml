@@ -1,0 +1,14 @@
+[package]
+name = "apollia-eval"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS - sovereign agent evaluation harness (TOML suites, N-run execution, metric aggregation)"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde     = { workspace = true, features = ["derive"] }
+toml      = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -446,6 +446,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "apollia-eval"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+ "toml 0.8.23",
+]
+
+[[package]]
 name = "apollia-llm"
 version = "0.1.0"
 dependencies = [

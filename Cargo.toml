@@ -17,6 +17,7 @@ members = [
     "crates/apollia-notifications",
     "crates/apollia-workspace",
     "crates/apollia-permissions",
+    "crates/apollia-eval",
     "crates/apollia-cli",
     "crates/apollia-desktop",
     "tests",
@@ -39,6 +40,7 @@ default-members = [
     "crates/apollia-notifications",
     "crates/apollia-workspace",
     "crates/apollia-permissions",
+    "crates/apollia-eval",
     "crates/apollia-cli",
     "tests",
 ]
@@ -205,6 +207,7 @@ apollia-workspace     = { path = "crates/apollia-workspace" }
 apollia-permissions   = { path = "crates/apollia-permissions" }
 apollia-auth          = { path = "crates/apollia-auth" }
 apollia-connectors    = { path = "crates/apollia-connectors" }
+apollia-eval          = { path = "crates/apollia-eval" }
 
 [profile.release]
 opt-level = 3
