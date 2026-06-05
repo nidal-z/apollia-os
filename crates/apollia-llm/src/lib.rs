@@ -15,6 +15,7 @@
 
 pub mod backends;
 pub mod downloader;
+pub mod grammar;
 pub mod hardware;
 pub mod hf_registry;
 pub mod meta;
@@ -63,6 +64,7 @@ pub use apollia_core::config::LlmRoutingConfig;
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use routing_level::LlmRoutingLevel;
 pub use token_budget::SessionBudgetTracker;
+pub use grammar::tool_specs_to_gbnf;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     BackendInfo, CacheControl, ChatMessage, CompletionModel, CompletionRequest, CompletionResponse,

@@ -241,6 +241,9 @@ impl RunnerLlmBackend {
             "seed": req.seed,
             "stop": Vec::<String>::new(),
             "tools": Self::map_tools(req),
+            // GBNF grammar for constrained decoding; `None` is omitted-equivalent
+            // (CompleteParams.grammar defaults to None). Cloud backends ignore it.
+            "grammar": req.grammar,
         })
     }
 }

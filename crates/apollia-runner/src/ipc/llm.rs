@@ -111,6 +111,13 @@ pub struct CompleteParams {
     /// disables tool use for this request.
     #[serde(default)]
     pub tools: Option<serde_json::Value>,
+    /// GBNF grammar string for constrained decoding.
+    ///
+    /// `None` (default): unconstrained generation.
+    /// `Some(gbnf)`: the runner prepends a grammar sampler stage to the chain.
+    /// Ignored by cloud backends.
+    #[serde(default)]
+    pub grammar: Option<String>,
 }
 
 /// `0` is a sentinel meaning "generate up to the model's remaining context
@@ -225,4 +232,50 @@ pub struct TokenizeParams {
 pub struct TokenizeData {
     /// Number of tokens the GGUF tokenizer produced for the given text.
     pub token_count: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base_params() -> CompleteParams {
+        CompleteParams {
+            model_id: "test".to_string(),
+            messages: vec![],
+            max_tokens: default_max_tokens(),
+            temperature: default_temperature(),
+            top_p: default_top_p(),
+            top_k: default_top_k(),
+            repeat_penalty: default_repeat_penalty(),
+            seed: None,
+            stop: vec![],
+            tools: None,
+            grammar: None,
+        }
+    }
+
+    // GIVEN a CompleteParams carrying a grammar string
+    // WHEN serialized to JSON and back
+    // THEN the grammar survives the round-trip
+    #[test]
+    fn test_complete_params_grammar_serde_roundtrip() {
+        let params = CompleteParams {
+            grammar: Some("root ::= \"{}\"".to_string()),
+            ..base_params()
+        };
+        let json = serde_json::to_string(&params).expect("serialization failed");
+        let restored: CompleteParams =
+            serde_json::from_str(&json).expect("deserialization failed");
+        assert_eq!(restored.grammar.as_deref(), Some("root ::= \"{}\""));
+    }
+
+    // GIVEN a JSON payload with no grammar field
+    // WHEN deserialized
+    // THEN grammar defaults to None (backward compatibility)
+    #[test]
+    fn test_complete_params_missing_grammar_defaults_to_none() {
+        let json = r#"{"model_id":"m","messages":[]}"#;
+        let params: CompleteParams = serde_json::from_str(json).expect("deserialization failed");
+        assert!(params.grammar.is_none());
+    }
 }
