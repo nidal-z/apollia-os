@@ -121,6 +121,10 @@ name = "test_chat"
 path = "integration/test_chat.rs"
 
 [[test]]
+name = "test_b4_hybrid_routing_e2e"
+path = "integration/test_b4_hybrid_routing_e2e.rs"
+
+[[test]]
 name = "test_oria_enhanced"
 path = "integration/test_oria_enhanced.rs"
 

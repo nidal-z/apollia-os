@@ -16,8 +16,10 @@ use futures::StreamExt;
 use tracing::{info, warn};
 
 use apollia_core::{AutonomyLevel, AutonomyLevelConfig, ORIAConfig, RuntimeEvent};
+use apollia_llm::routing_level::{EscalationSignal, LlmRoutingLevel};
 use apollia_llm::types::{
-    ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
+    ChatMessage as LlmChatMessage, CompletionModel, CompletionRequest, StreamChunk, TokenUsage,
+    ToolCall, ToolSpec,
 };
 use apollia_llm::{LlmRouter, MetaOrchestratorHandle, ObservabilityConfig, ToolInvoker};
 use apollia_mcp::tool_search::{tool_search_input_schema, ToolIndexSnapshot};
@@ -757,6 +759,10 @@ pub struct ChatAgentResponse {
     /// Present when the autonomy tier is at least supervised and verification ran.
     /// `None` for the assisted tier or when verification was skipped.
     pub verification_report: Option<ConsolidatedVerificationReport>,
+    /// True when an escalation was requested during this exchange but the hybrid
+    /// cost ceiling kept the step local. The caller may surface a notice to the
+    /// user. Stays `false` when hybrid routing is not configured.
+    pub frontier_ceiling_reached: bool,
 }
 
 /// Consolidated result of the full post-run verification pass (checks + critic).
@@ -789,6 +795,15 @@ struct RetryCarry {
 /// Bounded to a small number so a failing check cannot loop indefinitely; each
 /// retry still consumes from the shared [`StepBudget`].
 const VERIFICATION_MAX_RETRIES: u32 = 2;
+
+/// Number of consecutive tool failures before the ReAct loop emits an
+/// escalation signal toward the frontier backend.
+///
+/// Conservative surface heuristic: it counts consecutive failed tool calls
+/// (execution error, non-zero exit code, or operator refusal) and resets on the
+/// first success. A richer signal based on a model confidence score is out of
+/// scope for this iteration.
+const ESCALATION_FAILURE_THRESHOLD: u32 = 3;
 
 /// A [`CheckInvoker`] that never executes anything.
 ///
@@ -986,6 +1001,7 @@ struct ResponseContext<'a> {
     total_usage: TokenUsage,
     session_id: &'a str,
     message_id: &'a str,
+    frontier_ceiling_reached: bool,
 }
 
 /// Borrowed context for processing a single tool call inside the ReAct loop.
@@ -1314,6 +1330,13 @@ impl BuiltInChatAgent {
         };
         let obs = ObservabilityConfig::default();
         let mut reasoning_fragments: Vec<String> = Vec::new();
+        // Conservative escalation heuristic: count consecutive failed tool calls
+        // and, past the threshold, ask the router to escalate the next LLM call to
+        // the frontier backend. Reset to 0 on the first successful tool call.
+        let mut consecutive_tool_failures: u32 = 0;
+        // Set when an escalation was requested but the cost ceiling kept the step
+        // local. Surfaced on the terminal response so the caller can warn.
+        let mut frontier_ceiling_reached = false;
 
         loop {
             // Step safeguard: budget check before every LLM call
@@ -1345,12 +1368,41 @@ impl BuiltInChatAgent {
                 message_id: message_id.to_string(),
             });
 
-            // Use stream() instead of complete()
-            let stream = self
-                .llm_router
-                .stream_with_observability(None, request, &obs)
-                .await
-                .map_err(|e| ChatError::InternalError(e.to_string()))?;
+            // Derive the escalation signal from the consecutive-failure counter.
+            // Only when it escalates do we route through the frontier policy; the
+            // non-escalated path keeps the default backend, so behavior without
+            // hybrid routing or below threshold is byte-for-byte unchanged. Routing
+            // and ceiling policy stay in `LlmRouter`; the loop only detects and
+            // observes. The escalated backend is streamed directly (the router map
+            // owns it), so this does not depend on a name round-trip.
+            let signal = if consecutive_tool_failures >= ESCALATION_FAILURE_THRESHOLD {
+                EscalationSignal::RepeatedStepFailure {
+                    consecutive_failures: consecutive_tool_failures,
+                }
+            } else {
+                EscalationSignal::None
+            };
+            let stream_result = if signal.is_escalation() {
+                let backend = self
+                    .llm_router
+                    .route_with_escalation(signal, LlmRoutingLevel::Precise);
+                if self.llm_router.is_ceiling_reached() {
+                    frontier_ceiling_reached = true;
+                }
+                tracing::info!(
+                    consecutive_failures = consecutive_tool_failures,
+                    backend = %backend.backend_name(),
+                    ceiling_reached = frontier_ceiling_reached,
+                    session_id = %session_id,
+                    "chat.escalation.requested"
+                );
+                backend.stream(request).await
+            } else {
+                self.llm_router
+                    .stream_with_observability(None, request, &obs)
+                    .await
+            };
+            let stream = stream_result.map_err(|e| ChatError::InternalError(e.to_string()))?;
 
             // Consume stream, emit ChatToken per token, accumulate text
             let mut accumulated_text = String::new();
@@ -1368,6 +1420,7 @@ impl BuiltInChatAgent {
                             total_usage,
                             session_id,
                             message_id,
+                            frontier_ceiling_reached,
                         },
                     ));
                 }
@@ -1382,6 +1435,7 @@ impl BuiltInChatAgent {
                         &mut reasoning_fragments,
                         llm_messages,
                         &mut acc,
+                        &mut consecutive_tool_failures,
                     )
                     .await;
                 }
@@ -1394,6 +1448,7 @@ impl BuiltInChatAgent {
                             total_usage,
                             session_id,
                             message_id,
+                            frontier_ceiling_reached,
                         },
                     ));
                 }
@@ -1416,6 +1471,7 @@ impl BuiltInChatAgent {
             total_usage,
             session_id,
             message_id,
+            frontier_ceiling_reached,
         } = ctx;
         // Extract thinking trace before stripping.
         let final_thinking = Self::extract_think_blocks(accumulated_text);
@@ -1451,17 +1507,23 @@ impl BuiltInChatAgent {
             tokens_used: total_usage,
             thinking_trace,
             verification_report: None,
+            frontier_ceiling_reached,
         }
     }
 
     /// Record one ReAct turn that produced tool calls: capture reasoning,
     /// append the assistant message, and dispatch each tool call.
+    ///
+    /// Updates `consecutive_tool_failures` per call: incremented on a failed
+    /// call (execution error, non-zero exit code, or operator refusal), reset to
+    /// 0 on the first success, so the loop can derive an escalation signal.
     async fn record_tool_turn(
         &self,
         input: RecordTurnInput<'_>,
         reasoning_fragments: &mut Vec<String>,
         llm_messages: &mut Vec<LlmChatMessage>,
         acc: &mut ReactAccumulators,
+        consecutive_tool_failures: &mut u32,
     ) {
         let RecordTurnInput {
             accumulated_text,
@@ -1494,17 +1556,19 @@ impl BuiltInChatAgent {
 
         for call in tool_calls {
             budget.increment_tool_calls();
-            self.process_tool_call(
-                ToolCallContext {
-                    session_id: ids.session_id,
-                    message_id: ids.message_id,
-                    call,
-                    pending_approvals: ids.pending_approvals,
-                },
-                llm_messages,
-                acc,
-            )
-            .await;
+            let failed = self
+                .process_tool_call(
+                    ToolCallContext {
+                        session_id: ids.session_id,
+                        message_id: ids.message_id,
+                        call,
+                        pending_approvals: ids.pending_approvals,
+                    },
+                    llm_messages,
+                    acc,
+                )
+                .await;
+            *consecutive_tool_failures = next_failure_count(*consecutive_tool_failures, failed);
         }
     }
 
@@ -1521,6 +1585,7 @@ impl BuiltInChatAgent {
             total_usage,
             session_id,
             message_id,
+            frontier_ceiling_reached,
         } = ctx;
         // Stream interrupted: emit ChatError, return partial content
         let _ = self.event_bus.send(RuntimeEvent::ChatError {
@@ -1549,6 +1614,7 @@ impl BuiltInChatAgent {
             tokens_used: total_usage,
             thinking_trace: None,
             verification_report: None,
+            frontier_ceiling_reached,
         }
     }
 
@@ -1737,12 +1803,15 @@ impl BuiltInChatAgent {
     /// Execute a single tool call via the [`ToolInvoker`], emitting events.
     /// Process one tool call: run it directly when authorized, otherwise go
     /// through the HITL approval flow. Mutates `llm_messages` and `acc`.
+    ///
+    /// Returns `true` when the call failed (execution error, non-zero exit code,
+    /// or operator refusal), so the loop can update its escalation counter.
     async fn process_tool_call(
         &self,
         ctx: ToolCallContext<'_>,
         llm_messages: &mut Vec<LlmChatMessage>,
         acc: &mut ReactAccumulators,
-    ) {
+    ) -> bool {
         let ToolCallContext {
             session_id,
             message_id,
@@ -1751,10 +1820,11 @@ impl BuiltInChatAgent {
         } = ctx;
 
         if acc.authorized.contains(&call.name) {
-            let (record, tool_result) = self.execute_tool_call(session_id, message_id, call).await;
+            let (record, tool_result, success) =
+                self.execute_tool_call(session_id, message_id, call).await;
             llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
             acc.all_tool_calls.push(record);
-            return;
+            return !success;
         }
 
         // HITL approval
@@ -1793,17 +1863,20 @@ impl BuiltInChatAgent {
             llm_messages,
             acc,
         )
-        .await;
+        .await
     }
 
     /// Apply the operator's HITL decision for an unauthorized tool call.
+    ///
+    /// Returns `true` when the call failed: an execution failure on accept, or a
+    /// refusal (the operator declined, which the loop counts toward escalation).
     async fn apply_tool_decision(
         &self,
         target: ToolExecTarget<'_>,
         decision: ToolDecision,
         llm_messages: &mut Vec<LlmChatMessage>,
         acc: &mut ReactAccumulators,
-    ) {
+    ) -> bool {
         let ToolExecTarget {
             session_id,
             message_id,
@@ -1811,18 +1884,20 @@ impl BuiltInChatAgent {
         } = target;
         match decision {
             ToolDecision::Accept => {
-                let (record, tool_result) =
+                let (record, tool_result, success) =
                     self.execute_tool_call(session_id, message_id, call).await;
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                 acc.all_tool_calls.push(record);
+                !success
             }
             ToolDecision::AlwaysAccept { .. } => {
                 acc.authorized.insert(call.name.clone());
                 acc.newly_authorized.push(call.name.clone());
-                let (record, tool_result) =
+                let (record, tool_result, success) =
                     self.execute_tool_call(session_id, message_id, call).await;
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                 acc.all_tool_calls.push(record);
+                !success
             }
             ToolDecision::Refuse { reason } => {
                 // The reason carries the operator's intent (e.g. "wrong
@@ -1841,6 +1916,7 @@ impl BuiltInChatAgent {
                     rationale: None,
                     retry_attempts: Vec::new(),
                 });
+                true
             }
         }
     }
@@ -1850,7 +1926,7 @@ impl BuiltInChatAgent {
         session_id: &str,
         message_id: &str,
         call: &apollia_llm::types::ToolCall,
-    ) -> (ToolCallRecord, String) {
+    ) -> (ToolCallRecord, String, bool) {
         let input_preview =
             truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
 
@@ -1927,7 +2003,7 @@ impl BuiltInChatAgent {
         // The full output is preserved in the ToolCallRecord for history/UI.
         let llm_output = truncate_tool_output(&output);
 
-        (record, llm_output)
+        (record, llm_output, success)
     }
 }
 
@@ -2088,6 +2164,18 @@ fn tool_search_spec(max_limit: usize) -> ToolSpec {
 /// Truncate a string to a maximum length, appending "..." if truncated.
 fn truncate_preview(s: &str) -> String {
     truncate_to(s, PREVIEW_MAX_LEN)
+}
+
+/// Next value of the consecutive-tool-failure counter.
+///
+/// Increments on a failed call and resets to 0 on success, so a run of failures
+/// accumulates toward [`ESCALATION_FAILURE_THRESHOLD`] while any success clears it.
+fn next_failure_count(current: u32, failed: bool) -> u32 {
+    if failed {
+        current.saturating_add(1)
+    } else {
+        0
+    }
 }
 
 /// Truncate tool output for LLM context injection.
@@ -2401,6 +2489,66 @@ mod tests {
         }
     }
 
+    // ── Mock CompletionModel: emits a tool call for the first `tool_turns`
+    //    iterations, then final text. Lets a test drive the consecutive-failure
+    //    counter past the escalation threshold and still terminate with a
+    //    response (the tool calls fail via a failing invoker).
+    struct MockFailingThenStopModel {
+        tool_turns: u32,
+        final_tokens: Vec<String>,
+        iteration: AtomicU32,
+    }
+
+    #[async_trait::async_trait]
+    impl CompletionModel for MockFailingThenStopModel {
+        async fn complete(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
+            unimplemented!("streaming path only")
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<
+            std::pin::Pin<
+                Box<
+                    dyn futures::Stream<Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>>
+                        + Send,
+                >,
+            >,
+            apollia_llm::types::LlmError,
+        > {
+            let current = self.iteration.fetch_add(1, Ordering::SeqCst);
+            if current < self.tool_turns {
+                let chunks = vec![Ok(LlmStreamChunk::ToolCall(LlmToolCall {
+                    id: format!("c{current}"),
+                    name: "bash_executor".into(),
+                    arguments: serde_json::json!({"command": "false"}),
+                }))];
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            } else {
+                let chunks: Vec<Result<LlmStreamChunk, apollia_llm::types::LlmError>> = self
+                    .final_tokens
+                    .iter()
+                    .map(|t| Ok(LlmStreamChunk::Text(t.clone())))
+                    .collect();
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            }
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            "mock-fail-then-stop"
+        }
+        fn model_id(&self) -> &str {
+            "mock"
+        }
+    }
+
     /// Split content into word-boundary tokens for mock streaming.
     fn split_tokens(content: &str) -> Vec<String> {
         let mut tokens = Vec::new();
@@ -2513,6 +2661,90 @@ mod tests {
         assert_eq!(resp.content, "Bonjour !");
         assert!(resp.tool_calls.is_empty());
         assert!(resp.newly_authorized.is_empty());
+        // AND no hybrid routing was configured, so the ceiling was never hit.
+        assert!(!resp.frontier_ceiling_reached);
+
+        tool_registry.shutdown().await;
+    }
+
+    // next_failure_count: a failed call increments, a success resets to 0.
+    #[test]
+    fn test_next_failure_count_increments_and_resets() {
+        // GIVEN a counter below the threshold
+        let mut count = 2u32;
+
+        // WHEN a tool call fails
+        count = next_failure_count(count, true);
+        // THEN the counter increments
+        assert_eq!(count, 3);
+
+        // WHEN a tool call then succeeds
+        count = next_failure_count(count, false);
+        // THEN the counter resets to 0
+        assert_eq!(count, 0);
+
+        // WHEN a success arrives with no prior failures
+        assert_eq!(next_failure_count(0, false), 0);
+    }
+
+    /// Without a hybrid routing config, a run that fails tool calls past the
+    /// escalation threshold still reports `frontier_ceiling_reached == false`:
+    /// the escalation attempt against a non-hybrid router stays local.
+    #[tokio::test]
+    async fn test_no_hybrid_config_leaves_ceiling_flag_false() {
+        // GIVEN a model that emits a failing tool call for 4 turns (past the
+        //   threshold of 3), then final text, and a router with no hybrid section.
+        let model = Arc::new(MockFailingThenStopModel {
+            tool_turns: 4,
+            final_tokens: split_tokens("Terminé"),
+            iteration: AtomicU32::new(0),
+        });
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        // Invoker returns a non-zero exit code: every tool call is a failure.
+        let invoker: Arc<dyn ToolInvoker> =
+            Arc::new(MockToolInvoker::new(r#"{"exit_code": 1, "stdout": ""}"#));
+        let event_bus = make_event_bus();
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+        });
+
+        let budget = make_budget(20);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("bash_executor".to_string());
+
+        // WHEN execute runs to a final text response
+        let result = agent
+            .execute(
+                "sess-no-hybrid",
+                "msg-1",
+                "go",
+                &[],
+                "",
+                &[],
+                &authorized,
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await;
+
+        // THEN the loop crossed the escalation threshold but, with no hybrid
+        // config, stayed local and never set the ceiling flag.
+        let resp = result.expect("should produce a final response");
+        assert_eq!(resp.content, "Terminé");
+        assert!(!resp.frontier_ceiling_reached);
 
         tool_registry.shutdown().await;
     }

@@ -19,8 +19,8 @@ pub mod types;
 pub use a2a_tools::{generate_a2a_tool_specs, CompositeToolInvoker};
 pub use agent_chat::{AgentChatExecutor, ChatAgentRunner};
 pub use builtin_agent::{
-    BuiltInChatAgent, ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
-    DEFAULT_SYSTEM_PROMPT,
+    BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, NativeChatToolInvoker,
+    DEFAULT_CONTEXT_WINDOW_SIZE, DEFAULT_SYSTEM_PROMPT,
 };
 pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,

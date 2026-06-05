@@ -408,6 +408,9 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
         },
         thinking_trace,
         verification_report: None,
+        // Frontier escalation is wired into the built-in ReAct loop, not this
+        // agent-backed executor, so the ceiling can never be hit on this path.
+        frontier_ceiling_reached: false,
     }
 }
 

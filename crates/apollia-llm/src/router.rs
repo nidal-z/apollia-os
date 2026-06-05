@@ -1223,6 +1223,40 @@ impl LlmRouter {
         }
     }
 
+    /// Return `true` when hybrid routing is configured and the per-session cost
+    /// has reached or exceeded the configured ceiling.
+    ///
+    /// Returns `false` when no `[llm.routing.hybrid]` section is configured, so
+    /// a caller can treat the absence of hybrid routing as "ceiling never hit".
+    /// Reads the same `session_cost_usd` as [`Self::route_with_escalation`]
+    /// under a short lock (a poisoned mutex reads as `0.0`), so a caller that
+    /// invokes both with no intervening `await` observes a consistent decision.
+    pub fn is_ceiling_reached(&self) -> bool {
+        let Some(routing) = self.routing.as_ref() else {
+            return false;
+        };
+        let Some(hybrid) = routing.hybrid.as_ref() else {
+            return false;
+        };
+        let session_cost = self
+            .session_budget
+            .lock()
+            .map(|t| t.session_cost_usd)
+            .unwrap_or(0.0);
+        session_cost >= hybrid.cost_ceiling_usd
+    }
+
+    /// Seed the accumulated session cost in USD.
+    ///
+    /// Lets integration tests drive the hybrid cost ceiling deterministically
+    /// when backends are injected directly via [`Self::with_backends`], without
+    /// real token billing. A no-op if the budget lock is poisoned.
+    pub fn seed_session_cost_usd(&self, usd: f64) {
+        if let Ok(mut tracker) = self.session_budget.lock() {
+            tracker.session_cost_usd = usd;
+        }
+    }
+
     /// Return the context window size in tokens used to size compaction.
     ///
     /// Prefers the active backend's reported window (e.g. a local model's
@@ -2319,5 +2353,55 @@ mod tests {
         }
         .is_escalation());
         assert!(EscalationSignal::AutonomyTierRequest.is_escalation());
+    }
+
+    // is_ceiling_reached: false when no hybrid section is configured.
+    #[test]
+    fn test_is_ceiling_reached_false_without_hybrid() {
+        // GIVEN a router with routing but no hybrid section
+        let router = make_routing_router("local", "local");
+
+        // WHEN the ceiling is queried
+        // THEN it reports not reached
+        assert!(!router.is_ceiling_reached());
+    }
+
+    // is_ceiling_reached: false when the session cost is below the ceiling.
+    #[test]
+    fn test_is_ceiling_reached_false_below_ceiling() {
+        // GIVEN a hybrid router, session cost 0.50, ceiling 2.00
+        let router = make_hybrid_router(2.00, 0.50);
+
+        // WHEN the ceiling is queried
+        // THEN it reports not reached
+        assert!(!router.is_ceiling_reached());
+    }
+
+    // is_ceiling_reached: true at or above the ceiling.
+    #[test]
+    fn test_is_ceiling_reached_true_at_or_above_ceiling() {
+        // GIVEN a hybrid router exactly at the ceiling
+        let at = make_hybrid_router(1.00, 1.00);
+        // AND one above the ceiling
+        let above = make_hybrid_router(1.00, 1.50);
+
+        // WHEN the ceiling is queried
+        // THEN both report reached
+        assert!(at.is_ceiling_reached());
+        assert!(above.is_ceiling_reached());
+    }
+
+    // seed_session_cost_usd drives the ceiling decision deterministically.
+    #[test]
+    fn test_seed_session_cost_usd_crosses_ceiling() {
+        // GIVEN a hybrid router below the ceiling
+        let router = make_hybrid_router(1.00, 0.10);
+        assert!(!router.is_ceiling_reached());
+
+        // WHEN the session cost is seeded above the ceiling
+        router.seed_session_cost_usd(2.00);
+
+        // THEN the ceiling is reported reached
+        assert!(router.is_ceiling_reached());
     }
 }
