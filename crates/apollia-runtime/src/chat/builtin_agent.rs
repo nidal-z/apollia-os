@@ -15,7 +15,7 @@ use std::time::Duration;
 use futures::StreamExt;
 use tracing::{info, warn};
 
-use apollia_core::{ORIAConfig, RuntimeEvent};
+use apollia_core::{AutonomyLevel, ORIAConfig, RuntimeEvent};
 use apollia_llm::types::{
     ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
@@ -693,6 +693,50 @@ et tout autre asset Google identifié par titre. **Demander l'ID alphanumérique
 l'utilisateur est un échec - tu as les outils pour le résoudre seul.**
 ";
 
+/// System prompt variant selected for autonomous tiers (supervised,
+/// bounded_autonomous, long_autonomous).
+///
+/// Instructs the agent to continue until the objective is complete and verified,
+/// to prefer sub-agents for research tasks, and to batch independent tool calls.
+/// The assisted tier keeps the reactive [`DEFAULT_SYSTEM_PROMPT`] instead.
+pub const PERSEVERANCE_SYSTEM_PROMPT: &str = "\
+Tu es un agent IA autonome qui execute des taches complexes jusqu'a leur completion totale \
+et leur verification. Tu n'interromps pas ta progression pour demander des confirmations \
+intermediaires sauf si une decision irreversible ou une information bloquante est requise.
+
+## Doctrine de completion
+
+- **Persevere jusqu'a l'objectif** : continue d'agir tant que la tache n'est pas accomplie \
+et verifiee. Un resultat partiel n'est pas un succes.
+- **Verifie avant de conclure** : avant de declarer la tache terminee, execute les verifications \
+disponibles (tests, lint, relecture du resultat) et corrige les problemes detectes.
+- **Ne jamais simuler un succes** : si tu n'as pas vu un resultat positif explicite dans l'historique \
+des outils, tu n'as pas reussi. Annonce clairement un echec plutot que d'inventer un succes.
+
+## Utilisation des outils
+
+1. **Regroupe les appels independants** : si plusieurs informations peuvent etre collectees \
+en parallele, formule plusieurs appels d'outils dans le meme tour plutot que de les sequencer \
+inutilement.
+2. **Prefere les sous-agents pour la recherche** : delege les taches de recherche ou d'analyse \
+parallelisables a des sous-agents specialises quand ils sont disponibles.
+3. **Contexte d'abord** : verifie si l'information est deja dans le contexte avant d'appeler \
+un outil.
+4. **Commande minimale** : choisis l'approche la plus rapide et la plus ciblee. Ne scanne pas \
+un filesystem entier quand un scope restreint suffit.
+5. **Resilience** : si une approche echoue, analyse la cause et essaie une alternative \
+differente plutot que de relancer la meme commande.
+
+## Limites et transparence
+
+- **Limites honnetes** : si une tache depasse reellement les capacites des outils disponibles, \
+dis-le clairement. Ne refuse jamais d'utiliser un outil qui figure dans ta liste.
+- **Budget conscient** : si tu approches les limites de ton budget d'execution, notifie \
+l'utilisateur et propose de continuer dans une nouvelle session avec l'etat acquis.
+- **Jamais de valeurs fictives** : n'invente jamais un parametre inconnu. Si une information \
+requise est absente, demande-la explicitement avant d'appeler un outil.
+";
+
 /// Response produced by a complete chat exchange.
 #[derive(Debug, Clone)]
 pub struct ChatAgentResponse {
@@ -853,13 +897,28 @@ impl BuiltInChatAgent {
         self
     }
 
-    /// Build the effective system prompt with optional user memory injection.
+    /// Build the effective system prompt for the given autonomy level.
     ///
-    /// Prepends the authoritative temporal/environment block at the **top**
-    /// of the prompt so the LLM treats current date + time +
-    /// timezone as ground truth, not as one fact among its priors. Then
-    /// appends the user persona block when configured.
-    pub fn build_system_prompt(&self, base_prompt: &str) -> String {
+    /// When `custom_prompt` is a non-empty string it is used as the base
+    /// (preserving the behavior for agents with a personalized prompt).
+    /// Otherwise the base is selected by tier: the assisted tier uses
+    /// [`DEFAULT_SYSTEM_PROMPT`], every autonomous tier uses
+    /// [`PERSEVERANCE_SYSTEM_PROMPT`].
+    ///
+    /// Then prepends the authoritative temporal/environment block at the **top**
+    /// of the prompt so the LLM treats current date + time + timezone as ground
+    /// truth, not as one fact among its priors, and appends the user persona
+    /// block when configured.
+    pub fn build_system_prompt(&self, custom_prompt: Option<&str>, level: AutonomyLevel) -> String {
+        let base_prompt = match custom_prompt {
+            Some(custom) if !custom.is_empty() => custom,
+            _ => match level {
+                AutonomyLevel::Assisted => DEFAULT_SYSTEM_PROMPT,
+                AutonomyLevel::Supervised
+                | AutonomyLevel::BoundedAutonomous
+                | AutonomyLevel::LongAutonomous => PERSEVERANCE_SYSTEM_PROMPT,
+            },
+        };
         let mut prompt = apollia_core::temporal_context::prepend_temporal_context(base_prompt);
 
         if let Some(ref repo_mutex) = self.user_memory {
@@ -914,12 +973,12 @@ impl BuiltInChatAgent {
         summary: Option<&str>,
         context_window_size: usize,
     ) -> Result<ChatAgentResponse, ChatError> {
-        let base_prompt = if system_prompt.is_empty() {
-            DEFAULT_SYSTEM_PROMPT
+        let custom_prompt = if system_prompt.is_empty() {
+            None
         } else {
-            system_prompt
+            Some(system_prompt)
         };
-        let effective_prompt = self.build_system_prompt(base_prompt);
+        let effective_prompt = self.build_system_prompt(custom_prompt, AutonomyLevel::Assisted);
 
         let mut tool_specs = build_tool_specs(
             available_tools,
@@ -3001,7 +3060,7 @@ mod tests {
         });
 
         // WHEN building the system prompt
-        let prompt = agent.build_system_prompt("Base prompt.");
+        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
 
         // THEN the prompt opens with the authoritative environment block
         // (temporal context now leads the prompt) and still carries the
@@ -3032,7 +3091,7 @@ mod tests {
         });
 
         // WHEN building the system prompt
-        let prompt = agent.build_system_prompt("Base prompt.");
+        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
 
         // THEN the prompt does NOT contain the user persona block
         assert!(!prompt.contains("User Persona"));
@@ -3055,10 +3114,105 @@ mod tests {
         });
 
         // WHEN building the system prompt
-        let prompt = agent.build_system_prompt("Base prompt.");
+        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
 
         // THEN the prompt does NOT contain the user persona block
         assert!(!prompt.contains("User Persona"));
+    }
+
+    // ── Level-aware prompt selection (story 549) ─────────────────────────
+
+    /// Build a `BuiltInChatAgent` with no user memory repository, for prompt
+    /// selection tests that do not exercise persona injection.
+    fn make_agent_no_memory() -> BuiltInChatAgent {
+        let router = make_router(Arc::new(MockStopModel::with_content("ok")));
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let event_bus = make_event_bus();
+        BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry,
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn test_assisted_uses_default_prompt() {
+        // GIVEN an agent with no user memory
+        let agent = make_agent_no_memory();
+
+        // WHEN building the prompt for the assisted tier
+        let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted);
+
+        // THEN it carries the reactive default marker, not the perseverance one
+        assert!(prompt.contains("Agis d'abord"));
+        assert!(!prompt.contains("Persevere jusqu'a l'objectif"));
+    }
+
+    #[tokio::test]
+    async fn test_bounded_autonomous_uses_perseverance_prompt() {
+        // GIVEN an agent with no user memory
+        let agent = make_agent_no_memory();
+
+        // WHEN building the prompt for a bounded-autonomous tier
+        let prompt = agent.build_system_prompt(None, AutonomyLevel::BoundedAutonomous);
+
+        // THEN it carries the perseverance marker, not the reactive default
+        assert!(prompt.contains("Persevere jusqu'a l'objectif"));
+        assert!(!prompt.contains("Agis d'abord"));
+    }
+
+    #[tokio::test]
+    async fn test_long_autonomous_uses_perseverance_prompt() {
+        // GIVEN an agent with no user memory
+        let agent = make_agent_no_memory();
+
+        // WHEN building the prompt for the long-autonomous tier
+        let prompt = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous);
+
+        // THEN it carries the perseverance marker
+        assert!(prompt.contains("Persevere jusqu'a l'objectif"));
+    }
+
+    #[tokio::test]
+    async fn test_custom_prompt_preserved_for_assisted() {
+        // GIVEN an agent and a custom base prompt
+        let agent = make_agent_no_memory();
+        let custom = "Mon prompt personnalise";
+
+        // WHEN building the prompt with the custom base
+        let prompt = agent.build_system_prompt(Some(custom), AutonomyLevel::Assisted);
+
+        // THEN the custom prompt is used verbatim
+        assert!(prompt.contains("Mon prompt personnalise"));
+    }
+
+    #[tokio::test]
+    async fn test_all_autonomy_levels_no_panic() {
+        // GIVEN an agent and every tier
+        let agent = make_agent_no_memory();
+
+        // WHEN / THEN building the prompt for each tier never panics
+        for level in AutonomyLevel::ALL {
+            let _ = agent.build_system_prompt(None, level);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_temporal_context_always_prepended() {
+        // GIVEN an agent with no user memory
+        let agent = make_agent_no_memory();
+
+        // WHEN building both the assisted and an autonomous prompt
+        let p_assisted = agent.build_system_prompt(None, AutonomyLevel::Assisted);
+        let p_auto = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous);
+
+        // THEN both are longer than the bare constant (temporal block prepended)
+        assert!(p_assisted.len() > DEFAULT_SYSTEM_PROMPT.len());
+        assert!(p_auto.len() > PERSEVERANCE_SYSTEM_PROMPT.len());
     }
 
     // ── Context window management tests ─────────────────────────────────
