@@ -18,9 +18,7 @@ use crate::plan::PlanStep;
 /// Unknown dependencies are ignored in the in-degree count (already validated
 /// upstream) but still recorded as edges in the dependents map, matching the
 /// original inline behaviour of both callers.
-fn build_dependency_graph(
-    steps: &[PlanStep],
-) -> (Vec<usize>, HashMap<&str, Vec<usize>>) {
+fn build_dependency_graph(steps: &[PlanStep]) -> (Vec<usize>, HashMap<&str, Vec<usize>>) {
     let id_to_idx: HashMap<&str, usize> = steps
         .iter()
         .enumerate()

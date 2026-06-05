@@ -163,11 +163,14 @@ impl PlanRepository {
         plan: &ExecutionPlan,
         agent_name: &str,
     ) -> Result<(), PlanRepositoryError> {
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "INSERT INTO execution_plans (plan_id, task_id, agent_name, status) \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "INSERT INTO execution_plans (plan_id, task_id, agent_name, status) \
              VALUES (?1, ?2, ?3, 'running')",
-            params![plan.plan_id, plan.task_id, agent_name],
-        )?;
+                params![plan.plan_id, plan.task_id, agent_name],
+            )?;
         Ok(())
     }
 
@@ -207,12 +210,15 @@ impl PlanRepository {
     /// # Errors
     /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn start_step(&self, plan_id: &str, step_id: &str) -> Result<(), PlanRepositoryError> {
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE plan_steps \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE plan_steps \
              SET status = 'running', started_at = CURRENT_TIMESTAMP \
              WHERE plan_id = ?1 AND step_id = ?2",
-            params![plan_id, step_id],
-        )?;
+                params![plan_id, step_id],
+            )?;
         Ok(())
     }
 
@@ -226,12 +232,15 @@ impl PlanRepository {
         step_id: &str,
         output: &str,
     ) -> Result<(), PlanRepositoryError> {
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE plan_steps \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE plan_steps \
              SET status = 'completed', output = ?1, completed_at = CURRENT_TIMESTAMP \
              WHERE plan_id = ?2 AND step_id = ?3",
-            params![output, plan_id, step_id],
-        )?;
+                params![output, plan_id, step_id],
+            )?;
         Ok(())
     }
 
@@ -245,12 +254,15 @@ impl PlanRepository {
         step_id: &str,
         error: &str,
     ) -> Result<(), PlanRepositoryError> {
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE plan_steps \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE plan_steps \
              SET status = 'failed', error = ?1, completed_at = CURRENT_TIMESTAMP \
              WHERE plan_id = ?2 AND step_id = ?3",
-            params![error, plan_id, step_id],
-        )?;
+                params![error, plan_id, step_id],
+            )?;
         Ok(())
     }
 
@@ -310,12 +322,15 @@ impl PlanRepository {
     /// # Errors
     /// Returns [`PlanRepositoryError::Sqlite`] on a SQLite error.
     pub fn complete_plan(&self, plan_id: &str) -> Result<(), PlanRepositoryError> {
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE execution_plans \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE execution_plans \
              SET status = 'completed', updated_at = CURRENT_TIMESTAMP \
              WHERE plan_id = ?1",
-            params![plan_id],
-        )?;
+                params![plan_id],
+            )?;
         Ok(())
     }
 
@@ -334,12 +349,15 @@ impl PlanRepository {
         config: &ObservabilityConfig,
     ) -> Result<(), PlanRepositoryError> {
         let (text, truncated) = truncate_with_marker(rendered_input, config.max_input_bytes);
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE plan_steps \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE plan_steps \
              SET input_rendered = ?1, input_truncated = ?2 \
              WHERE plan_id = ?3 AND step_id = ?4",
-            params![text, truncated as i32, plan_id, step_id],
-        )?;
+                params![text, truncated as i32, plan_id, step_id],
+            )?;
         Ok(())
     }
 
@@ -358,12 +376,15 @@ impl PlanRepository {
         config: &ObservabilityConfig,
     ) -> Result<(), PlanRepositoryError> {
         let (text, truncated) = truncate_with_marker(output, config.max_output_bytes);
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE plan_steps \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE plan_steps \
              SET output_text = ?1, output_truncated = ?2 \
              WHERE plan_id = ?3 AND step_id = ?4",
-            params![text, truncated as i32, plan_id, step_id],
-        )?;
+                params![text, truncated as i32, plan_id, step_id],
+            )?;
         Ok(())
     }
 
@@ -379,12 +400,15 @@ impl PlanRepository {
         plan_id: &str,
         error_detail: &str,
     ) -> Result<(), PlanRepositoryError> {
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE plan_steps \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE plan_steps \
              SET error_detail = ?1 \
              WHERE plan_id = ?2 AND step_id = ?3",
-            params![error_detail, plan_id, step_id],
-        )?;
+                params![error_detail, plan_id, step_id],
+            )?;
         Ok(())
     }
 
@@ -400,12 +424,15 @@ impl PlanRepository {
         plan_id: &str,
         tool_name: &str,
     ) -> Result<(), PlanRepositoryError> {
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE plan_steps \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE plan_steps \
              SET tool_used = ?1 \
              WHERE plan_id = ?2 AND step_id = ?3",
-            params![tool_name, plan_id, step_id],
-        )?;
+                params![tool_name, plan_id, step_id],
+            )?;
         Ok(())
     }
 
@@ -419,12 +446,15 @@ impl PlanRepository {
         plan_id: &str,
         duration_ms: i64,
     ) -> Result<(), PlanRepositoryError> {
-        self.conn.lock().expect("plan repository mutex poisoned").execute(
-            "UPDATE plan_steps \
+        self.conn
+            .lock()
+            .expect("plan repository mutex poisoned")
+            .execute(
+                "UPDATE plan_steps \
              SET duration_ms = ?1 \
              WHERE plan_id = ?2 AND step_id = ?3",
-            params![duration_ms, plan_id, step_id],
-        )?;
+                params![duration_ms, plan_id, step_id],
+            )?;
         Ok(())
     }
 
