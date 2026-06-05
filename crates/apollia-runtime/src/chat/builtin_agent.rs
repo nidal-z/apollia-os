@@ -15,7 +15,7 @@ use std::time::Duration;
 use futures::StreamExt;
 use tracing::{info, warn};
 
-use apollia_core::{AutonomyLevel, ORIAConfig, RuntimeEvent};
+use apollia_core::{AutonomyLevel, AutonomyLevelConfig, ORIAConfig, RuntimeEvent};
 use apollia_llm::types::{
     ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
@@ -1080,9 +1080,15 @@ impl BuiltInChatAgent {
     ///
     /// Then prepends the authoritative temporal/environment block at the **top**
     /// of the prompt so the LLM treats current date + time + timezone as ground
-    /// truth, not as one fact among its priors, and appends the user persona
-    /// block when configured.
-    pub fn build_system_prompt(&self, custom_prompt: Option<&str>, level: AutonomyLevel) -> String {
+    /// truth, not as one fact among its priors. The user persona block is
+    /// appended only when `inject_memory` is true and a memory repository is
+    /// configured (memory stays at the agent's initiative, gated by the tier).
+    pub fn build_system_prompt(
+        &self,
+        custom_prompt: Option<&str>,
+        level: AutonomyLevel,
+        inject_memory: bool,
+    ) -> String {
         let base_prompt = match custom_prompt {
             Some(custom) if !custom.is_empty() => custom,
             _ => match level {
@@ -1094,25 +1100,27 @@ impl BuiltInChatAgent {
         };
         let mut prompt = apollia_core::temporal_context::prepend_temporal_context(base_prompt);
 
-        if let Some(ref repo_mutex) = self.user_memory {
-            match repo_mutex.lock() {
-                Ok(repo) => match repo.recall_persona_brief(30) {
-                    Ok(block) if !block.is_empty() => {
-                        prompt.push_str(
-                            "\n\n## User Persona\n\
-                             Follow the adaptation instructions below to personalize every \
-                             response. Do not repeat this information back to the user \
-                             unless asked.\n\n",
-                        );
-                        prompt.push_str(&block);
-                    }
-                    Ok(_) => {} // empty, nothing to inject
+        if inject_memory {
+            if let Some(ref repo_mutex) = self.user_memory {
+                match repo_mutex.lock() {
+                    Ok(repo) => match repo.recall_persona_brief(30) {
+                        Ok(block) if !block.is_empty() => {
+                            prompt.push_str(
+                                "\n\n## User Persona\n\
+                                 Follow the adaptation instructions below to personalize every \
+                                 response. Do not repeat this information back to the user \
+                                 unless asked.\n\n",
+                            );
+                            prompt.push_str(&block);
+                        }
+                        Ok(_) => {} // empty, nothing to inject
+                        Err(e) => {
+                            warn!(error = %e, "Failed to read user memory for injection, skipping");
+                        }
+                    },
                     Err(e) => {
-                        warn!(error = %e, "Failed to read user memory for injection, skipping");
+                        warn!(error = %e, "User memory mutex poisoned, skipping injection");
                     }
-                },
-                Err(e) => {
-                    warn!(error = %e, "User memory mutex poisoned, skipping injection");
                 }
             }
         }
@@ -1126,6 +1134,13 @@ impl BuiltInChatAgent {
     /// [`RuntimeEvent::ChatToken`] for each token received. The ReAct loop
     /// continues until the LLM produces a final text response (no tool calls)
     /// or the [`StepBudget`] is exhausted.
+    ///
+    /// The autonomy tier governs the prompt variant, memory injection, and the
+    /// post-run verification. The `budget` is built by the manager via
+    /// `StepBudget::from_capped`, so it is already the capped ceiling; this method
+    /// never raises it. `level_config` carries the resolved tier flags
+    /// (`inject_memory`, `run_verification`); when `None` the call behaves as the
+    /// assisted tier (no memory injection, no verification).
     ///
     /// # Errors
     ///
@@ -1148,13 +1163,31 @@ impl BuiltInChatAgent {
         autonomy: Option<&AutonomyLevel>,
         verification: Option<&VerificationLoop>,
         critic: Option<&CriticPass>,
+        level_config: Option<&AutonomyLevelConfig>,
     ) -> Result<ChatAgentResponse, ChatError> {
         let custom_prompt = if system_prompt.is_empty() {
             None
         } else {
             Some(system_prompt)
         };
-        let effective_prompt = self.build_system_prompt(custom_prompt, AutonomyLevel::Assisted);
+        let level = autonomy.copied().unwrap_or(AutonomyLevel::Assisted);
+        let inject_memory = level_config.is_some_and(|c| c.inject_memory);
+        let run_verification = level_config.is_some_and(|c| c.run_verification);
+
+        // Auditable trace of the applied tier. The budget is already capped by
+        // the runtime ceiling at construction (principle #7); this only records
+        // the effective values.
+        tracing::info!(
+            autonomy_level = %level.as_str(),
+            inject_memory,
+            run_verification,
+            max_steps = budget.max_steps,
+            max_tool_calls = budget.max_tool_calls,
+            wall_clock_secs = budget.wall_clock_limit.as_secs(),
+            "chat.autonomy_tier.applied"
+        );
+
+        let effective_prompt = self.build_system_prompt(custom_prompt, level, inject_memory);
 
         let mut tool_specs = build_tool_specs(
             available_tools,
@@ -1198,8 +1231,9 @@ impl BuiltInChatAgent {
 
         // Post-run verification with bounded retry, gated by the autonomy tier.
         // The verification loop and critic are injected by the manager; when the
-        // tier is assisted, or neither is configured, this is a no-op.
-        let Some(level) = autonomy else {
+        // tier does not request verification, or neither is configured, this is a
+        // no-op and the first response is returned unchanged.
+        let Some(level) = autonomy.filter(|_| run_verification) else {
             return Ok(first);
         };
         let invoker = NoopCheckInvoker;
@@ -2470,6 +2504,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .await;
 
@@ -2527,6 +2562,7 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
                 None,
                 None,
                 None,
@@ -2600,6 +2636,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .await;
 
@@ -2665,6 +2702,7 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
                 None,
                 None,
                 None,
@@ -2739,6 +2777,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .await;
 
@@ -2788,6 +2827,7 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
                 None,
                 None,
                 None,
@@ -2906,6 +2946,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .await
             .expect("should succeed");
@@ -3014,6 +3055,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .await
             .expect("should succeed");
@@ -3069,6 +3111,7 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
                 None,
                 None,
                 None,
@@ -3162,6 +3205,7 @@ mod tests {
                 &budget,
                 None,
                 DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
                 None,
                 None,
                 None,
@@ -3287,6 +3331,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .await
             .expect("should succeed");
@@ -3353,7 +3398,7 @@ mod tests {
         });
 
         // WHEN building the system prompt
-        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
+        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted, true);
 
         // THEN the prompt opens with the authoritative environment block
         // (temporal context now leads the prompt) and still carries the
@@ -3364,6 +3409,65 @@ mod tests {
         assert!(prompt.contains("francais"));
         assert!(prompt.contains("markdown"));
         assert!(prompt.contains("apollia"));
+    }
+
+    // Story 550 AC-4: with a populated repo, a tier whose `inject_memory` is
+    // false must NOT inject the persona block, while a tier with it true must.
+    #[tokio::test]
+    async fn test_inject_memory_flag_gates_persona_block() {
+        // GIVEN an agent with a non-empty user memory repository
+        let repo = make_user_memory_repo(&[("preferences", "langue", "francais")]);
+        let router = make_router(Arc::new(MockStopModel::with_content("ok")));
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let event_bus = make_event_bus();
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry,
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: Some(repo),
+            a2a_invoker: None,
+        });
+
+        // WHEN inject_memory is false (e.g. supervised tier)
+        let without = agent.build_system_prompt(None, AutonomyLevel::Supervised, false);
+        // THEN the persona block is absent despite the populated repo
+        assert!(!without.contains("## User Persona"));
+        assert!(!without.contains("francais"));
+
+        // WHEN inject_memory is true (e.g. long autonomous tier)
+        let with = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous, true);
+        // THEN the persona block is injected
+        assert!(with.contains("## User Persona"));
+        assert!(with.contains("francais"));
+    }
+
+    // Story 550 AC-1/AC-2: the effective budget is the tier budget capped by the
+    // runtime ceiling, never above it.
+    #[test]
+    fn test_from_capped_applies_runtime_ceiling() {
+        // GIVEN the long-autonomous tier (500 steps) and a 200-step ceiling
+        let config = apollia_core::AutonomyConfig::default();
+        let ceiling = apollia_core::StepBudgetConfig {
+            max_steps: 200,
+            max_tool_calls: 400,
+            wall_clock_secs: 3600,
+        };
+        let lc = config.level_config(AutonomyLevel::LongAutonomous);
+        let budget = StepBudget::from_capped(&lc.budget, &ceiling);
+
+        // THEN the ceiling caps max_steps and the tier flags are active
+        assert_eq!(budget.max_steps, 200);
+        assert!(lc.inject_memory);
+        assert!(lc.run_verification);
+
+        // AND the assisted tier stays at its own 100-step budget under the ceiling
+        let assisted = config.level_config(AutonomyLevel::Assisted);
+        let assisted_budget = StepBudget::from_capped(&assisted.budget, &ceiling);
+        assert_eq!(assisted_budget.max_steps, 100);
+        assert!(!assisted.inject_memory);
+        assert!(!assisted.run_verification);
     }
 
     #[tokio::test]
@@ -3384,7 +3488,7 @@ mod tests {
         });
 
         // WHEN building the system prompt
-        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
+        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted, true);
 
         // THEN the prompt does NOT contain the user persona block
         assert!(!prompt.contains("User Persona"));
@@ -3407,7 +3511,7 @@ mod tests {
         });
 
         // WHEN building the system prompt
-        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
+        let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted, true);
 
         // THEN the prompt does NOT contain the user persona block
         assert!(!prompt.contains("User Persona"));
@@ -3438,7 +3542,7 @@ mod tests {
         let agent = make_agent_no_memory();
 
         // WHEN building the prompt for the assisted tier
-        let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted);
+        let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
 
         // THEN it carries the reactive default marker, not the perseverance one
         assert!(prompt.contains("Agis d'abord"));
@@ -3451,7 +3555,7 @@ mod tests {
         let agent = make_agent_no_memory();
 
         // WHEN building the prompt for a bounded-autonomous tier
-        let prompt = agent.build_system_prompt(None, AutonomyLevel::BoundedAutonomous);
+        let prompt = agent.build_system_prompt(None, AutonomyLevel::BoundedAutonomous, false);
 
         // THEN it carries the perseverance marker, not the reactive default
         assert!(prompt.contains("Persevere jusqu'a l'objectif"));
@@ -3464,7 +3568,7 @@ mod tests {
         let agent = make_agent_no_memory();
 
         // WHEN building the prompt for the long-autonomous tier
-        let prompt = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous);
+        let prompt = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous, false);
 
         // THEN it carries the perseverance marker
         assert!(prompt.contains("Persevere jusqu'a l'objectif"));
@@ -3477,7 +3581,7 @@ mod tests {
         let custom = "Mon prompt personnalise";
 
         // WHEN building the prompt with the custom base
-        let prompt = agent.build_system_prompt(Some(custom), AutonomyLevel::Assisted);
+        let prompt = agent.build_system_prompt(Some(custom), AutonomyLevel::Assisted, false);
 
         // THEN the custom prompt is used verbatim
         assert!(prompt.contains("Mon prompt personnalise"));
@@ -3490,7 +3594,7 @@ mod tests {
 
         // WHEN / THEN building the prompt for each tier never panics
         for level in AutonomyLevel::ALL {
-            let _ = agent.build_system_prompt(None, level);
+            let _ = agent.build_system_prompt(None, level, false);
         }
     }
 
@@ -3500,8 +3604,8 @@ mod tests {
         let agent = make_agent_no_memory();
 
         // WHEN building both the assisted and an autonomous prompt
-        let p_assisted = agent.build_system_prompt(None, AutonomyLevel::Assisted);
-        let p_auto = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous);
+        let p_assisted = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+        let p_auto = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous, false);
 
         // THEN both are longer than the bare constant (temporal block prepended)
         assert!(p_assisted.len() > DEFAULT_SYSTEM_PROMPT.len());

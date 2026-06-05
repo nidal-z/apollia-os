@@ -15,12 +15,15 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info, warn};
 
-use apollia_core::{RuntimeEvent, StepBudgetConfig};
+use apollia_core::{
+    AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RuntimeEvent, StepBudgetConfig,
+};
 use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
+use apollia_oria::verification::{CriticPass, VerificationLoop};
 use apollia_permissions::prefix_rule_engine::RuleAction;
 use apollia_permissions::PrefixRuleEngine;
 use apollia_tools::chat_libre_config::ChatLibreConfigRepository;
@@ -336,6 +339,10 @@ struct LibreExchangeParams {
     session_user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     pending_approvals: PendingChatApprovals,
     budget: StepBudget,
+    autonomy_level: AutonomyLevel,
+    level_config: AutonomyLevelConfig,
+    verification: Option<VerificationLoop>,
+    critic: Option<CriticPass>,
     history: Vec<ChatMessage>,
     available_tools: Vec<String>,
     authorized_tools: std::collections::HashSet<String>,
@@ -376,6 +383,10 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         session_user_memory,
         pending_approvals,
         budget,
+        autonomy_level,
+        level_config,
+        verification,
+        critic,
         history,
         available_tools,
         authorized_tools,
@@ -506,9 +517,10 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
             &budget,
             summary.as_deref(),
             context_window_size,
-            None,
-            None,
-            None,
+            Some(&autonomy_level),
+            verification.as_ref(),
+            critic.as_ref(),
+            Some(&level_config),
         )
         .await;
 
@@ -1827,7 +1839,25 @@ impl ChatSessionManager {
             let authorized_tools =
                 merge_live_authorized_tools(&session.authorized_tools, &session.mode);
             let pending_approvals = self.pending_chat_approvals.clone();
-            let budget = StepBudget::new(&self.runtime_budget);
+
+            // Resolve the autonomy tier and build the effective budget from it.
+            // `runtime_budget` is the ceiling: `from_capped` guarantees no tier
+            // raises the budget above it (principle #7). The verification loop and
+            // critic are constructed only when the tier requests verification;
+            // Chat Libre declares no manifest check commands, so the loop is
+            // critic-driven (empty command list).
+            let autonomy_config = AutonomyConfig::default();
+            let autonomy_level = autonomy_config.default_level;
+            let level_config = autonomy_config.level_config(autonomy_level);
+            let budget = StepBudget::from_capped(&level_config.budget, &self.runtime_budget);
+            let (verification, critic) = if level_config.run_verification {
+                (
+                    Some(VerificationLoop::new(Vec::new(), Vec::new())),
+                    Some(CriticPass::new(llm_router.clone())),
+                )
+            } else {
+                (None, None)
+            };
             let sid = session_id.to_string();
             let mid = message_id.clone();
             let user_msg = content.to_string();
@@ -1870,6 +1900,10 @@ impl ChatSessionManager {
                 session_user_memory,
                 pending_approvals,
                 budget,
+                autonomy_level,
+                level_config,
+                verification,
+                critic,
                 history,
                 available_tools,
                 authorized_tools,
