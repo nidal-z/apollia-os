@@ -101,6 +101,15 @@ pub struct CompletionRequest {
     /// `temperature == Some(0.0)` since the sampler is then strictly
     /// deterministic (argmax).
     pub seed: Option<u64>,
+    /// GBNF grammar string for decode-time constrained generation.
+    ///
+    /// When `Some`, the local runner backend prepends a grammar sampler stage
+    /// that restricts the token sequence to the grammar. Cloud backends ignore
+    /// this field. `None` (default) means unconstrained generation.
+    ///
+    /// Typically produced by [`crate::grammar::tool_specs_to_gbnf`] from the
+    /// active tool set.
+    pub grammar: Option<String>,
 }
 
 /// Unified inference response returned by all backends.
@@ -624,6 +633,41 @@ mod tests {
         assert!(req.temperature.is_none());
         assert!(req.max_tokens.is_none());
         assert!(req.tools.is_empty());
+    }
+
+    // GIVEN a default CompletionRequest
+    // WHEN the grammar field is read
+    // THEN it is None
+    #[test]
+    fn test_completion_request_default_grammar_is_none() {
+        let req = CompletionRequest::default();
+        assert!(req.grammar.is_none(), "grammar should be None by default");
+    }
+
+    // GIVEN partial construction with only messages
+    // WHEN built with ..Default::default()
+    // THEN it compiles and grammar defaults to None (backward compatibility)
+    #[test]
+    fn test_partial_construction_remains_valid() {
+        let req = CompletionRequest {
+            messages: vec![ChatMessage::user("bonjour")],
+            ..Default::default()
+        };
+        assert_eq!(req.messages.len(), 1);
+        assert!(req.grammar.is_none());
+    }
+
+    // GIVEN a non-empty GBNF string
+    // WHEN assigned to the grammar field
+    // THEN the field carries the value
+    #[test]
+    fn test_grammar_field_accepts_some_value() {
+        let gbnf = "root ::= \"{}\"".to_string();
+        let req = CompletionRequest {
+            grammar: Some(gbnf),
+            ..Default::default()
+        };
+        assert_eq!(req.grammar.as_deref(), Some("root ::= \"{}\""));
     }
 
     // GIVEN a BackendUnavailable error
