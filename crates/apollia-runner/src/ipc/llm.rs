@@ -207,3 +207,22 @@ pub struct EmbedData {
     pub dim: u32,
     pub model_id: String,
 }
+
+/// Params for `POST /llm/tokenize`.
+///
+/// Tokenizes `text` with the loaded model's GGUF tokenizer and returns the
+/// exact token count. For multi-message counting the caller concatenates
+/// role-prefixed previews and tokenizes the concatenation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenizeParams {
+    pub model_id: String,
+    /// Plain text to tokenize (not pre-formatted as a chat template).
+    pub text: String,
+}
+
+/// Response from `POST /llm/tokenize`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenizeData {
+    /// Number of tokens the GGUF tokenizer produced for the given text.
+    pub token_count: u32,
+}

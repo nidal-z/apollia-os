@@ -343,6 +343,40 @@ impl CompletionModel for RunnerLlmBackend {
             .or_else(|| self.n_ctx_train.get())
             .map(|&n| n as usize)
     }
+
+    fn count_tokens(&self, messages: &[ChatMessage]) -> usize {
+        // Concatenate role-prefixed text for a faithful tokenizer estimate.
+        let text: String = messages
+            .iter()
+            .map(|m| {
+                let role = match m.role {
+                    Role::System => "system",
+                    Role::User => "user",
+                    Role::Assistant => "assistant",
+                    Role::Tool => "tool",
+                };
+                let content = match &m.content {
+                    MessageContent::Text(s) => s.as_str(),
+                    MessageContent::ToolResult { content, .. } => content.as_str(),
+                    MessageContent::WithToolCalls { text, .. } => text.as_str(),
+                };
+                format!("{role}: {content}\n")
+            })
+            .collect();
+
+        match self.proxy.tokenize_blocking(&self.model_id, &text) {
+            Ok(count) => count as usize,
+            Err(e) => {
+                tracing::warn!(
+                    model_id = %self.model_id,
+                    error = %e,
+                    "tokenize.ipc_failed_fallback_proxy"
+                );
+                // Proxy identical to the CompletionModel::count_tokens default.
+                ((text.len() as f32) / 4.0 * 1.2) as usize
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -427,5 +461,40 @@ mod tests {
             }
         }]);
         assert_eq!(mapped, expected);
+    }
+
+    /// A backend whose runner sidecar is not started (proxy holds `None`).
+    fn unconnected_backend() -> Arc<RunnerLlmBackend> {
+        let proxy = RunnerProxy::new(Arc::new(tokio::sync::RwLock::new(None)));
+        RunnerLlmBackend::new(
+            proxy,
+            "local".to_string(),
+            "test-model".to_string(),
+            "/tmp/model.gguf".to_string(),
+        )
+    }
+
+    // GIVEN a RunnerLlmBackend whose runner sidecar is unreachable
+    // WHEN count_tokens is called
+    // THEN the chars/4 proxy is returned (> 0) without panic or error
+    #[test]
+    fn count_tokens_falls_back_to_proxy_when_runner_absent() {
+        let backend = unconnected_backend();
+        let messages = vec![ChatMessage::user("hello world")];
+        let count = backend.count_tokens(&messages);
+        assert!(count > 0);
+    }
+
+    // GIVEN an unconnected backend and a multi-message history
+    // WHEN count_tokens is called
+    // THEN the result is strictly positive (fallback proxy invariant)
+    #[test]
+    fn count_tokens_nonzero_for_nonempty_messages() {
+        let backend = unconnected_backend();
+        let messages = vec![
+            ChatMessage::system("you are helpful"),
+            ChatMessage::user("bonjour"),
+        ];
+        assert!(backend.count_tokens(&messages) > 0);
     }
 }

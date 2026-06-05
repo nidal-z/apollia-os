@@ -57,6 +57,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/llm/unload_model", post(llm::unload_model))
         .route("/llm/complete", post(llm::complete))
         .route("/llm/stream", post(llm::stream))
+        .route("/llm/tokenize", post(llm::tokenize))
         .route("/llm/embed", post(llm::embed))
         .route("/stt/transcribe", post(stt::transcribe))
         .with_state(state)

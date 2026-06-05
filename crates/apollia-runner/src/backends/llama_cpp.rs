@@ -30,7 +30,7 @@ use llama_cpp_2::sampling::LlamaSampler;
 
 use crate::ipc::{
     ChatMessage, CompleteData, CompleteParams, ErrorBody, ErrorCode, LoadModelData, LoadModelParams,
-    Role, StreamChunk, Timing, TokenUsage, ToolCall,
+    Role, StreamChunk, Timing, TokenUsage, TokenizeData, ToolCall,
 };
 
 use slot::{conversation_fingerprint, InferenceRequest, SlotJob, SlotPool};
@@ -280,6 +280,22 @@ impl LlamaCppBackend {
                 total_ms: started.elapsed().as_millis() as u64,
             },
             tool_calls: out.tool_calls,
+        })
+    }
+
+    /// Tokenize `text` with the loaded model's GGUF tokenizer (`POST /llm/tokenize`).
+    ///
+    /// Returns [`ErrorCode::ModelNotLoaded`] when `model_id` is not in the cache.
+    /// Empty text yields `token_count: 0` (no BOS is added).
+    pub fn tokenize(&self, model_id: &str, text: &str) -> Result<TokenizeData, ErrorBody> {
+        let entry = self.get_model(model_id).ok_or_else(|| {
+            ErrorBody::new(
+                ErrorCode::ModelNotLoaded,
+                format!("model '{model_id}' not loaded"),
+            )
+        })?;
+        Ok(TokenizeData {
+            token_count: entry.slots.tokenize(text),
         })
     }
 
@@ -664,6 +680,18 @@ mod tests {
             role,
             content: content.to_string(),
         }
+    }
+
+    // GIVEN a backend with no model loaded
+    // WHEN tokenize is called for an unknown model id
+    // THEN it returns a ModelNotLoaded error
+    #[test]
+    fn tokenize_unknown_model_returns_model_not_loaded() {
+        let backend = LlamaCppBackend::new();
+        let err = backend
+            .tokenize("inexistant", "test")
+            .expect_err("unknown model must be rejected");
+        assert_eq!(err.code, ErrorCode::ModelNotLoaded);
     }
 
     #[test]

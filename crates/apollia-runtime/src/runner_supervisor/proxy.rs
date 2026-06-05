@@ -73,6 +73,42 @@ impl RunnerProxy {
         serde_json::from_value(data).map_err(RunnerError::Json)
     }
 
+    /// Tokenize `text` for `model_id` via `POST /llm/tokenize`, blocking until
+    /// the runner answers, and return the token count.
+    ///
+    /// `CompletionModel::count_tokens` is synchronous, but the IPC call is
+    /// async, so this method bridges the two. It first probes connectivity
+    /// synchronously with `try_read`: when the runner is not started it returns
+    /// an error immediately, with no Tokio runtime required, so a caller outside
+    /// any async context still reaches its proxy fallback. When connected it
+    /// drives the HTTP call on the current runtime (the daemon's multi-threaded
+    /// runtime in production), falling back to a transient runtime when called
+    /// from a non-async context.
+    pub fn tokenize_blocking(&self, model_id: &str, text: &str) -> Result<u32, RunnerError> {
+        // Synchronous readiness probe so the absent-runner path needs no runtime.
+        let connected = matches!(self.inner.try_read(), Ok(guard) if guard.is_some());
+        if !connected {
+            return Err(RunnerError::Http("runner not started".into()));
+        }
+
+        let params = serde_json::json!({ "model_id": model_id, "text": text });
+        let fut = self.post_json::<_, Value>("/llm/tokenize", params);
+
+        let data = match tokio::runtime::Handle::try_current() {
+            Ok(handle) => tokio::task::block_in_place(|| handle.block_on(fut)),
+            Err(_) => tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| RunnerError::Http(format!("tokenize runtime: {e}")))?
+                .block_on(fut),
+        }?;
+
+        data.get("token_count")
+            .and_then(|v| v.as_u64())
+            .map(|n| n as u32)
+            .ok_or_else(|| RunnerError::Http("tokenize response missing token_count".into()))
+    }
+
     /// Check the runner's health via `GET /health`.
     pub async fn health_check(&self) -> Result<Value, RunnerError> {
         let guard = self.inner.read().await;

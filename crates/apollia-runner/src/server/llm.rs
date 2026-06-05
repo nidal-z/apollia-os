@@ -12,7 +12,7 @@ use axum::response::{IntoResponse, Response as AxumResponse};
 use axum::Json;
 
 use crate::ipc::{
-    CompleteParams, EmbedParams, ErrorBody, ErrorCode, LoadModelParams, Request,
+    CompleteParams, EmbedParams, ErrorBody, ErrorCode, LoadModelParams, Request, TokenizeParams,
     UnloadModelParams,
 };
 #[cfg(feature = "local-cpu")]
@@ -203,6 +203,28 @@ pub async fn stream(
     Json(_req): Json<Request<CompleteParams>>,
 ) -> AxumResponse {
     not_compiled("/llm/stream")
+}
+
+#[cfg(feature = "local-cpu")]
+pub async fn tokenize(
+    State(state): State<AppState>,
+    Json(req): Json<Request<TokenizeParams>>,
+) -> AxumResponse {
+    if req.params.model_id.trim().is_empty() {
+        return ipc_error_response(bad("model_id must not be empty"));
+    }
+    match state.llama.tokenize(&req.params.model_id, &req.params.text) {
+        Ok(data) => Json(Response::success(req.request_id, data)).into_response(),
+        Err(e) => ipc_error_response(e),
+    }
+}
+
+#[cfg(not(feature = "local-cpu"))]
+pub async fn tokenize(
+    State(_state): State<AppState>,
+    Json(_req): Json<Request<TokenizeParams>>,
+) -> AxumResponse {
+    not_compiled("/llm/tokenize")
 }
 
 pub async fn embed(

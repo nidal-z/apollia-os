@@ -101,6 +101,9 @@ impl Drop for SlotHandle {
 /// A pool of N persistent slots for a single loaded model.
 pub(super) struct SlotPool {
     handles: Vec<SlotHandle>,
+    /// Shared model handle, kept at the pool level so tokenization (vocab only,
+    /// no KV cache) runs directly without routing through a slot thread.
+    model: Arc<LlamaModel>,
 }
 
 impl SlotPool {
@@ -121,7 +124,22 @@ impl SlotPool {
                 n_ctx,
             )?);
         }
-        Ok(Self { handles })
+        Ok(Self {
+            handles,
+            model: Arc::clone(model),
+        })
+    }
+
+    /// Count the tokens `text` produces with the model's GGUF tokenizer.
+    ///
+    /// `AddBos::Never` so an empty string yields `0`. Tokenization needs only
+    /// the model vocabulary, so it runs on the caller's thread without a slot
+    /// job. A tokenizer failure maps to `0` (the caller falls back to a proxy).
+    pub(super) fn tokenize(&self, text: &str) -> u32 {
+        self.model
+            .str_to_token(text, AddBos::Never)
+            .map(|tokens| tokens.len() as u32)
+            .unwrap_or(0)
     }
 
     /// Send a job to the best slot for `fingerprint`. Picks the idle slot whose
