@@ -4,10 +4,10 @@
 //! MCP tool names and descriptions. The synthetic `tool_search` tool lets a
 //! ReAct agent find tools by intent without paying the context cost of every
 //! schema. It is never registered on a real MCP server; it is injected by the
-//! runtime (STORY-543) alongside native tools when deferred mode is active.
+//! runtime alongside native tools when deferred mode is active.
 //!
 //! Search is a case-insensitive substring match over tool name, description, and
-//! server tags. No embeddings, no vector store (ADR-031): stdlib only.
+//! server tags. No embeddings, no vector store: stdlib substring matching only.
 //!
 //! [`LoadingMode::Deferred`]: crate::session::LoadingMode::Deferred
 
@@ -115,8 +115,8 @@ pub fn search_index(
 
 /// JSON Schema for the synthetic `tool_search` tool's input.
 ///
-/// Consumed by the runtime (STORY-543) when building the tool descriptor that is
-/// injected alongside native tools in deferred mode.
+/// Consumed by the runtime when building the tool descriptor that is injected
+/// alongside native tools in deferred mode.
 pub fn tool_search_input_schema() -> Value {
     serde_json::json!({
         "type": "object",
@@ -155,7 +155,7 @@ impl ToolSearchExecutor {
     ///
     /// `max_limit` caps the `limit` argument accepted from the LLM; values above
     /// this cap (or `0`) are rejected with [`ToolExecutionError::InvalidInput`].
-    /// A typical value is 20 (sourced from `mcp.tool_search_limit` in STORY-544).
+    /// A typical value is 20, sourced from the `mcp.tool_search_limit` setting.
     pub fn new(index: Vec<ToolIndexSnapshot>, max_limit: usize) -> Self {
         Self { index, max_limit }
     }

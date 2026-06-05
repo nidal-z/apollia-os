@@ -206,7 +206,7 @@ async fn test_server_crash_returns_error_on_tool_call() {
     session.shutdown().await;
 }
 
-// ─── deferred loading (STORY-541) ──────────────────────────────────────────
+// ─── deferred loading ──────────────────────────────────────────────────────
 
 /// Deferred start must load only the lightweight index, not the schemas.
 #[tokio::test]
