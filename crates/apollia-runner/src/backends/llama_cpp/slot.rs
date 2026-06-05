@@ -39,6 +39,8 @@ pub(super) struct InferenceRequest {
     pub top_p: f32,
     pub top_k: i32,
     pub seed: Option<u64>,
+    /// GBNF grammar string; `None` means unconstrained decoding.
+    pub grammar: Option<String>,
 }
 
 /// Result of a non-streaming inference, returned over the reply channel.
@@ -392,7 +394,7 @@ fn generate(
     let prompt_tokens = new_len as u32;
     let effective_max = resolve_effective_max(n_ctx, prompt_tokens, req.max_tokens);
     let decode_start = Instant::now();
-    let mut sampler = build_sampler(req.temperature, req.top_p, req.top_k, req.seed);
+    let mut sampler = build_sampler(req, model)?;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let mut n_cur = new_len as i32;
     let n_max = n_cur + effective_max as i32;

@@ -261,6 +261,7 @@ mod tests {
             seed: None,
             stop: vec![],
             tools: None,
+            grammar: None,
         }
     }
 

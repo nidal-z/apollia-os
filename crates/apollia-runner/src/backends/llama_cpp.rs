@@ -351,6 +351,7 @@ fn build_request(params: CompleteParams) -> (InferenceRequest, u64) {
         top_p,
         top_k,
         seed: params.seed,
+        grammar: params.grammar,
     };
     (req, fingerprint)
 }
@@ -625,25 +626,42 @@ fn oai_tool_call(call: &serde_json::Value, index: usize) -> Option<ToolCall> {
     })
 }
 
-/// Builds the tail sampler (greedy if `temperature <= 0`, otherwise stochastic).
-fn build_sampler(temperature: f32, top_p: f32, top_k: i32, seed: Option<u64>) -> LlamaSampler {
-    if temperature <= 0.0 {
-        return LlamaSampler::greedy();
-    }
-    let resolved_seed = seed.unwrap_or_else(|| {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos() as u64)
-            .unwrap_or(0)
-    });
-    let dist_seed = ((resolved_seed >> 32) as u32) ^ (resolved_seed as u32);
+/// Builds the sampler chain for one inference request.
+///
+/// The tail is greedy when `temperature <= 0`, otherwise the stochastic
+/// `top_k`/`top_p`/`temp`/`dist` chain. When `req.grammar` is `Some`, a grammar
+/// stage is prepended as the first element of the chain, restricting the token
+/// sequence to the GBNF. An invalid grammar returns `Err` with
+/// [`ErrorCode::InferenceFailed`] and never crashes the slot. When `req.grammar`
+/// is `None`, the chain is identical to the pre-grammar behavior.
+fn build_sampler(req: &InferenceRequest, model: &LlamaModel) -> Result<LlamaSampler, ErrorBody> {
+    let tail = if req.temperature <= 0.0 {
+        LlamaSampler::greedy()
+    } else {
+        let resolved_seed = req.seed.unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(0)
+        });
+        let dist_seed = ((resolved_seed >> 32) as u32) ^ (resolved_seed as u32);
 
-    LlamaSampler::chain_simple([
-        LlamaSampler::top_k(top_k),
-        LlamaSampler::top_p(top_p, 1),
-        LlamaSampler::temp(temperature),
-        LlamaSampler::dist(dist_seed),
-    ])
+        LlamaSampler::chain_simple([
+            LlamaSampler::top_k(req.top_k),
+            LlamaSampler::top_p(req.top_p, 1),
+            LlamaSampler::temp(req.temperature),
+            LlamaSampler::dist(dist_seed),
+        ])
+    };
+
+    match req.grammar.as_deref() {
+        None => Ok(tail),
+        Some(gbnf) => {
+            let grammar_stage = LlamaSampler::grammar(model, gbnf, "root")
+                .map_err(|e| inference_failed(format!("invalid grammar: {e}")))?;
+            Ok(LlamaSampler::chain_simple([grammar_stage, tail]))
+        }
+    }
 }
 
 
@@ -960,6 +978,17 @@ mod tests {
         // THEN nothing is extracted and the remainder is kept
         assert!(calls.is_empty());
         assert_eq!(content, "thinking <tool_call>{\"name\": \"a\"");
+    }
+
+    #[test]
+    fn test_build_sampler_signature_with_grammar() {
+        // GIVEN build_sampler now takes the request (carrying the grammar) and a model
+        // WHEN binding it as a typed function pointer
+        // THEN the signature returns Result<LlamaSampler, ErrorBody> (the None grammar
+        //      path is identical to pre-grammar behavior; the Some path needs a loaded
+        //      model and is exercised by integration, not here)
+        let _: fn(&InferenceRequest, &LlamaModel) -> Result<LlamaSampler, ErrorBody> =
+            build_sampler;
     }
 }
 
