@@ -20,6 +20,7 @@ use apollia_llm::types::{
     ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
 use apollia_llm::{LlmRouter, MetaOrchestratorHandle, ObservabilityConfig, ToolInvoker};
+use apollia_mcp::tool_search::{tool_search_input_schema, ToolIndexSnapshot};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::context_manager::ContextManager;
@@ -745,6 +746,14 @@ pub struct BuiltInChatAgent {
     /// Workspace directory injected into the system prompt so the LLM knows its
     /// effective working directory (project workspace or ~/.apollia/ for free chat).
     workspace_path: Option<std::path::PathBuf>,
+    /// Aggregated MCP tool index for deferred mode.
+    ///
+    /// `Some` only when the session runs in deferred mode: `build_tool_specs`
+    /// then injects the synthetic `tool_search` spec and omits the individual MCP
+    /// schemas. `None` keeps the eager spec path unchanged.
+    mcp_index: Option<Vec<ToolIndexSnapshot>>,
+    /// Maximum `limit` advertised for the synthetic `tool_search` tool.
+    tool_search_limit: usize,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.
@@ -810,7 +819,25 @@ impl BuiltInChatAgent {
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
             meta_handle: None,
             workspace_path: None,
+            mcp_index: None,
+            // Overwritten by `with_mcp_index` in deferred mode; unused otherwise.
+            tool_search_limit: 20,
         }
+    }
+
+    /// Configure the deferred MCP tool index for this agent.
+    ///
+    /// `Some(index)` switches `build_tool_specs` to the deferred path: it injects
+    /// the synthetic `tool_search` spec (capped at `tool_search_limit`) and omits
+    /// the individual MCP schemas. `None` keeps the eager path unchanged.
+    pub fn with_mcp_index(
+        mut self,
+        mcp_index: Option<Vec<ToolIndexSnapshot>>,
+        tool_search_limit: usize,
+    ) -> Self {
+        self.mcp_index = mcp_index;
+        self.tool_search_limit = tool_search_limit;
+        self
     }
 
     /// Set the workspace path for this agent (used in system prompt and bash CWD).
@@ -894,7 +921,13 @@ impl BuiltInChatAgent {
         };
         let effective_prompt = self.build_system_prompt(base_prompt);
 
-        let mut tool_specs = build_tool_specs(available_tools, &self.tool_registry).await;
+        let mut tool_specs = build_tool_specs(
+            available_tools,
+            &self.tool_registry,
+            self.mcp_index.as_deref(),
+            self.tool_search_limit,
+        )
+        .await;
         if let Some(ref a2a) = self.a2a_invoker {
             tool_specs.extend(generate_a2a_tool_specs(a2a).await);
         }
@@ -942,7 +975,8 @@ impl BuiltInChatAgent {
             budget.increment_steps();
 
             // Compact context if messages approach the model's context limit.
-            self.maybe_compact_context(&mut llm_messages, session_id).await;
+            self.maybe_compact_context(&mut llm_messages, session_id)
+                .await;
 
             let request = CompletionRequest {
                 messages: llm_messages.clone(),
@@ -1167,7 +1201,11 @@ impl BuiltInChatAgent {
 
     /// Compact the LLM message buffer in place when it approaches the context
     /// limit, emitting [`RuntimeEvent::ContextCompacted`] on success.
-    async fn maybe_compact_context(&self, llm_messages: &mut Vec<LlmChatMessage>, session_id: &str) {
+    async fn maybe_compact_context(
+        &self,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        session_id: &str,
+    ) {
         let (compacted, was_compacted) = self
             .context_manager
             .maybe_compact(llm_messages, &self.llm_router)
@@ -1360,8 +1398,7 @@ impl BuiltInChatAgent {
         } = ctx;
 
         if acc.authorized.contains(&call.name) {
-            let (record, tool_result) =
-                self.execute_tool_call(session_id, message_id, call).await;
+            let (record, tool_result) = self.execute_tool_call(session_id, message_id, call).await;
             llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
             acc.all_tool_calls.push(record);
             return;
@@ -1632,12 +1669,29 @@ fn extract_hostname(url: &str) -> Option<String> {
 }
 
 /// Convert available tool names to LLM-compatible [`ToolSpec`]s via the registry.
+///
+/// In eager mode (`mcp_index` is `None`) this resolves every entry in
+/// `available_tools` from the registry, exactly as before this change.
+///
+/// In deferred mode (`mcp_index` is `Some`) the individual `mcp:` names are
+/// skipped and a single synthetic `tool_search` spec is appended instead, so the
+/// LLM discovers MCP tools by intent rather than receiving every schema up front.
+/// `tool_search_limit` is the upper bound advertised in that spec's description.
 async fn build_tool_specs(
     available_tools: &[String],
     tool_registry: &ToolRegistryHandle,
+    mcp_index: Option<&[ToolIndexSnapshot]>,
+    tool_search_limit: usize,
 ) -> Vec<ToolSpec> {
+    let deferred = mcp_index.is_some();
     let mut specs = Vec::with_capacity(available_tools.len());
     for name in available_tools {
+        // In deferred mode the individual MCP schemas are never sent to the LLM:
+        // the synthetic `tool_search` tool (appended below) is the only entry
+        // point. Native tools are resolved normally in both modes.
+        if deferred && name.starts_with("mcp:") {
+            continue;
+        }
         match tool_registry.get(name).await {
             Ok(Some(descriptor)) => {
                 specs.push(ToolSpec {
@@ -1654,7 +1708,28 @@ async fn build_tool_specs(
             }
         }
     }
+    if deferred {
+        specs.push(tool_search_spec(tool_search_limit));
+    }
     specs
+}
+
+/// Build the synthetic `tool_search` [`ToolSpec`] injected in deferred MCP mode.
+///
+/// `max_limit` is the configured upper bound for the `limit` argument, surfaced
+/// in the description so the model picks a valid value.
+fn tool_search_spec(max_limit: usize) -> ToolSpec {
+    ToolSpec {
+        name: "tool_search".to_string(),
+        description: format!(
+            "Search the connected MCP tools by intent and return matching tools \
+             with their fully qualified `mcp:server/tool` names. Call this before \
+             invoking any MCP tool: the returned `full_name` is the exact name to \
+             call. Takes an optional `query` substring (empty returns the top \
+             results) and an optional `limit` between 1 and {max_limit}."
+        ),
+        parameters: tool_search_input_schema(),
+    }
 }
 
 /// Truncate a string to a maximum length, appending "..." if truncated.
@@ -1691,7 +1766,10 @@ fn truncate_tool_output(s: &str) -> String {
 /// lines. Returns `None` when `s` is not the expected JSON shape.
 fn compact_json_stdout(s: &str) -> Option<String> {
     let mut val = serde_json::from_str::<serde_json::Value>(s).ok()?;
-    let stdout = val.get("stdout").and_then(|v| v.as_str()).map(String::from)?;
+    let stdout = val
+        .get("stdout")
+        .and_then(|v| v.as_str())
+        .map(String::from)?;
 
     let lines: Vec<&str> = stdout.lines().collect();
     let total_lines = lines.len();
@@ -2460,15 +2538,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("output"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent =
-            BuiltInChatAgent::new(BuiltInChatAgentDeps {
-                llm_router: router,
-                tool_registry: tool_registry.clone(),
-                tool_invoker: invoker,
-                event_bus: event_tx,
-                user_memory: None,
-                a2a_invoker: None,
-            });
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus: event_tx,
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let mut authorized = HashSet::new();
@@ -2568,15 +2645,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent =
-            BuiltInChatAgent::new(BuiltInChatAgentDeps {
-                llm_router: router,
-                tool_registry: tool_registry.clone(),
-                tool_invoker: invoker,
-                event_bus: event_tx,
-                user_memory: None,
-                a2a_invoker: None,
-            });
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus: event_tx,
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2714,15 +2790,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent =
-            BuiltInChatAgent::new(BuiltInChatAgentDeps {
-                llm_router: router,
-                tool_registry: tool_registry.clone(),
-                tool_invoker: invoker,
-                event_bus: event_tx,
-                user_memory: None,
-                a2a_invoker: None,
-            });
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus: event_tx,
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2832,15 +2907,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent =
-            BuiltInChatAgent::new(BuiltInChatAgentDeps {
-                llm_router: router,
-                tool_registry: tool_registry.clone(),
-                tool_invoker: invoker,
-                event_bus: event_tx,
-                user_memory: None,
-                a2a_invoker: None,
-            });
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus: event_tx,
+            user_memory: None,
+            a2a_invoker: None,
+        });
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2917,15 +2991,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent =
-            BuiltInChatAgent::new(BuiltInChatAgentDeps {
-                llm_router: router,
-                tool_registry,
-                tool_invoker: invoker,
-                event_bus,
-                user_memory: Some(repo),
-                a2a_invoker: None,
-            });
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry,
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: Some(repo),
+            a2a_invoker: None,
+        });
 
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
@@ -2949,15 +3022,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent =
-            BuiltInChatAgent::new(BuiltInChatAgentDeps {
-                llm_router: router,
-                tool_registry,
-                tool_invoker: invoker,
-                event_bus,
-                user_memory: Some(repo),
-                a2a_invoker: None,
-            });
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry,
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: Some(repo),
+            a2a_invoker: None,
+        });
 
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
@@ -3121,5 +3193,124 @@ mod tests {
 
         // THEN sandbox_root is not the ghost path (filter rejects non-existent dirs)
         assert_ne!(invoker.sandbox_root, ghost);
+    }
+
+    // ── build_tool_specs: eager vs deferred MCP ────────────────────────────
+
+    /// Build a minimal registry descriptor for an `mcp:server/tool` name.
+    fn mcp_descriptor(full_name: &str) -> apollia_tools::descriptor::ToolDescriptor {
+        use apollia_tools::descriptor::{ToolDescriptor, ToolKind};
+        ToolDescriptor {
+            name: full_name.to_string(),
+            version: "1.0.0".to_string(),
+            description: format!("MCP tool {full_name}"),
+            kind: ToolKind::Native,
+            input_schema: serde_json::json!({"type": "object"}),
+            output_schema: None,
+            sandbox_profile: apollia_core::SandboxProfile::NetworkRestricted,
+            tags: vec!["mcp".to_string()],
+            dangerous: false,
+            is_read_only: false,
+            risk_score: 3,
+            approval_risk_level: None,
+            impact_description: None,
+            reject_reason_required: false,
+        }
+    }
+
+    fn snapshot(server: &str, tool: &str) -> ToolIndexSnapshot {
+        ToolIndexSnapshot {
+            server_name: server.to_string(),
+            tool_name: tool.to_string(),
+            description: Some(format!("{tool} description")),
+            tags: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn test_build_tool_specs_eager_includes_mcp_schemas() {
+        // GIVEN a registry with a native tool and an MCP tool, eager mode
+        let registry = ToolRegistryHandle::start();
+        registry
+            .register(apollia_tools::tools::bash_executor::BashExecutor::descriptor())
+            .await
+            .unwrap();
+        registry
+            .register(mcp_descriptor("mcp:notion/search_pages"))
+            .await
+            .unwrap();
+        let available = vec![
+            "bash_executor".to_string(),
+            "mcp:notion/search_pages".to_string(),
+        ];
+        // WHEN build_tool_specs runs with no index (eager)
+        let specs = build_tool_specs(&available, &registry, None, 20).await;
+        // THEN both the native and the MCP schema are present, tool_search absent
+        let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"bash_executor"));
+        assert!(names.contains(&"mcp:notion/search_pages"));
+        assert!(!names.contains(&"tool_search"));
+    }
+
+    #[tokio::test]
+    async fn test_build_tool_specs_deferred_injects_tool_search() {
+        // GIVEN the same registry, but deferred mode with a one-tool index
+        let registry = ToolRegistryHandle::start();
+        registry
+            .register(apollia_tools::tools::bash_executor::BashExecutor::descriptor())
+            .await
+            .unwrap();
+        registry
+            .register(mcp_descriptor("mcp:notion/search_pages"))
+            .await
+            .unwrap();
+        let available = vec![
+            "bash_executor".to_string(),
+            "mcp:notion/search_pages".to_string(),
+        ];
+        let index = vec![snapshot("notion", "search_pages")];
+        // WHEN build_tool_specs runs with the index (deferred)
+        let specs = build_tool_specs(&available, &registry, Some(&index), 20).await;
+        // THEN the native tool stays, the MCP schema is gone, tool_search is present
+        let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"bash_executor"));
+        assert!(!names.contains(&"mcp:notion/search_pages"));
+        assert!(names.contains(&"tool_search"));
+    }
+
+    #[tokio::test]
+    async fn test_build_tool_specs_deferred_empty_index_still_has_tool_search() {
+        // GIVEN a registry with only a native tool, deferred mode, empty index
+        let registry = ToolRegistryHandle::start();
+        registry
+            .register(apollia_tools::tools::bash_executor::BashExecutor::descriptor())
+            .await
+            .unwrap();
+        let available = vec!["bash_executor".to_string()];
+        // WHEN build_tool_specs runs with an empty index
+        let specs = build_tool_specs(&available, &registry, Some(&[]), 20).await;
+        // THEN the native tool and tool_search are present, no panic, valid schema
+        let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"bash_executor"));
+        let ts = specs
+            .iter()
+            .find(|s| s.name == "tool_search")
+            .expect("tool_search spec present");
+        assert_eq!(ts.parameters["type"], "object");
+    }
+
+    #[tokio::test]
+    async fn test_tool_search_executor_returns_connected_tool() {
+        use apollia_mcp::tool_search::ToolSearchExecutor;
+        use apollia_tools::executor::ToolExecutor;
+        // GIVEN a tool_search executor over a notion index
+        let executor = ToolSearchExecutor::new(vec![snapshot("notion", "search_pages")], 20);
+        // WHEN it is invoked with a matching query
+        let out = executor
+            .execute(serde_json::json!({"query": "search"}))
+            .await
+            .unwrap();
+        // THEN the returned full_name is the directly-invocable identifier
+        assert_eq!(out["matches"][0]["full_name"], "mcp:notion/search_pages");
     }
 }

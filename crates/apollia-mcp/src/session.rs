@@ -252,6 +252,16 @@ pub enum LoadingMode {
     Deferred,
 }
 
+impl From<apollia_core::McpToolLoading> for LoadingMode {
+    /// Map the operator-facing config value to the session loading mode.
+    fn from(value: apollia_core::McpToolLoading) -> Self {
+        match value {
+            apollia_core::McpToolLoading::Eager => Self::Eager,
+            apollia_core::McpToolLoading::Deferred => Self::Deferred,
+        }
+    }
+}
+
 /// A lightweight entry in the deferred tool index.
 ///
 /// Populated from a `tools/list` response when running in

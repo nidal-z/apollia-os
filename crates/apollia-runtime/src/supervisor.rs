@@ -22,7 +22,9 @@ use apollia_core::{
     SttConfigRepository, SttConfigRow,
 };
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
-use apollia_mcp::{config::McpConfig, manager::McpClientManagerHandle, McpServerRepository};
+use apollia_mcp::{
+    config::McpConfig, manager::McpClientManagerHandle, session::LoadingMode, McpServerRepository,
+};
 use apollia_notifications::{
     build_channels, NotificationConfig, NotificationConfigRepository, NotificationEngine,
     NotificationEngineHandle,
@@ -126,6 +128,17 @@ pub struct SupervisorConfig {
     /// `web_search`, `web_read`, `http_allowlist`, and `disabled` when building
     /// the `NativeDispatcherConfig`. Default: [`apollia_core::ToolsConfig::default()`].
     pub tools_config: apollia_core::ToolsConfig,
+
+    /// MCP tool loading strategy (the `[mcp] tool_loading` key of `apollia.toml`).
+    ///
+    /// Selects how every MCP session boots: [`LoadingMode::Eager`] loads and
+    /// registers all schemas up front; [`LoadingMode::Deferred`] keeps only a
+    /// lightweight index and exposes the synthetic `tool_search` tool instead.
+    pub mcp_loading: LoadingMode,
+
+    /// Maximum `limit` accepted by the synthetic `tool_search` tool (the
+    /// `[mcp] tool_search_limit` key of `apollia.toml`). Default: 20.
+    pub tool_search_limit: usize,
 }
 
 impl SupervisorConfig {
@@ -480,9 +493,14 @@ impl Supervisor {
             }
         };
 
-        let handle =
-            start_mcp_manager(server_configs, tool_registry_handle, event_sender, &mcp_config_path)
-                .await;
+        let handle = start_mcp_manager(
+            server_configs,
+            tool_registry_handle,
+            event_sender,
+            &mcp_config_path,
+            self.config.mcp_loading,
+        )
+        .await;
 
         let repo = Arc::new(std::sync::Mutex::new(repo));
         (handle, Some(repo))
@@ -512,7 +530,10 @@ impl Supervisor {
         } else {
             self.config.api_config.bind_addr.clone()
         };
-        let api_base_url = format!("http://{}:{}", connect_addr, self.config.api_config.tcp_port);
+        let api_base_url = format!(
+            "http://{}:{}",
+            connect_addr, self.config.api_config.tcp_port
+        );
         let engine = NotificationEngine::new(
             notif_config.clone(),
             channels,
@@ -622,8 +643,9 @@ impl Supervisor {
             return (None, None);
         };
         let proxy = supervisor.proxy();
-        let backend: Box<dyn apollia_stt::SttBackend> =
-            Box::new(crate::runner_supervisor::RunnerSttBackend::new(proxy, model_id));
+        let backend: Box<dyn apollia_stt::SttBackend> = Box::new(
+            crate::runner_supervisor::RunnerSttBackend::new(proxy, model_id),
+        );
 
         let handle = crate::stt::SttEngineHandle::start(
             backend,
@@ -823,16 +845,15 @@ impl Supervisor {
             ctx.registry_handle
                 .update_state(agent_id.as_str(), ProcessState::Degraded)
                 .await
-                .unwrap_or_else(|e| {
-                    warn!(name = %agent_name, error = %e, "failed to set Degraded state")
-                });
+                .unwrap_or_else(
+                    |e| warn!(name = %agent_name, error = %e, "failed to set Degraded state"),
+                );
         }
 
         // Create ExecutionCoordinator with backend factory.
         let agent_backend: B = match ctx.backend_factory {
             Some(factory) => {
-                let dyn_backend =
-                    factory.create_for_agent(&agent.install_path, &agent.manifest);
+                let dyn_backend = factory.create_for_agent(&agent.install_path, &agent.manifest);
                 B::from(dyn_backend)
             }
             None => ctx.base_backend.clone(),
@@ -1162,6 +1183,8 @@ impl Supervisor {
                     brave_api_key: None, // resolved lazily by web_search when missing
                     tools_config: self.config.tools_config.clone(),
                 })),
+                self.config.mcp_loading,
+                self.config.tool_search_limit,
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");
@@ -1209,8 +1232,7 @@ impl Supervisor {
         // route can replace the active router without restarting the daemon.
         // Other consumers (chat manager, embedded runtime) keep their own
         // direct handle and stay reachable via the supervisor handle struct.
-        let shared_llm_router =
-            crate::api::server::shared_llm_router_from(llm_router.clone());
+        let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -1681,6 +1703,7 @@ async fn start_mcp_manager(
     tool_registry_handle: &ToolRegistryHandle,
     event_sender: &EventBusSender,
     mcp_config_path: &std::path::Path,
+    loading_mode: LoadingMode,
 ) -> Option<McpClientManagerHandle> {
     // Always start the McpClientManager actor, even when the server list is
     // empty. Without this, the desktop "Add MCP server" flow cannot register a
@@ -1693,6 +1716,7 @@ async fn start_mcp_manager(
         tool_registry_handle,
         Some(event_sender.clone()),
         None,
+        loading_mode,
     )
     .await
     {
@@ -2169,6 +2193,8 @@ mod tests {
             package_repository: None,
             bundled_agents_path: None,
             tools_config: apollia_core::ToolsConfig::default(),
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
         (config, temp_dir)
     }
@@ -2346,6 +2372,8 @@ mod tests {
             package_repository: None,
             bundled_agents_path: None,
             tools_config: apollia_core::ToolsConfig::default(),
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2496,6 +2524,8 @@ mod tests {
             package_repository: None,
             bundled_agents_path: None,
             tools_config: apollia_core::ToolsConfig::default(),
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2612,6 +2642,8 @@ mod tests {
             package_repository: None,
             bundled_agents_path: None,
             tools_config: apollia_core::ToolsConfig::default(),
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2674,6 +2706,8 @@ mod tests {
             package_repository: None,
             bundled_agents_path: None,
             tools_config: apollia_core::ToolsConfig::default(),
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2747,6 +2781,8 @@ mod tests {
             package_repository: None,
             bundled_agents_path: None,
             tools_config: apollia_core::ToolsConfig::default(),
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2995,6 +3031,8 @@ mod tests {
             package_repository: None,
             bundled_agents_path: None,
             tools_config: apollia_core::ToolsConfig::default(),
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
         let supervisor = Supervisor::new(config);
 

@@ -1198,11 +1198,32 @@ fn default_true() -> bool {
 // McpConfig
 // ─────────────────────────────────────────────
 
+/// MCP tool loading strategy.
+///
+/// Controls whether tool schemas are loaded eagerly at session start or
+/// deferred until the first use of each tool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum McpToolLoading {
+    /// Load every advertised tool schema up front, during the session handshake.
+    ///
+    /// Preserves the legacy behavior. Suitable for deployments with a small,
+    /// fixed set of MCP servers where upfront loading is cheap.
+    Eager,
+    /// Load only a lightweight index at boot; fetch full schemas on demand.
+    ///
+    /// Default. Near-zero context cost for large MCP ecosystems. Relies on the
+    /// synthetic `tool_search` tool, injected by the runtime, to let an agent
+    /// discover tools by intent before any schema is fetched.
+    #[default]
+    Deferred,
+}
+
 /// MCP module configuration (`[mcp]` section in `apollia.toml`).
 ///
-/// Controls the MCP-layer behaviors exposed by the runtime: TTL of the HITL
-/// approvals persisted in SQLite. Every field has a sane default via
-/// [`Default`].
+/// Controls the MCP-layer behaviors exposed by the runtime: the TTL of the HITL
+/// approvals persisted in SQLite, the tool loading strategy, and the
+/// `tool_search` result cap. Every field has a sane default via [`Default`].
 #[derive(Debug, Clone, Deserialize)]
 pub struct McpConfig {
     /// Validity duration of MCP HITL approvals, in hours.
@@ -1213,12 +1234,32 @@ pub struct McpConfig {
     /// Default: 24. Bounds: [0, 8760] (0 h to 1 year).
     #[serde(default = "default_approval_ttl_hours")]
     pub approval_ttl_hours: u64,
+
+    /// Tool schema loading strategy for all MCP servers.
+    ///
+    /// `"deferred"` (default): only tool names and descriptions are loaded at
+    /// boot; full schemas are fetched on demand. Recommended for large
+    /// ecosystems and local models with narrow context windows.
+    ///
+    /// `"eager"`: all schemas are loaded at session start. Suitable for small,
+    /// fixed server sets where upfront loading is cheap.
+    #[serde(default)]
+    pub tool_loading: McpToolLoading,
+
+    /// Maximum number of results returned by the `tool_search` synthetic tool.
+    ///
+    /// Default: 20. Bounds: [1, 500]. Passed to the `tool_search` executor at
+    /// construction time.
+    #[serde(default = "default_tool_search_limit")]
+    pub tool_search_limit: usize,
 }
 
 impl Default for McpConfig {
     fn default() -> Self {
         Self {
             approval_ttl_hours: default_approval_ttl_hours(),
+            tool_loading: McpToolLoading::default(),
+            tool_search_limit: default_tool_search_limit(),
         }
     }
 }
@@ -1227,6 +1268,7 @@ impl McpConfig {
     /// Validates the MCP configuration bounds at startup (fail-fast).
     ///
     /// - `approval_ttl_hours`: must be in [0, 8760].
+    /// - `tool_search_limit`: must be in [1, 500].
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "mcp.approval_ttl_hours",
@@ -1234,12 +1276,22 @@ impl McpConfig {
             0_u64,
             8760_u64,
         )?;
+        validate_bounds(
+            "mcp.tool_search_limit",
+            self.tool_search_limit,
+            1_usize,
+            500_usize,
+        )?;
         Ok(())
     }
 }
 
 fn default_approval_ttl_hours() -> u64 {
     24
+}
+
+fn default_tool_search_limit() -> usize {
+    20
 }
 
 // ─────────────────────────────────────────────
@@ -1726,6 +1778,123 @@ impl FilesystemConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── McpConfig: tool_loading + tool_search_limit ────────────────────────
+
+    #[test]
+    fn test_mcp_config_default_is_deferred_limit_20() {
+        // GIVEN a default McpConfig
+        let cfg = McpConfig::default();
+        // WHEN its fields are read
+        // THEN the loading mode is deferred and the search cap is 20
+        assert_eq!(cfg.tool_loading, McpToolLoading::Deferred);
+        assert_eq!(cfg.tool_search_limit, 20);
+        assert_eq!(cfg.approval_ttl_hours, 24);
+    }
+
+    #[test]
+    fn test_mcp_config_deserializes_eager_mode() {
+        // GIVEN a config selecting eager mode with an explicit limit
+        let json = serde_json::json!({
+            "tool_loading": "eager",
+            "tool_search_limit": 10
+        });
+        // WHEN it is deserialized
+        let cfg: McpConfig = serde_json::from_value(json).unwrap();
+        // THEN both values are taken from the input
+        assert_eq!(cfg.tool_loading, McpToolLoading::Eager);
+        assert_eq!(cfg.tool_search_limit, 10);
+    }
+
+    #[test]
+    fn test_mcp_config_deserializes_deferred_mode() {
+        // GIVEN a config selecting deferred mode only
+        let json = serde_json::json!({ "tool_loading": "deferred" });
+        // WHEN it is deserialized
+        let cfg: McpConfig = serde_json::from_value(json).unwrap();
+        // THEN the loading mode is deferred and the limit falls back to its default
+        assert_eq!(cfg.tool_loading, McpToolLoading::Deferred);
+        assert_eq!(cfg.tool_search_limit, 20);
+    }
+
+    #[test]
+    fn test_mcp_tool_loading_unknown_value_fails() {
+        // GIVEN a config with an unknown loading strategy
+        let json = serde_json::json!({ "tool_loading": "stream" });
+        // WHEN it is deserialized
+        let result = serde_json::from_value::<McpConfig>(json);
+        // THEN deserialization fails rather than panicking
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_tool_search_limit_zero_fails() {
+        // GIVEN a config with a zero search cap
+        let cfg = McpConfig {
+            tool_search_limit: 0,
+            ..McpConfig::default()
+        };
+        // WHEN it is validated
+        let result = cfg.validate();
+        // THEN an out-of-bounds error is reported for the right field
+        assert!(
+            matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "mcp.tool_search_limit"),
+            "expected OutOfBounds for mcp.tool_search_limit, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_validate_tool_search_limit_exceeds_max_fails() {
+        // GIVEN a config above the upper bound
+        let cfg = McpConfig {
+            tool_search_limit: 501,
+            ..McpConfig::default()
+        };
+        // WHEN it is validated
+        let result = cfg.validate();
+        // THEN an out-of-bounds error is reported
+        assert!(matches!(result, Err(ConfigError::OutOfBounds { .. })));
+    }
+
+    #[test]
+    fn test_validate_tool_search_limit_at_max_passes() {
+        // GIVEN a config exactly at the upper bound
+        let cfg = McpConfig {
+            tool_search_limit: 500,
+            ..McpConfig::default()
+        };
+        // WHEN / THEN validation accepts the boundary value
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn test_mcp_config_default_validates_ok() {
+        // GIVEN / WHEN / THEN the default config passes validation
+        assert!(McpConfig::default().validate().is_ok());
+    }
+
+    #[test]
+    fn test_mcp_tool_loading_copy_and_eq() {
+        // GIVEN a loading mode value
+        let m = McpToolLoading::Eager;
+        // WHEN it is copied
+        let m2 = m;
+        // THEN both equal each other and differ from the other variant
+        assert_eq!(m, m2);
+        assert_ne!(McpToolLoading::Eager, McpToolLoading::Deferred);
+    }
+
+    #[test]
+    fn test_mcp_tool_loading_serialize_round_trip() {
+        // GIVEN the deferred variant
+        let deferred = McpToolLoading::Deferred;
+        // WHEN it is serialized and read back
+        let s = serde_json::to_string(&deferred).unwrap();
+        let back: McpToolLoading = serde_json::from_str(&s).unwrap();
+        // THEN the wire form is lowercase and the round-trip is lossless
+        assert_eq!(s, "\"deferred\"");
+        assert_eq!(back, McpToolLoading::Deferred);
+    }
 
     // ── Absent config preserves every default ──────────────────────────────
 
