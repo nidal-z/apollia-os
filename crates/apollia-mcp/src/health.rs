@@ -166,6 +166,7 @@ fn classify_session_error(err: &McpSessionError) -> Signal {
             last_error: truncate(&err.to_string()),
         },
         McpSessionError::ToolCallFailed { cause, .. } => classify_text(cause),
+        McpSessionError::SchemaFetchFailed { cause, .. } => classify_text(cause),
         McpSessionError::JsonRpcError { message, .. } => classify_text(message),
         McpSessionError::SerdeError(_) => Signal::Degraded {
             category: ErrorCategory::MalformedOutput,

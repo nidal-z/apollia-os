@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::protocol::ToolCallContent;
-use apollia_mcp::session::{McpSession, McpSessionError};
+use apollia_mcp::session::{LoadingMode, McpSession, McpSessionError};
 
 fn mock_server_config() -> McpServerConfig {
     McpServerConfig {
@@ -36,6 +36,26 @@ fn crash_server_config() -> McpServerConfig {
         requires_approval: false,
         init_timeout_secs: 10,
         call_timeout_secs: 1,
+        tags: vec![],
+    }
+}
+
+/// Config for the mock server that exits after its second `tools/list`,
+/// used to prove the deferred-mode schema cache.
+fn deferred_server_config() -> McpServerConfig {
+    McpServerConfig {
+        name: "deferred".to_string(),
+        command: "python3".to_string(),
+        args: vec![format!(
+            "{}/tests/mock_mcp_server_deferred.py",
+            env!("CARGO_MANIFEST_DIR")
+        )],
+        env: HashMap::new(),
+        transport: "stdio".to_string(),
+        url: None,
+        requires_approval: false,
+        init_timeout_secs: 10,
+        call_timeout_secs: 10,
         tags: vec![],
     }
 }
@@ -182,6 +202,132 @@ async fn test_server_crash_returns_error_on_tool_call() {
 
     // THEN an error is returned (the server has exited or the call timed out)
     assert!(result.is_err());
+
+    session.shutdown().await;
+}
+
+// ─── deferred loading (STORY-541) ──────────────────────────────────────────
+
+/// Deferred start must load only the lightweight index, not the schemas.
+#[tokio::test]
+async fn test_deferred_start_loads_index_only() {
+    // GIVEN the mock server exposing two tools
+    let config = mock_server_config();
+
+    // WHEN a session is started in deferred mode
+    let session = McpSession::start_with_mode(config, None, LoadingMode::Deferred)
+        .await
+        .unwrap();
+
+    // THEN the index holds both tools while the schema slice stays empty
+    assert_eq!(session.tool_index().len(), 2);
+    assert!(session.tools().is_empty());
+    let names: Vec<&str> = session
+        .tool_index()
+        .iter()
+        .map(|entry| entry.name.as_str())
+        .collect();
+    assert!(names.contains(&"echo"));
+    assert!(names.contains(&"add"));
+
+    session.shutdown().await;
+}
+
+/// fetch_tool_schema must return the schema and serve repeats from the cache.
+#[tokio::test]
+async fn test_deferred_fetch_schema_caches() {
+    // GIVEN a deferred session against a server that dies after its 2nd tools/list
+    let config = deferred_server_config();
+    let mut session = McpSession::start_with_mode(config, None, LoadingMode::Deferred)
+        .await
+        .unwrap();
+
+    // WHEN the first schema is fetched (this is the 2nd tools/list; server now exits)
+    let schema = session.fetch_tool_schema("echo").await.unwrap();
+    // THEN it carries the expected shape
+    assert_eq!(schema["type"], "object");
+    assert!(schema["properties"]["message"].is_object());
+
+    // Allow the server process to fully exit so any new request would fail
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // WHEN the same and a sibling tool are fetched again
+    let echo_again = session.fetch_tool_schema("echo").await.unwrap();
+    let add_schema = session.fetch_tool_schema("add").await.unwrap();
+    // THEN both are served from the cache (no third tools/list to the dead server)
+    assert_eq!(echo_again, schema);
+    assert!(add_schema["properties"]["a"].is_object());
+
+    session.shutdown().await;
+}
+
+/// fetch_tool_schema on an unknown tool must produce a typed error.
+#[tokio::test]
+async fn test_deferred_fetch_unknown_tool_errors() {
+    // GIVEN a deferred session against the live mock server
+    let config = mock_server_config();
+    let mut session = McpSession::start_with_mode(config, None, LoadingMode::Deferred)
+        .await
+        .unwrap();
+
+    // WHEN a schema is fetched for a tool absent from tools/list
+    let result = session.fetch_tool_schema("does_not_exist").await;
+
+    // THEN a SchemaFetchFailed error is returned (no panic)
+    assert!(matches!(
+        result,
+        Err(McpSessionError::SchemaFetchFailed { .. })
+    ));
+
+    session.shutdown().await;
+}
+
+/// A transport cut after boot must surface as a typed schema-fetch error.
+#[tokio::test]
+async fn test_deferred_fetch_network_error_is_typed() {
+    // GIVEN a deferred session against the crash server, which exits right after
+    // the boot tools/list that builds the index
+    let config = crash_server_config();
+    let mut session = McpSession::start_with_mode(config, None, LoadingMode::Deferred)
+        .await
+        .unwrap();
+    assert_eq!(session.tool_index().len(), 1);
+
+    // Allow the server process to fully exit before the on-demand fetch
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // WHEN a schema is fetched and the on-demand tools/list hits the dead process
+    let result = session.fetch_tool_schema("echo").await;
+
+    // THEN the network failure surfaces as a typed SchemaFetchFailed, not a panic
+    assert!(matches!(
+        result,
+        Err(McpSessionError::SchemaFetchFailed { .. })
+    ));
+
+    session.shutdown().await;
+}
+
+/// Eager mode is unchanged: schemas load at boot and fetch needs no round-trip.
+#[tokio::test]
+async fn test_eager_fetch_schema_uses_loaded_tools() {
+    // GIVEN an eager session (default) against the live mock server
+    let mut session = McpSession::start(mock_server_config(), None).await.unwrap();
+    assert_eq!(session.tools().len(), 2);
+    assert!(session.tool_index().is_empty());
+
+    // WHEN a known schema is fetched
+    let schema = session.fetch_tool_schema("echo").await.unwrap();
+    // THEN it is served from the already-loaded tools
+    assert_eq!(schema["type"], "object");
+
+    // WHEN an unknown schema is fetched
+    let missing = session.fetch_tool_schema("nope").await;
+    // THEN it is a typed SchemaFetchFailed
+    assert!(matches!(
+        missing,
+        Err(McpSessionError::SchemaFetchFailed { .. })
+    ));
 
     session.shutdown().await;
 }
