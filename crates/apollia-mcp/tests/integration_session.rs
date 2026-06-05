@@ -57,6 +57,39 @@ async fn test_mock_server_handshake() {
     session.shutdown().await;
 }
 
+/// The session must surface the server-level `instructions` from `initialize`.
+#[tokio::test]
+async fn test_mock_server_exposes_instructions() {
+    // GIVEN the mock MCP server, whose initialize response carries instructions
+    let config = mock_server_config();
+
+    // WHEN a session is started
+    let session = McpSession::start(config, None).await.unwrap();
+
+    // THEN the instructions are surfaced verbatim by the accessor
+    assert_eq!(
+        session.instructions(),
+        Some("Use this mock server for echo and add tools.")
+    );
+
+    session.shutdown().await;
+}
+
+/// A server that omits `instructions` must surface `None` without failing.
+#[tokio::test]
+async fn test_server_without_instructions_returns_none() {
+    // GIVEN the crash mock server, whose initialize response omits instructions
+    let config = crash_server_config();
+
+    // WHEN a session is started (handshake + tools/list succeed before the crash)
+    let session = McpSession::start(config, None).await.unwrap();
+
+    // THEN the absent field surfaces as None and the handshake still succeeded
+    assert!(session.instructions().is_none());
+
+    session.shutdown().await;
+}
+
 /// The echo tool must return the exact string passed in the message argument.
 #[tokio::test]
 async fn test_full_flow_echo_tool_call() {

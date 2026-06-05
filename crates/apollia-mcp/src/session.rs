@@ -236,6 +236,9 @@ pub struct McpSession {
     capabilities: ServerCapabilities,
     /// Server identity received during the initialize handshake.
     server_info: ServerInfo,
+    /// Free-text operator guidance returned by the server in `initialize`,
+    /// or `None` when the server omitted the `instructions` field.
+    instructions: Option<String>,
     /// Tools discovered via `tools/list`.
     tools: Vec<McpToolDefinition>,
     /// Instant at which the session was successfully started.
@@ -293,6 +296,7 @@ impl McpSession {
                 name: String::new(),
                 version: None,
             },
+            instructions: None,
             tools: Vec::new(),
             started_at: std::time::Instant::now(),
             health: McpHealth::Healthy { verified: false },
@@ -352,6 +356,7 @@ impl McpSession {
 
         self.capabilities = init_result.capabilities;
         self.server_info = init_result.server_info;
+        self.instructions = init_result.instructions;
 
         self.send_notification("notifications/initialized", None)
             .await?;
@@ -488,6 +493,15 @@ impl McpSession {
     /// Returns the server identity received during the initialize handshake.
     pub fn server_info(&self) -> &ServerInfo {
         &self.server_info
+    }
+
+    /// Returns the server-level `instructions` from the `initialize` handshake,
+    /// or `None` when the server omitted them.
+    ///
+    /// The value is returned verbatim; an empty string is reported as
+    /// `Some("")`, leaving the decision to treat it as absent to the caller.
+    pub fn instructions(&self) -> Option<&str> {
+        self.instructions.as_deref()
     }
 
     /// Returns the tools discovered via `tools/list`, or an empty slice before discovery.
