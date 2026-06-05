@@ -62,7 +62,7 @@ pub use repository::{
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
 pub use apollia_core::config::LlmRoutingConfig;
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
-pub use routing_level::LlmRoutingLevel;
+pub use routing_level::{EscalationSignal, LlmRoutingLevel};
 pub use token_budget::SessionBudgetTracker;
 pub use grammar::tool_specs_to_gbnf;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};

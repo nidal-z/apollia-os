@@ -29,3 +29,33 @@ pub enum LlmRoutingLevel {
     /// Configurable via `[llm.routing] fast` in `apollia.toml`.
     Fast,
 }
+
+/// Signal emitted by the agent loop to request frontier escalation.
+///
+/// A typed enum rather than a boolean, so future waves can add richer signals
+/// (confidence score, task category) without breaking the call sites.
+/// [`EscalationSignal::None`] means "no escalation requested": the router stays
+/// local. Consumed by
+/// [`LlmRouter::route_with_escalation`](crate::router::LlmRouter::route_with_escalation).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EscalationSignal {
+    /// No escalation requested. The router uses the local backend.
+    None,
+
+    /// A step failed repeatedly. `consecutive_failures` is the count since the
+    /// last successful step, as recorded by the agent loop.
+    RepeatedStepFailure {
+        /// Number of consecutive failures since the last success.
+        consecutive_failures: u32,
+    },
+
+    /// The autonomy tier explicitly requests frontier quality for this step.
+    AutonomyTierRequest,
+}
+
+impl EscalationSignal {
+    /// Return `true` if this signal requests escalation.
+    pub fn is_escalation(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+}

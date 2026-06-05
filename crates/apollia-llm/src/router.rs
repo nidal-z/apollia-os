@@ -11,6 +11,7 @@ use std::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 use crate::pricing::PricingTier;
+use crate::routing_level::{EscalationSignal, LlmRoutingLevel};
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::token_budget::TokenBudget;
@@ -469,6 +470,13 @@ fn validate_routing(
         }
         if !backends.contains_key(&routing.fast) {
             return Err(LlmError::BackendNotFound(routing.fast.clone()));
+        }
+        // When the hybrid section is present, the frontier backend it names must
+        // exist too: a misconfiguration is caught at startup, not at runtime.
+        if let Some(hybrid) = routing.hybrid.as_ref() {
+            if !backends.contains_key(&hybrid.frontier) {
+                return Err(LlmError::BackendNotFound(hybrid.frontier.clone()));
+            }
         }
     }
     Ok(())
@@ -1136,6 +1144,85 @@ impl LlmRouter {
         }
     }
 
+    /// Return the backend to use for this step, applying the escalation policy.
+    ///
+    /// Decision tree, in order:
+    /// 1. No `[llm.routing.hybrid]` configured: return the local backend for `level`.
+    /// 2. Signal is [`EscalationSignal::None`]: return the local backend.
+    /// 3. `session_cost_usd >= cost_ceiling_usd`: return local, emit `tracing::warn!`.
+    /// 4. Frontier backend absent from the router: return local, emit `tracing::warn!`.
+    /// 5. Otherwise: return the frontier backend.
+    ///
+    /// Never returns an error: degradation is always local, never a crash
+    /// (Principle #1 local-first; Principle #4 fail fast at startup, not runtime).
+    /// The per-session cost ceiling is consulted before every escalation and is
+    /// not bypassable (Principle #7).
+    pub fn route_with_escalation(
+        &self,
+        signal: EscalationSignal,
+        level: LlmRoutingLevel,
+    ) -> Arc<dyn CompletionModel> {
+        // Local fallback for `level`. `route_precise`/`route_fast` only error when
+        // routing is misconfigured (caught at startup); `route(None)` is the
+        // infallible last resort on the default backend, avoiding any `expect` here.
+        let local = || match level {
+            LlmRoutingLevel::Precise => self.route_precise().unwrap_or_else(|_| self.route(None)),
+            LlmRoutingLevel::Fast => self.route_fast().unwrap_or_else(|_| self.route(None)),
+        };
+
+        // 1. No hybrid configuration: stay local.
+        let Some(routing) = self.routing.as_ref() else {
+            return local();
+        };
+        let Some(hybrid) = routing.hybrid.as_ref() else {
+            return local();
+        };
+
+        // 2. No escalation requested.
+        if !signal.is_escalation() {
+            return local();
+        }
+
+        // 3. Cost ceiling check. A poisoned mutex reads as 0.0 (cost unknown,
+        // conservative: it permits the escalation rather than blocking work).
+        let session_cost = self
+            .session_budget
+            .lock()
+            .map(|t| t.session_cost_usd)
+            .unwrap_or(0.0);
+        if session_cost >= hybrid.cost_ceiling_usd {
+            tracing::warn!(
+                session_cost_usd = session_cost,
+                ceiling_usd = hybrid.cost_ceiling_usd,
+                signal = ?signal,
+                "hybrid escalation blocked: cost ceiling reached, staying local"
+            );
+            return local();
+        }
+
+        // 4 + 5. Frontier availability.
+        match self.backends.get(&hybrid.frontier) {
+            Some(backend) => {
+                tracing::info!(
+                    frontier = %hybrid.frontier,
+                    session_cost_usd = session_cost,
+                    ceiling_usd = hybrid.cost_ceiling_usd,
+                    signal = ?signal,
+                    "hybrid escalation: routing to frontier backend"
+                );
+                backend.clone()
+            }
+            None => {
+                tracing::warn!(
+                    frontier = %hybrid.frontier,
+                    signal = ?signal,
+                    "hybrid escalation: frontier backend absent from router, staying local"
+                );
+                local()
+            }
+        }
+    }
+
     /// Return the context window size in tokens used to size compaction.
     ///
     /// Prefers the active backend's reported window (e.g. a local model's
@@ -1456,6 +1543,7 @@ mod tests {
         let routing = Some(LlmRoutingConfig {
             precise: precise.to_owned(),
             fast: fast.to_owned(),
+            hybrid: None,
         });
         LlmRouter {
             default: precise.to_owned(),
@@ -1973,6 +2061,7 @@ mod tests {
         let router = make_test_router(backends, "haiku").with_routing(LlmRoutingConfig {
             precise: "opus".to_owned(),
             fast: "haiku".to_owned(),
+            hybrid: None,
         });
 
         assert_eq!(
@@ -2095,5 +2184,140 @@ mod tests {
         assert_eq!(precise.backend_name(), "claude-opus-4-6");
         assert_eq!(fast.backend_name(), "claude-opus-4-6");
         assert_eq!(precise.backend_name(), fast.backend_name());
+    }
+
+    // ── Hybrid escalation policy (STORY-557) ──────────────────────────────
+
+    /// Build a router with `precise = fast = "local"`, a `"frontier-model"`
+    /// backend, an `[llm.routing.hybrid]` section with the given ceiling, and a
+    /// seeded session cost.
+    fn make_hybrid_router(ceiling: f64, session_cost: f64) -> LlmRouter {
+        let mut backends = HashMap::new();
+        backends.insert("local".to_owned(), make_mock_backend("local"));
+        backends.insert(
+            "frontier-model".to_owned(),
+            make_mock_backend("frontier-model"),
+        );
+        let routing = Some(LlmRoutingConfig {
+            precise: "local".to_owned(),
+            fast: "local".to_owned(),
+            hybrid: Some(apollia_core::HybridRoutingConfig {
+                frontier: "frontier-model".to_owned(),
+                cost_ceiling_usd: ceiling,
+            }),
+        });
+        let session_budget = Arc::new(Mutex::new(SessionBudgetTracker::default()));
+        session_budget.lock().unwrap().session_cost_usd = session_cost;
+        LlmRouter {
+            default: "local".to_owned(),
+            backends,
+            routing,
+            cancellation_token: CancellationToken::new(),
+            session_budget,
+        }
+    }
+
+    // AC-1: escalation accepted when the frontier is available and under ceiling.
+    #[test]
+    fn test_escalation_accepted_under_ceiling() {
+        // GIVEN a hybrid router, session cost 0.50, ceiling 2.00
+        let router = make_hybrid_router(2.00, 0.50);
+
+        // WHEN a failure signal escalates a precise step
+        let backend = router.route_with_escalation(
+            EscalationSignal::RepeatedStepFailure {
+                consecutive_failures: 3,
+            },
+            LlmRoutingLevel::Precise,
+        );
+
+        // THEN the frontier backend is returned
+        assert_eq!(backend.backend_name(), "frontier-model");
+    }
+
+    // AC-2: ceiling reached keeps the router local.
+    #[test]
+    fn test_escalation_blocked_by_cost_ceiling() {
+        // GIVEN a hybrid router, session cost 1.05, ceiling 1.00
+        let router = make_hybrid_router(1.00, 1.05);
+
+        // WHEN a failure signal escalates a precise step
+        let backend = router.route_with_escalation(
+            EscalationSignal::RepeatedStepFailure {
+                consecutive_failures: 2,
+            },
+            LlmRoutingLevel::Precise,
+        );
+
+        // THEN the local precise backend is returned
+        assert_eq!(backend.backend_name(), "local");
+    }
+
+    // AC-3: no hybrid section means no escalation, no error.
+    #[test]
+    fn test_no_hybrid_config_returns_local() {
+        // GIVEN a router without a hybrid section
+        let router = make_routing_router("local", "local");
+
+        // WHEN any escalation signal is applied
+        let backend = router.route_with_escalation(
+            EscalationSignal::RepeatedStepFailure {
+                consecutive_failures: 1,
+            },
+            LlmRoutingLevel::Precise,
+        );
+
+        // THEN the local backend is returned
+        assert_eq!(backend.backend_name(), "local");
+    }
+
+    // AC-4: a frontier absent from the router is rejected at construction.
+    #[test]
+    fn test_frontier_absent_fails_at_construction() {
+        // GIVEN a routing whose hybrid frontier is not in the backend map
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+        backends.insert("local".to_owned(), make_mock_backend("local"));
+        let routing = LlmRoutingConfig {
+            precise: "local".to_owned(),
+            fast: "local".to_owned(),
+            hybrid: Some(apollia_core::HybridRoutingConfig {
+                frontier: "phantom".to_owned(),
+                cost_ceiling_usd: 1.00,
+            }),
+        };
+
+        // WHEN validate_routing runs
+        let result = validate_routing(&backends, Some(&routing));
+
+        // THEN it reports the missing frontier backend
+        assert!(matches!(
+            result,
+            Err(LlmError::BackendNotFound(name)) if name == "phantom"
+        ));
+    }
+
+    // AC-5: an absent signal keeps the router local even under the ceiling.
+    #[test]
+    fn test_signal_none_returns_local() {
+        // GIVEN a hybrid router well under the ceiling
+        let router = make_hybrid_router(2.00, 0.10);
+
+        // WHEN the signal is None
+        let backend =
+            router.route_with_escalation(EscalationSignal::None, LlmRoutingLevel::Precise);
+
+        // THEN the local backend is returned
+        assert_eq!(backend.backend_name(), "local");
+    }
+
+    // Truth table for EscalationSignal::is_escalation.
+    #[test]
+    fn test_escalation_signal_is_escalation() {
+        assert!(!EscalationSignal::None.is_escalation());
+        assert!(EscalationSignal::RepeatedStepFailure {
+            consecutive_failures: 1
+        }
+        .is_escalation());
+        assert!(EscalationSignal::AutonomyTierRequest.is_escalation());
     }
 }
