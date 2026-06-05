@@ -449,11 +449,15 @@ dependencies = [
 name = "apollia-eval"
 version = "0.1.0"
 dependencies = [
+ "apollia-llm",
+ "async-trait",
+ "futures",
  "regex",
  "serde",
  "thiserror 2.0.18",
  "tokio",
  "toml 0.8.23",
+ "tracing",
 ]
 
 [[package]]

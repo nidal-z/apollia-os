@@ -10,10 +10,15 @@
 //! metric aggregation live in `runner` and `metrics`.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+mod judge;
 mod metrics;
 mod runner;
 mod suite;
 
+#[cfg(test)]
+mod test_support;
+
+pub use judge::{judge, JudgeVerdict};
 pub use metrics::{RunMetrics, SuiteReport, TaskReport};
 pub use runner::{EvalRunner, RunOutcome, RuntimeClient};
 pub use suite::{Assertion, EvalError, EvalSuite, EvalTask, OutputChannel};
