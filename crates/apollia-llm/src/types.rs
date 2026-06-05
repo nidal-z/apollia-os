@@ -34,6 +34,15 @@ pub trait CompletionModel: Send + Sync {
     /// Identifier of the loaded model (e.g. `llama3.2-3b-q4`, `claude-haiku-4-5-20251001`).
     fn model_id(&self) -> &str;
 
+    /// Returns `true` if this backend runs inference locally (runner sidecar).
+    ///
+    /// Used by [`crate::tool_helper::ToolCallHelper`] to decide whether to attach a
+    /// GBNF grammar that constrains tool-call decoding. Cloud backends return `false`
+    /// (the default); only the runner-backed local backend overrides this to `true`.
+    fn is_local(&self) -> bool {
+        false
+    }
+
     /// Maximum context window of the loaded model, in tokens, when known.
     ///
     /// Lets the router size context compaction to the real model window instead

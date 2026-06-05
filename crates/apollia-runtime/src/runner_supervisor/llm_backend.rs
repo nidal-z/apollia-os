@@ -338,6 +338,11 @@ impl CompletionModel for RunnerLlmBackend {
         &self.model_id
     }
 
+    /// Local sidecar backend: GBNF grammars are applied at decode time.
+    fn is_local(&self) -> bool {
+        true
+    }
+
     fn context_window(&self) -> Option<usize> {
         // Prefer the slot's effective window (what the runner will accept);
         // fall back to the trained window before the first load reports back.

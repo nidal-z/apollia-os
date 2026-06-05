@@ -156,6 +156,20 @@ impl ToolCallHelper {
         max_iters: u32,
         budget: &StepBudgetView,
     ) -> Result<String, LlmError> {
+        // Generate the grammar once: the tool set is stable across iterations.
+        // Local backend with tools only; cloud backends ignore the field and keep None.
+        let grammar: Option<String> = if !tools.is_empty() && self.model.is_local() {
+            let gbnf = crate::grammar::tool_specs_to_gbnf(&tools);
+            if gbnf.is_empty() {
+                tracing::warn!("tool_specs_to_gbnf produced empty grammar, running unconstrained");
+                None
+            } else {
+                Some(gbnf)
+            }
+        } else {
+            None
+        };
+
         for _iter in 0..max_iters {
             // Budget guardrail checked first.
             if budget.is_exhausted() {
@@ -167,6 +181,7 @@ impl ToolCallHelper {
                 .complete(CompletionRequest {
                     messages: messages.clone(),
                     tools: tools.clone(),
+                    grammar: grammar.clone(),
                     ..Default::default()
                 })
                 .await?;
@@ -209,6 +224,7 @@ mod tests {
     use crate::types::{CompletionResponse, StreamChunk, TokenUsage, ToolCall, ToolSpec};
     use std::pin::Pin;
     use std::sync::atomic::AtomicU32;
+    use std::sync::Mutex;
 
     use futures::Stream;
 
@@ -548,5 +564,152 @@ mod tests {
         // THEN: the tool error is not fatal
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "réponse malgré erreur");
+    }
+
+    // ── GBNF grammar wiring (STORY-555) ───────────────────────────────────
+
+    /// Mock that captures every `CompletionRequest` it receives and reports a
+    /// configurable `is_local`.
+    struct CapturingMock {
+        is_local_backend: bool,
+        captured: Mutex<Vec<CompletionRequest>>,
+    }
+
+    impl CapturingMock {
+        fn new(is_local_backend: bool) -> Self {
+            Self {
+                is_local_backend,
+                captured: Mutex::new(vec![]),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CompletionModel for CapturingMock {
+        async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            self.captured.lock().unwrap().push(req);
+            Ok(stop_response("done"))
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+        {
+            unimplemented!("not used in tests")
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            if self.is_local_backend {
+                "local"
+            } else {
+                "anthropic"
+            }
+        }
+        fn model_id(&self) -> &str {
+            "mock"
+        }
+        fn is_local(&self) -> bool {
+            self.is_local_backend
+        }
+    }
+
+    fn one_tool() -> Vec<ToolSpec> {
+        vec![ToolSpec {
+            name: "search_web".into(),
+            description: "search".into(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": { "query": { "type": "string" } },
+                "required": ["query"]
+            }),
+        }]
+    }
+
+    /// AC-1 + AC-5: local backend with tools injects a non-empty grammar that
+    /// names the tool and its property.
+    #[tokio::test]
+    async fn test_local_backend_with_tools_injects_grammar() {
+        // GIVEN a local backend and a non-empty tool set
+        let model = Arc::new(CapturingMock::new(true));
+        let invoker = Arc::new(MockToolInvoker::new());
+        let helper = ToolCallHelper::new(model.clone(), invoker);
+
+        // WHEN run_tools is called
+        let _ = helper
+            .run_tools(
+                vec![ChatMessage::user("test")],
+                one_tool(),
+                3,
+                &unlimited_budget(),
+            )
+            .await;
+
+        // THEN every request carries a grammar naming the tool and its property
+        let captured = model.captured.lock().unwrap();
+        assert!(!captured.is_empty());
+        let gbnf = captured[0]
+            .grammar
+            .as_deref()
+            .expect("grammar should be Some for a local backend");
+        assert!(gbnf.contains("search_web"), "tool name absent from grammar");
+        assert!(gbnf.contains("query"), "tool property absent from grammar");
+    }
+
+    /// AC-2: cloud backend leaves the grammar None.
+    #[tokio::test]
+    async fn test_cloud_backend_grammar_stays_none() {
+        // GIVEN a cloud backend and a non-empty tool set
+        let model = Arc::new(CapturingMock::new(false));
+        let invoker = Arc::new(MockToolInvoker::new());
+        let helper = ToolCallHelper::new(model.clone(), invoker);
+
+        // WHEN run_tools is called
+        let _ = helper
+            .run_tools(
+                vec![ChatMessage::user("test")],
+                one_tool(),
+                3,
+                &unlimited_budget(),
+            )
+            .await;
+
+        // THEN the grammar stays None
+        let captured = model.captured.lock().unwrap();
+        assert!(!captured.is_empty());
+        assert!(
+            captured[0].grammar.is_none(),
+            "grammar should be None for a cloud backend"
+        );
+    }
+
+    /// AC-3: empty tool set leaves the grammar None even on a local backend.
+    #[tokio::test]
+    async fn test_no_tools_grammar_is_none() {
+        // GIVEN a local backend and an empty tool set
+        let model = Arc::new(CapturingMock::new(true));
+        let invoker = Arc::new(MockToolInvoker::new());
+        let helper = ToolCallHelper::new(model.clone(), invoker);
+
+        // WHEN run_tools is called
+        let _ = helper
+            .run_tools(
+                vec![ChatMessage::user("test")],
+                vec![],
+                3,
+                &unlimited_budget(),
+            )
+            .await;
+
+        // THEN the grammar stays None (nothing to constrain)
+        let captured = model.captured.lock().unwrap();
+        assert!(!captured.is_empty());
+        assert!(
+            captured[0].grammar.is_none(),
+            "grammar should be None without tools"
+        );
     }
 }
