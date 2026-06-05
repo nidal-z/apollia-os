@@ -7,6 +7,8 @@
 //! - [`VerificationLoop`]: runs the shell check commands declared by the agent
 //!   manifest (tests, lint) via an injected invoker and aggregates a
 //!   [`VerificationReport`].
+//! - [`CriticPass`]: an optional, degradable LLM pass that compares the agent
+//!   output to the stated objective and proposes structured [`Correction`]s.
 //!
 //! The source of the check commands follows ADR-029: the manifest field
 //! `check_commands` is the primary source; a project-config fallback applies
@@ -16,6 +18,10 @@
 //! One actor, one responsibility: this module only coordinates and aggregates.
 //! Actual command execution is delegated to the injected [`CheckInvoker`], and
 //! the LLM call is delegated to the configured backend.
+
+use std::sync::Arc;
+
+use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
 
 /// Raw outcome from a single check command invocation.
 #[derive(Debug, Clone)]
@@ -153,6 +159,162 @@ impl VerificationLoop {
     }
 }
 
+/// A single correction proposed by the LLM critic.
+///
+/// Represents one actionable discrepancy between the agent's output and the
+/// stated objective, as identified by the critic LLM.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Correction {
+    /// Short identifier for the discrepancy (e.g. "missing_file", "wrong_format").
+    pub kind: String,
+    /// Human-readable description of the issue.
+    pub description: String,
+    /// Concrete suggestion the agent can act on in its retry turn.
+    pub suggestion: String,
+}
+
+/// Result of one LLM critic pass.
+#[derive(Debug, Clone)]
+pub struct CriticReport {
+    /// True if no corrections were found (or the pass was skipped).
+    pub passed: bool,
+    /// Corrections proposed by the critic.
+    pub corrections: Vec<Correction>,
+    /// True when the pass was skipped (no LLM backend, or routing/inference error).
+    pub skipped: bool,
+}
+
+/// Wire shape parsed from the critic LLM response.
+#[derive(Debug, serde::Deserialize)]
+struct CriticResponse {
+    #[serde(default)]
+    corrections: Vec<Correction>,
+}
+
+/// Internal English-only system prompt for the critic pass. Not user-configurable.
+const CRITIC_SYSTEM_PROMPT: &str =
+    "You are a strict verification critic. Compare the AGENT OUTPUT \
+to the stated OBJECTIVE and report only concrete, actionable discrepancies. Reply with a single \
+JSON object and nothing else, in the exact shape: \
+{\"corrections\":[{\"kind\":\"...\",\"description\":\"...\",\"suggestion\":\"...\"}]}. \
+Use an empty corrections array when the output already satisfies the objective. \
+Do not add any prose before or after the JSON.";
+
+/// Orchestrates one LLM critic pass comparing agent output to the stated objective.
+///
+/// Stateless: all inputs are passed to [`CriticPass::run`]. The LLM backend is
+/// resolved lazily via [`LlmRouter::route_precise`] at call time. The pass is
+/// degradable: with no router, or on any routing or inference error, it returns
+/// a skipped report instead of failing the run (principle #1 and #4).
+pub struct CriticPass {
+    /// LLM router, `None` when the runtime has no backend configured.
+    router: Option<Arc<LlmRouter>>,
+}
+
+impl CriticPass {
+    /// Build a `CriticPass` with a configured router.
+    pub fn new(router: Arc<LlmRouter>) -> Self {
+        Self {
+            router: Some(router),
+        }
+    }
+
+    /// Build a `CriticPass` that always skips (no LLM backend).
+    pub fn disabled() -> Self {
+        Self { router: None }
+    }
+
+    /// Run one critic pass: call the LLM and parse corrections.
+    ///
+    /// - `objective`: the original user request / task description.
+    /// - `agent_output`: the text output produced by the agent at end of run.
+    ///
+    /// Returns a skipped report when no router is configured or when routing or
+    /// inference fails. When the LLM responds with unparseable content, returns
+    /// an empty, non-skipped report (logged at `warn`) rather than panicking.
+    pub async fn run(&self, objective: &str, agent_output: &str) -> CriticReport {
+        let Some(router) = self.router.as_ref() else {
+            return CriticReport {
+                passed: true,
+                corrections: Vec::new(),
+                skipped: true,
+            };
+        };
+
+        let model = match router.route_precise() {
+            Ok(model) => model,
+            Err(error) => {
+                tracing::warn!(error = %error, "critic.pass.llm_unavailable");
+                return CriticReport {
+                    passed: true,
+                    corrections: Vec::new(),
+                    skipped: true,
+                };
+            }
+        };
+
+        let user_content = format!("OBJECTIVE:\n{objective}\n\nAGENT OUTPUT:\n{agent_output}");
+        let request = CompletionRequest {
+            messages: vec![
+                ChatMessage::system(CRITIC_SYSTEM_PROMPT),
+                ChatMessage::user(user_content),
+            ],
+            temperature: Some(0.0),
+            ..Default::default()
+        };
+
+        let response = match model.complete(request).await {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::warn!(error = %error, "critic.pass.llm_unavailable");
+                return CriticReport {
+                    passed: true,
+                    corrections: Vec::new(),
+                    skipped: true,
+                };
+            }
+        };
+
+        match parse_critic_response(&response.content) {
+            Some(corrections) => {
+                tracing::info!(corrections_count = corrections.len(), "critic.pass.done");
+                CriticReport {
+                    passed: corrections.is_empty(),
+                    corrections,
+                    skipped: false,
+                }
+            }
+            None => CriticReport {
+                passed: true,
+                corrections: Vec::new(),
+                skipped: false,
+            },
+        }
+    }
+}
+
+/// Parse the critic response into corrections.
+///
+/// Tries the raw content first, then falls back to the first `{` .. last `}`
+/// slice (models sometimes wrap JSON in prose). Returns `None` and logs at
+/// `warn` when no valid JSON object can be extracted.
+fn parse_critic_response(content: &str) -> Option<Vec<Correction>> {
+    if let Ok(parsed) = serde_json::from_str::<CriticResponse>(content) {
+        return Some(parsed.corrections);
+    }
+
+    if let (Some(start), Some(end)) = (content.find('{'), content.rfind('}')) {
+        if start < end {
+            if let Ok(parsed) = serde_json::from_str::<CriticResponse>(&content[start..=end]) {
+                return Some(parsed.corrections);
+            }
+        }
+    }
+
+    tracing::warn!(parse_error = %"no valid JSON object", "critic.pass.json_parse_failed");
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,5 +450,144 @@ mod tests {
 
         // THEN the fallback command is executed and the report passes
         assert!(report.passed);
+    }
+}
+
+#[cfg(test)]
+mod critic_tests {
+    use super::*;
+    use apollia_llm::{
+        CompletionModel, CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage,
+    };
+    use futures::Stream;
+    use std::collections::HashMap;
+    use std::pin::Pin;
+
+    // ---- Mock CompletionModel ----
+
+    struct MockCriticModel {
+        response: String,
+    }
+
+    #[async_trait::async_trait]
+    impl CompletionModel for MockCriticModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Ok(CompletionResponse {
+                content: self.response.clone(),
+                tool_calls: vec![],
+                usage: TokenUsage::default(),
+                finish_reason: FinishReason::Stop,
+                latency_ms: 0,
+                ttft_ms: None,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+        {
+            Err(LlmError::InferenceError("mock no stream".into()))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            "mock-critic"
+        }
+        fn model_id(&self) -> &str {
+            "mock-critic"
+        }
+    }
+
+    fn router_with(response: &str) -> Arc<LlmRouter> {
+        let model = Arc::new(MockCriticModel {
+            response: response.to_string(),
+        });
+        let backends: HashMap<String, Arc<dyn CompletionModel>> =
+            HashMap::from([("mock-critic".to_string(), model as Arc<dyn CompletionModel>)]);
+        Arc::new(LlmRouter::with_backends(backends, "mock-critic"))
+    }
+
+    // AC-1: corrections returned, passed=false.
+    #[tokio::test]
+    async fn test_ac1_corrections_found() {
+        // GIVEN a critic LLM returning two structured corrections
+        let json = r#"{"corrections":[
+            {"kind":"missing_file","description":"output.csv absent","suggestion":"create output.csv"},
+            {"kind":"wrong_format","description":"invalid JSON format","suggestion":"fix the structure"}
+        ]}"#;
+        let pass = CriticPass::new(router_with(json));
+
+        // WHEN the pass runs
+        let report = pass.run("Generate a CSV file", "Here is the result.").await;
+
+        // THEN both corrections are reported and the pass does not pass
+        assert!(!report.passed);
+        assert!(!report.skipped);
+        assert_eq!(report.corrections.len(), 2);
+    }
+
+    // AC-2: empty corrections, passed=true.
+    #[tokio::test]
+    async fn test_ac2_no_corrections_passed() {
+        // GIVEN a critic LLM returning no corrections
+        let pass = CriticPass::new(router_with(r#"{"corrections":[]}"#));
+
+        // WHEN the pass runs
+        let report = pass.run("Generate a report", "Full report.").await;
+
+        // THEN the pass passes with no corrections
+        assert!(report.passed);
+        assert!(!report.skipped);
+        assert!(report.corrections.is_empty());
+    }
+
+    // AC-3 (degradation): no router, pass is skipped.
+    #[tokio::test]
+    async fn test_ac3_no_router_skips() {
+        // GIVEN a disabled critic pass
+        let pass = CriticPass::disabled();
+
+        // WHEN the pass runs
+        let report = pass.run("objective", "output").await;
+
+        // THEN it is skipped without error
+        assert!(report.passed);
+        assert!(report.skipped);
+        assert!(report.corrections.is_empty());
+    }
+
+    // AC-4 (error case): malformed JSON yields empty corrections, no panic.
+    #[tokio::test]
+    async fn test_ac4_malformed_json_no_panic() {
+        // GIVEN a critic LLM returning non-JSON content
+        let pass = CriticPass::new(router_with("I do not know"));
+
+        // WHEN the pass runs
+        let report = pass.run("objective", "output").await;
+
+        // THEN it returns empty, not skipped, and does not panic
+        assert!(report.passed);
+        assert!(!report.skipped);
+        assert!(report.corrections.is_empty());
+    }
+
+    // JSON wrapped in prose is still extracted via the brace fallback.
+    #[tokio::test]
+    async fn test_json_wrapped_in_prose_is_extracted() {
+        // GIVEN a critic LLM that wraps the JSON object in prose
+        let wrapped = "Here is my verdict: {\"corrections\":[{\"kind\":\"k\",\
+            \"description\":\"d\",\"suggestion\":\"s\"}]} Done.";
+        let pass = CriticPass::new(router_with(wrapped));
+
+        // WHEN the pass runs
+        let report = pass.run("objective", "output").await;
+
+        // THEN the embedded correction is recovered
+        assert!(!report.passed);
+        assert!(!report.skipped);
+        assert_eq!(report.corrections.len(), 1);
     }
 }
