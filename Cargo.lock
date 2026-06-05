@@ -279,6 +279,7 @@ dependencies = [
  "apollia-auth",
  "apollia-connectors",
  "apollia-core",
+ "apollia-eval",
  "apollia-llm",
  "apollia-mcp",
  "apollia-memory",

@@ -99,7 +99,7 @@ impl<C: RuntimeClient> EvalRunner<C> {
         for run_index in 0..task.runs {
             runs_detail.push(self.run_one(task, run_index).await);
         }
-        aggregate(task, runs_detail)
+        crate::metrics::aggregate_runs(task.id.clone(), runs_detail)
     }
 
     /// Runs one task once and turns the outcome into a [`RunMetrics`].
@@ -188,64 +188,6 @@ fn check_regex(on: &OutputChannel, pattern: &str, outcome: &RunOutcome) -> Optio
         Ok(_) => Some(format!("pattern /{pattern}/ did not match {on:?}")),
         Err(error) => Some(format!("invalid regex /{pattern}/: {error}")),
     }
-}
-
-/// Aggregates the per-run records of one task into a [`TaskReport`].
-fn aggregate(task: &EvalTask, runs_detail: Vec<RunMetrics>) -> TaskReport {
-    let runs = runs_detail.len() as u32;
-    let passed = runs_detail.iter().filter(|r| r.passed).count() as u32;
-    let success_rate = if runs == 0 {
-        0.0
-    } else {
-        f64::from(passed) / f64::from(runs)
-    };
-
-    let steps: Vec<u32> = runs_detail.iter().map(|r| r.steps).collect();
-    let tool_calls: Vec<u32> = runs_detail.iter().map(|r| r.tool_calls).collect();
-    let wall: Vec<u64> = runs_detail.iter().map(|r| r.wall_clock_ms).collect();
-    let total_cost_usd = runs_detail.iter().map(|r| r.cost_usd).sum();
-
-    TaskReport {
-        task_id: task.id.clone(),
-        runs,
-        success_rate,
-        median_steps: median(&steps),
-        median_tool_calls: median(&tool_calls),
-        p50_wall_clock_ms: percentile(&wall, 50.0),
-        p95_wall_clock_ms: percentile(&wall, 95.0),
-        total_cost_usd,
-        runs_detail,
-    }
-}
-
-/// Returns the median of `values`, or `0` when empty.
-///
-/// For an even count, the two middle values are averaged (integer division).
-fn median(values: &[u32]) -> u32 {
-    if values.is_empty() {
-        return 0;
-    }
-    let mut sorted = values.to_vec();
-    sorted.sort_unstable();
-    let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 1 {
-        sorted[mid]
-    } else {
-        (sorted[mid - 1] + sorted[mid]) / 2
-    }
-}
-
-/// Returns the `p`-th percentile of `values` by the nearest-rank method, or `0`
-/// when empty. `p` is a percentage in `[0.0, 100.0]`.
-fn percentile(values: &[u64], p: f64) -> u64 {
-    if values.is_empty() {
-        return 0;
-    }
-    let mut sorted = values.to_vec();
-    sorted.sort_unstable();
-    let rank = (p / 100.0 * sorted.len() as f64).ceil() as usize;
-    let index = rank.saturating_sub(1).min(sorted.len() - 1);
-    sorted[index]
 }
 
 #[cfg(test)]
@@ -416,29 +358,6 @@ mod tests {
         // THEN the report is empty, no error
         assert_eq!(report.suite, "empty");
         assert!(report.tasks.is_empty());
-    }
-
-    #[test]
-    fn test_percentile_on_known_series() {
-        // GIVEN a known ten-value series
-        let series: Vec<u64> = (1..=10).map(|n| n * 10).collect();
-
-        // WHEN computing p50 and p95 by nearest rank
-        // THEN p50 is the 5th value and p95 is the 10th
-        assert_eq!(percentile(&series, 50.0), 50);
-        assert_eq!(percentile(&series, 95.0), 100);
-        // AND an empty series yields zero, not a panic
-        assert_eq!(percentile(&[], 50.0), 0);
-    }
-
-    #[test]
-    fn test_median_even_and_empty() {
-        // GIVEN an even-length series and an empty one
-        // WHEN computing the median
-        // THEN the even case averages the two middle values, the empty case is zero
-        assert_eq!(median(&[10, 20, 30, 40]), 25);
-        assert_eq!(median(&[7]), 7);
-        assert_eq!(median(&[]), 0);
     }
 
     // llm_judge wired end to end: a passing judge keeps the run passing

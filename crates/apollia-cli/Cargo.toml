@@ -34,6 +34,7 @@ apollia-memory   = { workspace = true }
 apollia-oria     = { workspace = true }
 apollia-runtime  = { workspace = true }
 apollia-llm      = { workspace = true, default-features = false }
+apollia-eval     = { workspace = true }
 chrono           = { workspace = true }
 tokio              = { workspace = true }
 serde              = { workspace = true }

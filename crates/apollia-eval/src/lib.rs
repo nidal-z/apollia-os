@@ -19,6 +19,6 @@ mod suite;
 mod test_support;
 
 pub use judge::{judge, JudgeVerdict};
-pub use metrics::{RunMetrics, SuiteReport, TaskReport};
+pub use metrics::{aggregate_runs, RunMetrics, SuiteReport, TaskReport};
 pub use runner::{EvalRunner, RunOutcome, RuntimeClient};
 pub use suite::{Assertion, EvalError, EvalSuite, EvalTask, OutputChannel};
