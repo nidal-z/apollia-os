@@ -91,9 +91,9 @@ impl ContextManager {
         Self::new(
             config.context_compact_threshold,
             config.context_summary_max_chars,
-            8,
+            config.recent_verbatim_count,
             None,
-            8_000,
+            config.tool_offload_threshold_chars,
         )
     }
 

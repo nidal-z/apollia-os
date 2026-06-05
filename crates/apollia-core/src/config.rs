@@ -586,6 +586,35 @@ pub struct ORIAConfig {
     #[serde(default = "default_summary_max_chars")]
     pub context_summary_max_chars: usize,
 
+    /// Character length above which a tool result is offloaded to disk.
+    ///
+    /// Tier 1 of the compaction pipeline. A `ToolResult` whose content exceeds
+    /// this length is replaced by a compact stub and written to the workspace
+    /// offload directory, so a single large result never floods the window.
+    /// Default: 8000. Bounds: [500, 200000].
+    ///
+    /// ```toml
+    /// [oria]
+    /// tool_offload_threshold_chars = 8000
+    /// ```
+    #[serde(default = "default_tool_offload_threshold_chars")]
+    pub tool_offload_threshold_chars: usize,
+
+    /// Number of recent messages kept verbatim during graduated compaction.
+    ///
+    /// Tier 2 of the compaction pipeline. The last `recent_verbatim_count`
+    /// messages are always preserved as-is; only older messages are summarized.
+    /// The system prompt (the first message) is always preserved regardless of
+    /// this setting.
+    /// Default: 8. Bounds: [1, 64].
+    ///
+    /// ```toml
+    /// [oria]
+    /// recent_verbatim_count = 8
+    /// ```
+    #[serde(default = "default_recent_verbatim_count")]
+    pub recent_verbatim_count: usize,
+
     /// LLM temperature for Plan A (conservative) during binary feedback.
     ///
     /// Low temperature yields deterministic, conservative output.
@@ -610,6 +639,8 @@ impl Default for ORIAConfig {
             budget_poll_ms: default_budget_poll_ms(),
             context_compact_threshold: default_compact_threshold(),
             context_summary_max_chars: default_summary_max_chars(),
+            tool_offload_threshold_chars: default_tool_offload_threshold_chars(),
+            recent_verbatim_count: default_recent_verbatim_count(),
             plan_alternatives_temp_a: default_plan_alternatives_temp_a(),
             plan_alternatives_temp_b: default_plan_alternatives_temp_b(),
         }
@@ -625,6 +656,8 @@ impl ORIAConfig {
     /// - `budget_poll_ms`: must be in [10, 5000].
     /// - `context_compact_threshold`: must be in [0.0, 1.0].
     /// - `context_summary_max_chars`: must be in [500, 32000].
+    /// - `tool_offload_threshold_chars`: must be in [500, 200000].
+    /// - `recent_verbatim_count`: must be in [1, 64].
     /// - `plan_alternatives_temp_a`: must be in [0.0, 2.0].
     /// - `plan_alternatives_temp_b`: must be in [0.0, 2.0].
     pub fn validate(&self) -> Result<(), ConfigError> {
@@ -663,6 +696,18 @@ impl ORIAConfig {
             self.context_summary_max_chars,
             500_usize,
             32_000_usize,
+        )?;
+        validate_bounds(
+            "oria.tool_offload_threshold_chars",
+            self.tool_offload_threshold_chars,
+            500_usize,
+            200_000_usize,
+        )?;
+        validate_bounds(
+            "oria.recent_verbatim_count",
+            self.recent_verbatim_count,
+            1_usize,
+            64_usize,
         )?;
         validate_bounds(
             "oria.plan_alternatives_temp_a",
@@ -710,6 +755,14 @@ fn default_compact_threshold() -> f32 {
 
 fn default_summary_max_chars() -> usize {
     4000
+}
+
+fn default_tool_offload_threshold_chars() -> usize {
+    8_000
+}
+
+fn default_recent_verbatim_count() -> usize {
+    8
 }
 
 // ─────────────────────────────────────────────
@@ -1959,6 +2012,8 @@ mod tests {
         assert!((cfg.orchestrated_threshold - 0.40).abs() < f64::EPSILON);
         assert_eq!(cfg.step_memory_max_chars, 200);
         assert_eq!(cfg.budget_poll_ms, 100);
+        assert_eq!(cfg.tool_offload_threshold_chars, 8000);
+        assert_eq!(cfg.recent_verbatim_count, 8);
 
         // AND defaults pass validation
         cfg.validate().expect("default ORIAConfig must be valid");
@@ -2112,6 +2167,79 @@ mod tests {
         // THEN all boundary values are accepted
         oria_min.validate().expect("min ORIAConfig valid");
         oria_max.validate().expect("max ORIAConfig valid");
+    }
+
+    // ── compaction tier fields ──────────────────────────────────────────────
+
+    #[test]
+    fn test_oria_compaction_tiers_toml_round_trip() {
+        // GIVEN a [oria] TOML overriding both compaction tier fields
+        let toml = r#"
+            tool_offload_threshold_chars = 4000
+            recent_verbatim_count = 12
+        "#;
+
+        // WHEN deserialized
+        let cfg: ORIAConfig = toml::from_str(toml).expect("valid toml");
+
+        // THEN the exact values are read back and validation passes
+        assert_eq!(cfg.tool_offload_threshold_chars, 4000);
+        assert_eq!(cfg.recent_verbatim_count, 12);
+        cfg.validate().expect("valid bounds");
+    }
+
+    #[test]
+    fn test_tool_offload_threshold_below_min_fails() {
+        // GIVEN tool_offload_threshold_chars = 200, below min 500
+        let cfg = ORIAConfig {
+            tool_offload_threshold_chars: 200,
+            ..ORIAConfig::default()
+        };
+
+        // WHEN
+        let result = cfg.validate();
+
+        // THEN
+        assert!(
+            matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "oria.tool_offload_threshold_chars"),
+            "expected OutOfBounds for oria.tool_offload_threshold_chars, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_recent_verbatim_count_below_min_fails() {
+        // GIVEN recent_verbatim_count = 0, below min 1
+        let cfg = ORIAConfig {
+            recent_verbatim_count: 0,
+            ..ORIAConfig::default()
+        };
+
+        // WHEN
+        let result = cfg.validate();
+
+        // THEN
+        assert!(
+            matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "oria.recent_verbatim_count"),
+            "expected OutOfBounds for oria.recent_verbatim_count, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_recent_verbatim_count_above_max_fails() {
+        // GIVEN recent_verbatim_count = 65, above max 64
+        let cfg = ORIAConfig {
+            recent_verbatim_count: 65,
+            ..ORIAConfig::default()
+        };
+
+        // WHEN
+        let result = cfg.validate();
+
+        // THEN
+        assert!(
+            matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "oria.recent_verbatim_count"),
+            "expected OutOfBounds for oria.recent_verbatim_count, got: {result:?}"
+        );
     }
 
     // ── ToolsConfig ────────────────────────────────────────────────────────
