@@ -42,6 +42,39 @@ pub trait CompletionModel: Send + Sync {
     fn context_window(&self) -> Option<usize> {
         None
     }
+
+    /// Estimate the token count for the given message list.
+    ///
+    /// Default implementation: the `(total_chars / 4) * 1.2` proxy, which
+    /// over-estimates to prefer an early compaction over a context overflow.
+    ///
+    /// Local backends that have access to the real GGUF tokenizer (e.g. the
+    /// runner-backed backend) should override this and tokenize the messages
+    /// for an exact count. Cloud backends keep the proxy.
+    fn count_tokens(&self, messages: &[ChatMessage]) -> usize {
+        let total_chars: usize = messages.iter().map(message_char_len).sum();
+        ((total_chars as f32) / 4.0 * 1.2) as usize
+    }
+}
+
+/// Total character length of the text content carried by a `ChatMessage`.
+///
+/// Basis for the `(chars / 4) * 1.2` token proxy used by the default
+/// [`CompletionModel::count_tokens`] and by `LlmRouter::count_tokens`. Kept
+/// `pub(crate)` so both live in one place without an apollia-llm -> apollia-oria
+/// dependency.
+pub(crate) fn message_char_len(msg: &ChatMessage) -> usize {
+    match &msg.content {
+        MessageContent::Text(s) => s.len(),
+        MessageContent::ToolResult { content, .. } => content.len(),
+        MessageContent::WithToolCalls { text, tool_calls } => {
+            text.len()
+                + tool_calls
+                    .iter()
+                    .map(|tc| tc.arguments.to_string().len())
+                    .sum::<usize>()
+        }
+    }
 }
 
 /// Unified inference request for all backends.
@@ -481,6 +514,101 @@ pub enum LlmError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Backend that stubs inference but keeps the DEFAULT `count_tokens`.
+    struct ProxyOnlyModel;
+
+    /// Backend that OVERRIDES `count_tokens` with a fixed value.
+    struct FixedCountModel(usize);
+
+    macro_rules! stub_completion_model {
+        ($ty:ty, $name:literal) => {
+            #[async_trait::async_trait]
+            impl CompletionModel for $ty {
+                async fn complete(
+                    &self,
+                    _req: CompletionRequest,
+                ) -> Result<CompletionResponse, LlmError> {
+                    Err(LlmError::InferenceError("stub".into()))
+                }
+                async fn stream(
+                    &self,
+                    _req: CompletionRequest,
+                ) -> Result<
+                    Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
+                    LlmError,
+                > {
+                    Err(LlmError::InferenceError("stub".into()))
+                }
+                fn is_available(&self) -> bool {
+                    true
+                }
+                fn backend_name(&self) -> &str {
+                    $name
+                }
+                fn model_id(&self) -> &str {
+                    $name
+                }
+            }
+        };
+    }
+
+    stub_completion_model!(ProxyOnlyModel, "proxy");
+
+    #[async_trait::async_trait]
+    impl CompletionModel for FixedCountModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Err(LlmError::InferenceError("stub".into()))
+        }
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+        {
+            Err(LlmError::InferenceError("stub".into()))
+        }
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            "fixed"
+        }
+        fn model_id(&self) -> &str {
+            "fixed-model"
+        }
+        fn count_tokens(&self, _messages: &[ChatMessage]) -> usize {
+            self.0
+        }
+    }
+
+    // GIVEN a backend that does NOT override count_tokens
+    // WHEN count_tokens is called with 4000 chars of content
+    // THEN it returns the (chars / 4) * 1.2 proxy = 1200
+    #[test]
+    fn test_default_count_tokens_proxy() {
+        let model = ProxyOnlyModel;
+        let messages = vec![ChatMessage::user("a".repeat(4000))];
+        assert_eq!(model.count_tokens(&messages), 1200);
+    }
+
+    // GIVEN a backend overriding count_tokens to return 42
+    // WHEN count_tokens is called with any messages
+    // THEN the override value wins over the default proxy
+    #[test]
+    fn test_override_count_tokens() {
+        let model = FixedCountModel(42);
+        let messages = vec![ChatMessage::user("a".repeat(4000))];
+        assert_eq!(model.count_tokens(&messages), 42);
+    }
+
+    // GIVEN a backend with the default count_tokens
+    // WHEN called on an empty message slice
+    // THEN it yields 0 tokens
+    #[test]
+    fn test_count_tokens_empty_messages() {
+        let model = ProxyOnlyModel;
+        assert_eq!(model.count_tokens(&[]), 0);
+    }
 
     // GIVEN a CompletionRequest built with only `messages`
     // WHEN optional fields are accessed

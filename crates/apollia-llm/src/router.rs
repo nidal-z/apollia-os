@@ -21,7 +21,10 @@ use apollia_core::{
     VertexConfig,
 };
 
-use crate::types::{BackendInfo, CompletionModel, CompletionRequest, CompletionResponse, LlmError};
+use crate::types::{
+    message_char_len, BackendInfo, ChatMessage, CompletionModel, CompletionRequest,
+    CompletionResponse, LlmError,
+};
 
 #[cfg(feature = "cloud")]
 use crate::backends::anthropic::AnthropicClient;
@@ -1146,6 +1149,23 @@ impl LlmRouter {
             .unwrap_or(200_000)
     }
 
+    /// Estimate the token count of `messages` using the default backend.
+    ///
+    /// Delegates to [`CompletionModel::count_tokens`] on the default backend, so
+    /// a local backend returns its real tokenizer count while cloud backends
+    /// keep the `(chars / 4) * 1.2` proxy. When no backend is registered (empty
+    /// router, degraded startup), applies the proxy inline so the caller never
+    /// panics.
+    pub fn count_tokens(&self, messages: &[ChatMessage]) -> usize {
+        match self.backends.get(&self.default) {
+            Some(backend) => backend.count_tokens(messages),
+            None => {
+                let total_chars: usize = messages.iter().map(message_char_len).sum();
+                ((total_chars as f32) / 4.0 * 1.2) as usize
+            }
+        }
+    }
+
     /// Return the session `CancellationToken` to cancel in-flight calls.
     ///
     /// Called by `ORIAEngine::abort()` to interrupt all in-flight LLM calls
@@ -1444,6 +1464,61 @@ mod tests {
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }
+    }
+
+    /// Backend overriding `count_tokens` with a fixed value, for the delegate
+    /// test. Inference methods are stubbed.
+    struct FixedCountModel(usize);
+
+    #[async_trait::async_trait]
+    impl CompletionModel for FixedCountModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Err(LlmError::InferenceError("stub".into()))
+        }
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+        {
+            Err(LlmError::InferenceError("stub".into()))
+        }
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            "fixed"
+        }
+        fn model_id(&self) -> &str {
+            "fixed-model"
+        }
+        fn count_tokens(&self, _messages: &[ChatMessage]) -> usize {
+            self.0
+        }
+    }
+
+    // ── Tests count_tokens() ─────────────────────────────────────────────────
+
+    // GIVEN a router whose default backend overrides count_tokens to return 42
+    // WHEN count_tokens is called
+    // THEN the router delegates and returns 42
+    #[test]
+    fn test_router_count_tokens_delegates() {
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+        backends.insert("fixed".into(), Arc::new(FixedCountModel(42)));
+        let router = make_test_router(backends, "fixed");
+
+        let tokens = router.count_tokens(&[ChatMessage::user("anything")]);
+        assert_eq!(tokens, 42);
+    }
+
+    // GIVEN an empty router (no backend)
+    // WHEN count_tokens is called
+    // THEN the inline proxy is returned (> 0) without panicking
+    #[test]
+    fn test_router_empty_count_tokens_no_panic() {
+        let router = LlmRouter::empty();
+        let tokens = router.count_tokens(&[ChatMessage::user("hello")]);
+        assert!(tokens > 0);
     }
 
     // ── Tests route() ────────────────────────────────────────────────────────
