@@ -183,6 +183,13 @@ enum Commands {
         command: TaskCommand,
     },
 
+    /// Evaluation harness (run a TOML suite against the runtime, report a JSONL).
+    Eval {
+        /// Eval subcommand.
+        #[command(subcommand)]
+        command: commands::eval::EvalCommand,
+    },
+
     /// Native tool governance (list, enable, disable, config, reload, credentials, describe, approvals).
     Tools {
         /// Tools subcommand.
@@ -593,6 +600,7 @@ fn main() {
             }
             Commands::A2a { command } => commands::a2a::run(&command, cli.socket, json).await,
             Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
+            Commands::Eval { command } => commands::eval::run(&command, cli.socket, json).await,
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
             Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,
             Commands::Memory { command } => run_memory(&command, json),
@@ -689,6 +697,60 @@ mod tests {
         let cli = parse(&["apollia-os", "start", "--port", "8080"]);
         // THEN Commands::Start with port
         assert!(matches!(cli.command, Commands::Start { port: Some(8080) }));
+    }
+
+    #[test]
+    fn test_cli_parses_eval_run() {
+        // GIVEN "apollia-os eval run suite.toml"
+        let cli = parse(&["apollia-os", "eval", "run", "suite.toml"]);
+        // THEN Commands::Eval with Run and the suite path, defaults unset
+        let Commands::Eval {
+            command: commands::eval::EvalCommand::Run { suite, out, agent },
+        } = cli.command
+        else {
+            panic!("expected eval run");
+        };
+        assert_eq!(suite, std::path::PathBuf::from("suite.toml"));
+        assert!(out.is_none());
+        assert!(agent.is_none());
+    }
+
+    #[test]
+    fn test_cli_parses_eval_run_with_out_and_agent() {
+        // GIVEN "apollia-os eval run s.toml --out r.jsonl --agent demo"
+        let cli = parse(&[
+            "apollia-os",
+            "eval",
+            "run",
+            "s.toml",
+            "--out",
+            "r.jsonl",
+            "--agent",
+            "demo",
+        ]);
+        // THEN the optional flags are captured
+        let Commands::Eval {
+            command: commands::eval::EvalCommand::Run { suite, out, agent },
+        } = cli.command
+        else {
+            panic!("expected eval run");
+        };
+        assert_eq!(suite, std::path::PathBuf::from("s.toml"));
+        assert_eq!(out, Some(std::path::PathBuf::from("r.jsonl")));
+        assert_eq!(agent.as_deref(), Some("demo"));
+    }
+
+    #[test]
+    fn test_cli_parses_eval_report() {
+        // GIVEN "apollia-os eval report r.jsonl"
+        let cli = parse(&["apollia-os", "eval", "report", "r.jsonl"]);
+        // THEN Commands::Eval with Report
+        assert!(matches!(
+            cli.command,
+            Commands::Eval {
+                command: commands::eval::EvalCommand::Report { .. }
+            }
+        ));
     }
 
     #[test]

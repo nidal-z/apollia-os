@@ -1,0 +1,26 @@
+[package]
+name = "apollia-eval"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS - sovereign agent evaluation harness (TOML suites, N-run execution, metric aggregation)"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde       = { workspace = true, features = ["derive"] }
+toml        = { workspace = true }
+thiserror   = { workspace = true }
+regex       = { workspace = true }
+tracing     = { workspace = true }
+# `cloud` mirrors apollia-runtime, which force-enables apollia-llm/cloud
+# workspace-wide. It also avoids apollia-llm's non-cloud build path, which does
+# not compile on current Rust. The judge stays backend-agnostic: it uses
+# whichever backend the router resolves (local sidecar or cloud).
+apollia-llm = { workspace = true, features = ["cloud"] }
+
+[dev-dependencies]
+tokio       = { workspace = true }
+async-trait = { workspace = true }
+futures     = { workspace = true }
+
+[lints]
+workspace = true

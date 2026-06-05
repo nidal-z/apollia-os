@@ -279,6 +279,7 @@ dependencies = [
  "apollia-auth",
  "apollia-connectors",
  "apollia-core",
+ "apollia-eval",
  "apollia-llm",
  "apollia-mcp",
  "apollia-memory",
@@ -443,6 +444,21 @@ dependencies = [
  "tokio",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "apollia-eval"
+version = "0.1.0"
+dependencies = [
+ "apollia-llm",
+ "async-trait",
+ "futures",
+ "regex",
+ "serde",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
 ]
 
 [[package]]
