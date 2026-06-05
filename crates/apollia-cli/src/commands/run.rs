@@ -15,9 +15,11 @@ use std::time::Instant;
 
 use futures::StreamExt;
 
+use std::str::FromStr;
+
 use apollia_core::plan_alternatives::{ChosenPlan, PlanAlternatives};
 use apollia_core::token_budget::TokenBudget;
-use apollia_core::ORIAConfig;
+use apollia_core::{AutonomyLevel, ORIAConfig};
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
@@ -398,6 +400,12 @@ pub struct RunCommandArgs<'a> {
     pub allowed_tools: Vec<String>,
     /// Session-level tool deny-list (takes priority over `allowed_tools`).
     pub disallowed_tools: Vec<String>,
+    /// Autonomy tier for this run. `None` means assisted (the runtime default).
+    ///
+    /// When set to a valid tier it is forwarded to the runtime as the
+    /// `autonomy_level` field of the submission payload, which selects the
+    /// effective execution budget, memory injection, and verification.
+    pub autonomy: Option<&'a str>,
 }
 
 /// Execute the `run` command.
@@ -421,7 +429,27 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         alternatives,
         allowed_tools,
         disallowed_tools,
+        autonomy,
     } = args;
+
+    // Validate the autonomy tier before any runtime connection (fail fast).
+    let autonomy_level: Option<AutonomyLevel> = match autonomy {
+        None => None,
+        Some(s) => match AutonomyLevel::from_str(s) {
+            Ok(level) => Some(level),
+            Err(_) => {
+                return output_error(
+                    &format!(
+                        "niveau d'autonomie invalide '{s}'; valeurs acceptees : \
+                         assisted, supervised, bounded_autonomous, long_autonomous"
+                    ),
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                );
+            }
+        },
+    };
+
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let client = RuntimeClient::new(socket_path);
     let start = Instant::now();
@@ -440,6 +468,18 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     if !session_filter.is_null() {
         if let Some(obj) = input_value.as_object_mut() {
             obj.insert("session_config".to_string(), session_filter);
+        }
+    }
+
+    // Forward the selected autonomy tier so the runtime can apply the matching
+    // budget, memory injection, and verification (story 550). Absent field means
+    // the runtime keeps its assisted default.
+    if let Some(level) = autonomy_level {
+        if let Some(obj) = input_value.as_object_mut() {
+            obj.insert(
+                "autonomy_level".to_string(),
+                serde_json::Value::String(level.as_str().to_string()),
+            );
         }
     }
 
@@ -1114,5 +1154,89 @@ mod tests {
 
         // THEN
         assert!(!terminal);
+    }
+
+    // ─── --autonomy flag (story 551) ───────────────────────────────────────
+
+    // An invalid tier string is rejected before any runtime connection.
+    #[test]
+    fn test_invalid_autonomy_level_rejected() {
+        // GIVEN an unknown tier string
+        let result = AutonomyLevel::from_str("turbo");
+
+        // WHEN / THEN it fails with a message naming the value and the accepted set
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("turbo"));
+        assert!(msg.contains("assisted"));
+    }
+
+    // Every accepted tier round-trips between the string and the enum.
+    #[test]
+    fn test_valid_autonomy_level_round_trips() {
+        // GIVEN the four canonical tier strings
+        let inputs = [
+            ("assisted", AutonomyLevel::Assisted),
+            ("supervised", AutonomyLevel::Supervised),
+            ("bounded_autonomous", AutonomyLevel::BoundedAutonomous),
+            ("long_autonomous", AutonomyLevel::LongAutonomous),
+        ];
+
+        // WHEN / THEN each parses and serializes back to the same string
+        for (s, expected) in inputs {
+            let parsed = AutonomyLevel::from_str(s).expect("doit parser");
+            assert_eq!(parsed, expected);
+            assert_eq!(parsed.as_str(), s);
+        }
+    }
+
+    // Without a tier, no field is added to the submission payload.
+    #[test]
+    fn test_none_autonomy_does_not_add_field() {
+        // GIVEN a base payload and no tier
+        let mut payload = serde_json::json!({
+            "parts": [{"type": "text", "text": "tache"}]
+        });
+        let autonomy: Option<AutonomyLevel> = None;
+
+        // WHEN the insertion guard runs
+        if let Some(level) = autonomy {
+            payload
+                .as_object_mut()
+                .expect("object")
+                .insert("autonomy_level".into(), level.as_str().into());
+        }
+
+        // THEN the field is absent
+        assert!(payload.get("autonomy_level").is_none());
+    }
+
+    // A valid tier is added to the payload under `autonomy_level`.
+    #[test]
+    fn test_some_autonomy_adds_field_to_payload() {
+        // GIVEN a base payload and a long-autonomous tier
+        let mut payload = serde_json::json!({
+            "parts": [{"type": "text", "text": "tache"}]
+        });
+
+        // WHEN the field is inserted
+        let level = AutonomyLevel::LongAutonomous;
+        payload
+            .as_object_mut()
+            .expect("object")
+            .insert("autonomy_level".into(), level.as_str().into());
+
+        // THEN it carries the canonical snake_case value
+        assert_eq!(payload["autonomy_level"].as_str(), Some("long_autonomous"));
+    }
+
+    // Mixed-case input is not accepted: only canonical snake_case parses.
+    #[test]
+    fn test_mixed_case_autonomy_rejected() {
+        // GIVEN a capitalized tier string
+        let result = AutonomyLevel::from_str("Assisted");
+
+        // THEN it is rejected
+        assert!(result.is_err());
     }
 }

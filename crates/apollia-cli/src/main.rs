@@ -149,6 +149,17 @@ enum Commands {
         /// Takes priority over `--allowed-tools` when the same tool appears in both.
         #[arg(long, value_delimiter = ',', value_name = "TOOL")]
         disallowed_tools: Vec<String>,
+
+        /// Autonomy tier for this run (default: assisted).
+        ///
+        /// Controls the execution budget, memory injection, and verification.
+        /// Accepted values: assisted, supervised, bounded_autonomous, long_autonomous.
+        #[arg(
+            long,
+            value_name = "LEVEL",
+            help = "Autonomy tier: assisted (default), supervised, bounded_autonomous, long_autonomous"
+        )]
+        autonomy: Option<String>,
     },
 
     /// OAuth2 PKCE authentication management (login, status, logout).
@@ -491,6 +502,7 @@ struct RunDispatch {
     alternatives: bool,
     allowed_tools: Vec<String>,
     disallowed_tools: Vec<String>,
+    autonomy: Option<String>,
 }
 
 /// Dispatch the `run` subcommand after validating that input was supplied.
@@ -506,6 +518,7 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         alternatives,
         allowed_tools,
         disallowed_tools,
+        autonomy,
     } = dispatch;
     if input.is_empty() && input_json.is_none() {
         eprintln!("Error: missing task input.");
@@ -526,6 +539,7 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         alternatives,
         allowed_tools,
         disallowed_tools,
+        autonomy: autonomy.as_deref(),
     })
     .await
 }
@@ -579,6 +593,7 @@ fn main() {
                 alternatives,
                 allowed_tools,
                 disallowed_tools,
+                autonomy,
             } => {
                 run_run(RunDispatch {
                     socket: cli.socket,
@@ -591,6 +606,7 @@ fn main() {
                     alternatives,
                     allowed_tools,
                     disallowed_tools,
+                    autonomy,
                 })
                 .await
             }
@@ -917,6 +933,33 @@ mod tests {
                     &vec!["bash_executor".to_string(), "file_write".to_string()]
                 );
             }
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_run_autonomy() {
+        let cli = parse(&[
+            "apollia-os",
+            "run",
+            "hello",
+            "ping",
+            "--autonomy",
+            "long_autonomous",
+        ]);
+        match &cli.command {
+            Commands::Run { autonomy, .. } => {
+                assert_eq!(autonomy.as_deref(), Some("long_autonomous"));
+            }
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_run_autonomy_defaults_to_none() {
+        let cli = parse(&["apollia-os", "run", "hello", "ping"]);
+        match &cli.command {
+            Commands::Run { autonomy, .. } => assert!(autonomy.is_none()),
             other => panic!("expected Commands::Run, got {other:?}"),
         }
     }
