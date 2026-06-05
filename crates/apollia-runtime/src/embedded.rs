@@ -194,6 +194,12 @@ pub struct EmbeddedConfig {
     /// Maps to the `[tools]` section in `apollia.toml`.
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub tools_config: apollia_core::ToolsConfig,
+
+    /// MCP module configuration (tool loading strategy, search limit).
+    ///
+    /// Maps to the `[mcp]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
+    pub mcp_config: apollia_core::McpConfig,
 }
 
 impl Default for EmbeddedConfig {
@@ -218,6 +224,7 @@ impl Default for EmbeddedConfig {
             hitl_config: HitlConfig::default(),
             a2a_config: A2AConfig::default(),
             tools_config: apollia_core::ToolsConfig::default(),
+            mcp_config: apollia_core::McpConfig::default(),
         }
     }
 }
@@ -237,6 +244,7 @@ impl EmbeddedConfig {
             a2a: Option<A2AConfig>,
             api: Option<apollia_core::ApiConfig>,
             tools: Option<apollia_core::ToolsConfig>,
+            mcp: Option<apollia_core::McpConfig>,
         }
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
@@ -258,6 +266,9 @@ impl EmbeddedConfig {
             }
             if let Some(tc) = s.tools {
                 self.tools_config = tc;
+            }
+            if let Some(mc) = s.mcp {
+                self.mcp_config = mc;
             }
         }
 
@@ -333,6 +344,8 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
     let tcp_port = config.tcp_port;
 
     let tools_config = config.tools_config.clone();
+    let mcp_loading = apollia_mcp::session::LoadingMode::from(config.mcp_config.tool_loading);
+    let tool_search_limit = config.mcp_config.tool_search_limit;
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: config.socket_path,
@@ -351,6 +364,8 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         package_repository: None,
         bundled_agents_path: config.bundled_agents_path,
         tools_config: tools_config.clone(),
+        mcp_loading,
+        tool_search_limit,
     };
 
     let supervisor = Supervisor::new(supervisor_config);

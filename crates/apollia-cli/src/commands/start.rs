@@ -1280,11 +1280,17 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     // Load apollia.toml if found. Agents, triggers, pipelines, notifications, and stt
     // are loaded from SQLite by the Supervisor; only static sections are parsed here.
     let (loaded_config, config_path) = load_start_config()?;
-    let (llm_config, api_file_config, runtime_file_config, hitl_file_config, tools_file_config) =
-        match loaded_config {
-            Some(cfg) => (cfg.llm, cfg.api, cfg.runtime, cfg.hitl, cfg.tools),
-            None => (None, None, None, None, None),
-        };
+    let (
+        llm_config,
+        api_file_config,
+        runtime_file_config,
+        hitl_file_config,
+        tools_file_config,
+        mcp_file_config,
+    ) = match loaded_config {
+        Some(cfg) => (cfg.llm, cfg.api, cfg.runtime, cfg.hitl, cfg.tools, cfg.mcp),
+        None => (None, None, None, None, None, None),
+    };
 
     let llm_label = llm_config
         .as_ref()
@@ -1344,6 +1350,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let runtime_config = runtime_file_config.unwrap_or_default();
     let hitl_config = hitl_file_config.unwrap_or_default();
     let tools_config = tools_file_config.unwrap_or_default();
+    let mcp_config = mcp_file_config.unwrap_or_default();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1373,6 +1380,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             from_exe.or(from_cwd)
         },
         tools_config: tools_config.clone(),
+        mcp_loading: apollia_mcp::session::LoadingMode::from(mcp_config.tool_loading),
+        tool_search_limit: mcp_config.tool_search_limit,
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
@@ -1459,7 +1468,10 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let _ = user_memory_lock.set(handles.user_memory.clone());
     set_lock_if_some(
         &pending_user_inputs_lock,
-        handles.chat_manager.as_ref().map(|c| c.pending_user_inputs()),
+        handles
+            .chat_manager
+            .as_ref()
+            .map(|c| c.pending_user_inputs()),
     );
 
     // Rewire auto-loaded agents now that the factory's OnceLocks are populated.
@@ -1559,6 +1571,12 @@ fn load_start_config(
     })?;
     if let Some(tools) = cfg.tools.as_ref() {
         tools.validate().map_err(|e| StartError::Config {
+            path: path.clone(),
+            reason: e.to_string(),
+        })?;
+    }
+    if let Some(mcp) = cfg.mcp.as_ref() {
+        mcp.validate().map_err(|e| StartError::Config {
             path: path.clone(),
             reason: e.to_string(),
         })?;
@@ -1856,9 +1874,7 @@ agent = A()
         let manifest_snapshot = validated.manifest.clone();
 
         // 3. Build the bridge.
-        let bridge = Arc::new(
-            AIPBridge::new(validated).expect("bridge construction failed"),
-        );
+        let bridge = Arc::new(AIPBridge::new(validated).expect("bridge construction failed"));
 
         // 4. Assemble a minimal AIPProductionBackend. Most optional
         //    components (tool registry, audit trail, A2A invoker, llm
@@ -1926,8 +1942,7 @@ agent = A()
              branch (BUG-004 mode 1)"
         );
         assert!(
-            err.code.to_uppercase().contains("LLM")
-                || err.message.to_lowercase().contains("llm"),
+            err.code.to_uppercase().contains("LLM") || err.message.to_lowercase().contains("llm"),
             "expected an LLM-related error code, got code={} message={}",
             err.code,
             err.message
@@ -2004,8 +2019,7 @@ agent = A()
              SDK dispatch when the engine has no Reasoner"
         );
         assert!(
-            err.message.to_lowercase().contains("llm")
-                || err.code.to_uppercase().contains("LLM"),
+            err.message.to_lowercase().contains("llm") || err.code.to_uppercase().contains("LLM"),
             "expected an LLM-related error, got code={} message={}",
             err.code,
             err.message

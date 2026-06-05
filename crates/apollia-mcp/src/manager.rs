@@ -17,7 +17,8 @@ use crate::approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry}
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
 use crate::health::OpOutcome;
 use crate::protocol::{extract_text_parts, ToolCallResult};
-use crate::session::{McpSession, McpSessionError};
+use crate::session::{LoadingMode, McpSession, McpSessionError};
+use crate::tool_search::ToolIndexSnapshot;
 
 // ─── commands ────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,13 @@ enum McpCommand {
         server_name: Option<String>,
         uri: String,
         reply: oneshot::Sender<Result<McpResourcePayload, McpSessionError>>,
+    },
+    /// Aggregate the lightweight tool index of every deferred-mode session.
+    ///
+    /// Yields an empty vector when no session runs in deferred mode (the index
+    /// is only populated when `LoadingMode::Deferred` is active).
+    GetToolIndex {
+        reply: oneshot::Sender<Vec<ToolIndexSnapshot>>,
     },
     /// Gracefully shut down all sessions and stop the actor loop.
     Shutdown,
@@ -295,6 +303,14 @@ struct McpClientManager {
     /// `requires_approval = true` is checked against this store before
     /// forwarding to the session. When `None`, the approval gate is disabled.
     approvals: Option<McpApprovalStore>,
+    /// Schema loading strategy applied to every session this manager starts.
+    ///
+    /// In [`LoadingMode::Eager`] sessions fetch all tool schemas at boot and
+    /// their tools are registered in the [`ToolRegistryHandle`]. In
+    /// [`LoadingMode::Deferred`] sessions keep only a lightweight index, no
+    /// individual schema is registered, and the runtime exposes `tool_search`
+    /// instead.
+    loading_mode: LoadingMode,
 }
 
 // ─── handle impl ─────────────────────────────────────────────────────────────
@@ -317,11 +333,17 @@ impl McpClientManagerHandle {
     /// `approvals` is optional: when `Some`, the HITL approval gate is active and
     /// every tool call to a server with `requires_approval = true` is checked against
     /// the store before forwarding to the session. When `None`, the gate is disabled.
+    ///
+    /// `loading_mode` selects the schema loading strategy for every session: in
+    /// [`LoadingMode::Eager`] all tool schemas are fetched at boot and registered;
+    /// in [`LoadingMode::Deferred`] only a lightweight index is kept and no
+    /// individual schema is registered.
     pub async fn start(
         configs: Vec<McpServerConfig>,
         tool_registry: &ToolRegistryHandle,
         event_bus: Option<EventBusSender>,
         approvals: Option<McpApprovalStore>,
+        loading_mode: LoadingMode,
     ) -> Result<Self, McpSessionError> {
         let (tx, rx) = mpsc::channel(32);
         let mut sessions: HashMap<String, McpSession> = HashMap::new();
@@ -331,22 +353,29 @@ impl McpClientManagerHandle {
             let requires_approval = config.requires_approval;
             let tags = config.tags.clone();
 
-            match McpSession::start(config, Some(&DefaultMcpSecretResolver)).await {
+            match McpSession::start_with_mode(config, Some(&DefaultMcpSecretResolver), loading_mode)
+                .await
+            {
                 Ok(session) => {
                     tracing::info!(
                         server = %server_name,
                         tools = session.tools().len(),
+                        indexed = session.tool_index().len(),
                         "MCP server connected"
                     );
 
-                    register_session_tools_in_registry(
-                        tool_registry,
-                        &server_name,
-                        requires_approval,
-                        &tags,
-                        &session,
-                    )
-                    .await;
+                    // Eager only: deferred sessions keep their schemas out of the
+                    // registry and rely on the synthetic `tool_search` tool.
+                    if loading_mode == LoadingMode::Eager {
+                        register_session_tools_in_registry(
+                            tool_registry,
+                            &server_name,
+                            requires_approval,
+                            &tags,
+                            &session,
+                        )
+                        .await;
+                    }
 
                     sessions.insert(server_name, session);
                 }
@@ -373,6 +402,7 @@ impl McpClientManagerHandle {
             event_bus,
             last_call_at: HashMap::new(),
             approvals,
+            loading_mode,
         };
         tokio::spawn(actor.run());
 
@@ -415,6 +445,26 @@ impl McpClientManagerHandle {
         if self
             .tx
             .send(McpCommand::GetStatus { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Collect the lightweight tool index across all deferred-mode sessions.
+    ///
+    /// Each entry carries the fully qualified `mcp:<server>/<tool>` identity
+    /// material plus the owning server's tags, ready to feed the synthetic
+    /// `tool_search` tool. Returns an empty `Vec` when no session runs in
+    /// deferred mode, when no server is connected, or when the actor has already
+    /// shut down.
+    pub async fn get_tool_index(&self) -> Vec<ToolIndexSnapshot> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(McpCommand::GetToolIndex { reply: reply_tx })
             .await
             .is_err()
         {
@@ -774,6 +824,11 @@ impl McpClientManager {
     /// Uses the `mcp:<server>/<tool>` naming convention. Failures are logged at
     /// `warn` level and do not abort the registration of remaining tools.
     async fn register_session_tools(&self, server_name: &str, session: &McpSession) {
+        // Deferred sessions never register their schemas; the runtime exposes
+        // the synthetic `tool_search` tool over the lightweight index instead.
+        if self.loading_mode == LoadingMode::Deferred {
+            return;
+        }
         let tags = session.config().tags.clone();
         let requires_approval = session.requires_approval();
         register_session_tools_in_registry(
@@ -802,14 +857,21 @@ impl McpClientManager {
             });
         }
 
-        let session = McpSession::start(config, Some(&DefaultMcpSecretResolver)).await?;
+        let session =
+            McpSession::start_with_mode(config, Some(&DefaultMcpSecretResolver), self.loading_mode)
+                .await?;
         tracing::info!(
             server = %name,
             tools = session.tools().len(),
+            indexed = session.tool_index().len(),
             "MCP server added"
         );
         self.register_session_tools(&name, &session).await;
-        let status = build_status(&name, &session, self.last_call_at.get(&name).map(String::as_str));
+        let status = build_status(
+            &name,
+            &session,
+            self.last_call_at.get(&name).map(String::as_str),
+        );
         self.sessions.insert(name, session);
         Ok(status)
     }
@@ -857,7 +919,13 @@ impl McpClientManager {
 
         old_session.shutdown().await;
 
-        let new_session = match McpSession::start(config, Some(&DefaultMcpSecretResolver)).await {
+        let new_session = match McpSession::start_with_mode(
+            config,
+            Some(&DefaultMcpSecretResolver),
+            self.loading_mode,
+        )
+        .await
+        {
             Ok(s) => s,
             Err(e) => {
                 self.reloading.remove(name);
@@ -1008,8 +1076,27 @@ impl McpClientManager {
 
         // Approval gate first; its immutable borrow is fully released before the
         // await below.
-        if let Some(pending) = self.register_pending_approval(&server_name, &tool_name, &arguments) {
+        if let Some(pending) = self.register_pending_approval(&server_name, &tool_name, &arguments)
+        {
             return pending;
+        }
+
+        // In deferred mode, warm the schema cache on first use. This mutable
+        // borrow is opened and dropped in its own scope before the immutable
+        // borrow taken by the call below. The fetch is best-effort: a failure
+        // here is logged and ignored, since `call_tool` does not require the
+        // schema to execute.
+        if self.loading_mode == LoadingMode::Deferred {
+            if let Some(session) = self.sessions.get_mut(&server_name) {
+                if let Err(e) = session.fetch_tool_schema(&tool_name).await {
+                    tracing::warn!(
+                        server = %server_name,
+                        tool = %tool_name,
+                        error = %e,
+                        "Deferred MCP schema fetch failed before tool call; continuing"
+                    );
+                }
+            }
         }
 
         // Build and await the call inside a scope so the immutable borrow of
@@ -1131,7 +1218,9 @@ impl McpClientManager {
         };
         let config = old_session.config().clone();
         old_session.shutdown().await;
-        let new_session = McpSession::start(config, Some(&DefaultMcpSecretResolver)).await?;
+        let new_session =
+            McpSession::start_with_mode(config, Some(&DefaultMcpSecretResolver), self.loading_mode)
+                .await?;
         // A restart resets the live session; a stale last_call_at would be
         // misleading, so clear it and report no prior call.
         self.last_call_at.remove(&server_name);
@@ -1151,8 +1240,9 @@ impl McpClientManager {
                     arguments,
                     reply,
                 } => {
-                    if let Some(result) =
-                        self.handle_call_tool(server_name, tool_name, arguments).await
+                    if let Some(result) = self
+                        .handle_call_tool(server_name, tool_name, arguments)
+                        .await
                     {
                         let _ = reply.send(result);
                     }
@@ -1244,6 +1334,10 @@ impl McpClientManager {
                     let _ = reply.send(self.handle_read_resource(server_name, &uri).await);
                 }
 
+                McpCommand::GetToolIndex { reply } => {
+                    let _ = reply.send(self.collect_tool_index());
+                }
+
                 McpCommand::Shutdown => {
                     self.shutdown_all().await;
                     break;
@@ -1257,9 +1351,38 @@ impl McpClientManager {
         self.sessions
             .iter()
             .map(|(name, session)| {
-                build_status(name, session, self.last_call_at.get(name).map(String::as_str))
+                build_status(
+                    name,
+                    session,
+                    self.last_call_at.get(name).map(String::as_str),
+                )
             })
             .collect()
+    }
+
+    /// Aggregate the lightweight tool index across every session.
+    ///
+    /// Each [`ToolIndexEntry`] is enriched with its owning server name and the
+    /// server's configured tags, producing a [`ToolIndexSnapshot`] usable by the
+    /// synthetic `tool_search` tool. Sessions running in [`LoadingMode::Eager`]
+    /// contribute nothing, since their index is empty.
+    ///
+    /// [`ToolIndexEntry`]: crate::session::ToolIndexEntry
+    fn collect_tool_index(&self) -> Vec<ToolIndexSnapshot> {
+        let mut index = Vec::new();
+        for session in self.sessions.values() {
+            let server_name = session.server_name().to_string();
+            let tags = session.config().tags.clone();
+            for entry in session.tool_index() {
+                index.push(ToolIndexSnapshot {
+                    server_name: server_name.clone(),
+                    tool_name: entry.name.clone(),
+                    description: entry.description.clone(),
+                    tags: tags.clone(),
+                });
+            }
+        }
+        index
     }
 
     /// Build the detail view for a single server, if it exists.
@@ -1402,18 +1525,15 @@ impl McpClientManager {
             })?,
         };
 
-        let session = self
-            .sessions
-            .get(&resolved)
-            .ok_or_else(|| McpSessionError::ServerExited {
-                server: resolved.clone(),
-            })?;
+        let session =
+            self.sessions
+                .get(&resolved)
+                .ok_or_else(|| McpSessionError::ServerExited {
+                    server: resolved.clone(),
+                })?;
 
         let result = session.read_resource(uri).await?;
-        let mime_type = result
-            .contents
-            .iter()
-            .find_map(|c| c.mime_type.clone());
+        let mime_type = result.contents.iter().find_map(|c| c.mime_type.clone());
         let text = result
             .contents
             .iter()
@@ -1458,6 +1578,10 @@ impl McpClientManager {
 
 /// Register every tool exposed by a freshly started session in the tool registry
 /// under the `mcp:<server>/<tool>` naming convention.
+///
+/// Callers in [`LoadingMode::Deferred`] skip this step entirely: schemas are not
+/// loaded at boot and the runtime exposes the synthetic `tool_search` tool
+/// instead, so the registry stays free of `mcp:` descriptors.
 async fn register_session_tools_in_registry(
     tool_registry: &ToolRegistryHandle,
     server_name: &str,
@@ -1551,7 +1675,7 @@ fn build_status(name: &str, session: &McpSession, last_call_at: Option<&str>) ->
     McpServerStatus {
         name: name.to_string(),
         server_info: session.server_info().name.clone(),
-        tools_count: session.tools().len(),
+        tools_count: session_tool_count(session),
         requires_approval: session.requires_approval(),
         connected: true,
         pid: session.pid(),
@@ -1564,19 +1688,47 @@ fn build_status(name: &str, session: &McpSession, last_call_at: Option<&str>) ->
     }
 }
 
+/// Count the tools a session exposes, regardless of loading mode.
+///
+/// Eager sessions report their fully loaded `tools`; deferred sessions report
+/// their lightweight `tool_index`, so the UI tool count is correct in both modes.
+fn session_tool_count(session: &McpSession) -> usize {
+    if session.tools().is_empty() {
+        session.tool_index().len()
+    } else {
+        session.tools().len()
+    }
+}
+
 /// Build a [`McpServerDetail`] from a live session, redacting secret env values.
 fn build_detail(name: &str, session: &McpSession, last_call_at: Option<&str>) -> McpServerDetail {
     let config = session.config();
-    let tools = session
-        .tools()
-        .iter()
-        .map(|t| McpToolSummary {
-            full_name: format!("mcp:{}/{}", name, t.name),
-            local_name: t.name.clone(),
-            description: t.description.clone(),
-            input_schema: t.input_schema.clone(),
-        })
-        .collect();
+    // Deferred sessions hold no schemas, only the lightweight index; surface
+    // those tools with a null `input_schema` placeholder so the detail view is
+    // not blank before a schema is fetched on demand.
+    let tools = if session.tools().is_empty() {
+        session
+            .tool_index()
+            .iter()
+            .map(|t| McpToolSummary {
+                full_name: format!("mcp:{}/{}", name, t.name),
+                local_name: t.name.clone(),
+                description: t.description.clone(),
+                input_schema: serde_json::Value::Null,
+            })
+            .collect()
+    } else {
+        session
+            .tools()
+            .iter()
+            .map(|t| McpToolSummary {
+                full_name: format!("mcp:{}/{}", name, t.name),
+                local_name: t.name.clone(),
+                description: t.description.clone(),
+                input_schema: t.input_schema.clone(),
+            })
+            .collect()
+    };
 
     let config_view = McpServerConfigView {
         name: config.name.clone(),
@@ -1947,9 +2099,10 @@ mod tests {
         // GIVEN a McpClientManager with no connected sessions
         use apollia_tools::registry::ToolRegistryHandle;
         let registry = ToolRegistryHandle::start();
-        let handle = McpClientManagerHandle::start(vec![], &registry, None, None)
-            .await
-            .expect("manager start failed");
+        let handle =
+            McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+                .await
+                .expect("manager start failed");
 
         // WHEN reload is requested for an unknown server
         let result = handle.reload_server("inexistant").await;

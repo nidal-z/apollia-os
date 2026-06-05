@@ -17,6 +17,8 @@ use tracing::{error, info, warn};
 
 use apollia_core::{RuntimeEvent, StepBudgetConfig};
 use apollia_llm::{LlmRouter, ToolInvoker};
+use apollia_mcp::session::LoadingMode;
+use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_permissions::prefix_rule_engine::RuleAction;
@@ -201,7 +203,9 @@ fn accumulate_exchange_metrics(
         entry.started_at = Some(now_ts.clone());
     }
     entry.updated_at = Some(now_ts);
-    entry.prompt_tokens = entry.prompt_tokens.saturating_add(tokens_used.prompt_tokens);
+    entry.prompt_tokens = entry
+        .prompt_tokens
+        .saturating_add(tokens_used.prompt_tokens);
     entry.completion_tokens = entry
         .completion_tokens
         .saturating_add(tokens_used.completion_tokens);
@@ -347,6 +351,8 @@ struct LibreExchangeParams {
     pending_user_inputs_for_session: apollia_tools::tools::ask_user::PendingUserInputs,
     mcp_handle_for_session: Option<apollia_mcp::manager::McpClientManagerHandle>,
     chat_tools_config_for_session: Option<Arc<ChatToolsConfig>>,
+    mcp_loading: LoadingMode,
+    tool_search_limit: usize,
     session_id_str: String,
     hitl_params: HitlInvokerParams,
     sid: String,
@@ -385,6 +391,8 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         pending_user_inputs_for_session,
         mcp_handle_for_session,
         chat_tools_config_for_session,
+        mcp_loading,
+        tool_search_limit,
         session_id_str,
         hitl_params,
         sid,
@@ -392,6 +400,23 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         user_msg,
         tx,
     } = params;
+
+    // In deferred mode, snapshot the aggregated tool index once. The synthetic
+    // `tool_search` tool is built from it twice: as a dispatcher executor (so a
+    // discovered tool can be invoked) and as an LLM spec (so the agent sees it
+    // instead of every MCP schema). Eager mode keeps an empty index.
+    let mcp_index: Vec<ToolIndexSnapshot> = match (mcp_loading, &mcp_handle_for_session) {
+        (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
+        (LoadingMode::Deferred, None) => {
+            warn!(
+                mode = "deferred",
+                "MCP deferred mode active but no manager handle is configured; \
+                 tool_search will be exposed over an empty index"
+            );
+            Vec::new()
+        }
+        (LoadingMode::Eager, _) => Vec::new(),
+    };
 
     // Resolve per-session sandbox root from project workspace_path.
     // On error (project not found) surface as ExchangeError, no panic.
@@ -404,6 +429,9 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
             mcp_handle: mcp_handle_for_session,
             chat_tools_config: chat_tools_config_for_session,
             session_id: session_id_str,
+            mcp_loading,
+            mcp_index: mcp_index.clone(),
+            tool_search_limit,
         },
         &a2a_for_agent,
     )
@@ -422,6 +450,12 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         }
     };
 
+    // `Some` only in deferred mode, so `build_tool_specs` injects `tool_search`.
+    // Eager keeps `None` and the legacy spec path.
+    let agent_mcp_index = match mcp_loading {
+        LoadingMode::Deferred => Some(mcp_index),
+        LoadingMode::Eager => None,
+    };
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
         llm_router,
         tool_registry,
@@ -430,7 +464,8 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         user_memory: session_user_memory,
         a2a_invoker: a2a_for_agent,
     })
-    .with_workspace_path(session_invoker.workspace);
+    .with_workspace_path(session_invoker.workspace)
+    .with_mcp_index(agent_mcp_index, tool_search_limit);
 
     // Inject project context on first message OR right after the
     // session was linked to a project (consumed flag).
@@ -1009,6 +1044,15 @@ struct ChatSessionManager {
     ///
     /// In-memory only, rebuilt from history on session resume. Not persisted.
     metrics: HashMap<SessionId, SessionMetrics>,
+    /// MCP tool loading strategy applied to every chat exchange.
+    ///
+    /// In [`LoadingMode::Deferred`] the LLM receives the synthetic `tool_search`
+    /// tool instead of the individual MCP schemas. In [`LoadingMode::Eager`] the
+    /// existing behavior is preserved (MCP schemas resolved from the registry).
+    mcp_loading: LoadingMode,
+    /// Maximum `limit` accepted by the synthetic `tool_search` tool, sourced from
+    /// the `mcp.tool_search_limit` setting.
+    tool_search_limit: usize,
 }
 
 impl ChatSessionManager {
@@ -1162,7 +1206,8 @@ impl ChatSessionManager {
                     tool_name,
                     reply,
                 } => {
-                    let _ = reply.send(self.handle_revoke_session_authorization(&session_id, &tool_name));
+                    let _ = reply
+                        .send(self.handle_revoke_session_authorization(&session_id, &tool_name));
                 }
                 ChatCommand::ListA2ASkills { reply } => {
                     self.handle_list_a2a_skills(reply);
@@ -1711,12 +1756,7 @@ impl ChatSessionManager {
 
     /// Build the system prompt for a Libre/Companion exchange, optionally
     /// enriched with cross-session context on the first message.
-    fn build_libre_system_prompt(
-        &self,
-        base_prompt: &str,
-        content: &str,
-        enrich: bool,
-    ) -> String {
+    fn build_libre_system_prompt(&self, base_prompt: &str, content: &str, enrich: bool) -> String {
         let mut prompt = base_prompt.to_string();
         if enrich {
             if let Some(block) = self.build_cross_session_context(content) {
@@ -1806,6 +1846,8 @@ impl ChatSessionManager {
             let pending_user_inputs_for_session = self.pending_user_inputs.clone();
             let mcp_handle_for_session = self.mcp_handle.clone();
             let chat_tools_config_for_session = self.chat_tools_config.clone();
+            let mcp_loading = self.mcp_loading;
+            let tool_search_limit = self.tool_search_limit;
             let session_id_str = session_id.to_string();
 
             // Capture HITL filesystem params for the invoker.
@@ -1840,6 +1882,8 @@ impl ChatSessionManager {
                 pending_user_inputs_for_session,
                 mcp_handle_for_session,
                 chat_tools_config_for_session,
+                mcp_loading,
+                tool_search_limit,
                 session_id_str,
                 hitl_params,
                 sid,
@@ -2227,10 +2271,7 @@ impl ChatSessionManager {
     }
 
     /// Resolve a session's project id to its workspace path, if any.
-    fn resolve_project_workspace(
-        &self,
-        project_id: Option<&str>,
-    ) -> Option<std::path::PathBuf> {
+    fn resolve_project_workspace(&self, project_id: Option<&str>) -> Option<std::path::PathBuf> {
         let pid = project_id?;
         let repo = self.project_repo.as_ref()?;
         repo.get_project(pid)
@@ -2780,6 +2821,9 @@ async fn resolve_workspace_for_session(
         mcp_handle,
         chat_tools_config,
         session_id,
+        mcp_loading,
+        mcp_index,
+        tool_search_limit,
     } = params;
     let session_id = session_id.as_str();
     let workspace_path = resolve_workspace_path(&project_id, &project_repo).await?;
@@ -2797,8 +2841,17 @@ async fn resolve_workspace_for_session(
     // their inline approval flow is not yet ported to events.
     let mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
 
-    // MCP executors, one per tool currently exposed by a connected server.
-    collect_mcp_executors(mcp_handle, &mut extra_executors).await;
+    // MCP executors. Eager: one per tool registered by a connected server.
+    // Deferred: the synthetic `tool_search` tool plus one executor per indexed
+    // tool, so a tool found via search is invocable without a preloaded schema.
+    collect_mcp_executors(
+        mcp_handle,
+        mcp_loading,
+        &mcp_index,
+        tool_search_limit,
+        &mut extra_executors,
+    )
+    .await;
 
     // SaaS connectors: Google + Microsoft 365.
     extra_executors.extend(crate::connectors_bridge::build_google_executors());
@@ -2871,9 +2924,23 @@ async fn resolve_workspace_path(
     }
 }
 
-/// Push one MCP executor per tool currently exposed by a connected server.
+/// Register the MCP executors for a chat session.
+///
+/// In [`LoadingMode::Eager`] this pushes one [`McpToolExecutor`] per tool
+/// advertised with a full schema by a connected server (the legacy behavior).
+///
+/// In [`LoadingMode::Deferred`] it pushes the synthetic `tool_search` executor
+/// plus one [`McpToolExecutor`] per indexed tool, so a tool discovered through
+/// `tool_search` can be invoked even though its schema was never preloaded. The
+/// individual schemas are not sent to the LLM; they are fetched on demand at
+/// call time.
+///
+/// [`McpToolExecutor`]: apollia_mcp::executor::McpToolExecutor
 async fn collect_mcp_executors(
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    mcp_loading: LoadingMode,
+    mcp_index: &[ToolIndexSnapshot],
+    tool_search_limit: usize,
     extra_executors: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
 ) {
     let Some(handle) = mcp_handle else {
@@ -2884,19 +2951,39 @@ async fn collect_mcp_executors(
     extra_executors.extend(apollia_mcp::mcp_resources::build_mcp_resource_executors(
         &Some(handle.clone()),
     ));
-    for status in handle.status().await {
-        if !status.connected {
-            continue;
+
+    match mcp_loading {
+        LoadingMode::Eager => {
+            for status in handle.status().await {
+                if !status.connected {
+                    continue;
+                }
+                let Some(detail) = handle.server_detail(&status.name).await else {
+                    continue;
+                };
+                for tool in detail.tools {
+                    extra_executors.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
+                        handle.clone(),
+                        status.name.clone(),
+                        tool.local_name.clone(),
+                    )));
+                }
+            }
         }
-        let Some(detail) = handle.server_detail(&status.name).await else {
-            continue;
-        };
-        for tool in detail.tools {
-            extra_executors.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
-                handle.clone(),
-                status.name.clone(),
-                tool.local_name.clone(),
+        LoadingMode::Deferred => {
+            // The synthetic search tool is the single MCP entry point exposed to
+            // the LLM. It is registered even when the index is empty.
+            extra_executors.push(Box::new(ToolSearchExecutor::new(
+                mcp_index.to_vec(),
+                tool_search_limit,
             )));
+            for entry in mcp_index {
+                extra_executors.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
+                    handle.clone(),
+                    entry.server_name.clone(),
+                    entry.tool_name.clone(),
+                )));
+            }
         }
     }
 }
@@ -2972,7 +3059,13 @@ fn build_full_chat_dispatcher(
 
     // Wrap the HITL-sensitive natives with the approval-flow guard.
     if let Some(p) = hitl {
-        push_hitl_natives(&mut extra_executors, p, workspace_path, sandbox_root, &native_cfg);
+        push_hitl_natives(
+            &mut extra_executors,
+            p,
+            workspace_path,
+            sandbox_root,
+            &native_cfg,
+        );
     }
 
     // Dynamic-allowlist http_fetch (preserves the per-call host
@@ -3012,14 +3105,27 @@ fn push_hitl_natives(
     };
 
     if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.to_path_buf()) {
-        push_hitl(extra_executors, Box::new(t), apollia_tools::FilesystemOp::Write);
+        push_hitl(
+            extra_executors,
+            Box::new(t),
+            apollia_tools::FilesystemOp::Write,
+        );
     }
     if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.to_path_buf()) {
-        push_hitl(extra_executors, Box::new(t), apollia_tools::FilesystemOp::Write);
+        push_hitl(
+            extra_executors,
+            Box::new(t),
+            apollia_tools::FilesystemOp::Write,
+        );
     }
-    if let Ok(t) = apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.to_path_buf())
+    if let Ok(t) =
+        apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.to_path_buf())
     {
-        push_hitl(extra_executors, Box::new(t), apollia_tools::FilesystemOp::Write);
+        push_hitl(
+            extra_executors,
+            Box::new(t),
+            apollia_tools::FilesystemOp::Write,
+        );
     }
     push_hitl(
         extra_executors,
@@ -3030,7 +3136,11 @@ fn push_hitl_natives(
         &native_cfg.agent_id,
         &native_cfg.venv_base_dir,
     ) {
-        push_hitl(extra_executors, Box::new(t), apollia_tools::FilesystemOp::Write);
+        push_hitl(
+            extra_executors,
+            Box::new(t),
+            apollia_tools::FilesystemOp::Write,
+        );
     }
 }
 
@@ -3052,7 +3162,8 @@ fn build_fallback_chat_dispatcher(
     if let Ok(t) = apollia_tools::tools::file_grep::FileGrep::new(sandbox_root.to_path_buf()) {
         extra_executors.push(Box::new(t));
     }
-    if let Ok(t) = apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_root.to_path_buf())
+    if let Ok(t) =
+        apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_root.to_path_buf())
     {
         extra_executors.push(Box::new(t));
     }
@@ -3068,6 +3179,12 @@ struct WorkspaceResolutionParams {
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
     chat_tools_config: Option<Arc<ChatToolsConfig>>,
     session_id: String,
+    /// MCP tool loading strategy for this exchange.
+    mcp_loading: LoadingMode,
+    /// Aggregated deferred tool index, empty in eager mode.
+    mcp_index: Vec<ToolIndexSnapshot>,
+    /// Maximum `limit` accepted by the synthetic `tool_search` tool.
+    tool_search_limit: usize,
 }
 
 /// Clonable handle for communicating with the [`ChatSessionManager`] actor.
@@ -3124,6 +3241,10 @@ impl ChatSessionManagerHandle {
         // `None` keeps the minimal behaviour (only read-only file tools in
         // the dispatcher, the rest in the fast path).
         chat_tools_config: Option<Arc<ChatToolsConfig>>,
+        // MCP tool loading strategy and the synthetic `tool_search` result cap,
+        // sourced from the `[mcp]` section of `apollia.toml`.
+        mcp_loading: LoadingMode,
+        tool_search_limit: usize,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
@@ -3162,6 +3283,8 @@ impl ChatSessionManagerHandle {
             chat_tools_config,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
+            mcp_loading,
+            tool_search_limit,
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -3860,6 +3983,8 @@ mod tests {
             None, // no project repo in basic tests
             None, // no mcp handle in basic tests
             None, // no chat tools config in basic tests
+            LoadingMode::Eager,
+            20,
         )
         .expect("spawn manager")
     }
@@ -3935,9 +4060,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, None, Arc::new(AlwaysOkLoader));
 
         // WHEN create_session mode=Libre
-        let result = handle
-            .create_session(libre_session_params())
-            .await;
+        let result = handle.create_session(libre_session_params()).await;
 
         // THEN Err(ChatError::NoLlmConfigured)
         assert!(matches!(result, Err(ChatError::NoLlmConfigured)));
@@ -4021,6 +4144,8 @@ mod tests {
             None,
             None,
             None,
+            LoadingMode::Eager,
+            20,
         )
         .expect("spawn");
 
@@ -4125,6 +4250,8 @@ mod tests {
             a2a_invoker: None,
             project_context: None,
             project_repo: None,
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
 
         // Insert a dummy session so the lookup succeeds
@@ -4173,9 +4300,7 @@ mod tests {
 
         // THEN the actor stops, subsequent sends fail gracefully
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let result = handle
-            .create_session(libre_session_params())
-            .await;
+        let result = handle.create_session(libre_session_params()).await;
         assert!(result.is_err());
     }
 
@@ -4258,6 +4383,8 @@ mod tests {
             a2a_invoker: None,
             project_context: None,
             project_repo: None,
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
 
         // WHEN building cross-session context with a substantive first message
@@ -4322,6 +4449,8 @@ mod tests {
             a2a_invoker: None,
             project_context: None,
             project_repo: None,
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
 
         // WHEN building cross-session context with a trivial message
@@ -4364,6 +4493,8 @@ mod tests {
             a2a_invoker: None,
             project_context: None,
             project_repo: None,
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
         };
 
         // WHEN building cross-session context with a substantive message but no past sessions
