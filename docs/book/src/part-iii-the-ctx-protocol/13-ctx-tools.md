@@ -59,6 +59,17 @@ issues = await ctx.tools.call("mcp:github/list_issues", input={"repo": "owner/na
 
 La liste des outils MCP disponibles dépend des serveurs configurés au niveau de la session. L'opérateur les active dans l'app Desktop ou via `apollia-os mcp enable <server>`.
 
+Quand beaucoup d'outils MCP sont connectés, ils ne sont pas tous chargés d'avance : `list_tools()` ne renvoie alors que les outils déjà résolus. Pour retrouver un outil MCP par mot-clé, l'agent appelle l'outil `tool_search`, puis appelle l'outil trouvé comme n'importe quel autre :
+
+```python
+# Retrouver des outils MCP par mot-cle
+matches = await ctx.tools.call("tool_search", input={"query": "issues github"})
+# matches : les outils MCP correspondants (nom + description)
+
+# Puis appeler l'outil decouvert normalement
+issues = await ctx.tools.call("mcp:github/list_issues", input={"repo": "owner/name"})
+```
+
 > **Référence technique :** la page wiki `Briques-Tool-Registry` détaillera le catalogue complet des outils natifs, leurs `input_schema`, et la procédure d'ajout d'un outil natif. La page `Briques-MCP-Client` couvrira le client MCP *(wiki disponible prochainement)*. En attendant, `apollia-os tools list` affiche le catalogue installé.
 
 ---
