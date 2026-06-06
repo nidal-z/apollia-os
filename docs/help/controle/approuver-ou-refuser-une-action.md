@@ -2,6 +2,8 @@
 
 > Pour les operators qui veulent garder la main sur chaque action sensible déclenchée par un agent (écriture, commande, appel d'outil externe).
 
+> **Note - paliers d'autonomie :** le flux d'approbation dépend du palier choisi au lancement. En palier `assisted` (défaut), toute action sensible passe par votre validation, comme décrit sur cette page. A partir du palier `supervised`, la boucle de vérification automatique peut corriger les anomalies sans vous solliciter et ne soumet à votre approbation que ce qui résiste à cette correction. Les paliers `bounded_autonomous` et `long_autonomous` réduisent encore davantage les interruptions. Voir [Paliers d'autonomie](paliers-d-autonomie.md).
+
 ## Prérequis
 
 - Un agent en cours d'exécution sur une tâche qui touche fichiers, commandes ou outils externes.
@@ -80,5 +82,6 @@ L'historique est en **lecture seule** ; il ne se remplace pas par la page Param�
 - **L'agent réessaie sans cesse la même action refusée** : la raison n'était peut-être pas exploitable par l'agent. Ouvrez ses logs depuis **Mes assistants** ; la raison transmise s'y retrouve dans la sortie de l'outil refusé. Refusez à nouveau avec une raison plus actionnable (chemin alternatif, valeur attendue…).
 - **Une règle "Toujours" crée trop d'actions automatiques** : ouvrez **Paramètres → Autorisations** et révoquez ou affinez le périmètre de la règle. Voir [Gérer les autorisations d'outils](configurer-les-permissions-de-fichiers.md).
 - **L'option "Toujours pour ce projet" est grisée** : la session de chat courante n'est rattachée à aucun projet. Liez-la depuis l'en-tête du chat, ou utilisez la portée *Toujours pour cet assistant* à la place.
+- **Moins de demandes d'approbation que d'habitude** : c'est normal si l'agent tourne en palier `supervised` ou supérieur. La boucle de vérification automatique résout une partie des situations sans vous solliciter. Si vous souhaitez rétablir un contrôle complet, relancez l'agent avec `--autonomy assisted`.
 
 > **Concept :** [book ch10 - HITL (Human-In-The-Loop)](https://github.com/Apollia-OS/apollia-os/blob/main/book/src/ch10-00-hitl.md)

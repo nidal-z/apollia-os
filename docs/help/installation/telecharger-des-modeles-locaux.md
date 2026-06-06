@@ -41,4 +41,6 @@ Pour un modèle GGUF, ouvrez un nouveau chat, sélectionnez votre modèle local 
 - **Espace disque insuffisant :** supprimez un modèle existant ou libérez de la place avant de relancer.
 - **Modèle absent du sélecteur après téléchargement :** redémarrez Apollia pour qu'il détecte le nouveau modèle.
 
+> **Modèles locaux fiables :** les modèles locaux GGUF appellent vos outils de manière fiable, sans réglage de votre part.
+
 > **Référence technique :** [Briques-LLM-Backend](https://github.com/Apollia-OS/apollia-os/wiki/Briques-LLM-Backend) - formats GGUF supportés, paramètres de quantization, recommandations matériel.

@@ -36,7 +36,7 @@ Les jetons OAuth (Google, Notion, GitHub) expirent régulièrement. L'agent rest
 
 ### 4. L'agent tourne en boucle sur la même action
 
-Certains agents peuvent rester coincés sur une étape qu'ils retentent indéfiniment. Apollia applique une limite (StepBudget), mais elle peut être large.
+Certains agents peuvent rester coincés sur une étape qu'ils retentent indéfiniment. Apollia applique une limite (StepBudget) dont le plafond varie selon le palier d'autonomie : il est plus bas en `assisted` et plus élevé en `bounded_autonomous` ou `long_autonomous`.
 
 **Solution :**
 1. Dans le panneau **Logs** de l'agent, repérez plusieurs tâches consécutives avec la même entrée ou sortie.
@@ -45,7 +45,13 @@ Certains agents peuvent rester coincés sur une étape qu'ils retentent indéfin
 
    > **Note :** il n'existe pas de bouton *« Forcer l'arrêt »* distinct - l'icône Stop envoie un signal d'arrêt normal. Si l'agent ne réagit pas après quelques secondes, redémarrez l'application.
 
-### 5. Une dépendance manque (outil, fichier, modèle)
+### 5a. L'agent prend plus de temps que prévu en palier supervised ou bounded_autonomous
+
+En palier `supervised` ou `bounded_autonomous`, l'agent contrôle son travail après l'exécution et tente une auto-correction si nécessaire. Cela allonge la durée apparente avant que l'agent se déclare terminé. C'est un comportement normal, pas un blocage.
+
+Si la durée vous semble excessive, ouvrez le panneau **Logs** : les tâches de vérification apparaissent avec le statut **Vérification** (voir [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md)). Si elles s'enchaînent en boucle sans fin, c'est que la vérification n'arrive pas à converger : arrêtez l'agent et reformulez les instructions ou ajustez le manifest.
+
+### 5b. Une dépendance manque (outil, fichier, modèle)
 
 L'agent peut requérir un outil MCP non installé, un fichier introuvable ou un modèle local non téléchargé.
 

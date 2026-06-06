@@ -2,7 +2,15 @@
 
 `apollia.testing.mock` couvre le test **fonctionnel** : votre agent appelle les bons outils, gère les bonnes erreurs, écrit aux bons endroits. Une suite d'évaluation (eval suite) couvre la **qualité LLM** : votre agent répond pertinemment à des inputs réalistes, avec un LLM réel branché.
 
-Apollia ne fournit pas (encore) de framework d'eval intégré. Ce chapitre décrit le pattern qu'on observe sur les agents bundled : un script Python autonome qui orchestre des inputs, capture les outputs, et produit un rapport.
+Apollia fournit un harnais d'évaluation intégré : `apollia eval run <suite.toml>`. Une suite est un fichier TOML qui déclare des scénarios avec des assertions. Le harnais les exécute contre le runtime réel et produit un rapport lisible ou JSON.
+
+```bash
+# Lancer une suite
+$ apollia-os eval run evals/suite-coach.toml
+
+# Consulter l'historique des runs
+$ apollia-os eval report evals/suite-coach.toml
+```
 
 ---
 
@@ -17,66 +25,81 @@ Si votre agent contient un `apollia.react(...)`, un `@on_message` non trivial, o
 
 ---
 
-## Pattern : eval suite minimale
+## Structure d'une `suite.toml`
 
-Un fichier `evals/test_coach.py`, hors du dossier `tests/` Python standard pour qu'il ne soit pas lancé par `pytest` par défaut (les evals consomment du LLM réel).
+Une suite déclare des scénarios. Chaque scénario invoque un agent ou une skill, et définit une ou plusieurs assertions. Quatre types d'assertion sont disponibles :
 
-```python
-"""Eval suite for coach agent, runs against a real LLM."""
+| Type | Vérifie |
+|---|---|
+| `exit_code` | Le code de sortie de la commande CLI sous-jacente |
+| `file_exists` | L'existence d'un fichier produit par l'agent |
+| `regex` | Un pattern regex dans la sortie de l'agent |
+| `llm_judge` | Un critère en langue naturelle évalué par un juge LLM |
 
-import asyncio
-import json
-from pathlib import Path
+```toml
+# evals/suite-coach.toml
+[suite]
+name    = "suite-coach"
+agent   = "apollia-guide"    # agent cible (doit etre actif)
+version = "0.2.0"            # version de reference pour le rapport
 
-from apollia import _internal  # accès direct au bridge pour eval
-from coach import Coach
+[[scenarios]]
+id    = "explain_director_pattern"
+input = "Comment fonctionne le pattern Director ?"
 
+[[scenarios.assertions]]
+type    = "llm_judge"
+expects = "La reponse mentionne le pattern ReAct et la notion d'invocation A2A"
 
-SCENARIOS = [
-    {
-        "id": "explain_director_pattern",
-        "input": "Comment fonctionne le pattern Director ?",
-        "expectations": [
-            "mentionne apollia.react ou ReAct",
-            "mentionne ctx.a2a ou A2A",
-            "longueur de réponse entre 80 et 600 caractères",
-        ],
-    },
-    {
-        "id": "refuse_unknown_feature",
-        "input": "Comment activer le mode quantum-encrypted ?",
-        "expectations": [
-            "indique honnêtement que la fonctionnalité n'existe pas",
-            "ne fabule pas une réponse",
-        ],
-    },
-]
+[[scenarios.assertions]]
+type  = "regex"
+value = "(?i)react|a2a|agent-to-agent"
 
+[[scenarios]]
+id    = "refuse_unknown_feature"
+input = "Comment activer le mode quantum-encrypted ?"
 
-async def run_scenario(scenario: dict) -> dict:
-    # Bind a real ctx via the runtime bridge (out of scope for this chapter)
-    agent, ctx = _internal.build_real_ctx(Coach)
-    response = await agent.chat(scenario["input"], history=[], ctx=ctx)
-    return {
-        "id": scenario["id"],
-        "input": scenario["input"],
-        "response": response,
-        "expectations": scenario["expectations"],
-    }
+[[scenarios.assertions]]
+type    = "llm_judge"
+expects = "L'agent indique honnêtement que la fonctionnalite n'existe pas"
 
+[[scenarios]]
+id      = "produce_summary_file"
+skill   = "report.generate_summary"     # appel direct de skill plutot que @on_message
+args    = { topic = "Apollia OS v0.1" }
+timeout = 30
 
-async def main():
-    results = []
-    for scenario in SCENARIOS:
-        results.append(await run_scenario(scenario))
-    Path("evals/results.json").write_text(json.dumps(results, indent=2))
+[[scenarios.assertions]]
+type = "exit_code"
+code = 0
 
+[[scenarios.assertions]]
+type = "file_exists"
+path = "/tmp/apollia-summary.md"
 
-if __name__ == "__main__":
-    asyncio.run(main())
+[[scenarios.assertions]]
+type  = "regex"
+file  = "/tmp/apollia-summary.md"
+value = "(?i)local.first|runtime"
 ```
 
-> Note : `_internal.build_real_ctx` n'est pas une API publique stabilisée à v0.5. Le pattern réel pour brancher un ctx réel dans une eval suite passe par `apollia-os a2a invoke <skill_id> --args '<JSON>' --json` (ou `apollia-os run <agent> "<prompt>" --json` pour les agents conversationnels), ou par un test d'intégration côté Rust. Cette mécanique sera documentée dans la page wiki `Testing-Patterns` *(wiki disponible prochainement)*.
+Le champ `skill` permet d'invoquer une skill A2A directement (via `apollia-os a2a invoke` en interne). Si `skill` est absent, c'est `input` qui est envoyé via `@on_message`. Les deux chemins produisent un résultat comparable.
+
+---
+
+## Rapport et historique
+
+`apollia eval report` lit les runs précédents et affiche l'évolution du score :
+
+```
+  Suite    : suite-coach
+  DATE                SCORE   TOTAL   VERSION
+  2026-06-04T10:22    87.5%   8       coach-v0.2.1
+  2026-06-01T09:15    75.0%   8       coach-v0.2.0
+  2026-05-28T14:30    62.5%   8       coach-v0.1.9
+```
+
+L'historique est stocké dans `~/.apollia/eval-history.db`. Chaque run est persisté automatiquement. Passez `--json` pour une sortie exploitable par un script CI.
 
 ---
 
@@ -161,9 +184,11 @@ Les deux sont complémentaires.
 |---|---|
 | Vérifier que la skill `pdf.read_text` lève `FILE_NOT_FOUND` si le fichier manque | `apollia.testing.mock` + `assert_result_failed` |
 | Vérifier que le coach utilise le bon prompt | `apollia.testing.mock` + assertion sur `ctx.llm.prompts` |
-| Vérifier que le coach **comprend** la question et répond pertinemment | Eval suite |
+| Vérifier que le coach **comprend** la question et répond pertinemment | `apollia eval run` avec assertion `llm_judge` |
 | Vérifier que le director ne tombe pas dans une boucle infinie | `apollia.testing.mock` + step budget |
-| Vérifier que le director **converge** sur des questions réelles | Eval suite |
+| Vérifier que le director **converge** sur des questions réelles | `apollia eval run` avec assertions `regex` + `llm_judge` |
+| Vérifier qu'un fichier est produit avec le bon contenu | `apollia eval run` avec assertions `file_exists` + `regex` |
+| Vérifier que la commande CLI retourne un exit code 0 | `apollia eval run` avec assertion `exit_code` |
 
 Un agent bien testé a les deux.
 
@@ -171,7 +196,7 @@ Un agent bien testé a les deux.
 
 ## Anti-patterns
 
-**Ne pas** mettre les evals dans `tests/` Python standard. Elles consomment du LLM, sont lentes, et ne devraient pas tourner à chaque `pytest`. Convention : `evals/` à la racine.
+**Ne pas** mettre les fichiers `.toml` d'eval dans `tests/` Python standard. Les evals consomment du LLM réel, sont lentes, et ne devraient pas tourner à chaque `pytest`. Convention : `evals/` à la racine du projet agent.
 
 **Ne pas** juger un agent sur un seul scénario. Le LLM est probabiliste : un cas isolé n'est pas représentatif. 20 scénarios minimum pour un signal exploitable.
 

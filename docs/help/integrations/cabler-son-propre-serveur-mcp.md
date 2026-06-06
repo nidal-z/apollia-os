@@ -72,6 +72,27 @@ Apollia peut découvrir des serveurs MCP sur votre réseau local via mDNS (servi
 - **Sampling** : si le serveur demande un appel LLM via `sampling/createMessage`, le prompt arrive dans votre boîte de réception et vous approuvez avant exécution.
 - **Elicitation** : si le serveur veut un input utilisateur via `elicitation/create`, un formulaire arrive dans votre boîte de réception.
 
+## Mode de chargement deferred
+
+Par défaut, Apollia charge les outils d'un serveur MCP en mode `deferred` : ils ne sont pas injectés en contexte au démarrage. L'agent utilise `tool_search` pour les récupérer à la demande. C'est le bon réglage pour la plupart des serveurs.
+
+Si votre serveur expose peu d'outils (moins d'une dizaine) ou si vos agents les utilisent systématiquement à chaque exécution, vous pouvez passer en mode `eager` dans votre configuration :
+
+```toml
+[mcp]
+tool_loading = "eager"
+```
+
+En mode `eager`, tous les outils du serveur sont chargés en contexte à chaque appel. Cela simplifie le comportement de l'agent mais augmente la consommation de tokens.
+
+Le paramètre `tool_search_limit` borne le nombre d'outils renvoyés par `tool_search` en mode `deferred`. Valeur par défaut : `20`. Plage valide : `1` à `500`.
+
+```toml
+[mcp]
+tool_loading = "deferred"
+tool_search_limit = 20
+```
+
 ## Si ça ne marche pas
 
 - **"Commande introuvable" en stdio** : votre binaire n'est pas dans le PATH d'Apollia. Donnez le chemin absolu ou ajustez votre PATH avant de lancer Apollia.

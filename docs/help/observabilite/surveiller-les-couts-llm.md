@@ -30,9 +30,12 @@
 
 Les chiffres en bas correspondent à votre intuition de la consommation. Les données se rafraîchissent automatiquement environ une fois par minute.
 
+> **Note - routage hybride :** si vous utilisez le routage hybride (`[llm.routing.hybrid]`), les étapes escaladées vers le modèle frontier apparaissent sous le backend frontier dans le graphique et dans la légende. Surveillez ce backend pour contrôler votre consommation réelle par rapport au plafond `cost_ceiling_usd` configuré.
+
 ## Si ça ne marche pas
 
 - **Le graphique est vide** : aucun appel facturé n'a été enregistré sur 7 jours. Vérifiez que votre fournisseur n'est pas un modèle 100 % local.
 - **Les coûts paraissent trop élevés** : ouvrez les **Logs** de l'assistant le plus actif (page **Mes assistants**) et regardez les tâches les plus longues - un contexte injecté volumineux gonfle rapidement les jetons d'entrée.
+- **Coûts en hausse après activation du routage hybride** : le frontier est appelé plus souvent que prévu. Abaissez `cost_ceiling_usd` dans `[llm.routing.hybrid]` pour limiter l'escalade, ou désactivez temporairement le routage hybride. Voir [Connecter un modèle distant](../installation/connecter-un-modele-distant.md).
 
 > **Référence technique :** [Ops-Exploitation-et-Debug](https://github.com/Apollia-OS/apollia-os/wiki/Ops-Exploitation-et-Debug)

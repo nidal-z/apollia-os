@@ -54,6 +54,27 @@ Vous y trouverez aussi un agent système épinglé en haut, **Apollia Chat** : i
 
 L'agent système **Apollia Chat**, épinglé en haut de la liste, est **toujours actif** : pas de bouton démarrer/arrêter. Cliquez dessus pour ouvrir son panneau de configuration (personnalité, outils, modèle).
 
+## Choisir le palier d'autonomie avant de lancer
+
+Par défaut, un agent démarre en palier `assisted` : il demande votre approbation à chaque action sensible. Vous pouvez choisir un palier différent pour une exécution précise avec le flag `--autonomy` :
+
+```
+apollia run --autonomy <palier>
+```
+
+Les quatre paliers disponibles :
+
+| Palier | Comportement |
+|---|---|
+| `assisted` | Défaut. Approbation humaine à chaque action sensible. |
+| `supervised` | Boucle de vérification automatique après chaque étape. Les anomalies détectées sont corrigées sans vous solliciter ; seules les situations résistantes remontent. |
+| `bounded_autonomous` | Autonomie étendue dans un périmètre défini. Moins d'interruptions, StepBudget plus large. |
+| `long_autonomous` | Exécution longue durée. Vérification finale en sortie. Réservé aux tâches qui tolèrent un cycle sans approbation intermédiaire. |
+
+Si vous omettez le flag, le palier configuré dans vos préférences s'applique (par défaut `assisted`).
+
+> Pour le détail des paliers et leurs garanties, voir [Paliers d'autonomie](../controle/paliers-d-autonomie.md).
+
 ## Vérification
 
 - **Assistant seul** - pastille verte sur la ligne et dans le panneau de détail. L'envoi d'un message dans **Nouveau chat** déclenche une réponse en streaming.
@@ -66,6 +87,7 @@ L'agent système **Apollia Chat**, épinglé en haut de la liste, est **toujours
 - **Bouton lecture grisé sur un agent :** son chemin d'installation est introuvable (fichier déplacé ou supprimé). Réinstallez-le.
 - **Bouton lecture grisé sur un package :** le dossier source du package a disparu (icône d'avertissement à côté du nom). Réinstallez le package depuis sa source.
 - **Package en statut « partiel » :** un ou plusieurs agents n'ont pas démarré. Le détail du package liste l'état de chaque agent - ouvrez les logs de celui qui est en échec.
+- **L'agent s'arrête trop vite :** le StepBudget du palier actuel est atteint. Montez le palier avec `--autonomy supervised` ou `--autonomy bounded_autonomous` selon votre niveau de confiance. Voir [Paliers d'autonomie](../controle/paliers-d-autonomie.md).
 - **L'agent démarre mais ne répond pas :** consultez [Un agent est bloqué](../troubleshooting/un-agent-est-bloque.md).
 
 > **Concept :** [book ch11 - Worker Agent Pattern](https://github.com/Apollia-OS/apollia-os/blob/main/book/src/ch11-00-worker-agent-pattern.md) - comprendre la différence director/worker dans un package et leur cycle de vie.

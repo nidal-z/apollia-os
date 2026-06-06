@@ -27,7 +27,7 @@ features:
     link: /automatisations/programmer-un-trigger
   - icon: 🛡️
     title: Garder la main
-    details: Approuver ou refuser les actions sensibles, configurer les permissions de fichiers.
+    details: Approuver ou refuser les actions sensibles, configurer les permissions de fichiers, choisir le palier d'autonomie d'un agent, mesurer ses performances avec eval.
     link: /controle/approuver-ou-refuser-une-action
   - icon: 🔌
     title: Connecter
@@ -53,6 +53,11 @@ Chaque page suit le même format :
 - **Si ça ne marche pas** - les cas d'erreur fréquents.
 
 Si une page mentionne un concept technique, le lien renvoie soit vers le **book** (apprendre comment ça fonctionne) soit vers la **référence** (spec exhaustive). Jamais les deux : un seul saut, vers le bon endroit.
+
+## Aller plus loin avec vos agents
+
+- [Choisir un palier d'autonomie](agents/choisir-un-palier-d-autonomie.md) - ajuster jusqu'où l'agent agit seul avant de demander votre accord.
+- [Mesurer les performances d'un agent avec eval](agents/mesurer-un-agent-avec-eval.md) - créer une suite de tests reproductibles et lire le rapport de résultats.
 
 ## Vous êtes développeur, pas opérateur ?
 

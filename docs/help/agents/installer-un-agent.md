@@ -41,6 +41,8 @@ En cas de doute, demandez à la personne qui vous a livré l'agent.
 
 4. **Aperçu du package.** Apollia affiche un résumé : nom, version, auteur, la liste des agents du package, leurs déclencheurs (s'il y en a) et le nombre de dépendances. Prenez le temps de vérifier que ça correspond bien à ce que vous attendez.
 
+   Certains packages déclarent des vérifications : aux paliers `supervised` et supérieurs, le runtime contrôle automatiquement que l'agent a produit le résultat attendu. C'est prévu par l'auteur du package, vous n'avez rien à configurer.
+
    ![Dialogue d'installation, étape preview : sections Agents et Triggers, badge vert Valide](../_screenshots/agents-installer-un-agent-2.png)
 
    Si le package déclare un déclencheur **webhook**, une ligne supplémentaire le signale avec un badge orange « config » et le bouton du bas devient **Configurer →**.
