@@ -38,6 +38,7 @@ pub mod session_metrics;
 pub mod stt_config;
 pub mod task;
 pub mod temporal_context;
+pub mod todo;
 pub mod token_budget;
 pub mod utils;
 pub mod workspace;
@@ -77,6 +78,7 @@ pub use session_metrics::{
 };
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};
+pub use todo::{count_in_progress, TodoError, TodoItem, TodoStatus};
 pub use token_budget::{TokenBudget, TokenUsageDelta};
 pub use utils::truncate_middle;
 pub use workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice, WorkspaceSnapshot};

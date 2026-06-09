@@ -14,6 +14,8 @@ pub mod native_wrappers;
 pub mod project_context;
 pub mod repository;
 pub mod summarizer;
+pub mod todo_actor;
+pub mod todo_handle;
 pub mod types;
 
 pub use a2a_tools::{generate_a2a_tool_specs, CompositeToolInvoker};
@@ -34,6 +36,8 @@ pub use repository::{
     AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,
 };
 pub use summarizer::{summarize, SummarizerError};
+pub use todo_actor::spawn_todo_actor;
+pub use todo_handle::TodoHandle;
 pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
 pub use types::{
