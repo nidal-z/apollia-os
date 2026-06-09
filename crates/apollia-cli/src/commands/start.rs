@@ -583,6 +583,7 @@ struct AIPProductionBackend {
     llm_router: Option<Arc<LlmRouter>>,
     event_bus: EventBusSender,
     pending_approvals: Option<Arc<PendingApprovals>>,
+    plan_gates: Option<Arc<apollia_oria::PendingPlanGates>>,
     task_repository: Option<Arc<TaskRepository>>,
     tool_registry: Option<ToolRegistryHandle>,
     audit_trail: Option<AuditTrailHandle>,
@@ -633,6 +634,7 @@ impl Clone for AIPProductionBackend {
             memory_base_dir: self.memory_base_dir.clone(),
             supports_a2a: self.supports_a2a,
             pending_approvals: self.pending_approvals.clone(),
+            plan_gates: self.plan_gates.clone(),
             task_repository: self.task_repository.clone(),
             a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
@@ -952,6 +954,24 @@ impl ExecutionBackend for AIPProductionBackend {
             engine = engine.with_task_repository(repo);
         }
 
+        // Plan-mode: forward the per-run gate override. Wire the shared gate
+        // registry only when the gate is explicitly requested (`--plan`), so
+        // headless submissions (A2A, triggers) never pause for a decision.
+        engine = engine.with_plan_gate_override(task.run_options.plan_gate);
+        if task.run_options.plan_gate == Some(true) {
+            if let Some(gates) = self.plan_gates.clone() {
+                engine = engine.with_pending_plan_gates(gates);
+            }
+        }
+        // CLI `--autonomy` override feeds the engine tier (drives the gate
+        // policy when no explicit `--plan` override is set).
+        if let Some(tier) = task.run_options.autonomy_level {
+            engine = engine.with_oria_config(apollia_core::ORIAConfig {
+                autonomy_level: Some(tier),
+                ..apollia_core::ORIAConfig::default()
+            });
+        }
+
         let execution_mode = self.manifest.execution_mode.clone();
         let step_budget_max = self
             .manifest
@@ -1005,6 +1025,7 @@ struct ProductionBackendFactory {
     tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
     audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
+    plan_gates: Arc<std::sync::OnceLock<Arc<apollia_oria::PendingPlanGates>>>,
     task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
     /// Agent registry handle, populated after supervisor.start().
     registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
@@ -1044,6 +1065,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
         let pending_approvals = self.pending_approvals.get().cloned();
+        let plan_gates = self.plan_gates.get().cloned();
         let task_repository = self.task_repository.get().cloned();
 
         // Build A2A delegate and invoker if registry + router are available.
@@ -1108,6 +1130,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 memory_namespace,
                 memory_base_dir: default_memory_dir(),
                 pending_approvals,
+                plan_gates,
                 task_repository,
                 supports_a2a,
                 a2a_delegate,
@@ -1403,6 +1426,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         Arc::new(std::sync::OnceLock::new());
     let pending_approvals_lock: Arc<std::sync::OnceLock<Arc<PendingApprovals>>> =
         Arc::new(std::sync::OnceLock::new());
+    let plan_gates_lock: Arc<std::sync::OnceLock<Arc<apollia_oria::PendingPlanGates>>> =
+        Arc::new(std::sync::OnceLock::new());
     let task_repository_lock: Arc<std::sync::OnceLock<Arc<TaskRepository>>> =
         Arc::new(std::sync::OnceLock::new());
     let registry_lock: Arc<std::sync::OnceLock<AgentRegistryHandle>> =
@@ -1423,6 +1448,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         tool_registry: tool_registry_lock.clone(),
         audit_trail: audit_trail_lock.clone(),
         pending_approvals: pending_approvals_lock.clone(),
+        plan_gates: plan_gates_lock.clone(),
         task_repository: task_repository_lock.clone(),
         registry: registry_lock.clone(),
         router: router_lock.clone(),
@@ -1464,6 +1490,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let _ = router_lock.set(handles.router_handle.clone());
     set_lock_if_some(&audit_trail_lock, handles.audit_trail.clone());
     set_lock_if_some(&pending_approvals_lock, handles.pending_approvals.clone());
+    set_lock_if_some(&plan_gates_lock, handles.plan_gates.clone());
     set_lock_if_some(&task_repository_lock, handles.task_repository.clone());
     let _ = user_memory_lock.set(handles.user_memory.clone());
     set_lock_if_some(
@@ -1893,6 +1920,7 @@ agent = A()
             llm_router: None,
             event_bus,
             pending_approvals: None,
+            plan_gates: None,
             task_repository: None,
             tool_registry: None,
             audit_trail: None,

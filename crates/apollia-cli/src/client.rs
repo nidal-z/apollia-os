@@ -298,10 +298,28 @@ impl RuntimeClient {
         agent_id: &str,
         input: serde_json::Value,
     ) -> Result<serde_json::Value, ClientError> {
-        let body = serde_json::json!({
+        self.submit_task_with_options(agent_id, input, serde_json::Value::Null)
+            .await
+    }
+
+    /// Submit a task with per-run control options (`run_options`).
+    ///
+    /// `run_options` is forwarded verbatim under the `run_options` key so the
+    /// runtime can honour CLI flags (`--plan`, `--autonomy`). Pass
+    /// [`serde_json::Value::Null`] to send no options.
+    pub async fn submit_task_with_options(
+        &self,
+        agent_id: &str,
+        input: serde_json::Value,
+        run_options: serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let mut body = serde_json::json!({
             "agent_id": agent_id,
             "input": input,
         });
+        if !run_options.is_null() {
+            body["run_options"] = run_options;
+        }
         let resp = self.post("/api/v1/tasks", Some(&body)).await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {

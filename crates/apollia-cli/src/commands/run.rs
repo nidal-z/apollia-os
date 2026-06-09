@@ -673,27 +673,18 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         }
     }
 
-    // Forward the selected autonomy tier so the runtime can apply the matching
-    // budget, memory injection, and verification (story 550). Absent field means
-    // the runtime keeps its assisted default.
+    // Build per-run control options forwarded under `run_options` (the input
+    // payload only carries `parts`, so control fields must travel separately).
+    // On the CLI run path --plan drives the gate explicitly: present forces it
+    // on, absent forces it off (autonomous), overriding the agent tier.
+    let mut run_options = serde_json::json!({ "plan_gate": plan });
     if let Some(level) = autonomy_level {
-        if let Some(obj) = input_value.as_object_mut() {
-            obj.insert(
-                "autonomy_level".to_string(),
-                serde_json::Value::String(level.as_str().to_string()),
-            );
-        }
+        run_options["autonomy_level"] = serde_json::Value::String(level.as_str().to_string());
     }
 
-    // With --plan, force the plan gate active for this run so the engine pauses
-    // after plan generation regardless of the tier (operator opt-in).
-    if plan {
-        if let Some(obj) = input_value.as_object_mut() {
-            obj.insert("plan_gate".to_string(), serde_json::Value::Bool(true));
-        }
-    }
-
-    let submit_result = client.submit_task(agent_id, input_value).await;
+    let submit_result = client
+        .submit_task_with_options(agent_id, input_value, run_options)
+        .await;
 
     let task_json = match submit_result {
         Ok(j) => j,
