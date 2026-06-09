@@ -900,6 +900,7 @@ fn main() {
             commands::mcp::list_mcp_tool_pending_approvals,
             commands::mcp::revoke_mcp_tool_approval,
             commands::plan_alternatives::choose_plan,
+            commands::plan_mode::submit_plan_decision,
             // Tasks
             commands::tasks::cancel_task,
             // Memory

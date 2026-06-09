@@ -222,7 +222,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::TaskStarted { .. }
         | RuntimeEvent::TaskCompleted { .. }
         | RuntimeEvent::TaskCanceled { .. }
-        | RuntimeEvent::StepExecuted { .. } => "task-changed",
+        | RuntimeEvent::StepExecuted { .. }
+        | RuntimeEvent::TodoUpdated { .. } => "task-changed",
 
         // ── HITL / approvals ─────────────────────────────────────────────
         RuntimeEvent::TaskInputRequired { .. }
@@ -238,7 +239,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::LlmCallCompleted { .. }
         | RuntimeEvent::LlmCallFailed { .. }
         | RuntimeEvent::LlmFallbackTriggered { .. }
-        | RuntimeEvent::TokenBudgetUpdated { .. } => "llm-changed",
+        | RuntimeEvent::TokenBudgetUpdated { .. }
+        | RuntimeEvent::CostCeilingReached { .. } => "llm-changed",
 
         // ── Triggers ─────────────────────────────────────────────────────
         RuntimeEvent::TriggerFired { .. }
@@ -258,6 +260,12 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::PipelineResumed { .. }
         | RuntimeEvent::PipelineCompleted { .. }
         | RuntimeEvent::PipelineFailed { .. } => "pipeline-changed",
+
+        // ── Plan-mode approval gate ──────────────────────────────────────
+        RuntimeEvent::PlanApprovalRequired { .. }
+        | RuntimeEvent::PlanApproved { .. }
+        | RuntimeEvent::PlanRejected { .. }
+        | RuntimeEvent::PlanAbandoned { .. } => "plan-approval",
 
         // ── Plan / orchestration steps ───────────────────────────────────
         RuntimeEvent::PlanGenerated { .. }

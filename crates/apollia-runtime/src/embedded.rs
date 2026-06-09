@@ -60,6 +60,12 @@ pub struct RuntimeHandle {
     pub task_repository: Option<Arc<TaskRepository>>,
     /// Pending approvals.
     pub pending_approvals: Option<Arc<PendingApprovals>>,
+    /// Plan-gate registry, shared with the per-task `ORIAEngine`.
+    ///
+    /// `Some` after a successful startup. Lets the desktop resolve a pending
+    /// plan gate (approve, reject, or submit an edited plan) via
+    /// [`crate::plan_approval::PlanApprovalHandle`].
+    pub plan_gates: Option<Arc<apollia_oria::PendingPlanGates>>,
     /// Optional handle to the NotificationEngine. Wrapped in `Arc` because
     /// `NotificationEngineHandle` does not implement `Clone`.
     pub notification_engine: Option<Arc<NotificationEngineHandle>>,
@@ -403,6 +409,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         audit_trail: handles.audit_trail,
         task_repository: handles.task_repository,
         pending_approvals: handles.pending_approvals,
+        plan_gates: handles.plan_gates,
         notification_engine: handles.notification_engine.map(Arc::new),
         llm_call_repository: handles.llm_call_repository,
         chat_manager: handles.chat_manager,
