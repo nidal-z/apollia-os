@@ -119,6 +119,38 @@ Rules :
 
 ---
 
+## 5b. Plan gate (plan-then-approve)
+
+The plan gate is a pause point in `execute_orchestrated_plan`, between
+`PlanGenerated` and `StepBudget` creation. When active it registers a
+oneshot in `PendingPlanGates`, emits `PlanApprovalRequired`, and awaits an
+approve/reject decision before starting the `ActorLoop`. No budget is
+created while waiting (the gate cannot consume budget).
+
+Scope and boundaries :
+- The gate lives on the orchestrated engine path only. The chat ReAct loop
+  (`apollia-runtime` `BuiltInChatAgent`) does not produce a discrete plan, so
+  it has no plan gate; its `run_id` is a correlation id, not a gate key. The
+  two are deliberately not unified.
+- Activation : `plan_gate_active()` returns the per-run override
+  (`with_plan_gate_override`) when set, else the autonomy tier's `gate_policy`
+  (Assisted/Supervised gate, Bounded/Long bypass; default tier is Assisted).
+- The per-task engine only receives a `PendingPlanGates` registry when the
+  gate is explicitly requested (CLI `--plan` -> `run_options.plan_gate ==
+  Some(true)`), so headless submissions (A2A, triggers) never block. Without a
+  registry the gate resolves to `Approved` immediately.
+- On reject the engine replans with feedback (`Reasoner::plan_with_feedback`),
+  bounded by `plan_gate_max_replans`.
+
+Known follow-up : the SDK `@agent(autonomy_level=...)` value is carried in the
+manifest JSON but is not yet read by the Rust `AgentManifest` (no field).
+Consuming the manifest-declared tier requires adding
+`autonomy_level: Option<AutonomyLevel>` to `AgentManifest` (a wide change:
+every full struct literal must be updated). Until then, the tier reaches the
+engine only via the per-run `run_options.autonomy_level` (CLI `--autonomy`).
+
+---
+
 ## 6. Pipelines (ADR-025)
 
 Pipelines are declarative orchestration over multiple agents, expressed

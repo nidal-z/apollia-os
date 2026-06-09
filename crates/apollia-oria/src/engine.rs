@@ -189,12 +189,12 @@ pub struct ORIAEngine {
     /// decision before starting the `ActorLoop`. When `None`, the gate cannot
     /// suspend and execution proceeds directly.
     pending_plan_gates: Option<Arc<PendingPlanGates>>,
-    /// Forces the plan gate active for every run regardless of the autonomy tier.
+    /// Per-run plan-gate override.
     ///
-    /// Set by the operator (CLI `run --plan`) to review the plan before any tool
-    /// runs. Tier-based activation is added by the autonomy routing layer; this
-    /// flag is OR-ed with it.
-    force_plan_gate: bool,
+    /// `Some(true)` forces the gate active, `Some(false)` bypasses it, `None`
+    /// defers to the autonomy tier. Set by the operator (CLI `run --plan`); other
+    /// submission paths leave it `None` so the tier governs.
+    plan_gate_override: Option<bool>,
     /// HITL SQLite repository, persists the prompt and context on suspension.
     ///
     /// When `None`, persistence is skipped (logged warning) but execution continues.
@@ -258,7 +258,7 @@ impl ORIAEngine {
             db_path: None,
             pending_approvals: None,
             pending_plan_gates: None,
-            force_plan_gate: false,
+            plan_gate_override: None,
             task_repository: None,
             memory_manager: None,
             plan_cache: None,
@@ -378,10 +378,19 @@ impl ORIAEngine {
 
     /// Force the plan gate active for every orchestrated run.
     ///
-    /// Independent of the autonomy tier: when `true`, the engine always pauses
-    /// after plan generation to collect an operator decision.
+    /// Convenience for `with_plan_gate_override(Some(force))`: independent of the
+    /// autonomy tier, `true` always gates and `false` always bypasses.
     pub fn with_force_plan_gate(mut self, force: bool) -> Self {
-        self.force_plan_gate = force;
+        self.plan_gate_override = Some(force);
+        self
+    }
+
+    /// Set the per-run plan-gate override.
+    ///
+    /// `Some(true)` forces the gate, `Some(false)` bypasses it, `None` defers to
+    /// the autonomy tier.
+    pub fn with_plan_gate_override(mut self, override_: Option<bool>) -> Self {
+        self.plan_gate_override = override_;
         self
     }
 
@@ -536,15 +545,19 @@ impl ORIAEngine {
     /// 7. Concatenate outputs (or stub `on_plan_complete`)
     /// Whether the plan gate is active for the current run.
     ///
-    /// Active when either the operator forced it (`--plan`) or the autonomy tier
-    /// requires it. The tier defaults to `Assisted` (gate active) when unset, so
-    /// the safe default is to gate.
+    /// A per-run override (`--plan`) wins when present: `Some(true)` gates,
+    /// `Some(false)` bypasses. Without an override the autonomy tier decides; the
+    /// tier defaults to `Assisted` (gate active) when unset, so the safe default
+    /// is to gate.
     fn plan_gate_active(&self) -> bool {
+        if let Some(forced) = self.plan_gate_override {
+            return forced;
+        }
         let tier = self
             .oria_config
             .autonomy_level
             .unwrap_or(apollia_core::AutonomyLevel::Assisted);
-        self.force_plan_gate || tier.gate_policy() == apollia_core::GatePolicy::Active
+        tier.gate_policy() == apollia_core::GatePolicy::Active
     }
 
     /// Suspend after plan generation and await an approve/reject decision.
@@ -2243,6 +2256,73 @@ mod orchestrated_tests {
             }
         }
         assert!(!saw_gate, "BoundedAutonomous must bypass the gate");
+    }
+
+    /// GIVEN a bypass tier (BoundedAutonomous) but an explicit gate override on
+    /// WHEN execute runs
+    /// THEN the override wins and the gate activates.
+    #[tokio::test]
+    async fn test_plan_gate_override_on_wins_over_bypass_tier() {
+        let gates = PendingPlanGates::new();
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let config = ORIAConfig {
+            autonomy_level: Some(apollia_core::AutonomyLevel::BoundedAutonomous),
+            ..Default::default()
+        };
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_plan_gate_override(Some(true))
+            .with_pending_plan_gates(gates.clone())
+            .with_oria_config(config);
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        let handle = tokio::spawn(async move { engine.execute(AIPTask::default(), &agent).await });
+        let mut saw_gate = false;
+        for _ in 0..200 {
+            if let Ok(RuntimeEvent::PlanApprovalRequired { run_id, .. }) = rx.try_recv() {
+                saw_gate = true;
+                assert!(gates.decide(&run_id, PlanGateDecision::Approved));
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        let result = handle.await.expect("join");
+        assert!(
+            saw_gate,
+            "override Some(true) must force the gate on a bypass tier"
+        );
+        assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    /// GIVEN the gating tier (Assisted) but an explicit gate override off
+    /// WHEN execute runs
+    /// THEN the override wins and the gate is bypassed.
+    #[tokio::test]
+    async fn test_plan_gate_override_off_wins_over_gating_tier() {
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_plan_gate_override(Some(false))
+            .with_pending_plan_gates(PendingPlanGates::new());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        assert_eq!(result.status, TaskStatus::Completed);
+        let mut saw_gate = false;
+        while let Ok(event) = rx.try_recv() {
+            if matches!(event, RuntimeEvent::PlanApprovalRequired { .. }) {
+                saw_gate = true;
+            }
+        }
+        assert!(
+            !saw_gate,
+            "override Some(false) must bypass the gate on a gating tier"
+        );
     }
 
     /// GIVEN the default tier (Assisted) with a registry present
