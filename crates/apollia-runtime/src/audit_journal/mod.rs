@@ -15,6 +15,7 @@ pub mod error;
 pub mod handle;
 pub mod hash;
 pub mod signer;
+pub mod subscriber;
 pub mod verify;
 
 pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind};
@@ -22,6 +23,7 @@ pub use error::AuditJournalError;
 pub use handle::AuditJournalHandle;
 pub use hash::{compute_entry_hash, SENTINEL_PREV_HASH};
 pub use signer::{HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy};
+pub use subscriber::AuditJournalSubscriber;
 pub use verify::{BrokenLink, BrokenLinkReason, VerifyChainReport};
 
 #[cfg(test)]

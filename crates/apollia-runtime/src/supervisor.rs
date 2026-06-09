@@ -34,6 +34,7 @@ use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle, Trigger
 
 use crate::api::routes_agents::AgentLoader;
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
+use crate::audit_journal::{AuditJournalHandle, AuditJournalSubscriber, SignerUnavailablePolicy};
 use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
 use crate::eventbus::{EventBus, EventBusSender};
 use crate::registry::{AgentRegistry, AgentRegistryHandle};
@@ -1057,6 +1058,16 @@ impl Supervisor {
         info!("Supervisor: opening AuditTrail");
         let audit_trail_handle = open_audit_trail(&self.config.data_dir).await;
 
+        // Phase 8b: hash-chained, signed AuditJournal + its EventBus subscriber.
+        info!("Supervisor: opening AuditJournal");
+        let audit_journal_handle = open_audit_journal(&self.config.data_dir).await;
+        if let Some(journal) = &audit_journal_handle {
+            AuditJournalSubscriber::spawn(journal.clone(), event_sender.subscribe());
+            info!("audit journal subscriber started");
+        } else {
+            warn!("audit journal disabled, subscriber not started");
+        }
+
         // Phase 9 (pos 10): APIServer
         info!("Supervisor: starting APIServer");
         // Open TaskRepository (HITL persistence).
@@ -1256,7 +1267,7 @@ impl Supervisor {
             backend_factory,
             tool_registry_handle: Some(tool_registry_handle.clone()),
             audit_trail: audit_trail_handle.clone(),
-            audit_journal: None,
+            audit_journal: audit_journal_handle.clone(),
             obs_config: self.config.obs_config.clone(),
             llm_call_repository: llm_call_repository.clone(),
             trigger_def_repo: Some(trigger_def_repo.clone()),
@@ -1483,6 +1494,50 @@ async fn open_audit_trail(data_dir: &std::path::Path) -> Option<AuditTrailHandle
         }
         Err(e) => {
             warn!(error = %e, "AuditTrail failed to open - audit disabled");
+            None
+        }
+    }
+}
+
+/// SecretStore label of the audit journal HMAC signing key.
+const AUDIT_JOURNAL_KEY_LABEL: &str = "journal-hmac-key";
+
+/// Open the hash-chained audit journal (`audit_journal.db`) with signing.
+///
+/// The signing key is read from the configured `SecretStore` under the audit
+/// service. The degraded policy is warn-and-continue: a missing key opens an
+/// unsigned journal rather than blocking startup, so the hash chain (and the
+/// `audit verify` command) keep working even before a key is provisioned.
+/// Returns `None` (logged) when the store or the database cannot be opened.
+async fn open_audit_journal(data_dir: &std::path::Path) -> Option<AuditJournalHandle> {
+    let db_path = data_dir.join("audit_journal.db");
+    let store = match apollia_auth::select_secret_store() {
+        Ok(store) => store,
+        Err(e) => {
+            warn!(error = %e, "audit journal: secret store unavailable, opening unsigned");
+            return match AuditJournalHandle::open(&db_path).await {
+                Ok(handle) => Some(handle),
+                Err(e) => {
+                    warn!(error = %e, "AuditJournal failed to open - journal disabled");
+                    None
+                }
+            };
+        }
+    };
+    match AuditJournalHandle::open_with_signer(
+        &db_path,
+        store.as_ref(),
+        AUDIT_JOURNAL_KEY_LABEL,
+        SignerUnavailablePolicy::WarnAndContinue,
+    )
+    .await
+    {
+        Ok(handle) => {
+            info!("Supervisor: AuditJournal ready");
+            Some(handle)
+        }
+        Err(e) => {
+            warn!(error = %e, "AuditJournal failed to open - journal disabled");
             None
         }
     }
