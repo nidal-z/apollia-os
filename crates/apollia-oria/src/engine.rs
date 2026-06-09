@@ -561,26 +561,39 @@ impl ORIAEngine {
     async fn await_plan_gate(
         &self,
         run_id: &str,
-        plan_id: &str,
-        step_count: usize,
+        plan: &ExecutionPlan,
     ) -> Result<PlanGateDecision, ORIAError> {
+        let plan_id = &plan.plan_id;
         let ttl_secs = self.oria_config.plan_gate_ttl_secs;
         let gates = match self.pending_plan_gates.as_ref() {
             Some(g) => g,
             None => {
-                // No registry: a decision cannot be collected. Proceed rather
-                // than block forever, and record the misconfiguration.
-                tracing::warn!(run_id = %run_id, "plan.gate.no_registry");
+                // No registry wired for this run: the gate cannot collect a
+                // decision, so execution proceeds (gate is effectively inactive).
+                tracing::debug!(run_id = %run_id, "plan.gate.no_registry");
                 return Ok(PlanGateDecision::Approved);
             }
         };
+
+        let steps: Vec<apollia_core::TaskPlanStep> = plan
+            .steps
+            .iter()
+            .map(|s| apollia_core::TaskPlanStep {
+                step_id: s.step_id.clone(),
+                description: s.description.clone(),
+                tool_hint: s.tool_hint.clone(),
+                depends_on: s.depends_on.clone(),
+                model_hint: s.model_hint.clone(),
+            })
+            .collect();
 
         let rx = gates.register(run_id);
         let _ = self.event_bus.send(RuntimeEvent::PlanApprovalRequired {
             run_id: run_id.to_string(),
             plan_id: plan_id.to_string(),
             task_id: run_id.to_string(),
-            step_count,
+            step_count: plan.steps.len(),
+            steps,
             ttl_secs,
         });
 
@@ -700,11 +713,7 @@ impl ORIAEngine {
             let mut replans_count: u32 = 0;
             loop {
                 let plan_id = plan.plan_id.clone();
-                let step_count = plan.steps.len();
-                match self
-                    .await_plan_gate(&task_id_str, &plan_id, step_count)
-                    .await
-                {
+                match self.await_plan_gate(&task_id_str, &plan).await {
                     Ok(PlanGateDecision::Approved) => {
                         let _ = self.event_bus.send(RuntimeEvent::PlanApproved {
                             run_id: task_id_str.clone(),
@@ -2197,7 +2206,10 @@ mod orchestrated_tests {
 
         // THEN the run fails cleanly with the timeout code
         assert_eq!(result.status, TaskStatus::Failed);
-        assert_eq!(result.error.as_ref().map(|e| e.code.as_str()), Some("PLAN_GATE_TIMEOUT"));
+        assert_eq!(
+            result.error.as_ref().map(|e| e.code.as_str()),
+            Some("PLAN_GATE_TIMEOUT")
+        );
     }
 
     /// GIVEN a BoundedAutonomous tier (gate bypass) with a registry present

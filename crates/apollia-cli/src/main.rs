@@ -137,6 +137,12 @@ enum Commands {
         #[arg(long)]
         alternatives: bool,
 
+        /// Pause after plan generation to review and approve the plan before
+        /// execution. Prompts to approve, reject (with optional feedback), or
+        /// quit. Incompatible with --alternatives.
+        #[arg(long, conflicts_with = "alternatives")]
+        plan: bool,
+
         /// Restrict this session to the listed tools only (comma-separated).
         ///
         /// When specified, only the named tools can be invoked. All other tools
@@ -500,6 +506,7 @@ struct RunDispatch {
     stream: bool,
     detach: bool,
     alternatives: bool,
+    plan: bool,
     allowed_tools: Vec<String>,
     disallowed_tools: Vec<String>,
     autonomy: Option<String>,
@@ -516,6 +523,7 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         stream,
         detach,
         alternatives,
+        plan,
         allowed_tools,
         disallowed_tools,
         autonomy,
@@ -537,6 +545,7 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         stream,
         detach,
         alternatives,
+        plan,
         allowed_tools,
         disallowed_tools,
         autonomy: autonomy.as_deref(),
@@ -591,6 +600,7 @@ fn main() {
                 stream,
                 detach,
                 alternatives,
+                plan,
                 allowed_tools,
                 disallowed_tools,
                 autonomy,
@@ -604,6 +614,7 @@ fn main() {
                     stream,
                     detach,
                     alternatives,
+                    plan,
                     allowed_tools,
                     disallowed_tools,
                     autonomy,
@@ -896,6 +907,26 @@ mod tests {
             Commands::Run { alternatives, .. } => assert!(*alternatives),
             other => panic!("expected Commands::Run, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_cli_parses_run_plan_flag() {
+        // GIVEN run with --plan
+        let cli = parse(&["apollia-os", "run", "hello", "ping", "--plan"]);
+        // THEN plan=true
+        match &cli.command {
+            Commands::Run { plan, .. } => assert!(*plan),
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_run_plan_and_alternatives_conflict() {
+        // GIVEN run with both --plan and --alternatives (AC-7)
+        let result =
+            Cli::try_parse_from(["apollia-os", "run", "hello", "ping", "--plan", "--alternatives"]);
+        // THEN parsing fails due to the conflict
+        assert!(result.is_err(), "--plan and --alternatives must conflict");
     }
 
     #[test]

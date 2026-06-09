@@ -58,6 +58,12 @@ pub struct RunDisplayState {
     pub alternatives_mode: bool,
     /// The chosen plan captured after an `plan_alternatives_generated` event, if any.
     pub chosen_plan: Option<ChosenPlan>,
+    /// When `true`, the stream pauses on `plan_approval_required` to collect the
+    /// operator's decision before execution proceeds.
+    pub plan_mode: bool,
+    /// Run id extracted from the last `plan_approval_required` event, used to
+    /// submit the decision to the runtime API.
+    pub pending_plan_run_id: Option<String>,
 }
 
 impl RunDisplayState {
@@ -71,6 +77,8 @@ impl RunDisplayState {
             quiet,
             alternatives_mode: false,
             chosen_plan: None,
+            plan_mode: false,
+            pending_plan_run_id: None,
         }
     }
 
@@ -78,6 +86,14 @@ impl RunDisplayState {
     pub fn with_alternatives(json_mode: bool) -> Self {
         Self {
             alternatives_mode: true,
+            ..Self::new(json_mode, false)
+        }
+    }
+
+    /// Create a display state with plan-approval mode enabled.
+    pub fn with_plan(json_mode: bool) -> Self {
+        Self {
+            plan_mode: true,
             ..Self::new(json_mode, false)
         }
     }
@@ -138,6 +154,168 @@ pub fn handle_alternatives(
     }
 }
 
+// ─── Plan approval ────────────────────────────────────────────────────────────
+
+/// Parsed operator decision at the plan gate.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PlanDecisionInput {
+    /// Approve the plan as generated.
+    Approve,
+    /// Reject the plan, with optional feedback for replanning.
+    Reject(Option<String>),
+    /// Abandon the run.
+    Quit,
+    /// Unrecognized input: the caller re-prompts.
+    Invalid,
+}
+
+/// Parse a free-text plan decision entered at the interactive prompt.
+///
+/// Accepts `a`/`approve`/`approuver`, `r`/`reject`/`rejeter` (with optional
+/// trailing feedback), and `q`/`quit`/`quitter`. Anything else is `Invalid`.
+pub fn parse_plan_decision(input: &str) -> PlanDecisionInput {
+    let trimmed = input.trim();
+    let (head, rest) = match trimmed.split_once(char::is_whitespace) {
+        Some((h, r)) => (h, r.trim()),
+        None => (trimmed, ""),
+    };
+    match head.to_ascii_lowercase().as_str() {
+        "a" | "approve" | "approuver" => PlanDecisionInput::Approve,
+        "r" | "reject" | "rejeter" => {
+            let feedback = if rest.is_empty() {
+                None
+            } else {
+                Some(rest.to_string())
+            };
+            PlanDecisionInput::Reject(feedback)
+        }
+        "q" | "quit" | "quitter" => PlanDecisionInput::Quit,
+        _ => PlanDecisionInput::Invalid,
+    }
+}
+
+/// Extract the event data of a `plan_approval_required` SSE line, if any.
+fn parse_plan_approval_line(line: &str) -> Option<serde_json::Value> {
+    let data = line.strip_prefix("data: ")?;
+    let parsed = serde_json::from_str::<serde_json::Value>(data).ok()?;
+    if parsed.get("event").and_then(|v| v.as_str()) == Some("plan_approval_required") {
+        Some(parsed)
+    } else {
+        None
+    }
+}
+
+/// Outcome of handling a plan-approval gate in the stream loop.
+pub enum PlanApprovalOutcome {
+    /// Decision submitted; keep streaming.
+    Continue,
+    /// Operator quit; the caller exits with success.
+    Quit,
+}
+
+/// Render the plan steps carried by a `plan_approval_required` event.
+fn print_plan_for_review(data: &serde_json::Value) {
+    println!("\n--- Plan proposé ---");
+    match data["steps"].as_array() {
+        Some(steps) if !steps.is_empty() => {
+            for (i, step) in steps.iter().enumerate() {
+                let desc = step["description"].as_str().unwrap_or("");
+                match step["tool_hint"].as_str() {
+                    Some(tool) => println!("  {}. {desc}  [outil : {tool}]", i + 1),
+                    None => println!("  {}. {desc}", i + 1),
+                }
+            }
+        }
+        _ => {
+            let count = data["step_count"].as_u64().unwrap_or(0);
+            println!("  ({count} étape(s), détail indisponible)");
+        }
+    }
+}
+
+/// Read a single line from stdin, returning `None` when the stream is closed.
+fn read_stdin_line() -> Option<String> {
+    io::stdin()
+        .lock()
+        .lines()
+        .next()
+        .and_then(|r| r.ok())
+}
+
+/// Handle a `plan_approval_required` event: display the plan, collect a decision,
+/// and submit it to the runtime API.
+///
+/// In `--json` mode the plan is emitted as JSON and the decision is read as a
+/// JSON object (`{"decision":"approved"}` or `{"decision":"rejected","feedback":"..."}`)
+/// from stdin. On a TTY the operator is prompted interactively until the input is
+/// valid. Reads from stdin; writes to stdout.
+pub async fn handle_plan_approval(
+    client: &RuntimeClient,
+    data: &serde_json::Value,
+    state: &mut RunDisplayState,
+) -> PlanApprovalOutcome {
+    let run_id = data["run_id"].as_str().unwrap_or("").to_string();
+    state.pending_plan_run_id = Some(run_id.clone());
+
+    if state.json_mode {
+        println!("{data}");
+        let Some(line) = read_stdin_line() else {
+            eprintln!("stdin closed before a plan decision");
+            return PlanApprovalOutcome::Quit;
+        };
+        let parsed =
+            serde_json::from_str::<serde_json::Value>(&line).unwrap_or(serde_json::Value::Null);
+        let decision = parsed["decision"].as_str().unwrap_or("rejected");
+        let feedback = parsed["feedback"].as_str().map(String::from);
+        submit_plan_decision_request(client, &run_id, decision, feedback).await;
+        return PlanApprovalOutcome::Continue;
+    }
+
+    print_plan_for_review(data);
+    loop {
+        print!("\n[A]pprouver  [R]ejeter [feedback optionnel]  [Q]uitter : ");
+        let _ = io::stdout().flush();
+        let Some(line) = read_stdin_line() else {
+            return PlanApprovalOutcome::Quit;
+        };
+        match parse_plan_decision(&line) {
+            PlanDecisionInput::Approve => {
+                submit_plan_decision_request(client, &run_id, "approved", None).await;
+                return PlanApprovalOutcome::Continue;
+            }
+            PlanDecisionInput::Reject(feedback) => {
+                submit_plan_decision_request(client, &run_id, "rejected", feedback).await;
+                return PlanApprovalOutcome::Continue;
+            }
+            PlanDecisionInput::Quit => {
+                submit_plan_decision_request(client, &run_id, "rejected", None).await;
+                println!("Run annulé.");
+                return PlanApprovalOutcome::Quit;
+            }
+            PlanDecisionInput::Invalid => {
+                println!("Entrée invalide. [A]pprouver / [R]ejeter / [Q]uitter");
+            }
+        }
+    }
+}
+
+/// POST a plan decision to `/api/v1/tasks/{run_id}/plan-decision`.
+async fn submit_plan_decision_request(
+    client: &RuntimeClient,
+    run_id: &str,
+    decision: &str,
+    feedback: Option<String>,
+) {
+    let mut body = serde_json::json!({ "decision": decision });
+    if let Some(fb) = feedback {
+        body["feedback"] = serde_json::Value::String(fb);
+    }
+    let uri = format!("/api/v1/tasks/{run_id}/plan-decision");
+    if let Err(e) = client.post(&uri, Some(&body)).await {
+        eprintln!("  x Failed to submit plan decision: {e}");
+    }
+}
+
 // ─── Event handler ────────────────────────────────────────────────────────────
 
 /// Handle one SSE event and update the display accordingly.
@@ -154,7 +332,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
         println!("{}", event.raw_json);
         return matches!(
             event.event_type.as_str(),
-            "completed" | "canceled" | "failed" | "plan_failed"
+            "completed" | "canceled" | "failed" | "plan_failed" | "plan_abandoned"
         );
     }
 
@@ -232,6 +410,25 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             let reason = event.data["reason"].as_str().unwrap_or("unknown error");
             eprintln!();
             eprintln!("  ✗ Plan failed: {reason}");
+            true
+        }
+
+        // ── Plan gate: approved, execution resumes ───────────────────────
+        "plan_approved" => {
+            println!("  ✔ Plan approuvé, exécution en cours.");
+            false
+        }
+
+        // ── Plan gate: rejected, replanning ──────────────────────────────
+        "plan_rejected" => {
+            println!("  ↻ Plan rejeté, replanification en cours.");
+            false
+        }
+
+        // ── Plan gate: abandoned after the replan limit, terminal ────────
+        "plan_abandoned" => {
+            let reason = event.data["reason"].as_str().unwrap_or("unknown");
+            eprintln!("  ✗ Run abandonné ({reason}).");
             true
         }
 
@@ -396,6 +593,10 @@ pub struct RunCommandArgs<'a> {
     pub detach: bool,
     /// Show two plan alternatives and prompt for a choice before executing.
     pub alternatives: bool,
+    /// Pause after plan generation to review and approve the plan before
+    /// execution. Forces the plan gate active for this run and streams the
+    /// `plan_approval_required` event to collect the operator's decision.
+    pub plan: bool,
     /// Session-level tool allow-list (empty = all tools permitted).
     pub allowed_tools: Vec<String>,
     /// Session-level tool deny-list (takes priority over `allowed_tools`).
@@ -427,6 +628,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         stream,
         detach,
         alternatives,
+        plan,
         allowed_tools,
         disallowed_tools,
         autonomy,
@@ -483,6 +685,14 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         }
     }
 
+    // With --plan, force the plan gate active for this run so the engine pauses
+    // after plan generation regardless of the tier (operator opt-in).
+    if plan {
+        if let Some(obj) = input_value.as_object_mut() {
+            obj.insert("plan_gate".to_string(), serde_json::Value::Bool(true));
+        }
+    }
+
     let submit_result = client.submit_task(agent_id, input_value).await;
 
     let task_json = match submit_result {
@@ -515,7 +725,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     // correctly surfaces the agent result without SSE race conditions.
     //
     // With `--stream` or `--alternatives`: SSE streaming shows plan/step events in real time.
-    let code = if stream || alternatives {
+    let code = if stream || alternatives || plan {
         stream_task(StreamTaskArgs {
             client: &client,
             task_id: &task_id,
@@ -523,6 +733,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
             start,
             quiet: false,
             alternatives,
+            plan,
         })
         .await
     } else {
@@ -838,6 +1049,8 @@ struct StreamTaskArgs<'a> {
     quiet: bool,
     /// Pause on `plan_alternatives_generated` and prompt for a choice.
     alternatives: bool,
+    /// Pause on `plan_approval_required` and prompt for an approve/reject decision.
+    plan: bool,
 }
 
 async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
@@ -848,6 +1061,7 @@ async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
         start,
         quiet,
         alternatives,
+        plan,
     } = args;
 
     let uri = format!("/api/v1/tasks/{task_id}/stream");
@@ -867,6 +1081,8 @@ async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
 
     let mut state = if alternatives {
         RunDisplayState::with_alternatives(json)
+    } else if plan {
+        RunDisplayState::with_plan(json)
     } else {
         RunDisplayState::new(json, quiet)
     };
@@ -881,6 +1097,17 @@ async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
                 break;
             }
         };
+
+        // In plan mode, intercept the approval gate to prompt and submit a
+        // decision (async, needs the client) before the sync display handler.
+        if state.plan_mode {
+            if let Some(data) = parse_plan_approval_line(&line) {
+                match handle_plan_approval(client, &data, &mut state).await {
+                    PlanApprovalOutcome::Continue => continue,
+                    PlanApprovalOutcome::Quit => return exit_codes::SUCCESS,
+                }
+            }
+        }
 
         if let Some(event_type) = process_sse_line(&line, &mut state) {
             terminal_event_type = event_type;
@@ -910,7 +1137,7 @@ async fn stream_terminal_exit_code(
             exit_codes::SUCCESS
         }
         "failed" => exit_codes::TASK_FAILED,
-        "plan_failed" | "canceled" => exit_codes::GENERAL_ERROR,
+        "plan_failed" | "plan_abandoned" | "canceled" => exit_codes::GENERAL_ERROR,
         // No terminal event: stream closed early (task already done), fall back to polling
         _ => poll_task(client, task_id, json, start).await,
     }
@@ -1026,6 +1253,61 @@ mod tests {
             raw_json: data.to_string(),
             data,
         }
+    }
+
+    // parse_plan_decision recognizes approve variants.
+    #[test]
+    fn test_parse_plan_decision_approve_variants() {
+        // GIVEN approval inputs in several forms
+        // WHEN parsed
+        // THEN all map to Approve
+        for s in ["a", "A", "approve", "approuver", "  a  "] {
+            assert_eq!(parse_plan_decision(s), PlanDecisionInput::Approve, "{s:?}");
+        }
+    }
+
+    // parse_plan_decision extracts reject feedback.
+    #[test]
+    fn test_parse_plan_decision_reject_variants() {
+        // GIVEN a bare reject
+        assert_eq!(parse_plan_decision("r"), PlanDecisionInput::Reject(None));
+        // GIVEN a reject with feedback
+        assert_eq!(
+            parse_plan_decision("r add a validation step"),
+            PlanDecisionInput::Reject(Some("add a validation step".to_string()))
+        );
+        assert_eq!(
+            parse_plan_decision("rejeter trop long"),
+            PlanDecisionInput::Reject(Some("trop long".to_string()))
+        );
+    }
+
+    // parse_plan_decision recognizes quit and rejects unknown input.
+    #[test]
+    fn test_parse_plan_decision_quit_and_invalid() {
+        // GIVEN quit inputs
+        assert_eq!(parse_plan_decision("q"), PlanDecisionInput::Quit);
+        assert_eq!(parse_plan_decision("Quitter"), PlanDecisionInput::Quit);
+        // GIVEN unrecognized input
+        assert_eq!(parse_plan_decision("xyz"), PlanDecisionInput::Invalid);
+        assert_eq!(parse_plan_decision(""), PlanDecisionInput::Invalid);
+    }
+
+    // parse_plan_approval_line only matches the gate event.
+    #[test]
+    fn test_parse_plan_approval_line() {
+        // GIVEN a plan_approval_required SSE data line
+        let line = r#"data: {"event":"plan_approval_required","run_id":"r1","step_count":2}"#;
+        // WHEN parsed
+        let parsed = parse_plan_approval_line(line);
+        // THEN it returns the data
+        assert!(parsed.is_some());
+        assert_eq!(parsed.unwrap()["run_id"], "r1");
+
+        // GIVEN a different event
+        let other = r#"data: {"event":"plan_generated","plan_id":"p1"}"#;
+        // THEN it does not match
+        assert!(parse_plan_approval_line(other).is_none());
     }
 
     // plan_generated updates state and is NOT terminal

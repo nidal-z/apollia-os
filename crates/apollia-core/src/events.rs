@@ -520,6 +520,9 @@ pub enum RuntimeEvent {
         task_id: String,
         /// Number of steps in the plan.
         step_count: usize,
+        /// The plan steps, so the reviewer can read them before deciding.
+        #[serde(default)]
+        steps: Vec<crate::plan_alternatives::TaskPlanStep>,
         /// Seconds before the gate closes when no decision is received.
         ttl_secs: u64,
     },

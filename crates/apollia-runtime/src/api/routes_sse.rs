@@ -138,6 +138,74 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
             false,
         )),
 
+        // The plan gate paused execution awaiting an operator decision.
+        RuntimeEvent::PlanApprovalRequired {
+            run_id,
+            plan_id,
+            task_id: tid,
+            step_count,
+            steps,
+            ttl_secs,
+        } if tid == task_id => Some((
+            SseTaskEvent {
+                event: "plan_approval_required".into(),
+                data: serde_json::json!({
+                    "run_id":     run_id,
+                    "plan_id":    plan_id,
+                    "step_count": step_count,
+                    "steps":      steps,
+                    "ttl_secs":   ttl_secs,
+                }),
+            },
+            false,
+        )),
+
+        // The operator approved the plan; execution resumes.
+        RuntimeEvent::PlanApproved {
+            run_id,
+            plan_id,
+            task_id: tid,
+        } if tid == task_id => Some((
+            SseTaskEvent {
+                event: "plan_approved".into(),
+                data: serde_json::json!({ "run_id": run_id, "plan_id": plan_id }),
+            },
+            false,
+        )),
+
+        // The operator rejected the plan; the engine will replan.
+        RuntimeEvent::PlanRejected {
+            run_id,
+            plan_id,
+            task_id: tid,
+            feedback,
+            replans_so_far,
+        } if tid == task_id => Some((
+            SseTaskEvent {
+                event: "plan_rejected".into(),
+                data: serde_json::json!({
+                    "run_id":         run_id,
+                    "plan_id":        plan_id,
+                    "feedback":       feedback,
+                    "replans_so_far": replans_so_far,
+                }),
+            },
+            false,
+        )),
+
+        // The run was abandoned after exhausting the replan budget.
+        RuntimeEvent::PlanAbandoned {
+            run_id,
+            task_id: tid,
+            reason,
+        } if tid == task_id => Some((
+            SseTaskEvent {
+                event: "plan_abandoned".into(),
+                data: serde_json::json!({ "run_id": run_id, "reason": reason }),
+            },
+            true,
+        )),
+
         // A plan step has started its execution.
         RuntimeEvent::StepStarted {
             task_id: tid,
