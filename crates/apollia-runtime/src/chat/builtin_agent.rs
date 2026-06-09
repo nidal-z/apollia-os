@@ -53,6 +53,11 @@ const MAX_CONCURRENT_READONLY_TOOL_CALLS: usize = 10;
 /// Default number of recent messages in the sliding context window.
 pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 
+/// Prefix of the reminder message re-injected after a context compaction so the
+/// agent keeps its task list in view once the history is truncated.
+const TODO_REMINDER_PREFIX: &str =
+    "[System reminder] Your current task list after context compaction:";
+
 // NativeChatToolInvoker: production tool execution
 
 /// Parameters for attaching HITL filesystem support to a `NativeChatToolInvoker`.
@@ -1378,7 +1383,15 @@ impl BuiltInChatAgent {
             budget.increment_steps();
 
             // Compact context if messages approach the model's context limit.
-            self.maybe_compact_context(llm_messages, session_id).await;
+            // When a compaction drops the history, re-inject the todo list so
+            // the agent never loses track of pending work (principle: memory at
+            // the agent's initiative; nothing is injected when the list is empty).
+            let was_compacted = self.maybe_compact_context(llm_messages, session_id).await;
+            if was_compacted {
+                if let Some(todo) = self.todo.as_ref() {
+                    Self::inject_todo_after_compaction(todo, session_id, llm_messages).await;
+                }
+            }
 
             let request = CompletionRequest {
                 messages: llm_messages.clone(),
@@ -1736,17 +1749,20 @@ impl BuiltInChatAgent {
 
     /// Compact the LLM message buffer in place when it approaches the context
     /// limit, emitting [`RuntimeEvent::ContextCompacted`] on success.
+    ///
+    /// Returns `true` when a compaction actually occurred, so the caller can
+    /// re-inject any state (such as the todo list) that the truncation dropped.
     async fn maybe_compact_context(
         &self,
         llm_messages: &mut Vec<LlmChatMessage>,
         session_id: &str,
-    ) {
+    ) -> bool {
         let (compacted, was_compacted) = self
             .context_manager
             .maybe_compact(llm_messages, &self.llm_router)
             .await;
         if !was_compacted {
-            return;
+            return false;
         }
         let summary_chars = compacted
             .get(1)
@@ -1766,6 +1782,51 @@ impl BuiltInChatAgent {
                 summary_chars,
                 original_messages,
             });
+        true
+    }
+
+    /// Re-inject the current todo list as a reminder message after a context
+    /// compaction dropped the conversation history.
+    ///
+    /// Called only when a compaction actually occurred and a todo store is
+    /// attached. Reads the list through the [`TodoHandle`] and, when non-empty,
+    /// appends a single user-role reminder message enumerating each item with
+    /// its status. The agent never loses track of pending work even when the
+    /// history is truncated. Errors are logged and swallowed: the loop continues
+    /// without the reminder rather than failing.
+    ///
+    /// The Markdown rendering is intentionally simple here; a structured
+    /// JSON or XML format may replace it in a later iteration.
+    async fn inject_todo_after_compaction(
+        todo: &TodoHandle,
+        session_id: &str,
+        messages: &mut Vec<LlmChatMessage>,
+    ) {
+        let items = match todo.get_items(session_id).await {
+            Ok(items) => items,
+            Err(e) => {
+                warn!(
+                    session_id = %session_id,
+                    error = %e,
+                    "todo.reinject.failed"
+                );
+                return;
+            }
+        };
+        if items.is_empty() {
+            return;
+        }
+        let mut reminder = String::from(TODO_REMINDER_PREFIX);
+        for item in &items {
+            reminder.push_str(&format!("\n- [{}] {}", item.status.as_str(), item.content));
+        }
+        messages.push(LlmChatMessage::user(reminder));
+        tracing::info!(
+            session_id = %session_id,
+            todo_count = items.len(),
+            compaction_triggered = true,
+            "chat.todo.reinjected_after_compaction"
+        );
     }
 
     /// Consume a token stream, emitting [`RuntimeEvent::ChatToken`] for each token
@@ -4732,5 +4793,112 @@ mod verification_wire_tests {
         assert!(message.contains("creer le fichier"));
         assert!(message.contains("<verification_feedback>"));
         assert!(message.contains("Please address the issues"));
+    }
+}
+
+#[cfg(test)]
+mod todo_compaction_tests {
+    use super::*;
+    use crate::chat::todo_actor::spawn_todo_actor;
+    use apollia_core::todo::{TodoItem, TodoStatus};
+    use apollia_llm::types::{MessageContent, Role};
+    use rusqlite::Connection;
+
+    fn todo_handle() -> TodoHandle {
+        spawn_todo_actor(Connection::open_in_memory().expect("open")).expect("spawn")
+    }
+
+    fn item(id: &str, content: &str, status: TodoStatus) -> TodoItem {
+        TodoItem {
+            id: id.into(),
+            content: content.into(),
+            status,
+            depends_on: vec![],
+        }
+    }
+
+    fn text_of(msg: &LlmChatMessage) -> String {
+        match &msg.content {
+            MessageContent::Text(t) => t.clone(),
+            other => format!("{other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_todo_injected_after_compaction() {
+        // GIVEN a session with one in_progress item persisted
+        let h = todo_handle();
+        h.set_items("s1", vec![item("t1", "Analyser les logs", TodoStatus::InProgress)])
+            .await
+            .expect("seed");
+        let mut messages = vec![LlmChatMessage::system("base")];
+
+        // WHEN the post-compaction injection runs
+        BuiltInChatAgent::inject_todo_after_compaction(&h, "s1", &mut messages).await;
+
+        // THEN a user reminder carrying the item content and status is appended
+        assert_eq!(messages.len(), 2);
+        let last = messages.last().expect("message present");
+        assert!(matches!(last.role, Role::User));
+        let body = text_of(last);
+        assert!(body.contains("Analyser les logs"));
+        assert!(body.contains("in_progress"));
+    }
+
+    #[tokio::test]
+    async fn test_no_injection_when_todo_empty() {
+        // GIVEN a session with no todo items
+        let h = todo_handle();
+        let mut messages = vec![LlmChatMessage::system("base")];
+
+        // WHEN the injection runs
+        BuiltInChatAgent::inject_todo_after_compaction(&h, "s1", &mut messages).await;
+
+        // THEN no message is appended
+        assert_eq!(messages.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_items_all_present_in_reminder() {
+        // GIVEN a session with one in_progress, two pending, one completed
+        let h = todo_handle();
+        h.set_items(
+            "s1",
+            vec![
+                item("t1", "done thing", TodoStatus::Completed),
+                item("t2", "current thing", TodoStatus::InProgress),
+                item("t3", "next thing", TodoStatus::Pending),
+                item("t4", "later thing", TodoStatus::Pending),
+            ],
+        )
+        .await
+        .expect("seed");
+        let mut messages = vec![LlmChatMessage::system("base")];
+
+        // WHEN the injection runs
+        BuiltInChatAgent::inject_todo_after_compaction(&h, "s1", &mut messages).await;
+
+        // THEN all four items appear in creation order
+        let body = text_of(messages.last().expect("message present"));
+        let p1 = body.find("done thing").expect("t1 present");
+        let p2 = body.find("current thing").expect("t2 present");
+        let p3 = body.find("next thing").expect("t3 present");
+        let p4 = body.find("later thing").expect("t4 present");
+        assert!(p1 < p2 && p2 < p3 && p3 < p4);
+    }
+
+    #[tokio::test]
+    async fn test_get_items_error_is_graceful() {
+        // GIVEN a handle whose actor has stopped (channel closed)
+        let h = todo_handle();
+        h.shutdown().await;
+        tokio::task::yield_now().await;
+        let mut messages = vec![LlmChatMessage::system("base")];
+
+        // WHEN the injection runs against the dead actor
+        BuiltInChatAgent::inject_todo_after_compaction(&h, "s1", &mut messages).await;
+
+        // THEN it degrades gracefully: no panic, no message appended
+        assert_eq!(messages.len(), 1);
     }
 }
