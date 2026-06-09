@@ -391,6 +391,7 @@ impl AgentRunner for BridgeRunner {
                         allowed_tools,
                         agent_id: agent_id.clone(),
                         task_id: task.task_id.clone(),
+                        run_id: task.run_id.clone(),
                     })
                     // tool_call_* instrumentation on the EventBus.
                     .with_event_bus(event_bus.clone());
@@ -485,6 +486,7 @@ impl AgentRunner for BridgeRunner {
                 // Bind the context to the task so ctx.log() correctly labels
                 // the persisted RuntimeEvent::AgentLog entries.
                 ctx = ctx.with_task_id(task.task_id.clone());
+                ctx = ctx.with_run_id(task.run_id.clone());
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
                     .expect("RuntimeContext PyObject construction failed")

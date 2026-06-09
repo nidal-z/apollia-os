@@ -89,6 +89,12 @@ pub struct AIPTask {
     /// Per-run control options (plan-gate and autonomy overrides).
     #[serde(default)]
     pub run_options: RunOptions,
+    /// Stable run identifier this task belongs to, when the task was submitted
+    /// as part of a correlated run (e.g. a chat turn). Threaded into the
+    /// execution context so tool and LLM events can be attributed to the run.
+    /// `None` for tasks submitted outside a run context.
+    #[serde(default)]
+    pub run_id: Option<crate::events::RunId>,
 }
 
 /// Multi-modal input of an AIP task.

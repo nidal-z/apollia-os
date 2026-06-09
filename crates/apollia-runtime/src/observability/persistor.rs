@@ -307,6 +307,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             model,
             messages_count,
             prompt_chars,
+            ..
         } => Some(RuntimeEventRecord {
             event_id: uuid::Uuid::now_v7().to_string(),
             task_id: task_id.to_string(),
@@ -366,6 +367,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             agent_id,
             tool_name,
             args_json,
+            ..
         } => Some(RuntimeEventRecord {
             // The event_id comes from the producer so the companion
             // ToolCallCompleted can reuse it as its parent_event_id.
@@ -393,6 +395,7 @@ fn event_to_record(event: RuntimeEvent) -> Option<RuntimeEventRecord> {
             exit_code,
             duration_ms,
             success,
+            ..
         } => Some(RuntimeEventRecord {
             event_id: uuid::Uuid::now_v7().to_string(),
             task_id: task_id.to_string(),
@@ -588,6 +591,7 @@ mod tests {
             agent_id: "agent-pair".into(),
             tool_name: "web_search".into(),
             args_json: Some("{\"query\":\"hello\"}".into()),
+            run_id: None,
         })
         .expect("bus send started");
 
@@ -600,6 +604,7 @@ mod tests {
             exit_code: None,
             duration_ms: 412,
             success: true,
+            run_id: None,
         })
         .expect("bus send completed");
 

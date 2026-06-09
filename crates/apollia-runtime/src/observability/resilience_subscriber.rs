@@ -104,6 +104,7 @@ mod tests {
             exit_code: None,
             duration_ms: 1,
             success,
+            run_id: None,
         }
     }
 

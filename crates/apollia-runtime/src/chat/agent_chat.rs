@@ -134,6 +134,8 @@ impl AgentChatExecutor {
 
         // Correlate every event of this exchange with the run started by the manager.
         let run_id = session.active_exchange.as_ref().map(|e| e.run_id.clone());
+        // Thread the run into the task so tool and LLM events carry it.
+        task.run_id = run_id.clone();
 
         let _ = self.event_bus.send(RuntimeEvent::ChatResponseStarted {
             session_id: session.id.clone(),
@@ -315,6 +317,7 @@ impl AgentChatExecutor {
 
         let mut resume_task = session_to_task(session, user_message);
         resume_task.message_id = Some(message_id.to_string());
+        resume_task.run_id = session.active_exchange.as_ref().map(|e| e.run_id.clone());
         resume_task.is_resumed = true;
         resume_task.input_response = Some(InputResponseData {
             approved: true,
@@ -392,6 +395,8 @@ fn session_to_task(session: &ChatSession, user_message: &str) -> AIPTask {
         message_id: None,
         delegation_chain: Vec::new(),
         run_options: apollia_core::RunOptions::default(),
+        // Populated by the caller from the active exchange when known.
+        run_id: None,
     }
 }
 

@@ -407,6 +407,9 @@ pub enum RuntimeEvent {
         latency_ms: u64,
         /// Estimated cost in USD (cloud backends only; `None` for local inference).
         cost_usd: Option<f64>,
+        /// Run this call belongs to, when emitted within a correlated run.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<RunId>,
     },
 
     // ── Plan / Step events ─────────────────────────────────────
@@ -1419,6 +1422,9 @@ pub enum RuntimeEvent {
         messages_count: u32,
         /// Cumulative prompt size in characters (token proxy).
         prompt_chars: u64,
+        /// Run this call belongs to, when emitted within a correlated run.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<RunId>,
     },
     /// A tool is about to be invoked (before the dispatcher).
     ///
@@ -1440,6 +1446,9 @@ pub enum RuntimeEvent {
         tool_name: String,
         /// Call arguments serialized as JSON.
         args_json: Option<String>,
+        /// Run this call belongs to, when emitted within a correlated run.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<RunId>,
     },
     /// The tool finished its execution.
     ///
@@ -1464,6 +1473,9 @@ pub enum RuntimeEvent {
         duration_ms: u64,
         /// `true` if the tool returned a logical success.
         success: bool,
+        /// Run this call belongs to, when emitted within a correlated run.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<RunId>,
     },
     /// The tool was denied (manifest, permission rule, HITL).
     ///
@@ -1687,6 +1699,7 @@ mod tests {
                 completion_tokens: 50,
                 latency_ms: 250,
                 cost_usd: Some(0.001),
+                run_id: None,
             },
             RuntimeEvent::LlmCallFailed {
                 backend: "anthropic".into(),
@@ -2050,6 +2063,7 @@ mod tests {
                 model: "claude-opus-4-7".into(),
                 messages_count: 5,
                 prompt_chars: 4321,
+                run_id: None,
             },
             RuntimeEvent::ToolCallStarted {
                 event_id: "01900000-0000-7000-8000-000000000001".into(),
@@ -2057,6 +2071,7 @@ mod tests {
                 agent_id: "agent-1".into(),
                 tool_name: "web_search".into(),
                 args_json: Some("{\"query\":\"hello\"}".into()),
+                run_id: None,
             },
             RuntimeEvent::ToolCallCompleted {
                 parent_event_id: "01900000-0000-7000-8000-000000000001".into(),
@@ -2067,6 +2082,7 @@ mod tests {
                 exit_code: Some(0),
                 duration_ms: 412,
                 success: true,
+                run_id: None,
             },
             RuntimeEvent::ToolCallDenied {
                 parent_event_id: "01900000-0000-7000-8000-000000000002".into(),

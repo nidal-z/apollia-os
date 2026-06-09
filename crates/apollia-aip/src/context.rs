@@ -115,6 +115,7 @@ pub struct ToolProxy {
     allowed_tools: Vec<String>,
     agent_id: String,
     task_id: String,
+    run_id: Option<apollia_core::events::RunId>,
     tool_calls: AtomicU32,
     /// A2A invoker for routing `"a2a:{skill_id}"` tool calls; `None` if not configured.
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
@@ -166,6 +167,7 @@ impl ToolProxy {
                 agent_id: self.agent_id.clone().into(),
                 tool_name: tool_name.clone(),
                 args_json: Some(input_str.clone()),
+                run_id: self.run_id.clone(),
             });
         }
 
@@ -214,6 +216,7 @@ impl ToolProxy {
             let bus_for_async = self.event_bus.clone();
             let task_id_for_async = self.task_id.clone();
             let agent_id_for_async = self.agent_id.clone();
+            let run_id_for_async = self.run_id.clone();
             let parent_id = started_event_id.clone();
             let tool_name_for_async = tool_name.clone();
             let skill_id_for_async = skill_id.clone();
@@ -243,6 +246,7 @@ impl ToolProxy {
                         tool_name: tool_name_for_async,
                         skill_id: skill_id_for_async,
                         duration_ms,
+                        run_id: run_id_for_async,
                     },
                 );
 
@@ -258,6 +262,7 @@ impl ToolProxy {
         let allowed = self.allowed_tools.clone();
         let agent_id = self.agent_id.clone();
         let task_id = self.task_id.clone();
+        let run_id = self.run_id.clone();
         let bus_for_async = self.event_bus.clone();
         let started_event_id_clone = started_event_id.clone();
         let tool_name_for_async = tool_name.clone();
@@ -290,6 +295,7 @@ impl ToolProxy {
                     agent_id,
                     tool_name: tool_name_for_async,
                     duration_ms,
+                    run_id,
                 },
             );
 
@@ -359,6 +365,8 @@ pub struct ToolProxyConfig {
     pub agent_id: String,
     /// Identifier of the current task.
     pub task_id: String,
+    /// Run this task belongs to, for audit correlation of tool events.
+    pub run_id: Option<apollia_core::events::RunId>,
 }
 
 // The methods in this block are called from Python via PyO3 (not from Rust),
@@ -379,6 +387,7 @@ impl ToolProxy {
             allowed_tools,
             agent_id,
             task_id,
+            run_id,
         } = config;
         Self {
             registry,
@@ -387,6 +396,7 @@ impl ToolProxy {
             allowed_tools,
             agent_id,
             task_id,
+            run_id,
             tool_calls: AtomicU32::new(0),
             a2a_invoker: None,
             a2a_depth: 0,
@@ -571,6 +581,7 @@ struct A2ACompletionEvent {
     tool_name: String,
     skill_id: String,
     duration_ms: u64,
+    run_id: Option<apollia_core::events::RunId>,
 }
 
 /// Emits `ToolCallCompleted` + `A2AInvokeCompleted` for an A2A tool call result.
@@ -589,6 +600,7 @@ fn emit_a2a_completion_events(
         tool_name,
         skill_id,
         duration_ms,
+        run_id,
     } = ev;
     match result {
         Ok(value) => {
@@ -609,6 +621,7 @@ fn emit_a2a_completion_events(
                 exit_code: None,
                 duration_ms,
                 success: true,
+                run_id,
             });
             let _ = bus.send(apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
                 parent_event_id: parent_id,
@@ -629,6 +642,7 @@ fn emit_a2a_completion_events(
                 exit_code: None,
                 duration_ms,
                 success: false,
+                run_id,
             });
             let _ = bus.send(apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
                 parent_event_id: parent_id,
@@ -649,6 +663,7 @@ struct ToolCompletionEvent {
     agent_id: String,
     tool_name: String,
     duration_ms: u64,
+    run_id: Option<apollia_core::events::RunId>,
 }
 
 /// Emits `ToolCallCompleted` or `ToolCallDenied` for a registry tool call result.
@@ -666,6 +681,7 @@ fn emit_tool_completion_events(
         agent_id,
         tool_name,
         duration_ms,
+        run_id,
     } = ev;
     match result {
         Ok(value) => {
@@ -678,6 +694,7 @@ fn emit_tool_completion_events(
                 exit_code: None,
                 duration_ms,
                 success: true,
+                run_id,
             });
         }
         Err(ToolProxyError::ToolNotAllowed(name)) => {
@@ -700,6 +717,7 @@ fn emit_tool_completion_events(
                 exit_code: None,
                 duration_ms,
                 success: false,
+                run_id,
             });
         }
     }
@@ -1472,6 +1490,19 @@ impl RuntimeContext {
         self
     }
 
+    /// Binds this context to the run it executes within.
+    ///
+    /// Propagates `run_id` to the internal [`LlmProxy`] so `LlmCallStarted`
+    /// events carry it. Tool events are tagged separately via the
+    /// [`ToolProxyConfig::run_id`] set at proxy construction. `None` leaves the
+    /// execution uncorrelated to any run.
+    pub fn with_run_id(mut self, run_id: Option<apollia_core::events::RunId>) -> Self {
+        if let Some(llm) = self.llm.take() {
+            self.llm = Some(llm.with_run_id(run_id));
+        }
+        self
+    }
+
     // Builders for the nested surfaces.
     /// Wires the datasources interface onto the context.
     ///
@@ -2240,6 +2271,7 @@ mod tests {
             allowed_tools: allowed_tools.into_iter().map(String::from).collect(),
             agent_id: "test-agent".to_string(),
             task_id: "task-001".to_string(),
+            run_id: None,
         });
 
         (proxy, registry, audit)
@@ -2740,6 +2772,7 @@ mod tool_proxy_a2a_tests {
             allowed_tools: allowed.into_iter().map(String::from).collect(),
             agent_id: "director-agent".to_string(),
             task_id: "task-001".to_string(),
+            run_id: None,
         });
         (proxy, audit)
     }

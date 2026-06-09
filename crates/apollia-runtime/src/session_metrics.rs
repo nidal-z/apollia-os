@@ -287,6 +287,7 @@ mod tests {
             completion_tokens: 40,
             latency_ms: 200,
             cost_usd: Some(0.001),
+            run_id: None,
         };
 
         // WHEN
@@ -413,6 +414,7 @@ mod tests {
             completion_tokens: 0,
             latency_ms: 10,
             cost_usd: None,
+            run_id: None,
         };
 
         // WHEN first call below the warning threshold
@@ -532,6 +534,7 @@ mod tests {
             completion_tokens: 0,
             latency_ms: 50,
             cost_usd: None,
+            run_id: None,
         })
         .unwrap();
 
@@ -581,6 +584,7 @@ mod tests {
             completion_tokens: 5,
             latency_ms: 1,
             cost_usd: None,
+            run_id: None,
         };
         let mut in_flight = HashMap::new();
         // THEN no panic, process_event completes normally

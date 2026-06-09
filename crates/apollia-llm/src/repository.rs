@@ -277,6 +277,7 @@ pub fn spawn_subscriber(
                     completion_tokens,
                     latency_ms,
                     cost_usd,
+                    ..
                 }) => {
                     let record = LlmCallRecord {
                         id: uuid::Uuid::new_v4().to_string(),
@@ -536,6 +537,7 @@ mod tests {
             completion_tokens: 50,
             latency_ms: 800,
             cost_usd: Some(0.003),
+            run_id: None,
         });
 
         // Wait for the spawn_blocking to have time to run

@@ -660,6 +660,7 @@ impl LlmRouter {
                 completion_tokens: response.usage.completion_tokens,
                 latency_ms,
                 cost_usd: response.usage.cost_usd,
+                run_id: None,
             });
         }
 

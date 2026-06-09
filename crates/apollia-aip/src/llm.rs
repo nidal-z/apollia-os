@@ -115,6 +115,8 @@ pub struct LlmProxy {
     task_id: Option<String>,
     /// Current agent; same role as `task_id`.
     agent_id: Option<String>,
+    /// Run this proxy belongs to; tags `LlmCallStarted` for audit correlation.
+    run_id: Option<apollia_core::events::RunId>,
 }
 
 impl LlmProxy {
@@ -137,6 +139,7 @@ impl LlmProxy {
             event_bus,
             task_id: None,
             agent_id: None,
+            run_id: None,
         }
     }
 
@@ -147,6 +150,14 @@ impl LlmProxy {
     pub fn with_task_context(mut self, task_id: String, agent_id: String) -> Self {
         self.task_id = Some(task_id);
         self.agent_id = Some(agent_id);
+        self
+    }
+
+    /// Binds this proxy to the run it executes within, so `LlmCallStarted`
+    /// events can be attributed to the run for audit. `None` leaves the call
+    /// uncorrelated.
+    pub fn with_run_id(mut self, run_id: Option<apollia_core::events::RunId>) -> Self {
+        self.run_id = run_id;
         self
     }
 
@@ -165,6 +176,7 @@ impl LlmProxy {
                 model: model.to_string(),
                 messages_count,
                 prompt_chars,
+                run_id: self.run_id.clone(),
             });
         }
     }

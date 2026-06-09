@@ -291,6 +291,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                     allowed_tools,
                     agent_id: agent_name.to_string(),
                     task_id: task.task_id.clone(),
+                    run_id: task.run_id.clone(),
                 })
                 // tool_call_* instrumentation.
                 .with_event_bus(event_bus.clone());
@@ -374,7 +375,8 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             ))
             // Bind the context to the task so ctx.log() labels the persisted
             // RuntimeEvent::AgentLog entries.
-            .with_task_id(task.task_id.clone());
+            .with_task_id(task.task_id.clone())
+            .with_run_id(task.run_id.clone());
             Py::new(py, ctx)
                 .map(|p| p.into_any())
                 .expect("RuntimeContext PyObject construction failed")
@@ -781,6 +783,7 @@ impl AgentRunner for BridgeRunner {
                         allowed_tools,
                         agent_id: agent_id.clone(),
                         task_id: task.task_id.clone(),
+                        run_id: task.run_id.clone(),
                     })
                     // tool_call_* instrumentation.
                     .with_event_bus(event_bus.clone());
@@ -850,7 +853,8 @@ impl AgentRunner for BridgeRunner {
                     secrets_declared,
                 ))
                 // task_id used to label ctx.log() in the trace.
-                .with_task_id(task.task_id.clone());
+                .with_task_id(task.task_id.clone())
+                .with_run_id(task.run_id.clone());
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
                     .expect("RuntimeContext PyObject construction failed")
