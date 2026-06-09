@@ -133,6 +133,8 @@ mod tests {
             payload,
             prev_hash: prev.to_string(),
             hash: String::new(),
+            signature: None,
+            signing_key_id: None,
         }
     }
 

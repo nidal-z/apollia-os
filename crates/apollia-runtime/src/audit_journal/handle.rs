@@ -1,10 +1,18 @@
 //! Clonable async handle to the journal actor.
 
 use std::path::Path;
+use std::sync::Arc;
 
-use crate::audit_journal::actor::{JournalActor, JournalMessage, SCHEMA};
+use apollia_auth::SecretStore;
+
+use crate::audit_journal::actor::{
+    JournalActor, JournalMessage, MIGRATION_SIGNATURE_COLUMNS, SCHEMA,
+};
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft};
 use crate::audit_journal::error::AuditJournalError;
+use crate::audit_journal::signer::{
+    HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy,
+};
 
 /// Capacity of the channel between the handle and the actor.
 const CHANNEL_CAPACITY: usize = 1024;
@@ -19,12 +27,50 @@ pub struct AuditJournalHandle {
 }
 
 impl AuditJournalHandle {
-    /// Open the journal database and start the actor.
+    /// Open the journal database without signing and start the actor.
     ///
-    /// Creates the file if absent, enables WAL mode, and applies the schema
-    /// idempotently (`CREATE ... IF NOT EXISTS`), so reopening an existing store
-    /// is a no-op on the schema.
+    /// Creates the file if absent, enables WAL mode, and applies the schema and
+    /// migrations idempotently (`CREATE ... IF NOT EXISTS`, additive
+    /// `ALTER TABLE`), so reopening an existing store is a no-op on the schema.
     pub async fn open(db_path: &Path) -> Result<Self, AuditJournalError> {
+        Self::spawn_actor(db_path, None, false).await
+    }
+
+    /// Open the journal with a signer loaded from `SecretStore`.
+    ///
+    /// Reads the HMAC key once under service `apollia-audit` and the given
+    /// `label` (scope local-only). When the key is absent, `policy` decides:
+    /// [`SignerUnavailablePolicy::WarnAndContinue`] opens an unsigned journal
+    /// that warns on each append, while [`SignerUnavailablePolicy::FailHard`]
+    /// returns [`AuditJournalError::SignerUnavailable`].
+    pub async fn open_with_signer(
+        db_path: &Path,
+        store: &dyn SecretStore,
+        label: &str,
+        policy: SignerUnavailablePolicy,
+    ) -> Result<Self, AuditJournalError> {
+        let (signer, warn_unsigned): (Option<Arc<dyn JournalSigner>>, bool) =
+            match HmacSigner::from_secret_store(store, label) {
+                Ok(s) => (Some(Arc::new(s)), false),
+                Err(e) => match policy {
+                    SignerUnavailablePolicy::WarnAndContinue => {
+                        tracing::warn!(error = %e, label = %label, "audit.journal.signer_degraded");
+                        (None, true)
+                    }
+                    SignerUnavailablePolicy::FailHard => {
+                        return Err(map_signer_error(e));
+                    }
+                },
+            };
+        Self::spawn_actor(db_path, signer, warn_unsigned).await
+    }
+
+    /// Shared open path: connection, schema, migrations, and actor spawn.
+    async fn spawn_actor(
+        db_path: &Path,
+        signer: Option<Arc<dyn JournalSigner>>,
+        warn_unsigned: bool,
+    ) -> Result<Self, AuditJournalError> {
         let db_path = db_path.to_path_buf();
         let (sender, receiver) = tokio::sync::mpsc::channel::<JournalMessage>(CHANNEL_CAPACITY);
         let (init_tx, init_rx) = tokio::sync::oneshot::channel::<Result<(), AuditJournalError>>();
@@ -45,8 +91,17 @@ impl AuditJournalHandle {
                 let _ = init_tx.send(Err(AuditJournalError::SchemaInit(e.to_string())));
                 return;
             }
+            for ddl in MIGRATION_SIGNATURE_COLUMNS {
+                if let Err(e) = conn.execute_batch(ddl) {
+                    let msg = e.to_string();
+                    if !msg.contains("duplicate column name") {
+                        let _ = init_tx.send(Err(AuditJournalError::SchemaInit(msg)));
+                        return;
+                    }
+                }
+            }
             let _ = init_tx.send(Ok(()));
-            JournalActor::new(conn, receiver).run();
+            JournalActor::new(conn, receiver, signer, warn_unsigned).run();
         });
 
         init_rx
@@ -113,4 +168,9 @@ impl AuditJournalHandle {
         let _ = self.sender.send(JournalMessage::Shutdown).await;
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
+}
+
+/// Maps a signer build failure to the fail-hard journal error.
+fn map_signer_error(e: SignerError) -> AuditJournalError {
+    AuditJournalError::SignerUnavailable(e.to_string())
 }

@@ -14,15 +14,132 @@ pub mod entry;
 pub mod error;
 pub mod handle;
 pub mod hash;
+pub mod signer;
 
 pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind};
 pub use error::AuditJournalError;
 pub use handle::AuditJournalHandle;
 pub use hash::{compute_entry_hash, SENTINEL_PREV_HASH};
+pub use signer::{HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use apollia_auth::{AuthError, SecretStore};
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+    /// SecretStore double: serves a single optional key for any (service, user).
+    struct MockStore {
+        value: Option<String>,
+    }
+
+    impl SecretStore for MockStore {
+        fn set(&self, _service: &str, _user: &str, _value: &str) -> Result<(), AuthError> {
+            Ok(())
+        }
+        fn get(&self, _service: &str, _user: &str) -> Result<Option<String>, AuthError> {
+            Ok(self.value.clone())
+        }
+        fn delete(&self, _service: &str, _user: &str) -> Result<(), AuthError> {
+            Ok(())
+        }
+        fn backend_id(&self) -> &'static str {
+            "mock"
+        }
+    }
+
+    fn temp_db() -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("apollia_journal_sign_{}.db", uuid::Uuid::new_v4()))
+    }
+
+    // AC-1: an entry is signed and the signature persists
+    #[tokio::test]
+    async fn test_ac1_entry_signed_and_persisted() {
+        // GIVEN a journal opened with a signer whose key is present
+        let store = MockStore {
+            value: Some(STANDARD.encode(b"audit-key-material-0001")),
+        };
+        let path = temp_db();
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("open with signer");
+
+        // WHEN an entry is appended
+        handle.append(JournalEntryDraft {
+            run_id: "run-1".to_string(),
+            ts: "2026-01-01T00:00:00Z".to_string(),
+            kind: JournalEntryKind::ToolCallStarted,
+            payload: serde_json::json!({"tool": "bash"}),
+        });
+        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
+
+        // THEN the persisted entry carries a signature and a key id
+        let entries = handle.query_run("run-1").await;
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].signature.is_some());
+        assert!(entries[0].signing_key_id.is_some());
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // AC-2 warn-and-continue: a missing key opens an unsigned journal
+    #[tokio::test]
+    async fn test_ac2_warn_and_continue_on_missing_key() {
+        // GIVEN a store with no key and the warn-and-continue policy
+        let store = MockStore { value: None };
+        let path = temp_db();
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::WarnAndContinue,
+        )
+        .await
+        .expect("open degraded");
+
+        // WHEN an entry is appended
+        handle.append(JournalEntryDraft {
+            run_id: "run-1".to_string(),
+            ts: "2026-01-01T00:00:00Z".to_string(),
+            kind: JournalEntryKind::AgentStarted,
+            payload: serde_json::json!({}),
+        });
+        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
+
+        // THEN the journal works and entries are unsigned
+        let entries = handle.query_run("run-1").await;
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].signature.is_none());
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // AC-2 fail-hard: a missing key refuses to open (error case)
+    #[tokio::test]
+    async fn test_ac2_fail_hard_on_missing_key() {
+        // GIVEN a store with no key and the fail-hard policy
+        let store = MockStore { value: None };
+        let path = temp_db();
+        // WHEN opening with a signer
+        let result = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await;
+        // THEN opening fails with SignerUnavailable
+        assert!(matches!(
+            result,
+            Err(AuditJournalError::SignerUnavailable(_))
+        ));
+        tokio::fs::remove_file(&path).await.ok();
+    }
 
     async fn open_temp() -> (AuditJournalHandle, std::path::PathBuf) {
         let db_path =

@@ -6,12 +6,14 @@
 //! and guarantee a continuous chain without cross-task locking.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde_json::Value;
 
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft, JournalEntryKind};
 use crate::audit_journal::error::AuditJournalError;
 use crate::audit_journal::hash::{compute_entry_hash, SENTINEL_PREV_HASH};
+use crate::audit_journal::signer::JournalSigner;
 
 /// SQL schema: the chained table, its index, and the append-only triggers.
 pub(crate) const SCHEMA: &str = "
@@ -34,6 +36,13 @@ pub(crate) const SCHEMA: &str = "
         BEFORE DELETE ON audit_journal_entries
         BEGIN SELECT RAISE(ABORT, 'audit journal is append-only'); END;
 ";
+
+/// Signature columns added by a later migration. Each statement runs on its
+/// own; the "duplicate column name" error is ignored to stay idempotent.
+pub(crate) const MIGRATION_SIGNATURE_COLUMNS: &[&str] = &[
+    "ALTER TABLE audit_journal_entries ADD COLUMN signature      TEXT",
+    "ALTER TABLE audit_journal_entries ADD COLUMN signing_key_id TEXT",
+];
 
 /// Messages processed by the [`JournalActor`].
 pub(crate) enum JournalMessage {
@@ -64,18 +73,29 @@ pub(crate) struct JournalActor {
     conn: rusqlite::Connection,
     receiver: tokio::sync::mpsc::Receiver<JournalMessage>,
     heads: HashMap<String, ChainHead>,
+    signer: Option<Arc<dyn JournalSigner>>,
+    warn_unsigned: bool,
 }
 
 impl JournalActor {
     /// Build the actor over an open connection.
+    ///
+    /// `signer` is `None` when no signing is requested or under the degraded
+    /// warn-and-continue mode. `warn_unsigned` requests a per-append warning
+    /// when an entry is persisted without a signature because of degradation
+    /// (as opposed to signing simply being disabled).
     pub(crate) fn new(
         conn: rusqlite::Connection,
         receiver: tokio::sync::mpsc::Receiver<JournalMessage>,
+        signer: Option<Arc<dyn JournalSigner>>,
+        warn_unsigned: bool,
     ) -> Self {
         Self {
             conn,
             receiver,
             heads: HashMap::new(),
+            signer,
+            warn_unsigned,
         }
     }
 
@@ -118,8 +138,11 @@ impl JournalActor {
             payload: draft.payload,
             prev_hash,
             hash: String::new(),
+            signature: None,
+            signing_key_id: None,
         };
         entry.hash = compute_entry_hash(&entry);
+        self.sign_entry(&mut entry);
 
         if let Err(e) = self.insert(&entry) {
             tracing::error!(
@@ -138,6 +161,37 @@ impl JournalActor {
                 hash: entry.hash,
             },
         );
+    }
+
+    /// Sign an entry over its `hash` if a signer is configured.
+    ///
+    /// On a signing failure or absent signer the entry stays unsigned; a
+    /// per-append warning is emitted only when degradation was requested.
+    fn sign_entry(&self, entry: &mut JournalEntry) {
+        match &self.signer {
+            Some(signer) => match signer.sign(entry.hash.as_bytes()) {
+                Ok(sig) => {
+                    entry.signature = Some(sig);
+                    entry.signing_key_id = Some(signer.key_id().to_string());
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        run_id = %entry.run_id,
+                        seq = entry.seq,
+                        "audit.journal.sign_failed"
+                    );
+                }
+            },
+            None if self.warn_unsigned => {
+                tracing::warn!(
+                    run_id = %entry.run_id,
+                    seq = entry.seq,
+                    "audit.journal.unsigned_append"
+                );
+            }
+            None => {}
+        }
     }
 
     /// Return the cached head for a run, loading it from SQLite on first use.
@@ -191,8 +245,8 @@ impl JournalActor {
         self.conn
             .execute(
                 "INSERT INTO audit_journal_entries \
-                 (seq, run_id, ts, kind, payload, prev_hash, hash) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                 (seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 rusqlite::params![
                     e.seq as i64,
                     e.run_id,
@@ -201,6 +255,8 @@ impl JournalActor {
                     payload,
                     e.prev_hash,
                     e.hash,
+                    e.signature,
+                    e.signing_key_id,
                 ],
             )
             .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
@@ -212,7 +268,7 @@ impl JournalActor {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT seq, run_id, ts, kind, payload, prev_hash, hash \
+                "SELECT seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id \
                  FROM audit_journal_entries WHERE run_id = ?1 ORDER BY seq ASC",
             )
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
@@ -229,6 +285,8 @@ impl JournalActor {
                     payload,
                     prev_hash: row.get(5)?,
                     hash: row.get(6)?,
+                    signature: row.get(7)?,
+                    signing_key_id: row.get(8)?,
                 })
             })
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;

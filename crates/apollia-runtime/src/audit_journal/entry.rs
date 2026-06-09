@@ -108,4 +108,12 @@ pub struct JournalEntry {
     pub prev_hash: String,
     /// SHA256 commitment over the content fields and `prev_hash`.
     pub hash: String,
+    /// Base64url (no padding) signature of `hash`. `None` when no signer is
+    /// configured or under the warn-and-continue degraded mode.
+    #[serde(default)]
+    pub signature: Option<String>,
+    /// Opaque identifier of the key that produced `signature`. `None` when
+    /// `signature` is `None`.
+    #[serde(default)]
+    pub signing_key_id: Option<String>,
 }

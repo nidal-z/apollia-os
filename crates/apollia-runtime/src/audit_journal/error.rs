@@ -17,6 +17,9 @@ pub enum AuditJournalError {
     /// The background actor is no longer reachable (channel closed).
     #[error("audit journal actor unavailable")]
     ActorUnavailable,
+    /// The signer could not be built and the policy is fail-hard.
+    #[error("audit journal signer unavailable: {0}")]
+    SignerUnavailable(String),
     /// Failed to serialize an entry payload to its canonical form.
     #[error("failed to serialize audit journal payload: {0}")]
     Serialize(String),
