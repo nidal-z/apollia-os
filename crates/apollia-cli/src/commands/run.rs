@@ -515,7 +515,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     // correctly surfaces the agent result without SSE race conditions.
     //
     // With `--stream` or `--alternatives`: SSE streaming shows plan/step events in real time.
-    if stream || alternatives {
+    let code = if stream || alternatives {
         stream_task(StreamTaskArgs {
             client: &client,
             task_id: &task_id,
@@ -527,6 +527,88 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         .await
     } else {
         poll_task(&client, &task_id, json, start).await
+    };
+
+    // Surface the shared cost/ceiling state once the run has terminated. The
+    // run/task engine does not enforce the hybrid ceiling (that hard-stop lives
+    // in the chat loop), so this reports the figures without altering the exit
+    // code, which stays governed by task success.
+    surface_cost_ceiling(&client, json).await;
+    code
+}
+
+/// Cost-ceiling fields appended to `apollia run --json` output after a run ends.
+///
+/// `ceiling_usd` and `ceiling_reached` come from the shared hybrid router via
+/// `GET /api/v1/llm/status`. `ceiling_usd` is omitted when hybrid routing is not
+/// configured; `ceiling_reached` is always `false` in that case.
+#[derive(Debug, serde::Serialize)]
+struct RunCostSummary {
+    /// Accumulated session cost in USD, when the backend reports it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost_usd: Option<f64>,
+    /// Hybrid routing cost ceiling in USD, when configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ceiling_usd: Option<f64>,
+    /// Whether the cost ceiling was reached. Always `false` without hybrid routing.
+    ceiling_reached: bool,
+}
+
+/// Fetch the shared LLM cost/ceiling state and surface it after a run.
+///
+/// In `--json` mode this prints one trailing JSON line; on a TTY it prints a
+/// human cost line and a stderr warning when the ceiling was reached. The fetch
+/// is best-effort: any status error is swallowed so it never masks the run
+/// result, which is the primary output of `run`.
+async fn surface_cost_ceiling(client: &RuntimeClient, json: bool) {
+    let Ok(resp) = client.get("/api/v1/llm/status").await else {
+        return;
+    };
+    if resp.status >= 400 {
+        return;
+    }
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&resp.body) else {
+        return;
+    };
+
+    let cost_usd = parsed.get("cost_usd").and_then(serde_json::Value::as_f64);
+    let ceiling_usd = parsed
+        .get("ceiling_usd")
+        .and_then(serde_json::Value::as_f64);
+    let ceiling_reached = parsed
+        .get("ceiling_reached")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+
+    // Nothing meaningful to surface when the backend reports neither figure.
+    if cost_usd.is_none() && ceiling_usd.is_none() {
+        return;
+    }
+
+    if json {
+        let summary = RunCostSummary {
+            cost_usd,
+            ceiling_usd,
+            ceiling_reached,
+        };
+        if let Ok(line) = serde_json::to_string(&summary) {
+            println!("{line}");
+        }
+    } else {
+        match (cost_usd, ceiling_usd) {
+            (Some(cost), Some(ceiling)) => {
+                println!("  cout session : {cost:.2} USD / {ceiling:.2} USD");
+                if ceiling_reached {
+                    eprintln!(
+                        "  Plafond de cout atteint : le run s'arrete proprement quand ceiling_action = hard_stop"
+                    );
+                }
+            }
+            (Some(cost), None) => {
+                println!("  cout session : {cost:.2} USD (aucun plafond hybride configure)");
+            }
+            _ => {}
+        }
     }
 }
 
@@ -1238,5 +1320,68 @@ mod tests {
 
         // THEN it is rejected
         assert!(result.is_err());
+    }
+
+    // The run cost summary carries cost and ceiling when hybrid routing reports them.
+    #[test]
+    fn test_run_cost_summary_includes_cost_and_ceiling() {
+        // GIVEN a summary built from a run with hybrid routing configured
+        let summary = RunCostSummary {
+            cost_usd: Some(0.45),
+            ceiling_usd: Some(2.0),
+            ceiling_reached: false,
+        };
+
+        // WHEN it is serialised
+        let value: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&summary).expect("serialize"))
+                .expect("parse");
+
+        // THEN every cost field is present with the expected values
+        assert_eq!(value["cost_usd"].as_f64(), Some(0.45));
+        assert_eq!(value["ceiling_usd"].as_f64(), Some(2.0));
+        assert_eq!(value["ceiling_reached"].as_bool(), Some(false));
+    }
+
+    // When the ceiling is reached, the flag is true and the figures are retained.
+    #[test]
+    fn test_run_cost_summary_ceiling_reached_flag() {
+        // GIVEN a summary built from a run that crossed the ceiling
+        let summary = RunCostSummary {
+            cost_usd: Some(2.05),
+            ceiling_usd: Some(2.0),
+            ceiling_reached: true,
+        };
+
+        // WHEN it is serialised
+        let value: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&summary).expect("serialize"))
+                .expect("parse");
+
+        // THEN ceiling_reached is true and the cost figures are carried through
+        assert_eq!(value["ceiling_reached"].as_bool(), Some(true));
+        assert_eq!(value["cost_usd"].as_f64(), Some(2.05));
+        assert_eq!(value["ceiling_usd"].as_f64(), Some(2.0));
+    }
+
+    // Without hybrid routing, ceiling_usd is omitted and ceiling_reached stays false.
+    #[test]
+    fn test_run_cost_summary_no_hybrid_omits_ceiling() {
+        // GIVEN a summary built from a run without hybrid routing
+        let summary = RunCostSummary {
+            cost_usd: Some(0.12),
+            ceiling_usd: None,
+            ceiling_reached: false,
+        };
+
+        // WHEN it is serialised
+        let value: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&summary).expect("serialize"))
+                .expect("parse");
+
+        // THEN there is no phantom ceiling field and the flag is present and false
+        assert!(value.get("ceiling_usd").is_none());
+        assert_eq!(value["ceiling_reached"].as_bool(), Some(false));
+        assert_eq!(value["cost_usd"].as_f64(), Some(0.12));
     }
 }
