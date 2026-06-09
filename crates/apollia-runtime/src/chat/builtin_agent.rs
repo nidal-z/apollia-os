@@ -43,6 +43,11 @@ use crate::eventbus::EventBusSender;
 /// Default timeout for chat tool approval requests (5 minutes).
 const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// Maximum number of read-only tool calls executed concurrently within a single
+/// agent turn. Write calls and read-only calls awaiting approval stay
+/// sequential regardless of this cap. Mirrors the ORIA batch cap.
+const MAX_CONCURRENT_READONLY_TOOL_CALLS: usize = 10;
+
 /// Default number of recent messages in the sliding context window.
 pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 
@@ -1561,20 +1566,67 @@ impl BuiltInChatAgent {
             tool_calls,
         ));
 
+        let session_id = ids.session_id;
+        let message_id = ids.message_id;
+
+        // Determine read-only status for each call via the tool registry. A call
+        // runs concurrently only when its tool is read-only AND already
+        // authorized: execute_tool_call then touches neither llm_messages nor acc,
+        // so the slow invocations overlap while results are applied in order.
+        // Unknown tools (absent from the registry, e.g. hardcoded-false MCP specs)
+        // are treated as write, the conservative default.
+        let mut read_only: Vec<bool> = Vec::with_capacity(tool_calls.len());
         for call in tool_calls {
+            let ro = self
+                .tool_registry
+                .describe(&call.name)
+                .await
+                .map(|d| d.is_read_only)
+                .unwrap_or(false);
+            read_only.push(ro);
+        }
+
+        // Phase A: invoke the parallel-safe calls concurrently, keyed by index.
+        let mut precomputed: std::collections::HashMap<usize, (ToolCallRecord, String, bool)> = {
+            use futures::stream::{self, StreamExt};
+            let parallel = (0..tool_calls.len())
+                .filter(|&i| read_only[i] && acc.authorized.contains(&tool_calls[i].name))
+                .map(|i| async move {
+                    let outcome = self
+                        .execute_tool_call(session_id, message_id, &tool_calls[i])
+                        .await;
+                    (i, outcome)
+                });
+            stream::iter(parallel)
+                .buffered(MAX_CONCURRENT_READONLY_TOOL_CALLS)
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .collect()
+        };
+
+        // Phase B: apply every call in original order. Parallel-safe calls reuse
+        // their precomputed result; everything else (write tools, read-only calls
+        // awaiting HITL approval) goes through the sequential path.
+        for (i, call) in tool_calls.iter().enumerate() {
             budget.increment_tool_calls();
-            let failed = self
-                .process_tool_call(
+            let failed = if let Some((record, tool_result, success)) = precomputed.remove(&i) {
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                acc.all_tool_calls.push(record);
+                !success
+            } else {
+                self.process_tool_call(
                     ToolCallContext {
-                        session_id: ids.session_id,
-                        message_id: ids.message_id,
+                        session_id,
+                        message_id,
                         call,
                         pending_approvals: ids.pending_approvals,
                     },
                     llm_messages,
                     acc,
                 )
-                .await;
+                .await
+            };
             *consecutive_tool_failures = next_failure_count(*consecutive_tool_failures, failed);
         }
     }
@@ -4017,6 +4069,199 @@ mod tests {
         }
     }
 
+    // ── Parallel read-only tool-call partition ─────────────────────────────
+
+    /// A read-only tool descriptor (eligible for concurrent execution).
+    fn ro_descriptor(name: &str) -> apollia_tools::descriptor::ToolDescriptor {
+        let mut d = mcp_descriptor(name);
+        d.is_read_only = true;
+        d
+    }
+
+    /// Tool invoker that tracks peak concurrency and echoes the tool name.
+    struct ConcurrencyInvoker {
+        concurrent: AtomicU32,
+        peak: AtomicU32,
+        delay_ms: u64,
+    }
+
+    impl ConcurrencyInvoker {
+        fn new(delay_ms: u64) -> Self {
+            Self {
+                concurrent: AtomicU32::new(0),
+                peak: AtomicU32::new(0),
+                delay_ms,
+            }
+        }
+        fn peak(&self) -> u32 {
+            self.peak.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ToolInvoker for ConcurrencyInvoker {
+        async fn invoke(&self, tool_name: &str, _: &serde_json::Value) -> Result<String, String> {
+            let cur = self.concurrent.fetch_add(1, Ordering::SeqCst) + 1;
+            self.peak.fetch_max(cur, Ordering::SeqCst);
+            if self.delay_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(self.delay_ms)).await;
+            }
+            self.concurrent.fetch_sub(1, Ordering::SeqCst);
+            Ok(tool_name.to_string())
+        }
+    }
+
+    fn agent_with(
+        registry: ToolRegistryHandle,
+        invoker: Arc<dyn ToolInvoker>,
+    ) -> BuiltInChatAgent {
+        BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: make_router(Arc::new(MockStopModel::with_content("x"))),
+            tool_registry: registry,
+            tool_invoker: invoker,
+            event_bus: make_event_bus(),
+            user_memory: None,
+            a2a_invoker: None,
+        })
+    }
+
+    fn tool_call(i: usize, name: &str) -> ToolCall {
+        ToolCall {
+            id: format!("c{i}"),
+            name: name.to_string(),
+            arguments: serde_json::json!({}),
+        }
+    }
+
+    /// Runs `record_tool_turn` for `calls`, authorizing every named tool so none
+    /// hits the HITL path, and returns the resulting tool-call order plus the
+    /// invoker peak concurrency.
+    async fn run_turn(
+        agent: &BuiltInChatAgent,
+        invoker: &ConcurrencyInvoker,
+        calls: &[ToolCall],
+    ) -> Vec<String> {
+        let mut acc = ReactAccumulators {
+            all_tool_calls: vec![],
+            newly_authorized: vec![],
+            authorized: calls.iter().map(|c| c.name.clone()).collect(),
+        };
+        let budget = make_budget(100);
+        let approvals = PendingChatApprovals::new();
+        let mut reasoning = Vec::new();
+        let mut msgs = Vec::new();
+        let mut failures = 0u32;
+        let _ = invoker; // peak read by the caller after the turn
+        agent
+            .record_tool_turn(
+                RecordTurnInput {
+                    accumulated_text: "",
+                    tool_calls: calls,
+                    budget: &budget,
+                    ids: ToolCallContextIds {
+                        session_id: "s",
+                        message_id: "m",
+                        pending_approvals: &approvals,
+                    },
+                },
+                &mut reasoning,
+                &mut msgs,
+                &mut acc,
+                &mut failures,
+            )
+            .await;
+        acc.all_tool_calls
+            .iter()
+            .map(|r| r.tool_name.clone())
+            .collect()
+    }
+
+    /// Authorized read-only calls run concurrently and keep their input order.
+    #[tokio::test]
+    async fn test_readonly_calls_run_in_parallel_preserving_order() {
+        // GIVEN four authorized read-only tools
+        let registry = ToolRegistryHandle::start();
+        for n in ["ro_a", "ro_b", "ro_c", "ro_d"] {
+            registry.register(ro_descriptor(n)).await.unwrap();
+        }
+        let invoker = Arc::new(ConcurrencyInvoker::new(30));
+        let agent = agent_with(registry.clone(), invoker.clone());
+        let calls = vec![
+            tool_call(0, "ro_a"),
+            tool_call(1, "ro_b"),
+            tool_call(2, "ro_c"),
+            tool_call(3, "ro_d"),
+        ];
+
+        // WHEN the turn runs
+        let order = run_turn(&agent, &invoker, &calls).await;
+
+        // THEN results keep input order and the invocations overlapped
+        assert_eq!(order, vec!["ro_a", "ro_b", "ro_c", "ro_d"]);
+        assert!(
+            invoker.peak() >= 2,
+            "expected concurrent read-only execution, peak was {}",
+            invoker.peak()
+        );
+        registry.shutdown().await;
+    }
+
+    /// A mixed turn keeps global order: writes and unknown tools stay sequential,
+    /// read-only authorized tools run concurrently, results merge in input order.
+    #[tokio::test]
+    async fn test_mixed_calls_preserve_global_order() {
+        // GIVEN a registered write tool, two read-only tools, and one unknown tool
+        let registry = ToolRegistryHandle::start();
+        registry.register(mcp_descriptor("w_x")).await.unwrap(); // is_read_only = false
+        registry.register(ro_descriptor("ro_a")).await.unwrap();
+        registry.register(ro_descriptor("ro_b")).await.unwrap();
+        // "w_y" is intentionally not registered: unknown status is treated as write.
+        let invoker = Arc::new(ConcurrencyInvoker::new(0));
+        let agent = agent_with(registry.clone(), invoker.clone());
+        let calls = vec![
+            tool_call(0, "w_x"),
+            tool_call(1, "ro_a"),
+            tool_call(2, "ro_b"),
+            tool_call(3, "w_y"),
+            tool_call(4, "ro_a"),
+        ];
+
+        // WHEN the turn runs
+        let order = run_turn(&agent, &invoker, &calls).await;
+
+        // THEN the final order matches the input order exactly
+        assert_eq!(order, vec!["w_x", "ro_a", "ro_b", "w_y", "ro_a"]);
+        registry.shutdown().await;
+    }
+
+    /// Concurrency stays bounded by the read-only cap.
+    #[tokio::test]
+    async fn test_readonly_concurrency_cap_respected() {
+        // GIVEN 15 authorized read-only tools with a slow invoker
+        let registry = ToolRegistryHandle::start();
+        for i in 0..15 {
+            registry
+                .register(ro_descriptor(&format!("ro_{i}")))
+                .await
+                .unwrap();
+        }
+        let invoker = Arc::new(ConcurrencyInvoker::new(30));
+        let agent = agent_with(registry.clone(), invoker.clone());
+        let calls: Vec<ToolCall> = (0..15).map(|i| tool_call(i, &format!("ro_{i}"))).collect();
+
+        // WHEN the turn runs
+        let order = run_turn(&agent, &invoker, &calls).await;
+
+        // THEN all 15 complete in order and concurrency respects the cap
+        assert_eq!(order.len(), 15);
+        for (i, name) in order.iter().enumerate() {
+            assert_eq!(name, &format!("ro_{i}"));
+        }
+        assert!(invoker.peak() <= MAX_CONCURRENT_READONLY_TOOL_CALLS as u32);
+        assert!(invoker.peak() >= 2, "expected some concurrency");
+        registry.shutdown().await;
+    }
+
     #[tokio::test]
     async fn test_build_tool_specs_eager_includes_mcp_schemas() {
         // GIVEN a registry with a native tool and an MCP tool, eager mode
@@ -4231,11 +4476,11 @@ mod verification_wire_tests {
         assert_eq!(report.retry_iterations, 0);
     }
 
-    // AC-4: assisted tier skips verification entirely.
+    // At the assisted tier, declared checks run once, without critic or retries.
     #[tokio::test]
-    async fn test_ac4_assisted_no_verification() {
-        // GIVEN the assisted tier
-        let invoker = CountingInvoker::with_sequence(vec![]);
+    async fn test_assisted_runs_declared_checks() {
+        // GIVEN the assisted tier with a declared check command
+        let invoker = CountingInvoker::with_sequence(vec![ok_check()]);
         let loop_ = VerificationLoop::new(vec!["cargo test".into()], vec![]);
         let critic = CriticPass::disabled();
         let budget = StepBudget::new(&StepBudgetConfig {
@@ -4260,11 +4505,44 @@ mod verification_wire_tests {
         )
         .await;
 
+        // THEN the declared check runs once, with no retries
+        let report = report.expect("declared checks run at the assisted tier");
+        assert!(report.passed);
+        assert_eq!(report.retry_iterations, 0);
+        assert_eq!(invoker.call_count(), 1);
+    }
+
+    // At the assisted tier with no declared checks, verification is skipped.
+    #[tokio::test]
+    async fn test_assisted_without_checks_skips_verification() {
+        // GIVEN the assisted tier and a verification loop with no commands
+        let invoker = CountingInvoker::with_sequence(vec![]);
+        let loop_ = VerificationLoop::new(vec![], vec![]);
+        let critic = CriticPass::disabled();
+        let budget = StepBudget::new(&StepBudgetConfig {
+            max_steps: 10,
+            max_tool_calls: 20,
+            wall_clock_secs: 300,
+        });
+        let autonomy = AutonomyLevel::Assisted;
+
+        // WHEN running verification with retry
+        let (report, ()) = run_verification_with_retry(
+            &autonomy,
+            Some(&loop_),
+            Some(&critic),
+            &invoker,
+            "objectif",
+            "sortie",
+            &budget,
+            VERIFICATION_MAX_RETRIES,
+            (),
+            |(), _correction: String| async { (Ok("sortie".to_string()), ()) },
+        )
+        .await;
+
         // THEN nothing runs and no report is produced
-        assert!(
-            report.is_none(),
-            "Assisted ne doit pas lancer la verification"
-        );
+        assert!(report.is_none(), "no declared checks means no verification");
         assert_eq!(invoker.call_count(), 0);
     }
 
