@@ -453,7 +453,7 @@ impl ActorLoop {
         // Phase 2: Concurrent invocations.
         let started = Instant::now();
         let batch_results = self
-            .execute_tool_steps(&level_steps, &completed_outputs, deps.tool_proxy)
+            .execute_tool_steps(&level_steps, &completed_outputs, deps.tool_proxy, resilience)
             .await;
         let duration_ms = started.elapsed().as_millis() as u64;
 
@@ -605,6 +605,7 @@ impl ActorLoop {
         steps: &[PlanStep],
         completed_outputs: &HashMap<String, String>,
         tool_proxy: &dyn ToolProxyTrait,
+        resilience: &ResilienceLayer,
     ) -> Vec<(String, Result<String, StepError>)> {
         use futures::stream::{self, StreamExt};
 
@@ -636,24 +637,54 @@ impl ActorLoop {
             .collect();
         let step_ids: Vec<String> = steps.iter().map(|s| s.step_id.clone()).collect();
 
-        let raw_results: Vec<Result<String, String>> = if all_read_only {
-            stream::iter((0..steps.len()).map(|i| tool_proxy.invoke(&tool_names[i], &inputs[i])))
+        // Register a breaker for every tool so the resilience pre_check never
+        // trips on an unknown tool.
+        for name in &tool_names {
+            resilience.ensure_tool(name);
+        }
+
+        // Runs one tool call wrapped by the ResilienceLayer. pre_check (which
+        // short-circuits an open breaker without invoking the tool), retry with
+        // backoff, and success/failure recording all happen inside the layer.
+        // Returns the original step id paired with the outcome so results can be
+        // collected in input order.
+        let run_one = |i: usize| {
+            let tool_name = tool_names[i].clone();
+            let input = inputs[i].clone();
+            let step_id = step_ids[i].clone();
+            async move {
+                let policy = RetryPolicy::default();
+                let (outcome, _attempts) = resilience
+                    .execute_with_observability(
+                        RetryContext {
+                            tool_name: &tool_name,
+                            tool_call_id: &step_id,
+                            retry_policy: &policy,
+                            bus: Some(&self.event_bus),
+                        },
+                        Self::classify_tool_error,
+                        || tool_proxy.invoke(&tool_name, &input),
+                    )
+                    .await;
+                (
+                    step_id.clone(),
+                    outcome.map_err(|e| StepError::ToolCallFailed(e.to_string())),
+                )
+            }
+        };
+
+        if all_read_only {
+            stream::iter((0..steps.len()).map(&run_one))
                 .buffered(MAX_CONCURRENT_ORIA_TOOLS)
                 .collect::<Vec<_>>()
                 .await
         } else {
             let mut results = Vec::with_capacity(steps.len());
             for i in 0..steps.len() {
-                results.push(tool_proxy.invoke(&tool_names[i], &inputs[i]).await);
+                results.push(run_one(i).await);
             }
             results
-        };
-
-        step_ids
-            .into_iter()
-            .zip(raw_results)
-            .map(|(step_id, r)| (step_id, r.map_err(StepError::ToolCallFailed)))
-            .collect()
+        }
     }
 
     /// Execute a single step, tool or LLM depending on `tool_hint`.
@@ -1730,6 +1761,212 @@ mod tests {
         assert_eq!(result.status, TaskStatus::Failed);
         assert_eq!(proxy.call_count(), RetryPolicy::default().max_attempts);
         let cb = resilience.breaker("mock_tool").expect("breaker registered");
+        assert_eq!(cb.failure_count(), 1);
+    }
+
+    // ── Batch ResilienceLayer wiring ───────────────────────────────────────────
+
+    /// Read-only tool proxy that counts invocations per tool, tracks peak
+    /// concurrency, and can return a configured error for specific tools.
+    struct BatchProxy {
+        errors: std::collections::HashMap<String, String>,
+        calls: std::sync::Mutex<std::collections::HashMap<String, u32>>,
+        concurrent: std::sync::atomic::AtomicU32,
+        peak: std::sync::atomic::AtomicU32,
+        delay_ms: u64,
+    }
+
+    impl BatchProxy {
+        fn new() -> Self {
+            Self {
+                errors: std::collections::HashMap::new(),
+                calls: std::sync::Mutex::new(std::collections::HashMap::new()),
+                concurrent: std::sync::atomic::AtomicU32::new(0),
+                peak: std::sync::atomic::AtomicU32::new(0),
+                delay_ms: 0,
+            }
+        }
+        fn with_error(mut self, tool: &str, msg: &str) -> Self {
+            self.errors.insert(tool.to_string(), msg.to_string());
+            self
+        }
+        fn with_delay(mut self, ms: u64) -> Self {
+            self.delay_ms = ms;
+            self
+        }
+        fn calls_for(&self, tool: &str) -> u32 {
+            *self.calls.lock().unwrap().get(tool).unwrap_or(&0)
+        }
+        fn peak(&self) -> u32 {
+            self.peak.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ToolProxyTrait for BatchProxy {
+        async fn invoke(&self, tool_name: &str, _: &serde_json::Value) -> Result<String, String> {
+            use std::sync::atomic::Ordering::SeqCst;
+            let cur = self.concurrent.fetch_add(1, SeqCst) + 1;
+            self.peak.fetch_max(cur, SeqCst);
+            {
+                let mut m = self.calls.lock().unwrap();
+                *m.entry(tool_name.to_string()).or_insert(0) += 1;
+            }
+            if self.delay_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(self.delay_ms)).await;
+            }
+            self.concurrent.fetch_sub(1, SeqCst);
+            match self.errors.get(tool_name) {
+                Some(e) => Err(e.clone()),
+                None => Ok(format!("ok-{tool_name}")),
+            }
+        }
+        fn is_tool_read_only(&self, _: &str) -> bool {
+            true
+        }
+    }
+
+    fn tool_step(id: &str, tool: &str) -> PlanStep {
+        PlanStep {
+            step_id: id.to_string(),
+            description: format!("Step {id}"),
+            tool_hint: Some(tool.to_string()),
+            depends_on: vec![],
+            model_hint: None,
+        }
+    }
+
+    /// All active tools are invoked once and returned in input order.
+    #[tokio::test]
+    async fn test_batch_all_active_tools_invoked_in_order() {
+        // GIVEN three read-only tools, all with a closed circuit
+        let (actor, _rx) = make_actor(make_plan(vec![("x", &[])]));
+        let steps = vec![
+            tool_step("s1", "tool_a"),
+            tool_step("s2", "tool_b"),
+            tool_step("s3", "tool_c"),
+        ];
+        let proxy = BatchProxy::new();
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the batch path executes
+        let results = actor
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .await;
+
+        // THEN each tool is invoked once and results keep the input order
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].0, "s1");
+        assert_eq!(results[1].0, "s2");
+        assert_eq!(results[2].0, "s3");
+        assert!(results.iter().all(|(_, r)| r.is_ok()));
+        assert_eq!(proxy.calls_for("tool_a"), 1);
+        assert_eq!(proxy.calls_for("tool_b"), 1);
+        assert_eq!(proxy.calls_for("tool_c"), 1);
+    }
+
+    /// A tool whose circuit is open is not invoked; its slot returns an error.
+    #[tokio::test]
+    async fn test_batch_circuit_open_tool_skipped() {
+        // GIVEN the circuit for tool_b is already open
+        let (actor, _rx) = make_actor(make_plan(vec![("x", &[])]));
+        let resilience = ResilienceLayer::default();
+        resilience.ensure_tool("tool_b");
+        for _ in 0..3 {
+            let _ = resilience.record_failure("tool_b", &ErrorClass::Transient);
+        }
+        let steps = vec![
+            tool_step("s1", "tool_a"),
+            tool_step("s2", "tool_b"),
+            tool_step("s3", "tool_c"),
+        ];
+        let proxy = BatchProxy::new();
+
+        // WHEN the batch path executes
+        let results = actor
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .await;
+
+        // THEN tool_b is never invoked and its position carries an error
+        assert_eq!(proxy.calls_for("tool_b"), 0);
+        assert_eq!(proxy.calls_for("tool_a"), 1);
+        assert_eq!(proxy.calls_for("tool_c"), 1);
+        assert!(results[0].1.is_ok());
+        assert!(results[1].1.is_err());
+        assert!(results[2].1.is_ok());
+    }
+
+    /// A permanent failure on one tool does not affect the others.
+    #[tokio::test]
+    async fn test_batch_isolated_failure_does_not_affect_others() {
+        // GIVEN tool_c returns a permanent-class error
+        let (actor, _rx) = make_actor(make_plan(vec![("x", &[])]));
+        let steps = vec![
+            tool_step("s1", "tool_a"),
+            tool_step("s2", "tool_b"),
+            tool_step("s3", "tool_c"),
+        ];
+        let proxy = BatchProxy::new().with_error("tool_c", "invalid input: nope");
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the batch path executes
+        let results = actor
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .await;
+
+        // THEN only tool_c fails, each tool invoked once (no retry on permanent)
+        assert!(results[0].1.is_ok());
+        assert!(results[1].1.is_ok());
+        assert!(results[2].1.is_err());
+        assert_eq!(proxy.calls_for("tool_c"), 1);
+    }
+
+    /// Concurrency stays bounded by the configured cap.
+    #[tokio::test]
+    async fn test_batch_concurrency_cap_respected() {
+        // GIVEN 15 slow read-only tools
+        let (actor, _rx) = make_actor(make_plan(vec![("x", &[])]));
+        let steps: Vec<PlanStep> = (0..15)
+            .map(|i| tool_step(&format!("s{i}"), &format!("tool_{i}")))
+            .collect();
+        let proxy = BatchProxy::new().with_delay(40);
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the batch path executes
+        let results = actor
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .await;
+
+        // THEN all 15 complete, in order, and peak concurrency respects the cap
+        assert_eq!(results.len(), 15);
+        for (i, (step_id, r)) in results.iter().enumerate() {
+            assert_eq!(step_id, &format!("s{i}"));
+            assert!(r.is_ok());
+        }
+        assert!(proxy.peak() <= MAX_CONCURRENT_ORIA_TOOLS as u32);
+        assert!(proxy.peak() >= 2, "expected some concurrency");
+    }
+
+    /// A transient error is retried up to the policy limit inside the batch.
+    #[tokio::test]
+    async fn test_batch_transient_error_retries() {
+        // GIVEN tool_b always returns a transient-class error
+        let (actor, _rx) = make_actor(make_plan(vec![("x", &[])]));
+        let steps = vec![tool_step("s1", "tool_a"), tool_step("s2", "tool_b")];
+        let proxy = BatchProxy::new().with_error("tool_b", "tool timeout");
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the batch path executes
+        let results = actor
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .await;
+
+        // THEN tool_b is retried up to the default policy and fails; tool_a is ok
+        assert!(results[0].1.is_ok());
+        assert!(results[1].1.is_err());
+        assert_eq!(proxy.calls_for("tool_b"), RetryPolicy::default().max_attempts);
+        assert_eq!(proxy.calls_for("tool_a"), 1);
+        let cb = resilience.breaker("tool_b").expect("breaker registered");
         assert_eq!(cb.failure_count(), 1);
     }
 
