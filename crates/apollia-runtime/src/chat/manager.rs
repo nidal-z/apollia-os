@@ -366,6 +366,7 @@ struct LibreExchangeParams {
     mid: String,
     user_msg: String,
     tx: mpsc::Sender<ChatCommand>,
+    todo: Option<TodoHandle>,
 }
 
 /// Run a spawned Libre/Companion exchange end-to-end and report the result back
@@ -410,6 +411,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         mid,
         user_msg,
         tx,
+        todo,
     } = params;
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
@@ -474,6 +476,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         event_bus,
         user_memory: session_user_memory,
         a2a_invoker: a2a_for_agent,
+        todo,
     })
     .with_workspace_path(session_invoker.workspace)
     .with_mcp_index(agent_mcp_index, tool_search_limit);
@@ -659,6 +662,8 @@ use super::builtin_agent::{
 };
 use super::extractor::UserMemoryExtractor;
 use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApprovalLogEntry};
+use super::todo_actor::spawn_todo_actor;
+use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
     PendingChatApprovals, PendingFilesystemApprovals, ProjectContextProvider, RecentSessionSummary,
@@ -1068,6 +1073,9 @@ struct ChatSessionManager {
     /// Maximum `limit` accepted by the synthetic `tool_search` tool, sourced from
     /// the `mcp.tool_search_limit` setting.
     tool_search_limit: usize,
+    /// Clonable handle to the per-runtime todo actor, cloned into each exchange
+    /// so the agent's `todo_write` tool persists session task state.
+    todo_handle: Option<TodoHandle>,
 }
 
 impl ChatSessionManager {
@@ -1927,6 +1935,7 @@ impl ChatSessionManager {
                 mid,
                 user_msg,
                 tx,
+                todo: self.todo_handle.clone(),
             }));
         }
 
@@ -3284,6 +3293,17 @@ impl ChatSessionManagerHandle {
         tool_search_limit: usize,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
+
+        // Spawn the todo actor on its own connection to the same chat database.
+        // The migration runs synchronously here so a schema failure stops the
+        // runtime at startup (fail fast) rather than on the first todo write.
+        let todo_conn = rusqlite::Connection::open(db_path)
+            .map_err(|e| ChatError::InternalError(format!("failed to open todo db: {e}")))?;
+        let todo_handle = Some(
+            spawn_todo_actor(todo_conn)
+                .map_err(|e| ChatError::InternalError(format!("todo migration failed: {e}")))?,
+        );
+
         let pending_chat_approvals = PendingChatApprovals::new();
         let pending_fs_approvals = PendingFilesystemApprovals::new();
         let pending_user_inputs = apollia_tools::tools::ask_user::PendingUserInputs::new();
@@ -3322,6 +3342,7 @@ impl ChatSessionManagerHandle {
             metrics: HashMap::new(),
             mcp_loading,
             tool_search_limit,
+            todo_handle,
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -4289,6 +4310,7 @@ mod tests {
             project_repo: None,
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            todo_handle: None,
         };
 
         // Insert a dummy session so the lookup succeeds
@@ -4422,6 +4444,7 @@ mod tests {
             project_repo: None,
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            todo_handle: None,
         };
 
         // WHEN building cross-session context with a substantive first message
@@ -4488,6 +4511,7 @@ mod tests {
             project_repo: None,
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            todo_handle: None,
         };
 
         // WHEN building cross-session context with a trivial message
@@ -4532,6 +4556,7 @@ mod tests {
             project_repo: None,
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            todo_handle: None,
         };
 
         // WHEN building cross-session context with a substantive message but no past sessions

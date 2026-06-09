@@ -38,6 +38,8 @@ use super::types::{
 };
 use crate::a2a::A2AInvoker;
 use crate::chat::a2a_tools::generate_a2a_tool_specs;
+use crate::chat::todo_handle::TodoHandle;
+use crate::chat::todo_tool::{run_todo_write, todo_write_spec, TODO_WRITE_TOOL_NAME};
 use crate::eventbus::EventBusSender;
 
 /// Default timeout for chat tool approval requests (5 minutes).
@@ -959,6 +961,9 @@ pub struct BuiltInChatAgentDeps {
     pub event_bus: EventBusSender,
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     pub a2a_invoker: Option<Arc<A2AInvoker>>,
+    /// Optional per-session todo store. When present, the `todo_write` built-in
+    /// tool is advertised to the LLM and handled inside the ReAct loop.
+    pub todo: Option<TodoHandle>,
 }
 
 /// Rust-native chat agent implementing a ReAct loop for Chat Libre mode.
@@ -997,6 +1002,8 @@ pub struct BuiltInChatAgent {
     mcp_index: Option<Vec<ToolIndexSnapshot>>,
     /// Maximum `limit` advertised for the synthetic `tool_search` tool.
     tool_search_limit: usize,
+    /// Optional per-session todo store. `None` disables the `todo_write` tool.
+    todo: Option<TodoHandle>,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.
@@ -1067,6 +1074,7 @@ impl BuiltInChatAgent {
             mcp_index: None,
             // Overwritten by `with_mcp_index` in deferred mode; unused otherwise.
             tool_search_limit: 20,
+            todo: deps.todo,
         }
     }
 
@@ -1226,6 +1234,10 @@ impl BuiltInChatAgent {
         .await;
         if let Some(ref a2a) = self.a2a_invoker {
             tool_specs.extend(generate_a2a_tool_specs(a2a).await);
+        }
+        // Advertise the todo_write built-in whenever a todo store is attached.
+        if self.todo.is_some() {
+            tool_specs.push(todo_write_spec());
         }
         info!(
             session_id = %session_id,
@@ -1610,25 +1622,70 @@ impl BuiltInChatAgent {
         // awaiting HITL approval) goes through the sequential path.
         for (i, call) in tool_calls.iter().enumerate() {
             budget.increment_tool_calls();
-            let failed = if let Some((record, tool_result, success)) = precomputed.remove(&i) {
-                llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
-                acc.all_tool_calls.push(record);
-                !success
-            } else {
-                self.process_tool_call(
-                    ToolCallContext {
-                        session_id,
-                        message_id,
-                        call,
-                        pending_approvals: ids.pending_approvals,
-                    },
-                    llm_messages,
-                    acc,
-                )
-                .await
+            let failed = match (call.name.as_str(), self.todo.as_ref()) {
+                // todo_write is a safe built-in handled in-loop: it never goes
+                // through the registry, the parallel partition, or HITL approval.
+                (TODO_WRITE_TOOL_NAME, Some(todo)) => {
+                    Self::handle_todo_write(todo, session_id, call, llm_messages, acc).await
+                }
+                _ => match precomputed.remove(&i) {
+                    Some((record, tool_result, success)) => {
+                        llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                        acc.all_tool_calls.push(record);
+                        !success
+                    }
+                    None => {
+                        self.process_tool_call(
+                            ToolCallContext {
+                                session_id,
+                                message_id,
+                                call,
+                                pending_approvals: ids.pending_approvals,
+                            },
+                            llm_messages,
+                            acc,
+                        )
+                        .await
+                    }
+                },
             };
             *consecutive_tool_failures = next_failure_count(*consecutive_tool_failures, failed);
         }
+    }
+
+    /// Run the `todo_write` built-in tool inside the ReAct loop.
+    ///
+    /// Persists the agent-provided list via the [`TodoHandle`] and injects the
+    /// JSON result as the tool message. Returns `true` when the write failed
+    /// (invariant violation or malformed payload) so the loop counts it toward
+    /// escalation; the loop itself never stops on a todo error.
+    async fn handle_todo_write(
+        todo: &TodoHandle,
+        session_id: &str,
+        call: &ToolCall,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+    ) -> bool {
+        let result = run_todo_write(todo, session_id, &call.arguments).await;
+        let item_count = result.count.unwrap_or(0);
+        tracing::info!(
+            session_id = %session_id,
+            item_count,
+            ok = result.ok,
+            "chat.todo_write.applied"
+        );
+        let tool_result = serde_json::to_string(&result)
+            .unwrap_or_else(|_| r#"{"ok":false,"error":"todo result serialization failed"}"#.to_string());
+        llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+        acc.all_tool_calls.push(ToolCallRecord {
+            tool_name: call.name.clone(),
+            input: call.arguments.clone(),
+            output: Some(tool_result),
+            status: ToolCallStatus::Executed,
+            rationale: None,
+            retry_attempts: Vec::new(),
+        });
+        !result.ok
     }
 
     /// Build the partial [`ChatAgentResponse`] returned when the stream was
@@ -2689,6 +2746,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -2771,6 +2829,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(20);
@@ -2832,6 +2891,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -2895,6 +2955,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -2965,6 +3026,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -3037,6 +3099,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -3097,6 +3160,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(1);
@@ -3213,6 +3277,7 @@ mod tests {
             event_bus: event_tx,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -3324,6 +3389,7 @@ mod tests {
             event_bus: event_tx,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -3383,6 +3449,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -3477,6 +3544,7 @@ mod tests {
             event_bus: event_tx,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -3598,6 +3666,7 @@ mod tests {
             event_bus: event_tx,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         let budget = make_budget(10);
@@ -3686,6 +3755,7 @@ mod tests {
             event_bus,
             user_memory: Some(repo),
             a2a_invoker: None,
+            todo: None,
         });
 
         // WHEN building the system prompt
@@ -3719,6 +3789,7 @@ mod tests {
             event_bus,
             user_memory: Some(repo),
             a2a_invoker: None,
+            todo: None,
         });
 
         // WHEN inject_memory is false (e.g. supervised tier)
@@ -3776,6 +3847,7 @@ mod tests {
             event_bus,
             user_memory: Some(repo),
             a2a_invoker: None,
+            todo: None,
         });
 
         // WHEN building the system prompt
@@ -3799,6 +3871,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         });
 
         // WHEN building the system prompt
@@ -3824,6 +3897,7 @@ mod tests {
             event_bus,
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         })
     }
 
@@ -4122,6 +4196,7 @@ mod tests {
             event_bus: make_event_bus(),
             user_memory: None,
             a2a_invoker: None,
+            todo: None,
         })
     }
 
