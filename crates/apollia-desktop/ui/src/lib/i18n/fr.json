@@ -1153,7 +1153,14 @@
     "error_ipc": "Erreur lors de la communication avec le runtime.",
     "status_approved": "Plan approuvé",
     "status_rejected": "Plan rejeté",
-    "no_steps_placeholder": "Aucune étape définie."
+    "no_steps_placeholder": "Aucune étape définie.",
+    "diff_added": "Ajouté",
+    "diff_removed": "Supprimé",
+    "diff_modified": "Modifié",
+    "step_dependencies_label": "Dépend de",
+    "step_tool_label": "Outil",
+    "step_model_label": "Modèle",
+    "replan_notice": "Le plan a été révisé par l'agent."
   },
   "approvals": {
     "title": "Approbations",

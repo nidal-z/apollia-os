@@ -10,4 +10,11 @@ export const PLAN_MODE_KEYS = {
   statusApproved: "plan_mode.status_approved",
   statusRejected: "plan_mode.status_rejected",
   noStepsPlaceholder: "plan_mode.no_steps_placeholder",
+  diffAdded: "plan_mode.diff_added",
+  diffRemoved: "plan_mode.diff_removed",
+  diffModified: "plan_mode.diff_modified",
+  stepDependenciesLabel: "plan_mode.step_dependencies_label",
+  stepToolLabel: "plan_mode.step_tool_label",
+  stepModelLabel: "plan_mode.step_model_label",
+  replanNotice: "plan_mode.replan_notice",
 };
