@@ -623,7 +623,7 @@ mod tests {
     // WHEN resolve_api_key() is called
     // THEN Err(LlmError::ApiKeyMissing { var: "APOLLIA_TEST_KEY_ABSENT_XYZ" }) is returned
     #[test]
-    fn test_ac2_resolve_api_key_missing() {
+    fn test_resolve_api_key_missing() {
         let config = ApiBackendConfig {
             name: "openai".into(),
             api_url: "https://api.openai.com/v1".into(),
@@ -643,7 +643,7 @@ mod tests {
     // WHEN resolve_api_key() is called
     // THEN Ok("sk-test-key") is returned
     #[test]
-    fn test_ac2_resolve_api_key_present() {
+    fn test_resolve_api_key_present() {
         // GIVEN: set env var for this test only
         // Safety: test isolation via unique key name
         std::env::set_var("APOLLIA_TEST_KEY_PRESENT_XYZ", "sk-test-key");
@@ -667,7 +667,7 @@ mod tests {
     // WHEN deserializing with toml::from_str
     // THEN the name and model fields are correct
     #[test]
-    fn test_ac1_api_backend_config_serde_toml() {
+    fn test_api_backend_config_serde_toml() {
         let toml_str = r#"
             name        = "openai"
             api_url     = "https://api.openai.com/v1"
@@ -688,7 +688,7 @@ mod tests {
     // WHEN estimate_cost_usd is called
     // THEN Some(value > 0.0) is returned
     #[test]
-    fn test_ac4_estimate_cost_usd_nonzero_for_known_model() {
+    fn test_estimate_cost_usd_nonzero_for_known_model() {
         let cost = estimate_cost_usd("gpt-4o-mini", 1000, 500);
 
         assert!(cost.is_some(), "cost_usd must be Some for gpt-4o-mini");
@@ -726,7 +726,7 @@ mod tests {
     // WHEN reading is_available(), backend_name(), model_id()
     // THEN the expected values are returned
     #[test]
-    fn test_ac1_client_new_is_available() {
+    fn test_client_new_is_available() {
         let config = ApiBackendConfig {
             name: "test-openai".into(),
             api_url: "https://api.openai.com/v1".into(),

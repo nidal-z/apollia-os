@@ -636,7 +636,7 @@ mod tests {
     // Tests: orchestrated plan events
 
     #[test]
-    fn test_ac1_plan_generated_converti() {
+    fn test_plan_generated_converti() {
         // GIVEN RuntimeEvent::PlanGenerated for task-001
         let event = RuntimeEvent::PlanGenerated {
             task_id: "task-001".into(),
@@ -657,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_step_started_converti() {
+    fn test_step_started_converti() {
         // GIVEN RuntimeEvent::StepStarted for task-001, step s1
         let event = RuntimeEvent::StepStarted {
             task_id: "task-001".into(),
@@ -681,7 +681,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_event_autre_task_filtre() {
+    fn test_event_autre_task_filtre() {
         // GIVEN RuntimeEvent::StepStarted for task-002 (a different task)
         let event = RuntimeEvent::StepStarted {
             task_id: "task-002".into(),
@@ -700,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_plan_failed_est_terminal() {
+    fn test_plan_failed_est_terminal() {
         // GIVEN RuntimeEvent::PlanFailed for task-001
         let event = RuntimeEvent::PlanFailed {
             task_id: "task-001".into(),

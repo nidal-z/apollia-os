@@ -432,7 +432,7 @@ mod tests {
     // ── Tests ────────────────────────────────────────────────────────────────────
 
     #[tokio::test]
-    async fn test_ac1_register_emet_event() {
+    async fn test_register_emet_event() {
         // GIVEN
         let (bus_tx, mut bus_rx) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
@@ -449,7 +449,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac2_transition_valide() {
+    async fn test_transition_valide() {
         // GIVEN
         let (bus_tx, mut bus_rx) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
@@ -466,7 +466,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac3_transition_invalide() {
+    async fn test_transition_invalide() {
         // GIVEN
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
@@ -491,7 +491,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_agent_inexistant() {
+    async fn test_agent_inexistant() {
         // GIVEN
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
@@ -504,7 +504,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac5_unregister_emet_event() {
+    async fn test_unregister_emet_event() {
         // GIVEN
         let (bus_tx, mut bus_rx) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);

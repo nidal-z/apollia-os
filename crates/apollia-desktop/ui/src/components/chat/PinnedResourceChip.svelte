@@ -1,5 +1,5 @@
 <!--
-  Removable chip for an MCP resource pinned to the next turn (ADR-092).
+  Removable chip for an MCP resource pinned to the next turn.
 
   Rendered above the textarea, alongside attachment chips. Clicking the ×
   unpins the resource. Mirrors AttachmentChip's structure and styling.

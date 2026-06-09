@@ -62,7 +62,7 @@ async fn collect_events(
 /// Événements attendus (7) :
 ///   AgentRegistered → AgentReady → AgentDegraded → AgentReady → AgentStopping → AgentStopped → AgentStopped
 #[tokio::test]
-async fn test_ac1_cycle_de_vie_complet() {
+async fn test_cycle_de_vie_complet() {
     // GIVEN
     let (bus_tx, mut bus_rx) = EventBus::new();
     let registry = AgentRegistry::spawn(bus_tx);
@@ -114,7 +114,7 @@ async fn test_ac1_cycle_de_vie_complet() {
 
 /// Plusieurs agents simultanés.
 #[tokio::test]
-async fn test_ac2_agents_simultanes() {
+async fn test_agents_simultanes() {
     // GIVEN
     let (bus_tx, mut bus_rx) = EventBus::new();
     let registry = AgentRegistry::spawn(bus_tx);
@@ -144,7 +144,7 @@ async fn test_ac2_agents_simultanes() {
 
 /// Transition invalide n'altère pas l'état.
 #[tokio::test]
-async fn test_ac3_transition_invalide_preserve_etat() {
+async fn test_transition_invalide_preserve_etat() {
     // GIVEN
     let (bus_tx, mut bus_rx) = EventBus::new();
     let registry = AgentRegistry::spawn(bus_tx);
@@ -182,7 +182,7 @@ async fn test_ac3_transition_invalide_preserve_etat() {
 
 /// Unregister d'un agent inconnu.
 #[tokio::test]
-async fn test_ac4_unregister_agent_inconnu() {
+async fn test_unregister_agent_inconnu() {
     // GIVEN
     let (bus_tx, _) = EventBus::new();
     let registry = AgentRegistry::spawn(bus_tx);

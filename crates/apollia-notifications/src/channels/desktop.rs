@@ -489,7 +489,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac6_send_is_nonblocking() {
+    async fn test_send_is_nonblocking() {
         // GIVEN a desktop channel with min_severity = Info and a task.failed notification
         let channel = DesktopChannel::new("desktop", true, None, Severity::Info);
         let notif = make_notif("task.failed", Some("t-test"), HashMap::new());
@@ -504,7 +504,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac6_send_hitl_is_nonblocking() {
+    async fn test_send_hitl_is_nonblocking() {
         // GIVEN a task.input_required notification (HITL)
         let channel = DesktopChannel::new("desktop", true, None, Severity::Info);
         let mut metadata = HashMap::new();

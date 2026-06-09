@@ -392,7 +392,7 @@ mod tests {
 
     // Open a private namespace (read/write)
     #[test]
-    fn test_ac1_open_primary_namespace() {
+    fn test_open_primary_namespace() {
         // GIVEN
         let base = temp_base_dir();
         let mut mgr = MemoryManager::new(&base, Some("crm-dupont".into()), vec![]);
@@ -405,7 +405,7 @@ mod tests {
 
     // Read a shared namespace (read-only)
     #[test]
-    fn test_ac2_read_shared_namespace() {
+    fn test_read_shared_namespace() {
         // GIVEN -- create the shared namespace DB first
         let base = temp_base_dir();
         let _ = MemoryStore::open(&base.join("shared.db")).expect("pre-create shared db");
@@ -419,7 +419,7 @@ mod tests {
 
     // Write refused on a shared namespace (access_level check)
     #[test]
-    fn test_ac3_write_to_shared_rejected() {
+    fn test_write_to_shared_rejected() {
         // GIVEN
         let base = temp_base_dir();
         let mgr = MemoryManager::new(&base, Some("private".into()), vec!["shared".into()]);
@@ -430,7 +430,7 @@ mod tests {
 
     // -- Acces refuse a un namespace non-declare
     #[test]
-    fn test_ac4_undeclared_namespace_rejected() {
+    fn test_undeclared_namespace_rejected() {
         // GIVEN
         let base = temp_base_dir();
         let mut mgr = MemoryManager::new(&base, Some("mine".into()), vec![]);
@@ -445,7 +445,7 @@ mod tests {
 
     // -- Stats d'un namespace
     #[test]
-    fn test_ac5_stats_returns_counts() {
+    fn test_stats_returns_counts() {
         // GIVEN
         let base = temp_base_dir();
         let mut mgr = MemoryManager::new(&base, Some("ns".into()), vec![]);
@@ -462,7 +462,7 @@ mod tests {
 
     // -- Agent sans memory_namespace (None)
     #[test]
-    fn test_ac6_no_namespace_returns_error() {
+    fn test_no_namespace_returns_error() {
         // GIVEN
         let base = temp_base_dir();
         let mut mgr = MemoryManager::new(&base, None, vec![]);

@@ -265,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_crud_complete() {
+    fn test_crud_complete() {
         // GIVEN an open repository
         let dir = TempDir::new().unwrap();
         let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
@@ -284,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_import_from_toml_idempotent_if_not_empty() {
+    fn test_import_from_toml_idempotent_if_not_empty() {
         // GIVEN a repository with one existing server
         let dir = TempDir::new().unwrap();
         let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
@@ -299,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_import_from_toml_populates_empty_table() {
+    fn test_import_from_toml_populates_empty_table() {
         // GIVEN an empty repository
         let dir = TempDir::new().unwrap();
         let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
@@ -315,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_set_enabled_persists() {
+    fn test_set_enabled_persists() {
         // GIVEN a server with enabled=true (default)
         let dir = TempDir::new().unwrap();
         let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
@@ -337,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_invalid_name_rejected() {
+    fn test_invalid_name_rejected() {
         // GIVEN a config whose name contains disallowed characters
         let dir = TempDir::new().unwrap();
         let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();

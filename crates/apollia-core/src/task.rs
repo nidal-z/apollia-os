@@ -127,7 +127,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn test_ac2_aip_task_multi_part_input() {
+    fn test_aip_task_multi_part_input() {
         // GIVEN
         let task = AIPTask {
             task_id: "550e8400-e29b-41d4-a716-446655440000".into(),

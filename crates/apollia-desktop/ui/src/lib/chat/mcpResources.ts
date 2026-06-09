@@ -1,5 +1,5 @@
 /**
- * MCP resource @-mention support for the chat input (ADR-092 user path).
+ * MCP resource @-mention support for the chat input (user path).
  *
  * The agent-initiative path lives in the runtime (`mcp_resources_list` /
  * `mcp_resources_read` tools). This module backs the complementary

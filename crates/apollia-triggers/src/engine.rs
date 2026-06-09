@@ -1256,7 +1256,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac1_start_empty_definitions() {
+    async fn test_start_empty_definitions() {
         // GIVEN an empty list of TriggerDefinition
         let (router, _) = MockTaskRouterHandle::new();
         // WHEN
@@ -1274,7 +1274,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac2_handle_event_queue_submits_task() {
+    async fn test_handle_event_queue_submits_task() {
         // GIVEN a trigger with OnBusyPolicy::Queue { max_depth: 10 } and a succeeding mock
         let def = make_definition("test-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
@@ -1299,7 +1299,7 @@ mod tests {
     // --- (OnBusyPolicy::Skip) --------------------------------------------
 
     #[tokio::test]
-    async fn test_ac3_drop_policy_skips_when_agent_busy() {
+    async fn test_drop_policy_skips_when_agent_busy() {
         // GIVEN a Drop trigger and a busy agent (pending_count = 1)
         let def = make_definition("busy-trigger", OnBusyPolicy::Skip);
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
@@ -1329,7 +1329,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_fire_now_returns_task_id() {
+    async fn test_fire_now_returns_task_id() {
         // GIVEN a registered trigger
         let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
@@ -1348,7 +1348,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_fire_now_unknown_id_returns_error() {
+    async fn test_fire_now_unknown_id_returns_error() {
         // GIVEN no registered trigger
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
@@ -1370,7 +1370,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac5_enable_disable_toggle() {
+    async fn test_enable_disable_toggle() {
         // GIVEN an active trigger
         let def = make_definition("factures", OnBusyPolicy::Skip);
         let (router, _) = MockTaskRouterHandle::new();
@@ -1397,7 +1397,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac6_submit_error_does_not_panic() {
+    async fn test_submit_error_does_not_panic() {
         // GIVEN a trigger that always fails submission
         let def = make_definition("failing-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new_always_fail();
@@ -1467,7 +1467,7 @@ mod tests {
 
     /// reload() replaces all existing definitions.
     #[tokio::test]
-    async fn test_ac1_reload_replaces_all_triggers() {
+    async fn test_reload_replaces_all_triggers() {
         // GIVEN an engine with 1 trigger
         let def1 = make_definition("trigger-1", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
@@ -1500,7 +1500,7 @@ mod tests {
 
     /// reload() emits RuntimeEvent::TriggersReloaded { count }.
     #[tokio::test]
-    async fn test_ac1_triggers_reloaded_event_emitted() {
+    async fn test_triggers_reloaded_event_emitted() {
         // GIVEN a bus with an active subscriber
         let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
         let (router, _) = MockTaskRouterHandle::new();
@@ -1534,7 +1534,7 @@ mod tests {
 
     /// Trigger with `agent` unaffected.
     #[tokio::test]
-    async fn test_ac5_agent_trigger_unaffected() {
+    async fn test_agent_trigger_unaffected() {
         // GIVEN an existing trigger with agent="hello-agent"
         let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();

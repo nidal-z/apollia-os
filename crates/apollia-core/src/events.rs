@@ -1485,7 +1485,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ac4_all_variants_exist_and_clone() {
+    fn test_all_variants_exist_and_clone() {
         // GIVEN / WHEN: instantiate each variant and clone it
         let variants: Vec<RuntimeEvent> = vec![
             RuntimeEvent::AgentRegistered("agent-1".into()),
@@ -2000,7 +2000,7 @@ mod tests {
     // ── JSON serialization ─────────────────────────────────────────
 
     #[test]
-    fn test_ac1_serialisation_plan_generated() {
+    fn test_serialisation_plan_generated() {
         // GIVEN
         let event = RuntimeEvent::PlanGenerated {
             task_id: "task-001".into(),
@@ -2016,7 +2016,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_serialisation_step_started() {
+    fn test_serialisation_step_started() {
         // GIVEN
         let event = RuntimeEvent::StepStarted {
             task_id: "task-001".into(),
@@ -2034,7 +2034,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_serialisation_step_failed() {
+    fn test_serialisation_step_failed() {
         // GIVEN
         let event = RuntimeEvent::StepFailed {
             task_id: "task-001".into(),
@@ -2052,7 +2052,7 @@ mod tests {
     // ── broadcast via EventBus ─────────────────────────────────────
 
     #[tokio::test]
-    async fn test_ac2_broadcast_plan_generated() {
+    async fn test_broadcast_plan_generated() {
         // GIVEN
         let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
         let event = RuntimeEvent::PlanGenerated {
@@ -2089,7 +2089,7 @@ mod tests {
     // ── round-trip deserialization ────────────────────────────────
 
     #[test]
-    fn test_ac3_round_trip_step_failed() {
+    fn test_round_trip_step_failed() {
         // GIVEN
         let original = RuntimeEvent::StepFailed {
             task_id: "task-001".into(),
@@ -2118,7 +2118,7 @@ mod pipeline_event_tests {
 
     /// Serialize / deserialize roundtrip of `PipelineStarted`.
     #[test]
-    fn test_ac2_pipeline_started_roundtrip() {
+    fn test_pipeline_started_roundtrip() {
         // GIVEN
         let event = RuntimeEvent::PipelineStarted {
             run_id: "r-0017".into(),

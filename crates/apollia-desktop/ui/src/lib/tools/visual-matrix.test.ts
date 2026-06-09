@@ -296,9 +296,9 @@ describe("visual matrix - i18n key resolution", () => {
   );
 });
 
-// ─── AC-3 - Real-time mode switch ────────────────────────────────────────────
+// ─── Real-time mode switch ────────────────────────────────────────────
 
-describe("visual matrix - mode switch (AC-3)", () => {
+describe("visual matrix - mode switch", () => {
   const NATIVE_TOOLS = [
     "file_read",
     "file_write",
@@ -359,9 +359,9 @@ describe("visual matrix - mode switch (AC-3)", () => {
   });
 });
 
-// ─── AC-4 - MCP tool display ─────────────────────────────────────────────────
+// ─── MCP tool display ─────────────────────────────────────────────────
 
-describe("visual matrix - MCP tool display (AC-4)", () => {
+describe("visual matrix - MCP tool display", () => {
   test("mcp:notion/create_page returns Plug icon", () => {
     // GIVEN the MCP tool mcp:notion/create_page
     // WHEN resolveToolDisplay is called
@@ -417,9 +417,9 @@ describe("visual matrix - MCP tool display (AC-4)", () => {
   });
 });
 
-// ─── AC-5 - Long path truncation ─────────────────────────────────────────────
+// ─── Long path truncation ─────────────────────────────────────────────
 
-describe("visual matrix - long path truncation (AC-5)", () => {
+describe("visual matrix - long path truncation", () => {
   const LONG_PATH = "very/long/nested/path/to/some/deeply/nested/file.rs";
 
   test("path exceeding 50 chars is truncated", () => {
@@ -457,9 +457,9 @@ describe("visual matrix - long path truncation (AC-5)", () => {
   });
 });
 
-// ─── AC-6 - FR translation quality ───────────────────────────────────────────
+// ─── FR translation quality ───────────────────────────────────────────
 
-describe("visual matrix - FR translation quality (AC-6)", () => {
+describe("visual matrix - FR translation quality", () => {
   const ALL_TOOLS: Array<[string, Record<string, unknown>]> = [
     ["file_read", { path: "src/main.rs" }],
     ["file_write", { path: "out.txt" }],

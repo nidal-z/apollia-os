@@ -693,7 +693,7 @@ mod tests {
     /// THEN Ok(ExecutionPlan) is returned with 2 steps
     ///   AND the mock was called exactly once
     #[tokio::test]
-    async fn test_ac1_plan_valide_depuis_mock_llm() {
+    async fn test_plan_valide_depuis_mock_llm() {
         // GIVEN
         let model = MockCompletionModel::sequence(vec![VALID_PLAN_2_STEPS]);
         let reasoner = Reasoner::new(model.clone(), 10);
@@ -717,7 +717,7 @@ mod tests {
     /// THEN Err(PlanParseError { attempts: 3 }) is returned
     ///   AND the mock was called exactly 3 times
     #[tokio::test]
-    async fn test_ac2_retry_3_fois_sur_json_invalide() {
+    async fn test_retry_3_fois_sur_json_invalide() {
         // GIVEN
         let model = MockCompletionModel::sequence(vec!["not json", "still not json", "nope"]);
         let reasoner = Reasoner::new(model.clone(), 10);
@@ -743,7 +743,7 @@ mod tests {
     /// WHEN reasoner.plan(&ctx).await is called
     /// THEN PlanParseError after 3 attempts
     #[tokio::test]
-    async fn test_ac3_cycle_detecte_et_retry() {
+    async fn test_cycle_detecte_et_retry() {
         // GIVEN
         let model = MockCompletionModel::sequence(vec![CYCLIC_PLAN, CYCLIC_PLAN, CYCLIC_PLAN]);
         let reasoner = Reasoner::new(model.clone(), 10);
@@ -769,7 +769,7 @@ mod tests {
     /// WHEN reasoner.plan(&ctx).await is called
     /// THEN Ok(ExecutionPlan) on the 2nd attempt
     #[tokio::test]
-    async fn test_ac3_cycle_puis_plan_valide() {
+    async fn test_cycle_puis_plan_valide() {
         // GIVEN
         let model = MockCompletionModel::sequence(vec![CYCLIC_PLAN, VALID_PLAN_2_STEPS]);
         let reasoner = Reasoner::new(model.clone(), 10);
@@ -789,7 +789,7 @@ mod tests {
     /// WHEN reasoner.replan(&ctx, &outputs, "s3", "timeout").await is called
     /// THEN Ok(ExecutionPlan) with the new steps
     #[tokio::test]
-    async fn test_ac5_replan_retourne_plan_valide() {
+    async fn test_replan_retourne_plan_valide() {
         // GIVEN
         let replacement_plan = r#"{"steps":[
             {"step_id":"s3b","description":"Retry step","depends_on":[]},
@@ -820,7 +820,7 @@ mod tests {
     /// WHEN parse_and_validate() is called
     /// THEN the JSON is parsed correctly
     #[test]
-    fn test_ac6_backticks_strippes() {
+    fn test_backticks_strippes() {
         // GIVEN
         let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
         let raw = "```json\n{\"steps\":[{\"step_id\":\"s1\",\"description\":\"d\",\"depends_on\":[]}]}\n```";

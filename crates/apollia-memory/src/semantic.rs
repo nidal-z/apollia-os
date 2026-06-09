@@ -531,7 +531,7 @@ mod tests {
 
     // remember stores entry and FTS index
     #[test]
-    fn test_ac1_remember_stores_entry_and_fts() {
+    fn test_remember_stores_entry_and_fts() {
         // GIVEN
         let (store, _) = setup();
         let sem = SemanticMemory::new(&store);
@@ -561,7 +561,7 @@ mod tests {
 
     // recall existing key
     #[test]
-    fn test_ac2_recall_existing_key() {
+    fn test_recall_existing_key() {
         // GIVEN
         let (store, _) = setup();
         let sem = SemanticMemory::new(&store);
@@ -585,7 +585,7 @@ mod tests {
 
     // upsert updates value
     #[test]
-    fn test_ac3_upsert_updates_value() {
+    fn test_upsert_updates_value() {
         // GIVEN
         let (store, _) = setup();
         let sem = SemanticMemory::new(&store);
@@ -616,7 +616,7 @@ mod tests {
 
     // upsert updates FTS entry
     #[test]
-    fn test_ac3_upsert_updates_fts() {
+    fn test_upsert_updates_fts() {
         // GIVEN
         let (store, _) = setup();
         let sem = SemanticMemory::new(&store);
@@ -654,7 +654,7 @@ mod tests {
 
     // forget removes entry and FTS
     #[test]
-    fn test_ac4_forget_removes_entry() {
+    fn test_forget_removes_entry() {
         // GIVEN
         let (store, _) = setup();
         let sem = SemanticMemory::new(&store);
@@ -687,7 +687,7 @@ mod tests {
 
     // recall nonexistent returns None
     #[test]
-    fn test_ac5_recall_nonexistent_returns_none() {
+    fn test_recall_nonexistent_returns_none() {
         // GIVEN
         let (store, _) = setup();
         let sem = SemanticMemory::new(&store);
@@ -697,7 +697,7 @@ mod tests {
 
     // forget nonexistent returns false
     #[test]
-    fn test_ac6_forget_nonexistent_returns_false() {
+    fn test_forget_nonexistent_returns_false() {
         // GIVEN
         let (store, _) = setup();
         let sem = SemanticMemory::new(&store);

@@ -350,7 +350,7 @@ mod tests {
 
     // build_channels returns a DesktopChannel when desktop enabled=true
     #[test]
-    fn test_ac1_build_channels_desktop_enabled() {
+    fn test_build_channels_desktop_enabled() {
         // GIVEN config with desktop enabled=true
         let configs = vec![ChannelConfig {
             id: "desktop".into(),
@@ -374,7 +374,7 @@ mod tests {
 
     // build_channels ignores channels with enabled=false
     #[test]
-    fn test_ac3_build_channels_disabled_skipped() {
+    fn test_build_channels_disabled_skipped() {
         // GIVEN config with webhook enabled=false
         let configs = vec![ChannelConfig {
             id: "slack".into(),
@@ -397,7 +397,7 @@ mod tests {
 
     // build_channels returns an error if webhook has no url
     #[test]
-    fn test_ac5_build_channels_webhook_no_url_returns_error() {
+    fn test_build_channels_webhook_no_url_returns_error() {
         // GIVEN config type="webhook" without a url field
         let configs = vec![ChannelConfig {
             id: "monitoring".into(),

@@ -980,7 +980,7 @@ mod tests {
     // WHEN parse_response() is called
     // THEN finish_reason == Stop, content == extracted text, correct tokens
     #[test]
-    fn test_ac2_parse_end_turn_response() {
+    fn test_parse_end_turn_response() {
         let json = json!({
             "content": [{"type": "text", "text": "Bonjour !"}],
             "stop_reason": "end_turn",
@@ -1001,7 +1001,7 @@ mod tests {
     // WHEN parse_response() is called
     // THEN finish_reason == ToolCalls, tool_calls[0] has correct id and name
     #[test]
-    fn test_ac3_parse_tool_use_response() {
+    fn test_parse_tool_use_response() {
         let json = json!({
             "content": [
                 {"type": "tool_use", "id": "toolu_01", "name": "file_io",
@@ -1038,7 +1038,7 @@ mod tests {
     // WHEN AnthropicClient::new() is called
     // THEN the client is built without panicking and backend_name() returns config.name
     #[test]
-    fn test_ac1_new_does_not_panic() {
+    fn test_new_does_not_panic() {
         std::env::set_var("APOLLIA_ANT_TEST_KEY", "sk-ant-test");
         let config = ApiBackendConfig {
             name: "anthropic".into(),

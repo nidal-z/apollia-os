@@ -952,7 +952,7 @@ mod tests {
 
     // -- inspect existing namespace returns Ok
     #[test]
-    fn test_ac1_inspect_existing_namespace() {
+    fn test_inspect_existing_namespace() {
         // GIVEN
         let dir = temp_dir();
         setup_test_db(&dir, "test-ns");
@@ -969,7 +969,7 @@ mod tests {
 
     // -- JSON output is valid and has expected fields
     #[test]
-    fn test_ac2_inspect_json_output() {
+    fn test_inspect_json_output() {
         // GIVEN
         let dir = temp_dir();
         setup_test_db(&dir, "test-ns");
@@ -988,7 +988,7 @@ mod tests {
 
     // -- nonexistent namespace returns error
     #[test]
-    fn test_ac3_nonexistent_namespace_error() {
+    fn test_nonexistent_namespace_error() {
         // GIVEN
         let dir = temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
@@ -1004,7 +1004,7 @@ mod tests {
 
     // -- custom data_dir works
     #[test]
-    fn test_ac4_custom_data_dir() {
+    fn test_custom_data_dir() {
         // GIVEN
         let dir = temp_dir();
         setup_test_db(&dir, "my-ns");

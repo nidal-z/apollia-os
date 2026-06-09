@@ -192,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_tool_descriptor_serialization_roundtrip() {
+    fn test_tool_descriptor_serialization_roundtrip() {
         // GIVEN
         let descriptor = make_valid_descriptor();
         // WHEN
@@ -205,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_mcp_server_transport_variants() {
+    fn test_mcp_server_transport_variants() {
         // GIVEN / WHEN
         let transports = [
             McpTransport::Stdio,
@@ -225,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_full_profile_without_dangerous_flag_fails_validation() {
+    fn test_full_profile_without_dangerous_flag_fails_validation() {
         // GIVEN
         let mut descriptor = make_valid_descriptor();
         descriptor.sandbox_profile = SandboxProfile::Full;
@@ -240,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_empty_name_fails_validation() {
+    fn test_empty_name_fails_validation() {
         // GIVEN
         let mut descriptor = make_valid_descriptor();
         descriptor.name = "".to_string();
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_null_input_schema_fails_validation() {
+    fn test_null_input_schema_fails_validation() {
         // GIVEN
         let mut descriptor = make_valid_descriptor();
         descriptor.input_schema = serde_json::Value::Null;

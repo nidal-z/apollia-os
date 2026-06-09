@@ -364,7 +364,7 @@ mod tests {
     const DEFAULT_BASE_URL: &str = "http://127.0.0.1:7771";
 
     #[test]
-    fn test_ac1_map_event_task_input_required() {
+    fn test_map_event_task_input_required() {
         // GIVEN
         let event = RuntimeEvent::TaskInputRequired {
             task_id: TaskId::from("t-001"),
@@ -384,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_map_event_task_failed() {
+    fn test_map_event_task_failed() {
         // GIVEN TaskCompleted with success=false represents a failure
         let event = RuntimeEvent::TaskCompleted {
             agent_id: AgentId::from("devis-agent"),
@@ -402,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_map_event_agent_degraded() {
+    fn test_map_event_agent_degraded() {
         // GIVEN
         let event = RuntimeEvent::AgentDegraded {
             agent_id: AgentId::from("mon-agent"),
@@ -419,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_map_event_task_completed() {
+    fn test_map_event_task_completed() {
         // GIVEN
         let event = RuntimeEvent::TaskCompleted {
             agent_id: AgentId::from("hello-agent"),
@@ -436,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_map_event_llm_model_failed() {
+    fn test_map_event_llm_model_failed() {
         // GIVEN
         let event = RuntimeEvent::LlmModelFailed {
             backend: "anthropic".into(),
@@ -454,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_map_event_trigger_error() {
+    fn test_map_event_trigger_error() {
         // GIVEN
         let event = RuntimeEvent::TriggerError {
             trigger_id: "rapport-hebdo".into(),
@@ -472,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_map_event_unknown_returns_none() {
+    fn test_map_event_unknown_returns_none() {
         // GIVEN TaskStarted is not in the list of notifiable events
         let event = RuntimeEvent::TaskStarted {
             agent_id: AgentId::from("agent-1"),
@@ -485,7 +485,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_agent_registered_returns_none() {
+    fn test_agent_registered_returns_none() {
         // GIVEN
         let event = RuntimeEvent::AgentRegistered("agent-1".into());
         // WHEN / THEN
@@ -493,7 +493,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_all_ready_returns_none() {
+    fn test_all_ready_returns_none() {
         // GIVEN
         let event = RuntimeEvent::AllReady;
         // WHEN / THEN
@@ -503,7 +503,7 @@ mod tests {
     // --- Pipeline notifications ------------------------------------------
 
     #[test]
-    fn test_ac1_pipeline_completed_maps_to_info_notification() {
+    fn test_pipeline_completed_maps_to_info_notification() {
         // GIVEN
         let event = RuntimeEvent::PipelineCompleted {
             run_id: "r-0017".into(),
@@ -528,7 +528,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_pipeline_failed_maps_to_warning_notification() {
+    fn test_pipeline_failed_maps_to_warning_notification() {
         // GIVEN
         let event = RuntimeEvent::PipelineFailed {
             run_id: "r-0016".into(),
@@ -550,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_pipeline_suspended_maps_to_warning_with_resume_metadata() {
+    fn test_pipeline_suspended_maps_to_warning_with_resume_metadata() {
         // GIVEN
         let event = RuntimeEvent::PipelineSuspended {
             run_id: "r-0018".into(),
@@ -657,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_agent_ready_unchanged() {
+    fn test_agent_ready_unchanged() {
         // GIVEN a non-pipeline event: behavior unchanged (no regression)
         let event = RuntimeEvent::AgentReady("agent-1".into());
         // WHEN / THEN no notification, no panic

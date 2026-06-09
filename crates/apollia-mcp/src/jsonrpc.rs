@@ -102,7 +102,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn test_ac1_request_serialization_conforms_to_jsonrpc() {
+    fn test_request_serialization_conforms_to_jsonrpc() {
         // GIVEN
         let request = JsonRpcRequest::new(1, "initialize", Some(json!({})));
         // WHEN
@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_request_without_params_omits_field() {
+    fn test_request_without_params_omits_field() {
         // GIVEN
         let request = JsonRpcRequest::new(1, "tools/list", None);
         // WHEN
@@ -127,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_response_with_result() {
+    fn test_response_with_result() {
         // GIVEN
         let json_str = r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}"#;
         // WHEN
@@ -139,7 +139,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_response_with_error() {
+    fn test_response_with_error() {
         // GIVEN
         let json_str =
             r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid Request"}}"#;
@@ -152,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_notification_has_no_id() {
+    fn test_notification_has_no_id() {
         // GIVEN
         let notification = JsonRpcNotification::new("notifications/initialized", None);
         // WHEN
@@ -165,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_request_roundtrip_via_raw_json() {
+    fn test_request_roundtrip_via_raw_json() {
         // GIVEN
         let request = JsonRpcRequest::new(42, "tools/call", Some(json!({"name": "test"})));
         // WHEN

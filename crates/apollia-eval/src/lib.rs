@@ -1,4 +1,4 @@
-//! Sovereign agent evaluation harness for Apollia (ADR-032).
+//! Sovereign agent evaluation harness for Apollia.
 //!
 //! `apollia-eval` measures agent performance locally and reproducibly. A suite
 //! is a declarative TOML document describing tasks, the number of runs per task,

@@ -1466,10 +1466,10 @@ mod tests {
     use crate::mcp::registry_client::RegistryServer;
     use crate::mcp::secret_store::SecretStore;
 
-    // ── AC-4 : RegistryServerView flattens RegistryServer correctly ──────────
+    // ── RegistryServerView flattens RegistryServer correctly ──────────
 
     #[test]
-    fn test_ac4_registry_server_view_from_maps_all_fields() {
+    fn test_registry_server_view_from_maps_all_fields() {
         // GIVEN a RegistryServer with nested server detail
         let raw = serde_json::json!({
             "server": {
@@ -1498,7 +1498,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_registry_server_view_from_sqlite() {
+    fn test_registry_server_view_from_sqlite() {
         // GIVEN a RegistryServer for a server without website or packages
         let raw = serde_json::json!({
             "server": {
@@ -1525,10 +1525,10 @@ mod tests {
         assert!(view.icons.is_none());
     }
 
-    // ── AC-5 : store_mcp_secret uses the correct composite key ───────────────
+    // ── store_mcp_secret uses the correct composite key ───────────────
 
     #[test]
-    fn test_ac5_store_secret_delegates_to_secret_store() {
+    fn test_store_secret_delegates_to_secret_store() {
         // GIVEN a server name and env var name
         // WHEN the composite key is generated (as done inside store_mcp_secret)
         let key = SecretStore::key_for("notion", "NOTION_API_KEY");
@@ -1536,10 +1536,10 @@ mod tests {
         assert_eq!(key, "notion:NOTION_API_KEY");
     }
 
-    // ── AC-5 : delete_mcp_secret uses the correct composite key ──────────────
+    // ── delete_mcp_secret uses the correct composite key ──────────────
 
     #[test]
-    fn test_ac5_delete_secret_delegates_to_secret_store() {
+    fn test_delete_secret_delegates_to_secret_store() {
         // GIVEN a server name and env var name
         // WHEN the composite key is generated (as done inside delete_mcp_secret)
         let key = SecretStore::key_for("slack", "SLACK_BOT_TOKEN");

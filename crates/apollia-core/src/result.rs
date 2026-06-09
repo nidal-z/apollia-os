@@ -205,7 +205,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ac3_result_failed_round_trip() {
+    fn test_result_failed_round_trip() {
         // GIVEN
         let result = AIPResult {
             task_id: "task-123".into(),

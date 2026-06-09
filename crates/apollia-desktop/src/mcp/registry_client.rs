@@ -593,10 +593,10 @@ mod tests {
         })
     }
 
-    // ── AC-1 : fetch all servers (single-page fast-path) ─────────────────────
+    // ── fetch all servers (single-page fast-path) ─────────────────────
 
     #[tokio::test]
-    async fn test_ac1_fetch_servers_returns_list() {
+    async fn test_fetch_servers_returns_list() {
         // GIVEN a mock server returning two servers on a single page
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -620,10 +620,10 @@ mod tests {
         assert_eq!(servers[1].server.name, "server-b");
     }
 
-    // ── AC-2 : keyword search forwarded to registry ───────────────────────────
+    // ── keyword search forwarded to registry ───────────────────────────
 
     #[tokio::test]
-    async fn test_ac2_fetch_servers_with_search_filter() {
+    async fn test_fetch_servers_with_search_filter() {
         // GIVEN a mock server that only responds to requests with search=notion
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -646,10 +646,10 @@ mod tests {
         assert_eq!(servers[0].server.name, "notion-server");
     }
 
-    // ── AC-3 : successful fetch updates the cache file ────────────────────────
+    // ── successful fetch updates the cache file ────────────────────────
 
     #[tokio::test]
-    async fn test_ac3_write_cache_creates_file() {
+    async fn test_write_cache_creates_file() {
         // GIVEN a successful fetch
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -673,10 +673,10 @@ mod tests {
         assert_eq!(parsed[0].server.name, "cached-server");
     }
 
-    // ── AC-4 : offline fallback returns cached data ───────────────────────────
+    // ── offline fallback returns cached data ───────────────────────────
 
     #[tokio::test]
-    async fn test_ac4_offline_returns_cache() {
+    async fn test_offline_returns_cache() {
         // GIVEN a cache file with known data
         let tmp = TempDir::new().unwrap();
         let cached_servers = vec![make_server_json("cached-offline")];
@@ -694,10 +694,10 @@ mod tests {
         assert_eq!(servers[0].server.name, "cached-offline");
     }
 
-    // ── AC-5 : offline with no cache returns Offline error ───────────────────
+    // ── offline with no cache returns Offline error ───────────────────
 
     #[tokio::test]
-    async fn test_ac5_offline_no_cache_returns_error() {
+    async fn test_offline_no_cache_returns_error() {
         // GIVEN an unreachable registry and no cache file
         let tmp = TempDir::new().unwrap();
         let client = McpRegistryClient::with_base_url(tmp.path(), "http://127.0.0.1:1").unwrap();
@@ -709,10 +709,10 @@ mod tests {
         assert!(matches!(result, Err(RegistryClientError::Offline)));
     }
 
-    // ── AC-6 : pagination follows nextCursor until exhausted ─────────────────
+    // ── pagination follows nextCursor until exhausted ─────────────────
 
     #[tokio::test]
-    async fn test_ac6_pagination_follows_next_cursor() {
+    async fn test_pagination_follows_next_cursor() {
         // GIVEN a mock server returning page-1 with a cursor, then page-2 without
         let mock_server = MockServer::start().await;
 

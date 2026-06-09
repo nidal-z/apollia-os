@@ -320,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_learn_new_procedure() {
+    fn test_learn_new_procedure() {
         // GIVEN
         let (store, _) = setup();
         let proc = ProceduralMemory::new(&store);
@@ -337,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_recall_existing_procedure() {
+    fn test_recall_existing_procedure() {
         // GIVEN
         let (store, _) = setup();
         let proc = ProceduralMemory::new(&store);
@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_learn_again_increments_count() {
+    fn test_learn_again_increments_count() {
         // GIVEN
         let (store, _) = setup();
         let proc = ProceduralMemory::new(&store);
@@ -373,7 +373,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_recall_nonexistent_returns_none() {
+    fn test_recall_nonexistent_returns_none() {
         // GIVEN
         let (store, _) = setup();
         let proc = ProceduralMemory::new(&store);
@@ -382,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_list_sorted_by_success_count() {
+    fn test_list_sorted_by_success_count() {
         // GIVEN
         let (store, _) = setup();
         let proc = ProceduralMemory::new(&store);

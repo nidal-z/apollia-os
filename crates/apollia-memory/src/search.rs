@@ -348,7 +348,7 @@ mod tests {
 
     // Search returns BM25-ranked results
     #[test]
-    fn test_ac1_search_returns_bm25_ranked_results() {
+    fn test_search_returns_bm25_ranked_results() {
         // GIVEN
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
@@ -372,7 +372,7 @@ mod tests {
 
     // Filter by episodic source only
     #[test]
-    fn test_ac2_filter_by_episodic_source() {
+    fn test_filter_by_episodic_source() {
         // GIVEN
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
@@ -395,7 +395,7 @@ mod tests {
 
     // Filter by semantic source only
     #[test]
-    fn test_ac2_filter_by_semantic_source() {
+    fn test_filter_by_semantic_source() {
         // GIVEN
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
@@ -418,7 +418,7 @@ mod tests {
 
     // Filter by minimum importance
     #[test]
-    fn test_ac3_filter_by_min_importance() {
+    fn test_filter_by_min_importance() {
         // GIVEN
         let store = setup_with_data();
         let search = MemorySearch::new(&store);
@@ -443,7 +443,7 @@ mod tests {
 
     // Unicode61 normalises accents
     #[test]
-    fn test_ac4_unicode61_accent_normalization() {
+    fn test_unicode61_accent_normalization() {
         // GIVEN
         let dir = std::env::temp_dir().join(format!("apollia_s_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -476,7 +476,7 @@ mod tests {
 
     // No results returns empty vec
     #[test]
-    fn test_ac5_no_results_returns_empty_vec() {
+    fn test_no_results_returns_empty_vec() {
         // GIVEN
         let store = setup_with_data();
         let search = MemorySearch::new(&store);

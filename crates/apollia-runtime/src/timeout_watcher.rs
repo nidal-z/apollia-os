@@ -229,7 +229,7 @@ mod tests {
     // Expired task is cancelled and two events are emitted.
 
     #[tokio::test]
-    async fn test_ac1_expired_task_is_cancelled() {
+    async fn test_expired_task_is_cancelled() {
         // GIVEN an input_required task that is 25h old
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-tw-001";
@@ -282,7 +282,7 @@ mod tests {
     // Recent task (30 min) is not cancelled.
 
     #[tokio::test]
-    async fn test_ac2_recent_task_not_cancelled() {
+    async fn test_recent_task_not_cancelled() {
         // GIVEN an input_required task only 30 min old
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-tw-002";
@@ -318,7 +318,7 @@ mod tests {
     // Configurable timeout: 2h, task 3h old, gets cancelled.
 
     #[tokio::test]
-    async fn test_ac3_custom_timeout_2h() {
+    async fn test_custom_timeout_2h() {
         // GIVEN an input_required task 3h old + config timeout=2h
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-tw-003";
@@ -352,7 +352,7 @@ mod tests {
     // DB error returns Err, no panic.
 
     #[tokio::test]
-    async fn test_ac5_db_error_does_not_crash() {
+    async fn test_db_error_does_not_crash() {
         // GIVEN a TaskRepository whose DB file is corrupted
         let (repo, db_path) = open_test_repo().await;
 
@@ -382,7 +382,7 @@ mod tests {
     // No timeout configured: no-op, expired task not cancelled.
 
     #[tokio::test]
-    async fn test_ac6_no_global_timeout_is_noop() {
+    async fn test_no_global_timeout_is_noop() {
         // GIVEN an input_required task 100h old + config with no global timeout
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-tw-006";

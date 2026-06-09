@@ -449,7 +449,7 @@ mod tests {
 
     /// LLM answers directly with no tool call.
     #[tokio::test]
-    async fn test_ac1_stop_immediately_no_tool_call() {
+    async fn test_stop_immediately_no_tool_call() {
         // GIVEN
         let model = Arc::new(MockStopModel::new("réponse finale"));
         let invoker = Arc::new(MockToolInvoker::new());
@@ -472,7 +472,7 @@ mod tests {
 
     /// ReAct loop: LLM calls 1 tool then answers.
     #[tokio::test]
-    async fn test_ac2_one_tool_call_then_stop() {
+    async fn test_one_tool_call_then_stop() {
         // GIVEN
         let model = Arc::new(MockReActModel::new(
             vec![ToolCall {
@@ -506,7 +506,7 @@ mod tests {
 
     /// `max_iterations` guardrail enforced.
     #[tokio::test]
-    async fn test_ac3_max_iterations_reached() {
+    async fn test_max_iterations_reached() {
         // GIVEN: the LLM always returns ToolCalls
         let model = Arc::new(MockInfiniteToolCallModel);
         let invoker = Arc::new(MockToolInvoker::new());
@@ -526,7 +526,7 @@ mod tests {
 
     /// `StepBudget` guardrail enforced: no LLM call if the budget is exhausted.
     #[tokio::test]
-    async fn test_ac4_budget_exhausted_stops_immediately() {
+    async fn test_budget_exhausted_stops_immediately() {
         // GIVEN
         let model = Arc::new(MockStopModel::new("should not be reached"));
         let invoker = Arc::new(MockToolInvoker::new());
@@ -543,7 +543,7 @@ mod tests {
 
     /// Tool error absorbed as text, the loop continues.
     #[tokio::test]
-    async fn test_ac5_tool_error_absorbed_as_text() {
+    async fn test_tool_error_absorbed_as_text() {
         // GIVEN: the ToolInvoker always returns an error
         let model = Arc::new(MockReActModel::new(
             vec![ToolCall {
@@ -566,7 +566,7 @@ mod tests {
         assert_eq!(result.unwrap(), "réponse malgré erreur");
     }
 
-    // ── GBNF grammar wiring (STORY-555) ───────────────────────────────────
+    // ── GBNF grammar wiring ───────────────────────────────────
 
     /// Mock that captures every `CompletionRequest` it receives and reports a
     /// configurable `is_local`.
@@ -629,7 +629,7 @@ mod tests {
         }]
     }
 
-    /// AC-1 + AC-5: local backend with tools injects a non-empty grammar that
+    /// local backend with tools injects a non-empty grammar that
     /// names the tool and its property.
     #[tokio::test]
     async fn test_local_backend_with_tools_injects_grammar() {
@@ -659,7 +659,7 @@ mod tests {
         assert!(gbnf.contains("query"), "tool property absent from grammar");
     }
 
-    /// AC-2: cloud backend leaves the grammar None.
+    /// cloud backend leaves the grammar None.
     #[tokio::test]
     async fn test_cloud_backend_grammar_stays_none() {
         // GIVEN a cloud backend and a non-empty tool set
@@ -686,7 +686,7 @@ mod tests {
         );
     }
 
-    /// AC-3: empty tool set leaves the grammar None even on a local backend.
+    /// empty tool set leaves the grammar None even on a local backend.
     #[tokio::test]
     async fn test_no_tools_grammar_is_none() {
         // GIVEN a local backend and an empty tool set

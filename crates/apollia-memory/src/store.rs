@@ -367,7 +367,7 @@ mod tests {
 
     // All tables created on fresh open
     #[test]
-    fn test_ac1_schema_created_on_open() {
+    fn test_schema_created_on_open() {
         // GIVEN
         let path = temp_db_path();
         // WHEN
@@ -389,7 +389,7 @@ mod tests {
 
     // WAL mode is active
     #[test]
-    fn test_ac1_wal_mode_active() {
+    fn test_wal_mode_active() {
         // GIVEN
         let path = temp_db_path();
         let store = MemoryStore::open(&path).unwrap();
@@ -404,7 +404,7 @@ mod tests {
 
     // FTS5 with unicode61 tokenizer works
     #[test]
-    fn test_ac2_fts5_unicode61_works() {
+    fn test_fts5_unicode61_works() {
         // GIVEN
         let path = temp_db_path();
         let store = MemoryStore::open(&path).unwrap();
@@ -430,7 +430,7 @@ mod tests {
 
     // Reopen existing DB without re-migration
     #[test]
-    fn test_ac3_reopen_existing_db() {
+    fn test_reopen_existing_db() {
         // GIVEN
         let path = temp_db_path();
         let _ = MemoryStore::open(&path).unwrap();
@@ -442,7 +442,7 @@ mod tests {
 
     // Invalid path returns error
     #[test]
-    fn test_ac4_invalid_path_returns_error() {
+    fn test_invalid_path_returns_error() {
         // GIVEN
         let path = PathBuf::from("/nonexistent/dir/that/does/not/exist/memory.db");
         // WHEN
@@ -453,7 +453,7 @@ mod tests {
 
     // schema_version() returns current version
     #[test]
-    fn test_ac5_schema_version_returns_current() {
+    fn test_schema_version_returns_current() {
         // GIVEN
         let path = temp_db_path();
         let store = MemoryStore::open(&path).unwrap();

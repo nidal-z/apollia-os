@@ -452,7 +452,7 @@ mod tests {
     // --- disabled channel ------------------------------------------------
 
     #[test]
-    fn test_ac5_disabled_channel_accepts_false() {
+    fn test_disabled_channel_accepts_false() {
         // GIVEN a webhook channel configured with enabled=false
         let channel = WebhookChannel::new(WebhookChannelConfig {
             id: "slack".into(),
@@ -469,7 +469,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_enabled_channel_accepts_matching_event() {
+    fn test_enabled_channel_accepts_matching_event() {
         // GIVEN an enabled channel without its own list, delegating to the global list
         let channel = make_channel_url("http://example.com");
         let config = make_config(vec!["task.input_required", "task.failed"]);
@@ -482,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_channel_with_per_channel_events_subset() {
+    fn test_channel_with_per_channel_events_subset() {
         // GIVEN a channel with an explicit subset of events
         let channel = WebhookChannel::new(WebhookChannelConfig {
             id: "slack".into(),
@@ -539,7 +539,7 @@ mod tests {
     // --- JSON payload structure ------------------------------------------
 
     #[test]
-    fn test_ac1_payload_json_structure_task_input_required() {
+    fn test_payload_json_structure_task_input_required() {
         // GIVEN a task.input_required Notification
         let notif = make_notif("task.input_required", Some("t-0042"), Severity::Warning);
 
@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_payload_task_failed_severity_error() {
+    fn test_payload_task_failed_severity_error() {
         // GIVEN a task.failed notification
         let notif = make_notif("task.failed", Some("t-001"), Severity::Error);
 
@@ -586,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_payload_null_fields_when_no_task_id() {
+    fn test_payload_null_fields_when_no_task_id() {
         // GIVEN a notification without task_id (e.g. agent.degraded)
         let notif = Notification {
             event: "agent.degraded".into(),
@@ -725,7 +725,7 @@ mod tests {
     // --- timeout -> NotifError::WebhookFailed ----------------------------
 
     #[tokio::test]
-    async fn test_ac3_webhook_timeout_returns_error() {
+    async fn test_webhook_timeout_returns_error() {
         // GIVEN a TCP server that accepts the connection but never responds
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -774,7 +774,7 @@ mod tests {
     // --- HTTP 500 response -> NotifError::WebhookFailed ------------------
 
     #[tokio::test]
-    async fn test_ac4_webhook_500_returns_error() {
+    async fn test_webhook_500_returns_error() {
         // GIVEN a minimal HTTP server that responds 500
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -821,7 +821,7 @@ mod tests {
     // --- correct headers sent --------------------------------------------
 
     #[tokio::test]
-    async fn test_ac2_headers_sent_correctly() {
+    async fn test_headers_sent_correctly() {
         // GIVEN an HTTP server that captures the raw request
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

@@ -961,7 +961,7 @@ mod tests {
     // WHEN truncate_output is called
     // THEN the output is truncated to 120 chars + "..."
     #[test]
-    fn test_ac5_output_tronque() {
+    fn test_output_tronque() {
         // GIVEN
         let long_output = "x".repeat(200);
 
@@ -977,7 +977,7 @@ mod tests {
     // WHEN truncate_output is called
     // THEN the output is not truncated
     #[test]
-    fn test_ac5_output_non_tronque_si_exact_120() {
+    fn test_output_non_tronque_si_exact_120() {
         // GIVEN
         let exact = "y".repeat(120);
 
@@ -1033,7 +1033,7 @@ mod tests {
     // WHEN build_resume_body is called
     // THEN body = { "approved": true } without "reason"
     #[test]
-    fn test_ac2_resume_approve_body() {
+    fn test_resume_approve_body() {
         // GIVEN
         // WHEN
         let body = build_resume_body(true, None);
@@ -1048,7 +1048,7 @@ mod tests {
     // WHEN build_resume_body is called
     // THEN body = { "approved": false, "reason": "Budget" }
     #[test]
-    fn test_ac3_resume_reject_with_reason_body() {
+    fn test_resume_reject_with_reason_body() {
         // GIVEN
         // WHEN
         let body = build_resume_body(false, Some("Budget"));
@@ -1063,7 +1063,7 @@ mod tests {
     // WHEN build_pending_json is called
     // THEN JSON array with task_id, agent, waiting_since_secs, prompt, step_id
     #[test]
-    fn test_ac5_pending_approval_json_output_structure() {
+    fn test_pending_approval_json_output_structure() {
         // GIVEN a timestamp in the past so waiting_since_secs > 0
         let tasks = vec![
             serde_json::json!({
@@ -1107,7 +1107,7 @@ mod tests {
     // WHEN clap parses
     // THEN group conflict error (parse error)
     #[test]
-    fn test_ac6_approve_and_reject_mutually_exclusive() {
+    fn test_approve_and_reject_mutually_exclusive() {
         // GIVEN
         // WHEN
         let result = TestApp::try_parse_from(["app", "resume", "t-0042", "--approve", "--reject"]);

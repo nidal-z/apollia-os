@@ -90,7 +90,6 @@ mod tests {
     use super::*;
     use crate::test_support::router_replying;
 
-    // AC-1
     #[tokio::test]
     async fn test_judge_pass_when_model_says_pass() {
         // GIVEN a router whose backend replies "PASS"
@@ -103,7 +102,7 @@ mod tests {
         assert_eq!(verdict, JudgeVerdict::Pass);
     }
 
-    // AC-2 (failure case)
+    // (failure case)
     #[tokio::test]
     async fn test_judge_fail_carries_the_reason() {
         // GIVEN a router whose backend replies "FAIL: <reason>"
@@ -119,7 +118,7 @@ mod tests {
         );
     }
 
-    // AC-3 (no backend -> skipped, non-blocking)
+    // (no backend -> skipped, non-blocking)
     #[tokio::test]
     async fn test_judge_skipped_when_no_backend() {
         // GIVEN an empty router with no backend

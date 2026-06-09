@@ -1229,7 +1229,7 @@ mod tests {
     /// WHEN execute_direct() receives that result
     /// THEN RuntimeEvent::TaskInputRequired is emitted on the EventBus
     #[tokio::test]
-    async fn test_ac1_input_required_emits_event() {
+    async fn test_input_required_emits_event() {
         // GIVEN
         let (tx, mut rx) = tokio::sync::broadcast::channel::<apollia_core::RuntimeEvent>(16);
         let pending = Arc::new(PendingApprovals::new());
@@ -1294,7 +1294,7 @@ mod tests {
     /// WHEN PendingApprovals.resolve(approved=true)
     /// THEN execute_direct() unblocks and calls run() again with is_resumed=true
     #[tokio::test]
-    async fn test_ac2_approve_resumes_and_recalls_run() {
+    async fn test_approve_resumes_and_recalls_run() {
         // GIVEN
         let pending = Arc::new(PendingApprovals::new());
         let engine = ORIAEngine::new().with_pending_approvals(pending.clone());

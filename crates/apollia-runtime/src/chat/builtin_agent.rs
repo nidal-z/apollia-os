@@ -4014,7 +4014,7 @@ mod tests {
         assert!(prompt.contains("apollia"));
     }
 
-    // Story 550 AC-4: with a populated repo, a tier whose `inject_memory` is
+    // with a populated repo, a tier whose `inject_memory` is
     // false must NOT inject the persona block, while a tier with it true must.
     #[tokio::test]
     async fn test_inject_memory_flag_gates_persona_block() {
@@ -4047,7 +4047,7 @@ mod tests {
         assert!(with.contains("francais"));
     }
 
-    // Story 550 AC-1/AC-2: the effective budget is the tier budget capped by the
+    // the effective budget is the tier budget capped by the
     // runtime ceiling, never above it.
     #[test]
     fn test_from_capped_applies_runtime_ceiling() {
@@ -4722,9 +4722,9 @@ mod verification_wire_tests {
         })
     }
 
-    // AC-1: supervised tier, checks pass, no retry.
+    // supervised tier, checks pass, no retry.
     #[tokio::test]
-    async fn test_ac1_supervised_checks_pass_no_retry() {
+    async fn test_supervised_checks_pass_no_retry() {
         // GIVEN a passing check and a disabled critic at the supervised tier
         let invoker = CountingInvoker::with_sequence(vec![ok_check()]);
         let loop_ = VerificationLoop::new(vec!["cargo test".into()], vec![]);
@@ -4758,9 +4758,9 @@ mod verification_wire_tests {
         assert_eq!(invoker.call_count(), 1);
     }
 
-    // AC-3: budget exhausted before retry, report returned cleanly.
+    // budget exhausted before retry, report returned cleanly.
     #[tokio::test]
-    async fn test_ac3_budget_exhausted_no_retry() {
+    async fn test_budget_exhausted_no_retry() {
         // GIVEN a failing check and a budget with no steps left
         let budget = StepBudget::new(&StepBudgetConfig {
             max_steps: 0,
@@ -4863,9 +4863,9 @@ mod verification_wire_tests {
         assert_eq!(invoker.call_count(), 0);
     }
 
-    // AC-5: persistent failures stop at the retry bound.
+    // persistent failures stop at the retry bound.
     #[tokio::test]
-    async fn test_ac5_max_retries_bounded() {
+    async fn test_max_retries_bounded() {
         // GIVEN checks that always fail and ample budget
         let invoker = CountingInvoker::with_sequence(vec![
             failed_check(),
@@ -4904,9 +4904,9 @@ mod verification_wire_tests {
         assert_eq!(invoker.call_count(), VERIFICATION_MAX_RETRIES + 1);
     }
 
-    // AC-2: a failure on the first run that the retry resolves.
+    // a failure on the first run that the retry resolves.
     #[tokio::test]
-    async fn test_ac2_retry_resolves_failure() {
+    async fn test_retry_resolves_failure() {
         // GIVEN a check that fails once then passes
         let invoker = CountingInvoker::with_sequence(vec![failed_check(), ok_check()]);
         let loop_ = VerificationLoop::new(vec!["cargo test".into()], vec![]);

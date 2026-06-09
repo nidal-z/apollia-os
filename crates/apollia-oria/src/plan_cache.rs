@@ -282,7 +282,7 @@ mod tests {
     /// WHEN the plan is stored via store() then retrieved via lookup()
     /// THEN the returned plan is identical to the original plan
     #[test]
-    fn test_ac1_store_and_lookup_roundtrip() {
+    fn test_store_and_lookup_roundtrip() {
         // GIVEN
         let dir = tempfile::tempdir().expect("tempdir");
         let db_path = dir.path().join("plan_cache.db");
@@ -315,7 +315,7 @@ mod tests {
     /// WHEN evict_expired(7) is called
     /// THEN 2 entries are removed and the function returns 2
     #[test]
-    fn test_ac2_evict_expired_entries() {
+    fn test_evict_expired_entries() {
         // GIVEN
         let dir = tempfile::tempdir().expect("tempdir");
         let db_path = dir.path().join("plan_cache.db");
@@ -354,7 +354,7 @@ mod tests {
     /// WHEN compute_cache_key is called with agent_version "1.0" then "1.1"
     /// THEN the two cache keys differ
     #[test]
-    fn test_ac3_different_versions_produce_different_keys() {
+    fn test_different_versions_produce_different_keys() {
         // GIVEN
         let tools = vec!["file_io".to_string(), "bash".to_string()];
         let text = "Generate a report from logs";
@@ -374,7 +374,7 @@ mod tests {
     /// WHEN compute_cache_key is called
     /// THEN the text is normalized (lowercase, whitespace-collapsed, truncated to 500 chars)
     #[test]
-    fn test_ac4_text_normalization_in_cache_key() {
+    fn test_text_normalization_in_cache_key() {
         // GIVEN
         let tools = vec!["llm".to_string()];
         let text_messy = "  Hello   WORLD   with   extra   spaces  ";

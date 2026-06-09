@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac1_all_required_tools_present_succeeds() {
+    async fn test_all_required_tools_present_succeeds() {
         // GIVEN
         let registry = registry_with_tools(&["bash_executor", "file_read"]).await;
         let mut manifest = minimal_manifest();
@@ -295,7 +295,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac2_missing_required_tool_returns_error() {
+    async fn test_missing_required_tool_returns_error() {
         // GIVEN: empty registry
         let registry = ToolRegistryHandle::start();
         let mut manifest = minimal_manifest();
@@ -312,7 +312,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac3_missing_optional_tool_is_warning_only() {
+    async fn test_missing_optional_tool_is_warning_only() {
         // GIVEN: registry without "mcp_erp"
         let registry = ToolRegistryHandle::start();
         let mut manifest = minimal_manifest();
@@ -331,7 +331,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_dangerous_required_tool_without_flag_blocked() {
+    async fn test_dangerous_required_tool_without_flag_blocked() {
         // GIVEN: registry with a dangerous tool, manifest without dangerous_tools_allowed
         let registry = registry_with_dangerous_tool("risky_tool").await;
         let mut manifest = minimal_manifest();
@@ -349,7 +349,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_dangerous_tool_allowed_when_flag_set() {
+    async fn test_dangerous_tool_allowed_when_flag_set() {
         // GIVEN: registry with a dangerous tool, manifest with dangerous_tools_allowed=true
         let registry = registry_with_dangerous_tool("risky_tool").await;
         let mut manifest = minimal_manifest();
@@ -365,7 +365,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac5_empty_manifest_resolves_immediately() {
+    async fn test_empty_manifest_resolves_immediately() {
         // GIVEN: empty registry, empty manifest
         let registry = ToolRegistryHandle::start();
         let manifest = minimal_manifest();

@@ -582,7 +582,7 @@ mod tests {
     // GIVEN / WHEN: PlanRepository::new() on an empty database
     // THEN: tables created without error
     #[test]
-    fn test_ac1_migration_appliquee() {
+    fn test_migration_appliquee() {
         let (_repo, _f) = make_repo();
         // The migration succeeds implicitly if new() does not return an error.
     }
@@ -591,7 +591,7 @@ mod tests {
     // WHEN:  full life cycle: insert_plan -> start/complete steps -> complete_plan
     // THEN:  get_plan_with_steps returns status=completed and correct outputs
     #[test]
-    fn test_ac2_cycle_de_vie_complet() {
+    fn test_cycle_de_vie_complet() {
         let (repo, _f) = make_repo();
         let plan = make_plan("task-001");
 
@@ -616,7 +616,7 @@ mod tests {
     // WHEN:  begin_replan(plan_id, 1)
     // THEN:  status=replanning, replan_count=1, s2 deleted, s1 kept
     #[test]
-    fn test_ac3_replan_supprime_pending_garde_completed() {
+    fn test_replan_supprime_pending_garde_completed() {
         let (repo, _f) = make_repo();
         let plan = make_plan("task-002");
 
@@ -641,7 +641,7 @@ mod tests {
     // WHEN:  fail_plan(plan_id, "STEP_BUDGET_EXCEEDED")
     // THEN:  plan.status=failed, all steps skipped or failed
     #[test]
-    fn test_ac4_fail_plan_skippe_pending() {
+    fn test_fail_plan_skippe_pending() {
         let (repo, _f) = make_repo();
         let plan = make_plan("task-003");
 
@@ -790,7 +790,7 @@ mod tests {
     // WHEN:  get_plan_with_steps
     // THEN:  depends_on is correctly deserialized
     #[test]
-    fn test_ac5_depends_on_deserialise() {
+    fn test_depends_on_deserialise() {
         let (repo, _f) = make_repo();
         let plan = make_plan("task-004");
 

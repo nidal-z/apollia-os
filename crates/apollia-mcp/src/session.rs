@@ -1149,7 +1149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_tool_call_params_serialization() {
+    fn test_tool_call_params_serialization() {
         use crate::protocol::ToolCallParams;
         // GIVEN
         let params = ToolCallParams {
@@ -1164,7 +1164,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_jsonrpc_error_display() {
+    fn test_jsonrpc_error_display() {
         // GIVEN
         let error = McpSessionError::JsonRpcError {
             server: "notion".to_string(),
@@ -1178,7 +1178,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_tool_call_result_with_is_error() {
+    fn test_tool_call_result_with_is_error() {
         use crate::protocol::ToolCallResult;
         // GIVEN
         let json = serde_json::json!({
@@ -1193,7 +1193,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_shutdown_notification_method() {
+    fn test_shutdown_notification_method() {
         // GIVEN the cancellation notification method name
         let method = "notifications/cancelled";
         // THEN it conforms to the MCP protocol notification namespace

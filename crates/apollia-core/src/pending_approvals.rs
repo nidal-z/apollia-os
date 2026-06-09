@@ -123,7 +123,7 @@ mod tests {
 
     // two concurrent tasks stay isolated from each other
     #[tokio::test]
-    async fn test_ac5_two_tasks_isolated() {
+    async fn test_two_tasks_isolated() {
         // GIVEN two registrations for t-0001 and t-0002
         let pending = PendingApprovals::new();
         let rx1 = pending.register("t-0001");

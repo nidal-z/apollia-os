@@ -632,7 +632,7 @@ mod tests {
     // WHEN optional fields are accessed
     // THEN they are None / empty
     #[test]
-    fn test_ac2_completion_request_defaults() {
+    fn test_completion_request_defaults() {
         let req = CompletionRequest {
             messages: vec![ChatMessage::user("hello")],
             ..Default::default()
@@ -683,7 +683,7 @@ mod tests {
     // WHEN formatted with Display
     // THEN message matches the #[error(...)] template
     #[test]
-    fn test_ac3_llm_error_display_backend_unavailable() {
+    fn test_llm_error_display_backend_unavailable() {
         let err = LlmError::BackendUnavailable {
             backend: "local".into(),
             reason: "model not loaded".into(),
@@ -698,7 +698,7 @@ mod tests {
     // WHEN formatted
     // THEN message is correct
     #[test]
-    fn test_ac3_llm_error_display_api_key_missing() {
+    fn test_llm_error_display_api_key_missing() {
         let err = LlmError::ApiKeyMissing {
             var: "ANTHROPIC_API_KEY".into(),
         };
@@ -712,7 +712,7 @@ mod tests {
     // WHEN formatted
     // THEN message includes the count
     #[test]
-    fn test_ac3_llm_error_display_max_iterations() {
+    fn test_llm_error_display_max_iterations() {
         let err = LlmError::MaxIterationsReached { iterations: 5 };
         assert_eq!(format!("{err}"), "max tool iterations reached (5)");
     }
@@ -721,7 +721,7 @@ mod tests {
     // WHEN ChatMessage helpers are called
     // THEN role and content match
     #[test]
-    fn test_ac4_chat_message_helpers() {
+    fn test_chat_message_helpers() {
         let sys = ChatMessage::system("tu es utile");
         let usr = ChatMessage::user("bonjour");
         let ast = ChatMessage::assistant("réponse");
@@ -744,7 +744,7 @@ mod tests {
     // WHEN constructed
     // THEN role is Tool and content is ToolResult
     #[test]
-    fn test_ac4_chat_message_tool_result() {
+    fn test_chat_message_tool_result() {
         let msg = ChatMessage::tool_result("call_01", "fichier créé");
         assert_eq!(msg.role, Role::Tool);
         assert!(matches!(
@@ -758,7 +758,7 @@ mod tests {
     // WHEN constructed
     // THEN role is Assistant and content is WithToolCalls
     #[test]
-    fn test_ac4_chat_message_assistant_with_calls() {
+    fn test_chat_message_assistant_with_calls() {
         let calls = vec![ToolCall {
             id: "c1".into(),
             name: "file_io".into(),
@@ -777,7 +777,7 @@ mod tests {
     // WHEN serialized to JSON
     // THEN cost_usd is "null" (not absent)
     #[test]
-    fn test_ac5_token_usage_cost_usd_null_in_json() {
+    fn test_token_usage_cost_usd_null_in_json() {
         let usage = TokenUsage {
             prompt_tokens: 10,
             completion_tokens: 20,
@@ -870,7 +870,7 @@ mod tests {
     // WHEN formatted
     // THEN none panics and messages are non-empty
     #[test]
-    fn test_ac3_all_error_variants_display() {
+    fn test_all_error_variants_display() {
         let errors: Vec<LlmError> = vec![
             LlmError::BackendUnavailable {
                 backend: "b".into(),

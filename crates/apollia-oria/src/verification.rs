@@ -2,7 +2,7 @@
 //!
 //! Before a run is declared done at a sufficient autonomy tier, the runtime can
 //! re-read the result and confirm it. This module hosts the two independent
-//! pieces (ADR-029):
+//! pieces:
 //!
 //! - [`VerificationLoop`]: runs the shell check commands declared by the agent
 //!   manifest (tests, lint) via an injected invoker and aggregates a
@@ -10,7 +10,7 @@
 //! - [`CriticPass`]: an optional, degradable LLM pass that compares the agent
 //!   output to the stated objective and proposes structured [`Correction`]s.
 //!
-//! The source of the check commands follows ADR-029: the manifest field
+//! The source of the check commands is resolved as follows: the manifest field
 //! `check_commands` is the primary source; a project-config fallback applies
 //! only when the manifest declares none. When no command is resolved, the loop
 //! is a no-op that reports success.
@@ -99,7 +99,7 @@ impl VerificationLoop {
     /// Create a `VerificationLoop` from manifest commands and a project-config fallback.
     ///
     /// When `manifest_commands` is non-empty it is used directly and
-    /// `fallback_commands` is ignored. Decision documented in ADR-029: the
+    /// `fallback_commands` is ignored: the
     /// manifest wins; the fallback provides a project-level safety net without
     /// requiring each agent to redeclare its checks.
     pub fn new(manifest_commands: Vec<String>, fallback_commands: Vec<String>) -> Self {
@@ -362,9 +362,9 @@ mod tests {
         })
     }
 
-    // AC-1: every declared check passes.
+    // every declared check passes.
     #[tokio::test]
-    async fn test_ac1_all_checks_pass() {
+    async fn test_all_checks_pass() {
         // GIVEN two declared commands that both exit 0
         let invoker = MockCheckInvoker::new()
             .with("cargo test -p my-agent", ok(0))
@@ -385,9 +385,9 @@ mod tests {
         assert!(report.failures.is_empty());
     }
 
-    // AC-2: one check fails and the loop does not short-circuit.
+    // one check fails and the loop does not short-circuit.
     #[tokio::test]
-    async fn test_ac2_one_failure_no_short_circuit() {
+    async fn test_one_failure_no_short_circuit() {
         // GIVEN a passing first command and a failing second command
         let invoker = MockCheckInvoker::new()
             .with("cargo test -p my-agent", ok(0))
@@ -413,9 +413,9 @@ mod tests {
         assert_eq!(report.failures[0].exit_code, 1);
     }
 
-    // AC-3: no declared command is a no-op success.
+    // no declared command is a no-op success.
     #[tokio::test]
-    async fn test_ac3_no_commands_noop() {
+    async fn test_no_commands_noop() {
         // GIVEN no manifest commands and no fallback
         let invoker = MockCheckInvoker::new();
         let verification = VerificationLoop::new(vec![], vec![]);
@@ -428,9 +428,9 @@ mod tests {
         assert!(report.failures.is_empty());
     }
 
-    // AC-4 (error case): an invoker-level error becomes a CheckFailure with exit_code -1.
+    // (error case): an invoker-level error becomes a CheckFailure with exit_code -1.
     #[tokio::test]
-    async fn test_ac4_invoker_error_becomes_failure() {
+    async fn test_invoker_error_becomes_failure() {
         // GIVEN an invoker that returns an error for the command
         let invoker = MockCheckInvoker::new().with("cargo test", Err("executor not found".into()));
         let verification = VerificationLoop::new(vec!["cargo test".into()], vec![]);
@@ -517,9 +517,9 @@ mod critic_tests {
         Arc::new(LlmRouter::with_backends(backends, "mock-critic"))
     }
 
-    // AC-1: corrections returned, passed=false.
+    // corrections returned, passed=false.
     #[tokio::test]
-    async fn test_ac1_corrections_found() {
+    async fn test_corrections_found() {
         // GIVEN a critic LLM returning two structured corrections
         let json = r#"{"corrections":[
             {"kind":"missing_file","description":"output.csv absent","suggestion":"create output.csv"},
@@ -536,9 +536,9 @@ mod critic_tests {
         assert_eq!(report.corrections.len(), 2);
     }
 
-    // AC-2: empty corrections, passed=true.
+    // empty corrections, passed=true.
     #[tokio::test]
-    async fn test_ac2_no_corrections_passed() {
+    async fn test_no_corrections_passed() {
         // GIVEN a critic LLM returning no corrections
         let pass = CriticPass::new(router_with(r#"{"corrections":[]}"#));
 
@@ -551,9 +551,9 @@ mod critic_tests {
         assert!(report.corrections.is_empty());
     }
 
-    // AC-3 (degradation): no router, pass is skipped.
+    // (degradation): no router, pass is skipped.
     #[tokio::test]
-    async fn test_ac3_no_router_skips() {
+    async fn test_no_router_skips() {
         // GIVEN a disabled critic pass
         let pass = CriticPass::disabled();
 
@@ -566,9 +566,9 @@ mod critic_tests {
         assert!(report.corrections.is_empty());
     }
 
-    // AC-4 (error case): malformed JSON yields empty corrections, no panic.
+    // (error case): malformed JSON yields empty corrections, no panic.
     #[tokio::test]
-    async fn test_ac4_malformed_json_no_panic() {
+    async fn test_malformed_json_no_panic() {
         // GIVEN a critic LLM returning non-JSON content
         let pass = CriticPass::new(router_with("I do not know"));
 

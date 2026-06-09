@@ -1680,7 +1680,7 @@ mod tests {
     // WHEN route(Some("local-code"))
     // THEN the "local-code" backend is returned
     #[test]
-    fn test_ac1_route_to_explicit_backend() {
+    fn test_route_to_explicit_backend() {
         let mut backends = HashMap::new();
         backends.insert("local-code".into(), make_mock_backend("local-code"));
         backends.insert("mistral-small".into(), make_mock_backend("mistral-small"));
@@ -1694,7 +1694,7 @@ mod tests {
     // WHEN route(None)
     // THEN the default backend is returned
     #[test]
-    fn test_ac2_route_none_returns_default() {
+    fn test_route_none_returns_default() {
         let mut backends = HashMap::new();
         backends.insert("local-code".into(), make_mock_backend("local-code"));
         let router = make_test_router(backends, "local-code");
@@ -1707,7 +1707,7 @@ mod tests {
     // WHEN route(Some("phantom"))
     // THEN the default backend is returned (warning emitted)
     #[test]
-    fn test_ac3_unknown_backend_falls_back_to_default() {
+    fn test_unknown_backend_falls_back_to_default() {
         let mut backends = HashMap::new();
         backends.insert("local-code".into(), make_mock_backend("local-code"));
         let router = make_test_router(backends, "local-code");
@@ -1735,7 +1735,7 @@ mod tests {
     // THEN the router contains exactly 2 backends (the disabled one is excluded)
     #[cfg(feature = "cloud")]
     #[tokio::test]
-    async fn test_ac4_from_repository_loads_only_enabled() {
+    async fn test_from_repository_loads_only_enabled() {
         use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
         use tempfile::TempDir;
 
@@ -1805,7 +1805,7 @@ mod tests {
     // WHEN get(None) is called
     // THEN Some(backend) with backend_name() == "local" is returned
     #[tokio::test]
-    async fn test_ac3_get_none_returns_default() {
+    async fn test_get_none_returns_default() {
         // GIVEN
         let mut backends = HashMap::new();
         backends.insert("local".into(), make_mock_backend("local"));
@@ -1830,7 +1830,7 @@ mod tests {
     // WHEN get(Some("anthropic")) is called
     // THEN Some(arc) with backend_name() == "anthropic" is returned
     #[tokio::test]
-    async fn test_ac4_get_named_backend() {
+    async fn test_get_named_backend() {
         // GIVEN
         let mut backends = HashMap::new();
         backends.insert("anthropic".into(), make_mock_backend("anthropic"));
@@ -1851,7 +1851,7 @@ mod tests {
     // WHEN get(Some("inexistant")) is called
     // THEN None is returned
     #[tokio::test]
-    async fn test_ac5_get_unknown_returns_none() {
+    async fn test_get_unknown_returns_none() {
         // GIVEN
         let mut backends = HashMap::new();
         backends.insert("local".into(), make_mock_backend("local"));
@@ -1911,7 +1911,7 @@ mod tests {
     // WHEN LlmRouter::from_config(&config).await is called
     // THEN Err(LlmError::BackendUnavailable { backend: "local", .. }) is returned
     #[tokio::test]
-    async fn test_ac6_from_config_errors_if_default_missing() {
+    async fn test_from_config_errors_if_default_missing() {
         // GIVEN
         let config = LlmConfig {
             default: "local".to_owned(),
@@ -1943,7 +1943,7 @@ mod tests {
     // WHEN complete_with_observability(None, req, Some(&tx), &obs) is called
     // THEN an LlmCallCompleted event is received on the bus with backend == "mock"
     #[tokio::test]
-    async fn test_ac1_llm_call_completed_emitted() {
+    async fn test_llm_call_completed_emitted() {
         use apollia_core::events::RuntimeEvent;
         use tokio::sync::broadcast;
 
@@ -1984,7 +1984,7 @@ mod tests {
     // WHEN complete_with_observability() is called with a "secret_payload_xyz" message
     // THEN the function does not panic and returns Ok; the prompt is not logged at INFO
     #[tokio::test]
-    async fn test_ac4_prompt_not_logged_at_info_without_debug_flag() {
+    async fn test_prompt_not_logged_at_info_without_debug_flag() {
         // GIVEN
         let obs = ObservabilityConfig {
             debug_log_prompt: false,
@@ -2018,7 +2018,7 @@ mod tests {
     // THEN Err(LlmError::BackendUnavailable) is returned without a crash
     // (variant without the "local" feature: checks the router does not crash)
     #[tokio::test]
-    async fn test_ac3_from_config_with_bus_no_backends_returns_error() {
+    async fn test_from_config_with_bus_no_backends_returns_error() {
         use apollia_core::events::RuntimeEvent;
         use tokio::sync::broadcast;
 
@@ -2251,7 +2251,7 @@ mod tests {
         assert_eq!(precise.backend_name(), fast.backend_name());
     }
 
-    // ── Hybrid escalation policy (STORY-557) ──────────────────────────────
+    // ── Hybrid escalation policy ──────────────────────────────
 
     /// Build a router with `precise = fast = "local"`, a `"frontier-model"`
     /// backend, an `[llm.routing.hybrid]` section with the given ceiling, and a
@@ -2334,7 +2334,7 @@ mod tests {
         assert_eq!(router.cost_ceiling_usd(), Some(2.0));
     }
 
-    // AC-1: escalation accepted when the frontier is available and under ceiling.
+    // escalation accepted when the frontier is available and under ceiling.
     #[test]
     fn test_escalation_accepted_under_ceiling() {
         // GIVEN a hybrid router, session cost 0.50, ceiling 2.00
@@ -2352,7 +2352,7 @@ mod tests {
         assert_eq!(backend.backend_name(), "frontier-model");
     }
 
-    // AC-2: ceiling reached keeps the router local.
+    // ceiling reached keeps the router local.
     #[test]
     fn test_escalation_blocked_by_cost_ceiling() {
         // GIVEN a hybrid router, session cost 1.05, ceiling 1.00
@@ -2370,7 +2370,7 @@ mod tests {
         assert_eq!(backend.backend_name(), "local");
     }
 
-    // AC-3: no hybrid section means no escalation, no error.
+    // no hybrid section means no escalation, no error.
     #[test]
     fn test_no_hybrid_config_returns_local() {
         // GIVEN a router without a hybrid section
@@ -2388,7 +2388,7 @@ mod tests {
         assert_eq!(backend.backend_name(), "local");
     }
 
-    // AC-4: a frontier absent from the router is rejected at construction.
+    // a frontier absent from the router is rejected at construction.
     #[test]
     fn test_frontier_absent_fails_at_construction() {
         // GIVEN a routing whose hybrid frontier is not in the backend map
@@ -2414,7 +2414,7 @@ mod tests {
         ));
     }
 
-    // AC-5: an absent signal keeps the router local even under the ceiling.
+    // an absent signal keeps the router local even under the ceiling.
     #[test]
     fn test_signal_none_returns_local() {
         // GIVEN a hybrid router well under the ceiling

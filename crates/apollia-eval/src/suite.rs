@@ -133,7 +133,6 @@ impl EvalSuite {
 mod tests {
     use super::*;
 
-    // AC-1
     #[test]
     fn test_parse_valid_suite_two_tasks() {
         // GIVEN a valid TOML suite with two tasks, each with prompt, runs and assertions
@@ -188,7 +187,7 @@ mod tests {
         ));
     }
 
-    // AC-2 (error case)
+    // (error case)
     #[test]
     fn test_unknown_assertion_type_is_invalid_suite() {
         // GIVEN a TOML suite with an unknown assertion type
@@ -216,7 +215,7 @@ mod tests {
         );
     }
 
-    // AC-3 (error case)
+    // (error case)
     #[test]
     fn test_missing_prompt_field_fails() {
         // GIVEN a task without the required `prompt` field
@@ -235,7 +234,6 @@ mod tests {
         assert!(matches!(err, EvalError::InvalidSuite(_)));
     }
 
-    // AC-4
     #[test]
     fn test_runs_defaults_to_three() {
         // GIVEN a task with no `runs` field

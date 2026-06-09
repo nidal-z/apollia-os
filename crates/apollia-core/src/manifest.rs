@@ -237,7 +237,6 @@ pub struct AgentManifest {
     /// Commands are executed in order by the verification loop via an injected
     /// invoker. Empty by default: no verification commands declared. A
     /// project-config fallback is applied by the loop when this field is empty.
-    /// See ADR-029.
     #[serde(default)]
     pub check_commands: Vec<String>,
 }
@@ -287,7 +286,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ac1_agent_manifest_serialization() {
+    fn test_agent_manifest_serialization() {
         // GIVEN
         let manifest = AgentManifest {
             name: "devis-agent".into(),
@@ -330,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_manifest_optional_defaults() {
+    fn test_manifest_optional_defaults() {
         // GIVEN / WHEN
         let manifest = AgentManifest {
             name: "agent".into(),
@@ -372,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_tools_requiring_approval_default_empty() {
+    fn test_tools_requiring_approval_default_empty() {
         // GIVEN a manifest JSON without the tools_requiring_approval field
         let json = r#"{"name":"test","version":"0.1.0","description":"desc","tools_required":[]}"#;
         // WHEN deserialized
@@ -382,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_tools_requiring_approval_parsed() {
+    fn test_tools_requiring_approval_parsed() {
         // GIVEN a manifest JSON with tools_requiring_approval
         let json = r#"{
             "name":"test","version":"0.1.0","description":"desc","tools_required":[],
@@ -478,7 +477,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_tools_requiring_approval_roundtrip() {
+    fn test_tools_requiring_approval_roundtrip() {
         // GIVEN an AgentManifest with tools_requiring_approval
         let manifest = AgentManifest {
             name: "roundtrip-agent".into(),

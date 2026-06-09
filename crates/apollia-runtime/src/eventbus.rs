@@ -51,7 +51,7 @@ mod tests {
     use apollia_core::RuntimeEvent;
 
     #[tokio::test]
-    async fn test_ac1_publication_reception() {
+    async fn test_publication_reception() {
         // GIVEN
         let (tx, mut rx) = EventBus::new();
 
@@ -65,7 +65,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac2_multiple_consumers() {
+    async fn test_multiple_consumers() {
         // GIVEN
         let (tx, mut rx1) = EventBus::new();
         let mut rx2 = tx.subscribe();
@@ -81,7 +81,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac3_lagged_consumer_ne_panic_pas() {
+    async fn test_lagged_consumer_ne_panic_pas() {
         // GIVEN a buffer of 8 to speed up the test (same behavior as 1024)
         let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(8);
 

@@ -353,7 +353,7 @@ mod tests {
 
     // Record episode and verify FTS insert
     #[test]
-    fn test_ac1_record_episode_and_fts_insert() {
+    fn test_record_episode_and_fts_insert() {
         // GIVEN
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
@@ -384,7 +384,7 @@ mod tests {
 
     // History returns most recent first, limited
     #[test]
-    fn test_ac2_history_returns_recent_first() {
+    fn test_history_returns_recent_first() {
         // GIVEN: 5 episodes
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
@@ -408,7 +408,7 @@ mod tests {
 
     // History filtered by since date
     #[test]
-    fn test_ac3_history_filtered_by_since() {
+    fn test_history_filtered_by_since() {
         // GIVEN: insert episodes with explicit timestamps via raw SQL
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
@@ -448,7 +448,7 @@ mod tests {
 
     // Purge expired episodes (including FTS cleanup)
     #[test]
-    fn test_ac4_purge_expired() {
+    fn test_purge_expired() {
         // GIVEN: 1 expired, 1 not expired
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);
@@ -487,7 +487,7 @@ mod tests {
 
     // Optional fields default correctly
     #[test]
-    fn test_ac5_optional_fields_default() {
+    fn test_optional_fields_default() {
         // GIVEN / WHEN
         let (store, _) = setup();
         let ep = EpisodicMemory::new(&store);

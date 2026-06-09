@@ -968,7 +968,7 @@ mod tests {
     // Valid approval: 200 OK + TaskResumed emitted on the EventBus
 
     #[tokio::test]
-    async fn test_ac1_resume_approve_returns_200() {
+    async fn test_resume_approve_returns_200() {
         // GIVEN a task in input_required status in the HITL DB
         let repo = open_test_repo().await;
         let task_id = "t-0042";
@@ -999,7 +999,7 @@ mod tests {
     // Valid rejection with reason: 200 OK
 
     #[tokio::test]
-    async fn test_ac2_resume_reject_with_reason() {
+    async fn test_resume_reject_with_reason() {
         // GIVEN a task in input_required status
         let repo = open_test_repo().await;
         let task_id = "t-0043";
@@ -1032,7 +1032,7 @@ mod tests {
     // Task not in input_required: 409 CONFLICT
 
     #[tokio::test]
-    async fn test_ac3_resume_not_input_required_returns_409() {
+    async fn test_resume_not_input_required_returns_409() {
         // GIVEN a task in working status (input_required, save_input_response, working)
         let repo = open_test_repo().await;
         let task_id = "t-0044";
@@ -1078,7 +1078,7 @@ mod tests {
     // Nonexistent task: 404 NOT FOUND
 
     #[tokio::test]
-    async fn test_ac4_resume_task_not_found_returns_404() {
+    async fn test_resume_task_not_found_returns_404() {
         // GIVEN an empty TaskRepository (no tasks)
         let repo = open_test_repo().await;
         let router = resume_router_with_repo(repo).await;

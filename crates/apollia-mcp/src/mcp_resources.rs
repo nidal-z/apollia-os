@@ -1,6 +1,6 @@
 //! Native agent-facing tools exposing MCP `resources` to the ReAct loop.
 //!
-//! ADR-092 exposes MCP resources through two complementary, never auto-injected
+//! MCP resources are exposed through two complementary, never auto-injected
 //! paths. This module implements the agent-initiative path: two read-only
 //! native tools the ReAct agent can call on its own initiative, mirroring how
 //! `file_read` works.

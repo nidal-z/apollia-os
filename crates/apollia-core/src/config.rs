@@ -92,10 +92,10 @@ where
 }
 
 // ─────────────────────────────────────────────
-// Autonomy tiers (ADR-029)
+// Autonomy tiers
 // ─────────────────────────────────────────────
 
-/// Execution autonomy tier: opt-in, explicit, auditable (ADR-029).
+/// Execution autonomy tier: opt-in, explicit, auditable.
 ///
 /// Each variant maps to an effective [`StepBudgetConfig`] and two behavioral
 /// flags (`inject_memory`, `run_verification`). The effective budget is always
@@ -2735,7 +2735,7 @@ mod autonomy_tests {
     use super::*;
     use std::str::FromStr;
 
-    // AC-1: assisted tier matches chat_default with flags off.
+    // assisted tier matches chat_default with flags off.
     #[test]
     fn test_assisted_level_matches_chat_default() {
         // GIVEN the default autonomy config
@@ -2752,7 +2752,7 @@ mod autonomy_tests {
         assert!(!lc.run_verification);
     }
 
-    // AC-1: long_autonomous tier enables the autonomy flags.
+    // long_autonomous tier enables the autonomy flags.
     #[test]
     fn test_long_autonomous_level_flags() {
         // GIVEN the default autonomy config
@@ -2769,7 +2769,7 @@ mod autonomy_tests {
         assert!(lc.run_verification);
     }
 
-    // AC-3 (error case): validate rejects a tier above the runtime ceiling.
+    // (error case): validate rejects a tier above the runtime ceiling.
     #[test]
     fn test_validate_rejects_budget_above_ceiling() {
         // GIVEN a low runtime ceiling and the default tiers (all above it)
@@ -2790,7 +2790,7 @@ mod autonomy_tests {
         assert!(msg.contains("out of bounds"));
     }
 
-    // AC-3: validate passes when every tier fits under the ceiling.
+    // validate passes when every tier fits under the ceiling.
     #[test]
     fn test_validate_accepts_tiers_within_ceiling() {
         // GIVEN a ceiling at least as high as the most demanding tier
@@ -2808,7 +2808,7 @@ mod autonomy_tests {
         assert!(result.is_ok());
     }
 
-    // AC-4 (error case): an unknown level string is rejected with a typed error.
+    // (error case): an unknown level string is rejected with a typed error.
     #[test]
     fn test_from_str_unknown_level_fails() {
         // GIVEN / WHEN parsing an unknown level
@@ -2849,7 +2849,7 @@ mod autonomy_tests {
         assert_eq!(budget.wall_clock_secs, expected.wall_clock_secs);
     }
 
-    // ── HybridRoutingConfig (STORY-556) ────────────────────────────────────
+    // ── HybridRoutingConfig ────────────────────────────────────
 
     #[test]
     fn test_hybrid_absent_deserializes_to_none() {

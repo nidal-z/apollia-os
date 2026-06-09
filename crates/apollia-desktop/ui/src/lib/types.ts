@@ -882,7 +882,7 @@ export interface PendingUserInputView {
   created_at: string;
 }
 
-// ─── Sprint 20 - Système Agentique Amélioré ─────────────────────────────────
+// ─── Système Agentique Amélioré ─────────────────────────────────
 
 /** Résumé d'un outil pour l'affichage en liste. */
 export interface ToolSummary {
@@ -1057,7 +1057,7 @@ export interface TriggerResult {
   topic?: string;
 }
 
-/** Seven ordered phases of the Sprint 33 onboarding flow. */
+/** Seven ordered phases of the onboarding flow. */
 export type OnboardingPhase =
   | "welcome"
   | "profile_choice"
@@ -1075,7 +1075,7 @@ export interface OnboardingStats {
   voice_commands_used: number;
 }
 
-/** Full onboarding state returned by get_onboarding_state (Sprint 33). */
+/** Full onboarding state returned by get_onboarding_state. */
 export interface OnboardingState {
   phase: OnboardingPhase;
   profile: string | null;

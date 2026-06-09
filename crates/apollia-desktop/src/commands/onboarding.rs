@@ -36,7 +36,7 @@ const VALID_PROFILES: [&str; 2] = ["operator", "builder"];
 // Phase machine types
 // ---------------------------------------------------------------------------
 
-/// The seven ordered phases of the Sprint 33 onboarding flow.
+/// The seven ordered phases of the onboarding flow.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingPhase {

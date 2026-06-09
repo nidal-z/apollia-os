@@ -1754,7 +1754,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ac3_tool_naming_convention() {
+    fn test_tool_naming_convention() {
         // GIVEN a server "notion" and a tool "search_pages"
         let server_name = "notion";
         let tool_name = "search_pages";
@@ -1765,7 +1765,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_server_status_serialization() {
+    fn test_server_status_serialization() {
         // GIVEN a status snapshot for a connected server
         let status = McpServerStatus {
             name: "notion".to_string(),
@@ -2085,7 +2085,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac3_shutdown_on_empty_manager() {
+    async fn test_shutdown_on_empty_manager() {
         // GIVEN a manager handle with no sessions started
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
         let handle = McpClientManagerHandle { tx };

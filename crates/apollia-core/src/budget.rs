@@ -60,7 +60,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ac1_step_budget_defaults() {
+    fn test_step_budget_defaults() {
         // GIVEN / WHEN
         let budget = StepBudgetConfig::default();
         // THEN
@@ -81,7 +81,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_step_budget_round_trip_json() {
+    fn test_step_budget_round_trip_json() {
         // GIVEN
         let budget = StepBudgetConfig {
             max_steps: 5,

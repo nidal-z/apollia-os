@@ -772,7 +772,7 @@ mod tests {
     // WHEN has_error is computed
     // THEN false → exit code 0
     #[test]
-    fn test_ac1_all_ok_no_error_flag() {
+    fn test_all_ok_no_error_flag() {
         // GIVEN
         let results = vec![
             serde_json::json!({"channel_id": "desktop", "type": "desktop", "status": "ok", "error": null, "latency_ms": 12}),
@@ -795,7 +795,7 @@ mod tests {
     // WHEN has_error is computed
     // THEN true → exit code 1
     #[test]
-    fn test_ac2_one_error_sets_flag() {
+    fn test_one_error_sets_flag() {
         // GIVEN
         let results = vec![
             serde_json::json!({"channel_id": "desktop", "type": "desktop", "status": "ok",    "error": null,                  "latency_ms": 12}),
@@ -818,7 +818,7 @@ mod tests {
     // WHEN deserialized into ChannelTestResult
     // THEN all fields are correct
     #[test]
-    fn test_ac5_notify_test_json_structure() {
+    fn test_notify_test_json_structure() {
         // GIVEN
         let raw = serde_json::json!({
             "channel_id": "desktop",

@@ -412,7 +412,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac1_echo_returns_stdout() {
+    async fn test_echo_returns_stdout() {
         if !can_run_shell() {
             tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
             return;
@@ -432,7 +432,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac2_failed_command_returns_nonzero_exit_code() {
+    async fn test_failed_command_returns_nonzero_exit_code() {
         if !can_run_shell() {
             tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
             return;
@@ -454,7 +454,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac3_timeout_kills_process() {
+    async fn test_timeout_kills_process() {
         if !can_run_shell() {
             tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
             return;
@@ -473,7 +473,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_empty_command_rejected_immediately() {
+    async fn test_empty_command_rejected_immediately() {
         // GIVEN
         let executor = BashExecutor::new();
         let input = BashInput {
@@ -488,7 +488,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_whitespace_only_command_rejected() {
+    async fn test_whitespace_only_command_rejected() {
         // GIVEN: whitespace is not a valid command either
         let executor = BashExecutor::new();
         let input = BashInput {
@@ -503,7 +503,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac5_stderr_captured_separately() {
+    async fn test_stderr_captured_separately() {
         if !can_run_shell() {
             tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
             return;
@@ -523,7 +523,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac6_invalid_working_dir_returns_error() {
+    async fn test_invalid_working_dir_returns_error() {
         // GIVEN
         let executor = BashExecutor::new();
         let input = BashInput {

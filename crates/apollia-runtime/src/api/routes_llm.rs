@@ -1366,7 +1366,7 @@ mod tests {
     // WHEN GET /api/v1/llm/backends
     // THEN 200 + JSON array of 2 backends
     #[tokio::test]
-    async fn test_ac1_list_returns_registered_backends() {
+    async fn test_list_returns_registered_backends() {
         // GIVEN
         let dir = tempfile::tempdir().unwrap();
         let state = test_app_state_with_repo(&dir);
@@ -1411,7 +1411,7 @@ mod tests {
     // WHEN POST /api/v1/llm/backends with valid body
     // THEN 201 + backend is in the list
     #[tokio::test]
-    async fn test_ac2_create_persists_new_backend() {
+    async fn test_create_persists_new_backend() {
         // GIVEN
         let dir = tempfile::tempdir().unwrap();
         let state = test_app_state_with_repo(&dir);
@@ -1445,7 +1445,7 @@ mod tests {
     // WHEN DELETE /api/v1/llm/backends/a
     // THEN 409 Conflict
     #[tokio::test]
-    async fn test_ac3_delete_default_returns_409() {
+    async fn test_delete_default_returns_409() {
         // GIVEN
         let dir = tempfile::tempdir().unwrap();
         let state = test_app_state_with_repo(&dir);
@@ -1479,7 +1479,7 @@ mod tests {
     // WHEN GET /api/v1/llm/backends/ghost
     // THEN 404
     #[tokio::test]
-    async fn test_ac4_unknown_backend_returns_404() {
+    async fn test_unknown_backend_returns_404() {
         // GIVEN
         let dir = tempfile::tempdir().unwrap();
         let state = test_app_state_with_repo(&dir);

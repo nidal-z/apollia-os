@@ -1,4 +1,4 @@
-//! Chat subsystem, types, SQLite repository, and approval mechanics (Sprint 18).
+//! Chat subsystem, types, SQLite repository, and approval mechanics.
 //!
 //! This module provides the foundational types and persistence layer for the
 //! chat hybride feature. The `ChatSessionManager` actor and

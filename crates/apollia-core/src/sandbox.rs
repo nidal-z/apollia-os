@@ -33,7 +33,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ac3_sandbox_profile_variants() {
+    fn test_sandbox_profile_variants() {
         // GIVEN / WHEN
         let profiles = [
             SandboxProfile::ReadOnly,
@@ -46,7 +46,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_only_full_requires_dangerous_flag() {
+    fn test_only_full_requires_dangerous_flag() {
         // GIVEN / WHEN / THEN
         assert!(SandboxProfile::Full.requires_dangerous_flag());
         assert!(!SandboxProfile::ReadOnly.requires_dangerous_flag());

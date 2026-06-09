@@ -346,7 +346,7 @@ mod tests {
     use chrono::TimeZone;
 
     #[test]
-    fn test_ac2_render_timer_variables() {
+    fn test_render_timer_variables() {
         // GIVEN
         let template = InputTemplate("Rapport du {{scheduled_at}} - généré à {{fired_at}}".into());
         let scheduled = Utc.with_ymd_and_hms(2026, 3, 9, 8, 0, 0).unwrap();
@@ -366,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_render_file_variables() {
+    fn test_render_file_variables() {
         // GIVEN
         let template =
             InputTemplate("Nouvelle facture : {{filename}} ({{size_bytes}} octets)".into());
@@ -383,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_unknown_variable_replaced_by_empty() {
+    fn test_unknown_variable_replaced_by_empty() {
         // GIVEN
         let template = InputTemplate("{{unknown}} texte".into());
         let payload = TriggerPayload::Timer {
@@ -401,7 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_empty_id_returns_error() {
+    fn test_empty_id_returns_error() {
         // GIVEN / WHEN
         let result = TriggerDefinition::validate_id("");
         // THEN
@@ -409,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac6_trigger_definition_json_roundtrip() {
+    fn test_trigger_definition_json_roundtrip() {
         // GIVEN
         let def = TriggerDefinition {
             id: "rapport-hebdo".into(),

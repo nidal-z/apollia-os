@@ -200,7 +200,7 @@ mod tests {
     /// WHEN topological_sort(&steps) is called
     /// THEN Ok(["s1", "s2", "s3"]) is returned
     #[test]
-    fn test_ac1_plan_lineaire() {
+    fn test_plan_lineaire() {
         // GIVEN
         let steps = vec![step("s1", &[]), step("s2", &["s1"]), step("s3", &["s2"])];
         // WHEN
@@ -213,7 +213,7 @@ mod tests {
     /// WHEN topological_sort(&steps) is called
     /// THEN s1, s2, s3 appear before s4
     #[test]
-    fn test_ac2_branches_paralleles() {
+    fn test_branches_paralleles() {
         // GIVEN
         let steps = vec![
             step("s1", &[]),
@@ -236,7 +236,7 @@ mod tests {
     /// WHEN topological_sort(&steps) is called
     /// THEN Err(CycleError) is returned
     #[test]
-    fn test_ac3_cycle_simple() {
+    fn test_cycle_simple() {
         // GIVEN
         let steps = vec![step("s1", &["s2"]), step("s2", &["s1"])];
         // WHEN
@@ -249,7 +249,7 @@ mod tests {
     /// WHEN topological_sort(&steps) is called
     /// THEN Err(CycleError) is returned
     #[test]
-    fn test_ac4_cycle_long() {
+    fn test_cycle_long() {
         // GIVEN
         let steps = vec![
             step("s1", &["s3"]),
@@ -266,7 +266,7 @@ mod tests {
     /// WHEN topological_sort(&[]) is called
     /// THEN Ok([]) is returned
     #[test]
-    fn test_ac5_plan_vide() {
+    fn test_plan_vide() {
         // GIVEN / WHEN / THEN
         let result = topological_sort(&[]).unwrap();
         assert!(result.is_empty());
@@ -276,7 +276,7 @@ mod tests {
     /// WHEN topological_sort(&steps) is called
     /// THEN s1 appears before s2 in the result
     #[test]
-    fn test_ac6_ordre_entree_irrelevant() {
+    fn test_ordre_entree_irrelevant() {
         // GIVEN
         let steps = vec![step("s2", &["s1"]), step("s1", &[])];
         // WHEN

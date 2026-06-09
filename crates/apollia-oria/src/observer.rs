@@ -588,7 +588,7 @@ mod tests {
 
     // explicit "orchestrated" override
     #[test]
-    fn test_ac1_orchestrated_override() {
+    fn test_orchestrated_override() {
         // GIVEN a manifest with execution_mode = "orchestrated"
         let mut manifest = simple_manifest();
         manifest.execution_mode = "orchestrated".to_string();
@@ -603,7 +603,7 @@ mod tests {
 
     // explicit "direct" override even with 6 tools
     #[test]
-    fn test_ac2_direct_override_despite_many_tools() {
+    fn test_direct_override_despite_many_tools() {
         // GIVEN a manifest with execution_mode = "direct" and 6 tools (> 4)
         let mut manifest = simple_manifest();
         manifest.execution_mode = "direct".to_string();
@@ -623,7 +623,7 @@ mod tests {
     // "auto" + 5 tools + 20 steps -> Orchestrated
     // (5 tools alone = 0.20, need steps > 15 too for 0.50 >= 0.40)
     #[test]
-    fn test_ac3_auto_heuristic_orchestrated_on_many_tools_and_steps() {
+    fn test_auto_heuristic_orchestrated_on_many_tools_and_steps() {
         // GIVEN a manifest with 5 tools AND 20 steps
         let mut manifest = simple_manifest();
         manifest.execution_mode = "auto".to_string();
@@ -647,7 +647,7 @@ mod tests {
 
     // "auto" + simple agent -> Direct
     #[test]
-    fn test_ac4_auto_heuristic_direct_on_simple_agent() {
+    fn test_auto_heuristic_direct_on_simple_agent() {
         // GIVEN a manifest with execution_mode = "auto" and 1 tool
         let mut manifest = simple_manifest();
         manifest.execution_mode = "auto".to_string();
@@ -764,7 +764,7 @@ mod tests {
 
     // serde round-trip JSON -> execution_mode + system_prompt
     #[test]
-    fn test_ac5_serde_round_trip() {
+    fn test_serde_round_trip() {
         use apollia_core::AgentManifest;
 
         // GIVEN a JSON with execution_mode and system_prompt

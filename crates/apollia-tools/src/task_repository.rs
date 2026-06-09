@@ -1333,7 +1333,7 @@ mod tests {
     // Migration applied at startup: HITL columns present in tasks
 
     #[tokio::test]
-    async fn test_ac1_migration_005_colonnes_existantes() {
+    async fn test_migration_005_colonnes_existantes() {
         // GIVEN a fresh temporary database
         let (_, db_path) = open_test_repo().await;
 
@@ -1393,7 +1393,7 @@ mod tests {
     // save_input_response() persists the response and inserts into task_approvals
 
     #[tokio::test]
-    async fn test_ac2_save_input_response_persiste() {
+    async fn test_save_input_response_persiste() {
         // GIVEN a task created in input_required status
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-hitl-002";
@@ -1462,7 +1462,7 @@ mod tests {
     // rebuild_for_resume() rebuilds the AIPTask with is_resumed=true
 
     #[tokio::test]
-    async fn test_ac3_rebuild_for_resume_is_resumed_true() {
+    async fn test_rebuild_for_resume_is_resumed_true() {
         // GIVEN a task with a persisted response (approved=true)
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-resume-003";
@@ -1504,7 +1504,7 @@ mod tests {
     // find_input_required_older_than() returns the expired tasks
 
     #[tokio::test]
-    async fn test_ac4_find_expired_input_required() {
+    async fn test_find_expired_input_required() {
         // GIVEN a task input_required for 25h (set directly in the database)
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-expired-004";
@@ -1546,7 +1546,7 @@ mod tests {
     // Recent task absent from the expired list
 
     #[tokio::test]
-    async fn test_ac5_find_recent_not_expired() {
+    async fn test_find_recent_not_expired() {
         // GIVEN a task input_required created just now (~0s)
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-recent-005";

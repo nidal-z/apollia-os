@@ -75,7 +75,7 @@ mod tests {
     use std::time::Duration;
 
     #[tokio::test]
-    async fn test_ac2_interval_fires_multiple_times() {
+    async fn test_interval_fires_multiple_times() {
         // GIVEN a 100ms interval
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = TriggerDefinition {

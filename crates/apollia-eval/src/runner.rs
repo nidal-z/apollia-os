@@ -244,7 +244,6 @@ mod tests {
         }
     }
 
-    // AC-1
     #[tokio::test]
     async fn test_run_suite_all_pass_reports_full_success() {
         // GIVEN a 1-task suite, runs=5, an always-pass client and a passing assertion
@@ -271,7 +270,7 @@ mod tests {
         assert!((task_report.total_cost_usd - 0.05).abs() < 1e-9);
     }
 
-    // AC-2 (error case)
+    // (error case)
     #[tokio::test]
     async fn test_run_suite_one_client_error_is_counted_not_panicked() {
         // GIVEN a client that errors on run 2 of 4
@@ -307,7 +306,7 @@ mod tests {
             .contains("simulated socket failure"));
     }
 
-    // AC-3 (assertion failure on a runtime-success run)
+    // (assertion failure on a runtime-success run)
     #[tokio::test]
     async fn test_run_marked_failed_when_file_exists_assertion_fails() {
         // GIVEN a runtime-success run but a FileExists assertion on a missing path
@@ -339,7 +338,6 @@ mod tests {
                 .contains("does not exist")));
     }
 
-    // AC-4
     #[tokio::test]
     async fn test_empty_suite_returns_empty_report() {
         // GIVEN a suite with no tasks

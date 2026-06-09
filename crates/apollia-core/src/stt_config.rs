@@ -260,7 +260,7 @@ mod tests {
     // WHEN get_or_default()
     // THEN default values are returned and inserted into the table
     #[test]
-    fn test_ac1_empty_db_returns_defaults() {
+    fn test_empty_db_returns_defaults() {
         let (repo, _dir) = make_repo();
         let config = repo.get_or_default().unwrap();
         assert!(!config.enabled);
@@ -289,7 +289,7 @@ mod tests {
     // WHEN upsert() then get_or_default()
     // THEN the saved values are read back exactly
     #[test]
-    fn test_ac2_upsert_and_read_back() {
+    fn test_upsert_and_read_back() {
         let (repo, _dir) = make_repo();
         let mut config = SttConfigRow::default();
         config.enabled = true;

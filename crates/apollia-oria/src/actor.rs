@@ -1977,7 +1977,7 @@ mod tests {
     /// THEN AIPResult::Completed is returned
     ///   AND all 3 steps are in the output
     #[tokio::test]
-    async fn test_ac1_execution_sequentielle() {
+    async fn test_execution_sequentielle() {
         // GIVEN
         let plan = make_plan(vec![("s1", &[]), ("s2", &["s1"]), ("s3", &["s2"])]);
         let (mut actor, _rx) = make_actor(plan);
@@ -2016,7 +2016,7 @@ mod tests {
     /// WHEN actor.execute() is called
     /// THEN AIPResult::failed("STEP_BUDGET_EXCEEDED", _) is returned
     #[tokio::test]
-    async fn test_ac2_budget_epuise() {
+    async fn test_budget_epuise() {
         // GIVEN
         let plan = make_plan(vec![
             ("s1", &[]),
@@ -2065,7 +2065,7 @@ mod tests {
     /// THEN PlanReplanning { attempt: 1 } is emitted
     ///   AND execution continues with the alternative plan
     #[tokio::test]
-    async fn test_ac3_replanification_declenchee() {
+    async fn test_replanification_declenchee() {
         // GIVEN
         let plan = make_plan(vec![("s1", &[]), ("s2", &["s1"]), ("s3", &["s2"])]);
         let (bus_tx, mut bus_rx) = tokio::sync::broadcast::channel(64);
@@ -2176,7 +2176,7 @@ mod tests {
     /// WHEN actor.execute() is called
     /// THEN AIPResult::failed("MAX_REPLAN_EXCEEDED", _) is returned
     #[tokio::test]
-    async fn test_ac4_max_replan_exceeded() {
+    async fn test_max_replan_exceeded() {
         // GIVEN
         let plan = make_plan(vec![("s1", &[])]);
         let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
@@ -2256,7 +2256,7 @@ mod tests {
     /// WHEN an ActorLoop is created with this manifest
     /// THEN self.manifest.tools_requiring_approval contains "smtp"
     #[test]
-    fn test_ac3_manifest_propagated_to_actor_loop() {
+    fn test_manifest_propagated_to_actor_loop() {
         // GIVEN
         let manifest: AgentManifest = serde_json::from_str(
             r#"{
@@ -2323,7 +2323,7 @@ mod tests {
     // THEN the "smtp" tool is NOT called before approval,
     //      RuntimeEvent::TaskInputRequired{step_id: Some("s3")} is emitted
     #[tokio::test]
-    async fn test_ac1_step_sensitive_tool_suspends_before_execution() {
+    async fn test_step_sensitive_tool_suspends_before_execution() {
         use std::sync::atomic::{AtomicU32, Ordering};
 
         // GIVEN
@@ -2426,7 +2426,7 @@ mod tests {
     // WHEN PendingApprovals.resolve(approved=true)
     // THEN the "smtp" tool is called and the plan completes
     #[tokio::test]
-    async fn test_ac2_approve_executes_step() {
+    async fn test_approve_executes_step() {
         use std::sync::atomic::{AtomicU32, Ordering};
 
         // GIVEN
@@ -2517,7 +2517,7 @@ mod tests {
     // WHEN the operator rejects s2
     // THEN s2 is not executed, plan returns failed("REJECTED", reason)
     #[tokio::test]
-    async fn test_ac3_reject_stops_plan() {
+    async fn test_reject_stops_plan() {
         use std::sync::atomic::{AtomicU32, Ordering};
 
         // GIVEN
@@ -2630,7 +2630,7 @@ mod tests {
     // WHEN execute() is called with PendingApprovals configured
     // THEN no TaskInputRequired is emitted, the step executes directly
     #[tokio::test]
-    async fn test_ac5_non_sensitive_tool_no_suspension() {
+    async fn test_non_sensitive_tool_no_suspension() {
         // GIVEN
         let manifest = make_manifest_with_approval(&["smtp"]);
         let plan = make_plan_with_tool("s1", "file_io", "task-ac5");

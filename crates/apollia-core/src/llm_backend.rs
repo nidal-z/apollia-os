@@ -597,7 +597,7 @@ mod tests {
     // WHEN  save() + list()
     // THEN  the list contains the saved backend
     #[test]
-    fn test_ac1_save_and_list() {
+    fn test_save_and_list() {
         let (repo, _dir) = make_repo();
         let config = make_config("openai", false);
 
@@ -615,7 +615,7 @@ mod tests {
     // WHEN  set_default("b")
     // THEN  exactly 1 backend has is_default=true, and it is "b"
     #[test]
-    fn test_ac2_set_default_replaces_previous() {
+    fn test_set_default_replaces_previous() {
         let (repo, _dir) = make_repo();
         repo.save(&make_config("a", true)).unwrap();
         repo.save(&make_config("b", false)).unwrap();
@@ -636,7 +636,7 @@ mod tests {
     // WHEN  delete("a")
     // THEN  LlmBackendError::CannotDeleteDefault returned, "a" still present
     #[test]
-    fn test_ac3_cannot_delete_default() {
+    fn test_cannot_delete_default() {
         let (repo, _dir) = make_repo();
         repo.save(&make_config("a", true)).unwrap();
 
@@ -651,7 +651,7 @@ mod tests {
     // WHEN  find_by_name("nonexistent")
     // THEN  Ok(None) returned
     #[test]
-    fn test_ac4_find_by_name_missing_returns_none() {
+    fn test_find_by_name_missing_returns_none() {
         let (repo, _dir) = make_repo();
         assert!(repo.find_by_name("ghost").unwrap().is_none());
     }
@@ -660,7 +660,7 @@ mod tests {
     // WHEN  find_default()
     // THEN  Ok(None) returned
     #[test]
-    fn test_ac5_find_default_none_when_no_default() {
+    fn test_find_default_none_when_no_default() {
         let (repo, _dir) = make_repo();
         repo.save(&make_config("a", false)).unwrap();
         assert!(repo.find_default().unwrap().is_none());

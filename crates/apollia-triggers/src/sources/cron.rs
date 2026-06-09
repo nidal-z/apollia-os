@@ -102,7 +102,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac1_cron_fires_within_timeout() {
+    async fn test_cron_fires_within_timeout() {
         // GIVEN an every-second expression (6 fields including seconds)
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = make_def_cron("test-cron", "* * * * * *");

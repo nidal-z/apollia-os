@@ -755,7 +755,7 @@ mod tests {
     // ── Direct-mode timeline, chronological order ─────────────────────────
 
     #[test]
-    fn test_ac1_timeline_mode_direct_chronological() {
+    fn test_timeline_mode_direct_chronological() {
         // GIVEN a direct-mode task with transitions + 2 tool calls
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
@@ -839,7 +839,7 @@ mod tests {
     // ── Orchestrated-mode timeline with steps + LLM calls ─────────────────
 
     #[test]
-    fn test_ac2_timeline_orchestrated_with_steps() {
+    fn test_timeline_orchestrated_with_steps() {
         // GIVEN an orchestrated task with 2 steps + 1 LLM call
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
@@ -913,7 +913,7 @@ mod tests {
     // ── HITL suspension + resolution timeline ─────────────────────────────
 
     #[test]
-    fn test_ac3_timeline_hitl_suspension_and_resolution() {
+    fn test_timeline_hitl_suspension_and_resolution() {
         // GIVEN an approval with suspended_at + responded_at
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
@@ -970,7 +970,7 @@ mod tests {
     // ── Task not found -> Err ─────────────────────────────────────────────
 
     #[test]
-    fn test_ac4_timeline_task_not_found() {
+    fn test_timeline_task_not_found() {
         // GIVEN empty DBs
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());
@@ -991,7 +991,7 @@ mod tests {
     // ── In-progress task -> partial timeline without TaskCompleted ────────
 
     #[test]
-    fn test_ac5_timeline_in_progress_no_task_completed() {
+    fn test_timeline_in_progress_no_task_completed() {
         // GIVEN an in-progress task (status = running)
         let dir = tempfile::tempdir().expect("tempdir");
         setup_test_dbs(dir.path());

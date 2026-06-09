@@ -54,7 +54,7 @@ mod tests {
     use crate::result::TaskStatus;
 
     #[test]
-    fn test_ac1_process_state_variants_exist() {
+    fn test_process_state_variants_exist() {
         // GIVEN / WHEN / THEN
         let states = [
             ProcessState::Initializing,
@@ -67,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_process_state_serializes_snake_case() {
+    fn test_process_state_serializes_snake_case() {
         // GIVEN
         let state = ProcessState::Active;
         // WHEN
@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_task_status_input_required_serializes() {
+    fn test_task_status_input_required_serializes() {
         // GIVEN
         let status = TaskStatus::InputRequired;
         // WHEN
@@ -108,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_unknown_state_deserializes_to_error() {
+    fn test_unknown_state_deserializes_to_error() {
         // GIVEN
         let invalid = "\"unknown_state\"";
         // WHEN
@@ -118,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_task_status_all_variants_exist() {
+    fn test_task_status_all_variants_exist() {
         // GIVEN / WHEN / THEN
         let statuses = [
             TaskStatus::Submitted,

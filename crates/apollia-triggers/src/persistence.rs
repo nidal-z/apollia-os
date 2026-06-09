@@ -435,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac1_migration_creates_tables() {
+    fn test_migration_creates_tables() {
         // GIVEN / WHEN: open_test_db applies the migration
         let (_dir, persistence) = open_test_db();
         // THEN the tables exist (query does not panic, returns empty vec)
@@ -444,7 +444,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_record_fired_persists_entry() {
+    fn test_record_fired_persists_entry() {
         // GIVEN
         let (_dir, mut persistence) = open_test_db();
         // WHEN
@@ -472,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_record_skipped_persists_reason() {
+    fn test_record_skipped_persists_reason() {
         // GIVEN
         let (_dir, mut persistence) = open_test_db();
         // WHEN
@@ -498,7 +498,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_record_error_persists_error_message() {
+    fn test_record_error_persists_error_message() {
         // GIVEN
         let (_dir, mut persistence) = open_test_db();
         // WHEN
@@ -525,7 +525,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_query_history_returns_n_last_entries_sorted_desc() {
+    fn test_query_history_returns_n_last_entries_sorted_desc() {
         // GIVEN 5 fires spaced 1 second apart
         let (_dir, mut persistence) = open_test_db();
         let base = Utc::now();

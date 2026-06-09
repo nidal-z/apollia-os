@@ -869,7 +869,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac3_accepts_subset_events_filters_correctly() {
+    fn test_accepts_subset_events_filters_correctly() {
         // GIVEN a channel configured with a subset of events
         let channel = MockChannel {
             name: "slack".into(),
@@ -892,7 +892,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac4_accepts_wildcard_all_events() {
+    fn test_accepts_wildcard_all_events() {
         // GIVEN a channel configured with the "*" wildcard
         let channel = MockChannel {
             name: "monitoring".into(),
@@ -914,7 +914,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac5_channel_error_does_not_stop_other_channels() {
+    async fn test_channel_error_does_not_stop_other_channels() {
         // GIVEN two channels: "desktop" OK, "slack" returns an error
         let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
 

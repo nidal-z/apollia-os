@@ -1917,7 +1917,7 @@ mod runtime_context_tests {
 
     /// `ctx.llm` is `None` if the router has no backend.
     #[tokio::test]
-    async fn test_ac2_ctx_llm_none_if_no_backends() {
+    async fn test_ctx_llm_none_if_no_backends() {
         // GIVEN an empty LlmRouter (0 backends)
         let router = Arc::new(LlmRouter::empty());
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
@@ -1945,7 +1945,7 @@ mod runtime_context_tests {
 
     /// `AgentDegraded` emitted on EventBus if no LLM backend.
     #[tokio::test]
-    async fn test_ac3_agent_degraded_emitted_if_no_llm() {
+    async fn test_agent_degraded_emitted_if_no_llm() {
         // GIVEN an empty router and a bus with a receiver
         let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
         let router = Arc::new(LlmRouter::empty());
@@ -1982,7 +1982,7 @@ mod runtime_context_tests {
 
     /// (variant) `ctx.llm` is `None` if `llm_router` is `None`.
     #[tokio::test]
-    async fn test_ac2_ctx_llm_none_if_router_option_is_none() {
+    async fn test_ctx_llm_none_if_router_option_is_none() {
         // GIVEN llm_router = None (the Supervisor could not initialize the LLM)
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
         // WHEN

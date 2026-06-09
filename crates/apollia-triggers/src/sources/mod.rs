@@ -59,7 +59,7 @@ mod tests {
     // --- parse_interval --------------------------------------------------
 
     #[test]
-    fn test_ac5_parse_interval_valid_formats() {
+    fn test_parse_interval_valid_formats() {
         // GIVEN / WHEN / THEN
         assert_eq!(parse_interval("30m").unwrap(), Duration::from_secs(1_800));
         assert_eq!(parse_interval("1h").unwrap(), Duration::from_secs(3_600));
@@ -68,7 +68,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_parse_interval_invalid_format() {
+    fn test_parse_interval_invalid_format() {
         // GIVEN / WHEN / THEN
         assert!(matches!(
             parse_interval("2w"),

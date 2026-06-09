@@ -5,7 +5,7 @@ const config: Config = {
   darkMode: "class",
   content: ["./src/**/*.{html,js,svelte,ts}"],
   theme: {
-    // Canonical responsive breakpoints for Apollia OS desktop (Sprint 42).
+    // Canonical responsive breakpoints for Apollia OS desktop.
     // Source of vérité : src/lib/design/breakpoints.md.
     // Seuil "operator mobile" = 375 px (iPhone SE) - xs doit rester fonctionnel à cette largeur.
     screens: {

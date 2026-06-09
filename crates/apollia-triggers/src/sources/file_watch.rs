@@ -377,7 +377,7 @@ mod tests {
     // --- detection of a created file -------------------------------------
 
     #[tokio::test]
-    async fn test_ac1_detects_file_creation() {
+    async fn test_detects_file_creation() {
         // GIVEN
         let dir = TempDir::new().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
@@ -409,7 +409,7 @@ mod tests {
     // --- Delete event ignored when events = ["create"] -------------------
 
     #[tokio::test]
-    async fn test_ac2_delete_ignored_when_filter_is_create() {
+    async fn test_delete_ignored_when_filter_is_create() {
         // GIVEN watcher started on an empty directory
         let dir = TempDir::new().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);

@@ -1,5 +1,5 @@
 <!--
-  MCP resource @-mention picker (ADR-092 user-initiative path).
+  MCP resource @-mention picker (user-initiative path).
 
   Rendered absolutely above the ChatInput textarea when the user types a
   leading `@`. Mirrors SlashCommandMenu: keyboard-navigable (up / down moves the

@@ -948,7 +948,7 @@ mod tests {
 
     // plan_generated updates state and is NOT terminal
     #[test]
-    fn test_ac1_plan_generated_handler() {
+    fn test_plan_generated_handler() {
         // GIVEN
         let event = make_event(
             "plan_generated",
@@ -972,7 +972,7 @@ mod tests {
 
     // plan tree rendered with dependencies
     #[test]
-    fn test_ac1_plan_generated_with_steps() {
+    fn test_plan_generated_with_steps() {
         // GIVEN 2 steps, second depends on first
         let event = make_event(
             "plan_generated",
@@ -997,7 +997,7 @@ mod tests {
 
     // step_started updates current_num and is NOT terminal
     #[test]
-    fn test_ac2_step_started_not_terminal() {
+    fn test_step_started_not_terminal() {
         // GIVEN
         let event = make_event(
             "step_started",
@@ -1015,7 +1015,7 @@ mod tests {
 
     // replanning is NOT terminal
     #[test]
-    fn test_ac3_replanning_not_terminal() {
+    fn test_replanning_not_terminal() {
         // GIVEN
         let event = make_event(
             "replanning",
@@ -1032,7 +1032,7 @@ mod tests {
 
     // plan_failed is terminal
     #[test]
-    fn test_ac4_plan_failed_est_terminal() {
+    fn test_plan_failed_est_terminal() {
         // GIVEN
         let event = make_event("plan_failed", serde_json::json!({"reason": "MAX_REPLAN"}));
         let mut state = RunDisplayState::new(false, false);
@@ -1046,7 +1046,7 @@ mod tests {
 
     // completed is terminal
     #[test]
-    fn test_ac5_completed_est_terminal() {
+    fn test_completed_est_terminal() {
         // GIVEN
         let event = make_event("completed", serde_json::json!({"result": "Résultat final"}));
         let mut state = RunDisplayState::new(false, false);
@@ -1060,7 +1060,7 @@ mod tests {
 
     // direct-mode events (no plan_* events) still work
     #[test]
-    fn test_ac5_direct_mode_step_not_terminal() {
+    fn test_direct_mode_step_not_terminal() {
         // GIVEN legacy direct-mode step event
         let event = make_event("step", serde_json::json!({"step": 1, "tool": "file_io"}));
         let mut state = RunDisplayState::new(false, false);
@@ -1075,7 +1075,7 @@ mod tests {
 
     // json_mode prints raw_json; step_started is NOT terminal in json mode
     #[test]
-    fn test_ac6_json_mode_passe_en_brut() {
+    fn test_json_mode_passe_en_brut() {
         // GIVEN
         let event = SseEvent {
             event_type: "step_started".into(),
@@ -1093,7 +1093,7 @@ mod tests {
 
     // json_mode: canceled IS terminal
     #[test]
-    fn test_ac6_json_mode_canceled_is_terminal() {
+    fn test_json_mode_canceled_is_terminal() {
         // GIVEN
         let event = make_event("canceled", serde_json::json!({}));
         let mut state = RunDisplayState::new(true, false);

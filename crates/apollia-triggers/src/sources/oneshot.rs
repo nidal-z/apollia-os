@@ -64,7 +64,7 @@ mod tests {
     use std::time::Duration;
 
     #[tokio::test]
-    async fn test_ac3_oneshot_fires_exactly_once() {
+    async fn test_oneshot_fires_exactly_once() {
         // GIVEN fire in 100ms
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let fire_at = Utc::now() + chrono::Duration::milliseconds(100);

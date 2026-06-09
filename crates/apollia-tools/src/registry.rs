@@ -224,7 +224,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac1_register_and_get_tool() {
+    async fn test_register_and_get_tool() {
         // GIVEN
         let registry = ToolRegistryHandle::start();
         let descriptor = bash_executor_descriptor();
@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac2_invalid_descriptor_rejected() {
+    async fn test_invalid_descriptor_rejected() {
         // GIVEN
         let registry = ToolRegistryHandle::start();
         let mut descriptor = bash_executor_descriptor();
@@ -257,7 +257,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac3_duplicate_rejected() {
+    async fn test_duplicate_rejected() {
         // GIVEN
         let registry = ToolRegistryHandle::start();
         registry
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_list_returns_all_tools() {
+    async fn test_list_returns_all_tools() {
         // GIVEN
         let registry = ToolRegistryHandle::start();
         registry.register(bash_executor_descriptor()).await.unwrap();
@@ -287,7 +287,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac5_get_unknown_tool_returns_none() {
+    async fn test_get_unknown_tool_returns_none() {
         // GIVEN
         let registry = ToolRegistryHandle::start();
         // WHEN

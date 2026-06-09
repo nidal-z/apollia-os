@@ -2110,7 +2110,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac1_boot_with_mcp_toml_imports_servers() {
+    async fn test_boot_with_mcp_toml_imports_servers() {
         // GIVEN an empty mcp.db and a mcp.toml with one server
         use std::io::Write as _;
         let dir = tempfile::TempDir::new().unwrap();
@@ -2140,7 +2140,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac2_boot_without_mcp_toml_ok() {
+    async fn test_boot_without_mcp_toml_ok() {
         // GIVEN neither mcp.db nor mcp.toml
         let dir = tempfile::TempDir::new().unwrap();
         let db_path = dir.path().join("mcp.db");
@@ -2497,7 +2497,7 @@ mod tests {
 
     // Supervisor starts successfully with llm_config = None
     #[tokio::test]
-    async fn test_ac2_start_without_llm_config_succeeds() {
+    async fn test_start_without_llm_config_succeeds() {
         // GIVEN a Supervisor with no [llm] section
         let port = free_port().await;
         let socket_path = temp_socket_path();
@@ -2615,7 +2615,7 @@ mod tests {
 
     // Supervisor starts with 0 triggers; TriggerEngine is always present.
     #[tokio::test]
-    async fn test_ac3_supervisor_starts_with_zero_triggers() {
+    async fn test_supervisor_starts_with_zero_triggers() {
         // GIVEN a config with no triggers
         let port = free_port().await;
         let socket_path = temp_socket_path();
@@ -2679,7 +2679,7 @@ mod tests {
 
     // Supervisor starts without a [notifications] section and without error.
     #[tokio::test]
-    async fn test_ac4_no_notifications_section_starts_ok() {
+    async fn test_no_notifications_section_starts_ok() {
         // GIVEN a config with no [notifications] section
         let port = free_port().await;
         let socket_path = temp_socket_path();
@@ -2740,7 +2740,7 @@ mod tests {
 
     // Triggers loaded from SQLite at boot.
     #[tokio::test]
-    async fn test_ac4_trigger_engine_loads_from_sqlite() {
+    async fn test_trigger_engine_loads_from_sqlite() {
         use apollia_triggers::{TriggerDefinitionRepository, TriggerDefinitionRow};
 
         // GIVEN a triggers_def.db pre-filled with 1 trigger

@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_verify_hmac_correct_signature() {
+    fn test_verify_hmac_correct_signature() {
         // GIVEN
         let secret = "mon-secret";
         let body = b"payload";
@@ -135,7 +135,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_verify_hmac_wrong_signature() {
+    fn test_verify_hmac_wrong_signature() {
         // GIVEN, signature of the same length but incorrect
         let sig = "sha256=0000000000000000000000000000000000000000000000000000000000000000";
         // WHEN / THEN
@@ -143,7 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_verify_hmac_missing_prefix() {
+    fn test_verify_hmac_missing_prefix() {
         // GIVEN, signature without the "sha256=" prefix
         let sig = "deadbeef";
         // WHEN / THEN
@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac5_verify_hmac_wrong_body() {
+    fn test_verify_hmac_wrong_body() {
         // GIVEN, signature computed over a different body
         let secret = "mon-secret";
         let sig = compute_hmac(secret, b"payload");

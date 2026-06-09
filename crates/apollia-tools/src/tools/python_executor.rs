@@ -414,7 +414,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac1_simple_print_returns_stdout() {
+    async fn test_simple_print_returns_stdout() {
         // GIVEN
         let executor = make_executor!("test-agent-ac1");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -431,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ac2_python_unavailable_detected_at_construction() {
+    fn test_python_unavailable_detected_at_construction() {
         // GIVEN: we test the happy path: if python3 is present, new() succeeds.
         // The error case (PythonUnavailable) is covered implicitly by make_executor! in other tests.
         let result = PythonExecutor::new("test-agent-ac2", &test_venv_dir());
@@ -443,7 +443,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac3_import_missing_package_returns_nonzero_exit() {
+    async fn test_import_missing_package_returns_nonzero_exit() {
         // GIVEN: venv with no extra packages
         let executor = make_executor!("test-agent-ac3");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -467,7 +467,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac4_timeout_kills_python_process() {
+    async fn test_timeout_kills_python_process() {
         // GIVEN
         let executor = make_executor!("test-agent-ac4");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -486,7 +486,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac5_empty_code_rejected_immediately() {
+    async fn test_empty_code_rejected_immediately() {
         // GIVEN
         let executor = make_executor!("test-agent-ac5");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -502,7 +502,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac5_whitespace_only_code_rejected() {
+    async fn test_whitespace_only_code_rejected() {
         // GIVEN: whitespace-only is also empty
         let executor = make_executor!("test-agent-ac5-ws");
         executor.setup_venv(&[]).await.expect("venv setup failed");
@@ -518,7 +518,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ac6_isolation_between_agents() {
+    async fn test_isolation_between_agents() {
         // GIVEN: two executors for different agents, both with empty venvs
         let executor_a = make_executor!("test-agent-isolation-a");
         let executor_b = make_executor!("test-agent-isolation-b");

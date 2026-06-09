@@ -449,7 +449,7 @@ mod tests {
 
     // Recording a successful invocation
     #[tokio::test]
-    async fn test_ac1_record_successful_invocation() {
+    async fn test_record_successful_invocation() {
         // GIVEN
         let handle = open_test_audit().await;
         let record = make_record(true, None);
@@ -467,7 +467,7 @@ mod tests {
 
     // Recording a failed invocation
     #[tokio::test]
-    async fn test_ac2_record_failed_invocation() {
+    async fn test_record_failed_invocation() {
         // GIVEN
         let handle = open_test_audit().await;
         let record = make_record(false, Some("Timeout"));
@@ -484,7 +484,7 @@ mod tests {
 
     // Schema created automatically on a fresh store
     #[tokio::test]
-    async fn test_ac3_schema_created_on_fresh_db() {
+    async fn test_schema_created_on_fresh_db() {
         // GIVEN: a non-existent store
         let db_path =
             std::env::temp_dir().join(format!("apollia_fresh_{}.db", uuid::Uuid::new_v4()));
@@ -499,7 +499,7 @@ mod tests {
 
     // record() does not block (fire-and-forget)
     #[tokio::test]
-    async fn test_ac4_record_is_fire_and_forget() {
+    async fn test_record_is_fire_and_forget() {
         // GIVEN
         let handle = open_test_audit().await;
         // WHEN: 10 invocations are recorded without waiting
@@ -518,7 +518,7 @@ mod tests {
 
     // Same parameters produce the same input_hash
     #[test]
-    fn test_ac5_same_params_same_input_hash() {
+    fn test_same_params_same_input_hash() {
         // GIVEN
         let params = serde_json::json!({ "command": "echo hello", "timeout_secs": 30 });
         // WHEN
