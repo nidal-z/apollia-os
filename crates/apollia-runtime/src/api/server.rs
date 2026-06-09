@@ -130,6 +130,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` in production, opened by the Supervisor from `~/.apollia/audit.db`.
     /// `None` in tests, the `/api/v1/audit` routes return 503 when `None`.
     pub audit_trail: Option<AuditTrailHandle>,
+    /// Handle to the hash-chained audit journal actor, exposes `audit verify`.
+    ///
+    /// `Some` in production, opened by the Supervisor from
+    /// `~/.apollia/audit_journal.db`. `None` in tests, the
+    /// `/api/v1/audit/verify/:run_id` route returns 503 when `None`.
+    pub audit_journal: Option<crate::audit_journal::AuditJournalHandle>,
     /// Truncation configuration for task observability.
     ///
     /// Passed to the `ExecutionCoordinator` for persisting input/output/transitions.
@@ -255,6 +261,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             backend_factory: self.backend_factory.clone(),
             tool_registry_handle: self.tool_registry_handle.clone(),
             audit_trail: self.audit_trail.clone(),
+            audit_journal: self.audit_journal.clone(),
             obs_config: self.obs_config.clone(),
             llm_call_repository: self.llm_call_repository.clone(),
             trigger_def_repo: self.trigger_def_repo.clone(),
@@ -394,7 +401,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     };
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_approvals::{list_pending_approvals, list_resolved_approvals};
-    use super::routes_audit::{get_audit_stats, list_audit};
+    use super::routes_audit::{get_audit_stats, list_audit, verify_audit_run};
     use super::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
@@ -454,6 +461,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         // Audit trail routes
         .route("/api/v1/audit", get(list_audit::<B>))
         .route("/api/v1/audit/stats", get(get_audit_stats::<B>))
+        .route("/api/v1/audit/verify/:run_id", get(verify_audit_run::<B>))
         .route(
             "/api/v1/agents",
             get(list_agents::<B>).post(start_agent::<B>),
@@ -780,6 +788,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            audit_journal: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,

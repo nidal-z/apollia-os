@@ -1,6 +1,7 @@
 //! `apollia-os audit` subcommands: query audit trail via the runtime API.
 //!
-//! Provides `list` and `stats` operations on the audit trail.
+//! Provides `list`, `stats`, `export`, and `verify` operations on the audit
+//! trail and the hash-chained audit journal.
 
 use std::path::PathBuf;
 
@@ -30,6 +31,13 @@ pub enum AuditCommand {
         #[arg(long, default_value_t = 10_000)]
         limit: u32,
     },
+    /// Verify the hash chain and signatures of a run's audit journal.
+    #[command(name = "verify")]
+    Verify {
+        /// Identifier of the run to verify.
+        #[arg(value_name = "RUN_ID")]
+        run_id: String,
+    },
 }
 
 /// Execute an `audit` subcommand.
@@ -45,6 +53,79 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
         AuditCommand::Export { output, limit } => {
             run_export(&client, output.as_deref(), *limit).await
         }
+        AuditCommand::Verify { run_id } => run_verify(&client, run_id, json).await,
+    }
+}
+
+/// `apollia-os audit verify <run_id>`: verify a run's chain and signatures.
+///
+/// Exit 0 when the chain is intact, 1 when a link is broken or the run is
+/// unknown, 2 when the runtime is not reachable.
+async fn run_verify(client: &RuntimeClient, run_id: &str, json: bool) -> i32 {
+    let uri = format!("/api/v1/audit/verify/{run_id}");
+    let resp = match client.get(&uri).await {
+        Ok(r) => r,
+        Err(e) => return handle_error(e, json),
+    };
+
+    if resp.status == 404 {
+        if json {
+            let output = serde_json::json!({"ok": false, "error": "not_found"});
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
+        } else {
+            eprintln!("run_id not found in journal: {run_id}");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+    if resp.status >= 400 {
+        return handle_server_error(resp.status, &resp.body, json);
+    }
+
+    let report: serde_json::Value = match serde_json::from_str(&resp.body) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error: invalid JSON response: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).unwrap_or_default()
+        );
+    }
+
+    let ok = report.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+    if ok {
+        let checked = report
+            .get("entries_checked")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        if !json {
+            println!("OK    {run_id}  {checked} entries verified");
+        }
+        exit_codes::SUCCESS
+    } else {
+        if !json {
+            let (seq, reason) = report
+                .get("first_broken_link")
+                .map(|link| {
+                    let seq = link.get("seq").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let reason = link
+                        .get("reason")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    (seq, reason)
+                })
+                .unwrap_or((0, "unknown".to_string()));
+            println!("FAIL  {run_id}  broken link at seq={seq} ({reason})");
+        }
+        exit_codes::GENERAL_ERROR
     }
 }
 
@@ -353,10 +434,26 @@ mod tests {
     }
 
     #[test]
+    fn parses_verify_with_run_id() {
+        let cli = TestCli::parse_from(["x", "verify", "run-abc"]);
+        match cli.cmd {
+            AuditCommand::Verify { run_id } => assert_eq!(run_id, "run-abc"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn verify_requires_run_id() {
+        // GIVEN the verify subcommand with no run id
+        // WHEN parsing
+        let result = TestCli::try_parse_from(["x", "verify"]);
+        // THEN it is a usage error
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn parses_export_with_output_and_limit() {
-        let cli = TestCli::parse_from([
-            "x", "export", "--output", "/tmp/a.json", "--limit", "50",
-        ]);
+        let cli = TestCli::parse_from(["x", "export", "--output", "/tmp/a.json", "--limit", "50"]);
         match cli.cmd {
             AuditCommand::Export { output, limit } => {
                 assert_eq!(output, Some(PathBuf::from("/tmp/a.json")));

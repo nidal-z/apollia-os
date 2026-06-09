@@ -14,6 +14,7 @@ use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft, JournalEntryK
 use crate::audit_journal::error::AuditJournalError;
 use crate::audit_journal::hash::{compute_entry_hash, SENTINEL_PREV_HASH};
 use crate::audit_journal::signer::JournalSigner;
+use crate::audit_journal::verify::{verify_entries, VerifyChainReport};
 
 /// SQL schema: the chained table, its index, and the append-only triggers.
 pub(crate) const SCHEMA: &str = "
@@ -57,6 +58,11 @@ pub(crate) enum JournalMessage {
     LastHash {
         run_id: String,
         reply: tokio::sync::oneshot::Sender<Option<String>>,
+    },
+    /// Recompute and verify the chain and signatures of a run.
+    VerifyChain {
+        run_id: String,
+        reply: tokio::sync::oneshot::Sender<VerifyChainReport>,
     },
     /// Stop the actor after draining the queue.
     Shutdown,
@@ -110,6 +116,11 @@ impl JournalActor {
                 }
                 JournalMessage::LastHash { run_id, reply } => {
                     let _ = reply.send(self.last_hash(&run_id));
+                }
+                JournalMessage::VerifyChain { run_id, reply } => {
+                    let entries = self.query_run(&run_id).unwrap_or_default();
+                    let report = verify_entries(&run_id, &entries, self.signer.as_deref());
+                    let _ = reply.send(report);
                 }
                 JournalMessage::Shutdown => break,
             }

@@ -6,7 +6,7 @@
 //! Both routes return 503 when no `AuditTrailHandle` is configured in `AppState`
 //! (e.g. unit tests or a runtime started without a data directory).
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use apollia_tools::ToolInvocationRecord;
 
 use crate::api::server::AppState;
+use crate::audit_journal::VerifyChainReport;
 use crate::coordinator::ExecutionBackend;
 
 // ---------------------------------------------------------------------------
@@ -153,6 +154,45 @@ pub async fn get_audit_stats<B: ExecutionBackend + Clone>(
     }))
 }
 
+/// `GET /api/v1/audit/verify/:run_id`, verify a run's hash chain and signatures.
+///
+/// Returns 200 with the [`VerifyChainReport`] (whether or not the chain is
+/// intact), 404 when the run has no entries, 503 when the journal is not
+/// configured, and 500 on an internal error.
+pub async fn verify_audit_run<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(run_id): Path<String>,
+) -> Result<Json<VerifyChainReport>, (StatusCode, Json<ErrorResponse>)> {
+    let handle = state.audit_journal.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "audit journal not available".to_string(),
+            }),
+        )
+    })?;
+
+    let report = handle.verify_chain(&run_id).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+
+    if report.entries_checked == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "not_found".to_string(),
+            }),
+        ));
+    }
+
+    Ok(Json(report))
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -230,6 +270,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: audit,
+            audit_journal: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -368,5 +409,91 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["count"].as_u64().unwrap(), 0);
+    }
+
+    async fn open_temp_journal() -> crate::audit_journal::AuditJournalHandle {
+        let db_path = std::env::temp_dir().join(format!(
+            "apollia_journal_routes_{}.db",
+            uuid::Uuid::new_v4()
+        ));
+        crate::audit_journal::AuditJournalHandle::open(&db_path)
+            .await
+            .expect("open journal for test")
+    }
+
+    // GET /api/v1/audit/verify/:run_id returns ok for an intact chain
+    #[tokio::test]
+    async fn test_verify_intact_chain_returns_ok() {
+        // GIVEN a journal with two entries for run-1
+        use crate::audit_journal::{JournalEntryDraft, JournalEntryKind};
+        let journal = open_temp_journal().await;
+        for i in 0..2 {
+            journal.append(JournalEntryDraft {
+                run_id: "run-1".to_string(),
+                ts: "2026-01-01T00:00:00Z".to_string(),
+                kind: JournalEntryKind::ToolCallStarted,
+                payload: serde_json::json!({ "i": i }),
+            });
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+        let mut state = test_app_state_with_audit(None);
+        state.audit_journal = Some(journal);
+        let router = APIServer::build_router_for_test(state);
+
+        // WHEN GET /api/v1/audit/verify/run-1
+        let req = Request::builder()
+            .uri("/api/v1/audit/verify/run-1")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 200 with ok=true and the two entries checked
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["ok"].as_bool().unwrap());
+        assert_eq!(json["entries_checked"].as_u64().unwrap(), 2);
+        assert!(json["first_broken_link"].is_null());
+    }
+
+    // GET verify with an unknown run returns 404 not_found
+    #[tokio::test]
+    async fn test_verify_unknown_run_returns_404() {
+        // GIVEN a journal with no entries for the requested run
+        let journal = open_temp_journal().await;
+        let mut state = test_app_state_with_audit(None);
+        state.audit_journal = Some(journal);
+        let router = APIServer::build_router_for_test(state);
+
+        // WHEN GET /api/v1/audit/verify/missing
+        let req = Request::builder()
+            .uri("/api/v1/audit/verify/missing")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 404 not_found
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"].as_str().unwrap(), "not_found");
+    }
+
+    // GET verify returns 503 when the journal is not configured
+    #[tokio::test]
+    async fn test_verify_returns_503_when_not_configured() {
+        // GIVEN no journal in AppState
+        let state = test_app_state_with_audit(None);
+        let router = APIServer::build_router_for_test(state);
+
+        // WHEN GET /api/v1/audit/verify/run-1
+        let req = Request::builder()
+            .uri("/api/v1/audit/verify/run-1")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 503 Service Unavailable
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 }

@@ -15,12 +15,14 @@ pub mod error;
 pub mod handle;
 pub mod hash;
 pub mod signer;
+pub mod verify;
 
 pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind};
 pub use error::AuditJournalError;
 pub use handle::AuditJournalHandle;
 pub use hash::{compute_entry_hash, SENTINEL_PREV_HASH};
 pub use signer::{HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy};
+pub use verify::{BrokenLink, BrokenLinkReason, VerifyChainReport};
 
 #[cfg(test)]
 mod tests {
@@ -138,6 +140,86 @@ mod tests {
             result,
             Err(AuditJournalError::SignerUnavailable(_))
         ));
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // Central tamper test: a signed journal whose stored payload is altered on
+    // disk (after disabling the append-only triggers, as an attacker with file
+    // access would) MUST fail verification.
+    #[tokio::test]
+    async fn test_tampering_fails_verification() {
+        // GIVEN a signed journal with three entries, then closed
+        let key = STANDARD.encode(b"tamper-test-audit-key");
+        let path = temp_db();
+        {
+            let store = MockStore {
+                value: Some(key.clone()),
+            };
+            let handle = AuditJournalHandle::open_with_signer(
+                &path,
+                &store,
+                "journal-hmac-key",
+                SignerUnavailablePolicy::FailHard,
+            )
+            .await
+            .expect("open with signer");
+            for i in 0..3 {
+                handle.append(JournalEntryDraft {
+                    run_id: "run-1".to_string(),
+                    ts: "2026-01-01T00:00:00Z".to_string(),
+                    kind: JournalEntryKind::ToolCallStarted,
+                    payload: serde_json::json!({ "i": i }),
+                });
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+            // Sanity: an intact journal verifies before tampering
+            let report = handle.verify_chain("run-1").await.expect("verify");
+            assert!(report.ok, "intact chain should verify, got {report:?}");
+            assert_eq!(report.entries_checked, 3);
+            handle.shutdown().await;
+        }
+
+        // WHEN an attacker disables the triggers and rewrites a stored payload
+        {
+            let conn = rusqlite::Connection::open(&path).expect("reopen raw");
+            conn.execute_batch(
+                "DROP TRIGGER IF EXISTS aje_no_update; \
+                 UPDATE audit_journal_entries SET payload = '{\"i\":666}' WHERE seq = 1;",
+            )
+            .expect("forced tamper");
+        }
+
+        // THEN reopening and verifying reports a broken link at the tampered seq
+        let store = MockStore { value: Some(key) };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("reopen with signer");
+        let report = handle.verify_chain("run-1").await.expect("verify");
+        assert!(!report.ok, "tampered chain must fail verification");
+        let link = report.first_broken_link.expect("broken link");
+        assert_eq!(link.seq, 1);
+        assert_eq!(link.reason, verify::BrokenLinkReason::HashMismatch);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // An unknown run yields an empty report (mapped to not-found by callers)
+    #[tokio::test]
+    async fn test_verify_unknown_run_is_empty() {
+        // GIVEN an empty journal
+        let (handle, path) = open_temp().await;
+        // WHEN verifying a run that has no entries
+        let report = handle.verify_chain("nope").await.expect("verify");
+        // THEN the report is ok with zero entries checked
+        assert!(report.ok);
+        assert_eq!(report.entries_checked, 0);
+        handle.shutdown().await;
         tokio::fs::remove_file(&path).await.ok();
     }
 

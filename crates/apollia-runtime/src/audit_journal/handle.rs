@@ -13,6 +13,7 @@ use crate::audit_journal::error::AuditJournalError;
 use crate::audit_journal::signer::{
     HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy,
 };
+use crate::audit_journal::verify::VerifyChainReport;
 
 /// Capacity of the channel between the handle and the actor.
 const CHANNEL_CAPACITY: usize = 1024;
@@ -161,6 +162,27 @@ impl AuditJournalHandle {
             return None;
         }
         reply_rx.await.unwrap_or(None)
+    }
+
+    /// Verify the hash chain and signatures of a run.
+    ///
+    /// The actor recomputes every hash, checks the `prev_hash` linkage, and
+    /// verifies signatures with its own configured key, so the secret never
+    /// leaves the actor. Returns [`AuditJournalError::ActorUnavailable`] if the
+    /// actor is gone. A report with `entries_checked == 0` means the run has no
+    /// entries (unknown run).
+    pub async fn verify_chain(&self, run_id: &str) -> Result<VerifyChainReport, AuditJournalError> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        self.sender
+            .send(JournalMessage::VerifyChain {
+                run_id: run_id.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)?;
+        reply_rx
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)
     }
 
     /// Send the shutdown signal and let the actor drain its queue.
