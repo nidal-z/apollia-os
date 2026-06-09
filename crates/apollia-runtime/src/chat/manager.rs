@@ -452,6 +452,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
             tool_search_limit,
         },
         &a2a_for_agent,
+        hook_executor.clone(),
     )
     .await
     {
@@ -560,11 +561,18 @@ struct ResolvedSessionInvoker {
 async fn build_session_invoker(
     workspace_params: WorkspaceResolutionParams,
     a2a_for_agent: &Option<Arc<A2AInvoker>>,
+    hook_executor: Option<Arc<HookExecutor>>,
 ) -> Result<ResolvedSessionInvoker, ChatError> {
+    let session_id = workspace_params.session_id.to_string();
     let native_invoker = resolve_workspace_for_session(workspace_params).await?;
     let workspace = native_invoker.workspace_path().map(|p| p.to_path_buf());
     let invoker: Arc<dyn ToolInvoker> = if let Some(a2a) = a2a_for_agent {
-        Arc::new(CompositeToolInvoker::new(native_invoker, a2a.clone()))
+        Arc::new(CompositeToolInvoker::with_hooks(
+            native_invoker,
+            a2a.clone(),
+            hook_executor,
+            session_id,
+        ))
     } else {
         Arc::new(native_invoker)
     };

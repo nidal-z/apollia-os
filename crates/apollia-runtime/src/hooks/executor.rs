@@ -51,6 +51,41 @@ struct HookDecisionDto {
     arguments: Option<serde_json::Value>,
 }
 
+/// Payload sent to every `PostToolUse` handler.
+#[derive(Debug, Serialize)]
+struct PostToolUsePayload<'a> {
+    event: &'static str,
+    tool_name: &'a str,
+    output_snippet: &'a str,
+    success: bool,
+    session_id: &'a str,
+}
+
+/// Payload sent to `PreCompact` and `PostCompact` handlers.
+#[derive(Debug, Serialize)]
+struct CompactPayload<'a> {
+    event: &'static str,
+    session_id: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    summary_chars: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    original_messages: Option<usize>,
+}
+
+/// Payload sent to `SubagentStart` and `SubagentStop` handlers.
+#[derive(Debug, Serialize)]
+struct SubagentPayload<'a> {
+    event: &'static str,
+    agent_id: &'a str,
+    skill_id: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    success: Option<bool>,
+    session_id: &'a str,
+}
+
+/// Maximum characters forwarded in a `PostToolUse` output snippet.
+const POST_TOOL_USE_SNIPPET_MAX: usize = 4096;
+
 /// Runs lifecycle hook handlers at defined execution points.
 ///
 /// Built once from a [`HookRegistry`] at startup and shared as a read-only
@@ -131,6 +166,139 @@ impl HookExecutor {
             }
         }
         effective
+    }
+
+    /// Runs all `PostToolUse` handlers after a tool invocation completes.
+    ///
+    /// Non-blocking and best-effort: handler failures are traced and ignored,
+    /// never interrupting the ReAct loop. `output_snippet` is truncated to
+    /// [`POST_TOOL_USE_SNIPPET_MAX`] characters before delivery. When a handler
+    /// returns `{"inject": "<text>"}`, the non-empty texts are joined and
+    /// returned for injection into the LLM message buffer. Returns `None` when
+    /// no injection is requested, no handler is registered, or every handler
+    /// fails.
+    pub async fn run_post_tool_use(
+        &self,
+        tool_name: &str,
+        output_snippet: &str,
+        success: bool,
+        session_id: &str,
+    ) -> Option<String> {
+        let handlers = self.registry.handlers_for(HookEventKind::PostToolUse);
+        if handlers.is_empty() {
+            return None;
+        }
+        let snippet = truncate_snippet(output_snippet);
+        let payload = serde_json::to_string(&PostToolUsePayload {
+            event: HookEventKind::PostToolUse.as_str(),
+            tool_name,
+            output_snippet: &snippet,
+            success,
+            session_id,
+        })
+        .unwrap_or_default();
+
+        let mut injected: Vec<String> = Vec::new();
+        for handler in handlers {
+            if let Some(body) = self
+                .fetch_response(handler, HookEventKind::PostToolUse.as_str(), &payload)
+                .await
+            {
+                if let Some(text) = parse_inject(&body) {
+                    if !text.is_empty() {
+                        injected.push(text);
+                    }
+                }
+            }
+        }
+        if injected.is_empty() {
+            None
+        } else {
+            Some(injected.join("\n"))
+        }
+    }
+
+    /// Runs all `PreCompact` handlers before context compaction.
+    ///
+    /// Non-blocking and best-effort. Invoked only when a compaction actually
+    /// occurs, not on every loop turn.
+    pub async fn run_pre_compact(&self, session_id: &str) {
+        let payload = serde_json::to_string(&CompactPayload {
+            event: HookEventKind::PreCompact.as_str(),
+            session_id,
+            summary_chars: None,
+            original_messages: None,
+        })
+        .unwrap_or_default();
+        self.run_best_effort(HookEventKind::PreCompact, &payload)
+            .await;
+    }
+
+    /// Runs all `PostCompact` handlers after context compaction.
+    ///
+    /// Non-blocking and best-effort. Invoked only when a compaction actually
+    /// occurred (`was_compacted == true`).
+    pub async fn run_post_compact(
+        &self,
+        summary_chars: usize,
+        original_messages: usize,
+        session_id: &str,
+    ) {
+        let payload = serde_json::to_string(&CompactPayload {
+            event: HookEventKind::PostCompact.as_str(),
+            session_id,
+            summary_chars: Some(summary_chars),
+            original_messages: Some(original_messages),
+        })
+        .unwrap_or_default();
+        self.run_best_effort(HookEventKind::PostCompact, &payload)
+            .await;
+    }
+
+    /// Runs all `SubagentStart` handlers at the start of a sub-agent or A2A
+    /// invocation. Non-blocking and best-effort.
+    pub async fn run_subagent_start(&self, agent_id: &str, skill_id: &str, session_id: &str) {
+        let payload = serde_json::to_string(&SubagentPayload {
+            event: HookEventKind::SubagentStart.as_str(),
+            agent_id,
+            skill_id,
+            success: None,
+            session_id,
+        })
+        .unwrap_or_default();
+        self.run_best_effort(HookEventKind::SubagentStart, &payload)
+            .await;
+    }
+
+    /// Runs all `SubagentStop` handlers when a sub-agent or A2A invocation
+    /// finishes. Non-blocking and best-effort.
+    pub async fn run_subagent_stop(
+        &self,
+        agent_id: &str,
+        skill_id: &str,
+        success: bool,
+        session_id: &str,
+    ) {
+        let payload = serde_json::to_string(&SubagentPayload {
+            event: HookEventKind::SubagentStop.as_str(),
+            agent_id,
+            skill_id,
+            success: Some(success),
+            session_id,
+        })
+        .unwrap_or_default();
+        self.run_best_effort(HookEventKind::SubagentStop, &payload)
+            .await;
+    }
+
+    /// Delivers `payload` to every handler of `event`, ignoring responses.
+    ///
+    /// Used by the non-blocking lifecycle hooks. Delivery failures are traced by
+    /// [`HookExecutor::fetch_response`] and otherwise ignored.
+    async fn run_best_effort(&self, event: HookEventKind, payload: &str) {
+        for handler in self.registry.handlers_for(event) {
+            let _ = self.fetch_response(handler, event.as_str(), payload).await;
+        }
     }
 
     /// Delivers `payload` to a single handler and returns the raw response body.
@@ -249,6 +417,26 @@ fn parse_decision(body: &str) -> Option<HookDecision> {
             .map(|arguments| HookDecision::Rewrite { arguments }),
         _ => None,
     }
+}
+
+/// Extracts the `inject` text from a `PostToolUse` handler response.
+///
+/// Returns `None` when the body is not valid JSON or has no string `inject`
+/// field (an empty or absent response means no injection).
+fn parse_inject(body: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(body).ok()?;
+    value.get("inject")?.as_str().map(str::to_string)
+}
+
+/// Truncates a tool output to [`POST_TOOL_USE_SNIPPET_MAX`] characters,
+/// appending a marker when content was dropped, so handlers are not flooded by
+/// large outputs.
+fn truncate_snippet(output: &str) -> String {
+    if output.chars().count() <= POST_TOOL_USE_SNIPPET_MAX {
+        return output.to_string();
+    }
+    let head: String = output.chars().take(POST_TOOL_USE_SNIPPET_MAX).collect();
+    format!("{head}...[tronque]")
 }
 
 #[cfg(test)]
@@ -436,5 +624,126 @@ mod tests {
 
         // THEN it returns Allow without any I/O
         assert_eq!(decision, HookDecision::Allow);
+    }
+
+    // ── Non-blocking lifecycle hooks ─────────────────────────────────────
+
+    fn cmd_handler(
+        events: Vec<HookEventKind>,
+        argv: Vec<String>,
+        timeout_ms: u64,
+    ) -> HookHandlerConfig {
+        HookHandlerConfig {
+            events,
+            kind: HookHandlerKind::Command { command: argv },
+            timeout_ms,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_with_injection() {
+        // GIVEN a PostToolUse handler that asks to inject context
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script = write_script(
+            dir.path(),
+            "inject.sh",
+            "#!/bin/sh\nprintf '{\"inject\":\"extra context\"}'\n",
+        );
+        let exec = executor_with(vec![cmd_handler(
+            vec![HookEventKind::PostToolUse],
+            vec![script],
+            5_000,
+        )]);
+
+        // WHEN run_post_tool_use is called
+        let injected = exec
+            .run_post_tool_use("read_file", "file body", true, "sess-1")
+            .await;
+
+        // THEN the injected text is returned
+        assert_eq!(injected, Some("extra context".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_no_injection_returns_none() {
+        // GIVEN a PostToolUse handler that returns an empty object
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script = write_script(dir.path(), "empty.sh", "#!/bin/sh\nprintf '{}'\n");
+        let exec = executor_with(vec![cmd_handler(
+            vec![HookEventKind::PostToolUse],
+            vec![script],
+            5_000,
+        )]);
+
+        // WHEN run_post_tool_use is called
+        let injected = exec
+            .run_post_tool_use("read_file", "body", true, "sess-1")
+            .await;
+
+        // THEN nothing is injected
+        assert_eq!(injected, None);
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_timeout_is_best_effort() {
+        // GIVEN a PostToolUse handler that never responds in time
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script = write_script(dir.path(), "slow.sh", "#!/bin/sh\nsleep 5\n");
+        let exec = executor_with(vec![cmd_handler(
+            vec![HookEventKind::PostToolUse],
+            vec![script],
+            50,
+        )]);
+
+        // WHEN run_post_tool_use is called
+        let injected = exec
+            .run_post_tool_use("read_file", "body", true, "sess-1")
+            .await;
+
+        // THEN it returns None without panicking or propagating an error
+        assert_eq!(injected, None);
+    }
+
+    #[tokio::test]
+    async fn test_subagent_start_receives_payload() {
+        // GIVEN a SubagentStart handler that captures its stdin payload
+        let dir = tempfile::tempdir().expect("tempdir");
+        let capture = dir.path().join("payload.json");
+        let script = write_script(
+            dir.path(),
+            "capture.sh",
+            &format!("#!/bin/sh\ncat >> '{}'\n", capture.display()),
+        );
+        let exec = executor_with(vec![cmd_handler(
+            vec![HookEventKind::SubagentStart],
+            vec![script],
+            5_000,
+        )]);
+
+        // WHEN run_subagent_start is called
+        exec.run_subagent_start("agent-1", "skill-x", "sess-1")
+            .await;
+
+        // THEN the handler received the structured payload
+        let captured = std::fs::read_to_string(&capture).expect("capture file");
+        assert!(captured.contains("\"event\":\"subagent_start\""));
+        assert!(captured.contains("\"agent_id\":\"agent-1\""));
+        assert!(captured.contains("\"skill_id\":\"skill-x\""));
+    }
+
+    #[tokio::test]
+    async fn test_empty_registry_all_hooks_noop() {
+        // GIVEN an executor over an empty registry
+        let exec = executor_with(vec![]);
+
+        // WHEN every non-blocking hook is called
+        let injected = exec.run_post_tool_use("t", "out", true, "s").await;
+        exec.run_pre_compact("s").await;
+        exec.run_post_compact(10, 5, "s").await;
+        exec.run_subagent_start("a", "k", "s").await;
+        exec.run_subagent_stop("a", "k", true, "s").await;
+
+        // THEN nothing is injected and nothing panics
+        assert_eq!(injected, None);
     }
 }

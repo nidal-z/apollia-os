@@ -15,6 +15,7 @@ use tracing::warn;
 use crate::a2a::invoker::A2AError;
 use crate::a2a::{A2AInvokeRequest, A2AInvoker};
 use crate::chat::builtin_agent::NativeChatToolInvoker;
+use crate::hooks::executor::HookExecutor;
 
 /// Prefix used to distinguish A2A virtual tools from native chat tools.
 const A2A_PREFIX: &str = "a2a:";
@@ -165,15 +166,33 @@ pub struct CompositeToolInvoker {
     a2a: Arc<A2AInvoker>,
     /// Consecutive failure count per skill_id. Reset to 0 on success.
     a2a_failures: Mutex<HashMap<String, u32>>,
+    /// Lifecycle hook executor, fired at the A2A sub-agent boundary
+    /// (`SubagentStart` / `SubagentStop`). `None` disables sub-agent hooks.
+    hook_executor: Option<Arc<HookExecutor>>,
+    /// Session identifier carried in the sub-agent hook payloads.
+    session_id: String,
 }
 
 impl CompositeToolInvoker {
     /// Create a new composite invoker wrapping a native invoker and an A2A invoker.
     pub fn new(native: NativeChatToolInvoker, a2a: Arc<A2AInvoker>) -> Self {
+        Self::with_hooks(native, a2a, None, String::new())
+    }
+
+    /// Create a composite invoker that also fires sub-agent lifecycle hooks at
+    /// the A2A boundary, tagged with `session_id`.
+    pub fn with_hooks(
+        native: NativeChatToolInvoker,
+        a2a: Arc<A2AInvoker>,
+        hook_executor: Option<Arc<HookExecutor>>,
+        session_id: String,
+    ) -> Self {
         Self {
             native,
             a2a,
             a2a_failures: Mutex::new(HashMap::new()),
+            hook_executor,
+            session_id,
         }
     }
 }
@@ -206,7 +225,16 @@ impl ToolInvoker for CompositeToolInvoker {
             // via `extract_a2a_payload(task)`.
             let input = arguments.clone();
 
-            match self
+            // SubagentStart (non-blocking, best-effort): the worker agent name is
+            // only resolved by the A2A invoker, so it is reported on stop. The
+            // skill_id identifies the delegation target at start.
+            if let Some(executor) = self.hook_executor.as_ref() {
+                executor
+                    .run_subagent_start("", skill_id, &self.session_id)
+                    .await;
+            }
+
+            let outcome = self
                 .a2a
                 .invoke(A2AInvokeRequest {
                     skill_id,
@@ -216,8 +244,19 @@ impl ToolInvoker for CompositeToolInvoker {
                     timeout: Some(CHAT_A2A_TIMEOUT),
                     chain_deadline: None,
                 })
-                .await
-            {
+                .await;
+
+            if let Some(executor) = self.hook_executor.as_ref() {
+                let agent_id = outcome
+                    .as_ref()
+                    .map(|r| r.agent_name.as_str())
+                    .unwrap_or("");
+                executor
+                    .run_subagent_stop(agent_id, skill_id, outcome.is_ok(), &self.session_id)
+                    .await;
+            }
+
+            match outcome {
                 Ok(result) => {
                     // Reset circuit breaker on success.
                     {

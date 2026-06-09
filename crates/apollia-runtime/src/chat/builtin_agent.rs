@@ -1072,6 +1072,16 @@ struct ToolExecTarget<'a> {
     call: &'a ToolCall,
 }
 
+/// Result of processing one tool call.
+///
+/// `failed` feeds the escalation counter. `executed` carries the LLM-facing
+/// output and success flag when the tool actually ran, so the loop can fire the
+/// `PostToolUse` hook; it is `None` when the call was refused and never invoked.
+struct ToolCallOutcome {
+    failed: bool,
+    executed: Option<(String, bool)>,
+}
+
 /// Outcome of running the `PreToolUse` hooks over one turn's tool calls.
 ///
 /// `calls` is the working set to execute: borrowed (no hook, no change) or owned
@@ -1733,35 +1743,67 @@ impl BuiltInChatAgent {
                 );
                 continue;
             }
-            let failed = match (call.name.as_str(), self.todo.as_ref()) {
+            let (failed, executed) = match (call.name.as_str(), self.todo.as_ref()) {
                 // todo_write is a safe built-in handled in-loop: it never goes
                 // through the registry, the parallel partition, or HITL approval.
-                (TODO_WRITE_TOOL_NAME, Some(todo)) => {
-                    Self::handle_todo_write(todo, session_id, call, llm_messages, acc).await
-                }
+                // No PostToolUse hook fires for it.
+                (TODO_WRITE_TOOL_NAME, Some(todo)) => (
+                    Self::handle_todo_write(todo, session_id, call, llm_messages, acc).await,
+                    None,
+                ),
                 _ => match precomputed.remove(&i) {
                     Some((record, tool_result, success)) => {
                         llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                         acc.all_tool_calls.push(record);
-                        !success
+                        (!success, Some((tool_result, success)))
                     }
                     None => {
-                        self.process_tool_call(
-                            ToolCallContext {
-                                session_id,
-                                message_id,
-                                call,
-                                pending_approvals: ids.pending_approvals,
-                            },
-                            llm_messages,
-                            acc,
-                        )
-                        .await
+                        let outcome = self
+                            .process_tool_call(
+                                ToolCallContext {
+                                    session_id,
+                                    message_id,
+                                    call,
+                                    pending_approvals: ids.pending_approvals,
+                                },
+                                llm_messages,
+                                acc,
+                            )
+                            .await;
+                        (outcome.failed, outcome.executed)
                     }
                 },
             };
+
+            // PostToolUse (non-blocking, best-effort): fires only when the tool
+            // actually ran. A returned injection is appended as a system message
+            // so the model sees it on the next turn.
+            if let Some((output, success)) = executed {
+                if let Some(injection) = self
+                    .fire_post_tool_use(&call.name, &output, success, session_id)
+                    .await
+                {
+                    llm_messages.push(LlmChatMessage::system(injection));
+                }
+            }
+
             *consecutive_tool_failures = next_failure_count(*consecutive_tool_failures, failed);
         }
+    }
+
+    /// Fire the `PostToolUse` hooks for a completed tool call, returning any
+    /// requested context injection. No-op (returns `None`) without an executor.
+    async fn fire_post_tool_use(
+        &self,
+        tool_name: &str,
+        output: &str,
+        success: bool,
+        session_id: &str,
+    ) -> Option<String> {
+        let executor = self.hook_executor.as_ref()?;
+        executor
+            .run_post_tool_use(tool_name, output, success, session_id)
+            .await
     }
 
     /// Run the blocking `PreToolUse` hooks over every call in a turn.
@@ -1938,6 +1980,13 @@ impl BuiltInChatAgent {
             .map(apollia_oria::context_manager::message_char_len)
             .unwrap_or(0);
         let original_messages = llm_messages.len();
+        // PreCompact / PostCompact hooks (non-blocking, best-effort). Both fire
+        // only when a compaction actually occurred. The context manager performs
+        // the summarization atomically, so PreCompact fires immediately before
+        // the compacted history is committed and PostCompact immediately after.
+        if let Some(executor) = self.hook_executor.as_ref() {
+            executor.run_pre_compact(session_id).await;
+        }
         *llm_messages = compacted;
         tracing::info!(
             summary_chars,
@@ -1951,6 +2000,11 @@ impl BuiltInChatAgent {
                 summary_chars,
                 original_messages,
             });
+        if let Some(executor) = self.hook_executor.as_ref() {
+            executor
+                .run_post_compact(summary_chars, original_messages, session_id)
+                .await;
+        }
         true
     }
 
@@ -2150,14 +2204,15 @@ impl BuiltInChatAgent {
     /// Process one tool call: run it directly when authorized, otherwise go
     /// through the HITL approval flow. Mutates `llm_messages` and `acc`.
     ///
-    /// Returns `true` when the call failed (execution error, non-zero exit code,
-    /// or operator refusal), so the loop can update its escalation counter.
+    /// Returns a [`ToolCallOutcome`]: `failed` for the escalation counter, and
+    /// the executed output when the tool actually ran (for the `PostToolUse`
+    /// hook). A refusal yields `failed = true` with no executed output.
     async fn process_tool_call(
         &self,
         ctx: ToolCallContext<'_>,
         llm_messages: &mut Vec<LlmChatMessage>,
         acc: &mut ReactAccumulators,
-    ) -> bool {
+    ) -> ToolCallOutcome {
         let ToolCallContext {
             session_id,
             message_id,
@@ -2170,7 +2225,10 @@ impl BuiltInChatAgent {
                 self.execute_tool_call(session_id, message_id, call).await;
             llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
             acc.all_tool_calls.push(record);
-            return !success;
+            return ToolCallOutcome {
+                failed: !success,
+                executed: Some((tool_result, success)),
+            };
         }
 
         // HITL approval
@@ -2214,15 +2272,16 @@ impl BuiltInChatAgent {
 
     /// Apply the operator's HITL decision for an unauthorized tool call.
     ///
-    /// Returns `true` when the call failed: an execution failure on accept, or a
-    /// refusal (the operator declined, which the loop counts toward escalation).
+    /// Returns a [`ToolCallOutcome`]: `failed` is set on an execution failure or
+    /// a refusal; `executed` carries the output when the tool ran, enabling the
+    /// `PostToolUse` hook.
     async fn apply_tool_decision(
         &self,
         target: ToolExecTarget<'_>,
         decision: ToolDecision,
         llm_messages: &mut Vec<LlmChatMessage>,
         acc: &mut ReactAccumulators,
-    ) -> bool {
+    ) -> ToolCallOutcome {
         let ToolExecTarget {
             session_id,
             message_id,
@@ -2234,7 +2293,10 @@ impl BuiltInChatAgent {
                     self.execute_tool_call(session_id, message_id, call).await;
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                 acc.all_tool_calls.push(record);
-                !success
+                ToolCallOutcome {
+                    failed: !success,
+                    executed: Some((tool_result, success)),
+                }
             }
             ToolDecision::AlwaysAccept { .. } => {
                 acc.authorized.insert(call.name.clone());
@@ -2243,7 +2305,10 @@ impl BuiltInChatAgent {
                     self.execute_tool_call(session_id, message_id, call).await;
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                 acc.all_tool_calls.push(record);
-                !success
+                ToolCallOutcome {
+                    failed: !success,
+                    executed: Some((tool_result, success)),
+                }
             }
             ToolDecision::Refuse { reason } => {
                 // The reason carries the operator's intent (e.g. "wrong
@@ -2262,7 +2327,10 @@ impl BuiltInChatAgent {
                     rationale: None,
                     retry_attempts: Vec::new(),
                 });
-                true
+                ToolCallOutcome {
+                    failed: true,
+                    executed: None,
+                }
             }
         }
     }
@@ -5172,6 +5240,155 @@ mod tests {
             count.load(std::sync::atomic::Ordering::SeqCst),
             1,
             "an allowed tool call must reach the invoker"
+        );
+
+        tool_registry.shutdown().await;
+    }
+
+    /// Model that emits one tool call, then captures the request messages seen
+    /// on its second turn so a test can assert what was injected.
+    struct CapturingModel {
+        captured: Arc<std::sync::Mutex<Vec<LlmChatMessage>>>,
+        iteration: AtomicU32,
+    }
+
+    #[async_trait::async_trait]
+    impl CompletionModel for CapturingModel {
+        async fn complete(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
+            Ok(CompletionResponse {
+                content: String::new(),
+                tool_calls: vec![],
+                usage: TokenUsage::default(),
+                finish_reason: LlmFinishReason::Stop,
+                latency_ms: 1,
+                ttft_ms: None,
+            })
+        }
+
+        async fn stream(
+            &self,
+            req: CompletionRequest,
+        ) -> Result<
+            std::pin::Pin<
+                Box<
+                    dyn futures::Stream<Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>>
+                        + Send,
+                >,
+            >,
+            apollia_llm::types::LlmError,
+        > {
+            let current = self.iteration.fetch_add(1, Ordering::SeqCst);
+            if current == 0 {
+                let chunks = vec![Ok(LlmStreamChunk::ToolCall(LlmToolCall {
+                    id: "c1".into(),
+                    name: "bash_executor".into(),
+                    arguments: serde_json::json!({"command": "echo"}),
+                }))];
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            } else {
+                if let Ok(mut guard) = self.captured.lock() {
+                    *guard = req.messages.clone();
+                }
+                let chunks = vec![Ok(LlmStreamChunk::Text("done".to_string()))];
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            }
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            "capturing"
+        }
+        fn model_id(&self) -> &str {
+            "mock"
+        }
+    }
+
+    /// AC-1: a PostToolUse injection is appended as a system message and is
+    /// visible in the LLM request on the following turn.
+    #[tokio::test]
+    async fn test_posttooluse_injection_reaches_next_turn() {
+        // GIVEN a model that calls bash then stops, capturing turn-2 messages
+        let captured = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let model = Arc::new(CapturingModel {
+            captured: captured.clone(),
+            iteration: AtomicU32::new(0),
+        });
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> =
+            Arc::new(MockToolInvoker::new(r#"{"exit_code": 0, "stdout": "ok"}"#));
+        let event_bus = make_event_bus();
+
+        // AND a PostToolUse hook that injects extra context
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script = write_hook_script(dir.path(), "inject.sh", r#"{"inject":"INJECTED-CTX"}"#);
+        let registry = crate::hooks::HookRegistry::from_config(&apollia_core::HooksConfig {
+            handlers: vec![apollia_core::HookHandlerConfig {
+                events: vec![apollia_core::HookEventKind::PostToolUse],
+                kind: apollia_core::HookHandlerKind::Command {
+                    command: vec![script],
+                },
+                timeout_ms: 5_000,
+            }],
+        });
+        let executor = Arc::new(HookExecutor::new(Arc::new(registry)));
+
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+        })
+        .with_hook_executor(Some(executor));
+
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("bash_executor".to_string());
+
+        // WHEN execute runs to completion
+        let result = agent
+            .execute(
+                "sess-inject",
+                "msg-1",
+                &RunId::new(),
+                "go",
+                &[],
+                "",
+                &[],
+                &authorized,
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await;
+
+        // THEN the injected context appears as a system message on the next turn
+        result.expect("final response");
+        let msgs = captured.lock().expect("captured lock");
+        let injected = msgs.iter().any(|m| {
+            matches!(m.role, apollia_llm::types::Role::System)
+                && matches!(
+                    &m.content,
+                    apollia_llm::types::MessageContent::Text(t) if t.contains("INJECTED-CTX")
+                )
+        });
+        assert!(
+            injected,
+            "the PostToolUse injection must be visible to the next LLM turn"
         );
 
         tool_registry.shutdown().await;
