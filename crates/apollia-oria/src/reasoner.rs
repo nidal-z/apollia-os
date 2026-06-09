@@ -255,7 +255,33 @@ impl Reasoner {
     /// Delegates to [`plan_internal`] with the default temperature (`None`).
     /// Returns [`ReasonerError::PlanParseError`] after [`MAX_ATTEMPTS`] attempts.
     pub async fn plan(&self, ctx: &ContextBundle) -> Result<ExecutionPlan, ReasonerError> {
-        self.plan_internal(ctx, None).await
+        self.plan_internal(ctx, None, None).await
+    }
+
+    /// Generate a plan that incorporates rejection feedback from a prior attempt.
+    ///
+    /// The `previous_plan_id` and optional `feedback` are injected into the user
+    /// prompt to steer the new plan away from the rejected one. Uses the same
+    /// temperature and retry policy as [`Self::plan`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReasonerError`] when planning fails after the internal retries.
+    pub async fn plan_with_feedback(
+        &self,
+        ctx: &ContextBundle,
+        previous_plan_id: &str,
+        feedback: Option<&str>,
+    ) -> Result<ExecutionPlan, ReasonerError> {
+        let note = match feedback {
+            Some(fb) => format!(
+                "Le plan précédent (identifiant {previous_plan_id}) a été rejeté par l'opérateur.\nRetour : {fb}\nGénère un nouveau plan qui corrige ce point et renvoie uniquement du JSON valide."
+            ),
+            None => format!(
+                "Le plan précédent (identifiant {previous_plan_id}) a été rejeté par l'opérateur sans précision.\nGénère un nouveau plan sensiblement différent et renvoie uniquement du JSON valide."
+            ),
+        };
+        self.plan_internal(ctx, None, Some(&note)).await
     }
 
     /// Generate two alternative plans in parallel via `tokio::join!`.
@@ -274,8 +300,8 @@ impl Reasoner {
         let session_id = uuid::Uuid::new_v4().to_string();
 
         let (plan_a_result, plan_b_result) = tokio::join!(
-            self.plan_internal(ctx, Some(config.plan_alternatives_temp_a)),
-            self.plan_internal(ctx, Some(config.plan_alternatives_temp_b)),
+            self.plan_internal(ctx, Some(config.plan_alternatives_temp_a), None),
+            self.plan_internal(ctx, Some(config.plan_alternatives_temp_b), None),
         );
 
         let plan_a = plan_a_result.map(execution_plan_to_task_plan)?;
@@ -314,6 +340,7 @@ impl Reasoner {
         &self,
         ctx: &ContextBundle,
         temperature: Option<f32>,
+        feedback: Option<&str>,
     ) -> Result<ExecutionPlan, ReasonerError> {
         let mut last_error = String::new();
         let turn_id = ctx.task.task_id.as_str().to_owned();
@@ -323,13 +350,16 @@ impl Reasoner {
 
         for attempt in 0..MAX_ATTEMPTS {
             let system = self.build_system_prompt(ctx);
+            let base_user = self.build_user_prompt(ctx);
             let user = if attempt == 0 {
-                self.build_user_prompt(ctx)
+                match feedback {
+                    Some(note) => format!("{base_user}\n\n{note}"),
+                    None => base_user,
+                }
             } else {
                 format!(
                     "{}\n\nATTENTION : ta réponse précédente était invalide.\nErreur : {}\nCorrige et renvoie uniquement du JSON valide.",
-                    self.build_user_prompt(ctx),
-                    last_error
+                    base_user, last_error
                 )
             };
 

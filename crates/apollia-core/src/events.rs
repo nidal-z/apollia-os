@@ -537,6 +537,32 @@ pub enum RuntimeEvent {
         task_id: String,
     },
 
+    /// An operator rejected a plan; the engine will replan with the feedback.
+    ///
+    /// Emitted before the replanning attempt. Bounded by `plan_gate_max_replans`.
+    PlanRejected {
+        /// Run identifier.
+        run_id: String,
+        /// Identifier of the rejected plan.
+        plan_id: String,
+        /// Task this plan belongs to.
+        task_id: String,
+        /// Optional operator feedback injected into replanning.
+        feedback: Option<String>,
+        /// Number of replanifications already attempted for this run.
+        replans_so_far: u32,
+    },
+
+    /// A run was abandoned after hitting the replan limit or a fatal replan error.
+    PlanAbandoned {
+        /// Run identifier.
+        run_id: String,
+        /// Task this plan belongs to.
+        task_id: String,
+        /// Machine-readable reason code.
+        reason: String,
+    },
+
     // ── HITL - Human-in-the-Loop events ────────────────────
     /// An `input_required` task expired, canceled automatically by the `TimeoutWatcher`.
     ///

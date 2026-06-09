@@ -648,6 +648,15 @@ pub struct ORIAConfig {
     /// Default: 300 (5 minutes). Bounds: [1, 3600].
     #[serde(default = "default_plan_gate_ttl_secs")]
     pub plan_gate_ttl_secs: u64,
+
+    /// Maximum replanning cycles allowed per run after plan-gate rejections.
+    ///
+    /// Bounds repeated rejections so the engine cannot replan forever. Once the
+    /// limit is reached, a further rejection abandons the run. `0` makes a
+    /// rejection immediately fatal (no replanning).
+    /// Default: 3. Bounds: [0, 10].
+    #[serde(default = "default_plan_gate_max_replans")]
+    pub plan_gate_max_replans: u32,
 }
 
 impl Default for ORIAConfig {
@@ -664,6 +673,7 @@ impl Default for ORIAConfig {
             plan_alternatives_temp_a: default_plan_alternatives_temp_a(),
             plan_alternatives_temp_b: default_plan_alternatives_temp_b(),
             plan_gate_ttl_secs: default_plan_gate_ttl_secs(),
+            plan_gate_max_replans: default_plan_gate_max_replans(),
         }
     }
 }
@@ -682,6 +692,7 @@ impl ORIAConfig {
     /// - `plan_alternatives_temp_a`: must be in [0.0, 2.0].
     /// - `plan_alternatives_temp_b`: must be in [0.0, 2.0].
     /// - `plan_gate_ttl_secs`: must be in [1, 3600].
+    /// - `plan_gate_max_replans`: must be between 0 and 10 inclusive.
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.max_replans > 10 {
             return Err(ConfigError::InvalidValue {
@@ -749,12 +760,22 @@ impl ORIAConfig {
             1_u64,
             3_600_u64,
         )?;
+        if self.plan_gate_max_replans > 10 {
+            return Err(ConfigError::InvalidValue {
+                field: "oria.plan_gate_max_replans".into(),
+                reason: "must be between 0 and 10".into(),
+            });
+        }
         Ok(())
     }
 }
 
 fn default_plan_gate_ttl_secs() -> u64 {
     300
+}
+
+fn default_plan_gate_max_replans() -> u32 {
+    3
 }
 
 fn default_plan_alternatives_temp_a() -> f32 {

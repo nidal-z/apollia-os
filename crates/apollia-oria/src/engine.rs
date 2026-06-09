@@ -664,7 +664,7 @@ impl ORIAEngine {
         }
 
         // Generate plan (Reasoner handles retries internally)
-        let plan = match reasoner.plan(&ctx).await {
+        let mut plan = match reasoner.plan(&ctx).await {
             Ok(p) => p,
             Err(e) => return AIPResult::failed("PLAN_FAILED", &e.to_string()),
         };
@@ -672,66 +672,120 @@ impl ORIAEngine {
         // Store in cache
         self.store_plan_in_cache(&cache_key, &plan, &manifest);
 
-        let plan_id = plan.plan_id.clone();
-        let step_count = plan.steps.len();
         let task_id_str = task.task_id.clone();
-
-        // Persist plan in SQLite (non-blocking on error)
         let db_path = self.db_path.as_deref().unwrap_or(":memory:");
-        let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
 
-        // emit PlanGenerated
+        // emit PlanGenerated for the initial plan
         let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
             task_id: task_id_str.clone().into(),
             agent_name: manifest.name.clone(),
-            plan_id: plan_id.clone(),
-            step_count,
+            plan_id: plan.plan_id.clone(),
+            step_count: plan.steps.len(),
             // The orchestrated engine path correlates via task_id, not a chat run.
             run_id: None,
         });
 
         // Plan gate: when active, pause and await an operator decision before any
         // budget is created or step executed. The wait holds no budget (principle
-        // #7); a timeout or closed channel ends the run cleanly.
+        // #7). On rejection the engine replans with the feedback and re-opens the
+        // gate, bounded by plan_gate_max_replans; a timeout or closed channel ends
+        // the run cleanly.
         if self.plan_gate_active() {
-            match self.await_plan_gate(&task_id_str, &plan_id, step_count).await {
-                Ok(PlanGateDecision::Approved) => {
-                    // Gate unblocked: signal approval, then proceed to execution.
-                    let _ = self.event_bus.send(RuntimeEvent::PlanApproved {
-                        run_id: task_id_str.clone(),
-                        plan_id: plan_id.clone(),
-                        task_id: task_id_str.clone(),
-                    });
+            let max_replans = self.oria_config.plan_gate_max_replans;
+            let mut replans_count: u32 = 0;
+            loop {
+                let plan_id = plan.plan_id.clone();
+                let step_count = plan.steps.len();
+                match self
+                    .await_plan_gate(&task_id_str, &plan_id, step_count)
+                    .await
+                {
+                    Ok(PlanGateDecision::Approved) => {
+                        let _ = self.event_bus.send(RuntimeEvent::PlanApproved {
+                            run_id: task_id_str.clone(),
+                            plan_id,
+                            task_id: task_id_str.clone(),
+                        });
+                        break;
+                    }
+                    Ok(PlanGateDecision::Rejected { feedback }) => {
+                        // Enforce the ceiling before any further LLM call (principle #7).
+                        if replans_count >= max_replans {
+                            tracing::warn!(
+                                run_id = %task_id_str,
+                                replans_count,
+                                "plan.gate.replan_limit"
+                            );
+                            let _ = self.event_bus.send(RuntimeEvent::PlanAbandoned {
+                                run_id: task_id_str.clone(),
+                                task_id: task_id_str.clone(),
+                                reason: "replan_limit".into(),
+                            });
+                            return AIPResult::failed(
+                                "PLAN_REPLAN_LIMIT_EXCEEDED",
+                                "plan rejected more times than plan_gate_max_replans allows",
+                            );
+                        }
+                        let _ = self.event_bus.send(RuntimeEvent::PlanRejected {
+                            run_id: task_id_str.clone(),
+                            plan_id: plan_id.clone(),
+                            task_id: task_id_str.clone(),
+                            feedback: feedback.clone(),
+                            replans_so_far: replans_count,
+                        });
+                        replans_count += 1;
+                        match reasoner
+                            .plan_with_feedback(&ctx, &plan_id, feedback.as_deref())
+                            .await
+                        {
+                            Ok(new_plan) => {
+                                plan = new_plan;
+                                self.store_plan_in_cache(&cache_key, &plan, &manifest);
+                                let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
+                                    task_id: task_id_str.clone().into(),
+                                    agent_name: manifest.name.clone(),
+                                    plan_id: plan.plan_id.clone(),
+                                    step_count: plan.steps.len(),
+                                    run_id: None,
+                                });
+                                // Loop re-opens the gate for the new plan.
+                            }
+                            Err(e) => {
+                                tracing::error!(run_id = %task_id_str, error = %e, "plan.gate.replan_failed");
+                                let _ = self.event_bus.send(RuntimeEvent::PlanAbandoned {
+                                    run_id: task_id_str.clone(),
+                                    task_id: task_id_str.clone(),
+                                    reason: "replan_failed".into(),
+                                });
+                                return AIPResult::failed("REPLAN_FAILED", &e.to_string());
+                            }
+                        }
+                    }
+                    Err(ORIAError::PlanGateTimeout {
+                        run_id, ttl_secs, ..
+                    }) => {
+                        tracing::warn!(run_id = %run_id, ttl_secs, "plan.gate.timeout");
+                        return AIPResult::failed(
+                            "PLAN_GATE_TIMEOUT",
+                            "plan gate timed out before a decision was received",
+                        );
+                    }
+                    Err(ORIAError::PlanGateChannelClosed { run_id }) => {
+                        tracing::warn!(run_id = %run_id, "plan.gate.channel_closed");
+                        return AIPResult::failed(
+                            "PLAN_GATE_CHANNEL_CLOSED",
+                            "plan gate channel closed before a decision",
+                        );
+                    }
+                    Err(e) => return AIPResult::failed("PLAN_GATE_ERROR", &e.to_string()),
                 }
-                Ok(PlanGateDecision::Rejected { .. }) => {
-                    // Rejection handling (replanning) is wired by a later story.
-                    // Until then a rejection ends the run without executing a step.
-                    return AIPResult::failed("PLAN_REJECTED", "operator rejected the plan");
-                }
-                Err(ORIAError::PlanGateTimeout {
-                    run_id, ttl_secs, ..
-                }) => {
-                    tracing::warn!(
-                        run_id = %run_id,
-                        plan_id = %plan_id,
-                        ttl_secs,
-                        "plan.gate.timeout"
-                    );
-                    return AIPResult::failed(
-                        "PLAN_GATE_TIMEOUT",
-                        "plan gate timed out before a decision was received",
-                    );
-                }
-                Err(ORIAError::PlanGateChannelClosed { run_id }) => {
-                    tracing::warn!(run_id = %run_id, plan_id = %plan_id, "plan.gate.channel_closed");
-                    return AIPResult::failed(
-                        "PLAN_GATE_CHANNEL_CLOSED",
-                        "plan gate channel closed before a decision",
-                    );
-                }
-                Err(e) => return AIPResult::failed("PLAN_GATE_ERROR", &e.to_string()),
             }
         }
+
+        // Persist the (possibly replanned) plan in SQLite (non-blocking on error).
+        let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
+        let plan_id = plan.plan_id.clone();
+        let step_count = plan.steps.len();
 
         // create StepBudget via from_capped
         let agent_budget = manifest.step_budget.clone().unwrap_or_default();
@@ -2165,6 +2219,113 @@ mod orchestrated_tests {
             }
         }
         assert!(!saw_gate, "no gate event when the gate is inactive");
+    }
+
+    /// GIVEN a gate that is rejected twice then approved
+    /// WHEN execute runs with replanning enabled
+    /// THEN PlanRejected is emitted twice, PlanApproved once, and the run completes.
+    #[tokio::test]
+    async fn test_gate_rejection_replans_then_approves() {
+        // GIVEN an engine with the gate forced active and a gate registry
+        let gates = PendingPlanGates::new();
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(256);
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_force_plan_gate(true)
+            .with_pending_plan_gates(gates.clone());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN execute runs and the operator rejects twice then approves
+        let handle = tokio::spawn(async move { engine.execute(AIPTask::default(), &agent).await });
+        let mut decisions = vec![
+            PlanGateDecision::Rejected {
+                feedback: Some("too long".into()),
+            },
+            PlanGateDecision::Rejected { feedback: None },
+            PlanGateDecision::Approved,
+        ];
+        let mut rejected = 0;
+        let mut approved = 0;
+        for _ in 0..1000 {
+            match rx.try_recv() {
+                Ok(RuntimeEvent::PlanApprovalRequired { run_id, .. }) => {
+                    if !decisions.is_empty() {
+                        let d = decisions.remove(0);
+                        assert!(gates.decide(&run_id, d));
+                    }
+                }
+                Ok(RuntimeEvent::PlanRejected { .. }) => rejected += 1,
+                Ok(RuntimeEvent::PlanApproved { .. }) => approved += 1,
+                Ok(_) => {}
+                Err(_) => {
+                    if handle.is_finished() && decisions.is_empty() {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+            }
+        }
+
+        // THEN the run completes after two rejections and one approval
+        let result = handle.await.expect("join");
+        assert_eq!(result.status, TaskStatus::Completed);
+        assert_eq!(rejected, 2, "two PlanRejected expected");
+        assert_eq!(approved, 1, "one PlanApproved expected");
+    }
+
+    /// GIVEN a replan limit of 1 and repeated rejections
+    /// WHEN the limit is reached
+    /// THEN the run is abandoned with PLAN_REPLAN_LIMIT_EXCEEDED and PlanAbandoned.
+    #[tokio::test]
+    async fn test_gate_replan_limit_exceeded() {
+        // GIVEN an engine allowing a single replan
+        let gates = PendingPlanGates::new();
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(256);
+        let config = ORIAConfig {
+            plan_gate_max_replans: 1,
+            ..Default::default()
+        };
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_force_plan_gate(true)
+            .with_pending_plan_gates(gates.clone())
+            .with_oria_config(config);
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN the operator rejects every plan
+        let handle = tokio::spawn(async move { engine.execute(AIPTask::default(), &agent).await });
+        let mut abandoned = false;
+        for _ in 0..1000 {
+            match rx.try_recv() {
+                Ok(RuntimeEvent::PlanApprovalRequired { run_id, .. }) => {
+                    let _ = gates.decide(&run_id, PlanGateDecision::Rejected { feedback: None });
+                }
+                Ok(RuntimeEvent::PlanAbandoned { reason, .. }) => {
+                    assert_eq!(reason, "replan_limit");
+                    abandoned = true;
+                }
+                Ok(_) => {}
+                Err(_) => {
+                    if handle.is_finished() {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+            }
+        }
+
+        // THEN the run fails with the replan-limit code and PlanAbandoned was emitted
+        let result = handle.await.expect("join");
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert_eq!(
+            result.error.as_ref().map(|e| e.code.as_str()),
+            Some("PLAN_REPLAN_LIMIT_EXCEEDED")
+        );
+        assert!(abandoned, "PlanAbandoned must be emitted");
     }
 
     // Helper tests
