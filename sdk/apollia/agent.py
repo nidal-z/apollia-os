@@ -84,6 +84,24 @@ def _check_optional_dict(name: str, value: Any) -> None:
         raise AgentConfigError(f"@agent: {name!r} must be a dict or None")
 
 
+# Accepted autonomy tiers, mirroring AutonomyLevel::ALL on the Rust side.
+_VALID_AUTONOMY_LEVELS: frozenset[str] = frozenset(
+    {"assisted", "supervised", "bounded_autonomous", "long_autonomous"}
+)
+
+
+def _check_autonomy_level(value: str | None) -> str | None:
+    """Validate that autonomy_level is a known tier string or None."""
+    if value is None:
+        return None
+    if value not in _VALID_AUTONOMY_LEVELS:
+        accepted = ", ".join(sorted(_VALID_AUTONOMY_LEVELS))
+        raise AgentConfigError(
+            f"@agent: 'autonomy_level' must be one of [{accepted}] or None, got {value!r}"
+        )
+    return value
+
+
 def agent(  # NOSONAR S107: public decorator API surface
     *,
     name: str,
@@ -101,6 +119,7 @@ def agent(  # NOSONAR S107: public decorator API surface
     step_budget: dict[str, Any] | None = None,
     check_commands: tuple[str, ...] = (),
     agent_type: str | None = None,
+    autonomy_level: str | None = None,
 ) -> Callable[[C], C]:
     """Declare a class as an Apollia agent.
 
@@ -123,6 +142,10 @@ def agent(  # NOSONAR S107: public decorator API surface
             run by default; at higher autonomy levels the agent also retries to
             fix detected failures.
         agent_type: Optional taxonomy hint (e.g. ``"worker"``).
+        autonomy_level: Autonomy tier for this agent. Controls whether the plan
+            gate is active (``"assisted"``, ``"supervised"``) or bypassed
+            (``"bounded_autonomous"``, ``"long_autonomous"``). Default: None
+            (the runtime uses its own default, currently ``"assisted"``).
 
     The decorator:
 
@@ -161,6 +184,7 @@ def agent(  # NOSONAR S107: public decorator API surface
     _check_optional_str("memory_namespace", memory_namespace)
     _check_optional_dict("step_budget", step_budget)
     _check_optional_str("agent_type", agent_type)
+    autonomy_level_v = _check_autonomy_level(autonomy_level)
 
     def decorator(cls: C) -> C:
         if not isinstance(cls, type):
@@ -191,6 +215,7 @@ def agent(  # NOSONAR S107: public decorator API surface
             step_budget=step_budget,
             check_commands=check_commands_v,
             agent_type=agent_type,
+            autonomy_level=autonomy_level_v,
         )
 
         skills_registry = getattr(cls, SKILLS_REGISTRY_ATTR, {}) or {}
@@ -225,6 +250,7 @@ def agent(  # NOSONAR S107: public decorator API surface
                 "step_budget": step_budget,
                 "check_commands": check_commands_v,
                 "agent_type": agent_type,
+                "autonomy_level": autonomy_level_v,
             },
         )
 

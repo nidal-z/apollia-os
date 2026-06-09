@@ -471,3 +471,79 @@ def test_agent_skills_registry_populated() -> None:
     A = agent(name="a", version="0.1.0", description="d")(A)
     registry = getattr(A, SKILLS_REGISTRY_ATTR)
     assert set(registry.keys()) == {"a.foo", "a.bar"}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# autonomy_level
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_autonomy_level_supervised_accepted() -> None:
+    # GIVEN an agent declaring autonomy_level="supervised"
+    mod_name = _make_module()
+
+    class A:
+        @skill("a.b")
+        async def do(self, ctx: Any = None) -> dict[str, int]:
+            return {}
+
+    A.__module__ = mod_name
+    A = agent(name="a", version="0.1.0", description="d", autonomy_level="supervised")(A)
+
+    # THEN the manifest carries the tier
+    manifest = getattr(A, MANIFEST_ATTR)
+    assert manifest["autonomy_level"] == "supervised"
+
+
+def test_autonomy_level_none_absent_from_manifest() -> None:
+    # GIVEN an agent without autonomy_level
+    mod_name = _make_module()
+
+    class A:
+        @skill("a.b")
+        async def do(self, ctx: Any = None) -> dict[str, int]:
+            return {}
+
+    A.__module__ = mod_name
+    A = agent(name="a", version="0.1.0", description="d")(A)
+
+    # THEN the key is absent (not null) so the loader uses its default
+    manifest = getattr(A, MANIFEST_ATTR)
+    assert "autonomy_level" not in manifest
+
+
+def test_autonomy_level_invalid_raises() -> None:
+    # GIVEN an invalid tier
+    mod_name = _make_module()
+
+    class A:
+        @skill("a.b")
+        async def do(self, ctx: Any = None) -> dict[str, int]:
+            return {}
+
+    A.__module__ = mod_name
+    # THEN the decorator fails fast at import
+    with pytest.raises(AgentConfigError, match="autonomy_level"):
+        agent(name="a", version="0.1.0", description="d", autonomy_level="ultra_autonomous")(A)
+
+
+def test_all_valid_autonomy_levels_accepted() -> None:
+    from apollia.agent import _check_autonomy_level
+
+    # GIVEN each of the four valid tiers
+    for level in ("assisted", "supervised", "bounded_autonomous", "long_autonomous"):
+        # THEN validation returns it unchanged
+        assert _check_autonomy_level(level) == level
+    # AND None is accepted (no tier declared)
+    assert _check_autonomy_level(None) is None
+
+
+def test_valid_autonomy_levels_frozenset_contains_all_four() -> None:
+    from apollia.agent import _VALID_AUTONOMY_LEVELS
+
+    assert _VALID_AUTONOMY_LEVELS == {
+        "assisted",
+        "supervised",
+        "bounded_autonomous",
+        "long_autonomous",
+    }

@@ -242,6 +242,7 @@ def build_manifest(
     step_budget: dict[str, Any] | None = None,
     check_commands: tuple[str, ...] = (),
     agent_type: str | None = None,
+    autonomy_level: str | None = None,
 ) -> dict[str, Any]:
     """Produce the canonical manifest dict consumed by the Rust loader.
 
@@ -336,5 +337,10 @@ def build_manifest(
 
     if orchestrated_cfg is not None:
         manifest["system_prompt"] = orchestrated_cfg.get("system_prompt", "")
+
+    # Include the autonomy tier only when declared, so the Rust loader can
+    # distinguish "not set" (use the runtime default) from an explicit tier.
+    if autonomy_level is not None:
+        manifest["autonomy_level"] = autonomy_level
 
     return manifest
