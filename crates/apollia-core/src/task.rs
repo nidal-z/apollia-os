@@ -1,7 +1,31 @@
 use serde::{Deserialize, Serialize};
 
+use crate::config::AutonomyLevel;
 use crate::events::AgentId;
 use crate::result::InputResponseData;
+
+/// Per-run control options carried with a task.
+///
+/// Additive and optional: a task without explicit options behaves exactly as
+/// before. Populated from the submission request (CLI flags, REST body) and
+/// read by the runtime when building the per-task engine.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RunOptions {
+    /// Per-run plan-gate override.
+    ///
+    /// `Some(true)` forces the plan gate active for this run, `Some(false)`
+    /// bypasses it, `None` defers to the autonomy tier. The CLI `run` path sets
+    /// it explicitly (`--plan` -> `Some(true)`, otherwise `Some(false)`); other
+    /// submission paths leave it `None` so the tier governs.
+    #[serde(default)]
+    pub plan_gate: Option<bool>,
+    /// Per-run autonomy tier override.
+    ///
+    /// Highest-priority autonomy source (CLI `--autonomy`). When `None`, the
+    /// runtime falls back to the agent manifest tier, then its own default.
+    #[serde(default)]
+    pub autonomy_level: Option<AutonomyLevel>,
+}
 
 /// Task submitted by the runtime to the agent through the AIP bridge.
 ///
@@ -62,6 +86,9 @@ pub struct AIPTask {
     /// detect cycles and enforce the hop limit (default 5).
     #[serde(default)]
     pub delegation_chain: Vec<AgentId>,
+    /// Per-run control options (plan-gate and autonomy overrides).
+    #[serde(default)]
+    pub run_options: RunOptions,
 }
 
 /// Multi-modal input of an AIP task.
@@ -125,6 +152,43 @@ pub struct AIPMessage {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_run_options_deserializes_cli_shape() {
+        // GIVEN the run_options shape the CLI sends (plan_gate + autonomy tier)
+        let value = json!({ "plan_gate": true, "autonomy_level": "supervised" });
+        // WHEN deserialized
+        let opts: RunOptions = serde_json::from_value(value).expect("run_options must deserialize");
+        // THEN both fields are parsed
+        assert_eq!(opts.plan_gate, Some(true));
+        assert_eq!(opts.autonomy_level, Some(AutonomyLevel::Supervised));
+    }
+
+    #[test]
+    fn test_run_options_default_is_empty() {
+        // GIVEN an empty object (no control fields)
+        let opts: RunOptions = serde_json::from_value(json!({})).expect("must deserialize");
+        // THEN both overrides are absent
+        assert_eq!(opts.plan_gate, None);
+        assert_eq!(opts.autonomy_level, None);
+    }
+
+    #[test]
+    fn test_aip_task_defaults_run_options_absent() {
+        // GIVEN a legacy task JSON without run_options
+        let value = json!({
+            "task_id": "t1",
+            "context_id": "c1",
+            "input": { "parts": [] },
+            "history": [],
+            "timeout_seconds": null
+        });
+        // WHEN deserialized
+        let task: AIPTask = serde_json::from_value(value).expect("legacy task must deserialize");
+        // THEN run_options defaults to empty
+        assert_eq!(task.run_options.plan_gate, None);
+        assert_eq!(task.run_options.autonomy_level, None);
+    }
 
     #[test]
     fn test_aip_task_multi_part_input() {

@@ -77,7 +77,7 @@ pub use session_metrics::{
     BudgetAlertLevel, SessionMetrics, SessionThresholds, SummarizationEvent, ToolTiming,
 };
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
-pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};
+pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, RunOptions, TextPart};
 pub use todo::{count_in_progress, TodoError, TodoItem, TodoStatus};
 pub use token_budget::{TokenBudget, TokenUsageDelta};
 pub use utils::truncate_middle;
