@@ -11,6 +11,7 @@
   import { onboardingTourActive } from "$lib/stores/tour";
   import { ToastContainer } from "$lib/components/ui/toast";
   import ExtractionNotifier from "./components/chat/ExtractionNotifier.svelte";
+  import PlanModeHost from "$lib/components/operator/PlanModeHost.svelte";
   import CompanionContextProvider from "./components/companion/CompanionContextProvider.svelte";
   import CompanionPanel from "./components/companion/CompanionPanel.svelte";
   import { companionStore } from "$lib/stores/companion";
@@ -176,6 +177,7 @@
       <CompanionPanel />
     </CompanionContextProvider>
     <ExtractionNotifier />
+    <PlanModeHost />
     <ToastContainer />
     {#if $onboardingModalOpen}
       <OnboardingModal onclose={handleOnboardingClose} />

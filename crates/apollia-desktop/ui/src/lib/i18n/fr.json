@@ -1160,7 +1160,14 @@
     "step_dependencies_label": "Dépend de",
     "step_tool_label": "Outil",
     "step_model_label": "Modèle",
-    "replan_notice": "Le plan a été révisé par l'agent."
+    "replan_notice": "Le plan a été révisé par l'agent.",
+    "edit_plan": "Modifier le plan",
+    "error_empty_step_label": "Le label de l'étape ne peut pas être vide.",
+    "error_cyclic_dependency": "Le plan contient une dépendance cyclique.",
+    "submit_revised_plan": "Soumettre le plan révisé",
+    "cancel_edit": "Annuler",
+    "remove_step": "Retirer l'étape",
+    "edit_step_label_placeholder": "Label de l'étape"
   },
   "approvals": {
     "title": "Approbations",

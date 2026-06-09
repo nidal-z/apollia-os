@@ -25,6 +25,11 @@ pub enum PlanDecisionDto {
         #[serde(default)]
         reason: Option<String>,
     },
+    /// Submit an edited plan, executed directly without replanning.
+    Edit {
+        /// Revised steps validated by the engine before execution.
+        revised_steps: Vec<apollia_core::TaskPlanStep>,
+    },
 }
 
 /// Submits the operator's decision on the plan awaiting approval for `run_id`.
@@ -56,6 +61,12 @@ pub async fn submit_plan_decision(
         PlanDecisionDto::Reject { reason } => {
             handle.reject(&run_id, reason).map_err(|e| e.to_string())?;
             tracing::info!(run_id = %run_id, "plan.gate.rejected");
+        }
+        PlanDecisionDto::Edit { revised_steps } => {
+            handle
+                .edit(&run_id, revised_steps)
+                .map_err(|e| e.to_string())?;
+            tracing::info!(run_id = %run_id, "plan.gate.edited");
         }
     }
 

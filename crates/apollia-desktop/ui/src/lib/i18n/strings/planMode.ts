@@ -17,4 +17,11 @@ export const PLAN_MODE_KEYS = {
   stepToolLabel: "plan_mode.step_tool_label",
   stepModelLabel: "plan_mode.step_model_label",
   replanNotice: "plan_mode.replan_notice",
+  editPlan: "plan_mode.edit_plan",
+  errorEmptyStepLabel: "plan_mode.error_empty_step_label",
+  errorCyclicDependency: "plan_mode.error_cyclic_dependency",
+  submitRevisedPlan: "plan_mode.submit_revised_plan",
+  cancelEdit: "plan_mode.cancel_edit",
+  removeStep: "plan_mode.remove_step",
+  editStepLabelPlaceholder: "plan_mode.edit_step_label_placeholder",
 };

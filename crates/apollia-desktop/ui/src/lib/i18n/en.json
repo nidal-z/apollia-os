@@ -1160,7 +1160,14 @@
     "step_dependencies_label": "Depends on",
     "step_tool_label": "Tool",
     "step_model_label": "Model",
-    "replan_notice": "The plan has been revised by the agent."
+    "replan_notice": "The plan has been revised by the agent.",
+    "edit_plan": "Edit plan",
+    "error_empty_step_label": "Step label cannot be empty.",
+    "error_cyclic_dependency": "The plan contains a cyclic dependency.",
+    "submit_revised_plan": "Submit revised plan",
+    "cancel_edit": "Cancel",
+    "remove_step": "Remove step",
+    "edit_step_label_placeholder": "Step label"
   },
   "approvals": {
     "title": "Approvals",
