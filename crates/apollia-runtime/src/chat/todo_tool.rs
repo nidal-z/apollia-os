@@ -157,7 +157,7 @@ mod tests {
     use rusqlite::Connection;
 
     fn handle() -> TodoHandle {
-        spawn_todo_actor(Connection::open_in_memory().expect("open")).expect("spawn")
+        spawn_todo_actor(Connection::open_in_memory().expect("open"), None).expect("spawn")
     }
 
     #[tokio::test]

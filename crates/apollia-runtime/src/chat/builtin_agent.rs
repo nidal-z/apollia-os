@@ -4805,7 +4805,7 @@ mod todo_compaction_tests {
     use rusqlite::Connection;
 
     fn todo_handle() -> TodoHandle {
-        spawn_todo_actor(Connection::open_in_memory().expect("open")).expect("spawn")
+        spawn_todo_actor(Connection::open_in_memory().expect("open"), None).expect("spawn")
     }
 
     fn item(id: &str, content: &str, status: TodoStatus) -> TodoItem {

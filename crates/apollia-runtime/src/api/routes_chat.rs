@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
 
+use apollia_core::todo::TodoItem;
 use apollia_core::RuntimeEvent;
 
 use crate::api::server::AppState;
@@ -200,6 +201,62 @@ pub async fn get_session<B: ExecutionBackend + Clone>(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 error: "session not found".into(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+/// Response body for `GET /api/v1/sessions/:id/todo`.
+#[derive(Debug, Serialize)]
+pub struct TodoReadResponse {
+    /// Session whose todo list is returned.
+    pub session_id: String,
+    /// Current todo items, ordered by insertion.
+    pub items: Vec<TodoItem>,
+}
+
+/// Handler for `GET /api/v1/sessions/:id/todo`, read the session todo list.
+///
+/// Returns 200 with the items (an empty array when the session exists but has
+/// no todo), and 404 when the session is unknown to the runtime.
+pub async fn get_session_todo<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match manager.get_session_todo(id.clone()).await {
+        Ok(items) => (
+            StatusCode::OK,
+            Json(TodoReadResponse {
+                session_id: id,
+                items,
+            }),
+        )
+            .into_response(),
+        Err(crate::chat::types::ChatError::SessionNotFound(_)) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "session not found".into(),
+            }),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
             }),
         )
             .into_response(),

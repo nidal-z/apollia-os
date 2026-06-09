@@ -1078,6 +1078,19 @@ pub enum RuntimeEvent {
         original_messages: usize,
     },
 
+    // ── Todo events ──────────────────────────────
+    /// The session todo list changed after a successful `todo_write`.
+    ///
+    /// Emitted by the todo actor once items are persisted. Consumers (the
+    /// desktop panel, future CLI views) refresh their todo display from this
+    /// snapshot instead of polling the read route.
+    TodoUpdated {
+        /// Session whose todo list changed.
+        session_id: String,
+        /// Full snapshot of the todo list after the update.
+        items: Vec<crate::todo::TodoItem>,
+    },
+
     // ── File Path Extraction events ──────────────
     /// File paths extracted from a bash command's output.
     ///

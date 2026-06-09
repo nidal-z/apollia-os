@@ -15,6 +15,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info, warn};
 
+use apollia_core::todo::TodoItem;
 use apollia_core::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RuntimeEvent, StepBudgetConfig,
 };
@@ -737,6 +738,14 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Option<SessionDetail>>,
     },
+    /// Read the todo list for a session.
+    GetSessionTodo {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel: `SessionNotFound` for an unknown session, an empty
+        /// list for a known session with no items.
+        reply: oneshot::Sender<Result<Vec<TodoItem>, ChatError>>,
+    },
     /// Close a session.
     CloseSession {
         /// Target session.
@@ -1130,6 +1139,18 @@ impl ChatSessionManager {
                 }
                 ChatCommand::GetSession { session_id, reply } => {
                     let result = self.handle_get_session(&session_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::GetSessionTodo { session_id, reply } => {
+                    // Resolve synchronously so no SQLite borrow is held across
+                    // the await, then read through the owned handle clone.
+                    let result = match self.resolve_todo_handle(&session_id) {
+                        Ok(Some(todo)) => todo.get_items(&session_id).await.map_err(|e| {
+                            ChatError::InternalError(format!("todo read failed: {e}"))
+                        }),
+                        Ok(None) => Ok(Vec::new()),
+                        Err(e) => Err(e),
+                    };
                     let _ = reply.send(result);
                 }
                 ChatCommand::CloseSession { session_id, reply } => {
@@ -2353,6 +2374,22 @@ impl ChatSessionManager {
     }
 
     /// Get session detail.
+    /// Resolve the todo handle for a session, enforcing 404 semantics.
+    ///
+    /// Returns [`ChatError::SessionNotFound`] for an unknown session, `Ok(None)`
+    /// for a known session when no todo store is attached, and `Ok(Some(handle))`
+    /// otherwise. Kept synchronous so the actor loop never holds a borrow of the
+    /// SQLite connection across an `await`; the caller reads through the cloned
+    /// handle (principle: one actor, one responsibility).
+    fn resolve_todo_handle(&self, session_id: &str) -> Result<Option<TodoHandle>, ChatError> {
+        let known = self.sessions.contains_key(session_id)
+            || self.repository.get_session(session_id)?.is_some();
+        if !known {
+            return Err(ChatError::SessionNotFound(session_id.to_string()));
+        }
+        Ok(self.todo_handle.clone())
+    }
+
     fn handle_get_session(&self, session_id: &str) -> Option<SessionDetail> {
         // Try in-memory first
         if let Some(session) = self.sessions.get(session_id) {
@@ -3300,7 +3337,7 @@ impl ChatSessionManagerHandle {
         let todo_conn = rusqlite::Connection::open(db_path)
             .map_err(|e| ChatError::InternalError(format!("failed to open todo db: {e}")))?;
         let todo_handle = Some(
-            spawn_todo_actor(todo_conn)
+            spawn_todo_actor(todo_conn, Some(event_bus.clone()))
                 .map_err(|e| ChatError::InternalError(format!("todo migration failed: {e}")))?,
         );
 
@@ -3633,6 +3670,29 @@ impl ChatSessionManagerHandle {
         }
 
         reply_rx.await.ok().flatten()
+    }
+
+    /// Read the todo list for a session.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when the session is unknown.
+    /// - [`ChatError::InternalError`] when the manager or todo actor is gone.
+    pub async fn get_session_todo(
+        &self,
+        session_id: SessionId,
+    ) -> Result<Vec<TodoItem>, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::GetSessionTodo {
+                session_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("chat manager unavailable".into()))?;
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("chat manager unavailable".into()))?
     }
 
     /// Close a session.
@@ -4175,6 +4235,34 @@ mod tests {
         let detail = detail.expect("should exist");
         assert_eq!(detail.message_count, 3);
         assert_eq!(detail.session.history.len(), 3);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_get_session_todo_empty_and_unknown() {
+        // GIVEN a freshly created session with no todo items
+        let dir = tempfile::tempdir().expect("tempdir");
+        let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+        let info = handle
+            .create_session(libre_session_params())
+            .await
+            .expect("create");
+
+        // WHEN reading the todo for the known but empty session
+        let items = handle
+            .get_session_todo(info.id.clone())
+            .await
+            .expect("known session");
+
+        // THEN an empty list is returned (200 semantics)
+        assert!(items.is_empty());
+
+        // WHEN reading the todo for an unknown session
+        let unknown = handle.get_session_todo("does-not-exist".to_string()).await;
+
+        // THEN SessionNotFound is returned (404 semantics)
+        assert!(matches!(unknown, Err(ChatError::SessionNotFound(_))));
 
         handle.shutdown().await;
     }

@@ -6,11 +6,13 @@
 //! through a clonable [`TodoHandle`].
 
 use apollia_core::todo::{count_in_progress, TodoError, TodoItem, TodoStatus};
+use apollia_core::RuntimeEvent;
 use rusqlite::{params, Connection};
 use tokio::sync::mpsc;
 use tracing::warn;
 
 use super::todo_handle::{TodoHandle, TodoMessage};
+use crate::eventbus::EventBusSender;
 
 /// Bounded capacity of the todo actor's command channel.
 ///
@@ -37,6 +39,9 @@ CREATE INDEX IF NOT EXISTS idx_session_todos_session ON session_todos(session_id
 /// Created via [`spawn_todo_actor`]; never constructed directly by callers.
 pub struct TodoActor {
     conn: Connection,
+    /// Optional event bus for emitting [`RuntimeEvent::TodoUpdated`] after a
+    /// successful write. `None` in tests that do not assert on events.
+    event_bus: Option<EventBusSender>,
 }
 
 impl TodoActor {
@@ -126,6 +131,16 @@ impl TodoActor {
                     reply,
                 } => {
                     let result = self.set_items(&session_id, &items);
+                    // Emit the snapshot only after a successful write, so a
+                    // rejected payload (invariant violation) produces no event.
+                    if result.is_ok() {
+                        if let Some(bus) = &self.event_bus {
+                            let _ = bus.send(RuntimeEvent::TodoUpdated {
+                                session_id: session_id.clone(),
+                                items: items.clone(),
+                            });
+                        }
+                    }
                     let _ = reply.send(result);
                 }
                 TodoMessage::GetItems { session_id, reply } => {
@@ -145,13 +160,19 @@ impl TodoActor {
 /// schema failure surfaces at startup (principle: fail fast) instead of on the
 /// first write.
 ///
+/// `event_bus` receives a [`RuntimeEvent::TodoUpdated`] snapshot after every
+/// successful write; pass `None` to disable event emission.
+///
 /// # Errors
 ///
 /// - [`TodoError::Sqlite`] when the todo migration cannot be applied.
-pub fn spawn_todo_actor(conn: Connection) -> Result<TodoHandle, TodoError> {
+pub fn spawn_todo_actor(
+    conn: Connection,
+    event_bus: Option<EventBusSender>,
+) -> Result<TodoHandle, TodoError> {
     TodoActor::migrate(&conn)?;
     let (tx, rx) = mpsc::channel(TODO_CHANNEL_CAPACITY);
-    let actor = TodoActor { conn };
+    let actor = TodoActor { conn, event_bus };
     tokio::spawn(actor.run(rx));
     Ok(TodoHandle { tx })
 }
@@ -162,7 +183,7 @@ mod tests {
 
     fn handle() -> TodoHandle {
         let conn = Connection::open_in_memory().expect("open in-memory db");
-        spawn_todo_actor(conn).expect("spawn actor")
+        spawn_todo_actor(conn, None).expect("spawn actor")
     }
 
     fn item(id: &str, content: &str, status: TodoStatus) -> TodoItem {
@@ -293,6 +314,56 @@ mod tests {
 
         // THEN the call reports the actor is gone (graceful, no panic)
         assert!(matches!(result, Err(TodoError::ActorGone)));
+    }
+
+    #[tokio::test]
+    async fn test_todo_updated_event_emitted_on_success() {
+        // GIVEN an actor wired to an event bus
+        let (bus, mut rx) = tokio::sync::broadcast::channel(16);
+        let h = spawn_todo_actor(Connection::open_in_memory().expect("open"), Some(bus))
+            .expect("spawn");
+
+        // WHEN one valid item is persisted
+        h.set_items("s1", vec![item("t1", "work", TodoStatus::InProgress)])
+            .await
+            .expect("set ok");
+
+        // THEN a TodoUpdated event carries the same session and items
+        let event = rx.recv().await.expect("event received");
+        assert!(matches!(
+            &event,
+            RuntimeEvent::TodoUpdated { session_id, items }
+                if session_id == "s1" && items.len() == 1 && items[0].id == "t1"
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_no_event_on_invariant_violation() {
+        // GIVEN an actor wired to an event bus
+        let (bus, mut rx) = tokio::sync::broadcast::channel(16);
+        let h = spawn_todo_actor(Connection::open_in_memory().expect("open"), Some(bus))
+            .expect("spawn");
+
+        // WHEN a write violating the invariant is rejected
+        let result = h
+            .set_items(
+                "s1",
+                vec![
+                    item("t1", "a", TodoStatus::InProgress),
+                    item("t2", "b", TodoStatus::InProgress),
+                ],
+            )
+            .await;
+        assert!(matches!(
+            result,
+            Err(TodoError::MultipleInProgress { count: 2 })
+        ));
+
+        // THEN no event is emitted for the rejected write
+        assert!(matches!(
+            rx.try_recv(),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+        ));
     }
 
     #[tokio::test]

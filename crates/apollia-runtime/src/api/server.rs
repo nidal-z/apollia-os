@@ -391,9 +391,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_audit::{get_audit_stats, list_audit};
     use super::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
-        fork_session as chat_fork_session, get_session as chat_get_session, list_recent_sessions,
-        list_session_children, list_sessions, resume_session as chat_resume_session, send_message,
-        stream_session,
+        fork_session as chat_fork_session, get_session as chat_get_session,
+        get_session_todo as chat_get_session_todo, list_recent_sessions, list_session_children,
+        list_sessions, resume_session as chat_resume_session, send_message, stream_session,
     };
     use super::routes_llm::llm_routes;
     use super::routes_mcp::mcp_router;
@@ -532,6 +532,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             post(chat_authorize_tool::<B>),
         )
         .route("/api/v1/sessions/:id/stream", get(stream_session::<B>))
+        .route("/api/v1/sessions/:id/todo", get(chat_get_session_todo::<B>))
         .route(
             "/api/v1/sessions/:id/resume",
             post(chat_resume_session::<B>),
