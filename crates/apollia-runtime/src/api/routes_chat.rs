@@ -673,6 +673,9 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::BudgetExhausted => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
         ChatError::ProjectNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        ChatError::CostCeilingExceeded { .. } => {
+            (StatusCode::PAYMENT_REQUIRED, err.to_string())
+        }
     };
     (status, Json(ErrorResponse { error: msg }))
 }

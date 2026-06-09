@@ -443,6 +443,17 @@ pub enum ChatError {
     /// The project referenced by the chat session was not found in the repository.
     #[error("project '{0}' referenced by chat session not found")]
     ProjectNotFound(String),
+    /// The hybrid routing cost ceiling was reached and `ceiling_action` is `HardStop`.
+    ///
+    /// The run stopped cleanly with no data loss. It can be resumed in a new run
+    /// with a higher ceiling or with `ceiling_action = "stay_local"`.
+    #[error("cost ceiling exceeded: {cost_usd:.4} USD >= {ceiling_usd:.4} USD")]
+    CostCeilingExceeded {
+        /// Accumulated session cost at the stop, in USD.
+        cost_usd: f64,
+        /// Configured ceiling, in USD.
+        ceiling_usd: f64,
+    },
 }
 
 /// Parameters for [`PendingChatApprovals::start_timeout`].

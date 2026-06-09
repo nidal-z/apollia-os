@@ -15,7 +15,7 @@ use std::time::Duration;
 use futures::StreamExt;
 use tracing::{info, warn};
 
-use apollia_core::{AutonomyLevel, AutonomyLevelConfig, ORIAConfig, RuntimeEvent};
+use apollia_core::{AutonomyLevel, AutonomyLevelConfig, CeilingAction, ORIAConfig, RuntimeEvent};
 use apollia_llm::routing_level::{EscalationSignal, LlmRoutingLevel};
 use apollia_llm::types::{
     ChatMessage as LlmChatMessage, CompletionModel, CompletionRequest, StreamChunk, TokenUsage,
@@ -1425,6 +1425,29 @@ impl BuiltInChatAgent {
                     .route_with_escalation(signal, LlmRoutingLevel::Precise);
                 if self.llm_router.is_ceiling_reached() {
                     frontier_ceiling_reached = true;
+                    // Hard stop: when configured, stop the run cleanly instead of
+                    // continuing on the degraded local backend. The router owns the
+                    // threshold decision; the loop only applies the configured action.
+                    if self.llm_router.ceiling_action() == CeilingAction::HardStop {
+                        let cost_usd = self.llm_router.session_cost_usd();
+                        let ceiling_usd = self.llm_router.cost_ceiling_usd().unwrap_or(0.0);
+                        let _ = self.event_bus.send(RuntimeEvent::CostCeilingReached {
+                            session_id: session_id.to_string(),
+                            cost_usd,
+                            ceiling_usd,
+                        });
+                        tracing::warn!(
+                            session_id = %session_id,
+                            cost_usd,
+                            ceiling_usd,
+                            ceiling_action = "hard_stop",
+                            "chat.cost_ceiling.hard_stop"
+                        );
+                        return Err(ChatError::CostCeilingExceeded {
+                            cost_usd,
+                            ceiling_usd,
+                        });
+                    }
                 }
                 tracing::info!(
                     consecutive_failures = consecutive_tool_failures,
@@ -2926,6 +2949,164 @@ mod tests {
         assert!(!resp.frontier_ceiling_reached);
 
         tool_registry.shutdown().await;
+    }
+
+    /// Build a router with a single backend, a hybrid section configured with
+    /// `action`, and a seeded session cost.
+    fn make_hybrid_router(
+        model: Arc<dyn CompletionModel>,
+        ceiling: f64,
+        session_cost: f64,
+        action: CeilingAction,
+    ) -> Arc<LlmRouter> {
+        let mut backends = std::collections::HashMap::new();
+        backends.insert("default".to_string(), model);
+        let router =
+            LlmRouter::with_backends(backends, "default").with_routing(apollia_core::LlmRoutingConfig {
+                precise: "default".to_owned(),
+                fast: "default".to_owned(),
+                hybrid: Some(apollia_core::HybridRoutingConfig {
+                    frontier: "default".to_owned(),
+                    cost_ceiling_usd: ceiling,
+                    ceiling_action: action,
+                }),
+            });
+        router.seed_session_cost_usd(session_cost);
+        Arc::new(router)
+    }
+
+    /// Helper: run a failing-then-stop exchange against `router`, returning the
+    /// execute result and every event observed on the bus.
+    async fn run_ceiling_exchange(
+        router: Arc<LlmRouter>,
+    ) -> (Result<ChatAgentResponse, ChatError>, Vec<RuntimeEvent>) {
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> =
+            Arc::new(MockToolInvoker::new(r#"{"exit_code": 1, "stdout": ""}"#));
+        let event_bus = make_event_bus();
+        let mut rx = event_bus.subscribe();
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+        });
+        let budget = make_budget(20);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("bash_executor".to_string());
+
+        let result = agent
+            .execute(
+                "sess-ceiling",
+                "msg-1",
+                "go",
+                &[],
+                "",
+                &[],
+                &authorized,
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await;
+
+        let mut events = Vec::new();
+        loop {
+            match rx.try_recv() {
+                Ok(ev) => events.push(ev),
+                Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+        tool_registry.shutdown().await;
+        (result, events)
+    }
+
+    fn failing_then_stop_model() -> Arc<MockFailingThenStopModel> {
+        Arc::new(MockFailingThenStopModel {
+            tool_turns: 4,
+            final_tokens: split_tokens("done"),
+            iteration: AtomicU32::new(0),
+        })
+    }
+
+    #[tokio::test]
+    async fn test_hard_stop_returns_error_on_ceiling() {
+        // GIVEN a HardStop hybrid router with a session cost above the ceiling
+        let router = make_hybrid_router(failing_then_stop_model(), 0.001, 1.0, CeilingAction::HardStop);
+
+        // WHEN the loop escalates and detects the ceiling
+        let (result, _events) = run_ceiling_exchange(router).await;
+
+        // THEN the run stops cleanly with CostCeilingExceeded (no panic)
+        assert!(matches!(
+            result,
+            Err(ChatError::CostCeilingExceeded { cost_usd, ceiling_usd })
+                if cost_usd >= ceiling_usd
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_hard_stop_emits_cost_ceiling_reached_event() {
+        // GIVEN the same HardStop conditions
+        let router = make_hybrid_router(failing_then_stop_model(), 0.001, 1.0, CeilingAction::HardStop);
+
+        // WHEN the run hard-stops
+        let (_result, events) = run_ceiling_exchange(router).await;
+
+        // THEN a CostCeilingReached event carries the budget figures
+        let found = events.iter().any(|ev| {
+            matches!(
+                ev,
+                RuntimeEvent::CostCeilingReached { cost_usd, ceiling_usd, .. }
+                    if (*ceiling_usd - 0.001).abs() < 1e-9 && *cost_usd >= *ceiling_usd
+            )
+        });
+        assert!(found, "expected a CostCeilingReached event");
+    }
+
+    #[tokio::test]
+    async fn test_stay_local_continues_without_error() {
+        // GIVEN a StayLocal hybrid router with a session cost above the ceiling
+        let router = make_hybrid_router(failing_then_stop_model(), 0.001, 1.0, CeilingAction::StayLocal);
+
+        // WHEN the loop escalates and detects the ceiling
+        let (result, events) = run_ceiling_exchange(router).await;
+
+        // THEN the run continues to a final response, flags the ceiling, and
+        // emits no CostCeilingReached event (no regression vs the prior behavior)
+        let resp = result.expect("should produce a final response");
+        assert_eq!(resp.content, "done");
+        assert!(resp.frontier_ceiling_reached);
+        assert!(!events
+            .iter()
+            .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. })));
+    }
+
+    #[tokio::test]
+    async fn test_hard_stop_below_ceiling_continues() {
+        // GIVEN a HardStop hybrid router with a session cost below the ceiling
+        let router = make_hybrid_router(failing_then_stop_model(), 10.0, 0.0, CeilingAction::HardStop);
+
+        // WHEN the loop escalates but the ceiling is not reached
+        let (result, events) = run_ceiling_exchange(router).await;
+
+        // THEN the run continues normally and never flags or emits the ceiling
+        let resp = result.expect("should produce a final response");
+        assert_eq!(resp.content, "done");
+        assert!(!resp.frontier_ceiling_reached);
+        assert!(!events
+            .iter()
+            .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. })));
     }
 
     /// Tool call authorized: direct execution (via streaming).

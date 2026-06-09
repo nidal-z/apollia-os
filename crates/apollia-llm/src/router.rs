@@ -18,8 +18,8 @@ use apollia_core::token_budget::TokenBudget;
 
 use crate::token_budget::SessionBudgetTracker;
 use apollia_core::{
-    LlmBackendConfig, LlmBackendRepository, LlmProvider, LlmRoutingConfig, LlmRunnerConfig,
-    VertexConfig,
+    CeilingAction, LlmBackendConfig, LlmBackendRepository, LlmProvider, LlmRoutingConfig,
+    LlmRunnerConfig, VertexConfig,
 };
 
 use crate::types::{
@@ -1246,6 +1246,37 @@ impl LlmRouter {
         session_cost >= hybrid.cost_ceiling_usd
     }
 
+    /// Return the configured [`CeilingAction`] for the hybrid routing section,
+    /// or [`CeilingAction::StayLocal`] when no hybrid section is configured.
+    ///
+    /// Used by the chat loop to decide, once the cost ceiling is reached,
+    /// whether to stop the run cleanly or to keep going on the local backend.
+    pub fn ceiling_action(&self) -> CeilingAction {
+        self.routing
+            .as_ref()
+            .and_then(|r| r.hybrid.as_ref())
+            .map(|h| h.ceiling_action)
+            .unwrap_or_default()
+    }
+
+    /// Return the accumulated session cost in USD (0.0 if the budget lock is
+    /// poisoned). Mirrors the value [`Self::is_ceiling_reached`] compares.
+    pub fn session_cost_usd(&self) -> f64 {
+        self.session_budget
+            .lock()
+            .map(|t| t.session_cost_usd)
+            .unwrap_or(0.0)
+    }
+
+    /// Return the configured hybrid cost ceiling in USD, or `None` when no
+    /// `[llm.routing.hybrid]` section is configured.
+    pub fn cost_ceiling_usd(&self) -> Option<f64> {
+        self.routing
+            .as_ref()
+            .and_then(|r| r.hybrid.as_ref())
+            .map(|h| h.cost_ceiling_usd)
+    }
+
     /// Seed the accumulated session cost in USD.
     ///
     /// Lets integration tests drive the hybrid cost ceiling deterministically
@@ -2250,6 +2281,57 @@ mod tests {
             cancellation_token: CancellationToken::new(),
             session_budget,
         }
+    }
+
+    #[test]
+    fn test_ceiling_action_default_stay_local() {
+        // GIVEN a router with no hybrid routing section
+        let mut backends = HashMap::new();
+        backends.insert("local".to_owned(), make_mock_backend("local"));
+        let router = LlmRouter {
+            default: "local".to_owned(),
+            backends,
+            routing: None,
+            cancellation_token: CancellationToken::new(),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+        };
+
+        // WHEN reading the ceiling action and ceiling
+        // THEN they default to StayLocal and no ceiling
+        assert_eq!(router.ceiling_action(), CeilingAction::StayLocal);
+        assert_eq!(router.cost_ceiling_usd(), None);
+    }
+
+    #[test]
+    fn test_ceiling_action_hard_stop_when_configured() {
+        // GIVEN a hybrid router configured with HardStop
+        let mut backends = HashMap::new();
+        backends.insert("local".to_owned(), make_mock_backend("local"));
+        backends.insert(
+            "frontier-model".to_owned(),
+            make_mock_backend("frontier-model"),
+        );
+        let routing = Some(LlmRoutingConfig {
+            precise: "local".to_owned(),
+            fast: "local".to_owned(),
+            hybrid: Some(apollia_core::HybridRoutingConfig {
+                frontier: "frontier-model".to_owned(),
+                cost_ceiling_usd: 2.0,
+                ceiling_action: CeilingAction::HardStop,
+            }),
+        });
+        let router = LlmRouter {
+            default: "local".to_owned(),
+            backends,
+            routing,
+            cancellation_token: CancellationToken::new(),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+        };
+
+        // WHEN reading the ceiling action and ceiling
+        // THEN HardStop and the configured ceiling are surfaced
+        assert_eq!(router.ceiling_action(), CeilingAction::HardStop);
+        assert_eq!(router.cost_ceiling_usd(), Some(2.0));
     }
 
     // AC-1: escalation accepted when the frontier is available and under ceiling.

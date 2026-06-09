@@ -1091,6 +1091,20 @@ pub enum RuntimeEvent {
         items: Vec<crate::todo::TodoItem>,
     },
 
+    // ── Cost ceiling events ──────────────────────
+    /// The hybrid routing cost ceiling was reached while `HardStop` is active.
+    ///
+    /// The run is stopped cleanly before this event fires. The CLI and the
+    /// desktop subscribe to surface the stop and the budget figures.
+    CostCeilingReached {
+        /// Session or run identifier.
+        session_id: String,
+        /// Accumulated session cost at the stop, in USD.
+        cost_usd: f64,
+        /// Configured ceiling, in USD.
+        ceiling_usd: f64,
+    },
+
     // ── File Path Extraction events ──────────────
     /// File paths extracted from a bash command's output.
     ///
