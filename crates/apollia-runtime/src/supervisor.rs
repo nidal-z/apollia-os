@@ -1179,6 +1179,14 @@ impl Supervisor {
             Some(logger) => a2a_invoker_builder.with_sidechain_logger(logger),
             None => a2a_invoker_builder,
         });
+        // Build the lifecycle hook executor once from the validated [hooks]
+        // config and share it (read-only) with the chat loop. An empty config
+        // yields an executor over an empty registry: zero overhead, no I/O.
+        let hook_executor = std::sync::Arc::new(crate::hooks::HookExecutor::new(
+            std::sync::Arc::new(crate::hooks::HookRegistry::from_config(
+                &self.config.hooks_config,
+            )),
+        ));
         let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
             match crate::chat::ChatSessionManagerHandle::spawn(
                 &chat_db_path,
@@ -1211,6 +1219,7 @@ impl Supervisor {
                 })),
                 self.config.mcp_loading,
                 self.config.tool_search_limit,
+                Some(hook_executor.clone()),
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");

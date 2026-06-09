@@ -369,6 +369,7 @@ struct LibreExchangeParams {
     user_msg: String,
     tx: mpsc::Sender<ChatCommand>,
     todo: Option<TodoHandle>,
+    hook_executor: Option<Arc<HookExecutor>>,
 }
 
 /// Run a spawned Libre/Companion exchange end-to-end and report the result back
@@ -415,6 +416,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         user_msg,
         tx,
         todo,
+        hook_executor,
     } = params;
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
@@ -482,7 +484,8 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         todo,
     })
     .with_workspace_path(session_invoker.workspace)
-    .with_mcp_index(agent_mcp_index, tool_search_limit);
+    .with_mcp_index(agent_mcp_index, tool_search_limit)
+    .with_hook_executor(hook_executor);
 
     // Inject project context on first message OR right after the
     // session was linked to a project (consumed flag).
@@ -677,6 +680,7 @@ use super::types::{
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
 use crate::eventbus::EventBusSender;
+use crate::hooks::executor::HookExecutor;
 use crate::registry::AgentRegistryHandle;
 
 /// Maximum number of past sessions to inject as cross-session context.
@@ -1088,6 +1092,9 @@ struct ChatSessionManager {
     /// Clonable handle to the per-runtime todo actor, cloned into each exchange
     /// so the agent's `todo_write` tool persists session task state.
     todo_handle: Option<TodoHandle>,
+    /// Shared lifecycle hook executor, cloned into each exchange so the ReAct
+    /// loop can run PreToolUse and the best-effort hooks. `None` disables hooks.
+    hook_executor: Option<Arc<HookExecutor>>,
 }
 
 impl ChatSessionManager {
@@ -1967,6 +1974,7 @@ impl ChatSessionManager {
                 user_msg,
                 tx,
                 todo: self.todo_handle.clone(),
+                hook_executor: self.hook_executor.clone(),
             }));
         }
 
@@ -3344,6 +3352,9 @@ impl ChatSessionManagerHandle {
         // sourced from the `[mcp]` section of `apollia.toml`.
         mcp_loading: LoadingMode,
         tool_search_limit: usize,
+        // Shared lifecycle hook executor (PreToolUse blocking, plus best-effort
+        // hooks). `None` disables hooks: the ReAct loop runs unchanged.
+        hook_executor: Option<Arc<HookExecutor>>,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
 
@@ -3396,6 +3407,7 @@ impl ChatSessionManagerHandle {
             mcp_loading,
             tool_search_limit,
             todo_handle,
+            hook_executor,
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -4119,6 +4131,7 @@ mod tests {
             None, // no chat tools config in basic tests
             LoadingMode::Eager,
             20,
+            None, // no hooks in tests
         )
         .expect("spawn manager")
     }
@@ -4308,6 +4321,7 @@ mod tests {
             None,
             LoadingMode::Eager,
             20,
+            None, // no hooks in tests
         )
         .expect("spawn");
 
@@ -4415,6 +4429,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             todo_handle: None,
+            hook_executor: None,
         };
 
         // Insert a dummy session so the lookup succeeds
@@ -4549,6 +4564,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             todo_handle: None,
+            hook_executor: None,
         };
 
         // WHEN building cross-session context with a substantive first message
@@ -4616,6 +4632,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             todo_handle: None,
+            hook_executor: None,
         };
 
         // WHEN building cross-session context with a trivial message
@@ -4661,6 +4678,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             todo_handle: None,
+            hook_executor: None,
         };
 
         // WHEN building cross-session context with a substantive message but no past sessions

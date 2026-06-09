@@ -43,6 +43,7 @@ use crate::chat::a2a_tools::generate_a2a_tool_specs;
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::todo_tool::{run_todo_write, todo_write_spec, TODO_WRITE_TOOL_NAME};
 use crate::eventbus::EventBusSender;
+use crate::hooks::executor::{HookDecision, HookExecutor};
 
 /// Default timeout for chat tool approval requests (5 minutes).
 const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -1011,6 +1012,10 @@ pub struct BuiltInChatAgent {
     tool_search_limit: usize,
     /// Optional per-session todo store. `None` disables the `todo_write` tool.
     todo: Option<TodoHandle>,
+    /// Optional lifecycle hook executor shared across sessions. `None` means no
+    /// hooks are configured: the ReAct loop behaves exactly as before, with no
+    /// interception and zero overhead.
+    hook_executor: Option<Arc<HookExecutor>>,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.
@@ -1067,6 +1072,16 @@ struct ToolExecTarget<'a> {
     call: &'a ToolCall,
 }
 
+/// Outcome of running the `PreToolUse` hooks over one turn's tool calls.
+///
+/// `calls` is the working set to execute: borrowed (no hook, no change) or owned
+/// with any `Rewrite` applied. `denied[i]` carries the refusal reason when call
+/// `i` was blocked; it is index-aligned with `calls`.
+struct PreToolUseOutcome<'a> {
+    calls: std::borrow::Cow<'a, [ToolCall]>,
+    denied: Vec<Option<String>>,
+}
+
 impl BuiltInChatAgent {
     /// Create a new agent with the given dependencies.
     pub fn new(deps: BuiltInChatAgentDeps) -> Self {
@@ -1084,6 +1099,7 @@ impl BuiltInChatAgent {
             // Overwritten by `with_mcp_index` in deferred mode; unused otherwise.
             tool_search_limit: 20,
             todo: deps.todo,
+            hook_executor: None,
         }
     }
 
@@ -1112,6 +1128,13 @@ impl BuiltInChatAgent {
     /// No-op when `None`.
     pub fn with_meta_handle(mut self, handle: Option<MetaOrchestratorHandle>) -> Self {
         self.meta_handle = handle;
+        self
+    }
+
+    /// Attach the shared lifecycle hook executor. No-op when `None`: the loop
+    /// runs without any hook interception.
+    pub fn with_hook_executor(mut self, executor: Option<Arc<HookExecutor>>) -> Self {
+        self.hook_executor = executor;
         self
     }
 
@@ -1629,14 +1652,25 @@ impl BuiltInChatAgent {
         let session_id = ids.session_id;
         let message_id = ids.message_id;
 
+        // PreToolUse hooks (blocking): resolve a decision per call before any
+        // tool runs, so a `deny` truly prevents the invocation, including the
+        // read-only calls that would otherwise execute in the parallel phase
+        // below. `effective_calls` carries any rewritten arguments; `denied[i]`
+        // holds the refusal reason when call `i` was blocked. With no hook
+        // configured this is a borrow of the original calls with no denials, so
+        // the loop behaves exactly as before.
+        let pre = self.apply_pre_tool_use(tool_calls, session_id).await;
+        let effective_calls: &[ToolCall] = pre.calls.as_ref();
+        let denied = &pre.denied;
+
         // Determine read-only status for each call via the tool registry. A call
         // runs concurrently only when its tool is read-only AND already
         // authorized: execute_tool_call then touches neither llm_messages nor acc,
         // so the slow invocations overlap while results are applied in order.
         // Unknown tools (absent from the registry, e.g. hardcoded-false MCP specs)
         // are treated as write, the conservative default.
-        let mut read_only: Vec<bool> = Vec::with_capacity(tool_calls.len());
-        for call in tool_calls {
+        let mut read_only: Vec<bool> = Vec::with_capacity(effective_calls.len());
+        for call in effective_calls.iter() {
             let ro = self
                 .tool_registry
                 .describe(&call.name)
@@ -1647,13 +1681,18 @@ impl BuiltInChatAgent {
         }
 
         // Phase A: invoke the parallel-safe calls concurrently, keyed by index.
+        // Denied calls never run, even when read-only.
         let mut precomputed: std::collections::HashMap<usize, (ToolCallRecord, String, bool)> = {
             use futures::stream::{self, StreamExt};
-            let parallel = (0..tool_calls.len())
-                .filter(|&i| read_only[i] && acc.authorized.contains(&tool_calls[i].name))
+            let parallel = (0..effective_calls.len())
+                .filter(|&i| {
+                    denied[i].is_none()
+                        && read_only[i]
+                        && acc.authorized.contains(&effective_calls[i].name)
+                })
                 .map(|i| async move {
                     let outcome = self
-                        .execute_tool_call(session_id, message_id, &tool_calls[i])
+                        .execute_tool_call(session_id, message_id, &effective_calls[i])
                         .await;
                     (i, outcome)
                 });
@@ -1668,8 +1707,32 @@ impl BuiltInChatAgent {
         // Phase B: apply every call in original order. Parallel-safe calls reuse
         // their precomputed result; everything else (write tools, read-only calls
         // awaiting HITL approval) goes through the sequential path.
-        for (i, call) in tool_calls.iter().enumerate() {
+        for (i, call) in effective_calls.iter().enumerate() {
             budget.increment_tool_calls();
+            // PreToolUse deny: the tool is not invoked. Inject a synthetic tool
+            // result so the model can react to the refusal on its next turn, and
+            // do not count it as a tool failure (a deny is a policy decision, not
+            // an execution failure).
+            if let Some(reason) = &denied[i] {
+                let synthetic = format!("tool denied: {reason}");
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &synthetic));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(synthetic),
+                    status: ToolCallStatus::Refused,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+                tracing::warn!(
+                    tool_name = %call.name,
+                    decision = "deny",
+                    reason = %reason,
+                    session_id = %session_id,
+                    "hook.pretooluse.deny: tool call blocked"
+                );
+                continue;
+            }
             let failed = match (call.name.as_str(), self.todo.as_ref()) {
                 // todo_write is a safe built-in handled in-loop: it never goes
                 // through the registry, the parallel partition, or HITL approval.
@@ -1698,6 +1761,75 @@ impl BuiltInChatAgent {
                 },
             };
             *consecutive_tool_failures = next_failure_count(*consecutive_tool_failures, failed);
+        }
+    }
+
+    /// Run the blocking `PreToolUse` hooks over every call in a turn.
+    ///
+    /// Returns the working set to execute (with any `Rewrite` applied) plus a
+    /// per-call refusal reason. When no hook executor is attached, or no
+    /// `PreToolUse` handler is registered, this borrows the original calls and
+    /// reports no denials, so the loop incurs no extra work. Decisions are
+    /// traced with structured fields: `allow` at debug, `rewrite` at info; the
+    /// `deny` warn is emitted at the blocking site in the loop.
+    async fn apply_pre_tool_use<'a>(
+        &self,
+        tool_calls: &'a [ToolCall],
+        session_id: &str,
+    ) -> PreToolUseOutcome<'a> {
+        let no_op = || PreToolUseOutcome {
+            calls: std::borrow::Cow::Borrowed(tool_calls),
+            denied: vec![None; tool_calls.len()],
+        };
+        let Some(executor) = self.hook_executor.as_ref() else {
+            return no_op();
+        };
+        if executor
+            .registry()
+            .handlers_for(apollia_core::HookEventKind::PreToolUse)
+            .is_empty()
+        {
+            return no_op();
+        }
+
+        let mut calls = tool_calls.to_vec();
+        let mut denied: Vec<Option<String>> = vec![None; tool_calls.len()];
+        for (i, call) in tool_calls.iter().enumerate() {
+            match executor
+                .run_pre_tool_use(&call.name, &call.arguments, session_id)
+                .await
+            {
+                HookDecision::Allow => {
+                    tracing::debug!(
+                        tool_name = %call.name,
+                        decision = "allow",
+                        session_id = %session_id,
+                        "hook.pretooluse.decision"
+                    );
+                }
+                HookDecision::Rewrite { arguments } => {
+                    tracing::info!(
+                        tool_name = %call.name,
+                        decision = "rewrite",
+                        original_args = %truncate_preview(
+                            &serde_json::to_string(&call.arguments).unwrap_or_default()
+                        ),
+                        rewritten_args = %truncate_preview(
+                            &serde_json::to_string(&arguments).unwrap_or_default()
+                        ),
+                        session_id = %session_id,
+                        "hook.pretooluse.decision"
+                    );
+                    calls[i].arguments = arguments;
+                }
+                HookDecision::Deny { reason } => {
+                    denied[i] = Some(reason);
+                }
+            }
+        }
+        PreToolUseOutcome {
+            calls: std::borrow::Cow::Owned(calls),
+            denied,
         }
     }
 
@@ -4845,6 +4977,204 @@ mod tests {
             .unwrap();
         // THEN the returned full_name is the directly-invocable identifier
         assert_eq!(out["matches"][0]["full_name"], "mcp:notion/search_pages");
+    }
+
+    // ── PreToolUse blocking hook (loop integration) ──────────────────────
+
+    /// Tool invoker that counts how many times a tool was actually invoked.
+    struct CountingToolInvoker {
+        count: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    #[async_trait::async_trait]
+    impl ToolInvoker for CountingToolInvoker {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            _arguments: &serde_json::Value,
+        ) -> Result<String, String> {
+            self.count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(r#"{"exit_code": 0, "stdout": "ran"}"#.to_string())
+        }
+    }
+
+    /// Writes an executable hook script returning the given decision JSON.
+    fn write_hook_script(dir: &std::path::Path, name: &str, decision_json: &str) -> String {
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.join(name);
+        std::fs::write(&path, format!("#!/bin/sh\nprintf '{decision_json}'\n"))
+            .expect("write hook script");
+        let mut perms = std::fs::metadata(&path).expect("metadata").permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&path, perms).expect("chmod");
+        path.to_string_lossy().into_owned()
+    }
+
+    /// Builds a hook executor with a single PreToolUse command handler.
+    fn pre_tool_use_executor(script: String) -> Arc<HookExecutor> {
+        let registry = crate::hooks::HookRegistry::from_config(&apollia_core::HooksConfig {
+            handlers: vec![apollia_core::HookHandlerConfig {
+                events: vec![apollia_core::HookEventKind::PreToolUse],
+                kind: apollia_core::HookHandlerKind::Command {
+                    command: vec![script],
+                },
+                timeout_ms: 5_000,
+            }],
+        });
+        Arc::new(HookExecutor::new(Arc::new(registry)))
+    }
+
+    fn bash_call_model() -> Arc<MockReActModel> {
+        Arc::new(MockReActModel {
+            calls: vec![LlmToolCall {
+                id: "c1".into(),
+                name: "bash_executor".into(),
+                arguments: serde_json::json!({"command": "rm -rf /"}),
+            }],
+            final_tokens: split_tokens("done"),
+            iteration: AtomicU32::new(0),
+        })
+    }
+
+    /// AC-2: a deny decision blocks the invocation and records a refusal,
+    /// without ever calling the tool invoker.
+    #[tokio::test]
+    async fn test_pretooluse_deny_blocks_invocation() {
+        // GIVEN a model that emits one authorized bash_executor call
+        let model = bash_call_model();
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(CountingToolInvoker {
+            count: count.clone(),
+        });
+        let event_bus = make_event_bus();
+
+        // AND a PreToolUse hook that denies every call
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script = write_hook_script(
+            dir.path(),
+            "deny.sh",
+            r#"{"decision":"deny","reason":"blocked by policy"}"#,
+        );
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+        })
+        .with_hook_executor(Some(pre_tool_use_executor(script)));
+
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("bash_executor".to_string());
+
+        // WHEN execute runs to completion
+        let result = agent
+            .execute(
+                "sess-deny",
+                "msg-1",
+                &RunId::new(),
+                "go",
+                &[],
+                "",
+                &[],
+                &authorized,
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await;
+
+        // THEN the tool was never invoked and the call is recorded as refused
+        let resp = result.expect("final response");
+        assert_eq!(
+            count.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "a denied tool call must not reach the invoker"
+        );
+        assert!(
+            resp.tool_calls
+                .iter()
+                .any(|t| matches!(t.status, ToolCallStatus::Refused)),
+            "the blocked call must be recorded as refused"
+        );
+
+        tool_registry.shutdown().await;
+    }
+
+    /// AC-1: an allow decision lets the invocation proceed normally.
+    #[tokio::test]
+    async fn test_pretooluse_allow_lets_tool_run() {
+        // GIVEN a model that emits one authorized bash_executor call
+        let model = bash_call_model();
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(CountingToolInvoker {
+            count: count.clone(),
+        });
+        let event_bus = make_event_bus();
+
+        // AND a PreToolUse hook that allows every call
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script = write_hook_script(dir.path(), "allow.sh", r#"{"decision":"allow"}"#);
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+        })
+        .with_hook_executor(Some(pre_tool_use_executor(script)));
+
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("bash_executor".to_string());
+
+        // WHEN execute runs to completion
+        let result = agent
+            .execute(
+                "sess-allow",
+                "msg-1",
+                &RunId::new(),
+                "go",
+                &[],
+                "",
+                &[],
+                &authorized,
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await;
+
+        // THEN the tool was invoked exactly once
+        result.expect("final response");
+        assert_eq!(
+            count.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "an allowed tool call must reach the invoker"
+        );
+
+        tool_registry.shutdown().await;
     }
 }
 
