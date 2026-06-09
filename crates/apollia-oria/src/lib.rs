@@ -19,6 +19,7 @@ pub mod engine;
 pub mod observer;
 pub mod plan;
 pub mod plan_cache;
+pub mod plan_gate;
 pub mod plan_repository;
 pub mod reasoner;
 pub mod resilience;
@@ -26,6 +27,7 @@ pub mod tool_offload;
 pub mod topo;
 pub mod verification;
 
+pub use plan_gate::{PendingPlanGates, PlanGateDecision};
 pub use resilience::{
     CircuitBreaker, CircuitBreakerSnapshot, CircuitState, ErrorClass, ResilienceError,
     ResilienceLayer,

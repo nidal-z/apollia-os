@@ -639,6 +639,15 @@ pub struct ORIAConfig {
     /// Default: 0.8. Bounds: [0.0, 2.0].
     #[serde(default = "default_plan_alternatives_temp_b")]
     pub plan_alternatives_temp_b: f32,
+
+    /// Seconds the plan gate waits for an operator decision before closing.
+    ///
+    /// When the gate is active, the engine pauses after plan generation and
+    /// awaits an approve/reject decision. If none arrives within this delay the
+    /// gate closes and the run fails cleanly (no step is executed).
+    /// Default: 300 (5 minutes). Bounds: [1, 3600].
+    #[serde(default = "default_plan_gate_ttl_secs")]
+    pub plan_gate_ttl_secs: u64,
 }
 
 impl Default for ORIAConfig {
@@ -654,6 +663,7 @@ impl Default for ORIAConfig {
             recent_verbatim_count: default_recent_verbatim_count(),
             plan_alternatives_temp_a: default_plan_alternatives_temp_a(),
             plan_alternatives_temp_b: default_plan_alternatives_temp_b(),
+            plan_gate_ttl_secs: default_plan_gate_ttl_secs(),
         }
     }
 }
@@ -671,6 +681,7 @@ impl ORIAConfig {
     /// - `recent_verbatim_count`: must be in [1, 64].
     /// - `plan_alternatives_temp_a`: must be in [0.0, 2.0].
     /// - `plan_alternatives_temp_b`: must be in [0.0, 2.0].
+    /// - `plan_gate_ttl_secs`: must be in [1, 3600].
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.max_replans > 10 {
             return Err(ConfigError::InvalidValue {
@@ -732,8 +743,18 @@ impl ORIAConfig {
             0.0_f32,
             2.0_f32,
         )?;
+        validate_bounds(
+            "oria.plan_gate_ttl_secs",
+            self.plan_gate_ttl_secs,
+            1_u64,
+            3_600_u64,
+        )?;
         Ok(())
     }
+}
+
+fn default_plan_gate_ttl_secs() -> u64 {
+    300
 }
 
 fn default_plan_alternatives_temp_a() -> f32 {

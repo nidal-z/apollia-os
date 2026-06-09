@@ -505,6 +505,25 @@ pub enum RuntimeEvent {
         reason: String,
     },
 
+    /// A plan was generated and is awaiting an operator decision before execution.
+    ///
+    /// Emitted by the ORIA engine when the plan gate is active (plan-then-approve
+    /// tiers). Consumers (CLI `run --plan`, Desktop plan review) display the plan
+    /// and submit a decision via the task plan-decision API. If no decision arrives
+    /// within `ttl_secs`, the gate closes and the run fails cleanly.
+    PlanApprovalRequired {
+        /// Run identifier correlating this gate to its originating run.
+        run_id: String,
+        /// The generated plan awaiting approval.
+        plan_id: String,
+        /// Task this plan belongs to.
+        task_id: String,
+        /// Number of steps in the plan.
+        step_count: usize,
+        /// Seconds before the gate closes when no decision is received.
+        ttl_secs: u64,
+    },
+
     // ── HITL - Human-in-the-Loop events ────────────────────
     /// An `input_required` task expired, canceled automatically by the `TimeoutWatcher`.
     ///

@@ -31,6 +31,7 @@ use crate::context_manager::ContextManager;
 use crate::observer::{classify, ContextBundle, ExecutionMode, ObserverError};
 use crate::plan::ExecutionPlan;
 use crate::plan_cache::{compute_cache_key, PlanCacheRepository};
+use crate::plan_gate::{PendingPlanGates, PlanGateDecision};
 use crate::plan_repository::PlanRepository;
 use crate::reasoner::{Reasoner, ReasonerError};
 use crate::resilience::ResilienceLayer;
@@ -120,6 +121,24 @@ pub enum ORIAError {
     /// The approval oneshot channel was closed before a response (runtime shutdown).
     #[error("approval channel closed before human response - runtime may be shutting down")]
     ApprovalChannelClosed,
+
+    /// The plan gate timed out: no decision arrived within the configured TTL.
+    #[error("plan gate timeout for run {run_id} (plan {plan_id}) after {ttl_secs}s")]
+    PlanGateTimeout {
+        /// Run identifier of the gated run.
+        run_id: String,
+        /// Identifier of the plan awaiting approval.
+        plan_id: String,
+        /// Configured TTL in seconds.
+        ttl_secs: u64,
+    },
+
+    /// The plan gate channel closed before a decision was received.
+    #[error("plan gate channel closed for run {run_id}")]
+    PlanGateChannelClosed {
+        /// Run identifier of the gated run.
+        run_id: String,
+    },
 }
 
 // NoopToolProxy: fallback when no proxy configured
@@ -163,6 +182,19 @@ pub struct ORIAEngine {
     /// human decision. When `None`, `InputRequired` results are returned
     /// as-is without suspension.
     pending_approvals: Option<Arc<PendingApprovals>>,
+    /// Plan-gate registry, shared with the consumer that submits the decision.
+    ///
+    /// When `Some` and the gate is active, the engine suspends after plan
+    /// generation, registers a oneshot here, and awaits an approve/reject
+    /// decision before starting the `ActorLoop`. When `None`, the gate cannot
+    /// suspend and execution proceeds directly.
+    pending_plan_gates: Option<Arc<PendingPlanGates>>,
+    /// Forces the plan gate active for every run regardless of the autonomy tier.
+    ///
+    /// Set by the operator (CLI `run --plan`) to review the plan before any tool
+    /// runs. Tier-based activation is added by the autonomy routing layer; this
+    /// flag is OR-ed with it.
+    force_plan_gate: bool,
     /// HITL SQLite repository, persists the prompt and context on suspension.
     ///
     /// When `None`, persistence is skipped (logged warning) but execution continues.
@@ -225,6 +257,8 @@ impl ORIAEngine {
             oria_config,
             db_path: None,
             pending_approvals: None,
+            pending_plan_gates: None,
+            force_plan_gate: false,
             task_repository: None,
             memory_manager: None,
             plan_cache: None,
@@ -329,6 +363,25 @@ impl ORIAEngine {
     /// Shared between the `ORIAEngine` and the REST routes via `AppState`.
     pub fn with_pending_approvals(mut self, pending: Arc<PendingApprovals>) -> Self {
         self.pending_approvals = Some(pending);
+        self
+    }
+
+    /// Inject the plan-gate registry, shared with the decision consumer.
+    ///
+    /// Required for an active gate to suspend the run after plan generation and
+    /// await an approve/reject decision. Shared between the `ORIAEngine` and the
+    /// REST routes via `AppState`.
+    pub fn with_pending_plan_gates(mut self, gates: Arc<PendingPlanGates>) -> Self {
+        self.pending_plan_gates = Some(gates);
+        self
+    }
+
+    /// Force the plan gate active for every orchestrated run.
+    ///
+    /// Independent of the autonomy tier: when `true`, the engine always pauses
+    /// after plan generation to collect an operator decision.
+    pub fn with_force_plan_gate(mut self, force: bool) -> Self {
+        self.force_plan_gate = force;
         self
     }
 
@@ -481,6 +534,64 @@ impl ORIAEngine {
     /// 5. Create `StepBudget::from_capped(manifest, runtime)`
     /// 6. Execute via `ActorLoop`
     /// 7. Concatenate outputs (or stub `on_plan_complete`)
+    /// Whether the plan gate is active for the current run.
+    ///
+    /// The autonomy routing layer ORs the tier-based gate policy into this
+    /// decision; the base case is the operator-forced override.
+    fn plan_gate_active(&self) -> bool {
+        self.force_plan_gate
+    }
+
+    /// Suspend after plan generation and await an approve/reject decision.
+    ///
+    /// Registers a oneshot in [`PendingPlanGates`], emits
+    /// [`RuntimeEvent::PlanApprovalRequired`], and waits up to
+    /// `oria_config.plan_gate_ttl_secs`. No `StepBudget` exists yet, so the
+    /// budget cannot progress during the wait.
+    ///
+    /// # Errors
+    ///
+    /// - [`ORIAError::PlanGateTimeout`] when no decision arrives within the TTL.
+    /// - [`ORIAError::PlanGateChannelClosed`] when the sender is dropped first.
+    async fn await_plan_gate(
+        &self,
+        run_id: &str,
+        plan_id: &str,
+        step_count: usize,
+    ) -> Result<PlanGateDecision, ORIAError> {
+        let ttl_secs = self.oria_config.plan_gate_ttl_secs;
+        let gates = match self.pending_plan_gates.as_ref() {
+            Some(g) => g,
+            None => {
+                // No registry: a decision cannot be collected. Proceed rather
+                // than block forever, and record the misconfiguration.
+                tracing::warn!(run_id = %run_id, "plan.gate.no_registry");
+                return Ok(PlanGateDecision::Approved);
+            }
+        };
+
+        let rx = gates.register(run_id);
+        let _ = self.event_bus.send(RuntimeEvent::PlanApprovalRequired {
+            run_id: run_id.to_string(),
+            plan_id: plan_id.to_string(),
+            task_id: run_id.to_string(),
+            step_count,
+            ttl_secs,
+        });
+
+        match tokio::time::timeout(Duration::from_secs(ttl_secs), rx).await {
+            Ok(Ok(decision)) => Ok(decision),
+            Ok(Err(_)) => Err(ORIAError::PlanGateChannelClosed {
+                run_id: run_id.to_string(),
+            }),
+            Err(_) => Err(ORIAError::PlanGateTimeout {
+                run_id: run_id.to_string(),
+                plan_id: plan_id.to_string(),
+                ttl_secs,
+            }),
+        }
+    }
+
     async fn execute_orchestrated_plan(
         &self,
         task: AIPTask,
@@ -578,6 +689,44 @@ impl ORIAEngine {
             // The orchestrated engine path correlates via task_id, not a chat run.
             run_id: None,
         });
+
+        // Plan gate: when active, pause and await an operator decision before any
+        // budget is created or step executed. The wait holds no budget (principle
+        // #7); a timeout or closed channel ends the run cleanly.
+        if self.plan_gate_active() {
+            match self.await_plan_gate(&task_id_str, &plan_id, step_count).await {
+                Ok(PlanGateDecision::Approved) => {
+                    // Fall through to budget creation and execution.
+                }
+                Ok(PlanGateDecision::Rejected { .. }) => {
+                    // Rejection handling (replanning) is wired by a later story.
+                    // Until then a rejection ends the run without executing a step.
+                    return AIPResult::failed("PLAN_REJECTED", "operator rejected the plan");
+                }
+                Err(ORIAError::PlanGateTimeout {
+                    run_id, ttl_secs, ..
+                }) => {
+                    tracing::warn!(
+                        run_id = %run_id,
+                        plan_id = %plan_id,
+                        ttl_secs,
+                        "plan.gate.timeout"
+                    );
+                    return AIPResult::failed(
+                        "PLAN_GATE_TIMEOUT",
+                        "plan gate timed out before a decision was received",
+                    );
+                }
+                Err(ORIAError::PlanGateChannelClosed { run_id }) => {
+                    tracing::warn!(run_id = %run_id, plan_id = %plan_id, "plan.gate.channel_closed");
+                    return AIPResult::failed(
+                        "PLAN_GATE_CHANNEL_CLOSED",
+                        "plan gate channel closed before a decision",
+                    );
+                }
+                Err(e) => return AIPResult::failed("PLAN_GATE_ERROR", &e.to_string()),
+            }
+        }
 
         // create StepBudget via from_capped
         let agent_budget = manifest.step_budget.clone().unwrap_or_default();
@@ -1908,6 +2057,109 @@ mod orchestrated_tests {
             Some(4),
             "expected PlanGenerated with step_count=4"
         );
+    }
+
+    // Plan gate
+
+    /// GIVEN an active plan gate and a generated plan
+    /// WHEN execute reaches the gate
+    /// THEN PlanApprovalRequired is emitted and the run waits (no PlanCompleted)
+    ///   until a decision arrives; an Approval then unblocks the ActorLoop.
+    #[tokio::test]
+    async fn test_gate_suspends_then_approval_resumes() {
+        // GIVEN an engine with the gate forced active and a gate registry
+        let gates = PendingPlanGates::new();
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_force_plan_gate(true)
+            .with_pending_plan_gates(gates.clone());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN execute runs in the background
+        let handle = tokio::spawn(async move { engine.execute(AIPTask::default(), &agent).await });
+
+        // THEN PlanApprovalRequired is emitted and carries the run id
+        let mut run_id = None;
+        for _ in 0..200 {
+            if let Ok(RuntimeEvent::PlanApprovalRequired {
+                run_id: rid,
+                step_count,
+                ..
+            }) = rx.try_recv()
+            {
+                assert_eq!(step_count, 2);
+                run_id = Some(rid);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        let run_id = run_id.expect("PlanApprovalRequired must be emitted");
+
+        // AND the run is still pending (the gate blocks the ActorLoop)
+        assert!(!handle.is_finished(), "run must wait at the gate");
+
+        // WHEN the plan is approved
+        assert!(gates.decide(&run_id, PlanGateDecision::Approved));
+
+        // THEN the run completes successfully
+        let result = handle.await.expect("join");
+        assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    /// GIVEN an active gate with a 1s TTL and no decision
+    /// WHEN the TTL elapses
+    /// THEN the run fails with PLAN_GATE_TIMEOUT and no step ran
+    #[tokio::test]
+    async fn test_gate_timeout_returns_failed() {
+        // GIVEN a gate forced active with a short TTL
+        let gates = PendingPlanGates::new();
+        let config = ORIAConfig {
+            plan_gate_ttl_secs: 1,
+            ..Default::default()
+        };
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_force_plan_gate(true)
+            .with_pending_plan_gates(gates)
+            .with_oria_config(config);
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN no decision arrives before the TTL
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN the run fails cleanly with the timeout code
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert_eq!(result.error.as_ref().map(|e| e.code.as_str()), Some("PLAN_GATE_TIMEOUT"));
+    }
+
+    /// GIVEN the gate is inactive (default)
+    /// WHEN execute runs
+    /// THEN no PlanApprovalRequired is emitted and the run completes directly
+    #[tokio::test]
+    async fn test_gate_inactive_no_suspension() {
+        // GIVEN an engine without the gate forced
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_mock(two_step_plan_json()).with_event_bus(tx);
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN no gate event was emitted and the run completed
+        assert_eq!(result.status, TaskStatus::Completed);
+        let mut saw_gate = false;
+        while let Ok(event) = rx.try_recv() {
+            if matches!(event, RuntimeEvent::PlanApprovalRequired { .. }) {
+                saw_gate = true;
+            }
+        }
+        assert!(!saw_gate, "no gate event when the gate is inactive");
     }
 
     // Helper tests
