@@ -494,6 +494,7 @@ mod tests {
                 agent_name: "a".into(),
                 plan_id: "p".into(),
                 step_count: 2,
+                run_id: None,
             },
             RuntimeEvent::StepStarted {
                 task_id: "t".into(),
@@ -620,6 +621,7 @@ mod tests {
                 agent_name: "a".into(),
                 plan_id: "p".into(),
                 step_count: 1,
+                run_id: None,
             },
             RuntimeEvent::StepStarted {
                 task_id: "t".into(),
@@ -736,6 +738,7 @@ mod tests {
             RuntimeEvent::ChatResponseStarted {
                 session_id: "s".into(),
                 message_id: "m".into(),
+                run_id: None,
             },
             RuntimeEvent::ChatToken {
                 session_id: "s".into(),
@@ -746,6 +749,7 @@ mod tests {
                 session_id: "s".into(),
                 message_id: "m".into(),
                 content: "c".into(),
+                run_id: None,
             },
             RuntimeEvent::ChatError {
                 session_id: "s".into(),
@@ -862,6 +866,7 @@ mod tests {
                 session_id: "s".into(),
                 message_id: "m".into(),
                 content: "c".into(),
+                run_id: None,
             },
             RuntimeEvent::ChatError {
                 session_id: "s".into(),

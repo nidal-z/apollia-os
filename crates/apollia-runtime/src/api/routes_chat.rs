@@ -427,6 +427,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
         RuntimeEvent::ChatResponseStarted {
             session_id: sid,
             message_id,
+            run_id: _,
         } if sid == session_id => (
             SseChatEvent {
                 event: "response_started".into(),
@@ -449,6 +450,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
             session_id: sid,
             message_id,
             content,
+            run_id: _,
         } if sid == session_id => (
             SseChatEvent {
                 event: "response_completed".into(),

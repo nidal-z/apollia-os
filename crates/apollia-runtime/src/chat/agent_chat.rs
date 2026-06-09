@@ -15,7 +15,7 @@ use tracing::{error, info};
 
 use apollia_core::result::{AIPResult, InputResponseData, TaskStatus};
 use apollia_core::task::{AIPInput, AIPMessage, AIPPart, AIPTask, TextPart};
-use apollia_core::RuntimeEvent;
+use apollia_core::{RunId, RuntimeEvent};
 
 use super::builtin_agent::ChatAgentResponse;
 use super::types::{
@@ -132,9 +132,13 @@ impl AgentChatExecutor {
         let mut task = session_to_task(session, user_message);
         task.message_id = Some(message_id.to_string());
 
+        // Correlate every event of this exchange with the run started by the manager.
+        let run_id = session.active_exchange.as_ref().map(|e| e.run_id.clone());
+
         let _ = self.event_bus.send(RuntimeEvent::ChatResponseStarted {
             session_id: session.id.clone(),
             message_id: message_id.to_string(),
+            run_id: run_id.clone(),
         });
 
         info!(
@@ -176,7 +180,12 @@ impl AgentChatExecutor {
         match result.status {
             TaskStatus::Completed => {
                 let content = extract_text_output(result);
-                self.emit_completed(&session.id, message_id, &content);
+                self.emit_completed(
+                    &session.id,
+                    message_id,
+                    &content,
+                    session.active_exchange.as_ref().map(|e| e.run_id.clone()),
+                );
                 Ok(build_response(content, vec![]))
             }
 
@@ -259,7 +268,12 @@ impl AgentChatExecutor {
                     Some(r) => format!("Opération refusée par l'utilisateur : {r}"),
                     None => "Opération refusée par l'utilisateur".to_string(),
                 };
-                self.emit_completed(&session.id, message_id, &content);
+                self.emit_completed(
+                    &session.id,
+                    message_id,
+                    &content,
+                    session.active_exchange.as_ref().map(|e| e.run_id.clone()),
+                );
                 Ok(build_response(content, vec![]))
             }
 
@@ -273,7 +287,12 @@ impl AgentChatExecutor {
                 let resume_result = self.resume_agent(ctx).await?;
 
                 let content = extract_text_output(&resume_result);
-                self.emit_completed(&session.id, message_id, &content);
+                self.emit_completed(
+                    &session.id,
+                    message_id,
+                    &content,
+                    session.active_exchange.as_ref().map(|e| e.run_id.clone()),
+                );
                 Ok(build_response(content, newly_authorized))
             }
         }
@@ -311,11 +330,18 @@ impl AgentChatExecutor {
     }
 
     /// Emit a ChatResponseCompleted event.
-    fn emit_completed(&self, session_id: &str, message_id: &str, content: &str) {
+    fn emit_completed(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        content: &str,
+        run_id: Option<RunId>,
+    ) {
         let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
             content: content.to_string(),
+            run_id,
         });
     }
 }

@@ -17,7 +17,7 @@ use tracing::{error, info, warn};
 
 use apollia_core::todo::TodoItem;
 use apollia_core::{
-    AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RuntimeEvent, StepBudgetConfig,
+    AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RunId, RuntimeEvent, StepBudgetConfig,
 };
 use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_mcp::session::LoadingMode;
@@ -365,6 +365,7 @@ struct LibreExchangeParams {
     hitl_params: HitlInvokerParams,
     sid: String,
     mid: String,
+    run_id: RunId,
     user_msg: String,
     tx: mpsc::Sender<ChatCommand>,
     todo: Option<TodoHandle>,
@@ -410,6 +411,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         hitl_params,
         sid,
         mid,
+        run_id,
         user_msg,
         tx,
         todo,
@@ -512,6 +514,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         .execute(
             &sid,
             &mid,
+            &run_id,
             &user_msg,
             &history,
             &system_prompt,
@@ -1763,11 +1766,14 @@ impl ChatSessionManager {
         };
         session.history.push(msg);
 
-        // Set session to Processing
+        // Set session to Processing. A fresh run_id correlates every event
+        // emitted during this exchange (one user turn, one response cycle).
         session.status = SessionStatus::Processing;
+        let run_id = RunId::new();
         session.active_exchange = Some(ExchangeState {
             message_id: message_id.clone(),
             started_at: now,
+            run_id: run_id.clone(),
         });
         if let Err(e) = self
             .repository
@@ -1789,8 +1795,10 @@ impl ChatSessionManager {
             .get(session_id)
             .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
 
+        // The agent path clones the full session, which already carries `run_id`
+        // in `active_exchange`; only the Libre path needs it threaded explicitly.
         if session.mode == ChatMode::Libre || session.mode == ChatMode::Companion {
-            self.dispatch_libre_exchange(session_id, &message_id, content)?;
+            self.dispatch_libre_exchange(session_id, &message_id, content, &run_id)?;
         } else {
             self.dispatch_agent_exchange(session_id, &message_id, content)?;
         }
@@ -1817,6 +1825,7 @@ impl ChatSessionManager {
         session_id: &str,
         message_id: &str,
         content: &str,
+        run_id: &RunId,
     ) -> Result<(), ChatError> {
         let message_id = message_id.to_string();
         {
@@ -1954,6 +1963,7 @@ impl ChatSessionManager {
                 hitl_params,
                 sid,
                 mid,
+                run_id: run_id.clone(),
                 user_msg,
                 tx,
                 todo: self.todo_handle.clone(),
@@ -2162,10 +2172,16 @@ impl ChatSessionManager {
         // state even when the exchange fails.  Without this the UI stays blocked
         // indefinitely because it waits for ChatResponseCompleted to clear the
         // typing indicator.
+        let run_id = self
+            .sessions
+            .get(session_id)
+            .and_then(|s| s.active_exchange.as_ref())
+            .map(|e| e.run_id.clone());
         let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
             content: format!("[Erreur : {error}]"),
+            run_id,
         });
 
         // Reset session to Active so it can accept new messages

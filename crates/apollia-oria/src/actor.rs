@@ -1093,6 +1093,7 @@ impl ActorLoop {
                 agent_name: String::new(),
                 plan_id: self.plan.plan_id.clone(),
                 step_count: new_plan.steps.len(),
+                run_id: None,
             });
 
             // Update internal state: keep only completed steps plus the new ones.

@@ -125,6 +125,7 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
             plan_id,
             step_count,
             agent_name,
+            run_id: _,
         } if tid == task_id => Some((
             SseTaskEvent {
                 event: "plan_generated".into(),
@@ -643,6 +644,7 @@ mod tests {
             agent_name: "agent".into(),
             plan_id: "plan-001".into(),
             step_count: 4,
+            run_id: None,
         };
 
         // WHEN converted to SSE

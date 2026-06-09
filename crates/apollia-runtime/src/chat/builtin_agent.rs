@@ -15,7 +15,9 @@ use std::time::Duration;
 use futures::StreamExt;
 use tracing::{info, warn};
 
-use apollia_core::{AutonomyLevel, AutonomyLevelConfig, CeilingAction, ORIAConfig, RuntimeEvent};
+use apollia_core::{
+    AutonomyLevel, AutonomyLevelConfig, CeilingAction, ORIAConfig, RunId, RuntimeEvent,
+};
 use apollia_llm::routing_level::{EscalationSignal, LlmRoutingLevel};
 use apollia_llm::types::{
     ChatMessage as LlmChatMessage, CompletionModel, CompletionRequest, StreamChunk, TokenUsage,
@@ -1025,6 +1027,7 @@ struct ResponseContext<'a> {
     total_usage: TokenUsage,
     session_id: &'a str,
     message_id: &'a str,
+    run_id: &'a RunId,
     frontier_ceiling_reached: bool,
 }
 
@@ -1042,6 +1045,7 @@ struct ToolCallContext<'a> {
 struct ToolCallContextIds<'a> {
     session_id: &'a str,
     message_id: &'a str,
+    run_id: &'a RunId,
     pending_approvals: &'a PendingChatApprovals,
 }
 
@@ -1192,6 +1196,7 @@ impl BuiltInChatAgent {
         &self,
         session_id: &str,
         message_id: &str,
+        run_id: &RunId,
         user_message: &str,
         history: &[ChatMessage],
         system_prompt: &str,
@@ -1262,6 +1267,7 @@ impl BuiltInChatAgent {
         let ids = ToolCallContextIds {
             session_id,
             message_id,
+            run_id,
             pending_approvals,
         };
         let first = self
@@ -1346,6 +1352,7 @@ impl BuiltInChatAgent {
     ) -> Result<ChatAgentResponse, ChatError> {
         let session_id = ids.session_id;
         let message_id = ids.message_id;
+        let run_id = ids.run_id;
         let total_usage = TokenUsage {
             prompt_tokens: 0,
             completion_tokens: 0,
@@ -1403,6 +1410,7 @@ impl BuiltInChatAgent {
             let _ = self.event_bus.send(RuntimeEvent::ChatResponseStarted {
                 session_id: session_id.to_string(),
                 message_id: message_id.to_string(),
+                run_id: Some(run_id.clone()),
             });
 
             // Derive the escalation signal from the consecutive-failure counter.
@@ -1480,6 +1488,7 @@ impl BuiltInChatAgent {
                             total_usage,
                             session_id,
                             message_id,
+                            run_id,
                             frontier_ceiling_reached,
                         },
                     ));
@@ -1508,6 +1517,7 @@ impl BuiltInChatAgent {
                             total_usage,
                             session_id,
                             message_id,
+                            run_id,
                             frontier_ceiling_reached,
                         },
                     ));
@@ -1531,6 +1541,7 @@ impl BuiltInChatAgent {
             total_usage,
             session_id,
             message_id,
+            run_id,
             frontier_ceiling_reached,
         } = ctx;
         // Extract thinking trace before stripping.
@@ -1540,6 +1551,7 @@ impl BuiltInChatAgent {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
             content: clean.clone(),
+            run_id: Some(run_id.clone()),
         });
 
         // Combine accumulated reasoning fragments with final thinking.
@@ -1737,6 +1749,7 @@ impl BuiltInChatAgent {
             total_usage,
             session_id,
             message_id,
+            run_id,
             frontier_ceiling_reached,
         } = ctx;
         // Stream interrupted: emit ChatError, return partial content
@@ -1757,6 +1770,7 @@ impl BuiltInChatAgent {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
             content: content.clone(),
+            run_id: Some(run_id.clone()),
         });
 
         ChatAgentResponse {
@@ -2841,6 +2855,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "Salut",
                 &[],
                 "",
@@ -2926,6 +2941,7 @@ mod tests {
             .execute(
                 "sess-no-hybrid",
                 "msg-1",
+                &RunId::new(),
                 "go",
                 &[],
                 "",
@@ -3003,6 +3019,7 @@ mod tests {
             .execute(
                 "sess-ceiling",
                 "msg-1",
+                &RunId::new(),
                 "go",
                 &[],
                 "",
@@ -3146,6 +3163,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "Execute echo",
                 &[],
                 "Tu es un assistant.",
@@ -3218,6 +3236,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "Read file",
                 &[],
                 "assistant",
@@ -3288,6 +3307,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "Read",
                 &[],
                 "assistant",
@@ -3361,6 +3381,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "Read",
                 &[],
                 "assistant",
@@ -3415,6 +3436,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "Loop",
                 &[],
                 "assistant",
@@ -3532,6 +3554,7 @@ mod tests {
             .execute(
                 "s1",
                 "m1",
+                &RunId::new(),
                 "Go",
                 &[],
                 "prompt",
@@ -3642,6 +3665,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "Salut",
                 &[],
                 "",
@@ -3702,6 +3726,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "test",
                 &[],
                 "",
@@ -3797,6 +3822,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "test",
                 &[],
                 "",
@@ -3921,6 +3947,7 @@ mod tests {
             .execute(
                 "sess-1",
                 "msg-1",
+                &RunId::new(),
                 "lis le fichier",
                 &[],
                 "",
@@ -4478,6 +4505,7 @@ mod tests {
                     ids: ToolCallContextIds {
                         session_id: "s",
                         message_id: "m",
+                        run_id: &RunId::new(),
                         pending_approvals: &approvals,
                     },
                 },
@@ -4621,6 +4649,7 @@ mod tests {
                     ids: ToolCallContextIds {
                         session_id: "s",
                         message_id: "m",
+                        run_id: &RunId::new(),
                         pending_approvals: &approvals,
                     },
                 },

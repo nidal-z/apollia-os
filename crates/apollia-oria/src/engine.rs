@@ -575,6 +575,8 @@ impl ORIAEngine {
             agent_name: manifest.name.clone(),
             plan_id: plan_id.clone(),
             step_count,
+            // The orchestrated engine path correlates via task_id, not a chat run.
+            run_id: None,
         });
 
         // create StepBudget via from_capped
@@ -723,6 +725,8 @@ impl ORIAEngine {
             agent_name: manifest.name.clone(),
             plan_id: plan_id.clone(),
             step_count,
+            // The orchestrated engine path correlates via task_id, not a chat run.
+            run_id: None,
         });
 
         let agent_budget = manifest.step_budget.clone().unwrap_or_default();

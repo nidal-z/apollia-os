@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
 use crate::eventbus::EventBusSender;
-use apollia_core::RuntimeEvent;
+use apollia_core::{RunId, RuntimeEvent};
 
 /// Alias for a chat session identifier (UUID v4 string).
 pub type SessionId = String;
@@ -150,6 +150,13 @@ pub struct ExchangeState {
     pub message_id: MessageId,
     /// ISO-8601 timestamp when the exchange started.
     pub started_at: String,
+    /// Stable run identifier for this exchange (one user turn, one response).
+    ///
+    /// Generated once when the exchange starts and propagated to the
+    /// `RuntimeEvent` variants emitted during the run. Distinct from
+    /// [`SessionId`] (conversation lifetime) and [`MessageId`] (single message).
+    #[serde(default)]
+    pub run_id: RunId,
 }
 
 /// A single message in a chat session.

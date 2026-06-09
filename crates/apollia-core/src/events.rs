@@ -156,6 +156,60 @@ impl PartialEq<&str> for TaskId {
     }
 }
 
+/// Stable identifier for a single chat run (one user message, one response cycle).
+///
+/// Generated once at the start of `BuiltInChatAgent::execute()` and propagated
+/// through the `RuntimeEvent` variants emitted during that run. Distinct from
+/// the session id (the conversation lifetime) and from the per-message id
+/// (one individual message). A run groups the events of a single user turn so
+/// the plan-control flow can correlate gate, approval, and execution on a
+/// precise run.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RunId(String);
+
+impl RunId {
+    /// Generates a new random RunId (UUID v4).
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4().to_string())
+    }
+
+    /// Borrows the inner string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Default for RunId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Display for RunId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<String> for RunId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for RunId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl AsRef<str> for RunId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Complete catalogue of Apollia OS runtime events.
 ///
 /// Defined in `apollia-core` to avoid circular dependencies: every actor
@@ -366,6 +420,11 @@ pub enum RuntimeEvent {
         plan_id: String,
         /// Number of steps in the plan.
         step_count: usize,
+        /// Stable run identifier when this plan originates from a chat exchange.
+        ///
+        /// `None` on the orchestrated engine path, which correlates via `task_id`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<RunId>,
     },
 
     /// A step started executing, emitted by `ActorLoop` before each tool or LLM call.
@@ -614,6 +673,9 @@ pub enum RuntimeEvent {
         session_id: String,
         /// Identifier of the response message.
         message_id: String,
+        /// Stable run identifier for this exchange (one user turn, one response).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<RunId>,
     },
     /// A streaming token was produced by the LLM.
     ChatToken {
@@ -632,6 +694,9 @@ pub enum RuntimeEvent {
         message_id: String,
         /// Full content of the response.
         content: String,
+        /// Stable run identifier for this exchange (one user turn, one response).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<RunId>,
     },
     /// An error occurred in a chat session.
     ChatError {
@@ -1603,6 +1668,7 @@ mod tests {
                 agent_name: "mon-agent".into(),
                 plan_id: "plan-abc".into(),
                 step_count: 4,
+                run_id: None,
             },
             RuntimeEvent::StepStarted {
                 task_id: "task-1".into(),
@@ -1721,6 +1787,7 @@ mod tests {
             RuntimeEvent::ChatResponseStarted {
                 session_id: "sess-001".into(),
                 message_id: "msg-002".into(),
+                run_id: None,
             },
             RuntimeEvent::ChatToken {
                 session_id: "sess-001".into(),
@@ -1731,6 +1798,7 @@ mod tests {
                 session_id: "sess-001".into(),
                 message_id: "msg-002".into(),
                 content: "Hello, world!".into(),
+                run_id: None,
             },
             RuntimeEvent::ChatError {
                 session_id: "sess-001".into(),
@@ -2007,6 +2075,7 @@ mod tests {
             agent_name: "mon-agent".into(),
             plan_id: "plan-abc".into(),
             step_count: 4,
+            run_id: None,
         };
         // WHEN
         let json = serde_json::to_string(&event).expect("sérialisation échoue");
@@ -2060,6 +2129,7 @@ mod tests {
             agent_name: "agent".into(),
             plan_id: "plan-001".into(),
             step_count: 3,
+            run_id: None,
         };
         // WHEN
         tx.send(event).expect("envoi échoue");
@@ -2107,6 +2177,68 @@ mod tests {
             assert!(retryable);
         } else {
             panic!("Mauvais variant après désérialisation");
+        }
+    }
+
+    // ── RunId ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_run_id_uniqueness() {
+        // GIVEN two successive RunId generations
+        let id1 = RunId::new();
+        let id2 = RunId::new();
+        // WHEN they are compared
+        // THEN they differ
+        assert_ne!(id1, id2);
+    }
+
+    #[test]
+    fn test_run_id_is_valid_uuid() {
+        // GIVEN a generated RunId
+        let id = RunId::new();
+        // WHEN its string form is parsed
+        // THEN it is a valid UUID v4
+        uuid::Uuid::parse_str(id.as_str()).expect("run_id must be a valid UUID");
+    }
+
+    #[test]
+    fn test_plan_generated_deserializes_without_run_id() {
+        // GIVEN a PlanGenerated JSON produced before run_id existed (no run_id key)
+        let json = r#"{"PlanGenerated":{"task_id":"t1","agent_name":"foo","plan_id":"p1","step_count":3}}"#;
+        // WHEN it is deserialized
+        let event: RuntimeEvent =
+            serde_json::from_str(json).expect("legacy event must deserialize");
+        // THEN run_id defaults to None and the other fields are intact
+        if let RuntimeEvent::PlanGenerated {
+            run_id, step_count, ..
+        } = event
+        {
+            assert!(run_id.is_none());
+            assert_eq!(step_count, 3);
+        } else {
+            panic!("expected PlanGenerated variant");
+        }
+    }
+
+    #[test]
+    fn test_plan_generated_with_run_id_round_trips() {
+        // GIVEN a PlanGenerated carrying a run_id
+        let run_id = RunId::new();
+        let event = RuntimeEvent::PlanGenerated {
+            task_id: "t1".into(),
+            agent_name: "foo".into(),
+            plan_id: "p1".into(),
+            step_count: 2,
+            run_id: Some(run_id.clone()),
+        };
+        // WHEN serialized then deserialized
+        let json = serde_json::to_string(&event).expect("serialization failed");
+        let restored: RuntimeEvent = serde_json::from_str(&json).expect("deserialization failed");
+        // THEN the run_id survives the round trip
+        if let RuntimeEvent::PlanGenerated { run_id: got, .. } = restored {
+            assert_eq!(got, Some(run_id));
+        } else {
+            panic!("expected PlanGenerated variant");
         }
     }
 }

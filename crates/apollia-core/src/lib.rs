@@ -56,7 +56,7 @@ pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};
 pub use error_analysis::{ErrorAnalysis, ErrorCategory};
 pub use events::{
-    AgentId, EventBusSender, FilesystemPreview, RuntimeEvent, TaskId, ToolCallRationale,
+    AgentId, EventBusSender, FilesystemPreview, RunId, RuntimeEvent, TaskId, ToolCallRationale,
 };
 pub use hitl_request::{HitlRequest, ImpactLevel, RiskAnalysis};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
