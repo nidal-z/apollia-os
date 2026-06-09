@@ -46,7 +46,7 @@ use crate::observer::{ContextBundle, ExecutionMode};
 use crate::plan::{ExecutionPlan, PlanStep};
 use crate::plan_repository::PlanRepository;
 use crate::reasoner::Reasoner;
-use crate::resilience::ResilienceLayer;
+use crate::resilience::{ErrorClass, ResilienceLayer, RetryContext, RetryPolicy};
 use crate::topo::{topological_levels, topological_sort};
 
 // ToolProxyTrait
@@ -369,7 +369,7 @@ impl ActorLoop {
     pub async fn execute(
         &mut self,
         deps: StepDeps<'_>,
-        _resilience: &ResilienceLayer,
+        resilience: &ResilienceLayer,
     ) -> AIPResult {
         let tool_proxy = deps.tool_proxy;
         let levels = match topological_levels(&self.plan.steps) {
@@ -397,10 +397,10 @@ impl ActorLoop {
             // A level qualifies for concurrent batch execution when every step is a
             // read-only tool call that does not require human approval.
             let outcome = if self.is_batch_eligible(&level_steps, tool_proxy) {
-                self.execute_level_batch(level_steps, completed_outputs, deps)
+                self.execute_level_batch(level_steps, completed_outputs, deps, resilience)
                     .await
             } else {
-                self.execute_level_sequential(level_ids, completed_outputs, deps)
+                self.execute_level_sequential(level_ids, completed_outputs, deps, resilience)
                     .await
             };
 
@@ -436,6 +436,7 @@ impl ActorLoop {
         level_steps: Vec<PlanStep>,
         mut completed_outputs: HashMap<String, String>,
         deps: StepDeps<'a>,
+        resilience: &'a ResilienceLayer,
     ) -> LevelOutcome {
         // Phase 1 (sequential): budget guard, events, DB pre-execution.
         if deps.budget.is_exhausted() {
@@ -475,8 +476,14 @@ impl ActorLoop {
                     self.persist_step_failure(&step_id, &e.to_string());
                     self.emit_step_failed(&step_id, &e.to_string(), true);
                     return LevelOutcome::Terminal(
-                        self.replan_and_continue(step_id, e.to_string(), completed_outputs, deps)
-                            .await,
+                        self.replan_and_continue(
+                            step_id,
+                            e.to_string(),
+                            completed_outputs,
+                            deps,
+                            resilience,
+                        )
+                        .await,
                     );
                 }
                 Err(e) => {
@@ -501,6 +508,7 @@ impl ActorLoop {
         level_ids: Vec<String>,
         mut completed_outputs: HashMap<String, String>,
         deps: StepDeps<'a>,
+        resilience: &'a ResilienceLayer,
     ) -> LevelOutcome {
         for step_id in level_ids {
             let step = match self.plan.steps.iter().find(|s| s.step_id == step_id) {
@@ -530,7 +538,7 @@ impl ActorLoop {
 
             let started = Instant::now();
             let result = self
-                .execute_step(&step, &step_ctx, deps.tool_proxy, deps.llm_router)
+                .execute_step(&step, &step_ctx, deps.tool_proxy, deps.llm_router, resilience)
                 .await;
             let duration_ms = started.elapsed().as_millis() as u64;
             deps.budget.increment_steps();
@@ -557,8 +565,14 @@ impl ActorLoop {
                     self.persist_step_failure(&step_id, &e.to_string());
                     self.emit_step_failed(&step_id, &e.to_string(), true);
                     return LevelOutcome::Terminal(
-                        self.replan_and_continue(step_id, e.to_string(), completed_outputs, deps)
-                            .await,
+                        self.replan_and_continue(
+                            step_id,
+                            e.to_string(),
+                            completed_outputs,
+                            deps,
+                            resilience,
+                        )
+                        .await,
                     );
                 }
 
@@ -658,12 +672,17 @@ impl ActorLoop {
     /// [`interpolate_outputs`] before being passed to the tool or the LLM.
     ///
     /// [`suspend_for_approval`]: ActorLoop::suspend_for_approval
+    // REASON: cohesive execution dependencies (proxy, router, resilience) plus
+    // the step context. A future consolidation may move the resilience layer
+    // into the StepDeps bundle once the batch path needs it too.
+    #[allow(clippy::too_many_arguments)]
     async fn execute_step(
         &self,
         step: &PlanStep,
         step_ctx: &StepContext,
         tool_proxy: &dyn ToolProxyTrait,
         llm_router: &LlmRouter,
+        resilience: &ResilienceLayer,
     ) -> Result<String, StepError> {
         // Check whether the step's tool requires human approval.
         let tool_needs_approval = step
@@ -699,11 +718,53 @@ impl ActorLoop {
                 self.execute_llm_step(step, input, llm_router, step_ctx)
                     .await
             }
-            // Tool step: model_hint ignored.
-            Some(tool_name) => tool_proxy
-                .invoke(tool_name, &serde_json::json!({"input": input}))
-                .await
-                .map_err(StepError::ToolCallFailed),
+            // Tool step: model_hint ignored. The invocation is wrapped by the
+            // ResilienceLayer so a flaky tool trips its circuit breaker and
+            // transient failures are retried with backoff before bubbling up.
+            Some(tool_name) => {
+                resilience.ensure_tool(tool_name);
+                let policy = RetryPolicy::default();
+                let payload = serde_json::json!({ "input": input });
+                let (outcome, _attempts) = resilience
+                    .execute_with_observability(
+                        RetryContext {
+                            tool_name,
+                            tool_call_id: step.step_id.as_str(),
+                            retry_policy: &policy,
+                            bus: Some(&self.event_bus),
+                        },
+                        Self::classify_tool_error,
+                        || tool_proxy.invoke(tool_name, &payload),
+                    )
+                    .await;
+                outcome.map_err(|e| StepError::ToolCallFailed(e.to_string()))
+            }
+        }
+    }
+
+    /// Maps a `ToolProxyTrait::invoke` error message to the [`ErrorClass`] that
+    /// drives circuit-breaker and retry decisions.
+    ///
+    /// Tool invocations return their error as a plain `String`, so the class is
+    /// inferred from the message. Unknown shapes default to `Transient` so a
+    /// genuine transient fault is retried rather than silently dropped; the
+    /// circuit breaker still bounds repeated transient failures.
+    fn classify_tool_error(err: &str) -> ErrorClass {
+        let lower = err.to_lowercase();
+        if lower.contains("budget") {
+            ErrorClass::BudgetExceeded
+        } else if lower.contains("sandbox")
+            || lower.contains("path traversal")
+            || lower.contains("unauthorized")
+        {
+            ErrorClass::SandboxViolation
+        } else if lower.contains("not found")
+            || lower.contains("invalid input")
+            || lower.contains("invalid argument")
+        {
+            ErrorClass::Permanent
+        } else {
+            ErrorClass::Transient
         }
     }
 
@@ -942,12 +1003,17 @@ impl ActorLoop {
     ///
     /// Returns a boxed `Future` to allow mutual recursion with
     /// [`execute_remaining`](Self::execute_remaining).
+    // REASON: replanning needs the failed step, the error, accumulated outputs,
+    // the execution deps and the resilience layer; the set is cohesive. A future
+    // consolidation may move the resilience layer into the StepDeps bundle.
+    #[allow(clippy::too_many_arguments)]
     fn replan_and_continue<'a>(
         &'a mut self,
         failed_step_id: String,
         error_message: String,
         completed_outputs: HashMap<String, String>,
         deps: StepDeps<'a>,
+        resilience: &'a ResilienceLayer,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + 'a>> {
         Box::pin(async move {
             self.replan_count += 1;
@@ -1004,7 +1070,7 @@ impl ActorLoop {
                 .retain(|s| completed_outputs.contains_key(&s.step_id));
             self.plan.steps.extend(new_plan.steps);
 
-            self.execute_remaining(completed_outputs, deps).await
+            self.execute_remaining(completed_outputs, deps, resilience).await
         }) // end Box::pin
     }
 
@@ -1019,6 +1085,7 @@ impl ActorLoop {
         &'a mut self,
         mut completed_outputs: HashMap<String, String>,
         deps: StepDeps<'a>,
+        resilience: &'a ResilienceLayer,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + 'a>> {
         Box::pin(async move {
             let remaining: Vec<PlanStep> = self
@@ -1063,7 +1130,7 @@ impl ActorLoop {
 
                 let started = Instant::now();
                 let result = self
-                    .execute_step(&step, &step_ctx, deps.tool_proxy, deps.llm_router)
+                    .execute_step(&step, &step_ctx, deps.tool_proxy, deps.llm_router, resilience)
                     .await;
                 let duration_ms = started.elapsed().as_millis() as u64;
                 deps.budget.increment_steps();
@@ -1086,7 +1153,13 @@ impl ActorLoop {
                         self.persist_step_failure(&step_id, &e.to_string());
                         self.emit_step_failed(&step_id, &e.to_string(), true);
                         return self
-                            .replan_and_continue(step_id, e.to_string(), completed_outputs, deps)
+                            .replan_and_continue(
+                                step_id,
+                                e.to_string(),
+                                completed_outputs,
+                                deps,
+                                resilience,
+                            )
                             .await;
                     }
 
@@ -1494,6 +1567,172 @@ mod tests {
         (actor, bus_rx)
     }
 
+    // ── Sequential ResilienceLayer wiring ─────────────────────────────────────
+
+    /// Builds an actor with an explicit replan cap, so a failing single-step
+    /// plan terminates without entering the replan path (isolates the resilience
+    /// behaviour of the sequential tool call).
+    fn make_actor_capped(
+        plan: ExecutionPlan,
+        max_replans: u32,
+    ) -> (ActorLoop, tokio::sync::broadcast::Receiver<RuntimeEvent>) {
+        let (bus_tx, bus_rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+        let actor = ActorLoop::new(plan, max_replans, db, bus_tx, make_manifest());
+        (actor, bus_rx)
+    }
+
+    /// Tool proxy that counts invocations and optionally returns a fixed error.
+    struct CountingProxy {
+        calls: std::sync::atomic::AtomicU32,
+        error: Option<String>,
+    }
+
+    impl CountingProxy {
+        fn ok() -> Self {
+            Self {
+                calls: std::sync::atomic::AtomicU32::new(0),
+                error: None,
+            }
+        }
+        fn failing(msg: &str) -> Self {
+            Self {
+                calls: std::sync::atomic::AtomicU32::new(0),
+                error: Some(msg.to_string()),
+            }
+        }
+        fn call_count(&self) -> u32 {
+            self.calls.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ToolProxyTrait for CountingProxy {
+        async fn invoke(&self, _: &str, _: &serde_json::Value) -> Result<String, String> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            match &self.error {
+                None => Ok("ok".to_string()),
+                Some(m) => Err(m.clone()),
+            }
+        }
+    }
+
+    async fn run_single_tool_step(
+        actor: &mut ActorLoop,
+        proxy: &CountingProxy,
+        resilience: &ResilienceLayer,
+    ) -> AIPResult {
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+        actor
+            .execute(
+                StepDeps {
+                    tool_proxy: proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                resilience,
+            )
+            .await
+    }
+
+    /// A successful tool call records success and keeps the circuit closed.
+    #[tokio::test]
+    async fn test_sequential_success_records_success() {
+        // GIVEN a single-step plan and a proxy that succeeds
+        let (mut actor, _rx) = make_actor_capped(make_plan(vec![("s1", &[])]), 0);
+        let proxy = CountingProxy::ok();
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the sequential path executes
+        let result = run_single_tool_step(&mut actor, &proxy, &resilience).await;
+
+        // THEN the tool was invoked once and the breaker stays closed
+        assert_eq!(result.status, TaskStatus::Completed);
+        assert_eq!(proxy.call_count(), 1);
+        let cb = resilience.breaker("mock_tool").expect("breaker registered");
+        assert!(matches!(cb.state(), crate::resilience::CircuitState::Closed));
+        assert_eq!(cb.failure_count(), 0);
+    }
+
+    /// A permanent error is not retried (single invocation).
+    #[tokio::test]
+    async fn test_sequential_permanent_error_no_retry() {
+        // GIVEN a proxy returning a permanent-class error
+        let (mut actor, _rx) = make_actor_capped(make_plan(vec![("s1", &[])]), 0);
+        let proxy = CountingProxy::failing("invalid input: bad argument");
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the sequential path executes
+        let result = run_single_tool_step(&mut actor, &proxy, &resilience).await;
+
+        // THEN invoke was called exactly once and the breaker did not count it
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert_eq!(proxy.call_count(), 1);
+        let cb = resilience.breaker("mock_tool").expect("breaker registered");
+        assert_eq!(cb.failure_count(), 0);
+    }
+
+    /// A budget-class error is not retried.
+    #[tokio::test]
+    async fn test_sequential_budget_exceeded_no_retry() {
+        // GIVEN a proxy returning a budget-class error
+        let (mut actor, _rx) = make_actor_capped(make_plan(vec![("s1", &[])]), 0);
+        let proxy = CountingProxy::failing("step budget exhausted");
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the sequential path executes
+        let result = run_single_tool_step(&mut actor, &proxy, &resilience).await;
+
+        // THEN invoke was called exactly once (no retry on BudgetExceeded)
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert_eq!(proxy.call_count(), 1);
+    }
+
+    /// An open circuit rejects the call without invoking the tool.
+    #[tokio::test]
+    async fn test_sequential_circuit_open_rejects_without_invoke() {
+        // GIVEN a resilience layer whose breaker for the tool is already open
+        let (mut actor, _rx) = make_actor_capped(make_plan(vec![("s1", &[])]), 0);
+        let resilience = ResilienceLayer::default();
+        resilience.ensure_tool("mock_tool");
+        for _ in 0..3 {
+            let _ = resilience.record_failure("mock_tool", &ErrorClass::Transient);
+        }
+        let proxy = CountingProxy::ok();
+
+        // WHEN the sequential path executes
+        let result = run_single_tool_step(&mut actor, &proxy, &resilience).await;
+
+        // THEN the tool was never invoked and the step failed
+        assert_eq!(proxy.call_count(), 0);
+        assert_eq!(result.status, TaskStatus::Failed);
+    }
+
+    /// A transient error is retried up to the policy limit, then recorded.
+    #[tokio::test]
+    async fn test_sequential_transient_error_retries_then_records_failure() {
+        // GIVEN a proxy that always fails with a transient-class error
+        let (mut actor, _rx) = make_actor_capped(make_plan(vec![("s1", &[])]), 0);
+        let proxy = CountingProxy::failing("tool timeout");
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the sequential path executes
+        let result = run_single_tool_step(&mut actor, &proxy, &resilience).await;
+
+        // THEN invoke was retried up to the default policy (3 attempts) and the
+        // breaker counted one transient failure for the exhausted call
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert_eq!(proxy.call_count(), RetryPolicy::default().max_attempts);
+        let cb = resilience.breaker("mock_tool").expect("breaker registered");
+        assert_eq!(cb.failure_count(), 1);
+    }
+
     // Sequential execution in topological order.
 
     /// GIVEN a plan (s1, s2->s1, s3->s2) and a mock ToolProxy returning "ok"
@@ -1616,7 +1855,7 @@ mod tests {
             }
         }
         // s1 succeeds, s2 fails, then s2b/s3 succeed
-        let proxy = SelectiveProxy {
+        let _proxy = SelectiveProxy {
             fail_next: std::sync::atomic::AtomicBool::new(false),
         };
         // Set fail for s2, modifying by position.
@@ -1631,7 +1870,10 @@ mod tests {
             async fn invoke(&self, _: &str, _: &serde_json::Value) -> Result<String, String> {
                 let n = self.call.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 if n == self.fail_at {
-                    Err("tool timeout".into())
+                    // Permanent-class error so the ResilienceLayer does not retry
+                    // the call: the step fails on its single attempt, which is
+                    // what drives the replanning path exercised by this test.
+                    Err("invalid input: simulated step failure".into())
                 } else {
                     Ok(format!("output-{n}"))
                 }

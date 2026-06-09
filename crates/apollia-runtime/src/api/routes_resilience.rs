@@ -116,7 +116,7 @@ pub async fn reset_breaker<B: ExecutionBackend + Clone>(
             }),
         ));
     };
-    let mut guard = layer.lock().map_err(|_| {
+    let guard = layer.lock().map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(NotFoundResponse {

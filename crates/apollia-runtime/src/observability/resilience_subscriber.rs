@@ -59,7 +59,7 @@ fn apply(layer: &Mutex<ResilienceLayer>, event: RuntimeEvent) {
         _ => return,
     };
 
-    let mut guard = match layer.lock() {
+    let guard = match layer.lock() {
         Ok(g) => g,
         Err(e) => {
             tracing::error!(

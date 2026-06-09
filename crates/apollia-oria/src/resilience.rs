@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 use std::future::Future;
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use apollia_core::error_analysis::{ErrorAnalysis, ErrorCategory};
@@ -55,7 +56,7 @@ pub enum CircuitState {
 /// Tracks consecutive transient failures. When the failure count reaches
 /// `failure_threshold`, the circuit opens and rejects all calls until
 /// the cooldown elapses.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CircuitBreaker {
     tool_name: String,
     state: CircuitState,
@@ -147,7 +148,11 @@ pub struct CircuitBreakerSnapshot {
 /// [`record_success`](Self::record_success) / [`record_failure`](Self::record_failure)
 /// after to update the circuit state.
 pub struct ResilienceLayer {
-    circuit_breakers: HashMap<String, CircuitBreaker>,
+    /// Per-tool breakers behind an internal `Mutex` so the layer can be shared
+    /// as `&ResilienceLayer` (or `Arc<ResilienceLayer>`) across the concurrent
+    /// tool calls of a plan level. The lock guards only synchronous breaker
+    /// reads and writes; it is never held across an `.await`.
+    circuit_breakers: Mutex<HashMap<String, CircuitBreaker>>,
     default_failure_threshold: u32,
     default_cooldown: Duration,
 }
@@ -180,22 +185,30 @@ impl ResilienceLayer {
     /// Creates a new resilience layer with default threshold and cooldown.
     pub fn new(default_failure_threshold: u32, default_cooldown: Duration) -> Self {
         Self {
-            circuit_breakers: HashMap::new(),
+            circuit_breakers: Mutex::new(HashMap::new()),
             default_failure_threshold,
             default_cooldown,
         }
     }
 
+    /// Locks the breaker map, recovering the guard even if a previous holder
+    /// panicked. Poisoning here is benign: a panic mid-update leaves a single
+    /// breaker counter slightly off, never a safety issue, so recovering keeps
+    /// the layer available rather than propagating the panic.
+    fn breakers(&self) -> MutexGuard<'_, HashMap<String, CircuitBreaker>> {
+        self.circuit_breakers
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     /// Registers a tool with its own circuit breaker using the layer defaults.
-    pub fn register_tool(&mut self, tool_name: &str) {
-        self.circuit_breakers.insert(
+    pub fn register_tool(&self, tool_name: &str) {
+        let breaker = CircuitBreaker::new(
             tool_name.to_string(),
-            CircuitBreaker::new(
-                tool_name.to_string(),
-                self.default_failure_threshold,
-                self.default_cooldown,
-            ),
+            self.default_failure_threshold,
+            self.default_cooldown,
         );
+        self.breakers().insert(tool_name.to_string(), breaker);
     }
 
     /// Checks whether an outgoing call to the tool is allowed.
@@ -204,9 +217,9 @@ impl ResilienceLayer {
     /// - **Open**: if cooldown has elapsed, transitions to HalfOpen and allows one probe.
     ///   Otherwise returns [`ResilienceError::CircuitOpen`].
     /// - **HalfOpen**: allowed (single probe in progress).
-    pub fn pre_check(&mut self, tool_name: &str) -> Result<(), ResilienceError> {
-        let cb = self
-            .circuit_breakers
+    pub fn pre_check(&self, tool_name: &str) -> Result<(), ResilienceError> {
+        let mut map = self.breakers();
+        let cb = map
             .get_mut(tool_name)
             .ok_or_else(|| ResilienceError::UnknownTool(tool_name.to_string()))?;
 
@@ -239,9 +252,9 @@ impl ResilienceLayer {
     ///
     /// Returns `true` if the circuit was restored from HalfOpen to Closed
     /// (useful for emitting `ToolCircuitRestored` events).
-    pub fn record_success(&mut self, tool_name: &str) -> Result<bool, ResilienceError> {
-        let cb = self
-            .circuit_breakers
+    pub fn record_success(&self, tool_name: &str) -> Result<bool, ResilienceError> {
+        let mut map = self.breakers();
+        let cb = map
             .get_mut(tool_name)
             .ok_or_else(|| ResilienceError::UnknownTool(tool_name.to_string()))?;
 
@@ -266,12 +279,12 @@ impl ResilienceLayer {
     /// Returns `true` if the circuit just transitioned to Open
     /// (useful for emitting `ToolCircuitBroken` events).
     pub fn record_failure(
-        &mut self,
+        &self,
         tool_name: &str,
         error_class: &ErrorClass,
     ) -> Result<bool, ResilienceError> {
-        let cb = self
-            .circuit_breakers
+        let mut map = self.breakers();
+        let cb = map
             .get_mut(tool_name)
             .ok_or_else(|| ResilienceError::UnknownTool(tool_name.to_string()))?;
 
@@ -307,14 +320,12 @@ impl ResilienceLayer {
         Ok(false)
     }
 
-    /// Returns an immutable reference to a circuit breaker by tool name.
-    pub fn get(&self, tool_name: &str) -> Option<&CircuitBreaker> {
-        self.circuit_breakers.get(tool_name)
-    }
-
-    /// Returns a mutable reference to a circuit breaker by tool name.
-    pub fn get_mut(&mut self, tool_name: &str) -> Option<&mut CircuitBreaker> {
-        self.circuit_breakers.get_mut(tool_name)
+    /// Returns a cloned snapshot of a circuit breaker by tool name.
+    ///
+    /// Returns an owned clone rather than a borrow because the breaker lives
+    /// behind the internal `Mutex` and no reference may escape the guard.
+    pub fn breaker(&self, tool_name: &str) -> Option<CircuitBreaker> {
+        self.breakers().get(tool_name).cloned()
     }
 
     /// Produce an operator-friendly snapshot of every registered breaker.
@@ -324,12 +335,13 @@ impl ResilienceLayer {
     /// Internal `Instant`s are converted to remaining-cooldown seconds for
     /// safe JSON serialisation.
     pub fn snapshot(&self) -> Vec<CircuitBreakerSnapshot> {
-        let mut names: Vec<&String> = self.circuit_breakers.keys().collect();
+        let map = self.breakers();
+        let mut names: Vec<&String> = map.keys().collect();
         names.sort();
         names
             .into_iter()
             .filter_map(|name| {
-                let cb = self.circuit_breakers.get(name)?;
+                let cb = map.get(name)?;
                 let cooldown_remaining_secs = match cb.state {
                     CircuitState::Open => cb.last_failure_at.and_then(|t| {
                         let elapsed = t.elapsed();
@@ -362,8 +374,9 @@ impl ResilienceLayer {
     /// Returns `Ok(true)` when the tool was registered and the breaker now
     /// sits in `Closed` state. Returns `Ok(false)` when the tool is unknown
     /// (caller can choose to register it lazily before retrying).
-    pub fn reset_breaker(&mut self, tool_name: &str) -> bool {
-        match self.circuit_breakers.get_mut(tool_name) {
+    pub fn reset_breaker(&self, tool_name: &str) -> bool {
+        let mut map = self.breakers();
+        match map.get_mut(tool_name) {
             Some(cb) => {
                 let was_open = !matches!(cb.state, CircuitState::Closed);
                 cb.state = CircuitState::Closed;
@@ -387,9 +400,15 @@ impl ResilienceLayer {
     /// shared resilience layer from `ToolCallCompleted` / `ToolCallDenied`
     /// events: tools never seen before still get tracked from their first
     /// reported call instead of producing `UnknownTool` errors.
-    pub fn ensure_tool(&mut self, tool_name: &str) {
-        if !self.circuit_breakers.contains_key(tool_name) {
-            self.register_tool(tool_name);
+    pub fn ensure_tool(&self, tool_name: &str) {
+        let mut map = self.breakers();
+        if !map.contains_key(tool_name) {
+            let breaker = CircuitBreaker::new(
+                tool_name.to_string(),
+                self.default_failure_threshold,
+                self.default_cooldown,
+            );
+            map.insert(tool_name.to_string(), breaker);
         }
     }
 
@@ -403,7 +422,7 @@ impl ResilienceLayer {
     ///    - **Transient** and all retries exhausted: calls `record_failure`, returns `Err`.
     ///    - **Other** (`Permanent`, `BudgetExceeded`, `SandboxViolation`): returns `Err` immediately.
     pub async fn execute<F, Fut, T>(
-        &mut self,
+        &self,
         tool_name: &str,
         retry_policy: &RetryPolicy,
         error_classifier: impl Fn(&str) -> ErrorClass,
@@ -458,7 +477,7 @@ impl ResilienceLayer {
     /// [`AttemptOutcome::Failed`] / [`AttemptOutcome::TimedOut`], never with
     /// an implicit truncation.
     pub async fn execute_with_observability<F, Fut, T>(
-        &mut self,
+        &self,
         ctx: RetryContext<'_>,
         error_classifier: impl Fn(&str) -> ErrorClass,
         operation: F,
@@ -653,7 +672,7 @@ mod tests {
     #[test]
     fn test_closed_allows_call() {
         // GIVEN a CircuitBreaker in Closed state
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("file_io");
 
         // WHEN pre_check()
@@ -661,14 +680,14 @@ mod tests {
 
         // THEN Ok(())
         assert!(result.is_ok());
-        assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Closed);
+        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Closed);
     }
 
     // Transient errors open the circuit after threshold
     #[test]
     fn test_transient_errors_open_circuit() {
         // GIVEN failure_threshold = 3
-        let mut layer = make_layer(3);
+        let layer = make_layer(3);
         layer.register_tool("file_io");
 
         // WHEN 3 record_failure(Transient)
@@ -684,14 +703,14 @@ mod tests {
         }
 
         // THEN state() == Open
-        assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
     }
 
     // continued: Open rejects immediately
     #[test]
     fn test_open_rejects_immediately() {
         // GIVEN circuit in Open (cooldown not elapsed)
-        let mut layer = make_layer(1);
+        let layer = make_layer(1);
         layer.register_tool("file_io");
         layer
             .record_failure("file_io", &ErrorClass::Transient)
@@ -712,12 +731,12 @@ mod tests {
     #[test]
     fn test_cooldown_transitions_to_half_open() {
         // GIVEN circuit in Open with cooldown = 0ms (immediately elapsed)
-        let mut layer = ResilienceLayer::new(1, Duration::from_millis(0));
+        let layer = ResilienceLayer::new(1, Duration::from_millis(0));
         layer.register_tool("file_io");
         layer
             .record_failure("file_io", &ErrorClass::Transient)
             .unwrap();
-        assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
 
         // Sleep briefly to ensure Instant::elapsed() > 0
         std::thread::sleep(Duration::from_millis(1));
@@ -728,7 +747,7 @@ mod tests {
         // THEN Ok(()) and state == HalfOpen
         assert!(result.is_ok());
         assert_eq!(
-            layer.get("file_io").unwrap().state(),
+            layer.breaker("file_io").unwrap().state(),
             &CircuitState::HalfOpen
         );
     }
@@ -737,7 +756,7 @@ mod tests {
     #[test]
     fn test_half_open_success_closes_circuit() {
         // GIVEN circuit in HalfOpen
-        let mut layer = ResilienceLayer::new(1, Duration::from_millis(0));
+        let layer = ResilienceLayer::new(1, Duration::from_millis(0));
         layer.register_tool("file_io");
         layer
             .record_failure("file_io", &ErrorClass::Transient)
@@ -750,7 +769,7 @@ mod tests {
 
         // THEN state == Closed and failure_count == 0
         assert!(restored);
-        let cb = layer.get("file_io").unwrap();
+        let cb = layer.breaker("file_io").unwrap();
         assert_eq!(cb.state(), &CircuitState::Closed);
         assert_eq!(cb.failure_count(), 0);
     }
@@ -759,7 +778,7 @@ mod tests {
     #[test]
     fn test_half_open_failure_reopens_circuit() {
         // GIVEN circuit in HalfOpen
-        let mut layer = ResilienceLayer::new(1, Duration::from_millis(0));
+        let layer = ResilienceLayer::new(1, Duration::from_millis(0));
         layer.register_tool("file_io");
         layer
             .record_failure("file_io", &ErrorClass::Transient)
@@ -774,14 +793,14 @@ mod tests {
 
         // THEN state == Open
         assert!(opened);
-        assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
     }
 
     // Permanent errors do not increment
     #[test]
     fn test_permanent_error_does_not_increment() {
         // GIVEN circuit in Closed with failure_count == 0
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("file_io");
 
         // WHEN record_failure(Permanent)
@@ -791,7 +810,7 @@ mod tests {
 
         // THEN failure_count == 0 and state == Closed
         assert!(!opened);
-        let cb = layer.get("file_io").unwrap();
+        let cb = layer.breaker("file_io").unwrap();
         assert_eq!(cb.failure_count(), 0);
         assert_eq!(cb.state(), &CircuitState::Closed);
     }
@@ -800,7 +819,7 @@ mod tests {
     #[test]
     fn test_budget_exceeded_does_not_increment() {
         // GIVEN circuit in Closed
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("file_io");
 
         // WHEN record_failure(BudgetExceeded)
@@ -810,14 +829,14 @@ mod tests {
 
         // THEN failure_count == 0 and state == Closed
         assert!(!opened);
-        assert_eq!(layer.get("file_io").unwrap().failure_count(), 0);
+        assert_eq!(layer.breaker("file_io").unwrap().failure_count(), 0);
     }
 
     // SandboxViolation does not increment
     #[test]
     fn test_sandbox_violation_does_not_increment() {
         // GIVEN circuit in Closed
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("file_io");
 
         // WHEN record_failure(SandboxViolation)
@@ -827,34 +846,34 @@ mod tests {
 
         // THEN failure_count == 0 and state == Closed
         assert!(!opened);
-        assert_eq!(layer.get("file_io").unwrap().failure_count(), 0);
+        assert_eq!(layer.breaker("file_io").unwrap().failure_count(), 0);
     }
 
     // Success resets failure count
     #[test]
     fn test_success_resets_failure_count() {
         // GIVEN failure_count == 3 (under threshold of 5)
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("file_io");
         for _ in 0..3 {
             layer
                 .record_failure("file_io", &ErrorClass::Transient)
                 .unwrap();
         }
-        assert_eq!(layer.get("file_io").unwrap().failure_count(), 3);
+        assert_eq!(layer.breaker("file_io").unwrap().failure_count(), 3);
 
         // WHEN record_success()
         layer.record_success("file_io").unwrap();
 
         // THEN failure_count == 0
-        assert_eq!(layer.get("file_io").unwrap().failure_count(), 0);
+        assert_eq!(layer.breaker("file_io").unwrap().failure_count(), 0);
     }
 
     // Independent circuit breakers
     #[test]
     fn test_independent_circuit_breakers() {
         // GIVEN ResilienceLayer with 3 tools
-        let mut layer = make_layer(2);
+        let layer = make_layer(2);
         layer.register_tool("file_io");
         layer.register_tool("bash_executor");
         layer.register_tool("python_executor");
@@ -868,13 +887,13 @@ mod tests {
             .unwrap();
 
         // THEN "file_io" is Open, others are Closed
-        assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
         assert_eq!(
-            layer.get("bash_executor").unwrap().state(),
+            layer.breaker("bash_executor").unwrap().state(),
             &CircuitState::Closed
         );
         assert_eq!(
-            layer.get("python_executor").unwrap().state(),
+            layer.breaker("python_executor").unwrap().state(),
             &CircuitState::Closed
         );
 
@@ -888,18 +907,18 @@ mod tests {
     #[test]
     fn test_manual_reset() {
         // GIVEN circuit in Open
-        let mut layer = make_layer(1);
+        let layer = make_layer(1);
         layer.register_tool("file_io");
         layer
             .record_failure("file_io", &ErrorClass::Transient)
             .unwrap();
-        assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
 
         // WHEN reset()
-        layer.get_mut("file_io").unwrap().reset();
+        layer.reset_breaker("file_io");
 
         // THEN state == Closed and failure_count == 0
-        let cb = layer.get("file_io").unwrap();
+        let cb = layer.breaker("file_io").unwrap();
         assert_eq!(cb.state(), &CircuitState::Closed);
         assert_eq!(cb.failure_count(), 0);
     }
@@ -908,7 +927,7 @@ mod tests {
     #[test]
     fn test_unknown_tool_returns_error() {
         // GIVEN an empty layer
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
 
         // WHEN pre_check for unregistered tool
         let result = layer.pre_check("nonexistent");
@@ -1022,7 +1041,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_success_no_retry() {
         // GIVEN an operation that succeeds
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("t");
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let cc = call_count.clone();
@@ -1047,7 +1066,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_transient_then_success() {
         // GIVEN an operation that fails 2 times (Transient) then succeeds
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("t");
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let cc = call_count.clone();
@@ -1071,14 +1090,14 @@ mod tests {
         assert_eq!(result.unwrap(), 99);
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 3);
         // AND circuit breaker is healthy (success recorded)
-        assert_eq!(layer.get("t").unwrap().failure_count(), 0);
+        assert_eq!(layer.breaker("t").unwrap().failure_count(), 0);
     }
 
     // Permanent error returns immediately, no retry
     #[tokio::test]
     async fn test_execute_permanent_no_retry() {
         // GIVEN an operation that fails with Permanent
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("t");
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let cc = call_count.clone();
@@ -1098,7 +1117,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
         // AND circuit breaker not affected
-        assert_eq!(layer.get("t").unwrap().failure_count(), 0);
+        assert_eq!(layer.breaker("t").unwrap().failure_count(), 0);
     }
 
     // fail twice then succeed, attempts captured with outcomes + event emitted
@@ -1109,7 +1128,7 @@ mod tests {
         use tokio::sync::broadcast;
 
         // GIVEN a resilience layer, a bus, and an op that fails 2x then succeeds
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("t");
         let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
@@ -1169,7 +1188,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_all_retries_exhausted() {
         // GIVEN an operation that always fails (Transient), max_attempts=3
-        let mut layer = make_layer(5);
+        let layer = make_layer(5);
         layer.register_tool("t");
         let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let cc = call_count.clone();
@@ -1189,6 +1208,6 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 3);
         // AND record_failure was called on circuit breaker
-        assert_eq!(layer.get("t").unwrap().failure_count(), 1);
+        assert_eq!(layer.breaker("t").unwrap().failure_count(), 1);
     }
 }
