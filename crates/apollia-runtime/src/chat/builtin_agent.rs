@@ -4579,6 +4579,158 @@ mod tests {
         registry.shutdown().await;
     }
 
+    /// Tool invoker that fails for one configured tool name and echoes the rest.
+    struct FailingInvoker {
+        failing: String,
+    }
+
+    #[async_trait::async_trait]
+    impl ToolInvoker for FailingInvoker {
+        async fn invoke(&self, tool_name: &str, _: &serde_json::Value) -> Result<String, String> {
+            if tool_name == self.failing {
+                Err("boom".to_string())
+            } else {
+                Ok(tool_name.to_string())
+            }
+        }
+    }
+
+    /// Runs `record_tool_turn` against an external budget and returns the ordered
+    /// tool-call records plus the final `consecutive_tool_failures` count, so tests
+    /// can assert per-position outcomes and budget accounting.
+    async fn run_turn_full(
+        agent: &BuiltInChatAgent,
+        budget: &StepBudget,
+        calls: &[ToolCall],
+    ) -> (Vec<ToolCallRecord>, u32) {
+        let mut acc = ReactAccumulators {
+            all_tool_calls: vec![],
+            newly_authorized: vec![],
+            authorized: calls.iter().map(|c| c.name.clone()).collect(),
+        };
+        let approvals = PendingChatApprovals::new();
+        let mut reasoning = Vec::new();
+        let mut msgs = Vec::new();
+        let mut failures = 0u32;
+        agent
+            .record_tool_turn(
+                RecordTurnInput {
+                    accumulated_text: "",
+                    tool_calls: calls,
+                    budget,
+                    ids: ToolCallContextIds {
+                        session_id: "s",
+                        message_id: "m",
+                        pending_approvals: &approvals,
+                    },
+                },
+                &mut reasoning,
+                &mut msgs,
+                &mut acc,
+                &mut failures,
+            )
+            .await;
+        (acc.all_tool_calls, failures)
+    }
+
+    /// All-write turns stay sequential: no two writes overlap, order is preserved.
+    #[tokio::test]
+    async fn test_all_write_sequential_order() {
+        // GIVEN three registered write tools (is_read_only = false) and a slow
+        //   invoker so any overlap would be observed by the concurrency counter
+        let registry = ToolRegistryHandle::start();
+        for n in ["w_a", "w_b", "w_c"] {
+            registry.register(mcp_descriptor(n)).await.unwrap();
+        }
+        let invoker = Arc::new(ConcurrencyInvoker::new(20));
+        let agent = agent_with(registry.clone(), invoker.clone());
+        let calls = vec![
+            tool_call(0, "w_a"),
+            tool_call(1, "w_b"),
+            tool_call(2, "w_c"),
+        ];
+
+        // WHEN the turn runs
+        let order = run_turn(&agent, &invoker, &calls).await;
+
+        // THEN results keep input order and concurrency never exceeded one
+        assert_eq!(order, vec!["w_a", "w_b", "w_c"]);
+        assert_eq!(invoker.peak(), 1, "writes must run sequentially");
+        registry.shutdown().await;
+    }
+
+    /// An isolated read-only failure is confined to its own position and does not
+    /// interrupt the rest of the turn.
+    #[tokio::test]
+    async fn test_readonly_failure_does_not_poison_other_calls() {
+        // GIVEN three authorized read-only tools where the middle one fails
+        let registry = ToolRegistryHandle::start();
+        for n in ["ro_0", "ro_1", "ro_2"] {
+            registry.register(ro_descriptor(n)).await.unwrap();
+        }
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(FailingInvoker {
+            failing: "ro_1".to_string(),
+        });
+        let agent = agent_with(registry.clone(), invoker);
+        let budget = make_budget(100);
+        let calls = vec![
+            tool_call(0, "ro_0"),
+            tool_call(1, "ro_1"),
+            tool_call(2, "ro_2"),
+        ];
+
+        // WHEN the turn runs
+        let (records, failures) = run_turn_full(&agent, &budget, &calls).await;
+
+        // THEN all three records land at their positions, only the middle failed,
+        //   the turn completed, and a later success reset the ordered failure count
+        assert_eq!(records.len(), 3);
+        assert_eq!(records[0].tool_name, "ro_0");
+        assert_eq!(records[1].tool_name, "ro_1");
+        assert_eq!(records[2].tool_name, "ro_2");
+        let failed = |r: &ToolCallRecord| r.output.as_deref().unwrap_or("").contains("tool error");
+        assert!(failed(&records[1]), "the middle call must report a failure");
+        assert!(!failed(&records[0]), "the first call must succeed");
+        assert!(!failed(&records[2]), "the last call must succeed");
+        assert_eq!(failures, 0, "a success after the failure resets the count");
+        registry.shutdown().await;
+    }
+
+    /// The step budget is charged exactly once per tool call, whichever path
+    /// (parallel read-only or sequential write) the call takes.
+    #[tokio::test]
+    async fn test_budget_incremented_once_per_call() {
+        // GIVEN a mixed turn of seven calls (three read-only, four write)
+        let registry = ToolRegistryHandle::start();
+        for n in ["ro_a", "ro_b", "ro_c"] {
+            registry.register(ro_descriptor(n)).await.unwrap();
+        }
+        for n in ["w_a", "w_b", "w_c", "w_d"] {
+            registry.register(mcp_descriptor(n)).await.unwrap();
+        }
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let agent = agent_with(registry.clone(), invoker);
+        let budget = make_budget(100);
+        let calls = vec![
+            tool_call(0, "ro_a"),
+            tool_call(1, "w_a"),
+            tool_call(2, "ro_b"),
+            tool_call(3, "w_b"),
+            tool_call(4, "ro_c"),
+            tool_call(5, "w_c"),
+            tool_call(6, "w_d"),
+        ];
+        let before = budget.tool_calls_left();
+
+        // WHEN the turn runs
+        let (records, _failures) = run_turn_full(&agent, &budget, &calls).await;
+
+        // THEN every call produced a record and the budget was charged exactly seven times
+        assert_eq!(records.len(), 7);
+        assert_eq!(before - budget.tool_calls_left(), 7);
+        registry.shutdown().await;
+    }
+
     #[tokio::test]
     async fn test_build_tool_specs_eager_includes_mcp_schemas() {
         // GIVEN a registry with a native tool and an MCP tool, eager mode
