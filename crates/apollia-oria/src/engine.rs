@@ -696,7 +696,12 @@ impl ORIAEngine {
         if self.plan_gate_active() {
             match self.await_plan_gate(&task_id_str, &plan_id, step_count).await {
                 Ok(PlanGateDecision::Approved) => {
-                    // Fall through to budget creation and execution.
+                    // Gate unblocked: signal approval, then proceed to execution.
+                    let _ = self.event_bus.send(RuntimeEvent::PlanApproved {
+                        run_id: task_id_str.clone(),
+                        plan_id: plan_id.clone(),
+                        task_id: task_id_str.clone(),
+                    });
                 }
                 Ok(PlanGateDecision::Rejected { .. }) => {
                     // Rejection handling (replanning) is wired by a later story.

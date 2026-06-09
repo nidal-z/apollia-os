@@ -467,6 +467,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            plan_gates: None,
             notification_config: None,
             backend_factory: None,
             tool_registry_handle: None,

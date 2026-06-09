@@ -452,6 +452,89 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
     }))
 }
 
+// Plan gate decision, POST /api/v1/tasks/{id}/plan-decision
+
+/// Request body for `POST /api/v1/tasks/{id}/plan-decision`.
+///
+/// The operator approves the generated plan or rejects it with optional
+/// feedback used to guide replanning.
+#[derive(Debug, Deserialize)]
+pub struct PlanDecisionRequest {
+    /// `"approved"` to execute the plan, `"rejected"` to replan.
+    pub decision: String,
+    /// Optional feedback injected into the next planning attempt on rejection.
+    #[serde(default)]
+    pub feedback: Option<String>,
+}
+
+/// Response body for `POST /api/v1/tasks/{id}/plan-decision`.
+#[derive(Debug, Serialize)]
+pub struct PlanDecisionResponse {
+    /// Run identifier whose gate was resolved.
+    pub run_id: String,
+    /// Decision applied (`"approved"` or `"rejected"`).
+    pub decision: String,
+}
+
+/// Handler for `POST /api/v1/tasks/{id}/plan-decision`.
+///
+/// Resolves the plan gate registered for the run, unblocking the engine that
+/// paused after plan generation. The path id is the run identifier (the task
+/// id on the orchestrated path).
+///
+/// ## HTTP codes
+/// - `200 OK`, decision recorded and the gate resolved
+/// - `400 Bad Request`, unknown `decision` value
+/// - `404 Not Found`, no gate pending for this run (unknown, resolved, expired)
+/// - `503 Service Unavailable`, the plan gate is not configured
+pub async fn submit_plan_decision<B: ExecutionBackend + Clone>(
+    Path(run_id): Path<String>,
+    State(state): State<AppState<B>>,
+    Json(body): Json<PlanDecisionRequest>,
+) -> Result<Json<PlanDecisionResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let gates = match state.plan_gates.as_ref() {
+        Some(g) => g,
+        None => {
+            return Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "plan gate not configured".into(),
+                }),
+            ));
+        }
+    };
+    let handle = crate::plan_approval::PlanApprovalHandle::new(gates.clone());
+
+    let outcome = match body.decision.as_str() {
+        "approved" | "approve" => handle.approve(&run_id),
+        "rejected" | "reject" => handle.reject(&run_id, body.feedback.clone()),
+        other => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!("invalid decision '{other}', expected 'approved' or 'rejected'"),
+                }),
+            ));
+        }
+    };
+
+    match outcome {
+        Ok(()) => Ok(Json(PlanDecisionResponse {
+            run_id,
+            decision: body.decision,
+        })),
+        Err(e) => {
+            tracing::warn!(run_id = %run_id, error = %e, "plan.gate.decision.no_pending");
+            Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,6 +653,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            plan_gates: None,
             notification_config: None,
             backend_factory: None,
             tool_registry_handle: None,
@@ -600,6 +684,102 @@ mod tests {
                 get(get_task::<MockBackend>).delete(cancel_task::<MockBackend>),
             )
             .with_state(state)
+    }
+
+    fn state_with_plan_gates(
+        gates: std::sync::Arc<apollia_oria::PendingPlanGates>,
+    ) -> AppState<MockBackend> {
+        let (event_tx, _) = EventBus::new();
+        let registry_handle = AgentRegistry::spawn(event_tx.clone());
+        let router_handle: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
+        AppState {
+            router_handle,
+            registry_handle,
+            event_sender: event_tx,
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
+            llm_router: crate::api::server::empty_shared_llm_router(),
+            trigger_engine: None,
+            config_path: None,
+            task_repository: None,
+            pending_approvals: None,
+            plan_gates: Some(gates),
+            notification_config: None,
+            backend_factory: None,
+            tool_registry_handle: None,
+            audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
+            trigger_def_repo: None,
+            notification_repo: None,
+            notification_engine_handle: None,
+            chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
+            user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
+            mcp_handle: None,
+            mcp_server_repo: None,
+            llm_backend_repo: None,
+            stt_config_repo: None,
+            a2a_invoker: None,
+            resilience_layer: None,
+            runner_proxy: None,
+        }
+    }
+
+    /// GIVEN a run paused at the plan gate
+    /// WHEN POST plan-decision with `approved` is handled
+    /// THEN it returns 200 and the engine-side receiver observes Approved.
+    #[tokio::test]
+    async fn test_plan_decision_approves_pending_gate() {
+        // GIVEN a registered gate
+        let gates = apollia_oria::PendingPlanGates::new();
+        let rx = gates.register("run-approve");
+        let state = state_with_plan_gates(gates);
+
+        // WHEN the approval decision is submitted
+        let resp = submit_plan_decision(
+            Path("run-approve".to_string()),
+            State(state),
+            Json(PlanDecisionRequest {
+                decision: "approved".into(),
+                feedback: None,
+            }),
+        )
+        .await;
+
+        // THEN the handler succeeds and the gate resolves to Approved
+        assert!(resp.is_ok());
+        let decision = rx.await.expect("gate should resolve");
+        assert!(matches!(decision, apollia_oria::PlanGateDecision::Approved));
+    }
+
+    /// GIVEN no gate pending for a run
+    /// WHEN POST plan-decision is handled
+    /// THEN it returns 404 Not Found.
+    #[tokio::test]
+    async fn test_plan_decision_unknown_run_is_not_found() {
+        // GIVEN an empty gate registry
+        let gates = apollia_oria::PendingPlanGates::new();
+        let state = state_with_plan_gates(gates);
+
+        // WHEN a decision is submitted for an unknown run
+        let resp = submit_plan_decision(
+            Path("missing".to_string()),
+            State(state),
+            Json(PlanDecisionRequest {
+                decision: "approved".into(),
+                feedback: None,
+            }),
+        )
+        .await;
+
+        // THEN it is a 404
+        let err = resp.err().expect("should fail");
+        assert_eq!(err.0, StatusCode::NOT_FOUND);
     }
 
     /// Build a test environment with an active agent and coordinator registered.
@@ -638,6 +818,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            plan_gates: None,
             notification_config: None,
             backend_factory: None,
             tool_registry_handle: None,
@@ -706,6 +887,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            plan_gates: None,
             notification_config: None,
             backend_factory: None,
             tool_registry_handle: None,
@@ -937,6 +1119,7 @@ mod tests {
             config_path: None,
             task_repository: Some(std::sync::Arc::new(repo)),
             pending_approvals: None,
+            plan_gates: None,
             notification_config: None,
             backend_factory: None,
             tool_registry_handle: None,

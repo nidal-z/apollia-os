@@ -524,6 +524,19 @@ pub enum RuntimeEvent {
         ttl_secs: u64,
     },
 
+    /// A plan gate decision resolved to approval; the ActorLoop is starting.
+    ///
+    /// Emitted by the ORIA engine right after the gate unblocks on an approval,
+    /// just before the `StepBudget` is created and execution begins.
+    PlanApproved {
+        /// Run identifier.
+        run_id: String,
+        /// Plan that was approved and will now execute.
+        plan_id: String,
+        /// Task this plan belongs to.
+        task_id: String,
+    },
+
     // ── HITL - Human-in-the-Loop events ────────────────────
     /// An `input_required` task expired, canceled automatically by the `TimeoutWatcher`.
     ///

@@ -1063,6 +1063,10 @@ impl Supervisor {
         let pending_approvals: Option<Arc<PendingApprovals>> = task_repository
             .as_ref()
             .map(|_| Arc::new(PendingApprovals::new()));
+        // PendingPlanGates, oneshot registry shared between the plan-decision
+        // route and the per-task ORIAEngine for plan-mode approval.
+        let plan_gates: Option<Arc<apollia_oria::PendingPlanGates>> =
+            Some(apollia_oria::PendingPlanGates::new());
 
         // Phase 13 (early): UserMemoryRepository, promoted before notifications
         // so we can consult the seed marker + profile name when bootstrapping
@@ -1244,6 +1248,7 @@ impl Supervisor {
             config_path: self.config.config_path.clone(),
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
+            plan_gates: plan_gates.clone(),
             notification_config: notification_config_for_state,
             backend_factory,
             tool_registry_handle: Some(tool_registry_handle.clone()),
@@ -2578,6 +2583,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            plan_gates: None,
             notification_config: None,
             backend_factory: None,
             tool_registry_handle: None,

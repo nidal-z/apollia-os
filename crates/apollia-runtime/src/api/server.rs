@@ -104,6 +104,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `execute_direct()`, which is waiting on the oneshot channel.
     /// `None` when HITL is not configured; `resume_task` logs a warning.
     pub pending_approvals: Option<Arc<PendingApprovals>>,
+    /// Plan-gate registry, shared between the plan-decision route and the ORIAEngine.
+    ///
+    /// The `plan-decision` route resolves a gate to unblock a run paused after
+    /// plan generation. `None` when the plan gate is not configured.
+    pub plan_gates: Option<Arc<apollia_oria::PendingPlanGates>>,
     /// Notification channel configuration loaded from `apollia.toml`.
     ///
     /// Used by `GET /api/v1/notifications/channels` and
@@ -245,6 +250,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             config_path: self.config_path.clone(),
             task_repository: self.task_repository.clone(),
             pending_approvals: self.pending_approvals.clone(),
+            plan_gates: self.plan_gates.clone(),
             notification_config: self.notification_config.clone(),
             backend_factory: self.backend_factory.clone(),
             tool_registry_handle: self.tool_registry_handle.clone(),
@@ -411,7 +417,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         delete_transcription, get_stt_config, list_models, list_transcriptions, stt_status,
         transcribe_audio, update_stt_config,
     };
-    use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
+    use super::routes_tasks::{
+        cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
+    };
     use super::routes_timeline::get_task_timeline;
     use super::routes_tools::{describe_tool, list_tools};
     use super::routes_trace::get_task_trace;
@@ -431,6 +439,10 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         )
         .route("/api/v1/tasks/:id/stream", get(stream_task::<B>))
         .route("/api/v1/tasks/:id/resume", post(resume_task::<B>))
+        .route(
+            "/api/v1/tasks/:id/plan-decision",
+            post(submit_plan_decision::<B>),
+        )
         .route("/api/v1/tasks/:id/review", post(post_review::<B>))
         // Timeline route (legacy, deprecation candidate)
         .route("/api/v1/tasks/:id/timeline", get(get_task_timeline::<B>))
@@ -763,6 +775,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            plan_gates: None,
             notification_config: None,
             backend_factory: None,
             tool_registry_handle: None,
