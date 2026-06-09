@@ -1314,9 +1314,18 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         hitl_file_config,
         tools_file_config,
         mcp_file_config,
+        hooks_file_config,
     ) = match loaded_config {
-        Some(cfg) => (cfg.llm, cfg.api, cfg.runtime, cfg.hitl, cfg.tools, cfg.mcp),
-        None => (None, None, None, None, None, None),
+        Some(cfg) => (
+            cfg.llm,
+            cfg.api,
+            cfg.runtime,
+            cfg.hitl,
+            cfg.tools,
+            cfg.mcp,
+            cfg.hooks,
+        ),
+        None => (None, None, None, None, None, None, None),
     };
 
     let llm_label = llm_config
@@ -1378,6 +1387,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let hitl_config = hitl_file_config.unwrap_or_default();
     let tools_config = tools_file_config.unwrap_or_default();
     let mcp_config = mcp_file_config.unwrap_or_default();
+    let hooks_config = hooks_file_config.unwrap_or_default();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1409,6 +1419,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         tools_config: tools_config.clone(),
         mcp_loading: apollia_mcp::session::LoadingMode::from(mcp_config.tool_loading),
         tool_search_limit: mcp_config.tool_search_limit,
+        hooks_config,
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
@@ -1586,9 +1597,10 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     Ok(interrupted)
 }
 
-/// Locates and parses `apollia.toml` if present, validating the `[tools]`
-/// section. Returns the parsed config and its path, or `(None, None)` when no
-/// config file is found (defaults are then used by the caller).
+/// Locates and parses `apollia.toml` if present, validating the `[tools]`,
+/// `[mcp]`, and `[hooks]` sections. Returns the parsed config and its path, or
+/// `(None, None)` when no config file is found (defaults are then used by the
+/// caller).
 fn load_start_config(
 ) -> Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError> {
     let Some(path) = find_config_file() else {
@@ -1608,6 +1620,12 @@ fn load_start_config(
     }
     if let Some(mcp) = cfg.mcp.as_ref() {
         mcp.validate().map_err(|e| StartError::Config {
+            path: path.clone(),
+            reason: e.to_string(),
+        })?;
+    }
+    if let Some(hooks) = cfg.hooks.as_ref() {
+        hooks.validate().map_err(|e| StartError::Config {
             path: path.clone(),
             reason: e.to_string(),
         })?;

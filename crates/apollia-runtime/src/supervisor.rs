@@ -140,6 +140,14 @@ pub struct SupervisorConfig {
     /// Maximum `limit` accepted by the synthetic `tool_search` tool (the
     /// `[mcp] tool_search_limit` key of `apollia.toml`). Default: 20.
     pub tool_search_limit: usize,
+
+    /// Lifecycle hooks configuration (the `[hooks]` section of `apollia.toml`).
+    ///
+    /// Propagated by `EmbeddedConfig::apply_toml` into `SupervisorConfig`. Used
+    /// at boot to build the [`crate::hooks::HookRegistry`] shared with the chat
+    /// loop and exposed by the `GET /hooks` route.
+    /// Default: [`apollia_core::HooksConfig::default()`] (no handlers).
+    pub hooks_config: apollia_core::HooksConfig,
 }
 
 impl SupervisorConfig {
@@ -2260,6 +2268,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            hooks_config: apollia_core::HooksConfig::default(),
         };
         (config, temp_dir)
     }
@@ -2439,6 +2448,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            hooks_config: apollia_core::HooksConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2591,6 +2601,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            hooks_config: apollia_core::HooksConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2711,6 +2722,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            hooks_config: apollia_core::HooksConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2775,6 +2787,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            hooks_config: apollia_core::HooksConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2850,6 +2863,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            hooks_config: apollia_core::HooksConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -3100,6 +3114,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
+            hooks_config: apollia_core::HooksConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 

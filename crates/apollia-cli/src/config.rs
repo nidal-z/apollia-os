@@ -27,8 +27,8 @@
 use std::path::{Path, PathBuf};
 
 use apollia_core::{
-    A2AConfig, ApiConfig, FilesystemConfig, HitlConfig, McpConfig, ORIAConfig, PermissionsConfig,
-    RegistryConfig, RuntimeConfig, ToolsConfig,
+    A2AConfig, ApiConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig, ORIAConfig,
+    PermissionsConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -117,6 +117,11 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`FilesystemConfig`] defaults apply.
     pub filesystem: Option<FilesystemConfig>,
+
+    /// Section `[hooks]`: lifecycle hook handlers (command/http).
+    ///
+    /// `None` when absent; the [`HooksConfig`] defaults apply (no handlers).
+    pub hooks: Option<HooksConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -190,6 +195,7 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
             "mcp",
             "permissions",
             "filesystem",
+            "hooks",
         ] {
             if let Some(v) = table.get(*key) {
                 filtered.insert((*key).to_string(), v.clone());
@@ -587,6 +593,7 @@ max_sessions = 100
             mcp: None,
             permissions: None,
             filesystem: None,
+            hooks: None,
         };
         assert!(config.llm.is_none());
         assert!(config.runtime.is_none());

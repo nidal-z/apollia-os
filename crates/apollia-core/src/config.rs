@@ -6,6 +6,7 @@
 //! - [`HitlConfig`]: `[hitl]` section for the Human-in-the-Loop watcher.
 //! - [`ORIAConfig`]: `[oria]` section for the Observer-Reasoner-Actor engine.
 //! - [`ApiConfig`]: `[api]` section for the TCP listener and the Unix socket.
+//! - [`HooksConfig`]: `[hooks]` section for lifecycle hook handlers.
 //!
 //! Every field has a sane default via [`Default`].
 
@@ -561,6 +562,179 @@ impl HitlConfig {
 
 fn default_scan_interval_secs() -> u64 {
     60
+}
+
+// ─────────────────────────────────────────────
+// HooksConfig
+// ─────────────────────────────────────────────
+
+/// Identifies the lifecycle point at which a hook fires.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HookEventKind {
+    /// Fires before each tool call. Blocking: the handler can allow, deny, or
+    /// rewrite the invocation.
+    PreToolUse,
+    /// Fires after each tool call. Non-blocking: the handler can inject
+    /// additional context but cannot veto the result.
+    PostToolUse,
+    /// Fires before context compaction. Non-blocking.
+    PreCompact,
+    /// Fires after context compaction. Non-blocking.
+    PostCompact,
+    /// Fires when a sub-agent or A2A worker is started. Non-blocking.
+    SubagentStart,
+    /// Fires when a sub-agent or A2A worker stops, on success or error.
+    /// Non-blocking.
+    SubagentStop,
+}
+
+impl HookEventKind {
+    /// Returns the snake_case wire name of this event.
+    ///
+    /// Stable identifier shared by the JSON payload `event` field, tracing
+    /// output, and the CLI summary.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::PreToolUse => "pre_tool_use",
+            Self::PostToolUse => "post_tool_use",
+            Self::PreCompact => "pre_compact",
+            Self::PostCompact => "post_compact",
+            Self::SubagentStart => "subagent_start",
+            Self::SubagentStop => "subagent_stop",
+        }
+    }
+}
+
+/// How the runtime delivers a hook event to the handler.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum HookHandlerKind {
+    /// Spawn an external process. The payload is written to stdin as JSON and
+    /// the decision is read back from stdout. The process must exit within the
+    /// handler timeout.
+    Command {
+        /// Argv. Must be non-empty. Index 0 is the executable.
+        command: Vec<String>,
+    },
+    /// POST the payload as JSON to an HTTP endpoint. The endpoint must respond
+    /// within the handler timeout.
+    Http {
+        /// Full URL, for example `"http://127.0.0.1:9000/hook"`.
+        url: String,
+    },
+}
+
+impl HookHandlerKind {
+    /// Returns the snake_case wire name of this delivery mechanism
+    /// (`"command"` or `"http"`).
+    pub fn type_str(&self) -> &'static str {
+        match self {
+            Self::Command { .. } => "command",
+            Self::Http { .. } => "http",
+        }
+    }
+
+    /// Returns a human-readable target: the argv joined by spaces for a command
+    /// handler, or the URL for an HTTP handler.
+    pub fn target(&self) -> String {
+        match self {
+            Self::Command { command } => command.join(" "),
+            Self::Http { url } => url.clone(),
+        }
+    }
+}
+
+/// A single registered lifecycle hook handler.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HookHandlerConfig {
+    /// Lifecycle events this handler subscribes to.
+    ///
+    /// A handler can subscribe to multiple events; the runtime invokes it once
+    /// per matching event. Must contain at least one event.
+    pub events: Vec<HookEventKind>,
+
+    /// Delivery mechanism (command or http).
+    #[serde(flatten)]
+    pub kind: HookHandlerKind,
+
+    /// Maximum time the runtime waits for a handler response, in milliseconds.
+    ///
+    /// Default: 5000. Bounds: [100, 30000]. For the blocking `PreToolUse` hook,
+    /// timeout expiry falls back to `allow` and emits a warn-level trace event.
+    #[serde(default = "default_hook_timeout_ms")]
+    pub timeout_ms: u64,
+}
+
+/// Hooks configuration (`[hooks]` section in `apollia.toml`).
+///
+/// Declares the set of lifecycle hook handlers the runtime invokes at defined
+/// points in the agent execution loop. See [`HookEventKind`] for the available
+/// lifecycle events and [`HookHandlerKind`] for the delivery mechanisms.
+///
+/// An absent `[hooks]` section is equivalent to an empty handler list.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HooksConfig {
+    /// Registered hook handlers.
+    ///
+    /// Each entry subscribes to one or more [`HookEventKind`] events. The
+    /// runtime invokes handlers in declaration order for a given event.
+    #[serde(default)]
+    pub handlers: Vec<HookHandlerConfig>,
+}
+
+impl HooksConfig {
+    /// Validates the hooks configuration at startup (fail-fast).
+    ///
+    /// - Every handler must subscribe to at least one event.
+    /// - `command` handlers must have a non-empty argv.
+    /// - `http` handlers must have a non-empty URL.
+    /// - `timeout_ms` must be in [100, 30000].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidValue`] for an empty event list, an empty
+    /// command argv, or an empty HTTP URL, and [`ConfigError::OutOfBounds`]
+    /// when `timeout_ms` falls outside `[100, 30000]`.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        for (i, handler) in self.handlers.iter().enumerate() {
+            if handler.events.is_empty() {
+                return Err(ConfigError::InvalidValue {
+                    field: format!("hooks.handlers[{i}].events"),
+                    reason: "a handler must subscribe to at least one event".to_string(),
+                });
+            }
+            match &handler.kind {
+                HookHandlerKind::Command { command } => {
+                    if command.iter().all(|arg| arg.trim().is_empty()) {
+                        return Err(ConfigError::InvalidValue {
+                            field: format!("hooks.handlers[{i}].command"),
+                            reason: "command argv must be non-empty".to_string(),
+                        });
+                    }
+                }
+                HookHandlerKind::Http { url } => {
+                    if url.trim().is_empty() {
+                        return Err(ConfigError::InvalidValue {
+                            field: format!("hooks.handlers[{i}].url"),
+                            reason: "http url must be non-empty".to_string(),
+                        });
+                    }
+                }
+            }
+            validate_bounds(
+                &format!("hooks.handlers[{i}].timeout_ms"),
+                handler.timeout_ms,
+                100,
+                30_000,
+            )?;
+        }
+        Ok(())
+    }
+}
+
+fn default_hook_timeout_ms() -> u64 {
+    5_000
 }
 
 // ─────────────────────────────────────────────
@@ -3061,5 +3235,137 @@ mod autonomy_tests {
         // WHEN validate is called
         // THEN it succeeds
         assert!(cfg.validate().is_ok());
+    }
+
+    // ── HooksConfig ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_hooks_ac1_valid_command_and_http_handlers() {
+        // GIVEN a HooksConfig with one valid command handler and one valid http handler
+        let toml = r#"
+            [[handlers]]
+            events = ["pre_tool_use"]
+            type = "command"
+            command = ["/usr/bin/my-hook", "--event", "pre_tool_use"]
+
+            [[handlers]]
+            events = ["post_tool_use"]
+            type = "http"
+            url = "http://127.0.0.1:9000/hook"
+        "#;
+        let cfg: HooksConfig = toml::from_str(toml).expect("valid hooks toml");
+
+        // WHEN validate is called
+        // THEN it succeeds and both handlers are present
+        assert!(cfg.validate().is_ok());
+        assert_eq!(cfg.handlers.len(), 2);
+    }
+
+    #[test]
+    fn test_hooks_ac2_missing_command_argv_rejected() {
+        // GIVEN a command handler with an empty argv
+        let cfg = HooksConfig {
+            handlers: vec![HookHandlerConfig {
+                events: vec![HookEventKind::PreToolUse],
+                kind: HookHandlerKind::Command { command: vec![] },
+                timeout_ms: default_hook_timeout_ms(),
+            }],
+        };
+
+        // WHEN validate is called
+        let result = cfg.validate();
+
+        // THEN it is rejected with a field naming the offending command
+        assert!(matches!(
+            result,
+            Err(ConfigError::InvalidValue { field, .. }) if field.contains("command")
+        ));
+    }
+
+    #[test]
+    fn test_hooks_ac3_unknown_type_deserialization_error() {
+        // GIVEN a TOML handler with an unknown delivery type
+        let toml = r#"
+            [[handlers]]
+            events = ["pre_tool_use"]
+            type = "grpc"
+            url = "http://127.0.0.1:9000/hook"
+        "#;
+
+        // WHEN deserialization runs
+        let result = toml::from_str::<HooksConfig>(toml);
+
+        // THEN it fails at the serde layer, before validate, without panicking
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hooks_ac4_default_timeout_applied() {
+        // GIVEN a valid handler without an explicit timeout_ms
+        let toml = r#"
+            [[handlers]]
+            events = ["pre_tool_use"]
+            type = "http"
+            url = "http://127.0.0.1:9000/hook"
+        "#;
+        let cfg: HooksConfig = toml::from_str(toml).expect("valid hooks toml");
+
+        // WHEN validate is called
+        // THEN the handler carries the default 5000 ms timeout and validation passes
+        assert_eq!(cfg.handlers[0].timeout_ms, 5_000);
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn test_hooks_ac5_empty_hooks_section_valid() {
+        // GIVEN the default (absent) hooks config
+        let cfg = HooksConfig::default();
+
+        // WHEN validate is called
+        // THEN it succeeds and the handler list is empty
+        assert!(cfg.validate().is_ok());
+        assert!(cfg.handlers.is_empty());
+    }
+
+    #[test]
+    fn test_hooks_empty_events_rejected() {
+        // GIVEN a handler subscribing to no event
+        let cfg = HooksConfig {
+            handlers: vec![HookHandlerConfig {
+                events: vec![],
+                kind: HookHandlerKind::Http {
+                    url: "http://127.0.0.1:9000/hook".to_string(),
+                },
+                timeout_ms: default_hook_timeout_ms(),
+            }],
+        };
+
+        // WHEN validate is called
+        // THEN it is rejected with a field naming the events list
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::InvalidValue { field, .. }) if field.contains("events")
+        ));
+    }
+
+    #[test]
+    fn test_hooks_timeout_out_of_bounds_rejected() {
+        // GIVEN a handler with a timeout below the lower bound
+        let cfg = HooksConfig {
+            handlers: vec![HookHandlerConfig {
+                events: vec![HookEventKind::PreToolUse],
+                kind: HookHandlerKind::Http {
+                    url: "http://127.0.0.1:9000/hook".to_string(),
+                },
+                timeout_ms: 10,
+            }],
+        };
+
+        // WHEN validate is called
+        // THEN it is rejected as out of bounds
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::OutOfBounds { key, .. }) if key.contains("timeout_ms")
+        ));
     }
 }

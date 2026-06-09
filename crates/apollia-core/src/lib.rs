@@ -48,7 +48,8 @@ pub use config::{
     validate_bounds, A2AConfig, ApiConfig, AutonomyConfig, AutonomyLevel, AutonomyLevelConfig,
     AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, CeilingAction, ConfigError,
     DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig, GatePolicy, HitlConfig,
-    HybridRoutingConfig, JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
+    HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig, HybridRoutingConfig,
+    JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
     McpToolLoading, ORIAConfig, PermissionsConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
     TriggersConfig, VertexConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
 };

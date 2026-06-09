@@ -200,6 +200,12 @@ pub struct EmbeddedConfig {
     /// Maps to the `[mcp]` section in `apollia.toml`.
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub mcp_config: apollia_core::McpConfig,
+
+    /// Lifecycle hooks configuration (command/http handlers).
+    ///
+    /// Maps to the `[hooks]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
+    pub hooks_config: apollia_core::HooksConfig,
 }
 
 impl Default for EmbeddedConfig {
@@ -225,6 +231,7 @@ impl Default for EmbeddedConfig {
             a2a_config: A2AConfig::default(),
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_config: apollia_core::McpConfig::default(),
+            hooks_config: apollia_core::HooksConfig::default(),
         }
     }
 }
@@ -245,6 +252,7 @@ impl EmbeddedConfig {
             api: Option<apollia_core::ApiConfig>,
             tools: Option<apollia_core::ToolsConfig>,
             mcp: Option<apollia_core::McpConfig>,
+            hooks: Option<apollia_core::HooksConfig>,
         }
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
@@ -269,6 +277,9 @@ impl EmbeddedConfig {
             }
             if let Some(mc) = s.mcp {
                 self.mcp_config = mc;
+            }
+            if let Some(hooks) = s.hooks {
+                self.hooks_config = hooks;
             }
         }
 
@@ -366,6 +377,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         tools_config: tools_config.clone(),
         mcp_loading,
         tool_search_limit,
+        hooks_config: config.hooks_config,
     };
 
     let supervisor = Supervisor::new(supervisor_config);
