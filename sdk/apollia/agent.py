@@ -99,6 +99,7 @@ def agent(  # NOSONAR S107: public decorator API surface
     memory_namespace: str | None = None,
     shared_memory_namespaces: tuple[str, ...] = (),
     step_budget: dict[str, Any] | None = None,
+    check_commands: tuple[str, ...] = (),
     agent_type: str | None = None,
 ) -> Callable[[C], C]:
     """Declare a class as an Apollia agent.
@@ -117,6 +118,10 @@ def agent(  # NOSONAR S107: public decorator API surface
         memory_namespace: Optional memory namespace name.
         shared_memory_namespaces: Additional shared memory namespaces.
         step_budget: Optional step-budget override dict.
+        check_commands: Shell commands the runtime runs after the agent finishes,
+            to verify its output (for example tests or linters). Declared checks
+            run by default; at higher autonomy levels the agent also retries to
+            fix detected failures.
         agent_type: Optional taxonomy hint (e.g. ``"worker"``).
 
     The decorator:
@@ -152,6 +157,7 @@ def agent(  # NOSONAR S107: public decorator API surface
     secrets_v = _check_string_tuple("secrets", secrets)
     tools_required_v = _check_string_tuple("tools_required", tools_required)
     shared_memory_v = _check_string_tuple("shared_memory_namespaces", shared_memory_namespaces)
+    check_commands_v = _check_string_tuple("check_commands", check_commands)
     _check_optional_str("memory_namespace", memory_namespace)
     _check_optional_dict("step_budget", step_budget)
     _check_optional_str("agent_type", agent_type)
@@ -183,6 +189,7 @@ def agent(  # NOSONAR S107: public decorator API surface
             memory_namespace=memory_namespace,
             shared_memory_namespaces=shared_memory_v,
             step_budget=step_budget,
+            check_commands=check_commands_v,
             agent_type=agent_type,
         )
 
@@ -216,6 +223,7 @@ def agent(  # NOSONAR S107: public decorator API surface
                 "memory_namespace": memory_namespace,
                 "shared_memory_namespaces": shared_memory_v,
                 "step_budget": step_budget,
+                "check_commands": check_commands_v,
                 "agent_type": agent_type,
             },
         )

@@ -240,6 +240,7 @@ def build_manifest(
     memory_namespace: str | None = None,
     shared_memory_namespaces: tuple[str, ...] = (),
     step_budget: dict[str, Any] | None = None,
+    check_commands: tuple[str, ...] = (),
     agent_type: str | None = None,
 ) -> dict[str, Any]:
     """Produce the canonical manifest dict consumed by the Rust loader.
@@ -326,6 +327,7 @@ def build_manifest(
         "memory_namespace": memory_namespace,
         "shared_memory_namespaces": shared_mem_l,
         "step_budget": step_budget,
+        "check_commands": list(check_commands),
         "agent_type": agent_type,
         "supports_a2a": len(skills_registry) > 0,
         "skills": skills_list,

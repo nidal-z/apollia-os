@@ -756,8 +756,9 @@ pub struct ChatAgentResponse {
     pub tokens_used: TokenUsage,
     /// Concatenated thinking/reasoning blocks extracted from `<think>...</think>` tags.
     pub thinking_trace: Option<String>,
-    /// Present when the autonomy tier is at least supervised and verification ran.
-    /// `None` for the assisted tier or when verification was skipped.
+    /// Present when verification ran: at supervised and above, or at the assisted
+    /// tier when the agent declares check commands. `None` when verification is
+    /// skipped (assisted tier with no declared checks).
     pub verification_report: Option<ConsolidatedVerificationReport>,
     /// True when an escalation was requested during this exchange but the hybrid
     /// cost ceiling kept the step local. The caller may surface a notice to the
@@ -898,12 +899,18 @@ where
     F: FnMut(S, String) -> Fut,
     Fut: std::future::Future<Output = (Result<String, ChatError>, S)>,
 {
-    if matches!(autonomy, AutonomyLevel::Assisted) {
-        return (None, initial_state);
-    }
     let Some(verification) = verification else {
         return (None, initial_state);
     };
+    // At the assisted tier, run only the deterministic checks the agent declared,
+    // with no LLM critic and no retries: declared checks count by default at no
+    // extra cost, and an agent that declares none is left untouched.
+    let assisted = matches!(autonomy, AutonomyLevel::Assisted);
+    if assisted && !verification.has_commands() {
+        return (None, initial_state);
+    }
+    let critic = if assisted { None } else { critic };
+    let max_retries = if assisted { 0 } else { max_retries };
 
     let mut state = initial_state;
     let mut current_output = agent_output.to_string();

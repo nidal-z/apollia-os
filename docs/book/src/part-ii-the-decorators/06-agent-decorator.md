@@ -73,6 +73,7 @@ Bonne pratique : déclarer explicitement tout outil que l'agent appelle, même s
 | `shared_memory_namespaces` | `tuple[str, ...]` | Namespaces mémoire partagés en lecture/écriture. |
 | `user_memory_write` | `bool` | Autorise les écritures sur `ctx.profile` (par défaut `False`). |
 | `step_budget` | `dict \| None` | Override du `StepBudget` runtime (`{"max_steps": 30}`). |
+| `check_commands` | `tuple[str, ...]` | Commandes de vérification exécutées après l'agent pour contrôler son résultat (tests, lint). Vérifiées par défaut. |
 
 ---
 

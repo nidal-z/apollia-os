@@ -111,6 +111,13 @@ impl VerificationLoop {
         Self { commands }
     }
 
+    /// Whether any check command is resolved (manifest or project fallback).
+    ///
+    /// When `false`, [`run`](Self::run) is a no-op that always passes.
+    pub fn has_commands(&self) -> bool {
+        !self.commands.is_empty()
+    }
+
     /// Run all resolved check commands via the injected invoker and collect failures.
     ///
     /// Returns `VerificationReport { passed: true, failures: vec![] }` immediately
