@@ -1144,6 +1144,17 @@
       "accept": "Approuver"
     }
   },
+  "plan_mode": {
+    "proposed_plan_title": "Plan proposé",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "steps_label": "Étapes",
+    "error_malformed_plan": "Le plan reçu est incomplet ou invalide.",
+    "error_ipc": "Erreur lors de la communication avec le runtime.",
+    "status_approved": "Plan approuvé",
+    "status_rejected": "Plan rejeté",
+    "no_steps_placeholder": "Aucune étape définie."
+  },
   "approvals": {
     "title": "Approbations",
     "subtitle": "Examinez et répondez aux demandes de vos assistants",

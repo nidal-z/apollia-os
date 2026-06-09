@@ -27,3 +27,4 @@ export * from "./notifications";
 export * from "./observability";
 export * from "./projects";
 export * from "./command";
+export * from "./planMode";

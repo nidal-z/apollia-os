@@ -1144,6 +1144,17 @@
       "accept": "Approve"
     }
   },
+  "plan_mode": {
+    "proposed_plan_title": "Proposed plan",
+    "approve": "Approve",
+    "reject": "Reject",
+    "steps_label": "Steps",
+    "error_malformed_plan": "The received plan is incomplete or invalid.",
+    "error_ipc": "Error communicating with the runtime.",
+    "status_approved": "Plan approved",
+    "status_rejected": "Plan rejected",
+    "no_steps_placeholder": "No steps defined."
+  },
   "approvals": {
     "title": "Approvals",
     "subtitle": "Review and respond to assistant requests",
