@@ -1,10 +1,26 @@
 # Apollia OS
 
-> Open-source Rust runtime for sovereign autonomous AI agents.
-> Local-first. Zero cloud. One binary.
+> The sovereign runtime for autonomous AI agents.
+> They run on your machine, you can prove everything they do,
+> and they are as capable as the model you plug in.
+
+Local-first. Zero cloud. One binary.
 
 [![CI](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+
+---
+
+## Why Apollia
+
+The best model alone does not make a reliable agent. What decides the result is the system around it: the tools, the guardrails, the memory, the verification. Apollia is that system, and it runs on your machine.
+
+- **Yours** - agents run locally; no data leaves your machine without an explicit action.
+- **Auditable** - every action is recorded, so you can prove what an agent did.
+- **Cost-bounded** - a step budget enforced by the runtime, never bypassable.
+- **As powerful as you want** - a local model by default, any model you choose on demand.
+
+Learn more at [apollia.fr](https://apollia.fr).
 
 ---
 
