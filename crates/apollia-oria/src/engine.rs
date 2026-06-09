@@ -788,6 +788,48 @@ impl ORIAEngine {
                             }
                         }
                     }
+                    Ok(PlanGateDecision::Edited { revised_steps }) => {
+                        // Execute the operator's revised plan directly. Re-validate
+                        // the edited steps (unique ids, resolvable deps, no cycle)
+                        // before committing: a malformed edit ends the run cleanly.
+                        let steps: Vec<crate::plan::PlanStep> = revised_steps
+                            .into_iter()
+                            .map(|s| crate::plan::PlanStep {
+                                step_id: s.step_id,
+                                description: s.description,
+                                tool_hint: s.tool_hint,
+                                depends_on: s.depends_on,
+                                model_hint: s.model_hint,
+                            })
+                            .collect();
+
+                        if let Err(e) = crate::reasoner::validate_steps(&steps) {
+                            tracing::warn!(
+                                run_id = %task_id_str,
+                                error = %e,
+                                "plan.gate.edit_invalid"
+                            );
+                            let _ = self.event_bus.send(RuntimeEvent::PlanAbandoned {
+                                run_id: task_id_str.clone(),
+                                task_id: task_id_str.clone(),
+                                reason: "edit_invalid".into(),
+                            });
+                            return AIPResult::failed("PLAN_EDIT_INVALID", &e.to_string());
+                        }
+
+                        plan = ExecutionPlan {
+                            plan_id: plan_id.clone(),
+                            task_id: task_id_str.clone(),
+                            steps,
+                        };
+                        self.store_plan_in_cache(&cache_key, &plan, &manifest);
+                        let _ = self.event_bus.send(RuntimeEvent::PlanApproved {
+                            run_id: task_id_str.clone(),
+                            plan_id: plan.plan_id.clone(),
+                            task_id: task_id_str.clone(),
+                        });
+                        break;
+                    }
                     Err(ORIAError::PlanGateTimeout {
                         run_id, ttl_secs, ..
                     }) => {
@@ -2193,6 +2235,111 @@ mod orchestrated_tests {
         // THEN the run completes successfully
         let result = handle.await.expect("join");
         assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    /// GIVEN an active gate
+    /// WHEN the operator submits a valid edited plan
+    /// THEN the revised plan is approved and the run completes.
+    #[tokio::test]
+    async fn test_gate_edited_executes_revised_plan() {
+        // GIVEN an engine with the gate forced active
+        let gates = PendingPlanGates::new();
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_force_plan_gate(true)
+            .with_pending_plan_gates(gates.clone());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN execute runs and the gate opens
+        let handle = tokio::spawn(async move { engine.execute(AIPTask::default(), &agent).await });
+        let mut run_id = None;
+        for _ in 0..200 {
+            if let Ok(RuntimeEvent::PlanApprovalRequired { run_id: rid, .. }) = rx.try_recv() {
+                run_id = Some(rid);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        let run_id = run_id.expect("PlanApprovalRequired must be emitted");
+
+        // WHEN a valid edited plan is submitted
+        let revised = vec![apollia_core::TaskPlanStep {
+            step_id: "s1".into(),
+            description: "edited step".into(),
+            tool_hint: None,
+            depends_on: vec![],
+            model_hint: None,
+        }];
+        let decision = PlanGateDecision::Edited {
+            revised_steps: revised,
+        };
+        assert!(gates.decide(&run_id, decision));
+
+        // THEN the run completes successfully
+        let result = handle.await.expect("join");
+        assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    /// GIVEN an active gate
+    /// WHEN the operator submits an edited plan with a dependency cycle
+    /// THEN the run fails with PLAN_EDIT_INVALID and no step runs.
+    #[tokio::test]
+    async fn test_gate_edited_invalid_cycle_fails() {
+        // GIVEN an engine with the gate forced active
+        let gates = PendingPlanGates::new();
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_force_plan_gate(true)
+            .with_pending_plan_gates(gates.clone());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN execute runs and the gate opens
+        let handle = tokio::spawn(async move { engine.execute(AIPTask::default(), &agent).await });
+        let mut run_id = None;
+        for _ in 0..200 {
+            if let Ok(RuntimeEvent::PlanApprovalRequired { run_id: rid, .. }) = rx.try_recv() {
+                run_id = Some(rid);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        let run_id = run_id.expect("PlanApprovalRequired must be emitted");
+
+        // WHEN an edited plan with a direct cycle is submitted
+        let revised = vec![
+            apollia_core::TaskPlanStep {
+                step_id: "s1".into(),
+                description: "a".into(),
+                tool_hint: None,
+                depends_on: vec!["s2".into()],
+                model_hint: None,
+            },
+            apollia_core::TaskPlanStep {
+                step_id: "s2".into(),
+                description: "b".into(),
+                tool_hint: None,
+                depends_on: vec!["s1".into()],
+                model_hint: None,
+            },
+        ];
+        let decision = PlanGateDecision::Edited {
+            revised_steps: revised,
+        };
+        assert!(gates.decide(&run_id, decision));
+
+        // THEN the run fails cleanly with the edit-invalid code
+        let result = handle.await.expect("join");
+        assert_eq!(result.status, TaskStatus::Failed);
+        assert_eq!(
+            result.error.as_ref().map(|e| e.code.as_str()),
+            Some("PLAN_EDIT_INVALID")
+        );
     }
 
     /// GIVEN an active gate with a 1s TTL and no decision

@@ -52,6 +52,38 @@ pub enum PlanValidationError {
     CircularDependency,
 }
 
+/// Validates a plan's steps: unique ids, resolvable dependencies, no cycle.
+///
+/// Shared between [`Reasoner::parse_and_validate`] (LLM output) and the plan
+/// gate's edited-plan path (operator output), so both enforce the same DAG
+/// invariants before execution.
+///
+/// # Errors
+///
+/// Returns [`PlanValidationError::DuplicateStepIds`],
+/// [`PlanValidationError::UnknownDependency`], or
+/// [`PlanValidationError::CircularDependency`] at the first failing check.
+pub fn validate_steps(steps: &[PlanStep]) -> Result<(), PlanValidationError> {
+    let ids: HashSet<&str> = steps.iter().map(|s| s.step_id.as_str()).collect();
+    if ids.len() != steps.len() {
+        return Err(PlanValidationError::DuplicateStepIds);
+    }
+
+    for step in steps {
+        for dep in &step.depends_on {
+            if !ids.contains(dep.as_str()) {
+                return Err(PlanValidationError::UnknownDependency {
+                    step_id: step.step_id.clone(),
+                    dep: dep.clone(),
+                });
+            }
+        }
+    }
+
+    topological_sort(steps).map_err(|_| PlanValidationError::CircularDependency)?;
+    Ok(())
+}
+
 /// ORIA Reasoner errors.
 #[derive(Debug, thiserror::Error)]
 pub enum ReasonerError {
@@ -487,26 +519,8 @@ impl Reasoner {
         let steps: Vec<PlanStep> = serde_json::from_value(parsed["steps"].clone())
             .map_err(|e| PlanValidationError::InvalidStructure(e.to_string()))?;
 
-        // 3. Validate unique step_ids
-        let ids: HashSet<&str> = steps.iter().map(|s| s.step_id.as_str()).collect();
-        if ids.len() != steps.len() {
-            return Err(PlanValidationError::DuplicateStepIds);
-        }
-
-        // 4. Validate all depends_on reference existing step_ids
-        for step in &steps {
-            for dep in &step.depends_on {
-                if !ids.contains(dep.as_str()) {
-                    return Err(PlanValidationError::UnknownDependency {
-                        step_id: step.step_id.clone(),
-                        dep: dep.clone(),
-                    });
-                }
-            }
-        }
-
-        // 5. Detect cycles via topological sort (Kahn BFS)
-        topological_sort(&steps).map_err(|_| PlanValidationError::CircularDependency)?;
+        // 3-5. Unique ids, existing dependencies, no cycle.
+        validate_steps(&steps)?;
 
         Ok(ExecutionPlan {
             plan_id: uuid::Uuid::new_v4().to_string(),

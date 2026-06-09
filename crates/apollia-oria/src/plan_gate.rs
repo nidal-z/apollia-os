@@ -25,6 +25,12 @@ pub enum PlanGateDecision {
         /// Free-text guidance injected into the next planning attempt.
         feedback: Option<String>,
     },
+    /// The operator edited the plan: execute the revised steps directly,
+    /// without a replanning round trip.
+    Edited {
+        /// Revised steps to execute, validated by the engine before execution.
+        revised_steps: Vec<apollia_core::TaskPlanStep>,
+    },
 }
 
 /// Registry of in-flight plan gates, keyed by run identifier.

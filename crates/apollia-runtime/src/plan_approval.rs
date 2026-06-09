@@ -57,6 +57,21 @@ impl PlanApprovalHandle {
         self.submit(run_id, PlanGateDecision::Rejected { feedback })
     }
 
+    /// Submit an edited plan for the given run, executed directly without a
+    /// replanning round trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApprovalError::UnknownRunId`] when no gate is pending for
+    /// `run_id`.
+    pub fn edit(
+        &self,
+        run_id: &str,
+        revised_steps: Vec<apollia_core::TaskPlanStep>,
+    ) -> Result<(), ApprovalError> {
+        self.submit(run_id, PlanGateDecision::Edited { revised_steps })
+    }
+
     fn submit(&self, run_id: &str, decision: PlanGateDecision) -> Result<(), ApprovalError> {
         if self.pending_gates.decide(run_id, decision) {
             Ok(())
@@ -130,7 +145,37 @@ mod tests {
             PlanGateDecision::Rejected { feedback } => {
                 assert_eq!(feedback.as_deref(), Some("add a validation step"));
             }
-            PlanGateDecision::Approved => panic!("expected rejection"),
+            PlanGateDecision::Approved | PlanGateDecision::Edited { .. } => {
+                panic!("expected rejection")
+            }
+        }
+    }
+
+    // An edit carries the revised steps through to the engine.
+    #[tokio::test]
+    async fn test_edit_forwards_revised_steps() {
+        // GIVEN a registered gate
+        let gates = PendingPlanGates::new();
+        let rx = gates.register("run-5");
+        let handle = PlanApprovalHandle::new(gates);
+        // WHEN an edited plan is submitted
+        let revised = vec![apollia_core::TaskPlanStep {
+            step_id: "s1".into(),
+            description: "revised step".into(),
+            tool_hint: None,
+            depends_on: vec![],
+            model_hint: None,
+        }];
+        handle.edit("run-5", revised).expect("edit should succeed");
+        // THEN the engine receiver observes the revised steps
+        match rx.await.expect("gate should resolve") {
+            PlanGateDecision::Edited { revised_steps } => {
+                assert_eq!(revised_steps.len(), 1);
+                assert_eq!(revised_steps[0].description, "revised step");
+            }
+            PlanGateDecision::Approved | PlanGateDecision::Rejected { .. } => {
+                panic!("expected edit")
+            }
         }
     }
 }
