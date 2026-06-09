@@ -1631,6 +1631,25 @@ pub struct LlmRoutingConfig {
     pub hybrid: Option<HybridRoutingConfig>,
 }
 
+/// Action taken by the runtime when the per-session cost ceiling is reached.
+///
+/// Configured under `[llm.routing.hybrid]` via `ceiling_action`. When absent
+/// from the TOML file, defaults to [`CeilingAction::StayLocal`], preserving the
+/// behavior introduced before this field existed (local fallback, run continues).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CeilingAction {
+    /// Fall back to the local backend when the ceiling is reached.
+    ///
+    /// The run continues, silently degraded to local inference. This is the
+    /// default and preserves the prior behavior.
+    #[default]
+    StayLocal,
+    /// Stop the current run cleanly with a structured error when the ceiling is
+    /// reached. No panic, no data loss. Enforced in the chat runtime.
+    HardStop,
+}
+
 /// Hybrid routing configuration for optional frontier escalation.
 ///
 /// Declared under `[llm.routing.hybrid]` in `apollia.toml`. When this section is
@@ -1649,6 +1668,14 @@ pub struct HybridRoutingConfig {
     /// Escalation is skipped when `session_cost_usd >= cost_ceiling_usd`.
     /// Must be strictly positive (`> 0.0`). Typical value: `1.00`.
     pub cost_ceiling_usd: f64,
+
+    /// Action taken when `session_cost_usd >= cost_ceiling_usd`.
+    ///
+    /// Defaults to [`CeilingAction::StayLocal`] for backward compatibility, so a
+    /// TOML file without this key keeps deserializing and behaving as before.
+    /// Set to `"hard_stop"` to stop the run cleanly instead.
+    #[serde(default)]
+    pub ceiling_action: CeilingAction,
 }
 
 impl HybridRoutingConfig {
@@ -1849,6 +1876,101 @@ impl FilesystemConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── HybridRoutingConfig: ceiling_action ───────────────────────────────
+
+    #[test]
+    fn test_hybrid_config_default_ceiling_action() {
+        // GIVEN a hybrid config payload without ceiling_action
+        let raw = r#"{"frontier":"claude-opus-4","cost_ceiling_usd":2.0}"#;
+
+        // WHEN deserializing
+        let cfg: HybridRoutingConfig = serde_json::from_str(raw).expect("valid payload");
+
+        // THEN ceiling_action defaults to StayLocal and validate passes
+        assert_eq!(cfg.ceiling_action, CeilingAction::StayLocal);
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn test_hybrid_config_hard_stop_parsed() {
+        // GIVEN a payload with ceiling_action = "hard_stop"
+        let raw =
+            r#"{"frontier":"claude-opus-4","cost_ceiling_usd":2.0,"ceiling_action":"hard_stop"}"#;
+
+        // WHEN deserializing
+        let cfg: HybridRoutingConfig = serde_json::from_str(raw).expect("valid payload");
+
+        // THEN the action is HardStop
+        assert_eq!(cfg.ceiling_action, CeilingAction::HardStop);
+    }
+
+    #[test]
+    fn test_hybrid_config_negative_ceiling_rejected() {
+        // GIVEN a config with a negative ceiling
+        let cfg = HybridRoutingConfig {
+            frontier: "claude-opus-4".into(),
+            cost_ceiling_usd: -1.0,
+            ceiling_action: CeilingAction::StayLocal,
+        };
+
+        // WHEN validating
+        let result = cfg.validate();
+
+        // THEN the ceiling is rejected
+        assert!(matches!(
+            result,
+            Err(ConfigError::HybridCeilingInvalid { value }) if value == -1.0
+        ));
+    }
+
+    #[test]
+    fn test_hybrid_config_empty_frontier_rejected() {
+        // GIVEN a config with an empty frontier
+        let cfg = HybridRoutingConfig {
+            frontier: String::new(),
+            cost_ceiling_usd: 1.0,
+            ceiling_action: CeilingAction::HardStop,
+        };
+
+        // WHEN validating
+        // THEN the frontier is rejected
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::HybridFrontierMissing)
+        ));
+    }
+
+    #[test]
+    fn test_hybrid_config_zero_ceiling_rejected() {
+        // GIVEN a config with a zero ceiling (exact limit)
+        let cfg = HybridRoutingConfig {
+            frontier: "claude-opus-4".into(),
+            cost_ceiling_usd: 0.0,
+            ceiling_action: CeilingAction::StayLocal,
+        };
+
+        // WHEN validating
+        // THEN zero is rejected (must be strictly positive)
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::HybridCeilingInvalid { value }) if value == 0.0
+        ));
+    }
+
+    #[test]
+    fn test_ceiling_action_serde_round_trip() {
+        // GIVEN the HardStop action
+        let action = CeilingAction::HardStop;
+
+        // WHEN serializing then deserializing
+        let json = serde_json::to_string(&action).expect("serialize");
+        let back: CeilingAction = serde_json::from_str(&json).expect("deserialize");
+
+        // THEN the value is preserved and renders snake_case
+        assert_eq!(json, "\"hard_stop\"");
+        assert_eq!(back, action);
+    }
 
     // ── McpConfig: tool_loading + tool_search_limit ────────────────────────
 
@@ -2770,6 +2892,7 @@ mod autonomy_tests {
         let cfg = HybridRoutingConfig {
             frontier: "claude-opus-4-6".to_owned(),
             cost_ceiling_usd: 0.0,
+            ceiling_action: CeilingAction::StayLocal,
         };
 
         // WHEN validate is called
@@ -2788,6 +2911,7 @@ mod autonomy_tests {
         let cfg = HybridRoutingConfig {
             frontier: String::new(),
             cost_ceiling_usd: 1.00,
+            ceiling_action: CeilingAction::StayLocal,
         };
 
         // WHEN validate is called
@@ -2803,6 +2927,7 @@ mod autonomy_tests {
         let cfg = HybridRoutingConfig {
             frontier: "claude-opus-4-6".to_owned(),
             cost_ceiling_usd: -0.5,
+            ceiling_action: CeilingAction::StayLocal,
         };
 
         // WHEN validate is called
@@ -2821,6 +2946,7 @@ mod autonomy_tests {
         let cfg = HybridRoutingConfig {
             frontier: "claude-opus-4-6".to_owned(),
             cost_ceiling_usd: 1.00,
+            ceiling_action: CeilingAction::StayLocal,
         };
 
         // WHEN validate is called

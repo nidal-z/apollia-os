@@ -46,7 +46,7 @@ pub mod workspace;
 pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, AutonomyConfig, AutonomyLevel, AutonomyLevelConfig,
-    AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, ConfigError,
+    AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, CeilingAction, ConfigError,
     DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig, HitlConfig,
     HybridRoutingConfig, JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
     McpToolLoading, ORIAConfig, PermissionsConfig, RegistryConfig, RuntimeConfig, ToolsConfig,

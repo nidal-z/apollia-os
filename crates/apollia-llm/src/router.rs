@@ -2238,6 +2238,7 @@ mod tests {
             hybrid: Some(apollia_core::HybridRoutingConfig {
                 frontier: "frontier-model".to_owned(),
                 cost_ceiling_usd: ceiling,
+                ceiling_action: apollia_core::CeilingAction::StayLocal,
             }),
         });
         let session_budget = Arc::new(Mutex::new(SessionBudgetTracker::default()));
@@ -2317,6 +2318,7 @@ mod tests {
             hybrid: Some(apollia_core::HybridRoutingConfig {
                 frontier: "phantom".to_owned(),
                 cost_ceiling_usd: 1.00,
+                ceiling_action: apollia_core::CeilingAction::StayLocal,
             }),
         };
 
