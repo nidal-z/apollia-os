@@ -1210,4 +1210,92 @@ mod tests {
         // AND record_failure was called on circuit breaker
         assert_eq!(layer.breaker("t").unwrap().failure_count(), 1);
     }
+
+    // A BudgetExceeded error is not retried by execute().
+    #[tokio::test]
+    async fn test_execute_no_retry_on_budget_exceeded() {
+        // GIVEN an operation classified as BudgetExceeded, max_attempts=3
+        let layer = make_layer(5);
+        layer.register_tool("t");
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        // WHEN execute()
+        let result: Result<i32, _> = layer
+            .execute(
+                "t",
+                &fast_retry_policy(3),
+                |_| ErrorClass::BudgetExceeded,
+                || {
+                    let cc = cc.clone();
+                    async move {
+                        cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        Err("step budget exhausted".to_string())
+                    }
+                },
+            )
+            .await;
+
+        // THEN the operation is attempted exactly once (no retry)
+        assert!(result.is_err());
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+        // AND the breaker is unaffected (non-transient errors do not count)
+        assert_eq!(layer.breaker("t").unwrap().failure_count(), 0);
+    }
+
+    // A SandboxViolation error is not retried by execute().
+    #[tokio::test]
+    async fn test_execute_no_retry_on_sandbox_violation() {
+        // GIVEN an operation classified as SandboxViolation, max_attempts=3
+        let layer = make_layer(5);
+        layer.register_tool("t");
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        // WHEN execute()
+        let result: Result<i32, _> = layer
+            .execute(
+                "t",
+                &fast_retry_policy(3),
+                |_| ErrorClass::SandboxViolation,
+                || {
+                    let cc = cc.clone();
+                    async move {
+                        cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        Err("sandbox violation: path traversal".to_string())
+                    }
+                },
+            )
+            .await;
+
+        // THEN the operation is attempted exactly once (no retry)
+        assert!(result.is_err());
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(layer.breaker("t").unwrap().failure_count(), 0);
+    }
+
+    // snapshot() reflects the recorded failure count and the current state.
+    #[test]
+    fn test_snapshot_reflects_failure_count_and_state() {
+        // GIVEN a layer whose tool recorded two transient failures (below threshold)
+        let layer = make_layer(5);
+        layer.register_tool("tool_a");
+        layer
+            .record_failure("tool_a", &ErrorClass::Transient)
+            .unwrap();
+        layer
+            .record_failure("tool_a", &ErrorClass::Transient)
+            .unwrap();
+
+        // WHEN snapshot() is produced
+        let snaps = layer.snapshot();
+
+        // THEN the entry reports failure_count = 2 and the circuit stays closed
+        let entry = snaps
+            .iter()
+            .find(|s| s.tool_name == "tool_a")
+            .expect("tool_a snapshot present");
+        assert_eq!(entry.failure_count, 2);
+        assert_eq!(entry.state, "closed");
+    }
 }
