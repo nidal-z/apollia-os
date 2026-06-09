@@ -4,7 +4,9 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 
 use apollia_core::token_budget::TokenBudget;
-use apollia_core::{AIPInput, AIPTask, AgentId, ProcessState, RuntimeEvent, TaskId, TaskStatus};
+use apollia_core::{
+    AIPInput, AIPTask, AgentId, ProcessState, RunOptions, RuntimeEvent, TaskId, TaskStatus,
+};
 
 use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
 use crate::eventbus::EventBusSender;
@@ -49,6 +51,8 @@ enum RouterMessage<B: ExecutionBackend> {
         /// without a targeted skill. Propagated through to `AIPTask.skill_id`.
         skill_id: Option<String>,
         delegation_chain: Vec<AgentId>,
+        /// Per-run control options (plan-gate / autonomy overrides).
+        run_options: RunOptions,
         reply: oneshot::Sender<Result<TaskId, SubmitError>>,
     },
     /// Get the status of a task.
@@ -119,8 +123,8 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 msg = self.rx.recv() => {
                     let Some(msg) = msg else { break };
                     match msg {
-                        RouterMessage::Submit { agent_id, input, skill_id, delegation_chain, reply } => {
-                            let result = self.handle_submit(agent_id, input, skill_id, delegation_chain).await;
+                        RouterMessage::Submit { agent_id, input, skill_id, delegation_chain, run_options, reply } => {
+                            let result = self.handle_submit(agent_id, input, skill_id, delegation_chain, run_options).await;
                             let _ = reply.send(result);
                         }
                         RouterMessage::GetStatus { task_id, reply } => {
@@ -232,6 +236,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         input: AIPInput,
         skill_id: Option<String>,
         delegation_chain: Vec<AgentId>,
+        run_options: RunOptions,
     ) -> Result<TaskId, SubmitError> {
         // 1. Check the agent in the registry (by UUID then by manifest name)
         let resolved_id = if self
@@ -290,6 +295,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             history: vec![],
             timeout_seconds: None,
             delegation_chain,
+            run_options,
             ..AIPTask::default()
         };
 
@@ -384,6 +390,32 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .await
     }
 
+    /// Submit a root task with per-run control options (plan-gate / autonomy).
+    ///
+    /// Used by the REST submit handler to forward CLI flags (`--plan`,
+    /// `--autonomy`) to the per-task engine. Equivalent to [`Self::submit`] with
+    /// no targeted skill and an empty delegation chain, plus the options.
+    pub async fn submit_with_options(
+        &self,
+        agent_id: &str,
+        input: AIPInput,
+        run_options: RunOptions,
+    ) -> Result<TaskId, SubmitError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(RouterMessage::Submit {
+                agent_id: AgentId::from(agent_id),
+                input,
+                skill_id: None,
+                delegation_chain: Vec::new(),
+                run_options,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| SubmitError::ActorDead)?;
+        reply_rx.await.map_err(|_| SubmitError::ActorDead)?
+    }
+
     /// Submit a task with an explicit A2A delegation chain and an optional
     /// targeted `skill_id`.
     ///
@@ -404,6 +436,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
                 input,
                 skill_id,
                 delegation_chain,
+                run_options: RunOptions::default(),
                 reply: reply_tx,
             })
             .await

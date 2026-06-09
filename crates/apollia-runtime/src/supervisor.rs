@@ -208,6 +208,9 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     ///
     /// `None` when `task_repository` is `None` (HITL disabled).
     pub pending_approvals: Option<Arc<apollia_core::PendingApprovals>>,
+    /// Plan-gate registry, shared between the plan-decision route and the
+    /// per-task ORIAEngine for plan-mode approval.
+    pub plan_gates: Option<Arc<apollia_oria::PendingPlanGates>>,
     /// Handle to the NotificationEngine actor.
     ///
     /// `None` when no `[notifications]` section is present in `apollia.toml`.
@@ -1378,6 +1381,7 @@ impl Supervisor {
             audit_trail: audit_trail_handle,
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
+            plan_gates: plan_gates.clone(),
             notification_engine,
             llm_call_repository,
             chat_manager,

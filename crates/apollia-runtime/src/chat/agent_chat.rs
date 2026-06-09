@@ -391,6 +391,7 @@ fn session_to_task(session: &ChatSession, user_message: &str) -> AIPTask {
         input_response: None,
         message_id: None,
         delegation_chain: Vec::new(),
+        run_options: apollia_core::RunOptions::default(),
     }
 }
 

@@ -25,6 +25,9 @@ pub struct SubmitTaskRequest {
     pub agent_id: String,
     /// Free-form JSON input for the task.
     pub input: serde_json::Value,
+    /// Per-run control options (plan-gate / autonomy overrides).
+    #[serde(default)]
+    pub run_options: apollia_core::RunOptions,
 }
 
 /// Response body for task operations.
@@ -160,7 +163,7 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
 
     let task_id = state
         .router_handle
-        .submit(&req.agent_id, input)
+        .submit_with_options(&req.agent_id, input, req.run_options)
         .await
         .map_err(submit_error_to_response)?;
 
