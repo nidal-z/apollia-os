@@ -38,6 +38,16 @@ use crate::coordinator::ExecutionBackend;
 pub struct LlmStatusResponse {
     /// All configured LLM backends with their current availability state.
     pub backends: Vec<BackendInfo>,
+    /// Accumulated session cost in USD. `None` when no router is configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
+    /// Hybrid routing cost ceiling in USD. `None` when hybrid routing is not
+    /// configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ceiling_usd: Option<f64>,
+    /// Whether the cost ceiling has been reached. Always `false` when hybrid
+    /// routing is not configured.
+    pub ceiling_reached: bool,
 }
 
 /// Request body for `POST /api/v1/llm/ping`.
@@ -123,9 +133,28 @@ pub async fn get_llm_status<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> (StatusCode, Json<LlmStatusResponse>) {
     let snapshot = state.llm_router.read().await.clone();
-    let backends = snapshot.map(|router| router.list()).unwrap_or_default();
+    let backends = snapshot
+        .as_ref()
+        .map(|router| router.list())
+        .unwrap_or_default();
+    // Surface the hybrid cost ceiling and the accumulated session cost so the
+    // CLI can show budget headroom. `ceiling_usd` is absent without hybrid
+    // routing; `cost_usd` is absent only when no router is configured.
+    let cost_usd = snapshot.as_ref().map(|router| router.session_cost_usd());
+    let ceiling_usd = snapshot.as_ref().and_then(|router| router.cost_ceiling_usd());
+    let ceiling_reached = snapshot
+        .as_ref()
+        .is_some_and(|router| router.is_ceiling_reached());
 
-    (StatusCode::OK, Json(LlmStatusResponse { backends }))
+    (
+        StatusCode::OK,
+        Json(LlmStatusResponse {
+            backends,
+            cost_usd,
+            ceiling_usd,
+            ceiling_reached,
+        }),
+    )
 }
 
 /// Handler for `POST /api/v1/llm/ping`.
@@ -1139,6 +1168,43 @@ mod tests {
         let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(json["backends"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_llm_status_response_includes_cost_and_ceiling() {
+        // GIVEN a status response with a session cost and a configured ceiling
+        let resp = LlmStatusResponse {
+            backends: vec![],
+            cost_usd: Some(0.23),
+            ceiling_usd: Some(2.0),
+            ceiling_reached: false,
+        };
+
+        // WHEN serializing
+        let json = serde_json::to_value(&resp).expect("serialize");
+
+        // THEN all three fields are present
+        assert_eq!(json["cost_usd"], 0.23);
+        assert_eq!(json["ceiling_usd"], 2.0);
+        assert_eq!(json["ceiling_reached"], false);
+    }
+
+    #[test]
+    fn test_llm_status_response_omits_ceiling_when_absent() {
+        // GIVEN a status response with no hybrid ceiling
+        let resp = LlmStatusResponse {
+            backends: vec![],
+            cost_usd: Some(0.1),
+            ceiling_usd: None,
+            ceiling_reached: false,
+        };
+
+        // WHEN serializing
+        let json = serde_json::to_value(&resp).expect("serialize");
+
+        // THEN ceiling_usd is omitted but ceiling_reached stays present and false
+        assert!(json.get("ceiling_usd").is_none());
+        assert_eq!(json["ceiling_reached"], false);
     }
 
     // GIVEN an AppState with llm_router = None

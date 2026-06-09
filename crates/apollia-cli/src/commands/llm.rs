@@ -434,6 +434,29 @@ fn format_llm_status(resp: &serde_json::Value) {
             println!("  {name:<24} {model:<32} {status}");
         }
     }
+
+    // Cost ceiling line: shown only when the runtime reports a session cost.
+    // `ceiling_usd` is absent without hybrid routing, in which case the line
+    // states that no ceiling is configured rather than printing a phantom value.
+    if let Some(cost) = resp.get("cost_usd").and_then(serde_json::Value::as_f64) {
+        match resp.get("ceiling_usd").and_then(serde_json::Value::as_f64) {
+            Some(ceiling) => {
+                println!("  session cost: {cost:.2} USD / {ceiling:.2} USD ceiling");
+                let reached = resp
+                    .get("ceiling_reached")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false);
+                if reached {
+                    println!(
+                        "  cost ceiling reached: the run stops cleanly when ceiling_action = hard_stop"
+                    );
+                }
+            }
+            None => {
+                println!("  session cost: {cost:.2} USD (no hybrid cost ceiling configured)");
+            }
+        }
+    }
 }
 
 /// Render `POST /api/v1/llm/ping` response as a human-readable line.
