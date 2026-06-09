@@ -536,10 +536,15 @@ impl ORIAEngine {
     /// 7. Concatenate outputs (or stub `on_plan_complete`)
     /// Whether the plan gate is active for the current run.
     ///
-    /// The autonomy routing layer ORs the tier-based gate policy into this
-    /// decision; the base case is the operator-forced override.
+    /// Active when either the operator forced it (`--plan`) or the autonomy tier
+    /// requires it. The tier defaults to `Assisted` (gate active) when unset, so
+    /// the safe default is to gate.
     fn plan_gate_active(&self) -> bool {
-        self.force_plan_gate
+        let tier = self
+            .oria_config
+            .autonomy_level
+            .unwrap_or(apollia_core::AutonomyLevel::Assisted);
+        self.force_plan_gate || tier.gate_policy() == apollia_core::GatePolicy::Active
     }
 
     /// Suspend after plan generation and await an approve/reject decision.
@@ -2195,14 +2200,21 @@ mod orchestrated_tests {
         assert_eq!(result.error.as_ref().map(|e| e.code.as_str()), Some("PLAN_GATE_TIMEOUT"));
     }
 
-    /// GIVEN the gate is inactive (default)
-    /// WHEN execute runs
-    /// THEN no PlanApprovalRequired is emitted and the run completes directly
+    /// GIVEN a BoundedAutonomous tier (gate bypass) with a registry present
+    /// WHEN execute runs without forcing the gate
+    /// THEN no PlanApprovalRequired is emitted and the run completes directly.
     #[tokio::test]
-    async fn test_gate_inactive_no_suspension() {
-        // GIVEN an engine without the gate forced
+    async fn test_bounded_autonomous_bypasses_gate() {
+        // GIVEN an autonomous tier that bypasses the gate
         let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
-        let engine = make_engine_with_mock(two_step_plan_json()).with_event_bus(tx);
+        let config = ORIAConfig {
+            autonomy_level: Some(apollia_core::AutonomyLevel::BoundedAutonomous),
+            ..Default::default()
+        };
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_pending_plan_gates(PendingPlanGates::new())
+            .with_oria_config(config);
         let agent = MockAgent {
             manifest: orchestrated_manifest_with_prompt(),
         };
@@ -2218,7 +2230,40 @@ mod orchestrated_tests {
                 saw_gate = true;
             }
         }
-        assert!(!saw_gate, "no gate event when the gate is inactive");
+        assert!(!saw_gate, "BoundedAutonomous must bypass the gate");
+    }
+
+    /// GIVEN the default tier (Assisted) with a registry present
+    /// WHEN execute runs without forcing the gate
+    /// THEN the gate activates and PlanApprovalRequired is emitted.
+    #[tokio::test]
+    async fn test_assisted_default_activates_gate() {
+        // GIVEN an engine at the default (Assisted) tier with a registry
+        let gates = PendingPlanGates::new();
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_pending_plan_gates(gates.clone());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN execute runs in the background
+        let handle = tokio::spawn(async move { engine.execute(AIPTask::default(), &agent).await });
+
+        // THEN the gate activates (PlanApprovalRequired emitted), then approve to finish
+        let mut saw_gate = false;
+        for _ in 0..200 {
+            if let Ok(RuntimeEvent::PlanApprovalRequired { run_id, .. }) = rx.try_recv() {
+                saw_gate = true;
+                assert!(gates.decide(&run_id, PlanGateDecision::Approved));
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        let result = handle.await.expect("join");
+        assert!(saw_gate, "Assisted default must activate the gate");
+        assert_eq!(result.status, TaskStatus::Completed);
     }
 
     /// GIVEN a gate that is rejected twice then approved

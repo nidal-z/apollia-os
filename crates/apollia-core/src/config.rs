@@ -101,6 +101,16 @@ where
 /// flags (`inject_memory`, `run_verification`). The effective budget is always
 /// capped by the runtime ceiling via `StepBudget::from_capped`, so a tier can
 /// never raise the budget above the runtime bound (principle #7).
+/// Gate policy for plan review: whether the engine pauses after plan generation
+/// and waits for human approval before starting the `ActorLoop`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GatePolicy {
+    /// The plan must be explicitly approved before execution starts.
+    Active,
+    /// The plan executes immediately without waiting for approval.
+    Bypass,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AutonomyLevel {
@@ -130,6 +140,25 @@ impl AutonomyLevel {
             AutonomyLevel::Supervised => "supervised",
             AutonomyLevel::BoundedAutonomous => "bounded_autonomous",
             AutonomyLevel::LongAutonomous => "long_autonomous",
+        }
+    }
+
+    /// Plan gate policy for this autonomy tier.
+    ///
+    /// | Tier               | Gate   |
+    /// |--------------------|--------|
+    /// | Assisted           | Active |
+    /// | Supervised         | Active |
+    /// | BoundedAutonomous  | Bypass |
+    /// | LongAutonomous     | Bypass |
+    ///
+    /// The safe default is `Active`: only the explicitly autonomous tiers bypass
+    /// the gate. The match is exhaustive, so an unrepresentable tier cannot slip
+    /// through to `Bypass`.
+    pub fn gate_policy(self) -> GatePolicy {
+        match self {
+            AutonomyLevel::Assisted | AutonomyLevel::Supervised => GatePolicy::Active,
+            AutonomyLevel::BoundedAutonomous | AutonomyLevel::LongAutonomous => GatePolicy::Bypass,
         }
     }
 }
@@ -657,6 +686,14 @@ pub struct ORIAConfig {
     /// Default: 3. Bounds: [0, 10].
     #[serde(default = "default_plan_gate_max_replans")]
     pub plan_gate_max_replans: u32,
+
+    /// Autonomy tier governing the plan gate policy for the run.
+    ///
+    /// Resolves the plan gate: `Assisted` / `Supervised` activate it,
+    /// `BoundedAutonomous` / `LongAutonomous` bypass it. Absent (`None`) means the
+    /// runtime default, currently `Assisted` (gate active).
+    #[serde(default)]
+    pub autonomy_level: Option<AutonomyLevel>,
 }
 
 impl Default for ORIAConfig {
@@ -674,6 +711,7 @@ impl Default for ORIAConfig {
             plan_alternatives_temp_b: default_plan_alternatives_temp_b(),
             plan_gate_ttl_secs: default_plan_gate_ttl_secs(),
             plan_gate_max_replans: default_plan_gate_max_replans(),
+            autonomy_level: None,
         }
     }
 }
@@ -2873,6 +2911,35 @@ mod autonomy_tests {
             let parsed = AutonomyLevel::from_str(s).expect("round-trip must succeed");
             assert_eq!(parsed, level);
         }
+    }
+
+    // gate_policy is stable and matches the documented routing table.
+    #[test]
+    fn test_gate_policy_all_variants() {
+        // GIVEN the four tiers
+        // WHEN gate_policy is read
+        // THEN Assisted/Supervised gate, Bounded/Long bypass
+        assert_eq!(AutonomyLevel::Assisted.gate_policy(), GatePolicy::Active);
+        assert_eq!(AutonomyLevel::Supervised.gate_policy(), GatePolicy::Active);
+        assert_eq!(
+            AutonomyLevel::BoundedAutonomous.gate_policy(),
+            GatePolicy::Bypass
+        );
+        assert_eq!(
+            AutonomyLevel::LongAutonomous.gate_policy(),
+            GatePolicy::Bypass
+        );
+    }
+
+    // The default ORIA tier (absent) resolves to Assisted: gate active.
+    #[test]
+    fn test_default_autonomy_level_is_assisted_gate_active() {
+        // GIVEN the default ORIAConfig (no autonomy_level)
+        let config = ORIAConfig::default();
+        // WHEN resolved with the safe default
+        let level = config.autonomy_level.unwrap_or(AutonomyLevel::Assisted);
+        // THEN the gate is active
+        assert_eq!(level.gate_policy(), GatePolicy::Active);
     }
 
     // effective_budget mirrors the default tier budget.
