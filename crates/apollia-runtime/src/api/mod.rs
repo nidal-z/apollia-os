@@ -8,6 +8,7 @@ pub mod routes_agents;
 pub mod routes_approvals;
 pub mod routes_audit;
 pub mod routes_chat;
+pub mod routes_hooks;
 pub mod routes_llm;
 pub mod routes_mcp;
 pub mod routes_messages;

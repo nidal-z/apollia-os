@@ -3313,6 +3313,9 @@ pub struct ChatSessionManagerHandle {
     /// their tool dispatcher can register an `AskUserExecutor` whose replies
     /// are routed to this manager's background drainer task.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
+    /// Shared lifecycle hook executor, exposed so the API can list the active
+    /// handlers. `None` when no hooks are configured.
+    hook_executor: Option<Arc<HookExecutor>>,
 }
 
 impl ChatSessionManagerHandle {
@@ -3324,6 +3327,15 @@ impl ChatSessionManagerHandle {
     /// mode built-in agent.
     pub fn pending_user_inputs(&self) -> apollia_tools::tools::ask_user::PendingUserInputs {
         self.pending_user_inputs.clone()
+    }
+
+    /// Return a summary of every registered lifecycle hook handler, in
+    /// declaration order. Empty when no hooks are configured.
+    pub fn hook_summaries(&self) -> Vec<crate::hooks::HookHandlerSummary> {
+        self.hook_executor
+            .as_ref()
+            .map(|exec| exec.registry().list_all())
+            .unwrap_or_default()
     }
 }
 
@@ -3390,6 +3402,9 @@ impl ChatSessionManagerHandle {
 
         let (tx, rx) = mpsc::channel(256);
 
+        // Keep a handle-side clone so the API can list active hook handlers.
+        let hook_executor_for_handle = hook_executor.clone();
+
         let mut manager = ChatSessionManager {
             sessions: HashMap::new(),
             repository,
@@ -3454,6 +3469,7 @@ impl ChatSessionManagerHandle {
         Ok(Self {
             tx,
             pending_user_inputs,
+            hook_executor: hook_executor_for_handle,
         })
     }
 

@@ -1187,7 +1187,7 @@ fn expand_tilde_str(s: &str) -> PathBuf {
 ///   2. `~/.config/apollia/apollia.toml`  (user config dir)
 ///
 /// Returns `None` if neither exists.
-fn find_config_file() -> Option<PathBuf> {
+pub(crate) fn find_config_file() -> Option<PathBuf> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let local = cwd.join("apollia.toml");
     if local.exists() {

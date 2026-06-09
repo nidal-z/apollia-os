@@ -23,6 +23,7 @@ use commands::a2a::A2aCommand;
 use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
 use commands::auth::AuthCommand;
+use commands::hooks::HooksCommand;
 use commands::chat;
 use commands::config::ConfigCommand;
 use commands::connector::ConnectorCommand;
@@ -219,6 +220,13 @@ enum Commands {
         /// Audit subcommand.
         #[command(subcommand)]
         command: AuditCommand,
+    },
+
+    /// Lifecycle hooks (list).
+    Hooks {
+        /// Hooks subcommand.
+        #[command(subcommand)]
+        command: HooksCommand,
     },
 
     /// Memory management.
@@ -630,6 +638,7 @@ fn main() {
             Commands::Eval { command } => commands::eval::run(&command, cli.socket, json).await,
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
             Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,
+            Commands::Hooks { command } => commands::hooks::run(&command, cli.socket, json).await,
             Commands::Memory { command } => run_memory(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
@@ -695,6 +704,7 @@ mod tests {
     use super::*;
     use commands::agent::AgentCommand;
     use commands::audit::AuditCommand;
+    use commands::hooks::HooksCommand;
     use commands::llm::LlmCommand;
     use commands::memory::MemoryCommand;
     use commands::model::ModelCommand;
@@ -1488,6 +1498,63 @@ mod tests {
                 other => panic!("expected AuditCommand::List, got {other:?}"),
             },
             other => panic!("expected Commands::Audit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_hooks_list_default() {
+        // GIVEN "apollia-os hooks list"
+        let cli = parse(&["apollia-os", "hooks", "list"]);
+        // THEN Commands::Hooks { command: HooksCommand::List { dry_run: false } }
+        match &cli.command {
+            Commands::Hooks { command } => {
+                match command {
+                    HooksCommand::List { dry_run } => assert!(!dry_run),
+                }
+                assert!(!cli.json);
+            }
+            other => panic!("expected Commands::Hooks, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_hooks_list_dry_run() {
+        // GIVEN "apollia-os hooks list --dry-run"
+        let cli = parse(&["apollia-os", "hooks", "list", "--dry-run"]);
+        // THEN dry_run is true
+        match &cli.command {
+            Commands::Hooks { command } => match command {
+                HooksCommand::List { dry_run } => assert!(dry_run),
+            },
+            other => panic!("expected Commands::Hooks, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_hooks_list_json_global() {
+        // GIVEN "apollia-os hooks list --json" (global flag after the subcommand)
+        let cli = parse(&["apollia-os", "hooks", "list", "--json"]);
+        // THEN the global json flag is set and the command is hooks list
+        assert!(cli.json);
+        match &cli.command {
+            Commands::Hooks { command } => match command {
+                HooksCommand::List { dry_run } => assert!(!dry_run),
+            },
+            other => panic!("expected Commands::Hooks, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_hooks_list_json_and_dry_run() {
+        // GIVEN "apollia-os --json hooks list --dry-run"
+        let cli = parse(&["apollia-os", "--json", "hooks", "list", "--dry-run"]);
+        // THEN both the global json flag and dry_run are set
+        assert!(cli.json);
+        match &cli.command {
+            Commands::Hooks { command } => match command {
+                HooksCommand::List { dry_run } => assert!(dry_run),
+            },
+            other => panic!("expected Commands::Hooks, got {other:?}"),
         }
     }
 

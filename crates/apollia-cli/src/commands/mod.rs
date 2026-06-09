@@ -11,6 +11,7 @@ pub mod connector;
 pub mod digest;
 pub mod doctor;
 pub mod eval;
+pub mod hooks;
 pub mod inspect;
 pub mod llm;
 pub mod logs;

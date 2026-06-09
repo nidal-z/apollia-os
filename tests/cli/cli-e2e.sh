@@ -239,6 +239,10 @@ check_exit   "config validate (partial llm)"  1             "$BIN" config valida
 check_json   "config show --json"                           "$BIN" config show --file "$CFG" --json
 check_exit   "config edit refuses non-TTY"    1             "$BIN" config edit --file "$CFG"
 check_exit   "config reset (no --confirm)"    1             "$BIN" config reset
+
+# hooks list --dry-run reads/validates [hooks] offline (no runtime needed).
+check        "hooks list --dry-run"                         "$BIN" hooks list --dry-run
+check_json   "hooks list --dry-run --json"                  "$BIN" --json hooks list --dry-run
 RESET_HOME="$TMPDIR/.reset-test"
 /bin/mkdir -p "$RESET_HOME"; /usr/bin/touch "$RESET_HOME/dummy"
 /bin/mkdir -p "$RESET_HOME/nested"; /usr/bin/touch "$RESET_HOME/nested/inner"

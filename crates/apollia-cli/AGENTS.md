@@ -26,7 +26,7 @@ apollia tool list --filter foo
 Nouns and verbs are predictable :
 - Verbs : `list`, `show`, `create`, `update`, `delete`, `start`, `stop`,
   `restart`, `logs`, `query`, `import`, `export`, `prune`.
-- Nouns : `agent`, `task`, `tool`, `trigger`, `notify`, `auth`, `mcp`,
+- Nouns : `agent`, `task`, `tool`, `trigger`, `hooks`, `notify`, `auth`, `mcp`,
   `permission`, `audit`, `memory`, `session`, `config`.
 
 If you add a new noun, document it here and in `docs/wiki/Briques-CLI.md`.

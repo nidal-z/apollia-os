@@ -11,7 +11,7 @@
 - [Flags globaux](#flags-globaux)
 - [Codes de sortie](#codes-de-sortie)
 - [Niveau 1 : start · stop · status · run · chat](#niveau-1)
-- [Niveau 2 : agent · task · tools · permissions · memory · audit · stt · notify · llm · model · trigger · mcp · workspace · auth · update · review · onboard · plan-cache · resilience · rollback · mcp-server](#niveau-2)
+- [Niveau 2 : agent · task · tools · permissions · memory · audit · hooks · stt · notify · llm · model · trigger · mcp · workspace · auth · update · review · onboard · plan-cache · resilience · rollback · mcp-server](#niveau-2)
 - [Niveau 3 : doctor · logs · version · digest · trace · hitl · config · connector · project · user-memory · chat-config](#niveau-3)
 - [Liens vers les ADR](#decisions)
 
@@ -106,6 +106,25 @@ Opérations local-first (pas de runtime requis) sur `~/.apollia/memory/`.
 - `audit list [--limit N]`
 - `audit stats`
 - `audit export [--output FILE] [--limit N]` : dump JSON complet.
+
+### `hooks <list>`
+- `hooks list [--dry-run]` : liste les handlers de hooks de cycle de vie actifs.
+  Sans `--dry-run`, interroge le runtime (`GET /api/v1/hooks`) ; avec `--dry-run`,
+  lit et valide la section `[hooks]` de `apollia.toml` hors ligne (exit 1 si la
+  configuration est invalide).
+- `--json` (global) renvoie un tableau JSON :
+
+```json
+[
+  {
+    "id": 0,
+    "type": "command",
+    "events": ["pre_tool_use"],
+    "timeout_ms": 5000,
+    "target": "/usr/bin/my-hook --event pre_tool_use"
+  }
+]
+```
 
 ### `stt <status|transcribe|transcriptions|model|config>`
 STT engine + transcription d'audio + gestion des modèles whisper.
