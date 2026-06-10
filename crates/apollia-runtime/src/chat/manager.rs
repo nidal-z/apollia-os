@@ -2113,6 +2113,10 @@ impl ChatSessionManager {
         let assistant_msg_id = uuid::Uuid::new_v4().to_string();
         let tokens_used = response.tokens_used.clone();
         let max_steps = self.runtime_budget.max_steps;
+        // Terminal plan phase of a plan-flow turn (discovery, then drafting once
+        // the agent proposes steps, or back to done on a cancelled discovery).
+        // `None` for conversational turns: the phase is left untouched.
+        let final_plan_phase = response.final_plan_phase;
 
         // Serialize tool calls for SQLite
         let tool_calls_json = if response.tool_calls.is_empty() {
@@ -2182,6 +2186,16 @@ impl ChatSessionManager {
             .update_status(session_id, &SessionStatus::Active)
         {
             warn!(error = %e, "Failed to reset session status to Active in SQLite");
+        }
+
+        // Persist the terminal plan phase when the turn ran in the plan flow, so
+        // discovery / drafting survives a restart. Conversational turns leave it
+        // untouched (`None`).
+        if let Some(phase) = final_plan_phase {
+            session.plan_phase = phase;
+            if let Err(e) = self.repository.set_plan_phase(session_id, phase) {
+                warn!(error = %e, "Failed to persist plan phase in SQLite");
+            }
         }
 
         info!(

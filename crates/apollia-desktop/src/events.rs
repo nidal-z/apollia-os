@@ -350,7 +350,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::PlanUpdated { .. }
         | RuntimeEvent::PlanSubmitted { .. }
         | RuntimeEvent::ChatPlanApproved { .. }
-        | RuntimeEvent::ChatPlanRejected { .. } => "plan-mode",
+        | RuntimeEvent::ChatPlanRejected { .. }
+        | RuntimeEvent::ChatPlanPhaseChanged { .. } => "plan-mode",
 
         // ── Plan / orchestration steps ───────────────────────────────────
         RuntimeEvent::PlanGenerated { .. }

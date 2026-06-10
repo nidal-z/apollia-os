@@ -35,8 +35,8 @@ use apollia_oria::verification::{
 use apollia_tools::ToolRegistryHandle;
 
 use super::types::{
-    ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, PendingChatApprovals, ToolCallRecord,
-    ToolCallStatus, ToolDecision,
+    ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, PendingChatApprovals, PlanPhase,
+    ToolCallRecord, ToolCallStatus, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::chat::a2a_tools::generate_a2a_tool_specs;
@@ -48,7 +48,7 @@ use crate::chat::plan_tool::{
 };
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::todo_tool::{TODO_WRITE_TOOL_NAME, run_todo_write, todo_write_spec};
-use crate::chat::turn_router::classify_turn;
+use crate::chat::turn_router::{TurnRoute, classify_turn};
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
@@ -786,6 +786,10 @@ pub struct ChatAgentResponse {
     /// cost ceiling kept the step local. The caller may surface a notice to the
     /// user. Stays `false` when hybrid routing is not configured.
     pub frontier_ceiling_reached: bool,
+    /// Terminal plan-mode phase of the exchange, when the turn ran in the plan
+    /// flow (a substantive plan-mode turn). `None` for conversational turns and
+    /// outside plan mode, so the caller persists a phase only when one moved.
+    pub final_plan_phase: Option<PlanPhase>,
 }
 
 /// Consolidated result of the full post-run verification pass (checks + critic).
@@ -1053,6 +1057,9 @@ struct ResponseContext<'a> {
     message_id: &'a str,
     run_id: &'a RunId,
     frontier_ceiling_reached: bool,
+    /// Terminal plan-mode phase to carry on the response. `None` outside the
+    /// plan flow; `Some` when this turn ran discovery and (possibly) drafting.
+    final_plan_phase: Option<PlanPhase>,
 }
 
 /// Borrowed context for processing a single tool call inside the ReAct loop.
@@ -1113,6 +1120,52 @@ struct PreToolUseOutcome<'a> {
     denied: Vec<Option<String>>,
 }
 
+/// Tracks the plan-mode phase across one plan-flow turn.
+///
+/// A substantive plan-mode turn opens in [`PlanPhase::Discovery`]: the agent
+/// uses the blocking `ask_user` tool to gather real inputs. The first
+/// plan-construction tool call (`plan_propose` or `plan_add_step`) means the
+/// agent has enough information and starts drafting, so the phase advances to
+/// [`PlanPhase::Drafting`]. If the user cancels every pending question (an
+/// all-skipped `ask_user` answer), discovery is abandoned and the phase returns
+/// to the safe [`PlanPhase::Done`] state rather than staying stuck in discovery.
+///
+/// The tracker is `None` for conversational turns and outside plan mode, so a
+/// non-plan turn behaves exactly as before with zero overhead.
+struct PlanPhaseTracker {
+    phase: PlanPhase,
+}
+
+impl PlanPhaseTracker {
+    /// Returns whether `name` is a plan-construction tool whose first call ends
+    /// discovery and begins drafting.
+    fn is_construction_tool(name: &str) -> bool {
+        name == PLAN_PROPOSE_TOOL_NAME || name == PLAN_ADD_STEP_TOOL_NAME
+    }
+
+    /// Returns whether `record` is an `ask_user` result the user fully cancelled
+    /// (every answer carries `skipped: true`). A dropped or errored answer is not
+    /// treated as a cancellation: it surfaces through the tool error path instead.
+    fn is_cancelled_ask_user(record: &ToolCallRecord) -> bool {
+        if record.tool_name != "ask_user" {
+            return false;
+        }
+        let Some(output) = record.output.as_deref() else {
+            return false;
+        };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(output) else {
+            return false;
+        };
+        let Some(answers) = value.get("answers").and_then(|a| a.as_array()) else {
+            return false;
+        };
+        !answers.is_empty()
+            && answers
+                .iter()
+                .all(|a| a.get("skipped").and_then(|s| s.as_bool()) == Some(true))
+    }
+}
+
 impl BuiltInChatAgent {
     /// Create a new agent with the given dependencies.
     pub fn new(deps: BuiltInChatAgentDeps) -> Self {
@@ -1153,6 +1206,67 @@ impl BuiltInChatAgent {
     /// spec advertising and the inline tool dispatch.
     fn plan_mode_active(&self) -> bool {
         self.session_plan_mode && self.plan.is_some()
+    }
+
+    /// Surfaces a plan-mode phase change to the desktop.
+    ///
+    /// Emits [`RuntimeEvent::ChatPlanPhaseChanged`] on the event bus so the UI
+    /// follows the discovery / drafting indicator live. Fire-and-forget: a
+    /// saturated or closed bus is ignored, matching the plan and todo actors.
+    /// A phase can move before any plan exists (discovery precedes drafting), so
+    /// this is distinct from the plan-content `PlanUpdated` event.
+    fn emit_plan_phase(&self, session_id: &str, phase: PlanPhase) {
+        let _ = self.event_bus.send(RuntimeEvent::ChatPlanPhaseChanged {
+            session_id: session_id.to_string(),
+            phase: phase.as_sql().to_string(),
+        });
+        tracing::info!(
+            session_id = %session_id,
+            phase = %phase.as_sql(),
+            "chat.plan_phase.changed"
+        );
+    }
+
+    /// Opens the discovery phase for a substantive plan-mode turn.
+    ///
+    /// Sets the tracked phase to [`PlanPhase::Discovery`] and surfaces it so the
+    /// agent can use the blocking `ask_user` tool to gather real inputs before
+    /// drafting. The ReAct loop then advances the phase to drafting on the first
+    /// plan-construction call, or back to a safe state on a cancelled question.
+    fn begin_discovery(&self, session_id: &str) -> PlanPhaseTracker {
+        self.emit_plan_phase(session_id, PlanPhase::Discovery);
+        PlanPhaseTracker {
+            phase: PlanPhase::Discovery,
+        }
+    }
+
+    /// Advances the plan phase after a tool-call turn, given the calls just run.
+    ///
+    /// While in discovery, the first plan-construction call moves the phase to
+    /// drafting, and a fully cancelled `ask_user` answer moves it back to the
+    /// safe done state. Other phases are left untouched. Returns `true` when the
+    /// phase changed, so the caller can stop watching once discovery is over.
+    fn advance_plan_phase(
+        &self,
+        tracker: &mut PlanPhaseTracker,
+        records: &[ToolCallRecord],
+        session_id: &str,
+    ) {
+        if tracker.phase != PlanPhase::Discovery {
+            return;
+        }
+        if records
+            .iter()
+            .any(|r| PlanPhaseTracker::is_construction_tool(&r.tool_name))
+        {
+            tracker.phase = PlanPhase::Drafting;
+            self.emit_plan_phase(session_id, PlanPhase::Drafting);
+            return;
+        }
+        if records.iter().any(PlanPhaseTracker::is_cancelled_ask_user) {
+            tracker.phase = PlanPhase::Done;
+            self.emit_plan_phase(session_id, PlanPhase::Done);
+        }
     }
 
     /// Configure the deferred MCP tool index for this agent.
@@ -1372,6 +1486,16 @@ impl BuiltInChatAgent {
             run_id,
             pending_approvals,
         };
+
+        // Open discovery for a substantive plan-mode turn. The tracker is `None`
+        // for conversational turns and outside plan mode, so the ReAct loop runs
+        // exactly as before with no phase machinery and no extra events.
+        let mut phase_tracker = if self.plan_mode_active() && route == TurnRoute::PlanFlow {
+            Some(self.begin_discovery(session_id))
+        } else {
+            None
+        };
+
         let first = self
             .run_react_loop(
                 &mut llm_messages,
@@ -1379,6 +1503,7 @@ impl BuiltInChatAgent {
                 authorized_tools,
                 budget,
                 ids,
+                &mut phase_tracker,
             )
             .await?;
 
@@ -1408,6 +1533,9 @@ impl BuiltInChatAgent {
             carry,
             move |mut state: RetryCarry, correction: String| async move {
                 state.messages.push(LlmChatMessage::user(correction));
+                // A verification retry is a correction turn, not a new discovery:
+                // it never opens or advances the plan phase, so pass no tracker.
+                let mut retry_phase: Option<PlanPhaseTracker> = None;
                 match self
                     .run_react_loop(
                         &mut state.messages,
@@ -1415,6 +1543,7 @@ impl BuiltInChatAgent {
                         authorized_tools,
                         budget,
                         ids,
+                        &mut retry_phase,
                     )
                     .await
                 {
@@ -1444,6 +1573,7 @@ impl BuiltInChatAgent {
     ///
     /// - [`ChatError::BudgetExhausted`] if the step budget is exceeded.
     /// - [`ChatError::InternalError`] for LLM backend failures.
+    #[allow(clippy::too_many_arguments)]
     async fn run_react_loop(
         &self,
         llm_messages: &mut Vec<LlmChatMessage>,
@@ -1451,6 +1581,7 @@ impl BuiltInChatAgent {
         authorized_tools: &HashSet<String>,
         budget: &StepBudget,
         ids: ToolCallContextIds<'_>,
+        phase_tracker: &mut Option<PlanPhaseTracker>,
     ) -> Result<ChatAgentResponse, ChatError> {
         let session_id = ids.session_id;
         let message_id = ids.message_id;
@@ -1621,10 +1752,14 @@ impl BuiltInChatAgent {
                             message_id,
                             run_id,
                             frontier_ceiling_reached,
+                            final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
                         },
                     ));
                 }
                 Ok(tool_calls) => {
+                    // Index of the first record produced by this turn, so the
+                    // plan-phase advance inspects only the calls just run.
+                    let turn_start = acc.all_tool_calls.len();
                     self.record_tool_turn(
                         RecordTurnInput {
                             accumulated_text: &accumulated_text,
@@ -1638,6 +1773,13 @@ impl BuiltInChatAgent {
                         &mut consecutive_tool_failures,
                     )
                     .await;
+                    // Discovery -> Drafting on the first plan-construction call;
+                    // Discovery -> Done on a fully cancelled question. No-op
+                    // outside the plan flow (tracker is `None`).
+                    if let Some(tracker) = phase_tracker.as_mut() {
+                        let turn_records = &acc.all_tool_calls[turn_start..];
+                        self.advance_plan_phase(tracker, turn_records, session_id);
+                    }
                 }
                 Err(err) => {
                     return Ok(self.stream_error_response(
@@ -1650,6 +1792,7 @@ impl BuiltInChatAgent {
                             message_id,
                             run_id,
                             frontier_ceiling_reached,
+                            final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
                         },
                     ));
                 }
@@ -1674,6 +1817,7 @@ impl BuiltInChatAgent {
             message_id,
             run_id,
             frontier_ceiling_reached,
+            final_plan_phase,
         } = ctx;
         // Extract thinking trace before stripping.
         let final_thinking = Self::extract_think_blocks(accumulated_text);
@@ -1711,6 +1855,7 @@ impl BuiltInChatAgent {
             thinking_trace,
             verification_report: None,
             frontier_ceiling_reached,
+            final_plan_phase,
         }
     }
 
@@ -2117,6 +2262,7 @@ impl BuiltInChatAgent {
             message_id,
             run_id,
             frontier_ceiling_reached,
+            final_plan_phase,
         } = ctx;
         // Stream interrupted: emit ChatError, return partial content
         let _ = self.event_bus.send(RuntimeEvent::ChatError {
@@ -2147,6 +2293,7 @@ impl BuiltInChatAgent {
             thinking_trace: None,
             verification_report: None,
             frontier_ceiling_reached,
+            final_plan_phase,
         }
     }
 
@@ -5842,6 +5989,120 @@ mod tests {
         assert!(is_plan_tool(PLAN_SUBMIT_TOOL_NAME));
         assert!(!is_plan_tool(TODO_WRITE_TOOL_NAME));
         assert!(!is_plan_tool("bash"));
+    }
+
+    // ── discovery phase (STORY-607) ──────────────────────────────────────
+
+    fn plan_agent_with_bus(bus: EventBusSender, plan_mode: bool) -> BuiltInChatAgent {
+        let model = Arc::new(MockStopModel::with_content("ok"));
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: make_router(model),
+            tool_registry: ToolRegistryHandle::start(),
+            tool_invoker: invoker,
+            event_bus: bus,
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+            plan: Some(plan_handle_for_test()),
+        })
+        .with_plan_mode(plan_mode)
+    }
+
+    fn ask_user_record(skipped: bool) -> ToolCallRecord {
+        ToolCallRecord {
+            tool_name: "ask_user".into(),
+            input: serde_json::json!({}),
+            output: Some(
+                serde_json::json!({ "answers": [{ "id": "q1", "skipped": skipped }] }).to_string(),
+            ),
+            status: ToolCallStatus::Executed,
+            rationale: None,
+            retry_attempts: Vec::new(),
+        }
+    }
+
+    fn plan_propose_record() -> ToolCallRecord {
+        ToolCallRecord {
+            tool_name: PLAN_PROPOSE_TOOL_NAME.into(),
+            input: serde_json::json!({}),
+            output: Some(r#"{"ok":true}"#.into()),
+            status: ToolCallStatus::Executed,
+            rationale: None,
+            retry_attempts: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_begin_discovery_sets_phase_and_surfaces_it() {
+        // GIVEN a plan-mode agent with a subscribable event bus
+        let (bus, mut rx) = tokio::sync::broadcast::channel(64);
+        let agent = plan_agent_with_bus(bus, true);
+
+        // WHEN discovery opens for the turn
+        let tracker = agent.begin_discovery("sess-1");
+
+        // THEN the tracked phase is Discovery and the desktop is notified
+        assert_eq!(tracker.phase, PlanPhase::Discovery);
+        match rx.try_recv() {
+            Ok(RuntimeEvent::ChatPlanPhaseChanged { session_id, phase }) => {
+                assert_eq!(session_id, "sess-1");
+                assert_eq!(phase, "discovery");
+            }
+            other => panic!("expected ChatPlanPhaseChanged(discovery), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_first_plan_propose_transitions_discovery_to_drafting() {
+        // GIVEN an agent in the discovery phase
+        let (bus, mut rx) = tokio::sync::broadcast::channel(64);
+        let agent = plan_agent_with_bus(bus, true);
+        let mut tracker = agent.begin_discovery("sess-1");
+        let _ = rx.try_recv(); // drain the discovery event
+
+        // WHEN the model issues a plan_propose call
+        agent.advance_plan_phase(&mut tracker, &[plan_propose_record()], "sess-1");
+
+        // THEN the phase advances to Drafting and the change is surfaced
+        assert_eq!(tracker.phase, PlanPhase::Drafting);
+        match rx.try_recv() {
+            Ok(RuntimeEvent::ChatPlanPhaseChanged { phase, .. }) => assert_eq!(phase, "drafting"),
+            other => panic!("expected ChatPlanPhaseChanged(drafting), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cancelled_discovery_returns_safe_phase() {
+        // GIVEN an agent in the discovery phase with a pending question
+        let (bus, mut rx) = tokio::sync::broadcast::channel(64);
+        let agent = plan_agent_with_bus(bus, true);
+        let mut tracker = agent.begin_discovery("sess-1");
+        let _ = rx.try_recv(); // drain the discovery event
+
+        // WHEN the user cancels (a fully skipped ask_user answer)
+        agent.advance_plan_phase(&mut tracker, &[ask_user_record(true)], "sess-1");
+
+        // THEN the phase returns to the safe Done state, no infinite discovery
+        assert_eq!(tracker.phase, PlanPhase::Done);
+        match rx.try_recv() {
+            Ok(RuntimeEvent::ChatPlanPhaseChanged { phase, .. }) => assert_eq!(phase, "done"),
+            other => panic!("expected ChatPlanPhaseChanged(done), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_answered_discovery_question_stays_in_discovery() {
+        // GIVEN an agent in the discovery phase
+        let (bus, _rx) = tokio::sync::broadcast::channel(64);
+        let agent = plan_agent_with_bus(bus, true);
+        let mut tracker = agent.begin_discovery("sess-1");
+
+        // WHEN the user answers (a non-skipped ask_user round-trip), no plan yet
+        agent.advance_plan_phase(&mut tracker, &[ask_user_record(false)], "sess-1");
+
+        // THEN discovery continues: the answer feeds the same turn, no transition
+        assert_eq!(tracker.phase, PlanPhase::Discovery);
     }
 
     #[tokio::test]

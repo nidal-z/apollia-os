@@ -1352,6 +1352,23 @@ pub enum RuntimeEvent {
         reason: Option<String>,
     },
 
+    /// The plan-mode lifecycle phase of a session changed.
+    ///
+    /// Emitted by the chat ReAct loop as a turn moves through the conversational
+    /// gate: into discovery on a substantive plan-mode turn, into drafting on the
+    /// first plan mutation, and back to a safe state when discovery is cancelled.
+    /// Carries the phase as a stable lowercase string (the runtime `PlanPhase`
+    /// type is not visible from this crate). Distinct from the plan-content
+    /// [`RuntimeEvent::PlanUpdated`] event: a phase can change before any plan
+    /// exists (discovery precedes drafting), so the desktop tracks it separately.
+    ChatPlanPhaseChanged {
+        /// Chat session whose plan phase changed.
+        session_id: String,
+        /// New phase: `"discovery"`, `"drafting"`, `"awaiting_approval"`,
+        /// `"executing"`, or `"done"`.
+        phase: String,
+    },
+
     // ── Hook decision events ─────────────────────
     /// A blocking `PreToolUse` hook resolved a decision for a tool call.
     ///

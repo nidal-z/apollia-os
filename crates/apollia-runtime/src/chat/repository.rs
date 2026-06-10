@@ -493,6 +493,31 @@ impl ChatSessionRepository {
         Ok(())
     }
 
+    /// Update only the plan phase of a session.
+    ///
+    /// Used by the chat loop to persist the plan-mode lifecycle phase
+    /// (discovery, drafting, ...) without touching the `plan_mode` flag, so a
+    /// restart resumes the session in the phase it left off.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when no row matches `id`.
+    /// - [`ChatError::InternalError`] on a SQLite failure.
+    pub fn set_plan_phase(&self, id: &str, plan_phase: PlanPhase) -> Result<(), ChatError> {
+        let updated = self
+            .conn
+            .execute(
+                "UPDATE chat_sessions SET plan_phase = ?1 WHERE id = ?2",
+                params![plan_phase.as_sql(), id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("set_plan_phase: {e}")))?;
+
+        if updated == 0 {
+            return Err(ChatError::SessionNotFound(id.to_string()));
+        }
+        Ok(())
+    }
+
     /// Retrieve a session by ID, or `None` if not found.
     pub fn get_session(&self, id: &str) -> Result<Option<SessionRow>, ChatError> {
         let mut stmt = self
