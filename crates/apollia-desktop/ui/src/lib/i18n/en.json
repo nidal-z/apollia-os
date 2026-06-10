@@ -1167,7 +1167,21 @@
     "submit_revised_plan": "Submit revised plan",
     "cancel_edit": "Cancel",
     "remove_step": "Remove step",
-    "edit_step_label_placeholder": "Step label"
+    "edit_step_label_placeholder": "Step label",
+    "history_title": "Construction history",
+    "history_show": "Show history",
+    "history_hide": "Hide history",
+    "history_empty": "Single revision: nothing to replay.",
+    "history_loading": "Loading history…",
+    "history_error": "The plan history could not be loaded.",
+    "history_step_back": "Previous revision",
+    "history_step_forward": "Next revision",
+    "history_play": "Replay",
+    "history_pause": "Pause",
+    "history_scrubber_label": "Plan revision",
+    "history_revision_position": "Revision {current} / {total}",
+    "history_reason_label": "Reason",
+    "history_corrupt_marker": "{count} skipped mutation(s) (corrupt)"
   },
   "plan_session": {
     "tab_journal": "Journal",

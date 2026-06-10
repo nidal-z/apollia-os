@@ -1,4 +1,5 @@
-// Typed contract for the unified plan (mirrors `apollia_core::plan`).
+// Typed contract for the unified plan (mirrors `apollia_core::plan`), plus the
+// read-only IPC wrapper for the plan mutation history.
 //
 // The conversational plan path (chat-native, category "plan-mode") streams the
 // plan onto the session-scoped store in `$lib/stores/chatPlanMode`. That store
@@ -12,6 +13,8 @@
 //     not ISO-8601 strings.
 //   - `description` is a plain string on the wire; we keep it non-null and
 //     tolerate an empty string for steps that carry no detail.
+
+import { invoke } from "@tauri-apps/api/core";
 
 /** Scope of a plan: a chat session or an ORIA task. */
 export type PlanScope =
@@ -127,3 +130,18 @@ export interface RuntimeEventEnvelope {
 
 /** Category of the chat-native plan stream on the `runtime-event` channel. */
 export const PLAN_MODE_CATEGORY = "plan-mode";
+
+/**
+ * Returns the ordered plan mutation history for `sessionId`.
+ *
+ * Mutations come back in insertion order (oldest first), including removal
+ * tombstones, so the history scrubber can replay the plan construction revision
+ * by revision. A known session with no recorded mutations resolves to an empty
+ * array; the IPC rejects when the chat subsystem is unavailable or the session
+ * does not exist.
+ */
+export async function getPlanMutations(
+  sessionId: string,
+): Promise<PlanMutation[]> {
+  return invoke<PlanMutation[]>("list_plan_mutations", { sessionId });
+}

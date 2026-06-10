@@ -1167,7 +1167,21 @@
     "submit_revised_plan": "Soumettre le plan révisé",
     "cancel_edit": "Annuler",
     "remove_step": "Retirer l'étape",
-    "edit_step_label_placeholder": "Label de l'étape"
+    "edit_step_label_placeholder": "Label de l'étape",
+    "history_title": "Historique de construction",
+    "history_show": "Afficher l'historique",
+    "history_hide": "Masquer l'historique",
+    "history_empty": "Une seule révision : rien à rejouer.",
+    "history_loading": "Chargement de l'historique…",
+    "history_error": "L'historique du plan n'a pas pu être chargé.",
+    "history_step_back": "Révision précédente",
+    "history_step_forward": "Révision suivante",
+    "history_play": "Rejouer",
+    "history_pause": "Pause",
+    "history_scrubber_label": "Révision du plan",
+    "history_revision_position": "Révision {current} / {total}",
+    "history_reason_label": "Raison",
+    "history_corrupt_marker": "{count} mutation(s) ignorée(s) (corrompue(s))"
   },
   "plan_session": {
     "tab_journal": "Journal",

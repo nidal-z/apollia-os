@@ -24,9 +24,11 @@
     resetChatPlan,
   } from "$lib/stores/chatPlanMode";
   import { layoutPlan, type PlanDagNode } from "./planDagLayout";
-  import type { SessionPlanStep } from "$lib/stores/chatPlanMode";
+  import type { SessionPlan, SessionPlanStep } from "$lib/stores/chatPlanMode";
+  import type { PlanStep } from "$lib/ipc/plan";
   import PlanStepNode from "./PlanStepNode.svelte";
   import PlanStepDrawer from "./PlanStepDrawer.svelte";
+  import PlanHistoryScrubber from "./PlanHistoryScrubber.svelte";
 
   interface Props {
     sessionId: string;
@@ -35,7 +37,29 @@
 
   const nodeTypes: NodeTypes = { planStep: PlanStepNode };
 
-  const plan = $derived($chatPlanState.plan);
+  const livePlan = $derived($chatPlanState.plan);
+
+  // When the history scrubber is active it supplies the reconstructed steps at
+  // the selected revision; the DAG then renders that past state instead of the
+  // live plan. `null` means the scrubber is inactive and the live plan rules.
+  let historySteps = $state<SessionPlanStep[] | null>(null);
+
+  function onHistoryReconstruct(steps: PlanStep[] | null): void {
+    historySteps = steps;
+  }
+
+  const plan = $derived<SessionPlan | null>(
+    historySteps !== null
+      ? livePlan
+        ? { ...livePlan, steps: historySteps }
+        : {
+            plan_id: "history",
+            revision: 0,
+            status: "draft",
+            steps: historySteps,
+          }
+      : livePlan,
+  );
   const hasPlan = $derived(plan !== null && plan.steps.length > 0);
 
   let drawerOpen = $state(false);
@@ -59,19 +83,25 @@
 
   $effect(() => {
     if (plan && plan.steps.length > 0) {
+      // In history mode the reconstructed snapshot already holds the full set
+      // at that revision, so replay-removal tombstones (a live-delta concept)
+      // are suppressed to avoid showing stale ghosts on a past state.
       const liveIds = new Set(plan.steps.map((s) => s.step_id));
-      const removed = previousSteps.filter((s) => !liveIds.has(s.step_id));
+      const removed =
+        historySteps !== null
+          ? []
+          : previousSteps.filter((s) => !liveIds.has(s.step_id));
       const next = layoutPlan(plan, removed);
       for (const node of next.nodes) {
         node.data.onSelect = openStep;
       }
       nodes = next.nodes;
       edges = next.edges;
-      previousSteps = plan.steps;
+      if (historySteps === null) previousSteps = plan.steps;
     } else {
       nodes = [];
       edges = [];
-      previousSteps = [];
+      if (historySteps === null) previousSteps = [];
     }
   });
 
@@ -98,31 +128,35 @@
   });
 </script>
 
-{#if hasPlan}
-  <div class="h-full w-full" data-testid="plan-dag-canvas">
-    <SvelteFlow
-      bind:nodes
-      bind:edges
-      {nodeTypes}
-      colorMode={$themeMode}
-      fitView
-      nodesDraggable={false}
-      nodesConnectable={false}
-      elementsSelectable
-      onnodeclick={onNodeClick}
+<div class="flex h-full w-full flex-col">
+  {#if hasPlan}
+    <div class="min-h-0 flex-1" data-testid="plan-dag-canvas">
+      <SvelteFlow
+        bind:nodes
+        bind:edges
+        {nodeTypes}
+        colorMode={$themeMode}
+        fitView
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable
+        onnodeclick={onNodeClick}
+      >
+        <Background />
+        <Controls showLock={false} />
+      </SvelteFlow>
+    </div>
+  {:else}
+    <div
+      class="flex min-h-0 flex-1 items-center justify-center rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-[11px] text-muted-foreground"
+      data-testid="plan-dag-empty"
     >
-      <Background />
-      <Controls showLock={false} />
-    </SvelteFlow>
-  </div>
-{:else}
-  <div
-    class="flex h-full items-center justify-center rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-[11px] text-muted-foreground"
-    data-testid="plan-dag-empty"
-  >
-    {$t("plan_session.empty")}
-  </div>
-{/if}
+      {$t("plan_session.empty")}
+    </div>
+  {/if}
+
+  <PlanHistoryScrubber {sessionId} onreconstruct={onHistoryReconstruct} />
+</div>
 
 <PlanStepDrawer
   open={drawerOpen}
