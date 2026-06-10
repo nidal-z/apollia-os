@@ -11,6 +11,7 @@
 //! a tombstone in the mutation history, keyed alongside the `RemoveStep`
 //! mutation, so replay and audit can reconstruct the full lineage.
 
+use apollia_core::RuntimeEvent;
 use apollia_core::plan::{
     Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep, PlanValidationError,
     StepStatus, validate_plan,
@@ -18,6 +19,8 @@ use apollia_core::plan::{
 use rusqlite::{Connection, params};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{Level, event, warn};
+
+use crate::eventbus::EventBusSender;
 
 /// Bounded capacity of the plan actor's command channel.
 ///
@@ -418,6 +421,9 @@ impl PlanHandle {
 /// Created via [`spawn_plan_actor`]; never constructed directly by callers.
 pub struct PlanActor {
     conn: Connection,
+    /// Optional event bus for emitting plan-mode events after a successful
+    /// write. `None` in tests that do not assert on events.
+    event_bus: Option<EventBusSender>,
 }
 
 impl PlanActor {
@@ -425,6 +431,30 @@ impl PlanActor {
     fn migrate(conn: &Connection) -> Result<(), PlanStoreError> {
         conn.execute_batch(PLAN_MIGRATION_SQL)?;
         Ok(())
+    }
+
+    /// Emit a [`RuntimeEvent::PlanUpdated`] for a successful mutation.
+    ///
+    /// Fire-and-forget: a saturated or closed bus is silently ignored, exactly
+    /// like the todo actor. Never called on a no-op or a rejected validation.
+    fn emit_updated(&self, session_id: &str, plan: &Plan, mutation: &PlanMutation) {
+        if let Some(bus) = &self.event_bus {
+            let _ = bus.send(RuntimeEvent::PlanUpdated {
+                session_id: session_id.to_string(),
+                plan: Box::new(plan.clone()),
+                mutation: Box::new(mutation.clone()),
+            });
+        }
+    }
+
+    /// Emit a [`RuntimeEvent::PlanSubmitted`] for a successful submission.
+    fn emit_submitted(&self, session_id: &str, plan: &Plan) {
+        if let Some(bus) = &self.event_bus {
+            let _ = bus.send(RuntimeEvent::PlanSubmitted {
+                session_id: session_id.to_string(),
+                plan: Box::new(plan.clone()),
+            });
+        }
     }
 
     /// Replace the draft plan of a session with a fresh, validated step list.
@@ -473,10 +503,13 @@ impl PlanActor {
             steps = steps.len(),
             "plan.action"
         );
-        self.load_plan(session_id)?
+        let plan = self
+            .load_plan(session_id)?
             .ok_or_else(|| PlanStoreError::NoPlan {
                 session_id: session_id.to_string(),
-            })
+            })?;
+        self.emit_updated(session_id, &plan, &mutation);
+        Ok(plan)
     }
 
     /// Apply one mutation: compute the resulting plan in memory, validate it,
@@ -508,10 +541,13 @@ impl PlanActor {
             kind = ?mutation.kind,
             "plan.action"
         );
-        self.load_plan(session_id)?
+        let plan = self
+            .load_plan(session_id)?
             .ok_or_else(|| PlanStoreError::NoPlan {
                 session_id: session_id.to_string(),
-            })
+            })?;
+        self.emit_updated(session_id, &plan, &mutation);
+        Ok(plan)
     }
 
     /// Submit the plan for approval, recording a `Submit` mutation.
@@ -546,10 +582,14 @@ impl PlanActor {
             kind = "submit",
             "plan.action"
         );
-        self.load_plan(session_id)?
+        let plan = self
+            .load_plan(session_id)?
             .ok_or_else(|| PlanStoreError::NoPlan {
                 session_id: session_id.to_string(),
-            })
+            })?;
+        self.emit_updated(session_id, &plan, &mutation);
+        self.emit_submitted(session_id, &plan);
+        Ok(plan)
     }
 
     /// Returns `true` when a plan row exists for the session.
@@ -676,13 +716,20 @@ impl PlanActor {
 /// schema failure surfaces at startup (principle: fail fast) instead of on the
 /// first write.
 ///
+/// `event_bus` receives a [`RuntimeEvent::PlanUpdated`] after every successful
+/// mutation and a [`RuntimeEvent::PlanSubmitted`] on submit; pass `None` to
+/// disable event emission.
+///
 /// # Errors
 ///
 /// - [`PlanStoreError::Sqlite`] when the plan migration cannot be applied.
-pub fn spawn_plan_actor(conn: Connection) -> Result<PlanHandle, PlanStoreError> {
+pub fn spawn_plan_actor(
+    conn: Connection,
+    event_bus: Option<EventBusSender>,
+) -> Result<PlanHandle, PlanStoreError> {
     PlanActor::migrate(&conn)?;
     let (tx, rx) = mpsc::channel(PLAN_CHANNEL_CAPACITY);
-    let actor = PlanActor { conn };
+    let actor = PlanActor { conn, event_bus };
     tokio::spawn(actor.run(rx));
     Ok(PlanHandle { tx })
 }
@@ -870,7 +917,20 @@ mod tests {
     use apollia_core::plan::StepProvenance;
 
     fn handle() -> PlanHandle {
-        spawn_plan_actor(Connection::open_in_memory().expect("open in-memory db")).expect("spawn")
+        spawn_plan_actor(Connection::open_in_memory().expect("open in-memory db"), None)
+            .expect("spawn")
+    }
+
+    /// Spawn a plan actor wired to a fresh broadcast bus, returning the handle
+    /// and a receiver so a test can assert on emitted events.
+    fn handle_with_bus() -> (PlanHandle, tokio::sync::broadcast::Receiver<RuntimeEvent>) {
+        let (bus, rx) = tokio::sync::broadcast::channel(16);
+        let h = spawn_plan_actor(
+            Connection::open_in_memory().expect("open in-memory db"),
+            Some(bus),
+        )
+        .expect("spawn");
+        (h, rx)
     }
 
     fn step(id: &str, deps: &[&str]) -> PlanStep {
@@ -1097,6 +1157,112 @@ mod tests {
             muts.iter()
                 .any(|m| matches!(m.kind, PlanMutationKind::Submit))
         );
+    }
+
+    #[tokio::test]
+    async fn test_propose_emits_plan_updated_with_plan_and_mutation() {
+        // GIVEN a plan actor wired to a broadcast bus
+        let (h, mut rx) = handle_with_bus();
+
+        // WHEN a valid plan is proposed
+        h.propose("s1", vec![step("a", &[])], Some("draft".into()))
+            .await
+            .expect("propose");
+
+        // THEN a PlanUpdated event carries the session, the plan and the mutation
+        let event = rx.recv().await.expect("event emitted");
+        match event {
+            RuntimeEvent::PlanUpdated {
+                session_id,
+                plan,
+                mutation,
+            } => {
+                assert_eq!(session_id, "s1");
+                assert_eq!(plan.steps.len(), 1);
+                assert_eq!(mutation.kind, PlanMutationKind::Propose);
+            }
+            other => panic!("expected PlanUpdated, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_mutation_emits_plan_updated_carrying_the_mutation() {
+        // GIVEN a proposed plan whose initial PlanUpdated has been drained
+        let (h, mut rx) = handle_with_bus();
+        h.propose("s1", vec![step("a", &[])], None)
+            .await
+            .expect("propose");
+        let _ = rx.recv().await.expect("drain propose");
+
+        // WHEN a step is added
+        h.add_step("s1", step("b", &[]), Some("more work".into()))
+            .await
+            .expect("add");
+
+        // THEN a PlanUpdated carries the AddStep mutation and the two-step plan
+        let event = rx.recv().await.expect("event emitted");
+        match event {
+            RuntimeEvent::PlanUpdated {
+                plan, mutation, ..
+            } => {
+                assert_eq!(plan.steps.len(), 2);
+                assert_eq!(mutation.kind, PlanMutationKind::AddStep);
+            }
+            other => panic!("expected PlanUpdated, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_submit_emits_plan_updated_then_plan_submitted() {
+        // GIVEN a proposed plan with its propose PlanUpdated drained
+        let (h, mut rx) = handle_with_bus();
+        h.propose("s1", vec![step("a", &[])], None)
+            .await
+            .expect("propose");
+        let _ = rx.recv().await.expect("drain propose");
+
+        // WHEN the plan is submitted
+        h.submit("s1").await.expect("submit");
+
+        // THEN PlanUpdated (Submit mutation) is emitted, then PlanSubmitted
+        let first = rx.recv().await.expect("event 1");
+        assert!(matches!(
+            first,
+            RuntimeEvent::PlanUpdated { mutation, .. } if mutation.kind == PlanMutationKind::Submit
+        ));
+        let second = rx.recv().await.expect("event 2");
+        assert!(matches!(
+            second,
+            RuntimeEvent::PlanSubmitted { session_id, plan }
+                if session_id == "s1" && plan.status == PlanStatus::AwaitingApproval
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_no_event_on_validation_reject() {
+        // GIVEN a proposed plan with its PlanUpdated drained
+        let (h, mut rx) = handle_with_bus();
+        h.propose("s1", vec![step("a", &[])], None)
+            .await
+            .expect("propose");
+        let _ = rx.recv().await.expect("drain propose");
+
+        // WHEN a mutation that fails validation is attempted (unknown dependency)
+        let result = h
+            .modify_step("s1", "a", step("a", &["ghost"]), Some("oops".into()))
+            .await;
+        assert!(matches!(
+            result,
+            Err(PlanStoreError::Validation(
+                PlanValidationError::UnknownDependency { .. }
+            ))
+        ));
+
+        // THEN no event is emitted for the rejected write
+        assert!(matches!(
+            rx.try_recv(),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+        ));
     }
 
     #[tokio::test]

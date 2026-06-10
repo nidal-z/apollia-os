@@ -447,7 +447,7 @@ mod tests {
     use rusqlite::Connection;
 
     fn handle() -> PlanHandle {
-        spawn_plan_actor(Connection::open_in_memory().expect("open")).expect("spawn")
+        spawn_plan_actor(Connection::open_in_memory().expect("open"), None).expect("spawn")
     }
 
     fn step_json(id: &str) -> serde_json::Value {

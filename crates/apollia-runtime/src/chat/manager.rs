@@ -3402,7 +3402,7 @@ impl ChatSessionManagerHandle {
         let plan_conn = rusqlite::Connection::open(db_path)
             .map_err(|e| ChatError::InternalError(format!("failed to open plan db: {e}")))?;
         let plan_handle = Some(
-            spawn_plan_actor(plan_conn)
+            spawn_plan_actor(plan_conn, Some(event_bus.clone()))
                 .map_err(|e| ChatError::InternalError(format!("plan migration failed: {e}")))?,
         );
 

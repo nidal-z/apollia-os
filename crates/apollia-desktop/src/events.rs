@@ -346,6 +346,12 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::PlanRejected { .. }
         | RuntimeEvent::PlanAbandoned { .. } => "plan-approval",
 
+        // ── Conversational plan-mode (session-keyed) ─────────────────────
+        RuntimeEvent::PlanUpdated { .. }
+        | RuntimeEvent::PlanSubmitted { .. }
+        | RuntimeEvent::ChatPlanApproved { .. }
+        | RuntimeEvent::ChatPlanRejected { .. } => "plan-mode",
+
         // ── Plan / orchestration steps ───────────────────────────────────
         RuntimeEvent::PlanGenerated { .. }
         | RuntimeEvent::StepStarted { .. }
@@ -484,6 +490,29 @@ fn extract_variant_name(event: &RuntimeEvent) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A minimal session-scoped plan (boxed to match the [`RuntimeEvent`] shape).
+    fn plan_mode_test_plan() -> Box<apollia_core::plan::Plan> {
+        Box::new(apollia_core::plan::Plan {
+            plan_id: "p-1".into(),
+            scope: apollia_core::plan::PlanScope::Session("s".into()),
+            revision: 0,
+            status: apollia_core::plan::PlanStatus::Draft,
+            steps: vec![apollia_core::plan::PlanStep::new("s1", "do the thing")],
+        })
+    }
+
+    /// A minimal Propose mutation (boxed to match the [`RuntimeEvent`] shape).
+    fn plan_mode_test_mutation() -> Box<apollia_core::plan::PlanMutation> {
+        Box::new(apollia_core::plan::PlanMutation {
+            kind: apollia_core::plan::PlanMutationKind::Propose,
+            step_id: None,
+            reason: None,
+            before: None,
+            after: None,
+            at: 0,
+        })
+    }
 
     #[test]
     fn test_map_runtime_event_agent_category() {
@@ -912,6 +941,22 @@ mod tests {
                 decision: "deny".into(),
                 rewritten_args: None,
             },
+            RuntimeEvent::PlanUpdated {
+                session_id: "s".into(),
+                plan: plan_mode_test_plan(),
+                mutation: plan_mode_test_mutation(),
+            },
+            RuntimeEvent::PlanSubmitted {
+                session_id: "s".into(),
+                plan: plan_mode_test_plan(),
+            },
+            RuntimeEvent::ChatPlanApproved {
+                session_id: "s".into(),
+            },
+            RuntimeEvent::ChatPlanRejected {
+                session_id: "s".into(),
+                reason: None,
+            },
         ];
 
         let valid_categories = [
@@ -926,6 +971,7 @@ mod tests {
             "onboarding-required",
             "stt-changed",
             "hook-decision",
+            "plan-mode",
             "system",
         ];
 
@@ -1126,6 +1172,68 @@ mod tests {
                 event
             );
         }
+    }
+
+    #[test]
+    fn test_plan_updated_categorized_as_plan_mode() {
+        // GIVEN a session-keyed PlanUpdated carrying a plan and its mutation
+        let event = RuntimeEvent::PlanUpdated {
+            session_id: "s-1".into(),
+            plan: plan_mode_test_plan(),
+            mutation: plan_mode_test_mutation(),
+        };
+        // WHEN categorized
+        let mapped = map_runtime_event(&event);
+        // THEN it lands in the plan-mode category
+        assert_eq!(mapped.category, "plan-mode");
+        assert_eq!(mapped.event_type, "PlanUpdated");
+    }
+
+    #[test]
+    fn test_all_four_plan_mode_events_map_to_plan_mode() {
+        // GIVEN the four session-keyed plan-mode variants
+        let events = vec![
+            RuntimeEvent::PlanUpdated {
+                session_id: "s-1".into(),
+                plan: plan_mode_test_plan(),
+                mutation: plan_mode_test_mutation(),
+            },
+            RuntimeEvent::PlanSubmitted {
+                session_id: "s-1".into(),
+                plan: plan_mode_test_plan(),
+            },
+            RuntimeEvent::ChatPlanApproved {
+                session_id: "s-1".into(),
+            },
+            RuntimeEvent::ChatPlanRejected {
+                session_id: "s-1".into(),
+                reason: Some("too risky".into()),
+            },
+        ];
+        // WHEN / THEN every variant maps to "plan-mode"
+        for event in &events {
+            assert_eq!(
+                categorize(event),
+                "plan-mode",
+                "expected plan-mode for {event:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_plan_mode_event_for_closed_session_still_categorized() {
+        // GIVEN a PlanUpdated for a session id no longer open on the frontend
+        let event = RuntimeEvent::PlanUpdated {
+            session_id: "ghost-session".into(),
+            plan: plan_mode_test_plan(),
+            mutation: plan_mode_test_mutation(),
+        };
+        // WHEN the desktop bridge categorizes it
+        let mapped = map_runtime_event(&event);
+        // THEN it is classed plan-mode without panic and carries a payload
+        // (dropping it is the frontend consumer's responsibility)
+        assert_eq!(mapped.category, "plan-mode");
+        assert!(!mapped.payload.is_null());
     }
 
     #[test]

@@ -5730,6 +5730,7 @@ mod tests {
     fn plan_handle_for_test() -> crate::chat::plan_actor::PlanHandle {
         crate::chat::plan_actor::spawn_plan_actor(
             rusqlite::Connection::open_in_memory().expect("open"),
+            None,
         )
         .expect("spawn")
     }

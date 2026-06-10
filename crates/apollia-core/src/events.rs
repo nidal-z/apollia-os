@@ -1300,6 +1300,58 @@ pub enum RuntimeEvent {
         items: Vec<crate::todo::TodoItem>,
     },
 
+    // ── Conversational plan-mode events ──────────
+    /// A session plan was mutated (proposed, edited, reordered, or a step status changed).
+    ///
+    /// Emitted by the per-session plan actor after every successful plan
+    /// mutation. Carries the full resulting plan plus the mutation that produced
+    /// it, so the desktop can render the new state without re-fetching. Distinct
+    /// from the run-keyed [`RuntimeEvent::PlanApproved`] / [`RuntimeEvent::PlanRejected`]
+    /// orchestration-gate events: these are session-keyed and chat-native.
+    PlanUpdated {
+        /// Chat session the plan belongs to.
+        session_id: String,
+        /// Full plan after the mutation.
+        ///
+        /// Boxed: a [`crate::plan::Plan`] with its steps is the largest payload
+        /// in this enum, so it is kept behind a pointer to keep every other
+        /// [`RuntimeEvent`] variant cheap to move. Serde (de)serializes a
+        /// `Box<T>` exactly like `T`, so the wire format is unchanged.
+        plan: Box<crate::plan::Plan>,
+        /// Mutation that produced this revision (boxed for the same reason).
+        mutation: Box<crate::plan::PlanMutation>,
+    },
+
+    /// A session plan was submitted for approval.
+    ///
+    /// Emitted when a submit mutation is applied, in addition to the
+    /// accompanying [`RuntimeEvent::PlanUpdated`]. Moves the conversational gate
+    /// to the awaiting-approval phase.
+    PlanSubmitted {
+        /// Chat session the plan belongs to.
+        session_id: String,
+        /// Full submitted plan (boxed like [`RuntimeEvent::PlanUpdated`]).
+        plan: Box<crate::plan::Plan>,
+    },
+
+    /// A submitted session plan was approved by the operator.
+    ///
+    /// Emitted by the chat-native approve path. The agent resumes execution.
+    ChatPlanApproved {
+        /// Chat session whose plan was approved.
+        session_id: String,
+    },
+
+    /// A submitted session plan was rejected by the operator.
+    ///
+    /// Emitted by the chat-native reject path. The agent revises the plan.
+    ChatPlanRejected {
+        /// Chat session whose plan was rejected.
+        session_id: String,
+        /// Optional reason supplied by the operator.
+        reason: Option<String>,
+    },
+
     // ── Hook decision events ─────────────────────
     /// A blocking `PreToolUse` hook resolved a decision for a tool call.
     ///
@@ -2394,6 +2446,91 @@ mod tests {
             assert_eq!(step_count, 3);
         } else {
             panic!("expected PlanGenerated variant");
+        }
+    }
+
+    // ── Conversational plan-mode events ────────────────────────────
+
+    fn sample_session_plan() -> crate::plan::Plan {
+        crate::plan::Plan {
+            plan_id: "p-session-1".into(),
+            scope: crate::plan::PlanScope::Session("sess-1".into()),
+            revision: 0,
+            status: crate::plan::PlanStatus::Draft,
+            steps: vec![crate::plan::PlanStep::new("s1", "do the thing")],
+        }
+    }
+
+    #[test]
+    fn test_plan_updated_round_trips() {
+        // GIVEN a session-keyed PlanUpdated carrying a plan and its mutation
+        let event = RuntimeEvent::PlanUpdated {
+            session_id: "sess-1".into(),
+            plan: Box::new(sample_session_plan()),
+            mutation: Box::new(crate::plan::PlanMutation {
+                kind: crate::plan::PlanMutationKind::Propose,
+                step_id: None,
+                reason: Some("first draft".into()),
+                before: None,
+                after: None,
+                at: 1_700_000_000,
+            }),
+        };
+        // WHEN serialized then deserialized
+        let json = serde_json::to_string(&event).expect("serialize");
+        let back: RuntimeEvent = serde_json::from_str(&json).expect("deserialize");
+        // THEN the session, plan and mutation survive the round trip
+        match back {
+            RuntimeEvent::PlanUpdated {
+                session_id,
+                plan,
+                mutation,
+            } => {
+                assert_eq!(session_id, "sess-1");
+                assert_eq!(plan.steps.len(), 1);
+                assert_eq!(mutation.kind, crate::plan::PlanMutationKind::Propose);
+            }
+            _ => panic!("expected PlanUpdated variant"),
+        }
+    }
+
+    #[test]
+    fn test_chat_plan_decisions_construct_and_clone() {
+        // GIVEN the submit, approve and reject session-keyed variants
+        let events = vec![
+            RuntimeEvent::PlanSubmitted {
+                session_id: "sess-1".into(),
+                plan: Box::new(sample_session_plan()),
+            },
+            RuntimeEvent::ChatPlanApproved {
+                session_id: "sess-1".into(),
+            },
+            RuntimeEvent::ChatPlanRejected {
+                session_id: "sess-1".into(),
+                reason: Some("too risky".into()),
+            },
+        ];
+        // WHEN each is cloned and serialized
+        // THEN every variant round-trips without error
+        for event in &events {
+            let json = serde_json::to_string(&event.clone()).expect("serialize");
+            let _back: RuntimeEvent = serde_json::from_str(&json).expect("deserialize");
+        }
+    }
+
+    #[test]
+    fn test_chat_plan_rejected_defaults_reason_to_none() {
+        // GIVEN a ChatPlanRejected JSON produced with no operator reason
+        let json = r#"{"ChatPlanRejected":{"session_id":"sess-1","reason":null}}"#;
+        // WHEN it is deserialized
+        let event: RuntimeEvent = serde_json::from_str(json).expect("deserialize");
+        // THEN reason is None and the session id is intact
+        match event {
+            RuntimeEvent::ChatPlanRejected { session_id, reason } => {
+                assert_eq!(session_id, "sess-1");
+                assert!(reason.is_none());
+            }
+            _ => panic!("expected ChatPlanRejected variant"),
         }
     }
 
