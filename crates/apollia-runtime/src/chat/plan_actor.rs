@@ -1504,6 +1504,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_mutations_returns_insertion_order() {
+        // GIVEN a session whose plan recorded a Propose then two AddStep mutations
+        let h = handle();
+        h.propose("s1", vec![step("a", &[])], None)
+            .await
+            .expect("propose");
+        h.add_step("s1", step("b", &[]), Some("add b".into()))
+            .await
+            .expect("add b");
+        h.add_step("s1", step("c", &[]), Some("add c".into()))
+            .await
+            .expect("add c");
+
+        // WHEN reading the mutation history
+        let muts = h.read_mutations("s1").await.expect("read mutations");
+
+        // THEN they come back oldest first: Propose, then AddStep b, then AddStep c
+        assert_eq!(muts.len(), 3);
+        assert_eq!(muts[0].kind, PlanMutationKind::Propose);
+        assert_eq!(muts[1].kind, PlanMutationKind::AddStep);
+        assert_eq!(muts[1].step_id.as_deref(), Some("b"));
+        assert_eq!(muts[2].kind, PlanMutationKind::AddStep);
+        assert_eq!(muts[2].step_id.as_deref(), Some("c"));
+    }
+
+    #[tokio::test]
+    async fn test_read_mutations_unknown_session_is_empty() {
+        // GIVEN a handle with no plan for session s9
+        let h = handle();
+
+        // WHEN reading the mutation history of the unknown session
+        let muts = h.read_mutations("s9").await.expect("read mutations");
+
+        // THEN the history is empty (graceful, no error, no panic)
+        assert!(muts.is_empty());
+    }
+
+    #[tokio::test]
     async fn test_get_plan_after_shutdown_is_actor_gone() {
         // GIVEN a handle whose actor has been told to stop
         let h = handle();

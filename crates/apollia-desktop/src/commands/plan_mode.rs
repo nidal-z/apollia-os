@@ -6,6 +6,7 @@
 //! reject) to the pending gate through
 //! [`apollia_runtime::plan_approval::PlanApprovalHandle`].
 
+use apollia_core::plan::PlanMutation;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_runtime::plan_approval::PlanApprovalHandle;
 use tauri::State;
@@ -149,6 +150,32 @@ pub async fn reject_plan(
         .ok_or_else(|| "chat subsystem not available".to_string())?;
     manager
         .reject_plan(&session_id, reason)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Returns the ordered plan mutation history recorded for `session_id`.
+///
+/// Mutations come back in insertion order (oldest first), including removal
+/// tombstones, so the desktop scrubber can replay the plan construction
+/// revision by revision. A known session with no recorded mutations yields an
+/// empty list.
+///
+/// # Errors
+///
+/// Returns `Err(String)` when the chat subsystem is unavailable, when the
+/// session does not exist, or when the plan history read fails.
+#[tauri::command]
+pub async fn list_plan_mutations(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+) -> Result<Vec<PlanMutation>, String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+    manager
+        .read_plan_mutations(session_id)
         .await
         .map_err(|e| e.to_string())
 }

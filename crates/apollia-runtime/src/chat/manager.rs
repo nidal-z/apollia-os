@@ -16,6 +16,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
+use apollia_core::plan::PlanMutation;
 use apollia_core::todo::TodoItem;
 use apollia_core::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RunId, RuntimeEvent, StepBudgetConfig,
@@ -904,6 +905,14 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Read the ordered plan mutation history for a session.
+    ReadPlanMutations {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel: `SessionNotFound` for an unknown session, an empty
+        /// list for a known session whose plan recorded no mutations.
+        reply: oneshot::Sender<Result<Vec<PlanMutation>, ChatError>>,
+    },
     /// Cooperatively pause the active ReAct turn for a session.
     PauseSession {
         /// Target session.
@@ -1361,6 +1370,18 @@ impl ChatSessionManager {
                     reply,
                 } => {
                     let result = self.handle_reject_plan(&session_id, reason);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::ReadPlanMutations { session_id, reply } => {
+                    // Resolve the handle synchronously so no SQLite borrow is held
+                    // across the await, then read through the owned handle clone.
+                    let result = match self.resolve_plan_handle(&session_id) {
+                        Ok(Some(plan)) => plan.read_mutations(&session_id).await.map_err(|e| {
+                            ChatError::InternalError(format!("plan history read failed: {e}"))
+                        }),
+                        Ok(None) => Ok(Vec::new()),
+                        Err(e) => Err(e),
+                    };
                     let _ = reply.send(result);
                 }
                 ChatCommand::PauseSession { session_id, reply } => {
@@ -2668,6 +2689,21 @@ impl ChatSessionManager {
             return Err(ChatError::SessionNotFound(session_id.to_string()));
         }
         Ok(self.todo_handle.clone())
+    }
+
+    /// Resolve the plan handle for a known session without holding a SQLite
+    /// borrow across an await.
+    ///
+    /// Returns [`ChatError::SessionNotFound`] for an unknown session and
+    /// `Ok(None)` when the runtime has no plan actor wired (no plan history is
+    /// available rather than an error).
+    fn resolve_plan_handle(&self, session_id: &str) -> Result<Option<PlanHandle>, ChatError> {
+        let known = self.sessions.contains_key(session_id)
+            || self.repository.get_session(session_id)?.is_some();
+        if !known {
+            return Err(ChatError::SessionNotFound(session_id.to_string()));
+        }
+        Ok(self.plan_handle.clone())
     }
 
     fn handle_get_session(&self, session_id: &str) -> Option<SessionDetail> {
@@ -4272,6 +4308,34 @@ impl ChatSessionManagerHandle {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ChatCommand::GetSessionTodo {
+                session_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("chat manager unavailable".into()))?;
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("chat manager unavailable".into()))?
+    }
+
+    /// Read the ordered plan mutation history for a session.
+    ///
+    /// Mutations come back in insertion order (oldest first), including removal
+    /// tombstones, so the desktop scrubber can replay the plan construction
+    /// revision by revision. A known session with no plan actor or no recorded
+    /// mutations yields an empty list.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when the session is unknown.
+    /// - [`ChatError::InternalError`] when the manager or plan actor is gone.
+    pub async fn read_plan_mutations(
+        &self,
+        session_id: SessionId,
+    ) -> Result<Vec<PlanMutation>, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ReadPlanMutations {
                 session_id,
                 reply: reply_tx,
             })
