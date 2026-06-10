@@ -7,14 +7,17 @@
 //! write. Callers interact through a clonable [`PlanHandle`]; there is no
 //! `Arc<Mutex>` shared across actors.
 //!
-//! A step removal never silently loses data: the `before` image is preserved as
-//! a tombstone in the mutation history, keyed alongside the `RemoveStep`
-//! mutation, so replay and audit can reconstruct the full lineage.
+//! A step removal never silently loses data: the removed step is preserved as a
+//! tombstone in the mutation history, keyed alongside the `RemoveStep` mutation,
+//! so replay and audit can reconstruct the full lineage. The default plan read
+//! ([`PlanHandle::get_plan`]) excludes tombstones to keep the active plan clean;
+//! the history read ([`PlanHandle::plan_with_tombstones`]) re-includes them with
+//! their removal provenance (origin, reason, timestamp).
 
 use apollia_core::RuntimeEvent;
 use apollia_core::plan::{
     Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep, PlanValidationError,
-    StepStatus, validate_plan,
+    StepOrigin, StepProvenance, StepStatus, validate_plan,
 };
 use rusqlite::{Connection, params};
 use tokio::sync::{mpsc, oneshot};
@@ -142,6 +145,13 @@ pub(crate) enum PlanMessage {
         /// Reply channel carrying the mutation history.
         reply: oneshot::Sender<Result<Vec<PlanMutation>, PlanStoreError>>,
     },
+    /// Return the plan including tombstoned (removed) steps, for history.
+    PlanWithTombstones {
+        /// Target session.
+        session_id: String,
+        /// Reply channel carrying the live steps plus tombstones, or `None`.
+        reply: oneshot::Sender<Result<Option<Plan>, PlanStoreError>>,
+    },
     /// Stop the actor loop.
     Shutdown,
 }
@@ -170,6 +180,9 @@ pub(crate) enum MutationOp {
         step_id: String,
         /// Documented reason for the removal.
         reason: Option<String>,
+        /// Origin of the removal (agent edit by default, replan when driven by
+        /// an automatic revision). Stamped on the tombstone provenance.
+        origin: StepOrigin,
     },
     /// Reorder the steps to match an explicit identifier order.
     Reorder {
@@ -286,7 +299,12 @@ impl PlanHandle {
         .await
     }
 
-    /// Removes a step, keeping its `before` image as a tombstone.
+    /// Removes a step, keeping it as a tombstone with the removal provenance.
+    ///
+    /// The removal is attributed to [`StepOrigin::AgentEdit`]. Use
+    /// [`PlanHandle::remove_step_with_origin`] for a replan-driven removal. The
+    /// removed step stays retrievable through
+    /// [`PlanHandle::plan_with_tombstones`]; [`PlanHandle::get_plan`] excludes it.
     ///
     /// # Errors
     ///
@@ -298,11 +316,33 @@ impl PlanHandle {
         step_id: &str,
         reason: Option<String>,
     ) -> Result<Plan, PlanStoreError> {
+        self.remove_step_with_origin(session_id, step_id, reason, StepOrigin::AgentEdit)
+            .await
+    }
+
+    /// Removes a step, stamping the tombstone with an explicit `origin`.
+    ///
+    /// A replan-driven removal passes [`StepOrigin::Replan`] so the tombstone
+    /// records the revision that dropped the step. Same code path as
+    /// [`PlanHandle::remove_step`]: no parallel removal route.
+    ///
+    /// # Errors
+    ///
+    /// [`PlanStoreError::UnknownStep`] when `step_id` is not in the plan, plus
+    /// the shared variants from [`PlanHandle::propose`].
+    pub async fn remove_step_with_origin(
+        &self,
+        session_id: &str,
+        step_id: &str,
+        reason: Option<String>,
+        origin: StepOrigin,
+    ) -> Result<Plan, PlanStoreError> {
         self.mutate(
             session_id,
             MutationOp::RemoveStep {
                 step_id: step_id.to_string(),
                 reason,
+                origin,
             },
         )
         .await
@@ -389,6 +429,33 @@ impl PlanHandle {
         let (reply, rx) = oneshot::channel();
         self.tx
             .send(PlanMessage::ReadMutations {
+                session_id: session_id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| PlanStoreError::ActorGone)?;
+        rx.await.map_err(|_| PlanStoreError::ActorGone)?
+    }
+
+    /// Returns the plan for `session_id` including tombstoned steps, or `None`.
+    ///
+    /// Unlike [`PlanHandle::get_plan`], the returned plan re-includes every
+    /// removed step as a tombstone carrying its removal provenance (origin,
+    /// reason, timestamp), so the construction history can replay a removal
+    /// without recomposing the step from the raw mutation log. Tombstones are
+    /// appended after the live steps, ordered by removal time (oldest first).
+    ///
+    /// # Errors
+    ///
+    /// - [`PlanStoreError::Sqlite`] / [`PlanStoreError::Serde`] on a read failure.
+    /// - [`PlanStoreError::ActorGone`] when the actor has stopped.
+    pub async fn plan_with_tombstones(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<Plan>, PlanStoreError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(PlanMessage::PlanWithTombstones {
                 session_id: session_id.to_string(),
                 reply,
             })
@@ -675,6 +742,29 @@ impl PlanActor {
         }))
     }
 
+    /// Load the plan including tombstoned steps, or `None` when none exists.
+    ///
+    /// The live plan is read from `session_plan_steps`; the tombstones are
+    /// reconstructed from the `before` image of every `RemoveStep` mutation,
+    /// which already carries the removal provenance. Tombstones are appended
+    /// after the live steps in removal order (the mutation log is oldest first).
+    fn load_plan_with_tombstones(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<Plan>, PlanStoreError> {
+        let Some(mut plan) = self.load_plan(session_id)? else {
+            return Ok(None);
+        };
+        for mutation in self.load_mutations(session_id)? {
+            if mutation.kind == PlanMutationKind::RemoveStep {
+                if let Some(tombstone) = mutation.before {
+                    plan.steps.push(tombstone);
+                }
+            }
+        }
+        Ok(Some(plan))
+    }
+
     /// Drive the actor until the channel closes or `Shutdown` is received.
     async fn run(mut self, mut rx: mpsc::Receiver<PlanMessage>) {
         while let Some(msg) = rx.recv().await {
@@ -702,6 +792,9 @@ impl PlanActor {
                 }
                 PlanMessage::ReadMutations { session_id, reply } => {
                     let _ = reply.send(self.load_mutations(&session_id));
+                }
+                PlanMessage::PlanWithTombstones { session_id, reply } => {
+                    let _ = reply.send(self.load_plan_with_tombstones(&session_id));
                 }
                 PlanMessage::Shutdown => break,
             }
@@ -774,14 +867,26 @@ fn build_mutation(
                 at,
             })
         }
-        MutationOp::RemoveStep { step_id, reason } => {
+        MutationOp::RemoveStep {
+            step_id,
+            reason,
+            origin,
+        } => {
             let pos = step_position(steps, &step_id)?;
-            let before = steps.remove(pos);
+            let mut tombstone = steps.remove(pos);
+            // Stamp the removal provenance on the tombstone so the history read
+            // surfaces the origin, reason and timestamp of the removal itself,
+            // not the provenance the step carried while it was live.
+            tombstone.provenance = StepProvenance {
+                origin,
+                reason: reason.clone(),
+                at,
+            };
             Ok(PlanMutation {
                 kind: PlanMutationKind::RemoveStep,
                 step_id: Some(step_id),
                 reason,
-                before: Some(before),
+                before: Some(tombstone),
                 after: None,
                 at,
             })
@@ -1021,6 +1126,108 @@ mod tests {
                     && m.before.as_ref().is_some_and(|b| b.step_id == "b")
                     && m.reason.as_deref() == Some("inutile"))
         );
+    }
+
+    #[tokio::test]
+    async fn test_remove_step_creates_tombstone_with_reason_and_timestamp() {
+        // GIVEN a two-step plan with an active step b
+        let h = handle();
+        h.propose("s1", vec![step("a", &[]), step("b", &[])], None)
+            .await
+            .expect("propose");
+
+        // WHEN b is removed with a reason
+        h.remove_step("s1", "b", Some("redondante avec a".into()))
+            .await
+            .expect("remove");
+
+        // THEN b survives as a tombstone carrying the reason and a non-zero timestamp
+        let plan = h
+            .plan_with_tombstones("s1")
+            .await
+            .expect("read")
+            .expect("plan");
+        let tombstone = plan
+            .steps
+            .iter()
+            .find(|s| s.step_id == "b")
+            .expect("b kept as tombstone");
+        assert_eq!(
+            tombstone.provenance.reason.as_deref(),
+            Some("redondante avec a")
+        );
+        assert!(tombstone.provenance.at > 0);
+    }
+
+    #[tokio::test]
+    async fn test_default_get_plan_excludes_tombstones() {
+        // GIVEN a plan where b was removed
+        let h = handle();
+        h.propose("s1", vec![step("a", &[]), step("b", &[])], None)
+            .await
+            .expect("propose");
+        h.remove_step("s1", "b", None).await.expect("remove");
+
+        // WHEN reading the active plan
+        let plan = h.get_plan("s1").await.expect("get").expect("plan");
+
+        // THEN b is absent and a remains
+        assert!(plan.steps.iter().all(|s| s.step_id != "b"));
+        assert!(plan.steps.iter().any(|s| s.step_id == "a"));
+    }
+
+    #[tokio::test]
+    async fn test_history_includes_tombstones_with_replan_origin() {
+        // GIVEN a plan where b was removed by a replan revision
+        let h = handle();
+        h.propose("s1", vec![step("a", &[]), step("b", &[])], None)
+            .await
+            .expect("propose");
+        h.remove_step_with_origin("s1", "b", Some("doublon".into()), StepOrigin::Replan(2))
+            .await
+            .expect("remove");
+
+        // WHEN reading the history view
+        let plan = h
+            .plan_with_tombstones("s1")
+            .await
+            .expect("read")
+            .expect("plan");
+
+        // THEN b is present with the replan origin and its removal reason
+        let tombstone = plan
+            .steps
+            .iter()
+            .find(|s| s.step_id == "b")
+            .expect("b kept as tombstone");
+        assert!(matches!(tombstone.provenance.origin, StepOrigin::Replan(2)));
+        assert_eq!(tombstone.provenance.reason.as_deref(), Some("doublon"));
+    }
+
+    #[tokio::test]
+    async fn test_remove_unknown_step_is_typed_error_without_tombstone() {
+        // GIVEN a plan without step s9
+        let h = handle();
+        h.propose("s1", vec![step("a", &[])], None)
+            .await
+            .expect("propose");
+        let before = load_mutations(&h, "s1").await.len();
+
+        // WHEN removing the unknown step s9
+        let err = h
+            .remove_step("s1", "s9", Some("oups".into()))
+            .await
+            .expect_err("should be an error");
+
+        // THEN it is a typed UnknownStep error, no tombstone and no mutation persisted
+        assert!(matches!(err, PlanStoreError::UnknownStep { ref step_id } if step_id == "s9"));
+        let plan = h
+            .plan_with_tombstones("s1")
+            .await
+            .expect("read")
+            .expect("plan");
+        assert!(plan.steps.iter().all(|s| s.step_id != "s9"));
+        assert_eq!(load_mutations(&h, "s1").await.len(), before);
     }
 
     #[tokio::test]
