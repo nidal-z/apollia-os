@@ -2,13 +2,17 @@
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import type { AuditTrailEntry } from "$lib/types";
+  import type { AuditRow } from "$lib/ipc/audit";
   import { getToolAuditTrail } from "$lib/ipc/audit";
+  import { mapAuditRow } from "$lib/ipc/auditPlanRow";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
-  import { Shield, CheckCircle2, XCircle, ChevronDown } from "lucide-svelte";
+  import { Shield } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
   import { FormField } from "$lib/components/ui/form-field";
   import AuditVerifyButton from "./AuditVerifyButton.svelte";
+  import PlanMutationRow from "./PlanMutationRow.svelte";
+  import ToolAuditRow from "./ToolAuditRow.svelte";
 
   interface Props {
     /**
@@ -23,7 +27,7 @@
 
   const PAGE_SIZE = 50;
 
-  let entries = $state<AuditTrailEntry[]>([]);
+  let rows = $state<AuditRow[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let expandedRows = $state<Set<string>>(new Set());
@@ -33,15 +37,26 @@
   let filterTool = $state<string>("all");
   let filterAgent = $state<string>("all");
 
-  let uniqueTools = $derived([...new Set(entries.map((e) => e.tool_name))].sort());
-  let uniqueAgents = $derived([...new Set(entries.map((e) => e.agent_name))].sort());
+  let toolEntries = $derived(
+    rows.filter((r) => r.type === "tool").map((r) => r.entry),
+  );
 
-  let filteredEntries = $derived(
-    entries.filter((e) => {
-      if (filterTool !== "all" && e.tool_name !== filterTool) return false;
-      if (filterAgent !== "all" && e.agent_name !== filterAgent) return false;
+  let uniqueTools = $derived([...new Set(toolEntries.map((e) => e.tool_name))].sort());
+  let uniqueAgents = $derived([...new Set(toolEntries.map((e) => e.agent_name))].sort());
+
+  // Tool rows honour the type/agent filters; plan-mutation rows are always
+  // shown in chronological position (the type filters do not apply to them).
+  let filteredRows = $derived(
+    rows.filter((r) => {
+      if (r.type !== "tool") return true;
+      if (filterTool !== "all" && r.entry.tool_name !== filterTool) return false;
+      if (filterAgent !== "all" && r.entry.agent_name !== filterAgent) return false;
       return true;
     }),
+  );
+
+  let filteredEntries = $derived(
+    filteredRows.filter((r) => r.type === "tool").map((r) => r.entry),
   );
 
   /** Status of an audit entry - derived from exit_code + stderr presence.
@@ -84,11 +99,6 @@
     expandedRows = next;
   }
 
-  function formatTimestamp(iso: string): string {
-    if (!iso) return "";
-    return new Date(iso).toLocaleString();
-  }
-
   function formatDuration(ms: number | null): string {
     if (ms === null || ms === undefined) return "-";
     if (ms < 1000) return `${ms}ms`;
@@ -98,7 +108,7 @@
   async function loadEntries(): Promise<void> {
     try {
       const result = await getToolAuditTrail(PAGE_SIZE);
-      entries = result;
+      rows = result.map(mapAuditRow);
       hasMore = result.length >= PAGE_SIZE;
       error = null;
     } catch (err: unknown) {
@@ -111,9 +121,9 @@
   async function loadMore(): Promise<void> {
     loadingMore = true;
     try {
-      const nextLimit = entries.length + PAGE_SIZE;
+      const nextLimit = rows.length + PAGE_SIZE;
       const result = await getToolAuditTrail(nextLimit);
-      entries = result;
+      rows = result.map(mapAuditRow);
       hasMore = result.length >= nextLimit;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
@@ -214,7 +224,7 @@
     </div>
 
     <!-- Table -->
-    {#if filteredEntries.length === 0}
+    {#if filteredRows.length === 0}
       <Card class="flex flex-col items-center justify-center py-16" data-testid="audit-trail-empty">
         <div class="rounded-full glass-inset p-4 mb-4">
           <Shield class="h-8 w-8 text-muted-foreground/60" />
@@ -265,90 +275,15 @@
               </tr>
             </thead>
             <tbody>
-              {#each filteredEntries as entry (entry.id)}
-                {@const status = entryStatus(entry)}
-                {@const isExpanded = expandedRows.has(entry.id)}
-                <tr
-                  class="cursor-pointer border-b border-border/30 last:border-0 transition-colors hover:bg-muted/40"
-                  class:bg-muted={isExpanded}
-                  onclick={() => toggleRow(entry.id)}
-                  data-testid="audit-row-{entry.id}"
-                >
-                  <td class="px-5 py-2.5 text-[11.5px] text-muted-foreground tabular-nums whitespace-nowrap">
-                    {formatTimestamp(entry.timestamp)}
-                  </td>
-                  <td class="px-3 py-2.5">
-                    <code class="font-mono text-[12px] text-foreground">{entry.tool_name}</code>
-                  </td>
-                  <td class="px-3 py-2.5 text-muted-foreground">{entry.agent_name}</td>
-                  <td class="px-3 py-2.5 text-right tabular-nums">{formatDuration(entry.duration_ms)}</td>
-                  <td class="px-3 py-2.5">
-                    {#if status === "ok"}
-                      <span class="inline-flex items-center gap-1.5 text-success">
-                        <CheckCircle2 class="h-3.5 w-3.5" />
-                        <span class="text-[11.5px] font-medium">{$t('observability.audit_status_ok')}</span>
-                      </span>
-                    {:else if status === "error"}
-                      <span class="inline-flex items-center gap-1.5 text-destructive">
-                        <XCircle class="h-3.5 w-3.5" />
-                        <span class="text-[11.5px] font-medium">{$t('observability.audit_status_error')}</span>
-                      </span>
-                    {:else}
-                      <span class="text-[11.5px] text-muted-foreground/60">
-                        {$t('observability.audit_status_unknown')}
-                      </span>
-                    {/if}
-                  </td>
-                  <td class="px-5 py-2.5 text-right">
-                    <ChevronDown
-                      class="h-3.5 w-3.5 text-muted-foreground/60 transition-transform inline-block"
-                      style={isExpanded ? "transform: rotate(180deg);" : ""}
-                    />
-                  </td>
-                </tr>
-
-                {#if isExpanded}
-                  <tr class="bg-muted/20">
-                    <td colspan="6" class="px-5 pb-4 pt-1">
-                      <div class="space-y-3 rounded-lg glass-inset border border-border/30 p-4">
-                        {#if entry.args_json}
-                          <div>
-                            <span class="section-meta text-[10px] tracking-[1.4px]">
-                              {$t('observability.table.arguments')}
-                            </span>
-                            <pre
-                              class="mt-1.5 overflow-x-auto rounded glass-surface p-3 text-[11.5px] font-mono leading-relaxed"
-                            >{entry.args_json}</pre>
-                          </div>
-                        {/if}
-                        {#if entry.stdout}
-                          <div>
-                            <span class="section-meta text-[10px] tracking-[1.4px]">
-                              stdout
-                            </span>
-                            <pre
-                              class="mt-1.5 overflow-x-auto rounded glass-surface p-3 text-[11.5px] font-mono leading-relaxed"
-                            >{entry.stdout}</pre>
-                          </div>
-                        {/if}
-                        {#if entry.stderr}
-                          <div>
-                            <span class="section-meta text-[10px] tracking-[1.4px] text-destructive">
-                              stderr
-                            </span>
-                            <pre
-                              class="mt-1.5 overflow-x-auto rounded glass-surface p-3 text-[11.5px] font-mono leading-relaxed text-destructive"
-                            >{entry.stderr}</pre>
-                          </div>
-                        {/if}
-                        {#if !entry.args_json && !entry.stdout && !entry.stderr}
-                          <p class="text-[12px] text-muted-foreground italic">
-                            {$t('observability.table.no_details')}
-                          </p>
-                        {/if}
-                      </div>
-                    </td>
-                  </tr>
+              {#each filteredRows as row (row.type === "tool" ? `tool:${row.entry.id}` : `plan:${row.entry.ordinal}`)}
+                {#if row.type === "plan_mutation"}
+                  <PlanMutationRow entry={row.entry} />
+                {:else}
+                  <ToolAuditRow
+                    entry={row.entry}
+                    expanded={expandedRows.has(row.entry.id)}
+                    ontoggle={toggleRow}
+                  />
                 {/if}
               {/each}
             </tbody>

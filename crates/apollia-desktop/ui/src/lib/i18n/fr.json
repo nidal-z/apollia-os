@@ -1915,6 +1915,32 @@
       "arguments": "Arguments",
       "no_details": "Aucune donnée détaillée disponible."
     },
+    "plan_mutation": {
+      "title": "Mutation de plan",
+      "reason": "Raison",
+      "before": "Avant",
+      "after": "Après",
+      "revision": "Révision {n}",
+      "kind": {
+        "propose": "Proposition",
+        "add_step": "Étape ajoutée",
+        "modify_step": "Étape modifiée",
+        "remove_step": "Étape supprimée",
+        "reorder": "Réordonnancement",
+        "status_change": "Changement de statut",
+        "submit": "Plan soumis",
+        "approve": "Plan approuvé",
+        "reject": "Plan rejeté"
+      },
+      "field": {
+        "title": "Titre",
+        "description": "Description",
+        "status": "Statut",
+        "depends_on": "Dépend de",
+        "tool_hint": "Outil",
+        "model_hint": "Modèle"
+      }
+    },
     "plan_cache": {
       "title": "Cache de plans",
       "purge_button": "Purger le cache",

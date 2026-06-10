@@ -1915,6 +1915,32 @@
       "arguments": "Arguments",
       "no_details": "No detailed data available."
     },
+    "plan_mutation": {
+      "title": "Plan mutation",
+      "reason": "Reason",
+      "before": "Before",
+      "after": "After",
+      "revision": "Revision {n}",
+      "kind": {
+        "propose": "Proposal",
+        "add_step": "Step added",
+        "modify_step": "Step modified",
+        "remove_step": "Step removed",
+        "reorder": "Reorder",
+        "status_change": "Status change",
+        "submit": "Plan submitted",
+        "approve": "Plan approved",
+        "reject": "Plan rejected"
+      },
+      "field": {
+        "title": "Title",
+        "description": "Description",
+        "status": "Status",
+        "depends_on": "Depends on",
+        "tool_hint": "Tool",
+        "model_hint": "Model"
+      }
+    },
     "plan_cache": {
       "title": "Plan cache",
       "purge_button": "Purge cache",

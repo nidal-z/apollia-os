@@ -21,6 +21,13 @@ export const OBSERVABILITY_KEYS = {
   hooksColTool: "observability.hooks_col_tool",
   hooksColDecision: "observability.hooks_col_decision",
   hooksColTimestamp: "observability.hooks_col_timestamp",
+  planMutation: {
+    title: "observability.plan_mutation.title",
+    reason: "observability.plan_mutation.reason",
+    before: "observability.plan_mutation.before",
+    after: "observability.plan_mutation.after",
+    revision: "observability.plan_mutation.revision",
+  },
   planCache: {
     title: "observability.plan_cache.title",
     purgeButton: "observability.plan_cache.purge_button",
