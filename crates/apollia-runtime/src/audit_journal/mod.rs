@@ -18,7 +18,7 @@ pub mod signer;
 pub mod subscriber;
 pub mod verify;
 
-pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind};
+pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind, PlanMutationSnapshot};
 pub use error::AuditJournalError;
 pub use handle::AuditJournalHandle;
 pub use hash::{compute_entry_hash, SENTINEL_PREV_HASH};

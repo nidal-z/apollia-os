@@ -129,7 +129,7 @@ impl AuditJournalSubscriber {
     /// Maps a `RuntimeEvent::PlanUpdated` to a `PlanMutation` journal draft,
     /// borrowing this actor's owned ordinal and session-run state.
     fn map_plan_updated(&mut self, event: &RuntimeEvent) -> Option<JournalEntryDraft> {
-        map_plan_updated(&mut self.session_runs, &mut self.ordinals, event)
+        map_plan_updated(&self.session_runs, &mut self.ordinals, event)
     }
 }
 

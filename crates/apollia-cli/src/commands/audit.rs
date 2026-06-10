@@ -40,8 +40,11 @@ pub enum AuditCommand {
     },
     /// Replay a captured run and detect divergences.
     ///
-    /// `run` accepts a full run_id or an unambiguous prefix of at least 8
-    /// characters. Exit 0 = identical, exit 2 = diverged, exit 1 = any error
+    /// Compares the replayed run against its captured trace across every
+    /// category: LLM responses, tool outputs, and plan construction. Divergences
+    /// are grouped by category in the human output and listed in the `--json`
+    /// payload. `run` accepts a full run_id or an unambiguous prefix of at least
+    /// 8 characters. Exit 0 = identical, exit 2 = diverged, exit 1 = any error
     /// (run not found, ambiguous prefix, incomplete trace, runtime unreachable).
     #[command(name = "replay")]
     Replay {
@@ -195,25 +198,59 @@ async fn run_replay(client: &RuntimeClient, run: &str, json: bool) -> i32 {
     }
 }
 
-/// Print the divergence table on stdout (TTY mode).
+/// Print the divergence table on stdout (TTY mode), grouped by category.
+///
+/// Plan-construction divergences (`kind = "plan_mutation"`) are reported under a
+/// dedicated section alongside the input categories (LLM, tools), so the operator
+/// sees at a glance whether the plan itself drifted.
 fn print_divergences(report: &serde_json::Value, run: &str) {
     let rid = report.get("run_id").and_then(|v| v.as_str()).unwrap_or(run);
     println!("replay: diverged  {}", short_uuid_prefix(rid));
-    if let Some(divergences) = report.get("divergences").and_then(|v| v.as_array()) {
-        for divergence in divergences {
-            let step = divergence
-                .get("step_ordinal")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
-            let kind = divergence
-                .get("kind")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let expected = divergence.get("expected").cloned().unwrap_or_default();
-            let actual = divergence.get("actual").cloned().unwrap_or_default();
-            println!("  step {step}  {kind}  expected={expected}  actual={actual}");
+    let Some(divergences) = report.get("divergences").and_then(|v| v.as_array()) else {
+        return;
+    };
+
+    let (plan, other) = group_divergences(divergences);
+
+    if !other.is_empty() {
+        println!("  inputs ({} divergence(s)):", other.len());
+        for divergence in &other {
+            print_divergence_line(divergence);
         }
     }
+    if !plan.is_empty() {
+        println!("  plan ({} divergence(s)):", plan.len());
+        for divergence in &plan {
+            print_divergence_line(divergence);
+        }
+    }
+}
+
+/// Partition divergences into `(plan, other)` by category.
+///
+/// `plan` holds the plan-construction divergences (`kind = "plan_mutation"`);
+/// `other` holds the input-replay divergences (LLM, tools).
+fn group_divergences(
+    divergences: &[serde_json::Value],
+) -> (Vec<&serde_json::Value>, Vec<&serde_json::Value>) {
+    divergences
+        .iter()
+        .partition(|d| d.get("kind").and_then(|v| v.as_str()) == Some("plan_mutation"))
+}
+
+/// Print one divergence row (step, kind, expected, actual).
+fn print_divergence_line(divergence: &serde_json::Value) {
+    let step = divergence
+        .get("step_ordinal")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let kind = divergence
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let expected = divergence.get("expected").cloned().unwrap_or_default();
+    let actual = divergence.get("actual").cloned().unwrap_or_default();
+    println!("    step {step}  {kind}  expected={expected}  actual={actual}");
 }
 
 /// Print a human-readable error line for a failed replay (TTY mode).
@@ -586,6 +623,63 @@ mod tests {
         let result = TestCli::try_parse_from(["x", "verify"]);
         // THEN it is a usage error
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn groups_plan_and_input_divergences() {
+        // GIVEN a divergence list with one plan_mutation and one ToolOutput
+        let divergences = vec![
+            serde_json::json!({
+                "step_ordinal": 0, "kind": "ToolOutput",
+                "expected": {"tool_name": "bash"}, "actual": {"tool_name": "python"},
+            }),
+            serde_json::json!({
+                "step_ordinal": 1, "kind": "plan_mutation",
+                "expected": {"kind": "modify_step"}, "actual": {"kind": "add_step"},
+            }),
+        ];
+
+        // WHEN grouping by category
+        let (plan, other) = group_divergences(&divergences);
+
+        // THEN the plan divergence is isolated from the input divergences
+        assert_eq!(plan.len(), 1);
+        assert_eq!(other.len(), 1);
+        assert_eq!(
+            plan[0].get("kind").and_then(|v| v.as_str()),
+            Some("plan_mutation")
+        );
+        assert_eq!(
+            other[0].get("kind").and_then(|v| v.as_str()),
+            Some("ToolOutput")
+        );
+    }
+
+    #[test]
+    fn print_divergences_includes_plan_section_without_panicking() {
+        // GIVEN a diverged report carrying a plan and an LLM divergence
+        let report = serde_json::json!({
+            "status": "diverged",
+            "run_id": "abc12345-run",
+            "divergences": [
+                {"step_ordinal": 0, "kind": "LlmCompletion",
+                 "expected": {"a": 1}, "actual": {"a": 2}},
+                {"step_ordinal": 2, "kind": "plan_mutation",
+                 "expected": {"kind": "submit"}, "actual": {"kind": "approve"}},
+            ],
+        });
+
+        // WHEN rendering the human output
+        // THEN both categories render without a panic and the plan section is present
+        print_divergences(&report, "abc12345-run");
+        let (plan, other) = group_divergences(
+            report
+                .get("divergences")
+                .and_then(|v| v.as_array())
+                .expect("array"),
+        );
+        assert_eq!(plan.len(), 1);
+        assert_eq!(other.len(), 1);
     }
 
     #[test]

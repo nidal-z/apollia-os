@@ -16,9 +16,9 @@ pub mod injectors;
 pub mod nondeterminism;
 
 pub use capture::{
-    ClockReplayCursor, ClockSample, LlmCompletionSnapshot, LlmReplayCursor, RandomReplayCursor,
-    RandomSample, ReplayBundle, ReplayCaptureError, ReplayCursor, ToolOutputSnapshot,
-    ToolReplayCursor,
+    ClockReplayCursor, ClockSample, LlmCompletionSnapshot, LlmReplayCursor,
+    PlanMutationReplayCursor, RandomReplayCursor, RandomSample, ReplayBundle, ReplayCaptureError,
+    ReplayCursor, ToolOutputSnapshot, ToolReplayCursor,
 };
 pub use harness::{ReplayDivergence, ReplayError, ReplayFailReason, ReplayHarness, ReplayReport};
 pub use injectors::{ReplayBackend, ReplayClock, ReplayRandom, ReplayToolInvoker};

@@ -14,7 +14,7 @@ use apollia_core::events::RunId;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::audit_journal::entry::{JournalEntry, JournalEntryKind};
+use crate::audit_journal::entry::{JournalEntry, JournalEntryKind, PlanMutationSnapshot};
 
 /// Captured LLM completion for deterministic replay.
 ///
@@ -182,6 +182,15 @@ impl CapturedEntry for RandomSample {
     }
 }
 
+impl CapturedEntry for PlanMutationSnapshot {
+    fn step_ordinal(&self) -> u32 {
+        self.ordinal
+    }
+    fn kind() -> JournalEntryKind {
+        JournalEntryKind::PlanMutation
+    }
+}
+
 /// Ordered sequence of one captured input type for a single run.
 ///
 /// Built from an immutable journal slice and advanced by the replay harness in
@@ -270,6 +279,20 @@ impl<T: CapturedEntry> ReplayCursor<T> {
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
+
+    /// True when every captured value has been consumed by [`ReplayCursor::next`].
+    #[must_use]
+    pub fn is_exhausted(&self) -> bool {
+        self.position >= self.items.len()
+    }
+
+    /// The full ordered sequence of captured values, regardless of cursor
+    /// position. Used by the harness to drive a comparison from the captured
+    /// trace itself when no independent produced stream is available.
+    #[must_use]
+    pub fn snapshots(&self) -> &[T] {
+        &self.items
+    }
 }
 
 /// Ordered cursor over captured LLM responses.
@@ -280,6 +303,12 @@ pub type ToolReplayCursor = ReplayCursor<ToolOutputSnapshot>;
 pub type ClockReplayCursor = ReplayCursor<ClockSample>;
 /// Ordered cursor over captured random draws.
 pub type RandomReplayCursor = ReplayCursor<RandomSample>;
+/// Ordered cursor over captured plan mutations.
+///
+/// Used by the replay harness to compare the plan-construction stream produced
+/// by the replayed run against the captured trace, mutation by mutation. An
+/// empty cursor is valid: a run may construct no plan.
+pub type PlanMutationReplayCursor = ReplayCursor<PlanMutationSnapshot>;
 
 /// All captured inputs of a single run, ready for replay injection.
 ///
@@ -296,6 +325,8 @@ pub struct ReplayBundle {
     pub clock: ClockReplayCursor,
     /// Captured random draws (empty when the run drew no randomness).
     pub random: RandomReplayCursor,
+    /// Captured plan mutations (empty when the run constructed no plan).
+    pub plan: PlanMutationReplayCursor,
 }
 
 impl ReplayBundle {
@@ -315,6 +346,7 @@ impl ReplayBundle {
             tools: ToolReplayCursor::from_journal_optional(entries, run_id)?,
             clock: ClockReplayCursor::from_journal_optional(entries, run_id)?,
             random: RandomReplayCursor::from_journal_optional(entries, run_id)?,
+            plan: PlanMutationReplayCursor::from_journal_optional(entries, run_id)?,
         })
     }
 }
@@ -522,6 +554,94 @@ mod tests {
                 found: 2,
             })
         ));
+    }
+
+    fn plan_snapshot(run_id: &RunId, ordinal: u32) -> PlanMutationSnapshot {
+        use apollia_core::plan::{Plan, PlanMutationKind, PlanScope, PlanStatus, PlanStep};
+        PlanMutationSnapshot {
+            run_id: run_id.as_str().to_string(),
+            session_id: "sess-1".into(),
+            ordinal,
+            kind: PlanMutationKind::AddStep,
+            step_id: Some(format!("s{ordinal}")),
+            reason: None,
+            before: None,
+            after: Some(PlanStep::new(format!("s{ordinal}"), "step")),
+            revision: ordinal + 1,
+            plan: Plan {
+                plan_id: "p1".into(),
+                scope: PlanScope::Session("sess-1".into()),
+                revision: ordinal + 1,
+                status: PlanStatus::Draft,
+                steps: vec![],
+            },
+        }
+    }
+
+    // AC-1: the plan cursor returns snapshots in ordinal order and exhausts cleanly
+    #[test]
+    fn test_plan_cursor_next_in_ordinal_order() {
+        // GIVEN three PlanMutation entries at ordinals 0,1,2 (out of slice order)
+        let run = RunId::new();
+        let entries = vec![
+            entry(&run, 2, &plan_snapshot(&run, 2)),
+            entry(&run, 0, &plan_snapshot(&run, 0)),
+            entry(&run, 1, &plan_snapshot(&run, 1)),
+        ];
+        let mut cursor = PlanMutationReplayCursor::from_journal(&entries, &run).expect("cursor");
+
+        // WHEN next() is called three times
+        // THEN snapshots come back in ordinal order 0,1,2
+        assert_eq!(cursor.next().expect("0").ordinal, 0);
+        assert_eq!(cursor.next().expect("1").ordinal, 1);
+        assert_eq!(cursor.next().expect("2").ordinal, 2);
+
+        // AND a fourth call is exhausted
+        assert!(matches!(
+            cursor.next(),
+            Err(ReplayCaptureError::StepExhausted { .. })
+        ));
+        assert!(cursor.is_exhausted());
+    }
+
+    // AC-6: a hole in the plan ordinals is reported as an OrdinalGap (no panic)
+    #[test]
+    fn test_plan_cursor_ordinal_gap_errors() {
+        // GIVEN plan entries at ordinals 0,1,3 (the step 2 entry is missing)
+        let run = RunId::new();
+        let entries = vec![
+            entry(&run, 0, &plan_snapshot(&run, 0)),
+            entry(&run, 1, &plan_snapshot(&run, 1)),
+            entry(&run, 3, &plan_snapshot(&run, 3)),
+        ];
+
+        // WHEN building the cursor
+        let result = PlanMutationReplayCursor::from_journal(&entries, &run);
+
+        // THEN the gap is reported explicitly at position 2 (expected 2, found 3)
+        assert!(matches!(
+            result,
+            Err(ReplayCaptureError::OrdinalGap {
+                position: 2,
+                expected: 2,
+                found: 3,
+            })
+        ));
+    }
+
+    // An empty plan sequence is valid (a run may construct no plan)
+    #[test]
+    fn test_plan_cursor_empty_is_valid() {
+        // GIVEN a journal with no PlanMutation entry for the run
+        let run = RunId::new();
+        let entries = vec![entry(&run, 0, &llm_snapshot(&run, 0))];
+
+        // WHEN building the optional plan cursor
+        let cursor = PlanMutationReplayCursor::from_journal_optional(&entries, &run).expect("ok");
+
+        // THEN it is an empty, already-exhausted cursor (not an error)
+        assert!(cursor.is_empty());
+        assert!(cursor.is_exhausted());
     }
 
     #[test]
