@@ -20,6 +20,7 @@ pub mod summarizer;
 pub mod todo_actor;
 pub mod todo_handle;
 pub mod todo_tool;
+pub mod turn_router;
 pub mod types;
 
 pub use a2a_tools::{generate_a2a_tool_specs, CompositeToolInvoker};

@@ -199,6 +199,55 @@ pub fn compute_complexity_score(
     score
 }
 
+/// Returns the calibrated threshold above which a request is considered worth
+/// orchestrating.
+///
+/// Single source of truth for both ORIA orchestration and the chat plan-flow
+/// routing: the value is read from [`apollia_core::ORIAConfig`] (its calibrated
+/// default), never duplicated as a literal in callers. The chat turn router
+/// compares [`score_turn_text`] against this value to decide whether a turn is
+/// substantive enough to enter the plan flow.
+pub fn orchestrated_threshold() -> f32 {
+    apollia_core::ORIAConfig::default().orchestrated_threshold as f32
+}
+
+/// Scores a free-text chat turn for substantiveness, reusing the Observer's
+/// existing weights.
+///
+/// The Observer's [`compute_complexity_score`] scores a task from manifest
+/// features (tools, step budget, tags) that a raw chat turn does not carry. This
+/// helper applies the same weights to the two signals a turn does expose:
+///
+/// - planning intent: the turn mentions a [`PLANNING_KEYWORDS`] cue, adding
+///   `WEIGHT_MULTI_STEP_TAG` (the strongest planning weight, mirroring the
+///   `"multi-step"` tag);
+/// - length: the turn is longer than [`INPUT_LENGTH_THRESHOLD`], adding
+///   `WEIGHT_INPUT_LENGTH`.
+///
+/// The weights are the Observer's own constants, so the calibration stays in one
+/// place. An empty turn scores `0.0`.
+///
+/// This is a **pure function**: deterministic, no side effects, no model call.
+pub fn score_turn_text(input: &str) -> f32 {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return 0.0;
+    }
+
+    let mut score: f32 = 0.0;
+    let lower = trimmed.to_lowercase();
+
+    if PLANNING_KEYWORDS.iter().any(|kw| lower.contains(kw)) {
+        score += WEIGHT_MULTI_STEP_TAG;
+    }
+
+    if trimmed.chars().count() > INPUT_LENGTH_THRESHOLD {
+        score += WEIGHT_INPUT_LENGTH;
+    }
+
+    score
+}
+
 /// Classifies a task as Direct or Orchestrated using weighted scoring.
 ///
 /// Honours the `execution_mode` field of the manifest first:
@@ -792,5 +841,56 @@ mod tests {
         // THEN
         assert_eq!(manifest.execution_mode, "auto");
         assert_eq!(manifest.system_prompt, None);
+    }
+
+    // orchestrated_threshold matches the calibrated config default
+    #[test]
+    fn test_orchestrated_threshold_matches_config_default() {
+        // GIVEN the calibrated ORIA config default
+        let from_config = apollia_core::ORIAConfig::default().orchestrated_threshold as f32;
+
+        // WHEN reading the public threshold helper
+        let from_helper = orchestrated_threshold();
+
+        // THEN the helper returns the config value, not a duplicated literal
+        assert!((from_helper - from_config).abs() < f32::EPSILON);
+        assert!(from_helper > 0.0);
+    }
+
+    // a planning-intent turn scores at or above the threshold
+    #[test]
+    fn test_score_turn_text_planning_intent_is_substantive() {
+        // GIVEN a multi-step actionable request with a planning cue
+        let input = "Plan the migration: audit the repo then open a PR";
+
+        // WHEN scoring the turn text
+        let score = score_turn_text(input);
+
+        // THEN the planning weight pushes it to or above the threshold
+        assert!(score >= orchestrated_threshold(), "score was {score}");
+    }
+
+    // a trivial greeting scores below the threshold
+    #[test]
+    fn test_score_turn_text_trivial_is_below_threshold() {
+        // GIVEN a short greeting with no planning cue
+        let input = "hi there";
+
+        // WHEN scoring the turn text
+        let score = score_turn_text(input);
+
+        // THEN it stays below the orchestration threshold
+        assert!(score < orchestrated_threshold(), "score was {score}");
+    }
+
+    // an empty turn scores zero, no panic
+    #[test]
+    fn test_score_turn_text_empty_is_zero() {
+        // GIVEN a blank input
+        // WHEN scoring whitespace
+        let score = score_turn_text("   ");
+
+        // THEN the score is exactly 0.0
+        assert!(score.abs() < f32::EPSILON);
     }
 }

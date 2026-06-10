@@ -48,6 +48,7 @@ use crate::chat::plan_tool::{
 };
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::todo_tool::{TODO_WRITE_TOOL_NAME, run_todo_write, todo_write_spec};
+use crate::chat::turn_router::classify_turn;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
@@ -1317,6 +1318,19 @@ impl BuiltInChatAgent {
         );
 
         let effective_prompt = self.build_system_prompt(custom_prompt, level, inject_memory);
+
+        // Route the turn: in plan mode a substantive turn enters the plan flow
+        // (discovery + plan), a trivial one stays conversational. Outside plan
+        // mode the route is always conversational and the classic per-tool HITL
+        // escalation path runs unchanged. The decision reuses the ORIA Observer
+        // threshold; it never short-circuits the classic path.
+        let route = classify_turn(user_message, self.session_plan_mode);
+        tracing::info!(
+            session_id = %session_id,
+            plan_mode = self.session_plan_mode,
+            route = ?route,
+            "chat.turn.routed"
+        );
 
         let mut tool_specs = build_tool_specs(
             available_tools,
