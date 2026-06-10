@@ -35,3 +35,6 @@
 | 2026-06-04 | ADR-026 | Installation des agents, format de bundle et distribution | [ADR-026](adr/ADR-026-agent-install-distribution.md) |
 | 2026-06-04 | ADR-027 | Agent d'onboarding | [ADR-027](adr/ADR-027-onboarding-agent.md) |
 | 2026-06-04 | ADR-028 | Distribution de release, updater et signature de code | [ADR-028](adr/ADR-028-release-updater-code-signing.md) |
+| 2026-06-10 | ADR-031 | Modèle de plan unifié dans apollia-core | [ADR-031](adr/ADR-031-unified-plan-model.md) |
+| 2026-06-10 | ADR-032 | Moteur de plan natif au chat | [ADR-032](adr/ADR-032-chat-native-plan-engine.md) |
+| 2026-06-10 | ADR-033 | Audit et rejeu de la construction du plan | [ADR-033](adr/ADR-033-plan-construction-audit-replay.md) |
