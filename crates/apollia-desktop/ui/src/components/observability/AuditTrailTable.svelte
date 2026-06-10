@@ -1,13 +1,25 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { AuditTrailEntry } from "$lib/types";
+  import { getToolAuditTrail } from "$lib/ipc/audit";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
   import { Shield, CheckCircle2, XCircle, ChevronDown } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
   import { FormField } from "$lib/components/ui/form-field";
+  import AuditVerifyButton from "./AuditVerifyButton.svelte";
+
+  interface Props {
+    /**
+     * Run whose journal integrity can be verified from the action bar. When
+     * omitted, the verify button is hidden (run selection is out of scope in
+     * this version: the parent passes the current or last known run).
+     */
+    runId?: string | undefined;
+  }
+
+  let { runId = undefined }: Props = $props();
 
   const PAGE_SIZE = 50;
 
@@ -85,9 +97,7 @@
 
   async function loadEntries(): Promise<void> {
     try {
-      const result: AuditTrailEntry[] = await invoke("get_tool_audit_trail", {
-        limit: PAGE_SIZE,
-      });
+      const result = await getToolAuditTrail(PAGE_SIZE);
       entries = result;
       hasMore = result.length >= PAGE_SIZE;
       error = null;
@@ -102,9 +112,7 @@
     loadingMore = true;
     try {
       const nextLimit = entries.length + PAGE_SIZE;
-      const result: AuditTrailEntry[] = await invoke("get_tool_audit_trail", {
-        limit: nextLimit,
-      });
+      const result = await getToolAuditTrail(nextLimit);
       entries = result;
       hasMore = result.length >= nextLimit;
     } catch (err: unknown) {
@@ -197,6 +205,12 @@
           {/each}
         </Select>
       </FormField>
+
+      {#if runId}
+        <div class="ml-auto">
+          <AuditVerifyButton {runId} />
+        </div>
+      {/if}
     </div>
 
     <!-- Table -->

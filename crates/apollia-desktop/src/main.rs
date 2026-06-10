@@ -782,6 +782,7 @@ fn main() {
             commands::observability::get_llm_daily_costs,
             commands::observability::get_plan_cache_stats,
             commands::observability::get_tool_audit_trail,
+            commands::observability::verify_audit_run,
             commands::trace::get_task_trace,
             commands::config::get_config,
             commands::config::open_config_in_editor,

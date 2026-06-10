@@ -939,6 +939,67 @@ pub async fn get_audit_stats(state: State<'_, RuntimeHandle>) -> Result<serde_js
 }
 
 // ---------------------------------------------------------------------------
+// Audit Chain Verification
+// ---------------------------------------------------------------------------
+
+/// Integrity verdict for a run's hash-chained audit journal.
+///
+/// Flattens the runtime `VerifyChainReport` into the shape consumed by the
+/// desktop verify panel: a boolean verdict, the broken link identifier (the
+/// sequence number of the first tampered entry, `None` when intact), and a
+/// short human-readable message.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditVerifyResult {
+    /// True when the whole chain verifies (no broken link, signatures valid).
+    pub ok: bool,
+    /// Sequence number of the first broken entry as a string, `None` when `ok`.
+    pub broken_at: Option<String>,
+    /// Short status detail, surfaced under the verdict in the UI.
+    pub message: String,
+}
+
+/// Verifies the hash chain of a run's audit journal.
+///
+/// Delegates to `GET /api/v1/audit/verify/:run_id` on the in-process runtime
+/// and maps the report to [`AuditVerifyResult`]. A missing run surfaces as an
+/// `Err` (the HTTP layer answers 404), so the UI shows an explicit error rather
+/// than a silent "ok" verdict.
+#[tauri::command]
+pub async fn verify_audit_run(
+    state: State<'_, RuntimeHandle>,
+    run_id: String,
+) -> Result<AuditVerifyResult, String> {
+    let path = format!("/api/v1/audit/verify/{run_id}");
+    let json = http_get_json(state.api_port, &path).await?;
+
+    let ok = json.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+    let broken_at = json
+        .get("first_broken_link")
+        .and_then(|v| v.get("seq"))
+        .and_then(serde_json::Value::as_u64)
+        .map(|seq| seq.to_string());
+    let entries_checked = json
+        .get("entries_checked")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+
+    let message = if ok {
+        format!("{entries_checked} entries verified")
+    } else {
+        match &broken_at {
+            Some(seq) => format!("integrity broken at entry {seq} of {entries_checked} checked"),
+            None => format!("integrity check failed after {entries_checked} entries"),
+        }
+    };
+
+    Ok(AuditVerifyResult {
+        ok,
+        broken_at,
+        message,
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Plan Cache Stats
 // ---------------------------------------------------------------------------
 

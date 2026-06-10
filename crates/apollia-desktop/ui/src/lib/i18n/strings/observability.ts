@@ -2,6 +2,13 @@
 export const OBSERVABILITY_KEYS = {
   root: "observability",
   title: "observability.title",
+  verifyOk: "observability.verify_ok",
+  verifyFail: "observability.verify_fail",
+  verifyBrokenAt: "observability.verify_broken_at",
+  verifyRun: "observability.verify_run",
+  verifyLoading: "observability.verify_loading",
+  verifyError: "observability.verify_error",
+  verifyRunNotFound: "observability.verify_run_not_found",
   planCache: {
     title: "observability.plan_cache.title",
     purgeButton: "observability.plan_cache.purge_button",
