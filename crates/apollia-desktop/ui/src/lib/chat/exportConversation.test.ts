@@ -23,6 +23,8 @@ function makeSession(): ChatSessionDetail {
     llm_backend: "claude-opus",
     title: "My chat",
     project_id: null,
+    plan_mode: false,
+    plan_phase: "done",
   };
 }
 

@@ -39,6 +39,7 @@
   import AskUserCard from "./AskUserCard.svelte";
   import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
   import ChatConversationHeader from "./ChatConversationHeader.svelte";
+  import ChatPlanHost from "./ChatPlanHost.svelte";
   import ScrollToBottomButton from "./ScrollToBottomButton.svelte";
   import NextStepsPanel from "../common/NextStepsPanel.svelte";
   import { sessionScope, type NextStepsFacts } from "$lib/stores/nextSteps";
@@ -1206,6 +1207,10 @@
         title={$t("next_steps.session_title")}
       />
     </div>
+  {/if}
+
+  {#if sessionId && sessionStatus !== "closed"}
+    <ChatPlanHost {sessionId} />
   {/if}
 
   {#if !inputHidden}
