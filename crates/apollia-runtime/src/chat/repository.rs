@@ -10,7 +10,7 @@ use std::path::Path;
 use rusqlite::{params, Connection};
 
 use super::types::{
-    ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, PastSessionSummary,
+    ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, PastSessionSummary, PlanPhase,
     RecentSessionSummary, SessionStatus, ToolCallRecord,
 };
 
@@ -48,6 +48,10 @@ pub struct SessionRow {
     pub fork_depth: i64,
     /// Project this session belongs to (application-level link, no FK).
     pub project_id: Option<String>,
+    /// Whether this session runs in first-class plan mode (stored as 0/1).
+    pub plan_mode: bool,
+    /// Plan-mode lifecycle phase string (`"discovery"`, `"drafting"`, etc.).
+    pub plan_phase: String,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -204,40 +208,56 @@ impl ChatSessionRepository {
         let _ = conn.execute_batch("ALTER TABLE chat_approval_log ADD COLUMN reason TEXT");
 
         // v10 migration: add 'companion' to the mode CHECK constraint.
-        // SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we recreate the table.
-        conn.execute_batch(
-            "PRAGMA foreign_keys = OFF;
-            BEGIN;
-            CREATE TABLE IF NOT EXISTS chat_sessions_new (
-                id              TEXT PRIMARY KEY,
-                mode            TEXT NOT NULL CHECK (mode IN ('libre', 'agent', 'companion')),
-                agent_name      TEXT,
-                system_prompt   TEXT NOT NULL DEFAULT '',
-                status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'processing', 'closed')),
-                available_tools TEXT NOT NULL DEFAULT '[]',
-                created_at      TEXT NOT NULL,
-                closed_at       TEXT,
-                llm_backend     TEXT,
-                summary         TEXT,
-                title           TEXT,
-                parent_session_id TEXT REFERENCES chat_sessions_new(id),
-                fork_depth      INTEGER NOT NULL DEFAULT 0,
-                project_id      TEXT
-            );
-            INSERT OR IGNORE INTO chat_sessions_new
-                SELECT id, mode, agent_name, system_prompt, status, available_tools,
-                       created_at, closed_at, llm_backend, summary, title,
-                       parent_session_id, fork_depth, project_id
-                FROM chat_sessions;
-            DROP TABLE chat_sessions;
-            ALTER TABLE chat_sessions_new RENAME TO chat_sessions;
-            CREATE INDEX IF NOT EXISTS idx_chat_sessions_status ON chat_sessions(status);
-            CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id);
-            CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id);
-            COMMIT;
-            PRAGMA foreign_keys = ON;",
-        )
-        .map_err(|e| ChatError::InternalError(format!("v10 migration failed: {e}")))?;
+        // SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we recreate the
+        // table. This recreate drops every column added after it, so it must run
+        // exactly once: the `plan_mode` column (added by v12) is the witness that
+        // it already ran. Re-running it on a migrated database would silently wipe
+        // the plan-mode columns.
+        if !column_exists(&conn, "chat_sessions", "plan_mode")? {
+            conn.execute_batch(
+                "PRAGMA foreign_keys = OFF;
+                BEGIN;
+                CREATE TABLE IF NOT EXISTS chat_sessions_new (
+                    id              TEXT PRIMARY KEY,
+                    mode            TEXT NOT NULL CHECK (mode IN ('libre', 'agent', 'companion')),
+                    agent_name      TEXT,
+                    system_prompt   TEXT NOT NULL DEFAULT '',
+                    status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'processing', 'closed')),
+                    available_tools TEXT NOT NULL DEFAULT '[]',
+                    created_at      TEXT NOT NULL,
+                    closed_at       TEXT,
+                    llm_backend     TEXT,
+                    summary         TEXT,
+                    title           TEXT,
+                    parent_session_id TEXT REFERENCES chat_sessions_new(id),
+                    fork_depth      INTEGER NOT NULL DEFAULT 0,
+                    project_id      TEXT
+                );
+                INSERT OR IGNORE INTO chat_sessions_new
+                    SELECT id, mode, agent_name, system_prompt, status, available_tools,
+                           created_at, closed_at, llm_backend, summary, title,
+                           parent_session_id, fork_depth, project_id
+                    FROM chat_sessions;
+                DROP TABLE chat_sessions;
+                ALTER TABLE chat_sessions_new RENAME TO chat_sessions;
+                CREATE INDEX IF NOT EXISTS idx_chat_sessions_status ON chat_sessions(status);
+                CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id);
+                CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id);
+                COMMIT;
+                PRAGMA foreign_keys = ON;",
+            )
+            .map_err(|e| ChatError::InternalError(format!("v10 migration failed: {e}")))?;
+        }
+
+        // v12 migration: per-session plan-mode state. Additive columns, applied
+        // after the v10 table recreate so they survive it. Existing sessions
+        // default to plan mode off in the neutral 'done' phase.
+        let _ = conn.execute_batch(
+            "ALTER TABLE chat_sessions ADD COLUMN plan_mode INTEGER NOT NULL DEFAULT 0",
+        );
+        let _ = conn.execute_batch(
+            "ALTER TABLE chat_sessions ADD COLUMN plan_phase TEXT NOT NULL DEFAULT 'done'",
+        );
 
         Ok(Self { conn })
     }
@@ -306,6 +326,14 @@ impl ChatSessionRepository {
         // v11 migration: store the operator-provided refusal reason so it can
         // be displayed in the inbox history view. NULL for accept / always_accept.
         let _ = conn.execute_batch("ALTER TABLE chat_approval_log ADD COLUMN reason TEXT");
+
+        // v12 migration: per-session plan-mode state (additive columns).
+        let _ = conn.execute_batch(
+            "ALTER TABLE chat_sessions ADD COLUMN plan_mode INTEGER NOT NULL DEFAULT 0",
+        );
+        let _ = conn.execute_batch(
+            "ALTER TABLE chat_sessions ADD COLUMN plan_phase TEXT NOT NULL DEFAULT 'done'",
+        );
 
         Ok(Self { conn })
     }
@@ -439,13 +467,40 @@ impl ChatSessionRepository {
         Ok(())
     }
 
+    /// Persist the plan-mode flag and lifecycle phase for a session.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChatError::SessionNotFound`] when no session matches `id`, and
+    /// [`ChatError::InternalError`] on a SQLite failure.
+    pub fn set_plan_mode(
+        &self,
+        id: &str,
+        plan_mode: bool,
+        plan_phase: PlanPhase,
+    ) -> Result<(), ChatError> {
+        let updated = self
+            .conn
+            .execute(
+                "UPDATE chat_sessions SET plan_mode = ?1, plan_phase = ?2 WHERE id = ?3",
+                params![plan_mode as i64, plan_phase.as_sql(), id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("set_plan_mode: {e}")))?;
+
+        if updated == 0 {
+            return Err(ChatError::SessionNotFound(id.to_string()));
+        }
+        Ok(())
+    }
+
     /// Retrieve a session by ID, or `None` if not found.
     pub fn get_session(&self, id: &str) -> Result<Option<SessionRow>, ChatError> {
         let mut stmt = self
             .conn
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        plan_mode, plan_phase
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -463,13 +518,15 @@ impl ChatSessionRepository {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        plan_mode, plan_phase
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        plan_mode, plan_phase
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
             ),
@@ -806,6 +863,9 @@ impl ChatSessionRepository {
             .ok_or_else(|| ChatError::InternalError(format!("unknown mode: {}", row.mode)))?;
         let status = SessionStatus::from_sql(&row.status)
             .ok_or_else(|| ChatError::InternalError(format!("unknown status: {}", row.status)))?;
+        let plan_phase = PlanPhase::from_sql(&row.plan_phase).ok_or_else(|| {
+            ChatError::InternalError(format!("unknown plan_phase: {}", row.plan_phase))
+        })?;
         let available_tools: Vec<String> =
             serde_json::from_str(&row.available_tools).unwrap_or_default();
 
@@ -854,6 +914,8 @@ impl ChatSessionRepository {
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
+            plan_mode: row.plan_mode,
+            plan_phase,
         })
     }
 
@@ -948,7 +1010,8 @@ impl ChatSessionRepository {
             .conn
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        plan_mode, plan_phase
                  FROM chat_sessions
                  WHERE parent_session_id = ?1
                  ORDER BY created_at ASC",
@@ -973,7 +1036,8 @@ impl ChatSessionRepository {
             .conn
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id,
+                        plan_mode, plan_phase
                  FROM chat_sessions WHERE project_id = ?1 ORDER BY created_at DESC",
             )
             .map_err(|e| ChatError::InternalError(format!("list_sessions_by_project prepare: {e}")))?;
@@ -1135,7 +1199,34 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         parent_session_id: row.get(11)?,
         fork_depth: row.get(12)?,
         project_id: row.get(13)?,
+        plan_mode: row.get::<_, i64>(14)? != 0,
+        plan_phase: row.get(15)?,
     })
+}
+
+/// Returns `true` when `table` already declares a column named `column`.
+///
+/// Used to make the destructive v10 table recreate idempotent: it must not run a
+/// second time once later additive columns exist, or those columns are lost.
+fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, ChatError> {
+    let mut stmt = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .map_err(|e| ChatError::InternalError(format!("table_info prepare: {e}")))?;
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| ChatError::InternalError(format!("table_info query: {e}")))?;
+    while let Some(row) = rows
+        .next()
+        .map_err(|e| ChatError::InternalError(format!("table_info row: {e}")))?
+    {
+        let name: String = row
+            .get(1)
+            .map_err(|e| ChatError::InternalError(format!("table_info name: {e}")))?;
+        if name == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// Helper: map a rusqlite row to `MessageRow`.
@@ -1225,6 +1316,47 @@ mod tests {
         assert_eq!(session.status, "active");
         assert_eq!(session.available_tools, "[]");
         assert!(session.closed_at.is_none());
+    }
+
+    #[test]
+    fn test_plan_mode_persists_and_reloads() {
+        // GIVEN a freshly created session (plan mode off by default)
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        repo.create_session(
+            "sess-plan",
+            &ChatMode::Libre,
+            None,
+            "",
+            &[],
+            "2026-06-10T10:00:00Z",
+            None,
+            None,
+        )
+        .expect("create");
+        let initial = repo.get_session("sess-plan").expect("get").expect("exists");
+        assert!(!initial.plan_mode);
+        assert_eq!(initial.plan_phase, "done");
+
+        // WHEN plan mode is enabled with the Discovery phase and reloaded
+        repo.set_plan_mode("sess-plan", true, PlanPhase::Discovery)
+            .expect("set_plan_mode");
+        let reloaded = repo.load_session_with_history("sess-plan").expect("reload");
+
+        // THEN both fields round-trip to the new values
+        assert!(reloaded.plan_mode);
+        assert_eq!(reloaded.plan_phase, PlanPhase::Discovery);
+    }
+
+    #[test]
+    fn test_set_plan_mode_missing_session_errors() {
+        // GIVEN an empty repository
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+
+        // WHEN toggling plan mode on a session that does not exist
+        let result = repo.set_plan_mode("ghost", true, PlanPhase::Discovery);
+
+        // THEN a typed SessionNotFound error is returned, no panic
+        assert!(matches!(result, Err(ChatError::SessionNotFound(_))));
     }
 
     #[test]

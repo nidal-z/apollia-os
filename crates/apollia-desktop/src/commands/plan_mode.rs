@@ -73,3 +73,30 @@ pub async fn submit_plan_decision(
 
     Ok(())
 }
+
+/// Enables or disables plan mode for `session_id`.
+///
+/// Delegates to the chat manager, which initializes the phase to `Discovery`
+/// when enabling and resets it to a neutral state when disabling. Returns an
+/// error string when the chat subsystem is unavailable or the session does not
+/// exist.
+///
+/// # Errors
+///
+/// Returns `Err(String)` when no chat manager is wired into the runtime handle,
+/// or when the toggle targets a session that does not exist.
+#[tauri::command]
+pub async fn set_plan_mode(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+    manager
+        .set_plan_mode(session_id, enabled)
+        .await
+        .map_err(|e| e.to_string())
+}

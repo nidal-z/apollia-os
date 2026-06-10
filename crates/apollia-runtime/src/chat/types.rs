@@ -69,6 +69,63 @@ pub struct ChatSession {
     /// Cleared when the session ends (intentional, session-scoped only).
     #[serde(skip)]
     pub fs_allow_rules: Arc<Mutex<std::collections::HashSet<String>>>,
+    /// Whether this session runs in first-class plan mode.
+    ///
+    /// When `true`, the `plan_*` tool surface is advertised and the plan-mode
+    /// system-prompt block is injected. Persisted across restarts.
+    #[serde(default)]
+    pub plan_mode: bool,
+    /// Current plan-mode lifecycle phase.
+    ///
+    /// Defaults to [`PlanPhase::Done`] for sessions that never enabled plan mode.
+    /// Persisted across restarts.
+    #[serde(default)]
+    pub plan_phase: PlanPhase,
+}
+
+/// Lifecycle phase of a session running in plan mode.
+///
+/// Drives the conversational gate: discovery via `ask_user`, drafting the plan,
+/// awaiting a soft approval, executing, then done.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanPhase {
+    /// Asking the user for missing or ambiguous inputs.
+    Discovery,
+    /// Building the plan steps with rationale.
+    Drafting,
+    /// Plan submitted, waiting for approve, reject, or conversational revision.
+    AwaitingApproval,
+    /// Plan approved, agent is executing the steps.
+    Executing,
+    /// Plan finished or plan mode disabled.
+    #[default]
+    Done,
+}
+
+impl PlanPhase {
+    /// Returns the stable SQL representation for persistence.
+    pub fn as_sql(&self) -> &'static str {
+        match self {
+            Self::Discovery => "discovery",
+            Self::Drafting => "drafting",
+            Self::AwaitingApproval => "awaiting_approval",
+            Self::Executing => "executing",
+            Self::Done => "done",
+        }
+    }
+
+    /// Parses a SQL representation, returning `None` for unknown values.
+    pub fn from_sql(s: &str) -> Option<Self> {
+        match s {
+            "discovery" => Some(Self::Discovery),
+            "drafting" => Some(Self::Drafting),
+            "awaiting_approval" => Some(Self::AwaitingApproval),
+            "executing" => Some(Self::Executing),
+            "done" => Some(Self::Done),
+            _ => None,
+        }
+    }
 }
 
 /// Chat mode, free-form LLM conversation or agent-backed.
@@ -1084,6 +1141,8 @@ mod tests {
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
+            plan_mode: false,
+            plan_phase: PlanPhase::Done,
         };
 
         // WHEN we serialize and deserialize
@@ -1094,6 +1153,34 @@ mod tests {
         assert_eq!(restored.id, "sess-1");
         assert_eq!(restored.mode, ChatMode::Agent);
         assert_eq!(restored.agent_name.as_deref(), Some("test-agent"));
+    }
+
+    #[test]
+    fn test_plan_phase_sql_round_trip() {
+        // GIVEN every PlanPhase variant
+        for phase in [
+            PlanPhase::Discovery,
+            PlanPhase::Drafting,
+            PlanPhase::AwaitingApproval,
+            PlanPhase::Executing,
+            PlanPhase::Done,
+        ] {
+            // WHEN serialized to SQL and parsed back
+            let parsed = PlanPhase::from_sql(phase.as_sql());
+            // THEN it round-trips
+            assert_eq!(parsed, Some(phase));
+        }
+        // AND an unknown value yields None
+        assert_eq!(PlanPhase::from_sql("bogus"), None);
+    }
+
+    #[test]
+    fn test_plan_phase_default_is_done() {
+        // GIVEN the default PlanPhase
+        // WHEN constructed via Default
+        let phase = PlanPhase::default();
+        // THEN it is Done (neutral, never stuck awaiting approval)
+        assert_eq!(phase, PlanPhase::Done);
     }
 
     #[test]

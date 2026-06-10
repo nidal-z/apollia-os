@@ -370,6 +370,7 @@ struct LibreExchangeParams {
     tx: mpsc::Sender<ChatCommand>,
     todo: Option<TodoHandle>,
     plan: Option<PlanHandle>,
+    session_plan_mode: bool,
     hook_executor: Option<Arc<HookExecutor>>,
 }
 
@@ -418,6 +419,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         tx,
         todo,
         plan,
+        session_plan_mode,
         hook_executor,
     } = params;
 
@@ -489,6 +491,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
     })
     .with_workspace_path(session_invoker.workspace)
     .with_mcp_index(agent_mcp_index, tool_search_limit)
+    .with_plan_mode(session_plan_mode)
     .with_hook_executor(hook_executor);
 
     // Inject project context on first message OR right after the
@@ -685,9 +688,9 @@ use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
-    PendingChatApprovals, PendingFilesystemApprovals, ProjectContextProvider, RecentSessionSummary,
-    SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord,
-    ToolDecision,
+    PendingChatApprovals, PendingFilesystemApprovals, PlanPhase, ProjectContextProvider,
+    RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -798,6 +801,15 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// New display title.
         title: String,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Enable or disable plan mode for a session.
+    SetPlanMode {
+        /// Target session.
+        session_id: SessionId,
+        /// Desired plan-mode state.
+        enabled: bool,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
@@ -1192,6 +1204,14 @@ impl ChatSessionManager {
                     reply,
                 } => {
                     let result = self.handle_rename_session(&session_id, &title);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::SetPlanMode {
+                    session_id,
+                    enabled,
+                    reply,
+                } => {
+                    let result = self.handle_set_plan_mode(&session_id, enabled);
                     let _ = reply.send(result);
                 }
                 ChatCommand::UpdateSession {
@@ -1682,6 +1702,10 @@ impl ChatSessionManager {
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
+            // Plan mode defaults to off for now; the user default setting and the
+            // header toggle are wired separately. Phase stays neutral until enabled.
+            plan_mode: false,
+            plan_phase: PlanPhase::Done,
         };
 
         let info = session_to_info(&session);
@@ -1879,6 +1903,7 @@ impl ChatSessionManager {
             };
 
             let history = session.history.clone();
+            let session_plan_mode = session.plan_mode;
             let is_first_message = history.len() == 1;
             let is_companion = session.mode == ChatMode::Companion;
             let inject_project_context = is_first_message || force_inject_project_context;
@@ -1990,6 +2015,7 @@ impl ChatSessionManager {
                 tx,
                 todo: self.todo_handle.clone(),
                 plan: self.plan_handle.clone(),
+                session_plan_mode,
                 hook_executor: self.hook_executor.clone(),
             }));
         }
@@ -2456,6 +2482,8 @@ impl ChatSessionManager {
 
         let mode = ChatMode::from_sql(&row.mode)?;
         let status = SessionStatus::from_sql(&row.status)?;
+        let plan_phase = PlanPhase::from_sql(&row.plan_phase).unwrap_or_default();
+        let plan_mode = row.plan_mode;
         let available_tools: Vec<String> =
             serde_json::from_str(&row.available_tools).unwrap_or_default();
 
@@ -2505,6 +2533,8 @@ impl ChatSessionManager {
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
+            plan_mode,
+            plan_phase,
         };
 
         Some(SessionDetail {
@@ -2574,6 +2604,37 @@ impl ChatSessionManager {
         }
 
         info!(session_id = %session_id, title = %title, "chat session renamed");
+        Ok(())
+    }
+
+    /// Enable or disable plan mode for a session and persist the change.
+    ///
+    /// Enabling sets the phase to [`PlanPhase::Discovery`]; disabling sets it to
+    /// [`PlanPhase::Done`] so the session never stays stuck awaiting approval.
+    /// Persistence happens first, so a missing session surfaces
+    /// [`ChatError::SessionNotFound`] before any in-memory state is touched.
+    fn handle_set_plan_mode(&mut self, session_id: &str, enabled: bool) -> Result<(), ChatError> {
+        let phase = if enabled {
+            PlanPhase::Discovery
+        } else {
+            PlanPhase::Done
+        };
+
+        // Persist first: this fails fast with SessionNotFound when no row matches.
+        self.repository.set_plan_mode(session_id, enabled, phase)?;
+
+        // Mirror the change into the in-memory cache when the session is loaded.
+        if let Some(session) = self.sessions.get_mut(session_id) {
+            session.plan_mode = enabled;
+            session.plan_phase = phase;
+        }
+
+        tracing::info!(
+            session_id = %session_id,
+            plan_mode = enabled,
+            plan_phase = %phase.as_sql(),
+            "plan.mode.toggled"
+        );
         Ok(())
     }
 
@@ -2848,6 +2909,8 @@ impl ChatSessionManager {
                 Some(s) => s,
                 None => continue,
             };
+            let plan_phase = PlanPhase::from_sql(&row.plan_phase).unwrap_or_default();
+            let plan_mode = row.plan_mode;
             let available_tools: Vec<String> =
                 serde_json::from_str(&row.available_tools).unwrap_or_default();
             let mut authorized_tools = self
@@ -2911,6 +2974,8 @@ impl ChatSessionManager {
                 fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                     std::collections::HashSet::new(),
                 )),
+                plan_mode,
+                plan_phase,
             };
             self.sessions.insert(row.id, session);
         }
@@ -3819,6 +3884,35 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// Enable or disable plan mode for a session.
+    ///
+    /// Enabling initializes the phase to `Discovery`; disabling resets it to a
+    /// neutral `Done` so the session never stays stuck awaiting approval.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChatError::SessionNotFound`] when no session matches
+    /// `session_id`, or [`ChatError::InternalError`] when the actor is gone.
+    pub async fn set_plan_mode(
+        &self,
+        session_id: SessionId,
+        enabled: bool,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::SetPlanMode {
+                session_id,
+                enabled,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
     /// Signal the actor to shut down.
     /// Hot-reload the LLM router used by the chat subsystem.
     ///
@@ -4497,6 +4591,8 @@ mod tests {
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
+            plan_mode: false,
+            plan_phase: PlanPhase::Done,
         };
         manager.sessions.insert("sess-1".into(), session);
 
@@ -4734,6 +4830,86 @@ mod tests {
 
         // THEN None is returned (no relevant sessions found)
         assert!(context.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_set_plan_mode_toggles_and_persists() {
+        // GIVEN a freshly created Libre session (plan mode off by default)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+        let info = handle
+            .create_session(libre_session_params())
+            .await
+            .expect("create");
+        let before = handle.get_session(info.id.clone()).await.expect("detail");
+        assert!(!before.session.plan_mode);
+
+        // WHEN plan mode is enabled
+        handle
+            .set_plan_mode(info.id.clone(), true)
+            .await
+            .expect("enable");
+
+        // THEN the in-memory session reflects plan mode in Discovery phase
+        let enabled = handle.get_session(info.id.clone()).await.expect("detail");
+        assert!(enabled.session.plan_mode);
+        assert_eq!(enabled.session.plan_phase, PlanPhase::Discovery);
+
+        // AND disabling resets the phase to Done (never stuck awaiting approval)
+        handle
+            .set_plan_mode(info.id.clone(), false)
+            .await
+            .expect("disable");
+        let disabled = handle.get_session(info.id.clone()).await.expect("detail");
+        assert!(!disabled.session.plan_mode);
+        assert_eq!(disabled.session.plan_phase, PlanPhase::Done);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_set_plan_mode_survives_reload() {
+        // GIVEN a session with plan mode enabled, persisted to SQLite
+        let dir = tempfile::tempdir().expect("tempdir");
+        let first = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+        let info = first
+            .create_session(libre_session_params())
+            .await
+            .expect("create");
+        first
+            .set_plan_mode(info.id.clone(), true)
+            .await
+            .expect("enable");
+        first.shutdown().await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // WHEN a brand-new manager reopens the same database and resumes it
+        let second = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+        let detail = second
+            .resume_session(info.id.clone())
+            .await
+            .expect("resume");
+
+        // THEN both plan-mode fields survived the reload from disk
+        assert!(detail.session.plan_mode);
+        assert_eq!(detail.session.plan_phase, PlanPhase::Discovery);
+
+        second.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_set_plan_mode_missing_session_returns_typed_error() {
+        // GIVEN a manager with no matching session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+
+        // WHEN toggling plan mode on an unknown session id
+        let result = handle.set_plan_mode("ghost".into(), true).await;
+
+        // THEN a typed SessionNotFound error is returned, no panic
+        assert!(matches!(result, Err(ChatError::SessionNotFound(_))));
+
+        handle.shutdown().await;
     }
 
     #[tokio::test]

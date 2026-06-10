@@ -581,6 +581,8 @@ mod tests {
             project_id: None,
             force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
+            plan_mode: false,
+            plan_phase: super::super::types::PlanPhase::Done,
         }
     }
 
@@ -654,6 +656,8 @@ mod tests {
             project_id: None,
             force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
+            plan_mode: false,
+            plan_phase: super::super::types::PlanPhase::Done,
         }
     }
 

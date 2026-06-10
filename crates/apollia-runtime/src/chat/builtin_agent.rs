@@ -1024,6 +1024,12 @@ pub struct BuiltInChatAgent {
     todo: Option<TodoHandle>,
     /// Optional per-session plan store. `None` disables the `plan_*` tools.
     plan: Option<PlanHandle>,
+    /// Whether the owning session has plan mode enabled.
+    ///
+    /// This is the real gate consulted by [`plan_mode_active`](Self::plan_mode_active):
+    /// the `plan_*` surface is advertised and dispatched only when the session
+    /// flag is set, not merely when a plan store happens to be attached.
+    session_plan_mode: bool,
     /// Optional lifecycle hook executor shared across sessions. `None` means no
     /// hooks are configured: the ReAct loop behaves exactly as before, with no
     /// interception and zero overhead.
@@ -1124,19 +1130,28 @@ impl BuiltInChatAgent {
             tool_search_limit: 20,
             todo: deps.todo,
             plan: deps.plan,
+            session_plan_mode: false,
             hook_executor: None,
         }
     }
 
+    /// Sets whether the owning session has plan mode enabled.
+    ///
+    /// This is the gate the runtime threads from `ChatSession::plan_mode`. The
+    /// `plan_*` tools require both a plan store and this flag, so a session with
+    /// plan mode off behaves exactly as before.
+    pub fn with_plan_mode(mut self, enabled: bool) -> Self {
+        self.session_plan_mode = enabled;
+        self
+    }
+
     /// Returns `true` when the `plan_*` tool surface should be active.
     ///
-    /// Plan mode is currently inferred from the presence of a plan store: the
-    /// per-session `plan_mode` toggle on `ChatSession` is not yet threaded into
-    /// the agent, so this predicate is the single gate the spec advertising and
-    /// the tool dispatch both consult. It will additionally consult the session
-    /// flag once that field is wired through `execute`.
+    /// Both conditions must hold: the session has plan mode enabled and a plan
+    /// store is attached to drive the tools. This single predicate gates both the
+    /// spec advertising and the inline tool dispatch.
     fn plan_mode_active(&self) -> bool {
-        self.plan.is_some()
+        self.session_plan_mode && self.plan.is_some()
     }
 
     /// Configure the deferred MCP tool index for this agent.
@@ -5712,7 +5727,10 @@ mod tests {
 
     // ── plan_* tool wiring ───────────────────────────────────────────────
 
-    fn plan_agent(plan: Option<crate::chat::plan_actor::PlanHandle>) -> BuiltInChatAgent {
+    fn plan_agent(
+        plan: Option<crate::chat::plan_actor::PlanHandle>,
+        plan_mode: bool,
+    ) -> BuiltInChatAgent {
         let model = Arc::new(MockStopModel::with_content("ok"));
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         BuiltInChatAgent::new(BuiltInChatAgentDeps {
@@ -5725,6 +5743,7 @@ mod tests {
             todo: None,
             plan,
         })
+        .with_plan_mode(plan_mode)
     }
 
     fn plan_handle_for_test() -> crate::chat::plan_actor::PlanHandle {
@@ -5748,15 +5767,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_plan_mode_active_tracks_handle_presence() {
-        // GIVEN one agent with a plan handle and one without
-        let with = plan_agent(Some(plan_handle_for_test()));
-        let without = plan_agent(None);
+    async fn test_plan_mode_active_requires_flag_and_handle() {
+        // GIVEN agents covering the four flag/handle combinations
+        let on_with = plan_agent(Some(plan_handle_for_test()), true);
+        let on_without = plan_agent(None, true);
+        let off_with = plan_agent(Some(plan_handle_for_test()), false);
+        let off_without = plan_agent(None, false);
 
         // WHEN inspecting the plan-mode gate
-        // THEN it is active only when a plan handle is attached
-        assert!(with.plan_mode_active());
-        assert!(!without.plan_mode_active());
+        // THEN it is active only when the session flag is set AND a handle exists
+        assert!(on_with.plan_mode_active());
+        assert!(!on_without.plan_mode_active());
+        assert!(!off_with.plan_mode_active());
+        assert!(!off_without.plan_mode_active());
     }
 
     #[test]
