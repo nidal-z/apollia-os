@@ -24,7 +24,7 @@ use apollia_llm::types::{
     ToolCall, ToolSpec,
 };
 use apollia_llm::{LlmRouter, MetaOrchestratorHandle, ObservabilityConfig, ToolInvoker};
-use apollia_mcp::tool_search::{tool_search_input_schema, ToolIndexSnapshot};
+use apollia_mcp::tool_search::{ToolIndexSnapshot, tool_search_input_schema};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::context_manager::ContextManager;
@@ -41,8 +41,13 @@ use super::types::{
 use crate::a2a::A2AInvoker;
 use crate::chat::a2a_tools::generate_a2a_tool_specs;
 use crate::chat::plan_actor::PlanHandle;
+use crate::chat::plan_tool::{
+    self, PLAN_ADD_STEP_TOOL_NAME, PLAN_MODIFY_STEP_TOOL_NAME, PLAN_PROPOSE_TOOL_NAME,
+    PLAN_REMOVE_STEP_TOOL_NAME, PLAN_REORDER_TOOL_NAME, PLAN_SET_STEP_STATUS_TOOL_NAME,
+    PLAN_SUBMIT_TOOL_NAME,
+};
 use crate::chat::todo_handle::TodoHandle;
-use crate::chat::todo_tool::{run_todo_write, todo_write_spec, TODO_WRITE_TOOL_NAME};
+use crate::chat::todo_tool::{TODO_WRITE_TOOL_NAME, run_todo_write, todo_write_spec};
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
@@ -378,8 +383,8 @@ impl NativeChatToolInvoker {
         reason = "replaced by HitlFilesystemGuard(FileWrite) via fallback_dispatcher"
     )]
     async fn invoke_file_write(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
         use apollia_tools::FilesystemOp;
+        use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
 
         let input: FileWriteInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_write: invalid arguments: {e}"))?;
@@ -430,8 +435,8 @@ impl NativeChatToolInvoker {
         reason = "replaced by HitlFilesystemGuard(FileEdit) via fallback_dispatcher"
     )]
     async fn invoke_file_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
         use apollia_tools::FilesystemOp;
+        use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
 
         let input: FileEditInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_edit: invalid arguments: {e}"))?;
@@ -1018,10 +1023,6 @@ pub struct BuiltInChatAgent {
     /// Optional per-session todo store. `None` disables the `todo_write` tool.
     todo: Option<TodoHandle>,
     /// Optional per-session plan store. `None` disables the `plan_*` tools.
-    // REASON: the field is owned here so the handle is injected once; the
-    // `plan_*` tool surface that reads it is wired into the ReAct loop in the
-    // immediately following change.
-    #[allow(dead_code)]
     plan: Option<PlanHandle>,
     /// Optional lifecycle hook executor shared across sessions. `None` means no
     /// hooks are configured: the ReAct loop behaves exactly as before, with no
@@ -1125,6 +1126,17 @@ impl BuiltInChatAgent {
             plan: deps.plan,
             hook_executor: None,
         }
+    }
+
+    /// Returns `true` when the `plan_*` tool surface should be active.
+    ///
+    /// Plan mode is currently inferred from the presence of a plan store: the
+    /// per-session `plan_mode` toggle on `ChatSession` is not yet threaded into
+    /// the agent, so this predicate is the single gate the spec advertising and
+    /// the tool dispatch both consult. It will additionally consult the session
+    /// flag once that field is wired through `execute`.
+    fn plan_mode_active(&self) -> bool {
+        self.plan.is_some()
     }
 
     /// Configure the deferred MCP tool index for this agent.
@@ -1295,6 +1307,11 @@ impl BuiltInChatAgent {
         // Advertise the todo_write built-in whenever a todo store is attached.
         if self.todo.is_some() {
             tool_specs.push(todo_write_spec());
+        }
+        // Advertise the plan_* tool surface only while the session is in plan
+        // mode, mirroring how todo_write is gated.
+        if self.plan_mode_active() {
+            tool_specs.extend(plan_tool::plan_tool_specs());
         }
         info!(
             session_id = %session_id,
@@ -1712,7 +1729,9 @@ impl BuiltInChatAgent {
         // holds the refusal reason when call `i` was blocked. With no hook
         // configured this is a borrow of the original calls with no denials, so
         // the loop behaves exactly as before.
-        let pre = self.apply_pre_tool_use(tool_calls, session_id, ids.run_id).await;
+        let pre = self
+            .apply_pre_tool_use(tool_calls, session_id, ids.run_id)
+            .await;
         let effective_calls: &[ToolCall] = pre.calls.as_ref();
         let denied = &pre.denied;
 
@@ -1794,6 +1813,25 @@ impl BuiltInChatAgent {
                     Self::handle_todo_write(todo, session_id, call, llm_messages, acc).await,
                     None,
                 ),
+                // plan_* tools are safe built-ins handled in-loop, gated on plan
+                // mode (a plan handle is present only in that case). They
+                // delegate to the PlanHandle and inject the snapshot result;
+                // they never reach the registry, parallel partition, or HITL
+                // approval.
+                (name, _)
+                    if is_plan_tool(name) && self.plan_mode_active() && self.plan.is_some() =>
+                {
+                    // `plan_mode_active()` plus the `is_some()` guard guarantee a
+                    // handle; `if let` binds it without an unwrap or panic.
+                    if let Some(plan) = self.plan.as_ref() {
+                        (
+                            Self::handle_plan_tool(plan, session_id, call, llm_messages, acc).await,
+                            None,
+                        )
+                    } else {
+                        (false, None)
+                    }
+                }
                 _ => match precomputed.remove(&i) {
                     Some((record, tool_result, success)) => {
                         llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
@@ -1952,8 +1990,68 @@ impl BuiltInChatAgent {
             ok = result.ok,
             "chat.todo_write.applied"
         );
-        let tool_result = serde_json::to_string(&result)
-            .unwrap_or_else(|_| r#"{"ok":false,"error":"todo result serialization failed"}"#.to_string());
+        let tool_result = serde_json::to_string(&result).unwrap_or_else(|_| {
+            r#"{"ok":false,"error":"todo result serialization failed"}"#.to_string()
+        });
+        llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
+        acc.all_tool_calls.push(ToolCallRecord {
+            tool_name: call.name.clone(),
+            input: call.arguments.clone(),
+            output: Some(tool_result),
+            status: ToolCallStatus::Executed,
+            rationale: None,
+            retry_attempts: Vec::new(),
+        });
+        !result.ok
+    }
+
+    /// Run a `plan_*` built-in tool inside the ReAct loop.
+    ///
+    /// Routes the call to the matching `run_plan_*` function, which delegates to
+    /// the [`PlanHandle`] and shapes a serializable result. The JSON snapshot is
+    /// injected as the tool message. Returns `true` when the operation failed (a
+    /// rejected mutation or a malformed payload) so the loop counts it toward
+    /// escalation; the loop itself never stops on a plan error.
+    async fn handle_plan_tool(
+        plan: &PlanHandle,
+        session_id: &str,
+        call: &ToolCall,
+        llm_messages: &mut Vec<LlmChatMessage>,
+        acc: &mut ReactAccumulators,
+    ) -> bool {
+        let args = &call.arguments;
+        let result = match call.name.as_str() {
+            PLAN_PROPOSE_TOOL_NAME => plan_tool::run_plan_propose(plan, session_id, args).await,
+            PLAN_ADD_STEP_TOOL_NAME => plan_tool::run_plan_add_step(plan, session_id, args).await,
+            PLAN_MODIFY_STEP_TOOL_NAME => {
+                plan_tool::run_plan_modify_step(plan, session_id, args).await
+            }
+            PLAN_REMOVE_STEP_TOOL_NAME => {
+                plan_tool::run_plan_remove_step(plan, session_id, args).await
+            }
+            PLAN_REORDER_TOOL_NAME => plan_tool::run_plan_reorder(plan, session_id, args).await,
+            PLAN_SET_STEP_STATUS_TOOL_NAME => {
+                plan_tool::run_plan_set_step_status(plan, session_id, args).await
+            }
+            PLAN_SUBMIT_TOOL_NAME => plan_tool::run_plan_submit(plan, session_id).await,
+            // Only plan tool names reach this method (the dispatch guards on
+            // `is_plan_tool`); an unknown name yields a structured error rather
+            // than a panic.
+            other => plan_tool::PlanToolResult {
+                ok: false,
+                error: Some(format!("unknown plan tool: {other}")),
+                plan: None,
+            },
+        };
+        tracing::info!(
+            session_id = %session_id,
+            tool_name = %call.name,
+            ok = result.ok,
+            "chat.plan_tool.applied"
+        );
+        let tool_result = serde_json::to_string(&result).unwrap_or_else(|_| {
+            r#"{"ok":false,"error":"plan tool result serialization failed"}"#.to_string()
+        });
         llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
         acc.all_tool_calls.push(ToolCallRecord {
             tool_name: call.name.clone(),
@@ -2278,8 +2376,9 @@ impl BuiltInChatAgent {
         } = ctx;
 
         if acc.authorized.contains(&call.name) {
-            let (record, tool_result, success) =
-                self.execute_tool_call(session_id, message_id, call, run_id).await;
+            let (record, tool_result, success) = self
+                .execute_tool_call(session_id, message_id, call, run_id)
+                .await;
             llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
             acc.all_tool_calls.push(record);
             return ToolCallOutcome {
@@ -2348,8 +2447,9 @@ impl BuiltInChatAgent {
         } = target;
         match decision {
             ToolDecision::Accept => {
-                let (record, tool_result, success) =
-                    self.execute_tool_call(session_id, message_id, call, run_id).await;
+                let (record, tool_result, success) = self
+                    .execute_tool_call(session_id, message_id, call, run_id)
+                    .await;
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                 acc.all_tool_calls.push(record);
                 ToolCallOutcome {
@@ -2360,8 +2460,9 @@ impl BuiltInChatAgent {
             ToolDecision::AlwaysAccept { .. } => {
                 acc.authorized.insert(call.name.clone());
                 acc.newly_authorized.push(call.name.clone());
-                let (record, tool_result, success) =
-                    self.execute_tool_call(session_id, message_id, call, run_id).await;
+                let (record, tool_result, success) = self
+                    .execute_tool_call(session_id, message_id, call, run_id)
+                    .await;
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                 acc.all_tool_calls.push(record);
                 ToolCallOutcome {
@@ -2593,6 +2694,20 @@ fn extract_hostname(url: &str) -> Option<String> {
 /// skipped and a single synthetic `tool_search` spec is appended instead, so the
 /// LLM discovers MCP tools by intent rather than receiving every schema up front.
 /// `tool_search_limit` is the upper bound advertised in that spec's description.
+/// Returns `true` when `name` is one of the `plan_*` built-in tools.
+fn is_plan_tool(name: &str) -> bool {
+    matches!(
+        name,
+        PLAN_PROPOSE_TOOL_NAME
+            | PLAN_ADD_STEP_TOOL_NAME
+            | PLAN_MODIFY_STEP_TOOL_NAME
+            | PLAN_REMOVE_STEP_TOOL_NAME
+            | PLAN_REORDER_TOOL_NAME
+            | PLAN_SET_STEP_STATUS_TOOL_NAME
+            | PLAN_SUBMIT_TOOL_NAME
+    )
+}
+
 async fn build_tool_specs(
     available_tools: &[String],
     tool_registry: &ToolRegistryHandle,
@@ -2658,11 +2773,7 @@ fn truncate_preview(s: &str) -> String {
 /// Increments on a failed call and resets to 0 on success, so a run of failures
 /// accumulates toward [`ESCALATION_FAILURE_THRESHOLD`] while any success clears it.
 fn next_failure_count(current: u32, failed: bool) -> u32 {
-    if failed {
-        current.saturating_add(1)
-    } else {
-        0
-    }
+    if failed { current.saturating_add(1) } else { 0 }
 }
 
 /// Truncate tool output for LLM context injection.
@@ -3252,8 +3363,8 @@ mod tests {
     ) -> Arc<LlmRouter> {
         let mut backends = std::collections::HashMap::new();
         backends.insert("default".to_string(), model);
-        let router =
-            LlmRouter::with_backends(backends, "default").with_routing(apollia_core::LlmRoutingConfig {
+        let router = LlmRouter::with_backends(backends, "default").with_routing(
+            apollia_core::LlmRoutingConfig {
                 precise: "default".to_owned(),
                 fast: "default".to_owned(),
                 hybrid: Some(apollia_core::HybridRoutingConfig {
@@ -3261,7 +3372,8 @@ mod tests {
                     cost_ceiling_usd: ceiling,
                     ceiling_action: action,
                 }),
-            });
+            },
+        );
         router.seed_session_cost_usd(session_cost);
         Arc::new(router)
     }
@@ -3335,7 +3447,12 @@ mod tests {
     #[tokio::test]
     async fn test_hard_stop_returns_error_on_ceiling() {
         // GIVEN a HardStop hybrid router with a session cost above the ceiling
-        let router = make_hybrid_router(failing_then_stop_model(), 0.001, 1.0, CeilingAction::HardStop);
+        let router = make_hybrid_router(
+            failing_then_stop_model(),
+            0.001,
+            1.0,
+            CeilingAction::HardStop,
+        );
 
         // WHEN the loop escalates and detects the ceiling
         let (result, _events) = run_ceiling_exchange(router).await;
@@ -3351,7 +3468,12 @@ mod tests {
     #[tokio::test]
     async fn test_hard_stop_emits_cost_ceiling_reached_event() {
         // GIVEN the same HardStop conditions
-        let router = make_hybrid_router(failing_then_stop_model(), 0.001, 1.0, CeilingAction::HardStop);
+        let router = make_hybrid_router(
+            failing_then_stop_model(),
+            0.001,
+            1.0,
+            CeilingAction::HardStop,
+        );
 
         // WHEN the run hard-stops
         let (_result, events) = run_ceiling_exchange(router).await;
@@ -3370,7 +3492,12 @@ mod tests {
     #[tokio::test]
     async fn test_stay_local_continues_without_error() {
         // GIVEN a StayLocal hybrid router with a session cost above the ceiling
-        let router = make_hybrid_router(failing_then_stop_model(), 0.001, 1.0, CeilingAction::StayLocal);
+        let router = make_hybrid_router(
+            failing_then_stop_model(),
+            0.001,
+            1.0,
+            CeilingAction::StayLocal,
+        );
 
         // WHEN the loop escalates and detects the ceiling
         let (result, events) = run_ceiling_exchange(router).await;
@@ -3380,15 +3507,22 @@ mod tests {
         let resp = result.expect("should produce a final response");
         assert_eq!(resp.content, "done");
         assert!(resp.frontier_ceiling_reached);
-        assert!(!events
-            .iter()
-            .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. }))
+        );
     }
 
     #[tokio::test]
     async fn test_hard_stop_below_ceiling_continues() {
         // GIVEN a HardStop hybrid router with a session cost below the ceiling
-        let router = make_hybrid_router(failing_then_stop_model(), 10.0, 0.0, CeilingAction::HardStop);
+        let router = make_hybrid_router(
+            failing_then_stop_model(),
+            10.0,
+            0.0,
+            CeilingAction::HardStop,
+        );
 
         // WHEN the loop escalates but the ceiling is not reached
         let (result, events) = run_ceiling_exchange(router).await;
@@ -3397,9 +3531,11 @@ mod tests {
         let resp = result.expect("should produce a final response");
         assert_eq!(resp.content, "done");
         assert!(!resp.frontier_ceiling_reached);
-        assert!(!events
-            .iter()
-            .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. }))
+        );
     }
 
     /// Tool call authorized: direct execution (via streaming).
@@ -4747,10 +4883,7 @@ mod tests {
         }
     }
 
-    fn agent_with(
-        registry: ToolRegistryHandle,
-        invoker: Arc<dyn ToolInvoker>,
-    ) -> BuiltInChatAgent {
+    fn agent_with(registry: ToolRegistryHandle, invoker: Arc<dyn ToolInvoker>) -> BuiltInChatAgent {
         BuiltInChatAgent::new(BuiltInChatAgentDeps {
             llm_router: make_router(Arc::new(MockStopModel::with_content("x"))),
             tool_registry: registry,
@@ -5576,6 +5709,126 @@ mod tests {
 
         tool_registry.shutdown().await;
     }
+
+    // ── plan_* tool wiring ───────────────────────────────────────────────
+
+    fn plan_agent(plan: Option<crate::chat::plan_actor::PlanHandle>) -> BuiltInChatAgent {
+        let model = Arc::new(MockStopModel::with_content("ok"));
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: make_router(model),
+            tool_registry: ToolRegistryHandle::start(),
+            tool_invoker: invoker,
+            event_bus: make_event_bus(),
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+            plan,
+        })
+    }
+
+    fn plan_handle_for_test() -> crate::chat::plan_actor::PlanHandle {
+        crate::chat::plan_actor::spawn_plan_actor(
+            rusqlite::Connection::open_in_memory().expect("open"),
+        )
+        .expect("spawn")
+    }
+
+    fn plan_call(name: &str, args: serde_json::Value) -> ToolCall {
+        ToolCall {
+            id: "call-1".into(),
+            name: name.into(),
+            arguments: args,
+        }
+    }
+
+    fn plan_step_json(id: &str) -> serde_json::Value {
+        serde_json::json!({ "step_id": id, "description": "d", "depends_on": [] })
+    }
+
+    #[tokio::test]
+    async fn test_plan_mode_active_tracks_handle_presence() {
+        // GIVEN one agent with a plan handle and one without
+        let with = plan_agent(Some(plan_handle_for_test()));
+        let without = plan_agent(None);
+
+        // WHEN inspecting the plan-mode gate
+        // THEN it is active only when a plan handle is attached
+        assert!(with.plan_mode_active());
+        assert!(!without.plan_mode_active());
+    }
+
+    #[test]
+    fn test_is_plan_tool_classifies_names() {
+        // GIVEN plan and non-plan tool names
+        // WHEN classifying them
+        // THEN only the plan_* names are recognized
+        assert!(is_plan_tool(PLAN_PROPOSE_TOOL_NAME));
+        assert!(is_plan_tool(PLAN_SUBMIT_TOOL_NAME));
+        assert!(!is_plan_tool(TODO_WRITE_TOOL_NAME));
+        assert!(!is_plan_tool("bash"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_plan_tool_propose_persists_and_records() {
+        // GIVEN a plan handle and a propose call
+        let plan = plan_handle_for_test();
+        let mut messages: Vec<LlmChatMessage> = Vec::new();
+        let mut acc = ReactAccumulators {
+            all_tool_calls: Vec::new(),
+            newly_authorized: Vec::new(),
+            authorized: HashSet::new(),
+        };
+        let c = plan_call(
+            PLAN_PROPOSE_TOOL_NAME,
+            serde_json::json!({ "steps": [plan_step_json("a")] }),
+        );
+
+        // WHEN dispatching it through the plan handler
+        let failed =
+            BuiltInChatAgent::handle_plan_tool(&plan, "s1", &c, &mut messages, &mut acc).await;
+
+        // THEN it succeeds, records a tool message, and the plan is persisted
+        assert!(!failed);
+        assert_eq!(messages.len(), 1);
+        assert_eq!(acc.all_tool_calls.len(), 1);
+        assert!(plan.get_plan("s1").await.expect("get").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_handle_plan_tool_modify_without_reason_is_failure() {
+        // GIVEN a proposed plan with one step
+        let plan = plan_handle_for_test();
+        plan.propose(
+            "s1",
+            vec![apollia_core::plan::PlanStep::new("a", "d")],
+            None,
+        )
+        .await
+        .expect("propose");
+        let mut messages: Vec<LlmChatMessage> = Vec::new();
+        let mut acc = ReactAccumulators {
+            all_tool_calls: Vec::new(),
+            newly_authorized: Vec::new(),
+            authorized: HashSet::new(),
+        };
+        let c = plan_call(
+            PLAN_MODIFY_STEP_TOOL_NAME,
+            serde_json::json!({ "step_id": "a", "step": plan_step_json("a") }),
+        );
+
+        // WHEN dispatching a modify with no reason
+        let failed =
+            BuiltInChatAgent::handle_plan_tool(&plan, "s1", &c, &mut messages, &mut acc).await;
+
+        // THEN the handler reports failure and the tool message carries the error
+        assert!(failed);
+        let body = match &messages[0].content {
+            apollia_llm::types::MessageContent::Text(t) => t.clone(),
+            other => format!("{other:?}"),
+        };
+        assert!(body.contains("reason is required"));
+    }
 }
 
 #[cfg(test)]
@@ -5920,9 +6173,12 @@ mod todo_compaction_tests {
     async fn test_todo_injected_after_compaction() {
         // GIVEN a session with one in_progress item persisted
         let h = todo_handle();
-        h.set_items("s1", vec![item("t1", "Analyser les logs", TodoStatus::InProgress)])
-            .await
-            .expect("seed");
+        h.set_items(
+            "s1",
+            vec![item("t1", "Analyser les logs", TodoStatus::InProgress)],
+        )
+        .await
+        .expect("seed");
         let mut messages = vec![LlmChatMessage::system("base")];
 
         // WHEN the post-compaction injection runs
