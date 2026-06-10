@@ -40,6 +40,7 @@ use super::types::{
 };
 use crate::a2a::A2AInvoker;
 use crate::chat::a2a_tools::generate_a2a_tool_specs;
+use crate::chat::plan_actor::PlanHandle;
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::todo_tool::{run_todo_write, todo_write_spec, TODO_WRITE_TOOL_NAME};
 use crate::eventbus::EventBusSender;
@@ -972,6 +973,10 @@ pub struct BuiltInChatAgentDeps {
     /// Optional per-session todo store. When present, the `todo_write` built-in
     /// tool is advertised to the LLM and handled inside the ReAct loop.
     pub todo: Option<TodoHandle>,
+    /// Optional per-session plan store. When present, the `plan_*` built-in
+    /// tools are advertised and handled inside the ReAct loop while the session
+    /// is in plan mode.
+    pub plan: Option<PlanHandle>,
 }
 
 /// Rust-native chat agent implementing a ReAct loop for Chat Libre mode.
@@ -1012,6 +1017,12 @@ pub struct BuiltInChatAgent {
     tool_search_limit: usize,
     /// Optional per-session todo store. `None` disables the `todo_write` tool.
     todo: Option<TodoHandle>,
+    /// Optional per-session plan store. `None` disables the `plan_*` tools.
+    // REASON: the field is owned here so the handle is injected once; the
+    // `plan_*` tool surface that reads it is wired into the ReAct loop in the
+    // immediately following change.
+    #[allow(dead_code)]
+    plan: Option<PlanHandle>,
     /// Optional lifecycle hook executor shared across sessions. `None` means no
     /// hooks are configured: the ReAct loop behaves exactly as before, with no
     /// interception and zero overhead.
@@ -1111,6 +1122,7 @@ impl BuiltInChatAgent {
             // Overwritten by `with_mcp_index` in deferred mode; unused otherwise.
             tool_search_limit: 20,
             todo: deps.todo,
+            plan: deps.plan,
             hook_executor: None,
         }
     }
@@ -3106,6 +3118,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -3190,6 +3203,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(20);
@@ -3270,6 +3284,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
         let budget = make_budget(20);
         let approvals = PendingChatApprovals::new();
@@ -3412,6 +3427,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -3477,6 +3493,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -3549,6 +3566,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -3623,6 +3641,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -3685,6 +3704,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(1);
@@ -3803,6 +3823,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -3918,6 +3939,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -3979,6 +4001,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -4075,6 +4098,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -4198,6 +4222,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         let budget = make_budget(10);
@@ -4288,6 +4313,7 @@ mod tests {
             user_memory: Some(repo),
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         // WHEN building the system prompt
@@ -4322,6 +4348,7 @@ mod tests {
             user_memory: Some(repo),
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         // WHEN inject_memory is false (e.g. supervised tier)
@@ -4380,6 +4407,7 @@ mod tests {
             user_memory: Some(repo),
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         // WHEN building the system prompt
@@ -4404,6 +4432,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         });
 
         // WHEN building the system prompt
@@ -4430,6 +4459,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         })
     }
 
@@ -4729,6 +4759,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         })
     }
 
@@ -5196,6 +5227,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         })
         .with_hook_executor(Some(pre_tool_use_executor(script)));
 
@@ -5267,6 +5299,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         })
         .with_hook_executor(Some(pre_tool_use_executor(script)));
 
@@ -5338,6 +5371,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         })
         .with_hook_executor(Some(pre_tool_use_executor(script)));
 
@@ -5494,6 +5528,7 @@ mod tests {
             user_memory: None,
             a2a_invoker: None,
             todo: None,
+            plan: None,
         })
         .with_hook_executor(Some(executor));
 

@@ -11,6 +11,7 @@ pub mod builtin_agent;
 pub mod extractor;
 pub mod manager;
 pub mod native_wrappers;
+pub mod plan_actor;
 pub mod project_context;
 pub mod repository;
 pub mod summarizer;
@@ -32,6 +33,7 @@ pub use manager::{
     ChatSessionManagerHandle, ChatToolsConfig, PendingUserInputView, SessionAuthorizationView,
     APOLLIA_CHAT_AGENT_ID,
 };
+pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use project_context::DefaultProjectContextProvider;
 pub use repository::{
     AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,

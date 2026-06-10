@@ -369,6 +369,7 @@ struct LibreExchangeParams {
     user_msg: String,
     tx: mpsc::Sender<ChatCommand>,
     todo: Option<TodoHandle>,
+    plan: Option<PlanHandle>,
     hook_executor: Option<Arc<HookExecutor>>,
 }
 
@@ -416,6 +417,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         user_msg,
         tx,
         todo,
+        plan,
         hook_executor,
     } = params;
 
@@ -483,6 +485,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         user_memory: session_user_memory,
         a2a_invoker: a2a_for_agent,
         todo,
+        plan,
     })
     .with_workspace_path(session_invoker.workspace)
     .with_mcp_index(agent_mcp_index, tool_search_limit)
@@ -676,6 +679,7 @@ use super::builtin_agent::{
     NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
 };
 use super::extractor::UserMemoryExtractor;
+use super::plan_actor::{spawn_plan_actor, PlanHandle};
 use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApprovalLogEntry};
 use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
@@ -1100,6 +1104,9 @@ struct ChatSessionManager {
     /// Clonable handle to the per-runtime todo actor, cloned into each exchange
     /// so the agent's `todo_write` tool persists session task state.
     todo_handle: Option<TodoHandle>,
+    /// Clonable handle to the per-runtime plan actor, cloned into each exchange
+    /// so the agent's `plan_*` tools persist the session plan.
+    plan_handle: Option<PlanHandle>,
     /// Shared lifecycle hook executor, cloned into each exchange so the ReAct
     /// loop can run PreToolUse and the best-effort hooks. `None` disables hooks.
     hook_executor: Option<Arc<HookExecutor>>,
@@ -1982,6 +1989,7 @@ impl ChatSessionManager {
                 user_msg,
                 tx,
                 todo: self.todo_handle.clone(),
+                plan: self.plan_handle.clone(),
                 hook_executor: self.hook_executor.clone(),
             }));
         }
@@ -3388,6 +3396,16 @@ impl ChatSessionManagerHandle {
                 .map_err(|e| ChatError::InternalError(format!("todo migration failed: {e}")))?,
         );
 
+        // Spawn the plan actor on its own connection to the same chat database.
+        // The migration runs synchronously here (fail fast), exactly like the
+        // todo actor above.
+        let plan_conn = rusqlite::Connection::open(db_path)
+            .map_err(|e| ChatError::InternalError(format!("failed to open plan db: {e}")))?;
+        let plan_handle = Some(
+            spawn_plan_actor(plan_conn)
+                .map_err(|e| ChatError::InternalError(format!("plan migration failed: {e}")))?,
+        );
+
         let pending_chat_approvals = PendingChatApprovals::new();
         let pending_fs_approvals = PendingFilesystemApprovals::new();
         let pending_user_inputs = apollia_tools::tools::ask_user::PendingUserInputs::new();
@@ -3430,6 +3448,7 @@ impl ChatSessionManagerHandle {
             mcp_loading,
             tool_search_limit,
             todo_handle,
+            plan_handle,
             hook_executor,
         };
 
@@ -4453,6 +4472,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             todo_handle: None,
+            plan_handle: None,
             hook_executor: None,
         };
 
@@ -4588,6 +4608,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             todo_handle: None,
+            plan_handle: None,
             hook_executor: None,
         };
 
@@ -4656,6 +4677,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             todo_handle: None,
+            plan_handle: None,
             hook_executor: None,
         };
 
@@ -4702,6 +4724,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             todo_handle: None,
+            plan_handle: None,
             hook_executor: None,
         };
 
