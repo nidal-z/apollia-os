@@ -6,8 +6,10 @@
   // pre-wrapped text block. The data flows in as props fed by the thinking
   // store on the chat side; no invoke here. While `live` the header reads
   // "Thinking", and on `ThinkingEnded` the parent flips `live` to false so the
-  // header settles on the frozen "Thoughts" label. Renders nothing when the
-  // content is blank, so a turn without a thinking trace shows no empty box.
+  // header settles on the frozen "Thoughts" label. Renders nothing once the
+  // trace has settled with blank content, so a turn without a thinking trace
+  // shows no empty box; while `live` the header still appears even before the
+  // first token, since the runtime only carries the full text on ThinkingEnded.
   import { t } from "svelte-i18n";
   import { PLAN_SESSION_KEYS } from "$lib/i18n/strings/planSession";
 
@@ -21,9 +23,12 @@
 
   let expanded = $state(true);
   const hasContent = $derived(content.trim().length > 0);
+  // While live, show the header even before any text arrives; once settled,
+  // only show when there is real content to reveal.
+  const visible = $derived(live || hasContent);
 </script>
 
-{#if hasContent}
+{#if visible}
   <section class="my-1.5" data-testid="plan-thinking-overlay">
     <button
       type="button"
@@ -39,7 +44,7 @@
         {$t(live ? PLAN_SESSION_KEYS.thinkingLive : PLAN_SESSION_KEYS.thinkingDone)}
       </span>
     </button>
-    {#if expanded}
+    {#if expanded && hasContent}
       <p
         class="mt-1 whitespace-pre-wrap pl-3 text-[12px] leading-relaxed text-muted-foreground/85"
       >

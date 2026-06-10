@@ -12,6 +12,8 @@
  */
 import { writable, derived, type Readable } from "svelte/store";
 import type {
+  DecisionPoint,
+  DecisionPointRecordedEvent,
   ThinkingEndedEvent,
   ThinkingStartedEvent,
   ThinkingState,
@@ -38,6 +40,46 @@ export function thinkingForTurn(
 ): Readable<ThinkingState | null> {
   return derived(states, ($s) => $s[turnId] ?? null);
 }
+
+/**
+ * Live or frozen thinking text of the most recently started turn, shaped for
+ * the plan DAG overlay. `live` is true between `ThinkingStarted` and
+ * `ThinkingEnded`; it flips to false once the trace settles. Returns `null`
+ * before the first turn so an idle panel renders no overlay.
+ *
+ * While live, `raw_content` is empty (the runtime only carries the full text on
+ * `ThinkingEnded`), so the panel shows the "Thinking" header without a body.
+ */
+export const latestThinking: Readable<{ content: string; live: boolean } | null> =
+  derived([states, latestTurnId], ([$states, $turnId]) => {
+    if ($turnId === null) return null;
+    const state = $states[$turnId];
+    if (!state) return null;
+    return { content: state.raw_content, live: state.ended_ms === null };
+  });
+
+const decisionPoints = writable<Record<string, DecisionPoint>>({});
+
+/** Read-only map of `turn_id` → recorded `DecisionPoint`. */
+export const decisionPointStates: Readable<Record<string, DecisionPoint>> = {
+  subscribe: decisionPoints.subscribe,
+};
+
+/**
+ * Turn id of the most recently recorded decision point (or `null` before the
+ * first `DecisionPointRecorded`). Decision points are opt-in, so most turns
+ * never set this.
+ */
+export const latestDecisionTurnId = writable<string | null>(null);
+
+/**
+ * The most recently recorded decision point, or `null` when none has landed.
+ * Surfaced by the plan DAG panel next to the current step.
+ */
+export const latestDecisionPoint: Readable<DecisionPoint | null> = derived(
+  [decisionPoints, latestDecisionTurnId],
+  ([$points, $turnId]) => ($turnId === null ? null : ($points[$turnId] ?? null)),
+);
 
 export function handleThinkingStarted(event: ThinkingStartedEvent): void {
   states.update((current) => ({
@@ -82,6 +124,15 @@ export function attachThinkingSummary(
   });
 }
 
+export function handleDecisionPointRecorded(
+  event: DecisionPointRecordedEvent,
+): void {
+  const point = event.point;
+  if (!point || typeof point.turn_id !== "string") return;
+  decisionPoints.update((current) => ({ ...current, [point.turn_id]: point }));
+  latestDecisionTurnId.set(point.turn_id);
+}
+
 export function clearThinkingState(turnId: string): void {
   states.update((current) => {
     if (!(turnId in current)) return current;
@@ -89,4 +140,15 @@ export function clearThinkingState(turnId: string): void {
     delete copy[turnId];
     return copy;
   });
+}
+
+/**
+ * Clears every per-turn thinking and decision artifact. Called when a plan
+ * panel tears down its session so a later session starts from a clean slate.
+ */
+export function resetThinking(): void {
+  states.set({});
+  decisionPoints.set({});
+  latestTurnId.set(null);
+  latestDecisionTurnId.set(null);
 }

@@ -38,6 +38,16 @@ import {
   addPendingUserInput,
   removePendingUserInput,
 } from "./chat-global";
+import {
+  handleThinkingStarted,
+  handleThinkingEnded,
+  handleDecisionPointRecorded,
+} from "./thinking";
+import type {
+  DecisionPointRecordedEvent,
+  ThinkingEndedEvent,
+  ThinkingStartedEvent,
+} from "$lib/types";
 
 /** Watchdog timeout - triggers a single IPC refresh if no event received. */
 const WATCHDOG_TIMEOUT_MS = 10_000;
@@ -356,6 +366,48 @@ function handleChatError(event: TauriRuntimeEvent): void {
   if (sessionId) clearGlobalBuffer(sessionId);
 }
 
+/** Returns the numeric value of a field if it is a number, otherwise `fallback`. */
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" ? value : fallback;
+}
+
+/** Feeds `ThinkingStarted` into the turn-keyed thinking store. */
+function handleThinkingStartedEvent(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "ThinkingStarted");
+  const turnId = asOptionalString(p.turn_id);
+  if (!turnId) return;
+  const payload: ThinkingStartedEvent = {
+    turn_id: turnId,
+    ts_ms: asNumber(p.ts_ms),
+  };
+  handleThinkingStarted(payload);
+}
+
+/** Feeds `ThinkingEnded` into the turn-keyed thinking store. */
+function handleThinkingEndedEvent(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "ThinkingEnded");
+  const turnId = asOptionalString(p.turn_id);
+  if (!turnId) return;
+  const payload: ThinkingEndedEvent = {
+    turn_id: turnId,
+    ts_ms: asNumber(p.ts_ms),
+    duration_ms: asNumber(p.duration_ms),
+    raw_content: asString(p.raw_content),
+    tokens: asNumber(p.tokens),
+  };
+  handleThinkingEnded(payload);
+}
+
+/** Feeds `DecisionPointRecorded` into the turn-keyed decision store. */
+function handleDecisionPointEvent(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "DecisionPointRecorded");
+  const point = p.point;
+  if (!point || typeof point !== "object") return;
+  handleDecisionPointRecorded({
+    point,
+  } as DecisionPointRecordedEvent);
+}
+
 /**
  * Dispatches a chat-changed runtime event to the chat-global helpers.
  * Each event type is handled by a dedicated helper to keep this dispatcher's
@@ -385,6 +437,15 @@ function dispatchChatEvent(event: TauriRuntimeEvent): void {
       return;
     case "ChatError":
       handleChatError(event);
+      return;
+    case "ThinkingStarted":
+      handleThinkingStartedEvent(event);
+      return;
+    case "ThinkingEnded":
+      handleThinkingEndedEvent(event);
+      return;
+    case "DecisionPointRecorded":
+      handleDecisionPointEvent(event);
       return;
     default:
       return;

@@ -23,6 +23,11 @@
     startChatPlanListener,
     resetChatPlan,
   } from "$lib/stores/chatPlanMode";
+  import {
+    latestThinking,
+    latestDecisionPoint,
+    resetThinking,
+  } from "$lib/stores/thinking";
   import { layoutPlan, type PlanDagNode } from "./planDagLayout";
   import type { SessionPlan, SessionPlanStep } from "$lib/stores/chatPlanMode";
   import type { PlanStep } from "$lib/ipc/plan";
@@ -81,6 +86,17 @@
   // by id across updates to detect removals without a second store.
   let previousSteps = $state<SessionPlanStep[]>([]);
 
+  // Live reasoning attaches at the panel level, not per step: thinking and
+  // decision events are turn-keyed with no session or step correlation in the
+  // runtime, so the only honest anchor is the step currently in progress. The
+  // overlay therefore rides the single in-progress node; a past revision viewed
+  // through the scrubber gets nothing, since live reasoning never describes a
+  // frozen snapshot.
+  const liveThinking = $derived(historySteps === null ? $latestThinking : null);
+  const liveDecision = $derived(
+    historySteps === null ? $latestDecisionPoint : null,
+  );
+
   $effect(() => {
     if (plan && plan.steps.length > 0) {
       // In history mode the reconstructed snapshot already holds the full set
@@ -92,8 +108,15 @@
           ? []
           : previousSteps.filter((s) => !liveIds.has(s.step_id));
       const next = layoutPlan(plan, removed);
+      const currentId = plan.steps.find(
+        (s) => s.status === "in_progress",
+      )?.step_id;
       for (const node of next.nodes) {
         node.data.onSelect = openStep;
+        if (!node.data.removed && node.data.step.step_id === currentId) {
+          node.data.thinking = liveThinking;
+          node.data.decisionPoint = liveDecision;
+        }
       }
       nodes = next.nodes;
       edges = next.edges;
@@ -124,6 +147,7 @@
       disposed = true;
       unlisten?.();
       resetChatPlan();
+      resetThinking();
     };
   });
 </script>
