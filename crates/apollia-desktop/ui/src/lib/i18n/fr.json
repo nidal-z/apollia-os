@@ -1186,7 +1186,12 @@
     "trace_step_id": "Étape",
     "trace_task_id": "Tâche",
     "trace_tool_calls": "Appels d'outils",
-    "trace_empty": "Aucun appel d'outil pour cette étape."
+    "trace_empty": "Aucun appel d'outil pour cette étape.",
+    "reason_label": "Raison",
+    "origin_initial": "Initial",
+    "origin_replan": "Replanification {revision}",
+    "origin_user_inject": "Injection utilisateur",
+    "origin_agent_edit": "Édition agent"
   },
   "approvals": {
     "title": "Approbations",

@@ -15,6 +15,7 @@
 import { writable } from "svelte/store";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { PlanPhase } from "$lib/types";
+import type { StepOrigin } from "$lib/ipc/plan";
 
 /** A single step of a session plan (the unified `apollia_core::plan::PlanStep`). */
 export interface SessionPlanStep {
@@ -31,7 +32,8 @@ export interface SessionPlanStep {
 
 /** Provenance of a plan step (origin + reason + timestamp). */
 export interface SessionStepProvenance {
-  origin: string;
+  /** Structured origin (`replan` keeps its revision number). */
+  origin: StepOrigin;
   reason: string | null;
   at: number;
 }
@@ -124,13 +126,33 @@ function asOptionalString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+/**
+ * Narrows the wire `origin` (string for the unit variants, `{ replan: n }` for
+ * a replan) onto the typed {@link StepOrigin}. Unknown shapes fall back to
+ * `"initial"` so the chip is never blank.
+ */
+function toOrigin(value: unknown): StepOrigin {
+  if (value && typeof value === "object" && "replan" in value) {
+    const revision = (value as { replan: unknown }).replan;
+    return { replan: typeof revision === "number" ? revision : 0 };
+  }
+  if (
+    value === "initial" ||
+    value === "user_inject" ||
+    value === "agent_edit"
+  ) {
+    return value;
+  }
+  return "initial";
+}
+
 function toProvenance(value: unknown): SessionStepProvenance {
   const p = (value && typeof value === "object" ? value : {}) as Record<
     string,
     unknown
   >;
   return {
-    origin: asString(p.origin, "initial"),
+    origin: toOrigin(p.origin),
     reason: asOptionalString(p.reason),
     at: typeof p.at === "number" ? p.at : 0,
   };

@@ -18,4 +18,9 @@ export const PLAN_SESSION_KEYS = {
   traceTaskId: "plan_session.trace_task_id",
   traceToolCalls: "plan_session.trace_tool_calls",
   traceEmpty: "plan_session.trace_empty",
+  reasonLabel: "plan_session.reason_label",
+  originInitial: "plan_session.origin_initial",
+  originReplan: "plan_session.origin_replan",
+  originUserInject: "plan_session.origin_user_inject",
+  originAgentEdit: "plan_session.origin_agent_edit",
 };

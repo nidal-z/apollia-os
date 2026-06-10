@@ -16,6 +16,7 @@
     setChatPlanError,
   } from "$lib/stores/chatPlanMode";
   import { phaseLabelKey } from "$lib/chat/planPhase";
+  import { originToChip } from "$lib/components/operator/provenanceChip";
 
   interface Props {
     sessionId: string;
@@ -76,6 +77,7 @@
   {:else}
     <ol class="mb-4 space-y-2">
       {#each steps as step (step.step_id)}
+        {@const provenanceChip = originToChip(step.provenance.origin)}
         <li class="rounded-md border border-border/60 bg-muted/30 p-2.5 text-sm">
           <p class="font-medium">{step.title || step.description}</p>
           {#if step.title && step.description && step.description !== step.title}
@@ -96,7 +98,10 @@
             {#if step.model_hint}
               <span><span class="font-medium">{$t("chat.planMode.modelLabel")}:</span> {step.model_hint}</span>
             {/if}
-            <span><span class="font-medium">{$t("chat.planMode.provenanceLabel")}:</span> {step.provenance.origin}</span>
+            <span
+              ><span class="font-medium">{$t("chat.planMode.provenanceLabel")}:</span>
+              {$t(provenanceChip.labelKey, { values: provenanceChip.labelValues })}</span
+            >
           </div>
 
           {#if step.rationale}
