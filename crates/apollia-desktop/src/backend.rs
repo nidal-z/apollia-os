@@ -13,7 +13,8 @@ use apollia_aip::context::{
 };
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{
-    AIPError, AIPResult, AIPTask, AgentManifest, PendingApprovals, TaskStatus, ToolsConfig,
+    AIPError, AIPResult, AIPTask, AgentManifest, ORIAConfig, PendingApprovals, TaskStatus,
+    ToolsConfig,
 };
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
@@ -23,6 +24,7 @@ use apollia_memory::manager::MemoryManager;
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::engine::{AgentRunner, ORIAEngine};
+use apollia_oria::PendingPlanGates;
 use apollia_runtime::a2a::{
     make_delegate_fn, A2AInvoker, A2AToolsProvider, A2aDelegateFn, DEFAULT_A2A_MAX_HOPS,
 };
@@ -211,6 +213,12 @@ struct AIPProductionBackend {
     /// Secrets declared in the manifest (`manifest.secrets`): the allowlist for
     /// `ctx.secrets.get()`.
     secrets_declared: Vec<String>,
+    /// Shared plan-gate registry. Wired so the desktop UI can resolve a pending
+    /// gate via `submit_plan_decision`. `None` when the runtime exposed none.
+    plan_gates: Option<Arc<PendingPlanGates>>,
+    /// Agent manifest: drives execution-mode routing, the orchestrated step
+    /// budget, and the `AIPAgent` contract for the ORIA planner path.
+    manifest: AgentManifest,
 }
 
 impl Clone for AIPProductionBackend {
@@ -238,6 +246,8 @@ impl Clone for AIPProductionBackend {
             templates_declared: self.templates_declared.clone(),
             agent_dir: self.agent_dir.clone(),
             secrets_declared: self.secrets_declared.clone(),
+            plan_gates: self.plan_gates.clone(),
+            manifest: self.manifest.clone(),
         }
     }
 }
@@ -286,6 +296,9 @@ struct BridgeRunner {
     agent_dir: Option<PathBuf>,
     /// Secrets declared in the manifest: the allowlist for `ctx.secrets.get()`.
     secrets_declared: Vec<String>,
+    /// Agent manifest, exposed via the `AIPAgent` contract for the orchestrated
+    /// planner path (manifest + plan-complete hook).
+    manifest: AgentManifest,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -549,6 +562,12 @@ async fn build_mcp_executors(
     execs
 }
 
+impl apollia_oria::engine::AIPAgent for BridgeRunner {
+    fn manifest(&self) -> AgentManifest {
+        self.manifest.clone()
+    }
+}
+
 impl ExecutionBackend for AIPProductionBackend {
     fn execute(
         &self,
@@ -581,6 +600,7 @@ impl ExecutionBackend for AIPProductionBackend {
             templates_declared: self.templates_declared.clone(),
             agent_dir: self.agent_dir.clone(),
             secrets_declared: self.secrets_declared.clone(),
+            manifest: self.manifest.clone(),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
@@ -591,12 +611,45 @@ impl ExecutionBackend for AIPProductionBackend {
             engine = engine.with_task_repository(repo);
         }
 
-        let budget = Arc::new(StepBudget::unlimited());
+        // Plan-mode gate: the per-run override wins, otherwise the autonomy tier
+        // drives the policy (default Assisted = active). The shared registry is
+        // wired so the desktop UI can resolve the gate via submit_plan_decision.
+        engine = engine.with_plan_gate_override(task.run_options.plan_gate);
+        if let Some(gates) = self.plan_gates.clone() {
+            engine = engine.with_pending_plan_gates(gates);
+        }
+        if let Some(tier) = task.run_options.autonomy_level {
+            engine = engine.with_oria_config(ORIAConfig {
+                autonomy_level: Some(tier),
+                ..ORIAConfig::default()
+            });
+        }
+        let step_budget_max = self
+            .manifest
+            .step_budget
+            .as_ref()
+            .map(|b| b.max_steps)
+            .unwrap_or(20);
+        engine = wire_engine_with_llm(
+            engine,
+            self.llm_router.clone(),
+            &self.agent_id,
+            step_budget_max,
+        );
+
+        // Orchestrated agents flow through ORIA's planner + ActorLoop (where the
+        // plan gate lives); everything else uses the direct dispatch path.
+        let execution_mode = self.manifest.execution_mode.clone();
         Box::pin(async move {
-            engine
-                .execute_direct(task, &runner, budget)
-                .await
-                .map_err(|e| e.to_string())
+            if execution_mode == "orchestrated" {
+                Ok(engine.execute(task, &runner).await)
+            } else {
+                let budget = Arc::new(StepBudget::unlimited());
+                engine
+                    .execute_direct(task, &runner, budget)
+                    .await
+                    .map_err(|e| e.to_string())
+            }
         })
     }
 }
@@ -625,6 +678,9 @@ pub struct ProductionBackendFactory {
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
     /// Operator tools configuration (`[tools]` of apollia.toml).
     pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
+    /// Shared plan-gate registry, forwarded to each per-agent engine so the
+    /// desktop UI can resolve a pending plan gate.
+    pub plan_gates: Arc<std::sync::OnceLock<Arc<PendingPlanGates>>>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -657,6 +713,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
             .get()
             .cloned()
             .unwrap_or_else(ToolsConfig::default);
+        let plan_gates = self.plan_gates.get().cloned();
+        let backend_manifest = manifest.clone();
 
         // Build A2A delegate + invoker when registry+router are available.
         // Same shape as `apollia-cli/src/commands/start.rs:716-742`.
@@ -731,6 +789,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 templates_declared,
                 agent_dir,
                 secrets_declared,
+                plan_gates,
+                manifest: backend_manifest,
             })
         })();
 
@@ -747,6 +807,44 @@ impl AgentBackendFactory for ProductionBackendFactory {
             }
         }
     }
+}
+
+/// Wires the `LlmRouter` and a `Reasoner` into the engine so the orchestrated
+/// path can plan. Mirrors the CLI wiring: without a precise backend the engine
+/// keeps the router but planning fails with `NO_LLM` if invoked.
+fn wire_engine_with_llm(
+    mut engine: ORIAEngine,
+    llm_router: Option<Arc<LlmRouter>>,
+    agent_id: &str,
+    max_steps: u32,
+) -> ORIAEngine {
+    let Some(router_arc) = llm_router else {
+        tracing::warn!(
+            agent = %agent_id,
+            "no llm router configured - orchestrated execution will fail with NO_LLM if invoked"
+        );
+        return engine;
+    };
+    let owned_router: LlmRouter = match Arc::try_unwrap(router_arc) {
+        Ok(owned) => owned,
+        Err(shared) => (*shared).clone(),
+    };
+    match owned_router.route_precise() {
+        Ok(model) => {
+            engine = engine
+                .with_llm_router(owned_router)
+                .with_reasoner(model, max_steps);
+        }
+        Err(err) => {
+            tracing::warn!(
+                agent = %agent_id,
+                error = %err,
+                "no precise LLM backend resolved - orchestrated execution will fail with NO_LLM if invoked"
+            );
+            engine = engine.with_llm_router(owned_router);
+        }
+    }
+    engine
 }
 
 fn default_memory_dir() -> PathBuf {
@@ -869,6 +967,8 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
         let agent_dir = install_path.parent().map(Path::to_path_buf);
         // Capture the list of declared secrets.
         let secrets_declared = validated.manifest.secrets.clone();
+        // Capture the manifest before the bridge consumes `validated`.
+        let chat_manifest = validated.manifest.clone();
         let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
 
         // 3. Resolve OnceLock handles
@@ -952,6 +1052,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             templates_declared,
             agent_dir,
             secrets_declared,
+            manifest: chat_manifest,
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(event_bus);

@@ -446,6 +446,10 @@ fn main() {
     // params and statically-disabled tools. Populated from RuntimeHandle.
     let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =
         Arc::new(std::sync::OnceLock::new());
+    // Plan-gate registry, forwarded to per-agent engines so the desktop UI can
+    // resolve a pending plan gate via submit_plan_decision.
+    let plan_gates_lock: Arc<std::sync::OnceLock<Arc<apollia_oria::PendingPlanGates>>> =
+        Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(backend::ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
@@ -459,6 +463,7 @@ fn main() {
         task_router: task_router_lock.clone(),
         mailbox_handle: mailbox_handle_lock.clone(),
         tools_config: tools_config_lock.clone(),
+        plan_gates: plan_gates_lock.clone(),
     });
 
     // Shared SttFlow state for push-to-talk IPC commands (`start_tour_recording`,
@@ -557,6 +562,9 @@ fn main() {
             tools_config: &tools_config_lock,
         },
     );
+    if let Some(gates) = runtime_handle.plan_gates.clone() {
+        let _ = plan_gates_lock.set(gates);
+    }
 
     // Auto-load installed agents now that the OnceLocks are populated so the
     // ProductionBackendFactory can create real backends.
