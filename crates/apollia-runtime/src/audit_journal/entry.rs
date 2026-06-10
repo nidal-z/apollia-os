@@ -19,6 +19,9 @@ pub enum JournalEntryKind {
     LlmCallStarted,
     /// An LLM call returned.
     LlmCallCompleted,
+    /// A full LLM response captured for deterministic replay. The payload is an
+    /// [`crate::replay::LlmCompletionSnapshot`].
+    LlmCompletion,
     /// An agent became active.
     AgentStarted,
     /// An agent stopped.
@@ -43,6 +46,7 @@ impl JournalEntryKind {
             JournalEntryKind::ToolCallCompleted => "tool_call_completed",
             JournalEntryKind::LlmCallStarted => "llm_call_started",
             JournalEntryKind::LlmCallCompleted => "llm_call_completed",
+            JournalEntryKind::LlmCompletion => "llm_completion",
             JournalEntryKind::AgentStarted => "agent_started",
             JournalEntryKind::AgentStopped => "agent_stopped",
             JournalEntryKind::EscalationTriggered => "escalation_triggered",
@@ -58,6 +62,7 @@ impl JournalEntryKind {
             "tool_call_completed" => JournalEntryKind::ToolCallCompleted,
             "llm_call_started" => JournalEntryKind::LlmCallStarted,
             "llm_call_completed" => JournalEntryKind::LlmCallCompleted,
+            "llm_completion" => JournalEntryKind::LlmCompletion,
             "agent_started" => JournalEntryKind::AgentStarted,
             "agent_stopped" => JournalEntryKind::AgentStopped,
             "escalation_triggered" => JournalEntryKind::EscalationTriggered,

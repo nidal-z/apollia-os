@@ -19,15 +19,31 @@
 //! are not part of any run). The subscriber owns no hashing logic: it only
 //! translates events and delegates chaining and signing to the actor.
 
+use std::collections::HashMap;
+
 use apollia_core::events::RuntimeEvent;
 
 use crate::audit_journal::entry::{JournalEntryDraft, JournalEntryKind};
 use crate::audit_journal::handle::AuditJournalHandle;
+use crate::replay::LlmCompletionSnapshot;
+
+/// Per-run step-ordinal counters for captured replay inputs.
+///
+/// Each captured input type owns a contiguous 0-based sequence within a run, so
+/// the replay cursors can validate the no-gap invariant. Counters are dropped
+/// when the run ends.
+#[derive(Debug, Default)]
+struct RunOrdinals {
+    /// Next ordinal for `LlmCompletion` captures.
+    llm: u32,
+}
 
 /// Background subscriber draining `RuntimeEvent`s into the audit journal.
 pub struct AuditJournalSubscriber {
     handle: AuditJournalHandle,
     receiver: tokio::sync::broadcast::Receiver<RuntimeEvent>,
+    /// Per-run capture ordinals, owned by this actor (no shared lock).
+    ordinals: HashMap<String, RunOrdinals>,
 }
 
 impl AuditJournalSubscriber {
@@ -39,7 +55,11 @@ impl AuditJournalSubscriber {
         handle: AuditJournalHandle,
         receiver: tokio::sync::broadcast::Receiver<RuntimeEvent>,
     ) {
-        let subscriber = Self { handle, receiver };
+        let subscriber = Self {
+            handle,
+            receiver,
+            ordinals: HashMap::new(),
+        };
         tokio::spawn(subscriber.run());
     }
 
@@ -48,8 +68,16 @@ impl AuditJournalSubscriber {
         loop {
             match self.receiver.recv().await {
                 Ok(event) => {
-                    if let Some(draft) = map_event(&event) {
+                    // Capture events carry a per-run step ordinal (stateful);
+                    // everything else maps statelessly.
+                    if let Some(draft) = map_capture(&mut self.ordinals, &event) {
                         self.handle.append(draft);
+                    } else if let Some(draft) = map_event(&event) {
+                        self.handle.append(draft);
+                    }
+                    // Free the per-run counters once the run finishes.
+                    if let Some(run_id) = run_end_run_id(&event) {
+                        self.ordinals.remove(run_id);
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
@@ -61,6 +89,67 @@ impl AuditJournalSubscriber {
                 }
             }
         }
+    }
+}
+
+/// Returns the run id when an event marks the end of a run, so its capture
+/// counters can be freed.
+fn run_end_run_id(event: &RuntimeEvent) -> Option<&str> {
+    match event {
+        RuntimeEvent::ChatResponseCompleted {
+            run_id: Some(run_id),
+            ..
+        } => Some(run_id.as_str()),
+        _ => None,
+    }
+}
+
+/// Maps a capture `RuntimeEvent` to a journal draft, assigning the per-run step
+/// ordinal from `ordinals`. Returns `None` for non-capture events, which fall
+/// through to the stateless [`map_event`].
+///
+/// The step ordinal is contiguous and 0-based per run and per capture type, so
+/// the replay cursors can detect a missing entry as a gap.
+fn map_capture(
+    ordinals: &mut HashMap<String, RunOrdinals>,
+    event: &RuntimeEvent,
+) -> Option<JournalEntryDraft> {
+    match event {
+        RuntimeEvent::LlmResponseCaptured {
+            run_id,
+            backend,
+            model,
+            content,
+            tool_calls,
+            prompt_tokens,
+            completion_tokens,
+            cost_usd,
+            stream_truncated,
+        } => {
+            let counters = ordinals.entry(run_id.as_str().to_string()).or_default();
+            let step_ordinal = counters.llm;
+            counters.llm += 1;
+
+            let snapshot = LlmCompletionSnapshot {
+                run_id: run_id.clone(),
+                step_ordinal,
+                backend_name: backend.clone(),
+                model_id: model.clone(),
+                content: content.clone(),
+                tool_calls: tool_calls.clone(),
+                prompt_tokens: *prompt_tokens,
+                completion_tokens: *completion_tokens,
+                cost_usd: *cost_usd,
+                stream_truncated: *stream_truncated,
+            };
+            let payload = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
+            Some(draft(
+                run_id.as_str().to_string(),
+                JournalEntryKind::LlmCompletion,
+                payload,
+            ))
+        }
+        _ => None,
     }
 }
 
@@ -286,5 +375,91 @@ mod tests {
         // WHEN mapped
         // THEN it produces no entry
         assert!(map_event(&event).is_none());
+    }
+
+    fn captured(run: &RunId, content: &str, truncated: bool) -> RuntimeEvent {
+        RuntimeEvent::LlmResponseCaptured {
+            run_id: run.clone(),
+            backend: "local".into(),
+            model: "m".into(),
+            content: content.into(),
+            tool_calls: vec![],
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            cost_usd: None,
+            stream_truncated: truncated,
+        }
+    }
+
+    fn snapshot_of(draft: &JournalEntryDraft) -> LlmCompletionSnapshot {
+        serde_json::from_value(draft.payload.clone()).expect("snapshot payload")
+    }
+
+    // AC-1 / AC-3: ordinal increases within a run, contiguous from 0
+    #[test]
+    fn test_llm_capture_assigns_increasing_ordinal() {
+        // GIVEN a fresh ordinal map and a run with two captured responses
+        let mut ordinals = HashMap::new();
+        let run = RunId::new();
+
+        // WHEN both events are mapped in order
+        let first = map_capture(&mut ordinals, &captured(&run, "a", false)).expect("first");
+        let second = map_capture(&mut ordinals, &captured(&run, "b", false)).expect("second");
+
+        // THEN the kind is LlmCompletion and the ordinals are 0 then 1
+        assert_eq!(first.kind, JournalEntryKind::LlmCompletion);
+        assert_eq!(snapshot_of(&first).step_ordinal, 0);
+        assert_eq!(snapshot_of(&second).step_ordinal, 1);
+        assert!(!snapshot_of(&first).stream_truncated);
+    }
+
+    // AC-3: two runs keep independent ordinal sequences
+    #[test]
+    fn test_step_ordinal_independent_per_run() {
+        // GIVEN two distinct runs whose captures are interleaved
+        let mut ordinals = HashMap::new();
+        let a = RunId::new();
+        let b = RunId::new();
+
+        // WHEN events arrive a0, b0, a1, b1
+        let a0 = map_capture(&mut ordinals, &captured(&a, "a0", false)).expect("a0");
+        let b0 = map_capture(&mut ordinals, &captured(&b, "b0", false)).expect("b0");
+        let a1 = map_capture(&mut ordinals, &captured(&a, "a1", false)).expect("a1");
+        let b1 = map_capture(&mut ordinals, &captured(&b, "b1", false)).expect("b1");
+
+        // THEN each run owns its own 0,1 sequence without cross-contamination
+        assert_eq!(snapshot_of(&a0).step_ordinal, 0);
+        assert_eq!(snapshot_of(&a1).step_ordinal, 1);
+        assert_eq!(snapshot_of(&b0).step_ordinal, 0);
+        assert_eq!(snapshot_of(&b1).step_ordinal, 1);
+    }
+
+    // AC-2: an interrupted stream is captured with the flag, not dropped
+    #[test]
+    fn test_truncated_stream_captured_with_flag() {
+        // GIVEN a captured response flagged as truncated with partial text
+        let mut ordinals = HashMap::new();
+        let run = RunId::new();
+
+        // WHEN it is mapped
+        let draft = map_capture(&mut ordinals, &captured(&run, "partial", true)).expect("draft");
+
+        // THEN the entry keeps the partial text and the truncation flag
+        let snap = snapshot_of(&draft);
+        assert!(snap.stream_truncated);
+        assert_eq!(snap.content, "partial");
+    }
+
+    // A non-capture event falls through (handled by map_event instead)
+    #[test]
+    fn test_map_capture_ignores_non_capture_event() {
+        // GIVEN an ordinal map and a non-capture event
+        let mut ordinals = HashMap::new();
+        let event = RuntimeEvent::AgentStopped("a".into());
+
+        // WHEN mapped through the capture path
+        // THEN nothing is produced (no ordinal consumed)
+        assert!(map_capture(&mut ordinals, &event).is_none());
+        assert!(ordinals.is_empty());
     }
 }

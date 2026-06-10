@@ -1511,6 +1511,35 @@ impl BuiltInChatAgent {
                 .consume_stream(stream, session_id, message_id, &mut accumulated_text)
                 .await;
 
+            // Capture the full response for deterministic replay. A stream that
+            // errored is captured as truncated with its partial text, never
+            // dropped. The shared LLM router stays run-agnostic: capture happens
+            // here, where run_id and the assembled response are both available.
+            let captured_tool_calls: Vec<serde_json::Value> = match &stream_result {
+                Ok(tool_calls) => tool_calls
+                    .iter()
+                    .map(|tc| {
+                        serde_json::json!({
+                            "id": tc.id,
+                            "name": tc.name,
+                            "arguments": tc.arguments,
+                        })
+                    })
+                    .collect(),
+                Err(_) => Vec::new(),
+            };
+            let _ = self.event_bus.send(RuntimeEvent::LlmResponseCaptured {
+                run_id: run_id.clone(),
+                backend: self.llm_router.default_name().to_string(),
+                model: String::new(),
+                content: accumulated_text.clone(),
+                tool_calls: captured_tool_calls,
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                cost_usd: None,
+                stream_truncated: stream_result.is_err(),
+            });
+
             match stream_result {
                 Ok(tool_calls) if tool_calls.is_empty() => {
                     return Ok(self.finalize_text_response(
@@ -3796,6 +3825,7 @@ mod tests {
                 RuntimeEvent::ChatToolCallCompleted { .. } => "ToolCallCompleted",
                 RuntimeEvent::ChatResponseCompleted { .. } => "ResponseCompleted",
                 RuntimeEvent::LlmCallCompleted { .. } => continue,
+                RuntimeEvent::LlmResponseCaptured { .. } => continue,
                 _ => "other",
             };
             event_names.push(name);
