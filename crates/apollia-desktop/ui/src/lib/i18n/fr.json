@@ -2839,6 +2839,16 @@
     "legend_free": "Libre",
     "streaming_thought": "Réflexion",
     "recording_hotkey_hint": "{hotkey} pour arrêter · Esc pour annuler",
+    "todo": {
+      "title": "Liste des tâches",
+      "loading": "Chargement de la liste des tâches…",
+      "empty": "Aucune tâche planifiée pour cette session.",
+      "load_error": "Impossible de charger la liste des tâches",
+      "connection_error": "Mises à jour temps réel interrompues, dernière liste connue affichée.",
+      "section_pending": "À faire",
+      "section_in_progress": "En cours",
+      "section_completed": "Terminé"
+    },
     "plan_alternatives": {
       "choose_plan": "Choisissez un plan d'exécution",
       "plan_a_label": "Plan A - conservateur",

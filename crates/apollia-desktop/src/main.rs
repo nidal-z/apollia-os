@@ -814,6 +814,7 @@ fn main() {
             commands::tool_governance::governance_list_audit,
             commands::chat::create_chat_session,
             commands::chat::list_chat_sessions,
+            commands::chat::get_session_todo,
             commands::chat::get_chat_session,
             commands::chat::chat_session_metrics,
             commands::chat::close_chat_session,

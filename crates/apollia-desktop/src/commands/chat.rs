@@ -133,6 +133,27 @@ pub async fn list_chat_sessions(
         .collect())
 }
 
+/// Reads the live todo list for a chat session.
+///
+/// Delegates to the `ChatSessionManagerHandle`; returns the items ordered by
+/// insertion, or an empty list when the session exists without a todo. Real-time
+/// updates arrive separately through the dedicated `"todo-updated"` Tauri event.
+#[tauri::command]
+pub async fn get_session_todo(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+) -> Result<Vec<apollia_core::todo::TodoItem>, String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .get_session_todo(session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Gets a single chat session with full message history.
 #[tauri::command]
 pub async fn get_chat_session(

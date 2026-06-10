@@ -2839,6 +2839,16 @@
     "legend_free": "Free",
     "streaming_thought": "Thought",
     "recording_hotkey_hint": "{hotkey} to stop · Esc to cancel",
+    "todo": {
+      "title": "Task list",
+      "loading": "Loading the task list…",
+      "empty": "No task planned for this session yet.",
+      "load_error": "Could not load the task list",
+      "connection_error": "Live updates interrupted, showing the last known list.",
+      "section_pending": "Pending",
+      "section_in_progress": "In progress",
+      "section_completed": "Completed"
+    },
     "plan_alternatives": {
       "choose_plan": "Choose an execution plan",
       "plan_a_label": "Plan A - conservative",

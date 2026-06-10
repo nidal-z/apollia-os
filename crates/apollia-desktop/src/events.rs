@@ -43,6 +43,19 @@ pub struct HitlFsRequiredPayload {
     pub preview: serde_json::Value,
 }
 
+/// Payload emitted to the Svelte frontend via `app.emit("todo-updated", …)`.
+///
+/// Dedicated fast-path for the live todo panel, lets `TodoPanel.svelte` refresh
+/// its sections from a single typed event without parsing the generic
+/// `"runtime-event"` envelope.
+#[derive(Debug, Clone, Serialize)]
+pub struct TodoUpdatedPayload {
+    /// Chat session whose todo list changed.
+    pub session_id: String,
+    /// Full snapshot of the session's todo items after the change.
+    pub items: Vec<apollia_core::todo::TodoItem>,
+}
+
 /// Payload emitted to the Svelte frontend via `app.emit("runtime-event", …)`.
 ///
 /// The `category` groups events by domain so the frontend can dispatch to the
@@ -133,6 +146,7 @@ fn bridge_one_event(app: &AppHandle, event: &RuntimeEvent) {
 
     emit_hitl_fs_fastpath(app, event);
     emit_stt_fastpath(app, event);
+    emit_todo_fastpath(app, event);
 
     let tauri_event = map_runtime_event(event);
     if let Err(e) = app.emit("runtime-event", &tauri_event) {
@@ -188,6 +202,22 @@ fn emit_stt_fastpath(app: &AppHandle, event: &RuntimeEvent) {
             }
         }
         _ => {}
+    }
+}
+
+/// Dedicated fast-path for the live todo panel, emits "todo-updated" so
+/// `TodoPanel.svelte` refreshes its sections without parsing the generic
+/// envelope. Falls through afterwards so the generic `"runtime-event"` is still
+/// emitted.
+fn emit_todo_fastpath(app: &AppHandle, event: &RuntimeEvent) {
+    if let RuntimeEvent::TodoUpdated { session_id, items } = event {
+        let payload = TodoUpdatedPayload {
+            session_id: session_id.clone(),
+            items: items.clone(),
+        };
+        if let Err(e) = app.emit("todo-updated", &payload) {
+            tracing::warn!(error = %e, "failed to emit todo-updated event");
+        }
     }
 }
 
@@ -603,6 +633,7 @@ mod tests {
                 completion_tokens: 0,
                 latency_ms: 0,
                 cost_usd: None,
+                run_id: None,
             },
             RuntimeEvent::TriggerFired {
                 trigger_id: "t".into(),
@@ -922,6 +953,28 @@ mod tests {
         assert_eq!(json["session_id"], "sess-42");
         assert_eq!(json["message_id"], "msg-7");
         assert_eq!(json["token"], "world");
+    }
+
+    #[test]
+    fn test_todo_updated_payload_serialization() {
+        // GIVEN a TodoUpdatedPayload carrying one in_progress item
+        let payload = TodoUpdatedPayload {
+            session_id: "sess-9".into(),
+            items: vec![apollia_core::todo::TodoItem {
+                id: "t1".into(),
+                content: "analyse".into(),
+                status: apollia_core::todo::TodoStatus::InProgress,
+                depends_on: vec![],
+            }],
+        };
+
+        // WHEN serialized for the "todo-updated" Tauri event
+        let json = serde_json::to_value(&payload).expect("serialize");
+
+        // THEN the session and the item snapshot are present with the wire shape
+        assert_eq!(json["session_id"], "sess-9");
+        assert_eq!(json["items"][0]["id"], "t1");
+        assert_eq!(json["items"][0]["status"], "in_progress");
     }
 
     #[test]

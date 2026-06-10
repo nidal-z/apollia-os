@@ -12,6 +12,16 @@ export const CHAT_KEYS = {
   emptyResponseBuilder: "chat.empty_response_builder",
   streamingThought: "chat.streaming_thought",
   recordingHotkeyHint: "chat.recording_hotkey_hint",
+  todo: {
+    title: "chat.todo.title",
+    loading: "chat.todo.loading",
+    empty: "chat.todo.empty",
+    loadError: "chat.todo.load_error",
+    connectionError: "chat.todo.connection_error",
+    sectionPending: "chat.todo.section_pending",
+    sectionInProgress: "chat.todo.section_in_progress",
+    sectionCompleted: "chat.todo.section_completed",
+  },
   template: {
     brainstorm: {
       title: "chat.template.brainstorm.title",
