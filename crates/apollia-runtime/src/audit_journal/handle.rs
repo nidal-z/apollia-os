@@ -147,6 +147,23 @@ impl AuditJournalHandle {
         reply_rx.await.unwrap_or_default()
     }
 
+    /// Return the distinct run ids present in the journal.
+    ///
+    /// Used to resolve a short run-id prefix to a full id (and to detect an
+    /// ambiguous prefix) before a replay.
+    pub async fn run_ids(&self) -> Vec<String> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .sender
+            .send(JournalMessage::ListRunIds { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
     /// Return the last hash of a run, if the run has any entry.
     pub async fn last_hash(&self, run_id: &str) -> Option<String> {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();

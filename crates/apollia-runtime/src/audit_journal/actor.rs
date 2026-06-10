@@ -64,6 +64,10 @@ pub(crate) enum JournalMessage {
         run_id: String,
         reply: tokio::sync::oneshot::Sender<VerifyChainReport>,
     },
+    /// Return the distinct run ids present in the journal.
+    ListRunIds {
+        reply: tokio::sync::oneshot::Sender<Vec<String>>,
+    },
     /// Stop the actor after draining the queue.
     Shutdown,
 }
@@ -121,6 +125,9 @@ impl JournalActor {
                     let entries = self.query_run(&run_id).unwrap_or_default();
                     let report = verify_entries(&run_id, &entries, self.signer.as_deref());
                     let _ = reply.send(report);
+                }
+                JournalMessage::ListRunIds { reply } => {
+                    let _ = reply.send(self.list_run_ids().unwrap_or_default());
                 }
                 JournalMessage::Shutdown => break,
             }
@@ -272,6 +279,22 @@ impl JournalActor {
             )
             .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
         Ok(())
+    }
+
+    /// Return the distinct run ids present in the journal, ordered.
+    fn list_run_ids(&self) -> Result<Vec<String>, AuditJournalError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT run_id FROM audit_journal_entries ORDER BY run_id ASC")
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
+        let mut ids = Vec::new();
+        for row in rows {
+            ids.push(row.map_err(|e| AuditJournalError::Sqlite(e.to_string()))?);
+        }
+        Ok(ids)
     }
 
     /// Read all entries of a run, ordered by ascending `seq`.

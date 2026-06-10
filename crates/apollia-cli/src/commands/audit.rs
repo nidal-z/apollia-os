@@ -38,6 +38,17 @@ pub enum AuditCommand {
         #[arg(value_name = "RUN_ID")]
         run_id: String,
     },
+    /// Replay a captured run and detect divergences.
+    ///
+    /// `run` accepts a full run_id or an unambiguous prefix of at least 8
+    /// characters. Exit 0 = identical, exit 2 = diverged, exit 1 = any error
+    /// (run not found, ambiguous prefix, incomplete trace, runtime unreachable).
+    #[command(name = "replay")]
+    Replay {
+        /// Run identifier or unambiguous prefix.
+        #[arg(value_name = "RUN")]
+        run: String,
+    },
 }
 
 /// Execute an `audit` subcommand.
@@ -54,6 +65,7 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
             run_export(&client, output.as_deref(), *limit).await
         }
         AuditCommand::Verify { run_id } => run_verify(&client, run_id, json).await,
+        AuditCommand::Replay { run } => run_replay(&client, run, json).await,
     }
 }
 
@@ -126,6 +138,110 @@ async fn run_verify(client: &RuntimeClient, run_id: &str, json: bool) -> i32 {
             println!("FAIL  {run_id}  broken link at seq={seq} ({reason})");
         }
         exit_codes::GENERAL_ERROR
+    }
+}
+
+/// `apollia-os audit replay <run>`: replay a captured run and report divergence.
+///
+/// Exit 0 when the replay is identical, 2 when it diverges, 1 on any error
+/// (run not found, ambiguous prefix, incomplete trace, runtime unreachable).
+async fn run_replay(client: &RuntimeClient, run: &str, json: bool) -> i32 {
+    let uri = format!("/api/v1/audit/replay/{run}");
+    let resp = match client.post(&uri, None).await {
+        Ok(r) => r,
+        Err(e) => return handle_error(e, json),
+    };
+
+    let report: serde_json::Value = match serde_json::from_str(&resp.body) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error: invalid JSON response: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).unwrap_or_default()
+        );
+    }
+
+    match report.get("status").and_then(|v| v.as_str()) {
+        Some("identical") => {
+            if !json {
+                let steps = report.get("steps").and_then(|v| v.as_u64()).unwrap_or(0);
+                let rid = report.get("run_id").and_then(|v| v.as_str()).unwrap_or(run);
+                println!(
+                    "replay: identical ({steps} steps)  {}",
+                    short_uuid_prefix(rid)
+                );
+            }
+            exit_codes::SUCCESS
+        }
+        Some("diverged") => {
+            if !json {
+                print_divergences(&report, run);
+            }
+            // A determinism violation is surfaced as a runtime error (exit 2).
+            exit_codes::RUNTIME_ERROR
+        }
+        _ => {
+            if !json {
+                print_replay_error(&report, run);
+            }
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+/// Print the divergence table on stdout (TTY mode).
+fn print_divergences(report: &serde_json::Value, run: &str) {
+    let rid = report.get("run_id").and_then(|v| v.as_str()).unwrap_or(run);
+    println!("replay: diverged  {}", short_uuid_prefix(rid));
+    if let Some(divergences) = report.get("divergences").and_then(|v| v.as_array()) {
+        for divergence in divergences {
+            let step = divergence
+                .get("step_ordinal")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let kind = divergence
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let expected = divergence.get("expected").cloned().unwrap_or_default();
+            let actual = divergence.get("actual").cloned().unwrap_or_default();
+            println!("  step {step}  {kind}  expected={expected}  actual={actual}");
+        }
+    }
+}
+
+/// Print a human-readable error line for a failed replay (TTY mode).
+fn print_replay_error(report: &serde_json::Value, run: &str) {
+    match report.get("code").and_then(|v| v.as_str()) {
+        Some("run_not_found") => eprintln!("error: run not found: {run}"),
+        Some("ambiguous_run_id") => {
+            let candidates = report
+                .get("candidates")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|c| c.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+            eprintln!("error: ambiguous prefix '{run}', matches: [{candidates}]");
+        }
+        Some("incomplete_trace") => {
+            let kind = report
+                .get("missing_kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("entry");
+            let step = report.get("step").and_then(|v| v.as_u64()).unwrap_or(0);
+            eprintln!("error: incomplete trace for run {run}, missing {kind} at step {step}");
+        }
+        other => eprintln!("error: replay failed ({})", other.unwrap_or("unknown")),
     }
 }
 
@@ -440,6 +556,27 @@ mod tests {
             AuditCommand::Verify { run_id } => assert_eq!(run_id, "run-abc"),
             other => panic!("unexpected: {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_replay_with_run() {
+        // GIVEN the replay subcommand with a run argument
+        let cli = TestCli::parse_from(["x", "replay", "abc12345-run"]);
+        // WHEN parsed
+        // THEN the run is captured
+        match cli.cmd {
+            AuditCommand::Replay { run } => assert_eq!(run, "abc12345-run"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn replay_requires_run() {
+        // GIVEN the replay subcommand with no run argument
+        // WHEN parsing
+        let result = TestCli::try_parse_from(["x", "replay"]);
+        // THEN it is a usage error
+        assert!(result.is_err());
     }
 
     #[test]

@@ -11,11 +11,16 @@ use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use apollia_core::events::RunId;
 use apollia_tools::ToolInvocationRecord;
 
 use crate::api::server::AppState;
+use crate::audit_journal::entry::JournalEntryKind;
 use crate::audit_journal::VerifyChainReport;
 use crate::coordinator::ExecutionBackend;
+use crate::replay::{
+    ReplayBundle, ReplayCaptureError, ReplayFailReason, ReplayHarness, ReplayReport,
+};
 
 // ---------------------------------------------------------------------------
 // Query parameters
@@ -193,17 +198,167 @@ pub async fn verify_audit_run<B: ExecutionBackend + Clone>(
     Ok(Json(report))
 }
 
+/// Minimum length of a run-id prefix accepted for resolution.
+const MIN_RUN_ID_PREFIX: usize = 8;
+
+/// Outcome of resolving a run-id argument (full id or prefix) against the journal.
+enum RunIdResolution {
+    /// Exactly one run matched.
+    Found(String),
+    /// No run matched.
+    NotFound,
+    /// More than one run matched the prefix.
+    Ambiguous(Vec<String>),
+}
+
+/// Resolve a run-id argument to a single full run id.
+///
+/// An exact match wins. Otherwise the argument is treated as a prefix of at
+/// least [`MIN_RUN_ID_PREFIX`] characters; zero matches is not found, several is
+/// ambiguous.
+fn resolve_run_id(ids: &[String], input: &str) -> RunIdResolution {
+    if ids.iter().any(|id| id == input) {
+        return RunIdResolution::Found(input.to_string());
+    }
+    if input.len() < MIN_RUN_ID_PREFIX {
+        return RunIdResolution::NotFound;
+    }
+    let matches: Vec<String> = ids
+        .iter()
+        .filter(|id| id.starts_with(input))
+        .cloned()
+        .collect();
+    match matches.len() {
+        0 => RunIdResolution::NotFound,
+        1 => RunIdResolution::Found(matches.into_iter().next().unwrap_or_default()),
+        _ => RunIdResolution::Ambiguous(matches),
+    }
+}
+
+/// `POST /api/v1/audit/replay/:run_id`, replay a captured run and report
+/// determinism.
+///
+/// Resolves the run id (full or unambiguous prefix), runs the
+/// [`ReplayHarness`], and returns a JSON body with a `status` discriminant:
+/// `identical`, `diverged`, or `error`. Status codes: 200 for identical and
+/// diverged (the determinism verdict is in the body), 404 for an unknown run,
+/// 400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the
+/// journal is not configured.
+pub async fn post_replay_run<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(run_id): Path<String>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let handle = match state.audit_journal.as_ref() {
+        Some(handle) => handle,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({ "status": "error", "code": "journal_unavailable" })),
+            );
+        }
+    };
+
+    let resolved = match resolve_run_id(&handle.run_ids().await, &run_id) {
+        RunIdResolution::Found(id) => id,
+        RunIdResolution::NotFound => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "status": "error", "code": "run_not_found", "run_id": run_id,
+                })),
+            );
+        }
+        RunIdResolution::Ambiguous(candidates) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "status": "error", "code": "ambiguous_run_id",
+                    "prefix": run_id, "candidates": candidates,
+                })),
+            );
+        }
+    };
+
+    let entries = handle.query_run(&resolved).await;
+    let steps = entries
+        .iter()
+        .filter(|e| e.kind == JournalEntryKind::LlmCompletion)
+        .count();
+    let run = RunId::from(resolved.clone());
+
+    let bundle = match ReplayBundle::from_journal(&entries, &run) {
+        Ok(bundle) => bundle,
+        Err(ReplayCaptureError::NoCaptures { .. }) => {
+            return incomplete_trace_response(&resolved, "LlmCompletion", 0);
+        }
+        Err(ReplayCaptureError::OrdinalGap { found, .. }) => {
+            return incomplete_trace_response(&resolved, "LlmCompletion", found);
+        }
+        Err(ReplayCaptureError::StepExhausted { requested, .. }) => {
+            return incomplete_trace_response(&resolved, "LlmCompletion", requested);
+        }
+    };
+
+    let mut harness = ReplayHarness::from_bundle(&run, bundle);
+    match harness.run().await {
+        Ok(ReplayReport::Identical) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "identical", "run_id": resolved, "steps": steps,
+            })),
+        ),
+        Ok(ReplayReport::Diverged { divergences }) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "diverged", "run_id": resolved, "divergences": divergences,
+            })),
+        ),
+        Ok(ReplayReport::Failed { reason }) => {
+            let (kind, step) = match reason {
+                ReplayFailReason::IncompleteTrace { kind, step, .. } => (kind, step),
+                ReplayFailReason::OrdinalGap { found, .. } => ("OrdinalGap".to_string(), found),
+                ReplayFailReason::AgentError(_) => ("AgentError".to_string(), 0),
+            };
+            incomplete_trace_response(&resolved, &kind, step)
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "status": "error", "code": "replay_error",
+                "run_id": resolved, "detail": e.to_string(),
+            })),
+        ),
+    }
+}
+
+/// Build the 422 incomplete-trace response body.
+fn incomplete_trace_response(
+    run_id: &str,
+    missing_kind: &str,
+    step: u32,
+) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(serde_json::json!({
+            "status": "error", "code": "incomplete_trace",
+            "run_id": run_id, "missing_kind": missing_kind, "step": step,
+        })),
+    )
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
+    use super::{resolve_run_id, RunIdResolution};
     use crate::api::server::{APIServer, AppState};
     use crate::coordinator::{DynBackend, ExecutionBackend};
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
+    use apollia_core::events::RunId;
     use apollia_tools::{AuditTrailHandle, ToolInvocationRecord};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
@@ -495,5 +650,147 @@ mod tests {
 
         // THEN 503 Service Unavailable
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[test]
+    fn test_resolve_run_id_exact_and_prefix() {
+        let ids = vec![
+            "abcd1234-aaaa".to_string(),
+            "abcd1234-bbbb".to_string(),
+            "ef567890-cccc".to_string(),
+        ];
+
+        // exact match wins
+        assert!(matches!(
+            resolve_run_id(&ids, "ef567890-cccc"),
+            RunIdResolution::Found(id) if id == "ef567890-cccc"
+        ));
+        // an unambiguous >= 8 char prefix resolves
+        assert!(matches!(
+            resolve_run_id(&ids, "ef567890"),
+            RunIdResolution::Found(id) if id == "ef567890-cccc"
+        ));
+        // an ambiguous prefix lists the candidates
+        assert!(matches!(
+            resolve_run_id(&ids, "abcd1234"),
+            RunIdResolution::Ambiguous(c) if c.len() == 2
+        ));
+        // a too-short prefix is not found (guards against broad matches)
+        assert!(matches!(
+            resolve_run_id(&ids, "abcd"),
+            RunIdResolution::NotFound
+        ));
+        // an unknown prefix is not found
+        assert!(matches!(
+            resolve_run_id(&ids, "zzzzzzzz"),
+            RunIdResolution::NotFound
+        ));
+    }
+
+    // POST replay of a complete run returns 200 identical.
+    #[tokio::test]
+    async fn test_replay_identical_returns_200() {
+        use crate::audit_journal::{JournalEntryDraft, JournalEntryKind};
+        use crate::replay::{LlmCompletionSnapshot, ToolOutputSnapshot};
+
+        // GIVEN a run with one tool turn then a final turn, plus the tool output
+        let journal = open_temp_journal().await;
+        let run = "replay-run-001";
+        let llm0 = LlmCompletionSnapshot {
+            run_id: RunId::from(run.to_string()),
+            step_ordinal: 0,
+            backend_name: "local".into(),
+            model_id: "m".into(),
+            content: "calling".into(),
+            tool_calls: vec![serde_json::json!({ "id": "c1", "name": "bash", "arguments": {} })],
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            cost_usd: None,
+            stream_truncated: false,
+        };
+        let llm1 = LlmCompletionSnapshot {
+            run_id: RunId::from(run.to_string()),
+            step_ordinal: 1,
+            backend_name: "local".into(),
+            model_id: "m".into(),
+            content: "done".into(),
+            tool_calls: vec![],
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            cost_usd: None,
+            stream_truncated: false,
+        };
+        let tool0 = ToolOutputSnapshot {
+            run_id: RunId::from(run.to_string()),
+            step_ordinal: 0,
+            tool_call_id: "c1".into(),
+            tool_name: "bash".into(),
+            output: serde_json::json!("ok"),
+            status: "success".into(),
+        };
+        for (kind, payload) in [
+            (
+                JournalEntryKind::LlmCompletion,
+                serde_json::to_value(&llm0).unwrap(),
+            ),
+            (
+                JournalEntryKind::LlmCompletion,
+                serde_json::to_value(&llm1).unwrap(),
+            ),
+            (
+                JournalEntryKind::ToolOutput,
+                serde_json::to_value(&tool0).unwrap(),
+            ),
+        ] {
+            journal.append(JournalEntryDraft {
+                run_id: run.to_string(),
+                ts: "2026-01-01T00:00:00Z".to_string(),
+                kind,
+                payload,
+            });
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+        let mut state = test_app_state_with_audit(None);
+        state.audit_journal = Some(journal);
+        let router = APIServer::build_router_for_test(state);
+
+        // WHEN POST /api/v1/audit/replay/replay-run-001
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/audit/replay/{run}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 200 with status identical and two steps
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"].as_str().unwrap(), "identical");
+        assert_eq!(json["steps"].as_u64().unwrap(), 2);
+    }
+
+    // POST replay of an unknown run returns 404 run_not_found.
+    #[tokio::test]
+    async fn test_replay_unknown_run_returns_404() {
+        // GIVEN an empty journal
+        let journal = open_temp_journal().await;
+        let mut state = test_app_state_with_audit(None);
+        state.audit_journal = Some(journal);
+        let router = APIServer::build_router_for_test(state);
+
+        // WHEN POST /api/v1/audit/replay/missing-run
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/audit/replay/missing-run")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 404 with code run_not_found
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["code"].as_str().unwrap(), "run_not_found");
     }
 }
