@@ -6,11 +6,11 @@
   import { getToolAuditTrail } from "$lib/ipc/audit";
   import { mapAuditRow } from "$lib/ipc/auditPlanRow";
   import { Button } from "$lib/components/ui/button";
-  import { Select } from "$lib/components/ui/select";
   import { Shield } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
-  import { FormField } from "$lib/components/ui/form-field";
-  import AuditVerifyButton from "./AuditVerifyButton.svelte";
+  import AuditPurposeBanner from "./AuditPurposeBanner.svelte";
+  import AuditStatsStrip from "./AuditStatsStrip.svelte";
+  import AuditFilterBar from "./AuditFilterBar.svelte";
   import PlanMutationRow from "./PlanMutationRow.svelte";
   import ToolAuditRow from "./ToolAuditRow.svelte";
 
@@ -99,12 +99,6 @@
     expandedRows = next;
   }
 
-  function formatDuration(ms: number | null): string {
-    if (ms === null || ms === undefined) return "-";
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
-  }
-
   async function loadEntries(): Promise<void> {
     try {
       const result = await getToolAuditTrail(PAGE_SIZE);
@@ -138,90 +132,22 @@
 </script>
 
 <div class="space-y-5">
-  <!-- Purpose banner - explains why audit trail matters, premium framing. -->
-  <aside
-    class="glass-card glass-border rounded-xl px-5 py-4 flex items-start gap-3"
-    data-testid="audit-purpose"
-  >
-    <div class="rounded-lg glass-inset p-2 flex-shrink-0 mt-0.5">
-      <Shield class="h-4 w-4 text-primary" aria-hidden="true" />
-    </div>
-    <div class="min-w-0">
-      <h3 class="m-0 text-[13px] font-semibold tracking-[-0.1px] mb-1">
-        {$t('observability.audit_purpose_title')}
-      </h3>
-      <p class="m-0 text-[12.5px] leading-[1.55] text-muted-foreground max-w-[720px]">
-        {$t('observability.audit_purpose_body')}
-      </p>
-    </div>
-  </aside>
+  <AuditPurposeBanner />
 
   {#if loading}
     <p class="text-sm text-muted-foreground">{$t('observability.loading_audit')}</p>
   {:else if error}
     <p class="text-sm text-destructive">{error}</p>
   {:else}
-    <!-- KPI strip -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="audit-stats">
-      <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
-          {$t('observability.audit_kpi_entries')}
-        </div>
-        <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.entries}</div>
-      </article>
-      <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
-          {$t('observability.audit_kpi_tools')}
-        </div>
-        <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.tools}</div>
-      </article>
-      <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
-          {$t('observability.audit_kpi_failures')}
-        </div>
-        <div
-          class="text-[20px] font-semibold tabular-nums leading-none"
-          class:text-destructive={stats.failures > 0}
-        >
-          {stats.failures}
-        </div>
-      </article>
-      <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
-          {$t('observability.audit_kpi_avg_duration')}
-        </div>
-        <div class="text-[20px] font-semibold tabular-nums leading-none">
-          {stats.avgMs > 0 ? formatDuration(Math.round(stats.avgMs)) : "-"}
-        </div>
-      </article>
-    </div>
+    <AuditStatsStrip {stats} />
 
-    <!-- Filters -->
-    <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
-      <FormField inline id="filter-tool" label={$t('observability.tool_filter')} labelClass="text-[12px] font-normal">
-        <Select id="filter-tool" size="sm" class="w-auto" bind:value={filterTool}>
-          <option value="all">{$t('observability.all_tools')}</option>
-          {#each uniqueTools as tool (tool)}
-            <option value={tool}>{tool}</option>
-          {/each}
-        </Select>
-      </FormField>
-
-      <FormField inline id="filter-agent" label={$t('observability.agent_filter')} labelClass="text-[12px] font-normal">
-        <Select id="filter-agent" size="sm" class="w-auto" bind:value={filterAgent}>
-          <option value="all">{$t('observability.all_agents')}</option>
-          {#each uniqueAgents as agentName (agentName)}
-            <option value={agentName}>{agentName}</option>
-          {/each}
-        </Select>
-      </FormField>
-
-      {#if runId}
-        <div class="ml-auto">
-          <AuditVerifyButton {runId} />
-        </div>
-      {/if}
-    </div>
+    <AuditFilterBar
+      bind:filterTool
+      bind:filterAgent
+      {uniqueTools}
+      {uniqueAgents}
+      {runId}
+    />
 
     <!-- Table -->
     {#if filteredRows.length === 0}
