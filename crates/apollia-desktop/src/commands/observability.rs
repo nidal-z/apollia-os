@@ -1000,6 +1000,22 @@ pub async fn verify_audit_run(
 }
 
 // ---------------------------------------------------------------------------
+// Lifecycle Hooks
+// ---------------------------------------------------------------------------
+
+/// Lists the lifecycle hook handlers registered at startup.
+///
+/// Calls `GET /api/v1/hooks` and returns the raw JSON array of handler
+/// summaries (`{ id, type, events, timeout_ms, target }`) for the Builder hooks
+/// view. An empty array is a valid configuration, surfaced as a clean state.
+#[tauri::command]
+pub async fn get_active_hooks(
+    state: State<'_, RuntimeHandle>,
+) -> Result<serde_json::Value, String> {
+    http_get_json(state.api_port, "/api/v1/hooks").await
+}
+
+// ---------------------------------------------------------------------------
 // Plan Cache Stats
 // ---------------------------------------------------------------------------
 

@@ -56,6 +56,25 @@ pub struct TodoUpdatedPayload {
     pub items: Vec<apollia_core::todo::TodoItem>,
 }
 
+/// Payload emitted to the Svelte frontend via `app.emit("hook-decision", …)`.
+///
+/// Dedicated fast-path for the PreToolUse decision log: the Builder hooks view
+/// accumulates these live without persisting them or parsing the generic
+/// `"runtime-event"` envelope.
+#[derive(Debug, Clone, Serialize)]
+pub struct HookDecisionPayload {
+    /// Run that issued the tool call.
+    pub run_id: String,
+    /// Session that issued the tool call.
+    pub session_id: String,
+    /// Tool the decision applies to.
+    pub tool_name: String,
+    /// Aggregate decision: `"allow"`, `"deny"`, or `"rewrite"`.
+    pub decision: String,
+    /// Replacement arguments as a JSON string, present only for `"rewrite"`.
+    pub rewritten_args: Option<String>,
+}
+
 /// Payload emitted to the Svelte frontend via `app.emit("runtime-event", …)`.
 ///
 /// The `category` groups events by domain so the frontend can dispatch to the
@@ -147,6 +166,7 @@ fn bridge_one_event(app: &AppHandle, event: &RuntimeEvent) {
     emit_hitl_fs_fastpath(app, event);
     emit_stt_fastpath(app, event);
     emit_todo_fastpath(app, event);
+    emit_hook_decision_fastpath(app, event);
 
     let tauri_event = map_runtime_event(event);
     if let Err(e) = app.emit("runtime-event", &tauri_event) {
@@ -221,6 +241,31 @@ fn emit_todo_fastpath(app: &AppHandle, event: &RuntimeEvent) {
     }
 }
 
+/// Dedicated fast-path for the PreToolUse decision log, emits "hook-decision"
+/// so the Builder hooks view accumulates decisions live. Falls through so the
+/// generic `"runtime-event"` is still emitted.
+fn emit_hook_decision_fastpath(app: &AppHandle, event: &RuntimeEvent) {
+    if let RuntimeEvent::HookDecisionRecorded {
+        run_id,
+        session_id,
+        tool_name,
+        decision,
+        rewritten_args,
+    } = event
+    {
+        let payload = HookDecisionPayload {
+            run_id: run_id.as_str().to_string(),
+            session_id: session_id.clone(),
+            tool_name: tool_name.clone(),
+            decision: decision.clone(),
+            rewritten_args: rewritten_args.clone(),
+        };
+        if let Err(e) = app.emit("hook-decision", &payload) {
+            tracing::warn!(error = %e, "failed to emit hook-decision event");
+        }
+    }
+}
+
 /// Maps a [`RuntimeEvent`] to a [`TauriRuntimeEvent`] with the correct category.
 fn map_runtime_event(event: &RuntimeEvent) -> TauriRuntimeEvent {
     let category = categorize(event);
@@ -254,6 +299,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::TaskCanceled { .. }
         | RuntimeEvent::StepExecuted { .. }
         | RuntimeEvent::TodoUpdated { .. } => "task-changed",
+
+        // ── Hook decisions ───────────────────────────────────────────────
+        RuntimeEvent::HookDecisionRecorded { .. } => "hook-decision",
 
         // ── HITL / approvals ─────────────────────────────────────────────
         RuntimeEvent::TaskInputRequired { .. }
@@ -851,6 +899,13 @@ mod tests {
             RuntimeEvent::SttTranscriptionFailed {
                 reason: "error".into(),
             },
+            RuntimeEvent::HookDecisionRecorded {
+                run_id: apollia_core::events::RunId::new(),
+                session_id: "s".into(),
+                tool_name: "bash_executor".into(),
+                decision: "deny".into(),
+                rewritten_args: None,
+            },
         ];
 
         let valid_categories = [
@@ -864,6 +919,7 @@ mod tests {
             "chat-token",
             "onboarding-required",
             "stt-changed",
+            "hook-decision",
             "system",
         ];
 
@@ -953,6 +1009,45 @@ mod tests {
         assert_eq!(json["session_id"], "sess-42");
         assert_eq!(json["message_id"], "msg-7");
         assert_eq!(json["token"], "world");
+    }
+
+    #[test]
+    fn test_hook_decision_payload_serialization() {
+        // GIVEN a HookDecisionPayload for a rewrite decision
+        let payload = HookDecisionPayload {
+            run_id: "run-3".into(),
+            session_id: "sess-3".into(),
+            tool_name: "bash_executor".into(),
+            decision: "rewrite".into(),
+            rewritten_args: Some("{\"cmd\":\"ls\"}".into()),
+        };
+
+        // WHEN serialized for the "hook-decision" Tauri event
+        let json = serde_json::to_value(&payload).expect("serialize");
+
+        // THEN the decision, tool and rewritten args are present
+        assert_eq!(json["decision"], "rewrite");
+        assert_eq!(json["tool_name"], "bash_executor");
+        assert_eq!(json["rewritten_args"], "{\"cmd\":\"ls\"}");
+    }
+
+    #[test]
+    fn test_hook_decision_recorded_is_hook_decision_category() {
+        // GIVEN a HookDecisionRecorded event
+        let event = RuntimeEvent::HookDecisionRecorded {
+            run_id: apollia_core::events::RunId::new(),
+            session_id: "s".into(),
+            tool_name: "bash_executor".into(),
+            decision: "allow".into(),
+            rewritten_args: None,
+        };
+
+        // WHEN categorized
+        let mapped = map_runtime_event(&event);
+
+        // THEN it lands in the dedicated hook-decision category
+        assert_eq!(mapped.category, "hook-decision");
+        assert_eq!(mapped.event_type, "HookDecisionRecorded");
     }
 
     #[test]

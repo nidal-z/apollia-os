@@ -1669,7 +1669,7 @@ impl BuiltInChatAgent {
         // holds the refusal reason when call `i` was blocked. With no hook
         // configured this is a borrow of the original calls with no denials, so
         // the loop behaves exactly as before.
-        let pre = self.apply_pre_tool_use(tool_calls, session_id).await;
+        let pre = self.apply_pre_tool_use(tool_calls, session_id, ids.run_id).await;
         let effective_calls: &[ToolCall] = pre.calls.as_ref();
         let denied = &pre.denied;
 
@@ -1818,6 +1818,7 @@ impl BuiltInChatAgent {
         &self,
         tool_calls: &'a [ToolCall],
         session_id: &str,
+        run_id: &RunId,
     ) -> PreToolUseOutcome<'a> {
         let no_op = || PreToolUseOutcome {
             calls: std::borrow::Cow::Borrowed(tool_calls),
@@ -1837,7 +1838,9 @@ impl BuiltInChatAgent {
         let mut calls = tool_calls.to_vec();
         let mut denied: Vec<Option<String>> = vec![None; tool_calls.len()];
         for (i, call) in tool_calls.iter().enumerate() {
-            match executor
+            // Record the decision on the bus for the live PreToolUse log.
+            // `rewritten` is set only on the rewrite branch.
+            let (decision, rewritten): (&str, Option<String>) = match executor
                 .run_pre_tool_use(&call.name, &call.arguments, session_id)
                 .await
             {
@@ -1848,26 +1851,35 @@ impl BuiltInChatAgent {
                         session_id = %session_id,
                         "hook.pretooluse.decision"
                     );
+                    ("allow", None)
                 }
                 HookDecision::Rewrite { arguments } => {
+                    let rewritten = serde_json::to_string(&arguments).unwrap_or_default();
                     tracing::info!(
                         tool_name = %call.name,
                         decision = "rewrite",
                         original_args = %truncate_preview(
                             &serde_json::to_string(&call.arguments).unwrap_or_default()
                         ),
-                        rewritten_args = %truncate_preview(
-                            &serde_json::to_string(&arguments).unwrap_or_default()
-                        ),
+                        rewritten_args = %truncate_preview(&rewritten),
                         session_id = %session_id,
                         "hook.pretooluse.decision"
                     );
                     calls[i].arguments = arguments;
+                    ("rewrite", Some(rewritten))
                 }
                 HookDecision::Deny { reason } => {
                     denied[i] = Some(reason);
+                    ("deny", None)
                 }
-            }
+            };
+            let _ = self.event_bus.send(RuntimeEvent::HookDecisionRecorded {
+                run_id: run_id.clone(),
+                session_id: session_id.to_string(),
+                tool_name: call.name.clone(),
+                decision: decision.to_string(),
+                rewritten_args: rewritten,
+            });
         }
         PreToolUseOutcome {
             calls: std::borrow::Cow::Owned(calls),
@@ -5241,6 +5253,91 @@ mod tests {
             1,
             "an allowed tool call must reach the invoker"
         );
+
+        tool_registry.shutdown().await;
+    }
+
+    /// A PreToolUse decision emits a HookDecisionRecorded event for the log.
+    #[tokio::test]
+    async fn test_pretooluse_decision_emits_hook_event() {
+        // GIVEN a model that emits one authorized bash_executor call
+        let model = bash_call_model();
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(CountingToolInvoker {
+            count: count.clone(),
+        });
+        let event_bus = make_event_bus();
+        // Subscribe before the run so the decision event is captured.
+        let mut rx = event_bus.subscribe();
+
+        // AND a PreToolUse hook that denies every call
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script = write_hook_script(
+            dir.path(),
+            "deny.sh",
+            r#"{"decision":"deny","reason":"blocked by policy"}"#,
+        );
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+        })
+        .with_hook_executor(Some(pre_tool_use_executor(script)));
+
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("bash_executor".to_string());
+
+        // WHEN execute runs to completion
+        agent
+            .execute(
+                "sess-hook-evt",
+                "msg-1",
+                &RunId::new(),
+                "go",
+                &[],
+                "",
+                &[],
+                &authorized,
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .expect("final response");
+
+        // THEN a HookDecisionRecorded event carries the deny decision
+        let mut found = false;
+        while let Ok(event) = rx.try_recv() {
+            if let RuntimeEvent::HookDecisionRecorded {
+                tool_name,
+                decision,
+                session_id,
+                ..
+            } = event
+            {
+                if tool_name == "bash_executor"
+                    && decision == "deny"
+                    && session_id == "sess-hook-evt"
+                {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        assert!(found, "a deny decision must emit HookDecisionRecorded");
 
         tool_registry.shutdown().await;
     }

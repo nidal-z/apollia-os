@@ -1220,6 +1220,26 @@ pub enum RuntimeEvent {
         items: Vec<crate::todo::TodoItem>,
     },
 
+    // ── Hook decision events ─────────────────────
+    /// A blocking `PreToolUse` hook resolved a decision for a tool call.
+    ///
+    /// Emitted once per call after the registered `PreToolUse` handlers run,
+    /// carrying the aggregate decision (`allow`, `deny`, or `rewrite`). The
+    /// desktop accumulates these live to build the decision log; decisions are
+    /// not persisted, so the log is scoped to the running session.
+    HookDecisionRecorded {
+        /// Run that issued the tool call.
+        run_id: RunId,
+        /// Session that issued the tool call.
+        session_id: String,
+        /// Tool the decision applies to.
+        tool_name: String,
+        /// Aggregate decision: `"allow"`, `"deny"`, or `"rewrite"`.
+        decision: String,
+        /// Replacement arguments as a JSON string, `Some` only for `"rewrite"`.
+        rewritten_args: Option<String>,
+    },
+
     // ── Cost ceiling events ──────────────────────
     /// The hybrid routing cost ceiling was reached while `HardStop` is active.
     ///
