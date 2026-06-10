@@ -43,6 +43,8 @@ hex                = "0.4"
 constant_time_eq   = "0.3"
 rand               = { workspace = true }
 tokio              = { workspace = true }
+# CancellationToken for cooperative pause/resume of the chat ReAct loop.
+tokio-util         = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
 thiserror          = { workspace = true }

@@ -445,6 +445,9 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
         frontier_ceiling_reached: false,
         // Plan mode lives in the built-in chat loop, not the agent-backed path.
         final_plan_phase: None,
+        // Cooperative pause is a built-in-loop concept; the agent-backed path
+        // never stops at a pause checkpoint.
+        paused: false,
     }
 }
 

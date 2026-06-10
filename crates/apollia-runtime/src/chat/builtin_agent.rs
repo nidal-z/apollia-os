@@ -33,10 +33,11 @@ use apollia_oria::verification::{
     VerificationLoop,
 };
 use apollia_tools::ToolRegistryHandle;
+use tokio_util::sync::CancellationToken;
 
 use super::types::{
     ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, PendingChatApprovals, PlanPhase,
-    ToolCallRecord, ToolCallStatus, ToolDecision,
+    ToolCallRecord, ToolCallStatus, ToolDecision, TurnOutcome,
 };
 use crate::a2a::A2AInvoker;
 use crate::chat::a2a_tools::generate_a2a_tool_specs;
@@ -790,6 +791,24 @@ pub struct ChatAgentResponse {
     /// flow (a substantive plan-mode turn). `None` for conversational turns and
     /// outside plan mode, so the caller persists a phase only when one moved.
     pub final_plan_phase: Option<PlanPhase>,
+    /// True when the turn stopped cooperatively at a pause checkpoint rather than
+    /// converging on its own terms. The manager uses this to move the session to
+    /// [`PauseState::Paused`](crate::chat::types::PauseState::Paused) and keep the
+    /// persisted partial step statuses as the source of truth for the resume.
+    pub paused: bool,
+}
+
+impl ChatAgentResponse {
+    /// Returns the terminal disposition of the turn: [`TurnOutcome::Paused`] when
+    /// the loop stopped at a pause checkpoint, [`TurnOutcome::Completed`]
+    /// otherwise.
+    pub fn turn_outcome(&self) -> TurnOutcome {
+        if self.paused {
+            TurnOutcome::Paused
+        } else {
+            TurnOutcome::Completed
+        }
+    }
 }
 
 /// Consolidated result of the full post-run verification pass (checks + critic).
@@ -1081,12 +1100,20 @@ struct ToolCallContext<'a> {
 
 /// Borrowed identifiers shared by every tool call in a single ReAct turn
 /// (the per-call [`ToolCall`] is supplied separately while iterating).
-#[derive(Clone, Copy)]
+///
+/// Carries the cooperative pause token threaded into the turn. The token is a
+/// cheap `Arc` clone, so the struct is `Clone` (no longer `Copy`); callers clone
+/// it explicitly when they reuse it across the loop and a verification retry.
+#[derive(Clone)]
 struct ToolCallContextIds<'a> {
     session_id: &'a str,
     message_id: &'a str,
     run_id: &'a RunId,
     pending_approvals: &'a PendingChatApprovals,
+    /// Cooperative pause token. When cancelled, the loop persists nothing extra
+    /// (the `PlanActor` already owns step statuses) and returns a paused
+    /// response at the next checkpoint, never mid-tool.
+    cancel: CancellationToken,
 }
 
 /// Borrowed read-only inputs for [`BuiltInChatAgent::record_tool_turn`]:
@@ -1460,6 +1487,7 @@ impl BuiltInChatAgent {
         verification: Option<&VerificationLoop>,
         critic: Option<&CriticPass>,
         level_config: Option<&AutonomyLevelConfig>,
+        cancel: CancellationToken,
     ) -> Result<ChatAgentResponse, ChatError> {
         let custom_prompt = if system_prompt.is_empty() {
             None
@@ -1537,6 +1565,7 @@ impl BuiltInChatAgent {
             message_id,
             run_id,
             pending_approvals,
+            cancel,
         };
 
         // Open discovery for a substantive plan-mode turn. The tracker is `None`
@@ -1567,10 +1596,17 @@ impl BuiltInChatAgent {
                 &tool_specs,
                 authorized_tools,
                 budget,
-                ids,
+                ids.clone(),
                 &mut phase_tracker,
             )
             .await?;
+
+        // A cooperative pause short-circuits verification: the turn stopped at a
+        // checkpoint, so there is nothing to verify and the budget must be left
+        // for the resume. Return the paused response untouched.
+        if first.paused {
+            return Ok(first);
+        }
 
         // Post-run verification with bounded retry, gated by the autonomy tier.
         // The verification loop and critic are injected by the manager; when the
@@ -1596,28 +1632,35 @@ impl BuiltInChatAgent {
             budget,
             VERIFICATION_MAX_RETRIES,
             carry,
-            move |mut state: RetryCarry, correction: String| async move {
-                state.messages.push(LlmChatMessage::user(correction));
-                // A verification retry is a correction turn, not a new discovery:
-                // it never opens or advances the plan phase, so pass no tracker.
-                let mut retry_phase: Option<PlanPhaseTracker> = None;
-                match self
-                    .run_react_loop(
-                        &mut state.messages,
-                        tool_specs_ref,
-                        authorized_tools,
-                        budget,
-                        ids,
-                        &mut retry_phase,
-                    )
-                    .await
-                {
-                    Ok(next) => {
-                        let output = next.content.clone();
-                        state.last_response = next;
-                        (Ok(output), state)
+            move |mut state: RetryCarry, correction: String| {
+                // Clone the per-turn ids (cheap `Arc` token plus borrows) before
+                // the `async move` future takes ownership, so the FnMut closure can
+                // be called once per retry without moving the captured value.
+                let ids = ids.clone();
+                async move {
+                    state.messages.push(LlmChatMessage::user(correction));
+                    // A verification retry is a correction turn, not a new
+                    // discovery: it never opens or advances the plan phase, so pass
+                    // no tracker.
+                    let mut retry_phase: Option<PlanPhaseTracker> = None;
+                    match self
+                        .run_react_loop(
+                            &mut state.messages,
+                            tool_specs_ref,
+                            authorized_tools,
+                            budget,
+                            ids,
+                            &mut retry_phase,
+                        )
+                        .await
+                    {
+                        Ok(next) => {
+                            let output = next.content.clone();
+                            state.last_response = next;
+                            (Ok(output), state)
+                        }
+                        Err(error) => (Err(error), state),
                     }
-                    Err(error) => (Err(error), state),
                 }
             },
         )
@@ -1673,6 +1716,28 @@ impl BuiltInChatAgent {
         let mut frontier_ceiling_reached = false;
 
         loop {
+            // Cooperative pause checkpoint: a pause request cancels the token; we
+            // exit before spending the next step. Step statuses are already
+            // persisted by the PlanActor at the end of the previous iteration, so
+            // nothing is half-applied and no history is rewritten here. The turn
+            // returns a paused response (not an error); the manager records the
+            // session as Paused and the StepBudget carries over to the resume.
+            if ids.cancel.is_cancelled() {
+                tracing::info!(session_id = %session_id, "chat.react.paused");
+                return Ok(self.paused_response(
+                    &reasoning_fragments,
+                    ResponseContext {
+                        acc,
+                        total_usage,
+                        session_id,
+                        message_id,
+                        run_id,
+                        frontier_ceiling_reached,
+                        final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                    },
+                ));
+            }
+
             // Step safeguard: budget check before every LLM call
             if budget.is_exhausted() {
                 let reason = budget
@@ -1830,7 +1895,7 @@ impl BuiltInChatAgent {
                             accumulated_text: &accumulated_text,
                             tool_calls: &tool_calls,
                             budget,
-                            ids,
+                            ids: ids.clone(),
                         },
                         &mut reasoning_fragments,
                         llm_messages,
@@ -1847,6 +1912,28 @@ impl BuiltInChatAgent {
                         // A successful plan_submit opens the soft gate: the turn
                         // ends in awaiting-approval, no blocking await in the loop.
                         self.advance_on_submit(tracker, turn_records, session_id);
+                    }
+
+                    // Cooperative pause checkpoint between tool turns. By this
+                    // point every tool call of the turn has been awaited to
+                    // completion inside `record_tool_turn`, so a pause requested
+                    // during a long-running tool takes effect only here, at the
+                    // next safe boundary, never mid-tool. No half-applied mutation
+                    // can be observed on this path.
+                    if ids.cancel.is_cancelled() {
+                        tracing::info!(session_id = %session_id, "chat.react.paused");
+                        return Ok(self.paused_response(
+                            &reasoning_fragments,
+                            ResponseContext {
+                                acc,
+                                total_usage,
+                                session_id,
+                                message_id,
+                                run_id,
+                                frontier_ceiling_reached,
+                                final_plan_phase: phase_tracker.as_ref().map(|t| t.phase),
+                            },
+                        ));
                     }
                 }
                 Err(err) => {
@@ -1865,6 +1952,50 @@ impl BuiltInChatAgent {
                     ));
                 }
             }
+        }
+    }
+
+    /// Build the [`ChatAgentResponse`] returned when the loop stops at a pause
+    /// checkpoint.
+    ///
+    /// Carries the work already done this turn (tool-call records, reasoning,
+    /// terminal plan phase) and sets `paused`. No `ChatResponseCompleted` event is
+    /// emitted: the turn did not converge, it was suspended, and the manager
+    /// records the session as paused so it can be resumed from the persisted plan
+    /// state.
+    fn paused_response(
+        &self,
+        reasoning_fragments: &[String],
+        ctx: ResponseContext<'_>,
+    ) -> ChatAgentResponse {
+        let ResponseContext {
+            acc,
+            total_usage,
+            session_id,
+            frontier_ceiling_reached,
+            final_plan_phase,
+            ..
+        } = ctx;
+        let thinking_trace = if reasoning_fragments.is_empty() {
+            None
+        } else {
+            Some(reasoning_fragments.join("\n\n---\n\n"))
+        };
+        tracing::info!(
+            session_id = %session_id,
+            tool_calls = acc.all_tool_calls.len(),
+            "chat.react.pause_response"
+        );
+        ChatAgentResponse {
+            content: String::new(),
+            tool_calls: acc.all_tool_calls,
+            newly_authorized: acc.newly_authorized,
+            tokens_used: total_usage,
+            thinking_trace,
+            verification_report: None,
+            frontier_ceiling_reached,
+            final_plan_phase,
+            paused: true,
         }
     }
 
@@ -1924,6 +2055,7 @@ impl BuiltInChatAgent {
             verification_report: None,
             frontier_ceiling_reached,
             final_plan_phase,
+            paused: false,
         }
     }
 
@@ -2362,6 +2494,7 @@ impl BuiltInChatAgent {
             verification_report: None,
             frontier_ceiling_reached,
             final_plan_phase,
+            paused: false,
         }
     }
 
@@ -3507,6 +3640,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -3594,6 +3728,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -3674,6 +3809,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -3843,6 +3979,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -3917,6 +4054,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -3989,6 +4127,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -4064,6 +4203,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -4120,6 +4260,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -4239,6 +4380,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await
             .expect("should succeed");
@@ -4353,6 +4495,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await
             .expect("should succeed");
@@ -4415,6 +4558,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await
             .expect("should succeed");
@@ -4512,6 +4656,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await
             .expect("should return partial content, not error");
@@ -4638,6 +4783,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await
             .expect("should succeed");
@@ -5187,6 +5333,7 @@ mod tests {
                         message_id: "m",
                         run_id: &RunId::new(),
                         pending_approvals: &approvals,
+                        cancel: CancellationToken::new(),
                     },
                 },
                 &mut reasoning,
@@ -5331,6 +5478,7 @@ mod tests {
                         message_id: "m",
                         run_id: &RunId::new(),
                         pending_approvals: &approvals,
+                        cancel: CancellationToken::new(),
                     },
                 },
                 &mut reasoning,
@@ -5641,6 +5789,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -5713,6 +5862,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -5785,6 +5935,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await
             .expect("final response");
@@ -5942,6 +6093,7 @@ mod tests {
                 None,
                 None,
                 None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -6724,4 +6876,301 @@ mod todo_compaction_tests {
         // THEN it degrades gracefully: no panic, no message appended
         assert_eq!(messages.len(), 1);
     }
+}
+
+/// STORY-611: cooperative pause/resume of the chat ReAct loop.
+#[cfg(test)]
+mod pause_tests {
+    use super::*;
+    use apollia_llm::types::{
+        CompletionModel, CompletionRequest, CompletionResponse, StreamChunk as LlmStreamChunk,
+        ToolCall as LlmToolCall,
+    };
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
+    /// Streams one `bash_executor` tool call on the first turn, then final text.
+    struct OneToolThenText {
+        iteration: AtomicU32,
+    }
+
+    #[async_trait::async_trait]
+    impl CompletionModel for OneToolThenText {
+        async fn complete(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
+            Err(apollia_llm::types::LlmError::InferenceError(
+                "streaming path only".into(),
+            ))
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<
+            std::pin::Pin<
+                Box<
+                    dyn futures::Stream<Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>>
+                        + Send,
+                >,
+            >,
+            apollia_llm::types::LlmError,
+        > {
+            let current = self.iteration.fetch_add(1, Ordering::SeqCst);
+            if current == 0 {
+                let chunks = vec![Ok(LlmStreamChunk::ToolCall(LlmToolCall {
+                    id: "c1".into(),
+                    name: "bash_executor".into(),
+                    arguments: serde_json::json!({"command": "echo hi"}),
+                }))];
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            } else {
+                let chunks = vec![Ok(LlmStreamChunk::Text("done".to_string()))];
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            }
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            "mock-one-tool"
+        }
+        fn model_id(&self) -> &str {
+            "mock"
+        }
+    }
+
+    /// A tool invoker whose `invoke` awaits briefly then records completion.
+    ///
+    /// `cancel_on_invoke` lets the test request a pause exactly while the tool
+    /// future is in flight, so the loop must finish the tool before stopping.
+    struct SlowRecordingInvoker {
+        completed: Arc<AtomicBool>,
+        cancel_on_invoke: Option<CancellationToken>,
+    }
+
+    #[async_trait::async_trait]
+    impl ToolInvoker for SlowRecordingInvoker {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            _arguments: &serde_json::Value,
+        ) -> Result<String, String> {
+            // Request the pause now: the future is mid-flight, so the loop must
+            // wait for completion below before observing the cancellation.
+            if let Some(token) = &self.cancel_on_invoke {
+                token.cancel();
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            self.completed.store(true, Ordering::SeqCst);
+            Ok(r#"{"exit_code": 0, "stdout": "ran"}"#.to_string())
+        }
+    }
+
+    fn make_router(model: Arc<dyn CompletionModel>) -> Arc<LlmRouter> {
+        let mut backends = std::collections::HashMap::new();
+        backends.insert("default".to_string(), model);
+        Arc::new(LlmRouter::with_backends(backends, "default"))
+    }
+
+    fn make_event_bus() -> EventBusSender {
+        let (tx, _rx) = tokio::sync::broadcast::channel(128);
+        tx
+    }
+
+    #[tokio::test]
+    async fn pause_stops_loop_at_checkpoint() {
+        // GIVEN a ReAct loop with a token cancelled before the first iteration
+        let model: Arc<dyn CompletionModel> = Arc::new(OneToolThenText {
+            iteration: AtomicU32::new(0),
+        });
+        let tool_registry = ToolRegistryHandle::start();
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: make_router(model),
+            tool_registry: tool_registry.clone(),
+            tool_invoker: Arc::new(MockToolInvoker::ok()),
+            event_bus: make_event_bus(),
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+            plan: None,
+        });
+        let budget = StepBudget::with_max(10);
+        let approvals = PendingChatApprovals::new();
+        let cancel = CancellationToken::new();
+
+        // WHEN the token is cancelled before the turn runs
+        cancel.cancel();
+        let resp = agent
+            .execute(
+                "sess-pause",
+                "msg-1",
+                &RunId::new(),
+                "go",
+                &[],
+                "",
+                &[],
+                &HashSet::new(),
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+                cancel,
+            )
+            .await
+            .expect("paused turn returns Ok, not an error");
+
+        // THEN the loop returns a paused outcome, not an error, and spent no step
+        assert_eq!(resp.turn_outcome(), TurnOutcome::Paused);
+        assert!(resp.paused);
+        assert!(resp.tool_calls.is_empty());
+        tool_registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn running_tool_completes_before_loop_stops() {
+        // GIVEN a model that issues a tool call and a slow tool that requests the
+        // pause while its future is in flight
+        let model: Arc<dyn CompletionModel> = Arc::new(OneToolThenText {
+            iteration: AtomicU32::new(0),
+        });
+        let tool_registry = ToolRegistryHandle::start();
+        let cancel = CancellationToken::new();
+        let completed = Arc::new(AtomicBool::new(false));
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(SlowRecordingInvoker {
+            completed: completed.clone(),
+            cancel_on_invoke: Some(cancel.clone()),
+        });
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: make_router(model),
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus: make_event_bus(),
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+            plan: None,
+        });
+        let budget = StepBudget::with_max(10);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("bash_executor".to_string());
+
+        // WHEN the turn runs (the tool triggers the pause during its await)
+        let resp = agent
+            .execute(
+                "sess-slow",
+                "msg-1",
+                &RunId::new(),
+                "go",
+                &[],
+                "",
+                &[],
+                &authorized,
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+                cancel,
+            )
+            .await
+            .expect("paused turn returns Ok");
+
+        // THEN the in-flight tool ran to completion before the loop stopped, and
+        // the turn is paused (no half-applied tool)
+        assert!(
+            completed.load(Ordering::SeqCst),
+            "the tool future must complete before the pause checkpoint"
+        );
+        assert_eq!(resp.turn_outcome(), TurnOutcome::Paused);
+        assert_eq!(resp.tool_calls.len(), 1, "the completed tool is recorded");
+        tool_registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn live_token_lets_turn_converge() {
+        // GIVEN a turn with a token that is never cancelled (error-case baseline:
+        // the pause machinery must not alter the normal convergence path)
+        let model: Arc<dyn CompletionModel> = Arc::new(OneToolThenText {
+            iteration: AtomicU32::new(0),
+        });
+        let tool_registry = ToolRegistryHandle::start();
+        let completed = Arc::new(AtomicBool::new(false));
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(SlowRecordingInvoker {
+            completed: completed.clone(),
+            cancel_on_invoke: None,
+        });
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: make_router(model),
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus: make_event_bus(),
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+            plan: None,
+        });
+        let budget = StepBudget::with_max(10);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("bash_executor".to_string());
+
+        // WHEN the turn runs with a live (uncancelled) token
+        let resp = agent
+            .execute(
+                "sess-live",
+                "msg-1",
+                &RunId::new(),
+                "go",
+                &[],
+                "",
+                &[],
+                &authorized,
+                &approvals,
+                &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
+                None,
+                None,
+                None,
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .expect("turn converges");
+
+        // THEN the turn converges normally, not paused
+        assert_eq!(resp.turn_outcome(), TurnOutcome::Completed);
+        assert!(!resp.paused);
+        assert_eq!(resp.content, "done");
+        tool_registry.shutdown().await;
+    }
+
+    /// Minimal always-ok invoker for the no-tool checkpoint test.
+    struct MockToolInvoker;
+    impl MockToolInvoker {
+        fn ok() -> Self {
+            Self
+        }
+    }
+    #[async_trait::async_trait]
+    impl ToolInvoker for MockToolInvoker {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            _arguments: &serde_json::Value,
+        ) -> Result<String, String> {
+            Ok("ok".to_string())
+        }
+    }
+
 }

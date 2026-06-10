@@ -128,6 +128,34 @@ impl PlanPhase {
     }
 }
 
+/// Cooperative pause state for a chat session running a ReAct turn.
+///
+/// `Running` is the steady state. `Pausing` is the transient window between a
+/// pause request and the loop reaching its next checkpoint. `Paused` means the
+/// loop has exited cleanly with partial step statuses already persisted by the
+/// `PlanActor`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PauseState {
+    /// The turn runs normally, no pause requested.
+    #[default]
+    Running,
+    /// A pause was requested; the loop has not yet reached a checkpoint.
+    Pausing,
+    /// The loop stopped cleanly at a checkpoint; partial progress is persisted.
+    Paused,
+}
+
+/// Terminal disposition of a single ReAct turn, distinguishing a normal
+/// convergence from a cooperative pause so the manager can persist the right
+/// session state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurnOutcome {
+    /// The loop converged or stopped on its own terms.
+    Completed,
+    /// The loop stopped at a checkpoint because its token was cancelled.
+    Paused,
+}
+
 /// Chat mode, free-form LLM conversation or agent-backed.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ChatMode {
@@ -905,6 +933,13 @@ pub trait ProjectContextProvider: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pause_state_defaults_to_running() {
+        // GIVEN the default pause state
+        // THEN it is the steady Running state
+        assert_eq!(PauseState::default(), PauseState::Running);
+    }
 
     #[tokio::test]
     async fn test_pending_approvals_register_resolve() {

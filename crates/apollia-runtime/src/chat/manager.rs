@@ -13,6 +13,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use tokio::sync::{mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use apollia_core::todo::TodoItem;
@@ -376,6 +377,9 @@ struct LibreExchangeParams {
     /// soft gate is open), so it does not reopen discovery.
     session_plan_phase: PlanPhase,
     hook_executor: Option<Arc<HookExecutor>>,
+    /// Cooperative pause token for this turn, cloned from the manager's per-session
+    /// registry. Cancelling it stops the ReAct loop at its next checkpoint.
+    cancel: CancellationToken,
 }
 
 /// Run a spawned Libre/Companion exchange end-to-end and report the result back
@@ -426,6 +430,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         session_plan_mode,
         session_plan_phase,
         hook_executor,
+        cancel,
     } = params;
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
@@ -544,6 +549,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
             verification.as_ref(),
             critic.as_ref(),
             Some(&level_config),
+            cancel,
         )
         .await;
 
@@ -693,7 +699,7 @@ use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApproval
 use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
-    ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
+    ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId, PauseState,
     PendingChatApprovals, PendingFilesystemApprovals, PlanPhase, ProjectContextProvider,
     RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
     ToolCallRecord, ToolDecision,
@@ -729,6 +735,26 @@ const PLAN_EXECUTE_DIRECTIVE: &str = "The plan was approved. Execute it now: wor
 const PLAN_REVISE_DIRECTIVE: &str = "The plan was rejected. Revise it: adjust the plan steps to address the concern, \
      document the reason for each change through the plan tools, then re-submit the \
      revised plan for approval.";
+
+/// Synthetic directive injected on resume to continue a paused plan execution.
+///
+/// Phrased as a multi-step actionable instruction so the turn router classifies it
+/// as a plan-flow turn and the agent picks up the plan from the persisted step
+/// statuses, continuing the remaining steps in order.
+const PLAN_RESUME_DIRECTIVE: &str = "Execution resumed. Continue working through the remaining plan steps from where \
+     they left off, updating each step status as you start and finish it.";
+
+/// Error surface for cooperative pause and resume operations on a chat session.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum PauseError {
+    /// No session matches the requested identifier.
+    #[error("session {session_id} is unknown")]
+    UnknownSession {
+        /// The unknown session identifier.
+        session_id: String,
+    },
+}
 
 /// Commands sent to the [`ChatSessionManager`] actor.
 pub enum ChatCommand {
@@ -851,6 +877,27 @@ pub enum ChatCommand {
         reason: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Cooperatively pause the active ReAct turn for a session.
+    PauseSession {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), PauseError>>,
+    },
+    /// Resume a paused session, restarting the ReAct loop from persisted state.
+    ResumePausedSession {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), PauseError>>,
+    },
+    /// Read the cooperative pause state of a session.
+    GetPauseState {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel: `None` for an unknown session.
+        reply: oneshot::Sender<Option<PauseState>>,
     },
     /// Internal: ReAct exchange completed successfully (sent by spawned task).
     ExchangeComplete {
@@ -1161,6 +1208,19 @@ struct ChatSessionManager {
     /// Shared lifecycle hook executor, cloned into each exchange so the ReAct
     /// loop can run PreToolUse and the best-effort hooks. `None` disables hooks.
     hook_executor: Option<Arc<HookExecutor>>,
+    /// Per-session cooperative pause tokens.
+    ///
+    /// A fresh [`CancellationToken`] is inserted when a turn is dispatched and a
+    /// clone is threaded into the ReAct loop. `pause_session` cancels it; the loop
+    /// stops at its next checkpoint. Owned by this actor alone, so there is no
+    /// shared lock across actors (principle #5).
+    pause_tokens: HashMap<SessionId, CancellationToken>,
+    /// Per-session cooperative pause state, mirroring the loop disposition.
+    ///
+    /// Absent means [`PauseState::Running`] (the steady state). `Pausing` is the
+    /// transient window after a pause request; `Paused` once the loop stopped at a
+    /// checkpoint. In-memory only, rebuilt on resume.
+    pause_states: HashMap<SessionId, PauseState>,
 }
 
 impl ChatSessionManager {
@@ -1264,6 +1324,17 @@ impl ChatSessionManager {
                 } => {
                     let result = self.handle_reject_plan(&session_id, reason);
                     let _ = reply.send(result);
+                }
+                ChatCommand::PauseSession { session_id, reply } => {
+                    let result = self.handle_pause_session(&session_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::ResumePausedSession { session_id, reply } => {
+                    let result = self.handle_resume_paused_session(&session_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::GetPauseState { session_id, reply } => {
+                    let _ = reply.send(self.pause_state(&session_id));
                 }
                 ChatCommand::UpdateSession {
                     session_id,
@@ -1939,6 +2010,16 @@ impl ChatSessionManager {
                 s_mut.force_project_context_inject = false;
                 v
             };
+
+            // Fresh cooperative pause token for this turn. A clone is threaded into
+            // the ReAct loop; `pause_session` cancels the copy stored here so the
+            // loop stops at its next checkpoint. The session starts Running.
+            let cancel = CancellationToken::new();
+            self.pause_tokens
+                .insert(session_id.to_string(), cancel.clone());
+            self.pause_states
+                .insert(session_id.to_string(), PauseState::Running);
+
             let session = self
                 .sessions
                 .get(session_id)
@@ -2070,6 +2151,7 @@ impl ChatSessionManager {
                 session_plan_mode,
                 session_plan_phase,
                 hook_executor: self.hook_executor.clone(),
+                cancel,
             }));
         }
 
@@ -2239,6 +2321,20 @@ impl ChatSessionManager {
             .update_status(session_id, &SessionStatus::Active)
         {
             warn!(error = %e, "Failed to reset session status to Active in SQLite");
+        }
+
+        // Record the cooperative pause disposition of the turn. A paused turn
+        // stopped at a checkpoint with partial step statuses already persisted by
+        // the PlanActor; the session is left ready for a resume. A converged turn
+        // clears any pause state.
+        let was_paused = response.paused;
+        if was_paused {
+            self.pause_states
+                .insert(session_id.to_string(), PauseState::Paused);
+            tracing::info!(session_id = %session_id, "chat.session.paused");
+        } else {
+            self.pause_states.remove(session_id);
+            self.pause_tokens.remove(session_id);
         }
 
         // Persist the terminal plan phase when the turn ran in the plan flow, so
@@ -2816,6 +2912,79 @@ impl ChatSessionManager {
             );
         }
     }
+
+    /// Returns the cooperative pause state of a session.
+    ///
+    /// `None` for an unknown session. A known session with no recorded state is
+    /// [`PauseState::Running`] (the steady state).
+    fn pause_state(&self, session_id: &str) -> Option<PauseState> {
+        if !self.sessions.contains_key(session_id) {
+            return None;
+        }
+        Some(
+            self.pause_states
+                .get(session_id)
+                .copied()
+                .unwrap_or(PauseState::Running),
+        )
+    }
+
+    /// Requests a cooperative pause of the active ReAct turn for `session_id`.
+    ///
+    /// Cancels the session's [`CancellationToken`]: the loop stops at its next
+    /// checkpoint and the manager records [`PauseState::Paused`] once the turn
+    /// reports back. When no turn is active (no token registered) this is a no-op
+    /// returning `Ok(())`: no token is cancelled and the state stays Running.
+    fn handle_pause_session(&mut self, session_id: &str) -> Result<(), PauseError> {
+        if !self.sessions.contains_key(session_id) {
+            return Err(PauseError::UnknownSession {
+                session_id: session_id.to_string(),
+            });
+        }
+        match self.pause_tokens.get(session_id) {
+            Some(token) => {
+                token.cancel();
+                self.pause_states
+                    .insert(session_id.to_string(), PauseState::Pausing);
+                tracing::info!(session_id = %session_id, "chat.session.pause_requested");
+                Ok(())
+            }
+            None => {
+                tracing::debug!(session_id = %session_id, "chat.session.pause_noop");
+                Ok(())
+            }
+        }
+    }
+
+    /// Resumes a paused session by restarting a ReAct turn from the persisted
+    /// plan state.
+    ///
+    /// A fresh token is attached by the dispatch path, the state returns to
+    /// [`PauseState::Running`], and a continuation turn is dispatched. The
+    /// [`StepBudget`] is rebuilt from the runtime ceiling per turn, exactly as for
+    /// every chat exchange, so the safeguard is never disarmed (principle #7).
+    ///
+    /// This is distinct from
+    /// [`ChatSessionManagerHandle::resume_session`], which reloads a session from
+    /// SQLite; here the session is already in memory and only the loop is
+    /// restarted.
+    fn handle_resume_paused_session(&mut self, session_id: &str) -> Result<(), PauseError> {
+        if !self.sessions.contains_key(session_id) {
+            return Err(PauseError::UnknownSession {
+                session_id: session_id.to_string(),
+            });
+        }
+        self.pause_states
+            .insert(session_id.to_string(), PauseState::Running);
+        tracing::info!(session_id = %session_id, "chat.session.resumed");
+
+        // Resume is an ordinary continuation turn through the same actor path: the
+        // dispatch installs a fresh token and consumes any queued injection. A
+        // best-effort directive nudges the agent to keep executing the plan.
+        self.dispatch_plan_continuation(session_id, PLAN_RESUME_DIRECTIVE);
+        Ok(())
+    }
+
 
     /// Return a lightweight summary of the N most recent sessions.
     ///
@@ -3694,6 +3863,8 @@ impl ChatSessionManagerHandle {
             todo_handle,
             plan_handle,
             hook_executor,
+            pause_tokens: HashMap::new(),
+            pause_states: HashMap::new(),
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -4150,6 +4321,77 @@ impl ChatSessionManagerHandle {
         reply_rx
             .await
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Cooperatively pause the active ReAct turn for a session.
+    ///
+    /// The loop stops at its next checkpoint with partial step statuses already
+    /// persisted. Pausing a session with no active turn is a no-op returning
+    /// `Ok(())`.
+    ///
+    /// # Errors
+    ///
+    /// - [`PauseError::UnknownSession`] when no session matches `session_id`.
+    pub async fn pause_session(&self, session_id: &str) -> Result<(), PauseError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::PauseSession {
+                session_id: session_id.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| PauseError::UnknownSession {
+                session_id: session_id.to_string(),
+            })?;
+        reply_rx.await.map_err(|_| PauseError::UnknownSession {
+            session_id: session_id.to_string(),
+        })?
+    }
+
+    /// Resume a paused session, restarting the ReAct loop from the persisted plan
+    /// state.
+    ///
+    /// A fresh cooperative token is attached and a continuation turn is dispatched.
+    /// The step budget is rebuilt per turn from the runtime ceiling, so the
+    /// safeguard is never disarmed.
+    ///
+    /// This is distinct from [`Self::resume_session`], which reloads a session
+    /// from SQLite. Here the session is already in memory and only the loop is
+    /// restarted.
+    ///
+    /// # Errors
+    ///
+    /// - [`PauseError::UnknownSession`] when no session matches `session_id`.
+    pub async fn resume_paused_session(&self, session_id: &str) -> Result<(), PauseError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ResumePausedSession {
+                session_id: session_id.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| PauseError::UnknownSession {
+                session_id: session_id.to_string(),
+            })?;
+        reply_rx.await.map_err(|_| PauseError::UnknownSession {
+            session_id: session_id.to_string(),
+        })?
+    }
+
+    /// Read the cooperative pause state of a session.
+    ///
+    /// Returns `None` for an unknown session; a known session with no recorded
+    /// state is [`PauseState::Running`].
+    pub async fn pause_state(&self, session_id: &str) -> Option<PauseState> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::GetPauseState {
+                session_id: session_id.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .ok()?;
+        reply_rx.await.ok().flatten()
     }
 
     /// Signal the actor to shut down.
@@ -4807,6 +5049,8 @@ mod tests {
             todo_handle: None,
             plan_handle: None,
             hook_executor: None,
+            pause_tokens: HashMap::new(),
+            pause_states: HashMap::new(),
         };
 
         // Insert a dummy session so the lookup succeeds
@@ -4945,6 +5189,8 @@ mod tests {
             todo_handle: None,
             plan_handle: None,
             hook_executor: None,
+            pause_tokens: HashMap::new(),
+            pause_states: HashMap::new(),
         };
 
         // WHEN building cross-session context with a substantive first message
@@ -5014,6 +5260,8 @@ mod tests {
             todo_handle: None,
             plan_handle: None,
             hook_executor: None,
+            pause_tokens: HashMap::new(),
+            pause_states: HashMap::new(),
         };
 
         // WHEN building cross-session context with a trivial message
@@ -5061,6 +5309,8 @@ mod tests {
             todo_handle: None,
             plan_handle: None,
             hook_executor: None,
+            pause_tokens: HashMap::new(),
+            pause_states: HashMap::new(),
         };
 
         // WHEN building cross-session context with a substantive message but no past sessions
@@ -5194,6 +5444,8 @@ mod tests {
             todo_handle: None,
             plan_handle: None,
             hook_executor: None,
+            pause_tokens: HashMap::new(),
+            pause_states: HashMap::new(),
         };
         let session = ChatSession {
             id: "sess-1".into(),
@@ -5321,6 +5573,105 @@ mod tests {
             manager.sessions.get("sess-1").unwrap().plan_phase,
             PlanPhase::AwaitingApproval
         );
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().status,
+            SessionStatus::Processing
+        );
+    }
+
+    // ── STORY-611: cooperative pause / resume ────────────────────────────
+
+    #[tokio::test]
+    async fn pause_without_active_turn_is_noop() {
+        // GIVEN a session with no active ReAct turn (no token registered)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+
+        // WHEN pause is requested
+        let result = manager.handle_pause_session("sess-1");
+
+        // THEN it returns Ok(()) with no side effect: state stays Running and no
+        // token was cancelled to a non-existent turn
+        assert!(result.is_ok());
+        assert_eq!(manager.pause_state("sess-1"), Some(PauseState::Running));
+    }
+
+    #[tokio::test]
+    async fn pause_unknown_session_is_typed_error() {
+        // GIVEN a manager with one known session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+
+        // WHEN pausing an unknown session (error case)
+        let result = manager.handle_pause_session("ghost");
+
+        // THEN a typed UnknownSession error is returned
+        assert!(matches!(
+            result,
+            Err(PauseError::UnknownSession { ref session_id }) if session_id == "ghost"
+        ));
+    }
+
+    #[tokio::test]
+    async fn pause_cancels_active_token_and_sets_pausing() {
+        // GIVEN a session with an active turn (a registered cancel token)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+        let token = CancellationToken::new();
+        manager.pause_tokens.insert("sess-1".into(), token.clone());
+
+        // WHEN pause is requested
+        manager.handle_pause_session("sess-1").expect("pause ok");
+
+        // THEN the token is cancelled and the state moves to Pausing
+        assert!(token.is_cancelled());
+        assert_eq!(manager.pause_state("sess-1"), Some(PauseState::Pausing));
+    }
+
+    #[tokio::test]
+    async fn exchange_complete_records_paused_state() {
+        // GIVEN a session with a paused ReAct response
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+        manager
+            .pause_tokens
+            .insert("sess-1".into(), CancellationToken::new());
+        let response = ChatAgentResponse {
+            content: String::new(),
+            tool_calls: vec![],
+            newly_authorized: vec![],
+            tokens_used: apollia_llm::types::TokenUsage::default(),
+            thinking_trace: None,
+            verification_report: None,
+            frontier_ceiling_reached: false,
+            final_plan_phase: None,
+            paused: true,
+        };
+
+        // WHEN the exchange completes as paused
+        manager.handle_exchange_complete("sess-1", "msg-1", response);
+
+        // THEN the session is recorded Paused, ready to resume
+        assert_eq!(manager.pause_state("sess-1"), Some(PauseState::Paused));
+    }
+
+    #[tokio::test]
+    async fn resume_sets_running_and_dispatches() {
+        // GIVEN a paused session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+        manager
+            .pause_states
+            .insert("sess-1".into(), PauseState::Paused);
+
+        // WHEN resume is requested
+        manager
+            .handle_resume_paused_session("sess-1")
+            .expect("resume ok");
+
+        // THEN the state returns to Running and a continuation turn is dispatched
+        // (the session moved to Processing)
+        assert_eq!(manager.pause_state("sess-1"), Some(PauseState::Running));
         assert_eq!(
             manager.sessions.get("sess-1").unwrap().status,
             SessionStatus::Processing

@@ -33,8 +33,8 @@ pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
 };
 pub use manager::{
-    ChatSessionManagerHandle, ChatToolsConfig, PendingUserInputView, SessionAuthorizationView,
-    APOLLIA_CHAT_AGENT_ID,
+    ChatSessionManagerHandle, ChatToolsConfig, PauseError, PendingUserInputView,
+    SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
 };
 pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use project_context::DefaultProjectContextProvider;
@@ -48,7 +48,7 @@ pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
 pub use types::{
     AlwaysAcceptScope, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig,
-    ExchangeState, FsHitlDecision, MessageId, PendingChatApprovals, ProjectContextProvider,
-    SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord,
-    ToolCallStatus, ToolDecision, ToolStatEntry,
+    ExchangeState, FsHitlDecision, MessageId, PauseState, PendingChatApprovals,
+    ProjectContextProvider, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ToolCallRecord, ToolCallStatus, ToolDecision, ToolStatEntry, TurnOutcome,
 };
