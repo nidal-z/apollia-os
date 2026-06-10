@@ -215,6 +215,29 @@ impl<T: CapturedEntry> ReplayCursor<T> {
         Ok(Self { items, position: 0 })
     }
 
+    /// Build a cursor, treating an absent kind as an empty (not failed) cursor.
+    ///
+    /// Used for optional input categories in a [`ReplayBundle`] (a run may have
+    /// no tool calls, no clock reads, or no random draws). An ordinal gap is
+    /// still an error.
+    ///
+    /// # Errors
+    ///
+    /// - [`ReplayCaptureError::OrdinalGap`] when the present ordinals have a hole.
+    pub fn from_journal_optional(
+        entries: &[JournalEntry],
+        run_id: &RunId,
+    ) -> Result<Self, ReplayCaptureError> {
+        match Self::from_journal(entries, run_id) {
+            Ok(cursor) => Ok(cursor),
+            Err(ReplayCaptureError::NoCaptures { .. }) => Ok(Self {
+                items: Vec::new(),
+                position: 0,
+            }),
+            Err(other) => Err(other),
+        }
+    }
+
     /// Advance and return the next captured value, in `step_ordinal` order.
     ///
     /// # Errors
@@ -257,6 +280,44 @@ pub type ToolReplayCursor = ReplayCursor<ToolOutputSnapshot>;
 pub type ClockReplayCursor = ReplayCursor<ClockSample>;
 /// Ordered cursor over captured random draws.
 pub type RandomReplayCursor = ReplayCursor<RandomSample>;
+
+/// All captured inputs of a single run, ready for replay injection.
+///
+/// The LLM cursor is mandatory: a run with no captured LLM response is not
+/// replayable. Tool, clock and random cursors are optional (empty when the run
+/// drew none).
+#[derive(Debug, Clone)]
+pub struct ReplayBundle {
+    /// Captured LLM responses (mandatory; a replayable run has at least one).
+    pub llm: LlmReplayCursor,
+    /// Captured tool outputs (empty when the run invoked no tools).
+    pub tools: ToolReplayCursor,
+    /// Captured clock reads (empty when the run read no clock).
+    pub clock: ClockReplayCursor,
+    /// Captured random draws (empty when the run drew no randomness).
+    pub random: RandomReplayCursor,
+}
+
+impl ReplayBundle {
+    /// Build all cursors from the journal entries of a given run.
+    ///
+    /// # Errors
+    ///
+    /// - [`ReplayCaptureError::NoCaptures`] when no LLM entries exist (the
+    ///   minimum for a replayable trace).
+    /// - [`ReplayCaptureError::OrdinalGap`] when any present category has a hole.
+    pub fn from_journal(
+        entries: &[JournalEntry],
+        run_id: &RunId,
+    ) -> Result<Self, ReplayCaptureError> {
+        Ok(Self {
+            llm: LlmReplayCursor::from_journal(entries, run_id)?,
+            tools: ToolReplayCursor::from_journal_optional(entries, run_id)?,
+            clock: ClockReplayCursor::from_journal_optional(entries, run_id)?,
+            random: RandomReplayCursor::from_journal_optional(entries, run_id)?,
+        })
+    }
+}
 
 /// Filter, deserialize and order the captures of one kind for a run.
 ///
