@@ -1244,6 +1244,15 @@ impl BuiltInChatAgent {
             }
         }
 
+        // Append the plan-mode instruction block only while the session is in
+        // plan mode. Absent otherwise, so non-plan turns keep the exact prompt
+        // they had before. The block is a static constant: no session content is
+        // interpolated, which rules out accidental prompt injection.
+        if self.plan_mode_active() {
+            prompt.push_str("\n\n");
+            prompt.push_str(crate::chat::plan_prompt::plan_mode_block());
+        }
+
         prompt
     }
 
@@ -5764,6 +5773,34 @@ mod tests {
 
     fn plan_step_json(id: &str) -> serde_json::Value {
         serde_json::json!({ "step_id": id, "description": "d", "depends_on": [] })
+    }
+
+    #[tokio::test]
+    async fn test_prompt_contains_block_when_plan_mode_on() {
+        // GIVEN an agent whose session has plan mode enabled (with a plan store)
+        let agent = plan_agent(Some(plan_handle_for_test()), true);
+
+        // WHEN the system prompt is assembled
+        let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+
+        // THEN it contains the plan-mode block and its key instructions
+        assert!(prompt.contains("operating in plan mode"));
+        assert!(prompt.contains("Discovery first"));
+        assert!(prompt.contains("plan_submit"));
+        assert!(prompt.contains("rationale"));
+        assert!(prompt.contains("ask_user"));
+    }
+
+    #[tokio::test]
+    async fn test_prompt_omits_block_when_plan_mode_off() {
+        // GIVEN an agent whose session has plan mode disabled
+        let agent = plan_agent(Some(plan_handle_for_test()), false);
+
+        // WHEN the system prompt is assembled
+        let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+
+        // THEN the plan-mode block is absent
+        assert!(!prompt.contains("operating in plan mode"));
     }
 
     #[tokio::test]

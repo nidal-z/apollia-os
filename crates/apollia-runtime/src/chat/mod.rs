@@ -12,6 +12,7 @@ pub mod extractor;
 pub mod manager;
 pub mod native_wrappers;
 pub mod plan_actor;
+pub mod plan_prompt;
 pub mod plan_tool;
 pub mod project_context;
 pub mod repository;
