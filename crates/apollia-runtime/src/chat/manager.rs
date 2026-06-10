@@ -380,6 +380,9 @@ struct LibreExchangeParams {
     /// Cooperative pause token for this turn, cloned from the manager's per-session
     /// registry. Cancelling it stops the ReAct loop at its next checkpoint.
     cancel: CancellationToken,
+    /// Operator instruction to consume on a resume turn, when this exchange is a
+    /// resume carrying a queued injection. `None` for ordinary turns.
+    pending_injection: Option<InjectedInstruction>,
 }
 
 /// Run a spawned Libre/Companion exchange end-to-end and report the result back
@@ -431,6 +434,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         session_plan_phase,
         hook_executor,
         cancel,
+        pending_injection,
     } = params;
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
@@ -503,7 +507,8 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
     .with_mcp_index(agent_mcp_index, tool_search_limit)
     .with_plan_mode(session_plan_mode)
     .with_plan_phase_start(session_plan_phase)
-    .with_hook_executor(hook_executor);
+    .with_hook_executor(hook_executor)
+    .with_pending_injection(pending_injection);
 
     // Inject project context on first message OR right after the
     // session was linked to a project (consumed flag).
@@ -699,10 +704,10 @@ use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApproval
 use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
-    ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId, PauseState,
-    PendingChatApprovals, PendingFilesystemApprovals, PlanPhase, ProjectContextProvider,
-    RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
-    ToolCallRecord, ToolDecision,
+    ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, InjectedInstruction,
+    MessageId, PauseState, PendingChatApprovals, PendingFilesystemApprovals, PlanPhase,
+    ProjectContextProvider, RecentSessionSummary, SessionDetail, SessionId, SessionInfo,
+    SessionMetrics, SessionStatus, ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -754,6 +759,27 @@ pub enum PauseError {
         /// The unknown session identifier.
         session_id: String,
     },
+}
+
+/// Error surface for natural-language instruction injection.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum InjectError {
+    /// No session matches the requested identifier.
+    #[error("session {session_id} is unknown")]
+    UnknownSession {
+        /// The unknown session identifier.
+        session_id: String,
+    },
+    /// The session is not paused; injection is only valid while paused.
+    #[error("session {session_id} is not paused; inject is only valid while paused")]
+    NotPaused {
+        /// The session identifier that is not paused.
+        session_id: String,
+    },
+    /// The instruction text was empty or whitespace-only.
+    #[error("instruction text is empty")]
+    EmptyInstruction,
 }
 
 /// Commands sent to the [`ChatSessionManager`] actor.
@@ -891,6 +917,15 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Response channel.
         reply: oneshot::Sender<Result<(), PauseError>>,
+    },
+    /// Inject a natural-language instruction into a paused session and resume it.
+    InjectInstruction {
+        /// Target session.
+        session_id: SessionId,
+        /// Operator instruction text.
+        text: String,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), InjectError>>,
     },
     /// Read the cooperative pause state of a session.
     GetPauseState {
@@ -1221,6 +1256,9 @@ struct ChatSessionManager {
     /// transient window after a pause request; `Paused` once the loop stopped at a
     /// checkpoint. In-memory only, rebuilt on resume.
     pause_states: HashMap<SessionId, PauseState>,
+    /// Operator instructions queued for a paused session, consumed on the next
+    /// resume turn. At most one is held per session.
+    pending_injections: HashMap<SessionId, InjectedInstruction>,
 }
 
 impl ChatSessionManager {
@@ -1331,6 +1369,14 @@ impl ChatSessionManager {
                 }
                 ChatCommand::ResumePausedSession { session_id, reply } => {
                     let result = self.handle_resume_paused_session(&session_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::InjectInstruction {
+                    session_id,
+                    text,
+                    reply,
+                } => {
+                    let result = self.handle_inject_instruction(&session_id, &text);
                     let _ = reply.send(result);
                 }
                 ChatCommand::GetPauseState { session_id, reply } => {
@@ -2020,6 +2066,10 @@ impl ChatSessionManager {
             self.pause_states
                 .insert(session_id.to_string(), PauseState::Running);
 
+            // Take any operator instruction queued while the session was paused.
+            // It is consumed exactly once, on this turn.
+            let pending_injection = self.pending_injections.remove(session_id);
+
             let session = self
                 .sessions
                 .get(session_id)
@@ -2152,6 +2202,7 @@ impl ChatSessionManager {
                 session_plan_phase,
                 hook_executor: self.hook_executor.clone(),
                 cancel,
+                pending_injection,
             }));
         }
 
@@ -2985,6 +3036,55 @@ impl ChatSessionManager {
         Ok(())
     }
 
+    /// Injects a natural-language instruction into a paused session and resumes it.
+    ///
+    /// Validates the inputs (known session, non-empty text, session paused), then
+    /// queues the instruction and triggers a resume turn. The agent reacts to the
+    /// instruction first and adjusts the plan via the `plan_*` tools; the runtime
+    /// stamps [`StepOrigin::UserInject`](apollia_core::plan::StepOrigin::UserInject)
+    /// provenance on any step it creates. An instruction referencing an unknown
+    /// step does not error here: the agent asks for clarification via `ask_user`.
+    fn handle_inject_instruction(
+        &mut self,
+        session_id: &str,
+        text: &str,
+    ) -> Result<(), InjectError> {
+        if !self.sessions.contains_key(session_id) {
+            return Err(InjectError::UnknownSession {
+                session_id: session_id.to_string(),
+            });
+        }
+        if text.trim().is_empty() {
+            return Err(InjectError::EmptyInstruction);
+        }
+        if self.pause_state(session_id) != Some(PauseState::Paused) {
+            return Err(InjectError::NotPaused {
+                session_id: session_id.to_string(),
+            });
+        }
+
+        self.pending_injections.insert(
+            session_id.to_string(),
+            InjectedInstruction {
+                session_id: session_id.to_string(),
+                text: text.to_string(),
+            },
+        );
+        tracing::info!(
+            session_id = %session_id,
+            origin = "user_inject",
+            "chat.session.instruction_injected"
+        );
+
+        // Resume consumes the queued instruction as the first user message of the
+        // new turn (the resume mechanics own budget carry-over and a fresh token).
+        self.handle_resume_paused_session(session_id)
+            .map_err(|e| match e {
+                PauseError::UnknownSession { session_id } => {
+                    InjectError::UnknownSession { session_id }
+                }
+            })
+    }
 
     /// Return a lightweight summary of the N most recent sessions.
     ///
@@ -3865,6 +3965,7 @@ impl ChatSessionManagerHandle {
             hook_executor,
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
+            pending_injections: HashMap::new(),
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -4374,6 +4475,38 @@ impl ChatSessionManagerHandle {
                 session_id: session_id.to_string(),
             })?;
         reply_rx.await.map_err(|_| PauseError::UnknownSession {
+            session_id: session_id.to_string(),
+        })?
+    }
+
+    /// Inject a natural-language instruction into a paused session and resume it.
+    ///
+    /// The instruction is queued as the next user message; on resume the agent
+    /// adjusts the plan via the `plan_*` tools, with any created step stamped
+    /// [`StepOrigin::UserInject`](apollia_core::plan::StepOrigin::UserInject).
+    ///
+    /// # Errors
+    ///
+    /// - [`InjectError::UnknownSession`] when no session matches `session_id`.
+    /// - [`InjectError::EmptyInstruction`] when the text is empty or whitespace.
+    /// - [`InjectError::NotPaused`] when the session is not paused.
+    pub async fn inject_instruction(
+        &self,
+        session_id: &str,
+        text: &str,
+    ) -> Result<(), InjectError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::InjectInstruction {
+                session_id: session_id.to_string(),
+                text: text.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| InjectError::UnknownSession {
+                session_id: session_id.to_string(),
+            })?;
+        reply_rx.await.map_err(|_| InjectError::UnknownSession {
             session_id: session_id.to_string(),
         })?
     }
@@ -5051,6 +5184,7 @@ mod tests {
             hook_executor: None,
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
+            pending_injections: HashMap::new(),
         };
 
         // Insert a dummy session so the lookup succeeds
@@ -5191,6 +5325,7 @@ mod tests {
             hook_executor: None,
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
+            pending_injections: HashMap::new(),
         };
 
         // WHEN building cross-session context with a substantive first message
@@ -5262,6 +5397,7 @@ mod tests {
             hook_executor: None,
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
+            pending_injections: HashMap::new(),
         };
 
         // WHEN building cross-session context with a trivial message
@@ -5311,6 +5447,7 @@ mod tests {
             hook_executor: None,
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
+            pending_injections: HashMap::new(),
         };
 
         // WHEN building cross-session context with a substantive message but no past sessions
@@ -5446,6 +5583,7 @@ mod tests {
             hook_executor: None,
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
+            pending_injections: HashMap::new(),
         };
         let session = ChatSession {
             id: "sess-1".into(),
@@ -5675,6 +5813,89 @@ mod tests {
         assert_eq!(
             manager.sessions.get("sess-1").unwrap().status,
             SessionStatus::Processing
+        );
+    }
+
+    // ── STORY-612: natural-language instruction injection ────────────────
+
+    #[tokio::test]
+    async fn inject_on_running_session_is_rejected() {
+        // GIVEN a session in Running state (not paused)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+
+        // WHEN inject is requested (error case)
+        let result = manager.handle_inject_instruction("sess-1", "do Y");
+
+        // THEN it returns NotPaused, nothing is queued, no turn restarted
+        assert!(matches!(
+            result,
+            Err(InjectError::NotPaused { ref session_id }) if session_id == "sess-1"
+        ));
+        assert!(manager.pending_injections.is_empty());
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().status,
+            SessionStatus::Active
+        );
+    }
+
+    #[tokio::test]
+    async fn inject_unknown_session_is_typed_error() {
+        // GIVEN a manager with one known session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+
+        // WHEN injecting into an unknown session (error case)
+        let result = manager.handle_inject_instruction("ghost", "do Y");
+
+        // THEN a typed UnknownSession error is returned
+        assert!(matches!(
+            result,
+            Err(InjectError::UnknownSession { ref session_id }) if session_id == "ghost"
+        ));
+    }
+
+    #[tokio::test]
+    async fn inject_empty_instruction_is_rejected() {
+        // GIVEN a paused session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+        manager
+            .pause_states
+            .insert("sess-1".into(), PauseState::Paused);
+
+        // WHEN injecting whitespace-only text (error case)
+        let result = manager.handle_inject_instruction("sess-1", "   ");
+
+        // THEN it returns EmptyInstruction and nothing is queued
+        assert!(matches!(result, Err(InjectError::EmptyInstruction)));
+        assert!(manager.pending_injections.is_empty());
+    }
+
+    #[tokio::test]
+    async fn inject_on_paused_session_queues_and_resumes() {
+        // GIVEN a paused session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Executing);
+        manager
+            .pause_states
+            .insert("sess-1".into(), PauseState::Paused);
+
+        // WHEN an operator instruction is injected
+        manager
+            .handle_inject_instruction("sess-1", "before step X, do Y")
+            .expect("inject ok");
+
+        // THEN the session resumes (Running, Processing) and the queued injection
+        // was taken by the dispatched resume turn (consumed exactly once)
+        assert_eq!(manager.pause_state("sess-1"), Some(PauseState::Running));
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().status,
+            SessionStatus::Processing
+        );
+        assert!(
+            manager.pending_injections.is_empty(),
+            "the injection is consumed by the resume turn dispatch"
         );
     }
 

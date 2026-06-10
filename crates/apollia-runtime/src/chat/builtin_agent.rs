@@ -36,8 +36,8 @@ use apollia_tools::ToolRegistryHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::types::{
-    ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, PendingChatApprovals, PlanPhase,
-    ToolCallRecord, ToolCallStatus, ToolDecision, TurnOutcome,
+    ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, InjectedInstruction,
+    PendingChatApprovals, PlanPhase, ToolCallRecord, ToolCallStatus, ToolDecision, TurnOutcome,
 };
 use crate::a2a::A2AInvoker;
 use crate::chat::a2a_tools::generate_a2a_tool_specs;
@@ -1066,6 +1066,15 @@ pub struct BuiltInChatAgent {
     /// hooks are configured: the ReAct loop behaves exactly as before, with no
     /// interception and zero overhead.
     hook_executor: Option<Arc<HookExecutor>>,
+    /// Operator instruction injected into a resume turn while the session was
+    /// paused.
+    ///
+    /// `Some` only on a resume turn that carries an injection: the instruction is
+    /// prepended as a user message and any plan step the agent creates or modifies
+    /// during the turn is stamped with [`StepOrigin::UserInject`] provenance and
+    /// the operator text as reason. `None` for every ordinary turn, so behavior is
+    /// unchanged when no injection is pending.
+    pending_injection: Option<InjectedInstruction>,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.
@@ -1222,7 +1231,20 @@ impl BuiltInChatAgent {
             session_plan_mode: false,
             session_plan_phase: PlanPhase::Done,
             hook_executor: None,
+            pending_injection: None,
         }
+    }
+
+    /// Attaches an operator instruction to a resume turn.
+    ///
+    /// Set by the manager when resuming a paused session with a queued injection.
+    /// The instruction is prepended as a user message on the turn and any plan
+    /// step the agent creates or modifies is stamped with
+    /// [`StepOrigin::UserInject`] provenance carrying the operator text as reason.
+    /// Absent for every ordinary turn.
+    pub fn with_pending_injection(mut self, injection: Option<InjectedInstruction>) -> Self {
+        self.pending_injection = injection;
+        self
     }
 
     /// Sets the plan phase the owning session is in at the start of the turn.
@@ -1559,6 +1581,24 @@ impl BuiltInChatAgent {
             summary,
             context_window_size,
         );
+
+        // A resume turn carrying an operator instruction prepends it as a user
+        // message so the agent reacts to it first, then adjusts the plan through
+        // the `plan_*` tools. The loop stays agnostic: it forwards the message and
+        // lets the agent pick the tool (add a step, set a dependency, or ask for
+        // clarification). The runtime, not the model, stamps the `UserInject`
+        // provenance on any step created during this turn.
+        if let Some(injection) = self.pending_injection.as_ref() {
+            llm_messages.push(LlmChatMessage::user(format!(
+                "Operator instruction received while paused: {}",
+                injection.text
+            )));
+            tracing::info!(
+                session_id = %session_id,
+                origin = "user_inject",
+                "plan.inject.consumed"
+            );
+        }
 
         let ids = ToolCallContextIds {
             session_id,
@@ -2208,7 +2248,15 @@ impl BuiltInChatAgent {
                     // handle; `if let` binds it without an unwrap or panic.
                     if let Some(plan) = self.plan.as_ref() {
                         (
-                            Self::handle_plan_tool(plan, session_id, call, llm_messages, acc).await,
+                            Self::handle_plan_tool(
+                                plan,
+                                session_id,
+                                call,
+                                llm_messages,
+                                acc,
+                                self.pending_injection.as_ref(),
+                            )
+                            .await,
                             None,
                         )
                     } else {
@@ -2395,14 +2443,30 @@ impl BuiltInChatAgent {
     /// injected as the tool message. Returns `true` when the operation failed (a
     /// rejected mutation or a malformed payload) so the loop counts it toward
     /// escalation; the loop itself never stops on a plan error.
+    // REASON: six borrowed parameters (handle, ids, call, two sinks, optional
+    // injection) are each independent; bundling them into a struct would not
+    // improve clarity, so the threshold is relaxed for this in-loop dispatcher.
+    #[allow(clippy::too_many_arguments)]
     async fn handle_plan_tool(
         plan: &PlanHandle,
         session_id: &str,
         call: &ToolCall,
         llm_messages: &mut Vec<LlmChatMessage>,
         acc: &mut ReactAccumulators,
+        injection: Option<&InjectedInstruction>,
     ) -> bool {
-        let args = &call.arguments;
+        // On an inject-driven resume turn, the runtime (not the model) is the
+        // source of truth for provenance: stamp UserInject + the operator reason
+        // onto any step the agent adds or modifies, so AC-1 holds regardless of
+        // what the LLM emitted in the `step` payload.
+        let stamped;
+        let args = match (injection, call.name.as_str()) {
+            (Some(inj), PLAN_ADD_STEP_TOOL_NAME | PLAN_MODIFY_STEP_TOOL_NAME) => {
+                stamped = stamp_inject_provenance(&call.arguments, &inj.provenance());
+                &stamped
+            }
+            _ => &call.arguments,
+        };
         let result = match call.name.as_str() {
             PLAN_PROPOSE_TOOL_NAME => plan_tool::run_plan_propose(plan, session_id, args).await,
             PLAN_ADD_STEP_TOOL_NAME => plan_tool::run_plan_add_step(plan, session_id, args).await,
@@ -3080,6 +3144,29 @@ fn extract_hostname(url: &str) -> Option<String> {
 /// skipped and a single synthetic `tool_search` spec is appended instead, so the
 /// LLM discovers MCP tools by intent rather than receiving every schema up front.
 /// `tool_search_limit` is the upper bound advertised in that spec's description.
+/// Overrides the `provenance` field of the `step` object inside a `plan_add_step`
+/// or `plan_modify_step` argument payload with `provenance`.
+///
+/// Returns a cloned argument value with the provenance forced; the original is
+/// left untouched. When the payload has no object `step` field (a malformed call),
+/// the args are returned unchanged so the downstream parser still reports the
+/// error path rather than this helper masking it.
+fn stamp_inject_provenance(
+    args: &serde_json::Value,
+    provenance: &apollia_core::plan::StepProvenance,
+) -> serde_json::Value {
+    let mut out = args.clone();
+    if let Some(step) = out
+        .get_mut("step")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        if let Ok(value) = serde_json::to_value(provenance) {
+            step.insert("provenance".to_string(), value);
+        }
+    }
+    out
+}
+
 /// Returns `true` when `name` is one of the `plan_*` built-in tools.
 fn is_plan_tool(name: &str) -> bool {
     matches!(
@@ -6413,7 +6500,8 @@ mod tests {
 
         // WHEN dispatching it through the plan handler
         let failed =
-            BuiltInChatAgent::handle_plan_tool(&plan, "s1", &c, &mut messages, &mut acc).await;
+            BuiltInChatAgent::handle_plan_tool(&plan, "s1", &c, &mut messages, &mut acc, None)
+                .await;
 
         // THEN it succeeds, records a tool message, and the plan is persisted
         assert!(!failed);
@@ -6446,7 +6534,8 @@ mod tests {
 
         // WHEN dispatching a modify with no reason
         let failed =
-            BuiltInChatAgent::handle_plan_tool(&plan, "s1", &c, &mut messages, &mut acc).await;
+            BuiltInChatAgent::handle_plan_tool(&plan, "s1", &c, &mut messages, &mut acc, None)
+                .await;
 
         // THEN the handler reports failure and the tool message carries the error
         assert!(failed);
@@ -6882,6 +6971,7 @@ mod todo_compaction_tests {
 #[cfg(test)]
 mod pause_tests {
     use super::*;
+    use apollia_core::plan::StepOrigin;
     use apollia_llm::types::{
         CompletionModel, CompletionRequest, CompletionResponse, StreamChunk as LlmStreamChunk,
         ToolCall as LlmToolCall,
@@ -7173,4 +7263,56 @@ mod pause_tests {
         }
     }
 
+    // ── STORY-612: provenance stamping on injected plan steps ────────────
+
+    #[test]
+    fn stamp_inject_provenance_overrides_step_origin() {
+        // GIVEN a plan_add_step payload whose step declares an Initial provenance
+        // and depends on the target X (the "before step X" ordering)
+        let args = serde_json::json!({
+            "step": {
+                "step_id": "y",
+                "description": "do Y",
+                "depends_on": [],
+                "provenance": { "origin": "initial", "at": 0 }
+            },
+            "reason": "before step X, do Y"
+        });
+        let prov = InjectedInstruction {
+            session_id: "s1".into(),
+            text: "before step X, do Y".into(),
+        }
+        .provenance();
+
+        // WHEN the runtime stamps the inject provenance
+        let stamped = stamp_inject_provenance(&args, &prov);
+
+        // THEN the step provenance is forced to UserInject with the operator reason,
+        // regardless of what the model emitted
+        let step = &stamped["step"];
+        let parsed: apollia_core::plan::PlanStep =
+            serde_json::from_value(step.clone()).expect("step parses");
+        assert_eq!(parsed.provenance.origin, StepOrigin::UserInject);
+        assert_eq!(
+            parsed.provenance.reason.as_deref(),
+            Some("before step X, do Y")
+        );
+    }
+
+    #[test]
+    fn stamp_inject_provenance_leaves_malformed_payload_untouched() {
+        // GIVEN a payload with no object `step` field (error case)
+        let args = serde_json::json!({ "reason": "do Y" });
+        let prov = InjectedInstruction {
+            session_id: "s1".into(),
+            text: "do Y".into(),
+        }
+        .provenance();
+
+        // WHEN stamping
+        let stamped = stamp_inject_provenance(&args, &prov);
+
+        // THEN the args are returned unchanged so the parser still reports the error
+        assert_eq!(stamped, args);
+    }
 }

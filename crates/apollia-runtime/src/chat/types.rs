@@ -156,6 +156,44 @@ pub enum TurnOutcome {
     Paused,
 }
 
+/// A natural-language instruction injected by the operator while a session is
+/// paused.
+///
+/// It is consumed as a user message on the resume turn, prompting the agent to
+/// adjust its plan via the `plan_*` tools. Any plan step the agent creates or
+/// modifies in response is stamped with [`apollia_core::plan::StepOrigin::UserInject`]
+/// provenance carrying `text` as the reason, so the provenance is deterministic
+/// and never depends on the model emitting the right origin enum.
+#[derive(Debug, Clone)]
+pub struct InjectedInstruction {
+    /// Target session identifier.
+    pub session_id: String,
+    /// Raw operator text, e.g. "before step X, do Y".
+    pub text: String,
+}
+
+impl InjectedInstruction {
+    /// Builds the provenance stamped on steps created from this injection:
+    /// origin [`apollia_core::plan::StepOrigin::UserInject`] with the operator
+    /// text as the reason and the current unix timestamp (seconds).
+    pub fn provenance(&self) -> apollia_core::plan::StepProvenance {
+        apollia_core::plan::StepProvenance {
+            origin: apollia_core::plan::StepOrigin::UserInject,
+            reason: Some(self.text.clone()),
+            at: now_unix_secs(),
+        }
+    }
+}
+
+/// Returns the current unix timestamp in seconds, or `0` if the system clock is
+/// before the epoch (which never happens on a sane host).
+fn now_unix_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
 /// Chat mode, free-form LLM conversation or agent-backed.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ChatMode {
@@ -933,6 +971,23 @@ pub trait ProjectContextProvider: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn injected_instruction_provenance_is_user_inject_with_reason() {
+        // GIVEN an operator instruction
+        let inj = InjectedInstruction {
+            session_id: "s1".into(),
+            text: "before step X, do Y".into(),
+        };
+
+        // WHEN building the provenance for steps created from it
+        let prov = inj.provenance();
+
+        // THEN the origin is UserInject and the reason is the operator text
+        assert_eq!(prov.origin, apollia_core::plan::StepOrigin::UserInject);
+        assert_eq!(prov.reason.as_deref(), Some("before step X, do Y"));
+        assert!(prov.at >= 0);
+    }
 
     #[test]
     fn pause_state_defaults_to_running() {
