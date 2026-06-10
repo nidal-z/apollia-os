@@ -258,19 +258,17 @@ mod tests {
             plan_id: "plan-test-001".to_string(),
             task_id: "task-test-001".to_string(),
             steps: vec![
-                PlanStep {
-                    step_id: "s1".to_string(),
-                    description: "Read file".to_string(),
-                    tool_hint: Some("file_io".to_string()),
-                    depends_on: vec![],
-                    model_hint: None,
+                {
+                    let mut s = PlanStep::new("s1", "Read file");
+                    s.tool_hint = Some("file_io".to_string());
+                    s
                 },
-                PlanStep {
-                    step_id: "s2".to_string(),
-                    description: "Summarize".to_string(),
-                    tool_hint: Some("llm".to_string()),
-                    depends_on: vec!["s1".to_string()],
-                    model_hint: Some("fast-7b".to_string()),
+                {
+                    let mut s = PlanStep::new("s2", "Summarize");
+                    s.tool_hint = Some("llm".to_string());
+                    s.depends_on = vec!["s1".to_string()];
+                    s.model_hint = Some("fast-7b".to_string());
+                    s
                 },
             ],
         }

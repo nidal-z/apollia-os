@@ -8,19 +8,19 @@
 //! On an invalid response, a correction message is injected into the prompt and
 //! the call is retried up to [`MAX_ATTEMPTS`] times (fail fast after N retries).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use apollia_core::decision_point::DecisionKind;
 use apollia_core::events::{EventBusSender, RuntimeEvent};
-use apollia_core::plan_alternatives::{PlanAlternatives, TaskPlan, TaskPlanStep};
+use apollia_core::plan::validate_plan;
+use apollia_core::plan_alternatives::{PlanAlternatives, TaskPlan};
 use apollia_core::{AIPPart, ORIAConfig};
 use apollia_llm::meta_orchestrator::{DecisionPointRequest, MetaOrchestratorHandle};
 use apollia_llm::{ChatMessage, CompletionModel, CompletionRequest};
 
 use crate::observer::ContextBundle;
 use crate::plan::{ExecutionPlan, PlanStep};
-use crate::topo::topological_sort;
 
 // Error types
 
@@ -36,52 +36,25 @@ pub enum PlanValidationError {
     /// The JSON structure does not match the expected `{{ "steps": [...] }}` schema.
     #[error("Invalid structure: {0}")]
     InvalidStructure(String),
-    /// Several steps share the same `step_id`.
-    #[error("Duplicate step IDs")]
-    DuplicateStepIds,
-    /// A step's `depends_on` references a `step_id` that does not exist in the plan.
-    #[error("Unknown dependency: step '{step_id}' depends on unknown '{dep}'")]
-    UnknownDependency {
-        /// Identifier of the step containing the invalid reference.
-        step_id: String,
-        /// Identifier of the missing dependency.
-        dep: String,
-    },
-    /// The dependencies form a cycle, topological execution is impossible.
-    #[error("Circular dependency detected")]
-    CircularDependency,
+    /// The plan steps do not form a valid DAG (unique ids, resolvable
+    /// dependencies, acyclic), as checked by [`validate_plan`].
+    #[error("invalid plan: {0}")]
+    InvalidPlan(#[source] apollia_core::plan::PlanValidationError),
 }
 
 /// Validates a plan's steps: unique ids, resolvable dependencies, no cycle.
 ///
-/// Shared between [`Reasoner::parse_and_validate`] (LLM output) and the plan
-/// gate's edited-plan path (operator output), so both enforce the same DAG
-/// invariants before execution.
+/// Thin caller of [`apollia_core::plan::validate_plan`], the single source of
+/// truth for plan DAG validation. Shared between [`Reasoner::parse_and_validate`]
+/// (LLM output) and the plan gate's edited-plan path (operator output), so both
+/// enforce the same invariants before execution.
 ///
 /// # Errors
 ///
-/// Returns [`PlanValidationError::DuplicateStepIds`],
-/// [`PlanValidationError::UnknownDependency`], or
-/// [`PlanValidationError::CircularDependency`] at the first failing check.
+/// Returns [`PlanValidationError::InvalidPlan`] wrapping the first failing check
+/// reported by [`apollia_core::plan::validate_plan`].
 pub fn validate_steps(steps: &[PlanStep]) -> Result<(), PlanValidationError> {
-    let ids: HashSet<&str> = steps.iter().map(|s| s.step_id.as_str()).collect();
-    if ids.len() != steps.len() {
-        return Err(PlanValidationError::DuplicateStepIds);
-    }
-
-    for step in steps {
-        for dep in &step.depends_on {
-            if !ids.contains(dep.as_str()) {
-                return Err(PlanValidationError::UnknownDependency {
-                    step_id: step.step_id.clone(),
-                    dep: dep.clone(),
-                });
-            }
-        }
-    }
-
-    topological_sort(steps).map_err(|_| PlanValidationError::CircularDependency)?;
-    Ok(())
+    validate_plan(steps).map_err(PlanValidationError::InvalidPlan)
 }
 
 /// ORIA Reasoner errors.
@@ -609,17 +582,7 @@ fn execution_plan_to_task_plan(plan: ExecutionPlan) -> TaskPlan {
     TaskPlan {
         plan_id: plan.plan_id,
         task_id: plan.task_id,
-        steps: plan
-            .steps
-            .into_iter()
-            .map(|s| TaskPlanStep {
-                step_id: s.step_id,
-                description: s.description,
-                tool_hint: s.tool_hint,
-                depends_on: s.depends_on,
-                model_hint: s.model_hint,
-            })
-            .collect(),
+        steps: plan.steps,
     }
 }
 
@@ -893,7 +856,12 @@ mod tests {
 
         // THEN
         assert!(
-            matches!(result, Err(PlanValidationError::UnknownDependency { .. })),
+            matches!(
+                result,
+                Err(PlanValidationError::InvalidPlan(
+                    apollia_core::plan::PlanValidationError::UnknownDependency { .. }
+                ))
+            ),
             "expected UnknownDependency, got: {result:?}"
         );
     }
@@ -915,8 +883,13 @@ mod tests {
 
         // THEN
         assert!(
-            matches!(result, Err(PlanValidationError::DuplicateStepIds)),
-            "expected DuplicateStepIds, got: {result:?}"
+            matches!(
+                result,
+                Err(PlanValidationError::InvalidPlan(
+                    apollia_core::plan::PlanValidationError::DuplicateStepId { .. }
+                ))
+            ),
+            "expected DuplicateStepId, got: {result:?}"
         );
     }
 

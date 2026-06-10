@@ -588,25 +588,13 @@ impl ORIAEngine {
             }
         };
 
-        let steps: Vec<apollia_core::TaskPlanStep> = plan
-            .steps
-            .iter()
-            .map(|s| apollia_core::TaskPlanStep {
-                step_id: s.step_id.clone(),
-                description: s.description.clone(),
-                tool_hint: s.tool_hint.clone(),
-                depends_on: s.depends_on.clone(),
-                model_hint: s.model_hint.clone(),
-            })
-            .collect();
-
         let rx = gates.register(run_id);
         let _ = self.event_bus.send(RuntimeEvent::PlanApprovalRequired {
             run_id: run_id.to_string(),
             plan_id: plan_id.to_string(),
             task_id: run_id.to_string(),
             step_count: plan.steps.len(),
-            steps,
+            steps: plan.steps.clone(),
             ttl_secs,
         });
 
@@ -792,16 +780,7 @@ impl ORIAEngine {
                         // Execute the operator's revised plan directly. Re-validate
                         // the edited steps (unique ids, resolvable deps, no cycle)
                         // before committing: a malformed edit ends the run cleanly.
-                        let steps: Vec<crate::plan::PlanStep> = revised_steps
-                            .into_iter()
-                            .map(|s| crate::plan::PlanStep {
-                                step_id: s.step_id,
-                                description: s.description,
-                                tool_hint: s.tool_hint,
-                                depends_on: s.depends_on,
-                                model_hint: s.model_hint,
-                            })
-                            .collect();
+                        let steps = revised_steps;
 
                         if let Err(e) = crate::reasoner::validate_steps(&steps) {
                             tracing::warn!(
@@ -2266,13 +2245,7 @@ mod orchestrated_tests {
         let run_id = run_id.expect("PlanApprovalRequired must be emitted");
 
         // WHEN a valid edited plan is submitted
-        let revised = vec![apollia_core::TaskPlanStep {
-            step_id: "s1".into(),
-            description: "edited step".into(),
-            tool_hint: None,
-            depends_on: vec![],
-            model_hint: None,
-        }];
+        let revised = vec![apollia_core::plan::PlanStep::new("s1", "edited step")];
         let decision = PlanGateDecision::Edited {
             revised_steps: revised,
         };
@@ -2313,19 +2286,15 @@ mod orchestrated_tests {
 
         // WHEN an edited plan with a direct cycle is submitted
         let revised = vec![
-            apollia_core::TaskPlanStep {
-                step_id: "s1".into(),
-                description: "a".into(),
-                tool_hint: None,
-                depends_on: vec!["s2".into()],
-                model_hint: None,
+            {
+                let mut s = apollia_core::plan::PlanStep::new("s1", "a");
+                s.depends_on = vec!["s2".into()];
+                s
             },
-            apollia_core::TaskPlanStep {
-                step_id: "s2".into(),
-                description: "b".into(),
-                tool_hint: None,
-                depends_on: vec!["s1".into()],
-                model_hint: None,
+            {
+                let mut s = apollia_core::plan::PlanStep::new("s2", "b");
+                s.depends_on = vec!["s1".into()];
+                s
             },
         ];
         let decision = PlanGateDecision::Edited {

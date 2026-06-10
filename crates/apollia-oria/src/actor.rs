@@ -1576,12 +1576,11 @@ mod tests {
             task_id: "task-001".into(),
             steps: steps
                 .into_iter()
-                .map(|(id, deps)| PlanStep {
-                    step_id: id.into(),
-                    description: format!("Step {id}"),
-                    tool_hint: Some("mock_tool".into()),
-                    depends_on: deps.iter().map(|s| s.to_string()).collect(),
-                    model_hint: None,
+                .map(|(id, deps)| {
+                    let mut s = PlanStep::new(id, format!("Step {id}"));
+                    s.tool_hint = Some("mock_tool".into());
+                    s.depends_on = deps.iter().map(|d| d.to_string()).collect();
+                    s
                 })
                 .collect(),
         }
@@ -1828,13 +1827,9 @@ mod tests {
     }
 
     fn tool_step(id: &str, tool: &str) -> PlanStep {
-        PlanStep {
-            step_id: id.to_string(),
-            description: format!("Step {id}"),
-            tool_hint: Some(tool.to_string()),
-            depends_on: vec![],
-            model_hint: None,
-        }
+        let mut s = PlanStep::new(id, format!("Step {id}"));
+        s.tool_hint = Some(tool.to_string());
+        s
     }
 
     /// All active tools are invoked once and returned in input order.
@@ -2307,12 +2302,10 @@ mod tests {
         ExecutionPlan {
             plan_id: format!("plan-{step_id}"),
             task_id: task_id.into(),
-            steps: vec![PlanStep {
-                step_id: step_id.into(),
-                description: format!("Step {step_id} using {tool_name}"),
-                tool_hint: Some(tool_name.into()),
-                depends_on: vec![],
-                model_hint: None,
+            steps: vec![{
+                let mut s = PlanStep::new(step_id, format!("Step {step_id} using {tool_name}"));
+                s.tool_hint = Some(tool_name.into());
+                s
             }],
         }
     }
@@ -2527,19 +2520,16 @@ mod tests {
             plan_id: "plan-ac3".into(),
             task_id: "task-ac3".into(),
             steps: vec![
-                PlanStep {
-                    step_id: "s1".into(),
-                    description: "Lire fichier".into(),
-                    tool_hint: Some("file_io".into()),
-                    depends_on: vec![],
-                    model_hint: None,
+                {
+                    let mut s = PlanStep::new("s1", "Lire fichier");
+                    s.tool_hint = Some("file_io".into());
+                    s
                 },
-                PlanStep {
-                    step_id: "s2".into(),
-                    description: "Envoyer email".into(),
-                    tool_hint: Some("smtp".into()),
-                    depends_on: vec!["s1".into()],
-                    model_hint: None,
+                {
+                    let mut s = PlanStep::new("s2", "Envoyer email");
+                    s.tool_hint = Some("smtp".into());
+                    s.depends_on = vec!["s1".into()];
+                    s
                 },
             ],
         };
@@ -2703,12 +2693,10 @@ mod tests {
         ExecutionPlan {
             plan_id: "plan-llm".into(),
             task_id: "task-llm".into(),
-            steps: vec![PlanStep {
-                step_id: step_id.into(),
-                description: format!("LLM step {step_id}"),
-                tool_hint: None,
-                depends_on: vec![],
-                model_hint: model_hint.map(String::from),
+            steps: vec![{
+                let mut s = PlanStep::new(step_id, format!("LLM step {step_id}"));
+                s.model_hint = model_hint.map(String::from);
+                s
             }],
         }
     }
@@ -2946,12 +2934,11 @@ mod tests {
         let plan = ExecutionPlan {
             plan_id: "plan-tool".into(),
             task_id: "task-tool".into(),
-            steps: vec![PlanStep {
-                step_id: "s1".into(),
-                description: "Tool step".into(),
-                tool_hint: Some("bash_executor".into()),
-                depends_on: vec![],
-                model_hint: Some("fast".into()),
+            steps: vec![{
+                let mut s = PlanStep::new("s1", "Tool step");
+                s.tool_hint = Some("bash_executor".into());
+                s.model_hint = Some("fast".into());
+                s
             }],
         };
         let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
@@ -3026,19 +3013,16 @@ mod tests {
             plan_id: "plan-229-ac1".into(),
             task_id: "task-229-ac1".into(),
             steps: vec![
-                PlanStep {
-                    step_id: "s1".into(),
-                    description: "Step s1".into(),
-                    tool_hint: Some("tool_a".into()),
-                    depends_on: vec![],
-                    model_hint: None,
+                {
+                    let mut s = PlanStep::new("s1", "Step s1");
+                    s.tool_hint = Some("tool_a".into());
+                    s
                 },
-                PlanStep {
-                    step_id: "s2".into(),
-                    description: "Combine {{s1}}".into(),
-                    tool_hint: Some("tool_b".into()),
-                    depends_on: vec!["s1".into()],
-                    model_hint: None,
+                {
+                    let mut s = PlanStep::new("s2", "Combine {{s1}}");
+                    s.tool_hint = Some("tool_b".into());
+                    s.depends_on = vec!["s1".into()];
+                    s
                 },
             ],
         };
@@ -3156,13 +3140,7 @@ mod tests {
         let plan = ExecutionPlan {
             plan_id: "plan-229-ac2".into(),
             task_id: "task-229-ac2".into(),
-            steps: vec![PlanStep {
-                step_id: "s1".into(),
-                description: "Summarize the document".into(),
-                tool_hint: None,
-                depends_on: vec![],
-                model_hint: None,
-            }],
+            steps: vec![PlanStep::new("s1", "Summarize the document")],
         };
 
         let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);

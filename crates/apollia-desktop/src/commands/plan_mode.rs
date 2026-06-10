@@ -27,8 +27,9 @@ pub enum PlanDecisionDto {
     },
     /// Submit an edited plan, executed directly without replanning.
     Edit {
-        /// Revised steps validated by the engine before execution.
-        revised_steps: Vec<apollia_core::TaskPlanStep>,
+        /// Revised steps (unified plan step), validated by the engine before
+        /// execution.
+        revised_steps: Vec<apollia_core::plan::PlanStep>,
     },
 }
 

@@ -71,7 +71,9 @@ pub use plan::{
     validate_plan, Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep,
     PlanValidationError, StepOrigin, StepProvenance, StepStatus,
 };
-pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan, TaskPlanStep};
+pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan};
+#[allow(deprecated)]
+pub use plan_alternatives::TaskPlanStep;
 pub use process::ProcessState;
 pub use result::{
     AIPArtifact, AIPError, AIPResult, InputRequiredData, InputResponseData, TaskStatus,

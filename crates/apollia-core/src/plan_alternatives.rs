@@ -12,24 +12,13 @@ use serde::{Deserialize, Serialize};
 
 /// A single step within a [`TaskPlan`].
 ///
-/// Shared representation used in the feedback loop context, distinct from the
-/// `ExecutionPlan` / `PlanStep` types internal to `apollia-oria`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskPlanStep {
-    /// Unique identifier within the plan (e.g. `"s1"`, `"s2"`).
-    pub step_id: String,
-    /// Natural-language description of the action to perform.
-    pub description: String,
-    /// Tool suggested by the LLM (optional).
-    #[serde(default)]
-    pub tool_hint: Option<String>,
-    /// Identifiers of the steps this step depends on.
-    #[serde(default)]
-    pub depends_on: Vec<String>,
-    /// Optional hint to route this step to a specific LLM backend.
-    #[serde(default)]
-    pub model_hint: Option<String>,
-}
+/// Historical duplicate of the unified plan step. Kept as a deprecated alias of
+/// [`crate::plan::PlanStep`] while its consumers migrate to the unified type;
+/// its serialized shape stays compatible because `PlanStep` preserves the
+/// `step_id` / `description` / `tool_hint` / `depends_on` / `model_hint` fields
+/// and adds the new ones with serde defaults.
+#[deprecated(note = "use apollia_core::plan::PlanStep; TaskPlanStep is a transitional alias")]
+pub type TaskPlanStep = crate::plan::PlanStep;
 
 /// Serializable execution plan shared across crates.
 ///
@@ -41,8 +30,8 @@ pub struct TaskPlan {
     pub plan_id: String,
     /// Identifier of the associated task.
     pub task_id: String,
-    /// Steps to execute.
-    pub steps: Vec<TaskPlanStep>,
+    /// Steps to execute (unified plan step).
+    pub steps: Vec<crate::plan::PlanStep>,
 }
 
 // ─────────────────────────────────────────────

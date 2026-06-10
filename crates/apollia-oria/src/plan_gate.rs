@@ -28,8 +28,9 @@ pub enum PlanGateDecision {
     /// The operator edited the plan: execute the revised steps directly,
     /// without a replanning round trip.
     Edited {
-        /// Revised steps to execute, validated by the engine before execution.
-        revised_steps: Vec<apollia_core::TaskPlanStep>,
+        /// Revised steps to execute (unified plan step), validated by the engine
+        /// before execution.
+        revised_steps: Vec<apollia_core::plan::PlanStep>,
     },
 }
 

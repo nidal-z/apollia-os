@@ -41,10 +41,11 @@ pub enum PlanStatus {
 }
 
 /// Execution status of a [`PlanStep`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StepStatus {
     /// Not started yet.
+    #[default]
     Pending,
     /// Currently executing.
     InProgress,
@@ -98,10 +99,18 @@ pub struct PlanStep {
     /// Unique identifier of the step within the plan.
     pub step_id: String,
     /// Short human-readable title.
+    ///
+    /// Defaults to empty when absent from the payload, so a plan serialized
+    /// with the historical step shape (which had no title) stays loadable.
+    #[serde(default)]
     pub title: String,
     /// Detailed description of the action to perform.
     pub description: String,
     /// Current execution status.
+    ///
+    /// Defaults to [`StepStatus::Pending`] when absent, so an LLM-generated
+    /// plan (which omits the status) deserializes without error.
+    #[serde(default)]
     pub status: StepStatus,
     /// Identifiers of the steps that must finish before this one (DAG edges).
     #[serde(default)]
@@ -118,6 +127,29 @@ pub struct PlanStep {
     /// Provenance of the step (origin, reason, timestamp).
     #[serde(default)]
     pub provenance: StepProvenance,
+}
+
+impl PlanStep {
+    /// Creates a pending step with the given identifier and description.
+    ///
+    /// The `title` mirrors the description, `status` is
+    /// [`StepStatus::Pending`], dependencies and hints are empty, `rationale`
+    /// is `None` and `provenance` is the default ([`StepOrigin::Initial`] at
+    /// timestamp `0`). Callers refine the optional fields after construction.
+    pub fn new(step_id: impl Into<String>, description: impl Into<String>) -> Self {
+        let description = description.into();
+        Self {
+            step_id: step_id.into(),
+            title: description.clone(),
+            description,
+            status: StepStatus::Pending,
+            depends_on: Vec::new(),
+            tool_hint: None,
+            model_hint: None,
+            rationale: None,
+            provenance: StepProvenance::default(),
+        }
+    }
 }
 
 /// Unified plan shared by ORIA and the conversational chat path.

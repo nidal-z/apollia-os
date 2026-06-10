@@ -605,7 +605,7 @@ pub enum RuntimeEvent {
         step_count: usize,
         /// The plan steps, so the reviewer can read them before deciding.
         #[serde(default)]
-        steps: Vec<crate::plan_alternatives::TaskPlanStep>,
+        steps: Vec<crate::plan::PlanStep>,
         /// Seconds before the gate closes when no decision is received.
         ttl_secs: u64,
     },

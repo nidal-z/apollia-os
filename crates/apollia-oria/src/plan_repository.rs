@@ -561,19 +561,15 @@ mod tests {
             plan_id: uuid::Uuid::new_v4().to_string(),
             task_id: task_id.to_string(),
             steps: vec![
-                PlanStep {
-                    step_id: "s1".into(),
-                    description: "Step 1".into(),
-                    tool_hint: Some("file_io".into()),
-                    depends_on: vec![],
-                    model_hint: None,
+                {
+                    let mut s = PlanStep::new("s1", "Step 1");
+                    s.tool_hint = Some("file_io".into());
+                    s
                 },
-                PlanStep {
-                    step_id: "s2".into(),
-                    description: "Step 2".into(),
-                    tool_hint: None,
-                    depends_on: vec!["s1".into()],
-                    model_hint: None,
+                {
+                    let mut s = PlanStep::new("s2", "Step 2");
+                    s.depends_on = vec!["s1".into()];
+                    s
                 },
             ],
         }

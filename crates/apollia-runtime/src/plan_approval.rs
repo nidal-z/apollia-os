@@ -67,7 +67,7 @@ impl PlanApprovalHandle {
     pub fn edit(
         &self,
         run_id: &str,
-        revised_steps: Vec<apollia_core::TaskPlanStep>,
+        revised_steps: Vec<apollia_core::plan::PlanStep>,
     ) -> Result<(), ApprovalError> {
         self.submit(run_id, PlanGateDecision::Edited { revised_steps })
     }
@@ -159,13 +159,7 @@ mod tests {
         let rx = gates.register("run-5");
         let handle = PlanApprovalHandle::new(gates);
         // WHEN an edited plan is submitted
-        let revised = vec![apollia_core::TaskPlanStep {
-            step_id: "s1".into(),
-            description: "revised step".into(),
-            tool_hint: None,
-            depends_on: vec![],
-            model_hint: None,
-        }];
+        let revised = vec![apollia_core::plan::PlanStep::new("s1", "revised step")];
         handle.edit("run-5", revised).expect("edit should succeed");
         // THEN the engine receiver observes the revised steps
         match rx.await.expect("gate should resolve") {

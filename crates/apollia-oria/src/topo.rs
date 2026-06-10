@@ -187,13 +187,9 @@ mod tests {
     use super::*;
 
     fn step(id: &str, deps: &[&str]) -> PlanStep {
-        PlanStep {
-            step_id: id.to_string(),
-            description: format!("Step {id}"),
-            tool_hint: None,
-            depends_on: deps.iter().map(|s| s.to_string()).collect(),
-            model_hint: None,
-        }
+        let mut s = PlanStep::new(id, format!("Step {id}"));
+        s.depends_on = deps.iter().map(|d| d.to_string()).collect();
+        s
     }
 
     /// GIVEN [s1 (no deps), s2 (depends_on: [s1]), s3 (depends_on: [s2])]
