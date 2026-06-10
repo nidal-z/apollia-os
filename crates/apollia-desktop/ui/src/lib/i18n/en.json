@@ -1188,6 +1188,7 @@
     "trace_tool_calls": "Tool calls",
     "trace_empty": "No tool call for this step.",
     "reason_label": "Reason",
+    "dependencies_label": "Depends on",
     "origin_initial": "Initial",
     "origin_replan": "Replan {revision}",
     "origin_user_inject": "User injection",

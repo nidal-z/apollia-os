@@ -3,14 +3,18 @@
   //
   // The card color derives exclusively from `stepStatusToken(status)`; the
   // current step (in_progress) carries a highlight ring and a subtle pulse.
-  // Tool/model hints render as chips when present, the rationale reveals on
-  // expand, and a step dropped by a replan renders as a faded tombstone.
-  // The card is keyboard-activable (Enter/Space) to open the trace drawer.
+  // Density follows the UI mode via `nodeFields($uiMode)`: Operator stays
+  // compact (title, status and the provenance chip), Builder exposes the
+  // description, dependencies, tool/model hints, rationale and change reason.
+  // A step dropped by a replan renders as a faded tombstone. The card is
+  // keyboard-activable (Enter/Space) to open the trace drawer.
   import { Handle, Position, type NodeProps } from "@xyflow/svelte";
   import { t } from "svelte-i18n";
   import { toStepStatus } from "$lib/ipc/plan";
+  import { uiMode } from "$lib/stores/mode";
   import { stepStatusToken } from "./stepStatusToken";
   import { originToChip, hasReason } from "./provenanceChip";
+  import { nodeFields } from "./planNodeDensity";
   import { PLAN_SESSION_KEYS } from "$lib/i18n/strings/planSession";
   import type { StepNodeData } from "./planDagLayout";
 
@@ -22,12 +26,16 @@
   const tokens = $derived(stepStatusToken(status));
   const isCurrent = $derived(status === "in_progress");
 
+  // Single source of density truth: the node never tests `$uiMode` inline.
+  const fields = $derived(nodeFields($uiMode));
+
   // Provenance chip is always rendered (even an initial step shows its origin).
-  // The reason section is gated on a non-blank `provenance.reason`, so a step
-  // carrying provenance but no reason shows only the chip, never "undefined".
+  // The reason section is gated on a non-blank `provenance.reason` AND the
+  // Builder density, so a compact node or a step without a reason shows only
+  // the chip, never "undefined".
   const provChip = $derived(originToChip(step.provenance.origin));
   const reason = $derived(step.provenance.reason);
-  const showReason = $derived(hasReason(reason));
+  const showReason = $derived(fields.showReason && hasReason(reason));
 
   let expanded = $state(false);
 
@@ -77,10 +85,16 @@
   >
     {step.title || $t("plan_session.untitled_step")}
   </p>
-  {#if step.description}
+  {#if fields.showDescription && step.description}
     <p class="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{step.description}</p>
   {/if}
-  {#if step.tool_hint || step.model_hint}
+  {#if fields.showDependencies && step.depends_on.length > 0}
+    <p class="mt-1 text-[11px] text-muted-foreground" data-testid="plan-step-dependencies">
+      <span class="font-medium">{$t(PLAN_SESSION_KEYS.dependenciesLabel)}:</span>
+      {step.depends_on.join(", ")}
+    </p>
+  {/if}
+  {#if fields.showHints && (step.tool_hint || step.model_hint)}
     <div class="mt-1.5 flex flex-wrap gap-1">
       {#if step.tool_hint}
         <span class="rounded bg-accent/10 px-1.5 py-0.5 text-[9px] text-accent-foreground"
@@ -94,7 +108,7 @@
       {/if}
     </div>
   {/if}
-  {#if step.rationale}
+  {#if fields.showRationale && step.rationale}
     <button
       type="button"
       class="mt-1 text-[10px] text-muted-foreground hover:text-foreground"

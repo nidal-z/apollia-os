@@ -19,6 +19,7 @@ export const PLAN_SESSION_KEYS = {
   traceToolCalls: "plan_session.trace_tool_calls",
   traceEmpty: "plan_session.trace_empty",
   reasonLabel: "plan_session.reason_label",
+  dependenciesLabel: "plan_session.dependencies_label",
   originInitial: "plan_session.origin_initial",
   originReplan: "plan_session.origin_replan",
   originUserInject: "plan_session.origin_user_inject",
