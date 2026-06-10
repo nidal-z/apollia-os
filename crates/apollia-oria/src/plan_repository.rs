@@ -12,6 +12,7 @@ use std::sync::Mutex;
 use rusqlite::{params, Connection};
 
 use apollia_core::observability::{truncate_with_marker, ObservabilityConfig};
+use apollia_core::plan::StepProvenance;
 
 use crate::plan::{ExecutionPlan, PlanStep};
 
@@ -33,12 +34,23 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("duration_ms", "INTEGER"),
 ];
 
-/// Apply the observability migration idempotently.
+/// Provenance columns to add to `plan_steps`.
 ///
-/// Uses `ALTER TABLE ADD COLUMN` individually and ignores the
-/// "duplicate column name" error (SQLite code 1) when the column already exists.
-fn apply_observability_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
-    for (col, col_type) in OBSERVABILITY_COLUMNS {
+/// `rationale` holds the free-form step justification, `provenance` holds the
+/// JSON-encoded [`StepProvenance`]. Both are nullable so legacy rows survive the
+/// additive migration. Applied idempotently via [`apply_provenance_migration`].
+const PROVENANCE_COLUMNS: &[(&str, &str)] = &[("rationale", "TEXT"), ("provenance", "TEXT")];
+
+/// Apply an additive `ALTER TABLE ADD COLUMN` migration idempotently.
+///
+/// Each column is added individually; the "duplicate column name" error
+/// (SQLite extended code 1) is tolerated, so re-running the migration on an
+/// existing database is a no-op rather than a failure.
+fn apply_additive_columns(
+    conn: &Connection,
+    columns: &[(&str, &str)],
+) -> Result<(), PlanRepositoryError> {
+    for (col, col_type) in columns {
         let sql = format!("ALTER TABLE plan_steps ADD COLUMN {col} {col_type}");
         match conn.execute_batch(&sql) {
             Ok(()) => {}
@@ -49,6 +61,20 @@ fn apply_observability_migration(conn: &Connection) -> Result<(), PlanRepository
         }
     }
     Ok(())
+}
+
+/// Apply the observability migration idempotently.
+fn apply_observability_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
+    apply_additive_columns(conn, OBSERVABILITY_COLUMNS)
+}
+
+/// Apply the provenance migration idempotently.
+///
+/// Adds the nullable `rationale` and `provenance` columns to `plan_steps`.
+/// Purely additive: existing rows keep their values and read back `NULL` for
+/// the new columns until they are written.
+fn apply_provenance_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
+    apply_additive_columns(conn, PROVENANCE_COLUMNS)
 }
 
 // Errors
@@ -120,6 +146,11 @@ pub struct StepRecord {
     pub error_detail: Option<String>,
     /// Step execution duration in milliseconds.
     pub duration_ms: Option<i64>,
+    /// Free-form justification of the step, `None` for legacy rows.
+    pub rationale: Option<String>,
+    /// Provenance of the step; a legacy `NULL` value loads as
+    /// [`StepProvenance::default`] (origin Initial, `at` 0).
+    pub provenance: StepProvenance,
 }
 
 // Repository
@@ -149,6 +180,7 @@ impl PlanRepository {
         let conn = Connection::open(db_path)?;
         conn.execute_batch(MIGRATION_SQL)?;
         apply_observability_migration(&conn)?;
+        apply_provenance_migration(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -174,9 +206,54 @@ impl PlanRepository {
         Ok(())
     }
 
+    /// JSON encoding of the default [`StepProvenance`] (origin Initial, at 0).
+    ///
+    /// Used as the fallback when a step's provenance cannot be serialized, which
+    /// keeps the insert infallible without an `unwrap`. The literal mirrors the
+    /// `StepProvenance::default()` shape.
+    fn default_provenance_json() -> String {
+        serde_json::to_string(&StepProvenance::default())
+            .unwrap_or_else(|_| r#"{"origin":"initial","reason":null,"at":0}"#.to_string())
+    }
+
+    /// Read a step's rationale and provenance back from SQLite.
+    ///
+    /// A `NULL` provenance (legacy row written before this column existed) or a
+    /// corrupted JSON payload degrades to [`StepProvenance::default`] (origin
+    /// [`apollia_core::plan::StepOrigin::Initial`], `at` 0) instead of failing
+    /// the read, so older plans stay loadable without a backfill.
+    ///
+    /// # Errors
+    /// Returns [`PlanRepositoryError::NotFound`] when no step matches `step_id`,
+    /// or [`PlanRepositoryError::Sqlite`] on any other SQLite error.
+    pub fn load_step_provenance(
+        &self,
+        step_id: &str,
+    ) -> Result<(Option<String>, StepProvenance), PlanRepositoryError> {
+        let conn = self.conn.lock().expect("plan repository mutex poisoned");
+        let (rationale, provenance_raw): (Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT rationale, provenance FROM plan_steps WHERE step_id = ?1",
+                params![step_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => {
+                    PlanRepositoryError::NotFound(step_id.to_string())
+                }
+                other => PlanRepositoryError::Sqlite(other),
+            })?;
+
+        let provenance = provenance_raw
+            .map(|json| serde_json::from_str(&json).unwrap_or_default())
+            .unwrap_or_default();
+        Ok((rationale, provenance))
+    }
+
     /// Insert a plan's steps, all with `pending` status.
     ///
-    /// Each step's `depends_on` field is serialized to JSON before storage.
+    /// Each step's `depends_on` field is serialized to JSON before storage, and
+    /// `rationale` plus the JSON-encoded `provenance` are persisted alongside.
     ///
     /// # Errors
     /// Returns [`PlanRepositoryError::Sqlite`] if a step cannot be inserted.
@@ -189,16 +266,21 @@ impl PlanRepository {
         for step in steps {
             let depends_on_json =
                 serde_json::to_string(&step.depends_on).unwrap_or_else(|_| "[]".to_string());
+            let provenance_json = serde_json::to_string(&step.provenance)
+                .unwrap_or_else(|_| Self::default_provenance_json());
             conn.execute(
                 "INSERT INTO plan_steps \
-                     (step_id, plan_id, description, tool_hint, depends_on, status) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, 'pending')",
+                     (step_id, plan_id, description, tool_hint, depends_on, status, \
+                      rationale, provenance) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7)",
                 params![
                     step.step_id,
                     plan_id,
                     step.description,
                     step.tool_hint,
                     depends_on_json,
+                    step.rationale,
+                    provenance_json,
                 ],
             )?;
         }
@@ -496,7 +578,7 @@ impl PlanRepository {
             "SELECT step_id, description, tool_hint, depends_on, status, \
                     output, error, started_at, completed_at, \
                     input_rendered, input_truncated, output_text, output_truncated, \
-                    tool_used, error_detail, duration_ms \
+                    tool_used, error_detail, duration_ms, rationale, provenance \
              FROM plan_steps WHERE plan_id = ?1",
         )?;
 
@@ -508,6 +590,12 @@ impl PlanRepository {
                     serde_json::from_str(&depends_on_str).unwrap_or_default();
                 let input_truncated_raw: i32 = row.get(10)?;
                 let output_truncated_raw: i32 = row.get(12)?;
+                // A legacy NULL provenance or a corrupted payload degrades to the
+                // default (origin Initial, at 0) rather than failing the read.
+                let provenance_raw: Option<String> = row.get(17)?;
+                let provenance = provenance_raw
+                    .map(|json| serde_json::from_str(&json).unwrap_or_default())
+                    .unwrap_or_default();
                 Ok(StepRecord {
                     step_id: row.get(0)?,
                     description: row.get(1)?,
@@ -525,6 +613,8 @@ impl PlanRepository {
                     tool_used: row.get(13)?,
                     error_detail: row.get(14)?,
                     duration_ms: row.get(15)?,
+                    rationale: row.get(16)?,
+                    provenance,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -780,6 +870,111 @@ mod tests {
             .input_rendered
             .as_ref()
             .map_or(false, |t| t.contains("200 octets total")));
+    }
+
+    // provenance and rationale
+
+    // GIVEN a base plan_steps schema in a fresh in-memory database
+    // WHEN  applying the provenance migration twice
+    // THEN  both columns exist and neither run raised an error
+    #[test]
+    fn test_provenance_migration_is_idempotent() {
+        // GIVEN
+        let conn = Connection::open_in_memory().expect("open");
+        conn.execute_batch(MIGRATION_SQL).expect("base");
+
+        // WHEN
+        apply_provenance_migration(&conn).expect("first");
+        apply_provenance_migration(&conn).expect("second");
+
+        // THEN
+        let cols: Vec<String> = {
+            let mut stmt = conn
+                .prepare("PRAGMA table_info(plan_steps)")
+                .expect("pragma");
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(1))
+                .expect("query");
+            rows.collect::<Result<Vec<_>, _>>().expect("collect")
+        };
+        assert!(cols.iter().any(|c| c == "rationale"));
+        assert!(cols.iter().any(|c| c == "provenance"));
+    }
+
+    // GIVEN a step persisted with a rationale and Replan(1) provenance
+    // WHEN  reading it back via load_step_provenance and get_plan_with_steps
+    // THEN  both fields round-trip verbatim
+    #[test]
+    fn test_round_trip_with_provenance() {
+        use apollia_core::plan::{StepOrigin, StepProvenance};
+
+        // GIVEN
+        let (repo, _f) = make_repo();
+        let mut plan = make_plan("task-prov-1");
+        plan.steps[0].rationale = Some("decoupe".into());
+        plan.steps[0].provenance = StepProvenance {
+            origin: StepOrigin::Replan(1),
+            reason: Some("revision".into()),
+            at: 1_700_000_000,
+        };
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
+
+        // WHEN
+        let (rationale, provenance) = repo.load_step_provenance("s1").expect("load");
+
+        // THEN
+        assert_eq!(rationale.as_deref(), Some("decoupe"));
+        assert_eq!(provenance.origin, StepOrigin::Replan(1));
+        assert_eq!(provenance.reason.as_deref(), Some("revision"));
+        assert_eq!(provenance.at, 1_700_000_000);
+
+        let result = repo.get_plan_with_steps("task-prov-1").unwrap();
+        let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
+        assert_eq!(s1.rationale.as_deref(), Some("decoupe"));
+        assert_eq!(s1.provenance.origin, StepOrigin::Replan(1));
+
+        // A step inserted with default provenance round-trips to Initial / None.
+        let (rationale_s2, provenance_s2) = repo.load_step_provenance("s2").expect("load s2");
+        assert_eq!(rationale_s2, None);
+        assert_eq!(provenance_s2.origin, StepOrigin::Initial);
+    }
+
+    // GIVEN a legacy row whose provenance column is NULL
+    // WHEN  reading it back via load_step_provenance and get_plan_with_steps
+    // THEN  it degrades to the default (origin Initial, at 0) without panic
+    #[test]
+    fn test_legacy_null_provenance_defaults_to_initial() {
+        use apollia_core::plan::StepOrigin;
+
+        // GIVEN: insert a row directly, leaving rationale and provenance NULL
+        let (repo, _f) = make_repo();
+        let plan = make_plan("task-legacy-1");
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        {
+            let conn = repo.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO plan_steps \
+                     (step_id, plan_id, description, tool_hint, depends_on, status) \
+                     VALUES ('legacy', ?1, 'old step', NULL, '[]', 'pending')",
+                params![plan.plan_id],
+            )
+            .unwrap();
+        }
+
+        // WHEN
+        let (rationale, provenance) = repo.load_step_provenance("legacy").expect("load");
+
+        // THEN
+        assert_eq!(rationale, None);
+        assert_eq!(provenance.origin, StepOrigin::Initial);
+        assert_eq!(provenance.reason, None);
+        assert_eq!(provenance.at, 0);
+
+        let result = repo.get_plan_with_steps("task-legacy-1").unwrap();
+        let legacy = result.steps.iter().find(|s| s.step_id == "legacy").unwrap();
+        assert_eq!(legacy.provenance.origin, StepOrigin::Initial);
+        assert_eq!(legacy.rationale, None);
     }
 
     // GIVEN: plan with a non-empty depends_on

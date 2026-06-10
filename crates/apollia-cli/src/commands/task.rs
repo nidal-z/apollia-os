@@ -941,6 +941,8 @@ mod tests {
             tool_used: None,
             error_detail: None,
             duration_ms: None,
+            rationale: None,
+            provenance: apollia_core::plan::StepProvenance::default(),
         }
     }
 

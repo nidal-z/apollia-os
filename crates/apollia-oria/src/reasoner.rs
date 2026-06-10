@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use apollia_core::decision_point::DecisionKind;
 use apollia_core::events::{EventBusSender, RuntimeEvent};
-use apollia_core::plan::validate_plan;
+use apollia_core::plan::{StepOrigin, StepProvenance, validate_plan};
 use apollia_core::plan_alternatives::{PlanAlternatives, TaskPlan};
 use apollia_core::{AIPPart, ORIAConfig};
 use apollia_llm::meta_orchestrator::{DecisionPointRequest, MetaOrchestratorHandle};
@@ -176,6 +176,31 @@ impl Reasoner {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64
+    }
+
+    /// Unix timestamp in seconds, used to stamp step provenance.
+    fn now_secs() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64
+    }
+
+    /// Stamps the initial provenance on each freshly generated step.
+    ///
+    /// `now` is the Unix timestamp (seconds) captured at generation time and
+    /// supplied by the caller, keeping this helper free of any clock access for
+    /// testability. The first generation carries no per-step reason, so
+    /// [`StepProvenance::reason`] stays `None` and the origin is
+    /// [`StepOrigin::Initial`].
+    fn stamp_initial_provenance(steps: &mut [PlanStep], now: i64) {
+        for step in steps.iter_mut() {
+            step.provenance = StepProvenance {
+                origin: StepOrigin::Initial,
+                reason: None,
+                at: now,
+            };
+        }
     }
 
     /// Emit `ThinkingStarted` on the bus if configured, silent when the bus is absent.
@@ -489,11 +514,15 @@ impl Reasoner {
         let parsed: serde_json::Value = serde_json::from_str(clean)
             .map_err(|e| PlanValidationError::InvalidJson(e.to_string()))?;
 
-        let steps: Vec<PlanStep> = serde_json::from_value(parsed["steps"].clone())
+        let mut steps: Vec<PlanStep> = serde_json::from_value(parsed["steps"].clone())
             .map_err(|e| PlanValidationError::InvalidStructure(e.to_string()))?;
 
         // 3-5. Unique ids, existing dependencies, no cycle.
         validate_steps(&steps)?;
+
+        // The first generation has no per-step reason: stamp Initial provenance
+        // with the current clock so the origin survives persistence.
+        Self::stamp_initial_provenance(&mut steps, Self::now_secs());
 
         Ok(ExecutionPlan {
             plan_id: uuid::Uuid::new_v4().to_string(),
@@ -1078,6 +1107,46 @@ mod tests {
         }
         assert!(saw_started, "ThinkingStarted should have been emitted");
         assert!(saw_ended, "ThinkingEnded must fire on failure path too");
+    }
+
+    /// GIVEN freshly generated steps without provenance
+    /// WHEN stamping initial provenance with a fixed clock
+    /// THEN every step carries Initial origin, no reason, and the timestamp
+    #[test]
+    fn test_stamp_initial_provenance_sets_origin_and_time() {
+        // GIVEN
+        let mut steps = vec![PlanStep::new("s1", "Step 1"), PlanStep::new("s2", "Step 2")];
+
+        // WHEN
+        Reasoner::stamp_initial_provenance(&mut steps, 1_700_000_500);
+
+        // THEN
+        for s in &steps {
+            assert_eq!(s.provenance.origin, StepOrigin::Initial);
+            assert_eq!(s.provenance.reason, None);
+            assert_eq!(s.provenance.at, 1_700_000_500);
+        }
+    }
+
+    /// GIVEN a valid plan parsed from raw LLM output
+    /// WHEN parse_and_validate produces the ExecutionPlan
+    /// THEN each step carries Initial provenance with a positive timestamp
+    #[test]
+    fn test_parse_and_validate_stamps_initial_provenance() {
+        // GIVEN
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+
+        // WHEN
+        let plan = reasoner
+            .parse_and_validate(VALID_PLAN_2_STEPS, "task-prov")
+            .expect("expected Ok");
+
+        // THEN
+        assert_eq!(plan.steps.len(), 2);
+        for s in &plan.steps {
+            assert_eq!(s.provenance.origin, StepOrigin::Initial);
+            assert!(s.provenance.at > 0);
+        }
     }
 
     /// GIVEN a mock providing plans whose steps have descriptions
