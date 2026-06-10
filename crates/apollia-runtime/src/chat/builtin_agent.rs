@@ -6298,7 +6298,7 @@ mod tests {
         assert!(!is_plan_tool("bash"));
     }
 
-    // ── discovery phase (STORY-607) ──────────────────────────────────────
+    // ── discovery phase ──────────────────────────────────────
 
     fn plan_agent_with_bus(bus: EventBusSender, plan_mode: bool) -> BuiltInChatAgent {
         let model = Arc::new(MockStopModel::with_content("ok"));
@@ -6967,7 +6967,7 @@ mod todo_compaction_tests {
     }
 }
 
-/// STORY-611: cooperative pause/resume of the chat ReAct loop.
+/// Cooperative pause/resume of the chat ReAct loop.
 #[cfg(test)]
 mod pause_tests {
     use super::*;
@@ -7263,7 +7263,7 @@ mod pause_tests {
         }
     }
 
-    // ── STORY-612: provenance stamping on injected plan steps ────────────
+    // ── provenance stamping on injected plan steps ────────────
 
     #[test]
     fn stamp_inject_provenance_overrides_step_origin() {

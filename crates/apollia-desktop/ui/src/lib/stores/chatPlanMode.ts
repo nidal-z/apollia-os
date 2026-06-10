@@ -2,7 +2,7 @@
 //
 // Distinct from `planMode.ts`, which tracks the run-keyed ORIA approval gate
 // (category "plan-approval"). This store tracks the chat-native soft gate
-// (category "plan-mode", STORY-603 events), scoped to a single chat session.
+// (category "plan-mode" events), scoped to a single chat session.
 //
 // The runtime bridge re-emits every `RuntimeEvent` as a `runtime-event` Tauri
 // event with `{ category, event_type, payload }`, where `payload` is the

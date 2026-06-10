@@ -5717,7 +5717,7 @@ mod tests {
         );
     }
 
-    // ── STORY-611: cooperative pause / resume ────────────────────────────
+    // ── cooperative pause / resume ────────────────────────────
 
     #[tokio::test]
     async fn pause_without_active_turn_is_noop() {
@@ -5816,7 +5816,7 @@ mod tests {
         );
     }
 
-    // ── STORY-612: natural-language instruction injection ────────────────
+    // ── natural-language instruction injection ────────────────
 
     #[tokio::test]
     async fn inject_on_running_session_is_rejected() {
