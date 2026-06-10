@@ -28,6 +28,7 @@ pub mod mcp_health;
 pub mod notebook;
 pub mod observability;
 pub mod pending_approvals;
+pub mod plan;
 pub mod plan_alternatives;
 pub mod process;
 pub mod result;
@@ -66,6 +67,10 @@ pub use mcp_health::{McpHealth, McpHealthSeverity};
 pub use notebook::{CellType, JupyterCell, NotebookEditOp};
 pub use observability::{truncate_with_marker, ObservabilityConfig};
 pub use pending_approvals::{PendingApprovalError, PendingApprovals};
+pub use plan::{
+    validate_plan, Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep,
+    PlanValidationError, StepOrigin, StepProvenance, StepStatus,
+};
 pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan, TaskPlanStep};
 pub use process::ProcessState;
 pub use result::{
