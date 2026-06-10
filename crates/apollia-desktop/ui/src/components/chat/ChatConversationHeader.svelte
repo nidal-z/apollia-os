@@ -33,6 +33,7 @@
     ProjectSummary,
   } from "$lib/types";
   import A2AWorkerBadge from "./A2AWorkerBadge.svelte";
+  import PlanModeChip from "./PlanModeChip.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
@@ -61,6 +62,10 @@
     onlink?: (projectId: string | null) => void;
     /** Called when the user clicks the project chip in the meta row. */
     onprojectopen?: (projectId: string) => void;
+    /** Current plan-mode state of the session (drives the header toggle chip). */
+    planMode?: boolean;
+    /** Called after the plan-mode chip successfully toggles the session. */
+    onplanmodechange?: (enabled: boolean) => void;
   }
 
   let {
@@ -81,6 +86,8 @@
     availableProjects = [],
     onlink,
     onprojectopen,
+    planMode = false,
+    onplanmodechange,
   }: Props = $props();
 
   let linkOpen = $state(false);
@@ -449,6 +456,14 @@
       <span class="h-1.5 w-1.5 rounded-full bg-primary/60" aria-hidden="true"></span>
       <span class="truncate">{modeLabel}</span>
     </span>
+    {#if session}
+      <PlanModeChip
+        sessionId={session.id}
+        {planMode}
+        disabled={sessionStatus === "closed"}
+        onchange={onplanmodechange}
+      />
+    {/if}
     <span class="inline-flex items-center gap-1" data-testid="chat-header-meta-messages">
       <MessageSquare size={10} class="shrink-0" />
       <span>{$t("chat.message_count", { values: { n: messageCount } })}</span>

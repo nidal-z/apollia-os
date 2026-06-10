@@ -11,7 +11,9 @@
   import { t, locale } from "svelte-i18n";
   import { themeMode, applyTheme, type ThemeMode } from "$lib/stores/theme";
   import { uiMode, type UIMode } from "$lib/stores/mode";
+  import { planModeDefault } from "$lib/stores/planModeSetting";
   import { setLocale } from "$lib/i18n";
+  import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
 
   const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
     { value: "light", labelKey: "settings.theme_light" },
@@ -41,6 +43,10 @@
 
   function changeMode(mode: UIMode) {
     uiMode.set(mode);
+  }
+
+  function setPlanModeDefault(next: boolean) {
+    planModeDefault.set(next);
   }
 </script>
 
@@ -103,6 +109,19 @@
         </button>
       {/each}
     </div>
+  </div>
+
+  <!-- Plan mode -->
+  <div class="space-y-2" data-testid="plan-mode-default-section">
+    <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.planMode.title')}</h3>
+    <SettingsToggle
+      id="plan-mode-default"
+      label={$t('settings.planMode.title')}
+      description={$t('settings.planMode.description')}
+      checked={$planModeDefault}
+      onChange={setPlanModeDefault}
+      data-testid="plan-mode-default-toggle"
+    />
   </div>
 
 </section>

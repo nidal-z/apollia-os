@@ -58,6 +58,11 @@ pub struct ChatSessionDetail {
     pub llm_backend: Option<String>,
     pub title: Option<String>,
     pub project_id: Option<String>,
+    /// Whether the session runs in first-class conversational plan mode.
+    pub plan_mode: bool,
+    /// Current plan-mode lifecycle phase as a stable lowercase string
+    /// (`discovery`, `drafting`, `awaiting_approval`, `executing`, `done`).
+    pub plan_phase: String,
 }
 
 /// Request payload for updating session configuration.
@@ -724,6 +729,8 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         llm_backend: session.llm_backend,
         title: session.title,
         project_id: session.project_id,
+        plan_mode: session.plan_mode,
+        plan_phase: session.plan_phase.as_sql().to_string(),
     }
 }
 

@@ -48,3 +48,46 @@ export async function submitPlanDecision(
 ): Promise<void> {
   return invoke<void>("submit_plan_decision", { runId, decision });
 }
+
+// ── Conversational (session-keyed) plan mode ──────────────────────────────────
+//
+// Distinct from the run-keyed ORIA gate above: these wrappers target the
+// chat-native soft gate, identified by `sessionId`. They back the header toggle
+// chip (`setPlanMode`) and the in-conversation review card (`approvePlan` /
+// `rejectPlan`).
+
+/**
+ * Enables or disables plan mode for a chat session.
+ *
+ * Resolves to `void` on success; rejects with the runtime error string when the
+ * chat subsystem is unavailable or the session does not exist.
+ */
+export async function setPlanMode(
+  sessionId: string,
+  enabled: boolean,
+): Promise<void> {
+  return invoke<void>("set_plan_mode", { sessionId, enabled });
+}
+
+/**
+ * Approves the submitted plan for a session (soft conversational gate).
+ *
+ * Resolves to `void` on success; rejects with the runtime error string when the
+ * session is no longer awaiting approval or the chat subsystem is unavailable.
+ */
+export async function approvePlan(sessionId: string): Promise<void> {
+  return invoke<void>("approve_plan", { sessionId });
+}
+
+/**
+ * Rejects the submitted plan for a session with an optional reason.
+ *
+ * Resolves to `void` on success; rejects with the runtime error string when the
+ * session is no longer awaiting approval or the chat subsystem is unavailable.
+ */
+export async function rejectPlan(
+  sessionId: string,
+  reason?: string,
+): Promise<void> {
+  return invoke<void>("reject_plan", { sessionId, reason });
+}

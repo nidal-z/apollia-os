@@ -2386,6 +2386,10 @@
       "available": "Version {version} available",
       "install": "Install and restart",
       "error": "Unable to check for updates"
+    },
+    "planMode": {
+      "title": "Always plan",
+      "description": "New conversations start in plan mode."
     }
   },
   "onboarding": {
@@ -2997,7 +3001,35 @@
       "new_chat": "New chat",
       "getting_started": "Getting started"
     },
-    "send": "Send"
+    "send": "Send",
+    "planMode": {
+      "chipLabel": "Plan mode",
+      "toggleError": "Could not change plan mode for this session.",
+      "toggle": {
+        "on": "Plan mode on (click to turn off)",
+        "off": "Plan mode off (click to turn on)"
+      },
+      "title": "Proposed plan",
+      "approve": "Approve",
+      "reject": "Reject",
+      "reviseHint": "Keep typing to revise the plan.",
+      "empty": "No plan awaiting approval.",
+      "loading": "Loading the plan...",
+      "stepsLabel": "Steps",
+      "dependenciesLabel": "Depends on",
+      "toolLabel": "Tool",
+      "modelLabel": "Model",
+      "rationaleLabel": "Rationale",
+      "provenanceLabel": "Origin",
+      "phaseLabel": "Phase",
+      "phase": {
+        "discovery": "Discovery",
+        "drafting": "Drafting",
+        "awaitingApproval": "Awaiting approval",
+        "executing": "Executing",
+        "done": "Done"
+      }
+    }
   },
   "transcriptions": {
     "title": "Transcriptions",

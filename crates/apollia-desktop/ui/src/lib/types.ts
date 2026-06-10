@@ -771,7 +771,19 @@ export interface ChatSessionDetail {
   llm_backend: string | null;
   title: string | null;
   project_id: string | null;
+  /** Whether the session runs in first-class conversational plan mode. */
+  plan_mode: boolean;
+  /** Plan-mode lifecycle phase as a stable lowercase string. */
+  plan_phase: PlanPhase;
 }
+
+/** Plan-mode lifecycle phase of a chat session. */
+export type PlanPhase =
+  | "discovery"
+  | "drafting"
+  | "awaiting_approval"
+  | "executing"
+  | "done";
 
 /** Payload pour mettre à jour la configuration d'une session. */
 export interface UpdateSessionRequest {

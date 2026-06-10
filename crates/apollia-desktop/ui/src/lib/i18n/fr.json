@@ -2386,6 +2386,10 @@
       "available": "Version {version} disponible",
       "install": "Installer et relancer",
       "error": "Impossible de vérifier les mises à jour"
+    },
+    "planMode": {
+      "title": "Toujours planifier",
+      "description": "Les nouvelles conversations démarrent en mode plan."
     }
   },
   "onboarding": {
@@ -2997,7 +3001,35 @@
       "new_chat": "Nouveau chat",
       "getting_started": "Premiers pas"
     },
-    "send": "Envoyer"
+    "send": "Envoyer",
+    "planMode": {
+      "chipLabel": "Mode plan",
+      "toggleError": "Impossible de changer le mode plan de cette session.",
+      "toggle": {
+        "on": "Mode plan actif (cliquer pour désactiver)",
+        "off": "Mode plan inactif (cliquer pour activer)"
+      },
+      "title": "Plan proposé",
+      "approve": "Approuver",
+      "reject": "Rejeter",
+      "reviseHint": "Continuez à écrire pour réviser le plan.",
+      "empty": "Aucun plan en attente d'approbation.",
+      "loading": "Chargement du plan...",
+      "stepsLabel": "Étapes",
+      "dependenciesLabel": "Dépend de",
+      "toolLabel": "Outil",
+      "modelLabel": "Modèle",
+      "rationaleLabel": "Justification",
+      "provenanceLabel": "Origine",
+      "phaseLabel": "Phase",
+      "phase": {
+        "discovery": "Découverte",
+        "drafting": "Rédaction",
+        "awaitingApproval": "En attente d'approbation",
+        "executing": "Exécution",
+        "done": "Terminé"
+      }
+    }
   },
   "transcriptions": {
     "title": "Transcriptions",

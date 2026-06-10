@@ -14,6 +14,8 @@
     getPendingUserInputForSession, removePendingUserInput,
   } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
+  import { planModeDefault } from "$lib/stores/planModeSetting";
+  import { setPlanMode } from "$lib/ipc/planMode";
   import type {
     ChatSessionDetail,
     ChatMessageView,
@@ -135,6 +137,10 @@
     // opening the sheet + showing the entry is sufficient for P7.
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
+  /** Plan-mode state of the active session (drives the header chip + review). */
+  let planMode = $state(false);
+  /** Guards the one-shot inheritance of the global plan-mode default (AC-2). */
+  let planDefaultApplied = $state(false);
 
   /** Pending tool approval - shown inline when the LLM requests a tool call. */
   let pendingApproval = $state<{
@@ -501,9 +507,34 @@
     sessionAgentName = detail.agent_name;
     sessionStatus = detail.status;
     sessionDetail = detail;
+    planMode = detail.plan_mode;
     isProcessing = detail.status === "processing";
     currentSession.set(detail);
     void loadConversationStats();
+    void maybeInheritPlanModeDefault(detail);
+  }
+
+  /**
+   * Applies the global "always plan" default to a brand-new session once (AC-2).
+   *
+   * A session is "new" when it has no user message yet. The default is applied
+   * a single time per mount through `set_plan_mode`; the per-session header chip
+   * overrides it afterwards. Failures are non-fatal: the session simply stays in
+   * its current (off) state.
+   */
+  async function maybeInheritPlanModeDefault(
+    detail: ChatSessionDetail,
+  ): Promise<void> {
+    if (planDefaultApplied) return;
+    planDefaultApplied = true;
+    const isNew = (detail.messages ?? []).every((m) => m.role !== "user");
+    if (!isNew || detail.plan_mode || !$planModeDefault) return;
+    try {
+      await setPlanMode(detail.id, true);
+      planMode = true;
+    } catch {
+      // Default inheritance is best-effort; leave the session unchanged.
+    }
   }
 
   async function loadConversationStats(): Promise<void> {
@@ -870,6 +901,11 @@
       {availableProjects}
       onlink={(projectId) => void handleLinkProject(projectId)}
       onprojectopen={handleProjectChipOpen}
+      {planMode}
+      onplanmodechange={(enabled) => {
+        planMode = enabled;
+        void refreshSession();
+      }}
     />
   {/if}
 
