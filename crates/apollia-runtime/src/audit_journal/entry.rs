@@ -22,6 +22,15 @@ pub enum JournalEntryKind {
     /// A full LLM response captured for deterministic replay. The payload is an
     /// [`crate::replay::LlmCompletionSnapshot`].
     LlmCompletion,
+    /// A tool output captured for deterministic replay. The payload is a
+    /// [`crate::replay::ToolOutputSnapshot`].
+    ToolOutput,
+    /// A clock reading captured for deterministic replay. The payload is a
+    /// [`crate::replay::ClockSample`].
+    ClockSample,
+    /// A random draw captured for deterministic replay. The payload is a
+    /// [`crate::replay::RandomSample`].
+    RandomSample,
     /// An agent became active.
     AgentStarted,
     /// An agent stopped.
@@ -47,6 +56,9 @@ impl JournalEntryKind {
             JournalEntryKind::LlmCallStarted => "llm_call_started",
             JournalEntryKind::LlmCallCompleted => "llm_call_completed",
             JournalEntryKind::LlmCompletion => "llm_completion",
+            JournalEntryKind::ToolOutput => "tool_output",
+            JournalEntryKind::ClockSample => "clock_sample",
+            JournalEntryKind::RandomSample => "random_sample",
             JournalEntryKind::AgentStarted => "agent_started",
             JournalEntryKind::AgentStopped => "agent_stopped",
             JournalEntryKind::EscalationTriggered => "escalation_triggered",
@@ -63,6 +75,9 @@ impl JournalEntryKind {
             "llm_call_started" => JournalEntryKind::LlmCallStarted,
             "llm_call_completed" => JournalEntryKind::LlmCallCompleted,
             "llm_completion" => JournalEntryKind::LlmCompletion,
+            "tool_output" => JournalEntryKind::ToolOutput,
+            "clock_sample" => JournalEntryKind::ClockSample,
+            "random_sample" => JournalEntryKind::RandomSample,
             "agent_started" => JournalEntryKind::AgentStarted,
             "agent_stopped" => JournalEntryKind::AgentStopped,
             "escalation_triggered" => JournalEntryKind::EscalationTriggered,

@@ -25,7 +25,7 @@ use apollia_core::events::RuntimeEvent;
 
 use crate::audit_journal::entry::{JournalEntryDraft, JournalEntryKind};
 use crate::audit_journal::handle::AuditJournalHandle;
-use crate::replay::LlmCompletionSnapshot;
+use crate::replay::{ClockSample, LlmCompletionSnapshot, RandomSample, ToolOutputSnapshot};
 
 /// Per-run step-ordinal counters for captured replay inputs.
 ///
@@ -36,6 +36,12 @@ use crate::replay::LlmCompletionSnapshot;
 struct RunOrdinals {
     /// Next ordinal for `LlmCompletion` captures.
     llm: u32,
+    /// Next ordinal for `ToolOutput` captures.
+    tool: u32,
+    /// Next ordinal for `ClockSample` captures.
+    clock: u32,
+    /// Next ordinal for `RandomSample` captures.
+    random: u32,
 }
 
 /// Background subscriber draining `RuntimeEvent`s into the audit journal.
@@ -146,6 +152,88 @@ fn map_capture(
             Some(draft(
                 run_id.as_str().to_string(),
                 JournalEntryKind::LlmCompletion,
+                payload,
+            ))
+        }
+        RuntimeEvent::ToolOutputCaptured {
+            run_id,
+            tool_call_id,
+            tool_name,
+            output,
+            status,
+        } => {
+            let counters = ordinals.entry(run_id.as_str().to_string()).or_default();
+            let step_ordinal = counters.tool;
+            counters.tool += 1;
+
+            let snapshot = ToolOutputSnapshot {
+                run_id: run_id.clone(),
+                step_ordinal,
+                tool_call_id: tool_call_id.clone(),
+                tool_name: tool_name.clone(),
+                output: output.clone(),
+                status: status.clone(),
+            };
+            let payload = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
+            Some(draft(
+                run_id.as_str().to_string(),
+                JournalEntryKind::ToolOutput,
+                payload,
+            ))
+        }
+        RuntimeEvent::ClockSampled {
+            run_id,
+            timestamp_ms,
+            ..
+        } => {
+            let counters = ordinals.entry(run_id.as_str().to_string()).or_default();
+            let step_ordinal = counters.clock;
+            counters.clock += 1;
+
+            let snapshot = ClockSample {
+                run_id: run_id.clone(),
+                step_ordinal,
+                timestamp_ms: *timestamp_ms,
+            };
+            let payload = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
+            Some(draft(
+                run_id.as_str().to_string(),
+                JournalEntryKind::ClockSample,
+                payload,
+            ))
+        }
+        RuntimeEvent::RandomSampled {
+            run_id,
+            bytes,
+            captured,
+            source_site,
+        } => {
+            let counters = ordinals.entry(run_id.as_str().to_string()).or_default();
+            let step_ordinal = counters.random;
+            counters.random += 1;
+
+            // An un-captured draw is journaled with the flag and warned, never
+            // dropped: the replay would otherwise diverge silently (Principle #7).
+            if !*captured {
+                tracing::warn!(
+                    run_id = %run_id.as_str(),
+                    step_ordinal,
+                    source_site = %source_site,
+                    "replay.random.uncaptured"
+                );
+            }
+
+            let snapshot = RandomSample {
+                run_id: run_id.clone(),
+                step_ordinal,
+                bytes: bytes.clone(),
+                captured: *captured,
+                source_site: source_site.clone(),
+            };
+            let payload = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
+            Some(draft(
+                run_id.as_str().to_string(),
+                JournalEntryKind::RandomSample,
                 payload,
             ))
         }
@@ -461,5 +549,103 @@ mod tests {
         // THEN nothing is produced (no ordinal consumed)
         assert!(map_capture(&mut ordinals, &event).is_none());
         assert!(ordinals.is_empty());
+    }
+
+    // AC-1 (595): a completed tool call maps to a ToolOutput entry
+    #[test]
+    fn test_tool_output_capture_maps_with_ordinal() {
+        // GIVEN a captured tool output for a run
+        let mut ordinals = HashMap::new();
+        let run = RunId::new();
+        let event = RuntimeEvent::ToolOutputCaptured {
+            run_id: run.clone(),
+            tool_call_id: "c1".into(),
+            tool_name: "bash_executor".into(),
+            output: serde_json::json!({ "stdout": "ok" }),
+            status: "success".into(),
+        };
+
+        // WHEN mapped
+        let draft = map_capture(&mut ordinals, &event).expect("draft");
+
+        // THEN it is a ToolOutput entry at ordinal 0 keeping the status
+        assert_eq!(draft.kind, JournalEntryKind::ToolOutput);
+        let snap: ToolOutputSnapshot =
+            serde_json::from_value(draft.payload.clone()).expect("snapshot");
+        assert_eq!(snap.step_ordinal, 0);
+        assert_eq!(snap.tool_call_id, "c1");
+        assert_eq!(snap.status, "success");
+    }
+
+    // AC-2 (595): a clock read maps to a ClockSample entry
+    #[test]
+    fn test_clock_sample_capture_maps_with_ordinal() {
+        // GIVEN a captured clock reading
+        let mut ordinals = HashMap::new();
+        let run = RunId::new();
+        let event = RuntimeEvent::ClockSampled {
+            run_id: run.clone(),
+            timestamp_ms: 1_700_000_000_123,
+            source_site: "agent.turn".into(),
+        };
+
+        // WHEN mapped
+        let draft = map_capture(&mut ordinals, &event).expect("draft");
+
+        // THEN it is a ClockSample entry carrying the timestamp
+        assert_eq!(draft.kind, JournalEntryKind::ClockSample);
+        let snap: ClockSample = serde_json::from_value(draft.payload.clone()).expect("snapshot");
+        assert_eq!(snap.timestamp_ms, 1_700_000_000_123);
+    }
+
+    // AC-3 (595): an un-captured random draw is journaled with captured=false
+    #[test]
+    fn test_uncaptured_random_journaled_with_flag() {
+        // GIVEN a random draw flagged as un-captured (a capture bug)
+        let mut ordinals = HashMap::new();
+        let run = RunId::new();
+        let event = RuntimeEvent::RandomSampled {
+            run_id: run.clone(),
+            bytes: vec![],
+            captured: false,
+            source_site: "hitl.request_id".into(),
+        };
+
+        // WHEN mapped
+        let draft = map_capture(&mut ordinals, &event).expect("draft");
+
+        // THEN the entry is still produced with captured=false (no silent loss)
+        assert_eq!(draft.kind, JournalEntryKind::RandomSample);
+        let snap: RandomSample = serde_json::from_value(draft.payload.clone()).expect("snapshot");
+        assert!(!snap.captured);
+        assert_eq!(snap.source_site, "hitl.request_id");
+    }
+
+    // The shared per-run ordinal sequences are independent per capture type
+    #[test]
+    fn test_ordinals_independent_per_capture_type() {
+        // GIVEN one run emitting an LLM, then a tool, then another LLM
+        let mut ordinals = HashMap::new();
+        let run = RunId::new();
+        let llm0 = map_capture(&mut ordinals, &captured(&run, "a", false)).expect("llm0");
+        let tool0 = map_capture(
+            &mut ordinals,
+            &RuntimeEvent::ToolOutputCaptured {
+                run_id: run.clone(),
+                tool_call_id: "c1".into(),
+                tool_name: "bash".into(),
+                output: serde_json::json!("out"),
+                status: "success".into(),
+            },
+        )
+        .expect("tool0");
+        let llm1 = map_capture(&mut ordinals, &captured(&run, "b", false)).expect("llm1");
+
+        // THEN LLM and tool each own a 0-based sequence (llm: 0,1 ; tool: 0)
+        assert_eq!(snapshot_of(&llm0).step_ordinal, 0);
+        assert_eq!(snapshot_of(&llm1).step_ordinal, 1);
+        let tool_snap: ToolOutputSnapshot =
+            serde_json::from_value(tool0.payload.clone()).expect("tool snapshot");
+        assert_eq!(tool_snap.step_ordinal, 0);
     }
 }

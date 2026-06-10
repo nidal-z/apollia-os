@@ -418,6 +418,11 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── Context manager ──────────────────────────────────────────────
         RuntimeEvent::ContextCompacted { .. } => "system",
 
+        // ── Replay capture (internal, not surfaced in the UI) ─────────────
+        RuntimeEvent::ToolOutputCaptured { .. }
+        | RuntimeEvent::ClockSampled { .. }
+        | RuntimeEvent::RandomSampled { .. } => "system",
+
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
             "system"

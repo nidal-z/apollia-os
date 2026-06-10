@@ -1041,6 +1041,7 @@ struct ToolCallContext<'a> {
     session_id: &'a str,
     message_id: &'a str,
     call: &'a ToolCall,
+    run_id: &'a RunId,
     pending_approvals: &'a PendingChatApprovals,
 }
 
@@ -1070,6 +1071,7 @@ struct ToolExecTarget<'a> {
     session_id: &'a str,
     message_id: &'a str,
     call: &'a ToolCall,
+    run_id: &'a RunId,
 }
 
 /// Result of processing one tool call.
@@ -1731,7 +1733,7 @@ impl BuiltInChatAgent {
                 })
                 .map(|i| async move {
                     let outcome = self
-                        .execute_tool_call(session_id, message_id, &effective_calls[i])
+                        .execute_tool_call(session_id, message_id, &effective_calls[i], ids.run_id)
                         .await;
                     (i, outcome)
                 });
@@ -1793,6 +1795,7 @@ impl BuiltInChatAgent {
                                     session_id,
                                     message_id,
                                     call,
+                                    run_id: ids.run_id,
                                     pending_approvals: ids.pending_approvals,
                                 },
                                 llm_messages,
@@ -2258,12 +2261,13 @@ impl BuiltInChatAgent {
             session_id,
             message_id,
             call,
+            run_id,
             pending_approvals,
         } = ctx;
 
         if acc.authorized.contains(&call.name) {
             let (record, tool_result, success) =
-                self.execute_tool_call(session_id, message_id, call).await;
+                self.execute_tool_call(session_id, message_id, call, run_id).await;
             llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
             acc.all_tool_calls.push(record);
             return ToolCallOutcome {
@@ -2303,6 +2307,7 @@ impl BuiltInChatAgent {
                 session_id,
                 message_id,
                 call,
+                run_id,
             },
             decision,
             llm_messages,
@@ -2327,11 +2332,12 @@ impl BuiltInChatAgent {
             session_id,
             message_id,
             call,
+            run_id,
         } = target;
         match decision {
             ToolDecision::Accept => {
                 let (record, tool_result, success) =
-                    self.execute_tool_call(session_id, message_id, call).await;
+                    self.execute_tool_call(session_id, message_id, call, run_id).await;
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                 acc.all_tool_calls.push(record);
                 ToolCallOutcome {
@@ -2343,7 +2349,7 @@ impl BuiltInChatAgent {
                 acc.authorized.insert(call.name.clone());
                 acc.newly_authorized.push(call.name.clone());
                 let (record, tool_result, success) =
-                    self.execute_tool_call(session_id, message_id, call).await;
+                    self.execute_tool_call(session_id, message_id, call, run_id).await;
                 llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                 acc.all_tool_calls.push(record);
                 ToolCallOutcome {
@@ -2381,6 +2387,7 @@ impl BuiltInChatAgent {
         session_id: &str,
         message_id: &str,
         call: &apollia_llm::types::ToolCall,
+        run_id: &RunId,
     ) -> (ToolCallRecord, String, bool) {
         let input_preview =
             truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
@@ -2443,6 +2450,19 @@ impl BuiltInChatAgent {
             success,
             output_preview: Some(output_preview),
             analysis,
+        });
+
+        // Capture the full tool output for deterministic replay. The output is
+        // stored verbatim (JSON string when it is not itself JSON), distinct
+        // from the truncated preview above.
+        let captured_output = serde_json::from_str::<serde_json::Value>(&output)
+            .unwrap_or_else(|_| serde_json::Value::String(output.clone()));
+        let _ = self.event_bus.send(RuntimeEvent::ToolOutputCaptured {
+            run_id: run_id.clone(),
+            tool_call_id: call.id.clone(),
+            tool_name: call.name.clone(),
+            output: captured_output,
+            status: if success { "success" } else { "error" }.to_string(),
         });
 
         let record = ToolCallRecord {
@@ -3826,6 +3846,7 @@ mod tests {
                 RuntimeEvent::ChatResponseCompleted { .. } => "ResponseCompleted",
                 RuntimeEvent::LlmCallCompleted { .. } => continue,
                 RuntimeEvent::LlmResponseCaptured { .. } => continue,
+                RuntimeEvent::ToolOutputCaptured { .. } => continue,
                 _ => "other",
             };
             event_names.push(name);
