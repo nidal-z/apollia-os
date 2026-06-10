@@ -913,6 +913,8 @@ fn main() {
             commands::plan_alternatives::choose_plan,
             commands::plan_mode::submit_plan_decision,
             commands::plan_mode::set_plan_mode,
+            commands::plan_mode::approve_plan,
+            commands::plan_mode::reject_plan,
             // Tasks
             commands::tasks::cancel_task,
             // Memory

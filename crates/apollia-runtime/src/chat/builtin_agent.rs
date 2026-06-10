@@ -1035,6 +1035,14 @@ pub struct BuiltInChatAgent {
     /// the `plan_*` surface is advertised and dispatched only when the session
     /// flag is set, not merely when a plan store happens to be attached.
     session_plan_mode: bool,
+    /// Plan phase the owning session is in when the turn starts.
+    ///
+    /// Defaults to [`PlanPhase::Done`]. When a substantive plan-mode turn opens
+    /// while the session is already in [`PlanPhase::AwaitingApproval`], the turn
+    /// is a revision turn (the soft gate is open): it starts the tracker in
+    /// awaiting-approval instead of reopening discovery, so the phase stays put
+    /// unless the agent re-submits.
+    session_plan_phase: PlanPhase,
     /// Optional lifecycle hook executor shared across sessions. `None` means no
     /// hooks are configured: the ReAct loop behaves exactly as before, with no
     /// interception and zero overhead.
@@ -1185,8 +1193,19 @@ impl BuiltInChatAgent {
             todo: deps.todo,
             plan: deps.plan,
             session_plan_mode: false,
+            session_plan_phase: PlanPhase::Done,
             hook_executor: None,
         }
+    }
+
+    /// Sets the plan phase the owning session is in at the start of the turn.
+    ///
+    /// Threaded from `ChatSession::plan_phase`. A turn opened in
+    /// [`PlanPhase::AwaitingApproval`] is a revision turn and is handled without
+    /// reopening discovery (see [`session_plan_phase`](Self::session_plan_phase)).
+    pub fn with_plan_phase_start(mut self, phase: PlanPhase) -> Self {
+        self.session_plan_phase = phase;
+        self
     }
 
     /// Sets whether the owning session has plan mode enabled.
@@ -1266,6 +1285,39 @@ impl BuiltInChatAgent {
         if records.iter().any(PlanPhaseTracker::is_cancelled_ask_user) {
             tracker.phase = PlanPhase::Done;
             self.emit_plan_phase(session_id, PlanPhase::Done);
+        }
+    }
+
+    /// Moves the tracked phase to [`PlanPhase::AwaitingApproval`] when the agent
+    /// submitted the plan during the turn.
+    ///
+    /// A successful `plan_submit` call opens the soft conversational gate: the
+    /// turn ends in awaiting-approval rather than blocking on an approval future.
+    /// The resume is driven later by an approve command or by a revision message,
+    /// both observable session transitions, never an `await` inside the loop.
+    /// Unlike [`advance_plan_phase`](Self::advance_plan_phase) this fires from any
+    /// phase, since the agent reaches submit from drafting (or directly when it
+    /// proposes and submits within one turn).
+    fn advance_on_submit(
+        &self,
+        tracker: &mut PlanPhaseTracker,
+        records: &[ToolCallRecord],
+        session_id: &str,
+    ) {
+        if tracker.phase == PlanPhase::AwaitingApproval {
+            return;
+        }
+        let submitted = records.iter().any(|r| {
+            r.tool_name == PLAN_SUBMIT_TOOL_NAME
+                && r.output
+                    .as_deref()
+                    .and_then(|o| serde_json::from_str::<serde_json::Value>(o).ok())
+                    .and_then(|v| v.get("ok").and_then(serde_json::Value::as_bool))
+                    .unwrap_or(false)
+        });
+        if submitted {
+            tracker.phase = PlanPhase::AwaitingApproval;
+            self.emit_plan_phase(session_id, PlanPhase::AwaitingApproval);
         }
     }
 
@@ -1490,8 +1542,21 @@ impl BuiltInChatAgent {
         // Open discovery for a substantive plan-mode turn. The tracker is `None`
         // for conversational turns and outside plan mode, so the ReAct loop runs
         // exactly as before with no phase machinery and no extra events.
+        //
+        // A turn entered while the session is already in `AwaitingApproval` is a
+        // revision turn: the soft gate is open and the user is iterating on the
+        // submitted plan. It must not reopen discovery; the tracker starts in
+        // `AwaitingApproval` and stays there (the agent revises via plan_* tools)
+        // unless the agent re-submits, which keeps it there too. The loop never
+        // blocks on an approval future, matching the soft-gate contract.
         let mut phase_tracker = if self.plan_mode_active() && route == TurnRoute::PlanFlow {
-            Some(self.begin_discovery(session_id))
+            if self.session_plan_phase == PlanPhase::AwaitingApproval {
+                Some(PlanPhaseTracker {
+                    phase: PlanPhase::AwaitingApproval,
+                })
+            } else {
+                Some(self.begin_discovery(session_id))
+            }
         } else {
             None
         };
@@ -1779,6 +1844,9 @@ impl BuiltInChatAgent {
                     if let Some(tracker) = phase_tracker.as_mut() {
                         let turn_records = &acc.all_tool_calls[turn_start..];
                         self.advance_plan_phase(tracker, turn_records, session_id);
+                        // A successful plan_submit opens the soft gate: the turn
+                        // ends in awaiting-approval, no blocking await in the loop.
+                        self.advance_on_submit(tracker, turn_records, session_id);
                     }
                 }
                 Err(err) => {
@@ -6089,6 +6157,77 @@ mod tests {
             Ok(RuntimeEvent::ChatPlanPhaseChanged { phase, .. }) => assert_eq!(phase, "done"),
             other => panic!("expected ChatPlanPhaseChanged(done), got {other:?}"),
         }
+    }
+
+    fn plan_submit_record(ok: bool) -> ToolCallRecord {
+        ToolCallRecord {
+            tool_name: PLAN_SUBMIT_TOOL_NAME.into(),
+            input: serde_json::json!({}),
+            output: Some(format!(r#"{{"ok":{ok}}}"#)),
+            status: ToolCallStatus::Executed,
+            rationale: None,
+            retry_attempts: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_plan_submit_transitions_to_awaiting_approval() {
+        // GIVEN an agent in the drafting phase (discovery already advanced)
+        let (bus, mut rx) = tokio::sync::broadcast::channel(64);
+        let agent = plan_agent_with_bus(bus, true);
+        let mut tracker = agent.begin_discovery("sess-1");
+        let _ = rx.try_recv(); // drain the discovery event
+        agent.advance_plan_phase(&mut tracker, &[plan_propose_record()], "sess-1");
+        let _ = rx.try_recv(); // drain the drafting event
+        assert_eq!(tracker.phase, PlanPhase::Drafting);
+
+        // WHEN a successful plan_submit call is observed
+        agent.advance_on_submit(&mut tracker, &[plan_submit_record(true)], "sess-1");
+
+        // THEN the phase moves to AwaitingApproval and the change is surfaced
+        assert_eq!(tracker.phase, PlanPhase::AwaitingApproval);
+        match rx.try_recv() {
+            Ok(RuntimeEvent::ChatPlanPhaseChanged { phase, .. }) => {
+                assert_eq!(phase, "awaiting_approval");
+            }
+            other => panic!("expected ChatPlanPhaseChanged(awaiting_approval), got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_failed_plan_submit_does_not_transition() {
+        // GIVEN an agent in the drafting phase
+        let (bus, _rx) = tokio::sync::broadcast::channel(64);
+        let agent = plan_agent_with_bus(bus, true);
+        let mut tracker = PlanPhaseTracker {
+            phase: PlanPhase::Drafting,
+        };
+
+        // WHEN a failed plan_submit call is observed (ok = false)
+        agent.advance_on_submit(&mut tracker, &[plan_submit_record(false)], "sess-1");
+
+        // THEN the phase stays Drafting: a rejected submit never opens the gate
+        assert_eq!(tracker.phase, PlanPhase::Drafting);
+    }
+
+    #[tokio::test]
+    async fn test_advance_on_submit_idempotent_when_already_awaiting() {
+        // GIVEN an agent whose tracker is already awaiting approval (re-submit)
+        let (bus, mut rx) = tokio::sync::broadcast::channel(64);
+        let agent = plan_agent_with_bus(bus, true);
+        let mut tracker = PlanPhaseTracker {
+            phase: PlanPhase::AwaitingApproval,
+        };
+
+        // WHEN another successful submit is observed during a revision turn
+        agent.advance_on_submit(&mut tracker, &[plan_submit_record(true)], "sess-1");
+
+        // THEN it stays AwaitingApproval and emits no redundant phase event
+        assert_eq!(tracker.phase, PlanPhase::AwaitingApproval);
+        assert!(matches!(
+            rx.try_recv(),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+        ));
     }
 
     #[tokio::test]

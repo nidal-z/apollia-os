@@ -100,3 +100,55 @@ pub async fn set_plan_mode(
         .await
         .map_err(|e| e.to_string())
 }
+
+/// Approves the plan awaiting approval for `session_id` (soft conversational gate).
+///
+/// Moves the session to the executing phase, emits `ChatPlanApproved`, and
+/// resumes the agent so it executes the approved plan. Returns an error string
+/// when the chat subsystem is unavailable or the session is not awaiting
+/// approval.
+///
+/// # Errors
+///
+/// Returns `Err(String)` when no chat manager is wired into the runtime handle,
+/// when the session does not exist, or when it is not awaiting approval.
+#[tauri::command]
+pub async fn approve_plan(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+    manager
+        .approve_plan(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Rejects the plan awaiting approval for `session_id` with an optional reason.
+///
+/// Emits `ChatPlanRejected` and triggers a revision turn; the session stays in
+/// the awaiting-approval phase (the gate is soft). Returns an error string when
+/// the chat subsystem is unavailable or the session is not awaiting approval.
+///
+/// # Errors
+///
+/// Returns `Err(String)` when no chat manager is wired into the runtime handle,
+/// when the session does not exist, or when it is not awaiting approval.
+#[tauri::command]
+pub async fn reject_plan(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+    reason: Option<String>,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+    manager
+        .reject_plan(&session_id, reason)
+        .await
+        .map_err(|e| e.to_string())
+}

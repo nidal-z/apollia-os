@@ -371,6 +371,10 @@ struct LibreExchangeParams {
     todo: Option<TodoHandle>,
     plan: Option<PlanHandle>,
     session_plan_mode: bool,
+    /// Plan phase the session is in when the turn starts. A turn entered while
+    /// the session is in [`PlanPhase::AwaitingApproval`] is a revision turn (the
+    /// soft gate is open), so it does not reopen discovery.
+    session_plan_phase: PlanPhase,
     hook_executor: Option<Arc<HookExecutor>>,
 }
 
@@ -420,6 +424,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         todo,
         plan,
         session_plan_mode,
+        session_plan_phase,
         hook_executor,
     } = params;
 
@@ -492,6 +497,7 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
     .with_workspace_path(session_invoker.workspace)
     .with_mcp_index(agent_mcp_index, tool_search_limit)
     .with_plan_mode(session_plan_mode)
+    .with_plan_phase_start(session_plan_phase)
     .with_hook_executor(hook_executor);
 
     // Inject project context on first message OR right after the
@@ -707,6 +713,23 @@ const MAX_PAST_SESSIONS: usize = 3;
 /// injecting irrelevant context from past sessions.
 const MIN_MESSAGE_LENGTH_FOR_RECALL: usize = 20;
 
+/// Synthetic directive injected on plan approval to resume execution.
+///
+/// Phrased as a multi-step actionable instruction so the turn router classifies
+/// it as a plan-flow turn and the agent drives the approved plan step by step,
+/// keeping the step statuses current through the `plan_*` tools.
+const PLAN_EXECUTE_DIRECTIVE: &str = "The plan was approved. Execute it now: work through the plan steps in order, \
+     update each step status as you start and finish it, and report progress.";
+
+/// Synthetic directive injected on plan rejection to drive a revision turn.
+///
+/// Phrased as a multi-step actionable instruction so the turn router classifies
+/// it as a plan-flow turn and the agent revises the submitted plan through the
+/// `plan_*` tools, then re-submits it into the soft gate.
+const PLAN_REVISE_DIRECTIVE: &str = "The plan was rejected. Revise it: adjust the plan steps to address the concern, \
+     document the reason for each change through the plan tools, then re-submit the \
+     revised plan for approval.";
+
 /// Commands sent to the [`ChatSessionManager`] actor.
 pub enum ChatCommand {
     /// Create a new chat session.
@@ -810,6 +833,22 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Desired plan-mode state.
         enabled: bool,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Approve the plan awaiting approval for a session (soft gate).
+    ApprovePlan {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Reject the plan awaiting approval for a session, with an optional reason.
+    RejectPlan {
+        /// Target session.
+        session_id: SessionId,
+        /// Optional operator reason forwarded to the revising agent.
+        reason: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
@@ -1212,6 +1251,18 @@ impl ChatSessionManager {
                     reply,
                 } => {
                     let result = self.handle_set_plan_mode(&session_id, enabled);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::ApprovePlan { session_id, reply } => {
+                    let result = self.handle_approve_plan(&session_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::RejectPlan {
+                    session_id,
+                    reason,
+                    reply,
+                } => {
+                    let result = self.handle_reject_plan(&session_id, reason);
                     let _ = reply.send(result);
                 }
                 ChatCommand::UpdateSession {
@@ -1904,6 +1955,7 @@ impl ChatSessionManager {
 
             let history = session.history.clone();
             let session_plan_mode = session.plan_mode;
+            let session_plan_phase = session.plan_phase;
             let is_first_message = history.len() == 1;
             let is_companion = session.mode == ChatMode::Companion;
             let inject_project_context = is_first_message || force_inject_project_context;
@@ -2016,6 +2068,7 @@ impl ChatSessionManager {
                 todo: self.todo_handle.clone(),
                 plan: self.plan_handle.clone(),
                 session_plan_mode,
+                session_plan_phase,
                 hook_executor: self.hook_executor.clone(),
             }));
         }
@@ -2650,6 +2703,118 @@ impl ChatSessionManager {
             "plan.mode.toggled"
         );
         Ok(())
+    }
+
+    /// Approve the plan awaiting approval and resume execution (soft gate).
+    ///
+    /// The session must be in [`PlanPhase::AwaitingApproval`], otherwise this
+    /// fails fast with [`ChatError::NotAwaitingApproval`] (principle: fail fast),
+    /// so execution never starts out of order. On success the phase moves to
+    /// [`PlanPhase::Executing`] (persisted), [`RuntimeEvent::ChatPlanApproved`]
+    /// is emitted, and a continuation turn is dispatched so the agent executes
+    /// the steps. The resume is a normal exchange routed through this actor's own
+    /// `ChatCommand` path, never a blocking await or a shared-state hand-off.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when no session matches `session_id`.
+    /// - [`ChatError::NotAwaitingApproval`] when the session is not awaiting
+    ///   approval.
+    fn handle_approve_plan(&mut self, session_id: &str) -> Result<(), ChatError> {
+        self.guard_awaiting_approval(session_id)?;
+
+        // Persist first so the approved transition survives a restart even if the
+        // continuation dispatch below fails (e.g. no LLM configured).
+        self.repository
+            .set_plan_phase(session_id, PlanPhase::Executing)?;
+        if let Some(session) = self.sessions.get_mut(session_id) {
+            session.plan_phase = PlanPhase::Executing;
+        }
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatPlanApproved {
+            session_id: session_id.to_string(),
+        });
+        tracing::info!(session_id = %session_id, decision = "approve", "plan.action");
+
+        // Resume: a synthetic directive turn drives the agent to execute the
+        // approved plan, keeping step statuses current as it goes. Best-effort:
+        // a dispatch failure is logged but does not fail the approval, which has
+        // already been recorded and emitted.
+        self.dispatch_plan_continuation(session_id, PLAN_EXECUTE_DIRECTIVE);
+        Ok(())
+    }
+
+    /// Reject the plan awaiting approval and let the agent revise it (soft gate).
+    ///
+    /// The session must be in [`PlanPhase::AwaitingApproval`], otherwise this
+    /// fails fast with [`ChatError::NotAwaitingApproval`]. On success
+    /// [`RuntimeEvent::ChatPlanRejected`] is emitted with the optional reason and
+    /// a revision turn is dispatched so the agent adjusts the plan through the
+    /// `plan_*` tools. The phase stays [`PlanPhase::AwaitingApproval`]: the gate
+    /// is soft, the session never moves to execution on a rejection.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when no session matches `session_id`.
+    /// - [`ChatError::NotAwaitingApproval`] when the session is not awaiting
+    ///   approval.
+    fn handle_reject_plan(
+        &mut self,
+        session_id: &str,
+        reason: Option<String>,
+    ) -> Result<(), ChatError> {
+        self.guard_awaiting_approval(session_id)?;
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatPlanRejected {
+            session_id: session_id.to_string(),
+            reason: reason.clone(),
+        });
+        tracing::info!(session_id = %session_id, decision = "reject", "plan.action");
+
+        // Resume into a revision turn. The directive carries the operator reason
+        // so the agent can take it into account; the phase stays AwaitingApproval
+        // so the revised plan is re-submitted into the same soft gate.
+        let directive = match reason {
+            Some(r) if !r.trim().is_empty() => {
+                format!("{PLAN_REVISE_DIRECTIVE}\n\nOperator feedback: {r}")
+            }
+            _ => PLAN_REVISE_DIRECTIVE.to_string(),
+        };
+        self.dispatch_plan_continuation(session_id, &directive);
+        Ok(())
+    }
+
+    /// Return [`ChatError::NotAwaitingApproval`] unless the session is awaiting
+    /// approval, or [`ChatError::SessionNotFound`] when it does not exist.
+    fn guard_awaiting_approval(&self, session_id: &str) -> Result<(), ChatError> {
+        let session = self
+            .sessions
+            .get(session_id)
+            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
+        if session.plan_phase != PlanPhase::AwaitingApproval {
+            return Err(ChatError::NotAwaitingApproval {
+                session_id: session_id.to_string(),
+                current_phase: session.plan_phase.as_sql().to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Dispatch a continuation turn carrying a synthetic directive.
+    ///
+    /// Reuses [`handle_send_message`](Self::handle_send_message) so the resume is
+    /// an ordinary exchange through the same actor path: one user turn, one
+    /// response cycle, the existing bounded `ChatCommand` channel. Best-effort:
+    /// a busy or unreachable session is logged, not surfaced, because the gate
+    /// decision it follows has already been recorded.
+    fn dispatch_plan_continuation(&mut self, session_id: &str, directive: &str) {
+        if let Err(e) = self.handle_send_message(session_id, directive) {
+            warn!(
+                session_id = %session_id,
+                error = %e,
+                "plan.continuation.dispatch_failed"
+            );
+        }
     }
 
     /// Return a lightweight summary of the N most recent sessions.
@@ -3927,6 +4092,66 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// Approve the plan awaiting approval for a session and resume execution.
+    ///
+    /// Moves the session to [`PlanPhase::Executing`], emits
+    /// [`RuntimeEvent::ChatPlanApproved`], and dispatches a continuation turn so
+    /// the agent executes the approved plan.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when no session matches `session_id`.
+    /// - [`ChatError::NotAwaitingApproval`] when the session is not awaiting
+    ///   approval.
+    /// - [`ChatError::InternalError`] when the actor is gone.
+    pub async fn approve_plan(&self, session_id: &str) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ApprovePlan {
+                session_id: session_id.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Reject the plan awaiting approval for a session and trigger a revision.
+    ///
+    /// Emits [`RuntimeEvent::ChatPlanRejected`] with the optional reason and
+    /// dispatches a revision turn. The session stays in
+    /// [`PlanPhase::AwaitingApproval`]: the gate is soft and execution never
+    /// starts on a rejection.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when no session matches `session_id`.
+    /// - [`ChatError::NotAwaitingApproval`] when the session is not awaiting
+    ///   approval.
+    /// - [`ChatError::InternalError`] when the actor is gone.
+    pub async fn reject_plan(
+        &self,
+        session_id: &str,
+        reason: Option<String>,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::RejectPlan {
+                session_id: session_id.to_string(),
+                reason,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
     /// Signal the actor to shut down.
     /// Hot-reload the LLM router used by the chat subsystem.
     ///
@@ -4909,6 +5134,231 @@ mod tests {
         assert_eq!(detail.session.plan_phase, PlanPhase::Discovery);
 
         second.shutdown().await;
+    }
+
+    /// Build a directly-constructed manager holding one Libre session persisted
+    /// in SQLite, forced into the given plan phase both in memory and on disk.
+    /// Returns the manager and a fresh event-bus receiver for assertions.
+    fn manager_with_session_in_phase(
+        dir: &tempfile::TempDir,
+        phase: PlanPhase,
+    ) -> (
+        ChatSessionManager,
+        tokio::sync::broadcast::Receiver<RuntimeEvent>,
+    ) {
+        let db_path = dir.path().join("chat.db");
+        let (event_tx, event_rx) = tokio::sync::broadcast::channel(128);
+        let tool_registry = ToolRegistryHandle::start();
+        let repository = ChatSessionRepository::open(&db_path).expect("open");
+        repository
+            .create_session(
+                "sess-1",
+                &ChatMode::Libre,
+                None,
+                "",
+                &["bash".to_string()],
+                "2026-03-20T10:00:00Z",
+                None,
+                None,
+            )
+            .expect("create row");
+        repository
+            .set_plan_mode("sess-1", true, phase)
+            .expect("set phase");
+
+        let (tx, _rx) = mpsc::channel(256);
+        let mut manager = ChatSessionManager {
+            sessions: HashMap::new(),
+            repository,
+            llm_router: fake_llm_router(),
+            tool_registry,
+            registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
+            agent_runner: None,
+            event_bus: event_tx,
+            runtime_budget: StepBudgetConfig::default(),
+            pending_chat_approvals: PendingChatApprovals::new(),
+            pending_fs_approvals: PendingFilesystemApprovals::new(),
+            pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            mcp_handle: None,
+            chat_tools_config: None,
+            pending_user_replies: HashMap::new(),
+            metrics: HashMap::new(),
+            user_memory: None,
+            enrichment_extractor: None,
+            tx,
+            a2a_invoker: None,
+            project_context: None,
+            project_repo: None,
+            mcp_loading: LoadingMode::Eager,
+            tool_search_limit: 20,
+            todo_handle: None,
+            plan_handle: None,
+            hook_executor: None,
+        };
+        let session = ChatSession {
+            id: "sess-1".into(),
+            mode: ChatMode::Libre,
+            agent_name: None,
+            system_prompt: String::new(),
+            status: SessionStatus::Active,
+            history: vec![],
+            authorized_tools: std::collections::HashSet::new(),
+            available_tools: vec!["bash".into()],
+            created_at: "2026-03-20T10:00:00Z".into(),
+            active_exchange: None,
+            llm_backend: None,
+            title: None,
+            parent_session_id: None,
+            fork_depth: 0,
+            project_id: None,
+            force_project_context_inject: false,
+            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
+            plan_mode: true,
+            plan_phase: phase,
+        };
+        manager.sessions.insert("sess-1".into(), session);
+        (manager, event_rx)
+    }
+
+    /// Drain the event bus until a `ChatPlanApproved`/`ChatPlanRejected` arrives
+    /// or the channel empties. The continuation dispatch emits other events
+    /// (e.g. `ChatMessageSent`) so the gate event is not guaranteed first.
+    fn next_gate_event(
+        rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>,
+    ) -> Option<RuntimeEvent> {
+        loop {
+            match rx.try_recv() {
+                Ok(
+                    e @ (RuntimeEvent::ChatPlanApproved { .. }
+                    | RuntimeEvent::ChatPlanRejected { .. }),
+                ) => return Some(e),
+                Ok(_) => continue,
+                Err(_) => return None,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_approve_plan_transitions_to_executing_and_emits() {
+        // GIVEN a session awaiting approval
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, mut rx) =
+            manager_with_session_in_phase(&dir, PlanPhase::AwaitingApproval);
+
+        // WHEN the plan is approved
+        manager.handle_approve_plan("sess-1").expect("approve ok");
+
+        // THEN the phase moves to Executing (in memory and persisted) and
+        // ChatPlanApproved is emitted; the continuation turn is dispatched, so
+        // the session has accepted a new exchange (status Processing).
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().plan_phase,
+            PlanPhase::Executing
+        );
+        let persisted = manager
+            .repository
+            .get_session("sess-1")
+            .expect("get")
+            .expect("row");
+        assert_eq!(persisted.plan_phase, PlanPhase::Executing.as_sql());
+        match next_gate_event(&mut rx) {
+            Some(RuntimeEvent::ChatPlanApproved { session_id }) => {
+                assert_eq!(session_id, "sess-1");
+            }
+            other => panic!("expected ChatPlanApproved, got {other:?}"),
+        }
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().status,
+            SessionStatus::Processing
+        );
+    }
+
+    #[tokio::test]
+    async fn test_reject_plan_emits_and_stays_awaiting() {
+        // GIVEN a session awaiting approval
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, mut rx) =
+            manager_with_session_in_phase(&dir, PlanPhase::AwaitingApproval);
+
+        // WHEN the plan is rejected with a reason
+        manager
+            .handle_reject_plan("sess-1", Some("step 2 is risky".into()))
+            .expect("reject ok");
+
+        // THEN ChatPlanRejected carries the reason and the phase stays awaiting
+        match next_gate_event(&mut rx) {
+            Some(RuntimeEvent::ChatPlanRejected { session_id, reason }) => {
+                assert_eq!(session_id, "sess-1");
+                assert_eq!(reason.as_deref(), Some("step 2 is risky"));
+            }
+            other => panic!("expected ChatPlanRejected, got {other:?}"),
+        }
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().plan_phase,
+            PlanPhase::AwaitingApproval
+        );
+    }
+
+    #[tokio::test]
+    async fn test_message_during_awaiting_starts_revision_turn() {
+        // GIVEN a session awaiting approval
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::AwaitingApproval);
+
+        // WHEN the user sends a message instead of pressing approve
+        manager
+            .handle_send_message(
+                "sess-1",
+                "Please plan the work: audit the repo, fix the tests, then open a PR",
+            )
+            .expect("send ok");
+
+        // THEN the message is accepted (a revision turn is dispatched) and the
+        // phase stays AwaitingApproval: no hard block, no execution.
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().plan_phase,
+            PlanPhase::AwaitingApproval
+        );
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().status,
+            SessionStatus::Processing
+        );
+    }
+
+    #[tokio::test]
+    async fn test_approve_outside_awaiting_returns_typed_error() {
+        // GIVEN a session in Discovery (plan mode on, not yet awaiting)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Discovery);
+
+        // WHEN approve is requested
+        let result = manager.handle_approve_plan("sess-1");
+
+        // THEN a typed NotAwaitingApproval error is returned, no transition
+        assert!(matches!(
+            result,
+            Err(ChatError::NotAwaitingApproval { ref current_phase, .. })
+                if current_phase == "discovery"
+        ));
+        assert_eq!(
+            manager.sessions.get("sess-1").unwrap().plan_phase,
+            PlanPhase::Discovery
+        );
+    }
+
+    #[tokio::test]
+    async fn test_reject_unknown_session_returns_not_found() {
+        // GIVEN a manager with a known session in Discovery
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Discovery);
+
+        // WHEN rejecting an unknown session id
+        let result = manager.handle_reject_plan("ghost", None);
+
+        // THEN a typed SessionNotFound error is returned, no panic
+        assert!(matches!(result, Err(ChatError::SessionNotFound(_))));
     }
 
     #[tokio::test]

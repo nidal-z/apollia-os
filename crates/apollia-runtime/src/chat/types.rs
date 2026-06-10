@@ -507,6 +507,16 @@ pub enum ChatError {
     /// The project referenced by the chat session was not found in the repository.
     #[error("project '{0}' referenced by chat session not found")]
     ProjectNotFound(String),
+    /// An approve or reject was requested on a session that is not awaiting
+    /// approval. The soft plan gate only resolves from the awaiting-approval
+    /// phase, so this fails fast instead of starting execution out of order.
+    #[error("session {session_id} is not awaiting approval (current phase: {current_phase})")]
+    NotAwaitingApproval {
+        /// Session that received the approve/reject request.
+        session_id: String,
+        /// The phase the session was actually in, as a stable lowercase string.
+        current_phase: String,
+    },
     /// The hybrid routing cost ceiling was reached and `ceiling_action` is `HardStop`.
     ///
     /// The run stopped cleanly with no data loss. It can be resumed in a new run
