@@ -24,7 +24,9 @@
     resetChatPlan,
   } from "$lib/stores/chatPlanMode";
   import { layoutPlan, type PlanDagNode } from "./planDagLayout";
+  import type { SessionPlanStep } from "$lib/stores/chatPlanMode";
   import PlanStepNode from "./PlanStepNode.svelte";
+  import PlanStepDrawer from "./PlanStepDrawer.svelte";
 
   interface Props {
     sessionId: string;
@@ -36,22 +38,46 @@
   const plan = $derived($chatPlanState.plan);
   const hasPlan = $derived(plan !== null && plan.steps.length > 0);
 
+  let drawerOpen = $state(false);
+  let selectedStep = $state<SessionPlanStep | null>(null);
+
+  function openStep(step: SessionPlanStep): void {
+    selectedStep = step;
+    drawerOpen = true;
+  }
+
   // SvelteFlow binds `nodes`/`edges` ($bindable) and mutates them internally
   // (measured dimensions, selection). They live as `$state` and are re-derived
   // from the plan whenever it changes, so a `PlanUpdated` reflows the graph.
   let nodes = $state<PlanDagNode[]>([]);
   let edges = $state<Edge[]>([]);
 
+  // Steps dropped by a replan: present in the prior revision, gone from the
+  // current plan. Rendered as tombstones. We keep the previous step set keyed
+  // by id across updates to detect removals without a second store.
+  let previousSteps = $state<SessionPlanStep[]>([]);
+
   $effect(() => {
     if (plan && plan.steps.length > 0) {
-      const next = layoutPlan(plan);
+      const liveIds = new Set(plan.steps.map((s) => s.step_id));
+      const removed = previousSteps.filter((s) => !liveIds.has(s.step_id));
+      const next = layoutPlan(plan, removed);
+      for (const node of next.nodes) {
+        node.data.onSelect = openStep;
+      }
       nodes = next.nodes;
       edges = next.edges;
+      previousSteps = plan.steps;
     } else {
       nodes = [];
       edges = [];
+      previousSteps = [];
     }
   });
+
+  function onNodeClick({ node }: { node: PlanDagNode }): void {
+    openStep(node.data.step);
+  }
 
   $effect(() => {
     const session = sessionId;
@@ -83,6 +109,7 @@
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable
+      onnodeclick={onNodeClick}
     >
       <Background />
       <Controls showLock={false} />
@@ -96,3 +123,9 @@
     {$t("plan_session.empty")}
   </div>
 {/if}
+
+<PlanStepDrawer
+  open={drawerOpen}
+  step={selectedStep}
+  onclose={() => (drawerOpen = false)}
+/>

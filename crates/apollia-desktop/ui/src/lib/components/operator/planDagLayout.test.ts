@@ -55,6 +55,29 @@ describe("layoutPlan", () => {
     expect(edges.find((e) => e.id === "s1->s2")?.animated).toBe(true);
   });
 
+  it("appends removed steps as tombstone nodes", () => {
+    // GIVEN a current plan with s1 and a step s2 dropped by a replan
+    const current = plan([step("s1", [])]);
+    const removed = [step("s2", ["s1"])];
+    // WHEN laid out with the removed step
+    const { nodes } = layoutPlan(current, removed);
+    // THEN a tombstone node is added for s2, flagged removed and clickable
+    const tomb = nodes.find((n) => n.id === "s2");
+    expect(tomb).toBeDefined();
+    expect(tomb?.data.removed).toBe(true);
+    expect(nodes.find((n) => n.id === "s1")?.data.removed).toBe(false);
+  });
+
+  it("ignores a removed step that reappeared in the current plan", () => {
+    // GIVEN s1 both live and (stale) in the removed set
+    const current = plan([step("s1", [])]);
+    // WHEN laid out
+    const { nodes } = layoutPlan(current, [step("s1", [])]);
+    // THEN s1 appears once, as a live node
+    expect(nodes.filter((n) => n.id === "s1")).toHaveLength(1);
+    expect(nodes[0].data.removed).toBe(false);
+  });
+
   it("drops dependencies pointing at unknown steps (error case)", () => {
     // GIVEN s2 depends on a step that is not in the plan
     const p = plan([step("s2", ["ghost"])]);

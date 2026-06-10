@@ -1175,7 +1175,18 @@
     "empty": "No plan for this conversation.",
     "loading": "Loading plan…",
     "error": "The plan could not be displayed.",
-    "untitled_step": "Untitled step"
+    "untitled_step": "Untitled step",
+    "status_pending": "Pending",
+    "status_in_progress": "In progress",
+    "status_completed": "Completed",
+    "status_skipped": "Skipped",
+    "status_failed": "Failed",
+    "show_rationale": "Show rationale",
+    "hide_rationale": "Hide rationale",
+    "trace_step_id": "Step",
+    "trace_task_id": "Task",
+    "trace_tool_calls": "Tool calls",
+    "trace_empty": "No tool call for this step."
   },
   "approvals": {
     "title": "Approvals",

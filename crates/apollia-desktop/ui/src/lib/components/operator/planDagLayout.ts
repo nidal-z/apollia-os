@@ -18,6 +18,8 @@ export interface StepNodeData extends Record<string, unknown> {
   step: SessionPlanStep;
   /** Set when the step was dropped by a replan (tombstone rendering). */
   removed: boolean;
+  /** Opens the per-step trace drawer (keyboard activation on the card). */
+  onSelect?: (step: SessionPlanStep) => void;
 }
 
 export type PlanDagNode = Node<StepNodeData, "planStep">;
@@ -26,9 +28,14 @@ export type PlanDagNode = Node<StepNodeData, "planStep">;
  * Computes the layered DAG layout for a plan.
  *
  * Returns positioned nodes (type `"planStep"`) and directed dependency edges.
- * An edge is `animated` when its target step is currently in progress.
+ * An edge is `animated` when its target step is currently in progress. Steps in
+ * `removed` (dropped by a replan: present before, absent from `plan`) are added
+ * as tombstone nodes after the live steps, kept clickable for their history.
  */
-export function layoutPlan(plan: SessionPlan): {
+export function layoutPlan(
+  plan: SessionPlan,
+  removed: SessionPlanStep[] = [],
+): {
   nodes: PlanDagNode[];
   edges: Edge[];
 } {
@@ -61,6 +68,20 @@ export function layoutPlan(plan: SessionPlan): {
       data: { step, removed: false },
     };
   });
+
+  const graphHeight = (graph.graph().height ?? 0) as number;
+  const tombstoneY = graphHeight + NODE_HEIGHT;
+  const liveIds = new Set(plan.steps.map((s) => s.step_id));
+  removed
+    .filter((step) => !liveIds.has(step.step_id))
+    .forEach((step, index) => {
+      nodes.push({
+        id: step.step_id,
+        type: "planStep",
+        position: { x: index * (NODE_WIDTH + 24), y: tombstoneY },
+        data: { step, removed: true },
+      });
+    });
 
   const edges: Edge[] = plan.steps.flatMap((step) =>
     step.depends_on

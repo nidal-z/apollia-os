@@ -1175,7 +1175,18 @@
     "empty": "Aucun plan pour cette conversation.",
     "loading": "Chargement du plan…",
     "error": "Le plan n'a pas pu être affiché.",
-    "untitled_step": "Étape sans titre"
+    "untitled_step": "Étape sans titre",
+    "status_pending": "En attente",
+    "status_in_progress": "En cours",
+    "status_completed": "Terminée",
+    "status_skipped": "Ignorée",
+    "status_failed": "Échouée",
+    "show_rationale": "Voir la justification",
+    "hide_rationale": "Masquer la justification",
+    "trace_step_id": "Étape",
+    "trace_task_id": "Tâche",
+    "trace_tool_calls": "Appels d'outils",
+    "trace_empty": "Aucun appel d'outil pour cette étape."
   },
   "approvals": {
     "title": "Approbations",
