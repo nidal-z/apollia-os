@@ -206,6 +206,47 @@ mod tests {
         assert_eq!(link.reason, BrokenLinkReason::UnknownSigningKey);
     }
 
+    // A chain mixing an LlmCompletion and PlanMutation entries still verifies;
+    // verify treats the PlanMutation payload opaquely (no kind-specific branch).
+    #[test]
+    fn test_chain_verifies_with_plan_entries() {
+        // GIVEN a chain of an Unknown entry then two PlanMutation entries
+        let s = HmacSigner::from_key_bytes(b"k1".to_vec()).unwrap();
+        let mut entries = Vec::new();
+        let mut prev = SENTINEL_PREV_HASH.to_string();
+        let kinds = [
+            JournalEntryKind::LlmCompletion,
+            JournalEntryKind::PlanMutation,
+            JournalEntryKind::PlanMutation,
+        ];
+        for (seq, kind) in kinds.into_iter().enumerate() {
+            let mut e = JournalEntry {
+                seq: seq as u64,
+                run_id: "run-1".to_string(),
+                ts: "2026-01-01T00:00:00Z".to_string(),
+                kind,
+                payload: serde_json::json!({ "ordinal": seq }),
+                prev_hash: prev.clone(),
+                hash: String::new(),
+                signature: None,
+                signing_key_id: None,
+            };
+            e.hash = compute_entry_hash(&e);
+            e.signature = Some(s.sign(e.hash.as_bytes()).expect("sign"));
+            e.signing_key_id = Some(s.key_id().to_string());
+            prev = e.hash.clone();
+            entries.push(e);
+        }
+
+        // WHEN verified
+        let report = verify_entries("run-1", &entries, Some(&s));
+
+        // THEN the whole mixed chain is intact
+        assert!(report.ok);
+        assert_eq!(report.entries_checked, 3);
+        assert!(report.first_broken_link.is_none());
+    }
+
     // Deleting a middle entry breaks the prev_hash linkage
     #[test]
     fn test_deletion_breaks_prev_hash() {

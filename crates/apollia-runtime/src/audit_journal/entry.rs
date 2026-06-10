@@ -1,5 +1,6 @@
 //! Journal entry types: the kind taxonomy and the chained entry record.
 
+use apollia_core::plan::{Plan, PlanMutationKind, PlanStep};
 use serde::{Deserialize, Serialize};
 
 /// Kind of a single audit journal entry.
@@ -31,6 +32,10 @@ pub enum JournalEntryKind {
     /// A random draw captured for deterministic replay. The payload is a
     /// [`crate::replay::RandomSample`].
     RandomSample,
+    /// A single mutation of the conversational plan was applied. The payload is
+    /// a [`PlanMutationSnapshot`] carrying both the single-step delta and the
+    /// full resulting plan, so plan construction is replayable.
+    PlanMutation,
     /// An agent became active.
     AgentStarted,
     /// An agent stopped.
@@ -59,6 +64,7 @@ impl JournalEntryKind {
             JournalEntryKind::ToolOutput => "tool_output",
             JournalEntryKind::ClockSample => "clock_sample",
             JournalEntryKind::RandomSample => "random_sample",
+            JournalEntryKind::PlanMutation => "plan_mutation",
             JournalEntryKind::AgentStarted => "agent_started",
             JournalEntryKind::AgentStopped => "agent_stopped",
             JournalEntryKind::EscalationTriggered => "escalation_triggered",
@@ -78,6 +84,7 @@ impl JournalEntryKind {
             "tool_output" => JournalEntryKind::ToolOutput,
             "clock_sample" => JournalEntryKind::ClockSample,
             "random_sample" => JournalEntryKind::RandomSample,
+            "plan_mutation" => JournalEntryKind::PlanMutation,
             "agent_started" => JournalEntryKind::AgentStarted,
             "agent_stopped" => JournalEntryKind::AgentStopped,
             "escalation_triggered" => JournalEntryKind::EscalationTriggered,
@@ -136,4 +143,127 @@ pub struct JournalEntry {
     /// `signature` is `None`.
     #[serde(default)]
     pub signing_key_id: Option<String>,
+}
+
+/// Captured plan mutation for deterministic replay of plan construction.
+///
+/// Appended for every `RuntimeEvent::PlanUpdated` that resolves to an open run.
+/// The snapshot freezes both the single mutation that produced the new revision
+/// (`kind`, `step_id`, `reason`, `before`, `after`) and the full resulting
+/// `plan`. The single-step `before`/`after` delta is lossy for a `Propose`
+/// mutation, which builds a whole multi-step plan in one move; the full `plan`
+/// snapshot closes that gap, so plan construction is replayable from the journal
+/// without re-deriving it from a stream of single-step deltas.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlanMutationSnapshot {
+    /// Stable run identifier this mutation belongs to.
+    pub run_id: String,
+    /// Chat session that owns the plan.
+    pub session_id: String,
+    /// 0-based ordinal of this mutation within the run (strictly increasing,
+    /// contiguous).
+    pub ordinal: u32,
+    /// Kind of the mutation (Propose, AddStep, ModifyStep, RemoveStep, Reorder,
+    /// StatusChange, Submit, Approve, Reject).
+    pub kind: PlanMutationKind,
+    /// Identifier of the affected step, `None` for whole-plan mutations
+    /// (Propose, Reorder, Submit, Approve, Reject).
+    pub step_id: Option<String>,
+    /// Human-readable reason recorded by the agent or the user, if any.
+    pub reason: Option<String>,
+    /// State of the affected step before the mutation. `None` for AddStep and
+    /// Propose (no prior single-step state). This is the single-step delta and is
+    /// lossy for Propose; rely on `plan` for the full state.
+    pub before: Option<PlanStep>,
+    /// State of the affected step after the mutation. `None` for RemoveStep. This
+    /// is the single-step delta and is lossy for Propose; rely on `plan` for the
+    /// full state.
+    pub after: Option<PlanStep>,
+    /// Monotonic plan revision number after the mutation was applied.
+    pub revision: u32,
+    /// Full resulting plan after the mutation. Captured in addition to the
+    /// single-step delta so a multi-step `Propose` is fully replayable: the
+    /// delta alone cannot reconstruct a plan built in one move.
+    pub plan: Plan,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_core::plan::{Plan, PlanScope, PlanStatus, PlanStep};
+
+    fn sample_plan() -> Plan {
+        Plan {
+            plan_id: "p1".into(),
+            scope: PlanScope::Session("sess-1".into()),
+            revision: 2,
+            status: PlanStatus::Draft,
+            steps: vec![PlanStep::new("s1", "first"), PlanStep::new("s2", "second")],
+        }
+    }
+
+    // The plan_mutation kind round-trips through its stable tag.
+    #[test]
+    fn test_plan_mutation_tag_round_trips() {
+        // GIVEN the PlanMutation kind
+        let kind = JournalEntryKind::PlanMutation;
+        // WHEN converting to its tag and back
+        let tag = kind.tag();
+        let back = JournalEntryKind::from_tag(tag);
+        // THEN the tag is stable and the round trip is identity
+        assert_eq!(tag, "plan_mutation");
+        assert_eq!(back, kind);
+    }
+
+    // A snapshot with Some deltas round-trips through JSON unchanged.
+    #[test]
+    fn test_plan_mutation_snapshot_round_trip_with_deltas() {
+        // GIVEN a ModifyStep snapshot carrying before/after, reason and a full plan
+        let before = PlanStep::new("s1", "first");
+        let mut after = PlanStep::new("s1", "first");
+        after.title = "first revised".into();
+        let snapshot = PlanMutationSnapshot {
+            run_id: "run-1".into(),
+            session_id: "sess-1".into(),
+            ordinal: 3,
+            kind: PlanMutationKind::ModifyStep,
+            step_id: Some("s1".into()),
+            reason: Some("dependency added".into()),
+            before: Some(before),
+            after: Some(after),
+            revision: 2,
+            plan: sample_plan(),
+        };
+        // WHEN serialized to a value and back
+        let value = serde_json::to_value(&snapshot).expect("serialize");
+        let back: PlanMutationSnapshot = serde_json::from_value(value).expect("deserialize");
+        // THEN the reconstructed snapshot equals the original
+        assert_eq!(back, snapshot);
+    }
+
+    // A snapshot with None deltas (Propose) round-trips, full plan preserved.
+    #[test]
+    fn test_plan_mutation_snapshot_round_trip_propose_none_deltas() {
+        // GIVEN a Propose snapshot with no single-step deltas
+        let snapshot = PlanMutationSnapshot {
+            run_id: "run-1".into(),
+            session_id: "sess-1".into(),
+            ordinal: 0,
+            kind: PlanMutationKind::Propose,
+            step_id: None,
+            reason: None,
+            before: None,
+            after: None,
+            revision: 1,
+            plan: sample_plan(),
+        };
+        // WHEN round-tripped through JSON
+        let value = serde_json::to_value(&snapshot).expect("serialize");
+        let back: PlanMutationSnapshot = serde_json::from_value(value).expect("deserialize");
+        // THEN the None deltas and the full plan are preserved
+        assert_eq!(back, snapshot);
+        assert_eq!(back.before, None);
+        assert_eq!(back.after, None);
+        assert_eq!(back.plan.steps.len(), 2);
+    }
 }

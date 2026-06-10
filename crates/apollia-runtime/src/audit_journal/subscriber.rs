@@ -23,7 +23,7 @@ use std::collections::HashMap;
 
 use apollia_core::events::RuntimeEvent;
 
-use crate::audit_journal::entry::{JournalEntryDraft, JournalEntryKind};
+use crate::audit_journal::entry::{JournalEntryDraft, JournalEntryKind, PlanMutationSnapshot};
 use crate::audit_journal::handle::AuditJournalHandle;
 use crate::replay::{ClockSample, LlmCompletionSnapshot, RandomSample, ToolOutputSnapshot};
 
@@ -42,6 +42,8 @@ struct RunOrdinals {
     clock: u32,
     /// Next ordinal for `RandomSample` captures.
     random: u32,
+    /// Next ordinal for `PlanMutation` captures.
+    plan: u32,
 }
 
 /// Background subscriber draining `RuntimeEvent`s into the audit journal.
@@ -50,6 +52,12 @@ pub struct AuditJournalSubscriber {
     receiver: tokio::sync::broadcast::Receiver<RuntimeEvent>,
     /// Per-run capture ordinals, owned by this actor (no shared lock).
     ordinals: HashMap<String, RunOrdinals>,
+    /// Resolution of a chat `session_id` to its currently open `run_id`.
+    ///
+    /// Populated from `ChatResponseStarted` (which carries both) and cleared when
+    /// the run ends, so a session-keyed `PlanUpdated` can be attributed to the
+    /// run in flight. Owned by this actor: no shared lock.
+    session_runs: HashMap<String, String>,
 }
 
 impl AuditJournalSubscriber {
@@ -65,6 +73,7 @@ impl AuditJournalSubscriber {
             handle,
             receiver,
             ordinals: HashMap::new(),
+            session_runs: HashMap::new(),
         };
         tokio::spawn(subscriber.run());
     }
@@ -74,9 +83,14 @@ impl AuditJournalSubscriber {
         loop {
             match self.receiver.recv().await {
                 Ok(event) => {
+                    // Learn the session -> run binding before any plan event of
+                    // the turn can reference it.
+                    self.register_session_run(&event);
                     // Capture events carry a per-run step ordinal (stateful);
                     // everything else maps statelessly.
                     if let Some(draft) = map_capture(&mut self.ordinals, &event) {
+                        self.handle.append(draft);
+                    } else if let Some(draft) = self.map_plan_updated(&event) {
                         self.handle.append(draft);
                     } else if let Some(draft) = map_event(&event) {
                         self.handle.append(draft);
@@ -84,6 +98,7 @@ impl AuditJournalSubscriber {
                     // Free the per-run counters once the run finishes.
                     if let Some(run_id) = run_end_run_id(&event) {
                         self.ordinals.remove(run_id);
+                        self.session_runs.retain(|_, rid| rid != run_id);
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
@@ -96,6 +111,80 @@ impl AuditJournalSubscriber {
             }
         }
     }
+
+    /// Records the `session_id -> run_id` binding carried by a chat-turn start so
+    /// later session-keyed events (such as `PlanUpdated`) resolve to the run.
+    fn register_session_run(&mut self, event: &RuntimeEvent) {
+        if let RuntimeEvent::ChatResponseStarted {
+            session_id,
+            run_id: Some(run_id),
+            ..
+        } = event
+        {
+            self.session_runs
+                .insert(session_id.clone(), run_id.as_str().to_string());
+        }
+    }
+
+    /// Maps a `RuntimeEvent::PlanUpdated` to a `PlanMutation` journal draft,
+    /// borrowing this actor's owned ordinal and session-run state.
+    fn map_plan_updated(&mut self, event: &RuntimeEvent) -> Option<JournalEntryDraft> {
+        map_plan_updated(&mut self.session_runs, &mut self.ordinals, event)
+    }
+}
+
+/// Maps a `RuntimeEvent::PlanUpdated` to a `PlanMutation` journal draft.
+///
+/// Resolves the session to its open run via `session_runs`, assigns the next
+/// per-run plan ordinal from `ordinals`, and serializes a
+/// [`PlanMutationSnapshot`] carrying the single-step delta and the full resulting
+/// plan. Returns `None` (and warns) when the session has no open run, so a
+/// `PlanUpdated` outside a captured turn is dropped cleanly without an orphan
+/// chain. Non-`PlanUpdated` events also return `None`, falling through to the
+/// stateless mappers.
+///
+/// Both maps are owned by the subscriber actor: no shared lock is taken.
+fn map_plan_updated(
+    session_runs: &HashMap<String, String>,
+    ordinals: &mut HashMap<String, RunOrdinals>,
+    event: &RuntimeEvent,
+) -> Option<JournalEntryDraft> {
+    let RuntimeEvent::PlanUpdated {
+        session_id,
+        plan,
+        mutation,
+    } = event
+    else {
+        return None;
+    };
+
+    let Some(run_id) = session_runs.get(session_id).cloned() else {
+        tracing::warn!(
+            session_id = %session_id,
+            dropped = true,
+            "audit.journal.plan_updated_no_run"
+        );
+        return None;
+    };
+
+    let counters = ordinals.entry(run_id.clone()).or_default();
+    let ordinal = counters.plan;
+    counters.plan = counters.plan.saturating_add(1);
+
+    let snapshot = PlanMutationSnapshot {
+        run_id: run_id.clone(),
+        session_id: session_id.clone(),
+        ordinal,
+        kind: mutation.kind.clone(),
+        step_id: mutation.step_id.clone(),
+        reason: mutation.reason.clone(),
+        before: mutation.before.clone(),
+        after: mutation.after.clone(),
+        revision: plan.revision,
+        plan: plan.as_ref().clone(),
+    };
+    let payload = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
+    Some(draft(run_id, JournalEntryKind::PlanMutation, payload))
 }
 
 /// Returns the run id when an event marks the end of a run, so its capture
@@ -647,5 +736,158 @@ mod tests {
         let tool_snap: ToolOutputSnapshot =
             serde_json::from_value(tool0.payload.clone()).expect("tool snapshot");
         assert_eq!(tool_snap.step_ordinal, 0);
+    }
+
+    use apollia_core::plan::{
+        Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep,
+    };
+
+    use crate::audit_journal::entry::PlanMutationSnapshot;
+
+    fn plan_of(session: &str, revision: u32, steps: Vec<PlanStep>) -> Plan {
+        Plan {
+            plan_id: format!("plan-{session}"),
+            scope: PlanScope::Session(session.to_string()),
+            revision,
+            status: PlanStatus::Draft,
+            steps,
+        }
+    }
+
+    fn plan_updated(
+        session: &str,
+        kind: PlanMutationKind,
+        step_id: Option<&str>,
+        plan: Plan,
+    ) -> RuntimeEvent {
+        RuntimeEvent::PlanUpdated {
+            session_id: session.to_string(),
+            plan: Box::new(plan),
+            mutation: Box::new(PlanMutation {
+                kind,
+                step_id: step_id.map(str::to_string),
+                reason: Some("because".into()),
+                before: None,
+                after: None,
+                at: 0,
+            }),
+        }
+    }
+
+    fn plan_snapshot_of(draft: &JournalEntryDraft) -> PlanMutationSnapshot {
+        serde_json::from_value(draft.payload.clone()).expect("plan snapshot payload")
+    }
+
+    fn bind(session: &str, run: &RunId) -> (String, String) {
+        (session.to_string(), run.as_str().to_string())
+    }
+
+    // AC-1: a PlanUpdated for an open run is appended with an increasing ordinal
+    #[test]
+    fn test_plan_mutation_appended_with_ordinal() {
+        // GIVEN a session bound to a run and two consecutive plan mutations
+        let run = RunId::new();
+        let session_runs: HashMap<String, String> = [bind("sess-1", &run)].into_iter().collect();
+        let mut ordinals = HashMap::new();
+        let propose = plan_updated(
+            "sess-1",
+            PlanMutationKind::Propose,
+            None,
+            plan_of("sess-1", 1, vec![PlanStep::new("s1", "first")]),
+        );
+        let add = plan_updated(
+            "sess-1",
+            PlanMutationKind::AddStep,
+            Some("s2"),
+            plan_of(
+                "sess-1",
+                2,
+                vec![PlanStep::new("s1", "first"), PlanStep::new("s2", "second")],
+            ),
+        );
+
+        // WHEN both events are mapped in order
+        let first = map_plan_updated(&session_runs, &mut ordinals, &propose).expect("first");
+        let second = map_plan_updated(&session_runs, &mut ordinals, &add).expect("second");
+
+        // THEN the kind is PlanMutation, the ordinals are 0 then 1, and the full
+        // plan is captured (revision 1 then 2)
+        assert_eq!(first.kind, JournalEntryKind::PlanMutation);
+        let s0 = plan_snapshot_of(&first);
+        let s1 = plan_snapshot_of(&second);
+        assert_eq!(s0.ordinal, 0);
+        assert_eq!(s1.ordinal, 1);
+        assert_eq!(s0.kind, PlanMutationKind::Propose);
+        assert_eq!(s0.revision, 1);
+        assert_eq!(s0.plan.steps.len(), 1);
+        assert_eq!(s1.revision, 2);
+        assert_eq!(s1.plan.steps.len(), 2);
+        assert_eq!(first.run_id, run.as_str());
+    }
+
+    // AC-2: two runs keep independent plan-ordinal sequences when interleaved
+    #[test]
+    fn test_plan_ordinal_independent_per_run() {
+        // GIVEN two sessions each bound to its own run
+        let run_a = RunId::new();
+        let run_b = RunId::new();
+        let session_runs: HashMap<String, String> =
+            [bind("a", &run_a), bind("b", &run_b)].into_iter().collect();
+        let mut ordinals = HashMap::new();
+        let ev = |s: &str| {
+            plan_updated(
+                s,
+                PlanMutationKind::AddStep,
+                Some("s1"),
+                plan_of(s, 1, vec![PlanStep::new("s1", "x")]),
+            )
+        };
+
+        // WHEN events arrive a, b, a, b
+        let a0 = map_plan_updated(&session_runs, &mut ordinals, &ev("a")).expect("a0");
+        let b0 = map_plan_updated(&session_runs, &mut ordinals, &ev("b")).expect("b0");
+        let a1 = map_plan_updated(&session_runs, &mut ordinals, &ev("a")).expect("a1");
+        let b1 = map_plan_updated(&session_runs, &mut ordinals, &ev("b")).expect("b1");
+
+        // THEN each run owns its own 0,1 sequence without cross-contamination
+        assert_eq!(plan_snapshot_of(&a0).ordinal, 0);
+        assert_eq!(plan_snapshot_of(&a1).ordinal, 1);
+        assert_eq!(plan_snapshot_of(&b0).ordinal, 0);
+        assert_eq!(plan_snapshot_of(&b1).ordinal, 1);
+    }
+
+    // AC-5: a PlanUpdated for a session with no open run is dropped cleanly
+    #[test]
+    fn test_plan_updated_without_run_dropped_cleanly() {
+        // GIVEN no session-run binding for the event's session
+        let session_runs: HashMap<String, String> = HashMap::new();
+        let mut ordinals = HashMap::new();
+        let event = plan_updated(
+            "orphan",
+            PlanMutationKind::Propose,
+            None,
+            plan_of("orphan", 1, vec![]),
+        );
+
+        // WHEN the event is mapped
+        let result = map_plan_updated(&session_runs, &mut ordinals, &event);
+
+        // THEN no entry is produced and no ordinal counter is created (no panic)
+        assert!(result.is_none());
+        assert!(ordinals.is_empty());
+    }
+
+    // A non-PlanUpdated event falls through (handled by other mappers)
+    #[test]
+    fn test_map_plan_updated_ignores_other_events() {
+        // GIVEN a session-run binding and a non-plan event
+        let run = RunId::new();
+        let session_runs: HashMap<String, String> = [bind("s", &run)].into_iter().collect();
+        let mut ordinals = HashMap::new();
+        let event = RuntimeEvent::AgentStopped("a".into());
+
+        // WHEN mapped through the plan path
+        // THEN nothing is produced
+        assert!(map_plan_updated(&session_runs, &mut ordinals, &event).is_none());
     }
 }
