@@ -1194,6 +1194,13 @@ struct ChatSessionManager {
     event_bus: EventBusSender,
     /// Runtime-level step budget configuration.
     runtime_budget: StepBudgetConfig,
+    /// Default plan-mode state applied to every new session at creation.
+    ///
+    /// Sourced from the `[chat] plan_mode_default` config key. A new session
+    /// inherits this value; the per-session toggle overrides it afterwards. The
+    /// runtime owns this default so every entry point (desktop, API, CLI) is
+    /// consistent.
+    plan_mode_default: bool,
     /// Pending tool approval channels (operator HITL).
     pending_chat_approvals: PendingChatApprovals,
     /// Pending filesystem HITL approval channels.
@@ -1870,6 +1877,21 @@ impl ChatSessionManager {
             project_id.as_deref(),
         )?;
 
+        // A new session inherits the runtime-level plan-mode default. When it is
+        // on, the session starts in the Discovery phase; the per-session toggle
+        // overrides it afterwards. The phase column defaults to Done for an
+        // off default, so the flag is only persisted when it is on.
+        let plan_mode = self.plan_mode_default;
+        let plan_phase = if plan_mode {
+            PlanPhase::Discovery
+        } else {
+            PlanPhase::Done
+        };
+        if plan_mode {
+            self.repository
+                .set_plan_mode(&session_id, true, plan_phase)?;
+        }
+
         // Build in-memory session
         let session = ChatSession {
             id: session_id.clone(),
@@ -1891,10 +1913,10 @@ impl ChatSessionManager {
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
-            // Plan mode defaults to off for now; the user default setting and the
-            // header toggle are wired separately. Phase stays neutral until enabled.
-            plan_mode: false,
-            plan_phase: PlanPhase::Done,
+            // Plan mode is seeded from the runtime-level default; the per-session
+            // toggle overrides it afterwards.
+            plan_mode,
+            plan_phase,
         };
 
         let info = session_to_info(&session);
@@ -3932,6 +3954,9 @@ impl ChatSessionManagerHandle {
         // Shared lifecycle hook executor (PreToolUse blocking, plus best-effort
         // hooks). `None` disables hooks: the ReAct loop runs unchanged.
         hook_executor: Option<Arc<HookExecutor>>,
+        // Default plan-mode state applied to every new session at creation,
+        // sourced from the `[chat] plan_mode_default` config key.
+        plan_mode_default: bool,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
 
@@ -3981,6 +4006,7 @@ impl ChatSessionManagerHandle {
             agent_runner,
             event_bus,
             runtime_budget,
+            plan_mode_default,
             pending_chat_approvals,
             pending_fs_approvals,
             user_memory,
@@ -4925,6 +4951,17 @@ mod tests {
         llm_router: Option<Arc<LlmRouter>>,
         agent_loader: Arc<dyn AgentLoader>,
     ) -> ChatSessionManagerHandle {
+        spawn_test_manager_with_plan_default(dir, llm_router, agent_loader, false)
+    }
+
+    /// Spawn a ChatSessionManager with an explicit plan-mode default, so a test
+    /// can verify the default is applied at session creation.
+    fn spawn_test_manager_with_plan_default(
+        dir: &tempfile::TempDir,
+        llm_router: Option<Arc<LlmRouter>>,
+        agent_loader: Arc<dyn AgentLoader>,
+        plan_mode_default: bool,
+    ) -> ChatSessionManagerHandle {
         let db_path = dir.path().join("chat.db");
         let (event_tx, _) = tokio::sync::broadcast::channel(128);
         let tool_registry = ToolRegistryHandle::start();
@@ -4947,6 +4984,7 @@ mod tests {
             LoadingMode::Eager,
             20,
             None, // no hooks in tests
+            plan_mode_default,
         )
         .expect("spawn manager")
     }
@@ -5136,7 +5174,8 @@ mod tests {
             None,
             LoadingMode::Eager,
             20,
-            None, // no hooks in tests
+            None,  // no hooks in tests
+            false, // plan-mode default off in tests
         )
         .expect("spawn");
 
@@ -5228,6 +5267,7 @@ mod tests {
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
+            plan_mode_default: false,
             pending_chat_approvals: pending,
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
@@ -5369,6 +5409,7 @@ mod tests {
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
+            plan_mode_default: false,
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
@@ -5441,6 +5482,7 @@ mod tests {
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
+            plan_mode_default: false,
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
@@ -5491,6 +5533,7 @@ mod tests {
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
+            plan_mode_default: false,
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
@@ -5553,6 +5596,65 @@ mod tests {
         let disabled = handle.get_session(info.id.clone()).await.expect("detail");
         assert!(!disabled.session.plan_mode);
         assert_eq!(disabled.session.plan_phase, PlanPhase::Done);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_new_session_inherits_plan_mode_default_off() {
+        // GIVEN a manager with the plan-mode default off (the standard case)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let handle = spawn_test_manager_with_plan_default(
+            &dir,
+            fake_llm_router(),
+            Arc::new(AlwaysOkLoader),
+            false,
+        );
+
+        // WHEN a new session is created
+        let info = handle
+            .create_session(libre_session_params())
+            .await
+            .expect("create");
+
+        // THEN it starts with plan mode off and a neutral phase
+        let detail = handle.get_session(info.id.clone()).await.expect("detail");
+        assert!(!detail.session.plan_mode);
+        assert_eq!(detail.session.plan_phase, PlanPhase::Done);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_new_session_inherits_plan_mode_default_on() {
+        // GIVEN a manager with the plan-mode default enabled
+        let dir = tempfile::tempdir().expect("tempdir");
+        let handle = spawn_test_manager_with_plan_default(
+            &dir,
+            fake_llm_router(),
+            Arc::new(AlwaysOkLoader),
+            true,
+        );
+
+        // WHEN a new session is created
+        let info = handle
+            .create_session(libre_session_params())
+            .await
+            .expect("create");
+
+        // THEN it inherits plan mode on, starting in the Discovery phase
+        let detail = handle.get_session(info.id.clone()).await.expect("detail");
+        assert!(detail.session.plan_mode);
+        assert_eq!(detail.session.plan_phase, PlanPhase::Discovery);
+
+        // AND the per-session toggle still overrides the inherited default
+        handle
+            .set_plan_mode(info.id.clone(), false)
+            .await
+            .expect("disable");
+        let overridden = handle.get_session(info.id.clone()).await.expect("detail");
+        assert!(!overridden.session.plan_mode);
+        assert_eq!(overridden.session.plan_phase, PlanPhase::Done);
 
         handle.shutdown().await;
     }
@@ -5627,6 +5729,7 @@ mod tests {
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
+            plan_mode_default: false,
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),

@@ -18,6 +18,7 @@
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
   import { initTheme } from "$lib/stores/theme";
+  import { hydratePlanModeDefault } from "$lib/stores/planModeSetting";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingModalOpen } from "$lib/stores/onboarding";
   import type { OnboardingState } from "$lib/types";
@@ -67,6 +68,7 @@
 
   onMount(() => {
     initTheme();
+    void hydratePlanModeDefault();
     const cleanup = createSSEConnection();
     const disposeShortcuts = installGlobalShortcuts();
 

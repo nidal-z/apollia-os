@@ -912,6 +912,7 @@ fn main() {
             commands::mcp::revoke_mcp_tool_approval,
             commands::plan_alternatives::choose_plan,
             commands::plan_mode::submit_plan_decision,
+            commands::plan_mode::get_plan_mode_default,
             commands::plan_mode::set_plan_mode,
             commands::plan_mode::approve_plan,
             commands::plan_mode::reject_plan,

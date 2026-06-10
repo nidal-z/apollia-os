@@ -1315,6 +1315,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         tools_file_config,
         mcp_file_config,
         hooks_file_config,
+        chat_file_config,
     ) = match loaded_config {
         Some(cfg) => (
             cfg.llm,
@@ -1324,8 +1325,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             cfg.tools,
             cfg.mcp,
             cfg.hooks,
+            cfg.chat,
         ),
-        None => (None, None, None, None, None, None, None),
+        None => (None, None, None, None, None, None, None, None),
     };
 
     let llm_label = llm_config
@@ -1388,6 +1390,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let tools_config = tools_file_config.unwrap_or_default();
     let mcp_config = mcp_file_config.unwrap_or_default();
     let hooks_config = hooks_file_config.unwrap_or_default();
+    let chat_config = chat_file_config.unwrap_or_default();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1420,6 +1423,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         mcp_loading: apollia_mcp::session::LoadingMode::from(mcp_config.tool_loading),
         tool_search_limit: mcp_config.tool_search_limit,
         hooks_config,
+        plan_mode_default: chat_config.plan_mode_default,
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);

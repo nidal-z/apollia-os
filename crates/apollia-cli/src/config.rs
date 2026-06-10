@@ -27,8 +27,8 @@
 use std::path::{Path, PathBuf};
 
 use apollia_core::{
-    A2AConfig, ApiConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig, ORIAConfig,
-    PermissionsConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
+    A2AConfig, ApiConfig, ChatConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig,
+    ORIAConfig, PermissionsConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -122,6 +122,11 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`HooksConfig`] defaults apply (no handlers).
     pub hooks: Option<HooksConfig>,
+
+    /// Section `[chat]`: chat subsystem session-level defaults.
+    ///
+    /// `None` when absent; the [`ChatConfig`] defaults apply (plan mode off).
+    pub chat: Option<ChatConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -196,6 +201,7 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
             "permissions",
             "filesystem",
             "hooks",
+            "chat",
         ] {
             if let Some(v) = table.get(*key) {
                 filtered.insert((*key).to_string(), v.clone());
@@ -576,6 +582,41 @@ max_sessions = 100
         assert!(config.filesystem.is_none());
     }
 
+    // GIVEN apollia.toml with a [chat] section enabling plan mode by default
+    // WHEN parse_apollia_toml is called
+    // THEN the chat config is present and the flag is on
+    #[test]
+    fn test_chat_section_plan_mode_default_parses() {
+        // GIVEN
+        let toml = r#"
+[chat]
+plan_mode_default = true
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+
+        // THEN
+        let chat = config.chat.expect("chat should be present");
+        assert!(chat.plan_mode_default);
+    }
+
+    // GIVEN apollia.toml without a [chat] section
+    // WHEN parse_apollia_toml is called
+    // THEN the chat field is None (defaults apply, plan mode off)
+    #[test]
+    fn test_chat_section_absent_is_none() {
+        // GIVEN an empty TOML
+        let file = write_toml("");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+
+        // THEN
+        assert!(config.chat.is_none());
+    }
+
     // GIVEN the ApolliaCConfig struct
     // WHEN verifying its structure
     // THEN it contains the static config fields (llm, api, runtime, hitl, a2a, oria, registry, tools, mcp, permissions, filesystem)
@@ -594,6 +635,7 @@ max_sessions = 100
             permissions: None,
             filesystem: None,
             hooks: None,
+            chat: None,
         };
         assert!(config.llm.is_none());
         assert!(config.runtime.is_none());

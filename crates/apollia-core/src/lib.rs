@@ -47,7 +47,8 @@ pub mod workspace;
 pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, AutonomyConfig, AutonomyLevel, AutonomyLevelConfig,
-    AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, CeilingAction, ConfigError,
+    AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, CeilingAction, ChatConfig,
+    ConfigError,
     DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig, GatePolicy, HitlConfig,
     HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig, HybridRoutingConfig,
     JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,

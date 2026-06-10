@@ -148,6 +148,15 @@ pub struct SupervisorConfig {
     /// loop and exposed by the `GET /hooks` route.
     /// Default: [`apollia_core::HooksConfig::default()`] (no handlers).
     pub hooks_config: apollia_core::HooksConfig,
+
+    /// Default plan-mode state inherited by every new chat session (the
+    /// `[chat] plan_mode_default` key of `apollia.toml`).
+    ///
+    /// Read once at boot and applied at session creation by the
+    /// [`crate::chat::ChatSessionManager`], so the runtime is the single source
+    /// of truth for the default rather than any individual client. Default:
+    /// `false`.
+    pub plan_mode_default: bool,
 }
 
 impl SupervisorConfig {
@@ -1220,6 +1229,7 @@ impl Supervisor {
                 self.config.mcp_loading,
                 self.config.tool_search_limit,
                 Some(hook_executor.clone()),
+                self.config.plan_mode_default,
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");
@@ -2278,6 +2288,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
+            plan_mode_default: false,
         };
         (config, temp_dir)
     }
@@ -2458,6 +2469,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
+            plan_mode_default: false,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2611,6 +2623,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
+            plan_mode_default: false,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2732,6 +2745,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
+            plan_mode_default: false,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2797,6 +2811,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
+            plan_mode_default: false,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2873,6 +2888,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
+            plan_mode_default: false,
         };
         let supervisor = Supervisor::new(config);
 
@@ -3124,6 +3140,7 @@ mod tests {
             mcp_loading: LoadingMode::Eager,
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
+            plan_mode_default: false,
         };
         let supervisor = Supervisor::new(config);
 

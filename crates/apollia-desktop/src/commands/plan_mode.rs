@@ -75,6 +75,16 @@ pub async fn submit_plan_decision(
     Ok(())
 }
 
+/// Returns the runtime-level default plan-mode state for new chat sessions.
+///
+/// Read from the `[chat] plan_mode_default` key of `apollia.toml` at boot. The
+/// desktop seeds its per-user preference from this value so the config stays the
+/// single source of truth for the default.
+#[tauri::command]
+pub async fn get_plan_mode_default(state: State<'_, RuntimeHandle>) -> Result<bool, String> {
+    Ok(state.plan_mode_default)
+}
+
 /// Enables or disables plan mode for `session_id`.
 ///
 /// Delegates to the chat manager, which initializes the phase to `Discovery`

@@ -794,7 +794,8 @@ mod tests {
             None,
             apollia_mcp::session::LoadingMode::Eager,
             20,
-            None, // no hooks in tests
+            None,  // no hooks in tests
+            false, // plan-mode default off in tests
         )
         .expect("spawn chat manager");
 

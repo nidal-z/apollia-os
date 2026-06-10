@@ -57,6 +57,20 @@ export async function submitPlanDecision(
 // `rejectPlan`).
 
 /**
+ * Reads the runtime-level default plan-mode state for new chat sessions.
+ *
+ * The value comes from the `[chat] plan_mode_default` key of `apollia.toml`,
+ * read once at boot. The desktop uses it to seed its per-user preference, so the
+ * config stays the single source of truth for the default.
+ *
+ * Resolves to the boolean default; rejects with the runtime error string when
+ * the runtime handle is unavailable.
+ */
+export async function getPlanModeDefault(): Promise<boolean> {
+  return invoke<boolean>("get_plan_mode_default");
+}
+
+/**
  * Enables or disables plan mode for a chat session.
  *
  * Resolves to `void` on success; rejects with the runtime error string when the

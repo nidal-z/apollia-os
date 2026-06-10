@@ -128,6 +128,13 @@ pub struct RuntimeHandle {
     /// with connection-refused. Also exposes `.proxy()` so the reload commands
     /// can rebuild the router with the local backend wired through.
     pub runner_supervisor: Option<Arc<crate::runner_supervisor::RunnerSupervisor>>,
+
+    /// Default plan-mode state for new chat sessions, read from the `[chat]`
+    /// section of `apollia.toml` at boot.
+    ///
+    /// The runtime is the single source of truth for this default; the desktop
+    /// reads it to seed its own per-user preference rather than inventing one.
+    pub plan_mode_default: bool,
 }
 
 /// Error returned by [`init_embedded()`].
@@ -212,6 +219,12 @@ pub struct EmbeddedConfig {
     /// Maps to the `[hooks]` section in `apollia.toml`.
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub hooks_config: apollia_core::HooksConfig,
+
+    /// Chat subsystem configuration (session-level defaults).
+    ///
+    /// Maps to the `[chat]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
+    pub chat_config: apollia_core::ChatConfig,
 }
 
 impl Default for EmbeddedConfig {
@@ -238,6 +251,7 @@ impl Default for EmbeddedConfig {
             tools_config: apollia_core::ToolsConfig::default(),
             mcp_config: apollia_core::McpConfig::default(),
             hooks_config: apollia_core::HooksConfig::default(),
+            chat_config: apollia_core::ChatConfig::default(),
         }
     }
 }
@@ -259,6 +273,7 @@ impl EmbeddedConfig {
             tools: Option<apollia_core::ToolsConfig>,
             mcp: Option<apollia_core::McpConfig>,
             hooks: Option<apollia_core::HooksConfig>,
+            chat: Option<apollia_core::ChatConfig>,
         }
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
@@ -286,6 +301,9 @@ impl EmbeddedConfig {
             }
             if let Some(hooks) = s.hooks {
                 self.hooks_config = hooks;
+            }
+            if let Some(chat) = s.chat {
+                self.chat_config = chat;
             }
         }
 
@@ -363,6 +381,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
     let tools_config = config.tools_config.clone();
     let mcp_loading = apollia_mcp::session::LoadingMode::from(config.mcp_config.tool_loading);
     let tool_search_limit = config.mcp_config.tool_search_limit;
+    let plan_mode_default = config.chat_config.plan_mode_default;
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: config.socket_path,
@@ -384,6 +403,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         mcp_loading,
         tool_search_limit,
         hooks_config: config.hooks_config,
+        plan_mode_default: config.chat_config.plan_mode_default,
     };
 
     let supervisor = Supervisor::new(supervisor_config);
@@ -423,6 +443,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         tools_config,
         api_port: tcp_port,
         runner_supervisor: handles.runner_supervisor,
+        plan_mode_default,
     })
 }
 

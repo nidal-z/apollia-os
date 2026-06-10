@@ -1560,6 +1560,29 @@ fn default_tool_search_limit() -> usize {
 }
 
 // ─────────────────────────────────────────────
+// ChatConfig
+// ─────────────────────────────────────────────
+
+/// Chat subsystem configuration (`[chat]` section in `apollia.toml`).
+///
+/// Holds the session-level defaults the runtime applies when a new chat session
+/// is created. This is the single source of truth for those defaults: the
+/// desktop seeds its own per-user preference from this value, and the runtime
+/// itself uses it so non-desktop callers (API, CLI) inherit the same behavior.
+/// Every field has a sane default via [`Default`] (plan mode off).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ChatConfig {
+    /// Default plan-mode state inherited by every new chat session.
+    ///
+    /// When `true`, a session is created with plan mode already enabled, so the
+    /// agent drafts a plan before acting. The per-session toggle still overrides
+    /// this default for an individual session without changing the global value.
+    /// Default: `false`.
+    #[serde(default)]
+    pub plan_mode_default: bool,
+}
+
+// ─────────────────────────────────────────────
 // PermissionsConfig
 // ─────────────────────────────────────────────
 
@@ -3367,5 +3390,33 @@ mod autonomy_tests {
             cfg.validate(),
             Err(ConfigError::OutOfBounds { key, .. }) if key.contains("timeout_ms")
         ));
+    }
+
+    #[test]
+    fn test_chat_config_default_plan_mode_off() {
+        // GIVEN the default chat config
+        let cfg = ChatConfig::default();
+        // THEN plan mode is off by default
+        assert!(!cfg.plan_mode_default);
+    }
+
+    #[test]
+    fn test_chat_config_absent_field_defaults_off() {
+        // GIVEN an empty [chat] section
+        let toml = "";
+        // WHEN deserialized
+        let cfg: ChatConfig = toml::from_str(toml).expect("valid toml");
+        // THEN the missing field falls back to false
+        assert!(!cfg.plan_mode_default);
+    }
+
+    #[test]
+    fn test_chat_config_plan_mode_default_parses_true() {
+        // GIVEN a [chat] section enabling plan mode by default
+        let toml = "plan_mode_default = true";
+        // WHEN deserialized
+        let cfg: ChatConfig = toml::from_str(toml).expect("valid toml");
+        // THEN the flag is on
+        assert!(cfg.plan_mode_default);
     }
 }
