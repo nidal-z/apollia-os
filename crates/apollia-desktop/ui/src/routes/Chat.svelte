@@ -47,6 +47,7 @@
   import {
     ConversationRow,
     Journal,
+    PlanDagPanel,
     type JournalEvent,
     type JournalMode,
     type ConversationState,
@@ -59,6 +60,7 @@
   let showShortcutsHelp = $state(false);
   let sessionSearchQuery = $state("");
   let journalMode = $state<JournalMode>("operator");
+  let railTab = $state<"journal" | "plan">("journal");
 
   // ── Shortcut registry ──────────────────────────────
   // One central place declares every chat-route hotkey. Bindings are keyed
@@ -569,51 +571,79 @@
     {/if}
   </main>
 
-  <!-- ── Right rail: live journal ──────────────────────────────────────── -->
+  <!-- ── Right rail: live journal / plan DAG ────────────────────────────── -->
   <aside
     class="flex h-full w-[320px] shrink-0 flex-col border-l border-border bg-card"
-    aria-label="Journal"
+    aria-label={railTab === "plan" ? $t("plan_session.tab_plan") : "Journal"}
   >
     <div class="flex items-center justify-between border-b border-border px-4 py-3">
-      <h3
-        class="text-foreground"
-        style="font-size: 14px; font-weight: 600; letter-spacing: -0.2px;"
-      >
-        Journal
-      </h3>
-      <div class="inline-flex rounded-md border border-border p-0.5 text-[10.5px]">
+      <div class="inline-flex rounded-md border border-border p-0.5 text-[10.5px]" role="tablist">
         <button
           type="button"
-          class="rounded px-2 py-0.5 transition-colors {journalMode === 'operator'
+          role="tab"
+          aria-selected={railTab === "journal"}
+          class="rounded px-2 py-0.5 transition-colors {railTab === 'journal'
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:text-foreground'}"
-          onclick={() => (journalMode = "operator")}
+          onclick={() => (railTab = "journal")}
         >
-          Opérateur
+          {$t("plan_session.tab_journal")}
         </button>
         <button
           type="button"
-          class="rounded px-2 py-0.5 transition-colors {journalMode === 'builder'
+          role="tab"
+          aria-selected={railTab === "plan"}
+          class="rounded px-2 py-0.5 transition-colors {railTab === 'plan'
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:text-foreground'}"
-          onclick={() => (journalMode = "builder")}
+          onclick={() => (railTab = "plan")}
         >
-          Builder
+          {$t("plan_session.tab_plan")}
         </button>
       </div>
-    </div>
-
-    <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-      {#if journalEvents.length === 0}
-        <div
-          class="rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-[11px] text-muted-foreground"
-        >
-          Activité de l'agent en direct.
+      {#if railTab === "journal"}
+        <div class="inline-flex rounded-md border border-border p-0.5 text-[10.5px]">
+          <button
+            type="button"
+            class="rounded px-2 py-0.5 transition-colors {journalMode === 'operator'
+              ? 'bg-primary/10 text-primary'
+              : 'text-muted-foreground hover:text-foreground'}"
+            onclick={() => (journalMode = "operator")}
+          >
+            Opérateur
+          </button>
+          <button
+            type="button"
+            class="rounded px-2 py-0.5 transition-colors {journalMode === 'builder'
+              ? 'bg-primary/10 text-primary'
+              : 'text-muted-foreground hover:text-foreground'}"
+            onclick={() => (journalMode = "builder")}
+          >
+            Builder
+          </button>
         </div>
-      {:else}
-        <Journal events={journalEvents} mode={journalMode} />
       {/if}
     </div>
+
+    {#if railTab === "plan" && selectedSessionId}
+      <div class="min-h-0 flex-1">
+        {#key selectedSessionId}
+          <PlanDagPanel sessionId={selectedSessionId} />
+        {/key}
+      </div>
+    {:else}
+      <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+        {#if journalEvents.length === 0}
+          <div
+            class="rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-[11px] text-muted-foreground"
+          >
+            Activité de l'agent en direct.
+          </div>
+        {:else}
+          <Journal events={journalEvents} mode={journalMode} />
+        {/if}
+      </div>
+    {/if}
 
   </aside>
 </div>

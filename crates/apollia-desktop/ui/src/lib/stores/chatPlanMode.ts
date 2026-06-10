@@ -44,6 +44,13 @@ export interface SessionPlan {
   steps: SessionPlanStep[];
 }
 
+/** Last mutation applied to the session plan (kind + concerned step). */
+export interface SessionPlanMutation {
+  kind: string;
+  step_id: string | null;
+  reason: string | null;
+}
+
 /** Lifecycle status of the session review card. */
 export type ChatPlanStatus =
   | "idle"
@@ -61,6 +68,8 @@ export interface ChatPlanState {
   phase: PlanPhase;
   /** Latest plan for the session (`null` until a plan is produced). */
   plan: SessionPlan | null;
+  /** Last mutation carried by a `PlanUpdated` event (`null` until one lands). */
+  lastMutation: SessionPlanMutation | null;
   errorMessage: string | null;
 }
 
@@ -70,7 +79,19 @@ function initialState(): ChatPlanState {
     sessionId: null,
     phase: "done",
     plan: null,
+    lastMutation: null,
     errorMessage: null,
+  };
+}
+
+function toMutation(value: unknown): SessionPlanMutation | null {
+  if (!value || typeof value !== "object") return null;
+  const m = value as Record<string, unknown>;
+  if (typeof m.kind !== "string") return null;
+  return {
+    kind: m.kind,
+    step_id: asOptionalString(m.step_id),
+    reason: asOptionalString(m.reason),
   };
 }
 
@@ -178,10 +199,12 @@ export function dispatchChatPlan(
   switch (event.event_type) {
     case "PlanUpdated": {
       const plan = toSessionPlan(inner.plan);
+      const mutation = toMutation(inner.mutation);
       chatPlanState.update((s) => ({
         ...s,
         sessionId: activeSessionId,
         plan: plan ?? s.plan,
+        lastMutation: mutation ?? s.lastMutation,
       }));
       break;
     }

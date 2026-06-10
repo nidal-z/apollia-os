@@ -12,6 +12,7 @@ export { default as ProjectCard } from "./ProjectCard.svelte";
 export { default as ConnectionCard } from "./ConnectionCard.svelte";
 export { default as HITLCard } from "./HITLCard.svelte";
 export { default as Journal } from "./Journal.svelte";
+export { default as PlanDagPanel } from "./PlanDagPanel.svelte";
 export { default as TaskRow } from "./TaskRow.svelte";
 export { default as InboxRow } from "./InboxRow.svelte";
 export { default as ConversationRow } from "./ConversationRow.svelte";

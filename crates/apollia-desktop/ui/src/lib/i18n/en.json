@@ -1169,6 +1169,14 @@
     "remove_step": "Remove step",
     "edit_step_label_placeholder": "Step label"
   },
+  "plan_session": {
+    "tab_journal": "Journal",
+    "tab_plan": "Plan",
+    "empty": "No plan for this conversation.",
+    "loading": "Loading plan…",
+    "error": "The plan could not be displayed.",
+    "untitled_step": "Untitled step"
+  },
   "approvals": {
     "title": "Approvals",
     "subtitle": "Review and respond to assistant requests",

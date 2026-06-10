@@ -1169,6 +1169,14 @@
     "remove_step": "Retirer l'étape",
     "edit_step_label_placeholder": "Label de l'étape"
   },
+  "plan_session": {
+    "tab_journal": "Journal",
+    "tab_plan": "Plan",
+    "empty": "Aucun plan pour cette conversation.",
+    "loading": "Chargement du plan…",
+    "error": "Le plan n'a pas pu être affiché.",
+    "untitled_step": "Étape sans titre"
+  },
   "approvals": {
     "title": "Approbations",
     "subtitle": "Examinez et répondez aux demandes de vos assistants",
