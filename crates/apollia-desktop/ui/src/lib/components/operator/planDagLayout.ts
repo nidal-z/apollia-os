@@ -8,6 +8,13 @@
 import dagre from "dagre";
 import { MarkerType, type Node, type Edge } from "@xyflow/svelte";
 import type { SessionPlan, SessionPlanStep } from "$lib/stores/chatPlanMode";
+import type { DecisionPoint } from "$lib/types";
+
+/** Live or frozen thinking trace attached to a step's current turn. */
+export interface StepThinking {
+  content: string;
+  live: boolean;
+}
 
 /** Geometry of a node, in sync with the rendered card width/height. */
 export const NODE_WIDTH = 220;
@@ -20,6 +27,10 @@ export interface StepNodeData extends Record<string, unknown> {
   removed: boolean;
   /** Opens the per-step trace drawer (keyboard activation on the card). */
   onSelect?: (step: SessionPlanStep) => void;
+  /** Thinking trace for the step's current turn (Builder-only rendering). */
+  thinking?: StepThinking | null;
+  /** Decision point recorded on the step's turn (Builder-only rendering). */
+  decisionPoint?: DecisionPoint | null;
 }
 
 export type PlanDagNode = Node<StepNodeData, "planStep">;

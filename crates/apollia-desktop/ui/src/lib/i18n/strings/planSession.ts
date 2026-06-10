@@ -24,4 +24,10 @@ export const PLAN_SESSION_KEYS = {
   originReplan: "plan_session.origin_replan",
   originUserInject: "plan_session.origin_user_inject",
   originAgentEdit: "plan_session.origin_agent_edit",
+  thinkingLive: "plan_session.thinking_live",
+  thinkingDone: "plan_session.thinking_done",
+  alternativesTrigger: "plan_session.alternatives_trigger",
+  rejectedReasonLabel: "plan_session.rejected_reason_label",
+  confidenceDeltaLabel: "plan_session.confidence_delta_label",
+  chosenLabel: "plan_session.chosen_label",
 };

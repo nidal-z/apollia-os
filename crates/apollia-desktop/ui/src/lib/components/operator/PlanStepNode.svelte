@@ -16,6 +16,8 @@
   import { originToChip, hasReason } from "./provenanceChip";
   import { nodeFields } from "./planNodeDensity";
   import { PLAN_SESSION_KEYS } from "$lib/i18n/strings/planSession";
+  import PlanThinkingOverlay from "./PlanThinkingOverlay.svelte";
+  import PlanDecisionPopover from "./PlanDecisionPopover.svelte";
   import type { StepNodeData } from "./planDagLayout";
 
   let { data }: NodeProps = $props();
@@ -36,6 +38,12 @@
   const provChip = $derived(originToChip(step.provenance.origin));
   const reason = $derived(step.provenance.reason);
   const showReason = $derived(fields.showReason && hasReason(reason));
+
+  // Thinking trace and decision point for this step's turn. Both are optional:
+  // a turn without a trace or a decision renders nothing extra. The decision
+  // popover self-gates to Builder; the thinking overlay stays light in Operator.
+  const thinking = $derived(node.thinking ?? null);
+  const decisionPoint = $derived(node.decisionPoint ?? null);
 
   let expanded = $state(false);
 
@@ -129,6 +137,12 @@
       <span class="font-medium">{$t(PLAN_SESSION_KEYS.reasonLabel)}:</span>
       {reason}
     </p>
+  {/if}
+  {#if thinking}
+    <PlanThinkingOverlay content={thinking.content} live={thinking.live} />
+  {/if}
+  {#if decisionPoint}
+    <PlanDecisionPopover point={decisionPoint} />
   {/if}
 </div>
 <Handle type="source" position={Position.Bottom} />

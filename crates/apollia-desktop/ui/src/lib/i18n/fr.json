@@ -1192,7 +1192,13 @@
     "origin_initial": "Initial",
     "origin_replan": "Replanification {revision}",
     "origin_user_inject": "Injection utilisateur",
-    "origin_agent_edit": "Édition agent"
+    "origin_agent_edit": "Édition agent",
+    "thinking_live": "Réflexion en cours",
+    "thinking_done": "Réflexion",
+    "alternatives_trigger": "{count} alternative(s) écartée(s)",
+    "rejected_reason_label": "Raison du rejet",
+    "confidence_delta_label": "Delta de confiance",
+    "chosen_label": "Choisi"
   },
   "approvals": {
     "title": "Approbations",
