@@ -1,6 +1,6 @@
 # ADR-031: Unified plan model in apollia-core
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-06-10
 
 ## Context
