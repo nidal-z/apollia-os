@@ -12,6 +12,7 @@
   } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import ListRow from "./ListRow.svelte";
 
   export type InboxType =
     | "approval"
@@ -71,11 +72,7 @@
   const IconCmp = $derived(cfg.iconCmp);
 </script>
 
-<div
-  class="flex gap-2.5 px-4 py-3 border-b border-border/60 transition-colors {unread
-    ? 'bg-primary/5'
-    : 'bg-transparent hover:bg-muted/40'}"
->
+<ListRow align="stretch" state={unread ? "unread" : "default"}>
   {#if unread}
     <div
       class="w-1 self-stretch rounded-sm bg-primary -ml-2.5 mr-1.5"
@@ -128,4 +125,4 @@
       <Button variant="outline" size="sm" onclick={onAction}>Résoudre</Button>
     {/if}
   </div>
-</div>
+</ListRow>

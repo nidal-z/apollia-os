@@ -21,9 +21,10 @@
   import { formatRelativeTime } from "$lib/utils";
   import {
     PageHeader,
-    StatusDot,
     EmptyState,
     TaskRow,
+    ListPanel,
+    FilterChipBar,
     type Task as DSTask,
     type TaskStatus as DSTaskStatus,
   } from "$lib/components/operator";
@@ -244,37 +245,24 @@
     </div>
     <div class="mx-auto w-full max-w-6xl">
       <!-- Status filter chip row -->
-      <div
-        class="flex flex-wrap items-center gap-1.5 px-8 pt-5 pb-4"
-        role="tablist"
+      <FilterChipBar
+        chips={FILTERS.map((f) => ({
+          key: f.key,
+          label: f.label,
+          color: f.color,
+          count: counts[f.key],
+          glowWhenActive: f.key === "running",
+        }))}
+        activeKey={activeFilter}
+        onchange={(key) => (activeFilter = key as FilterKey)}
         aria-label="Filtres de statut"
+        testidPrefix="tasks-filter"
         data-testid="tasks-filter-bar"
-      >
-        {#each FILTERS as f (f.key)}
-          {@const isActive = activeFilter === f.key}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onclick={(e) => { activeFilter = f.key; (e.currentTarget as HTMLButtonElement).blur(); }}
-            class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60 {isActive
-              ? 'border-primary/40 bg-primary/10 text-primary'
-              : 'border-border bg-transparent text-muted-foreground hover:text-foreground hover:border-border/80'}"
-            data-testid="tasks-filter-{f.key}"
-            data-active={isActive}
-          >
-            <StatusDot color={f.color} glow={isActive && f.key === 'running'} />
-            {f.label}
-            <span class="tabular-nums {isActive ? 'text-primary/80' : 'text-muted-foreground/60'}">
-              {counts[f.key]}
-            </span>
-          </button>
-        {/each}
-      </div>
+      />
 
       <div class="px-8 pb-10">
         {#if filteredTasks.length === 0}
-          <div class="rounded-xl border border-border/60 bg-card overflow-hidden" data-testid="tasks-empty">
+          <ListPanel data-testid="tasks-empty">
             <EmptyState
               title={activeFilter === "all" ? "Aucune tâche pour l'instant" : "Aucune tâche dans ce statut"}
               desc={activeFilter === "all"
@@ -295,27 +283,25 @@
                 {/if}
               {/snippet}
             </EmptyState>
-          </div>
+          </ListPanel>
         {:else}
-          <div class="rounded-xl border border-border/60 bg-card overflow-hidden" data-testid="tasks-table">
-            <!-- Column headers -->
-            <div
-              class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2.5 text-[10.5px] uppercase tracking-[1px] font-semibold text-muted-foreground/70"
-            >
-              <div class="flex-[2] min-w-0">Tâche</div>
-              <div class="w-[140px]">Agent</div>
-              <div class="w-[140px]">Progrès</div>
-              <div class="w-[120px]">Statut</div>
-              <div class="w-[90px] text-right">Démarré</div>
-            </div>
-
+          <ListPanel
+            data-testid="tasks-table"
+            columns={[
+              { label: "Tâche", class: "flex-[2] min-w-0" },
+              { label: "Agent", class: "w-[140px]" },
+              { label: "Progrès", class: "w-[140px]" },
+              { label: "Statut", class: "w-[120px]" },
+              { label: "Démarré", class: "w-[90px] text-right" },
+            ]}
+          >
             {#each filteredTasks as task (task.id)}
               <TaskRow
                 task={toDSTask(task)}
                 onclick={() => handleSelectTask(task.id)}
               />
             {/each}
-          </div>
+          </ListPanel>
         {/if}
       </div>
     </div>
@@ -334,25 +320,20 @@
             Tâches · {$tasks.length}
           </div>
           <!-- Status filter compact (chips wrap) -->
-          <div class="flex flex-wrap gap-1" role="tablist" aria-label="Filtres de statut">
-            {#each FILTERS as f (f.key)}
-              {@const isActive = activeFilter === f.key}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onclick={(e) => { activeFilter = f.key; (e.currentTarget as HTMLButtonElement).blur(); }}
-                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60 {isActive
-                  ? 'border-primary/40 bg-primary/10 text-primary'
-                  : 'border-border bg-transparent text-muted-foreground hover:text-foreground'}"
-                data-testid="tasks-split-filter-{f.key}"
-              >
-                <StatusDot color={f.color} glow={isActive && f.key === 'running'} />
-                {f.label}
-                <span class="tabular-nums opacity-70">{counts[f.key]}</span>
-              </button>
-            {/each}
-          </div>
+          <FilterChipBar
+            size="compact"
+            chips={FILTERS.map((f) => ({
+              key: f.key,
+              label: f.label,
+              color: f.color,
+              count: counts[f.key],
+              glowWhenActive: f.key === "running",
+            }))}
+            activeKey={activeFilter}
+            onchange={(key) => (activeFilter = key as FilterKey)}
+            aria-label="Filtres de statut"
+            testidPrefix="tasks-split-filter"
+          />
         </header>
         <div class="flex-1 overflow-auto px-2.5 pb-3" data-testid="tasks-split-list">
           {#each filteredTasks as task (task.id)}

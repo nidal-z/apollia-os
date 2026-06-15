@@ -30,7 +30,7 @@
   import {
     PageHeader,
     SectionTitle,
-
+    SplitLayout,
     StatusDot,
     EmptyState as OperatorEmptyState,
     ConversationRow,
@@ -594,11 +594,8 @@
     </div>
   {:else}
     <!-- ============ SIDEBAR + DETAIL (mirror Assistants) ============ -->
-    <div class="flex-1 flex min-h-0">
-      <!-- LEFT: project list -->
-      <aside
-        class="w-[240px] shrink-0 border-r border-border flex flex-col bg-background"
-      >
+    <SplitLayout>
+      {#snippet sidebar()}
         <div class="px-4 pt-4 pb-2.5">
           <div class="flex items-center justify-between mb-2.5">
             <div
@@ -659,10 +656,9 @@
             </Button>
           {/each}
         </div>
-      </aside>
+      {/snippet}
 
       <!-- RIGHT: detail -->
-      <section class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
         {#if detailLoading || !selectedProject}
           <div
             class="flex-1 flex items-center justify-center text-muted-foreground text-sm"
@@ -1013,8 +1009,7 @@
             {/if}
           </div>
         {/if}
-      </section>
-    </div>
+    </SplitLayout>
   {/if}
 </div>
 

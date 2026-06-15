@@ -32,6 +32,7 @@
     InboxRow,
     HITLCard,
     EmptyState,
+    FilterChipBar,
   } from "$lib/components/operator";
   import type { InboxType } from "$lib/components/operator";
   import type { RiskLevel } from "$lib/components/operator";
@@ -628,43 +629,37 @@
 
   {#if activeTab === "pending"}
     <!-- Filter chips + agent select -------------------------------- -->
-    <div class="flex flex-wrap items-center justify-between gap-2 px-8 pt-3 pb-2">
-      <div class="flex flex-wrap items-center gap-1.5">
-        {#each [{ key: "all", labelKey: "inbox.chips.all" }, { key: "approval", labelKey: "inbox.chips.approvals" }, { key: "ask_user", labelKey: "inbox.chips.questions" }] as f (f.key)}
-          {@const isActive = activeFilter === f.key}
-          <button
-            type="button"
-            class="rounded-full text-[11px] font-medium transition-colors px-2.5 py-1 border {isActive
-              ? 'bg-primary/10 text-primary border-primary/20'
-              : 'bg-transparent text-muted-foreground border-border hover:bg-muted/40'}"
-            onclick={() => (activeFilter = f.key as FilterKey)}
-            aria-pressed={isActive}
-            data-testid="inbox-filter-{f.key}"
-          >
-            {$t(f.labelKey)} · {counts[f.key as FilterKey]}
-          </button>
-        {/each}
-      </div>
-
-      {#if agentOptions.length > 0}
-        <div class="flex items-center gap-2">
-          <label for="inbox-agent-filter" class="text-[11px] text-muted-foreground">
-            {$t("inbox.filter_by_agent")}
-          </label>
-          <Select
-            id="inbox-agent-filter"
-            class="h-8 w-auto text-xs"
-            bind:value={agentFilter}
-            data-testid="inbox-agent-filter"
-          >
-            <option value="all">{$t("inbox.all_agents")}</option>
-            {#each agentOptions as agent}
-              <option value={agent}>{agent}</option>
-            {/each}
-          </Select>
-        </div>
-      {/if}
-    </div>
+    <FilterChipBar
+      chips={[
+        { key: "all", label: $t("inbox.chips.all"), count: counts.all },
+        { key: "approval", label: $t("inbox.chips.approvals"), count: counts.approval },
+        { key: "ask_user", label: $t("inbox.chips.questions"), count: counts.ask_user },
+      ]}
+      activeKey={activeFilter}
+      onchange={(key) => (activeFilter = key as FilterKey)}
+      testidPrefix="inbox-filter"
+    >
+      {#snippet rightSlot()}
+        {#if agentOptions.length > 0}
+          <div class="flex items-center gap-2">
+            <label for="inbox-agent-filter" class="text-[11px] text-muted-foreground">
+              {$t("inbox.filter_by_agent")}
+            </label>
+            <Select
+              id="inbox-agent-filter"
+              class="h-8 w-auto text-xs"
+              bind:value={agentFilter}
+              data-testid="inbox-agent-filter"
+            >
+              <option value="all">{$t("inbox.all_agents")}</option>
+              {#each agentOptions as agent}
+                <option value={agent}>{agent}</option>
+              {/each}
+            </Select>
+          </div>
+        {/if}
+      {/snippet}
+    </FilterChipBar>
 
     <!-- Pending list ----------------------------------------------- -->
     <div class="flex-1 min-h-0 overflow-y-auto">
@@ -800,22 +795,17 @@
     </div>
   {:else if activeTab === "activity"}
     <!-- Activity filter chips -------------------------------------- -->
-    <div class="flex flex-wrap items-center gap-1.5 px-8 pt-3 pb-2">
-      {#each [{ key: "all", labelKey: "inbox.activity.filter.all" }, { key: "failures", labelKey: "inbox.activity.filter.failures" }, { key: "degradations", labelKey: "inbox.activity.filter.degradations" }, { key: "llm", labelKey: "inbox.activity.filter.llm" }] as f (f.key)}
-        {@const isActive = activityFilter === f.key}
-        <button
-          type="button"
-          class="rounded-full text-[11px] font-medium transition-colors px-2.5 py-1 border {isActive
-            ? 'bg-primary/10 text-primary border-primary/20'
-            : 'bg-transparent text-muted-foreground border-border hover:bg-muted/40'}"
-          onclick={() => (activityFilter = f.key as ActivityFilter)}
-          aria-pressed={isActive}
-          data-testid="inbox-activity-filter-{f.key}"
-        >
-          {$t(f.labelKey)}
-        </button>
-      {/each}
-    </div>
+    <FilterChipBar
+      chips={[
+        { key: "all", label: $t("inbox.activity.filter.all") },
+        { key: "failures", label: $t("inbox.activity.filter.failures") },
+        { key: "degradations", label: $t("inbox.activity.filter.degradations") },
+        { key: "llm", label: $t("inbox.activity.filter.llm") },
+      ]}
+      activeKey={activityFilter}
+      onchange={(key) => (activityFilter = key as ActivityFilter)}
+      testidPrefix="inbox-activity-filter"
+    />
 
     <div class="flex-1 min-h-0 overflow-y-auto px-8 pb-10">
       {#if activityLoading}

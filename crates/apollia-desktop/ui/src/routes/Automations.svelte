@@ -19,11 +19,10 @@
   import { invoke } from "@tauri-apps/api/core";
   import {
     PageHeader,
-    
-    StatusDot,
     EmptyState,
+    FilterChipBar,
+    ListPanel,
   } from "$lib/components/operator";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Plus, RefreshCw, Sparkles } from "lucide-svelte";
 
@@ -179,44 +178,25 @@
     </div>
   {:else}
     <!-- Status filter chip row -->
-    <div
-      class="flex flex-wrap items-center gap-2 px-8 pt-5 pb-4"
-      role="tablist"
+    <FilterChipBar
+      chips={FILTERS.map((f) => ({
+        key: f.key,
+        label: f.label,
+        color: f.color,
+        count: counts[f.key],
+        glowWhenActive: f.key === "active",
+      }))}
+      activeKey={activeFilter}
+      onchange={(key) => (activeFilter = key as Filter)}
       aria-label="Filtres de statut"
+      testidPrefix="automations-filter"
       data-testid="automations-filter-bar"
-    >
-      {#each FILTERS as f (f.key)}
-        {@const isActive = activeFilter === f.key}
-        <Button variant="ghost" size="auto"
-          type="button"
-          role="tab"
-          aria-selected={isActive}
-          onclick={(e) => { activeFilter = f.key; (e.currentTarget as HTMLButtonElement).blur(); }}
-          class="cursor-pointer border-0 bg-transparent p-0 focus-visible:ring-offset-0 focus-visible:ring-1"
-          data-testid="automations-filter-{f.key}"
-          data-active={isActive}
-        >
-          <Badge
-            variant={isActive ? f.tone : "neutral"}
-            outline={!isActive}
-            size="md"
-          >
-            {#snippet icon()}
-              <StatusDot color={f.color} glow={isActive && f.key === "active"} />
-            {/snippet}
-            {f.label} · {counts[f.key]}
-          </Badge>
-        </Button>
-      {/each}
-    </div>
+    />
 
     <!-- Automations table -->
     <div class="px-8 pb-10">
       {#if filteredTriggers.length === 0}
-        <div
-          class="rounded-xl border border-border/60 bg-card"
-          data-testid="automations-empty-filter"
-        >
+        <ListPanel data-testid="automations-empty-filter">
           <EmptyState
             title={activeFilter === "all"
               ? $t("automations.empty.title")
@@ -234,24 +214,19 @@
               {/if}
             {/snippet}
           </EmptyState>
-        </div>
+        </ListPanel>
       {:else}
-        <div
-          class="rounded-xl border border-border/60 bg-card"
+        <ListPanel
           data-testid="automations-table"
+          columns={[
+            { label: $t("automations.col_automation"), class: "flex-[2] min-w-0" },
+            { label: $t("automations.col_assistant"), class: "w-[160px]" },
+            { label: $t("automations.col_next_run"), class: "w-[160px]" },
+            { label: $t("automations.col_status"), class: "w-[110px]" },
+            { label: $t("automations.col_last_run"), class: "w-[90px] text-right" },
+            { label: "", class: "w-[64px]" },
+          ]}
         >
-          <!-- Column headers -->
-          <div
-            class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2.5 text-[10.5px] uppercase tracking-[1px] font-semibold text-muted-foreground/70"
-          >
-            <div class="flex-[2] min-w-0">{$t("automations.col_automation")}</div>
-            <div class="w-[160px]">{$t("automations.col_assistant")}</div>
-            <div class="w-[160px]">{$t("automations.col_next_run")}</div>
-            <div class="w-[110px]">{$t("automations.col_status")}</div>
-            <div class="w-[90px] text-right">{$t("automations.col_last_run")}</div>
-            <div class="w-[64px]"></div>
-          </div>
-
           {#each filteredTriggers as trigger (trigger.id)}
             <AutomationRow
               {trigger}
@@ -261,7 +236,7 @@
               ondelete={handleRequestDelete}
             />
           {/each}
-        </div>
+        </ListPanel>
       {/if}
     </div>
   {/if}

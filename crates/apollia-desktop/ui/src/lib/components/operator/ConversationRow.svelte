@@ -4,6 +4,7 @@
   import StatusDot from "./StatusDot.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
+  import ListRow from "./ListRow.svelte";
 
   export type ConversationState =
     | "active"
@@ -134,15 +135,14 @@
   }
 </script>
 
-<div
-  role={onclick ? "button" : undefined}
-  tabindex={onclick ? 0 : undefined}
+<ListRow
+  pad="snug"
+  align="stretch"
+  state={isActive ? "active" : "default"}
+  dim={isClosed || isArchived}
   onclick={onclick ? onRowClick : undefined}
   onkeydown={onclick ? onRowKeydown : undefined}
-  class="group relative flex gap-2.5 px-3.5 py-3 cursor-pointer border-b border-border/60 transition-colors {isActive
-    ? 'bg-primary/10'
-    : 'bg-transparent hover:bg-muted/40'}"
-  style:opacity={isClosed || isArchived ? "0.55" : "1"}
+  class="cursor-pointer"
 >
   <div
     class="w-[22px] h-[22px] rounded-md shrink-0 mt-0.5 inline-flex items-center justify-center {isActive
@@ -290,4 +290,4 @@
       </ActionMenu>
     </div>
   {/if}
-</div>
+</ListRow>

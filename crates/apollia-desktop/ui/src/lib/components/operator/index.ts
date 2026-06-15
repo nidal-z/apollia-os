@@ -6,6 +6,10 @@ export { default as SectionTitle } from "./SectionTitle.svelte";
 export { default as StatusDot } from "./StatusDot.svelte";
 export { default as Card } from "./Card.svelte";
 export { default as EmptyState } from "./EmptyState.svelte";
+export { default as SplitLayout } from "./SplitLayout.svelte";
+export { default as FilterChipBar } from "./FilterChipBar.svelte";
+export { default as ListPanel } from "./ListPanel.svelte";
+export { default as ListRow } from "./ListRow.svelte";
 
 // Domain components
 export { default as ProjectCard } from "./ProjectCard.svelte";
@@ -28,3 +32,5 @@ export type { Task, TaskStatus } from "./TaskRow.svelte";
 export type { InboxType } from "./InboxRow.svelte";
 export type { ConversationState } from "./ConversationRow.svelte";
 export type { ProjectTemplate } from "./NewProjectDialog.svelte";
+export type { FilterChip } from "./FilterChipBar.svelte";
+export type { ListColumn } from "./ListPanel.svelte";

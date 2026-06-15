@@ -19,9 +19,15 @@
     /** Optional numeric severity (0-10) to surface next to the label. */
     severity?: number;
     compact?: boolean;
+    /**
+     * i18n + data-attribute namespace. "hitl" (default) uses `hitl.impact.*`
+     * and `data-impact-level`; "approval" uses `approvals.risk.*` and
+     * `data-risk-level`. Lets ApprovalRiskBadge reuse this component verbatim.
+     */
+    kind?: "hitl" | "approval";
   }
 
-  let { level, severity, compact = false }: Props = $props();
+  let { level, severity, compact = false, kind = "hitl" }: Props = $props();
 
   const badgeClass = $derived.by(() => {
     switch (level) {
@@ -50,23 +56,16 @@
   });
 
   const label = $derived.by(() => {
-    switch (level) {
-      case "critical":
-        return $t("hitl.impact.critical");
-      case "high":
-        return $t("hitl.impact.high");
-      case "medium":
-        return $t("hitl.impact.medium");
-      default:
-        return $t("hitl.impact.low");
-    }
+    const ns = kind === "approval" ? "approvals.risk" : "hitl.impact";
+    return $t(`${ns}.${level}`);
   });
 </script>
 
 <span
   class="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide {badgeClass}"
-  data-testid="risk-badge"
-  data-impact-level={level}
+  data-testid={kind === "approval" ? "approval-risk-badge" : "risk-badge"}
+  data-impact-level={kind === "approval" ? undefined : level}
+  data-risk-level={kind === "approval" ? level : undefined}
   aria-label={label}
 >
   <Icon class="h-3 w-3" aria-hidden="true" />

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Shield, Sparkles } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
+  import ListRow from "./ListRow.svelte";
   import { Badge } from "$lib/components/ui/badge";
 
   export type TaskStatus =
@@ -72,17 +73,11 @@
   );
 </script>
 
-<div
-  role={onclick ? "button" : undefined}
-  tabindex={onclick ? 0 : undefined}
+<ListRow
+  align="center"
+  state={isCancelled ? "dimmed" : "default"}
   onclick={onclick}
-  onkeydown={onclick
-    ? (e) => {
-        if (e.key === "Enter" || e.key === " ") onclick(e as unknown as MouseEvent);
-      }
-    : undefined}
-  class="px-4 py-3 flex items-center gap-2.5 border-b border-border/60 cursor-pointer text-[12px] hover:bg-muted/40 transition-colors"
-  style:opacity={isCancelled ? "0.55" : "1"}
+  class="text-[12px]"
 >
   <div class="flex-[2] min-w-0">
     <div
@@ -135,7 +130,7 @@
   >
     {task.started ?? task.eta ?? ""}
   </div>
-</div>
+</ListRow>
 
 {#if builder}
   <div

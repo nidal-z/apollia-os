@@ -14,6 +14,7 @@
   import {
     StatusDot,
     EmptyState,
+    SplitLayout,
     type ConnectionStatus,
   } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
@@ -1469,9 +1470,8 @@
 </script>
 
 <div class="flex h-full min-h-0 w-full flex-col" data-testid="connections-route">
-  <div class="flex-1 flex min-h-0">
-    <!-- ============ LEFT - sidebar (mirror Projets/Agents) ============ -->
-    <aside class="w-[300px] shrink-0 border-r border-border flex flex-col bg-background" data-testid="connectors-sidebar">
+  <SplitLayout sidebarTestid="connectors-sidebar" detailTestid="connector-detail">
+    {#snippet sidebar()}
       <header class="px-4 pt-4 pb-2.5">
         <div class="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[1.2px] uppercase text-muted-foreground">
           Mes connecteurs · {servers.length + NATIVE_CONNECTORS.length}
@@ -1624,10 +1624,9 @@
           Ajouter un connecteur
         </Button>
       </div>
-    </aside>
+    {/snippet}
 
     <!-- ============ RIGHT - detail pane ============ -->
-    <section class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background" data-testid="connector-detail">
       {#if selection?.kind === "native" && selectedNativeConnector}
         {@const connector = selectedNativeConnector}
         {@const accounts = selectedNativeAccounts}
@@ -2044,8 +2043,7 @@
           Sélectionnez un connecteur dans la sidebar.
         </div>
       {/if}
-    </section>
-  </div>
+  </SplitLayout>
 </div>
 
 {#if selectedRegistryServer}
