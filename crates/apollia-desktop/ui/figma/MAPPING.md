@@ -136,6 +136,19 @@ Open a node directly: append `?node-id=<NODE>` to the file URL (hyphen form, e.g
 (`233:1962`, split → breadcrumb + DetailHeader) and Tasks (`235:2099`, mono →
 PageHeader without kicker + 2 actions).
 
+## Chantier 2 primitives — lists & sidebars (étape 4, 2026-06-16)
+
+> Canonical sidebar primitives. Implemented in code and mirrored in Figma.
+
+| Component | Source | Role |
+|---|---|---|
+| SidebarHeader | lib/components/operator/SidebarHeader.svelte | Split-sidebar top: `title` + `count` + `actions` + optional `search` + `filters`. Adopted in Memory, Projects, Connections, Agents, Tasks split. |
+| ListRow (`nav`) | lib/components/operator/ListRow.svelte | New `nav` variant: rounded pill, no hairline, rounded state bg. Routes the hand-rolled sidebar rows (Memory namespaces, Projects, Connections native + MCP, Tasks split). Agents rows deferred (bespoke hover actions). |
+
+Figma sync: Memory sidebar background switched from `surface-1/40` (cream) to
+plain `background`; the Tasks-split sidebar heading was normalised from the mono
+uppercase label to the standard SidebarHeader title.
+
 ## Topbar breadcrumb (synced to code 2026-06-16)
 
 > The Topbar component (`70:2`) breadcrumb now mirrors `OperatorBreadcrumb`:
