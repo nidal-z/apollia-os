@@ -19,11 +19,11 @@
 </script>
 
 <div
-  class="inline-flex max-w-[16rem] items-center gap-1.5 rounded-md border border-border/40 bg-card/70 px-1.5 py-1 text-[11px]"
+  class="inline-flex max-w-[15rem] items-center gap-1.5 rounded-md border border-info/30 bg-info/5 px-1.5 py-1 text-[11px]"
   data-testid="chat-pinned-resource-chip"
   title={resource.uri}
 >
-  <Database size={12} class="shrink-0 text-muted-foreground" />
+  <Database size={12} class="shrink-0 text-info" />
   <span class="truncate">{resource.name}</span>
   <span class="shrink-0 text-muted-foreground/60">{resource.server}</span>
   <Button variant="ghost" size="sm"

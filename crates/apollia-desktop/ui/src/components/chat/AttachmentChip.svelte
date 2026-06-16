@@ -29,7 +29,7 @@
 </script>
 
 <div
-  class="inline-flex max-w-[14rem] items-center gap-1.5 rounded-md border border-border/40 bg-card/70 px-1.5 py-1 text-[11px]"
+  class="inline-flex max-w-[15rem] items-center gap-1.5 rounded-md border border-border/60 bg-surface-2 px-1.5 py-1 text-[11px]"
   data-testid="chat-attachment-chip"
 >
   {#if isImage && attachment.previewUrl}

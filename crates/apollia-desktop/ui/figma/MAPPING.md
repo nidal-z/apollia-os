@@ -186,6 +186,24 @@ rebuilt as a flat thread (user block, transparent assistant, approval card with
 warning accent). The validated direction lives in the proposal frame
 `250:2` on the Primitives page.
 
+## Chantier 5 — composer action bar (étape 4, 2026-06-17)
+
+> The chat composer drops the cramped textarea gutters for a single bordered
+> input card (`surface/surface-1` + `border/border`, rounded-xl): textarea on
+> top, a dedicated action toolbar beneath. Secondary actions sit left as a
+> uniform icon-button row (attach, mic, slash, mention), send is anchored right
+> with the keyboard-send hint.
+
+| Surface | Source | Role |
+|---|---|---|
+| ChatInput composer | components/chat/ChatInput.svelte | Bordered input card + bottom toolbar. Single `toolBtn` style (h-8 rounded-md ghost) replaces the mixed h-7/h-8 + Button-vs-button gutter. Slash and @ become explicit buttons via `insertTrigger`, on top of the typed `/` and `@` triggers. |
+| AttachmentChip / PinnedResourceChip | components/chat/*.svelte | Visually distinct: attachment = neutral `surface/surface-2`, pinned resource = `info` tint. |
+| ContextIndicator | components/chat/ContextIndicator.svelte | aria-labels moved to FR + EN i18n keys (were hardcoded French). |
+
+Figma sync: the Chat template composer (`218:1749`, inside `85:183`) was rebuilt
+as the bordered input card with the action toolbar. Reference proposal frame:
+`254:2` on the Primitives page.
+
 ## Topbar breadcrumb (synced to code 2026-06-16)
 
 > The Topbar component (`70:2`) breadcrumb now mirrors `OperatorBreadcrumb`:

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { Gauge } from "lucide-svelte";
   import { sessionMetricsStore } from "$lib/stores/chatMetrics";
 
@@ -45,7 +46,7 @@
         type="button"
         class="flex items-center justify-center gap-1.5 rounded px-3 py-1 {toneClass} text-[10px] transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         data-testid="context-indicator-footer"
-        aria-label="Inspecter la mémoire injectée pour ce tour"
+        aria-label={$t("chat.context_inspect_turn")}
         {onclick}
       >
         <Gauge size={10} />
@@ -57,7 +58,7 @@
       <div
         class="flex items-center justify-center gap-1.5 px-3 py-1 {toneClass} text-[10px]"
         data-testid="context-indicator-footer"
-        aria-label="Contexte et budget de la session"
+        aria-label={$t("chat.context_summary")}
       >
         <Gauge size={10} />
         <span class="tabular-nums">
@@ -70,7 +71,7 @@
       type="button"
       class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       data-testid="context-indicator-pill"
-      aria-label="Inspecter la mémoire injectée"
+      aria-label={$t("chat.context_inspect")}
       {onclick}
     >
       <Gauge size={10} />

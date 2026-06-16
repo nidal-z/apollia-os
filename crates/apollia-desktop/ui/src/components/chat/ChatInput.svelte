@@ -13,7 +13,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { t } from "svelte-i18n";
-  import { Send, Paperclip, Mic, MicOff } from "lucide-svelte";
+  import { Send, Paperclip, Mic, MicOff, Slash, AtSign } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { tourPrefill } from "$lib/stores/tour";
@@ -379,6 +379,23 @@
     );
   }
 
+  // Shared styling for the composer toolbar icon buttons (single source so the
+  // gutter no longer mixes h-7 / h-8 and Button-vs-button treatments).
+  const toolBtn =
+    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed";
+
+  /** Insert a "/" or "@" trigger and focus so the matching menu opens. The
+   *  slash / mention effects react to `value`, so appending the char is enough. */
+  function insertTrigger(char: "/" | "@"): void {
+    const needsSep = value.length > 0 && !/\s$/.test(value);
+    value = value + (needsSep ? " " : "") + char;
+    queueMicrotask(() => {
+      autoResize();
+      textareaEl?.focus();
+      textareaEl?.setSelectionRange(value.length, value.length);
+    });
+  }
+
   function autoResize() {
     if (!textareaEl) return;
     textareaEl.style.height = "auto";
@@ -596,39 +613,19 @@
 </script>
 
 <div class="border-t border-border/30 px-4 pb-2 pt-2" data-testid="chat-input">
-  {#if pinnedResources.length > 0}
-    <div
-      class="mb-2 flex flex-wrap gap-1.5"
-      data-testid="chat-pinned-resource-list"
-    >
-      {#each pinnedResources as pin (pin.server + "::" + pin.uri)}
-        <PinnedResourceChip
-          resource={pin}
-          onremove={() => unpinResource(pin.server, pin.uri)}
-        />
-      {/each}
-    </div>
-  {/if}
-
-  {#if attachments.length > 0}
-    <div
-      class="mb-2 flex flex-wrap gap-1.5"
-      data-testid="chat-attachment-list"
-    >
-      {#each attachments as att (att.id)}
-        <AttachmentChip
-          attachment={att}
-          onremove={() => removeAttachment(att.id)}
-        />
-      {/each}
-    </div>
-  {/if}
+  <input
+    bind:this={fileInputEl}
+    type="file"
+    multiple
+    class="hidden"
+    onchange={handleFileInput}
+    data-testid="chat-attach-input"
+  />
 
   <div
-    class="relative flex items-end gap-2 rounded-lg border border-border/40 bg-card/50 transition-colors"
+    class="relative flex flex-col rounded-xl border bg-surface-1 transition-colors {focused ? 'border-primary/60' : 'border-border/60'}"
     class:ring-2={dragOver}
     class:ring-primary={dragOver}
-    class:border-primary={focused}
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
     ondrop={handleDrop}
@@ -653,89 +650,114 @@
       />
     {/if}
 
-    <Button variant="ghost" size="sm"
-      type="button"
-      onclick={handlePaperclip}
-      disabled={disabled}
-      class="mb-1.5 ml-1.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 hover:bg-muted/40 hover:text-foreground disabled:opacity-30"
-      aria-label={$t("chat.attachments.add")}
-      data-testid="chat-attach-button"
-    >
-      <Paperclip size={14} />
-    </Button>
-    <button
-      type="button"
-      onclick={toggleMic}
-      disabled={disabled || sttBusy && !recording}
-      class="mb-1.5 ml-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-      class:bg-destructive={recording}
-      class:text-destructive-foreground={recording}
-      class:mic-pulse={recording}
-      class:text-muted-foreground={!recording}
-      class:hover:bg-muted={!recording}
-      class:hover:text-foreground={!recording}
-      aria-label={recording ? "Arrêter la dictée" : "Démarrer la dictée vocale"}
-      title={recording ? "Arrêter la dictée" : "Dictée vocale"}
-      data-testid="chat-mic-button"
-    >
-      {#if recording}
-        <MicOff size={14} />
-      {:else}
-        <Mic size={14} />
-      {/if}
-    </button>
-    <input
-      bind:this={fileInputEl}
-      type="file"
-      multiple
-      class="hidden"
-      onchange={handleFileInput}
-      data-testid="chat-attach-input"
-     />
+    {#if pinnedResources.length > 0 || attachments.length > 0}
+      <div class="flex flex-wrap gap-1.5 px-3 pt-2.5" data-testid="chat-chip-row">
+        {#each pinnedResources as pin (pin.server + "::" + pin.uri)}
+          <PinnedResourceChip
+            resource={pin}
+            onremove={() => unpinResource(pin.server, pin.uri)}
+          />
+        {/each}
+        {#each attachments as att (att.id)}
+          <AttachmentChip
+            attachment={att}
+            onremove={() => removeAttachment(att.id)}
+          />
+        {/each}
+      </div>
+    {/if}
 
-    <div class="relative flex-1">
-      <textarea
-        bind:this={textareaEl}
-        bind:value
-        oninput={autoResize}
-        onkeydown={handleKeydown}
-        onfocus={() => (focused = true)}
-        onblur={() => (focused = false)}
+    <textarea
+      bind:this={textareaEl}
+      bind:value
+      oninput={autoResize}
+      onkeydown={handleKeydown}
+      onfocus={() => (focused = true)}
+      onblur={() => (focused = false)}
+      {disabled}
+      rows="1"
+      placeholder={currentPlaceholder}
+      aria-label={$t("chat.input_placeholder")}
+      class="chat-input-textarea block w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-sm text-foreground
+        outline-none placeholder:text-muted-foreground/40
+        disabled:cursor-not-allowed disabled:opacity-50"
+      class:placeholder-fading={!placeholderVisible}
+    ></textarea>
+
+    <!-- Action toolbar: secondary actions left, send anchored right. -->
+    <div class="flex items-center gap-0.5 border-t border-border/40 px-2 py-1.5">
+      <Button variant="ghost" size="sm"
+        type="button"
+        onclick={handlePaperclip}
+        disabled={disabled}
+        class={toolBtn}
+        aria-label={$t("chat.attachments.add")}
+        data-testid="chat-attach-button"
+      >
+        <Paperclip size={16} />
+      </Button>
+      <button
+        type="button"
+        onclick={toggleMic}
+        disabled={disabled || (sttBusy && !recording)}
+        class="{toolBtn} {recording ? 'bg-destructive text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground mic-pulse' : ''}"
+        aria-label={recording ? $t("chat.dictate_stop") : $t("chat.dictate_start")}
+        title={recording ? $t("chat.dictate_stop") : $t("chat.dictate_start")}
+        data-testid="chat-mic-button"
+      >
+        {#if recording}
+          <MicOff size={16} />
+        {:else}
+          <Mic size={16} />
+        {/if}
+      </button>
+      <button
+        type="button"
+        onclick={() => insertTrigger("/")}
         {disabled}
-        rows="1"
-        placeholder={currentPlaceholder}
-        aria-label={$t("chat.input_placeholder")}
-        class="chat-input-textarea block w-full resize-none bg-transparent px-1 py-2 text-sm text-foreground
-          outline-none placeholder:text-muted-foreground/40
-          disabled:cursor-not-allowed disabled:opacity-50"
-        class:placeholder-fading={!placeholderVisible}
-      ></textarea>
-      {#if isDesktop && value === "" && !focused && attachments.length === 0}
-        <span
-          class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 select-none text-[10px] text-muted-foreground/40"
-          aria-hidden="true"
-        >
-          ⌘/
+        class={toolBtn}
+        aria-label={$t("chat.slash_commands")}
+        title={$t("chat.slash_commands")}
+        data-testid="chat-slash-button"
+      >
+        <Slash size={16} />
+      </button>
+      <button
+        type="button"
+        onclick={() => insertTrigger("@")}
+        {disabled}
+        class={toolBtn}
+        aria-label={$t("chat.mention_resources")}
+        title={$t("chat.mention_resources")}
+        data-testid="chat-mention-button"
+      >
+        <AtSign size={16} />
+      </button>
+
+      <div class="flex-1"></div>
+
+      {#if isDesktop}
+        <span class="mr-1.5 select-none text-[11px] text-muted-foreground/50" aria-hidden="true">
+          ⌘↵
         </span>
       {/if}
+      <button
+        onclick={send}
+        disabled={!canSend}
+        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md
+          transition-all active:scale-[0.96]
+          disabled:pointer-events-none disabled:opacity-40 disabled:cursor-not-allowed"
+        class:bg-primary-solid={canSend}
+        class:text-primary-foreground={canSend}
+        class:shadow-warm-glow={canSend}
+        class:bg-muted={!canSend}
+        class:text-muted-foreground={!canSend}
+        aria-label={$t("chat.send")}
+        data-testid="chat-send-button"
+      >
+        <Send size={16} />
+      </button>
     </div>
-
-    <button
-      onclick={send}
-      disabled={!canSend}
-      class="mb-1.5 mr-1.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md
-        transition-all active:scale-[0.96]
-        disabled:pointer-events-none disabled:opacity-40 disabled:cursor-not-allowed"
-      class:bg-primary-solid={canSend}
-      class:text-primary-foreground={canSend}
-      class:shadow-warm-glow={canSend}
-      class:bg-muted={!canSend}
-      class:text-muted-foreground={!canSend}
-      aria-label={$t("chat.send")}
-      data-testid="chat-send-button"
-    >
-      <Send size={14} />
-    </button>
   </div>
 
   <InputHints status={rateStatus} statusTone={rateTone} />
