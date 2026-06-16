@@ -1580,6 +1580,26 @@ pub struct ChatConfig {
     /// Default: `false`.
     #[serde(default)]
     pub plan_mode_default: bool,
+
+    /// Default working directory for free-chat (project-less) sessions.
+    ///
+    /// When set to an existing directory, free-chat file tools and bash anchor
+    /// there instead of the process working directory, and the agent is told its
+    /// working directory so it stops guessing paths. Project-linked sessions keep
+    /// their own `workspace_path`. `None` falls back to `~/.apollia`.
+    #[serde(default)]
+    pub default_workspace: Option<String>,
+
+    /// LLM temperature applied to a chat turn that advertises tools to the model.
+    ///
+    /// Small local models tool-call erratically at conversational temperatures
+    /// (0.6-0.7): they hallucinate tool names, malform arguments, or wrap calls
+    /// in prose. Lowering the temperature whenever tools are exposed makes the
+    /// structured tool-call output far more reliable, while plain conversational
+    /// turns (no tools) keep their natural temperature. `None` resolves to `0.3`
+    /// at the agent.
+    #[serde(default)]
+    pub tool_turn_temperature: Option<f32>,
 }
 
 // ─────────────────────────────────────────────

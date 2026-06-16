@@ -33,9 +33,27 @@
     return "custom";
   }
 
-  function parseTimeFromCron(min: string, hour: string): string {
-    return `${hour.padStart(2, "0")}:${min.padStart(2, "0")}`;
+  // The trigger engine evaluates cron expressions in UTC, but the pickers show
+  // local wall-clock time. Convert local <-> UTC so "daily at 08:00" fires at
+  // 08:00 local, shifting the weekday when the conversion crosses midnight. DST
+  // is approximated with the current offset: a recurring schedule cannot encode
+  // a per-occurrence offset.
+  function tzOffsetMinutes(): number {
+    // getTimezoneOffset returns minutes to add to local time to reach UTC.
+    return new Date().getTimezoneOffset();
   }
+
+  function shiftMinutes(hh: number, mm: number, delta: number): { hh: number; mm: number; dayDelta: number } {
+    let total = hh * 60 + mm + delta;
+    let dayDelta = 0;
+    while (total < 0) { total += 1440; dayDelta -= 1; }
+    while (total >= 1440) { total -= 1440; dayDelta += 1; }
+    return { hh: Math.floor(total / 60), mm: total % 60, dayDelta };
+  }
+
+  const localToUtc = (hh: number, mm: number) => shiftMinutes(hh, mm, tzOffsetMinutes());
+  const utcToLocal = (hh: number, mm: number) => shiftMinutes(hh, mm, -tzOffsetMinutes());
+  const pad = (n: number) => String(n).padStart(2, "0");
 
   function initFromValue(expr: string) {
     if (!expr) return;
@@ -43,13 +61,16 @@
     preset = p;
     rawCron = expr;
     if (p === "daily") {
-      const [min, hour] = expr.split(" ");
-      dailyTime = parseTimeFromCron(min, hour);
+      const [min, hour] = expr.split(" ").map(Number);
+      const l = utcToLocal(hour, min);
+      dailyTime = `${pad(l.hh)}:${pad(l.mm)}`;
     } else if (p === "weekly") {
       const parts = expr.split(" ");
-      weeklyTime = parseTimeFromCron(parts[0], parts[1]);
-      const dayNums = parts[4].split(",").map(Number);
-      weeklyDays = DAYS_CRON.map(d => dayNums.includes(d));
+      const l = utcToLocal(Number(parts[1]), Number(parts[0]));
+      weeklyTime = `${pad(l.hh)}:${pad(l.mm)}`;
+      const utcDays = parts[4].split(",").map(Number);
+      const localDays = utcDays.map(d => ((d + l.dayDelta) % 7 + 7) % 7);
+      weeklyDays = DAYS_CRON.map(d => localDays.includes(d));
     }
     initialized = true;
   }
@@ -67,12 +88,17 @@
       case "hourly": return "0 * * * *";
       case "daily": {
         const [hh, mm] = dTime.split(":").map(Number);
-        return `${mm} ${hh} * * *`;
+        const u = localToUtc(hh, mm);
+        return `${u.mm} ${u.hh} * * *`;
       }
       case "weekly": {
         const [hh, mm] = wTime.split(":").map(Number);
-        const activeDays = DAYS_CRON.filter((_, i) => wDays[i]).join(",") || "0";
-        return `${mm} ${hh} * * ${activeDays}`;
+        const u = localToUtc(hh, mm);
+        const activeDays =
+          DAYS_CRON.filter((_, i) => wDays[i])
+            .map(d => ((d + u.dayDelta) % 7 + 7) % 7)
+            .join(",") || "0";
+        return `${u.mm} ${u.hh} * * ${activeDays}`;
       }
       case "custom": return raw;
     }

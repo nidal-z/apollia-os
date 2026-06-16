@@ -16,6 +16,7 @@ import { writable } from "svelte/store";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { PlanPhase } from "$lib/types";
 import type { StepOrigin } from "$lib/ipc/plan";
+import { getChatPlan } from "$lib/ipc/planMode";
 
 /** A single step of a session plan (the unified `apollia_core::plan::PlanStep`). */
 export interface SessionPlanStep {
@@ -273,22 +274,90 @@ export function dispatchChatPlan(
   }
 }
 
+// One shared listener per active session, ref-counted across the components
+// that consume the store (the approval host and the plan DAG panel). Resetting
+// the store on every mount made the approval card vanish when a second consumer
+// (the plan tab) mounted; this binds the listener once and resets only on a
+// genuine session change.
+let activeListenerSession: string | null = null;
+let activeUnlisten: UnlistenFn | null = null;
+let listenerRefCount = 0;
+
 /**
  * Subscribes to the runtime bridge for one chat session's plan-mode events.
  *
- * Resets the store to the tracked session, then projects every matching
- * "plan-mode" envelope onto it. Returns an unlisten function; call it from a
- * component `$effect` cleanup so no orphaned handler survives the component.
+ * Idempotent and ref-counted: the first consumer for a session resets the store
+ * and binds the single shared listener (and hydrates from runtime state); later
+ * consumers for the same session just attach without resetting, so the approval
+ * card survives a second mount. Returns a release function; call it from the
+ * component `$effect` cleanup. The listener is torn down only when the last
+ * consumer of the current session releases.
  */
 export async function startChatPlanListener(
   activeSessionId: string,
 ): Promise<() => void> {
-  chatPlanState.set({ ...initialState(), sessionId: activeSessionId });
-  const unlisten: UnlistenFn = await listen<TauriRuntimeEvent>(
-    "runtime-event",
-    (event) => dispatchChatPlan(event.payload, activeSessionId),
-  );
-  return unlisten;
+  if (activeListenerSession !== activeSessionId) {
+    activeUnlisten?.();
+    activeUnlisten = null;
+    activeListenerSession = activeSessionId;
+    listenerRefCount = 0;
+    chatPlanState.set({ ...initialState(), sessionId: activeSessionId });
+    activeUnlisten = await listen<TauriRuntimeEvent>(
+      "runtime-event",
+      (event) => dispatchChatPlan(event.payload, activeSessionId),
+    );
+    // Hydrate from authoritative runtime state so a plan produced before this
+    // listener mounted still renders. Fire-and-forget: live events refine it.
+    void hydrateChatPlan(activeSessionId);
+  }
+  listenerRefCount += 1;
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    // Only consumers of the session that is still active decrement it; a stale
+    // release from a previous session (after a switch) is a no-op, so it can
+    // never tear down the freshly bound listener.
+    if (activeListenerSession !== activeSessionId) return;
+    listenerRefCount -= 1;
+    if (listenerRefCount <= 0) {
+      activeUnlisten?.();
+      activeUnlisten = null;
+      activeListenerSession = null;
+    }
+  };
+}
+
+/**
+ * Loads the current plan snapshot and seeds the store for `activeSessionId`.
+ *
+ * Best-effort and idempotent: it never clobbers a live update that already
+ * landed, and ignores its result if the listener has since switched sessions.
+ */
+async function hydrateChatPlan(activeSessionId: string): Promise<void> {
+  let snapshot: { plan: unknown; phase: string };
+  try {
+    snapshot = await getChatPlan(activeSessionId);
+  } catch {
+    return;
+  }
+  const plan = toSessionPlan(snapshot.plan);
+  if (!plan || plan.steps.length === 0) return;
+  // The session phase is the authoritative gate state: an executed plan keeps
+  // its `awaiting_approval` status on the plan object, so the approval card is
+  // shown only when the *phase* still says awaiting, never from the plan status.
+  const phase = toPhase(snapshot.phase, "done");
+  const awaiting = phase === "awaiting_approval";
+  chatPlanState.update((s) => {
+    if (s.sessionId !== activeSessionId || s.plan) return s;
+    return {
+      ...s,
+      plan,
+      phase,
+      status: awaiting ? "pending_approval" : "idle",
+    };
+  });
 }
 
 /** Records a successful approval (optimistic, before the event confirms it). */

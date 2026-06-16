@@ -259,7 +259,13 @@
     if (!toolDisplay) return null;
     // ask_user renders its own Q/A block - skip the generic summary.
     if (item.tool === "ask_user") return null;
-    if (toolDisplay.outputSummaryKey) {
+    // Only use the localized template when its interpolation params are
+    // present; otherwise svelte-i18n leaves the raw `{placeholder}` tokens
+    // (seen on a web_search that returned no parsed result fields).
+    if (
+      toolDisplay.outputSummaryKey &&
+      Object.keys(toolDisplay.outputParams ?? {}).length > 0
+    ) {
       return $t(toolDisplay.outputSummaryKey, {
         values: toolDisplay.outputParams,
       });

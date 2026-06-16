@@ -24,6 +24,11 @@
   const blocks = $derived(parseStream(text));
   const activeThinking = $derived(isActiveThinking(blocks));
   const closedThinkingBlocks = $derived(blocks.filter((b) => b.type === "thinking" && b.closed));
+  // Live reasoning text for the open thinking block, streamed token by token so
+  // the user sees the model think in real time instead of a static badge.
+  const activeThinkingContent = $derived(
+    activeThinking ? (blocks.at(-1)?.content ?? "") : "",
+  );
   // Only non-thinking content goes into the bubble
   const textContent = $derived(
     blocks
@@ -42,8 +47,16 @@
         data-testid="streaming-thinking-area"
       >
         {#if activeThinking}
-          <div class="rounded-lg border border-primary/10 bg-primary/[0.04] px-3 py-2">
+          <div class="rounded-lg border border-primary/10 bg-primary/[0.04] px-3 py-2 space-y-1.5">
             <ThinkingBadge />
+            {#if activeThinkingContent.trim()}
+              <span
+                class="block max-h-40 overflow-hidden whitespace-pre-wrap text-[12px] italic leading-snug text-muted-foreground/75 font-mono"
+                data-testid="streaming-active-thinking"
+              >
+                {activeThinkingContent}
+              </span>
+            {/if}
           </div>
         {/if}
         {#each closedThinkingBlocks as block, i (i)}

@@ -162,6 +162,25 @@ fn build_config_view(
             redirect_route: None,
         },
         ConfigSection {
+            name: "chat".to_string(),
+            description: "Chat session defaults".to_string(),
+            entries: vec![
+                ConfigEntry {
+                    key: "plan_mode_default".to_string(),
+                    value: toml_value
+                        .map(|t| toml_string(t, "chat", "plan_mode_default", "false"))
+                        .unwrap_or_else(|| "false".to_string()),
+                },
+                ConfigEntry {
+                    key: "default_workspace".to_string(),
+                    value: toml_value
+                        .map(|t| toml_string(t, "chat", "default_workspace", "~/.apollia"))
+                        .unwrap_or_else(|| "~/.apollia".to_string()),
+                },
+            ],
+            redirect_route: None,
+        },
+        ConfigSection {
             name: "llm".to_string(),
             description: "LLM backend configuration".to_string(),
             entries: vec![],
@@ -799,7 +818,21 @@ mod tests {
 
         // THEN all sections are present with defaults
         assert!(!view.config_exists);
-        assert_eq!(view.sections.len(), 6);
+        assert_eq!(view.sections.len(), 7);
+
+        let chat = view
+            .sections
+            .iter()
+            .find(|s| s.name == "chat")
+            .expect("chat section");
+        assert_eq!(
+            chat.entries
+                .iter()
+                .find(|e| e.key == "default_workspace")
+                .expect("default_workspace entry")
+                .value,
+            "~/.apollia"
+        );
 
         let runtime = &view.sections[0];
         assert_eq!(runtime.name, "runtime");

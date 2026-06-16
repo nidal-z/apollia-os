@@ -23,6 +23,8 @@ export const NODE_HEIGHT = 104;
 /** Data carried by a plan-step node (read by `PlanStepNode`). */
 export interface StepNodeData extends Record<string, unknown> {
   step: SessionPlanStep;
+  /** 1-based position of the step in the plan, shown as a sequence number. */
+  index: number;
   /** Set when the step was dropped by a replan (tombstone rendering). */
   removed: boolean;
   /** Opens the per-step trace drawer (keyboard activation on the card). */
@@ -58,17 +60,29 @@ export function layoutPlan(
     graph.setNode(step.step_id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
   const ids = new Set(plan.steps.map((s) => s.step_id));
+  const explicitEdges: Array<[string, string]> = [];
   for (const step of plan.steps) {
     for (const dep of step.depends_on) {
-      if (ids.has(dep)) {
-        graph.setEdge(dep, step.step_id);
-      }
+      if (ids.has(dep)) explicitEdges.push([dep, step.step_id]);
     }
+  }
+  // When the plan declares no dependencies, the steps would all land on a single
+  // rank and render as a horizontal row. Chain them in plan order so the graph
+  // reads top-to-bottom; these implicit edges are drawn dashed to set them apart
+  // from declared dependencies. A real DAG (any declared edge) is rendered as-is.
+  const implicit = explicitEdges.length === 0 && plan.steps.length > 1;
+  const layoutEdges: Array<[string, string]> = implicit
+    ? plan.steps
+        .slice(1)
+        .map((s, i) => [plan.steps[i].step_id, s.step_id] as [string, string])
+    : explicitEdges;
+  for (const [from, to] of layoutEdges) {
+    graph.setEdge(from, to);
   }
 
   dagre.layout(graph);
 
-  const nodes: PlanDagNode[] = plan.steps.map((step) => {
+  const nodes: PlanDagNode[] = plan.steps.map((step, i) => {
     const pos = graph.node(step.step_id);
     const x = pos ? pos.x - NODE_WIDTH / 2 : 0;
     const y = pos ? pos.y - NODE_HEIGHT / 2 : 0;
@@ -76,7 +90,7 @@ export function layoutPlan(
       id: step.step_id,
       type: "planStep",
       position: { x, y },
-      data: { step, removed: false },
+      data: { step, index: i + 1, removed: false },
     };
   });
 
@@ -90,22 +104,20 @@ export function layoutPlan(
         id: step.step_id,
         type: "planStep",
         position: { x: index * (NODE_WIDTH + 24), y: tombstoneY },
-        data: { step, removed: true },
+        data: { step, index: 0, removed: true },
       });
     });
 
-  const edges: Edge[] = plan.steps.flatMap((step) =>
-    step.depends_on
-      .filter((dep) => ids.has(dep))
-      .map((dep) => ({
-        id: `${dep}->${step.step_id}`,
-        source: dep,
-        target: step.step_id,
-        type: "smoothstep",
-        animated: step.status === "in_progress",
-        markerEnd: { type: MarkerType.ArrowClosed },
-      })),
-  );
+  const stepById = new Map(plan.steps.map((s) => [s.step_id, s]));
+  const edges: Edge[] = layoutEdges.map(([from, to]) => ({
+    id: `${from}->${to}`,
+    source: from,
+    target: to,
+    type: "smoothstep",
+    animated: stepById.get(to)?.status === "in_progress",
+    markerEnd: { type: MarkerType.ArrowClosed },
+    ...(implicit ? { style: "stroke-dasharray: 5 5; opacity: 0.6;" } : {}),
+  }));
 
   return { nodes, edges };
 }

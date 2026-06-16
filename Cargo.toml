@@ -4,6 +4,7 @@ members = [
     "crates/apollia-auth",
     "crates/apollia-connectors",
     "crates/apollia-core",
+    "crates/apollia-prompts",
     "crates/apollia-runtime",
     "crates/apollia-oria",
     "crates/apollia-tools",
@@ -27,6 +28,7 @@ default-members = [
     "crates/apollia-auth",
     "crates/apollia-connectors",
     "crates/apollia-core",
+    "crates/apollia-prompts",
     "crates/apollia-runtime",
     "crates/apollia-oria",
     "crates/apollia-tools",
@@ -193,6 +195,7 @@ minijinja = { version = "2", default-features = false, features = ["builtins", "
 
 # --- Internal crates ---
 apollia-core    = { path = "crates/apollia-core" }
+apollia-prompts = { path = "crates/apollia-prompts" }
 apollia-runtime = { path = "crates/apollia-runtime" }
 apollia-oria    = { path = "crates/apollia-oria" }
 apollia-tools   = { path = "crates/apollia-tools" }

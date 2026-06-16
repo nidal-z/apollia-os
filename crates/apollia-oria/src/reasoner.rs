@@ -78,42 +78,9 @@ pub enum ReasonerError {
 /// Maximum number of plan-generation attempts before giving up.
 const MAX_ATTEMPTS: u32 = 3;
 
-/// System prompt for initial planning.
-///
-/// The placeholders `{max_steps}`, `{tool_names}`, `{llm_backend_names}`,
-/// `{memory_summary}` and `{recent_history}` are interpolated by
-/// `build_system_prompt()` via `str::replace`.
-const PLANNER_SYSTEM_PROMPT: &str = r#"Tu es un planificateur d'exécution pour un agent IA autonome.
-À partir du contexte et du system_prompt de l'agent, génère un plan d'exécution structuré.
-
-CONTRAINTES STRICTES :
-- Maximum {max_steps} étapes
-- Outils disponibles : {tool_names}
-- Modèles LLM disponibles : {llm_backend_names}
-- Chaque step_id doit être unique (s1, s2, s3...)
-- Les depends_on ne peuvent référencer que des step_ids existants dans ce plan
-- Pas de dépendances circulaires
-- Optionnellement, spécifie model_hint pour choisir un backend LLM par step. Omets le champ pour utiliser le backend par défaut.
-
-RÉPONDRE UNIQUEMENT EN JSON VALIDE, sans texte avant ou après :
-{"steps": [{"step_id": "s1", "description": "Description claire de l'action", "tool_hint": "nom_outil_ou_llm", "model_hint": "fast-7b", "depends_on": []}]}
-
-Contexte mémoire disponible : {memory_summary}
-Historique récent : {recent_history}"#;
-
-/// System prompt for partial replanning after a step failure.
-///
-/// The placeholders `{original_plan_json}`, `{completed_steps_json}`,
-/// `{failed_step_id}` and `{error_message}` are interpolated by `replan()`.
-const REPLANNER_SYSTEM_PROMPT: &str = r#"Le plan d'exécution a rencontré une erreur. Génère un plan alternatif.
-
-Plan original : {original_plan_json}
-Steps complétés avec succès : {completed_steps_json}
-Step en échec : {failed_step_id} - erreur : {error_message}
-
-Génère un nouveau plan pour les steps restants uniquement.
-Réutilise les outputs des steps déjà complétés si pertinent.
-RÉPONDRE UNIQUEMENT EN JSON VALIDE."#;
+// Planner / replanner system prompts live in `apollia_prompts::blocks`
+// (English, single source of truth). Placeholders are filled via
+// `apollia_prompts::render` in `build_system_prompt` / `replan`.
 
 // Reasoner
 
@@ -388,7 +355,7 @@ impl Reasoner {
                 }
             } else {
                 format!(
-                    "{}\n\nATTENTION : ta réponse précédente était invalide.\nErreur : {}\nCorrige et renvoie uniquement du JSON valide.",
+                    "{}\n\nWARNING: your previous response was invalid.\nError: {}\nFix it and return valid JSON only.",
                     base_user, last_error
                 )
             };
@@ -465,11 +432,15 @@ impl Reasoner {
         let original_plan_json = serde_json::to_string(&ctx.task).unwrap_or_default();
         let completed_steps_json = serde_json::to_string(completed_outputs).unwrap_or_default();
 
-        let system = REPLANNER_SYSTEM_PROMPT
-            .replace("{original_plan_json}", &original_plan_json)
-            .replace("{completed_steps_json}", &completed_steps_json)
-            .replace("{failed_step_id}", failed_step_id)
-            .replace("{error_message}", error_message);
+        let system = apollia_prompts::render(
+            apollia_prompts::blocks::REPLANNER_SYSTEM_PROMPT,
+            &[
+                ("original_plan_json", original_plan_json.as_str()),
+                ("completed_steps_json", completed_steps_json.as_str()),
+                ("failed_step_id", failed_step_id),
+                ("error_message", error_message),
+            ],
+        );
 
         let response = self
             .model
@@ -533,21 +504,21 @@ impl Reasoner {
 
     fn build_system_prompt(&self, ctx: &ContextBundle) -> String {
         let tool_names = if ctx.available_tools.is_empty() {
-            "Aucun outil disponible.".to_string()
+            "No tools available.".to_string()
         } else {
             ctx.available_tools.join(", ")
         };
 
         let memory_summary = ctx.memory_snapshot.as_ref().map_or_else(
-            || "Aucun contexte mémoriel disponible.".to_string(),
+            || "No memory context available.".to_string(),
             |m| {
                 let episodes = if m.episodic_recent.is_empty() {
-                    "aucun".to_string()
+                    "none".to_string()
                 } else {
                     m.episodic_recent.join("; ")
                 };
                 let facts = if m.semantic_relevant.is_empty() {
-                    "aucun".to_string()
+                    "none".to_string()
                 } else {
                     m.semantic_relevant
                         .iter()
@@ -555,29 +526,34 @@ impl Reasoner {
                         .collect::<Vec<_>>()
                         .join(", ")
                 };
-                format!("Épisodes: {episodes}. Faits: {facts}")
+                format!("Episodes: {episodes}. Facts: {facts}")
             },
         );
 
         let llm_backend_names = if ctx.llm_backend_names.is_empty() {
-            "Aucun modèle LLM disponible.".to_string()
+            "No LLM models available.".to_string()
         } else {
             ctx.llm_backend_names.join(", ")
         };
 
-        PLANNER_SYSTEM_PROMPT
-            .replace("{max_steps}", &self.max_steps.to_string())
-            .replace("{tool_names}", &tool_names)
-            .replace("{llm_backend_names}", &llm_backend_names)
-            .replace("{memory_summary}", &memory_summary)
-            .replace("{recent_history}", "")
+        let max_steps = self.max_steps.to_string();
+        apollia_prompts::render(
+            apollia_prompts::blocks::PLANNER_SYSTEM_PROMPT,
+            &[
+                ("max_steps", max_steps.as_str()),
+                ("tool_names", tool_names.as_str()),
+                ("llm_backend_names", llm_backend_names.as_str()),
+                ("memory_summary", memory_summary.as_str()),
+                ("recent_history", ""),
+            ],
+        )
     }
 
     fn build_user_prompt(&self, ctx: &ContextBundle) -> String {
         let system_prompt = ctx
             .manifest_system_prompt
             .as_deref()
-            .unwrap_or("Exécute la tâche demandée de manière optimale.");
+            .unwrap_or("Carry out the requested task optimally.");
 
         let task_input = ctx
             .task
@@ -594,7 +570,7 @@ impl Reasoner {
             .collect::<Vec<_>>()
             .join("\n");
 
-        format!("Agent system prompt:\n{system_prompt}\n\nTâche: {task_input}")
+        format!("Agent system prompt:\n{system_prompt}\n\nTask: {task_input}")
     }
 }
 
@@ -986,18 +962,18 @@ mod tests {
 
     // ─── Prompt contient {llm_backend_names} ───
 
-    /// GIVEN la constante PLANNER_SYSTEM_PROMPT
-    /// WHEN on inspecte son contenu
-    /// THEN il contient "{llm_backend_names}" et une instruction sur model_hint
+    /// GIVEN the shared PLANNER_SYSTEM_PROMPT block
+    /// WHEN inspecting its content
+    /// THEN it carries the {llm_backend_names} placeholder and a model_hint hint
     #[test]
     fn test_prompt_contains_llm_backend_names_placeholder() {
         // GIVEN / WHEN / THEN
         assert!(
-            PLANNER_SYSTEM_PROMPT.contains("{llm_backend_names}"),
+            apollia_prompts::blocks::PLANNER_SYSTEM_PROMPT.contains("{llm_backend_names}"),
             "PLANNER_SYSTEM_PROMPT must contain {{llm_backend_names}} placeholder"
         );
         assert!(
-            PLANNER_SYSTEM_PROMPT.contains("model_hint"),
+            apollia_prompts::blocks::PLANNER_SYSTEM_PROMPT.contains("model_hint"),
             "PLANNER_SYSTEM_PROMPT must mention model_hint"
         );
     }

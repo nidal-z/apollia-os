@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { Inbox as InboxIcon, Activity as ActivityIcon, Bell } from "lucide-svelte";
+  import { parseTimestampMs } from "$lib/utils";
 
   import {
     pendingApprovals,
@@ -16,6 +17,12 @@
     pendingUserInputCount,
   } from "$lib/stores/chat";
 
+  import {
+    pendingPlanApprovals,
+    pendingPlanApprovalCount,
+    type PendingPlanApproval,
+  } from "$lib/stores/chat-global";
+  import { approvePlan, rejectPlan } from "$lib/ipc/planMode";
   import { addToast } from "$lib/components/ui/toast/store";
   import RejectReasonDialog from "../components/inbox/RejectReasonDialog.svelte";
   import AskUserForm from "../components/inbox/AskUserForm.svelte";
@@ -167,6 +174,20 @@
     };
   }
 
+  function planToInbox(p: PendingPlanApproval): InboxItem {
+    const head = p.summary || `${p.stepCount} step(s)`;
+    return {
+      id: `plan:${p.sessionId}:${p.planId}`,
+      kind: "plan" as const,
+      agentName: p.sessionId.slice(0, 8),
+      sessionId: p.sessionId,
+      summary: `${$t("inbox.plan.label")} (${p.stepCount}) - ${head}`,
+      suspendedAt: p.submittedAt,
+      source: p,
+      stepCount: p.stepCount,
+    };
+  }
+
   function askUserToInbox(u: PendingUserInputView): InboxItem {
     let parsed: unknown[] = [];
     try {
@@ -229,14 +250,18 @@
     const task = $pendingApprovals.map(taskToInbox);
     const chat = $pendingChatApprovals.map(chatToInbox);
     const askUser = $pendingUserInputs.map(askUserToInbox);
-    return [...task, ...chat, ...askUser].sort(
+    const plan = $pendingPlanApprovals.map(planToInbox);
+    return [...task, ...chat, ...askUser, ...plan].sort(
       (a, b) =>
         new Date(b.suspendedAt).getTime() - new Date(a.suspendedAt).getTime(),
     );
   });
 
   const totalPending = $derived(
-    $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount,
+    $pendingCount +
+      $pendingChatApprovalCount +
+      $pendingUserInputCount +
+      $pendingPlanApprovalCount,
   );
 
   function rowType(item: InboxItem): InboxType {
@@ -309,7 +334,7 @@
 
   // ── Time formatting ──────────────────────────────────────────────────────
   function relTime(iso: string): string {
-    const ms = Date.now() - new Date(iso).getTime();
+    const ms = Date.now() - parseTimestampMs(iso);
     const min = Math.floor(ms / 60000);
     if (min < 1) return "à l'instant";
     if (min < 60) return `il y a ${min} min`;
@@ -450,6 +475,12 @@
           reason,
         });
       }
+    } else if (item.kind === "plan") {
+      if (approved) {
+        await approvePlan(item.source.sessionId);
+      } else {
+        await rejectPlan(item.source.sessionId, reason ?? undefined);
+      }
     } else {
       await invoke("authorize_chat_tool", {
         sessionId: item.source.sessionId,
@@ -462,7 +493,7 @@
   }
 
   async function resolveAlwaysAccept(item: InboxItem, scope: AlwaysScope): Promise<void> {
-    if (item.kind === "task" || item.kind === "ask_user") return;
+    if (item.kind === "task" || item.kind === "ask_user" || item.kind === "plan") return;
     await invoke("authorize_chat_tool", {
       sessionId: item.source.sessionId,
       messageId: item.source.messageId,
@@ -610,7 +641,6 @@
 
 <div class="flex h-full min-h-0 w-full flex-col overflow-hidden" data-testid="inbox-page">
   <PageHeader
-    kicker={$t("inbox.kicker")}
     title={$t("inbox.title_operator")}
     subtitle={activeTab === "pending" && totalPending > 0
       ? $t("inbox.pending_count", { values: { count: totalPending } })
@@ -684,7 +714,7 @@
             <div class="px-8 pb-2">
               <div class="rounded-xl border border-border overflow-hidden bg-card">
                 {#each grouped[g] as item (item.id)}
-                  {@const isApproval = item.kind === "task" || item.kind === "tool" || item.kind === "filesystem" || item.kind === "bash" || item.kind === "ask_user"}
+                  {@const isApproval = item.kind === "task" || item.kind === "tool" || item.kind === "filesystem" || item.kind === "bash" || item.kind === "ask_user" || item.kind === "plan"}
                   {@const isExpanded = expandedId === item.id}
                   <div>
                     <InboxRow

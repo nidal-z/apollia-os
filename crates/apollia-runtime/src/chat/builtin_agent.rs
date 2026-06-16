@@ -49,7 +49,7 @@ use crate::chat::plan_tool::{
 };
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::todo_tool::{TODO_WRITE_TOOL_NAME, run_todo_write, todo_write_spec};
-use crate::chat::turn_router::{TurnRoute, classify_turn};
+use crate::chat::turn_router::classify_turn;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
@@ -64,10 +64,27 @@ const MAX_CONCURRENT_READONLY_TOOL_CALLS: usize = 10;
 /// Default number of recent messages in the sliding context window.
 pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 
+/// Temperature used for a turn that advertises tools when `[chat]
+/// tool_turn_temperature` is unset. Low enough to make structured tool-call
+/// output reliable on small local models without going fully greedy.
+pub const DEFAULT_TOOL_TURN_TEMPERATURE: f32 = 0.3;
+
+/// Refusal injected when the plan-mode hard gate blocks an execution tool.
+///
+/// Surfaced to the model as a tool result so it reacts on the next turn by
+/// proposing and submitting a plan instead of acting directly.
+const PLAN_GATE_DENY_REASON: &str = "plan mode is active: this is an execution tool and no execution may run before the plan is approved. You MAY use read-only tools (web_search, file_read, etc.) and ask_user to gather context, then propose and submit a plan with the plan_* tools and wait for approval. Once approved, this gate opens and you execute the steps.";
+
 /// Prefix of the reminder message re-injected after a context compaction so the
 /// agent keeps its task list in view once the history is truncated.
 const TODO_REMINDER_PREFIX: &str =
     "[System reminder] Your current task list after context compaction:";
+
+/// Prefix of the reminder message re-injected after a context compaction so the
+/// agent keeps an active plan in view once the history is truncated.
+const PLAN_REMINDER_PREFIX: &str =
+    "[System reminder] The active plan for this session after context compaction \
+     (do not re-propose or re-submit it, continue executing the pending steps):";
 
 // NativeChatToolInvoker: production tool execution
 
@@ -654,117 +671,9 @@ const PREVIEW_MAX_LEN: usize = 200;
 /// results were cut and can refine its command.
 const TOOL_OUTPUT_MAX_LEN: usize = 4000;
 
-/// Default system prompt used when no custom prompt is provided.
-pub const DEFAULT_SYSTEM_PROMPT: &str = "\
-Tu es un assistant IA qui aide l'utilisateur en exécutant des actions concrètes via ses outils. \
-Réponds de manière concise et naturelle.
-
-## Comportement
-
-- **Agis d'abord** : quand l'utilisateur demande quelque chose de faisable avec tes outils, \
-exécute-le immédiatement. Ne demande pas de précisions sauf si la requête est réellement ambiguë.
-- **Langage naturel** : parle comme un humain, pas comme une machine. N'expose jamais de \
-détails techniques internes (chemins système, noms d'outils, limitations techniques).
-- **Autonomie** : si une première approche échoue, essaie une alternative avant de signaler un \
-problème à l'utilisateur.
-- **Limites honnêtes** : si une tâche dépasse réellement les capacités de tes outils disponibles, \
-dis-le clairement et propose ce que tu peux faire. Ne refuse jamais d'utiliser un outil qui figure \
-dans ta liste - vérifie d'abord ta liste avant de déclarer une capacité absente.
-
-## Principes d'utilisation des outils
-
-1. **Contexte d'abord** : vérifie si l'information est déjà dans le contexte de la conversation \
-avant d'exécuter un outil.
-2. **Commande minimale** : choisis l'approche la plus rapide et ciblée. Ne scanne jamais un \
-filesystem entier quand un scope restreint suffit.
-3. **Timeout proportionnel** : adapte `timeout_secs` à la complexité réelle de la commande.
-4. **Résilience** : si une commande échoue ou timeout, analyse la cause et essaie une approche \
-différente plutôt que de relancer la même commande.
-5. **Jamais de valeurs fictives** : n'invente jamais un paramètre inconnu (clé API, token, URL, \
-chemin, identifiant). Si une information requise est absente, demande-la explicitement à \
-l'utilisateur avant d'appeler l'outil. Utiliser un placeholder comme `YOUR_API_KEY` ou \
-`<TOKEN>` dans un appel réel est interdit.
-6. **Résolution d'identifiants par nom** : quand l'utilisateur référence un fichier, document, \
-feuille, présentation ou dossier par son **titre** sans fournir d'ID, **NE DEMANDE PAS l'ID** - \
-recherche-le toi-même via un outil de listing approprié (`gdrive.find_by_name` pour Google Drive, \
-ou son équivalent), puis enchaîne l'opération demandée. Demander un ID alphanumérique à un \
-utilisateur est une mauvaise expérience que tu dois éviter.
-7. **Jamais de succès hallucinés** : tu ne dois JAMAIS prétendre qu'une opération a réussi sans \
-avoir vu un résultat d'outil explicitement positif dans l'historique de la conversation. Si ton \
-dernier appel d'outil a échoué, n'a pas répondu, ou si tu n'arrives plus à formuler un tool call \
-valide après plusieurs tentatives : annonce clairement à l'utilisateur que l'opération n'a pas \
-abouti, explique brièvement ce qui a été tenté, et arrête-toi. Reformuler le même appel en boucle \
-sans nouveau résultat est interdit.
-8. **Découverte des noms d'onglets Sheets** : pour Google Sheets, le **titre du spreadsheet** \
-(visible en haut) ≠ le **titre d'un onglet** (l'onglet par défaut s'appelle souvent `Sheet1`, mais \
-en français Google le nomme `Feuille 1`). Les paramètres `range` (`gsheets.read_values`, \
-`gsheets.update_values`, `gsheets.append_values`) attendent le **nom de l'onglet**, pas du \
-spreadsheet. Quand le nom contient un espace, encadre-le de guillemets simples : \
-`'Feuille 1'!A1:C1`. Si tu n'es pas certain du nom de l'onglet, appelle `gsheets.list_sheets` \
-avant d'écrire.
-
-## Pattern d'enchaînement obligatoire - Google par titre
-
-Quand l'utilisateur référence un asset Google par son **titre** (jamais par un ID alphanumérique), \
-tu DOIS enchaîner SANS DEMANDE INTERMÉDIAIRE :
-
-> Utilisateur : « lis la plage A1:C1 de la feuille Apollia Test »
->
-> 1. `gdrive.find_by_name(name=\"Apollia Test\", mime_type_filter=\"spreadsheet\")` → récupère \
-spreadsheet_id depuis `matches[0].id`.
-> 2. `gsheets.list_sheets(spreadsheet_id=<id>)` → récupère le titre de l'onglet par défaut.
-> 3. `gsheets.read_values(spreadsheet_id=<id>, range=\"'<onglet>'!A1:C1\")`.
-> 4. Réponse à l'utilisateur avec le contenu.
-
-Même pattern pour `gdocs.*` (`gdrive.find_by_name(mime_type_filter=\"document\")` puis \
-`gdocs.read_text` / `gdocs.append_text`), `gslides.*` (`mime_type_filter=\"presentation\"`), \
-et tout autre asset Google identifié par titre. **Demander l'ID alphanumérique à \
-l'utilisateur est un échec - tu as les outils pour le résoudre seul.**
-";
-
-/// System prompt variant selected for autonomous tiers (supervised,
-/// bounded_autonomous, long_autonomous).
-///
-/// Instructs the agent to continue until the objective is complete and verified,
-/// to prefer sub-agents for research tasks, and to batch independent tool calls.
-/// The assisted tier keeps the reactive [`DEFAULT_SYSTEM_PROMPT`] instead.
-pub const PERSEVERANCE_SYSTEM_PROMPT: &str = "\
-Tu es un agent IA autonome qui execute des taches complexes jusqu'a leur completion totale \
-et leur verification. Tu n'interromps pas ta progression pour demander des confirmations \
-intermediaires sauf si une decision irreversible ou une information bloquante est requise.
-
-## Doctrine de completion
-
-- **Persevere jusqu'a l'objectif** : continue d'agir tant que la tache n'est pas accomplie \
-et verifiee. Un resultat partiel n'est pas un succes.
-- **Verifie avant de conclure** : avant de declarer la tache terminee, execute les verifications \
-disponibles (tests, lint, relecture du resultat) et corrige les problemes detectes.
-- **Ne jamais simuler un succes** : si tu n'as pas vu un resultat positif explicite dans l'historique \
-des outils, tu n'as pas reussi. Annonce clairement un echec plutot que d'inventer un succes.
-
-## Utilisation des outils
-
-1. **Regroupe les appels independants** : si plusieurs informations peuvent etre collectees \
-en parallele, formule plusieurs appels d'outils dans le meme tour plutot que de les sequencer \
-inutilement.
-2. **Prefere les sous-agents pour la recherche** : delege les taches de recherche ou d'analyse \
-parallelisables a des sous-agents specialises quand ils sont disponibles.
-3. **Contexte d'abord** : verifie si l'information est deja dans le contexte avant d'appeler \
-un outil.
-4. **Commande minimale** : choisis l'approche la plus rapide et la plus ciblee. Ne scanne pas \
-un filesystem entier quand un scope restreint suffit.
-5. **Resilience** : si une approche echoue, analyse la cause et essaie une alternative \
-differente plutot que de relancer la meme commande.
-
-## Limites et transparence
-
-- **Limites honnetes** : si une tache depasse reellement les capacites des outils disponibles, \
-dis-le clairement. Ne refuse jamais d'utiliser un outil qui figure dans ta liste.
-- **Budget conscient** : si tu approches les limites de ton budget d'execution, notifie \
-l'utilisateur et propose de continuer dans une nouvelle session avec l'etat acquis.
-- **Jamais de valeurs fictives** : n'invente jamais un parametre inconnu. Si une information \
-requise est absente, demande-la explicitement avant d'appeler un outil.
-";
+/// Re-exported base system prompts. The single source of truth lives in the
+/// `apollia-prompts` crate (English; tier-selected by `build_system_prompt`).
+pub use apollia_prompts::blocks::{DEFAULT_SYSTEM_PROMPT, PERSEVERANCE_SYSTEM_PROMPT};
 
 /// Response produced by a complete chat exchange.
 #[derive(Debug, Clone)]
@@ -834,6 +743,13 @@ struct RetryCarry {
     messages: Vec<LlmChatMessage>,
     /// The most recent terminal response from the ReAct loop.
     last_response: ChatAgentResponse,
+    /// Tools authorized so far, carried across correction turns.
+    ///
+    /// Seeded from the session's authorized set plus anything the first turn
+    /// auto-authorized (an "always accept" HITL decision), then extended after
+    /// each retry. Without this, a verification retry would re-prompt for a tool
+    /// the user already approved earlier in the same turn.
+    authorized: HashSet<String>,
 }
 
 /// Maximum number of verification retry iterations per run.
@@ -1075,6 +991,14 @@ pub struct BuiltInChatAgent {
     /// the operator text as reason. `None` for every ordinary turn, so behavior is
     /// unchanged when no injection is pending.
     pending_injection: Option<InjectedInstruction>,
+    /// Temperature applied to a turn that advertises tools to the model.
+    ///
+    /// Lowering it whenever tools are exposed makes structured tool-call output
+    /// far more reliable on small local models. A turn with no tools keeps the
+    /// backend default (the request leaves `temperature` unset). Seeded from
+    /// `[chat] tool_turn_temperature`, defaulting to
+    /// [`DEFAULT_TOOL_TURN_TEMPERATURE`].
+    tool_turn_temperature: f32,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.
@@ -1133,6 +1057,11 @@ struct RecordTurnInput<'a> {
     tool_calls: &'a [ToolCall],
     budget: &'a StepBudget,
     ids: ToolCallContextIds<'a>,
+    /// Names of every tool advertised to the model this turn (registry tools,
+    /// A2A skills, and the in-loop built-ins). A call to any other name is a
+    /// hallucination: it is refused with a corrective tool result rather than
+    /// dropped silently, so the model can recover on its next turn.
+    valid_tool_names: &'a HashSet<String>,
 }
 
 /// Borrowed identifiers locating a single tool call being executed
@@ -1232,7 +1161,28 @@ impl BuiltInChatAgent {
             session_plan_phase: PlanPhase::Done,
             hook_executor: None,
             pending_injection: None,
+            tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
         }
+    }
+
+    /// Sets the temperature applied to turns that advertise tools.
+    ///
+    /// Threaded from `[chat] tool_turn_temperature`. `None` resolves to
+    /// [`DEFAULT_TOOL_TURN_TEMPERATURE`], so an unset config keeps the tuned
+    /// default rather than the backend's conversational temperature.
+    pub fn with_tool_turn_temperature(mut self, temperature: Option<f32>) -> Self {
+        self.tool_turn_temperature = temperature.unwrap_or(DEFAULT_TOOL_TURN_TEMPERATURE);
+        self
+    }
+
+    /// Temperature to send for one ReAct turn.
+    ///
+    /// Lowering the temperature whenever tools are advertised makes structured
+    /// tool-call output far more reliable on small local models. A turn with no
+    /// tools returns `None`, leaving the backend's conversational default intact
+    /// so plain chat is byte-for-byte unchanged.
+    fn turn_temperature(&self, has_tools: bool) -> Option<f32> {
+        has_tools.then_some(self.tool_turn_temperature)
     }
 
     /// Attaches an operator instruction to a resume turn.
@@ -1274,6 +1224,21 @@ impl BuiltInChatAgent {
     /// spec advertising and the inline tool dispatch.
     fn plan_mode_active(&self) -> bool {
         self.session_plan_mode && self.plan.is_some()
+    }
+
+    /// Returns `true` when the plan-mode hard gate must refuse execution tools.
+    ///
+    /// Active only in plan mode and only while the plan is still being prepared:
+    /// the discovery, drafting, and awaiting-approval phases. Once the user
+    /// approves, the manager dispatches a continuation turn in
+    /// [`PlanPhase::Executing`] and the gate opens; [`PlanPhase::Done`] (plan
+    /// mode off or plan finished) never gates.
+    fn plan_gate_blocks(&self) -> bool {
+        self.plan_mode_active()
+            && matches!(
+                self.session_plan_phase,
+                PlanPhase::Discovery | PlanPhase::Drafting | PlanPhase::AwaitingApproval
+            )
     }
 
     /// Surfaces a plan-mode phase change to the desktop.
@@ -1347,14 +1312,19 @@ impl BuiltInChatAgent {
     /// Unlike [`advance_plan_phase`](Self::advance_plan_phase) this fires from any
     /// phase, since the agent reaches submit from drafting (or directly when it
     /// proposes and submits within one turn).
+    ///
+    /// Returns `true` when a fresh `plan_submit` moved the tracker into
+    /// awaiting-approval this turn, so the caller can end the turn immediately:
+    /// the agent must not keep working (even read-only) once the plan is
+    /// submitted; execution resumes only after the user approves.
     fn advance_on_submit(
         &self,
         tracker: &mut PlanPhaseTracker,
         records: &[ToolCallRecord],
         session_id: &str,
-    ) {
+    ) -> bool {
         if tracker.phase == PlanPhase::AwaitingApproval {
-            return;
+            return false;
         }
         let submitted = records.iter().any(|r| {
             r.tool_name == PLAN_SUBMIT_TOOL_NAME
@@ -1367,6 +1337,47 @@ impl BuiltInChatAgent {
         if submitted {
             tracker.phase = PlanPhase::AwaitingApproval;
             self.emit_plan_phase(session_id, PlanPhase::AwaitingApproval);
+        }
+        submitted
+    }
+
+    /// Plan-mode safety net: submit a drafted-but-unsubmitted plan.
+    ///
+    /// Weak models commonly call `plan_propose`, then thrash on execution tools
+    /// (denied by the gate) and never call `plan_submit`, leaving a draft the
+    /// user can never approve. As soon as a non-empty plan exists in discovery
+    /// or drafting, submit it so the approval gate engages and the caller can
+    /// end the turn. Returns `true` when it submitted. Idempotent: a turn already
+    /// in awaiting-approval skips this.
+    async fn auto_submit_if_drafted(
+        &self,
+        tracker: &mut PlanPhaseTracker,
+        session_id: &str,
+    ) -> bool {
+        if !matches!(tracker.phase, PlanPhase::Discovery | PlanPhase::Drafting) {
+            return false;
+        }
+        let Some(plan) = self.plan.as_ref() else {
+            return false;
+        };
+        let has_steps = matches!(
+            plan.get_plan(session_id).await,
+            Ok(Some(p)) if !p.steps.is_empty()
+        );
+        if !has_steps {
+            return false;
+        }
+        match plan.submit(session_id).await {
+            Ok(_) => {
+                tracker.phase = PlanPhase::AwaitingApproval;
+                self.emit_plan_phase(session_id, PlanPhase::AwaitingApproval);
+                tracing::info!(session_id = %session_id, "plan.auto_submit");
+                true
+            }
+            Err(e) => {
+                tracing::warn!(session_id = %session_id, error = %e, "plan.auto_submit_failed");
+                false
+            }
         }
     }
 
@@ -1424,6 +1435,9 @@ impl BuiltInChatAgent {
         level: AutonomyLevel,
         inject_memory: bool,
     ) -> String {
+        // Base: a non-empty custom prompt (already enriched upstream with the
+        // project / cross-session context) wins; otherwise the tier picks a
+        // built-in profile.
         let base_prompt = match custom_prompt {
             Some(custom) if !custom.is_empty() => custom,
             _ => match level {
@@ -1433,43 +1447,57 @@ impl BuiltInChatAgent {
                 | AutonomyLevel::LongAutonomous => PERSEVERANCE_SYSTEM_PROMPT,
             },
         };
-        let mut prompt = apollia_core::temporal_context::prepend_temporal_context(base_prompt);
 
-        if inject_memory {
-            if let Some(ref repo_mutex) = self.user_memory {
+        // Dynamic blocks owned by the caller; apollia-prompts only composes.
+        let temporal = apollia_core::temporal_context::temporal_context_block();
+
+        let working_dir_note = self
+            .workspace_path
+            .as_deref()
+            .map(|ws| apollia_prompts::blocks::working_directory_note(&ws.display().to_string()));
+
+        // User-persona brief, memory at the agent's initiative, gated by tier.
+        let persona = if inject_memory {
+            self.user_memory.as_ref().and_then(|repo_mutex| {
                 match repo_mutex.lock() {
                     Ok(repo) => match repo.recall_persona_brief(30) {
-                        Ok(block) if !block.is_empty() => {
-                            prompt.push_str(
-                                "\n\n## User Persona\n\
-                                 Follow the adaptation instructions below to personalize every \
-                                 response. Do not repeat this information back to the user \
-                                 unless asked.\n\n",
-                            );
-                            prompt.push_str(&block);
+                        Ok(brief) if !brief.is_empty() => {
+                            Some(apollia_prompts::blocks::persona_block(&brief))
                         }
-                        Ok(_) => {} // empty, nothing to inject
+                        Ok(_) => None,
                         Err(e) => {
                             warn!(error = %e, "Failed to read user memory for injection, skipping");
+                            None
                         }
                     },
                     Err(e) => {
                         warn!(error = %e, "User memory mutex poisoned, skipping injection");
+                        None
                     }
                 }
-            }
-        }
+            })
+        } else {
+            None
+        };
 
-        // Append the plan-mode instruction block only while the session is in
-        // plan mode. Absent otherwise, so non-plan turns keep the exact prompt
-        // they had before. The block is a static constant: no session content is
-        // interpolated, which rules out accidental prompt injection.
-        if self.plan_mode_active() {
-            prompt.push_str("\n\n");
-            prompt.push_str(crate::chat::plan_prompt::plan_mode_block());
-        }
+        // Plan block is phase-aware: plan-first while preparing, execution-first
+        // once approved, so the two never contradict each other.
+        let plan = if self.plan_mode_active() {
+            Some(if self.session_plan_phase == PlanPhase::Executing {
+                crate::chat::plan_prompt::plan_execute_block()
+            } else {
+                crate::chat::plan_prompt::plan_mode_block()
+            })
+        } else {
+            None
+        };
 
-        prompt
+        apollia_prompts::ChatPromptBuilder::new(base_prompt)
+            .temporal(&temporal)
+            .working_dir_note(working_dir_note.as_deref())
+            .persona(persona.as_deref())
+            .plan(plan)
+            .build()
     }
 
     /// Execute a complete exchange: user message, LLM stream, tool calls, response.
@@ -1567,6 +1595,27 @@ impl BuiltInChatAgent {
         if self.plan_mode_active() {
             tool_specs.extend(plan_tool::plan_tool_specs());
         }
+        // Authoritative set of callable names for the turn: every advertised
+        // spec, every session-declared tool, and every deferred MCP tool the
+        // model can discover and invoke by its `mcp:server/tool` name. A call to
+        // any other name is a hallucination, refused with a corrective tool
+        // result rather than handed to the invoker. The union never false-refuses
+        // a real tool and, since every member is a genuine tool, never lets a
+        // hallucinated name slip through.
+        let mut valid_tool_names: HashSet<String> =
+            tool_specs.iter().map(|s| s.name.clone()).collect();
+        valid_tool_names.extend(available_tools.iter().cloned());
+        // A tool the operator pre-authorized for the session is, by definition,
+        // a real callable tool: never refuse one as unknown.
+        valid_tool_names.extend(authorized_tools.iter().cloned());
+        if let Some(index) = self.mcp_index.as_deref() {
+            valid_tool_names.extend(
+                index
+                    .iter()
+                    .map(|e| format!("mcp:{}/{}", e.server_name, e.tool_name)),
+            );
+        }
+
         info!(
             session_id = %session_id,
             available = available_tools.len(),
@@ -1618,13 +1667,25 @@ impl BuiltInChatAgent {
         // `AwaitingApproval` and stays there (the agent revises via plan_* tools)
         // unless the agent re-submits, which keeps it there too. The loop never
         // blocks on an approval future, matching the soft-gate contract.
-        let mut phase_tracker = if self.plan_mode_active() && route == TurnRoute::PlanFlow {
-            if self.session_plan_phase == PlanPhase::AwaitingApproval {
-                Some(PlanPhaseTracker {
+        // The phase tracker must run whenever plan mode is active, on the same
+        // condition as the plan tools and the gate. Gating it on the route made
+        // the phase machinery inconsistent: a turn the router scored as trivial
+        // still let the agent submit a plan (the card showed) while the backend
+        // session phase never moved to AwaitingApproval, so approval silently
+        // failed its guard. The route is kept only for telemetry above.
+        let mut phase_tracker = if self.plan_mode_active() {
+            match self.session_plan_phase {
+                // Revision turn: the soft gate is open, do not reopen discovery.
+                PlanPhase::AwaitingApproval => Some(PlanPhaseTracker {
                     phase: PlanPhase::AwaitingApproval,
-                })
-            } else {
-                Some(self.begin_discovery(session_id))
+                }),
+                // Execution turn (post-approval continuation): the plan is
+                // approved, the tracker stays in Executing so the turn neither
+                // reopens discovery nor re-submits the approved plan.
+                PlanPhase::Executing => Some(PlanPhaseTracker {
+                    phase: PlanPhase::Executing,
+                }),
+                _ => Some(self.begin_discovery(session_id)),
             }
         } else {
             None
@@ -1635,6 +1696,7 @@ impl BuiltInChatAgent {
                 &mut llm_messages,
                 &tool_specs,
                 authorized_tools,
+                &valid_tool_names,
                 budget,
                 ids.clone(),
                 &mut phase_tracker,
@@ -1658,9 +1720,16 @@ impl BuiltInChatAgent {
         let invoker = NoopCheckInvoker;
         let initial_output = first.content.clone();
         let tool_specs_ref: &[ToolSpec] = &tool_specs;
+        let valid_tool_names_ref: &HashSet<String> = &valid_tool_names;
+        // Seed the carried authorization set with the session's authorized tools
+        // plus anything the first turn auto-authorized, so a correction turn does
+        // not re-prompt for a tool the user already approved this turn.
+        let mut carried_authorized = authorized_tools.clone();
+        carried_authorized.extend(first.newly_authorized.iter().cloned());
         let carry = RetryCarry {
             messages: llm_messages,
             last_response: first,
+            authorized: carried_authorized,
         };
         let (report, carry) = run_verification_with_retry(
             level,
@@ -1687,7 +1756,8 @@ impl BuiltInChatAgent {
                         .run_react_loop(
                             &mut state.messages,
                             tool_specs_ref,
-                            authorized_tools,
+                            &state.authorized,
+                            valid_tool_names_ref,
                             budget,
                             ids,
                             &mut retry_phase,
@@ -1696,6 +1766,8 @@ impl BuiltInChatAgent {
                     {
                         Ok(next) => {
                             let output = next.content.clone();
+                            // Carry any tool authorized on this retry into the next.
+                            state.authorized.extend(next.newly_authorized.iter().cloned());
                             state.last_response = next;
                             (Ok(output), state)
                         }
@@ -1727,6 +1799,7 @@ impl BuiltInChatAgent {
         llm_messages: &mut Vec<LlmChatMessage>,
         tool_specs: &[ToolSpec],
         authorized_tools: &HashSet<String>,
+        valid_tool_names: &HashSet<String>,
         budget: &StepBudget,
         ids: ToolCallContextIds<'_>,
         phase_tracker: &mut Option<PlanPhaseTracker>,
@@ -1801,11 +1874,20 @@ impl BuiltInChatAgent {
                 if let Some(todo) = self.todo.as_ref() {
                     Self::inject_todo_after_compaction(todo, session_id, llm_messages).await;
                 }
+                // Re-inject an active plan so a compaction never erases the steps
+                // the agent is executing. Only while plan mode is active and a plan
+                // store is attached; a no-op otherwise.
+                if self.plan_mode_active() {
+                    if let Some(plan) = self.plan.as_ref() {
+                        Self::inject_plan_after_compaction(plan, session_id, llm_messages).await;
+                    }
+                }
             }
 
             let request = CompletionRequest {
                 messages: llm_messages.clone(),
                 tools: tool_specs.to_vec(),
+                temperature: self.turn_temperature(!tool_specs.is_empty()),
                 ..Default::default()
             };
 
@@ -1912,6 +1994,12 @@ impl BuiltInChatAgent {
 
             match stream_result {
                 Ok(tool_calls) if tool_calls.is_empty() => {
+                    // Plan-mode safety net: if the agent drafted a plan but ended
+                    // the turn without submitting it, submit it now so the user
+                    // gets an approval card instead of an un-actionable draft.
+                    if let Some(tracker) = phase_tracker.as_mut() {
+                        self.auto_submit_if_drafted(tracker, session_id).await;
+                    }
                     return Ok(self.finalize_text_response(
                         &accumulated_text,
                         &mut reasoning_fragments,
@@ -1936,6 +2024,7 @@ impl BuiltInChatAgent {
                             tool_calls: &tool_calls,
                             budget,
                             ids: ids.clone(),
+                            valid_tool_names,
                         },
                         &mut reasoning_fragments,
                         llm_messages,
@@ -1946,12 +2035,46 @@ impl BuiltInChatAgent {
                     // Discovery -> Drafting on the first plan-construction call;
                     // Discovery -> Done on a fully cancelled question. No-op
                     // outside the plan flow (tracker is `None`).
-                    if let Some(tracker) = phase_tracker.as_mut() {
+                    let mut submitted_now = if let Some(tracker) = phase_tracker.as_mut() {
                         let turn_records = &acc.all_tool_calls[turn_start..];
                         self.advance_plan_phase(tracker, turn_records, session_id);
-                        // A successful plan_submit opens the soft gate: the turn
-                        // ends in awaiting-approval, no blocking await in the loop.
-                        self.advance_on_submit(tracker, turn_records, session_id);
+                        // A successful plan_submit opens the soft gate.
+                        self.advance_on_submit(tracker, turn_records, session_id)
+                    } else {
+                        false
+                    };
+
+                    // As soon as a complete plan has been drafted, submit it even
+                    // if the model did not call plan_submit. A weak model tends to
+                    // propose then thrash on denied execution tools; submitting the
+                    // draft now and ending the turn cuts that loop short.
+                    if !submitted_now {
+                        if let Some(tracker) = phase_tracker.as_mut() {
+                            submitted_now =
+                                self.auto_submit_if_drafted(tracker, session_id).await;
+                        }
+                    }
+
+                    // Plan submitted: end the turn now. The agent must not keep
+                    // working (even read-only) before approval, otherwise it does
+                    // the whole job during "planning" and the approval +
+                    // step-status execution become meaningless. The approval card
+                    // is already up via the PlanSubmitted event; execution resumes
+                    // on approval in a fresh turn.
+                    if submitted_now {
+                        return Ok(self.finalize_text_response(
+                            &accumulated_text,
+                            &mut reasoning_fragments,
+                            ResponseContext {
+                                acc,
+                                total_usage,
+                                session_id,
+                                message_id,
+                                run_id,
+                                frontier_ceiling_reached,
+                                final_plan_phase: Some(PlanPhase::AwaitingApproval),
+                            },
+                        ));
                     }
 
                     // Cooperative pause checkpoint between tool turns. By this
@@ -2118,6 +2241,7 @@ impl BuiltInChatAgent {
             tool_calls,
             budget,
             ids,
+            valid_tool_names,
         } = input;
         // Capture reasoning text emitted before tool calls.
         let clean_reasoning = Self::strip_think_blocks(accumulated_text);
@@ -2156,7 +2280,6 @@ impl BuiltInChatAgent {
             .apply_pre_tool_use(tool_calls, session_id, ids.run_id)
             .await;
         let effective_calls: &[ToolCall] = pre.calls.as_ref();
-        let denied = &pre.denied;
 
         // Determine read-only status for each call via the tool registry. A call
         // runs concurrently only when its tool is read-only AND already
@@ -2174,6 +2297,33 @@ impl BuiltInChatAgent {
                 .unwrap_or(false);
             read_only.push(ro);
         }
+
+        // Plan-mode hard gate: before a plan is approved, refuse execution tools.
+        // Only the plan_* surface, `ask_user`, and read-only tools may run, so the
+        // agent must propose and submit a plan, then wait for approval, before
+        // acting. The refusal reuses the PreToolUse deny path below: a synthetic
+        // tool result is injected and the call never executes.
+        let gate_blocks = self.plan_gate_blocks();
+        let denied: Vec<Option<String>> = effective_calls
+            .iter()
+            .enumerate()
+            .map(|(i, call)| {
+                // Hook deny wins, then an unknown (hallucinated) tool name, then
+                // the plan gate. Refusing an unknown name before the gate avoids
+                // gate-denying a tool that does not exist.
+                pre.denied[i]
+                    .clone()
+                    .or_else(|| unknown_tool_reason(&call.name, valid_tool_names))
+                    .or_else(|| {
+                        if plan_gate_denies(gate_blocks, &call.name, read_only[i]) {
+                            Some(PLAN_GATE_DENY_REASON.to_string())
+                        } else {
+                            None
+                        }
+                    })
+            })
+            .collect();
+        let denied = &denied;
 
         // Phase A: invoke the parallel-safe calls concurrently, keyed by index.
         // Denied calls never run, even when read-only.
@@ -2653,6 +2803,57 @@ impl BuiltInChatAgent {
             todo_count = items.len(),
             compaction_triggered = true,
             "chat.todo.reinjected_after_compaction"
+        );
+    }
+
+    /// Re-inject the active plan as a reminder after a context compaction dropped
+    /// the conversation history.
+    ///
+    /// Mirrors [`inject_todo_after_compaction`](Self::inject_todo_after_compaction):
+    /// reads the plan through the [`PlanHandle`] and, when one exists with steps,
+    /// appends a single user-role reminder enumerating each step with its status,
+    /// so the agent keeps executing the approved plan instead of re-proposing it.
+    /// Errors are logged and swallowed: the loop continues without the reminder
+    /// rather than failing.
+    async fn inject_plan_after_compaction(
+        plan: &PlanHandle,
+        session_id: &str,
+        messages: &mut Vec<LlmChatMessage>,
+    ) {
+        let plan = match plan.get_plan(session_id).await {
+            Ok(Some(plan)) => plan,
+            Ok(None) => return,
+            Err(e) => {
+                warn!(
+                    session_id = %session_id,
+                    error = %e,
+                    "plan.reinject.failed"
+                );
+                return;
+            }
+        };
+        if plan.steps.is_empty() {
+            return;
+        }
+        let mut reminder = String::from(PLAN_REMINDER_PREFIX);
+        for step in &plan.steps {
+            reminder.push_str(&format!(
+                "\n- [{}] {}: {}",
+                step_status_token(&step.status),
+                step.step_id,
+                if step.title.is_empty() {
+                    step.description.as_str()
+                } else {
+                    step.title.as_str()
+                }
+            ));
+        }
+        messages.push(LlmChatMessage::user(reminder));
+        tracing::info!(
+            session_id = %session_id,
+            step_count = plan.steps.len(),
+            compaction_triggered = true,
+            "chat.plan.reinjected_after_compaction"
         );
     }
 
@@ -3167,6 +3368,19 @@ fn stamp_inject_provenance(
     out
 }
 
+/// Lowercase status token for a plan step, matching the vocabulary the plan
+/// tools accept (`pending`, `in_progress`, `completed`, `skipped`, `failed`).
+fn step_status_token(status: &apollia_core::plan::StepStatus) -> &'static str {
+    use apollia_core::plan::StepStatus;
+    match status {
+        StepStatus::Pending => "pending",
+        StepStatus::InProgress => "in_progress",
+        StepStatus::Completed => "completed",
+        StepStatus::Skipped => "skipped",
+        StepStatus::Failed => "failed",
+    }
+}
+
 /// Returns `true` when `name` is one of the `plan_*` built-in tools.
 fn is_plan_tool(name: &str) -> bool {
     matches!(
@@ -3179,6 +3393,79 @@ fn is_plan_tool(name: &str) -> bool {
             | PLAN_SET_STEP_STATUS_TOOL_NAME
             | PLAN_SUBMIT_TOOL_NAME
     )
+}
+
+/// Whether the plan-mode hard gate refuses a single tool call.
+///
+/// When the gate is engaged (`gate_blocks`), the `plan_*` surface, `ask_user`,
+/// and read-only tools are allowed (the agent may inspect to inform the plan);
+/// only execution / write tools are refused, so side effects wait for approval.
+fn plan_gate_denies(gate_blocks: bool, name: &str, read_only: bool) -> bool {
+    gate_blocks && !is_plan_tool(name) && name != "ask_user" && !read_only
+}
+
+/// Builds a corrective refusal reason when the model calls a tool name that was
+/// never advertised this turn, or `None` when the name is valid.
+///
+/// The message lists the callable tools and, when one is close enough, a
+/// "did you mean" hint. The model reads it as a tool result and can recover on
+/// its next turn instead of silently looping on a name that does not exist.
+fn unknown_tool_reason(name: &str, valid_tool_names: &HashSet<String>) -> Option<String> {
+    if valid_tool_names.contains(name) {
+        return None;
+    }
+    let mut available: Vec<&str> = valid_tool_names.iter().map(String::as_str).collect();
+    available.sort_unstable();
+    let suggestion = suggest_tool_name(name, &available)
+        .map(|s| format!(" Did you mean `{s}`?"))
+        .unwrap_or_default();
+    Some(format!(
+        "unknown tool `{name}`; it is not in your available tools. \
+         Available tools: {}.{suggestion} Call one of the listed tools, or tell the user \
+         this action is not possible with your current tools.",
+        available.join(", ")
+    ))
+}
+
+/// Returns the closest advertised tool name to `name` when one is near enough to
+/// be a plausible typo or misremembering, using Levenshtein distance.
+///
+/// The threshold scales with the name length (at most a third of it, capped at
+/// 5), so short names need a near-exact match while longer ones tolerate more
+/// drift. Returns `None` when nothing is close enough to suggest confidently.
+fn suggest_tool_name(name: &str, candidates: &[&str]) -> Option<String> {
+    let threshold = (name.chars().count() / 3).clamp(1, 5);
+    candidates
+        .iter()
+        .map(|c| (levenshtein(name, c), *c))
+        .filter(|(d, _)| *d <= threshold)
+        .min_by_key(|(d, _)| *d)
+        .map(|(_, c)| c.to_string())
+}
+
+/// Levenshtein edit distance between two strings (insertions, deletions,
+/// substitutions), over Unicode scalar values. Used only for short tool names,
+/// so the simple two-row dynamic-programming table is more than fast enough.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    if a.is_empty() {
+        return b.len();
+    }
+    if b.is_empty() {
+        return a.len();
+    }
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut curr: Vec<usize> = vec![0; b.len() + 1];
+    for (i, ca) in a.iter().enumerate() {
+        curr[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let cost = usize::from(ca != cb);
+            curr[j + 1] = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[b.len()]
 }
 
 async fn build_tool_specs(
@@ -3343,6 +3630,40 @@ mod tests {
         StreamChunk as LlmStreamChunk, ToolCall as LlmToolCall,
     };
     use std::sync::atomic::{AtomicU32, Ordering};
+
+    #[test]
+    fn test_plan_gate_blocks_execution_tools_before_approval() {
+        // GIVEN the plan gate is engaged (plan being prepared, not yet approved)
+        let gate = true;
+        // WHEN an execution / write tool (not read-only) is checked
+        // THEN it is refused: side effects wait for approval
+        assert!(plan_gate_denies(gate, "gsheets.create", false));
+        assert!(plan_gate_denies(gate, "file_write", false));
+    }
+
+    #[test]
+    fn test_plan_gate_allows_plan_tools_ask_user_and_reads() {
+        // GIVEN the plan gate is engaged
+        let gate = true;
+        // WHEN plan tools, ask_user, or read-only tools are checked
+        // THEN none are refused: the agent may inspect to inform the plan
+        assert!(!plan_gate_denies(gate, PLAN_PROPOSE_TOOL_NAME, false));
+        assert!(!plan_gate_denies(gate, PLAN_SUBMIT_TOOL_NAME, false));
+        assert!(!plan_gate_denies(gate, "ask_user", false));
+        assert!(!plan_gate_denies(gate, "web_search", true));
+        assert!(!plan_gate_denies(gate, "file_read", true));
+    }
+
+    #[test]
+    fn test_plan_gate_open_allows_everything() {
+        // GIVEN the plan gate is open (no plan mode, or plan already approved)
+        let gate = false;
+        // WHEN any tool is checked
+        // THEN nothing is refused by the gate
+        assert!(!plan_gate_denies(gate, "gsheets.create", false));
+        assert!(!plan_gate_denies(gate, "file_write", false));
+        assert!(!plan_gate_denies(gate, "file_read", true));
+    }
 
     // ── Mock CompletionModel: streams text tokens then stops ─────────────
 
@@ -3738,6 +4059,67 @@ mod tests {
         assert!(resp.newly_authorized.is_empty());
         // AND no hybrid routing was configured, so the ceiling was never hit.
         assert!(!resp.frontier_ceiling_reached);
+
+        tool_registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_turn_temperature_tracks_tool_exposure() {
+        // GIVEN an agent configured with an explicit tool-turn temperature
+        let model = Arc::new(MockStopModel::with_content("ok"));
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let event_bus = make_event_bus();
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+            plan: None,
+        })
+        .with_tool_turn_temperature(Some(0.2));
+
+        // WHEN the turn advertises tools
+        // THEN the low tool-turn temperature is sent
+        assert_eq!(agent.turn_temperature(true), Some(0.2));
+
+        // WHEN the turn advertises no tools
+        // THEN no temperature is sent and the backend default stands
+        assert_eq!(agent.turn_temperature(false), None);
+
+        tool_registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_turn_temperature_defaults_when_unset() {
+        // GIVEN an agent with no configured tool-turn temperature
+        let model = Arc::new(MockStopModel::with_content("ok"));
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let event_bus = make_event_bus();
+        let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: router,
+            tool_registry: tool_registry.clone(),
+            tool_invoker: invoker,
+            event_bus,
+            user_memory: None,
+            a2a_invoker: None,
+            todo: None,
+            plan: None,
+        })
+        .with_tool_turn_temperature(None);
+
+        // WHEN a tool-advertising turn resolves its temperature
+        // THEN it falls back to the tuned default, not the backend default
+        assert_eq!(
+            agent.turn_temperature(true),
+            Some(DEFAULT_TOOL_TURN_TEMPERATURE)
+        );
 
         tool_registry.shutdown().await;
     }
@@ -5094,8 +5476,8 @@ mod tests {
         let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
 
         // THEN it carries the reactive default marker, not the perseverance one
-        assert!(prompt.contains("Agis d'abord"));
-        assert!(!prompt.contains("Persevere jusqu'a l'objectif"));
+        assert!(prompt.contains("Act first"));
+        assert!(!prompt.contains("Persevere to the objective"));
     }
 
     #[tokio::test]
@@ -5107,8 +5489,8 @@ mod tests {
         let prompt = agent.build_system_prompt(None, AutonomyLevel::BoundedAutonomous, false);
 
         // THEN it carries the perseverance marker, not the reactive default
-        assert!(prompt.contains("Persevere jusqu'a l'objectif"));
-        assert!(!prompt.contains("Agis d'abord"));
+        assert!(prompt.contains("Persevere to the objective"));
+        assert!(!prompt.contains("Act first"));
     }
 
     #[tokio::test]
@@ -5120,7 +5502,7 @@ mod tests {
         let prompt = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous, false);
 
         // THEN it carries the perseverance marker
-        assert!(prompt.contains("Persevere jusqu'a l'objectif"));
+        assert!(prompt.contains("Persevere to the objective"));
     }
 
     #[tokio::test]
@@ -5403,6 +5785,7 @@ mod tests {
             newly_authorized: vec![],
             authorized: calls.iter().map(|c| c.name.clone()).collect(),
         };
+        let valid_tool_names: HashSet<String> = calls.iter().map(|c| c.name.clone()).collect();
         let budget = make_budget(100);
         let approvals = PendingChatApprovals::new();
         let mut reasoning = Vec::new();
@@ -5422,6 +5805,7 @@ mod tests {
                         pending_approvals: &approvals,
                         cancel: CancellationToken::new(),
                     },
+                    valid_tool_names: &valid_tool_names,
                 },
                 &mut reasoning,
                 &mut msgs,
@@ -5550,6 +5934,7 @@ mod tests {
             newly_authorized: vec![],
             authorized: calls.iter().map(|c| c.name.clone()).collect(),
         };
+        let valid_tool_names: HashSet<String> = calls.iter().map(|c| c.name.clone()).collect();
         let approvals = PendingChatApprovals::new();
         let mut reasoning = Vec::new();
         let mut msgs = Vec::new();
@@ -5567,6 +5952,7 @@ mod tests {
                         pending_approvals: &approvals,
                         cancel: CancellationToken::new(),
                     },
+                    valid_tool_names: &valid_tool_names,
                 },
                 &mut reasoning,
                 &mut msgs,
@@ -5575,6 +5961,91 @@ mod tests {
             )
             .await;
         (acc.all_tool_calls, failures)
+    }
+
+    #[tokio::test]
+    async fn test_unknown_tool_name_refused_with_suggestion() {
+        // GIVEN an agent and a turn that advertised `web_search` and `file_read`
+        let registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let agent = agent_with(registry.clone(), invoker);
+        let valid_tool_names: HashSet<String> =
+            ["web_search".to_string(), "file_read".to_string()].into();
+
+        // AND the model hallucinates a near-miss tool name
+        let calls = vec![tool_call(0, "web_serch")];
+        let mut acc = ReactAccumulators {
+            all_tool_calls: vec![],
+            newly_authorized: vec![],
+            authorized: HashSet::new(),
+        };
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+        let mut reasoning = Vec::new();
+        let mut msgs = Vec::new();
+        let mut failures = 0u32;
+
+        // WHEN the turn is recorded
+        agent
+            .record_tool_turn(
+                RecordTurnInput {
+                    accumulated_text: "",
+                    tool_calls: &calls,
+                    budget: &budget,
+                    ids: ToolCallContextIds {
+                        session_id: "s",
+                        message_id: "m",
+                        run_id: &RunId::new(),
+                        pending_approvals: &approvals,
+                        cancel: CancellationToken::new(),
+                    },
+                    valid_tool_names: &valid_tool_names,
+                },
+                &mut reasoning,
+                &mut msgs,
+                &mut acc,
+                &mut failures,
+            )
+            .await;
+
+        // THEN the call is refused (not executed) with a corrective result that
+        // names the unknown tool and suggests the closest valid one
+        assert_eq!(acc.all_tool_calls.len(), 1);
+        let record = &acc.all_tool_calls[0];
+        assert_eq!(record.status, ToolCallStatus::Refused);
+        let output = record.output.as_deref().unwrap_or_default();
+        assert!(output.contains("unknown tool `web_serch`"), "got: {output}");
+        assert!(output.contains("Did you mean `web_search`?"), "got: {output}");
+        // AND it is not counted as an execution failure (a refusal, not a crash)
+        assert_eq!(failures, 0);
+
+        registry.shutdown().await;
+    }
+
+    #[test]
+    fn test_unknown_tool_reason_passes_valid_name() {
+        // GIVEN a valid set and a name that is in it
+        let valid: HashSet<String> = ["web_search".to_string()].into();
+        // WHEN/THEN a known name yields no refusal
+        assert!(unknown_tool_reason("web_search", &valid).is_none());
+        // AND an unrelated name yields a refusal with the available list
+        let reason = unknown_tool_reason("totally_made_up_xyz", &valid).expect("should refuse");
+        assert!(reason.contains("web_search"));
+    }
+
+    #[test]
+    fn test_strip_think_blocks_removes_embedded_json_call() {
+        // GIVEN reasoning text that wraps a JSON tool-call-looking payload in a
+        // <think> block (as Qwen3-style reasoning models emit)
+        let raw = "<think>{\"name\":\"web_search\",\"arguments\":{}}</think>Here is the answer.";
+
+        // WHEN think blocks are stripped before anything downstream sees the text
+        let clean = BuiltInChatAgent::strip_think_blocks(raw);
+
+        // THEN the embedded JSON never survives into the cleaned text, so it can
+        // never be mistaken for a tool call; only the real answer remains
+        assert_eq!(clean.trim(), "Here is the answer.");
+        assert!(!clean.contains("\"name\""));
     }
 
     /// All-write turns stay sequential: no two writes overlap, order is preserved.
@@ -6917,6 +7388,60 @@ mod todo_compaction_tests {
 
         // WHEN the injection runs
         BuiltInChatAgent::inject_todo_after_compaction(&h, "s1", &mut messages).await;
+
+        // THEN no message is appended
+        assert_eq!(messages.len(), 1);
+    }
+
+    fn plan_handle_for_compaction_test() -> crate::chat::plan_actor::PlanHandle {
+        crate::chat::plan_actor::spawn_plan_actor(
+            rusqlite::Connection::open_in_memory().expect("open"),
+            None,
+        )
+        .expect("spawn")
+    }
+
+    #[tokio::test]
+    async fn test_plan_injected_after_compaction() {
+        // GIVEN a session whose plan store holds a two-step plan
+        let handle = plan_handle_for_compaction_test();
+        let steps: Vec<apollia_core::plan::PlanStep> = vec![
+            serde_json::from_value(serde_json::json!({
+                "step_id": "s1", "description": "first", "depends_on": []
+            }))
+            .expect("step"),
+            serde_json::from_value(serde_json::json!({
+                "step_id": "s2", "description": "second", "depends_on": []
+            }))
+            .expect("step"),
+        ];
+        handle
+            .propose("sess", steps, Some("do the thing".into()))
+            .await
+            .expect("propose");
+        let mut messages = vec![LlmChatMessage::system("base")];
+
+        // WHEN the post-compaction plan injection runs
+        BuiltInChatAgent::inject_plan_after_compaction(&handle, "sess", &mut messages).await;
+
+        // THEN a single user reminder lists every step with a status token
+        assert_eq!(messages.len(), 2);
+        let last = messages.last().expect("message present");
+        assert!(matches!(last.role, Role::User));
+        let body = text_of(last);
+        assert!(body.contains("active plan"), "got: {body}");
+        assert!(body.contains("s1") && body.contains("s2"), "got: {body}");
+        assert!(body.contains("pending"), "got: {body}");
+    }
+
+    #[tokio::test]
+    async fn test_no_plan_injection_without_plan() {
+        // GIVEN a plan store with no plan for the session
+        let handle = plan_handle_for_compaction_test();
+        let mut messages = vec![LlmChatMessage::system("base")];
+
+        // WHEN the injection runs
+        BuiltInChatAgent::inject_plan_after_compaction(&handle, "absent", &mut messages).await;
 
         // THEN no message is appended
         assert_eq!(messages.len(), 1);

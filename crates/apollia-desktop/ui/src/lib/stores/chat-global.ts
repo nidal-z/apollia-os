@@ -74,6 +74,46 @@ export function getPendingChatApprovalForSession(
   return list.find((a) => a.sessionId === sessionId) ?? null;
 }
 
+// ─── Global plan-approval state ──────────────────────────────────────────────
+
+/** A chat plan awaiting the operator's approval, surfaced in the inbox. */
+export interface PendingPlanApproval {
+  sessionId: string;
+  planId: string;
+  stepCount: number;
+  /** Short label (first step title, or a step count fallback). */
+  summary: string;
+  submittedAt: string;
+}
+
+/**
+ * Global pending plan approvals - populated by the SSE event dispatcher on
+ * `PlanSubmitted` so a plan awaiting approval is visible in the inbox even when
+ * the user is not on the originating chat session.
+ */
+export const pendingPlanApprovals = writable<PendingPlanApproval[]>([]);
+
+/** Number of plans awaiting approval. */
+export const pendingPlanApprovalCount = derived(
+  pendingPlanApprovals,
+  ($approvals) => $approvals.length,
+);
+
+/** Add or replace the pending plan approval for a session (one per session). */
+export function addPendingPlanApproval(approval: PendingPlanApproval): void {
+  pendingPlanApprovals.update((list) => {
+    const without = list.filter((a) => a.sessionId !== approval.sessionId);
+    return [...without, approval];
+  });
+}
+
+/** Remove the pending plan approval for a session (approved, rejected, done). */
+export function removePendingPlanApproval(sessionId: string): void {
+  pendingPlanApprovals.update((list) =>
+    list.filter((a) => a.sessionId !== sessionId),
+  );
+}
+
 // ─── Global ask_user / user-input state ──────────────────────────────────────
 
 /**

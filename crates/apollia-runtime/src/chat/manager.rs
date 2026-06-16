@@ -16,7 +16,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
-use apollia_core::plan::PlanMutation;
+use apollia_core::plan::{Plan, PlanMutation};
 use apollia_core::todo::TodoItem;
 use apollia_core::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RunId, RuntimeEvent, StepBudgetConfig,
@@ -59,6 +59,12 @@ pub struct ChatToolsConfig {
     /// Native-tools subsection of `apollia.toml` (web cfg, http allowlist,
     /// disabled list). Defaults are sensible when no file is loaded.
     pub tools_config: apollia_core::ToolsConfig,
+    /// Default working directory for free-chat sessions (`[chat]
+    /// default_workspace`). `None` falls back to `~/.apollia`.
+    pub default_workspace: Option<std::path::PathBuf>,
+    /// Temperature applied to a chat turn that advertises tools (`[chat]
+    /// tool_turn_temperature`). `None` resolves to the agent default.
+    pub tool_turn_temperature: Option<f32>,
 }
 
 /// Snapshot of a tool-level `scope=session` authorization for an active session.
@@ -455,6 +461,12 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
         (LoadingMode::Eager, _) => Vec::new(),
     };
 
+    // Read the tool-turn temperature before the config is moved into the
+    // session invoker below; it is applied to the agent further down.
+    let tool_turn_temperature = chat_tools_config_for_session
+        .as_ref()
+        .and_then(|c| c.tool_turn_temperature);
+
     // Resolve per-session sandbox root from project workspace_path.
     // On error (project not found) surface as ExchangeError, no panic.
     let session_invoker = match build_session_invoker(
@@ -509,7 +521,8 @@ async fn run_libre_exchange(params: LibreExchangeParams) {
     .with_plan_mode(session_plan_mode)
     .with_plan_phase_start(session_plan_phase)
     .with_hook_executor(hook_executor)
-    .with_pending_injection(pending_injection);
+    .with_pending_injection(pending_injection)
+    .with_tool_turn_temperature(tool_turn_temperature);
 
     // Inject project context on first message OR right after the
     // session was linked to a project (consumed flag).
@@ -783,6 +796,22 @@ pub enum InjectError {
     EmptyInstruction,
 }
 
+/// Snapshot of a session's plan plus its current plan-mode phase.
+///
+/// The phase is the authoritative gate state: a persisted plan keeps its
+/// `awaiting_approval` status forever, but once approved the session moves to
+/// `executing` then `done`. The desktop hydrates the plan tab from `plan` and
+/// decides whether to show the approval card from `phase`, never from the
+/// plan's own status.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ChatPlanSnapshot {
+    /// Current plan, or `None` when the session has produced none.
+    pub plan: Option<Plan>,
+    /// Session plan-mode phase: `discovery`, `drafting`, `awaiting_approval`,
+    /// `executing`, or `done`.
+    pub phase: String,
+}
+
 /// Commands sent to the [`ChatSessionManager`] actor.
 pub enum ChatCommand {
     /// Create a new chat session.
@@ -912,6 +941,14 @@ pub enum ChatCommand {
         /// Response channel: `SessionNotFound` for an unknown session, an empty
         /// list for a known session whose plan recorded no mutations.
         reply: oneshot::Sender<Result<Vec<PlanMutation>, ChatError>>,
+    },
+    /// Read the current plan snapshot for a session.
+    GetPlan {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel: `SessionNotFound` for an unknown session, a
+        /// snapshot with `plan: None` for a known session that has no plan yet.
+        reply: oneshot::Sender<Result<ChatPlanSnapshot, ChatError>>,
     },
     /// Cooperatively pause the active ReAct turn for a session.
     PauseSession {
@@ -1387,6 +1424,40 @@ impl ChatSessionManager {
                             ChatError::InternalError(format!("plan history read failed: {e}"))
                         }),
                         Ok(None) => Ok(Vec::new()),
+                        Err(e) => Err(e),
+                    };
+                    let _ = reply.send(result);
+                }
+                ChatCommand::GetPlan { session_id, reply } => {
+                    // Phase is the authoritative gate state, resolved synchronously
+                    // (in-memory session first, then persisted row) so no SQLite
+                    // borrow is held across the await below.
+                    let phase = self
+                        .sessions
+                        .get(&session_id)
+                        .map(|s| s.plan_phase.as_sql().to_string())
+                        .or_else(|| {
+                            self.repository
+                                .get_session(&session_id)
+                                .ok()
+                                .flatten()
+                                .map(|r| r.plan_phase)
+                        })
+                        .unwrap_or_else(|| PlanPhase::Done.as_sql().to_string());
+                    let result = match self.resolve_plan_handle(&session_id) {
+                        Ok(Some(plan)) => plan
+                            .get_plan(&session_id)
+                            .await
+                            .map(|plan| ChatPlanSnapshot {
+                                plan,
+                                phase: phase.clone(),
+                            })
+                            .map_err(|e| {
+                                ChatError::InternalError(format!(
+                                    "plan snapshot read failed: {e}"
+                                ))
+                            }),
+                        Ok(None) => Ok(ChatPlanSnapshot { plan: None, phase }),
                         Err(e) => Err(e),
                     };
                     let _ = reply.send(result);
@@ -2127,10 +2198,15 @@ impl ChatSessionManager {
                 self.user_memory.clone()
             };
 
-            let history = session.history.clone();
+            // `session.history` already ends with the in-flight user message
+            // (pushed before dispatch). The agent re-adds it from `user_msg`,
+            // so the history handed to the agent drops that trailing entry to
+            // keep a single user turn in the LLM prompt.
+            let is_first_message = session.history.len() == 1;
+            let history: Vec<ChatMessage> =
+                session.history[..session.history.len().saturating_sub(1)].to_vec();
             let session_plan_mode = session.plan_mode;
             let session_plan_phase = session.plan_phase;
-            let is_first_message = history.len() == 1;
             let is_companion = session.mode == ChatMode::Companion;
             let inject_project_context = is_first_message || force_inject_project_context;
             // On the first message, enrich the system prompt with cross-session context.
@@ -3520,7 +3596,11 @@ async fn resolve_workspace_for_session(
         tool_search_limit,
     } = params;
     let session_id = session_id.as_str();
-    let workspace_path = resolve_workspace_path(&project_id, &project_repo).await?;
+    let default_workspace = chat_tools_config
+        .as_ref()
+        .and_then(|c| c.default_workspace.clone());
+    let workspace_path =
+        resolve_workspace_path(&project_id, &project_repo, default_workspace.as_deref()).await?;
     let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone());
     if let Some(pending) = pending_user_inputs.clone() {
         invoker = invoker.with_ask_user_support(pending);
@@ -3590,10 +3670,16 @@ async fn resolve_workspace_for_session(
 async fn resolve_workspace_path(
     project_id: &Option<String>,
     project_repo: &Option<Arc<ProjectRepository>>,
+    default_workspace: Option<&std::path::Path>,
 ) -> Result<Option<std::path::PathBuf>, ChatError> {
     match project_id {
         None => {
-            // Free chat: default to ~/.apollia/ so bash commands don't inherit the Tauri process CWD.
+            // Free chat: prefer the operator-configured default workspace
+            // (`[chat] default_workspace`), then `~/.apollia/`, so bash and file
+            // tools never silently inherit the Tauri process CWD.
+            if let Some(p) = default_workspace.filter(|p| p.is_dir()) {
+                return Ok(Some(p.to_path_buf()));
+            }
             Ok(std::env::var("HOME")
                 .ok()
                 .map(|h| std::path::PathBuf::from(h).join(".apollia"))
@@ -4362,6 +4448,30 @@ impl ChatSessionManagerHandle {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ChatCommand::ReadPlanMutations {
+                session_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("chat manager unavailable".into()))?;
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("chat manager unavailable".into()))?
+    }
+
+    /// Read the current plan snapshot for a session.
+    ///
+    /// Returns `None` for a known session that has not produced a plan yet, so
+    /// the desktop can hydrate the plan tab on mount without waiting for a live
+    /// event.
+    ///
+    /// # Errors
+    ///
+    /// - [`ChatError::SessionNotFound`] when the session is unknown.
+    /// - [`ChatError::InternalError`] when the manager or plan actor is gone.
+    pub async fn get_plan(&self, session_id: SessionId) -> Result<ChatPlanSnapshot, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::GetPlan {
                 session_id,
                 reply: reply_tx,
             })

@@ -1,0 +1,14 @@
+[package]
+name = "apollia-prompts"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS - single source of truth for system-prompt blocks and their composition (chat, ORIA, critic)"
+license = "MIT OR Apache-2.0"
+
+# apollia-prompts is a leaf crate: it holds prompt text and pure composition
+# logic, with NO I/O and NO dependency on other workspace crates. Callers pass
+# any dynamic block (temporal, persona, project, workspace) in as `&str`.
+[dependencies]
+
+[lints]
+workspace = true

@@ -83,6 +83,27 @@ export async function setPlanMode(
   return invoke<void>("set_plan_mode", { sessionId, enabled });
 }
 
+/** Snapshot returned by `get_chat_plan`: the plan plus the session phase. */
+export interface ChatPlanSnapshot {
+  /** Current plan payload (the unified `apollia_core::plan::Plan`) or null. */
+  plan: unknown;
+  /** Session plan-mode phase (the authoritative gate state). */
+  phase: string;
+}
+
+/**
+ * Reads the current plan snapshot for a session.
+ *
+ * Lets the plan tab hydrate on mount from authoritative runtime state instead of
+ * relying solely on live events, so a plan produced before the tab was opened
+ * still renders. The `phase` is the gate state: an executed plan keeps its
+ * `awaiting_approval` status on the plan object, but its session phase has moved
+ * on, so the caller decides the approval card from `phase`, not the plan status.
+ */
+export async function getChatPlan(sessionId: string): Promise<ChatPlanSnapshot> {
+  return invoke<ChatPlanSnapshot>("get_chat_plan", { sessionId });
+}
+
 /**
  * Approves the submitted plan for a session (soft conversational gate).
  *

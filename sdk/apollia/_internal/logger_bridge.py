@@ -37,6 +37,33 @@ class _CtxWithLog(Protocol):
     def log(self, level: str, message: str) -> None: ...
 
 
+class KwargTolerantLogger(logging.Logger):
+    """A :class:`logging.Logger` that tolerates structured keyword arguments.
+
+    Agents naturally write structured logs such as
+    ``ctx.logger.info("summarized", count=3, error=exc)``. Stdlib logging only
+    accepts a fixed kwargs set and raises ``TypeError`` on anything else, which
+    crashes the agent mid-task (observed as
+    ``Logger._log() got an unexpected keyword argument 'error'``). This subclass
+    folds any non-standard kwargs into the message so the structured-logging
+    habit is harmless instead of fatal.
+    """
+
+    #: Keyword arguments the stdlib logging methods genuinely accept.
+    _STD_LOG_KWARGS = frozenset({"exc_info", "stack_info", "stacklevel", "extra"})
+
+    def _log(self, level: int, msg: object, args: object, **kwargs: object) -> None:  # type: ignore[override]
+        extra_fields = {
+            key: kwargs.pop(key)
+            for key in list(kwargs)
+            if key not in self._STD_LOG_KWARGS
+        }
+        if extra_fields:
+            suffix = " ".join(f"{key}={value!r}" for key, value in extra_fields.items())
+            msg = f"{msg} {suffix}" if msg else suffix
+        super()._log(level, msg, args, **kwargs)  # type: ignore[arg-type]
+
+
 class CtxLogHandler(logging.Handler):
     """Pipe each :class:`logging.LogRecord` to ``ctx.log(level, msg)``.
 
@@ -109,6 +136,11 @@ def configure_agent_logger(ctx: _CtxWithLog, agent_name: str) -> logging.Logger:
     """
     name_suffix = agent_name or "unknown"
     logger = logging.getLogger(f"apollia.agent.{name_suffix}")
+    # Re-home the instance onto the kwarg-tolerant subclass so a structured-log
+    # habit in agent code (`logger.info("msg", error=e)`) never crashes the task.
+    # Safe: the subclass adds no instance state, only overrides `_log`.
+    if not isinstance(logger, KwargTolerantLogger):
+        logger.__class__ = KwargTolerantLogger
     logger.setLevel(logging.DEBUG)
     logger.propagate = False  # don't double-print via root logger
 

@@ -6,10 +6,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Parse a timestamp to epoch milliseconds, treating timezone-less strings as
+ * UTC.
+ *
+ * SQLite `CURRENT_TIMESTAMP` columns reach the UI as `"YYYY-MM-DD HH:MM:SS"`
+ * with no timezone marker. `new Date(...)` would read those as local time and
+ * skew every relative-time display by the local UTC offset. Strings that
+ * already carry a `Z` suffix or a numeric offset are parsed as-is.
+ */
+export function parseTimestampMs(iso: string): number {
+  const s = iso.trim();
+  const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s);
+  if (hasTz) return new Date(s).getTime();
+  // A time component without a timezone means the wire value is UTC.
+  const normalized = s.includes(":") ? `${s.replace(" ", "T")}Z` : s;
+  return new Date(normalized).getTime();
+}
+
 /** Format an ISO date string as a relative time string (e.g. "30s ago", "5m ago"). */
 export function formatRelativeTime(isoDate: string): string {
   if (!isoDate) return "-";
-  const then = new Date(isoDate).getTime();
+  const then = parseTimestampMs(isoDate);
   if (Number.isNaN(then)) return "-";
   const diffSecs = Math.floor((Date.now() - then) / 1000);
   if (diffSecs < 0) return "just now";

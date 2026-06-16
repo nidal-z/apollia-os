@@ -35,6 +35,7 @@
   } from "$lib/stores/agentStatus";
   import { CHAT_TEMPLATES, type ChatTemplate } from "$lib/templates/chatTemplates";
   import { triggerAutoName } from "$lib/chat/autoName";
+  import { setPlanMode, getPlanModeDefault } from "$lib/ipc/planMode";
   import { projects } from "$lib/stores/projects";
   import AgentStatusCard from "./AgentStatusCard.svelte";
   import EmptyAgentsState from "./EmptyAgentsState.svelte";
@@ -59,6 +60,10 @@
 
   let prompt = $state("");
   let creating = $state(false);
+  // Whether the free chat starts in plan mode. Seeded from the runtime default
+  // so the picker reflects the configured behavior, and applied before the
+  // first message so that turn already runs under the plan gate.
+  let startInPlanMode = $state(false);
   // Stored as a string ("" == no project) to match the native <Select>'s
   // value model used by the DS Select component, which expects `bind:value`
   // on a string.
@@ -109,6 +114,11 @@
     void invoke<ProjectSummary[]>("list_projects")
       .then((list) => projects.set(list))
       .catch(() => { /* link selector will just stay empty */ });
+    void getPlanModeDefault()
+      .then((on) => {
+        startInPlanMode = on;
+      })
+      .catch(() => { /* keep the default-off toggle */ });
     const stopPolling = startAgentStatusPolling();
     return () => {
       stopPolling();
@@ -138,6 +148,13 @@
       const session = await invoke<ChatSessionSummary>("create_chat_session", {
         request,
       });
+      // Enable plan mode before the first message is sent, so that opening turn
+      // already runs under the plan gate. Awaited so it lands before the send.
+      if (startInPlanMode) {
+        await setPlanMode(session.id, true).catch(() => {
+          /* non-fatal: the chip can still toggle it after creation */
+        });
+      }
       if (initialPrompt && initialPrompt.trim().length > 0) {
         // Kick off auto-naming before send_chat_message so the title LLM call
         // runs concurrently with the agent run - title typically lands first.
@@ -267,6 +284,21 @@
         focus:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
       data-testid="quickpicker-textarea"
     ></Textarea>
+  </label>
+
+  <!-- Plan mode toggle: starts this conversation under the plan gate. -->
+  <label
+    class="mt-2 flex w-fit cursor-pointer select-none items-center gap-2 text-[11px] text-muted-foreground"
+    data-testid="quickpicker-plan-mode-label"
+  >
+    <input
+      type="checkbox"
+      bind:checked={startInPlanMode}
+      disabled={creating}
+      class="h-3.5 w-3.5 rounded border-border accent-primary"
+      data-testid="quickpicker-plan-mode"
+    />
+    {$t("chat.quickpicker.plan_mode")}
   </label>
 
   <div class="mt-2 flex items-center justify-between">

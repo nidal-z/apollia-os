@@ -22,6 +22,7 @@
 use std::sync::Arc;
 
 use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
+use apollia_prompts::blocks::CRITIC_SYSTEM_PROMPT;
 
 /// Raw outcome from a single check command invocation.
 #[derive(Debug, Clone)]
@@ -197,15 +198,6 @@ struct CriticResponse {
     #[serde(default)]
     corrections: Vec<Correction>,
 }
-
-/// Internal English-only system prompt for the critic pass. Not user-configurable.
-const CRITIC_SYSTEM_PROMPT: &str =
-    "You are a strict verification critic. Compare the AGENT OUTPUT \
-to the stated OBJECTIVE and report only concrete, actionable discrepancies. Reply with a single \
-JSON object and nothing else, in the exact shape: \
-{\"corrections\":[{\"kind\":\"...\",\"description\":\"...\",\"suggestion\":\"...\"}]}. \
-Use an empty corrections array when the output already satisfies the objective. \
-Do not add any prose before or after the JSON.";
 
 /// Orchestrates one LLM critic pass comparing agent output to the stated objective.
 ///

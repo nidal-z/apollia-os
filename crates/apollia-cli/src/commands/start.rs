@@ -1424,6 +1424,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         tool_search_limit: mcp_config.tool_search_limit,
         hooks_config,
         plan_mode_default: chat_config.plan_mode_default,
+        chat_default_workspace: chat_config.default_workspace.clone(),
+        chat_tool_turn_temperature: chat_config.tool_turn_temperature,
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);

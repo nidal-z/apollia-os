@@ -37,6 +37,8 @@ import {
   removePendingChatApproval,
   addPendingUserInput,
   removePendingUserInput,
+  addPendingPlanApproval,
+  removePendingPlanApproval,
 } from "./chat-global";
 import {
   handleThinkingStarted,
@@ -452,6 +454,57 @@ function dispatchChatEvent(event: TauriRuntimeEvent): void {
   }
 }
 
+/** Handles `PlanSubmitted`: enqueues the plan awaiting approval for the inbox. */
+function handlePlanSubmitted(event: TauriRuntimeEvent): void {
+  const p = variantPayload(event.payload, "PlanSubmitted");
+  const sessionId = asOptionalString(p.session_id);
+  if (!sessionId) return;
+  const plan =
+    p.plan && typeof p.plan === "object"
+      ? (p.plan as Record<string, unknown>)
+      : {};
+  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  const firstTitle =
+    steps.length > 0 &&
+    typeof (steps[0] as Record<string, unknown>).title === "string"
+      ? ((steps[0] as Record<string, unknown>).title as string)
+      : "";
+  addPendingPlanApproval({
+    sessionId,
+    planId: asString(plan.plan_id),
+    stepCount: steps.length,
+    summary: firstTitle || `${steps.length} step(s)`,
+    submittedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Dispatches a session-keyed plan-mode event to the global plan-approval store
+ * so the inbox tracks plans awaiting approval across sessions.
+ */
+function dispatchPlanModeEvent(event: TauriRuntimeEvent): void {
+  const inner = variantPayload(event.payload, event.event_type);
+  const sessionId = asOptionalString(inner.session_id);
+  switch (event.event_type) {
+    case "PlanSubmitted":
+      handlePlanSubmitted(event);
+      return;
+    case "ChatPlanApproved":
+    case "ChatPlanRejected":
+      if (sessionId) removePendingPlanApproval(sessionId);
+      return;
+    case "ChatPlanPhaseChanged": {
+      const phase = asOptionalString(inner.phase);
+      if (sessionId && phase && phase !== "awaiting_approval") {
+        removePendingPlanApproval(sessionId);
+      }
+      return;
+    }
+    default:
+      return;
+  }
+}
+
 /**
  * Dispatches a runtime event to the appropriate store by refreshing the
  * relevant domain via IPC.  This ensures data consistency (the IPC command
@@ -487,6 +540,9 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
     case "chat-changed":
       void refreshChatSessionsViaIpc();
       dispatchChatEvent(event);
+      break;
+    case "plan-mode":
+      dispatchPlanModeEvent(event);
       break;
     case "plan-cache-hit":
       lastPlanCacheHit.set(event.payload as unknown as PlanCacheHitEvent);

@@ -16,12 +16,13 @@
     type NodeTypes,
   } from "@xyflow/svelte";
   import "@xyflow/svelte/dist/style.css";
+  import { untrack } from "svelte";
   import { t } from "svelte-i18n";
+  import { Maximize2, Minimize2 } from "lucide-svelte";
   import { themeMode } from "$lib/stores/theme";
   import {
     chatPlanState,
     startChatPlanListener,
-    resetChatPlan,
   } from "$lib/stores/chatPlanMode";
   import {
     latestThinking,
@@ -69,6 +70,10 @@
 
   let drawerOpen = $state(false);
   let selectedStep = $state<SessionPlanStep | null>(null);
+  // Expanded mode lifts the cramped rail into a full-window overlay so a larger
+  // plan is actually readable. The canvas remounts on toggle (`{#key expanded}`)
+  // so `fitView` recomputes for the new size.
+  let expanded = $state(false);
 
   function openStep(step: SessionPlanStep): void {
     selectedStep = step;
@@ -103,10 +108,13 @@
       // at that revision, so replay-removal tombstones (a live-delta concept)
       // are suppressed to avoid showing stale ghosts on a past state.
       const liveIds = new Set(plan.steps.map((s) => s.step_id));
+      // `previousSteps` is a previous-value tracker the effect also writes; read
+      // it untracked so the effect never depends on what it sets (which would
+      // re-trigger itself indefinitely).
       const removed =
         historySteps !== null
           ? []
-          : previousSteps.filter((s) => !liveIds.has(s.step_id));
+          : untrack(() => previousSteps).filter((s) => !liveIds.has(s.step_id));
       const next = layoutPlan(plan, removed);
       const currentId = plan.steps.find(
         (s) => s.status === "in_progress",
@@ -145,30 +153,56 @@
     });
     return () => {
       disposed = true;
+      // Release this consumer's ref on the shared listener. Do NOT reset the
+      // plan store here: the approval host shares it and must keep showing the
+      // card after the user leaves the plan tab.
       unlisten?.();
-      resetChatPlan();
       resetThinking();
     };
   });
 </script>
 
-<div class="flex h-full w-full flex-col">
+<div
+  class={expanded
+    ? "fixed inset-0 z-50 flex flex-col gap-2 bg-background/95 p-4 backdrop-blur"
+    : "flex h-full w-full flex-col"}
+>
   {#if hasPlan}
-    <div class="min-h-0 flex-1" data-testid="plan-dag-canvas">
-      <SvelteFlow
-        bind:nodes
-        bind:edges
-        {nodeTypes}
-        colorMode={$themeMode}
-        fitView
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable
-        onnodeclick={onNodeClick}
+    <div class="flex items-center justify-end">
+      <button
+        type="button"
+        onclick={() => (expanded = !expanded)}
+        class="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        aria-label={$t(expanded ? "plan_session.collapse" : "plan_session.expand")}
+        data-testid="plan-dag-expand"
       >
-        <Background />
-        <Controls showLock={false} />
-      </SvelteFlow>
+        {#if expanded}
+          <Minimize2 size={14} />
+        {:else}
+          <Maximize2 size={14} />
+        {/if}
+      </button>
+    </div>
+    <div class="min-h-0 flex-1" data-testid="plan-dag-canvas">
+      {#key expanded}
+        <SvelteFlow
+          bind:nodes
+          bind:edges
+          {nodeTypes}
+          colorMode={$themeMode}
+          fitView
+          fitViewOptions={{ padding: 0.2, minZoom: 0.3, maxZoom: 1.1 }}
+          minZoom={0.3}
+          maxZoom={1.5}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
+          onnodeclick={onNodeClick}
+        >
+          <Background />
+          <Controls showLock={false} />
+        </SvelteFlow>
+      {/key}
     </div>
   {:else}
     <div

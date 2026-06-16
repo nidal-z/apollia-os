@@ -330,11 +330,13 @@ def test_validate_type_mismatch() -> None:
     assert exc.value.field == "path"
 
 
-def test_validate_extra_field_rejected() -> None:
+def test_validate_extra_field_dropped() -> None:
+    # An unexpected field under a strict schema is DROPPED (with a warning), not
+    # rejected, so a stray argument from an LLM caller does not fail the call.
     schema = _schema_path_required()
-    with pytest.raises(PayloadError) as exc:
-        validate_payload({"path": "x", "extra": "no"}, schema)
-    assert exc.value.field == "extra"
+    result = validate_payload({"path": "x", "extra": "no"}, schema)
+    assert result == {"path": "x"}
+    assert "extra" not in result
 
 
 def test_validate_payload_not_dict() -> None:
@@ -513,41 +515,48 @@ def test_optional_validation_accepts_none_via_nullable() -> None:
 # ────────────────────── enriched PayloadError ──────────────────────
 
 
-def test_payload_error_lists_expected_fields() -> None:
-    """Unexpected fields raise a PayloadError that lists every expected field."""
+def test_unexpected_top_level_field_dropped() -> None:
+    """An unexpected top-level field is dropped (not rejected) and excluded."""
 
     def fn(path: str, count: int = 1) -> None: ...
 
     schema = signature_to_input_schema(fn)
-    with pytest.raises(PayloadError) as exc:
-        validate_payload({"path": "x", "totally_unknown": 1}, schema)
-    assert exc.value.details is not None
-    assert exc.value.details["unexpected"] == "totally_unknown"
-    assert set(exc.value.details["expected"]) == {"path", "count"}
+    result = validate_payload({"path": "x", "totally_unknown": 1}, schema)
+    assert result == {"path": "x"}
+    assert "totally_unknown" not in result
+
+
+def _nested_strict_schema() -> dict[str, object]:
+    """A schema with a required, strict nested object (rejects unknown keys)."""
+    return {
+        "type": "object",
+        "properties": {
+            "cfg": {
+                "type": "object",
+                "properties": {"mode": {"type": "string"}},
+                "additionalProperties": False,
+            },
+        },
+        "required": ["cfg"],
+        "additionalProperties": False,
+    }
 
 
 def test_payload_error_did_you_mean() -> None:
-    """A close typo on an unknown field triggers a ``did_you_mean`` suggestion."""
-
-    def fn(path: str, mode: str = "fast") -> None: ...
-
-    schema = signature_to_input_schema(fn)
-    # Provide ``path`` so we hit the "unexpected field" branch (not "missing").
+    """A close typo inside a strict nested object still suggests the field."""
+    schema = _nested_strict_schema()
     with pytest.raises(PayloadError) as exc:
-        validate_payload({"path": "x", "mod": "fast"}, schema)
+        validate_payload({"cfg": {"mod": "fast"}}, schema)
     assert exc.value.details is not None
     assert exc.value.details.get("did_you_mean") == "mode"
     assert "Did you mean 'mode'" in exc.value.message
 
 
 def test_payload_error_no_suggestion_when_far() -> None:
-    """No suggestion is offered when no candidate is close enough."""
-
-    def fn(path: str, mode: str = "fast") -> None: ...
-
-    schema = signature_to_input_schema(fn)
+    """No suggestion is offered when no nested candidate is close enough."""
+    schema = _nested_strict_schema()
     with pytest.raises(PayloadError) as exc:
-        validate_payload({"path": "p", "xyzzy": "x"}, schema)
+        validate_payload({"cfg": {"xyzzy": "x"}}, schema)
     assert exc.value.details is not None
     assert "did_you_mean" not in exc.value.details
 

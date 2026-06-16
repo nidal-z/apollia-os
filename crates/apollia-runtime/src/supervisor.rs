@@ -157,6 +157,22 @@ pub struct SupervisorConfig {
     /// of truth for the default rather than any individual client. Default:
     /// `false`.
     pub plan_mode_default: bool,
+
+    /// Default working directory for free-chat sessions (the
+    /// `[chat] default_workspace` key of `apollia.toml`).
+    ///
+    /// When set to an existing directory, free-chat file tools anchor there and
+    /// the agent is told its working directory. `None` falls back to
+    /// `~/.apollia`. Read once at boot.
+    pub chat_default_workspace: Option<String>,
+
+    /// Temperature applied to a chat turn that advertises tools (the
+    /// `[chat] tool_turn_temperature` key of `apollia.toml`).
+    ///
+    /// Lowering it whenever tools are exposed makes structured tool-call output
+    /// more reliable on small local models. `None` resolves to the agent
+    /// default. Read once at boot.
+    pub chat_tool_turn_temperature: Option<f32>,
 }
 
 impl SupervisorConfig {
@@ -1225,6 +1241,12 @@ impl Supervisor {
                     data_dir: self.config.data_dir.clone(),
                     brave_api_key: None, // resolved lazily by web_search when missing
                     tools_config: self.config.tools_config.clone(),
+                    default_workspace: self
+                        .config
+                        .chat_default_workspace
+                        .clone()
+                        .map(std::path::PathBuf::from),
+                    tool_turn_temperature: self.config.chat_tool_turn_temperature,
                 })),
                 self.config.mcp_loading,
                 self.config.tool_search_limit,
@@ -2289,6 +2311,8 @@ mod tests {
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
             plan_mode_default: false,
+            chat_default_workspace: None,
+            chat_tool_turn_temperature: None,
         };
         (config, temp_dir)
     }
@@ -2470,6 +2494,8 @@ mod tests {
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
             plan_mode_default: false,
+            chat_default_workspace: None,
+            chat_tool_turn_temperature: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2624,6 +2650,8 @@ mod tests {
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
             plan_mode_default: false,
+            chat_default_workspace: None,
+            chat_tool_turn_temperature: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2746,6 +2774,8 @@ mod tests {
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
             plan_mode_default: false,
+            chat_default_workspace: None,
+            chat_tool_turn_temperature: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2812,6 +2842,8 @@ mod tests {
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
             plan_mode_default: false,
+            chat_default_workspace: None,
+            chat_tool_turn_temperature: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2889,6 +2921,8 @@ mod tests {
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
             plan_mode_default: false,
+            chat_default_workspace: None,
+            chat_tool_turn_temperature: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -3141,6 +3175,8 @@ mod tests {
             tool_search_limit: 20,
             hooks_config: apollia_core::HooksConfig::default(),
             plan_mode_default: false,
+            chat_default_workspace: None,
+            chat_tool_turn_temperature: None,
         };
         let supervisor = Supervisor::new(config);
 

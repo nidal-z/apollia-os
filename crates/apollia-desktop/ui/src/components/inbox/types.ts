@@ -6,8 +6,16 @@
  * accept requests, and (forward-compat) bash/filesystem approvals.
  */
 import type { PendingApproval, PendingChatApproval, PendingUserInputView } from "$lib/types";
+import type { PendingPlanApproval } from "$lib/stores/chat-global";
 
-export type InboxItemKind = "task" | "tool" | "filesystem" | "bash" | "always_accept" | "ask_user";
+export type InboxItemKind =
+  | "task"
+  | "tool"
+  | "filesystem"
+  | "bash"
+  | "always_accept"
+  | "ask_user"
+  | "plan";
 
 /** Optional risk payload. */
 export interface InboxRisk {
@@ -47,7 +55,18 @@ export interface AskUserInboxItem extends BaseInboxItem {
   questions: unknown[];
 }
 
-export type InboxItem = TaskInboxItem | ToolInboxItem | AskUserInboxItem;
+export interface PlanInboxItem extends BaseInboxItem {
+  kind: "plan";
+  source: PendingPlanApproval;
+  /** Number of steps in the submitted plan. */
+  stepCount: number;
+}
+
+export type InboxItem =
+  | TaskInboxItem
+  | ToolInboxItem
+  | AskUserInboxItem
+  | PlanInboxItem;
 
 /** Urgency threshold default (30 min) in milliseconds. */
 export const DEFAULT_URGENCY_THRESHOLD_MS = 30 * 60 * 1000;

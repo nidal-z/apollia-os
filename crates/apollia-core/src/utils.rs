@@ -47,9 +47,70 @@ pub fn truncate_middle(s: &str, max_chars: usize) -> (String, Option<usize>) {
     (truncated, Some(middle_lines))
 }
 
+/// Canonicalize a timestamp string to RFC3339 UTC with a trailing `Z`.
+///
+/// SQLite `CURRENT_TIMESTAMP` columns store naive UTC as
+/// `"YYYY-MM-DD HH:MM:SS"` (space separator, no timezone marker). A browser
+/// parsing such a string reads it as local time, which skews every relative
+/// time display by the local UTC offset. Normalizing at the read boundary
+/// gives every view a single canonical wire format.
+///
+/// Behavior:
+/// - Timezone-aware input (RFC3339 with `Z` or a numeric offset) is converted
+///   to UTC and re-emitted with a `Z` suffix.
+/// - SQLite naive input is treated as UTC and emitted with a `Z` suffix.
+/// - Empty or unparseable input is returned unchanged.
+pub fn sqlite_to_rfc3339(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return raw.to_string();
+    }
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(trimmed) {
+        return dt
+            .with_timezone(&chrono::Utc)
+            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    }
+    for fmt in ["%Y-%m-%d %H:%M:%S%.f", "%Y-%m-%d %H:%M:%S"] {
+        if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(trimmed, fmt) {
+            return chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive, chrono::Utc)
+                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        }
+    }
+    raw.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sqlite_naive_treated_as_utc() {
+        // GIVEN a SQLite CURRENT_TIMESTAMP value (naive UTC, no timezone marker)
+        let raw = "2026-06-11 14:30:00";
+        // WHEN canonicalizing it
+        let out = sqlite_to_rfc3339(raw);
+        // THEN it gains a Z suffix and keeps the same wall-clock UTC value
+        assert_eq!(out, "2026-06-11T14:30:00Z");
+    }
+
+    #[test]
+    fn test_rfc3339_with_offset_normalized_to_utc() {
+        // GIVEN a timezone-aware RFC3339 timestamp
+        let raw = "2026-06-11T16:30:00+02:00";
+        // WHEN canonicalizing it
+        let out = sqlite_to_rfc3339(raw);
+        // THEN it is converted to UTC with a Z suffix
+        assert_eq!(out, "2026-06-11T14:30:00Z");
+    }
+
+    #[test]
+    fn test_empty_and_unparseable_pass_through() {
+        // GIVEN empty and garbage inputs
+        // WHEN canonicalizing them
+        // THEN they are returned unchanged
+        assert_eq!(sqlite_to_rfc3339(""), "");
+        assert_eq!(sqlite_to_rfc3339("not-a-date"), "not-a-date");
+    }
 
     #[test]
     fn test_truncate_middle_under_limit_unchanged() {

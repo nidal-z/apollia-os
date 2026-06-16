@@ -33,8 +33,8 @@ pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
 };
 pub use manager::{
-    ChatSessionManagerHandle, ChatToolsConfig, InjectError, PauseError, PendingUserInputView,
-    SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
+    ChatPlanSnapshot, ChatSessionManagerHandle, ChatToolsConfig, InjectError, PauseError,
+    PendingUserInputView, SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
 };
 pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use project_context::DefaultProjectContextProvider;

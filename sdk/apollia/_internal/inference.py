@@ -32,6 +32,7 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import inspect
+import logging
 import typing
 from collections.abc import Callable
 from typing import Annotated, Any, Literal, Union, get_args, get_origin
@@ -650,11 +651,16 @@ def validate_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[st
     Behaviour:
 
     - Missing required fields raise :class:`PayloadError` with ``field``.
-    - Extra fields raise :class:`PayloadError` when
-      ``additionalProperties`` is ``False`` (the default).
-    - Type mismatches raise :class:`PayloadError` - no implicit
+    - Unexpected fields are DROPPED (with a warning) when
+      ``additionalProperties`` is ``False`` (the default), instead of failing
+      the whole call. LLM-driven callers routinely add stray fields (a
+      hallucinated ``max_chars``, a leaked ``additionalProperties``); dropping
+      them keeps the invocation working with the declared fields rather than
+      rejecting it outright. Required fields and type checks still apply.
+    - Type mismatches on known fields raise :class:`PayloadError` - no implicit
       string-to-number coercion.
-    - Returns a shallow copy of ``payload`` suitable for ``**call``.
+    - Returns the accepted kwargs (unknown fields removed) suitable for
+      ``**call``.
     """
     if not isinstance(payload, dict):
         raise PayloadError(
@@ -666,20 +672,29 @@ def validate_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[st
     additional = schema.get("additionalProperties", True)
     expected = list(properties.keys())
 
-    # Check required fields first so the error is deterministic.
+    # Check required fields first so the error is deterministic. A genuinely
+    # missing input still fails fast; only unexpected extras are tolerated.
     _check_required_fields(payload, required, "")
 
-    # Reject extra fields up-front if strict.
-    if additional is False:
-        for key in payload:
-            if key not in properties:
-                _raise_unexpected_field(key, expected, key)
-
-    # Validate each known field against its property schema.
     coerced: dict[str, Any] = {}
+    dropped: list[str] = []
     for key, value in payload.items():
         if key in properties:
             _validate_value(value, properties[key], key)
-        coerced[key] = value
+            coerced[key] = value
+        elif additional is False:
+            # Unknown field under a strict schema: drop it instead of rejecting
+            # the call, so a single stray argument from the model is harmless.
+            dropped.append(key)
+        else:
+            # `additionalProperties` allowed: keep the extra field as-is.
+            coerced[key] = value
+
+    if dropped:
+        logging.getLogger("apollia.agent").warning(
+            "dropped unexpected payload field(s) %s; expected %s",
+            dropped,
+            expected,
+        )
 
     return coerced

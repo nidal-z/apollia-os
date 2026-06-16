@@ -917,6 +917,7 @@ fn main() {
             commands::plan_mode::approve_plan,
             commands::plan_mode::reject_plan,
             commands::plan_mode::list_plan_mutations,
+            commands::plan_mode::get_chat_plan,
             // Tasks
             commands::tasks::cancel_task,
             // Memory

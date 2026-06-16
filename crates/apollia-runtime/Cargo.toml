@@ -22,6 +22,7 @@ web-read = ["apollia-tools/web-read"]
 
 [dependencies]
 apollia-core          = { workspace = true }
+apollia-prompts       = { workspace = true }
 apollia-llm           = { workspace = true, features = ["cloud"] }
 apollia-workspace     = { path = "../apollia-workspace" }
 apollia-stt           = { workspace = true }

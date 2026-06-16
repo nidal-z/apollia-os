@@ -1,0 +1,9 @@
+{
+  "codeConnect": {
+    "parser": "html",
+    "include": ["figma/code-connect/**/*.figma.ts"],
+    "documentUrlSubstitutions": {
+      "<DS_FILE>": "https://www.figma.com/design/2TLZ2uqIOweX14eP4VGXHq"
+    }
+  }
+}

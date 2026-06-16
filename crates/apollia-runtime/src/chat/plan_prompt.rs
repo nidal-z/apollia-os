@@ -1,38 +1,16 @@
-//! Plan-mode system-prompt fragment.
+//! Plan-mode system-prompt accessors.
 //!
-//! Holds the static instruction block injected into the chat system prompt when
-//! a session runs in plan mode. The block is constant (no session content is
-//! interpolated), so it can never carry user-supplied prompt injection. It only
-//! references tools that the runtime actually registers: the `plan_*` surface
-//! and the blocking `ask_user` tool.
+//! The block text lives in `apollia_prompts::blocks` (single source of truth,
+//! English). This module keeps the existing accessor API for the chat agent.
 
-/// System-prompt fragment injected when a chat session runs in plan mode.
-///
-/// The block instructs the model to discover missing or ambiguous inputs first
-/// (via the blocking `ask_user` tool), draft a plan with a rationale per step,
-/// submit it with `plan_submit`, then execute while keeping step statuses
-/// current and justifying any later change with a reason. It never invites
-/// bypassing the step budget or the human-in-the-loop safeguards.
-pub const PLAN_MODE_BLOCK: &str = "\
-You are operating in plan mode for this session.
-
-1. Discovery first. If any required input is missing or ambiguous, ask the user \
-with the `ask_user` tool before drafting. Do not invent assumptions.
-2. Draft the plan. Use `plan_propose` then `plan_add_step` to lay out ordered, \
-dependency-aware steps. Give every step a short rationale explaining why it exists.
-3. Submit. Call `plan_submit` once the plan is complete and coherent.
-4. Execute. After approval, work the steps in order. Keep each step status \
-current with `plan_set_step_status` (in_progress, completed, skipped, failed).
-5. Adjust with reason. If you must add, modify, remove, or reorder a step, do it \
-through the matching plan tool (`plan_add_step`, `plan_modify_step`, \
-`plan_remove_step`, `plan_reorder`) and provide a reason. Never silently diverge \
-from the submitted plan.
-
-Respect the step budget and all approval gates at all times.";
-
-/// Returns the plan-mode system-prompt block.
+/// Returns the plan-mode system-prompt block (discovery / draft / submit).
 pub fn plan_mode_block() -> &'static str {
-    PLAN_MODE_BLOCK
+    apollia_prompts::blocks::PLAN_MODE_BLOCK
+}
+
+/// Returns the plan-execution system-prompt block (post-approval).
+pub fn plan_execute_block() -> &'static str {
+    apollia_prompts::blocks::PLAN_EXECUTE_BLOCK
 }
 
 #[cfg(test)]
@@ -75,6 +53,18 @@ mod tests {
         // WHEN inspecting for a tool name that does not exist in the surface
         // THEN the deprecated `plan_status` alias is never mentioned
         assert!(!block.contains("plan_status"));
+    }
+
+    #[test]
+    fn test_execute_block_instructs_execution_not_replanning() {
+        // GIVEN the execution-phase block
+        let block = plan_execute_block();
+        // WHEN inspecting its wording
+        // THEN it tells the model the plan is approved, to track step status, and
+        // not to re-propose or wait for approval again
+        assert!(block.contains("approved"));
+        assert!(block.contains("plan_set_step_status"));
+        assert!(block.contains("Do not re-propose"));
     }
 
     #[test]

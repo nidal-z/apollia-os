@@ -7,6 +7,7 @@
 //! [`apollia_runtime::plan_approval::PlanApprovalHandle`].
 
 use apollia_core::plan::PlanMutation;
+use apollia_runtime::chat::ChatPlanSnapshot;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_runtime::plan_approval::PlanApprovalHandle;
 use tauri::State;
@@ -160,6 +161,32 @@ pub async fn reject_plan(
         .ok_or_else(|| "chat subsystem not available".to_string())?;
     manager
         .reject_plan(&session_id, reason)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Returns the current plan snapshot for `session_id`, or `None` when the
+/// session has no plan yet.
+///
+/// Lets the desktop hydrate the plan tab on mount from authoritative runtime
+/// state, so a plan proposed before the tab was opened still renders instead of
+/// relying solely on live events.
+///
+/// # Errors
+///
+/// Returns `Err(String)` when the chat subsystem is unavailable, when the
+/// session does not exist, or when the plan snapshot read fails.
+#[tauri::command]
+pub async fn get_chat_plan(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+) -> Result<ChatPlanSnapshot, String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+    manager
+        .get_plan(session_id)
         .await
         .map_err(|e| e.to_string())
 }

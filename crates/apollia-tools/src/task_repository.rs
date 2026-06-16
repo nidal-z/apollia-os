@@ -517,7 +517,9 @@ impl TaskRepository {
                         input_text: row.get::<_, Option<String>>(0)?,
                         output_text: row.get::<_, Option<String>>(1)?,
                         duration_ms: row.get::<_, Option<i64>>(2)?,
-                        created_at: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                        created_at: apollia_core::utils::sqlite_to_rfc3339(
+                            &row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                        ),
                     })
                 },
             );
@@ -944,8 +946,9 @@ impl TaskRepository {
                         let output_text: Option<String> = row.get(3)?;
                         let duration_ms: Option<i64> = row.get(4)?;
                         let transitions_json: Option<String> = row.get(5)?;
-                        let created_at: String =
-                            row.get::<_, Option<String>>(6)?.unwrap_or_default();
+                        let created_at: String = apollia_core::utils::sqlite_to_rfc3339(
+                            &row.get::<_, Option<String>>(6)?.unwrap_or_default(),
+                        );
 
                         let status = derive_status(&transitions_json, duration_ms);
                         let input_preview = input_text

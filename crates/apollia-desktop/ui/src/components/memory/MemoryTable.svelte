@@ -7,6 +7,7 @@
   import { Trash2 } from "lucide-svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { DataTable, type Column } from "$lib/components/ui/data-table";
+  import { parseTimestampMs } from "$lib/utils";
 
   interface Props {
     entries: MemoryEntry[];
@@ -32,7 +33,7 @@
 
   function relativeTime(iso: string): string {
     const now = Date.now();
-    const then = new Date(iso).getTime();
+    const then = parseTimestampMs(iso);
     const diffMs = now - then;
 
     if (diffMs < 0) return $t('memory.in_the_future');
@@ -53,7 +54,7 @@
   function ttlDisplay(expiresAt: string | null): string {
     if (expiresAt === null) return "∞";
     const now = Date.now();
-    const exp = new Date(expiresAt).getTime();
+    const exp = parseTimestampMs(expiresAt);
     const diffMs = exp - now;
 
     if (diffMs <= 0) return $t('memory.expired');

@@ -152,6 +152,11 @@ fn default_open_schema() -> serde_json::Value {
 /// Maximum consecutive failures before the circuit breaker opens for a skill.
 const A2A_CIRCUIT_BREAKER_THRESHOLD: u32 = 3;
 
+/// Maximum consecutive payload (client) errors before the model is told to stop
+/// retrying a skill. Payload errors do not open the circuit (the worker is
+/// healthy), but a model that cannot fix its arguments must not loop forever.
+const A2A_PAYLOAD_RETRY_LIMIT: u32 = 4;
+
 /// [`ToolInvoker`] that composes [`NativeChatToolInvoker`] with an [`A2AInvoker`].
 ///
 /// Routes tool calls prefixed with `"a2a:"` to the A2A invoker, which delegates
@@ -164,8 +169,12 @@ const A2A_CIRCUIT_BREAKER_THRESHOLD: u32 = 3;
 pub struct CompositeToolInvoker {
     native: NativeChatToolInvoker,
     a2a: Arc<A2AInvoker>,
-    /// Consecutive failure count per skill_id. Reset to 0 on success.
+    /// Consecutive failure count per skill_id (worker failures, opens the
+    /// circuit breaker). Reset to 0 on success.
     a2a_failures: Mutex<HashMap<String, u32>>,
+    /// Consecutive payload (client) error count per skill_id. Reset on success.
+    /// These never open the circuit breaker, but bound retry loops.
+    a2a_payload_failures: Mutex<HashMap<String, u32>>,
     /// Lifecycle hook executor, fired at the A2A sub-agent boundary
     /// (`SubagentStart` / `SubagentStop`). `None` disables sub-agent hooks.
     hook_executor: Option<Arc<HookExecutor>>,
@@ -191,6 +200,7 @@ impl CompositeToolInvoker {
             native,
             a2a,
             a2a_failures: Mutex::new(HashMap::new()),
+            a2a_payload_failures: Mutex::new(HashMap::new()),
             hook_executor,
             session_id,
         }
@@ -258,11 +268,16 @@ impl ToolInvoker for CompositeToolInvoker {
 
             match outcome {
                 Ok(result) => {
-                    // Reset circuit breaker on success.
+                    // Reset both failure counters on success.
                     {
                         let mut failures =
                             self.a2a_failures.lock().unwrap_or_else(|e| e.into_inner());
                         failures.remove(skill_id);
+                    }
+                    {
+                        let mut payload =
+                            self.a2a_payload_failures.lock().unwrap_or_else(|e| e.into_inner());
+                        payload.remove(skill_id);
                     }
 
                     let output_text: String = result
@@ -284,6 +299,44 @@ impl ToolInvoker for CompositeToolInvoker {
                     ))
                 }
                 Err(e) => {
+                    // A payload / schema-validation rejection is a CLIENT error:
+                    // the worker is healthy, the model just sent arguments that
+                    // do not match the skill schema (e.g. a wrong field name). It
+                    // must NOT trip the circuit breaker, that would block recovery
+                    // for the rest of the turn, and the model should correct the
+                    // arguments and retry (the worker often suggests the right
+                    // field). The step budget bounds any retry loop.
+                    let e_str = e.to_string();
+                    let is_payload_error = e_str.contains("PAYLOAD_ERROR")
+                        || e_str.contains("Unexpected field")
+                        || e_str.contains("Expected fields");
+                    if is_payload_error {
+                        let count = {
+                            let mut payload = self
+                                .a2a_payload_failures
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner());
+                            let c = payload.entry(skill_id.to_string()).or_insert(0);
+                            *c += 1;
+                            *c
+                        };
+                        if count >= A2A_PAYLOAD_RETRY_LIMIT {
+                            return Err(format!(
+                                "[A2A PAYLOAD_ERROR] {e}\n\
+                                 Tu as échoué {count} fois à former une charge valide pour ce \
+                                 skill. Ne le retente plus avec la même approche : adopte une \
+                                 autre méthode ou informe l'utilisateur que ce skill n'a pas pu \
+                                 être appelé correctement."
+                            ));
+                        }
+                        return Err(format!(
+                            "[A2A PAYLOAD_ERROR] {e}\n\
+                             Corrige les noms et valeurs des arguments pour respecter le schéma \
+                             attendu du skill (utilise EXACTEMENT les noms de champs attendus), \
+                             puis retente l'appel avec la charge corrigée."
+                        ));
+                    }
+
                     {
                         let mut failures =
                             self.a2a_failures.lock().unwrap_or_else(|e| e.into_inner());
@@ -402,6 +455,24 @@ mod tests {
                 Box::pin(async move {
                     Err(A2aError::WorkerFailed {
                         reason: "agent crashed".to_string(),
+                    })
+                })
+            },
+        )
+    }
+
+    fn make_payload_err_delegate() -> crate::a2a::A2aDelegateFn {
+        Arc::new(
+            move |_skill_id: String,
+                  _input: serde_json::Value,
+                  _timeout: u64,
+                  _chain: Vec<apollia_core::AgentId>,
+                  _caller: apollia_core::AgentId| {
+                Box::pin(async move {
+                    Err(A2aError::WorkerFailed {
+                        reason: "[PAYLOAD_ERROR] Unexpected field 'max_chars'. \
+                                 Expected fields: ['url', 'max_words']. Did you mean 'max_words'?"
+                            .to_string(),
                     })
                 })
             },
@@ -643,5 +714,45 @@ mod tests {
         assert!(result.is_err(), "expected Err, got Ok");
         let msg = result.unwrap_err();
         assert!(!msg.is_empty(), "error message must not be empty");
+    }
+
+    #[tokio::test]
+    async fn test_a2a_payload_error_does_not_trip_circuit_breaker() {
+        // GIVEN a worker that rejects the payload (a client error: the worker is
+        // healthy, the model sent a wrong field name)
+        let invoker = make_invoker_with_agent(
+            "md-worker",
+            &[("summarize", "Summarize a URL")],
+            make_payload_err_delegate(),
+        )
+        .await;
+
+        use super::CompositeToolInvoker;
+        use crate::chat::builtin_agent::NativeChatToolInvoker;
+        use apollia_llm::ToolInvoker;
+
+        let composite = CompositeToolInvoker::new(
+            NativeChatToolInvoker::new_with_workspace(None),
+            Arc::new(invoker),
+        );
+
+        // WHEN the skill is invoked more times than the breaker threshold
+        for _ in 0..(super::A2A_CIRCUIT_BREAKER_THRESHOLD + 2) {
+            let result = composite
+                .invoke("a2a:summarize", &serde_json::json!({"max_chars": 100}))
+                .await;
+
+            // THEN every attempt is a corrective payload error, and the circuit
+            // breaker never opens, so the model can keep correcting and retrying.
+            let msg = result.expect_err("payload validation should error");
+            assert!(
+                msg.contains("PAYLOAD_ERROR"),
+                "expected a payload error, got: {msg}"
+            );
+            assert!(
+                !msg.contains("CIRCUIT_OPEN"),
+                "payload errors must not trip the circuit breaker: {msg}"
+            );
+        }
     }
 }

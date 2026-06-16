@@ -23,6 +23,7 @@
   let { data }: NodeProps = $props();
   const node = $derived(data as StepNodeData);
   const step = $derived(node.step);
+  const index = $derived(node.index ?? 0);
   const removed = $derived(node.removed === true);
   const status = $derived(toStepStatus(step.status));
   const tokens = $derived(stepStatusToken(status));
@@ -73,7 +74,15 @@
   onclick={activate}
   onkeydown={onKeydown}
 >
-  <div class="mb-1 flex items-center justify-between gap-2">
+  <div class="mb-1 flex items-center gap-2">
+    {#if index > 0}
+      <span
+        class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[9px] font-semibold tabular-nums text-primary"
+        data-testid="plan-step-number"
+      >
+        {index}
+      </span>
+    {/if}
     <span class="text-[10px] font-medium {tokens.text}">{$t(tokens.labelKey)}</span>
     <span
       class="rounded-full px-1.5 py-0.5 text-[9px] font-medium {provChip.tokenClass}"
@@ -91,9 +100,9 @@
       ? 'line-through'
       : ''}"
   >
-    {step.title || $t("plan_session.untitled_step")}
+    {step.title || step.description || $t("plan_session.untitled_step")}
   </p>
-  {#if fields.showDescription && step.description}
+  {#if fields.showDescription && step.description && step.title}
     <p class="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{step.description}</p>
   {/if}
   {#if fields.showDependencies && step.depends_on.length > 0}

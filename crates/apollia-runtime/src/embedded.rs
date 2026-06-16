@@ -135,6 +135,16 @@ pub struct RuntimeHandle {
     /// The runtime is the single source of truth for this default; the desktop
     /// reads it to seed its own per-user preference rather than inventing one.
     pub plan_mode_default: bool,
+
+    /// Default working directory for free-chat sessions, read from the
+    /// `[chat] default_workspace` key of `apollia.toml` at boot. `None` falls
+    /// back to `~/.apollia`. Surfaced to the desktop Settings page.
+    pub chat_default_workspace: Option<String>,
+
+    /// Temperature applied to a chat turn that advertises tools, read from the
+    /// `[chat] tool_turn_temperature` key of `apollia.toml` at boot. `None`
+    /// resolves to the agent default.
+    pub chat_tool_turn_temperature: Option<f32>,
 }
 
 /// Error returned by [`init_embedded()`].
@@ -382,6 +392,8 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
     let mcp_loading = apollia_mcp::session::LoadingMode::from(config.mcp_config.tool_loading);
     let tool_search_limit = config.mcp_config.tool_search_limit;
     let plan_mode_default = config.chat_config.plan_mode_default;
+    let chat_default_workspace = config.chat_config.default_workspace.clone();
+    let chat_tool_turn_temperature = config.chat_config.tool_turn_temperature;
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: config.socket_path,
@@ -404,6 +416,8 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         tool_search_limit,
         hooks_config: config.hooks_config,
         plan_mode_default: config.chat_config.plan_mode_default,
+        chat_default_workspace: chat_default_workspace.clone(),
+        chat_tool_turn_temperature,
     };
 
     let supervisor = Supervisor::new(supervisor_config);
@@ -444,6 +458,8 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         api_port: tcp_port,
         runner_supervisor: handles.runner_supervisor,
         plan_mode_default,
+        chat_default_workspace,
+        chat_tool_turn_temperature,
     })
 }
 
