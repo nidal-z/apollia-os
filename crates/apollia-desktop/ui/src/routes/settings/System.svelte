@@ -15,6 +15,7 @@
   import { t } from "svelte-i18n";
   import { Copy, RefreshCw, CheckCircle2, XCircle, Download } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import UpdateChecker from "./UpdateChecker.svelte";
   import { addToast } from "$lib/components/ui/toast";
@@ -177,9 +178,7 @@
         </div>
       </Card>
     {:else if $systemInfoStore.error}
-      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
-        {$systemInfoStore.error}
-      </div>
+      <ErrorBanner message={$systemInfoStore.error} />
     {/if}
 
     <Card class="rounded-lg p-4" data-testid="agent-install-section">

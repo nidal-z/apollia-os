@@ -41,6 +41,7 @@
   import { addToast } from "$lib/components/ui/toast";
   import { sidebarState } from "$lib/stores/layout";
   import { Sheet } from "$lib/components/ui/sheet";
+  import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../components/settings/SettingSectionSkeleton.svelte";
   import UnsavedChangesBadge from "../components/settings/UnsavedChangesBadge.svelte";
   import UnsavedChangesDialog from "../components/settings/UnsavedChangesDialog.svelte";
@@ -549,11 +550,7 @@
       </div>
 
       {#if loadError}
-        <div
-          class="mx-10 mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive"
-        >
-          {loadError}
-        </div>
+        <ErrorBanner message={loadError} class="mx-10 mt-4" />
       {/if}
 
       <!-- Scrollable tab body - sub-routes own their cards/forms. -->

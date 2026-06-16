@@ -4,6 +4,7 @@
   import { currentRoute, goBack, goForward } from "$lib/stores/navigation";
   import { PageTransition } from "$lib/components/motion";
   import Topbar from "./Topbar.svelte";
+  import RuntimeDisconnectedBanner from "../../../components/chat/RuntimeDisconnectedBanner.svelte";
   import Dashboard from "../../../routes/Dashboard.svelte";
   import Agents from "../../../routes/Agents.svelte";
   import Tasks from "../../../routes/Tasks.svelte";
@@ -47,6 +48,9 @@
   aria-label={$t("a11y.main_landmark")}
 >
   <Topbar />
+
+  <!-- Runtime health : global persistent banner across every route. -->
+  <RuntimeDisconnectedBanner />
 
   <!-- Route content : padding responsive + conteneur centré. -->
   <div class="w-full flex-1 overflow-auto">

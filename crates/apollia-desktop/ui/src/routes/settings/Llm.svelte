@@ -18,6 +18,7 @@
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog/Dialog.svelte";
   import DialogFooter from "$lib/components/ui/dialog/DialogFooter.svelte";
+  import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import LlmBackendDialog from "../../components/settings/LlmBackendDialog.svelte";
   import { llmBackendsStore, settingsLoaders } from "$lib/stores/settings";
@@ -185,15 +186,11 @@
     </div>
 
     {#if actionError}
-      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
-        {actionError}
-      </div>
+      <ErrorBanner message={actionError} />
     {/if}
 
     {#if $llmBackendsStore.error}
-      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
-        {$llmBackendsStore.error}
-      </div>
+      <ErrorBanner message={$llmBackendsStore.error} />
     {:else if ($llmBackendsStore.data ?? []).length === 0}
       <div
         class="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground"

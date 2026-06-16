@@ -13,6 +13,7 @@
     UserSquare,
   } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import ToolCard from "../../components/settings/ToolCard.svelte";
   import ToolConfigDrawer from "../../components/settings/ToolConfigDrawer.svelte";
@@ -217,12 +218,7 @@
   {#if !initialized && $loadingTools}
     <SettingSectionSkeleton />
   {:else if $toolsError}
-    <div
-      class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive"
-      data-testid="tools-error"
-    >
-      {$toolsError}
-    </div>
+    <ErrorBanner message={$toolsError} data-testid="tools-error" />
   {:else if $tools.length === 0}
     <p class="text-sm text-muted-foreground">{$t("settings.tools_page.empty")}</p>
   {:else}

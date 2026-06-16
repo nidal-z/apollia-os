@@ -43,6 +43,8 @@
   import {
     DetailHeader,
     SidebarHeader,
+    ErrorBanner,
+    SkeletonList,
     StatusDot,
     Card,
     EmptyState,
@@ -70,7 +72,6 @@
   } from "$lib/stores/agentPackages";
   import { addToast } from "$lib/components/ui/toast/store";
   import { Spinner } from "$lib/components/ui/progress";
-  import { Skeleton } from "$lib/components/ui/skeleton";
   import { Input } from "$lib/components/ui/input";
 
   // ── Existing state (preserved from previous implementation) ──────────
@@ -552,11 +553,7 @@
   <div class="px-8 pt-3">
     <MacSandboxBanner />
     {#if installError}
-      <div
-        class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-      >
-        {installError}
-      </div>
+      <ErrorBanner message={installError} class="mt-3" />
     {/if}
   </div>
 
@@ -648,19 +645,7 @@
         </Button>
 
         {#if $connectionStatus === "connecting" && allAssistants.length === 0}
-          <div class="space-y-1">
-            {#each Array(4) as _, i (i)}
-              <div
-                class="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
-              >
-                <Skeleton class="h-7 w-7 rounded-lg bg-surface-2" />
-                <div class="flex-1 space-y-1.5">
-                  <Skeleton class="h-3 w-3/5 rounded bg-surface-2" />
-                  <Skeleton class="h-2.5 w-2/5 rounded bg-surface-2" />
-                </div>
-              </div>
-            {/each}
-          </div>
+          <SkeletonList count={4} rowClass="rounded-lg px-2.5 py-2" />
         {:else if filteredAssistants.length === 0}
           <div class="px-2 pt-6">
             <EmptyState
@@ -1412,9 +1397,7 @@
           {:else if agentDetailTab === "settings"}
             <div class="space-y-4 max-w-3xl" data-testid="agent-detail-settings">
               {#if stopError || actionError}
-                <div class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                  {stopError || actionError}
-                </div>
+                <ErrorBanner message={stopError ?? actionError ?? ""} />
               {/if}
 
               <!-- Runtime controls -->

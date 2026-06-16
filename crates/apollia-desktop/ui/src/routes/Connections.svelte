@@ -18,6 +18,7 @@
     DetailHeader,
     SidebarHeader,
     ListRow,
+    ErrorBanner,
     FilterChipBar,
     type ConnectionStatus,
   } from "$lib/components/operator";
@@ -1514,9 +1515,7 @@
 
       <div class="flex-1 overflow-auto px-2.5 pb-3" data-testid="connections-sidebar-list">
         {#if loadError}
-          <div class="mx-1.5 my-2 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1.5 text-[11px] text-destructive" data-testid="connections-error">
-            {loadError}
-          </div>
+          <ErrorBanner message={loadError} class="mx-1.5 my-2" data-testid="connections-error" />
         {/if}
 
         <!-- ─── Native Apollia (always shown) ───────────────────────────── -->
@@ -1676,9 +1675,7 @@
         <div class="flex-1 overflow-auto px-8 py-5">
           {#if nativeTab === "accounts"}
             {#if nativeError}
-              <div class="mb-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                {nativeError}
-              </div>
+              <ErrorBanner message={nativeError} class="mb-3" />
             {/if}
             {#if accounts.length === 0}
               <Card class="p-6 max-w-2xl text-center">
@@ -2462,9 +2459,7 @@
           </div>
         {/if}
         {#if customError}
-          <div class="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {customError}
-          </div>
+          <ErrorBanner message={customError} class="mt-4" />
         {/if}
 
         <div class="mt-5 flex justify-end gap-2">

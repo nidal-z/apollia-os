@@ -11,7 +11,6 @@
     XCircle,
     ChevronDown,
     ChevronUp,
-    AlertTriangle,
     CheckCircle,
     AlertCircle,
     Info,
@@ -28,6 +27,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
+  import { ErrorBanner } from "$lib/components/operator";
 
   // ──────────────────────────────────────────────
   // Types
@@ -609,10 +609,7 @@
     </div>
 
     {#if searchError}
-      <div class="mt-3 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-        <AlertTriangle class="h-4 w-4 shrink-0" />
-        {searchError}
-      </div>
+      <ErrorBanner message={searchError} class="mt-3" />
     {/if}
 
     <!-- ── Filter bar ── -->

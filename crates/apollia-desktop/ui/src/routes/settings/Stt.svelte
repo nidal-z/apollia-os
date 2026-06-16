@@ -15,6 +15,7 @@
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
+  import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import HotkeyDisplay from "../../components/settings/HotkeyDisplay.svelte";
@@ -151,9 +152,7 @@
 {#if $sttConfigStore.loading && !sttConfig}
   <SettingSectionSkeleton rows={2} />
 {:else if $sttConfigStore.error}
-  <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
-    {$t('settings.stt_error')}: {$sttConfigStore.error}
-  </div>
+  <ErrorBanner message={`${$t('settings.stt_error')}: ${$sttConfigStore.error}`} />
 {:else if sttConfig}
   <section class="space-y-5" data-testid="stt-section">
     <p class="text-sm text-muted-foreground">{$t('settings.stt_subtitle')}</p>

@@ -17,7 +17,6 @@
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
-  import RuntimeDisconnectedBanner from "../components/chat/RuntimeDisconnectedBanner.svelte";
   import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import {
     decoratedSessions,
@@ -420,9 +419,6 @@
   onslashCommand={appendSlashCommand}
 />
 <ShortcutsHelpDialog bind:open={showShortcutsHelp} />
-
-<!-- Runtime health banner - stays mounted across sub-states. -->
-<RuntimeDisconnectedBanner />
 
 <!--
   V3 Operator chat layout: left sessions rail / center thread / right journal.

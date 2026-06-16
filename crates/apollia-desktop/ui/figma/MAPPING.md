@@ -149,6 +149,23 @@ Figma sync: Memory sidebar background switched from `surface-1/40` (cream) to
 plain `background`; the Tasks-split sidebar heading was normalised from the mono
 uppercase label to the standard SidebarHeader title.
 
+## Chantier 3 primitives — states & errors (étape 4, 2026-06-16)
+
+> Canonical loading and error surfaces. The error convention is: a banner at the
+> top of the content for persistent/blocking errors (load failures), toasts for
+> transient action feedback. The runtime-disconnected banner is now rendered once
+> globally in `app/Main.svelte` (above the routed content), not per route.
+
+| Component | node-id | Source | Role |
+|---|---|---|---|
+| ErrorBanner | 245:2 | lib/components/operator/ErrorBanner.svelte (new) | Inline alert: `message` + `tone` (danger/warning/info) + optional `onretry`/`ondismiss`. Replaces ~17 hand-rolled `border-destructive` error divs across routes and the Settings sub-routes. Tint/border/text bound to `semantic/*` + `text/*` tokens (tint at 6%, border at 32%). |
+| SkeletonList | 247:2 | lib/components/operator/SkeletonList.svelte (new) | List/sidebar loading placeholder: `count` rows, optional leading `avatar`. Bound to `surface/muted`. Backs the Agents sidebar loading state. |
+
+Figma sync: these are conditional (error) and transient (loading) states, not
+shown in the default-state route templates, so the template frames are unchanged.
+ErrorBanner (`245:2`) and SkeletonList (`247:2`) are added to the Primitives
+page (`1:3`) as token-bound library showcases.
+
 ## Topbar breadcrumb (synced to code 2026-06-16)
 
 > The Topbar component (`70:2`) breadcrumb now mirrors `OperatorBreadcrumb`:

@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Input } from "$lib/components/ui/input";
+  import { ErrorBanner } from "$lib/components/operator";
   import GoogleDrivePicker from "../../components/integrations/GoogleDrivePicker.svelte";
 
   /**
@@ -325,12 +326,7 @@
   </section>
 
   {#if error}
-    <div
-      class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-      data-testid="oauth-settings-error"
-    >
-      {error}
-    </div>
+    <ErrorBanner message={error} data-testid="oauth-settings-error" />
   {/if}
   {#if info}
     <div

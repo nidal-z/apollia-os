@@ -6,7 +6,7 @@
   import { Separator } from "$lib/components/ui/separator";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Button } from "$lib/components/ui/button";
-  import { PageLayout } from "$lib/components/operator";
+  import { PageLayout, ErrorBanner } from "$lib/components/operator";
   import { EmptyState } from "$lib/components/layout";
   import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import NotificationChannelCard from "../components/notifications/NotificationChannelCard.svelte";
@@ -131,11 +131,7 @@
         <Skeleton variant="card" height="6rem" />
       </div>
     {:else if error}
-      <div
-        class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive"
-      >
-        {error}
-      </div>
+      <ErrorBanner message={error} />
     {:else}
       <!-- Global events section -->
       <GlobalEventsEditor onsaved={handleGlobalEventsSaved} />

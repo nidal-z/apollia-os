@@ -5,6 +5,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
   import { Dialog, DialogFooter } from "$lib/components/ui/dialog";
+  import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import PermissionRuleCard from "../../components/settings/PermissionRuleCard.svelte";
   import {
@@ -300,12 +301,7 @@
       {#if !initialized && $loadingRules}
         <SettingSectionSkeleton />
       {:else if $rulesError}
-        <div
-          class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive"
-          data-testid="permissions-error"
-        >
-          {$rulesError}
-        </div>
+        <ErrorBanner message={$rulesError} data-testid="permissions-error" />
       {:else if $permissionRules.length === 0}
         <p class="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground" data-testid="permissions-empty">
           {$t("settings.permissions.rules_empty")}
@@ -347,12 +343,7 @@
     </header>
 
     {#if $sessionAuthsError}
-      <div
-        class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-        data-testid="session-auths-error"
-      >
-        {$sessionAuthsError}
-      </div>
+      <ErrorBanner message={$sessionAuthsError} data-testid="session-auths-error" />
     {:else if !initialized && $loadingSessionAuths}
       <SettingSectionSkeleton />
     {:else if $sessionAuthorizations.length === 0}
@@ -423,12 +414,7 @@
     </header>
 
     {#if $chatRulesError}
-      <div
-        class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-        data-testid="chat-permissions-error"
-      >
-        {$chatRulesError}
-      </div>
+      <ErrorBanner message={$chatRulesError} data-testid="chat-permissions-error" />
     {:else if !initialized && $loadingChatRules}
       <SettingSectionSkeleton />
     {:else if $chatPermissionRules.length === 0}
@@ -460,9 +446,7 @@
     </header>
 
     {#if $auditError}
-      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-        {$auditError}
-      </div>
+      <ErrorBanner message={$auditError} />
     {:else if $auditEntries.length === 0}
       <p class="text-xs text-muted-foreground">{$t("settings.permissions.audit_empty")}</p>
     {:else}

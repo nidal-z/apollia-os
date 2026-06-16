@@ -12,6 +12,7 @@
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
+  import { ErrorBanner } from "$lib/components/operator";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import ConfigFileCard from "../../components/settings/ConfigFileCard.svelte";
   import { configStore, settingsLoaders } from "$lib/stores/settings";
@@ -50,9 +51,7 @@
     </div>
 
     {#if openError}
-      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
-        {openError}
-      </div>
+      <ErrorBanner message={openError} />
     {/if}
 
     <div class="rounded-md border border-info/20 bg-info/5 px-4 py-3 text-sm text-info-foreground" data-testid="settings-operational-redirect-banner">
@@ -60,9 +59,7 @@
     </div>
 
     {#if $configStore.error}
-      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
-        {$configStore.error}
-      </div>
+      <ErrorBanner message={$configStore.error} />
     {:else if $configStore.data}
       {@const configView = $configStore.data}
       <div class="space-y-3">
