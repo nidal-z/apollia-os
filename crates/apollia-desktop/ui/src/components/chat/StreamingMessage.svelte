@@ -8,6 +8,7 @@
 -->
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import { Avatar } from "$lib/components/ui/avatar";
   import StreamingText from "./StreamingText.svelte";
   import ThinkingBadge from "./ThinkingBadge.svelte";
   import { parseStream, isThinking as isActiveThinking } from "$lib/chat/streamParser";
@@ -17,9 +18,13 @@
     text: string;
     /** Session mode - bubble only shown in "libre" mode. */
     sessionMode: "libre" | "agent";
+    /** Assistant display name for the turn header. */
+    agentName?: string | null;
   }
 
-  let { text, sessionMode }: Props = $props();
+  let { text, sessionMode, agentName = null }: Props = $props();
+
+  const displayName = $derived(agentName ?? $t("chat.assistant", { default: "Assistant" }));
 
   const blocks = $derived(parseStream(text));
   const activeThinking = $derived(isActiveThinking(blocks));
@@ -39,15 +44,20 @@
 </script>
 
 {#if sessionMode === "libre"}
-  <div class="flex flex-col items-start gap-1" data-testid="chat-message-streaming">
-    <!-- Thinking blocks above the bubble -->
+  <div class="flex flex-col items-start" data-testid="chat-message-streaming">
+    <div class="flex items-center gap-2 mb-1.5 px-0.5">
+      <Avatar name={displayName} size="xs" ring={false} />
+      <span class="text-[12px] font-medium text-muted-foreground">{displayName}</span>
+    </div>
+
+    <!-- Thinking blocks above the response -->
     {#if activeThinking || closedThinkingBlocks.length > 0}
       <div
-        class="max-w-[min(82ch,92%)] lg:max-w-[min(78ch,80%)] space-y-1"
+        class="w-full space-y-1"
         data-testid="streaming-thinking-area"
       >
         {#if activeThinking}
-          <div class="rounded-lg border border-primary/10 bg-primary/[0.04] px-3 py-2 space-y-1.5">
+          <div class="rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-primary px-3 py-2 space-y-1.5">
             <ThinkingBadge />
             {#if activeThinkingContent.trim()}
               <span
@@ -61,7 +71,7 @@
         {/if}
         {#each closedThinkingBlocks as block, i (i)}
           <div
-            class="rounded-lg border border-primary/10 bg-primary/[0.04] px-3 py-2"
+            class="rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-primary px-3 py-2"
             data-testid="streaming-closed-thinking-{i}"
           >
             <span class="block text-[10px] font-medium uppercase tracking-wider text-primary/55 mb-1">
@@ -75,13 +85,9 @@
       </div>
     {/if}
 
-    <!-- Main response bubble (thinking-free) -->
+    <!-- Main response (thinking-free), transparent in the flat thread -->
     {#if textContent || !activeThinking}
-      <div
-        class="max-w-[min(82ch,92%)] lg:max-w-[min(78ch,80%)] rounded-2xl rounded-bl-sm
-          bg-card/80 border border-border/40 px-3.5 py-2.5 text-[13px] text-foreground
-          shadow-elev-1"
-      >
+      <div class="w-full py-1 text-[14px] text-foreground">
         <StreamingText text={textContent} />
       </div>
     {/if}

@@ -39,7 +39,7 @@
 
 <button
   type="button"
-  class="group flex w-full flex-col gap-2 rounded-lg border border-border/40 bg-card/60 px-3 py-2.5 text-left
+  class="group flex w-full flex-col gap-2 rounded-lg border border-border/60 bg-surface-1 px-3 py-2.5 text-left
     transition-all hover:border-primary/40 hover:bg-primary/5 active:scale-[0.99]
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 disabled:pointer-events-none"
   onclick={() => onselect(agent.name)}

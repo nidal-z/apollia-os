@@ -91,7 +91,7 @@
 </script>
 
 <div
-  class="my-1.5 rounded-lg glass-surface glass-border-subtle border-l-2 border-l-warning px-3 py-2.5 text-xs"
+  class="my-1.5 rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-warning px-3 py-2.5 text-xs"
   data-testid="operator-approval-{toolCall.tool_name}"
   transition:slide={{ duration: 200 }}
 >

@@ -93,7 +93,7 @@
   }
 </script>
 
-<div class="glass-card glass-border my-1.5 rounded-lg border-l-2 px-3 py-2.5 text-xs {isA2A ? 'border-l-secondary' : 'border-l-warning'}" data-testid="approval-card-{toolName}" transition:slide={{ duration: 200 }}>
+<div class="bg-surface-1 border border-border/60 my-1.5 rounded-lg border-l-2 px-3 py-2.5 text-xs {isA2A ? 'border-l-secondary' : 'border-l-warning'}" data-testid="approval-card-{toolName}" transition:slide={{ duration: 200 }}>
   <div class="flex items-center gap-2 font-medium text-foreground">
     <div
       class="flex h-6 w-6 items-center justify-center rounded-lg {isA2A
@@ -117,7 +117,7 @@
     {/if}
   </div>
 
-  <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg glass-surface p-2 font-mono text-[10px] text-muted-foreground">{inputPreview}</pre>
+  <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg bg-surface-2 p-2 font-mono text-[10px] text-muted-foreground">{inputPreview}</pre>
 
   {#if error}
     <p class="mt-1.5 text-[10px] text-destructive">{error}</p>

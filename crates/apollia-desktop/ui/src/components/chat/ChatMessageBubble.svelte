@@ -66,18 +66,17 @@
       : $t("chat.empty_response_builder"),
   );
 
-  // Adaptive width - B.2. Compact variant falls back to 72 %.
+  // Flat thread: the reading column constrains width. Compact embeds still cap.
   const widthClass = $derived(
-    variant === "compact"
-      ? "max-w-[min(78ch,72%)]"
-      : "max-w-[min(82ch,92%)] lg:max-w-[min(78ch,80%)]",
+    variant === "compact" ? "max-w-[min(78ch,72%)]" : "w-full",
   );
 
-  // Relief - Warm Glass shadow + subtle border for agent, gradient accent for user.
-  const bubbleClass = $derived(
+  // Flat thread: the user turn sits in a light surface block, the assistant
+  // turn renders transparently in the same column. No bubble, no gradient.
+  const blockClass = $derived(
     isUser
-      ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-2xl rounded-br-sm shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.35)]"
-      : "bg-card/80 border border-border/40 rounded-2xl rounded-bl-sm text-foreground shadow-elev-1",
+      ? "bg-surface-2 text-foreground rounded-xl px-4 py-3"
+      : "text-foreground py-1",
   );
 
   let copied = $state(false);
@@ -95,7 +94,7 @@
 </script>
 
 <div
-  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1"
+  class="group flex flex-col items-start gap-1 w-full"
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
@@ -106,7 +105,7 @@
   {/if}
 
   <div
-    class="relative {widthClass} px-3.5 py-2.5 text-[13px] leading-relaxed {bubbleClass} {!isUser && message.content ? 'pr-10' : ''}"
+    class="relative {widthClass} text-[14px] leading-relaxed {blockClass} {!isUser && message.content ? 'pr-10' : ''}"
   >
     <!-- Copy button - floating, backdrop-blur, always reachable on touch. -->
     {#if message.content && !isUser}
@@ -149,7 +148,7 @@
     {/if}
 
     {#if showTimestamp}
-      <p class="mt-1 text-[10px] {isUser ? 'text-primary-foreground/50 text-right' : 'text-muted-foreground/40 text-left'}">
+      <p class="mt-1 text-[10px] text-left text-muted-foreground/50">
         {formattedTime}
       </p>
     {/if}

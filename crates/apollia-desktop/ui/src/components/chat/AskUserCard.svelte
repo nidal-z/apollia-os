@@ -229,7 +229,7 @@
 {#if isSubmitted}
   <AskUserSummary {questions} answers={submittedAnswers} {requestId} />
 {:else}
-  <div class="glass-card glass-border my-1.5 rounded-lg border-l-2 border-l-info px-3 py-2 text-xs" bind:this={rootEl} role="alertdialog" aria-modal="false" aria-labelledby="ask-user-title-{requestId}" tabindex="-1" onkeydown={handleKeydown} data-testid="ask-user-card-{requestId}" transition:slide={{ duration: 200 }}>
+  <div class="bg-surface-1 border border-border/60 my-1.5 rounded-lg border-l-2 border-l-info px-3 py-2 text-xs" bind:this={rootEl} role="alertdialog" aria-modal="false" aria-labelledby="ask-user-title-{requestId}" tabindex="-1" onkeydown={handleKeydown} data-testid="ask-user-card-{requestId}" transition:slide={{ duration: 200 }}>
     <!-- Header - compact (prompt 1 line, expandable) -->
     <div class="flex items-start gap-2">
       <div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-info/10">

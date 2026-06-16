@@ -166,6 +166,26 @@ shown in the default-state route templates, so the template frames are unchanged
 ErrorBanner (`245:2`) and SkeletonList (`247:2`) are added to the Primitives
 page (`1:3`) as token-bound library showcases.
 
+## Chantier 4 — chat flat thread (étape 4, 2026-06-16)
+
+> The chat conversation drops the bubble metaphor for a single centered reading
+> column (~680px). User turns sit in a light `surface/surface-2` block, assistant
+> turns render transparently in the same column, and every process card shares
+> one visual language: `surface/surface-1` background, `border/border` hairline,
+> status-colored left accent (primary = reasoning/tool, warning = approval, info
+> = ask-user, secondary = A2A, success/destructive = outcome).
+
+| Surface | Source | Role |
+|---|---|---|
+| ReasoningCardShell | components/chat/ReasoningCardShell.svelte | Canonical process-card shell (icon/title/meta/body/footer slots). Restyled to surface-1 + border + left accent, with an explicit `accent` override (neutral/primary/warning/info/success/destructive). Backs reasoning, tool, web, retry, citation, thinking, rationale. |
+| ChatMessageBubble / MessageGroup | components/chat/*.svelte | Flat dialogue blocks: left-aligned, role header (avatar + label + time), user in a light block, assistant transparent. |
+| ApprovalCard / OperatorApprovalCard / AskUserCard / AgentStatusCard | components/chat/*.svelte | Action cards aligned to the shell visual tokens (surface-1 + border + status left accent) while keeping their interactive bodies. |
+
+Figma sync: the Chat template center pane (`218:1732`, inside `85:183`) was
+rebuilt as a flat thread (user block, transparent assistant, approval card with
+warning accent). The validated direction lives in the proposal frame
+`250:2` on the Primitives page.
+
 ## Topbar breadcrumb (synced to code 2026-06-16)
 
 > The Topbar component (`70:2`) breadcrumb now mirrors `OperatorBreadcrumb`:

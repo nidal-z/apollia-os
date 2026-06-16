@@ -37,25 +37,23 @@
 </script>
 
 <div
-  class="flex flex-col {isUser ? 'items-end' : 'items-start'}"
+  class="flex flex-col items-start"
   data-testid="chat-message-group-{group.key}"
 >
   {#if showHeader}
-    <div
-      class="flex items-center gap-2 mb-1 px-1 {isUser ? 'flex-row-reverse' : 'flex-row'}"
-    >
+    <div class="flex items-center gap-2 mb-1.5 px-0.5">
       <Avatar name={displayName} size="xs" ring={false} />
-      <span class="text-[11px] font-medium text-muted-foreground/70">{displayName}</span>
-      <span class="text-[10px] text-muted-foreground/40">{headerTime}</span>
+      <span class="text-[12px] font-medium text-muted-foreground">{displayName}</span>
+      <span class="text-[10px] text-muted-foreground/50">{headerTime}</span>
     </div>
   {/if}
 
-  <div class="w-full flex flex-col space-y-1 {isUser ? 'items-end' : 'items-start'}">
-    {#each group.messages as msg, i (msg.id)}
+  <div class="w-full flex flex-col items-start space-y-2">
+    {#each group.messages as msg (msg.id)}
       <ChatMessageBubble
         message={msg}
         {sessionId}
-        showTimestamp={i === group.messages.length - 1}
+        showTimestamp={false}
         {variant}
       />
     {/each}

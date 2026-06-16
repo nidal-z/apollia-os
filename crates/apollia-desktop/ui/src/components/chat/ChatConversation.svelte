@@ -997,7 +997,7 @@
     <div
       bind:this={messagesContainer}
       onscroll={handleScroll}
-      class="h-full overflow-y-auto px-4 py-4 space-y-6"
+      class="h-full overflow-y-auto px-4 py-5 space-y-5 [&>*]:mx-auto [&>*]:w-full [&>*]:max-w-[680px]"
       data-testid="chat-messages-list"
     >
       {#if (messages ?? []).length === 0 && !isStreaming && !isProcessing}
@@ -1038,12 +1038,12 @@
                subtree re-renders per token. The committed
                MessageGroup list above depends on the immutable `messages`
                array, so it does NOT re-render on each token. -->
-          <StreamingMessage text={tokenBuffer} {sessionMode} />
+          <StreamingMessage text={tokenBuffer} {sessionMode} agentName={sessionAgentName} />
         {/if}
 
         {#if activeA2A}
           <div class="flex justify-start" data-testid="chat-a2a-delegating">
-            <div class="max-w-full sm:max-w-[85%] overflow-hidden rounded-lg border border-secondary/20 glass-surface px-2.5 py-2">
+            <div class="w-full overflow-hidden rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-secondary px-2.5 py-2">
               <div class="flex items-center gap-1.5">
                 <Zap size={11} class="animate-pulse text-secondary" />
                 <span class="text-[11px] font-medium text-secondary/80">
@@ -1090,7 +1090,7 @@
 
         {#if liveToolChain.length > 0}
           <div class="flex justify-start" data-testid="chat-live-reasoning">
-            <div class="max-w-full sm:max-w-[85%] overflow-hidden rounded-lg border border-border/20 glass-surface px-2.5 py-2">
+            <div class="w-full overflow-hidden rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-primary px-2.5 py-2">
               <div class="mb-1.5 flex items-center gap-1.5">
                 <BrainCircuit size={10} class="text-primary/50" />
                 <span class="text-[10px] font-medium text-muted-foreground/60">{$t("chat.reasoning_live")}</span>
@@ -1130,7 +1130,7 @@
 
         {#if pendingApproval}
           <div class="flex flex-col items-start gap-1" data-testid="chat-approval-inline">
-            <div class="max-w-full sm:max-w-[85%]">
+            <div class="w-full">
               <ApprovalCard
                 sessionId={pendingApproval.sessionId}
                 messageId={pendingApproval.messageId}
@@ -1160,7 +1160,7 @@
 
         {#if pendingUserInput}
           <div class="flex justify-start" data-testid="chat-ask-user-inline">
-            <div class="max-w-full sm:max-w-[85%]">
+            <div class="w-full">
               <AskUserCard
                 requestId={pendingUserInput.requestId}
                 questions={pendingUserInput.questions}

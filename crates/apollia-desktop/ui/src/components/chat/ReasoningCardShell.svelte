@@ -15,6 +15,19 @@
   import type { ReasoningStatus } from "$lib/chat/reasoning";
   import { Button } from "$lib/components/ui/button";
 
+  /**
+   * Accent tone for the left status bar + icon background. When omitted it is
+   * derived from `status`. Action cards (approval, ask-user) pass it explicitly
+   * so they keep their warning/info identity regardless of internal status.
+   */
+  type Accent =
+    | "neutral"
+    | "primary"
+    | "warning"
+    | "info"
+    | "success"
+    | "destructive";
+
   interface Props {
     status: ReasoningStatus;
     testid?: string;
@@ -34,6 +47,8 @@
      * of place - those use the standard sans-serif type ramp instead.
      */
     monoTitle?: boolean;
+    /** Explicit accent override; falls back to the status-derived tone. */
+    accent?: Accent;
   }
 
   let {
@@ -49,6 +64,7 @@
     body,
     footer,
     monoTitle = true,
+    accent,
   }: Props = $props();
 
   const titleClass = $derived(
@@ -57,38 +73,48 @@
       : "min-w-0 flex-1 truncate text-[12px] font-medium text-foreground/85",
   );
 
-  const borderClass = $derived.by(() => {
+  const tone = $derived.by<Accent>(() => {
+    if (accent) return accent;
     switch (status) {
       case "success":
       case "approved":
-        return "border-l-2 border-l-success";
+        return "success";
       case "error":
       case "rejected":
-        return "border-l-2 border-l-destructive";
+        return "destructive";
       case "pending":
       case "running":
-        return "border-l-2 border-l-primary/50";
+        return "primary";
       default:
-        return "";
+        return "neutral";
     }
   });
 
-  const iconBgClass = $derived.by(() => {
-    switch (status) {
-      case "success":
-      case "approved":
-        return "bg-success/10";
-      case "error":
-      case "rejected":
-        return "bg-destructive/10";
-      default:
-        return "glass-inset";
-    }
-  });
+  const borderClass = $derived(
+    {
+      neutral: "border-l-border",
+      primary: "border-l-primary",
+      warning: "border-l-warning",
+      info: "border-l-info",
+      success: "border-l-success",
+      destructive: "border-l-destructive",
+    }[tone],
+  );
+
+  const iconBgClass = $derived(
+    {
+      neutral: "glass-inset",
+      primary: "bg-primary/10",
+      warning: "bg-warning/10",
+      info: "bg-info/10",
+      success: "bg-success/10",
+      destructive: "bg-destructive/10",
+    }[tone],
+  );
 </script>
 
 <div
-  class="my-1 rounded-lg glass-surface glass-border-subtle px-3 py-2 text-xs {borderClass}"
+  class="my-1 rounded-lg bg-surface-1 border border-border/60 border-l-2 {borderClass} px-3 py-2 text-xs"
   data-testid={testid}
 >
   <!-- Header -->
