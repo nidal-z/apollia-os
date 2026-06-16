@@ -16,6 +16,8 @@
     EmptyState,
     SplitLayout,
     DetailHeader,
+    SidebarHeader,
+    ListRow,
     FilterChipBar,
     type ConnectionStatus,
   } from "$lib/components/operator";
@@ -1477,35 +1479,38 @@
 <div class="flex h-full min-h-0 w-full flex-col" data-testid="connections-route">
   <SplitLayout sidebarTestid="connectors-sidebar" detailTestid="connector-detail">
     {#snippet sidebar()}
-      <header class="px-4 pt-4 pb-2.5">
-        <div class="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[1.2px] uppercase text-muted-foreground">
-          {$t("connections.sidebar_my_connectors", { values: { count: servers.length + NATIVE_CONNECTORS.length } })}
-        </div>
-        <div class="mb-2 flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border">
-          <Search size={11} class="text-muted-foreground" />
-          <Input
-            type="search"
-            unstyled
-            bind:value={sidebarFilter}
-            placeholder={$t("connections.sidebar_filter_placeholder")}
-            class="flex-1 text-[11.5px] text-foreground"
+      <SidebarHeader
+        title={$t("connections.sidebar_my_connectors", { values: { count: servers.length + NATIVE_CONNECTORS.length } })}
+      >
+        {#snippet search()}
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border">
+            <Search size={11} class="text-muted-foreground" />
+            <Input
+              type="search"
+              unstyled
+              bind:value={sidebarFilter}
+              placeholder={$t("connections.sidebar_filter_placeholder")}
+              class="flex-1 text-[11.5px] text-foreground"
+            />
+          </div>
+        {/snippet}
+        {#snippet filters()}
+          <FilterChipBar
+            size="compact"
+            chips={[
+              { key: "all", label: $t("connections.status_chip_all"), color: "hsl(var(--muted-foreground))", count: servers.length },
+              { key: "active", label: $t("connections.status_chip_active"), color: "hsl(var(--success))", count: activeCount, glowWhenActive: true },
+              { key: "attention", label: $t("connections.status_chip_attention"), color: "hsl(var(--warning))", count: attentionCount },
+              { key: "error", label: $t("connections.status_chip_error"), color: "hsl(var(--destructive))", count: errorCount },
+              { key: "idle", label: $t("connections.status_chip_idle"), color: "hsl(var(--muted-foreground))", count: idleCount },
+            ]}
+            activeKey={statusFilter}
+            onchange={(key) => (statusFilter = key as StatusFilter)}
+            aria-label={$t("connections.status_filter_label")}
+            testidPrefix="connections-sidebar-filter"
           />
-        </div>
-        <FilterChipBar
-          size="compact"
-          chips={[
-            { key: "all", label: $t("connections.status_chip_all"), color: "hsl(var(--muted-foreground))", count: servers.length },
-            { key: "active", label: $t("connections.status_chip_active"), color: "hsl(var(--success))", count: activeCount, glowWhenActive: true },
-            { key: "attention", label: $t("connections.status_chip_attention"), color: "hsl(var(--warning))", count: attentionCount },
-            { key: "error", label: $t("connections.status_chip_error"), color: "hsl(var(--destructive))", count: errorCount },
-            { key: "idle", label: $t("connections.status_chip_idle"), color: "hsl(var(--muted-foreground))", count: idleCount },
-          ]}
-          activeKey={statusFilter}
-          onchange={(key) => (statusFilter = key as StatusFilter)}
-          aria-label={$t("connections.status_filter_label")}
-          testidPrefix="connections-sidebar-filter"
-        />
-      </header>
+        {/snippet}
+      </SidebarHeader>
 
       <div class="flex-1 overflow-auto px-2.5 pb-3" data-testid="connections-sidebar-list">
         {#if loadError}
@@ -1522,19 +1527,18 @@
           {@const accounts = accountsForProvider(connector.id)}
           {@const isActiveSel = selection?.kind === "native" && selection.provider === connector.id}
           {@const accentColor = accounts.length > 0 ? "hsl(var(--success))" : "hsl(var(--muted-foreground))"}
-          <Button variant="ghost" size="auto"
-            type="button"
+          <ListRow
+            variant="nav"
+            state={isActiveSel ? "active" : "default"}
+            class="mb-0.5 text-left"
             onclick={() => (selection = { kind: "native", provider: connector.id })}
-            class="w-full text-left flex items-start gap-2.5 px-2.5 py-2.5 rounded-lg mb-0.5 border-0 transition-colors {isActiveSel
-              ? 'bg-primary/10'
-              : 'bg-transparent hover:bg-muted/40'}"
             data-testid="sidebar-native-{connector.id}"
           >
             <div
               class="w-0.5 self-stretch rounded-sm shrink-0 my-0.5"
               style="background: {accentColor};"
             ></div>
-            <div class="flex-1 min-w-0">
+            <div class="min-w-0 flex-1">
               <div class="text-[12.5px] truncate text-foreground" style:font-weight={isActiveSel ? 600 : 500}>
                 {connector.name}
               </div>
@@ -1544,7 +1548,7 @@
                   : $t("connections.not_connected")}
               </div>
             </div>
-          </Button>
+          </ListRow>
         {/each}
 
         <!-- ─── MCP servers installed ──────────────────────────────────── -->
@@ -1580,19 +1584,18 @@
                 : st === "error"
                   ? "hsl(var(--destructive))"
                   : "hsl(var(--muted-foreground))"}
-            <Button variant="ghost" size="auto"
-              type="button"
+            <ListRow
+              variant="nav"
+              state={isActiveSel ? "active" : "default"}
+              class="mb-0.5 text-left"
               onclick={() => (selection = { kind: "mcp", name: server.name })}
-              class="w-full text-left flex items-start gap-2.5 px-2.5 py-2.5 rounded-lg mb-0.5 border-0 transition-colors {isActiveSel
-                ? 'bg-primary/10'
-                : 'bg-transparent hover:bg-muted/40'}"
               data-testid="sidebar-mcp-{server.name}"
             >
               <div
                 class="w-0.5 self-stretch rounded-sm shrink-0 my-0.5"
                 style="background: {accentColor};"
               ></div>
-              <div class="flex-1 min-w-0">
+              <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 min-w-0">
                   <span class="text-[12.5px] truncate text-foreground" style:font-weight={isActiveSel ? 600 : 500}>{label}</span>
                   {#if st === 'active'}
@@ -1607,7 +1610,7 @@
                   {syncLabel(server) ?? (st === 'error' ? $t("connections.status_chip_error") : st === 'attention' ? $t("connections.status_chip_attention") : st === 'active' ? $t("connections.tools_count_label", { values: { count: server.tools_count } }) : $t("connections.status_chip_idle"))}
                 </div>
               </div>
-            </Button>
+            </ListRow>
           {/each}
         {/if}
       </div>

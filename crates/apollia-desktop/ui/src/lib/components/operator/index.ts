@@ -2,6 +2,7 @@
 // Primitives
 export { default as PageHeader } from "./PageHeader.svelte";
 export { default as DetailHeader } from "./DetailHeader.svelte";
+export { default as SidebarHeader } from "./SidebarHeader.svelte";
 export { default as PageLayout } from "./PageLayout.svelte";
 export { default as SectionTitle } from "./SectionTitle.svelte";
 export { default as StatusDot } from "./StatusDot.svelte";

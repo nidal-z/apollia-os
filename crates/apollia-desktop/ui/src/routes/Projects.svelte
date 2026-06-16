@@ -32,6 +32,8 @@
     SectionTitle,
     SplitLayout,
     DetailHeader,
+    SidebarHeader,
+    ListRow,
     StatusDot,
     EmptyState as OperatorEmptyState,
     ConversationRow,
@@ -597,13 +599,8 @@
     <!-- ============ SIDEBAR + DETAIL (mirror Assistants) ============ -->
     <SplitLayout>
       {#snippet sidebar()}
-        <div class="px-4 pt-4 pb-2.5">
-          <div class="flex items-center justify-between mb-2.5">
-            <div
-              class="font-mono text-[10.5px] font-semibold tracking-[1.2px] uppercase text-muted-foreground"
-            >
-              {$t("projects.title")} · {$projects.length}
-            </div>
+        <SidebarHeader title={$t("projects.title")} count={$projects.length}>
+          {#snippet actions()}
             <Button variant="ghost" size="sm"
               type="button"
               onclick={openCreateDialog}
@@ -612,36 +609,37 @@
               <Plus size={11} />
               {$t("projects.new_project_short") || "Nouveau"}
             </Button>
-          </div>
-          <div
-            class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border"
-          >
-            <Search size={11} class="text-muted-foreground" />
-            <Input
-              type="search"
-              unstyled
-              bind:value={listFilter}
-              placeholder={$t("projects.search_placeholder")}
-              class="flex-1 text-[11.5px] text-foreground"
-             />
-          </div>
-        </div>
+          {/snippet}
+          {#snippet search()}
+            <div
+              class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border"
+            >
+              <Search size={11} class="text-muted-foreground" />
+              <Input
+                type="search"
+                unstyled
+                bind:value={listFilter}
+                placeholder={$t("projects.search_placeholder")}
+                class="flex-1 text-[11.5px] text-foreground"
+               />
+            </div>
+          {/snippet}
+        </SidebarHeader>
         <div class="flex-1 overflow-auto px-2.5 pb-3">
           {#each filteredListProjects as p (p.id)}
             {@const accent = accentFor(p.id)}
             {@const isActive = p.id === selectedProjectId}
-            <Button variant="ghost" size="auto"
-              type="button"
+            <ListRow
+              variant="nav"
+              state={isActive ? "active" : "default"}
+              class="mb-0.5 text-left"
               onclick={() => selectProject(p.id)}
-              class="w-full text-left flex items-start gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer mb-0.5 border-0 transition-colors {isActive
-                ? 'bg-primary/10'
-                : 'bg-transparent hover:bg-muted/40'}"
             >
               <div
                 class="w-1 self-stretch rounded-sm shrink-0 my-0.5"
                 style="background: {accent};"
               ></div>
-              <div class="flex-1 min-w-0">
+              <div class="min-w-0 flex-1">
                 <div
                   class="text-[12.5px] truncate text-foreground"
                   style:font-weight={isActive ? 600 : 500}
@@ -654,7 +652,7 @@
                   {fmtRelative(p.updated_at || p.created_at)}
                 </div>
               </div>
-            </Button>
+            </ListRow>
           {/each}
         </div>
       {/snippet}

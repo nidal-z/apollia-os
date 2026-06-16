@@ -23,7 +23,14 @@
     align?: "start" | "center" | "stretch";
     /** Padding profile: default = px-4 py-3, snug = px-3.5 py-3. */
     pad?: "default" | "snug";
-    /** Bottom hairline divider. */
+    /**
+     * Visual variant:
+     * - `row` (default) - full-width row with an optional bottom hairline.
+     * - `nav` - rounded pill for sidebar navigation lists (no hairline, the
+     *   state background is rounded). Padding tightens to px-2.5 py-2.
+     */
+    variant?: "row" | "nav";
+    /** Bottom hairline divider (ignored for the `nav` variant). */
     border?: boolean;
     /** When provided, the row becomes an interactive button. */
     onclick?: (e: MouseEvent) => void;
@@ -39,6 +46,7 @@
     dim = false,
     align = "start",
     pad = "default",
+    variant = "row",
     border = true,
     onclick,
     onkeydown,
@@ -47,12 +55,18 @@
     "data-testid": testid,
   }: Props = $props();
 
+  const isNav = $derived(variant === "nav");
+
   const bgClass = $derived(
     state === "active"
       ? "bg-primary/10"
       : state === "unread"
         ? "bg-primary/5"
         : "bg-transparent hover:bg-muted/40",
+  );
+
+  const padClass = $derived(
+    isNav ? "px-2.5 py-2" : pad === "snug" ? "px-3.5 py-3" : "px-4 py-3",
   );
 
   function handleKeydown(e: KeyboardEvent): void {
@@ -76,9 +90,9 @@
   data-testid={testid}
   class={cn(
     "group relative flex gap-2.5 transition-colors",
-    pad === "snug" ? "px-3.5 py-3" : "px-4 py-3",
+    padClass,
     align === "center" ? "items-center" : align === "stretch" ? "items-stretch" : "items-start",
-    border && "border-b border-border/60",
+    isNav ? "rounded-lg" : border && "border-b border-border/60",
     onclick && "cursor-pointer",
     bgClass,
     className,

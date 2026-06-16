@@ -22,6 +22,8 @@
   import {
     PageHeader,
     DetailHeader,
+    SidebarHeader,
+    ListRow,
     EmptyState,
     TaskRow,
     ListPanel,
@@ -312,36 +314,33 @@
     <SplitLayout sidebarTestid="tasks-split-sidebar" detailTestid="task-detail">
       {#snippet sidebar()}
         <!-- LEFT: task list -->
-        <header class="px-4 pt-4 pb-2.5">
-          <div class="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[1.2px] uppercase text-muted-foreground">
-            {$t("tasks.sidebar_heading")} · {$tasks.length}
-          </div>
-          <!-- Status filter compact (chips wrap) -->
-          <FilterChipBar
-            size="compact"
-            chips={FILTERS.map((f) => ({
-              key: f.key,
-              label: $t(f.labelKey),
-              color: f.color,
-              count: counts[f.key],
-              glowWhenActive: f.key === "running",
-            }))}
-            activeKey={activeFilter}
-            onchange={(key) => (activeFilter = key as FilterKey)}
-            aria-label={$t("tasks.status_filters_aria")}
-            testidPrefix="tasks-split-filter"
-          />
-        </header>
+        <SidebarHeader title={$t("tasks.sidebar_heading")} count={$tasks.length}>
+          {#snippet filters()}
+            <FilterChipBar
+              size="compact"
+              chips={FILTERS.map((f) => ({
+                key: f.key,
+                label: $t(f.labelKey),
+                color: f.color,
+                count: counts[f.key],
+                glowWhenActive: f.key === "running",
+              }))}
+              activeKey={activeFilter}
+              onchange={(key) => (activeFilter = key as FilterKey)}
+              aria-label={$t("tasks.status_filters_aria")}
+              testidPrefix="tasks-split-filter"
+            />
+          {/snippet}
+        </SidebarHeader>
         <div class="flex-1 overflow-auto px-2.5 pb-3" data-testid="tasks-split-list">
           {#each filteredTasks as task (task.id)}
             {@const isActive = task.id === selectedTaskId}
             {@const rowCfg = STATUS_BADGE[task.status] ?? STATUS_BADGE.submitted}
-            <Button variant="ghost" size="auto"
-              type="button"
+            <ListRow
+              variant="nav"
+              state={isActive ? "active" : "default"}
+              class="mb-0.5 text-left"
               onclick={() => handleSelectTask(task.id)}
-              class="w-full text-left flex items-start gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer mb-0.5 border-0 transition-colors {isActive
-                ? 'bg-primary/10'
-                : 'bg-transparent hover:bg-muted/40'}"
               data-testid="tasks-split-row-{task.id}"
             >
               <div
@@ -356,7 +355,7 @@
                         ? 'hsl(var(--warning))'
                         : 'hsl(var(--muted-foreground))'};"
               ></div>
-              <div class="flex-1 min-w-0">
+              <div class="min-w-0 flex-1">
                 <div
                   class="text-[12.5px] truncate text-foreground"
                   style:font-weight={isActive ? 600 : 500}
@@ -372,7 +371,7 @@
               <Badge size="sm" variant={rowCfg.variant} class="shrink-0 text-[8px] px-1 py-0 leading-[1.4]">
                 {$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}
               </Badge>
-            </Button>
+            </ListRow>
           {/each}
         </div>
         <div class="px-3 py-2 border-t border-border">

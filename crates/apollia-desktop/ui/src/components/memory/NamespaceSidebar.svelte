@@ -4,6 +4,7 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Input } from "$lib/components/ui/input";
   import { Button } from "$lib/components/ui/button";
+  import { SidebarHeader, ListRow } from "$lib/components/operator";
 
   /**
    * Catégorie sémantique d'un namespace mémoire.
@@ -112,65 +113,60 @@
 
 <!-- Shell (width, border, bg) comes from the parent SplitLayout; this is content-only. -->
 <div class="flex h-full flex-col">
-  <header class="px-4 pt-4 pb-3 border-b border-border/40 space-y-3">
-    <div class="flex items-center gap-2">
-      <Layers size={14} class="text-muted-foreground" />
-      <h2 class="text-[12.5px] font-semibold text-foreground tracking-tight">
-        {$t('memory.namespaces.title', { default: 'Namespaces' })}
-      </h2>
-      <span class="ml-auto text-[10.5px] text-muted-foreground tabular-nums">
-        {namespaces.length}
-      </span>
-    </div>
+  <SidebarHeader
+    title={$t('memory.namespaces.title', { default: 'Namespaces' })}
+    count={namespaces.length}
+    class="border-b border-border/40"
+  >
+    {#snippet search()}
+      <div class="relative">
+        <Search
+          size={12}
+          class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          type="search"
+          bind:value={filterQuery}
+          placeholder={$t('memory.namespaces.filter_placeholder', { default: 'Filtrer…' })}
+          class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[11.5px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
+          data-testid="namespace-sidebar-filter"
+         />
+      </div>
+    {/snippet}
+    {#snippet filters()}
+      <div
+        class="inline-flex w-full items-center gap-0.5 p-0.5 rounded-md bg-muted/40 border border-border/40 overflow-x-auto"
+        role="tablist"
+        aria-label={$t('memory.namespaces.category_filter', { default: 'Filtrer par catégorie' })}
+      >
+        {#each filterChips as chip}
+          {@const isActive = categoryFilter === chip.key}
+          {@const count = counts[chip.key]}
+          {@const Icon = chip.Icon}
+          <Button variant="ghost" size="sm"
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onclick={() => (categoryFilter = chip.key)}
+            disabled={count === 0 && chip.key !== "all"}
+            class="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium tracking-tight transition-colors disabled:opacity-40 disabled:cursor-not-allowed {isActive
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+            data-testid="namespace-sidebar-cat-{chip.key}"
+            title={$t(chip.labelKey, { default: chip.defaultLabel })}
+          >
+            <Icon size={10} />
+            <span class="hidden sm:inline">{$t(chip.labelKey, { default: chip.defaultLabel })}</span>
+            <span class="tabular-nums {isActive ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
+              {count}
+            </span>
+          </Button>
+        {/each}
+      </div>
+    {/snippet}
+  </SidebarHeader>
 
-    <!-- Search -->
-    <div class="relative">
-      <Search
-        size={12}
-        class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-      />
-      <Input
-        type="search"
-        bind:value={filterQuery}
-        placeholder={$t('memory.namespaces.filter_placeholder', { default: 'Filtrer…' })}
-        class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[11.5px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
-        data-testid="namespace-sidebar-filter"
-       />
-    </div>
-
-    <!-- Category filter - segmented control horizontal scroll -->
-    <div
-      class="inline-flex w-full items-center gap-0.5 p-0.5 rounded-md bg-muted/40 border border-border/40 overflow-x-auto"
-      role="tablist"
-      aria-label={$t('memory.namespaces.category_filter', { default: 'Filtrer par catégorie' })}
-    >
-      {#each filterChips as chip}
-        {@const isActive = categoryFilter === chip.key}
-        {@const count = counts[chip.key]}
-        {@const Icon = chip.Icon}
-        <Button variant="ghost" size="sm"
-          type="button"
-          role="tab"
-          aria-selected={isActive}
-          onclick={() => (categoryFilter = chip.key)}
-          disabled={count === 0 && chip.key !== "all"}
-          class="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium tracking-tight transition-colors disabled:opacity-40 disabled:cursor-not-allowed {isActive
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
-          data-testid="namespace-sidebar-cat-{chip.key}"
-          title={$t(chip.labelKey, { default: chip.defaultLabel })}
-        >
-          <Icon size={10} />
-          <span class="hidden sm:inline">{$t(chip.labelKey, { default: chip.defaultLabel })}</span>
-          <span class="tabular-nums {isActive ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
-            {count}
-          </span>
-        </Button>
-      {/each}
-    </div>
-  </header>
-
-  <nav class="flex-1 overflow-y-auto" aria-label={$t('memory.namespaces.title', { default: 'Namespaces' })}>
+  <nav class="flex-1 overflow-y-auto px-2" aria-label={$t('memory.namespaces.title', { default: 'Namespaces' })}>
     {#if loading}
       <div class="px-2 py-3 space-y-1.5">
         {#each Array(4) as _}
@@ -199,24 +195,23 @@
         {#each group.items as ns (ns.name)}
           {@const isActive = selected === ns.name}
           {@const ItemIcon = categoryIcon(ns.category)}
-          <button
-            type="button"
-            class="group flex w-full items-center gap-2 px-3 py-2 text-left transition-colors {isActive
-              ? 'bg-primary/10 text-primary'
-              : 'text-foreground hover:bg-muted/40'}"
+          <ListRow
+            variant="nav"
+            state={isActive ? "active" : "default"}
+            align="center"
             onclick={() => onselect(ns.name)}
             data-testid="namespace-sidebar-item-{ns.name}"
           >
             <div
-              class="w-[20px] h-[20px] rounded-md inline-flex items-center justify-center {isActive
+              class="w-[20px] h-[20px] rounded-md inline-flex shrink-0 items-center justify-center {isActive
                 ? 'bg-primary text-white'
                 : 'bg-muted text-muted-foreground'}"
             >
               <ItemIcon size={10} />
             </div>
-            <div class="flex-1 min-w-0">
+            <div class="min-w-0 flex-1">
               <div
-                class="text-[12px] truncate"
+                class="text-[12px] truncate {isActive ? 'text-primary' : 'text-foreground'}"
                 style:font-weight={isActive ? 600 : 500}
                 title={ns.name}
               >
@@ -237,7 +232,7 @@
                 {ns.count}
               </span>
             {/if}
-          </button>
+          </ListRow>
         {/each}
       {/each}
     {/if}

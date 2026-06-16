@@ -42,6 +42,7 @@
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import {
     DetailHeader,
+    SidebarHeader,
     StatusDot,
     Card,
     EmptyState,
@@ -566,12 +567,9 @@
       class="flex w-[320px] shrink-0 flex-col border-r border-border/60"
       data-testid="agents-list"
     >
-      <!-- Sidebar header : page-level actions (split screen, identity is the breadcrumb) -->
-      <div class="flex items-center justify-between gap-2 px-[18px] pb-2.5 pt-4">
-        <span class="text-[13px] font-semibold tracking-tight text-foreground">
-          {$t("agents.page_title")}
-        </span>
-        <div class="flex items-center gap-1.5">
+      <!-- Page-level actions live in the sidebar header (split screen, identity is the breadcrumb) -->
+      <SidebarHeader title={$t("agents.page_title")}>
+        {#snippet actions()}
           <Button
             variant="outline"
             size="icon-sm"
@@ -591,23 +589,23 @@
           >
             {#if installingAgent}<Spinner size={13} />{:else}<Download size={13} />{/if}
           </Button>
-        </div>
-      </div>
-      <div class="px-[18px] pb-[10px] pt-0">
-        <div
-          class="flex items-center gap-[7px] rounded-md border border-border bg-surface-1 px-2.5 py-[7px]"
-        >
-          <Search size={11} class="text-muted-foreground" />
-          <Input
-            type="text"
-            unstyled
-            bind:value={query}
-            placeholder={$t("agents.filter_placeholder")}
-            class="flex-1 text-[11.5px] text-foreground"
-            data-testid="agents-search"
-           />
-        </div>
-      </div>
+        {/snippet}
+        {#snippet search()}
+          <div
+            class="flex items-center gap-[7px] rounded-md border border-border bg-surface-1 px-2.5 py-[7px]"
+          >
+            <Search size={11} class="text-muted-foreground" />
+            <Input
+              type="text"
+              unstyled
+              bind:value={query}
+              placeholder={$t("agents.filter_placeholder")}
+              class="flex-1 text-[11.5px] text-foreground"
+              data-testid="agents-search"
+             />
+          </div>
+        {/snippet}
+      </SidebarHeader>
 
       <div class="flex-1 overflow-y-auto px-2.5 pb-2">
         <!-- Section header: assistants -->

@@ -226,7 +226,7 @@
         />
       </div>
     {:else}
-      <SplitLayout sidebarTestid="namespace-sidebar" sidebarClass="bg-surface-1/40 border-border/60">
+      <SplitLayout sidebarTestid="namespace-sidebar" sidebarClass="border-border/60">
         {#snippet sidebar()}
           <!-- Sidebar : namespaces classifiés -->
           <NamespaceSidebar
