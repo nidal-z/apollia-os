@@ -21,6 +21,7 @@
   import { formatRelativeTime } from "$lib/utils";
   import {
     PageHeader,
+    DetailHeader,
     EmptyState,
     TaskRow,
     ListPanel,
@@ -227,9 +228,7 @@
   {#if mode === "list"}
     <!-- ============ LIST (all tasks, wide table) ============ -->
     <div class="mx-auto w-full max-w-6xl shrink-0">
-      <PageHeader
-        kicker={$t("tasks.kicker")}
-        title={headlineTitle}
+      <PageHeader        title={headlineTitle}
         subtitle={headlineSubtitle}
       >
         {#snippet actions()}
@@ -384,60 +383,54 @@
       {/snippet}
 
       <!-- RIGHT: detail -->
-      <!-- Header -->
-        <div class="px-8 pt-6 pb-4 border-b border-border/60">
-          <div class="flex items-start gap-3.5">
+        {@const task = selectedTask}
+        <!-- Detail header (screen identity is the breadcrumb) -->
+        <DetailHeader
+          title={task.agent_name || task.agent_id}
+          titleTestid="task-detail-title"
+        >
+          {#snippet leading()}
             <Avatar
-              name={selectedTask.agent_name || selectedTask.agent_id}
-              fallback={(selectedTask.agent_name || "?").charAt(0).toUpperCase()}
+              name={task.agent_name || task.agent_id}
+              fallback={(task.agent_name || "?").charAt(0).toUpperCase()}
               size="lg"
               ring
             />
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <Badge variant={cfg.variant} size="sm">
-                  {#snippet icon()}
-                    <StatusIcon size={11} />
-                  {/snippet}
-                  {$t(STATUS_I18N[selectedTask.status] ?? "dashboard.status_submitted")}
-                </Badge>
-                <BuilderOnly>
-                  <code class="text-[10px] text-muted-foreground/40 font-mono">
-                    {selectedTask.id.slice(0, 12)}
-                  </code>
-                </BuilderOnly>
-              </div>
-              <h2
-                class="m-0 text-foreground"
-                style="font-size: 20px; font-weight: 600; letter-spacing: -0.3px; line-height: 1.2;"
-                data-testid="task-detail-title"
-              >
-                {selectedTask.agent_name || selectedTask.agent_id}
-              </h2>
-              <div class="mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
-                <span class="inline-flex items-center gap-1">
-                  <Timer size={11} />
-                  {formatDurationLong(selectedTask.duration_ms)}
-                </span>
-                <span class="inline-flex items-center gap-1">
-                  <Calendar size={11} />
-                  {formatDate(selectedTask.created_at)}
-                </span>
-              </div>
-            </div>
-            <!-- Page-level actions on the right of the header -->
-            <div class="flex shrink-0 gap-1.5">
-              <Button variant="outline" size="sm" onclick={handleRefresh}>
-                {#snippet icon()}<RefreshCw size={12} />{/snippet}
-                {$t("common.refresh")}
-              </Button>
-              <Button variant="primary-solid" size="sm" onclick={handleNewTask}>
-                {#snippet icon()}<Plus size={12} />{/snippet}
-                {$t("tasks.assign_task")}
-              </Button>
-            </div>
-          </div>
-        </div>
+          {/snippet}
+          {#snippet badges()}
+            <Badge variant={cfg.variant} size="sm">
+              {#snippet icon()}
+                <StatusIcon size={11} />
+              {/snippet}
+              {$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}
+            </Badge>
+            <BuilderOnly>
+              <code class="text-[10px] text-muted-foreground/40 font-mono">
+                {task.id.slice(0, 12)}
+              </code>
+            </BuilderOnly>
+          {/snippet}
+          {#snippet footer()}
+            <span class="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Timer size={11} />
+              {formatDurationLong(task.duration_ms)}
+            </span>
+            <span class="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Calendar size={11} />
+              {formatDate(task.created_at)}
+            </span>
+          {/snippet}
+          {#snippet actions()}
+            <Button variant="outline" size="sm" onclick={handleRefresh}>
+              {#snippet icon()}<RefreshCw size={12} />{/snippet}
+              {$t("common.refresh")}
+            </Button>
+            <Button variant="primary-solid" size="sm" onclick={handleNewTask}>
+              {#snippet icon()}<Plus size={12} />{/snippet}
+              {$t("tasks.assign_task")}
+            </Button>
+          {/snippet}
+        </DetailHeader>
 
         <!-- Tabs -->
         <div class="px-8 pt-3.5">

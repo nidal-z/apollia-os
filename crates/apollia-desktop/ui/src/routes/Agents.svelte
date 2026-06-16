@@ -41,8 +41,7 @@
   import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import {
-    PageHeader,
-    
+    DetailHeader,
     StatusDot,
     Card,
     EmptyState,
@@ -549,33 +548,6 @@
   class="flex h-full min-h-0 w-full flex-col"
   data-testid="agents-page"
 >
-  <!-- ── Header ──────────────────────────────────────────────────────── -->
-  <PageHeader
-    kicker="{$t('agents.page_kicker')} · {allAssistants.length}"
-    title={$t("agents.page_title")}
-    subtitle={$t("agents.page_subtitle")}
-  >
-    {#snippet actions()}
-      <Button variant="outline" size="sm" onclick={() => (installPackageOpen = true)}>
-        {#snippet icon()}
-          <Package size={12} />
-        {/snippet}
-        {$t("agents.install_package_button")}
-      </Button>
-      <Button variant="primary-solid" size="sm"
-        onclick={pickAndInstallAgent}
-        disabled={installingAgent}
-      >
-        {#snippet icon()}
-          <Download size={12} />
-        {/snippet}
-        {installingAgent
-          ? $t("agents.installing")
-          : $t("agents.new_assistant")}
-      </Button>
-    {/snippet}
-  </PageHeader>
-
   <div class="px-8 pt-3">
     <MacSandboxBanner />
     {#if installError}
@@ -594,7 +566,34 @@
       class="flex w-[320px] shrink-0 flex-col border-r border-border/60"
       data-testid="agents-list"
     >
-      <div class="px-[18px] pb-[10px] pt-4">
+      <!-- Sidebar header : page-level actions (split screen, identity is the breadcrumb) -->
+      <div class="flex items-center justify-between gap-2 px-[18px] pb-2.5 pt-4">
+        <span class="text-[13px] font-semibold tracking-tight text-foreground">
+          {$t("agents.page_title")}
+        </span>
+        <div class="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onclick={() => (installPackageOpen = true)}
+            title={$t("agents.install_package_button")}
+            aria-label={$t("agents.install_package_button")}
+          >
+            <Package size={13} />
+          </Button>
+          <Button
+            variant="primary-solid"
+            size="icon-sm"
+            onclick={pickAndInstallAgent}
+            disabled={installingAgent}
+            title={$t("agents.new_assistant")}
+            aria-label={$t("agents.new_assistant")}
+          >
+            {#if installingAgent}<Spinner size={13} />{:else}<Download size={13} />{/if}
+          </Button>
+        </div>
+      </div>
+      <div class="px-[18px] pb-[10px] pt-0">
         <div
           class="flex items-center gap-[7px] rounded-md border border-border bg-surface-1 px-2.5 py-[7px]"
         >
@@ -866,27 +865,16 @@
     <!-- RIGHT - detail -->
     <section class="flex min-w-0 flex-1 flex-col overflow-y-auto">
       {#if apolliaChatSelected}
-        <div class="border-b border-border/40 px-8 pb-4 pt-[22px]">
-          <div class="flex items-start gap-3.5">
+        <DetailHeader title="Apollia Chat" meta={$t("agents.apollia_chat_detail_subtitle")}>
+          {#snippet leading()}
             <div
-              class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl"
+              class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
               style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));"
             >
-              <Zap size={20} color="white" />
+              <Zap size={18} color="white" />
             </div>
-            <div class="min-w-0 flex-1">
-              <h2
-                class="m-0 text-foreground"
-                style="font-size: 22px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.2;"
-              >
-                Apollia Chat
-              </h2>
-              <p class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                {$t("agents.apollia_chat_detail_subtitle")}
-              </p>
-            </div>
-          </div>
-        </div>
+          {/snippet}
+        </DetailHeader>
 
         <div class="px-8 pt-[18px] pb-8">
           <ApolliaChatConfigPanel />
@@ -896,11 +884,15 @@
         {@const pkgState = selectedPackageState!}
         {@const pkgRunning = pkgState.status === "running" || pkgState.status === "partial"}
         {@const pkgBusy = busyKeys[`pkg:${pkg.name}`] === true}
-        <!-- Header -->
-        <div class="border-b border-border/40 px-8 pb-4 pt-[22px]">
-          <div class="flex items-start gap-3.5">
+        <!-- Detail header (screen identity is the breadcrumb) -->
+        <DetailHeader
+          title={pkg.name}
+          titleTestid="package-detail-title"
+          meta={pkg.description || $t("agents.package_default_description")}
+        >
+          {#snippet leading()}
             <div
-              class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl"
+              class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
               style="background: {pkgState.status === 'running'
                 ? 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))'
                 : 'hsl(var(--surface-1))'}; color: {pkgState.status === 'running'
@@ -909,59 +901,47 @@
                 ? 'none'
                 : '1px solid hsl(var(--border))'};"
             >
-              <Package size={20} />
+              <Package size={18} />
             </div>
-            <div class="min-w-0 flex-1">
-              <h2
-                class="m-0 text-foreground"
-                style="font-size: 22px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.2;"
-                data-testid="package-detail-title"
+          {/snippet}
+          {#snippet actions()}
+            {#if confirmUninstallPkg === pkg.name}
+              <Button variant="outline" size="sm" onclick={() => (confirmUninstallPkg = null)}>
+                {$t("common.cancel")}
+              </Button>
+              <Button variant="primary-solid" size="sm" onclick={() => handleUninstallPkg(pkg.name)}>
+                {#snippet icon()}
+                  <Trash2 size={12} />
+                {/snippet}
+                {$t("common.confirm")}
+              </Button>
+            {:else}
+              <Button variant="outline" size="sm"
+                onclick={() => (confirmUninstallPkg = pkg.name)}
               >
-                {pkg.name}
-              </h2>
-              <p class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                {pkg.description || $t("agents.package_default_description")}
-              </p>
-            </div>
-            <div class="flex shrink-0 gap-1.5">
-              {#if confirmUninstallPkg === pkg.name}
-                <Button variant="outline" size="sm" onclick={() => (confirmUninstallPkg = null)}>
-                  {$t("common.cancel")}
-                </Button>
-                <Button variant="primary-solid" size="sm" onclick={() => handleUninstallPkg(pkg.name)}>
-                  {#snippet icon()}
-                    <Trash2 size={12} />
-                  {/snippet}
-                  {$t("common.confirm")}
-                </Button>
-              {:else}
-                <Button variant="outline" size="sm"
-                  onclick={() => (confirmUninstallPkg = pkg.name)}
-                >
-                  {#snippet icon()}
-                    <Trash2 size={12} />
-                  {/snippet}
-                  {$t("agents.uninstall")}
-                </Button>
-                <Button variant="primary-solid" size="sm"
-                  onclick={() => togglePackageRuntime(pkg)}
-                  disabled={pkgBusy || pkg.root_missing || pkg.agents.length === 0}
-                >
-                  {#snippet icon()}
-                    {#if pkgBusy}
-                      <Spinner size={12} />
-                    {:else if pkgRunning}
-                      <Square size={12} fill="currentColor" />
-                    {:else}
-                      <Play size={12} fill="currentColor" />
-                    {/if}
-                  {/snippet}
-                  {pkgRunning ? $t("agents.stop_all") : $t("agents.start_all")}
-                </Button>
-              {/if}
-            </div>
-          </div>
-          <div class="mt-3.5 flex flex-wrap gap-2">
+                {#snippet icon()}
+                  <Trash2 size={12} />
+                {/snippet}
+                {$t("agents.uninstall")}
+              </Button>
+              <Button variant="primary-solid" size="sm"
+                onclick={() => togglePackageRuntime(pkg)}
+                disabled={pkgBusy || pkg.root_missing || pkg.agents.length === 0}
+              >
+                {#snippet icon()}
+                  {#if pkgBusy}
+                    <Spinner size={12} />
+                  {:else if pkgRunning}
+                    <Square size={12} fill="currentColor" />
+                  {:else}
+                    <Play size={12} fill="currentColor" />
+                  {/if}
+                {/snippet}
+                {pkgRunning ? $t("agents.stop_all") : $t("agents.start_all")}
+              </Button>
+            {/if}
+          {/snippet}
+          {#snippet footer()}
             <Badge size="sm" variant={packageStatusTone(pkgState)}>
               {#snippet icon()}
                 <StatusDot
@@ -987,8 +967,8 @@
                 {$t("agents.source_missing")}
               </Badge>
             {/if}
-          </div>
-        </div>
+          {/snippet}
+        </DetailHeader>
 
         {@const pkgNamesSet = new Set(pkg.agents.map((x) => x.name))}
         {@const pkgTriggers = $triggers.filter((tr) => pkgNamesSet.has(tr.agent))}
@@ -1124,42 +1104,32 @@
         </div>
       {:else if selected}
         {@const a = selected}
-        <!-- Header -->
-        <div class="border-b border-border/40 px-8 pb-4 pt-[22px]">
-          <div class="flex items-start gap-3.5">
+        <!-- Detail header (screen identity is the breadcrumb) -->
+        <DetailHeader
+          title={a.name}
+          titleTestid="agent-detail-title"
+          meta={a.description ?? $t("agents.no_description")}
+        >
+          {#snippet leading()}
             <div
-              class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl"
+              class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
               style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));"
             >
-              <Sparkles size={20} color="white" />
+              <Sparkles size={18} color="white" />
             </div>
-            <div class="min-w-0 flex-1">
-              <h2
-                class="m-0 text-foreground"
-                style="font-size: 22px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.2;"
-                data-testid="agent-detail-title"
-              >
-                {a.name}
-              </h2>
-              <p
-                class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground"
-              >
-                {a.description ?? $t("agents.no_description")}
-              </p>
-            </div>
-            <div class="flex shrink-0 gap-1.5">
-              <Button variant="primary-solid" size="sm"
-                onclick={() => startChatWithAgent(a.name)}
-                disabled={!isActive(a)}
-              >
-                {#snippet icon()}
-                  <MessageSquare size={12} />
-                {/snippet}
-                {$t("agents.new_chat")}
-              </Button>
-            </div>
-          </div>
-          <div class="mt-3.5 flex flex-wrap gap-2">
+          {/snippet}
+          {#snippet actions()}
+            <Button variant="primary-solid" size="sm"
+              onclick={() => startChatWithAgent(a.name)}
+              disabled={!isActive(a)}
+            >
+              {#snippet icon()}
+                <MessageSquare size={12} />
+              {/snippet}
+              {$t("agents.new_chat")}
+            </Button>
+          {/snippet}
+          {#snippet footer()}
             <Badge size="sm" variant={statusTone(a)}>
               {#snippet icon()}
                 <StatusDot
@@ -1183,8 +1153,8 @@
             {#if a.supports_a2a}
               <Badge size="sm" variant="info">A2A</Badge>
             {/if}
-          </div>
-        </div>
+          {/snippet}
+        </DetailHeader>
 
         {@const isInstalledNow = a.installed_at !== null}
         {@const runtimeStatus = a.runtime_status}

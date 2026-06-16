@@ -11,7 +11,7 @@
   import { Database, Clock, Cog, Search, UserCircle2 } from "lucide-svelte";
   import { LoadingShimmer } from "$lib/components/feedback";
   import { addToast } from "$lib/components/ui/toast/store";
-  import { PageHeader, SplitLayout } from "$lib/components/operator";
+  import { DetailHeader, SplitLayout } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { TabBar } from "$lib/components/ui/tabs";
 
@@ -57,6 +57,15 @@
   });
 
   const showProfileBanner = $derived(selectedNamespace === "__user__");
+
+  // ── Detail header (split screen : identity lives in the breadcrumb) ──────────
+  const selectedNs = $derived(namespaces.find((n) => n.name === selectedNamespace));
+  const detailTitle = $derived(selectedNs?.displayName ?? selectedNamespace ?? "-");
+  const detailMeta = $derived(
+    selectedNs?.displayName && selectedNs.displayName !== selectedNamespace
+      ? selectedNamespace
+      : undefined,
+  );
 
   // ── Classification des namespaces ────────────────────────────────────────────
   function classifyNamespace(name: string, agents: Set<string>): NamespaceCategory {
@@ -206,13 +215,7 @@
 </script>
 
 <div class="flex flex-col h-full" data-testid="memory-page">
-  <PageHeader
-    kicker={$t("memory.kicker")}
-    title={$t("memory.title")}
-    subtitle={$t("memory.subtitle")}
-  />
-
-  <div class="flex flex-1 min-h-0 mt-4 border-t border-border/40 overflow-hidden">
+  <div class="flex flex-1 min-h-0 overflow-hidden">
     {#if !loadingMemory && namespaces.length === 0}
       <div class="flex-1 px-8 py-8">
         <EmptyState
@@ -249,22 +252,27 @@
           </div>
         {/if}
 
-        <!-- Header : search + namespace breadcrumb -->
-        <div class="px-6 pt-4 pb-2 flex items-center gap-4 flex-wrap border-b border-border/30">
-          <div class="flex items-center gap-1.5 text-[11.5px] text-muted-foreground min-w-0">
-            <Database size={11} class="shrink-0" />
-            <span class="font-mono truncate" title={selectedNamespace}>{selectedNamespace || "-"}</span>
+        <!-- Detail header : namespace identity + search (screen identity is the breadcrumb) -->
+        <DetailHeader title={detailTitle} meta={detailMeta}>
+          {#snippet leading()}
+            <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <Database size={16} />
+            </div>
+          {/snippet}
+          {#snippet badges()}
             {#if searching}
-              <span class="ml-2 inline-flex items-center gap-1 text-info">
+              <span class="inline-flex items-center gap-1 text-[11px] text-info">
                 <Search size={10} />
                 {$t("memory.results_count", { values: { count: filteredEntries.length } })}
               </span>
             {/if}
-          </div>
-          <div class="ml-auto flex-1 max-w-[320px] min-w-[180px]">
-            <MemorySearch value={searchQuery} onsearch={handleSearch} />
-          </div>
-        </div>
+          {/snippet}
+          {#snippet actions()}
+            <div class="w-[260px] max-w-[40vw]">
+              <MemorySearch value={searchQuery} onsearch={handleSearch} />
+            </div>
+          {/snippet}
+        </DetailHeader>
 
         <!-- Type tabs (underline pattern, aligné Projets) -->
         <div class="px-6 pt-2">

@@ -59,7 +59,6 @@
 
 <div class="mx-auto w-full max-w-6xl" data-testid="observability-page">
   <PageHeader
-    kicker={$t('observability.kicker')}
     title={$t('observability.title')}
     subtitle={$t('observability.subtitle')}
   />

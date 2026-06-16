@@ -114,7 +114,6 @@
 </script>
 
 <PageLayout
-  kicker="NOTIFICATIONS"
   title={$t("notifications.title")}
   subtitle={$t("notifications.subtitle")}
   data-testid="notifications-page"

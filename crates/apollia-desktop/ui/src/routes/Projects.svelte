@@ -31,6 +31,7 @@
     PageHeader,
     SectionTitle,
     SplitLayout,
+    DetailHeader,
     StatusDot,
     EmptyState as OperatorEmptyState,
     ConversationRow,
@@ -666,84 +667,53 @@
             {$t("common.loading")}
           </div>
         {:else}
-          <!-- Header -->
-          <div class="px-8 pt-6 pb-4 border-b border-border/60">
-            <div class="flex items-start gap-3.5">
-              <!-- Folder icon -->
+          {@const project = selectedProject}
+          <!-- Detail header (screen identity is the breadcrumb) -->
+          <DetailHeader title={project.name} meta={project.description || undefined}>
+            {#snippet leading()}
               <div
-                class="w-12 h-12 shrink-0 rounded-lg inline-flex items-center justify-center"
+                class="w-10 h-10 shrink-0 rounded-lg inline-flex items-center justify-center"
                 style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));"
               >
-                <Folder size={18} color="white" />
+                <Folder size={16} color="white" />
               </div>
-
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                  <Badge variant="primary" size="sm">
-                    {#snippet icon()}
-                      <StatusDot color="hsl(var(--primary))" glow />
-                    {/snippet}
-                    {$t("projects.status_active") || "actif"}
-                  </Badge>
-                  <span class="text-[10.5px] text-muted-foreground">
-                    {fmtRelative(selectedProject.updated_at)}
-                  </span>
-                </div>
-                <h2
-                  class="m-0 text-foreground"
-                  style="font-size: 24px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.15;"
-                >
-                  {selectedProject.name}
-                </h2>
-                {#if selectedProject.description}
-                  <p
-                    class="mt-1.5 mb-0 text-[12.5px] text-muted-foreground leading-[1.5] max-w-[640px]"
-                  >
-                    {selectedProject.description}
-                  </p>
-                {/if}
-              </div>
-
-              <!-- Agent stack + actions -->
-              <div class="flex flex-col items-end gap-2.5">
-                <div class="flex items-center gap-1.5">
-                  <div class="flex">
-                    {#each selectedProject.agents.slice(0, 3) as _, i}
-                      <div
-                        class="w-[22px] h-[22px] rounded-full inline-flex items-center justify-center border-2 border-background"
-                        style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary))); margin-left: {i ===
-                        0
-                          ? 0
-                          : -7}px;"
+            {/snippet}
+            {#snippet badges()}
+              <Badge variant="primary" size="sm">
+                {#snippet icon()}
+                  <StatusDot color="hsl(var(--primary))" glow />
+                {/snippet}
+                {$t("projects.status_active") || "actif"}
+              </Badge>
+              {#if project.agents.length > 0}
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="flex">
+                    {#each project.agents.slice(0, 3) as _, i}
+                      <span
+                        class="w-[20px] h-[20px] rounded-full inline-flex items-center justify-center border-2 border-background"
+                        style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary))); margin-left: {i === 0 ? 0 : -7}px;"
                       >
-                        <Sparkles size={10} color="white" />
-                      </div>
+                        <Sparkles size={9} color="white" />
+                      </span>
                     {/each}
-                  </div>
-                  {#if selectedProject.agents.length > 0}
-                    <span class="text-[10.5px] text-muted-foreground">
-                      {selectedProject.agents.length} agent{selectedProject
-                        .agents.length > 1
-                        ? "s"
-                        : ""}
-                    </span>
-                  {/if}
-                </div>
-                <div class="flex gap-1.5">
-                  <Button variant="outline" size="sm"
-                    onclick={() => (activeTab = "settings")}
-                  >
-                    {#snippet icon()}<Settings size={12} />{/snippet}
-                    {$t("projects.tab_settings") || "Paramètres"}
-                  </Button>
-                  <Button variant="primary-solid" size="sm" onclick={startNewChat}>
-                    {#snippet icon()}<MessageCircle size={12} />{/snippet}
-                    {$t("projects.new_chat") || "Nouveau chat"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+                  </span>
+                  <span class="text-[10.5px] text-muted-foreground">
+                    {project.agents.length} agent{project.agents.length > 1 ? "s" : ""}
+                  </span>
+                </span>
+              {/if}
+            {/snippet}
+            {#snippet actions()}
+              <Button variant="outline" size="sm" onclick={() => (activeTab = "settings")}>
+                {#snippet icon()}<Settings size={12} />{/snippet}
+                {$t("projects.tab_settings") || "Paramètres"}
+              </Button>
+              <Button variant="primary-solid" size="sm" onclick={startNewChat}>
+                {#snippet icon()}<MessageCircle size={12} />{/snippet}
+                {$t("projects.new_chat") || "Nouveau chat"}
+              </Button>
+            {/snippet}
+          </DetailHeader>
 
           <!-- Tabs -->
           <div class="px-8 pt-3.5">

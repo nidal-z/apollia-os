@@ -15,6 +15,7 @@
     StatusDot,
     EmptyState,
     SplitLayout,
+    DetailHeader,
     FilterChipBar,
     type ConnectionStatus,
   } from "$lib/components/operator";
@@ -1624,42 +1625,34 @@
         {@const connector = selectedNativeConnector}
         {@const accounts = selectedNativeAccounts}
 
-        <!-- Header -->
-        <div class="px-8 pt-6 pb-4 border-b border-border/60">
-          <div class="flex items-start gap-3.5">
+        <!-- Detail header (screen identity is the breadcrumb) -->
+        <DetailHeader title={connector.name} meta={connector.description}>
+          {#snippet leading()}
             <div
-              class="w-12 h-12 shrink-0 rounded-lg inline-flex items-center justify-center"
+              class="w-10 h-10 shrink-0 rounded-lg inline-flex items-center justify-center"
               style="background: {connector.id === 'google'
                 ? 'linear-gradient(135deg, #4285f4, #1a73e8)'
                 : 'linear-gradient(135deg, #0078d4, #005a9e)'}; color: white;"
             >
-              <LinkIcon size={18} />
+              <LinkIcon size={16} />
             </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <Badge variant={accounts.length > 0 ? "success" : "neutral"} size="sm" outline={accounts.length === 0}>
-                  {#snippet icon()}
-                    <StatusDot color={accounts.length > 0 ? "hsl(var(--success))" : "hsl(var(--muted-foreground))"} glow={accounts.length > 0} />
-                  {/snippet}
-                  {accounts.length > 0 ? $t("connections.badge_active_count", { values: { count: accounts.length } }) : $t("connections.not_connected")}
-                </Badge>
-                <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
-              </div>
-              <h2 class="m-0 text-foreground" style="font-size: 22px; font-weight: 600; letter-spacing: -0.3px; line-height: 1.2;">
-                {connector.name}
-              </h2>
-              <p class="mt-1 max-w-[600px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                {connector.description}
-              </p>
-            </div>
-            <div class="flex shrink-0 gap-1.5">
-              <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
-                {#snippet icon()}<Plus size={12} />{/snippet}
-                {accounts.length > 0 ? $t("connections.add_account") : $t("connections.connect")}
-              </Button>
-            </div>
-          </div>
-        </div>
+          {/snippet}
+          {#snippet badges()}
+            <Badge variant={accounts.length > 0 ? "success" : "neutral"} size="sm" outline={accounts.length === 0}>
+              {#snippet icon()}
+                <StatusDot color={accounts.length > 0 ? "hsl(var(--success))" : "hsl(var(--muted-foreground))"} glow={accounts.length > 0} />
+              {/snippet}
+              {accounts.length > 0 ? $t("connections.badge_active_count", { values: { count: accounts.length } }) : $t("connections.not_connected")}
+            </Badge>
+            <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
+          {/snippet}
+          {#snippet actions()}
+            <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
+              {#snippet icon()}<Plus size={12} />{/snippet}
+              {accounts.length > 0 ? $t("connections.add_account") : $t("connections.connect")}
+            </Button>
+          {/snippet}
+        </DetailHeader>
 
         <!-- Tabs -->
         <div class="px-8 pt-3.5">
@@ -1808,53 +1801,49 @@
           {@const label = enr?.operator_label ?? server.name}
           {@const st = statusOf(server)}
 
-          <!-- Header -->
-          <div class="px-8 pt-6 pb-4 border-b border-border/60">
-            <div class="flex items-start gap-3.5">
+          <!-- Detail header (screen identity is the breadcrumb) -->
+          <DetailHeader
+            title={label}
+            titleTestid="mcp-detail-title"
+            meta={enr?.category ?? server.server_info ?? $t("connections.mcp_installed_fallback")}
+          >
+            {#snippet leading()}
               <div
-                class="w-12 h-12 shrink-0 rounded-lg inline-flex items-center justify-center"
+                class="w-10 h-10 shrink-0 rounded-lg inline-flex items-center justify-center"
                 style="background: {logoColorFor(label)}; color: white;"
               >
-                <LinkIcon size={18} />
+                <LinkIcon size={16} />
               </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                  <Badge variant={st === "active" ? "success" : st === "attention" ? "warning" : st === "error" ? "danger" : "neutral"} size="sm" outline={st === "idle"}>
-                    {#snippet icon()}
-                      <StatusDot
-                        color={st === "active" ? "hsl(var(--success))" : st === "attention" ? "hsl(var(--warning))" : st === "error" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))"}
-                        glow={st === "active" || st === "attention"}
-                      />
-                    {/snippet}
-                    {st === "active" ? $t("connections.badge_status_active") : st === "attention" ? $t("connections.badge_status_attention") : st === "error" ? $t("connections.badge_status_error") : $t("connections.badge_status_idle")}
-                  </Badge>
-                  {#if syncLabel(server)}
-                    <span class="text-[10.5px] text-muted-foreground">{syncLabel(server)}</span>
-                  {/if}
-                </div>
-                <h2 class="m-0 text-foreground" style="font-size: 22px; font-weight: 600; letter-spacing: -0.3px; line-height: 1.2;" data-testid="mcp-detail-title">
-                  {label}
-                </h2>
-                <p class="mt-1 max-w-[600px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                  {enr?.category ?? server.server_info ?? $t("connections.mcp_installed_fallback")}
-                </p>
-              </div>
-              <div class="flex shrink-0 gap-1.5">
-                <Button variant="outline" size="sm" onclick={handleTest} disabled={testState === "testing"} data-testid="mcp-test-btn">
-                  {#snippet icon()}
-                    {#if testState === "testing"}<Spinner size={12} />{:else}<RefreshCw size={12} />{/if}
-                  {/snippet}
-                  {testState === "testing" ? $t("connections.testing") : $t("connections.test")}
-                </Button>
-                <Button variant="primary-solid" size="sm" onclick={handleReconnect} disabled={reconnecting} data-testid="mcp-reconnect-btn">
-                  {#snippet icon()}
-                    {#if reconnecting}<Spinner size={12} />{:else}<RefreshCw size={12} />{/if}
-                  {/snippet}
-                  {$t("connections.reconnect")}
-                </Button>
-              </div>
-            </div>
-          </div>
+            {/snippet}
+            {#snippet badges()}
+              <Badge variant={st === "active" ? "success" : st === "attention" ? "warning" : st === "error" ? "danger" : "neutral"} size="sm" outline={st === "idle"}>
+                {#snippet icon()}
+                  <StatusDot
+                    color={st === "active" ? "hsl(var(--success))" : st === "attention" ? "hsl(var(--warning))" : st === "error" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))"}
+                    glow={st === "active" || st === "attention"}
+                  />
+                {/snippet}
+                {st === "active" ? $t("connections.badge_status_active") : st === "attention" ? $t("connections.badge_status_attention") : st === "error" ? $t("connections.badge_status_error") : $t("connections.badge_status_idle")}
+              </Badge>
+              {#if syncLabel(server)}
+                <span class="text-[10.5px] text-muted-foreground">{syncLabel(server)}</span>
+              {/if}
+            {/snippet}
+            {#snippet actions()}
+              <Button variant="outline" size="sm" onclick={handleTest} disabled={testState === "testing"} data-testid="mcp-test-btn">
+                {#snippet icon()}
+                  {#if testState === "testing"}<Spinner size={12} />{:else}<RefreshCw size={12} />{/if}
+                {/snippet}
+                {testState === "testing" ? $t("connections.testing") : $t("connections.test")}
+              </Button>
+              <Button variant="primary-solid" size="sm" onclick={handleReconnect} disabled={reconnecting} data-testid="mcp-reconnect-btn">
+                {#snippet icon()}
+                  {#if reconnecting}<Spinner size={12} />{:else}<RefreshCw size={12} />{/if}
+                {/snippet}
+                {$t("connections.reconnect")}
+              </Button>
+            {/snippet}
+          </DetailHeader>
 
           <!-- Tabs -->
           <div class="px-8 pt-3.5">

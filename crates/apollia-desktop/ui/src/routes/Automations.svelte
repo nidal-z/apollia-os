@@ -156,7 +156,6 @@
 
 <div class="mx-auto w-full max-w-6xl" data-testid="automations-page">
   <PageHeader
-    kicker="AUTOMATISATIONS"
     title={$t("automations.title")}
     subtitle={$t("automations.subtitle")}
   >
