@@ -11,7 +11,7 @@
   import { Database, Clock, Cog, Search, UserCircle2 } from "lucide-svelte";
   import { LoadingShimmer } from "$lib/components/feedback";
   import { addToast } from "$lib/components/ui/toast/store";
-  import { PageHeader } from "$lib/components/operator";
+  import { PageHeader, SplitLayout } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { TabBar } from "$lib/components/ui/tabs";
 
@@ -67,7 +67,7 @@
   }
 
   function displayNameFor(name: string, category: NamespaceCategory): string | undefined {
-    if (category === "user") return "Profil utilisateur";
+    if (category === "user") return $t("memory.user_profile");
     if (category === "project") {
       const [projectId, sub] = name.split(":", 2);
       return sub ? `${sub} · ${projectId}` : projectId;
@@ -176,23 +176,23 @@
   async function handleCopyEntry(entry: MemoryEntry): Promise<void> {
     try {
       await navigator.clipboard.writeText(entry.value);
-      addToast("Valeur copiée", "success");
+      addToast($t("memory.value_copied"), "success");
     } catch {
-      addToast("Impossible de copier", "error");
+      addToast($t("memory.copy_failed"), "error");
     }
   }
 
   // ── Type filter tabs (underline pattern aligné sur Projets) ────────────────
-  type FilterChipDef = { key: EntryTypeFilter; label: string; Icon: typeof Database };
+  type FilterChipDef = { key: EntryTypeFilter; labelKey: string; Icon: typeof Database };
   const filterChips: FilterChipDef[] = [
-    { key: "all", label: "Toutes", Icon: Database },
-    { key: "episodic", label: "Épisodique", Icon: Clock },
-    { key: "semantic", label: "Sémantique", Icon: Database },
-    { key: "procedural", label: "Procédurale", Icon: Cog },
+    { key: "all", labelKey: "memory.filter_all", Icon: Database },
+    { key: "episodic", labelKey: "memory.type.episodic", Icon: Clock },
+    { key: "semantic", labelKey: "memory.type.semantic", Icon: Database },
+    { key: "procedural", labelKey: "memory.type.procedural", Icon: Cog },
   ];
 
   const memoryTabItems = $derived(
-    filterChips.map((c) => ({ key: c.key, label: c.label, count: entryCounts[c.key] })),
+    filterChips.map((c) => ({ key: c.key, label: $t(c.labelKey), count: entryCounts[c.key] })),
   );
 
   onMount(async () => {
@@ -207,7 +207,7 @@
 
 <div class="flex flex-col h-full" data-testid="memory-page">
   <PageHeader
-    kicker="MÉMOIRE"
+    kicker={$t("memory.kicker")}
     title={$t("memory.title")}
     subtitle={$t("memory.subtitle")}
   />
@@ -223,13 +223,16 @@
         />
       </div>
     {:else}
-      <!-- Sidebar : namespaces classifiés -->
-      <NamespaceSidebar
-        namespaces={namespaces}
-        selected={selectedNamespace}
-        loading={loadingMemory && namespaces.length === 0}
-        onselect={handleNamespaceChange}
-      />
+      <SplitLayout sidebarTestid="namespace-sidebar" sidebarClass="bg-surface-1/40 border-border/60">
+        {#snippet sidebar()}
+          <!-- Sidebar : namespaces classifiés -->
+          <NamespaceSidebar
+            namespaces={namespaces}
+            selected={selectedNamespace}
+            loading={loadingMemory && namespaces.length === 0}
+            onselect={handleNamespaceChange}
+          />
+        {/snippet}
 
       <!-- Main : filtres + entries -->
       <main class="flex-1 flex flex-col min-w-0">
@@ -237,11 +240,11 @@
           <div class="mx-6 mt-4 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 flex items-start gap-2">
             <UserCircle2 size={14} class="text-primary mt-0.5" />
             <p class="text-[11.5px] text-muted-foreground leading-snug">
-              Le profil utilisateur s'édite dans
+              {$t("memory.profile_banner_prefix")}
               <a href="/settings/profile" class="text-primary underline-offset-2 hover:underline font-medium">
-                Paramètres → Profil
+                {$t("memory.profile_banner_link")}
               </a>.
-              Cette vue est en lecture seule pour le debug.
+              {$t("memory.profile_banner_suffix")}
             </p>
           </div>
         {/if}
@@ -254,7 +257,7 @@
             {#if searching}
               <span class="ml-2 inline-flex items-center gap-1 text-info">
                 <Search size={10} />
-                {filteredEntries.length} résultat{filteredEntries.length > 1 ? "s" : ""}
+                {$t("memory.results_count", { values: { count: filteredEntries.length } })}
               </span>
             {/if}
           </div>
@@ -295,7 +298,13 @@
                 {searching
                   ? $t("memory.no_search_results")
                   : typeFilter !== "all"
-                    ? `Aucune entrée de type ${filterChips.find((c) => c.key === typeFilter)?.label.toLowerCase()}`
+                    ? $t("memory.empty_entries_by_type", {
+                        values: {
+                          type: $t(
+                            filterChips.find((c) => c.key === typeFilter)?.labelKey ?? "memory.filter_all",
+                          ).toLowerCase(),
+                        },
+                      })
                     : $t("memory.empty_entries")}
               </p>
               {#if typeFilter !== "all"}
@@ -304,7 +313,7 @@
                   onclick={() => (typeFilter = "all")}
                   class="text-[11.5px] text-primary hover:underline"
                 >
-                  Voir toutes les entrées
+                  {$t("memory.show_all_entries")}
                 </Button>
               {/if}
             </div>
@@ -322,6 +331,7 @@
           {/if}
         </div>
       </main>
+      </SplitLayout>
     {/if}
   </div>
 </div>

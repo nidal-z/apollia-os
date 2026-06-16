@@ -479,7 +479,7 @@
           bind:value={form.provider}
           data-testid="llm-dialog-provider"
         >
-          <option value="llama-cpp">llama-cpp (local)</option>
+          <option value="llama-cpp">llama-cpp ({$t("settings.llm_backend.provider_local")})</option>
           <option value="openai">OpenAI</option>
           <option value="anthropic">Anthropic</option>
           <option value="mistral">Mistral</option>

@@ -10,6 +10,7 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { User, ShieldAlert, Cpu, Briefcase, Settings2, AlertTriangle } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
@@ -111,12 +112,9 @@
         sources = { ...sources, [key]: "user" };
       }
       if (SENSITIVE_KEYS.has(key)) {
-        addToast(
-          "Profil mis à jour. Relancez l'onboarding pour adapter vos règles de permissions à ce changement.",
-          "info",
-        );
+        addToast($t("settings.profile.toast.updated_sensitive"), "info");
       } else {
-        addToast("Profil mis à jour", "success");
+        addToast($t("settings.profile.toast.updated"), "success");
       }
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
@@ -160,9 +158,9 @@
   // `agent:<name>` (e.g. `agent:chat-extractor`).
   function sourceLabel(src: string | undefined): string {
     if (!src) return "";
-    if (src === "onboarding") return "onboarding";
-    if (src === "user") return "vous";
-    if (src.startsWith("agent:")) return "agent";
+    if (src === "onboarding") return $t("settings.profile.source.onboarding");
+    if (src === "user") return $t("settings.profile.source.user");
+    if (src.startsWith("agent:")) return $t("settings.profile.source.agent");
     return "";
   }
 
@@ -185,7 +183,7 @@
       await invoke("reset_user_profile");
       values = {};
       sources = {};
-      addToast("Profil réinitialisé", "success");
+      addToast($t("settings.profile.toast.reset_done"), "success");
       resetOpen = false;
       await invoke("trigger_onboarding", { topic: null, profile: null });
     } catch (err: unknown) {
@@ -197,82 +195,82 @@
 
   // ── Static option lists ───────────────────────────────────────────────────
   const SECTORS = [
-    { v: "", label: "-" },
-    { v: "fintech", label: "Fintech" },
-    { v: "sante", label: "Santé" },
-    { v: "ecommerce", label: "E-commerce" },
-    { v: "industrie", label: "Industrie" },
-    { v: "education", label: "Éducation" },
-    { v: "autre", label: "Autre" },
+    { v: "", labelKey: "settings.profile.option.none" },
+    { v: "fintech", labelKey: "settings.profile.sector.fintech" },
+    { v: "sante", labelKey: "settings.profile.sector.sante" },
+    { v: "ecommerce", labelKey: "settings.profile.sector.ecommerce" },
+    { v: "industrie", labelKey: "settings.profile.sector.industrie" },
+    { v: "education", labelKey: "settings.profile.sector.education" },
+    { v: "autre", labelKey: "settings.profile.sector.autre" },
   ];
   const TEAM_SIZES = [
-    { v: "", label: "-" },
-    { v: "solo", label: "Solo" },
-    { v: "2-5", label: "2–5" },
-    { v: "6-20", label: "6–20" },
-    { v: "20+", label: "20+" },
+    { v: "", labelKey: "settings.profile.option.none" },
+    { v: "solo", labelKey: "settings.profile.team_size.solo" },
+    { v: "2-5", labelKey: "settings.profile.team_size.2_5" },
+    { v: "6-20", labelKey: "settings.profile.team_size.6_20" },
+    { v: "20+", labelKey: "settings.profile.team_size.20_plus" },
   ];
   const PROFICIENCY = [
-    { v: "", label: "-" },
-    { v: "debutant", label: "Débutant" },
-    { v: "a-laise", label: "À l'aise" },
-    { v: "expert", label: "Expert" },
+    { v: "", labelKey: "settings.profile.option.none" },
+    { v: "debutant", labelKey: "settings.profile.proficiency.debutant" },
+    { v: "a-laise", labelKey: "settings.profile.proficiency.a_laise" },
+    { v: "expert", labelKey: "settings.profile.proficiency.expert" },
   ];
   const LANGUAGES = [
-    { v: "", label: "-" },
-    { v: "fr", label: "Français" },
-    { v: "en", label: "English" },
+    { v: "", labelKey: "settings.profile.option.none" },
+    { v: "fr", labelKey: "settings.profile.language.fr" },
+    { v: "en", labelKey: "settings.profile.language.en" },
   ];
   const LLM_BACKENDS = [
-    { v: "", label: "-" },
-    { v: "local", label: "Local (llama.cpp)" },
-    { v: "ollama", label: "Ollama" },
-    { v: "anthropic", label: "Anthropic" },
-    { v: "openai", label: "OpenAI" },
-    { v: "bedrock", label: "AWS Bedrock" },
-    { v: "vertex", label: "Vertex AI" },
+    { v: "", labelKey: "settings.profile.option.none" },
+    { v: "local", labelKey: "settings.profile.llm.local" },
+    { v: "ollama", labelKey: "settings.profile.llm.ollama" },
+    { v: "anthropic", labelKey: "settings.profile.llm.anthropic" },
+    { v: "openai", labelKey: "settings.profile.llm.openai" },
+    { v: "bedrock", labelKey: "settings.profile.llm.bedrock" },
+    { v: "vertex", labelKey: "settings.profile.llm.vertex" },
   ];
 
   const HITL_OPTIONS = [
     {
       v: "always",
-      label: "Toujours valider",
-      hint: "Chaque action sensible nécessite ton accord explicite.",
+      labelKey: "settings.profile.hitl.always.label",
+      hintKey: "settings.profile.hitl.always.hint",
     },
     {
       v: "critical-only",
-      label: "Critique seulement",
-      hint: "Validation requise uniquement pour les actions à fort impact (paiement, suppression…).",
+      labelKey: "settings.profile.hitl.critical_only.label",
+      hintKey: "settings.profile.hitl.critical_only.hint",
     },
     {
       v: "never",
-      label: "Jamais",
-      hint: "Les agents agissent sans confirmation. Recommandé uniquement pour des outils en lecture seule.",
+      labelKey: "settings.profile.hitl.never.label",
+      hintKey: "settings.profile.hitl.never.hint",
     },
   ];
 
   const SOVEREIGNTY_OPTIONS = [
     {
       v: "local-only",
-      label: "Local strict",
-      hint: "Aucune donnée ne quitte la machine. LLM cloud désactivé.",
+      labelKey: "settings.profile.sovereignty.local_only.label",
+      hintKey: "settings.profile.sovereignty.local_only.hint",
     },
     {
       v: "local-preferred",
-      label: "Local préféré",
-      hint: "Local par défaut, cloud autorisé en dernier recours après accord.",
+      labelKey: "settings.profile.sovereignty.local_preferred.label",
+      hintKey: "settings.profile.sovereignty.local_preferred.hint",
     },
     {
       v: "cloud-ok",
-      label: "Cloud autorisé",
-      hint: "Les agents peuvent utiliser des LLM cloud sans demander.",
+      labelKey: "settings.profile.sovereignty.cloud_ok.label",
+      hintKey: "settings.profile.sovereignty.cloud_ok.hint",
     },
   ];
 
   const TRIGGER_OPTIONS = [
-    { v: "manuel", label: "Manuel" },
-    { v: "planifie", label: "Planifié" },
-    { v: "evenementiel", label: "Événementiel" },
+    { v: "manuel", labelKey: "settings.profile.trigger.manuel" },
+    { v: "planifie", labelKey: "settings.profile.trigger.planifie" },
+    { v: "evenementiel", labelKey: "settings.profile.trigger.evenementiel" },
   ];
 
   const COMPLIANCE = ["RGPD", "HIPAA", "SOC2"];
@@ -284,7 +282,10 @@
 
 {#snippet sourceBadge(key: string)}
   {#if sourceLabel(sources[key])}
-    <span class={sourceBadgeClasses(sources[key])} title={`Source : ${sourceLabel(sources[key])}`}>
+    <span
+      class={sourceBadgeClasses(sources[key])}
+      title={$t("settings.profile.source.tooltip", { values: { source: sourceLabel(sources[key]) } })}
+    >
       {sourceLabel(sources[key])}
     </span>
   {/if}
@@ -295,8 +296,7 @@
 {:else}
   <section class="space-y-6" data-testid="profile-section">
     <p class="text-xs text-muted-foreground">
-      Enrichis ton profil progressivement. Plus Apollia te connaît, plus elle peut te
-      proposer des automatisations pertinentes. Aucune donnée ne quitte ta machine.
+      {$t("settings.profile.intro")}
     </p>
 
     <!-- ─── Identité ──────────────────────────────────────────────────────── -->
@@ -306,21 +306,21 @@
           <User size={18} strokeWidth={1.75} />
         </span>
         <div>
-          <h3 class="text-sm font-semibold">Identité</h3>
-          <p class="text-[11px] text-muted-foreground">Qui tu es et ce que tu cherches à faire.</p>
+          <h3 class="text-sm font-semibold">{$t("settings.profile.identity.title")}</h3>
+          <p class="text-[11px] text-muted-foreground">{$t("settings.profile.identity.subtitle")}</p>
         </div>
       </header>
 
       <div class="grid gap-3 md:grid-cols-2">
         <label class="space-y-1">
           <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            Prénom / alias
+            {$t("settings.profile.fields.name")}
             {@render sourceBadge("name")}
           </span>
           <Input
             value={val("name")}
             onblur={(e: Event) => saveKey("name", (e.target as HTMLInputElement).value)}
-            placeholder="Nidal"
+            placeholder={$t("settings.profile.placeholder.name")}
             disabled={saving["name"]}
             data-testid="profile-input-name"
           />
@@ -328,13 +328,13 @@
 
         <label class="space-y-1">
           <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            Rôle
+            {$t("settings.profile.fields.role")}
             {@render sourceBadge("role")}
           </span>
           <Input
             value={val("role")}
             onblur={(e: Event) => saveKey("role", (e.target as HTMLInputElement).value)}
-            placeholder="CTO, dev fullstack, ops…"
+            placeholder={$t("settings.profile.placeholder.role")}
             disabled={saving["role"]}
             data-testid="profile-input-role"
           />
@@ -342,7 +342,7 @@
 
         <label class="space-y-1">
           <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            Secteur
+            {$t("settings.profile.fields.sector")}
             {@render sourceBadge("domain.sector")}
           </span>
           <Select
@@ -351,14 +351,14 @@
             data-testid="profile-select-sector"
           >
             {#each SECTORS as opt}
-              <option value={opt.v}>{opt.label}</option>
+              <option value={opt.v}>{$t(opt.labelKey)}</option>
             {/each}
           </Select>
         </label>
 
         <label class="space-y-1">
           <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            Taille d'équipe
+            {$t("settings.profile.fields.team_size")}
             {@render sourceBadge("domain.team_size")}
           </span>
           <Select
@@ -367,7 +367,7 @@
             data-testid="profile-select-team-size"
           >
             {#each TEAM_SIZES as opt}
-              <option value={opt.v}>{opt.label}</option>
+              <option value={opt.v}>{$t(opt.labelKey)}</option>
             {/each}
           </Select>
         </label>
@@ -375,13 +375,13 @@
 
       <label class="space-y-1 block">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Objectifs (max 2 phrases)
+          {$t("settings.profile.fields.goals")}
           {@render sourceBadge("goals")}
         </span>
         <Textarea
           value={val("goals")}
           onblur={(e: Event) => saveKey("goals", (e.target as HTMLTextAreaElement).value)}
-          placeholder="Ex. Automatiser ma veille concurrentielle et pré-traiter mes emails."
+          placeholder={$t("settings.profile.placeholder.goals")}
           rows={2}
           disabled={saving["goals"]}
           data-testid="profile-textarea-goals"
@@ -397,21 +397,20 @@
         </span>
         <div class="flex-1">
           <h3 class="flex items-center gap-1.5 text-sm font-semibold">
-            Supervision des agents
+            {$t("settings.profile.supervision.title")}
             <span class="rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-warning">
-              Sensible
+              {$t("settings.profile.sensitive_badge")}
             </span>
           </h3>
           <p class="text-[11px] text-muted-foreground">
-            Modifier ces choix n'ajuste pas tes règles de permissions automatiquement -
-            relance l'onboarding pour que l'agent te propose les ajustements correspondants.
+            {$t("settings.profile.sensitive_notice")}
           </p>
         </div>
       </header>
 
       <div class="space-y-2">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Niveau HITL (Human-in-the-Loop)
+          {$t("settings.profile.fields.hitl")}
           {@render sourceBadge("agents.hitl")}
         </span>
         <RadioGroup
@@ -427,8 +426,8 @@
               loading={saving["agents.hitl"] && isSet("agents.hitl", opt.v)}
             >
               <span class="flex flex-col">
-                <span class="text-sm font-medium">{opt.label}</span>
-                <span class="text-[11px] text-muted-foreground">{opt.hint}</span>
+                <span class="text-sm font-medium">{$t(opt.labelKey)}</span>
+                <span class="text-[11px] text-muted-foreground">{$t(opt.hintKey)}</span>
               </span>
             </RadioItem>
           {/each}
@@ -437,30 +436,28 @@
 
       <label class="space-y-1 block">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Domaines où vos agents travaillent en autonomie
+          {$t("settings.profile.fields.agent_domains")}
           {@render sourceBadge("agents.domains")}
         </span>
         <Input
           value={val("agents.domains")}
           onblur={(e: Event) => saveKey("agents.domains", (e.target as HTMLInputElement).value)}
-          placeholder="veille, email, reporting"
+          placeholder={$t("settings.profile.placeholder.agent_domains")}
           disabled={saving["agents.domains"]}
           data-testid="profile-input-agent-domains"
         />
         <span class="block text-[11px] text-muted-foreground">
-          Liste libre des domaines (veille, email, reporting…) où tu laisses tes agents agir
-          sans validation manuelle, sous réserve du niveau de supervision ci-dessus.
+          {$t("settings.profile.hint.agent_domains")}
         </span>
       </label>
 
       <div class="space-y-2">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Comment vos agents démarrent par défaut
+          {$t("settings.profile.fields.trigger")}
           {@render sourceBadge("agents.trigger")}
         </span>
         <p class="text-[11px] text-muted-foreground">
-          Distinct du niveau de supervision : ceci définit <em>quand</em> un agent s'exécute,
-          pas <em>si</em> il a besoin de ton approbation.
+          {@html $t("settings.profile.hint.trigger")}
         </p>
         <RadioGroup
           value={val("agents.trigger")}
@@ -474,7 +471,7 @@
               checked={isSet("agents.trigger", opt.v)}
               onchange={(v: string) => saveKey("agents.trigger", v)}
             >
-              <span class="text-sm">{opt.label}</span>
+              <span class="text-sm">{$t(opt.labelKey)}</span>
             </RadioItem>
           {/each}
         </RadioGroup>
@@ -488,33 +485,33 @@
           <Cpu size={18} strokeWidth={1.75} />
         </span>
         <div>
-          <h3 class="text-sm font-semibold">Outils & contexte métier</h3>
+          <h3 class="text-sm font-semibold">{$t("settings.profile.tools.title")}</h3>
           <p class="text-[11px] text-muted-foreground">
-            Aide les agents à parler ton langage et à utiliser les outils que tu connais déjà.
+            {$t("settings.profile.tools.subtitle")}
           </p>
         </div>
       </header>
 
       <label class="space-y-1 block">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Outils du quotidien (séparés par virgules)
+          {$t("settings.profile.fields.tools_daily")}
           {@render sourceBadge("tools.daily")}
         </span>
         <Input
           value={val("tools.daily")}
           onblur={(e: Event) => saveKey("tools.daily", (e.target as HTMLInputElement).value)}
-          placeholder="Excel, Notion, Salesforce, Gmail, VS Code…"
+          placeholder={$t("settings.profile.placeholder.tools_daily")}
           disabled={saving["tools.daily"]}
           data-testid="profile-input-tools-daily"
         />
         <span class="block text-[11px] text-muted-foreground">
-          Liste libre - applications métier, IDE, outils de bureau, plateformes SaaS.
+          {$t("settings.profile.hint.tools_daily")}
         </span>
       </label>
 
       <label class="space-y-1 block">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Aisance avec l'outillage tech
+          {$t("settings.profile.fields.proficiency")}
           {@render sourceBadge("tech.proficiency")}
         </span>
         <Select
@@ -523,25 +520,24 @@
           data-testid="profile-select-proficiency"
         >
           {#each PROFICIENCY as opt}
-            <option value={opt.v}>{opt.label}</option>
+            <option value={opt.v}>{$t(opt.labelKey)}</option>
           {/each}
         </Select>
         <span class="block text-[11px] text-muted-foreground">
-          Sert aux agents à doser le niveau d'explication technique (vocabulaire, détail des étapes).
+          {$t("settings.profile.hint.proficiency")}
         </span>
       </label>
 
       <div class="space-y-2">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Connecter Apollia à
+          {$t("settings.profile.fields.integrations")}
           {@render sourceBadge("tech.integrations")}
           <span class="rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-warning">
-            Sensible
+            {$t("settings.profile.sensitive_badge")}
           </span>
         </span>
         <p class="text-[11px] text-muted-foreground">
-          Activer une intégration ouvre des permissions par défaut sur les API associées.
-          Relance l'onboarding pour adapter les règles correspondantes.
+          {$t("settings.profile.hint.integrations")}
         </p>
         <div class="flex flex-wrap gap-3">
           {#each INTEGRATIONS as integ}
@@ -567,21 +563,20 @@
         </span>
         <div class="flex-1">
           <h3 class="flex items-center gap-1.5 text-sm font-semibold">
-            Contraintes
+            {$t("settings.profile.constraints.title")}
             <span class="rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-warning">
-              Sensible
+              {$t("settings.profile.sensitive_badge")}
             </span>
           </h3>
           <p class="text-[11px] text-muted-foreground">
-            Modifier ces choix n'ajuste pas tes règles de permissions automatiquement -
-            relance l'onboarding pour que l'agent te propose les ajustements correspondants.
+            {$t("settings.profile.sensitive_notice")}
           </p>
         </div>
       </header>
 
       <div class="space-y-2">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Souveraineté des données
+          {$t("settings.profile.fields.sovereignty")}
           {@render sourceBadge("constraints.sovereignty")}
         </span>
         <RadioGroup
@@ -597,8 +592,8 @@
               loading={saving["constraints.sovereignty"] && isSet("constraints.sovereignty", opt.v)}
             >
               <span class="flex flex-col">
-                <span class="text-sm font-medium">{opt.label}</span>
-                <span class="text-[11px] text-muted-foreground">{opt.hint}</span>
+                <span class="text-sm font-medium">{$t(opt.labelKey)}</span>
+                <span class="text-[11px] text-muted-foreground">{$t(opt.hintKey)}</span>
               </span>
             </RadioItem>
           {/each}
@@ -607,7 +602,7 @@
 
       <div class="space-y-2">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Conformité
+          {$t("settings.profile.fields.compliance")}
           {@render sourceBadge("constraints.compliance")}
         </span>
         <div class="flex flex-wrap gap-3">
@@ -633,15 +628,15 @@
           <Settings2 size={18} strokeWidth={1.75} />
         </span>
         <div>
-          <h3 class="text-sm font-semibold">Préférences</h3>
-          <p class="text-[11px] text-muted-foreground">Langue et backend par défaut pour les agents.</p>
+          <h3 class="text-sm font-semibold">{$t("settings.profile.preferences.title")}</h3>
+          <p class="text-[11px] text-muted-foreground">{$t("settings.profile.preferences.subtitle")}</p>
         </div>
       </header>
 
       <div class="grid gap-3 md:grid-cols-2">
         <label class="space-y-1">
           <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            Langue des agents
+            {$t("settings.profile.fields.language")}
             {@render sourceBadge("preferences.language")}
           </span>
           <Select
@@ -650,14 +645,14 @@
             data-testid="profile-select-language"
           >
             {#each LANGUAGES as opt}
-              <option value={opt.v}>{opt.label}</option>
+              <option value={opt.v}>{$t(opt.labelKey)}</option>
             {/each}
           </Select>
         </label>
 
         <label class="space-y-1">
           <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            Backend LLM préféré
+            {$t("settings.profile.fields.llm")}
             {@render sourceBadge("preferences.llm")}
           </span>
           <Select
@@ -666,7 +661,7 @@
             data-testid="profile-select-llm"
           >
             {#each LLM_BACKENDS as opt}
-              <option value={opt.v}>{opt.label}</option>
+              <option value={opt.v}>{$t(opt.labelKey)}</option>
             {/each}
           </Select>
         </label>
@@ -678,10 +673,9 @@
       <div class="flex items-start gap-2">
         <AlertTriangle size={16} class="text-destructive mt-0.5" />
         <div class="flex-1">
-          <h3 class="text-sm font-semibold text-destructive">Zone danger</h3>
+          <h3 class="text-sm font-semibold text-destructive">{$t("settings.profile.danger.title")}</h3>
           <p class="text-[11px] text-muted-foreground">
-            Réinitialiser ton profil supprime toute la mémoire utilisateur et relance
-            l'onboarding depuis zéro.
+            {$t("settings.profile.danger.description")}
           </p>
         </div>
       </div>
@@ -692,7 +686,7 @@
         class="border-destructive/40 text-destructive hover:bg-destructive/10"
         data-testid="profile-reset-button"
       >
-        Réinitialiser le profil
+        {$t("settings.profile.danger.reset_button")}
       </Button>
     </div>
   </section>
@@ -702,10 +696,10 @@
   open={resetOpen}
   onclose={() => (resetOpen = false)}
   onconfirm={confirmReset}
-  title="Réinitialiser le profil ?"
-  message="Cela supprimera tout le profil mémorisé et relancera l'onboarding. Cette action est irréversible."
-  confirmLabel="Réinitialiser"
-  cancelLabel="Annuler"
+  title={$t("settings.profile.reset_dialog.title")}
+  message={$t("settings.profile.reset_dialog.message")}
+  confirmLabel={$t("settings.profile.reset_dialog.confirm")}
+  cancelLabel={$t("common.cancel")}
   loading={resetting}
   data-testid="profile-reset-confirm"
 />

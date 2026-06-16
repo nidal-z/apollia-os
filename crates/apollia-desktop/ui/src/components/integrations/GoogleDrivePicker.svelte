@@ -17,6 +17,7 @@
    */
 
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
 
@@ -197,11 +198,11 @@
     data-testid="google-drive-picker-status"
   >
     <div class="w-full max-w-md rounded-xl border border-border bg-surface-1 p-5 space-y-3">
-      <h2 class="text-base font-semibold">Sélecteur Google Drive</h2>
+      <h2 class="text-base font-semibold">{$t("connections.drive_picker.title")}</h2>
       {#if booting}
         <div class="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner size={14} />
-          Chargement du sélecteur Google…
+          {$t("connections.drive_picker.loading")}
         </div>
       {/if}
       {#if bootError}
@@ -211,35 +212,34 @@
       {/if}
       {#if pickerLikelyStuck && !bootError}
         <div class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-2" data-testid="picker-stuck-hint">
-          <p class="font-medium">Le sélecteur ne répond pas.</p>
-          <p>
-            Google a probablement refusé la clé API (souvent un 401 visible dans
-            la console DevTools). Vérifiez dans Google Cloud Console :
-          </p>
+          <p class="font-medium">{$t("connections.drive_picker.stuck_title")}</p>
+          <p>{$t("connections.drive_picker.stuck_intro")}</p>
           <ul class="list-disc pl-4 space-y-0.5">
             <li>
-              <strong>Picker API</strong> doit être activée
+              <strong>Picker API</strong> {$t("connections.drive_picker.stuck_item_enabled")}
               (<code>APIs &amp; Services → Library → Picker API</code>).
             </li>
             <li>
-              La clé doit être sans <strong>restriction de référent HTTP</strong>
-              (le webview Tauri n'envoie pas une origine HTTPS reconnue), ou
-              autoriser explicitement <code>tauri://localhost/*</code> ET
+              {$t("connections.drive_picker.stuck_item_referrer_before")}<strong
+                >{$t("connections.drive_picker.stuck_item_referrer_strong")}</strong
+              >{$t("connections.drive_picker.stuck_item_referrer_after")}
+              <code>tauri://localhost/*</code>
+              {$t("connections.drive_picker.stuck_item_referrer_and")}
               <code>http://tauri.localhost/*</code>.
             </li>
             <li>
-              <strong>Restrictions d'API</strong> : la clé doit inclure
-              <code>Google Picker API</code> et <code>Google Drive API</code>.
+              <strong>{$t("connections.drive_picker.stuck_item_api_restrictions_strong")}</strong>
+              {$t("connections.drive_picker.stuck_item_api_restrictions_before")}
+              <code>Google Picker API</code>
+              {$t("connections.drive_picker.stuck_item_api_restrictions_and")}
+              <code>Google Drive API</code>.
             </li>
-            <li>
-              Si vous venez d'activer la Picker API, attendez 1–2 minutes que
-              Google propage la config.
-            </li>
+            <li>{$t("connections.drive_picker.stuck_item_propagate")}</li>
           </ul>
         </div>
       {/if}
       <div class="flex justify-end">
-        <Button variant="outline" size="sm" onclick={dismissStuck}>Fermer</Button>
+        <Button variant="outline" size="sm" onclick={dismissStuck}>{$t("connections.drive_picker.close")}</Button>
       </div>
     </div>
   </div>

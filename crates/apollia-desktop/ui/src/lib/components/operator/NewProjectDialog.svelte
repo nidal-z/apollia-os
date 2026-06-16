@@ -159,7 +159,7 @@
       </div>
     {:else}
       <div
-        class="bg-card rounded-2xl p-6 w-[560px] max-w-[92vw] flex flex-col shadow-elev-4"
+        class="bg-card rounded-2xl p-6 w-[640px] max-w-[92vw] flex flex-col shadow-elev-4"
       >
         <div class="mb-3">
           <div

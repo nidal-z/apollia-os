@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { Search, Sparkles, Wrench, Cpu } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
@@ -82,7 +83,7 @@
         llm_backend: llmBackend.length === 0 ? null : llmBackend,
       };
       await invoke("update_chat_libre_config", { config });
-      addToast("Configuration enregistrée", "success");
+      addToast($t("agents.chat_config.saved_toast"), "success");
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");
     } finally {
@@ -128,7 +129,7 @@
   function kindLabel(kind: string): string {
     switch (kind) {
       case "native":
-        return "Natif";
+        return $t("agents.chat_config.kind_native");
       case "mcp":
         return "MCP";
       case "python":
@@ -160,10 +161,11 @@
         <Sparkles size={14} />
       </div>
       <div class="min-w-0">
-        <h3 class="text-[14px] font-semibold">Personnalité</h3>
+        <h3 class="text-[14px] font-semibold">
+          {$t("agents.chat_config.personality_title")}
+        </h3>
         <p class="text-[11.5px] text-muted-foreground">
-          Le ton, le style et les consignes que l'assistant suit dans chaque
-          conversation.
+          {$t("agents.chat_config.personality_hint")}
         </p>
       </div>
     </header>
@@ -176,7 +178,7 @@
       data-testid="apollia-chat-system-prompt"
     />
     <p class="text-[10.5px] text-muted-foreground">
-      Laissez vide pour conserver le comportement standard.
+      {$t("agents.chat_config.personality_empty_hint")}
     </p>
   </section>
 
@@ -192,14 +194,15 @@
       </div>
       <div class="min-w-0 flex-1">
         <h3 class="text-[14px] font-semibold">
-          Outils autorisés
+          {$t("agents.chat_config.tools_title")}
           <span class="ml-1 text-muted-foreground font-normal">
-            · {allowedCount} sélectionné{allowedCount === 1 ? "" : "s"}
+            · {$t("agents.chat_config.tools_selected_count", {
+              values: { count: allowedCount },
+            })}
           </span>
         </h3>
         <p class="text-[11.5px] text-muted-foreground">
-          Cochez les outils qu'Apollia Chat peut utiliser sans demander
-          confirmation à chaque appel.
+          {$t("agents.chat_config.tools_hint")}
         </p>
       </div>
       <div class="flex shrink-0 gap-1.5">
@@ -210,7 +213,7 @@
           disabled={loading || filteredTools.length === 0}
           data-testid="apollia-chat-tools-all"
         >
-          Tout cocher
+          {$t("agents.chat_config.tools_select_all")}
         </Button>
         <Button
           variant="ghost"
@@ -219,7 +222,7 @@
           disabled={loading || allowedCount === 0}
           data-testid="apollia-chat-tools-none"
         >
-          Tout décocher
+          {$t("agents.chat_config.tools_select_none")}
         </Button>
       </div>
     </header>
@@ -231,7 +234,7 @@
       <input
         type="text"
         bind:value={toolFilter}
-        placeholder="Filtrer par nom ou description"
+        placeholder={$t("agents.chat_config.tools_filter_placeholder")}
         disabled={loading}
         class="flex-1 border-none bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none"
         data-testid="apollia-chat-tools-filter"
@@ -240,19 +243,21 @@
 
     {#if loading}
       <p class="px-2 py-6 text-center text-xs text-muted-foreground">
-        Chargement des outils…
+        {$t("agents.chat_config.tools_loading")}
       </p>
     {:else if availableTools.length === 0}
       <p
         class="rounded-md border border-dashed border-border px-4 py-4 text-center text-xs text-muted-foreground"
       >
-        Aucun outil disponible dans ce runtime.
+        {$t("agents.chat_config.tools_empty")}
       </p>
     {:else if filteredTools.length === 0}
       <p
         class="rounded-md border border-dashed border-border px-4 py-4 text-center text-xs text-muted-foreground"
       >
-        Aucun outil ne correspond à « {toolFilter} ».
+        {$t("agents.chat_config.tools_no_match", {
+          values: { toolFilter },
+        })}
       </p>
     {:else}
       <ul
@@ -302,9 +307,11 @@
         <Cpu size={14} />
       </div>
       <div class="min-w-0">
-        <h3 class="text-[14px] font-semibold">Modèle</h3>
+        <h3 class="text-[14px] font-semibold">
+          {$t("agents.chat_config.model_title")}
+        </h3>
         <p class="text-[11.5px] text-muted-foreground">
-          Choisissez quel modèle Apollia Chat doit utiliser.
+          {$t("agents.chat_config.model_hint")}
         </p>
       </div>
     </header>
@@ -316,19 +323,26 @@
       data-testid="apollia-chat-llm-backend"
     >
       <option value="">
-        Modèle par défaut{defaultBackend
-          ? ` (${defaultBackend.name} - ${defaultBackend.model})`
-          : ""}
+        {defaultBackend
+          ? $t("agents.chat_config.model_default_with_backend", {
+              values: {
+                name: defaultBackend.name,
+                model: defaultBackend.model,
+              },
+            })
+          : $t("agents.chat_config.model_default")}
       </option>
       {#each availableBackends as b (b.name)}
         <option value={b.name}>
-          {b.name} · {b.provider} · {b.model}{b.is_default ? " (défaut)" : ""}
+          {b.name} · {b.provider} · {b.model}{b.is_default
+            ? ` ${$t("agents.chat_config.model_default_suffix")}`
+            : ""}
         </option>
       {/each}
     </Select>
     {#if availableBackends.length === 0 && !loading}
       <p class="text-[10.5px] text-muted-foreground">
-        Aucun modèle configuré. Ajoutez-en un dans Réglages › Modèles.
+        {$t("agents.chat_config.model_empty")}
       </p>
     {/if}
   </section>
@@ -342,7 +356,7 @@
       disabled={loading || saving}
       data-testid="apollia-chat-config-reload"
     >
-      Annuler les modifications
+      {$t("agents.chat_config.revert")}
     </Button>
     <Button
       variant="default"
@@ -352,7 +366,7 @@
       disabled={loading}
       data-testid="apollia-chat-config-save"
     >
-      Enregistrer
+      {$t("common.save")}
     </Button>
   </div>
 </div>

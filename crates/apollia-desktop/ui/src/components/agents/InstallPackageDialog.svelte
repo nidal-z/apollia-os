@@ -1,5 +1,6 @@
 <script lang="ts">
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { t } from "svelte-i18n";
   import { get } from "svelte/store";
   import type { PackagePreview, InstallPackageResponse, TriggerConfigOverride, TriggerPreview } from "$lib/types";
   import { previewPackage, installPackage } from "$lib/stores/agentPackages";
@@ -175,10 +176,10 @@
     return type === "webhook" ? Webhook : type === "interval" ? Timer : type === "file_watch" ? Eye : Clock;
   }
 
-  function triggerDetail(t: TriggerPreview): string {
-    if (t.schedule) return t.schedule;
-    if (t.every) return `every ${t.every}`;
-    if (t.path) return t.path;
+  function triggerDetail(tr: TriggerPreview): string {
+    if (tr.schedule) return tr.schedule;
+    if (tr.every) return get(t)("agents.install.trigger_every", { values: { every: tr.every } });
+    if (tr.path) return tr.path;
     return "";
   }
 
@@ -189,7 +190,7 @@
   );
 </script>
 
-<Dialog {open} onclose={handleClose} title="Installer un package d'agents" size="md">
+<Dialog {open} onclose={handleClose} title={$t("agents.install.title")} size="md">
 
   <!-- ── Step: pick ──────────────────────────────────────────────────────── -->
   {#if step === "pick"}
@@ -198,15 +199,15 @@
         <div class="size-16 rounded-2xl bg-primary/10 flex items-center justify-center animate-pulse">
           <Package2 size={28} class="text-primary/60" />
         </div>
-        <p class="text-sm text-muted-foreground">Analyse du package…</p>
+        <p class="text-sm text-muted-foreground">{$t("agents.install.analyzing")}</p>
       {:else}
         <div class="size-16 rounded-2xl bg-primary/10 flex items-center justify-center">
           <FolderOpen size={28} class="text-primary" />
         </div>
         <div>
-          <p class="text-sm font-medium">Sélectionner un dossier package</p>
+          <p class="text-sm font-medium">{$t("agents.install.pick_folder")}</p>
           <p class="text-xs text-muted-foreground mt-1">
-            Le dossier doit contenir un fichier <code class="bg-muted px-1 rounded">agent.toml</code>
+            {$t("agents.install.pick_folder_hint_prefix")} <code class="bg-muted px-1 rounded">agent.toml</code>
           </p>
         </div>
 
@@ -219,7 +220,7 @@
 
         <Button onclick={handlePickFolder} class="gap-2 w-full">
           <FolderOpen size={14} />
-          Choisir un dossier
+          {$t("agents.install.choose_folder")}
         </Button>
       {/if}
     </div>
@@ -239,11 +240,11 @@
         <div class="ml-auto">
           {#if preview.valid}
             <Badge variant="success" class="text-[10px] px-2 py-0.5 gap-1">
-              <CheckCircle2 size={10} />Valide
+              <CheckCircle2 size={10} />{$t("agents.install.valid")}
             </Badge>
           {:else}
             <Badge variant="destructive" class="text-[10px] px-2 py-0.5 gap-1">
-              <AlertTriangle size={10} />Invalide
+              <AlertTriangle size={10} />{$t("agents.install.invalid")}
             </Badge>
           {/if}
         </div>
@@ -263,7 +264,7 @@
       <!-- Agents -->
       <div>
         <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
-          <Users size={10} />Agents ({preview.agents.length})
+          <Users size={10} />{$t("agents.install.section_agents", { values: { n: preview.agents.length } })}
         </h4>
         <div class="space-y-1">
           {#each preview.agents as agent (agent.name)}
@@ -281,7 +282,7 @@
       {#if preview.triggers.length > 0}
         <div>
           <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
-            <Zap size={10} />Triggers ({preview.triggers.length})
+            <Zap size={10} />{$t("agents.install.section_triggers", { values: { n: preview.triggers.length } })}
           </h4>
           <div class="space-y-1">
             {#each preview.triggers as trigger (trigger.id)}
@@ -305,7 +306,7 @@
           {#if needsConfig}
             <p class="mt-1.5 text-[10px] text-amber-500/80 flex items-center gap-1">
               <AlertTriangle size={10} />
-              {webhookTriggers.filter((t) => t.needs_config).length} trigger(s) nécessitent une configuration
+              {$t("agents.install.triggers_need_config", { values: { n: webhookTriggers.filter((tr) => tr.needs_config).length } })}
             </p>
           {/if}
         </div>
@@ -315,20 +316,23 @@
       {#if preview.pip_packages.length > 0}
         <div>
           <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
-            <Package2 size={10} />Dépendances Python ({preview.pip_packages.length})
+            <Package2 size={10} />{$t("agents.install.section_pip_deps", { values: { n: preview.pip_packages.length } })}
           </h4>
           {#if $agentInstallPrefs.autoInstallPythonDeps}
             <div class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-primary">
               <p class="leading-relaxed">
-                {preview.pip_packages.length} dépendance{preview.pip_packages.length > 1 ? "s" : ""} pip seront installée{preview.pip_packages.length > 1 ? "s" : ""} automatiquement
-                (auto-install activé dans Réglages → Système).
+                {preview.pip_packages.length > 1
+                  ? $t("agents.install.deps_auto_many", { values: { n: preview.pip_packages.length } })
+                  : $t("agents.install.deps_auto_one", { values: { n: preview.pip_packages.length } })}
               </p>
             </div>
           {:else}
             <div class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
               <p class="leading-relaxed">
-                Ce package nécessite l'installation de {preview.pip_packages.length} dépendance{preview.pip_packages.length > 1 ? "s" : ""} Python via pip.
-                <span class="font-medium">Une étape de confirmation suivra</span> avant tout téléchargement.
+                {preview.pip_packages.length > 1
+                  ? $t("agents.install.deps_manual_many", { values: { n: preview.pip_packages.length } })
+                  : $t("agents.install.deps_manual_one", { values: { n: preview.pip_packages.length } })}
+                <span class="font-medium">{$t("agents.install.deps_confirm_step")}</span> {$t("agents.install.deps_before_download")}
               </p>
             </div>
           {/if}
@@ -343,9 +347,13 @@
       {/if}
 
       <div class="flex gap-2 pt-1">
-        <Button variant="outline" onclick={reset} class="flex-1">← Changer</Button>
+        <Button variant="outline" onclick={reset} class="flex-1">{$t("agents.install.change")}</Button>
         <Button onclick={proceedFromPreview} class="flex-1 gap-1.5" disabled={!preview.valid}>
-          {willShowDepsConfirm ? "Continuer →" : needsConfig ? "Configurer →" : "Installer"}
+          {willShowDepsConfirm
+            ? $t("agents.install.continue")
+            : needsConfig
+              ? $t("agents.install.configure")
+              : $t("agents.install.install")}
           {#if needsConfig && !willShowDepsConfirm}<Settings size={13} />{/if}
         </Button>
       </div>
@@ -356,24 +364,26 @@
     <div class="py-2 space-y-4">
       <div class="flex items-center gap-2 text-sm font-medium">
         <Package2 size={15} class="text-primary" />
-        Confirmation des dépendances Python
+        {$t("agents.install.deps_confirm_title")}
       </div>
 
       <div class="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-300 leading-relaxed space-y-1.5">
         <p>
-          L'installation de <span class="font-medium">{preview.name}</span> va télécharger
-          <span class="font-medium">{preview.pip_packages.length} package{preview.pip_packages.length > 1 ? "s" : ""} Python</span>
-          depuis PyPI dans <code class="text-[10px] bg-amber-500/10 px-1 rounded font-mono">~/.apollia/venvs/</code>.
+          {$t("agents.install.deps_confirm_intro_prefix", { values: { name: preview.name } })}
+          <span class="font-medium">{preview.pip_packages.length > 1
+            ? $t("agents.install.deps_confirm_count_many", { values: { n: preview.pip_packages.length } })
+            : $t("agents.install.deps_confirm_count_one", { values: { n: preview.pip_packages.length } })}</span>
+          {$t("agents.install.deps_confirm_intro_suffix")} <code class="text-[10px] bg-amber-500/10 px-1 rounded font-mono">~/.apollia/venvs/</code>.
         </p>
         <p class="text-amber-600/80 dark:text-amber-400/80">
-          Aucune installation ne sera effectuée sans votre confirmation.
+          {$t("agents.install.deps_confirm_no_install")}
         </p>
       </div>
 
       <!-- List of packages -->
       <div>
         <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5">
-          Packages à installer
+          {$t("agents.install.deps_list_title")}
         </h4>
         <div class="rounded-lg border border-border/60 bg-muted/20 max-h-48 overflow-y-auto">
           {#each preview.pip_packages as pkg (pkg)}
@@ -386,8 +396,8 @@
       </div>
 
       <p class="text-[10px] text-muted-foreground leading-relaxed">
-        Les packages sont installés dans un venv isolé par agent. Pas d'impact sur votre Python système.
-        Pour vérifier la provenance, consultez <a href="https://pypi.org" class="underline">pypi.org</a>.
+        {$t("agents.install.deps_venv_note")}
+        {$t("agents.install.deps_provenance_prefix")} <a href="https://pypi.org" class="underline">pypi.org</a>.
       </p>
 
       {#if installError}
@@ -398,10 +408,10 @@
       {/if}
 
       <div class="flex gap-2 pt-1">
-        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1">← Retour</Button>
+        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1">{$t("agents.install.back")}</Button>
         <Button onclick={confirmDepsAndProceed} class="flex-1 gap-1.5">
           <CheckCircle2 size={13} />
-          Confirmer et {needsConfig ? "continuer" : "installer"}
+          {needsConfig ? $t("agents.install.confirm_and_continue") : $t("agents.install.confirm_and_install")}
         </Button>
       </div>
     </div>
@@ -411,11 +421,10 @@
     <div class="py-2 space-y-4">
       <div class="flex items-center gap-2 text-sm font-medium">
         <Settings size={15} class="text-primary" />
-        Configuration des triggers webhook
+        {$t("agents.install.configure_title")}
       </div>
       <p class="text-xs text-muted-foreground leading-relaxed">
-        Ces triggers nécessitent un secret HMAC pour vérifier les requêtes entrantes.
-        Choisissez un secret fort (min. 8 caractères) et configurez-le côté webhook.
+        {$t("agents.install.configure_intro")}
       </p>
 
       {#each webhookTriggers as trigger (trigger.id)}
@@ -430,14 +439,14 @@
             </div>
             {#if !trigger.needs_config}
               <Badge variant="success" class="text-[9px] px-1.5 py-0 gap-0.5">
-                <CheckCircle2 size={8} />pré-configuré
+                <CheckCircle2 size={8} />{$t("agents.install.preconfigured")}
               </Badge>
             {/if}
           </div>
 
           <!-- Endpoint URL -->
           <div class="space-y-1">
-            <p class="text-[10px] text-muted-foreground uppercase tracking-wide">Endpoint</p>
+            <p class="text-[10px] text-muted-foreground uppercase tracking-wide">{$t("agents.install.endpoint")}</p>
             <div class="flex items-center gap-1.5 rounded bg-muted/50 px-2 py-1.5">
               <code class="text-[10px] flex-1 truncate text-muted-foreground font-mono">
                 {webhookEndpoint(trigger.id)}
@@ -445,7 +454,7 @@
               <button
                 class="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
                 onclick={() => copyToClipboard(webhookEndpoint(trigger.id), trigger.id + "-url")}
-                title="Copier l'URL"
+                title={$t("agents.install.copy_url")}
               >
                 {#if copiedId === trigger.id + "-url"}
                   <CheckCircle2 size={12} class="text-success" />
@@ -459,7 +468,7 @@
           <!-- Secret input -->
           <FormField
             id="secret-{trigger.id}"
-            label="Secret HMAC-SHA256"
+            label={$t("agents.install.secret_label")}
             labelClass="text-[10px] font-normal uppercase tracking-wide"
             required={trigger.needs_config}
           >
@@ -475,7 +484,7 @@
                 <Button variant="ghost" size="sm"
                   class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onclick={() => copyToClipboard(webhookSecrets[trigger.id], trigger.id + "-secret")}
-                  title="Copier le secret"
+                  title={$t("agents.install.copy_secret")}
                 >
                   {#if copiedId === trigger.id + "-secret"}
                     <CheckCircle2 size={11} class="text-success" />
@@ -486,7 +495,7 @@
               {/if}
             </div>
             {#if trigger.needs_config && (webhookSecrets[trigger.id] ?? "").trim().length > 0 && (webhookSecrets[trigger.id] ?? "").trim().length < 32}
-              <p class="text-[10px] text-destructive">Le secret doit faire au moins 32 caractères.</p>
+              <p class="text-[10px] text-destructive">{$t("agents.install.secret_too_short")}</p>
             {/if}
           </FormField>
         </div>
@@ -500,9 +509,9 @@
       {/if}
 
       <div class="flex gap-2 pt-1">
-        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1">← Retour</Button>
+        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1">{$t("agents.install.back")}</Button>
         <Button onclick={handleInstall} class="flex-1" disabled={!canInstall}>
-          Installer
+          {$t("agents.install.install")}
         </Button>
       </div>
     </div>
@@ -513,12 +522,12 @@
       <div class="size-16 rounded-2xl bg-primary/10 flex items-center justify-center animate-pulse">
         <Package size={28} class="text-primary/60" />
       </div>
-      <p class="text-sm font-medium">Installation en cours…</p>
+      <p class="text-sm font-medium">{$t("agents.install.installing")}</p>
       <p class="text-xs text-muted-foreground">
         {#if hasPipDeps}
-          Téléchargement des dépendances pip et duck-typing
+          {$t("agents.install.installing_deps")}
         {:else}
-          Copie des fichiers et injection des triggers
+          {$t("agents.install.installing_files")}
         {/if}
       </p>
     </div>
@@ -530,11 +539,15 @@
         <CheckCircle2 size={28} class="text-success" />
       </div>
       <div>
-        <p class="text-sm font-medium">Package installé !</p>
+        <p class="text-sm font-medium">{$t("agents.install.done_title")}</p>
         <p class="text-xs text-muted-foreground mt-1">
           <span class="font-medium">{installResult.name}</span> v{installResult.version} ·
-          {installResult.agent_count} agent{installResult.agent_count > 1 ? "s" : ""} ·
-          {installResult.trigger_count} trigger{installResult.trigger_count > 1 ? "s" : ""}
+          {installResult.agent_count > 1
+            ? $t("agents.install.done_agents_many", { values: { n: installResult.agent_count } })
+            : $t("agents.install.done_agents_one", { values: { n: installResult.agent_count } })} ·
+          {installResult.trigger_count > 1
+            ? $t("agents.install.done_triggers_many", { values: { n: installResult.trigger_count } })
+            : $t("agents.install.done_triggers_one", { values: { n: installResult.trigger_count } })}
         </p>
         {#if installResult.trigger_errors.length > 0}
           <div class="mt-3 text-left space-y-1">
@@ -547,7 +560,7 @@
           </div>
         {/if}
       </div>
-      <Button onclick={handleClose} class="w-full">Fermer</Button>
+      <Button onclick={handleClose} class="w-full">{$t("common.close")}</Button>
     </div>
   {/if}
 

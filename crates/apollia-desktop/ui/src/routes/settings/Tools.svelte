@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import {
     RotateCw,
     Search,
@@ -26,108 +27,108 @@
   import { addToast } from "$lib/components/ui/toast";
 
   interface ToolPresentation {
-    title: string;
-    description: string;
+    titleKey: string;
+    descKey: string;
     icon: typeof Search;
     canConfigure: boolean;
   }
 
   const PRESENTATIONS: Record<string, ToolPresentation> = {
     web_search: {
-      title: "Recherche Web",
-      description: "Interroge DuckDuckGo (par défaut) ou Brave si une clé API est configurée.",
+      titleKey: "settings.tools_page.web_search_title",
+      descKey: "settings.tools_page.web_search_desc",
       icon: Search,
       canConfigure: true,
     },
     web_read: {
-      title: "Lecture Web",
-      description: "Récupère et extrait le contenu lisible d'une URL avec garde anti-SSRF.",
+      titleKey: "settings.tools_page.web_read_title",
+      descKey: "settings.tools_page.web_read_desc",
       icon: Globe,
       canConfigure: true,
     },
     bash_executor: {
-      title: "Bash",
-      description: "Exécute des commandes shell dans une sandbox supervisée.",
+      titleKey: "settings.tools_page.bash_executor_title",
+      descKey: "settings.tools_page.bash_executor_desc",
       icon: Terminal,
       canConfigure: false,
     },
     python_executor: {
-      title: "Python",
-      description: "Exécute du code Python isolé dans le runtime PyO3.",
+      titleKey: "settings.tools_page.python_executor_title",
+      descKey: "settings.tools_page.python_executor_desc",
       icon: FileCode,
       canConfigure: false,
     },
     file_read: {
-      title: "Lecture de fichiers",
-      description: "Lit un fichier dans le workspace de l'agent.",
+      titleKey: "settings.tools_page.file_read_title",
+      descKey: "settings.tools_page.file_read_desc",
       icon: FolderOpen,
       canConfigure: false,
     },
     file_write: {
-      title: "Écriture de fichiers",
-      description: "Écrit ou crée un fichier dans le workspace.",
+      titleKey: "settings.tools_page.file_write_title",
+      descKey: "settings.tools_page.file_write_desc",
       icon: FolderOpen,
       canConfigure: false,
     },
     file_list: {
-      title: "Listing de fichiers",
-      description: "Liste les fichiers d'un répertoire.",
+      titleKey: "settings.tools_page.file_list_title",
+      descKey: "settings.tools_page.file_list_desc",
       icon: FolderOpen,
       canConfigure: false,
     },
     file_edit: {
-      title: "Édition de fichiers",
-      description: "Applique un patch ou une édition sur un fichier existant.",
+      titleKey: "settings.tools_page.file_edit_title",
+      descKey: "settings.tools_page.file_edit_desc",
       icon: FolderOpen,
       canConfigure: false,
     },
     file_glob: {
-      title: "Recherche par glob",
-      description: "Trouve les fichiers correspondant à un pattern.",
+      titleKey: "settings.tools_page.file_glob_title",
+      descKey: "settings.tools_page.file_glob_desc",
       icon: FolderOpen,
       canConfigure: false,
     },
     file_grep: {
-      title: "Recherche de contenu",
-      description: "Recherche un motif dans les fichiers du workspace.",
+      titleKey: "settings.tools_page.file_grep_title",
+      descKey: "settings.tools_page.file_grep_desc",
       icon: FolderOpen,
       canConfigure: false,
     },
     notebook_read: {
-      title: "Lecture de notebooks",
-      description: "Lit les cellules d'un notebook Jupyter.",
+      titleKey: "settings.tools_page.notebook_read_title",
+      descKey: "settings.tools_page.notebook_read_desc",
       icon: FileCode,
       canConfigure: false,
     },
     notebook_edit: {
-      title: "Édition de notebooks",
-      description: "Modifie les cellules d'un notebook Jupyter.",
+      titleKey: "settings.tools_page.notebook_edit_title",
+      descKey: "settings.tools_page.notebook_edit_desc",
       icon: FileCode,
       canConfigure: false,
     },
     http_fetch: {
-      title: "HTTP Fetch",
-      description: "Effectue une requête HTTP arbitraire (avec garde anti-SSRF).",
+      titleKey: "settings.tools_page.http_fetch_title",
+      descKey: "settings.tools_page.http_fetch_desc",
       icon: Network,
       canConfigure: false,
     },
     memory_search: {
-      title: "Mémoire",
-      description: "Recherche dans la mémoire épisodique/sémantique de l'agent.",
+      titleKey: "settings.tools_page.memory_search_title",
+      descKey: "settings.tools_page.memory_search_desc",
       icon: Brain,
       canConfigure: false,
     },
     ask_user: {
-      title: "Demande utilisateur",
-      description: "Sollicite une réponse humaine via un dialogue HITL.",
+      titleKey: "settings.tools_page.ask_user_title",
+      descKey: "settings.tools_page.ask_user_desc",
       icon: UserSquare,
       canConfigure: false,
     },
   };
 
   const FALLBACK: ToolPresentation = {
-    title: "",
-    description: "",
+    titleKey: "",
+    descKey: "",
     icon: Terminal,
     canConfigure: false,
   };
@@ -143,7 +144,11 @@
   });
 
   function presentationFor(name: string): ToolPresentation {
-    return PRESENTATIONS[name] ?? { ...FALLBACK, title: name };
+    return PRESENTATIONS[name] ?? FALLBACK;
+  }
+
+  function titleFor(name: string, presentation: ToolPresentation): string {
+    return presentation.titleKey ? $t(presentation.titleKey) : name;
   }
 
   function warningFor(tool: ToolStatusDto): string | null {
@@ -152,10 +157,10 @@
     const backend = typeof cfg?.backend === "string" ? cfg.backend : "auto";
     const hasBraveKey = tool.credential_keys.includes("brave.api_key");
     if (backend === "brave" && !hasBraveKey) {
-      return "Brave forcé mais clé absente - l'outil échouera.";
+      return $t("settings.tools_page.warning_brave_forced_no_key");
     }
     if (backend === "auto" && !hasBraveKey) {
-      return "Brave non configuré - DuckDuckGo utilisé par défaut.";
+      return $t("settings.tools_page.warning_brave_auto_fallback");
     }
     return null;
   }
@@ -165,7 +170,7 @@
       await toggleTool(tool.name, enabled);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      addToast(`Action refusée : ${message}`, "error", {
+      addToast($t("settings.tools_page.toggle_error", { values: { message } }), "error", {
         "data-testid": "tool-toggle-error-toast",
       });
     }
@@ -183,16 +188,18 @@
 
   async function reload(): Promise<void> {
     await loadTools();
-    addToast("Outils rechargés", "info", { "data-testid": "tools-reloaded-toast" });
+    addToast($t("settings.tools_page.reloaded_toast"), "info", {
+      "data-testid": "tools-reloaded-toast",
+    });
   }
 </script>
 
 <section class="space-y-4" data-testid="settings-tools">
   <header class="flex items-center justify-between gap-3">
     <div>
-      <h2 class="text-lg font-semibold">Outils natifs</h2>
+      <h2 class="text-lg font-semibold">{$t("settings.tools_page.heading")}</h2>
       <p class="text-xs text-muted-foreground">
-        Activez, désactivez et configurez chaque outil mis à disposition des agents.
+        {$t("settings.tools_page.subtitle")}
       </p>
     </div>
     <Button
@@ -203,7 +210,7 @@
       data-testid="tools-reload"
     >
       <RotateCw size={14} class="mr-1" aria-hidden="true" />
-      Recharger
+      {$t("settings.tools_page.reload")}
     </Button>
   </header>
 
@@ -217,7 +224,7 @@
       {$toolsError}
     </div>
   {:else if $tools.length === 0}
-    <p class="text-sm text-muted-foreground">Aucun outil natif détecté.</p>
+    <p class="text-sm text-muted-foreground">{$t("settings.tools_page.empty")}</p>
   {:else}
     <ul class="space-y-2" data-testid="tools-list">
       {#each $tools as tool (tool.name)}
@@ -225,8 +232,8 @@
         <li>
           <ToolCard
             {tool}
-            title={presentation.title}
-            description={presentation.description}
+            title={titleFor(tool.name, presentation)}
+            description={presentation.descKey ? $t(presentation.descKey) : ""}
             icon={presentation.icon}
             warning={warningFor(tool)}
             canConfigure={presentation.canConfigure}

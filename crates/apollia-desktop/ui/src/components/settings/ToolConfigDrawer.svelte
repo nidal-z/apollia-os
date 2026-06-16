@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { Sheet, SheetHeader, SheetContent, SheetFooter } from "$lib/components/ui/sheet";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
@@ -197,19 +198,19 @@
 
 <Sheet {open} {onclose} width="lg">
   <SheetHeader
-    title={`Configurer ${tool?.name ?? ""}`}
+    title={$t("settings.tool_config.title", { values: { name: tool?.name ?? "" } })}
     {onclose}
-    closeLabel="Fermer"
+    closeLabel={$t("common.close")}
     class="px-5 py-4 items-center"
   >
     {#snippet titleSlot()}
       <div class="space-y-0.5">
         <h2 class="text-lg font-semibold">
-          Configurer {tool?.name ?? ""}
+          {$t("settings.tool_config.title", { values: { name: tool?.name ?? "" } })}
         </h2>
         {#if tool?.active_backend}
           <p class="text-xs text-muted-foreground">
-            Backend actif : <code class="rounded bg-muted/40 px-1">{tool.active_backend}</code>
+            {$t("settings.tool_config.active_backend")} <code class="rounded bg-muted/40 px-1">{tool.active_backend}</code>
           </p>
         {/if}
       </div>
@@ -218,12 +219,12 @@
 
   <SheetContent padding="flush" class="px-5 py-5 space-y-6" data-testid="tool-config-drawer-body">
       {#if loading}
-        <p class="text-sm text-muted-foreground">Chargement…</p>
+        <p class="text-sm text-muted-foreground">{$t("common.loading")}</p>
       {:else if !tool}
-        <p class="text-sm text-muted-foreground">Aucun outil sélectionné.</p>
+        <p class="text-sm text-muted-foreground">{$t("settings.tool_config.no_tool_selected")}</p>
       {:else if tool.name === "web_search"}
         <section class="space-y-3">
-          <h3 class="text-sm font-medium">Backend préféré</h3>
+          <h3 class="text-sm font-medium">{$t("settings.tool_config.web_search.preferred_backend")}</h3>
           <RadioGroup
             value={webSearch.backend}
             onchange={(v) => (webSearch.backend = v as WebSearchBackend)}
@@ -234,21 +235,21 @@
               checked={webSearch.backend === "auto"}
               onchange={(v) => (webSearch.backend = v as WebSearchBackend)}
             >
-              Auto (DDG par défaut, Brave si une clé est présente)
+              {$t("settings.tool_config.web_search.backend_auto")}
             </RadioItem>
             <RadioItem
               value="duckduckgo"
               checked={webSearch.backend === "duckduckgo"}
               onchange={(v) => (webSearch.backend = v as WebSearchBackend)}
             >
-              DuckDuckGo uniquement
+              {$t("settings.tool_config.web_search.backend_ddg_only")}
             </RadioItem>
             <RadioItem
               value="brave"
               checked={webSearch.backend === "brave"}
               onchange={(v) => (webSearch.backend = v as WebSearchBackend)}
             >
-              Brave Search uniquement
+              {$t("settings.tool_config.web_search.backend_brave_only")}
             </RadioItem>
           </RadioGroup>
         </section>
@@ -258,14 +259,14 @@
           <CredentialField
             toolName="web_search"
             keyName="brave.api_key"
-            label="Clé API Brave"
+            label={$t("settings.tool_config.web_search.brave_api_key")}
             configured={braveConfigured}
             canTest
             data-testid="brave-api-key"
           />
           <div class="grid grid-cols-2 gap-3">
             <label class="space-y-1 text-sm">
-              <span class="text-muted-foreground">Timeout (s)</span>
+              <span class="text-muted-foreground">{$t("settings.tool_config.field.timeout_secs")}</span>
               <Input
                 type="number"
                 min="1"
@@ -276,7 +277,7 @@
                />
             </label>
             <label class="space-y-1 text-sm">
-              <span class="text-muted-foreground">Résultats max (1–20)</span>
+              <span class="text-muted-foreground">{$t("settings.tool_config.field.max_results")}</span>
               <Input
                 type="number"
                 min="1"
@@ -293,7 +294,7 @@
           <h3 class="text-sm font-medium">DuckDuckGo</h3>
           <div class="grid grid-cols-2 gap-3">
             <label class="space-y-1 text-sm">
-              <span class="text-muted-foreground">Timeout (s)</span>
+              <span class="text-muted-foreground">{$t("settings.tool_config.field.timeout_secs")}</span>
               <Input
                 type="number"
                 min="1"
@@ -304,7 +305,7 @@
                />
             </label>
             <label class="space-y-1 text-sm">
-              <span class="text-muted-foreground">Taille max (Ko)</span>
+              <span class="text-muted-foreground">{$t("settings.tool_config.field.max_response_kb")}</span>
               <Input
                 type="number"
                 min="16"
@@ -325,9 +326,9 @@
               data-testid="require-configured"
             />
             <span>
-              Exiger un backend configuré
+              {$t("settings.tool_config.web_search.require_configured")}
               <span class="block text-xs text-muted-foreground">
-                Erreur au démarrage si aucun backend valide.
+                {$t("settings.tool_config.web_search.require_configured_desc")}
               </span>
             </span>
           </label>
@@ -336,7 +337,7 @@
         <section class="space-y-3">
           <div class="grid grid-cols-2 gap-3">
             <label class="space-y-1 text-sm">
-              <span class="text-muted-foreground">Timeout (s)</span>
+              <span class="text-muted-foreground">{$t("settings.tool_config.field.timeout_secs")}</span>
               <Input
                 type="number"
                 min="1"
@@ -347,7 +348,7 @@
                />
             </label>
             <label class="space-y-1 text-sm">
-              <span class="text-muted-foreground">Taille max (Ko)</span>
+              <span class="text-muted-foreground">{$t("settings.tool_config.field.max_response_kb")}</span>
               <Input
                 type="number"
                 min="64"
@@ -365,14 +366,13 @@
               data-testid="web-read-ssrf-guard"
             />
             <span>
-              Garde SSRF (rejeter les hôtes privés/loopback)
+              {$t("settings.tool_config.web_read.ssrf_guard")}
             </span>
           </label>
         </section>
       {:else}
         <p class="text-sm text-muted-foreground">
-          Cet outil n'expose pas de configuration spécifique. Son activation se
-          gère depuis la liste des outils.
+          {$t("settings.tool_config.no_config")}
         </p>
       {/if}
 
@@ -382,10 +382,10 @@
   </SheetContent>
 
   <SheetFooter class="px-5 py-3">
-    <Button variant="ghost" size="sm" onclick={onclose}>Annuler</Button>
+    <Button variant="ghost" size="sm" onclick={onclose}>{$t("common.cancel")}</Button>
     {#if hasConfigForm}
       <Button onclick={save} loading={saving} disabled={saving} data-testid="tool-config-save">
-        Enregistrer
+        {$t("common.save")}
       </Button>
     {/if}
   </SheetFooter>

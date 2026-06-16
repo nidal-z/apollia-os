@@ -9,7 +9,7 @@
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
-  import { PageLayout } from "$lib/components/operator";
+  import { PageLayout, FilterChipBar } from "$lib/components/operator";
   import { Input } from "$lib/components/ui/input";
   import { Dialog, DialogFooter } from "$lib/components/ui/dialog";
   import EmptyState from "../components/common/EmptyState.svelte";
@@ -32,12 +32,12 @@
   // celles importées du config.
   let creatorFilter = $state<string>("all");
 
-  const FILTER_PRESETS: Array<{ value: string; label: string }> = [
-    { value: "all", label: "Tous" },
-    { value: "onboarding-agent", label: "Onboarding" },
-    { value: "user-hitl", label: "Vous (HITL)" },
-    { value: "user-settings", label: "Vous (Settings)" },
-    { value: "config-import", label: "Config import" },
+  const FILTER_PRESETS: Array<{ value: string; labelKey: string }> = [
+    { value: "all", labelKey: "settings.permission_rules.filter.all" },
+    { value: "onboarding-agent", labelKey: "settings.permission_rules.filter.onboarding" },
+    { value: "user-hitl", labelKey: "settings.permission_rules.filter.user_hitl" },
+    { value: "user-settings", labelKey: "settings.permission_rules.filter.user_settings" },
+    { value: "config-import", labelKey: "settings.permission_rules.filter.config_import" },
   ];
 
   const visibleRules = $derived(
@@ -102,18 +102,14 @@
     />
   {:else}
     <div class="flex flex-wrap items-center gap-2 text-xs" data-testid="permission-rule-creator-filter">
-      <span class="text-muted-foreground">Filtrer par auteur :</span>
-      {#each FILTER_PRESETS as preset}
-        <button
-          type="button"
-          class="rounded-full border px-2.5 py-0.5 transition-colors {creatorFilter === preset.value
-            ? 'border-primary bg-primary/10 text-primary'
-            : 'border-border bg-card text-muted-foreground hover:bg-muted'}"
-          onclick={() => (creatorFilter = preset.value)}
-        >
-          {preset.label}
-        </button>
-      {/each}
+      <span class="text-muted-foreground">{$t("settings.permission_rules.filter_label")}</span>
+      <FilterChipBar
+        size="compact"
+        chips={FILTER_PRESETS.map((preset) => ({ key: preset.value, label: $t(preset.labelKey) }))}
+        activeKey={creatorFilter}
+        onchange={(key) => (creatorFilter = key)}
+        aria-label={$t("settings.permission_rules.filter_aria")}
+      />
     </div>
 
     <div class="rounded-lg border border-border bg-card">
@@ -124,8 +120,8 @@
             <th class="px-3 py-2">{$t("permissions.rules.col_scope")}</th>
             <th class="px-3 py-2">{$t("permissions.rules.col_agent")}</th>
             <!-- Colonne auteur (created_by) -->
-            <th class="px-3 py-2" title="Auteur ayant créé la règle (HITL, agent, config…)">
-              Auteur
+            <th class="px-3 py-2" title={$t("settings.permission_rules.col_creator_title")}>
+              {$t("settings.permission_rules.col_creator")}
             </th>
             <th class="px-3 py-2">{$t("permissions.rules.col_created")}</th>
             <th class="px-3 py-2"></th>
@@ -135,7 +131,7 @@
           {#if visibleRules.length === 0}
             <tr>
               <td colspan="6" class="px-3 py-6 text-center text-xs text-muted-foreground">
-                Aucune règle pour ce filtre.
+                {$t("settings.permission_rules.empty_filter")}
               </td>
             </tr>
           {/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { RotateCw } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
@@ -39,11 +40,11 @@
 
   type RevokeAllScope = "project" | "agent" | "global" | "all";
 
-  const BULK_LABELS: Record<RevokeAllScope, string> = {
-    project: "Ce projet",
-    agent: "Chat / agent",
-    global: "Partout",
-    all: "Toutes portées",
+  const BULK_LABEL_KEYS: Record<RevokeAllScope, string> = {
+    project: "settings.permissions.scope_project",
+    agent: "settings.permissions.scope_agent",
+    global: "settings.permissions.scope_global",
+    all: "settings.permissions.scope_all",
   };
 
   let initialized = $state(false);
@@ -73,7 +74,9 @@
     try {
       await revokeSessionAuthorization(entry.session_id, entry.tool_name);
       addToast(
-        `Autorisation de session retirée pour ${entry.tool_name}`,
+        $t("settings.permissions.toast_session_revoked", {
+          values: { tool: entry.tool_name },
+        }),
         "success",
         { "data-testid": "session-auth-revoke-toast" },
       );
@@ -88,9 +91,15 @@
     revokingChatId = rule.id;
     try {
       await deleteChatRule(rule.id);
-      addToast(`Règle chat ${rule.tool_name} supprimée`, "success", {
-        "data-testid": "chat-permission-revoke-toast",
-      });
+      addToast(
+        $t("settings.permissions.toast_chat_deleted", {
+          values: { tool: rule.tool_name },
+        }),
+        "success",
+        {
+          "data-testid": "chat-permission-revoke-toast",
+        },
+      );
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");
     } finally {
@@ -129,9 +138,15 @@
     revokingId = rule.id;
     try {
       await revokeRule(rule.id);
-      addToast(`Règle ${rule.tool_name} révoquée`, "success", {
-        "data-testid": "permission-revoke-toast",
-      });
+      addToast(
+        $t("settings.permissions.toast_rule_revoked", {
+          values: { tool: rule.tool_name },
+        }),
+        "success",
+        {
+          "data-testid": "permission-revoke-toast",
+        },
+      );
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");
     } finally {
@@ -164,9 +179,15 @@
     bulkSubmitting = true;
     try {
       const removed = await revokeAll(bulkScopeFilter());
-      addToast(`${removed} règle(s) révoquée(s)`, "success", {
-        "data-testid": "permission-revoke-all-toast",
-      });
+      addToast(
+        $t("settings.permissions.toast_rules_revoked", {
+          values: { count: removed },
+        }),
+        "success",
+        {
+          "data-testid": "permission-revoke-all-toast",
+        },
+      );
       bulkOpen = false;
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");
@@ -182,7 +203,7 @@
       loadChatRules(),
       loadSessionAuthorizations(),
     ]);
-    addToast("Permissions rechargées", "info", {
+    addToast($t("settings.permissions.toast_reloaded"), "info", {
       "data-testid": "permissions-reloaded-toast",
     });
   }
@@ -210,9 +231,9 @@
 <section class="space-y-4" data-testid="settings-permissions">
   <header class="flex items-center justify-between gap-3">
     <div>
-      <h2 class="text-lg font-semibold">Autorisations</h2>
+      <h2 class="text-lg font-semibold">{$t("settings.permissions.title")}</h2>
       <p class="text-xs text-muted-foreground">
-        Visualisez et révoquez les autorisations accordées aux outils, par portée.
+        {$t("settings.permissions.subtitle")}
       </p>
     </div>
     <div class="flex items-center gap-2">
@@ -223,7 +244,7 @@
         disabled={$permissionRules.length === 0}
         data-testid="permissions-revoke-all"
       >
-        Tout révoquer
+        {$t("settings.permissions.revoke_all")}
       </Button>
       <Button
         variant="outline"
@@ -233,7 +254,7 @@
         data-testid="permissions-reload"
       >
         <RotateCw size={14} class="mr-1" aria-hidden="true" />
-        Recharger
+        {$t("settings.permissions.reload")}
       </Button>
     </div>
   </header>
@@ -242,7 +263,7 @@
     <aside class="space-y-4 rounded-md border border-border bg-muted/30 p-3">
       <div class="space-y-1.5">
         <label class="text-[11px] uppercase tracking-wide text-muted-foreground" for="permissions-filter-scope">
-          Portée
+          {$t("settings.permissions.filter_scope_label")}
         </label>
         <Select
           id="permissions-filter-scope"
@@ -250,16 +271,16 @@
           onchange={handleScopeFilter}
           data-testid="permissions-filter-scope"
         >
-          <option value="">Toutes</option>
-          <option value="project">Ce projet</option>
-          <option value="agent">Chat / agent</option>
-          <option value="global">Partout</option>
+          <option value="">{$t("settings.permissions.filter_scope_all")}</option>
+          <option value="project">{$t("settings.permissions.scope_project")}</option>
+          <option value="agent">{$t("settings.permissions.scope_agent")}</option>
+          <option value="global">{$t("settings.permissions.scope_global")}</option>
         </Select>
       </div>
 
       <div class="space-y-1.5">
         <label class="text-[11px] uppercase tracking-wide text-muted-foreground" for="permissions-filter-tool">
-          Outil
+          {$t("settings.permissions.filter_tool_label")}
         </label>
         <Select
           id="permissions-filter-tool"
@@ -267,7 +288,7 @@
           onchange={handleToolFilter}
           data-testid="permissions-filter-tool"
         >
-          <option value="">Tous</option>
+          <option value="">{$t("settings.permissions.filter_tool_all")}</option>
           {#each toolOptions as name (name)}
             <option value={name}>{name}</option>
           {/each}
@@ -287,11 +308,13 @@
         </div>
       {:else if $permissionRules.length === 0}
         <p class="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground" data-testid="permissions-empty">
-          Aucune autorisation active pour les filtres sélectionnés.
+          {$t("settings.permissions.rules_empty")}
         </p>
       {:else}
         <p class="text-xs text-muted-foreground" data-testid="permissions-count">
-          Autorisations actives ({$permissionRules.length})
+          {$t("settings.permissions.rules_count", {
+            values: { count: $permissionRules.length },
+          })}
         </p>
         <ul class="space-y-2" data-testid="permission-rules-list">
           {#each $permissionRules as rule (rule.id)}
@@ -311,14 +334,15 @@
   <section class="space-y-2" data-testid="permissions-session-auths">
     <header class="flex items-center justify-between">
       <div>
-        <h3 class="text-sm font-semibold">Sessions actives</h3>
+        <h3 class="text-sm font-semibold">{$t("settings.permissions.sessions_title")}</h3>
         <p class="text-[11px] text-muted-foreground">
-          Outils auto-approuvés via « Pour cette session » dans les chats en
-          cours. Ces autorisations disparaissent à la fermeture de la session.
+          {$t("settings.permissions.sessions_subtitle")}
         </p>
       </div>
       <span class="text-[11px] text-muted-foreground">
-        {$sessionAuthorizations.length} entrée{$sessionAuthorizations.length === 1 ? "" : "s"}
+        {$t("settings.permissions.sessions_count", {
+          values: { count: $sessionAuthorizations.length },
+        })}
       </span>
     </header>
 
@@ -336,7 +360,7 @@
         class="rounded-md border border-dashed border-border px-4 py-4 text-center text-xs text-muted-foreground"
         data-testid="session-auths-empty"
       >
-        Aucune session active n'a d'autorisation in-memory.
+        {$t("settings.permissions.sessions_empty")}
       </p>
     {:else}
       <ul
@@ -357,14 +381,14 @@
                 <span
                   class="rounded bg-warning/10 px-1.5 py-px text-[10px] font-medium text-warning"
                 >
-                  Session
+                  {$t("settings.permissions.session_badge")}
                 </span>
               </div>
               <div class="mt-0.5 text-[11px] text-muted-foreground">
                 {modeLabel(entry.mode)} · {entry.session_title ?? entry.session_id.slice(0, 8)}
               </div>
               <div class="mt-0.5 text-[10.5px] text-muted-foreground italic">
-                Expire à la fermeture de la session - non persistée
+                {$t("settings.permissions.session_expire_hint")}
               </div>
             </div>
             <Button
@@ -375,7 +399,7 @@
               onclick={() => handleSessionAuthRevoke(entry)}
               data-testid="session-auth-revoke"
             >
-              Révoquer
+              {$t("permissions.rules.revoke")}
             </Button>
           </li>
         {/each}
@@ -388,12 +412,13 @@
       <div>
         <h3 class="text-sm font-semibold">Apollia Chat</h3>
         <p class="text-[11px] text-muted-foreground">
-          Outils que vous avez auto-approuvés depuis le chat via
-          « Toujours autoriser ».
+          {$t("settings.permissions.chat_subtitle")}
         </p>
       </div>
       <span class="text-[11px] text-muted-foreground">
-        {$chatPermissionRules.length} règle{$chatPermissionRules.length === 1 ? "" : "s"}
+        {$t("settings.permissions.chat_count", {
+          values: { count: $chatPermissionRules.length },
+        })}
       </span>
     </header>
 
@@ -411,7 +436,7 @@
         class="rounded-md border border-dashed border-border px-4 py-4 text-center text-xs text-muted-foreground"
         data-testid="chat-permissions-empty"
       >
-        Aucun outil n'a encore été marqué « Toujours autoriser » dans le chat.
+        {$t("settings.permissions.chat_empty")}
       </p>
     {:else}
       <ul class="space-y-2" data-testid="chat-permission-rules-list">
@@ -430,8 +455,8 @@
 
   <section class="space-y-2" data-testid="permissions-audit">
     <header class="flex items-center justify-between">
-      <h3 class="text-sm font-semibold">Audit récent</h3>
-      <span class="text-[11px] text-muted-foreground">Lecture seule</span>
+      <h3 class="text-sm font-semibold">{$t("settings.permissions.audit_title")}</h3>
+      <span class="text-[11px] text-muted-foreground">{$t("settings.permissions.audit_readonly")}</span>
     </header>
 
     {#if $auditError}
@@ -439,7 +464,7 @@
         {$auditError}
       </div>
     {:else if $auditEntries.length === 0}
-      <p class="text-xs text-muted-foreground">Aucune décision enregistrée.</p>
+      <p class="text-xs text-muted-foreground">{$t("settings.permissions.audit_empty")}</p>
     {:else}
       <ul class="divide-y divide-border rounded-md border border-border text-xs">
         {#each $auditEntries.slice(0, 20) as entry (entry.id)}
@@ -447,7 +472,7 @@
             <span class="font-mono text-muted-foreground">{formatAuditDate(entry.decided_at)}</span>
             <span class="font-medium">{entry.tool_name}</span>
             <span class="text-muted-foreground">
-              {entry.decision}{#if entry.scope} · {entry.scope}{/if}{#if entry.rule_id} · règle #{entry.rule_id}{/if}
+              {entry.decision}{#if entry.scope} · {entry.scope}{/if}{#if entry.rule_id} · {$t("settings.permissions.audit_rule_ref", { values: { id: entry.rule_id } })}{/if}
             </span>
             <span class="text-right text-muted-foreground">{entry.agent ?? "-"}</span>
           </li>
@@ -461,17 +486,17 @@
   open={bulkOpen}
   onclose={closeBulk}
   size="sm"
-  title="Tout révoquer"
+  title={$t("settings.permissions.revoke_all")}
   data-testid="permissions-revoke-all-dialog"
 >
   <div class="space-y-3 text-sm">
     <p class="text-muted-foreground">
-      Sélectionnez la portée des règles à révoquer. L'action est immédiate et ne peut pas être annulée.
+      {$t("settings.permissions.bulk_intro")}
     </p>
 
     <div class="space-y-1.5">
       <label class="text-[11px] uppercase tracking-wide text-muted-foreground" for="permissions-revoke-all-scope">
-        Portée
+        {$t("settings.permissions.filter_scope_label")}
       </label>
       <Select
         id="permissions-revoke-all-scope"
@@ -482,16 +507,18 @@
         disabled={bulkSubmitting}
         data-testid="permissions-revoke-all-scope-select"
       >
-        <option value="project">Ce projet</option>
-        <option value="agent">Chat / agent</option>
-        <option value="global">Partout</option>
-        <option value="all">Toutes portées</option>
+        <option value="project">{$t("settings.permissions.scope_project")}</option>
+        <option value="agent">{$t("settings.permissions.scope_agent")}</option>
+        <option value="global">{$t("settings.permissions.scope_global")}</option>
+        <option value="all">{$t("settings.permissions.scope_all")}</option>
       </Select>
     </div>
 
     <p class="rounded-md bg-muted/40 px-3 py-2 text-[12px]">
-      <strong>{BULK_LABELS[bulkScope]}</strong> · {bulkCount} règle{bulkCount === 1 ? "" : "s"}
-      concernée{bulkCount === 1 ? "" : "s"} dans la liste actuelle.
+      <strong>{$t(BULK_LABEL_KEYS[bulkScope])}</strong> · {$t(
+        "settings.permissions.bulk_summary",
+        { values: { count: bulkCount } },
+      )}
     </p>
   </div>
 
@@ -502,7 +529,7 @@
       onclick={closeBulk}
       disabled={bulkSubmitting}
     >
-      Annuler
+      {$t("common.cancel")}
     </Button>
     <Button
       variant="destructive"
@@ -511,7 +538,7 @@
       loading={bulkSubmitting}
       data-testid="permissions-revoke-all-confirm"
     >
-      Révoquer
+      {$t("permissions.rules.revoke")}
     </Button>
   </DialogFooter>
 </Dialog>

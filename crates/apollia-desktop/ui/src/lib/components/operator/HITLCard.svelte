@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Shield, Check, Zap, ChevronDown } from "lucide-svelte";
+  import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
   import StatusDot from "./StatusDot.svelte";
   import { Badge } from "$lib/components/ui/badge";
@@ -58,28 +59,28 @@
 
   const RISK_CONFIG: Record<
     RiskLevel,
-    { label: string; tone: "success" | "warning" | "danger"; color: string; bg: string }
+    { labelKey: string; tone: "success" | "warning" | "danger"; color: string; bg: string }
   > = {
     low: {
-      label: "faible",
+      labelKey: "approval.risk.low",
       tone: "success",
       color: "hsl(var(--success))",
       bg: "hsl(var(--success) / 0.10)",
     },
     medium: {
-      label: "moyen",
+      labelKey: "approval.risk.medium",
       tone: "warning",
       color: "hsl(var(--warning))",
       bg: "hsl(var(--warning) / 0.10)",
     },
     high: {
-      label: "élevé",
+      labelKey: "approval.risk.high",
       tone: "danger",
       color: "hsl(var(--destructive))",
       bg: "hsl(var(--destructive) / 0.10)",
     },
     paid: {
-      label: "payant",
+      labelKey: "approval.risk.paid",
       tone: "danger",
       color: "hsl(var(--destructive))",
       bg: "hsl(var(--destructive) / 0.10)",
@@ -124,7 +125,7 @@
     </div>
     <Badge variant={r.tone} size="sm">
       {#snippet icon()}<StatusDot color={r.color} />{/snippet}
-      risque {r.label}
+      {$t("approval.risk_label", { values: { level: $t(r.labelKey) } })}
     </Badge>
   </div>
   <div class="px-3.5 py-2.5">
@@ -146,7 +147,7 @@
       <div
         class="mt-2 px-2.5 py-1.5 rounded-md bg-warning/10 text-warning-a11y text-[11.5px] font-medium inline-flex items-center gap-1.5"
       >
-        <Zap size={11} /> Coût estimé : {cost}
+        <Zap size={11} /> {$t("approval.cost_estimate", { values: { cost } })}
       </div>
     {/if}
   </div>
@@ -156,9 +157,9 @@
     <Button variant="primary-solid" size="sm" onclick={onApprove}>
       {#snippet icon()}<Check size={11} />{/snippet}
       {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">↵</span>{/snippet}
-      Autoriser
+      {$t("approval.action.allow")}
     </Button>
-    <Button variant="outline" size="sm" onclick={onReject}>Refuser</Button>
+    <Button variant="outline" size="sm" onclick={onReject}>{$t("approval.action.refuse")}</Button>
     {#if onAlwaysAccept}
       <button
         type="button"
@@ -167,7 +168,7 @@
         aria-expanded={scopeOpen}
         data-testid="hitl-always-toggle"
       >
-        Toujours autoriser
+        {$t("approval.action.always_allow")}
         <ChevronDown
           size={11}
           class="transition-transform {scopeOpen ? 'rotate-180' : ''}"
@@ -178,7 +179,7 @@
       <span
         class="ml-auto text-[10.5px] text-muted-foreground/70 font-mono"
       >
-        expire dans {expires}
+        {$t("approval.expires_in", { values: { expires } })}
       </span>
     {/if}
   </div>
@@ -194,9 +195,9 @@
         onclick={() => { scopeOpen = false; onAlwaysAccept!("this_session"); }}
         data-testid="hitl-scope-session"
       >
-        <div class="font-medium text-foreground">Pour cette session</div>
+        <div class="font-medium text-foreground">{$t("approval.scope.session_title")}</div>
         <div class="text-[10px] text-muted-foreground">
-          Jusqu'à la fermeture de ce chat.
+          {$t("approval.scope.session_desc")}
         </div>
       </button>
       <button
@@ -205,9 +206,9 @@
         onclick={() => { scopeOpen = false; onAlwaysAccept!("this_agent"); }}
         data-testid="hitl-scope-agent"
       >
-        <div class="font-medium text-foreground">Toujours pour cet assistant</div>
+        <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
         <div class="text-[10px] text-muted-foreground">
-          L'assistant courant ne demandera plus.
+          {$t("approval.scope.agent_desc")}
         </div>
       </button>
       <button
@@ -216,13 +217,13 @@
         disabled={!hasProject}
         onclick={() => { scopeOpen = false; onAlwaysAccept!("this_project"); }}
         data-testid="hitl-scope-project"
-        title={!hasProject ? "Cette session n'est rattachée à aucun projet." : undefined}
+        title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
       >
-        <div class="font-medium text-foreground">Toujours pour ce projet</div>
+        <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
         <div class="text-[10px] text-muted-foreground">
           {hasProject
-            ? "Tous les assistants utilisés dans ce projet."
-            : "Indisponible - la session n'est rattachée à aucun projet."}
+            ? $t("approval.scope.project_desc")
+            : $t("approval.scope.project_unavailable")}
         </div>
       </button>
       <button
@@ -231,9 +232,9 @@
         onclick={() => { scopeOpen = false; onAlwaysAccept!("global"); }}
         data-testid="hitl-scope-global"
       >
-        <div class="font-medium text-foreground">Toujours, partout</div>
+        <div class="font-medium text-foreground">{$t("approval.scope.global_title")}</div>
         <div class="text-[10px] text-warning-a11y">
-          Tous les assistants, tous les projets.
+          {$t("approval.scope.global_desc")}
         </div>
       </button>
     </div>

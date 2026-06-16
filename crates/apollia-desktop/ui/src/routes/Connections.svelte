@@ -15,6 +15,7 @@
     StatusDot,
     EmptyState,
     SplitLayout,
+    FilterChipBar,
     type ConnectionStatus,
   } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
@@ -589,18 +590,18 @@
     account_id: string;
   }
 
-  const NATIVE_CONNECTORS: NativeConnectorCard[] = [
+  const NATIVE_CONNECTORS: NativeConnectorCard[] = $derived([
     {
       id: "google",
       name: "Google Workspace",
-      description: "Gmail (envoi + brouillons), Calendar, Drive Workspace",
+      description: $t("connections.native_google_description"),
     },
     {
       id: "microsoft",
       name: "Microsoft 365",
-      description: "Outlook Mail, Outlook Calendar, OneDrive",
+      description: $t("connections.native_microsoft_description"),
     },
-  ];
+  ]);
 
   let nativeAccounts = $state<OauthAccountInfo[]>([]);
   let nativeLoading = $state(false);
@@ -650,10 +651,10 @@
     if (typeof e === "string") return e;
     const anyE = e as { kind?: string; detail?: string; message?: string };
     if (anyE.kind === "sovereignty_blocked") {
-      return "Profil souveraineté « local-only » : connecteurs cloud désactivés.";
+      return $t("connections.error_sovereignty_blocked");
     }
     if (anyE.kind === "oauth_client_not_configured") {
-      return "Identifiant OAuth manquant - ouvrez Réglages → Intégrations pour le coller.";
+      return $t("connections.error_oauth_client_missing");
     }
     if (anyE.kind && anyE.detail) {
       return `${anyE.kind}: ${anyE.detail}`;
@@ -839,7 +840,9 @@
   async function disconnectNative(account: OauthAccountInfo) {
     if (
       !confirm(
-        `Déconnecter ${account.account_id} (${account.provider}) ?\nLe token sera révoqué localement.`,
+        $t("connections.disconnect_native_confirm", {
+          values: { account: account.account_id, provider: account.provider },
+        }),
       )
     ) {
       return;
@@ -949,12 +952,12 @@
     const diffMs = Date.now() - new Date(server.last_call_at).getTime();
     if (Number.isNaN(diffMs) || diffMs < 0) return undefined;
     const mins = Math.floor(diffMs / 60_000);
-    if (mins < 1) return "à l'instant";
-    if (mins < 60) return `il y a ${mins} min`;
+    if (mins < 1) return $t("connections.sync_just_now");
+    if (mins < 60) return $t("connections.sync_minutes_ago", { values: { mins } });
     const hours = Math.floor(mins / 60);
-    if (hours < 24) return `il y a ${hours} h`;
+    if (hours < 24) return $t("connections.sync_hours_ago", { values: { hours } });
     const days = Math.floor(hours / 24);
-    return `il y a ${days} j`;
+    return $t("connections.sync_days_ago", { values: { days } });
   }
 
   /** Stable color for the logo tile, derived from the server name. */
@@ -1355,7 +1358,7 @@
     };
     if (customForm.transport === "stdio") {
       if (!customForm.command.trim()) {
-        customError = "Indiquez la commande à lancer (ex. npx, uvx, /usr/local/bin/myserver).";
+        customError = $t("connections.custom_error_command_required");
         return null;
       }
       base.command = customForm.command.trim();
@@ -1365,7 +1368,7 @@
         .filter((a) => a.length > 0);
     } else {
       if (!customForm.url.trim()) {
-        customError = "Indiquez l'URL du serveur MCP (HTTP ou SSE).";
+        customError = $t("connections.custom_error_url_required");
         return null;
       }
       base.url = customForm.url.trim();
@@ -1385,14 +1388,15 @@
         { config },
       );
       if (response.kind === "success") {
-        customTestResult = `${response.tools.length} outil(s) détecté(s).`;
+        customTestResult = $t("connections.custom_test_tools_detected", {
+          values: { count: response.tools.length },
+        });
       } else {
         // oauth_required → custom-form path. The user is supposed to pre-fill
         // env headers themselves here; we surface OAuth as an error pointing
         // them at the catalog wizard which will gain the proper button in
         // Phase 5.
-        customError =
-          "Ce serveur exige une authentification OAuth. Installez-le depuis le catalogue plutôt que via le formulaire personnalisé.";
+        customError = $t("connections.custom_error_oauth_required");
       }
     } catch (e) {
       customError = formatTauriError(e);
@@ -1474,7 +1478,7 @@
     {#snippet sidebar()}
       <header class="px-4 pt-4 pb-2.5">
         <div class="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[1.2px] uppercase text-muted-foreground">
-          Mes connecteurs · {servers.length + NATIVE_CONNECTORS.length}
+          {$t("connections.sidebar_my_connectors", { values: { count: servers.length + NATIVE_CONNECTORS.length } })}
         </div>
         <div class="mb-2 flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border">
           <Search size={11} class="text-muted-foreground" />
@@ -1482,35 +1486,24 @@
             type="search"
             unstyled
             bind:value={sidebarFilter}
-            placeholder="Filtrer…"
+            placeholder={$t("connections.sidebar_filter_placeholder")}
             class="flex-1 text-[11.5px] text-foreground"
           />
         </div>
-        <div class="flex flex-wrap gap-1" role="tablist" aria-label="Filtre statut">
-          {#each [
-            { key: "all" as const, label: "Tous", color: "hsl(var(--muted-foreground))", count: servers.length },
-            { key: "active" as const, label: "Actifs", color: "hsl(var(--success))", count: activeCount },
-            { key: "attention" as const, label: "Attention", color: "hsl(var(--warning))", count: attentionCount },
-            { key: "error" as const, label: "Erreur", color: "hsl(var(--destructive))", count: errorCount },
-            { key: "idle" as const, label: "Inactif", color: "hsl(var(--muted-foreground))", count: idleCount },
-          ] as f (f.key)}
-            {@const isActive = statusFilter === f.key}
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onclick={(e) => { statusFilter = f.key; (e.currentTarget as HTMLButtonElement).blur(); }}
-              class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60 {isActive
-                ? 'border-primary/40 bg-primary/10 text-primary'
-                : 'border-border bg-transparent text-muted-foreground hover:text-foreground'}"
-              data-testid="connections-sidebar-filter-{f.key}"
-            >
-              <StatusDot color={f.color} glow={isActive && f.key === 'active'} />
-              {f.label}
-              <span class="tabular-nums opacity-70">{f.count}</span>
-            </button>
-          {/each}
-        </div>
+        <FilterChipBar
+          size="compact"
+          chips={[
+            { key: "all", label: $t("connections.status_chip_all"), color: "hsl(var(--muted-foreground))", count: servers.length },
+            { key: "active", label: $t("connections.status_chip_active"), color: "hsl(var(--success))", count: activeCount, glowWhenActive: true },
+            { key: "attention", label: $t("connections.status_chip_attention"), color: "hsl(var(--warning))", count: attentionCount },
+            { key: "error", label: $t("connections.status_chip_error"), color: "hsl(var(--destructive))", count: errorCount },
+            { key: "idle", label: $t("connections.status_chip_idle"), color: "hsl(var(--muted-foreground))", count: idleCount },
+          ]}
+          activeKey={statusFilter}
+          onchange={(key) => (statusFilter = key as StatusFilter)}
+          aria-label={$t("connections.status_filter_label")}
+          testidPrefix="connections-sidebar-filter"
+        />
       </header>
 
       <div class="flex-1 overflow-auto px-2.5 pb-3" data-testid="connections-sidebar-list">
@@ -1522,7 +1515,7 @@
 
         <!-- ─── Native Apollia (always shown) ───────────────────────────── -->
         <div class="section-meta mt-1 mb-1.5 px-2 text-[10px] tracking-[1.4px]">
-          Apollia natifs
+          {$t("connections.sidebar_native_section")}
         </div>
         {#each NATIVE_CONNECTORS as connector (connector.id)}
           {@const accounts = accountsForProvider(connector.id)}
@@ -1546,8 +1539,8 @@
               </div>
               <div class="text-[10.5px] text-muted-foreground mt-0.5 truncate">
                 {accounts.length > 0
-                  ? `${accounts.length} compte${accounts.length > 1 ? "s" : ""} actif${accounts.length > 1 ? "s" : ""}`
-                  : "Non connecté"}
+                  ? $t("connections.sidebar_accounts_active", { values: { count: accounts.length } })
+                  : $t("connections.not_connected")}
               </div>
             </div>
           </Button>
@@ -1555,7 +1548,7 @@
 
         <!-- ─── MCP servers installed ──────────────────────────────────── -->
         <div class="section-meta mt-4 mb-1.5 px-2 text-[10px] tracking-[1.4px]">
-          Serveurs MCP · {sortedServers.length}
+          {$t("connections.sidebar_mcp_section", { values: { count: sortedServers.length } })}
         </div>
         {#if loading && servers.length === 0}
           {#each Array(4) as _, i (i)}
@@ -1570,8 +1563,8 @@
         {:else if sidebarFilteredServers.length === 0}
           <p class="px-2 py-3 text-[11px] text-muted-foreground/70">
             {servers.length === 0
-              ? "Aucun serveur installé."
-              : sidebarFilter ? "Aucun résultat." : "Aucun serveur dans ce statut."}
+              ? $t("connections.sidebar_no_servers")
+              : sidebarFilter ? $t("connections.sidebar_no_results") : $t("connections.sidebar_no_servers_status")}
           </p>
         {:else}
           {#each sidebarFilteredServers as server (server.name)}
@@ -1610,7 +1603,7 @@
                   {/if}
                 </div>
                 <div class="text-[10.5px] text-muted-foreground mt-0.5 truncate">
-                  {syncLabel(server) ?? (st === 'error' ? 'Erreur' : st === 'attention' ? 'Attention' : st === 'active' ? `${server.tools_count} outil${server.tools_count !== 1 ? 's' : ''}` : 'Inactif')}
+                  {syncLabel(server) ?? (st === 'error' ? $t("connections.status_chip_error") : st === 'attention' ? $t("connections.status_chip_attention") : st === 'active' ? $t("connections.tools_count_label", { values: { count: server.tools_count } }) : $t("connections.status_chip_idle"))}
                 </div>
               </div>
             </Button>
@@ -1621,7 +1614,7 @@
       <div class="px-3 py-2 border-t border-border">
         <Button variant="outline" size="sm" onclick={handleOpenCatalogue} class="w-full justify-center" data-testid="connections-open-catalogue">
           {#snippet icon()}<Plus size={12} />{/snippet}
-          Ajouter un connecteur
+          {$t("connections.add_connector")}
         </Button>
       </div>
     {/snippet}
@@ -1648,7 +1641,7 @@
                   {#snippet icon()}
                     <StatusDot color={accounts.length > 0 ? "hsl(var(--success))" : "hsl(var(--muted-foreground))"} glow={accounts.length > 0} />
                   {/snippet}
-                  {accounts.length > 0 ? `${accounts.length} actif${accounts.length > 1 ? "s" : ""}` : "Non connecté"}
+                  {accounts.length > 0 ? $t("connections.badge_active_count", { values: { count: accounts.length } }) : $t("connections.not_connected")}
                 </Badge>
                 <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
               </div>
@@ -1662,7 +1655,7 @@
             <div class="flex shrink-0 gap-1.5">
               <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
                 {#snippet icon()}<Plus size={12} />{/snippet}
-                {accounts.length > 0 ? "Ajouter un compte" : "Connecter"}
+                {accounts.length > 0 ? $t("connections.add_account") : $t("connections.connect")}
               </Button>
             </div>
           </div>
@@ -1675,9 +1668,9 @@
             testidPrefix="native-detail"
             activeTab={nativeTab}
             items={[
-              { key: "accounts", label: "Comptes", count: accounts.length },
-              { key: "capabilities", label: "Ce qu'Apollia peut faire" },
-              { key: "settings", label: "Paramètres" },
+              { key: "accounts", label: $t("connections.native_tab_accounts"), count: accounts.length },
+              { key: "capabilities", label: $t("connections.native_tab_capabilities") },
+              { key: "settings", label: $t("connections.native_tab_settings") },
             ]}
             ontabchange={(k) => (nativeTab = k as NativeTab)}
           />
@@ -1694,11 +1687,11 @@
             {#if accounts.length === 0}
               <Card class="p-6 max-w-2xl text-center">
                 <p class="text-[12.5px] text-muted-foreground mb-3">
-                  Aucun compte connecté pour {connector.name}.
+                  {$t("connections.no_account_for", { values: { name: connector.name } })}
                 </p>
                 <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
                   {#snippet icon()}<Plus size={12} />{/snippet}
-                  Connecter un compte
+                  {$t("connections.connect_account")}
                 </Button>
               </Card>
             {:else}
@@ -1707,14 +1700,14 @@
                   <div class="flex items-center gap-3 px-4 py-3 {i === accounts.length - 1 ? '' : 'border-b border-border/40'}">
                     <div class="flex-1 min-w-0">
                       <div class="text-[12.5px] font-medium text-foreground truncate">{account.account_id}</div>
-                      <div class="text-[10.5px] text-muted-foreground mt-0.5">Token chiffré localement (keyring)</div>
+                      <div class="text-[10.5px] text-muted-foreground mt-0.5">{$t("connections.token_encrypted_keyring")}</div>
                     </div>
                     <Button variant="ghost" size="sm"
                       onclick={() => disconnectNative(account)}
                       disabled={nativeLoading}
                       class="text-destructive hover:bg-destructive/10"
                     >
-                      Déconnecter
+                      {$t("connections.disconnect")}
                     </Button>
                   </div>
                 {/each}
@@ -1773,12 +1766,12 @@
             <div class="space-y-4 max-w-2xl">
               <Card class="p-[14px_16px]">
                 <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
-                  Permissions demandées
+                  {$t("connections.settings_permissions_title")}
                 </div>
                 <ul class="space-y-1 text-[12px] text-foreground/85">
                   {#each (connector.id === "google"
-                    ? ["Gmail - envoi + brouillons", "Calendar - lecture + écriture", "Drive Workspace - fichiers Apollia"]
-                    : ["Outlook Mail - lecture + envoi", "Outlook Calendar - lecture + écriture", "OneDrive - fichiers utilisateur"]) as scope}
+                    ? [$t("connections.settings_scope_gmail"), $t("connections.settings_scope_gcal"), $t("connections.settings_scope_gdrive")]
+                    : [$t("connections.settings_scope_outlook_mail"), $t("connections.settings_scope_outlook_cal"), $t("connections.settings_scope_onedrive")]) as scope}
                     <li class="flex items-start gap-2">
                       <span class="mt-1.5 w-1 h-1 rounded-full bg-muted-foreground/60 shrink-0"></span>
                       <span>{scope}</span>
@@ -1788,13 +1781,13 @@
               </Card>
               <Card class="p-[14px_16px]">
                 <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
-                  Provider
+                  {$t("connections.settings_provider_title")}
                 </div>
                 <p class="text-[12px] text-foreground/85">
                   {connector.id === "google" ? "OAuth 2.0 - accounts.google.com" : "OAuth 2.0 - login.microsoftonline.com"}
                 </p>
                 <p class="text-[11px] text-muted-foreground mt-1.5">
-                  Tokens stockés via keyring système. Rotation gérée automatiquement par le runtime.
+                  {$t("connections.settings_token_rotation")}
                 </p>
               </Card>
             </div>
@@ -1803,7 +1796,7 @@
       {:else if selection?.kind === "mcp"}
         {#if mcpDetailLoading && !mcpDetail}
           <div class="flex-1 flex items-center justify-center text-[12.5px] text-muted-foreground">
-            <Spinner size={14} class="mr-2" /> Chargement…
+            <Spinner size={14} class="mr-2" /> {$t("connections.loading")}
           </div>
         {:else if mcpDetailError}
           <div class="flex-1 flex items-center justify-center text-[12.5px] text-destructive px-8">
@@ -1833,7 +1826,7 @@
                         glow={st === "active" || st === "attention"}
                       />
                     {/snippet}
-                    {st === "active" ? "actif" : st === "attention" ? "attention" : st === "error" ? "erreur" : "inactif"}
+                    {st === "active" ? $t("connections.badge_status_active") : st === "attention" ? $t("connections.badge_status_attention") : st === "error" ? $t("connections.badge_status_error") : $t("connections.badge_status_idle")}
                   </Badge>
                   {#if syncLabel(server)}
                     <span class="text-[10.5px] text-muted-foreground">{syncLabel(server)}</span>
@@ -1843,7 +1836,7 @@
                   {label}
                 </h2>
                 <p class="mt-1 max-w-[600px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                  {enr?.category ?? server.server_info ?? "Serveur MCP installé"}
+                  {enr?.category ?? server.server_info ?? $t("connections.mcp_installed_fallback")}
                 </p>
               </div>
               <div class="flex shrink-0 gap-1.5">
@@ -1851,13 +1844,13 @@
                   {#snippet icon()}
                     {#if testState === "testing"}<Spinner size={12} />{:else}<RefreshCw size={12} />{/if}
                   {/snippet}
-                  {testState === "testing" ? "Test…" : "Tester"}
+                  {testState === "testing" ? $t("connections.testing") : $t("connections.test")}
                 </Button>
                 <Button variant="primary-solid" size="sm" onclick={handleReconnect} disabled={reconnecting} data-testid="mcp-reconnect-btn">
                   {#snippet icon()}
                     {#if reconnecting}<Spinner size={12} />{:else}<RefreshCw size={12} />{/if}
                   {/snippet}
-                  Reconnecter
+                  {$t("connections.reconnect")}
                 </Button>
               </div>
             </div>
@@ -1870,9 +1863,9 @@
               testidPrefix="mcp-detail"
               activeTab={mcpTab}
               items={[
-                { key: "overview", label: "Aperçu" },
-                { key: "tools", label: "Outils", count: mcpDetail.tools.length },
-                { key: "settings", label: "Paramètres" },
+                { key: "overview", label: $t("connections.mcp_tab_overview") },
+                { key: "tools", label: $t("connections.mcp_tab_tools"), count: mcpDetail.tools.length },
+                { key: "settings", label: $t("connections.mcp_tab_settings") },
               ]}
               ontabchange={(k) => (mcpTab = k as McpTab)}
             />
@@ -1884,7 +1877,7 @@
               <div class="space-y-4 max-w-3xl">
                 <Card class="p-[14px_16px]">
                   <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
-                    Connexion
+                    {$t("connections.overview_connection")}
                   </div>
                   <ConnectionStatusIndicator health={mcpDetail.status.health} />
                   <div class="flex items-center gap-1.5 text-[11.5px] text-muted-foreground mt-2">
@@ -1900,7 +1893,7 @@
 
                 <Card class="p-[14px_16px]">
                   <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
-                    Activité
+                    {$t("connections.overview_activity")}
                   </div>
                   {#if lastActivityLabel !== null}
                     <p class="text-[12.5px] text-foreground" data-testid="mcp-last-activity">
@@ -1945,7 +1938,7 @@
             {:else if mcpTab === "tools"}
               <Card class="p-[14px_16px] max-w-3xl">
                 <div class="mb-2.5 flex items-center justify-between">
-                  <span class="text-[12.5px] font-semibold text-foreground">Outils exposés</span>
+                  <span class="text-[12.5px] font-semibold text-foreground">{$t("connections.tools_exposed")}</span>
                   <span class="font-mono text-[10.5px] text-muted-foreground">{mcpDetail.tools.length}</span>
                 </div>
                 {#if mcpDetail.tools.length === 0}
@@ -2021,14 +2014,14 @@
                         onclick={() => { confirmDisconnect = false; disconnectError = null; }}
                         disabled={disconnecting}
                       >
-                        Annuler
+                        {$t("common.cancel")}
                       </Button>
                       <Button variant="destructive" size="sm"
                         onclick={handleDisconnect}
                         disabled={disconnecting}
                         data-testid="mcp-disconnect-confirm-btn"
                       >
-                        {#if disconnecting}<Spinner size={12} class="mr-1.5" />Déconnexion…{:else}Confirmer la déconnexion{/if}
+                        {#if disconnecting}<Spinner size={12} class="mr-1.5" />{$t("connections.disconnecting")}{:else}{$t("connections.confirm_disconnect")}{/if}
                       </Button>
                     </div>
                   </Card>
@@ -2040,7 +2033,7 @@
       {:else}
         <!-- No selection (shouldn't happen post-auto-select, fallback) -->
         <div class="flex-1 flex items-center justify-center text-[12.5px] text-muted-foreground">
-          Sélectionnez un connecteur dans la sidebar.
+          {$t("connections.select_connector_prompt")}
         </div>
       {/if}
   </SplitLayout>
@@ -2079,9 +2072,9 @@
     <div class="w-full max-w-md rounded-xl bg-surface-1 border border-border p-5 space-y-3">
       <h2 class="text-lg font-semibold">
         {#if oauthDialogStep === "drive_folder"}
-          Dossier Google Drive
+          {$t("connections.oauth_drive_folder_title")}
         {:else}
-          Connecter {oauthDialogProvider === "google" ? "Google Workspace" : "Microsoft 365"}
+          {$t("connections.oauth_connect_title", { values: { provider: oauthDialogProvider === "google" ? "Google Workspace" : "Microsoft 365" } })}
         {/if}
       </h2>
 
@@ -2092,21 +2085,13 @@
              types the path and Apollia creates each missing segment. -->
         <div class="space-y-3" data-testid="oauth-dialog-drive-folder">
           <p class="text-sm text-muted-foreground leading-[1.5]">
-            Apollia ne pourra voir, lire et écrire QUE dans le dossier que
-            vous indiquez ici (scope <code>drive.file</code>, gratuit, sans
-            audit CASA). Vos autres fichiers Drive lui resteront invisibles.
-            Le dossier est créé automatiquement à la première écriture s'il
-            n'existe pas encore. Modifiable plus tard via Réglages →
-            Intégrations.
+            {@html $t("connections.oauth_drive_folder_body_html")}
           </p>
           <p class="text-[11.5px] text-muted-foreground leading-[1.5]">
-            Pour permettre à vos agents d'accéder à tout votre Drive, il
-            faut passer en <strong>Mode Expert</strong> (votre propre app
-            Google Cloud avec les scopes étendus) - voir Réglages →
-            Intégrations après la connexion.
+            {@html $t("connections.oauth_drive_folder_expert_html")}
           </p>
           <label class="block text-xs font-medium text-foreground">
-            Chemin du dossier (séparé par <code>/</code>)
+            {@html $t("connections.oauth_drive_folder_path_label_html")}
             <Input
               type="text"
               class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
@@ -2118,9 +2103,7 @@
             />
           </label>
           <p class="text-[11px] text-muted-foreground leading-[1.4]">
-            Exemples : <code>Apollia</code> (défaut), <code>Documents/Apollia</code>,
-            <code>Travail/IA</code>. Vide = garder le défaut <code>Apollia</code>.
-            Modifiable plus tard dans Réglages → Intégrations.
+            {@html $t("connections.oauth_drive_folder_examples_html")}
           </p>
           {#if oauthDialogDriveFolderError}
             <p class="text-xs text-destructive" data-testid="oauth-drive-folder-error">
@@ -2133,55 +2116,47 @@
              Settings → Integrations rather than show a raw error string. -->
         <div class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 space-y-2">
           <p class="text-sm font-medium text-foreground">
-            Identifiant OAuth manquant
+            {$t("connections.oauth_missing_client_title")}
           </p>
           <p class="text-xs text-muted-foreground leading-[1.5]">
-            Ce build d'Apollia n'embarque pas de <code>client_id</code> pour
-            {oauthDialogProvider === "google" ? "Google" : "Microsoft"}.
-            Ouvrez Réglages → Intégrations pour coller le vôtre (créé dans la
-            console {oauthDialogProvider === "google" ? "Google Cloud" : "Azure / Entra ID"}).
-            Aucune variable d'environnement n'est nécessaire.
+            {@html $t("connections.oauth_missing_client_body_html", { values: { provider: oauthDialogProvider === "google" ? "Google" : "Microsoft", console: oauthDialogProvider === "google" ? "Google Cloud" : "Azure / Entra ID" } })}
           </p>
         </div>
       {:else if oauthDialogBusy && !oauthDialogAuthUrl}
-        <p class="text-sm text-muted-foreground">Préparation du flow OAuth…</p>
+        <p class="text-sm text-muted-foreground">{$t("connections.oauth_preparing")}</p>
       {:else if oauthDialogError && !oauthDialogAuthUrl}
         <p class="text-sm text-destructive">{oauthDialogError}</p>
       {:else if oauthDialogAuthUrl}
         <p class="text-sm text-muted-foreground">
-          Une fenêtre navigateur s'est ouverte sur le consentement
-          {oauthDialogProvider === "google" ? "Google" : "Microsoft"}.
-          Validez les permissions - Apollia récupère le code automatiquement
-          dès le retour du navigateur.
+          {$t("connections.oauth_consent_opened", { values: { provider: oauthDialogProvider === "google" ? "Google" : "Microsoft" } })}
         </p>
 
         {#if oauthDialogAwaitingCallback}
           <div class="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
             <Spinner size={14} />
             <span class="text-xs text-muted-foreground">
-              En attente du retour {oauthDialogProvider === "google" ? "Google" : "Microsoft"}…
+              {$t("connections.oauth_awaiting_callback", { values: { provider: oauthDialogProvider === "google" ? "Google" : "Microsoft" } })}
             </span>
           </div>
         {/if}
 
         <p class="text-xs text-muted-foreground">
-          Si la fenêtre ne s'est pas ouverte :
+          {$t("connections.oauth_window_not_opened")}
           <a
             class="underline"
             href={oauthDialogAuthUrl}
             target="_blank"
-            rel="noopener noreferrer">ouvrir l'URL manuellement</a
+            rel="noopener noreferrer">{$t("connections.oauth_open_url_manually")}</a
           >.
         </p>
 
         <details class="text-xs">
           <summary class="cursor-pointer text-muted-foreground">
-            Le retour automatique n'a pas fonctionné ? Coller le code manuellement
+            {$t("connections.oauth_paste_code_summary")}
           </summary>
           <div class="mt-2 space-y-2">
             <p class="text-[11px] text-muted-foreground">
-              Récupérez le paramètre <code>code=</code> dans la barre d'URL du
-              navigateur après consentement, puis collez-le ici.
+              {@html $t("connections.oauth_paste_code_hint_html")}
             </p>
             <Input
               type="text"
@@ -2201,20 +2176,20 @@
         {#if oauthDialogStep === "drive_folder"}
           <Button variant="ghost" size="sm" onclick={skipDriveFolderStep}
             disabled={oauthDialogDriveFolderSaving}>
-            Garder le défaut
+            {$t("connections.keep_default")}
           </Button>
           <Button variant="primary-solid" size="sm"
             onclick={saveDriveFolderAndFinish}
             disabled={oauthDialogDriveFolderSaving}
             data-testid="oauth-drive-folder-save"
           >
-            {oauthDialogDriveFolderSaving ? "Enregistrement…" : "Enregistrer"}
+            {oauthDialogDriveFolderSaving ? $t("connections.saving") : $t("connections.save")}
           </Button>
         {:else}
           <Button variant="outline" size="sm" onclick={closeOauthDialog}>{$t("common.cancel")}</Button>
           {#if oauthDialogErrorIsMissingClient}
             <Button variant="primary-solid" size="sm" onclick={openSettingsIntegrations}>
-              Ouvrir Réglages → Intégrations
+              {$t("connections.open_settings_integrations")}
             </Button>
           {:else if oauthDialogAuthUrl}
             <Button variant="primary-solid" size="sm"
@@ -2252,8 +2227,8 @@
   class="w-full sm:max-w-[920px]"
 >
   <SheetHeader
-    title="Ajouter un connecteur"
-    subtitle="Découvrez le catalogue MCP public ou enregistrez un serveur personnalisé."
+    title={$t("connections.add_connector")}
+    subtitle={$t("connections.catalogue_subtitle")}
     onclose={() => { catalogueOpen = false; resetCustomForm(); }}
   />
   <SheetContent padding="flush" class="flex flex-col">
@@ -2263,8 +2238,8 @@
         testidPrefix="catalogue"
         activeTab={catalogueTab}
         items={[
-          { key: "discover", label: "Catalogue MCP", count: filteredMcp.length },
-          { key: "custom", label: "MCP personnalisé" },
+          { key: "discover", label: $t("connections.catalogue_tab_discover"), count: filteredMcp.length },
+          { key: "custom", label: $t("connections.catalogue_tab_custom") },
         ]}
         ontabchange={(k) => (catalogueTab = k as CatalogueTab)}
       />
@@ -2272,37 +2247,26 @@
 
     {#if catalogueTab === "discover"}
       <!-- Trust-level filter chips -->
-      <div class="px-6 pt-4 pb-3 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filtre type">
-        {#each [
-          { key: "all" as const, label: "Tous", color: "hsl(var(--muted-foreground))", count: mcpEntries.length },
-          { key: "installed" as const, label: "Installés", color: "hsl(var(--success))", count: installedRegCount },
-          { key: "official" as const, label: "Officiels", color: "hsl(var(--primary))", count: officialCount },
-          { key: "community" as const, label: "Communauté", color: "hsl(var(--info))", count: communityCount },
-        ] as f (f.key)}
-          {@const isActive = mcpFilter === f.key}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onclick={(e) => { mcpFilter = f.key; (e.currentTarget as HTMLButtonElement).blur(); }}
-            class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60 {isActive
-              ? 'border-primary/40 bg-primary/10 text-primary'
-              : 'border-border bg-transparent text-muted-foreground hover:text-foreground'}"
-            data-testid="catalogue-filter-{f.key}"
-          >
-            <StatusDot color={f.color} />
-            {f.label}
-            <span class="tabular-nums {isActive ? 'text-primary/80' : 'text-muted-foreground/60'}">{f.count}</span>
-          </button>
-        {/each}
-      </div>
+      <FilterChipBar
+        chips={[
+          { key: "all", label: $t("connections.mcp_chip_all"), color: "hsl(var(--muted-foreground))", count: mcpEntries.length },
+          { key: "installed", label: $t("connections.mcp_chip_installed"), color: "hsl(var(--success))", count: installedRegCount },
+          { key: "official", label: $t("connections.mcp_chip_official"), color: "hsl(var(--primary))", count: officialCount },
+          { key: "community", label: $t("connections.mcp_chip_community"), color: "hsl(var(--info))", count: communityCount },
+        ]}
+        activeKey={mcpFilter}
+        onchange={(key) => (mcpFilter = key as "all" | "installed" | "official" | "community")}
+        aria-label={$t("connections.mcp_filter_label")}
+        testidPrefix="catalogue-filter"
+        class="px-6 pt-4 pb-3"
+      />
 
       <div class="flex-1 overflow-auto px-6 pb-6">
         {#if registryLoading && mcpEntries.length === 0}
           <div class="space-y-2" data-testid="catalogue-loading">
             <div class="flex items-center gap-2 text-xs text-muted-foreground">
               <Spinner size={12} />
-              Chargement du catalogue MCP…
+              {$t("connections.catalogue_loading")}
             </div>
             {#each Array(6) as _, i (i)}
               <Skeleton class="h-16 rounded-lg bg-surface-1 border border-border" />
@@ -2362,17 +2326,17 @@
                     <div class="flex items-center gap-2 min-w-0 mb-0.5">
                       <span class="text-[13px] font-medium text-foreground truncate">{displayName}</span>
                       {#if isOfficial}
-                        <Badge size="sm" variant="primary" class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">Officiel</Badge>
+                        <Badge size="sm" variant="primary" class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">{$t("connections.badge_official")}</Badge>
                       {:else}
-                        <Badge size="sm" variant="neutral" outline class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">Communauté</Badge>
+                        <Badge size="sm" variant="neutral" outline class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">{$t("connections.badge_community")}</Badge>
                       {/if}
                       {#if installed}
-                        <Badge size="sm" variant="success" class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">Installé</Badge>
+                        <Badge size="sm" variant="success" class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">{$t("connections.badge_installed")}</Badge>
                       {/if}
                     </div>
                     {#if vendor}
                       <div class="text-[10.5px] text-muted-foreground mb-0.5">
-                        par <span class="text-foreground/80 font-medium">{vendor}</span>
+                        {$t("connections.catalogue_by")} <span class="text-foreground/80 font-medium">{vendor}</span>
                       </div>
                     {/if}
                     {#if description}
@@ -2381,10 +2345,10 @@
                   </div>
                   <div class="shrink-0 self-center">
                     {#if installed}
-                      <span class="text-[11px] text-primary font-medium">Gérer →</span>
+                      <span class="text-[11px] text-primary font-medium">{$t("connections.catalogue_manage")}</span>
                     {:else}
                       <span class="text-[11px] text-primary font-medium inline-flex items-center gap-1">
-                        <Plus size={11} /> Connecter
+                        <Plus size={11} /> {$t("connections.connect")}
                       </span>
                     {/if}
                   </div>
@@ -2402,15 +2366,15 @@
           {#if registryLoading && catalogueTier !== "full"}
             <div class="mt-4 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground" data-testid="catalogue-bg-load">
               <Spinner size={11} />
-              Chargement du catalogue public… ({mcpEntries.length} entrées)
+              {$t("connections.catalogue_loading_public", { values: { count: mcpEntries.length } })}
             </div>
           {:else if hasMoreMcp}
             <div class="mt-4 flex items-center justify-center text-[11px] text-muted-foreground/70" data-testid="catalogue-more-hint">
-              {filteredMcp.length - catalogLimit} entrées restantes - continuez à scroller
+              {$t("connections.catalogue_more_hint", { values: { count: filteredMcp.length - catalogLimit } })}
             </div>
           {:else if catalogueTier === "full" && filteredMcp.length > 0}
             <div class="mt-4 flex items-center justify-center text-[11px] text-muted-foreground/60">
-              Fin du catalogue · {filteredMcp.length} entrées
+              {$t("connections.catalogue_end", { values: { count: filteredMcp.length } })}
             </div>
           {/if}
         {/if}
@@ -2418,39 +2382,37 @@
     {:else if catalogueTab === "custom"}
       <div class="flex-1 overflow-auto px-6 pt-4 pb-6 max-w-2xl">
         <p class="text-[12px] text-muted-foreground mb-4">
-          Pour brancher un MCP server interne, communautaire, ou en cours de
-          développement. Pour un service curé (Notion, GitHub, Local Files…),
-          utilisez plutôt une carte du catalogue.
+          {$t("connections.custom_intro")}
         </p>
 
         <div class="space-y-3">
           <label class="block text-[11.5px] font-medium text-foreground">
-            Nom (interne, unique)
+            {$t("connections.custom_name_label")}
             <Input
               type="text"
               class="mt-1"
-              placeholder="ex. acme-internal"
+              placeholder={$t("connections.custom_name_placeholder")}
               bind:value={customForm.name}
               disabled={customBusy}
             />
           </label>
 
           <label class="block text-[11.5px] font-medium text-foreground">
-            Transport
+            {$t("connections.custom_transport_label")}
             <Select
               class="mt-1"
               bind:value={customForm.transport}
               disabled={customBusy}
             >
-              <option value="stdio">stdio (subprocess local)</option>
-              <option value="streamable-http">Streamable HTTP (MCP 2025-11-25)</option>
-              <option value="sse">SSE (legacy 2024-11-05)</option>
+              <option value="stdio">{$t("connections.custom_transport_stdio")}</option>
+              <option value="streamable-http">{$t("connections.custom_transport_http")}</option>
+              <option value="sse">{$t("connections.custom_transport_sse")}</option>
             </Select>
           </label>
 
           {#if customForm.transport === "stdio"}
             <label class="block text-[11.5px] font-medium text-foreground">
-              Commande
+              {$t("connections.custom_command_label")}
               <Input
                 type="text"
                 class="mt-1 font-mono"
@@ -2460,7 +2422,7 @@
               />
             </label>
             <label class="block text-[11.5px] font-medium text-foreground">
-              Arguments (espace-séparé)
+              {$t("connections.custom_args_label")}
               <Input
                 type="text"
                 class="mt-1 font-mono"
@@ -2471,7 +2433,7 @@
             </label>
           {:else}
             <label class="block text-[11.5px] font-medium text-foreground">
-              URL du serveur
+              {$t("connections.custom_url_label")}
               <Input
                 type="url"
                 class="mt-1 font-mono"
@@ -2483,8 +2445,8 @@
           {/if}
 
           <label class="block text-[11.5px] font-medium text-foreground">
-            {customForm.transport === "stdio" ? "Variables d'environnement" : "Headers HTTP"}
-            <span class="font-normal text-muted-foreground">(une par ligne, <code>NOM=valeur</code>)</span>
+            {customForm.transport === "stdio" ? $t("connections.custom_env_label") : $t("connections.custom_headers_label")}
+            <span class="font-normal text-muted-foreground">{@html $t("connections.custom_env_hint_html")}</span>
             <Textarea
               class="mt-1 font-mono"
               rows={3}
@@ -2498,13 +2460,13 @@
 
           <label class="flex items-center gap-2 pt-1 text-[11.5px] font-medium text-foreground">
             <Checkbox bind:checked={customForm.requires_approval} disabled={customBusy} />
-            Demander une approbation HITL pour chaque appel d'outil
+            {$t("connections.custom_require_approval")}
           </label>
         </div>
 
         {#if customTestResult}
           <div class="mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
-            ✓ Test OK - {customTestResult}
+            ✓ {$t("connections.custom_test_ok", { values: { result: customTestResult } })}
           </div>
         {/if}
         {#if customError}
@@ -2515,10 +2477,10 @@
 
         <div class="mt-5 flex justify-end gap-2">
           <Button variant="outline" size="sm" onclick={testCustomServer} disabled={customBusy}>
-            {customBusy ? "Test…" : "Tester"}
+            {customBusy ? $t("connections.testing") : $t("connections.test")}
           </Button>
           <Button variant="primary-solid" size="sm" onclick={installCustomServer} disabled={customBusy}>
-            {customBusy ? "Installation…" : "Installer"}
+            {customBusy ? $t("connections.installing") : $t("connections.install")}
           </Button>
         </div>
       </div>

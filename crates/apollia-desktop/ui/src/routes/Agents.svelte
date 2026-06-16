@@ -318,17 +318,17 @@
   function statusLabel(a: AgentListItem): string {
     switch (a.runtime_status) {
       case "active":
-        return "actif";
+        return $t("agents.status_active");
       case "degraded":
-        return "dégradé";
+        return $t("agents.status_degraded");
       case "initializing":
-        return "démarrage…";
+        return $t("agents.status_initializing");
       case "stopping":
-        return "arrêt…";
+        return $t("agents.status_stopping");
       case "stopped":
-        return "arrêté";
+        return $t("agents.status_stopped");
       default:
-        return "non chargé";
+        return $t("agents.status_not_loaded");
     }
   }
 
@@ -390,7 +390,7 @@
 
   function formatMemoryRelative(iso: string): string {
     const diffMs = Date.now() - new Date(iso).getTime();
-    if (diffMs < 0) return "à venir";
+    if (diffMs < 0) return $t("agents.memory_relative_future");
     const s = Math.floor(diffMs / 1000);
     if (s < 60) return `${s}s`;
     const m = Math.floor(s / 60);
@@ -467,7 +467,7 @@
           await invoke("start_agent", { path: a.install_path });
         } else {
           addToast(
-            `Impossible de démarrer ${a.name} : install_path manquant.`,
+            $t("agents.start_missing_path", { values: { name: a.name } }),
             "error",
           );
         }
@@ -491,7 +491,13 @@
           : await startPackage(pkg, $agents, $triggers);
       if (result.errors.length > 0) {
         addToast(
-          `Package ${pkg.name} : ${result.errors.length} erreur(s) - ${result.errors[0]}`,
+          $t("agents.package_errors", {
+            values: {
+              name: pkg.name,
+              count: result.errors.length,
+              first: result.errors[0],
+            },
+          }),
           "error",
         );
       }
@@ -513,9 +519,9 @@
   function packageStatusLabel(
     s: ReturnType<typeof packageRuntimeState>,
   ): string {
-    if (s.status === "running") return "actif";
-    if (s.status === "partial") return "partiel";
-    return "arrêté";
+    if (s.status === "running") return $t("agents.status_active");
+    if (s.status === "partial") return $t("agents.pkg_status_partial");
+    return $t("agents.status_stopped");
   }
 
   function packageStatusColor(
@@ -545,16 +551,16 @@
 >
   <!-- ── Header ──────────────────────────────────────────────────────── -->
   <PageHeader
-    kicker="MES ASSISTANTS · {allAssistants.length}"
-    title="Assistants"
-    subtitle="Vos compagnons IA - chacun avec ses outils, sa mémoire et ses déclencheurs."
+    kicker="{$t('agents.page_kicker')} · {allAssistants.length}"
+    title={$t("agents.page_title")}
+    subtitle={$t("agents.page_subtitle")}
   >
     {#snippet actions()}
       <Button variant="outline" size="sm" onclick={() => (installPackageOpen = true)}>
         {#snippet icon()}
           <Package size={12} />
         {/snippet}
-        Installer un package
+        {$t("agents.install_package_button")}
       </Button>
       <Button variant="primary-solid" size="sm"
         onclick={pickAndInstallAgent}
@@ -565,7 +571,7 @@
         {/snippet}
         {installingAgent
           ? $t("agents.installing")
-          : "Nouvel assistant"}
+          : $t("agents.new_assistant")}
       </Button>
     {/snippet}
   </PageHeader>
@@ -597,7 +603,7 @@
             type="text"
             unstyled
             bind:value={query}
-            placeholder="Filtrer"
+            placeholder={$t("agents.filter_placeholder")}
             class="flex-1 text-[11.5px] text-foreground"
             data-testid="agents-search"
            />
@@ -609,7 +615,7 @@
         <div
           class="section-meta mb-1.5 mt-1 px-2 text-[10px] tracking-[1.4px] /80"
         >
-          Mes assistants · {filteredAssistants.length}
+          {$t("agents.section_my_assistants")} · {filteredAssistants.length}
         </div>
         <!-- Pinned system agent: Apollia Chat -->
         <Button variant="ghost" size="auto"
@@ -639,7 +645,7 @@
               <span class="truncate">Apollia Chat</span>
             </div>
             <div class="truncate text-[10.5px] text-muted-foreground">
-              Agent système · chat libre
+              {$t("agents.apollia_chat_subtitle")}
             </div>
           </div>
         </Button>
@@ -663,11 +669,11 @@
             <EmptyState
               tone="primary"
               title={query.length > 0
-                ? "Aucun résultat"
-                : "Aucun assistant"}
+                ? $t("agents.list_empty_no_result")
+                : $t("agents.list_empty_no_assistant")}
               desc={query.length > 0
-                ? "Essayez un autre terme."
-                : "Installez votre premier assistant pour commencer."}
+                ? $t("agents.list_empty_try_other")
+                : $t("agents.list_empty_install_first")}
             >
               {#snippet icon()}
                 <Bot size={22} />
@@ -678,7 +684,7 @@
                     {#snippet icon()}
                       <Plus size={12} />
                     {/snippet}
-                    Nouvel assistant
+                    {$t("agents.new_assistant")}
                   </Button>
                 {/if}
               {/snippet}
@@ -743,8 +749,10 @@
                 class="-ml-1 text-muted-foreground transition-opacity hover:text-foreground hover:bg-transparent disabled:opacity-40 {running || busy
                   ? 'opacity-100'
                   : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}"
-                aria-label={running ? `Arrêter ${agent.name}` : `Démarrer ${agent.name}`}
-                title={running ? "Arrêter" : "Démarrer"}
+                aria-label={running
+                  ? $t("agents.stop_named", { values: { name: agent.name } })
+                  : $t("agents.start_named", { values: { name: agent.name } })}
+                title={running ? $t("agents.stop") : $t("agents.start")}
                 data-testid="agent-list-toggle"
                 data-agent-name={agent.name}
               >
@@ -764,13 +772,13 @@
         <div
           class="section-meta mb-1.5 mt-4 px-2 text-[10px] tracking-[1.4px] /80"
         >
-          Mes packages · {filteredPackages.length}
+          {$t("agents.section_my_packages")} · {filteredPackages.length}
         </div>
         {#if filteredPackages.length === 0}
           <div class="px-2 py-3 text-[11px] text-muted-foreground/70">
             {query.length > 0
-              ? "Aucun package."
-              : "Aucun package installé."}
+              ? $t("agents.packages_empty_no_result")
+              : $t("agents.packages_empty_none_installed")}
           </div>
         {:else}
           {#each filteredPackages as pkg (pkg.name)}
@@ -820,7 +828,7 @@
                     {/if}
                   </div>
                   <div class="truncate text-[10.5px] text-muted-foreground">
-                    {pkgState.runningAgents}/{pkgState.totalAgents} agents · {pkgState.enabledTriggers}/{pkgState.totalTriggers} triggers
+                    {pkgState.runningAgents}/{pkgState.totalAgents} {$t("agents.agents_word")} · {pkgState.enabledTriggers}/{pkgState.totalTriggers} {$t("agents.triggers_word")}
                   </div>
                 </div>
                 <Badge size="sm" variant={packageStatusTone(pkgState)}>
@@ -834,8 +842,10 @@
                 class="-ml-1 text-muted-foreground transition-opacity hover:text-foreground hover:bg-transparent disabled:opacity-40 {pkgRunning || pkgBusy
                   ? 'opacity-100'
                   : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}"
-                aria-label={pkgRunning ? `Arrêter ${pkg.name}` : `Démarrer ${pkg.name}`}
-                title={pkgRunning ? "Tout arrêter" : "Tout démarrer"}
+                aria-label={pkgRunning
+                  ? $t("agents.stop_named", { values: { name: pkg.name } })
+                  : $t("agents.start_named", { values: { name: pkg.name } })}
+                title={pkgRunning ? $t("agents.stop_all") : $t("agents.start_all")}
                 data-testid="package-list-toggle"
                 data-package-name={pkg.name}
               >
@@ -872,9 +882,7 @@
                 Apollia Chat
               </h2>
               <p class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                Votre assistant intégré - il vous accompagne au quotidien dans
-                le chat libre. Personnalisez sa personnalité, ses outils, et
-                le modèle qu'il utilise.
+                {$t("agents.apollia_chat_detail_subtitle")}
               </p>
             </div>
           </div>
@@ -912,19 +920,19 @@
                 {pkg.name}
               </h2>
               <p class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                {pkg.description || "Package d'agents Apollia."}
+                {pkg.description || $t("agents.package_default_description")}
               </p>
             </div>
             <div class="flex shrink-0 gap-1.5">
               {#if confirmUninstallPkg === pkg.name}
                 <Button variant="outline" size="sm" onclick={() => (confirmUninstallPkg = null)}>
-                  Annuler
+                  {$t("common.cancel")}
                 </Button>
                 <Button variant="primary-solid" size="sm" onclick={() => handleUninstallPkg(pkg.name)}>
                   {#snippet icon()}
                     <Trash2 size={12} />
                   {/snippet}
-                  Confirmer
+                  {$t("common.confirm")}
                 </Button>
               {:else}
                 <Button variant="outline" size="sm"
@@ -933,7 +941,7 @@
                   {#snippet icon()}
                     <Trash2 size={12} />
                   {/snippet}
-                  Désinstaller
+                  {$t("agents.uninstall")}
                 </Button>
                 <Button variant="primary-solid" size="sm"
                   onclick={() => togglePackageRuntime(pkg)}
@@ -948,7 +956,7 @@
                       <Play size={12} fill="currentColor" />
                     {/if}
                   {/snippet}
-                  {pkgRunning ? "Tout arrêter" : "Tout démarrer"}
+                  {pkgRunning ? $t("agents.stop_all") : $t("agents.start_all")}
                 </Button>
               {/if}
             </div>
@@ -966,17 +974,17 @@
             </Badge>
             <Badge size="sm" variant="neutral">v{pkg.version}</Badge>
             <Badge size="sm" variant="neutral">
-              {pkgState.runningAgents}/{pkgState.totalAgents} agents
+              {pkgState.runningAgents}/{pkgState.totalAgents} {$t("agents.agents_word")}
             </Badge>
             <Badge size="sm" variant="neutral">
-              {pkgState.enabledTriggers}/{pkgState.totalTriggers} triggers
+              {pkgState.enabledTriggers}/{pkgState.totalTriggers} {$t("agents.triggers_word")}
             </Badge>
             {#if pkg.root_missing}
               <Badge size="sm" variant="warning">
                 {#snippet icon()}
                   <AlertTriangle size={10} />
                 {/snippet}
-                source manquante
+                {$t("agents.source_missing")}
               </Badge>
             {/if}
           </div>
@@ -992,9 +1000,9 @@
             testidPrefix="package-detail"
             activeTab={packageDetailTab}
             items={[
-              { key: "overview", label: "Aperçu" },
-              { key: "agents", label: "Agents", count: pkg.agents.length },
-              { key: "triggers", label: "Triggers", count: pkgTriggers.length },
+              { key: "overview", label: $t("agents.tab_overview") },
+              { key: "agents", label: $t("agents.tab_agents"), count: pkg.agents.length },
+              { key: "triggers", label: $t("agents.tab_triggers"), count: pkgTriggers.length },
             ]}
             ontabchange={(key) => (packageDetailTab = key as PackageTab)}
           />
@@ -1004,11 +1012,11 @@
         <div class="px-8 pt-5 pb-8" data-testid="package-detail-tab-content">
           {#if packageDetailTab === "overview"}
             <Card class="p-[14px_16px] max-w-3xl">
-              <div class="mb-2 text-[12.5px] font-semibold text-foreground">Informations</div>
+              <div class="mb-2 text-[12.5px] font-semibold text-foreground">{$t("agents.info_title")}</div>
               <div class="flex flex-col gap-2 text-[11.5px] text-muted-foreground">
                 <div class="flex items-center gap-1.5">
                   <Clock size={11} />
-                  <span>Installé le {new Date(pkg.installed_at).toLocaleDateString()}</span>
+                  <span>{$t("agents.installed_on", { values: { date: new Date(pkg.installed_at).toLocaleDateString() } })}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
                   <FolderOpen size={11} class="shrink-0" />
@@ -1028,12 +1036,12 @@
             <Card class="p-[14px_16px] max-w-3xl">
               <div class="mb-2.5 flex items-center justify-between">
                 <span class="text-[12.5px] font-semibold text-foreground">
-                  Agents · {pkg.agents.length}
+                  {$t("agents.tab_agents")} · {pkg.agents.length}
                 </span>
               </div>
               {#if pkg.agents.length === 0}
                 <div class="py-4 text-center text-[11.5px] text-muted-foreground">
-                  Aucun agent.
+                  {$t("agents.package_no_agent")}
                 </div>
               {:else}
                 {#each pkg.agents as pa, i (pa.name)}
@@ -1076,15 +1084,15 @@
             <Card class="p-[14px_16px] max-w-3xl">
               <div class="mb-2.5 flex items-center justify-between">
                 <span class="text-[12.5px] font-semibold text-foreground">
-                  Triggers · {pkgTriggers.length}
+                  {$t("agents.tab_triggers")} · {pkgTriggers.length}
                 </span>
                 <span class="font-mono text-[10.5px] text-muted-foreground">
-                  {pkgState.enabledTriggers} actifs
+                  {$t("agents.triggers_active_count", { values: { count: pkgState.enabledTriggers } })}
                 </span>
               </div>
               {#if pkgTriggers.length === 0}
                 <div class="py-4 text-center text-[11.5px] text-muted-foreground">
-                  Aucun trigger configuré.
+                  {$t("agents.no_trigger_configured")}
                 </div>
               {:else}
                 {#each pkgTriggers as tr, i (tr.id)}
@@ -1106,7 +1114,7 @@
                       </div>
                     </div>
                     <Badge size="sm" variant={tr.enabled ? "success" : "neutral"}>
-                      {tr.enabled ? "actif" : "inactif"}
+                      {tr.enabled ? $t("agents.trigger_active") : $t("agents.trigger_inactive")}
                     </Badge>
                   </div>
                 {/each}
@@ -1147,7 +1155,7 @@
                 {#snippet icon()}
                   <MessageSquare size={12} />
                 {/snippet}
-                Nouveau chat
+                {$t("agents.new_chat")}
               </Button>
             </div>
           </div>
@@ -1164,7 +1172,7 @@
             </Badge>
             <Badge size="sm" variant="neutral">v{a.version}</Badge>
             <Badge size="sm" variant="neutral">
-              {a.tools_required.length + a.tools_optional.length} outils
+              {a.tools_required.length + a.tools_optional.length} {$t("agents.tools_word")}
             </Badge>
             {#if agentClassLabel(a)}
               <Badge size="sm" variant="info">{agentClassLabel(a)}</Badge>
@@ -1197,11 +1205,11 @@
             testidPrefix="agent-detail"
             activeTab={agentDetailTab}
             items={[
-              { key: "overview", label: "Aperçu" },
-              { key: "tools", label: "Outils", count: allToolsAgent.length },
-              { key: "memory", label: "Mémoire" },
-              { key: "activity", label: "Activité" },
-              { key: "settings", label: "Paramètres" },
+              { key: "overview", label: $t("agents.tab_overview") },
+              { key: "tools", label: $t("agents.tab_tools"), count: allToolsAgent.length },
+              { key: "memory", label: $t("agents.tab_memory") },
+              { key: "activity", label: $t("agents.tab_activity") },
+              { key: "settings", label: $t("agents.tab_settings") },
             ]}
             ontabchange={(key) => (agentDetailTab = key as AgentTab)}
           />
@@ -1214,28 +1222,28 @@
               <!-- Stat: tools count -->
               <Card class="p-[16px_18px]">
                 <div class="font-mono text-[10.5px] font-semibold uppercase tracking-[1.2px] text-muted-foreground">
-                  Outils
+                  {$t("agents.tab_tools")}
                 </div>
                 <div class="mt-1 tabular-nums" style="font-size: 24px; font-weight: 600; letter-spacing: -0.3px;">
                   {a.tools_required.length + a.tools_optional.length}
                 </div>
                 <div class="mt-0.5 text-[11px] text-muted-foreground">
-                  {a.tools_required.length} requis · {a.tools_optional.length} optionnels
+                  {$t("agents.tools_required_optional", { values: { required: a.tools_required.length, optional: a.tools_optional.length } })}
                 </div>
               </Card>
 
               <!-- Stat: triggers count -->
               <Card class="p-[16px_18px]">
                 <div class="font-mono text-[10.5px] font-semibold uppercase tracking-[1.2px] text-muted-foreground">
-                  Déclencheurs
+                  {$t("agents.triggers_stat_title")}
                 </div>
                 <div class="mt-1 tabular-nums" style="font-size: 24px; font-weight: 600; letter-spacing: -0.3px;">
                   {a.tags.filter((tag) => tag.startsWith("trigger:")).length}
                 </div>
                 <div class="mt-0.5 text-[11px] text-muted-foreground">
                   {a.tags.filter((tag) => tag.startsWith("trigger:")).length === 0
-                    ? "aucun trigger configuré"
-                    : "actifs"}
+                    ? $t("agents.triggers_stat_none")
+                    : $t("agents.triggers_stat_active")}
                 </div>
               </Card>
 
@@ -1267,7 +1275,7 @@
               {#if a.examples.length > 0}
                 <Card class="p-[14px_16px] lg:col-span-2">
                   <div class="font-mono mb-2 text-[10px] font-semibold uppercase tracking-[1.2px] text-muted-foreground">
-                    Exemples
+                    {$t("agents.examples_title")}
                   </div>
                   <ul class="m-0 list-none space-y-1 p-0">
                     {#each a.examples.slice(0, 5) as ex (ex)}
@@ -1280,12 +1288,12 @@
           {:else if agentDetailTab === "tools"}
             <Card class="p-[14px_16px]">
               <div class="mb-2.5 flex items-center justify-between">
-                <span class="text-[12.5px] font-semibold text-foreground">Outils disponibles</span>
+                <span class="text-[12.5px] font-semibold text-foreground">{$t("agents.available_tools")}</span>
                 <span class="font-mono text-[10.5px] text-muted-foreground">{allToolsAgent.length}</span>
               </div>
               {#if allToolsAgent.length === 0}
                 <div class="py-6 text-center text-[11.5px] text-muted-foreground">
-                  Aucun outil déclaré.
+                  {$t("agents.no_tool_declared")}
                 </div>
               {:else}
                 {#each allToolsAgent as tool, i (tool.id)}
@@ -1303,12 +1311,12 @@
                     <div class="min-w-0 flex-1">
                       <div class="font-mono truncate text-[12px] font-medium text-foreground">{tool.id}</div>
                       <div class="text-[10.5px] text-muted-foreground">
-                        {tool.required ? "Requis" : "Optionnel"}
+                        {tool.required ? $t("agents.tool_required") : $t("agents.tool_optional")}
                       </div>
                     </div>
                     <Badge size="sm" variant="neutral">{scope}</Badge>
                     {#if sensitive}
-                      <Badge size="sm" variant="warning">demander à chaque fois</Badge>
+                      <Badge size="sm" variant="warning">{$t("agents.tool_ask_each_time")}</Badge>
                     {/if}
                   </div>
                 {/each}
@@ -1320,7 +1328,7 @@
               {#if !agentNamespace}
                 <Card class="p-[14px_16px]">
                   <p class="text-[12px] text-muted-foreground italic">
-                    Cet assistant n'a pas de mémoire persistante déclarée dans son manifest.
+                    {$t("agents.memory_none_declared")}
                   </p>
                 </Card>
               {:else}
@@ -1330,13 +1338,17 @@
                     <span class="font-mono text-foreground">{agentNamespace}</span>
                     <span class="text-muted-foreground/60">·</span>
                     <span class="tabular-nums">
-                      {memoryEntries.length} entrée{memoryEntries.length > 1 ? "s" : ""}
+                      {memoryEntries.length > 1
+                        ? $t("agents.memory_entries_plural", { values: { count: memoryEntries.length } })
+                        : $t("agents.memory_entries_singular", { values: { count: memoryEntries.length } })}
                     </span>
                   </div>
                   {#if a.shared_memory_namespaces.length > 0}
                     <span class="text-muted-foreground/60">·</span>
                     <span class="text-[10.5px]">
-                      + {a.shared_memory_namespaces.length} namespace{a.shared_memory_namespaces.length > 1 ? "s" : ""} partagé{a.shared_memory_namespaces.length > 1 ? "s" : ""}
+                      {a.shared_memory_namespaces.length > 1
+                        ? $t("agents.memory_shared_namespaces_plural", { values: { count: a.shared_memory_namespaces.length } })
+                        : $t("agents.memory_shared_namespaces_singular", { values: { count: a.shared_memory_namespaces.length } })}
                     </span>
                   {/if}
                 </div>
@@ -1345,7 +1357,7 @@
                 <Card class="overflow-hidden">
                   {#if memoryLoading}
                     <div class="px-4 py-6 text-center text-[12px] text-muted-foreground">
-                      Chargement…
+                      {$t("agents.memory_loading")}
                     </div>
                   {:else if memoryError}
                     <div class="px-4 py-3 text-[12px] text-destructive" data-testid="agent-memory-error">
@@ -1354,10 +1366,10 @@
                   {:else if memoryEntries.length === 0}
                     <div class="px-4 py-8 text-center">
                       <p class="text-[12.5px] text-muted-foreground mb-1">
-                        Aucune entrée dans ce namespace.
+                        {$t("agents.memory_empty_namespace")}
                       </p>
                       <p class="text-[10.5px] text-muted-foreground/70">
-                        L'assistant n'a encore rien mémorisé.
+                        {$t("agents.memory_empty_hint")}
                       </p>
                     </div>
                   {:else}
@@ -1389,15 +1401,17 @@
                             </div>
                           {/if}
                           <div class="text-[10px] text-muted-foreground/70 mt-0.5 tabular-nums">
-                            il y a {formatMemoryRelative(entry.created_at)}
+                            {$t("agents.memory_time_ago", { values: { time: formatMemoryRelative(entry.created_at) } })}
                           </div>
                         </div>
                       </div>
                     {/each}
                     {#if memoryEntries.length > 12}
                       <div class="px-4 py-2 text-[10.5px] text-muted-foreground/70 border-t border-border/40 text-center">
-                        +{memoryEntries.length - 12} entrée{memoryEntries.length - 12 > 1 ? "s" : ""}
-                        - <Button variant="ghost" size="auto" onclick={handleMemoryLink} class="inline p-0 text-[10.5px] text-primary hover:underline">voir toutes dans /mémoire</Button>
+                        {memoryEntries.length - 12 > 1
+                          ? $t("agents.memory_more_entries_plural", { values: { count: memoryEntries.length - 12 } })
+                          : $t("agents.memory_more_entries_singular", { values: { count: memoryEntries.length - 12 } })}
+                        - <Button variant="ghost" size="auto" onclick={handleMemoryLink} class="inline p-0 text-[10.5px] text-primary hover:underline">{$t("agents.memory_view_all")}</Button>
                       </div>
                     {/if}
                   {/if}
@@ -1418,7 +1432,7 @@
               {:else}
                 <Card class="p-[14px_16px]">
                   <p class="text-[12px] text-muted-foreground italic">
-                    L'assistant n'est pas chargé - démarrez-le pour voir son activité récente.
+                    {$t("agents.activity_not_loaded")}
                   </p>
                 </Card>
               {/if}
@@ -1438,7 +1452,7 @@
               <!-- Runtime controls -->
               <Card class="p-[14px_16px]">
                 <div class="font-mono text-[10px] font-semibold uppercase tracking-[1.2px] text-muted-foreground mb-3">
-                  Exécution
+                  {$t("agents.execution_section")}
                 </div>
                 {#if confirmStopVisible}
                   <div class="flex items-center gap-2 flex-wrap">
@@ -1491,7 +1505,7 @@
                     <div>
                       <div class="text-[12px] font-medium text-foreground">{$t("agents.auto_start_enabled")}</div>
                       <div class="text-[10.5px] text-muted-foreground mt-0.5">
-                        Démarre automatiquement avec Apollia OS.
+                        {$t("agents.auto_start_hint")}
                       </div>
                     </div>
                     <Toggle
@@ -1529,15 +1543,15 @@
       {:else if $connectionStatus === "connecting"}
         <div class="flex flex-1 items-center justify-center px-8">
           <div class="text-[12.5px] text-muted-foreground">
-            Chargement des assistants…
+            {$t("agents.loading_assistants")}
           </div>
         </div>
       {:else}
         <div class="flex flex-1 items-center justify-center px-8 py-14">
           <EmptyState
             tone="primary"
-            title="Aucun assistant sélectionné"
-            desc="Installez votre premier assistant pour commencer."
+            title={$t("agents.detail_empty_title")}
+            desc={$t("agents.list_empty_install_first")}
           >
             {#snippet icon()}
               <Bot size={22} />
@@ -1547,7 +1561,7 @@
                 {#snippet icon()}
                   <Plus size={12} />
                 {/snippet}
-                Nouvel assistant
+                {$t("agents.new_assistant")}
               </Button>
             {/snippet}
           </EmptyState>

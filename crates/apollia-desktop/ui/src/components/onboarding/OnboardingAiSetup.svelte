@@ -13,6 +13,7 @@
   import { onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { get } from "svelte/store";
   import { t } from "svelte-i18n";
   import HotkeyCaptureDialog from "../settings/HotkeyCaptureDialog.svelte";
   import { formatCombo } from "$lib/keyboard/hotkeyCapture";
@@ -114,8 +115,8 @@
     repo: string;
     size_label: string;
     ram_required: number;
-    quality_label: string;
-    lang: string;
+    quality_key: string;
+    lang_key: string;
   }
 
   // ─── Curated catalogs ─────────────────────────────────────────────────────
@@ -161,8 +162,8 @@
       repo: "ggerganov/whisper.cpp",
       size_label: "75 MB",
       ram_required: 1,
-      quality_label: "Ultra-rapide",
-      lang: "99 langues",
+      quality_key: "onboarding.ai_setup.stt_quality_ultra_fast",
+      lang_key: "onboarding.ai_setup.stt_lang_99",
     },
     {
       name: "Whisper Base",
@@ -171,8 +172,8 @@
       repo: "ggerganov/whisper.cpp",
       size_label: "142 MB",
       ram_required: 2,
-      quality_label: "Équilibré",
-      lang: "99 langues",
+      quality_key: "onboarding.ai_setup.stt_quality_balanced",
+      lang_key: "onboarding.ai_setup.stt_lang_99",
     },
     {
       name: "Whisper Large-v3 Turbo Q5",
@@ -181,8 +182,8 @@
       repo: "ggerganov/whisper.cpp",
       size_label: "547 MB",
       ram_required: 4,
-      quality_label: "Haute qualité · 6× rapide",
-      lang: "99 langues",
+      quality_key: "onboarding.ai_setup.stt_quality_high_6x",
+      lang_key: "onboarding.ai_setup.stt_lang_99",
     },
     {
       name: "Whisper Large-v3 Q5",
@@ -191,8 +192,8 @@
       repo: "ggerganov/whisper.cpp",
       size_label: "1.1 GB",
       ram_required: 8,
-      quality_label: "Précision maximale",
-      lang: "99 langues",
+      quality_key: "onboarding.ai_setup.stt_quality_max_precision",
+      lang_key: "onboarding.ai_setup.stt_lang_99",
     },
     {
       name: "Whisper Large-v3 French",
@@ -201,8 +202,8 @@
       repo: "bofenghuang/whisper-large-v3-french",
       size_label: "~1.1 GB",
       ram_required: 8,
-      quality_label: "Fine-tuné français",
-      lang: "🇫🇷 Français",
+      quality_key: "onboarding.ai_setup.stt_quality_french_tuned",
+      lang_key: "onboarding.ai_setup.stt_lang_french",
     },
   ];
 
@@ -337,7 +338,8 @@
           llmDownloadId = null;
           llmDownloadingModel = null;
           llmDownloadProgress = null;
-          if (p.status === "failed") llmDownloadError = "Le téléchargement a échoué.";
+          if (p.status === "failed")
+            llmDownloadError = get(t)("onboarding.ai_setup.download_failed");
         }
       } else if (p.id === sttDownloadId) {
         sttDownloadProgress = p;
@@ -349,7 +351,8 @@
           sttDownloadId = null;
           sttDownloadingModel = null;
           sttDownloadProgress = null;
-          if (p.status === "failed") sttDownloadError = "Le téléchargement a échoué.";
+          if (p.status === "failed")
+            sttDownloadError = get(t)("onboarding.ai_setup.download_failed");
         }
       }
     }).then((fn) => {
@@ -413,7 +416,7 @@
         typeof event.payload === "string"
           ? event.payload
           : event.payload?.text ?? "";
-      sttTestTranscript = text || "(transcription vide)";
+      sttTestTranscript = text || get(t)("onboarding_stt.test_empty");
       sttTesting = false;
       sttTestRecording = false;
     }).then((unlisten) => {
@@ -431,7 +434,9 @@
     } catch (err) {
       sttTestRecording = false;
       sttTesting = false;
-      sttTestTranscript = `Erreur : ${err}`;
+      sttTestTranscript = get(t)("onboarding_stt.test_error", {
+        values: { error: String(err) },
+      });
     }
   }
 
@@ -443,7 +448,9 @@
     } catch (err) {
       sttTestRecording = false;
       sttTesting = false;
-      sttTestTranscript = `Erreur : ${err}`;
+      sttTestTranscript = get(t)("onboarding_stt.test_error", {
+        values: { error: String(err) },
+      });
     }
   }
 
@@ -668,19 +675,19 @@
     return Math.min(100, Math.round((p.downloaded_bytes / p.total_bytes) * 100));
   }
 
-  function hfFileLabel(f: HfFile): string {
-    if (f.compatibility === "fits") return "fits";
-    if (f.compatibility === "might_fit") return "might fit";
-    if (f.compatibility === "too_large") return "too large";
-    return "";
+  function hfFileLabelKey(f: HfFile): string | null {
+    if (f.compatibility === "fits") return "onboarding.ai_setup.compat_fits";
+    if (f.compatibility === "might_fit") return "onboarding.ai_setup.compat_might_fit";
+    if (f.compatibility === "too_large") return "onboarding.ai_setup.compat_too_large";
+    return null;
   }
 </script>
 
 <div class="ai-setup" data-testid="onboarding-ai-setup">
   <header class="setup-header">
-    <h2 class="setup-title">Configurons ton IA</h2>
+    <h2 class="setup-title">{$t("onboarding.ai_setup.title")}</h2>
     <p class="setup-subtitle">
-      Choisis un modèle local pour rester souverain, ou utilise un fournisseur cloud.
+      {$t("onboarding.ai_setup.subtitle")}
     </p>
   </header>
 
@@ -699,30 +706,30 @@
   {#if loading}
     <div class="scan-loading" data-testid="scan-loading">
       <Spinner size={18} />
-      <span>Analyse de ton environnement…</span>
+      <span>{$t("onboarding.ai_setup.scanning")}</span>
     </div>
   {:else}
     <!-- ─── LLM section ──────────────────────────────────────────────── -->
     <section class="setup-section" data-testid="llm-section">
       <div class="section-header">
         <HardDrive size={14} strokeWidth={2} class="text-primary" />
-        <span class="section-title">Modèle de langage (LLM)</span>
+        <span class="section-title">{$t("onboarding.ai_setup.llm_section_title")}</span>
         {#if llmSuccess}
           <span class="section-badge-ok">
-            <Check size={10} strokeWidth={2.5} /> Configuré
+            <Check size={10} strokeWidth={2.5} /> {$t("onboarding.ai_setup.configured")}
           </span>
         {:else if $llmBackends.length > 0}
           <span class="section-badge-ok">
-            <Check size={10} strokeWidth={2.5} /> {$llmBackends.length} backend{$llmBackends.length > 1 ? "s" : ""}
+            <Check size={10} strokeWidth={2.5} /> {$t("onboarding.ai_setup.backends_count", { values: { count: $llmBackends.length } })}
           </span>
         {/if}
       </div>
 
       {#if ggufModels.length === 0 && !llmSuccess}
         <p class="empty-hint" data-testid="llm-empty-hint">
-          Aucun modèle GGUF détecté. Choisis-en un ci-dessous, ou place un .gguf dans
-          <code>~/.apollia/models/</code> ou <code>~/Downloads/</code>, puis
-          <Button variant="ghost" size="sm" class="inline-link" onclick={loadData}>re-scanner</Button>.
+          {$t("onboarding.ai_setup.llm_empty_prefix")}
+          <code>~/.apollia/models/</code> {$t("common.or")} <code>~/Downloads/</code>{$t("onboarding.ai_setup.llm_empty_suffix")}
+          <Button variant="ghost" size="sm" class="inline-link" onclick={loadData}>{$t("onboarding.ai_setup.rescan")}</Button>.
         </p>
 
         {#if llmDownloadId}
@@ -733,7 +740,7 @@
                   ? (llmDownloadingModel as CuratedLlmModel | HfFile).filename
                   : "…"}
               </span>
-              <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelLlmDownload} aria-label="Annuler le téléchargement">
+              <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelLlmDownload} aria-label={$t("onboarding.ai_setup.cancel_download")}>
                 <X size={12} strokeWidth={2} />
               </Button>
             </div>
@@ -751,17 +758,17 @@
           </div>
         {:else if showSearch}
           <div class="search-bar">
-            <Button variant="ghost" size="sm" class="btn-back" onclick={() => { showSearch = false; searchResults = []; }} aria-label="Retour">
+            <Button variant="ghost" size="sm" class="btn-back" onclick={() => { showSearch = false; searchResults = []; }} aria-label={$t("common.back")}>
               <ArrowLeft size={12} strokeWidth={2} />
             </Button>
             <Input
               class="search-input"
               type="text"
-              placeholder="Rechercher un modèle GGUF sur HuggingFace…"
+              placeholder={$t("onboarding.ai_setup.search_placeholder")}
               bind:value={searchQuery}
               onkeydown={(e) => e.key === "Enter" && searchHf()}
             />
-            <Button variant="ghost" size="sm" class="btn-search" onclick={searchHf} disabled={searchLoading} aria-label="Rechercher">
+            <Button variant="ghost" size="sm" class="btn-search" onclick={searchHf} disabled={searchLoading} aria-label={$t("onboarding.ai_setup.search")}>
               {#if searchLoading}<Spinner size={12} />{:else}<Search size={12} strokeWidth={2} />{/if}
             </Button>
           </div>
@@ -786,7 +793,7 @@
                     </div>
                     <span class="model-name">{model.repo_id}</span>
                     {#if model.gated}
-                      <span class="badge-gated">gated</span>
+                      <span class="badge-gated">{$t("onboarding.ai_setup.gated")}</span>
                     {/if}
                     <ChevronRight
                       size={12}
@@ -812,8 +819,9 @@
                             <span class="file-name">{file.filename}</span>
                             <span class="file-size">{file.size_human}</span>
                             {#if file.compatibility}
+                              {@const compatKey = hfFileLabelKey(file)}
                               <span class="compat-chip compat-chip-{file.compatibility}">
-                                {hfFileLabel(file)}
+                                {compatKey ? $t(compatKey) : ""}
                               </span>
                             {/if}
                           </button>
@@ -826,11 +834,13 @@
             </ul>
           {:else if !searchLoading}
             <p class="empty-hint" style="text-align:center">
-              {searchQuery ? "Aucun résultat." : "Tape un nom de modèle pour commencer."}
+              {searchQuery
+                ? $t("onboarding.ai_setup.search_no_results")
+                : $t("onboarding.ai_setup.search_prompt")}
             </p>
           {/if}
         {:else}
-          <div class="curated-divider"><span>Modèles recommandés</span></div>
+          <div class="curated-divider"><span>{$t("onboarding.ai_setup.recommended_models")}</span></div>
           <ul class="model-list" data-testid="curated-llm-list">
             {#each availableLlmModels as model (model.filename)}
               <li>
@@ -841,7 +851,7 @@
                     <span class="model-meta">{model.size_label}</span>
                   </div>
                   {#if model.filename === recommendedLlm?.filename}
-                    <span class="badge-recommended">Recommandé</span>
+                    <span class="badge-recommended">{$t("onboarding.ai_setup.recommended")}</span>
                   {/if}
                   <ChevronRight size={13} class="text-muted-foreground/50" />
                 </Button>
@@ -851,11 +861,11 @@
           <div class="alt-row">
             <Button variant="ghost" size="sm" class="btn-search-hf" onclick={() => { showSearch = true; searchResults = []; }}>
               <Search size={11} strokeWidth={2} />
-              Rechercher sur HuggingFace
+              {$t("onboarding.ai_setup.search_hf")}
             </Button>
             <Button variant="ghost" size="sm" class="btn-search-hf btn-cloud" onclick={openCloudSettings} data-testid="onboarding-open-cloud">
               <Cloud size={11} strokeWidth={2} />
-              Utiliser un fournisseur cloud
+              {$t("onboarding.ai_setup.use_cloud")}
             </Button>
           </div>
         {/if}
@@ -893,7 +903,7 @@
                   <span class="model-meta">{model.size_human}</span>
                 </div>
                 {#if model.recommended}
-                  <span class="badge-recommended">Recommandé</span>
+                  <span class="badge-recommended">{$t("onboarding.ai_setup.recommended")}</span>
                 {/if}
                 <ChevronRight size={13} class="text-muted-foreground/50" />
               </button>
@@ -910,8 +920,8 @@
     <section class="setup-section" data-testid="stt-section">
       <div class="section-header">
         <Mic size={14} strokeWidth={2} class="text-secondary" />
-        <span class="section-title">Reconnaissance vocale (optionnel)</span>
-        <Button variant="ghost" size="sm" class="btn-rescan" onclick={rescanStt} aria-label="Re-scanner les modèles Whisper" title="Re-scanner">
+        <span class="section-title">{$t("onboarding.ai_setup.stt_section_title")}</span>
+        <Button variant="ghost" size="sm" class="btn-rescan" onclick={rescanStt} aria-label={$t("onboarding.ai_setup.rescan_whisper")} title={$t("onboarding.ai_setup.rescan_short")}>
           <RefreshCw size={11} strokeWidth={2} />
         </Button>
         <label class="toggle-label">
@@ -922,14 +932,14 @@
 
       {#if whisperModels.length === 0}
         <p class="empty-hint" data-testid="stt-empty-hint">
-          Aucun modèle Whisper détecté. Télécharge-en un pour activer la dictée vocale.
+          {$t("onboarding.ai_setup.stt_empty_hint")}
         </p>
 
         {#if sttDownloadId}
           <div class="download-block" data-testid="stt-download-progress">
             <div class="dl-header">
               <span class="dl-filename">{sttDownloadingModel?.filename ?? "…"}</span>
-              <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelSttDownload} aria-label="Annuler le téléchargement">
+              <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelSttDownload} aria-label={$t("onboarding.ai_setup.cancel_download")}>
                 <X size={12} strokeWidth={2} />
               </Button>
             </div>
@@ -946,7 +956,7 @@
             {/if}
           </div>
         {:else}
-          <div class="curated-divider"><span>Modèles Whisper</span></div>
+          <div class="curated-divider"><span>{$t("onboarding.ai_setup.whisper_models")}</span></div>
           <ul class="model-list" data-testid="curated-stt-list">
             {#each availableSttModels as model (model.filename)}
               <li>
@@ -955,12 +965,12 @@
                   <div class="model-info">
                     <span class="model-name">{model.name}</span>
                     <span class="model-meta">
-                      {model.size_label} · {model.quality_label} ·
-                      <span class="model-lang">{model.lang}</span>
+                      {model.size_label} · {$t(model.quality_key)} ·
+                      <span class="model-lang">{$t(model.lang_key)}</span>
                     </span>
                   </div>
                   {#if model.filename === recommendedStt?.filename}
-                    <span class="badge-recommended badge-recommended-stt">Recommandé</span>
+                    <span class="badge-recommended badge-recommended-stt">{$t("onboarding.ai_setup.recommended")}</span>
                   {/if}
                   <ChevronRight size={13} class="text-muted-foreground/50" />
                 </Button>
@@ -990,7 +1000,7 @@
                   <span class="model-meta capitalize">{model.model_size}</span>
                 </div>
                 {#if model.recommended}
-                  <span class="badge-recommended badge-recommended-stt">Recommandé</span>
+                  <span class="badge-recommended badge-recommended-stt">{$t("onboarding.ai_setup.recommended")}</span>
                 {/if}
                 {#if selectedWhisper?.path === model.path}
                   <Check size={13} strokeWidth={2.5} class="text-secondary" />
@@ -1077,11 +1087,11 @@
 
   <footer class="setup-footer">
     <Button variant="ghost" size="sm" class="btn-secondary" onclick={onback} disabled={advancing} data-testid="ai-setup-back">
-      ← Retour
+      ← {$t("common.back")}
     </Button>
     <div class="footer-right">
       <Button variant="ghost" size="sm" class="btn-tertiary" onclick={onskip} disabled={advancing} data-testid="ai-setup-skip">
-        Configurer plus tard
+        {$t("onboarding.ai_setup.configure_later")}
       </Button>
       <Button
         variant="primary-gradient"
@@ -1091,7 +1101,7 @@
         loading={advancing}
         data-testid="ai-setup-continue"
       >
-        Continuer
+        {$t("common.continue")}
       </Button>
     </div>
   </footer>

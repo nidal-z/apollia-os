@@ -10,6 +10,7 @@
     HelpCircle,
     MessageSquare,
   } from "lucide-svelte";
+  import { t } from "svelte-i18n";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import ListRow from "./ListRow.svelte";
@@ -53,19 +54,19 @@
   }: Props = $props();
 
   type Cfg = {
-    label: string;
+    labelKey: string;
     tone: "warning" | "danger" | "info" | "success" | "secondary" | "primary";
     iconCmp: typeof Shield;
   };
 
   const CFG: Record<InboxType, Cfg> = {
-    approval: { label: "approbation", tone: "warning", iconCmp: Shield },
-    question: { label: "question", tone: "info", iconCmp: HelpCircle },
-    error: { label: "erreur", tone: "danger", iconCmp: X },
-    deliverable: { label: "livrable", tone: "info", iconCmp: File },
-    trigger: { label: "trigger", tone: "success", iconCmp: Zap },
-    memory: { label: "mémoire", tone: "secondary", iconCmp: Brain },
-    cost: { label: "coût", tone: "warning", iconCmp: Activity },
+    approval: { labelKey: "inbox.row.type_approval", tone: "warning", iconCmp: Shield },
+    question: { labelKey: "inbox.row.type_question", tone: "info", iconCmp: HelpCircle },
+    error: { labelKey: "inbox.row.type_error", tone: "danger", iconCmp: X },
+    deliverable: { labelKey: "inbox.row.type_deliverable", tone: "info", iconCmp: File },
+    trigger: { labelKey: "inbox.row.type_trigger", tone: "success", iconCmp: Zap },
+    memory: { labelKey: "inbox.row.type_memory", tone: "secondary", iconCmp: Brain },
+    cost: { labelKey: "inbox.row.type_cost", tone: "warning", iconCmp: Activity },
   };
 
   const cfg = $derived(CFG[type]);
@@ -86,7 +87,7 @@
   </div>
   <div class="flex-1 min-w-0">
     <div class="flex items-center gap-1.5">
-      <Badge size="sm" variant={cfg.tone}>{cfg.label}</Badge>
+      <Badge size="sm" variant={cfg.tone}>{$t(cfg.labelKey)}</Badge>
       <span
         class="text-[12.5px] text-foreground truncate"
         style:font-weight={unread ? 600 : 500}
@@ -110,19 +111,19 @@
           e.stopPropagation();
           onSecondaryAction?.(e);
         }}
-        aria-label={secondaryLabel ?? "Open conversation"}
-        title={secondaryLabel ?? "Open conversation"}
+        aria-label={secondaryLabel ?? $t("inbox.row.open_conversation")}
+        title={secondaryLabel ?? $t("inbox.row.open_conversation")}
         data-testid="inbox-row-secondary"
       >
         <MessageSquare size={14} strokeWidth={1.75} />
       </Button>
     {/if}
     {#if type === "approval"}
-      <Button variant="primary-solid" size="sm" onclick={onAction}>Autoriser</Button>
+      <Button variant="primary-solid" size="sm" onclick={onAction}>{$t("inbox.row.action_allow")}</Button>
     {:else if type === "question"}
-      <Button variant="outline" size="sm" onclick={onAction}>Répondre</Button>
+      <Button variant="outline" size="sm" onclick={onAction}>{$t("inbox.row.action_reply")}</Button>
     {:else if type === "error"}
-      <Button variant="outline" size="sm" onclick={onAction}>Résoudre</Button>
+      <Button variant="outline" size="sm" onclick={onAction}>{$t("inbox.row.action_resolve")}</Button>
     {/if}
   </div>
 </ListRow>

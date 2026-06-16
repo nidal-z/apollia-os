@@ -6,6 +6,7 @@
    * `set_onboarding_profile`, mirrored into the local {@link uiMode} store
    * (so the rest of the UI adapts immediately), then the modal advances.
    */
+  import { t } from "svelte-i18n";
   import { Sparkles, Code2, AlertCircle } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { onboardingStore } from "$lib/stores/onboarding";
@@ -42,10 +43,10 @@
 <div class="flex flex-col gap-5" data-testid="onboarding-profile-selector">
   <header class="space-y-1.5 text-center">
     <h2 class="text-xl font-semibold tracking-tight text-foreground">
-      Comment vas-tu utiliser Apollia&nbsp;?
+      {$t("onboarding.profile_selector.title")}
     </h2>
     <p class="text-sm text-muted-foreground">
-      Choisis le profil qui te ressemble. Tu pourras le changer dans les paramètres.
+      {$t("onboarding.profile_selector.subtitle")}
     </p>
   </header>
 
@@ -75,17 +76,16 @@
           <Sparkles size={22} strokeWidth={1.75} />
         {/if}
       </div>
-      <h3 class="card-title">Opérateur</h3>
+      <h3 class="card-title">{$t("onboarding.profile_selector.operator_title")}</h3>
       <p class="card-desc">
-        Tu veux des agents qui exécutent des tâches concrètes pour toi -
-        emails, veille, synthèses, automatisations.
+        {$t("onboarding.profile_selector.operator_desc")}
       </p>
       <ul class="card-bullets">
-        <li>Interface simplifiée</li>
-        <li>Validation explicite des actions sensibles</li>
-        <li>Agents prêts à l'emploi</li>
+        <li>{$t("onboarding.profile_selector.operator_bullet_1")}</li>
+        <li>{$t("onboarding.profile_selector.operator_bullet_2")}</li>
+        <li>{$t("onboarding.profile_selector.operator_bullet_3")}</li>
       </ul>
-      <p class="card-examples">Ex&nbsp;: PM, RSE, Support, Direction</p>
+      <p class="card-examples">{$t("onboarding.profile_selector.operator_examples")}</p>
     </button>
 
     <button
@@ -105,15 +105,14 @@
       </div>
       <h3 class="card-title">Builder</h3>
       <p class="card-desc">
-        Tu veux concevoir, debugger et observer des agents.
-        Plus de contrôle, plus de visibilité, plus d'autonomie.
+        {$t("onboarding.profile_selector.builder_desc")}
       </p>
       <ul class="card-bullets">
-        <li>Observabilité complète (timeline, traces, coûts)</li>
-        <li>SDK Python + outils MCP</li>
-        <li>Permissions granulaires par agent</li>
+        <li>{$t("onboarding.profile_selector.builder_bullet_1")}</li>
+        <li>{$t("onboarding.profile_selector.builder_bullet_2")}</li>
+        <li>{$t("onboarding.profile_selector.builder_bullet_3")}</li>
       </ul>
-      <p class="card-examples">Ex&nbsp;: Dev, Data, Infra, IA</p>
+      <p class="card-examples">{$t("onboarding.profile_selector.builder_examples")}</p>
     </button>
   </div>
 
@@ -125,7 +124,7 @@
       disabled={selecting !== null}
       data-testid="profile-back"
     >
-      ← Retour
+      {$t("onboarding.profile_selector.back")}
     </Button>
     <Button variant="ghost" size="sm"
       type="button"
@@ -134,7 +133,7 @@
       disabled={selecting !== null}
       data-testid="profile-both"
     >
-      Je suis les deux → mode Builder
+      {$t("onboarding.profile_selector.both")}
     </Button>
   </footer>
 </div>

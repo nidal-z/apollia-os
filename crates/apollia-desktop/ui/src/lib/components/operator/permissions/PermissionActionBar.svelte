@@ -183,7 +183,7 @@
 
     <div class="space-y-2 rounded-md border border-border bg-muted/30 p-2">
       <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Toujours autoriser sans redemander
+        {$t("permissions.action_bar.always_allow_heading")}
       </p>
       <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <button
@@ -191,19 +191,19 @@
           class="flex h-full flex-col items-start gap-1 rounded-md border border-border bg-background px-3 py-2 text-left text-[11px] transition-colors hover:border-primary/40 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isProcessing || !projectPath}
           onclick={() => handleAlwaysAllow("project")}
-          title={projectPath ?? "Aucun projet courant détecté"}
+          title={projectPath ?? $t("permissions.action_bar.no_current_project_title")}
           data-testid="permission-always-allow-project-btn"
         >
-          <span class="font-semibold text-foreground">Ce projet</span>
+          <span class="font-semibold text-foreground">{$t("permissions.action_bar.project_label")}</span>
           <span class="text-muted-foreground">
             {#if projectPath}
-              Persiste pour ce projet uniquement. Révoquer dans Paramètres.
+              {$t("permissions.action_bar.project_description")}
             {:else}
-              Aucun projet courant - utiliser « Cette session » ou « Partout ».
+              {$t("permissions.action_bar.no_project_hint")}
             {/if}
           </span>
           {#if busy("project")}
-            <span class="text-[10px] text-primary">Application…</span>
+            <span class="text-[10px] text-primary">{$t("permissions.action_bar.applying")}</span>
           {/if}
         </button>
 
@@ -214,12 +214,12 @@
           onclick={() => handleAlwaysAllow("global")}
           data-testid="permission-always-allow-global-btn"
         >
-          <span class="font-semibold text-foreground">Partout</span>
+          <span class="font-semibold text-foreground">{$t("permissions.action_bar.global_label")}</span>
           <span class="text-muted-foreground">
-            S'applique à tous les projets. Révoquer dans Paramètres.
+            {$t("permissions.action_bar.global_description")}
           </span>
           {#if busy("global")}
-            <span class="text-[10px] text-primary">Application…</span>
+            <span class="text-[10px] text-primary">{$t("permissions.action_bar.applying")}</span>
           {/if}
         </button>
       </div>
@@ -230,7 +230,7 @@
         data-testid="permission-open-settings-link"
       >
         <ExternalLink size={11} aria-hidden="true" />
-        Gérer les autorisations dans Paramètres
+        {$t("permissions.action_bar.manage_in_settings")}
       </Button>
     </div>
   {/if}

@@ -132,7 +132,7 @@
       onclick={handleAccept}
       data-testid="approval-accept-{toolName}"
     >
-      Autoriser une fois
+      {$t("approval.action.allow_once")}
     </Button>
     <Button
       variant="ghost"
@@ -142,7 +142,7 @@
       onclick={() => (rejectDialogOpen = true)}
       data-testid="approval-refuse-{toolName}"
     >
-      Refuser
+      {$t("approval.action.refuse")}
     </Button>
     <Button
       variant="ghost"
@@ -153,7 +153,7 @@
       data-testid="approval-always-toggle-{toolName}"
       aria-expanded={scopeOpen}
     >
-      Toujours autoriser
+      {$t("approval.action.always_allow")}
       <ChevronDown
         size={11}
         class="ml-0.5 transition-transform {scopeOpen ? 'rotate-180' : ''}"
@@ -174,9 +174,9 @@
         onclick={() => handleAlwaysAccept("this_session")}
         data-testid="approval-scope-session-{toolName}"
       >
-        <div class="font-medium text-foreground">Pour cette session</div>
+        <div class="font-medium text-foreground">{$t("approval.scope.session_title")}</div>
         <div class="text-[10px] text-muted-foreground">
-          Jusqu'à la fermeture de ce chat.
+          {$t("approval.scope.session_desc")}
         </div>
       </button>
       <button
@@ -186,9 +186,9 @@
         onclick={() => handleAlwaysAccept("this_agent")}
         data-testid="approval-scope-agent-{toolName}"
       >
-        <div class="font-medium text-foreground">Toujours pour cet assistant</div>
+        <div class="font-medium text-foreground">{$t("approval.scope.agent_title")}</div>
         <div class="text-[10px] text-muted-foreground">
-          Apollia Chat (ou l'agent courant) ne demandera plus.
+          {$t("approval.scope.agent_desc_apollia")}
         </div>
       </button>
       <button
@@ -197,13 +197,13 @@
         disabled={isProcessing || !hasProject}
         onclick={() => handleAlwaysAccept("this_project")}
         data-testid="approval-scope-project-{toolName}"
-        title={!hasProject ? "Cette session n'est rattachée à aucun projet." : undefined}
+        title={!hasProject ? $t("approval.scope.project_no_project") : undefined}
       >
-        <div class="font-medium text-foreground">Toujours pour ce projet</div>
+        <div class="font-medium text-foreground">{$t("approval.scope.project_title")}</div>
         <div class="text-[10px] text-muted-foreground">
           {hasProject
-            ? "Tous les assistants utilisés dans ce projet."
-            : "Indisponible - la session n'est rattachée à aucun projet."}
+            ? $t("approval.scope.project_desc")
+            : $t("approval.scope.project_unavailable")}
         </div>
       </button>
       <button
@@ -213,9 +213,9 @@
         onclick={() => handleAlwaysAccept("global")}
         data-testid="approval-scope-global-{toolName}"
       >
-        <div class="font-medium text-foreground">Toujours, partout</div>
+        <div class="font-medium text-foreground">{$t("approval.scope.global_title")}</div>
         <div class="text-[10px] text-warning">
-          Tous les assistants, tous les projets.
+          {$t("approval.scope.global_desc")}
         </div>
       </button>
     </div>

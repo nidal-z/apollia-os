@@ -110,10 +110,8 @@
   }
 </script>
 
-<aside
-  class="flex h-full w-[280px] shrink-0 flex-col border-r border-border/60 bg-surface-1/40"
-  data-testid="namespace-sidebar"
->
+<!-- Shell (width, border, bg) comes from the parent SplitLayout; this is content-only. -->
+<div class="flex h-full flex-col">
   <header class="px-4 pt-4 pb-3 border-b border-border/40 space-y-3">
     <div class="flex items-center gap-2">
       <Layers size={14} class="text-muted-foreground" />
@@ -244,4 +242,4 @@
       {/each}
     {/if}
   </nav>
-</aside>
+</div>

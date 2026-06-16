@@ -25,6 +25,7 @@
     TaskRow,
     ListPanel,
     FilterChipBar,
+    SplitLayout,
     type Task as DSTask,
     type TaskStatus as DSTaskStatus,
   } from "$lib/components/operator";
@@ -78,16 +79,16 @@
 
   const FILTERS: {
     key: FilterKey;
-    label: string;
+    labelKey: string;
     color: string;
     match: (s: TaskSummary["status"]) => boolean;
   }[] = [
-    { key: "all", label: "Toutes", color: "hsl(var(--muted-foreground))", match: () => true },
-    { key: "todo", label: "À faire", color: "hsl(var(--info))", match: (s) => s === "submitted" },
-    { key: "running", label: "En cours", color: "hsl(var(--primary))", match: (s) => s === "working" },
-    { key: "approval", label: "Approbation", color: "hsl(var(--warning))", match: (s) => s === "input_required" },
-    { key: "done", label: "Terminé", color: "hsl(var(--success))", match: (s) => s === "completed" },
-    { key: "error", label: "Erreur", color: "hsl(var(--destructive))", match: (s) => s === "failed" },
+    { key: "all", labelKey: "tasks.filter_all", color: "hsl(var(--muted-foreground))", match: () => true },
+    { key: "todo", labelKey: "tasks.filter_todo", color: "hsl(var(--info))", match: (s) => s === "submitted" },
+    { key: "running", labelKey: "tasks.filter_running", color: "hsl(var(--primary))", match: (s) => s === "working" },
+    { key: "approval", labelKey: "tasks.filter_approval", color: "hsl(var(--warning))", match: (s) => s === "input_required" },
+    { key: "done", labelKey: "tasks.filter_done", color: "hsl(var(--success))", match: (s) => s === "completed" },
+    { key: "error", labelKey: "tasks.filter_error", color: "hsl(var(--destructive))", match: (s) => s === "failed" },
   ];
 
   const counts = $derived.by(() => {
@@ -111,15 +112,15 @@
 
   const headlineTitle = $derived(
     inFlightCount === 0
-      ? "Aucune tâche en cours"
+      ? ($t("tasks.inflight_zero") as string)
       : inFlightCount === 1
-        ? "1 tâche en cours"
-        : `${inFlightCount} tâches en cours`,
+        ? ($t("tasks.inflight_one") as string)
+        : ($t("tasks.inflight_many", { values: { n: inFlightCount } }) as string),
   );
 
   const headlineSubtitle = $derived(
     $uiMode === "operator"
-      ? "Ce que font les agents pour vous, en ce moment et dans les prochaines minutes."
+      ? ($t("tasks.headline_subtitle_operator") as string)
       : ($t("tasks.subtitle") as string),
   );
 
@@ -146,7 +147,7 @@
               : 0;
     return {
       id: task.id,
-      title: task.output_text || task.input_preview || "(sans titre)",
+      title: task.output_text || task.input_preview || ($t("tasks.untitled") as string),
       agent: task.agent_name || task.agent_id,
       status: STATUS_MAP[task.status] ?? "queued",
       progress,
@@ -188,12 +189,12 @@
 
   const detailTabItems = $derived.by(() => {
     const base = [
-      { key: "overview", label: "Aperçu" },
-      { key: "output", label: "Sortie" },
-      { key: "trace", label: "Trace" },
+      { key: "overview", label: $t("tasks.tab_overview") as string },
+      { key: "output", label: $t("tasks.tab_output") as string },
+      { key: "trace", label: $t("tasks.tab_trace") as string },
     ];
     if ($uiMode === "builder") {
-      base.push({ key: "technical", label: "Technique" });
+      base.push({ key: "technical", label: $t("tasks.tab_technical") as string });
     }
     return base;
   });
@@ -213,7 +214,7 @@
   }
 
   function taskShortTitle(task: TaskSummary): string {
-    const raw = task.input_preview || task.output_text || "(sans titre)";
+    const raw = task.input_preview || task.output_text || ($t("tasks.untitled") as string);
     return raw.length > 80 ? raw.slice(0, 80) + "…" : raw;
   }
 
@@ -227,18 +228,18 @@
     <!-- ============ LIST (all tasks, wide table) ============ -->
     <div class="mx-auto w-full max-w-6xl shrink-0">
       <PageHeader
-        kicker="MON TRAVAIL"
+        kicker={$t("tasks.kicker")}
         title={headlineTitle}
         subtitle={headlineSubtitle}
       >
         {#snippet actions()}
           <Button variant="outline" size="sm" onclick={handleRefresh}>
             {#snippet icon()}<RefreshCw size={12} />{/snippet}
-            Actualiser
+            {$t("common.refresh")}
           </Button>
           <Button variant="primary-solid" size="sm" onclick={handleNewTask}>
             {#snippet icon()}<Plus size={12} />{/snippet}
-            Assigner une tâche
+            {$t("tasks.assign_task")}
           </Button>
         {/snippet}
       </PageHeader>
@@ -248,14 +249,14 @@
       <FilterChipBar
         chips={FILTERS.map((f) => ({
           key: f.key,
-          label: f.label,
+          label: $t(f.labelKey),
           color: f.color,
           count: counts[f.key],
           glowWhenActive: f.key === "running",
         }))}
         activeKey={activeFilter}
         onchange={(key) => (activeFilter = key as FilterKey)}
-        aria-label="Filtres de statut"
+        aria-label={$t("tasks.status_filters_aria")}
         testidPrefix="tasks-filter"
         data-testid="tasks-filter-bar"
       />
@@ -264,21 +265,21 @@
         {#if filteredTasks.length === 0}
           <ListPanel data-testid="tasks-empty">
             <EmptyState
-              title={activeFilter === "all" ? "Aucune tâche pour l'instant" : "Aucune tâche dans ce statut"}
+              title={activeFilter === "all" ? $t("tasks.empty_all_title") : $t("tasks.empty_filter_title")}
               desc={activeFilter === "all"
-                ? "Assignez une tâche à un agent pour démarrer la supervision."
-                : "Changez de filtre pour explorer les autres tâches."}
+                ? $t("tasks.empty_all_desc")
+                : $t("tasks.empty_filter_desc")}
             >
               {#snippet icon()}<ListTodo size={22} />{/snippet}
               {#snippet action()}
                 {#if activeFilter === "all"}
                   <Button variant="primary-solid" size="sm" onclick={handleNewTask}>
                     {#snippet icon()}<Plus size={12} />{/snippet}
-                    Assigner une tâche
+                    {$t("tasks.assign_task")}
                   </Button>
                 {:else}
                   <Button variant="outline" size="sm" onclick={() => (activeFilter = "all")}>
-                    Voir toutes les tâches
+                    {$t("tasks.view_all")}
                   </Button>
                 {/if}
               {/snippet}
@@ -288,11 +289,11 @@
           <ListPanel
             data-testid="tasks-table"
             columns={[
-              { label: "Tâche", class: "flex-[2] min-w-0" },
-              { label: "Agent", class: "w-[140px]" },
-              { label: "Progrès", class: "w-[140px]" },
-              { label: "Statut", class: "w-[120px]" },
-              { label: "Démarré", class: "w-[90px] text-right" },
+              { label: $t("tasks.col_task"), class: "flex-[2] min-w-0" },
+              { label: $t("tasks.col_agent"), class: "w-[140px]" },
+              { label: $t("tasks.col_progress"), class: "w-[140px]" },
+              { label: $t("tasks.col_status"), class: "w-[120px]" },
+              { label: $t("tasks.col_started"), class: "w-[90px] text-right" },
             ]}
           >
             {#each filteredTasks as task (task.id)}
@@ -309,29 +310,26 @@
     <!-- ============ SPLIT (detail view, mirror Projets) ============ -->
     {@const cfg = STATUS_BADGE[selectedTask.status] ?? STATUS_BADGE.submitted}
     {@const StatusIcon = cfg.icon}
-    <div class="flex-1 flex min-h-0">
-      <!-- LEFT: task list -->
-      <aside
-        class="w-[280px] shrink-0 border-r border-border flex flex-col bg-background"
-        data-testid="tasks-split-sidebar"
-      >
+    <SplitLayout sidebarTestid="tasks-split-sidebar" detailTestid="task-detail">
+      {#snippet sidebar()}
+        <!-- LEFT: task list -->
         <header class="px-4 pt-4 pb-2.5">
           <div class="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[1.2px] uppercase text-muted-foreground">
-            Tâches · {$tasks.length}
+            {$t("tasks.sidebar_heading")} · {$tasks.length}
           </div>
           <!-- Status filter compact (chips wrap) -->
           <FilterChipBar
             size="compact"
             chips={FILTERS.map((f) => ({
               key: f.key,
-              label: f.label,
+              label: $t(f.labelKey),
               color: f.color,
               count: counts[f.key],
               glowWhenActive: f.key === "running",
             }))}
             activeKey={activeFilter}
             onchange={(key) => (activeFilter = key as FilterKey)}
-            aria-label="Filtres de statut"
+            aria-label={$t("tasks.status_filters_aria")}
             testidPrefix="tasks-split-filter"
           />
         </header>
@@ -380,14 +378,13 @@
         </div>
         <div class="px-3 py-2 border-t border-border">
           <Button variant="outline" size="sm" onclick={backToList} data-testid="tasks-back-to-list">
-            ← Retour
+            ← {$t("common.back")}
           </Button>
         </div>
-      </aside>
+      {/snippet}
 
       <!-- RIGHT: detail -->
-      <section class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background" data-testid="task-detail">
-        <!-- Header -->
+      <!-- Header -->
         <div class="px-8 pt-6 pb-4 border-b border-border/60">
           <div class="flex items-start gap-3.5">
             <Avatar
@@ -432,11 +429,11 @@
             <div class="flex shrink-0 gap-1.5">
               <Button variant="outline" size="sm" onclick={handleRefresh}>
                 {#snippet icon()}<RefreshCw size={12} />{/snippet}
-                Actualiser
+                {$t("common.refresh")}
               </Button>
               <Button variant="primary-solid" size="sm" onclick={handleNewTask}>
                 {#snippet icon()}<Plus size={12} />{/snippet}
-                Assigner une tâche
+                {$t("tasks.assign_task")}
               </Button>
             </div>
           </div>
@@ -508,7 +505,7 @@
                           class="mt-1.5 text-[11px] text-primary hover:underline"
                           onclick={() => (activeTab = "output")}
                         >
-                          Voir la sortie complète →
+                          {$t("tasks.view_full_output")} →
                         </button>
                       {/if}
                     {/if}
@@ -533,7 +530,7 @@
                   <SmartOutput output={selectedTask.output_text} />
                 {/if}
               {:else}
-                <p class="text-[12.5px] text-muted-foreground italic">{$t('common.no_output') || "Aucune sortie pour cette tâche."}</p>
+                <p class="text-[12.5px] text-muted-foreground italic">{$t("tasks.no_output")}</p>
               {/if}
             </div>
           {:else if activeTab === "trace"}
@@ -548,19 +545,19 @@
             <div class="max-w-3xl space-y-3" data-testid="task-technical-tab">
               <Card class="rounded-lg px-4 py-3.5">
                 <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 mb-2">
-                  Identifiants
+                  {$t("tasks.tech_identifiers")}
                 </div>
                 <dl class="space-y-1.5 text-xs">
                   <div class="flex items-baseline gap-3">
-                    <dt class="w-[120px] shrink-0 text-muted-foreground">Task ID</dt>
+                    <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.tech_task_id")}</dt>
                     <dd><code class="text-[11px] font-mono text-foreground/85 break-all">{selectedTask.id}</code></dd>
                   </div>
                   <div class="flex items-baseline gap-3">
-                    <dt class="w-[120px] shrink-0 text-muted-foreground">Agent ID</dt>
+                    <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.tech_agent_id")}</dt>
                     <dd><code class="text-[11px] font-mono text-foreground/85">{selectedTask.agent_id}</code></dd>
                   </div>
                   <div class="flex items-baseline gap-3">
-                    <dt class="w-[120px] shrink-0 text-muted-foreground">Agent name</dt>
+                    <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.tech_agent_name")}</dt>
                     <dd class="text-foreground/85">{selectedTask.agent_name || "-"}</dd>
                   </div>
                 </dl>
@@ -568,20 +565,20 @@
 
               <Card class="rounded-lg px-4 py-3.5">
                 <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 mb-2">
-                  Statut & timing
+                  {$t("tasks.tech_status_timing")}
                 </div>
                 <Separator class="mb-2.5" />
                 <dl class="space-y-1.5 text-xs">
                   <div class="flex items-baseline gap-3">
-                    <dt class="w-[120px] shrink-0 text-muted-foreground">Statut brut</dt>
+                    <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.tech_raw_status")}</dt>
                     <dd><code class="text-[11px] font-mono text-foreground/85">{selectedTask.status}</code></dd>
                   </div>
                   <div class="flex items-baseline gap-3">
-                    <dt class="w-[120px] shrink-0 text-muted-foreground">Créée</dt>
+                    <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.created")}</dt>
                     <dd class="text-foreground/85">{formatDate(selectedTask.created_at)}</dd>
                   </div>
                   <div class="flex items-baseline gap-3">
-                    <dt class="w-[120px] shrink-0 text-muted-foreground">Durée</dt>
+                    <dt class="w-[120px] shrink-0 text-muted-foreground">{$t("tasks.duration")}</dt>
                     <dd class="text-foreground/85 tabular-nums">{formatDurationLong(selectedTask.duration_ms)}</dd>
                   </div>
                 </dl>
@@ -589,8 +586,7 @@
             </div>
           {/if}
         </div>
-      </section>
-    </div>
+    </SplitLayout>
   {/if}
 </div>
 

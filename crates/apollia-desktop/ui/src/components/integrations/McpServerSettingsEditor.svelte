@@ -302,16 +302,16 @@
     const id = launcherHead.findLast?.(looksLikePackageIdentifier);
     if (!id) return null;
     if (id.includes("server-filesystem")) {
-      return "Un chemin absolu par ligne - chaque dossier listé devient accessible en lecture/écriture au serveur (ex. `/Users/moi/Documents`).";
+      return $t("connections.mcp_settings.hint_filesystem");
     }
     if (id.includes("server-git")) {
-      return "Un dépôt par ligne - chemin absolu vers la racine d'un dépôt Git auquel exposer l'historique.";
+      return $t("connections.mcp_settings.hint_git");
     }
     if (id.includes("server-postgres")) {
-      return "URI de connexion PostgreSQL (`postgres://user:pass@host:5432/db`) en premier argument.";
+      return $t("connections.mcp_settings.hint_postgres");
     }
     if (id.includes("server-sqlite")) {
-      return "Chemin absolu vers le fichier `.sqlite` à exposer.";
+      return $t("connections.mcp_settings.hint_sqlite");
     }
     return null;
   });
@@ -320,7 +320,7 @@
 {#if loading}
   <div class="flex items-center gap-2 text-[12.5px] text-muted-foreground" data-testid="mcp-settings-loading">
     <Spinner size={14} />
-    <span>Chargement…</span>
+    <span>{$t("connections.mcp_settings.loading")}</span>
   </div>
 {:else if loadError}
   <Card class="border-destructive/30 bg-destructive/5 p-[14px_16px]">
@@ -333,35 +333,35 @@
       <!-- Launcher (read-only) -->
       <Card class="p-[14px_16px] space-y-2">
         <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-          Lancement
+          {$t("connections.mcp_settings.launch")}
         </div>
         <div class="grid gap-1.5 text-[12px]">
           <div class="flex items-baseline gap-2">
-            <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">Commande</span>
+            <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.command")}</span>
             <span class="font-mono text-foreground truncate" data-testid="mcp-settings-command">{raw.command}</span>
           </div>
           {#if launcherHead.length > 0}
             <div class="flex items-baseline gap-2">
-              <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">Préfixe</span>
+              <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.prefix")}</span>
               <span class="font-mono text-foreground/80 truncate" title={launcherHead.join(" ")}>
                 {launcherHead.join(" ")}
               </span>
             </div>
           {/if}
           <div class="flex items-baseline gap-2">
-            <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">Transport</span>
+            <span class="w-[88px] shrink-0 text-[10.5px] uppercase tracking-wide text-muted-foreground">{$t("connections.mcp_settings.transport")}</span>
             <span class="font-mono text-foreground/80">stdio</span>
           </div>
         </div>
         <p class="text-[10.5px] text-muted-foreground leading-[1.5]">
-          Ces champs ne sont pas éditables ici - ils proviennent du catalogue. Pour pointer ce serveur vers un autre paquet, désinstallez puis réinstallez via le catalogue.
+          {$t("connections.mcp_settings.launch_readonly_note")}
         </p>
       </Card>
 
       <!-- User-editable args -->
       <Card class="p-[14px_16px] space-y-2">
         <label for="mcp-settings-args" class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-          Arguments du serveur
+          {$t("connections.mcp_settings.server_args")}
         </label>
         {#if argsHint}
           <p class="text-[11px] text-muted-foreground leading-[1.5]" data-testid="mcp-settings-args-hint">
@@ -374,13 +374,13 @@
           bind:value={argsTailDraft}
           placeholder={launcherHead.some((a) => a.includes("server-filesystem"))
             ? "/Users/moi/Documents\n/Users/moi/Desktop"
-            : "Un argument par ligne"}
+            : $t("connections.mcp_settings.args_placeholder")}
           class="font-mono text-[12px]"
           data-testid="mcp-settings-args-input"
           disabled={saving}
         />
         <p class="text-[10.5px] text-muted-foreground leading-[1.5]">
-          Un argument par ligne. Sauvegarder redémarre le serveur immédiatement.
+          {$t("connections.mcp_settings.args_note")}
         </p>
       </Card>
     {/if}
@@ -389,7 +389,7 @@
       <!-- Remote endpoint -->
       <Card class="p-[14px_16px] space-y-2">
         <label for="mcp-settings-url" class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-          URL du serveur
+          {$t("connections.mcp_settings.server_url")}
         </label>
         <input
           id="mcp-settings-url"
@@ -401,10 +401,10 @@
           data-testid="mcp-settings-url-input"
         />
         {#if urlInvalid}
-          <p class="text-[11px] text-destructive">L'URL doit commencer par <code>http://</code> ou <code>https://</code>.</p>
+          <p class="text-[11px] text-destructive">{$t("connections.mcp_settings.url_invalid_prefix")} <code>http://</code> {$t("connections.mcp_settings.url_invalid_or")} <code>https://</code>{$t("connections.mcp_settings.url_invalid_suffix")}</p>
         {/if}
         <div class="flex items-baseline gap-2 text-[11.5px] text-muted-foreground">
-          <span class="text-[10.5px] uppercase tracking-wide">Transport</span>
+          <span class="text-[10.5px] uppercase tracking-wide">{$t("connections.mcp_settings.transport")}</span>
           <span class="font-mono">{raw.transport}</span>
         </div>
       </Card>
@@ -463,7 +463,7 @@
       <!-- Plain env vars (non-secret) -->
       <Card class="p-[14px_16px] space-y-2.5">
         <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-          Variables d'environnement
+          {$t("connections.mcp_settings.env_vars")}
         </div>
         {#each plainEnvKeys as key (key)}
           <div class="space-y-1">
@@ -487,10 +487,10 @@
       <!-- Secret env vars (stored in keychain) -->
       <Card class="p-[14px_16px] space-y-2.5">
         <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-          Secrets (trousseau)
+          {$t("connections.mcp_settings.secrets")}
         </div>
         <p class="text-[11px] text-muted-foreground leading-[1.5]">
-          Ces valeurs sont stockées chiffrées dans le trousseau système. Saisir une nouvelle valeur la remplacera ; laisser vide conserve l'actuelle.
+          {$t("connections.mcp_settings.secrets_note")}
         </p>
         {#each secretEnvKeys as key (key)}
           <div class="space-y-1">
@@ -503,7 +503,7 @@
               autocomplete="off"
               bind:value={secretRotateValues[key]}
               class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] font-mono text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              placeholder="Nouvelle valeur (laisser vide pour conserver)"
+              placeholder={$t("connections.mcp_settings.secret_placeholder")}
               disabled={saving}
               data-testid={`mcp-settings-secret-${key}`}
             />
@@ -515,12 +515,12 @@
     <!-- Timeouts -->
     <Card class="p-[14px_16px] space-y-2.5">
       <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-        Délais d'attente
+        {$t("connections.mcp_settings.timeouts")}
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1">
           <label for="mcp-settings-init-timeout" class="text-[11.5px] text-foreground">
-            Connexion initiale (s)
+            {$t("connections.mcp_settings.init_timeout")}
           </label>
           <input
             id="mcp-settings-init-timeout"
@@ -533,12 +533,12 @@
             data-testid="mcp-settings-init-timeout"
           />
           {#if initTimeoutInvalid}
-            <p class="text-[10.5px] text-destructive">Doit être compris entre 1 et 300 secondes.</p>
+            <p class="text-[10.5px] text-destructive">{$t("connections.mcp_settings.init_timeout_range")}</p>
           {/if}
         </div>
         <div class="space-y-1">
           <label for="mcp-settings-call-timeout" class="text-[11.5px] text-foreground">
-            Appel d'outil (s)
+            {$t("connections.mcp_settings.call_timeout")}
           </label>
           <input
             id="mcp-settings-call-timeout"
@@ -551,7 +551,7 @@
             data-testid="mcp-settings-call-timeout"
           />
           {#if callTimeoutInvalid}
-            <p class="text-[10.5px] text-destructive">Doit être compris entre 1 et 600 secondes.</p>
+            <p class="text-[10.5px] text-destructive">{$t("connections.mcp_settings.call_timeout_range")}</p>
           {/if}
         </div>
       </div>
@@ -562,13 +562,13 @@
     {/if}
     {#if saveOk}
       <p class="text-[12px] text-success" data-testid="mcp-settings-save-ok">
-        Paramètres enregistrés. Le serveur a été redémarré.
+        {$t("connections.mcp_settings.save_ok")}
       </p>
     {/if}
 
     <div class="flex justify-end gap-2 pt-1">
       <Button variant="outline" size="sm" onclick={reset} disabled={saving || loading} data-testid="mcp-settings-reset">
-        Réinitialiser
+        {$t("connections.mcp_settings.reset")}
       </Button>
       <Button
         variant="primary-solid"
@@ -579,9 +579,9 @@
       >
         {#if saving}
           <Spinner size={12} class="mr-1.5" />
-          Enregistrement…
+          {$t("connections.mcp_settings.saving")}
         {:else}
-          Enregistrer
+          {$t("connections.mcp_settings.save")}
         {/if}
       </Button>
     </div>
