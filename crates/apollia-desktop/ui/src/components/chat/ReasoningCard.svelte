@@ -25,6 +25,7 @@
     Quote,
     AlertTriangle,
     Wrench,
+    Brain,
   } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import {
@@ -682,29 +683,30 @@
     {/snippet}
   </ReasoningCardShell>
 {:else if item.kind === "thinking" || item.kind === "rationale"}
-  <!-- Thinking/rationale render outside the standard ReasoningCardShell:
-       no border, no icon, no status color - just a quiet collapsible header
-       and a muted text block. Tool cards still use the full chrome. -->
-  <div class="my-1.5" data-testid={testid}>
-    <button
-      type="button"
-      class="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-      aria-expanded={expanded}
-      onclick={toggle}
-    >
-      <span class="inline-block leading-none transition-transform duration-150" class:rotate-90={expanded}>›</span>
-      <span class="font-medium">
-        {item.kind === "thinking"
-          ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
-          : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
-      </span>
-    </button>
-    {#if expanded}
-      <div
-        class="mt-1 pl-3 text-[12px] leading-relaxed text-muted-foreground/85 whitespace-pre-wrap"
-      >{item.content}</div>
-    {/if}
-  </div>
+  <!-- Thinking/rationale share the canonical ReasoningCardShell (primary accent),
+       so reasoning reads as a premium card like every other block. -->
+  <ReasoningCardShell
+    status={item.status}
+    accent="primary"
+    testid={testid}
+    collapsible
+    {expanded}
+    onToggle={toggle}
+    ariaLabel={item.kind === "thinking"
+      ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
+      : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
+    monoTitle={false}
+  >
+    {#snippet icon()}<Brain size={12} class="text-primary" />{/snippet}
+    {#snippet title()}
+      {item.kind === "thinking"
+        ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
+        : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
+    {/snippet}
+    {#snippet body()}
+      <div class="text-[12px] leading-relaxed text-muted-foreground/85 whitespace-pre-wrap">{item.content}</div>
+    {/snippet}
+  </ReasoningCardShell>
 {:else if item.kind === "retry"}
   <ReasoningCardShell
     status={item.status}
