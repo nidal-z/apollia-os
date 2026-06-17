@@ -29,11 +29,11 @@
   import {
     PageHeader,
     SectionTitle,
-    
     StatusDot,
     Card,
     EmptyState,
     InboxRow,
+    ListRow,
     ProjectCard,
     type InboxType,
   } from "$lib/components/operator";
@@ -167,20 +167,31 @@
 
   const headlineTitle = $derived.by(() => {
     if (totalPending > 0) {
-      return `Vous avez ${totalPending} décision${totalPending > 1 ? "s" : ""} en attente.`;
+      const key = totalPending > 1 ? "dashboard.headline_pending_other" : "dashboard.headline_pending_one";
+      return $t(key, { values: { count: totalPending } });
     }
     if (agentsAtWork.length > 0) {
-      return `${agentsAtWork.length} agent${agentsAtWork.length > 1 ? "s sont" : " est"} au travail pour vous.`;
+      const key = agentsAtWork.length > 1 ? "dashboard.headline_agents_other" : "dashboard.headline_agents_one";
+      return $t(key, { values: { count: agentsAtWork.length } });
     }
-    return `${greeting}.`;
+    return $t("dashboard.headline_greeting", { values: { greeting } });
   });
 
   const headlineSubtitle = $derived.by(() => {
     const parts: string[] = [];
-    if (totalPending > 0) parts.push(`${totalPending} décision${totalPending > 1 ? "s" : ""} en attente`);
-    if (agentsAtWork.length > 0) parts.push(`${agentsAtWork.length} agent${agentsAtWork.length > 1 ? "s" : ""} au travail`);
-    if (recentDeliverables.length > 0) parts.push(`${recentDeliverables.length} livrable${recentDeliverables.length > 1 ? "s" : ""} prêt${recentDeliverables.length > 1 ? "s" : ""}`);
-    if (parts.length === 0) return "Tout est calme. Lancez une conversation quand vous êtes prêt.";
+    if (totalPending > 0) {
+      const key = totalPending > 1 ? "dashboard.subtitle_pending_other" : "dashboard.subtitle_pending_one";
+      parts.push($t(key, { values: { count: totalPending } }));
+    }
+    if (agentsAtWork.length > 0) {
+      const key = agentsAtWork.length > 1 ? "dashboard.subtitle_agents_other" : "dashboard.subtitle_agents_one";
+      parts.push($t(key, { values: { count: agentsAtWork.length } }));
+    }
+    if (recentDeliverables.length > 0) {
+      const key = recentDeliverables.length > 1 ? "dashboard.subtitle_deliverables_other" : "dashboard.subtitle_deliverables_one";
+      parts.push($t(key, { values: { count: recentDeliverables.length } }));
+    }
+    if (parts.length === 0) return $t("dashboard.subtitle_calm");
     return parts.join(" · ") + ".";
   });
 
@@ -213,18 +224,18 @@
   data-mode={$uiMode}
 >
     <PageHeader
-      kicker={`TABLEAU DE BORD${todayLabel ? ` · ${todayLabel}` : ""}`}
+      kicker={todayLabel || undefined}
       title={headlineTitle}
       subtitle={headlineSubtitle}
     >
       {#snippet actions()}
         <Button variant="outline" size="sm" onclick={navigateToProjects}>
           {#snippet icon()}<FolderOpen size={13} />{/snippet}
-          Projets
+          {$t("dashboard.header_action_projects")}
         </Button>
         <Button variant="primary-solid" size="sm" onclick={navigateToChat}>
           {#snippet icon()}<MessageSquarePlus size={13} />{/snippet}
-          Nouvelle conversation
+          {$t("dashboard.header_action_new_chat")}
         </Button>
       {/snippet}
     </PageHeader>
@@ -253,7 +264,7 @@
             <div class="px-5 pt-4 pb-3 flex items-baseline justify-between border-b border-border/40">
               <div class="flex items-baseline gap-2">
                 <h3 class="m-0 text-[11px] font-semibold tracking-[1.5px] text-muted-foreground uppercase font-mono">
-                  Décisions en attente
+                  {$t("dashboard.card_pending_title")}
                 </h3>
                 <span class="text-[11px] text-muted-foreground/70 font-mono">{totalPending}</span>
               </div>
@@ -262,17 +273,17 @@
                   type="button"
                   class="text-[11.5px] text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
                   onclick={navigateToInbox}
-                  aria-label="Voir toutes les décisions en attente"
+                  aria-label={$t("dashboard.see_all_pending_aria")}
                 >
-                  Voir tout →
+                  {$t("dashboard.see_all_arrow")}
                 </button>
               {/if}
             </div>
 
             {#if inboxItems.length === 0}
               <EmptyState
-                title="Rien ne vous attend"
-                desc="Vous êtes à jour. Les décisions en attente apparaîtront ici."
+                title={$t("dashboard.pending_empty_title")}
+                desc={$t("dashboard.pending_empty_desc")}
                 tone="success"
               >
                 {#snippet icon()}<FileCheck size={22} />{/snippet}
@@ -289,7 +300,6 @@
                       agent={item.agentName}
                       timestamp={formatRelativeTime(item.suspendedAt)}
                       unread={i === 0}
-                      onclick={navigateToInbox}
                       onAction={navigateToInbox}
                     />
                   </div>
@@ -300,7 +310,12 @@
                     class="px-4 py-2.5 text-[11.5px] text-primary hover:bg-muted/40 transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     onclick={navigateToInbox}
                   >
-                    + {inboxItems.length - PENDING_BLOCK_LIMIT} autre{inboxItems.length - PENDING_BLOCK_LIMIT > 1 ? "s" : ""} dans la boîte de réception →
+                    {$t(
+                      inboxItems.length - PENDING_BLOCK_LIMIT > 1
+                        ? "dashboard.inbox_more_other"
+                        : "dashboard.inbox_more_one",
+                      { values: { count: inboxItems.length - PENDING_BLOCK_LIMIT } },
+                    )}
                   </button>
                 {/if}
               </div>
@@ -313,27 +328,26 @@
           <div class="px-4 pt-3.5 pb-2 flex items-baseline justify-between">
             <div class="flex items-baseline gap-2">
               <h3 class="m-0 text-[11px] font-semibold tracking-[1.5px] text-muted-foreground uppercase font-mono">
-                Livrables prêts
+                {$t("dashboard.card_deliverables_title")}
               </h3>
               <span class="text-[11px] text-muted-foreground/70 font-mono">{recentDeliverables.length}</span>
             </div>
           </div>
           {#if recentDeliverables.length === 0}
             <div class="px-4 pb-4 text-[11.5px] text-muted-foreground/80 leading-[1.5]">
-              Aucun livrable terminé aujourd'hui.
+              {$t("dashboard.deliverables_empty")}
             </div>
           {:else}
             <div class="flex flex-col px-2 pb-2">
               {#each recentDeliverables as tk (tk.id)}
-                <button
-                  type="button"
-                  class="text-left flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-muted/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                <ListRow
+                  variant="nav"
+                  align="center"
                   onclick={navigateToTasks}
-                  aria-label={`Ouvrir la tâche ${tk.agent_name}`}
+                  aria-label={$t("dashboard.open_task_aria", { values: { name: tk.agent_name } })}
                 >
                   <div
-                    class="w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0"
-                    style="background: hsl(var(--success) / 0.10); color: hsl(var(--success));"
+                    class="w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0 bg-success/10 text-success"
                   >
                     <FileCheck size={12} />
                   </div>
@@ -343,7 +357,7 @@
                       {formatRelativeTime(tk.created_at)}
                     </div>
                   </div>
-                </button>
+                </ListRow>
               {/each}
             </div>
           {/if}
@@ -354,27 +368,26 @@
           <div class="px-4 pt-3.5 pb-2 flex items-baseline justify-between">
             <div class="flex items-baseline gap-2">
               <h3 class="m-0 text-[11px] font-semibold tracking-[1.5px] text-muted-foreground uppercase font-mono">
-                Au travail
+                {$t("dashboard.card_agents_title")}
               </h3>
               <span class="text-[11px] text-muted-foreground/70 font-mono">{agentsAtWork.length}</span>
             </div>
           </div>
           {#if agentsAtWork.length === 0}
             <div class="px-4 pb-4 text-[11.5px] text-muted-foreground/80 leading-[1.5]">
-              Aucun agent actif pour l'instant.
+              {$t("dashboard.agents_empty")}
             </div>
           {:else}
             <div class="flex flex-col px-2 pb-2 gap-1">
               {#each agentsAtWork.slice(0, 5) as agent (agent.name)}
-                <button
-                  type="button"
-                  class="text-left flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                <ListRow
+                  variant="nav"
+                  align="center"
                   onclick={() => openDetail(agent)}
-                  aria-label={`Détails de l'agent ${agent.name}`}
+                  aria-label={$t("dashboard.agent_detail_aria", { values: { name: agent.name } })}
                 >
                   <div
-                    class="w-5 h-5 rounded-md inline-flex items-center justify-center shrink-0"
-                    style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));"
+                    class="w-5 h-5 rounded-md inline-flex items-center justify-center shrink-0 bg-gradient-to-br from-primary to-secondary"
                   >
                     <Sparkles size={10} class="text-white" />
                   </div>
@@ -390,7 +403,7 @@
                     color={agent.runtime_status === "active" ? "hsl(var(--primary))" : "hsl(var(--warning))"}
                     glow={agent.runtime_status === "active"}
                   />
-                </button>
+                </ListRow>
               {/each}
               {#if agentsAtWork.length > 5}
                 <Badge size="sm" variant="neutral">+ {agentsAtWork.length - 5}</Badge>
@@ -403,14 +416,14 @@
       <!-- Activité récente strip -->
       <div class="px-8 pt-2">
         <SectionTitle count={recentActivityFeed.length}>
-          Activité récente
+          {$t("dashboard.recent_activity_title")}
           {#snippet action()}
             <button
               type="button"
               class="text-[11.5px] text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
               onclick={navigateToTasks}
             >
-              Tout voir →
+              {$t("dashboard.see_all_short_arrow")}
             </button>
           {/snippet}
         </SectionTitle>
@@ -448,28 +461,28 @@
       <!-- Pinned projects strip (horizontal scroll on overflow) -->
       <div class="pt-4 pb-8">
         <SectionTitle count={pinnedProjects.length}>
-          Projets épinglés
+          {$t("dashboard.pinned_projects_title")}
           {#snippet action()}
             <button
               type="button"
               class="text-[11.5px] text-primary hover:text-primary/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
               onclick={navigateToProjects}
             >
-              Tous les projets →
+              {$t("dashboard.see_all_projects_arrow")}
             </button>
           {/snippet}
         </SectionTitle>
         {#if pinnedProjects.length === 0}
           <div class="px-8">
             <EmptyState
-              title="Pas encore de projet"
-              desc="Créez un projet pour grouper conversations, agents et livrables."
+              title={$t("dashboard.projects_empty_title")}
+              desc={$t("dashboard.projects_empty_desc")}
               tone="info"
             >
               {#snippet icon()}<FolderOpen size={22} />{/snippet}
               {#snippet action()}
                 <Button variant="outline" size="sm" onclick={navigateToProjects}>
-                  Ouvrir Projets
+                  {$t("dashboard.open_projects")}
                 </Button>
               {/snippet}
             </EmptyState>

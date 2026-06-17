@@ -39,6 +39,7 @@
     class?: string;
     children: Snippet;
     "data-testid"?: string;
+    "aria-label"?: string;
   }
 
   let {
@@ -53,6 +54,7 @@
     class: className = "",
     children,
     "data-testid": testid,
+    "aria-label": ariaLabel,
   }: Props = $props();
 
   const isNav = $derived(variant === "nav");
@@ -88,6 +90,7 @@
   onclick={onclick}
   onkeydown={onclick || onkeydown ? handleKeydown : undefined}
   data-testid={testid}
+  aria-label={ariaLabel}
   class={cn(
     "group relative flex gap-2.5 transition-colors",
     padClass,
