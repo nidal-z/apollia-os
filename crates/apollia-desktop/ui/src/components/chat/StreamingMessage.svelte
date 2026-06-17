@@ -74,7 +74,7 @@
           <div
             class="rounded-lg bg-surface-1 border border-border/60 border-l-2 border-l-primary px-3 py-2"
             data-testid="streaming-closed-thinking-{i}"
-            in:fly={{ y: 6, duration: 220 }}
+            in:fly={{ x: -12, duration: 260 }}
           >
             <span class="block text-[10px] font-medium uppercase tracking-wider text-primary/55 mb-1">
               {$t("chat.status.streaming_thought")}

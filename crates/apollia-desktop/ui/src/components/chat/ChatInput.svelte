@@ -403,10 +403,17 @@
   function toggleTrigger(char: "/" | "@"): void {
     const isOpen = char === "/" ? slashPrefix !== null : mentionQuery !== null;
     if (isOpen) {
-      const cursor = textareaEl?.selectionStart ?? value.length;
-      const upto = value.slice(0, cursor);
-      const at = upto.lastIndexOf(char);
-      if (at >= 0) value = value.slice(0, at).trimEnd() + value.slice(cursor);
+      if (char === "/") {
+        // Slash detection is anchored to the start of the input, so close by
+        // stripping the leading slash token (independent of the caret, which
+        // may have reset to 0 when the textarea blurred onto this button).
+        value = value.replace(/^(\s*)\/[^\s\n]*/, "$1");
+      } else {
+        const cursor = textareaEl?.selectionStart ?? value.length;
+        const upto = value.slice(0, cursor);
+        const at = upto.lastIndexOf(char);
+        if (at >= 0) value = value.slice(0, at).trimEnd() + value.slice(cursor);
+      }
     } else {
       const needsSep = value.length > 0 && !/\s$/.test(value);
       value = value + (needsSep ? " " : "") + char;

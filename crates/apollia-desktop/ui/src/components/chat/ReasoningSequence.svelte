@@ -98,7 +98,7 @@
     <!-- Non-pending items rendered via the unified ReasoningCard. Each block
          flies in as it appears, so live reasoning streams in progressively. -->
     {#each visibleItems as item (item.id)}
-      <div in:fly={{ y: 6, duration: 220 }}>
+      <div in:fly={{ x: -12, duration: 260 }}>
         <ReasoningCard {item} {skin} />
       </div>
     {/each}
