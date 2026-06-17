@@ -340,7 +340,10 @@
       return;
     }
     mentionQuery = query;
-    if (mentionIndex >= filteredMentionResources.length) mentionIndex = 0;
+    // Do NOT read `filteredMentionResources` here: it derives from `mentionQuery`,
+    // which this effect writes, so reading it would couple the effect to its own
+    // output and can spin into an update-depth overflow that freezes the app.
+    mentionIndex = 0;
     if (!resourcesLoaded) {
       void loadResources();
     }
@@ -393,31 +396,29 @@
   const toolBtn =
     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed";
 
-  // Bumped after a programmatic insert so the @-mention effect re-reads the
-  // (now end-of-text) cursor instead of its stale pre-insert position.
+  // `cursorTick` is bumped after a programmatic insert so the @-mention effect
+  // re-reads the (now end-of-text) caret. `triggerSuppressed` lets a toolbar
+  // button hide an open menu WITHOUT mutating `value`, so closing can never
+  // touch the reactive cycle (and never freeze the app).
   let cursorTick = $state(0);
+  let triggerSuppressed = $state(false);
 
-  /** Toggle the slash / mention menu from a toolbar button: opening inserts the
-   *  trigger char and focuses; clicking again while its menu is open removes the
-   *  in-progress token and closes it. */
+  /** Toggle the slash / mention menu from a toolbar button. Opening inserts the
+   *  trigger char and focuses; clicking again while its menu is open just hides
+   *  it via the suppression flag. Typing clears the flag (see autoResize). */
   function toggleTrigger(char: "/" | "@"): void {
-    const isOpen = char === "/" ? slashPrefix !== null : mentionQuery !== null;
-    if (isOpen) {
-      if (char === "/") {
-        // Slash detection is anchored to the start of the input, so close by
-        // stripping the leading slash token (independent of the caret, which
-        // may have reset to 0 when the textarea blurred onto this button).
-        value = value.replace(/^(\s*)\/[^\s\n]*/, "$1");
-      } else {
-        const cursor = textareaEl?.selectionStart ?? value.length;
-        const upto = value.slice(0, cursor);
-        const at = upto.lastIndexOf(char);
-        if (at >= 0) value = value.slice(0, at).trimEnd() + value.slice(cursor);
-      }
-    } else {
-      const needsSep = value.length > 0 && !/\s$/.test(value);
-      value = value + (needsSep ? " " : "") + char;
+    const open =
+      char === "/"
+        ? slashPrefix !== null && !triggerSuppressed
+        : mentionQuery !== null && !triggerSuppressed;
+    if (open) {
+      triggerSuppressed = true;
+      textareaEl?.focus();
+      return;
     }
+    triggerSuppressed = false;
+    const needsSep = value.length > 0 && !/\s$/.test(value);
+    value = value + (needsSep ? " " : "") + char;
     queueMicrotask(() => {
       autoResize();
       textareaEl?.focus();
@@ -427,6 +428,8 @@
   }
 
   function autoResize() {
+    // Typing re-enables a menu the user had hidden via its toolbar button.
+    triggerSuppressed = false;
     if (!textareaEl) return;
     textareaEl.style.height = "auto";
     const next = Math.min(
@@ -661,7 +664,7 @@
     ondrop={handleDrop}
     role="presentation"
   >
-    {#if slashPrefix !== null}
+    {#if slashPrefix !== null && !triggerSuppressed}
       <SlashCommandMenu
         commands={slashCommands}
         selectedIndex={slashIndex}
@@ -670,7 +673,7 @@
       />
     {/if}
 
-    {#if mentionQuery !== null}
+    {#if mentionQuery !== null && !triggerSuppressed}
       <MentionResourceMenu
         resources={filteredMentionResources}
         selectedIndex={mentionIndex}
