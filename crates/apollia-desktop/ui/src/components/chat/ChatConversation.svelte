@@ -146,6 +146,20 @@
   let sessionDetail = $state<ChatSessionDetail | null>(null);
   /** Plan-mode state of the active session (drives the header chip + review). */
   let planMode = $state(false);
+
+  // Shared toggle so the header chip and the composer toggle stay in sync.
+  // Optimistic: flip immediately, revert + surface on failure.
+  async function togglePlanMode(): Promise<void> {
+    if (!sessionDetail) return;
+    const next = !planMode;
+    planMode = next;
+    try {
+      await setPlanMode(sessionDetail.id, next);
+    } catch {
+      planMode = !next;
+      addToast($t("chat.planMode.toggleError"), "error");
+    }
+  }
   /** Guards the one-shot inheritance of the global plan-mode default (AC-2). */
   let planDefaultApplied = $state(false);
 
@@ -1226,6 +1240,9 @@
       onsend={handleSend}
       lastUserMessage={lastUserMessageText}
       oncommand={handleSlashCommand}
+      {planMode}
+      onplantoggle={togglePlanMode}
+      planDisabled={sessionStatus === "closed"}
     />
   {/if}
 </div>

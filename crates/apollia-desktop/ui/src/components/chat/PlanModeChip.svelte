@@ -12,7 +12,6 @@
   import { t } from "svelte-i18n";
   import { ListChecks } from "lucide-svelte";
   import { setPlanMode } from "$lib/ipc/planMode";
-  import { uiMode } from "$lib/stores/mode";
   import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
@@ -55,12 +54,10 @@
     : $t("chat.planMode.toggle.off")}
   data-active={planMode}
   data-testid="chat-plan-mode-chip"
-  class="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 {planMode
-    ? 'border-primary/40 bg-primary/15 text-primary'
-    : 'border-border bg-muted/40 text-muted-foreground/70 hover:text-foreground hover:bg-muted/60'}"
+  class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 {planMode
+    ? 'border-primary/40 bg-primary/12 text-primary'
+    : 'border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'}"
 >
-  <ListChecks size={10} class="shrink-0" aria-hidden="true" />
-  {#if $uiMode === "builder"}
-    <span class="truncate">{$t("chat.planMode.chipLabel")}</span>
-  {/if}
+  <ListChecks size={12} class="shrink-0" aria-hidden="true" />
+  <span class="truncate">{$t("chat.planMode.chipLabel")}</span>
 </button>

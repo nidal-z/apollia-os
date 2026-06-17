@@ -38,6 +38,7 @@
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import { contextDrawerOpen } from "$lib/stores/chatLayout";
 
   interface Props {
     session: ChatSessionDetail | null;
@@ -298,13 +299,24 @@
     </div>
 
     <!-- Action cluster -->
-    <div class="flex items-center gap-0.5 shrink-0" data-chat-header-menu-root>
+    <div class="flex items-center gap-1 shrink-0" data-chat-header-menu-root>
+      {#if session}
+        <PlanModeChip
+          sessionId={session.id}
+          {planMode}
+          disabled={sessionStatus === "closed"}
+          onchange={onplanmodechange}
+        />
+      {/if}
       {#if oncontextopen}
         <button
           type="button"
           onclick={oncontextopen}
-          class="lg:hidden h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
+          class="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors {$contextDrawerOpen
+            ? 'bg-primary/12 text-primary'
+            : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted/40'}"
           aria-label={$t("plan_session.tab_journal")}
+          aria-pressed={$contextDrawerOpen}
           data-testid="chat-open-context-button"
         >
           <PanelRight size={14} />
@@ -471,14 +483,6 @@
       <span class="h-1.5 w-1.5 rounded-full bg-primary/60" aria-hidden="true"></span>
       <span class="truncate">{modeLabel}</span>
     </span>
-    {#if session}
-      <PlanModeChip
-        sessionId={session.id}
-        {planMode}
-        disabled={sessionStatus === "closed"}
-        onchange={onplanmodechange}
-      />
-    {/if}
     <span class="inline-flex items-center gap-1" data-testid="chat-header-meta-messages">
       <MessageSquare size={10} class="shrink-0" />
       <span>{$t("chat.message_count", { values: { n: messageCount } })}</span>

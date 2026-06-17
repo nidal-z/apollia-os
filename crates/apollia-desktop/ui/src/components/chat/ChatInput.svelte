@@ -13,7 +13,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { t } from "svelte-i18n";
-  import { Send, Paperclip, Mic, MicOff, Slash, AtSign } from "lucide-svelte";
+  import { Send, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { tourPrefill } from "$lib/stores/tour";
@@ -60,6 +60,12 @@
      * without coupling to input internals).
      */
     editLastTrigger?: number;
+    /** Current plan-mode state of the session (drives the composer toggle). */
+    planMode?: boolean;
+    /** When provided, renders a labeled Plan toggle in the toolbar. */
+    onplantoggle?: () => void;
+    /** Disables the Plan toggle (e.g. closed session). */
+    planDisabled?: boolean;
   }
 
   let {
@@ -69,6 +75,9 @@
     lastUserMessage = null,
     oncommand,
     editLastTrigger = 0,
+    planMode = false,
+    onplantoggle,
+    planDisabled = false,
   }: Props = $props();
 
   const DEFAULT_SUGGESTION_KEYS = [
@@ -686,6 +695,23 @@
 
     <!-- Action toolbar: secondary actions left, send anchored right. -->
     <div class="flex items-center gap-0.5 border-t border-border/40 px-2 py-1.5">
+      {#if onplantoggle}
+        <button
+          type="button"
+          onclick={onplantoggle}
+          disabled={disabled || planDisabled}
+          aria-pressed={planMode}
+          class="mr-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 {planMode
+            ? 'border-primary/40 bg-primary/12 text-primary'
+            : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'}"
+          aria-label={$t("chat.planMode.chipLabel")}
+          title={$t("chat.planMode.chipLabel")}
+          data-testid="composer-plan-toggle"
+        >
+          <ListChecks size={12} class="shrink-0" />
+          {$t("chat.planMode.chipLabel")}
+        </button>
+      {/if}
       <Button variant="ghost" size="sm"
         type="button"
         onclick={handlePaperclip}

@@ -600,10 +600,13 @@
     {/if}
   </main>
 
-  <!-- ── Right rail: live journal / plan DAG ────────────────────────────── -->
+  <!-- ── Inspector (on-demand): live journal / plan. Closed by default at every
+       width so the conversation stays the hero; opens inline (docked) at lg and
+       as an overlay drawer below lg. ───────────────────────────────────────── -->
+  {#if $contextDrawerOpen || !panesInline}
   <aside
     class="flex h-full flex-col border-l border-border bg-card {panesInline
-      ? 'w-[320px] shrink-0'
+      ? 'w-[380px] shrink-0'
       : 'absolute inset-y-0 right-0 z-40 w-[320px] max-w-[85%] shadow-elev-3 transition-transform duration-200 ' +
         ($contextDrawerOpen ? 'translate-x-0' : 'translate-x-full')}"
     aria-label={railTab === "plan" ? $t("plan_session.tab_plan") : "Journal"}
@@ -679,4 +682,5 @@
     {/if}
 
   </aside>
+  {/if}
 </div>
