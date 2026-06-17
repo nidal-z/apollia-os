@@ -2082,6 +2082,8 @@
     "delete_confirm_yes": "Delete",
     "delete_error": "Failed to delete channel: {message}",
     "global_events_title": "Global events",
+    "scope_title": "Notification scope",
+    "scope_desc": "Only events enabled here can trigger a notification. Each channel can then narrow down to a subset.",
     "global_events_desc": "Select which events trigger notifications across all channels.",
     "global_events_save": "Save",
     "global_events_saving": "Saving...",

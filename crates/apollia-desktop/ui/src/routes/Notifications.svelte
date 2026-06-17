@@ -140,7 +140,7 @@
 
       <!-- Channels section -->
       <section>
-        <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.channels_title')}</h2>
+        <h2 class="mb-3 text-[13px] font-medium text-foreground">{$t('notifications.channels_title')}</h2>
         {#if channels.length === 0}
           <EmptyState
             icon={EMPTY_STATES.notifications.icon}

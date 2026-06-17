@@ -2082,6 +2082,8 @@
     "delete_confirm_yes": "Supprimer",
     "delete_error": "Échec de la suppression : {message}",
     "global_events_title": "Événements globaux",
+    "scope_title": "Portée des notifications",
+    "scope_desc": "Seuls les événements activés ici peuvent déclencher une notification. Chaque canal peut ensuite se restreindre à un sous-ensemble.",
     "global_events_desc": "Sélectionnez les événements qui déclenchent des notifications sur tous les canaux.",
     "global_events_save": "Enregistrer",
     "global_events_saving": "Enregistrement...",
