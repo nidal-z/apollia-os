@@ -6,6 +6,29 @@ Generated as a code-faithful mirror. Source paths are relative to `crates/apolli
 
 Open a node directly: append `?node-id=<NODE>` to the file URL (hyphen form, e.g. `node-id=23-2`).
 
+## Page architecture (reorganised 2026-06-17)
+
+Yumni-inspired structure, in panel order:
+
+```
+📕 Cover
+🎨 Foundations          Socles: Couleur & États (259:2), Typo & Densité (260:2),
+                        Espacement/Rayon/Élévation (261:2)
+🧩 Primitives           lib/components/ui (component sets)
+——— FEATURES ———
+🧱 Features · Chat & Plan / Inbox-Tasks-Agents / Memory-Connections-Settings /
+   Observability & Audit / Layout & Common
+——— PAGES ———
+📄 Pages                route templates at the canonical wide size (ex-"Templates")
+——— DESIGN WORK ———
+📐 Refonte / Proposals  Figma-first workspace: C4 flat thread (250:2),
+                        C5 composer (254:2), and upcoming refonte mockups
+🔍 Audit                Coverage & Source Map + Findings UX · Vague 1 (262:2)
+```
+
+The 📐 Refonte / Proposals page is where new UX/UI refontes are designed and
+validated before implementation (Figma-first).
+
 ## Primitives (lib/components/ui)
 
 | Figma component | node-id | Source |
@@ -132,7 +155,7 @@ Open a node directly: append `?node-id=<NODE>` to the file URL (hyphen form, e.g
 | PageHeader | 238:2 | lib/components/operator/PageHeader.svelte | `kicker` (optional) + title + subtitle + `actions` (1-N buttons). Replaces the single-action PageHeader. |
 | DetailHeader | 238:12 | lib/components/operator/DetailHeader.svelte (new) | `leading` (icon/avatar) + title + `badge` + meta + `actions`. Unifies the per-screen detail headers (Connections/Projects/Agents/Tasks-split/Memory). |
 
-Étape-3 proposal frames (Templates page, "Proposals · Chantier 1"): Memory
+Étape-3 proposal frames (📄 Pages page, "Proposals · Chantier 1"): Memory
 (`233:1962`, split → breadcrumb + DetailHeader) and Tasks (`235:2099`, mono →
 PageHeader without kicker + 2 actions).
 
@@ -184,7 +207,7 @@ page (`1:3`) as token-bound library showcases.
 Figma sync: the Chat template center pane (`218:1732`, inside `85:183`) was
 rebuilt as a flat thread (user block, transparent assistant, approval card with
 warning accent). The validated direction lives in the proposal frame
-`250:2` on the Primitives page.
+`250:2` on the 📐 Refonte / Proposals page.
 
 ## Chantier 5 — composer action bar (étape 4, 2026-06-17)
 
@@ -202,7 +225,7 @@ warning accent). The validated direction lives in the proposal frame
 
 Figma sync: the Chat template composer (`218:1749`, inside `85:183`) was rebuilt
 as the bordered input card with the action toolbar. Reference proposal frame:
-`254:2` on the Primitives page.
+`254:2` on the 📐 Refonte / Proposals page.
 
 ## Chantier 6 — responsive shells (étape 4, 2026-06-17)
 
@@ -218,7 +241,7 @@ as the bordered input card with the action toolbar. Reference proposal frame:
 | Wide tables / charts | MemoryTable, LlmStats, NotificationLog, AuditTrailTable, LlmCostChart | Scroll inside their pane (`overflow-x-auto`) instead of overflowing the page. |
 | Topbar search | lib/components/app/Topbar.svelte | Shrinks below lg (`max-w` responsive) so the right-side actions keep room. |
 
-Figma sync: none required. Templates stay at the canonical wide size and mirror
+Figma sync: none required. Pages stay at the canonical wide size and mirror
 the lg+ inline layout.
 
 ## Topbar breadcrumb (synced to code 2026-06-16)
@@ -232,7 +255,7 @@ the lg+ inline layout.
 |---|---|---|---|
 | BreadcrumbRouteIcon | 157:61 | lib/components/layout/OperatorBreadcrumb.svelte (route icon) | Per-route lucide glyph (primary) for the Topbar breadcrumb; `Route` variant matches `routeMeta` (dashboard..automations). Glyphs reused from AppSidebar, bound to `brand/primary`. |
 
-## Route templates (📐 Templates page)
+## Route templates (📄 Pages page)
 
 | Route | Source |
 |---|---|
@@ -351,7 +374,7 @@ content panes. Templates use sample data; selection tints rely on paint opacity
 (see Dark gotcha #3). Pre-refacto feature components (TaskRow, MemoryEntryRow,
 InboxRow) keep their FR sample text.
 
-## Tokens (🎨 Tokens page)
+## Foundations (🎨 Foundations page)
 
 | Figma | Source |
 |---|---|
