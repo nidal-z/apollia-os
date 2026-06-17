@@ -16,6 +16,7 @@
   import { uiMode } from "$lib/stores/mode";
   import { planModeDefault } from "$lib/stores/planModeSetting";
   import { setPlanMode } from "$lib/ipc/planMode";
+  import { contextDrawerOpen } from "$lib/stores/chatLayout";
   import type {
     ChatSessionDetail,
     ChatMessageView,
@@ -1018,7 +1019,9 @@
     <div
       bind:this={messagesContainer}
       onscroll={handleScroll}
-      class="h-full overflow-y-auto px-4 py-5 space-y-5 [&>*]:mx-auto [&>*]:w-full [&>*]:max-w-[680px]"
+      class="h-full overflow-y-auto px-4 py-5 space-y-5 [&>*]:mx-auto [&>*]:w-full {$contextDrawerOpen
+        ? '[&>*]:max-w-[680px]'
+        : '[&>*]:max-w-[860px]'}"
       data-testid="chat-messages-list"
     >
       {#if (messages ?? []).length === 0 && !isStreaming && !isProcessing}

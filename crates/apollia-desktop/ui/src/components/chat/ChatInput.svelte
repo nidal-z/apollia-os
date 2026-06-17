@@ -44,7 +44,6 @@
   import PinnedResourceChip from "./PinnedResourceChip.svelte";
   import AttachmentChip from "./AttachmentChip.svelte";
   import InputHints from "./InputHints.svelte";
-  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     disabled: boolean;
@@ -330,8 +329,9 @@
 
   $effect(() => {
     // React to value changes for @-mention detection. The cursor position is
-    // read from the live textarea (not a reactive dep), so we re-read it each
-    // time `value` changes.
+    // read from the live textarea (not a reactive dep); `cursorTick` is bumped
+    // after a programmatic insert so detection re-runs once the caret has moved.
+    cursorTick;
     const cursor = textareaEl?.selectionStart ?? value.length;
     const query = detectMentionQuery(value, cursor);
     if (query === null) {
@@ -393,15 +393,29 @@
   const toolBtn =
     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed";
 
-  /** Insert a "/" or "@" trigger and focus so the matching menu opens. The
-   *  slash / mention effects react to `value`, so appending the char is enough. */
-  function insertTrigger(char: "/" | "@"): void {
-    const needsSep = value.length > 0 && !/\s$/.test(value);
-    value = value + (needsSep ? " " : "") + char;
+  // Bumped after a programmatic insert so the @-mention effect re-reads the
+  // (now end-of-text) cursor instead of its stale pre-insert position.
+  let cursorTick = $state(0);
+
+  /** Toggle the slash / mention menu from a toolbar button: opening inserts the
+   *  trigger char and focuses; clicking again while its menu is open removes the
+   *  in-progress token and closes it. */
+  function toggleTrigger(char: "/" | "@"): void {
+    const isOpen = char === "/" ? slashPrefix !== null : mentionQuery !== null;
+    if (isOpen) {
+      const cursor = textareaEl?.selectionStart ?? value.length;
+      const upto = value.slice(0, cursor);
+      const at = upto.lastIndexOf(char);
+      if (at >= 0) value = value.slice(0, at).trimEnd() + value.slice(cursor);
+    } else {
+      const needsSep = value.length > 0 && !/\s$/.test(value);
+      value = value + (needsSep ? " " : "") + char;
+    }
     queueMicrotask(() => {
       autoResize();
       textareaEl?.focus();
       textareaEl?.setSelectionRange(value.length, value.length);
+      cursorTick++;
     });
   }
 
@@ -712,16 +726,17 @@
           {$t("chat.planMode.chipLabel")}
         </button>
       {/if}
-      <Button variant="ghost" size="sm"
+      <button
         type="button"
         onclick={handlePaperclip}
-        disabled={disabled}
+        {disabled}
         class={toolBtn}
         aria-label={$t("chat.attachments.add")}
+        title={$t("chat.attachments.add")}
         data-testid="chat-attach-button"
       >
         <Paperclip size={16} />
-      </Button>
+      </button>
       <button
         type="button"
         onclick={toggleMic}
@@ -739,7 +754,7 @@
       </button>
       <button
         type="button"
-        onclick={() => insertTrigger("/")}
+        onclick={() => toggleTrigger("/")}
         {disabled}
         class={toolBtn}
         aria-label={$t("chat.slash_commands")}
@@ -750,7 +765,7 @@
       </button>
       <button
         type="button"
-        onclick={() => insertTrigger("@")}
+        onclick={() => toggleTrigger("@")}
         {disabled}
         class={toolBtn}
         aria-label={$t("chat.mention_resources")}

@@ -16,7 +16,7 @@
   import OperatorApprovalCard from "./OperatorApprovalCard.svelte";
   import { ChevronDown, ChevronRight } from "lucide-svelte";
   import { t } from "svelte-i18n";
-  import { slide } from "svelte/transition";
+  import { slide, fly } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
@@ -95,9 +95,12 @@
 
 {#if items.length > 0 || pendingCalls.length > 0}
   <div class="mt-2 space-y-1.5" data-testid="reasoning-sequence">
-    <!-- Non-pending items rendered via the unified ReasoningCard -->
+    <!-- Non-pending items rendered via the unified ReasoningCard. Each block
+         flies in as it appears, so live reasoning streams in progressively. -->
     {#each visibleItems as item (item.id)}
-      <ReasoningCard {item} {skin} />
+      <div in:fly={{ y: 6, duration: 220 }}>
+        <ReasoningCard {item} {skin} />
+      </div>
     {/each}
 
     <!-- Pagination: show +30 at a time, then collapse back to initial view. -->
