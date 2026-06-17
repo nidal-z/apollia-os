@@ -11,7 +11,7 @@
   - Re-render isolation - parent passes props, input state stays local.
 -->
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount, untrack, tick } from "svelte";
   import { t } from "svelte-i18n";
   import { Send, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
@@ -329,9 +329,8 @@
 
   $effect(() => {
     // React to value changes for @-mention detection. The cursor position is
-    // read from the live textarea (not a reactive dep); `cursorTick` is bumped
-    // after a programmatic insert so detection re-runs once the caret has moved.
-    cursorTick;
+    // read from the live textarea (not a reactive dep), so we re-read it each
+    // time `value` changes.
     const cursor = textareaEl?.selectionStart ?? value.length;
     const query = detectMentionQuery(value, cursor);
     if (query === null) {
@@ -396,51 +395,24 @@
   const toolBtn =
     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed";
 
-  // `cursorTick` is bumped after a programmatic insert so the @-mention effect
-  // re-reads the (now end-of-text) caret. `triggerSuppressed` lets a toolbar
-  // button hide an open menu WITHOUT mutating `value`, so closing can never
-  // touch the reactive cycle (and never freeze the app).
-  let cursorTick = $state(0);
-  let triggerSuppressed = $state(false);
-  let inputCardEl = $state<HTMLDivElement | undefined>(undefined);
-
-  // Close an open slash / mention menu when the user clicks anywhere outside the
-  // composer. The listener only exists while a menu could be showing.
-  $effect(() => {
-    if (slashPrefix === null && mentionQuery === null) return;
-    function onDocMouseDown(e: MouseEvent): void {
-      if (inputCardEl && !inputCardEl.contains(e.target as Node)) {
-        triggerSuppressed = true;
-      }
-    }
-    document.addEventListener("mousedown", onDocMouseDown, true);
-    return () => document.removeEventListener("mousedown", onDocMouseDown, true);
-  });
-
-  /** Toggle the slash / mention menu from a toolbar button. If its trigger is
-   *  already in the text, just flip visibility (no re-insertion); otherwise
-   *  insert the trigger char and focus. Typing clears the flag (see autoResize). */
-  function toggleTrigger(char: "/" | "@"): void {
-    const present = char === "/" ? slashPrefix !== null : mentionQuery !== null;
-    if (present) {
-      triggerSuppressed = !triggerSuppressed;
-      textareaEl?.focus();
-      return;
-    }
-    triggerSuppressed = false;
+  /** Insert a "/" or "@" trigger and focus so the matching menu opens. After the
+   *  DOM settles (tick) the caret is at the end; for "@" the value-based detection
+   *  ran with a stale caret, so we open the mention menu directly. No reactive
+   *  plumbing here, so this can never feed an effect loop. */
+  async function insertTrigger(char: "/" | "@"): Promise<void> {
     const needsSep = value.length > 0 && !/\s$/.test(value);
     value = value + (needsSep ? " " : "") + char;
-    queueMicrotask(() => {
-      autoResize();
-      textareaEl?.focus();
-      textareaEl?.setSelectionRange(value.length, value.length);
-      cursorTick++;
-    });
+    await tick();
+    autoResize();
+    textareaEl?.focus();
+    textareaEl?.setSelectionRange(value.length, value.length);
+    if (char === "@") {
+      mentionQuery = "";
+      if (!resourcesLoaded) void loadResources();
+    }
   }
 
   function autoResize() {
-    // Typing re-enables a menu the user had hidden via its toolbar button.
-    triggerSuppressed = false;
     if (!textareaEl) return;
     textareaEl.style.height = "auto";
     const next = Math.min(
@@ -667,7 +639,6 @@
   />
 
   <div
-    bind:this={inputCardEl}
     class="relative flex flex-col rounded-xl border bg-surface-1 transition-colors {focused ? 'border-primary/60' : 'border-border/60'}"
     class:ring-2={dragOver}
     class:ring-primary={dragOver}
@@ -676,7 +647,7 @@
     ondrop={handleDrop}
     role="presentation"
   >
-    {#if slashPrefix !== null && !triggerSuppressed}
+    {#if slashPrefix !== null}
       <SlashCommandMenu
         commands={slashCommands}
         selectedIndex={slashIndex}
@@ -685,7 +656,7 @@
       />
     {/if}
 
-    {#if mentionQuery !== null && !triggerSuppressed}
+    {#if mentionQuery !== null}
       <MentionResourceMenu
         resources={filteredMentionResources}
         selectedIndex={mentionIndex}
@@ -776,7 +747,7 @@
       </button>
       <button
         type="button"
-        onclick={() => toggleTrigger("/")}
+        onclick={() => insertTrigger("/")}
         {disabled}
         class={toolBtn}
         aria-label={$t("chat.slash_commands")}
@@ -787,7 +758,7 @@
       </button>
       <button
         type="button"
-        onclick={() => toggleTrigger("@")}
+        onclick={() => insertTrigger("@")}
         {disabled}
         class={toolBtn}
         aria-label={$t("chat.mention_resources")}
