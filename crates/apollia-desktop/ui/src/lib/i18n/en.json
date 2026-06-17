@@ -3682,6 +3682,13 @@
       }
     },
     "no_sessions": "No conversations",
+    "no_results": "No results",
+    "search_placeholder": "Search…",
+    "select_or_start": "Select a conversation on the left or start a new one.",
+    "journal_mode_operator": "Operator",
+    "journal_mode_builder": "Builder",
+    "journal_empty": "Live agent activity.",
+    "conversations_aria": "Conversations",
     "close_confirm": "Close this session?",
     "context_loaded": "Context loaded",
     "context_injected_builder": "User memory injected ({count} entries)",

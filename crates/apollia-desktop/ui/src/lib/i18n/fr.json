@@ -3682,6 +3682,13 @@
       }
     },
     "no_sessions": "Aucune conversation",
+    "no_results": "Aucun résultat",
+    "search_placeholder": "Rechercher…",
+    "select_or_start": "Sélectionnez une conversation à gauche ou démarrez-en une nouvelle.",
+    "journal_mode_operator": "Opérateur",
+    "journal_mode_builder": "Builder",
+    "journal_empty": "Activité de l'agent en direct.",
+    "conversations_aria": "Conversations",
     "close_confirm": "Clôturer cette session ?",
     "context_loaded": "Contexte chargé",
     "context_injected_builder": "Mémoire utilisateur injectée ({count} entrées)",

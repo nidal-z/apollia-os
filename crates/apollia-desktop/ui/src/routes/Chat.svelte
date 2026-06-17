@@ -463,13 +463,12 @@
       ? 'w-[280px] shrink-0'
       : 'absolute inset-y-0 left-0 z-40 w-[280px] max-w-[85%] shadow-elev-3 transition-transform duration-200 ' +
         ($sessionsDrawerOpen ? 'translate-x-0' : '-translate-x-full')}"
-    aria-label="Conversations"
+    aria-label={$t("chat.conversations_aria")}
     aria-hidden={!panesInline && !$sessionsDrawerOpen}
   >
     <div class="px-3.5 pt-4 pb-2">
       <h2
-        class="mb-3 text-foreground"
-        style="font-size: 16px; font-weight: 600; letter-spacing: -0.2px;"
+        class="mb-3 text-[16px] font-semibold tracking-[-0.2px] text-foreground"
         data-testid="chat-header"
       >
         {$t("chat.title")}
@@ -483,7 +482,7 @@
         <Input
           type="search"
           bind:value={sessionSearchQuery}
-          placeholder="Rechercher…"
+          placeholder={$t("chat.search_placeholder")}
           data-testid="session-search-input"
           class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
          />
@@ -491,7 +490,7 @@
 
       <Button variant="primary-solid" size="sm" onclick={() => openNewChatPicker()}>
         {#snippet icon()}<Plus size={12} />{/snippet}
-        Nouvelle conversation
+        {$t("chat.new_chat")}
       </Button>
     </div>
 
@@ -509,9 +508,9 @@
       {:else if filteredSessions.length === 0}
         <div class="px-4 py-6 text-center text-[11px] text-muted-foreground">
           {#if sessionSearchQuery.trim()}
-            Aucun résultat
+            {$t("chat.no_results")}
           {:else}
-            Aucune conversation
+            {$t("chat.no_sessions")}
           {/if}
         </div>
       {:else}
@@ -581,13 +580,12 @@
       <div class="flex flex-1 items-center justify-center px-6 py-10">
         <div class="max-w-sm text-center">
           <h3
-            class="mb-3 text-foreground"
-            style="font-size: 20px; font-weight: 600; letter-spacing: -0.3px;"
+            class="mb-3 text-[20px] font-semibold tracking-[-0.3px] text-foreground"
           >
             {$t("chat.subtitle")}
           </h3>
           <p class="mb-5 text-[12.5px] text-muted-foreground">
-            Sélectionnez une conversation à gauche ou démarrez-en une nouvelle.
+            {$t("chat.select_or_start")}
           </p>
           <div class="inline-flex">
             <Button variant="primary-solid" size="sm" onclick={() => openNewChatPicker()}>
@@ -609,7 +607,7 @@
       ? 'w-[380px] shrink-0'
       : 'absolute inset-y-0 right-0 z-40 w-[320px] max-w-[85%] shadow-elev-3 transition-transform duration-200 ' +
         ($contextDrawerOpen ? 'translate-x-0' : 'translate-x-full')}"
-    aria-label={railTab === "plan" ? $t("plan_session.tab_plan") : "Journal"}
+    aria-label={railTab === "plan" ? $t("plan_session.tab_plan") : $t("plan_session.tab_journal")}
     aria-hidden={!panesInline && !$contextDrawerOpen}
   >
     <div class="flex items-center justify-between border-b border-border px-4 py-3">
@@ -646,7 +644,7 @@
               : 'text-muted-foreground hover:text-foreground'}"
             onclick={() => (journalMode = "operator")}
           >
-            Opérateur
+            {$t("chat.journal_mode_operator")}
           </button>
           <button
             type="button"
@@ -655,7 +653,7 @@
               : 'text-muted-foreground hover:text-foreground'}"
             onclick={() => (journalMode = "builder")}
           >
-            Builder
+            {$t("chat.journal_mode_builder")}
           </button>
         </div>
       {/if}
@@ -673,7 +671,7 @@
           <div
             class="rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-[11px] text-muted-foreground"
           >
-            Activité de l'agent en direct.
+            {$t("chat.journal_empty")}
           </div>
         {:else}
           <Journal events={journalEvents} mode={journalMode} />
