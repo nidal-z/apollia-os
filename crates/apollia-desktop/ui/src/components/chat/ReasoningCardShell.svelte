@@ -13,6 +13,7 @@
 
   import type { Snippet } from "svelte";
   import type { ReasoningStatus } from "$lib/chat/reasoning";
+  import { ChevronRight } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
 
   /**
@@ -139,6 +140,10 @@
           {@render meta()}
         </span>
       {/if}
+      <ChevronRight
+        size={12}
+        class="flex-shrink-0 text-muted-foreground/50 transition-transform duration-150 {meta ? '' : 'ml-auto'} {expanded ? 'rotate-90' : ''}"
+      />
     </Button>
   {:else}
     <div class="flex items-center gap-1.5">

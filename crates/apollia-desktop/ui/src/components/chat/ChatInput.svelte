@@ -402,17 +402,28 @@
   // touch the reactive cycle (and never freeze the app).
   let cursorTick = $state(0);
   let triggerSuppressed = $state(false);
+  let inputCardEl = $state<HTMLDivElement | undefined>(undefined);
 
-  /** Toggle the slash / mention menu from a toolbar button. Opening inserts the
-   *  trigger char and focuses; clicking again while its menu is open just hides
-   *  it via the suppression flag. Typing clears the flag (see autoResize). */
+  // Close an open slash / mention menu when the user clicks anywhere outside the
+  // composer. The listener only exists while a menu could be showing.
+  $effect(() => {
+    if (slashPrefix === null && mentionQuery === null) return;
+    function onDocMouseDown(e: MouseEvent): void {
+      if (inputCardEl && !inputCardEl.contains(e.target as Node)) {
+        triggerSuppressed = true;
+      }
+    }
+    document.addEventListener("mousedown", onDocMouseDown, true);
+    return () => document.removeEventListener("mousedown", onDocMouseDown, true);
+  });
+
+  /** Toggle the slash / mention menu from a toolbar button. If its trigger is
+   *  already in the text, just flip visibility (no re-insertion); otherwise
+   *  insert the trigger char and focus. Typing clears the flag (see autoResize). */
   function toggleTrigger(char: "/" | "@"): void {
-    const open =
-      char === "/"
-        ? slashPrefix !== null && !triggerSuppressed
-        : mentionQuery !== null && !triggerSuppressed;
-    if (open) {
-      triggerSuppressed = true;
+    const present = char === "/" ? slashPrefix !== null : mentionQuery !== null;
+    if (present) {
+      triggerSuppressed = !triggerSuppressed;
       textareaEl?.focus();
       return;
     }
@@ -656,6 +667,7 @@
   />
 
   <div
+    bind:this={inputCardEl}
     class="relative flex flex-col rounded-xl border bg-surface-1 transition-colors {focused ? 'border-primary/60' : 'border-border/60'}"
     class:ring-2={dragOver}
     class:ring-primary={dragOver}
