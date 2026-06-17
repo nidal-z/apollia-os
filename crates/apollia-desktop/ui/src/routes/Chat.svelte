@@ -17,6 +17,7 @@
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
+  import ChatConfigPanelBody from "../components/chat/ChatConfigPanelBody.svelte";
   import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import {
     decoratedSessions,
@@ -63,7 +64,15 @@
   let showShortcutsHelp = $state(false);
   let sessionSearchQuery = $state("");
   let journalMode = $state<JournalMode>("operator");
-  let railTab = $state<"journal" | "plan">("journal");
+  let railTab = $state<"journal" | "plan" | "config">("journal");
+
+  // Open the inspector on the Config tab (from a row "..." action or the header
+  // gear). The config panel reads the active session via `currentSession`.
+  function openConfig(sessionId?: string): void {
+    if (sessionId && sessionId !== selectedSessionId) navigateToSession(sessionId);
+    railTab = "config";
+    contextDrawerOpen.set(true);
+  }
 
   // Responsive shell: both side panes are inline columns at lg+, and collapse
   // to toggleable overlay drawers below lg so the conversation stays readable.
@@ -527,6 +536,7 @@
             onclick={() => { navigateToSession(session.id); closeSessionsDrawer(); }}
             onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
             ondelete={() => void handleDeleteSession(session.id)}
+            onconfigure={() => { openConfig(session.id); closeSessionsDrawer(); }}
           />
         {/each}
       {/if}
@@ -567,6 +577,7 @@
           onclose={closeConversation}
           onsessionsopen={openSessionsDrawer}
           oncontextopen={toggleContextDrawer}
+          onconfigtoggle={() => openConfig()}
           ondelete={handleDeleteSession}
           onnewChat={() => { closeConversation(); openNewChatPicker(); }}
         />
@@ -634,6 +645,18 @@
         >
           {$t("plan_session.tab_plan")}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={railTab === "config"}
+          class="rounded px-2 py-0.5 transition-colors {railTab === 'config'
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:text-foreground'}"
+          onclick={() => (railTab = "config")}
+          data-testid="chat-inspector-config-tab"
+        >
+          {$t("chat.config_title")}
+        </button>
       </div>
       {#if railTab === "journal"}
         <div class="inline-flex rounded-md border border-border p-0.5 text-[10.5px]">
@@ -659,7 +682,21 @@
       {/if}
     </div>
 
-    {#if railTab === "plan" && selectedSessionId}
+    {#if railTab === "config"}
+      <div class="min-h-0 flex-1 overflow-y-auto" data-testid="chat-inspector-config">
+        {#if $currentSession && $currentSession.id === selectedSessionId}
+          <ChatConfigPanelBody
+            session={$currentSession}
+            showHeader={false}
+            onupdated={() => {}}
+          />
+        {:else}
+          <div class="px-4 py-6 text-center text-[11px] text-muted-foreground">
+            {$t("chat.subtitle")}
+          </div>
+        {/if}
+      </div>
+    {:else if railTab === "plan" && selectedSessionId}
       <div class="min-h-0 flex-1">
         {#key selectedSessionId}
           <PlanDagPanel sessionId={selectedSessionId} />

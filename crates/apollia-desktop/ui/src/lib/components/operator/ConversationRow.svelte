@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, FolderOpen } from "lucide-svelte";
+  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, FolderOpen, Settings2 } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
@@ -32,6 +32,8 @@
     onrename?: (newTitle: string) => void;
     /** Optional delete action - shows a kebab menu when provided. */
     ondelete?: () => void;
+    /** Optional configure action - adds a "Configuration" kebab entry. */
+    onconfigure?: () => void;
     /** Project this conversation is linked to (displayed as a small chip). */
     projectLabel?: string;
   }
@@ -46,6 +48,7 @@
     onclick,
     onrename,
     ondelete,
+    onconfigure,
     projectLabel,
   }: Props = $props();
 
@@ -55,7 +58,7 @@
   const isPinned = $derived(rowStateProp === "pinned");
   const isUnread = $derived(rowStateProp === "unread" || (unreadCount !== undefined && unreadCount > 0));
 
-  const hasMenu = $derived(Boolean(onrename || ondelete));
+  const hasMenu = $derived(Boolean(onrename || ondelete || onconfigure));
 
   // Kebab menu open state - bound to the canonical ActionMenu/Popover. Kept
   // only to reset the delete-confirmation step whenever the menu closes (e.g.
@@ -258,6 +261,19 @@
             </div>
           {:else}
             <ul class="flex flex-col gap-0.5" role="menu" data-testid="conversation-row-menu">
+              {#if onconfigure}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => { close(); onconfigure?.(); }}
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
+                    data-testid="conversation-row-menu-configure"
+                  >
+                    <Settings2 size={12} /> Configuration
+                  </button>
+                </li>
+              {/if}
               {#if onrename}
                 <li role="none">
                   <button
