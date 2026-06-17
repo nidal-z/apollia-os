@@ -5,6 +5,7 @@
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { EntityCard } from "$lib/components/operator";
 
   interface Props {
     backend: LlmBackendConfig;
@@ -27,9 +28,9 @@
     error: { labelKey: "common.status.error", variant: "destructive" },
   };
 
-  const STATUS_BAR_COLOR: Record<StatusKey, string> = {
-    ready: "bg-primary",
-    error: "bg-destructive",
+  const STATUS_ACCENT: Record<StatusKey, "primary" | "destructive"> = {
+    ready: "primary",
+    error: "destructive",
   };
 
   const TYPE_BADGE_VARIANT: Record<TypeKey, "info" | "outline"> = {
@@ -70,7 +71,7 @@
 
   const isBuilder = $derived($uiMode === "builder");
   const statusBadge = $derived(STATUS_BADGE[statusKey]);
-  const statusBarColor = $derived(STATUS_BAR_COLOR[statusKey]);
+  const statusAccent = $derived(STATUS_ACCENT[statusKey]);
 
   function prettifyModelName(model: string): string {
     return model
@@ -92,70 +93,65 @@
   });
 </script>
 
-<div class="glass-card-hover relative overflow-hidden" data-testid="llm-backend-card">
-  <!-- Status accent bar -->
-  <div class="h-0.5 w-full {statusBarColor}" data-testid="llm-backend-status-bar" />
+{#snippet builderBadges()}
+  {#if backend.is_default}
+    <Badge variant="outline" class="border-primary text-primary text-[10px]">
+      {$t("common.default_badge")}
+    </Badge>
+  {/if}
+  <Badge variant={TYPE_BADGE_VARIANT[backendType]} data-testid="llm-backend-type-badge">
+    {TYPE_LABEL[backendType]}
+  </Badge>
+  <Badge variant={statusBadge.variant} data-testid="llm-backend-badge">
+    {$t(statusBadge.labelKey)}
+  </Badge>
+{/snippet}
 
-  <div class="px-3.5 pt-3 pb-2.5">
-    {#if isBuilder}
-      <!-- Builder mode: full technical card -->
-      <div class="flex items-center justify-between">
-        <h3 class="text-[13px] font-medium">{backend.name}</h3>
-        <div class="flex items-center gap-1.5">
-          {#if backend.is_default}
-            <Badge variant="outline" class="border-primary text-primary text-[10px]">
-              {$t("common.default_badge")}
-            </Badge>
-          {/if}
-          <Badge variant={TYPE_BADGE_VARIANT[backendType]} data-testid="llm-backend-type-badge">
-            {TYPE_LABEL[backendType]}
-          </Badge>
-          <Badge variant={statusBadge.variant} data-testid="llm-backend-badge">
-            {$t(statusBadge.labelKey)}
-          </Badge>
-        </div>
-      </div>
+{#snippet operatorBadges()}
+  <Badge
+    variant="outline"
+    class={backendType === 'embedded' ? 'border-success text-success' : ''}
+    data-testid="llm-backend-badge"
+  >
+    {humanizedCost}
+  </Badge>
+{/snippet}
 
-      <p class="mt-1 text-[11px] text-muted-foreground">
-        {$t('llm.model')}: {backend.model}
-      </p>
+{#snippet builderBody()}
+  <p class="text-[11px] text-muted-foreground">
+    {$t('llm.model')}: {backend.model}
+  </p>
 
-      <!-- Ping feedback -->
-      {#if pingResult !== null}
-        <p class="mt-1 text-[11px] text-success" data-testid="llm-ping-result">
-          {$t('llm.ping_ok', { values: { latency: pingResult } })}
-        </p>
-      {/if}
-      {#if pingError}
-        <p class="mt-1 text-[11px] text-destructive" data-testid="llm-ping-result">
-          {pingError}
-        </p>
-      {/if}
+  <!-- Ping feedback -->
+  {#if pingResult !== null}
+    <p class="text-[11px] text-success" data-testid="llm-ping-result">
+      {$t('llm.ping_ok', { values: { latency: pingResult } })}
+    </p>
+  {/if}
+  {#if pingError}
+    <p class="text-[11px] text-destructive" data-testid="llm-ping-result">
+      {pingError}
+    </p>
+  {/if}
+{/snippet}
 
-      <!-- Actions -->
-      <div class="mt-3 flex gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={handlePing}
-          disabled={pinging}
-          data-testid="llm-backend-ping-btn"
-        >
-          {pinging ? $t('llm.pinging') : $t('llm.ping')}
-        </Button>
-      </div>
-    {:else}
-      <!-- Operator mode: humanized card -->
-      <h3 class="text-[13px] font-medium">{humanizedTitle}</h3>
-      <div class="mt-2">
-        <Badge
-          variant="outline"
-          class={backendType === 'embedded' ? 'border-success text-success' : ''}
-          data-testid="llm-backend-badge"
-        >
-          {humanizedCost}
-        </Badge>
-      </div>
-    {/if}
-  </div>
-</div>
+{#snippet builderActions()}
+  <Button
+    size="sm"
+    variant="outline"
+    onclick={handlePing}
+    disabled={pinging}
+    data-testid="llm-backend-ping-btn"
+  >
+    {pinging ? $t('llm.pinging') : $t('llm.ping')}
+  </Button>
+{/snippet}
+
+<EntityCard
+  accent={statusAccent}
+  title={isBuilder ? backend.name : humanizedTitle}
+  badges={isBuilder ? builderBadges : operatorBadges}
+  body={isBuilder ? builderBody : undefined}
+  actions={isBuilder ? builderActions : undefined}
+  data-testid="llm-backend-card"
+/>

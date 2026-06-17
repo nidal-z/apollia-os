@@ -4,7 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import { formatRelativeTime, formatDuration } from "$lib/utils";
   import type { TranscriptRow } from "$lib/types";
-  import { Card } from "$lib/components/ui/card";
+  import { EntityCard } from "$lib/components/operator";
 
   let {
     transcript,
@@ -64,31 +64,36 @@
   }
 </script>
 
-<Card class="p-4 transition-colors" data-testid="transcript-card-{transcript.id}">
-  <!-- Header -->
-  <div class="flex items-center gap-2 text-xs text-muted-foreground/60">
-    <svelte:component this={sourceIcon} size={14} strokeWidth={1.75} class="shrink-0" />
-    <span data-testid="transcript-source">{sourceLabel}</span>
-    <span>&middot;</span>
-    <span data-testid="transcript-time">{formatRelativeTime(transcript.created_at)}</span>
-    <span>&middot;</span>
-    <span data-testid="transcript-duration">{formatDuration(transcript.audio_duration_ms)}</span>
-    {#if transcript.language}
+<EntityCard
+  iconTone="info"
+  title={sourceLabel}
+  data-testid="transcript-card-{transcript.id}"
+>
+  {#snippet icon()}
+    <svelte:component this={sourceIcon} size={16} strokeWidth={1.75} />
+  {/snippet}
+
+  {#snippet body()}
+    <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground/60">
+      <span data-testid="transcript-source">{sourceLabel}</span>
       <span>&middot;</span>
-      <span data-testid="transcript-language">{transcript.language}</span>
-    {/if}
-  </div>
+      <span data-testid="transcript-time">{formatRelativeTime(transcript.created_at)}</span>
+      <span>&middot;</span>
+      <span data-testid="transcript-duration">{formatDuration(transcript.audio_duration_ms)}</span>
+      {#if transcript.language}
+        <span>&middot;</span>
+        <span data-testid="transcript-language">{transcript.language}</span>
+      {/if}
+    </div>
+    <p
+      class="mt-2 text-sm text-foreground leading-relaxed"
+      data-testid="transcript-text"
+    >
+      {transcript.full_text}
+    </p>
+  {/snippet}
 
-  <!-- Text -->
-  <p
-    class="mt-2 text-sm text-foreground leading-relaxed"
-    data-testid="transcript-text"
-  >
-    {transcript.full_text}
-  </p>
-
-  <!-- Actions -->
-  <div class="mt-3 flex items-center justify-end gap-1.5">
+  {#snippet actions()}
     <Button
       variant="ghost"
       size="sm"
@@ -109,5 +114,5 @@
       <Trash2 size={13} strokeWidth={1.75} />
       {confirmingDelete ? $t("common.confirm") : $t("common.delete")}
     </Button>
-  </div>
-</Card>
+  {/snippet}
+</EntityCard>

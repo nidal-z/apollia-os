@@ -16,6 +16,7 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ProjectProviderRow } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { EntityCard } from "$lib/components/operator";
 
   interface Props {
     provider: ProjectProviderRow;
@@ -77,35 +78,43 @@
   }
 </script>
 
-<div
-  class="flex items-start gap-3 px-4 py-3 rounded-xl border border-border bg-card"
+<EntityCard
+  title={provider.name}
   data-testid="provider-card-{provider.id}"
   data-provider-type={provider.provider_type}
 >
-  <div class="shrink-0 w-9 h-9 rounded-lg inline-flex items-center justify-center bg-primary/10 text-primary">
-    <IconCmp size={15} />
-  </div>
+  {#snippet icon()}<IconCmp size={16} />{/snippet}
 
-  <div class="flex-1 min-w-0">
-    <div class="flex items-center gap-2">
-      <span class="text-[13px] font-semibold text-foreground truncate">{provider.name}</span>
-      <span
-        class="text-[9.5px] font-mono uppercase tracking-[1px] px-1.5 py-px rounded border border-border text-muted-foreground"
-      >
-        {provider.provider_type}
+  {#snippet badges()}
+    <span
+      class="text-[9.5px] font-mono uppercase tracking-[1px] px-1.5 py-px rounded border border-border text-muted-foreground"
+    >
+      {provider.provider_type}
+    </span>
+    <span
+      class="text-[9.5px] font-mono px-1.5 py-px rounded bg-surface-1 text-muted-foreground"
+      title={$t("projects.context_priority_label")}
+    >
+      P{provider.priority}
+    </span>
+    {#if !provider.enabled}
+      <span class="text-[9.5px] font-medium text-muted-foreground italic">
+        {$t("projects.provider_disabled_label")}
       </span>
-      <span
-        class="text-[9.5px] font-mono px-1.5 py-px rounded bg-surface-1 text-muted-foreground"
-        title={$t("projects.context_priority_label")}
-      >
-        P{provider.priority}
-      </span>
-      {#if !provider.enabled}
-        <span class="text-[9.5px] font-medium text-muted-foreground italic">
-          {$t("projects.provider_disabled_label")}
-        </span>
-      {/if}
-    </div>
+    {/if}
+  {/snippet}
+
+  {#snippet trailing()}
+    <Toggle
+      checked={togglingEnabled}
+      loading={toggleBusy}
+      onchange={handleToggle}
+      aria-label={$t("projects.context_enabled_label")}
+      data-testid="provider-toggle-{provider.id}"
+    />
+  {/snippet}
+
+  {#snippet body()}
     <p class="m-0 mt-1 text-[11.5px] text-muted-foreground leading-[1.5]">
       {description}
     </p>
@@ -114,16 +123,9 @@
         {provider.path}
       </p>
     {/if}
-  </div>
+  {/snippet}
 
-  <div class="flex items-center gap-2 shrink-0">
-    <Toggle
-      checked={togglingEnabled}
-      loading={toggleBusy}
-      onchange={handleToggle}
-      aria-label={$t("projects.context_enabled_label")}
-      data-testid="provider-toggle-{provider.id}"
-    />
+  {#snippet actions()}
     <Button variant="ghost" size="sm"
       type="button"
       onclick={() => onedit(provider)}
@@ -142,5 +144,5 @@
     >
       <Trash2 size={12} />
     </Button>
-  </div>
-</div>
+  {/snippet}
+</EntityCard>

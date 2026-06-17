@@ -13,7 +13,7 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import { eventLabelKey } from "$lib/notifications/event-labels";
   import { Monitor, Webhook, Pencil, Trash2, Send } from "lucide-svelte";
-  import { Card } from "$lib/components/ui/card";
+  import { EntityCard } from "$lib/components/operator";
 
   interface Props {
     channel: NotificationChannel;
@@ -38,25 +38,23 @@
    * (info / primary) rather than overriding text/border via extraClass - that
    * was the source of the contrast issues on the previous version.
    */
+  type Tone = "primary" | "info";
   type ChannelTypeStyle = {
     Icon: typeof Monitor;
-    iconClass: string;
-    barClass: string;
+    tone: Tone;
     badgeVariant: "info" | "primary";
     labelKey: string;
   };
   const TYPE_STYLES: Record<string, ChannelTypeStyle> = {
     desktop: {
       Icon: Monitor,
-      iconClass: "bg-info/10 text-info",
-      barClass: "bg-info/60",
+      tone: "info",
       badgeVariant: "info",
       labelKey: "notifications.field_type_desktop",
     },
     webhook: {
       Icon: Webhook,
-      iconClass: "bg-primary/10 text-primary",
-      barClass: "bg-primary/60",
+      tone: "primary",
       badgeVariant: "primary",
       labelKey: "notifications.field_type_webhook",
     },
@@ -64,8 +62,7 @@
   const typeStyle = $derived(
     TYPE_STYLES[channel.type] ?? {
       Icon: Monitor,
-      iconClass: "bg-muted text-muted-foreground",
-      barClass: "bg-muted-foreground/40",
+      tone: "primary" as const,
       badgeVariant: "primary" as const,
       labelKey: "",
     },
@@ -154,43 +151,43 @@
   }
 </script>
 
-<Card interactive class="relative overflow-hidden flex flex-col" data-testid="channel-card-{channel.channel_id}">
-  <!-- Top accent bar - matches AgentPackageCard pattern. Muted when disabled. -->
-  <div class="h-0.5 w-full {channel.enabled ? typeStyle.barClass : 'bg-muted-foreground/20'}"></div>
+<EntityCard
+  accent={typeStyle.tone}
+  iconTone={typeStyle.tone}
+  title={displayName}
+  data-testid="channel-card-{channel.channel_id}"
+>
+  {#snippet icon()}
+    <typeStyle.Icon size={16} />
+  {/snippet}
 
-  <div class="flex flex-1 flex-col px-3.5 pt-3 pb-2.5">
-    <!-- Row 1: icon + title + type badge + toggle -->
-    <div class="flex items-center gap-2.5">
-      <div class="size-8 rounded-lg {typeStyle.iconClass} flex items-center justify-center shrink-0">
-        <typeStyle.Icon size={16} />
-      </div>
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
-          <span class="truncate text-[13px] font-medium">{displayName}</span>
-          {#if typeStyle.labelKey}
-            <Badge variant={typeStyle.badgeVariant} size="sm" class="shrink-0">
-              {$t(typeStyle.labelKey)}
-            </Badge>
-          {/if}
-        </div>
-        {#if hasCustomLabel}
-          <p class="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/60" title={channel.channel_id}>
-            {channel.channel_id}
-          </p>
-        {/if}
-      </div>
-      <Toggle
-        checked={channel.enabled}
-        onchange={handleToggle}
-        loading={toggling}
-        size="sm"
-        aria-label={$t(channel.enabled ? "notifications.disabled" : "notifications.enabled")}
-        data-testid="channel-toggle-{channel.channel_id}"
-      />
-    </div>
+  {#snippet badges()}
+    {#if typeStyle.labelKey}
+      <Badge variant={typeStyle.badgeVariant} size="sm" class="shrink-0">
+        {$t(typeStyle.labelKey)}
+      </Badge>
+    {/if}
+  {/snippet}
 
-    <!-- Row 2: event pills + throttle summary -->
-    <div class="mt-2.5 flex flex-wrap items-center gap-1">
+  {#snippet trailing()}
+    <Toggle
+      checked={channel.enabled}
+      onchange={handleToggle}
+      loading={toggling}
+      size="sm"
+      aria-label={$t(channel.enabled ? "notifications.disabled" : "notifications.enabled")}
+      data-testid="channel-toggle-{channel.channel_id}"
+    />
+  {/snippet}
+
+  {#snippet body()}
+    {#if hasCustomLabel}
+      <p class="-mt-1 truncate font-mono text-[10px] text-muted-foreground/60" title={channel.channel_id}>
+        {channel.channel_id}
+      </p>
+    {/if}
+    <!-- Event pills + throttle summary -->
+    <div class="flex flex-wrap items-center gap-1">
       {#if channel.events.length > 0}
         {#each channel.events as event}
           <span
@@ -211,55 +208,54 @@
         </span>
       {/if}
     </div>
+  {/snippet}
 
-    <!-- Footer row -->
-    <div class="mt-3 flex items-center justify-between gap-2 border-t border-border/30 pt-2">
-      <div class="min-h-[20px]">
-        {#if testResult}
-          {#if testResult.status === "ok"}
-            <Badge variant="success" size="sm">
-              OK{testResult.latency_ms !== null ? ` · ${testResult.latency_ms} ms` : ""}
-            </Badge>
-          {:else}
-            <Badge variant="danger" size="sm" class="max-w-[220px]">
-              <span class="truncate">{$t('common.status.error')}{testResult.error ? `: ${testResult.error}` : ""}</span>
-            </Badge>
-          {/if}
+  {#snippet actions()}
+    <div class="min-h-[20px]">
+      {#if testResult}
+        {#if testResult.status === "ok"}
+          <Badge variant="success" size="sm">
+            OK{testResult.latency_ms !== null ? ` · ${testResult.latency_ms} ms` : ""}
+          </Badge>
+        {:else}
+          <Badge variant="danger" size="sm" class="max-w-[220px]">
+            <span class="truncate">{$t('common.status.error')}{testResult.error ? `: ${testResult.error}` : ""}</span>
+          </Badge>
         {/if}
-      </div>
-      <div class="flex items-center gap-1 shrink-0">
-        <Button
-          size="icon"
-          variant="ghost"
-          class="size-7"
-          onclick={handleTest}
-          disabled={testing || !channel.enabled}
-          title={$t('notifications.test')}
-          data-testid="channel-test-btn-{channel.channel_id}"
-        >
-          <Send size={13} class={testing ? 'animate-pulse' : ''} />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          class="size-7"
-          onclick={onedit}
-          title={$t('notifications.edit')}
-          data-testid="channel-edit-btn-{channel.channel_id}"
-        >
-          <Pencil size={13} />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          class="size-7 text-destructive/60 hover:text-destructive"
-          onclick={ondelete}
-          title={$t('notifications.delete')}
-          data-testid="channel-delete-btn-{channel.channel_id}"
-        >
-          <Trash2 size={13} />
-        </Button>
-      </div>
+      {/if}
     </div>
-  </div>
-</Card>
+    <div class="ml-auto flex items-center gap-1 shrink-0">
+      <Button
+        size="icon"
+        variant="ghost"
+        class="size-7"
+        onclick={handleTest}
+        disabled={testing || !channel.enabled}
+        title={$t('notifications.test')}
+        data-testid="channel-test-btn-{channel.channel_id}"
+      >
+        <Send size={13} class={testing ? 'animate-pulse' : ''} />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        class="size-7"
+        onclick={onedit}
+        title={$t('notifications.edit')}
+        data-testid="channel-edit-btn-{channel.channel_id}"
+      >
+        <Pencil size={13} />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        class="size-7 text-destructive/60 hover:text-destructive"
+        onclick={ondelete}
+        title={$t('notifications.delete')}
+        data-testid="channel-delete-btn-{channel.channel_id}"
+      >
+        <Trash2 size={13} />
+      </Button>
+    </div>
+  {/snippet}
+</EntityCard>

@@ -9,6 +9,7 @@ export { default as PageLayout } from "./PageLayout.svelte";
 export { default as SectionTitle } from "./SectionTitle.svelte";
 export { default as StatusDot } from "./StatusDot.svelte";
 export { default as Card } from "./Card.svelte";
+export { default as EntityCard } from "./EntityCard.svelte";
 export { default as EmptyState } from "./EmptyState.svelte";
 export { default as SplitLayout } from "./SplitLayout.svelte";
 export { default as FilterChipBar } from "./FilterChipBar.svelte";
