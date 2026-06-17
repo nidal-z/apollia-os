@@ -16,6 +16,7 @@
     MessageSquare,
     Settings2,
     Menu,
+    PanelRight,
     MoreHorizontal,
     Edit3,
     Folder,
@@ -52,6 +53,8 @@
     onclose: () => void;
     onconfigtoggle?: () => void;
     onsessionsopen?: () => void;
+    /** Toggles the shell journal / plan rail on viewports below lg. */
+    oncontextopen?: () => void;
     onrename: (title: string) => void;
     ondelete: () => void;
     /** Project this session is currently linked to (null = standalone). */
@@ -80,6 +83,7 @@
     onclose,
     onconfigtoggle,
     onsessionsopen,
+    oncontextopen,
     onrename,
     ondelete,
     linkedProject = null,
@@ -216,7 +220,7 @@
       <button
         type="button"
         onclick={onsessionsopen}
-        class="md:hidden h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors shrink-0"
+        class="lg:hidden h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors shrink-0"
         aria-label={$t("a11y.open_sessions")}
         data-testid="chat-open-sessions-button"
       >
@@ -295,6 +299,17 @@
 
     <!-- Action cluster -->
     <div class="flex items-center gap-0.5 shrink-0" data-chat-header-menu-root>
+      {#if oncontextopen}
+        <button
+          type="button"
+          onclick={oncontextopen}
+          class="lg:hidden h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
+          aria-label={$t("plan_session.tab_journal")}
+          data-testid="chat-open-context-button"
+        >
+          <PanelRight size={14} />
+        </button>
+      {/if}
       {#if !hideConfig}
         <Button variant="ghost" size="sm"
           type="button"

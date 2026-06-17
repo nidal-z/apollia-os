@@ -13,6 +13,7 @@
   },
   "common": {
     "loading": "Loading...",
+    "show_list": "List",
     "error": "An error occurred",
     "cancel": "Cancel",
     "confirm": "Confirm",

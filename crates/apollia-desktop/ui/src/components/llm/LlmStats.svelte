@@ -98,13 +98,15 @@
   {:else}
     <!-- Builder mode: full table -->
     <div data-testid="llm-stats-table">
-      <DataTable
-        data={rows}
-        {columns}
-        rowKey={(r) => r.backend + r.model}
-        class="min-w-[520px]"
-        emptyLabel={$t('llm.no_calls')}
-      />
+      <div class="overflow-x-auto">
+        <DataTable
+          data={rows}
+          {columns}
+          rowKey={(r) => r.backend + r.model}
+          class="min-w-[520px]"
+          emptyLabel={$t('llm.no_calls')}
+        />
+      </div>
       <div
         class="flex items-center justify-between gap-3 rounded-b-xl glass-card glass-border border-t border-border/40 px-4 py-3 text-sm"
         data-testid="llm-stats-total-row"

@@ -51,7 +51,7 @@
   <div class="flex flex-1 justify-center">
     <button
       type="button"
-      class="command-bar flex h-[30px] w-full max-w-[440px] items-center gap-2 rounded-md border bg-surface-1 px-2.5 text-left text-muted-foreground shadow-elev-0 transition-colors hover:bg-surface-1/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      class="command-bar flex h-[30px] w-full max-w-[200px] sm:max-w-[320px] lg:max-w-[440px] items-center gap-2 rounded-md border bg-surface-1 px-2.5 text-left text-muted-foreground shadow-elev-0 transition-colors hover:bg-surface-1/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       style="border-width: 0.5px; font-size: 12px; cursor: text;"
       onclick={openSearch}
       aria-label={$t("topbar.search_aria") || "Chercher, lancer un agent…"}

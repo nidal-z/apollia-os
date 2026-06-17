@@ -176,13 +176,15 @@
     </p>
   </div>
 {:else}
-  <DataTable
-    data={entries}
-    {columns}
-    rowKey={(e) => e.id}
-    class="min-w-[640px]"
-    emptyLabel={$t('memory.empty_entries')}
-  />
+  <div class="overflow-x-auto">
+    <DataTable
+      data={entries}
+      {columns}
+      rowKey={(e) => e.id}
+      class="min-w-[640px]"
+      emptyLabel={$t('memory.empty_entries')}
+    />
+  </div>
 {/if}
 
 <!-- Delete confirmation dialog -->

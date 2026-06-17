@@ -71,6 +71,11 @@
      */
     onsessionsopen?: () => void;
     /**
+     * When provided (responsive), renders a panel button in the header that
+     * toggles the shell's journal / plan rail on viewports below lg.
+     */
+    oncontextopen?: () => void;
+    /**
      * When true, collapses header actions into an overflow
      * menu on narrow viewports (<md).
      */
@@ -96,6 +101,7 @@
     hideConfig = false,
     onconfigtoggle,
     onsessionsopen,
+    oncontextopen,
     collapseActions = true,
     ondelete,
     onnewChat,
@@ -896,6 +902,7 @@
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
+      {oncontextopen}
       onrename={handleRename}
       ondelete={handleDeleteSession}
       {linkedProject}

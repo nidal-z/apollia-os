@@ -27,6 +27,10 @@
     toggleSessionsSidebar,
     openSessionsDrawer,
     closeSessionsDrawer,
+    chatViewport,
+    sessionsDrawerOpen,
+    contextDrawerOpen,
+    toggleContextDrawer,
   } from "$lib/stores/chatLayout";
   import { currentSession } from "$lib/stores/chat";
   import type { ChatMessageView } from "$lib/types";
@@ -60,6 +64,10 @@
   let sessionSearchQuery = $state("");
   let journalMode = $state<JournalMode>("operator");
   let railTab = $state<"journal" | "plan">("journal");
+
+  // Responsive shell: both side panes are inline columns at lg+, and collapse
+  // to toggleable overlay drawers below lg so the conversation stays readable.
+  const panesInline = $derived($chatViewport === "lg");
 
   // ── Shortcut registry ──────────────────────────────
   // One central place declares every chat-route hotkey. Bindings are keyed
@@ -426,13 +434,37 @@
   page title lives in the Topbar (per V3 ChatPage).
 -->
 <div
-  class="flex h-full min-h-0 w-full overflow-hidden bg-background"
+  class="relative flex h-full min-h-0 w-full overflow-hidden bg-background"
   data-testid="chat-page"
 >
+  <!-- Drawer backdrops (below lg only). -->
+  {#if !panesInline && $sessionsDrawerOpen}
+    <button
+      type="button"
+      class="absolute inset-0 z-30 bg-foreground/20"
+      aria-label={$t("a11y.close")}
+      onclick={closeSessionsDrawer}
+      data-testid="chat-sessions-backdrop"
+    ></button>
+  {/if}
+  {#if !panesInline && $contextDrawerOpen}
+    <button
+      type="button"
+      class="absolute inset-0 z-30 bg-foreground/20"
+      aria-label={$t("a11y.close")}
+      onclick={toggleContextDrawer}
+      data-testid="chat-context-backdrop"
+    ></button>
+  {/if}
+
   <!-- ── Left rail: conversations ─────────────────────────────────────── -->
   <aside
-    class="flex h-full w-[280px] shrink-0 flex-col border-r border-border bg-card"
+    class="flex h-full flex-col border-r border-border bg-card {panesInline
+      ? 'w-[280px] shrink-0'
+      : 'absolute inset-y-0 left-0 z-40 w-[280px] max-w-[85%] shadow-elev-3 transition-transform duration-200 ' +
+        ($sessionsDrawerOpen ? 'translate-x-0' : '-translate-x-full')}"
     aria-label="Conversations"
+    aria-hidden={!panesInline && !$sessionsDrawerOpen}
   >
     <div class="px-3.5 pt-4 pb-2">
       <h2
@@ -535,6 +567,7 @@
           sessionId={selectedSessionId}
           onclose={closeConversation}
           onsessionsopen={openSessionsDrawer}
+          oncontextopen={toggleContextDrawer}
           ondelete={handleDeleteSession}
           onnewChat={() => { closeConversation(); openNewChatPicker(); }}
         />
@@ -569,8 +602,12 @@
 
   <!-- ── Right rail: live journal / plan DAG ────────────────────────────── -->
   <aside
-    class="flex h-full w-[320px] shrink-0 flex-col border-l border-border bg-card"
+    class="flex h-full flex-col border-l border-border bg-card {panesInline
+      ? 'w-[320px] shrink-0'
+      : 'absolute inset-y-0 right-0 z-40 w-[320px] max-w-[85%] shadow-elev-3 transition-transform duration-200 ' +
+        ($contextDrawerOpen ? 'translate-x-0' : 'translate-x-full')}"
     aria-label={railTab === "plan" ? $t("plan_session.tab_plan") : "Journal"}
+    aria-hidden={!panesInline && !$contextDrawerOpen}
   >
     <div class="flex items-center justify-between border-b border-border px-4 py-3">
       <div class="inline-flex rounded-md border border-border p-0.5 text-[10.5px]" role="tablist">

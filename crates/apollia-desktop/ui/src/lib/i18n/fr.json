@@ -13,6 +13,7 @@
   },
   "common": {
     "loading": "Chargement...",
+    "show_list": "Liste",
     "error": "Une erreur est survenue",
     "cancel": "Annuler",
     "confirm": "Confirmer",

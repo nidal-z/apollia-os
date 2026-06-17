@@ -204,6 +204,23 @@ Figma sync: the Chat template composer (`218:1749`, inside `85:183`) was rebuilt
 as the bordered input card with the action toolbar. Reference proposal frame:
 `254:2` on the Primitives page.
 
+## Chantier 6 — responsive shells (étape 4, 2026-06-17)
+
+> Behavioural robustness for narrow windows (900x600 min, kept). No new visual
+> surfaces: the route templates already represent the lg+ inline layout, which
+> is unchanged. The narrow states are runtime drawer collapses, not separate
+> Figma frames.
+
+| Surface | Source | Behaviour |
+|---|---|---|
+| Chat shell | routes/Chat.svelte + chat header | Sessions list and journal / plan rail are inline columns at lg+, toggleable overlay drawers below lg (header hamburger + rail toggle, shown only below lg). Consumes the existing `chatLayout.ts` contract. |
+| SplitLayout | lib/components/operator/SplitLayout.svelte | Sidebar collapses to an overlay drawer below lg with a built-in show-list toggle. Covers Memory / Projects / Connections / Agents / Tasks. |
+| Wide tables / charts | MemoryTable, LlmStats, NotificationLog, AuditTrailTable, LlmCostChart | Scroll inside their pane (`overflow-x-auto`) instead of overflowing the page. |
+| Topbar search | lib/components/app/Topbar.svelte | Shrinks below lg (`max-w` responsive) so the right-side actions keep room. |
+
+Figma sync: none required. Templates stay at the canonical wide size and mirror
+the lg+ inline layout.
+
 ## Topbar breadcrumb (synced to code 2026-06-16)
 
 > The Topbar component (`70:2`) breadcrumb now mirrors `OperatorBreadcrumb`:

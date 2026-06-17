@@ -133,11 +133,13 @@
   {/if}
 
   <!-- Table -->
-  <DataTable
-    data={filteredLogs}
-    {columns}
-    rowKey={(e) => e.id}
-    class="min-w-[520px]"
-    emptyLabel={$t('notifications.empty_history')}
-  />
+  <div class="overflow-x-auto">
+    <DataTable
+      data={filteredLogs}
+      {columns}
+      rowKey={(e) => e.id}
+      class="min-w-[520px]"
+      emptyLabel={$t('notifications.empty_history')}
+    />
+  </div>
 </div>
