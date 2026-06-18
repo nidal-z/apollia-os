@@ -65,6 +65,16 @@ Chat & Plan batch (🧱 Features · Chat & Plan page) done: ReasoningCardShell
 ChatPlanHost, ChatPlanReviewBuilder, PlanModeHost) intentionally skipped: no
 standalone visual atom.
 
+Filled exemplars for refonte proposals (Chat & Plan page 1:5): ReasoningCard
+(State=live/done, 294:30), MessageBubble (Role=user/assistant, 294:41). These are
+complete, instanceable versions of the slot-shells, so step-5 proposals can be
+assembled from pure instances. Sources: components/chat/ReasoningCard.svelte,
+components/chat/MessageRenderer.svelte.
+
+Refonte proposals live on a dedicated page `📐 Propositions · Refonte (audit)`
+(292:2). P1 = Chat reasoning real-time (artboard 295:13), built only from socle
+instances. UX audit in docs/internal/ux-audit/STATE.md (gitignored).
+
 Memory/Connections/Settings batch: LlmBackendCard (278:2), LlmStats (278:10),
 MemoryTable (278:23), ToolConfigDrawer (278:43), ConnectorWizardStep (Step
 variants, 280:42), ToolSchemaPanel (280:43), ContextProvidersTab (280:57).
