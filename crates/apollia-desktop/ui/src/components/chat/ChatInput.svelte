@@ -400,10 +400,28 @@
   const toolBtn =
     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed";
 
+  // Lets a toolbar button (or an outside click) hide an open menu without
+  // touching `value`. Read only in the template, so it can never loop.
+  let triggerSuppressed = $state(false);
+  let inputCardEl = $state<HTMLDivElement | undefined>(undefined);
+
+  // Close an open slash / mention menu when the user clicks outside the composer.
+  // The body writes no reactive state (the listener fires on a real click, not
+  // during the effect run), so this stays loop-free.
+  $effect(() => {
+    if (slashPrefix === null && mentionQuery === null) return;
+    const onDocMouseDown = (e: MouseEvent): void => {
+      if (inputCardEl && !inputCardEl.contains(e.target as Node)) {
+        triggerSuppressed = true;
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown, true);
+    return () => document.removeEventListener("mousedown", onDocMouseDown, true);
+  });
+
   /** Insert a "/" or "@" trigger and focus so the matching menu opens. After the
    *  DOM settles (tick) the caret is at the end; for "@" the value-based detection
-   *  ran with a stale caret, so we open the mention menu directly. No reactive
-   *  plumbing here, so this can never feed an effect loop. */
+   *  ran with a stale caret, so we open the mention menu directly. */
   async function insertTrigger(char: "/" | "@"): Promise<void> {
     const needsSep = value.length > 0 && !/\s$/.test(value);
     value = value + (needsSep ? " " : "") + char;
@@ -417,7 +435,22 @@
     }
   }
 
+  /** Toolbar button: if the trigger's menu is already in play, flip its
+   *  visibility; otherwise insert the trigger to open it. */
+  function toggleTrigger(char: "/" | "@"): void {
+    const present = char === "/" ? slashPrefix !== null : mentionQuery !== null;
+    if (present) {
+      triggerSuppressed = !triggerSuppressed;
+      textareaEl?.focus();
+      return;
+    }
+    triggerSuppressed = false;
+    void insertTrigger(char);
+  }
+
   function autoResize() {
+    // Typing re-enables a menu the user had hidden via its toolbar button.
+    triggerSuppressed = false;
     if (!textareaEl) return;
     textareaEl.style.height = "auto";
     const next = Math.min(
@@ -644,6 +677,7 @@
   />
 
   <div
+    bind:this={inputCardEl}
     class="relative flex flex-col rounded-xl border bg-surface-1 transition-colors {focused ? 'border-primary/60' : 'border-border/60'}"
     class:ring-2={dragOver}
     class:ring-primary={dragOver}
@@ -652,7 +686,7 @@
     ondrop={handleDrop}
     role="presentation"
   >
-    {#if slashPrefix !== null}
+    {#if slashPrefix !== null && !triggerSuppressed}
       <SlashCommandMenu
         commands={slashCommands}
         selectedIndex={slashIndex}
@@ -661,7 +695,7 @@
       />
     {/if}
 
-    {#if mentionQuery !== null}
+    {#if mentionQuery !== null && !triggerSuppressed}
       <MentionResourceMenu
         resources={filteredMentionResources}
         selectedIndex={mentionIndex}
@@ -752,7 +786,7 @@
       </button>
       <button
         type="button"
-        onclick={() => insertTrigger("/")}
+        onclick={() => toggleTrigger("/")}
         {disabled}
         class={toolBtn}
         aria-label={$t("chat.slash_commands")}
@@ -763,7 +797,7 @@
       </button>
       <button
         type="button"
-        onclick={() => insertTrigger("@")}
+        onclick={() => toggleTrigger("@")}
         {disabled}
         class={toolBtn}
         aria-label={$t("chat.mention_resources")}
