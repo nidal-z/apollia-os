@@ -52,10 +52,22 @@ Operator components promoted to proper Figma components (🧩 Primitives page):
 | EmptyStates | 273:17 | lib/components/operator/EmptyStates.svelte |
 | NewProjectDialog | 273:24 | lib/components/operator/NewProjectDialog.svelte |
 
-Remaining (next batches): operator Journal / PlanModeHost / PlanReviewBuilder /
-ApprovalRiskBadge / tours; then Chat & Plan (~17), Inbox/Tasks/Agents,
-Memory/Connections/Settings, Observability, and a NEW Features page for
-Automations / Triggers / Notifications. code-connect entries to follow per batch.
+Operator batch also added: Journal (274:2), ApprovalRiskBadge variants (274:28),
+TourStepCard (274:29). Operator hosts/wrappers without a standalone visual
+(PlanModeHost, PlanReviewBuilder, TourSpotlight) are deferred / handled in flow.
+
+Chat & Plan batch (🧱 Features · Chat & Plan page) done: ReasoningCardShell
+(275:2), OperatorApprovalCard (275:12), StreamingCursor (275:24), TemplateCard
+(275:25), EmptySessionsState (276:2), EmptyAgentsState (276:9), InputHints
+(276:16), ApprovalScopeSelect (276:31), ChatPlanReview (277:2), ChatConfigPanelBody
+(277:30), HitlFilesystemModal (277:48). Pure renderers / composers / hosts
+(ChatConversation, ChatConversationHeader, MessageRenderer, StreamingText,
+ChatPlanHost, ChatPlanReviewBuilder, PlanModeHost) intentionally skipped: no
+standalone visual atom.
+
+Remaining (next batches): Inbox/Tasks/Agents, Memory/Connections/Settings,
+Observability, and a NEW Features page for Automations / Triggers /
+Notifications. code-connect entries to follow per batch.
 
 ## Primitives (lib/components/ui)
 
