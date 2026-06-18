@@ -65,9 +65,15 @@ Chat & Plan batch (🧱 Features · Chat & Plan page) done: ReasoningCardShell
 ChatPlanHost, ChatPlanReviewBuilder, PlanModeHost) intentionally skipped: no
 standalone visual atom.
 
-Remaining (next batches): Inbox/Tasks/Agents, Memory/Connections/Settings,
-Observability, and a NEW Features page for Automations / Triggers /
-Notifications. code-connect entries to follow per batch.
+Memory/Connections/Settings batch started: LlmBackendCard (278:2), LlmStats
+(278:10), MemoryTable (278:23), ToolConfigDrawer (278:43).
+
+Remaining (next batches): Memory/Conn/Settings rest (permission views x7,
+integration wizard steps x6, settings details x8, stt x3, project x2, tools x1),
+Inbox/Tasks/Agents (ApolliaChatConfigPanel, InstallPackageDialog), Observability
+(AuditVerifyResult), onboarding (7), command-palette (4), companion (6), and a
+NEW Features page for Automations / Triggers / Notifications (~13). code-connect
+entries to follow per batch.
 
 ## Primitives (lib/components/ui)
 
