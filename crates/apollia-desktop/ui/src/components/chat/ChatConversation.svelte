@@ -678,15 +678,16 @@
     }
   }
 
+  // Bumped by `/rename` to ask the header to open its inline title editor.
+  // The browser prompt() is unavailable in the Tauri webview, so /rename used to
+  // silently no-op; the inline editor is the canonical rename path.
+  let renameTrigger = $state(0);
+
   async function handleSlashCommand(cmdId: "export" | "rename"): Promise<void> {
     switch (cmdId) {
-      case "rename": {
-        const title = prompt($t("chat.rename_placeholder"), sessionDetail?.title ?? "");
-        if (title !== null && title.trim()) {
-          await handleRename(title.trim());
-        }
+      case "rename":
+        renameTrigger++;
         return;
-      }
       case "export":
         await exportCurrentSession("markdown-with-tools");
         return;
@@ -914,6 +915,7 @@
       {sessionStatus}
       {hideConfig}
       {collapseActions}
+      {renameTrigger}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}

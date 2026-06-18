@@ -70,6 +70,8 @@
     planMode?: boolean;
     /** Called after the plan-mode chip successfully toggles the session. */
     onplanmodechange?: (enabled: boolean) => void;
+    /** Bumped by the parent (e.g. /rename) to open the inline title editor. */
+    renameTrigger?: number;
   }
 
   let {
@@ -93,7 +95,13 @@
     onprojectopen,
     planMode = false,
     onplanmodechange,
+    renameTrigger = 0,
   }: Props = $props();
+
+  // Open the inline title editor when the parent bumps `renameTrigger` (/rename).
+  $effect(() => {
+    if (renameTrigger > 0) void startEdit();
+  });
 
   let linkOpen = $state(false);
   let deleteConfirmOpen = $state(false);
