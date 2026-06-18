@@ -322,8 +322,13 @@
       slashIndex = 0;
     } else {
       slashPrefix = prefix;
-      slashCommands = filterCommands(prefix);
-      if (slashIndex >= slashCommands.length) slashIndex = 0;
+      // Read the LOCAL list for the index clamp, never the `slashCommands` state
+      // we just wrote: filterCommands returns a fresh array every run, so reading
+      // the state here would make the effect depend on its own output and spin
+      // into an update-depth overflow that freezes the whole app.
+      const cmds = filterCommands(prefix);
+      slashCommands = cmds;
+      if (slashIndex >= cmds.length) slashIndex = 0;
     }
   });
 
