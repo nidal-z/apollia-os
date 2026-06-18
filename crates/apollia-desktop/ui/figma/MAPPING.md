@@ -29,6 +29,34 @@ Yumni-inspired structure, in panel order:
 The 📐 Refonte / Proposals page is where new UX/UI refontes are designed and
 validated before implementation (Figma-first).
 
+## Foundation completion (in progress, started 2026-06-18)
+
+> Honest coverage check on 2026-06-18: 155/252 code components had a Figma node
+> (62%). ~90 are missing, including whole feature areas (notifications,
+> automations, triggers, onboarding, command-palette, companion, permission
+> views, settings details) and the operator primitives we built this phase that
+> existed only as showcase frames. We are completing the socle to Yumni standard
+> (proper component sets, token-bound, description = code path) before the UX
+> audit. Batches, one Features page per run.
+
+Operator components promoted to proper Figma components (🧩 Primitives page):
+
+| Component | node-id | Source |
+|---|---|---|
+| ErrorBanner (Tone variants) | 271:13 | lib/components/operator/ErrorBanner.svelte |
+| SkeletonList | 272:2 | lib/components/operator/SkeletonList.svelte |
+| SidebarHeader | 272:18 | lib/components/operator/SidebarHeader.svelte |
+| EntityCard | 272:26 | lib/components/operator/EntityCard.svelte |
+| ConnectionCard | 273:2 | lib/components/operator/ConnectionCard.svelte |
+| PageLayout | 273:11 | lib/components/operator/PageLayout.svelte |
+| EmptyStates | 273:17 | lib/components/operator/EmptyStates.svelte |
+| NewProjectDialog | 273:24 | lib/components/operator/NewProjectDialog.svelte |
+
+Remaining (next batches): operator Journal / PlanModeHost / PlanReviewBuilder /
+ApprovalRiskBadge / tours; then Chat & Plan (~17), Inbox/Tasks/Agents,
+Memory/Connections/Settings, Observability, and a NEW Features page for
+Automations / Triggers / Notifications. code-connect entries to follow per batch.
+
 ## Primitives (lib/components/ui)
 
 | Figma component | node-id | Source |
