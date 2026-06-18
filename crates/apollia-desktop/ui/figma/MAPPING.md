@@ -65,15 +65,33 @@ Chat & Plan batch (🧱 Features · Chat & Plan page) done: ReasoningCardShell
 ChatPlanHost, ChatPlanReviewBuilder, PlanModeHost) intentionally skipped: no
 standalone visual atom.
 
-Memory/Connections/Settings batch started: LlmBackendCard (278:2), LlmStats
-(278:10), MemoryTable (278:23), ToolConfigDrawer (278:43).
+Memory/Connections/Settings batch: LlmBackendCard (278:2), LlmStats (278:10),
+MemoryTable (278:23), ToolConfigDrawer (278:43), ConnectorWizardStep (Step
+variants, 280:42), ToolSchemaPanel (280:43), ContextProvidersTab (280:57).
+
+Automations / Triggers / Notifications (NEW page `🧱 Features · Automations,
+Triggers & Notifications`, 281:2) done, full feature area that was absent:
+
+| Component | node-id | Source |
+|---|---|---|
+| NotificationChannelCard | 281:5 | components/notifications/NotificationChannelCard.svelte |
+| GlobalEventsEditor | 281:28 | components/notifications/GlobalEventsEditor.svelte |
+| NotificationLog | 281:45 | components/notifications/NotificationLog.svelte |
+| AutomationRow | 281:58 | components/automations/AutomationRow.svelte |
+| CronBuilder | 282:2 | components/triggers/CronBuilder.svelte |
+| IntervalPicker | 282:25 | components/triggers/IntervalPicker.svelte |
+| TriggerLogs | 282:39 | components/triggers/TriggerLogs.svelte |
+| CreateTriggerDialog | 282:63 | components/triggers/CreateTriggerDialog.svelte |
+| AutomationWizard (Step variants) | 283:135 | components/automations/AutomationWizard.svelte |
+| AutomationEmptyState | 283:136 | components/automations/AutomationEmptyState.svelte |
+| DeleteAutomationDialog | 283:143 | components/automations/DeleteAutomationDialog.svelte |
+| CreateChannelDialog | 283:154 | components/notifications/CreateChannelDialog.svelte (EditChannelDialog shares layout) |
 
 Remaining (next batches): Memory/Conn/Settings rest (permission views x7,
-integration wizard steps x6, settings details x8, stt x3, project x2, tools x1),
-Inbox/Tasks/Agents (ApolliaChatConfigPanel, InstallPackageDialog), Observability
-(AuditVerifyResult), onboarding (7), command-palette (4), companion (6), and a
-NEW Features page for Automations / Triggers / Notifications (~13). code-connect
-entries to follow per batch.
+settings details x8, stt x3, project x2), Inbox/Tasks/Agents
+(ApolliaChatConfigPanel, InstallPackageDialog), Observability (AuditVerifyResult),
+onboarding (7), command-palette (4), companion (6). code-connect entries to
+follow per batch.
 
 ## Primitives (lib/components/ui)
 
