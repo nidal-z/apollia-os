@@ -111,9 +111,42 @@ Companion logic-only nodes (CompanionContextProvider, CompanionResizeHandle,
 CompanionDragHandle) and onboarding wrappers without a standalone visual atom are
 intentionally skipped (no rendered surface).
 
-Still pending (low-visual, deferred to refonte if needed): Memory/Conn/Settings
-detail dialogs (permission views, settings hotkey/unsaved, stt overlays, drive
-picker, provider/backend dialogs). code-connect entries to follow per batch.
+Memory/Connections/Settings details (1:7) completed:
+
+| Component | node-id | Source |
+|---|---|---|
+| KeyChip | 288:2 | components/settings/KeyChip.svelte |
+| HotkeyDisplay | 288:4 | components/settings/HotkeyDisplay.svelte |
+| UnsavedChangesBadge | 288:11 | components/settings/UnsavedChangesBadge.svelte |
+| SettingsToggle | 288:14 | components/settings/SettingsToggle.svelte |
+| ShortcutRow | 288:20 | components/settings/ShortcutRow.svelte |
+| SettingsSection | 288:27 | components/settings/SettingsSection.svelte |
+| PermissionRuleCard | 288:40 | components/settings/PermissionRuleCard.svelte |
+| ConfigFileCard | 288:48 | components/settings/ConfigFileCard.svelte |
+| ToolCard | 288:56 | components/settings/ToolCard.svelte |
+| SettingSectionSkeleton | 288:64 | components/settings/SettingSectionSkeleton.svelte |
+| HotkeyCaptureDialog | 289:2 | components/settings/HotkeyCaptureDialog.svelte |
+| UnsavedChangesDialog | 289:20 | components/settings/UnsavedChangesDialog.svelte |
+| DestructiveActionDialog | 289:33 | components/settings/DestructiveActionDialog.svelte |
+| LlmBackendDialog | 289:48 | components/settings/LlmBackendDialog.svelte |
+| CredentialField | 289:73 | components/settings/CredentialField.svelte |
+| NamespaceSidebar | 290:2 | components/memory/NamespaceSidebar.svelte |
+| MemorySearch | 290:24 | components/memory/MemorySearch.svelte |
+| MemoryEntryRow | 290:30 | components/memory/MemoryEntryRow.svelte |
+| InsightEntryRow | 290:37 | components/memory/InsightEntryRow.svelte |
+| MemoryEntrySheet | 290:44 | components/memory/MemoryEntrySheet.svelte |
+| InjectedMemorySheet | 290:63 | components/memory/InjectedMemorySheet.svelte |
+| RecordingOverlay | 291:2 | components/stt/RecordingOverlay.svelte |
+| TranscriptCard | 291:21 | components/stt/TranscriptCard.svelte |
+| TranscribeFileDialog | 291:34 | components/stt/TranscribeFileDialog.svelte |
+| ConnectionErrorModal | 291:53 | components/connections/ConnectionErrorModal.svelte |
+| ConnectionSuggestions | 291:66 | components/connections/ConnectionSuggestions.svelte |
+
+Foundation completion DONE (2026-06-18): all rendered component surfaces now have
+a token-bound Figma component set with description = code path. Remaining code
+files without a Figma node are logic-only (providers, handles, context wrappers,
+hosts) with no standalone visual atom, listed as intentional skips above. The
+socle is ready for the UX audit. code-connect entries to be added per area next.
 
 ## Primitives (lib/components/ui)
 
