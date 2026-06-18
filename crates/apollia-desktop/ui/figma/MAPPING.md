@@ -87,11 +87,33 @@ Triggers & Notifications`, 281:2) done, full feature area that was absent:
 | DeleteAutomationDialog | 283:143 | components/automations/DeleteAutomationDialog.svelte |
 | CreateChannelDialog | 283:154 | components/notifications/CreateChannelDialog.svelte (EditChannelDialog shares layout) |
 
-Remaining (next batches): Memory/Conn/Settings rest (permission views x7,
-settings details x8, stt x3, project x2), Inbox/Tasks/Agents
-(ApolliaChatConfigPanel, InstallPackageDialog), Observability (AuditVerifyResult),
-onboarding (7), command-palette (4), companion (6). code-connect entries to
-follow per batch.
+Inbox/Tasks/Agents (1:6): ApolliaChatConfigPanel (285:2), InstallPackageDialog
+(285:21). Observability (1:8): AuditVerifyResult (verified/failed variants,
+285:2204).
+
+Shell features on Layout & Common (1:9):
+
+| Component | node-id | Source |
+|---|---|---|
+| PaletteInput | 286:7 | components/command-palette/PaletteInput.svelte |
+| PaletteGroup | 286:12 | components/command-palette/PaletteGroup.svelte |
+| PaletteItem (default/active) | 286:37 | components/command-palette/PaletteItem.svelte |
+| CommandPalette | 286:38 | components/command-palette/CommandPalette.svelte |
+| CompanionToggle | 286:71 | components/companion/CompanionToggle.svelte |
+| CompanionPanel | 286:73 | components/companion/CompanionPanel.svelte |
+| CompanionErrorState | 286:90 | components/companion/CompanionErrorState.svelte |
+| CompanionSessionSkeleton | 286:97 | components/companion/CompanionSessionSkeleton.svelte |
+| OnboardingStep (welcome/profile/ai/permission/chat) | 287:124 | components/onboarding/Onboarding{Welcome,ProfileSelector,AiSetup,PermissionStep,ChatStep}.svelte |
+| OnboardingModal | 287:125 | components/onboarding/OnboardingModal.svelte |
+| OnboardingTourRunner | 287:136 | components/onboarding/OnboardingTourRunner.svelte |
+
+Companion logic-only nodes (CompanionContextProvider, CompanionResizeHandle,
+CompanionDragHandle) and onboarding wrappers without a standalone visual atom are
+intentionally skipped (no rendered surface).
+
+Still pending (low-visual, deferred to refonte if needed): Memory/Conn/Settings
+detail dialogs (permission views, settings hotkey/unsaved, stt overlays, drive
+picker, provider/backend dialogs). code-connect entries to follow per batch.
 
 ## Primitives (lib/components/ui)
 
