@@ -86,6 +86,13 @@ then modified with socle instances. UX audit in docs/internal/ux-audit/STATE.md
 - P3 = Inbox inline approval: AVANT 313:587 (rows inert, ▶ expand-to-act),
   APRÈS 313:618 (inline Refuser/Approuver Button instances on every pending row,
   risk still visible). Resolves INBOX-F1. Strong visual delta.
+- P4 = Memory delete confirmation: AVANT 316:879 (no guard, immediate delete),
+  APRÈS 316:1014 (scrim + confirmation dialog instance). Resolves MEM-F1.
+
+Screenshot quirk: variable-bound fills (scrim FG, dialog CARD) sometimes render
+transparent in get_screenshot on cloned/instanced nodes; force a raw SOLID fill on
+the proposal instance (source component keeps its token binding). DeleteAutomation
+Dialog (283:143) also had the spacer/fixed-height bug — fixed.
 
 Note: the spacer-frame 100px-default-height bug (fixed on ReasoningCard) likely
 affects other socle feature components built with FILL spacer frames; fix each on
