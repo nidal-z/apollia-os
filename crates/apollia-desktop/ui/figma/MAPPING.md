@@ -78,9 +78,14 @@ then modified with socle instances. UX audit in docs/internal/ux-audit/STATE.md
 - P1 = Chat reasoning real-time: AVANT 298:24 (muted "Réflexion en cours…"
   ThinkingBadge = current blind state), APRÈS 298:150 (live ReasoningCard
   streamed in agent mode). Resolves CHAT-R1/R5 (+ backend R2).
-- P2 = Tasks real progress: AVANT 306:241 (fixed fake bar values 45/20/100/60%),
-  APRÈS 306:288 (real varied progress + inline step counters 6/9, 3/8, …).
-  Resolves TASKS-E1/R2.
+- P2 = Tasks real progress: AVANT 306:241 / APRÈS 306:288. WEAK (Avant/Après look
+  alike: fake-vs-real progress bars are visually indistinguishable in a static
+  mockup, and a dynamic step counter is impractical). Lesson: pure "is-it-live"
+  réactivité findings don't render as static Avant/Après; pick targets with a
+  visible structural delta instead.
+- P3 = Inbox inline approval: AVANT 313:587 (rows inert, ▶ expand-to-act),
+  APRÈS 313:618 (inline Refuser/Approuver Button instances on every pending row,
+  risk still visible). Resolves INBOX-F1. Strong visual delta.
 
 Note: the spacer-frame 100px-default-height bug (fixed on ReasoningCard) likely
 affects other socle feature components built with FILL spacer frames; fix each on
