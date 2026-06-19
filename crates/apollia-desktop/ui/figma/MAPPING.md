@@ -73,10 +73,18 @@ components/chat/{ReasoningCard,MessageRenderer,ThinkingBadge}.svelte.
 
 Refonte proposals live on a dedicated page `📐 Propositions · Refonte (audit)`
 (292:2). Format = faithful full-screen AVANT/APRÈS, cloned from the route template
-then modified with socle instances. P1 = Chat reasoning real-time: AVANT 298:24
-(muted "Réflexion en cours…" ThinkingBadge = current blind state), APRÈS 298:150
-(live ReasoningCard streamed in agent mode). UX audit in
-docs/internal/ux-audit/STATE.md (gitignored).
+then modified with socle instances. UX audit in docs/internal/ux-audit/STATE.md
+(gitignored). Proposals so far:
+- P1 = Chat reasoning real-time: AVANT 298:24 (muted "Réflexion en cours…"
+  ThinkingBadge = current blind state), APRÈS 298:150 (live ReasoningCard
+  streamed in agent mode). Resolves CHAT-R1/R5 (+ backend R2).
+- P2 = Tasks real progress: AVANT 306:241 (fixed fake bar values 45/20/100/60%),
+  APRÈS 306:288 (real varied progress + inline step counters 6/9, 3/8, …).
+  Resolves TASKS-E1/R2.
+
+Note: the spacer-frame 100px-default-height bug (fixed on ReasoningCard) likely
+affects other socle feature components built with FILL spacer frames; fix each on
+reuse.
 
 Memory/Connections/Settings batch: LlmBackendCard (278:2), LlmStats (278:10),
 MemoryTable (278:23), ToolConfigDrawer (278:43), ConnectorWizardStep (Step
