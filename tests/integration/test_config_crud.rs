@@ -176,7 +176,7 @@ async fn start_test_server_with_repos(
     let state = build_app_state_with_repos(triggers_db, notifications_db).await;
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
-        tcp_port: port,
+        tcp_port: Some(port),
         bind_addr: "127.0.0.1".to_string(),
         api_token: None,
     };

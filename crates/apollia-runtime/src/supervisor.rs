@@ -567,9 +567,13 @@ impl Supervisor {
         } else {
             self.config.api_config.bind_addr.clone()
         };
+        // When TCP is disabled (Unix-socket-only host), fall back to the nominal
+        // port for the callback URL string; webhook callbacks are only reachable
+        // when a TCP listener is actually bound.
         let api_base_url = format!(
             "http://{}:{}",
-            connect_addr, self.config.api_config.tcp_port
+            connect_addr,
+            self.config.api_config.tcp_port.unwrap_or(7771)
         );
         let engine = NotificationEngine::new(
             notif_config.clone(),
@@ -2324,7 +2328,7 @@ mod tests {
             api_config: APIServerConfig {
                 socket_path,
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: port,
+                tcp_port: Some(port),
                 api_token: None,
             },
             startup_timeout_secs: 10,
@@ -2502,7 +2506,7 @@ mod tests {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: port,
+                tcp_port: Some(port),
                 api_token: None,
             },
             startup_timeout_secs: 1,
@@ -2658,7 +2662,7 @@ mod tests {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: port,
+                tcp_port: Some(port),
                 api_token: None,
             },
             startup_timeout_secs: 10,
@@ -2782,7 +2786,7 @@ mod tests {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: port,
+                tcp_port: Some(port),
                 api_token: None,
             },
             startup_timeout_secs: 10,
@@ -2850,7 +2854,7 @@ mod tests {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: port,
+                tcp_port: Some(port),
                 api_token: None,
             },
             startup_timeout_secs: 10,
@@ -2934,7 +2938,7 @@ mod tests {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: port,
+                tcp_port: Some(port),
                 api_token: None,
             },
             startup_timeout_secs: 10,
@@ -3188,7 +3192,7 @@ mod tests {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
                 bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: port,
+                tcp_port: Some(port),
                 api_token: None,
             },
             startup_timeout_secs: 10,

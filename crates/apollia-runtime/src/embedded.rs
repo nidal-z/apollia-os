@@ -166,8 +166,20 @@ pub enum EmbeddedError {
 /// Allows overriding the TCP port, the Unix socket path, and the timeouts.
 /// The default values match the standard behavior of `apollia-os start`.
 pub struct EmbeddedConfig {
-    /// TCP port for the APIServer (default: 7771).
-    pub tcp_port: u16,
+    /// TCP port for the APIServer, or `None` to serve the Unix socket only.
+    ///
+    /// Defaults to `None`: an embedded host is reachable through the Unix
+    /// socket (local-trust) and does not expose a TCP port. A host that needs
+    /// TCP (for a same-machine REST bridge, or a remote driver) sets
+    /// `Some(port)` and MUST also set [`api_token`](EmbeddedConfig::api_token)
+    /// so the port is authenticated.
+    pub tcp_port: Option<u16>,
+    /// Bearer token honored on the TCP listener, or `None` for no TCP auth.
+    ///
+    /// Only meaningful when [`tcp_port`](EmbeddedConfig::tcp_port) is `Some`.
+    /// When a TCP port is bound with `None` here, the port is unauthenticated
+    /// and the server logs a warning. The Unix socket is never token-gated.
+    pub api_token: Option<String>,
     /// Unix socket path (default: `/tmp/apollia.sock`).
     pub socket_path: PathBuf,
     /// Runtime data directory (default: `~/.apollia/`).
@@ -243,7 +255,8 @@ impl Default for EmbeddedConfig {
             .map(PathBuf::from)
             .unwrap_or_else(|_| std::env::temp_dir());
         Self {
-            tcp_port: 7771,
+            tcp_port: None,
+            api_token: None,
             socket_path: PathBuf::from("/tmp/apollia.sock"),
             data_dir: home.join(".apollia"),
             startup_timeout_secs: DEFAULT_STARTUP_TIMEOUT_SECS,
@@ -399,7 +412,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
             socket_path: config.socket_path,
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port,
-            api_token: None,
+            api_token: config.api_token,
         },
         startup_timeout_secs: config.startup_timeout_secs,
         llm_config: config.llm_config,
@@ -455,7 +468,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         project_repository: handles.project_repository,
         mcp_handle: handles.mcp_handle,
         tools_config,
-        api_port: tcp_port,
+        api_port: tcp_port.unwrap_or(0),
         runner_supervisor: handles.runner_supervisor,
         plan_mode_default,
         chat_default_workspace,
@@ -502,8 +515,9 @@ mod tests {
         // GIVEN the default EmbeddedConfig
         let config = EmbeddedConfig::default();
 
-        // THEN reasonable defaults are set
-        assert_eq!(config.tcp_port, 7771);
+        // THEN reasonable defaults are set: Unix socket only, no TCP exposure
+        assert_eq!(config.tcp_port, None);
+        assert_eq!(config.api_token, None);
         assert_eq!(config.socket_path, PathBuf::from("/tmp/apollia.sock"));
         assert_eq!(config.startup_timeout_secs, DEFAULT_STARTUP_TIMEOUT_SECS);
     }

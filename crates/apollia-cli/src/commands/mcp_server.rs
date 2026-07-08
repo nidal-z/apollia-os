@@ -135,8 +135,10 @@ impl SubmitTaskHandler for RuntimeSubmitHandler {
 
 /// Start the Apollia runtime and return an `Arc<dyn SubmitTaskHandler>`.
 ///
-/// Uses `init_embedded` with default configuration so the runtime data directory
-/// and TCP port mirror `apollia-os start` defaults.
+/// Uses `init_embedded` with default configuration: the runtime data directory
+/// mirrors `apollia-os start`, and the API is served on the Unix socket only
+/// (no TCP port), since this in-process runtime is driven through the router
+/// handle rather than the HTTP API.
 async fn start_runtime_submit_handler() -> Arc<dyn SubmitTaskHandler> {
     use apollia_runtime::{init_embedded, EmbeddedConfig};
 

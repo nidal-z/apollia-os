@@ -526,6 +526,13 @@ fn main() {
         }
     };
 
+    // Load (or generate) the API bearer token so the embedded runtime binds an
+    // authenticated TCP listener for the desktop REST bridge. The Unix socket
+    // stays local-trust; the TCP port is never served unauthenticated.
+    let api_token = apollia_runtime::api::load_or_generate_token(&apollia_data_dir)
+        .expect("failed to load or generate API token");
+    commands::set_api_token(api_token.clone());
+
     // Do NOT pass agent_repository here: auto-load inside the Supervisor
     // happens before OnceLocks are populated, causing "event bus not initialized"
     // errors. Instead, we auto-load manually after OnceLocks are set below.
@@ -534,6 +541,8 @@ fn main() {
         backend_factory: Some(factory.clone()),
         agent_repository: None,
         chat_agent_runner,
+        tcp_port: Some(7771),
+        api_token: Some(api_token),
         ..EmbeddedConfig::default()
     });
 

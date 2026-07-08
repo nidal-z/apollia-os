@@ -293,8 +293,15 @@ pub struct APIServerConfig {
     /// Defaults to `"127.0.0.1"` (loopback only). Set to `"0.0.0.0"` to accept
     /// connections from any interface (not recommended in production).
     pub bind_addr: String,
-    /// TCP port to listen on (e.g. `7771`).
-    pub tcp_port: u16,
+    /// TCP port to listen on (e.g. `7771`), or `None` to serve the Unix socket
+    /// only.
+    ///
+    /// `Some(port)` binds a TCP listener on `bind_addr:port`. `None` skips the
+    /// TCP listener entirely, so the runtime is reachable only through the Unix
+    /// socket (local-trust). Embedded hosts default to `None`; the daemon sets
+    /// `Some(port)`. When a TCP port is bound without an `api_token`, a warning
+    /// is emitted because the port is then unauthenticated.
+    pub tcp_port: Option<u16>,
     /// Bearer token required on TCP connections.
     ///
     /// `Some(token)`, every incoming TCP request must supply
@@ -617,22 +624,13 @@ impl APIServer {
         let (shutdown_tx, _) = watch::channel(false);
         let Self { config, router } = self;
 
-        // Bind TCP listener on the configured address.
-        let tcp_addr = format!("{}:{}", config.bind_addr, config.tcp_port);
-        let tcp_listener =
-            TcpListener::bind(&tcp_addr)
-                .await
-                .map_err(|source| APIServerError::BindFailed {
-                    port: config.tcp_port,
-                    source,
-                })?;
-
         // Clean up stale Unix socket file if present.
         if config.socket_path.exists() {
             let _ = std::fs::remove_file(&config.socket_path);
         }
 
-        // Bind Unix socket listener.
+        // Bind Unix socket listener. Never token-authenticated: the socket is a
+        // local-trust surface guarded by filesystem permissions.
         #[cfg(unix)]
         let unix_listener = UnixListener::bind(&config.socket_path).map_err(|source| {
             APIServerError::SocketBindFailed {
@@ -641,33 +639,53 @@ impl APIServer {
             }
         })?;
 
-        // Apply token authentication only to the TCP-facing router.
-        let tcp_router = match &config.api_token {
-            Some(token) => router.clone().layer(TokenAuthLayer::new(token.as_str())),
-            None => router.clone(),
-        };
+        // Conditionally bind the TCP listener. `None` serves the Unix socket
+        // only, closing any unauthenticated TCP exposure for embedded hosts.
+        if let Some(tcp_port) = config.tcp_port {
+            let tcp_addr = format!("{}:{}", config.bind_addr, tcp_port);
+            let tcp_listener =
+                TcpListener::bind(&tcp_addr)
+                    .await
+                    .map_err(|source| APIServerError::BindFailed {
+                        port: tcp_port,
+                        source,
+                    })?;
+
+            // Apply token authentication to the TCP-facing router only.
+            let tcp_router = match &config.api_token {
+                Some(token) => router.clone().layer(TokenAuthLayer::new(token.as_str())),
+                None => {
+                    tracing::warn!(
+                        tcp_port = %tcp_port,
+                        "api.tcp.unauthenticated"
+                    );
+                    router.clone()
+                }
+            };
+
+            let mut tcp_shutdown_rx = shutdown_tx.subscribe();
+            tokio::spawn(async move {
+                let result = axum::serve(tcp_listener, tcp_router)
+                    .with_graceful_shutdown(async move {
+                        let _ = tcp_shutdown_rx.wait_for(|v| *v).await;
+                    })
+                    .await;
+                if let Err(e) = result {
+                    tracing::error!(error = %e, "TCP listener error");
+                }
+            });
+        }
+
         // Unix socket router: no authentication layer, filesystem permissions suffice.
         let unix_router = router;
 
         info!(
-            tcp_port = %config.tcp_port,
+            tcp_port = config.tcp_port.map(|p| p as i64).unwrap_or(-1),
             socket_path = %config.socket_path.display(),
             auth_enabled = config.api_token.is_some(),
-            "APIServer started on TCP and Unix socket"
+            tcp_enabled = config.tcp_port.is_some(),
+            "APIServer started"
         );
-
-        // Spawn TCP listener task with graceful shutdown.
-        let mut tcp_shutdown_rx = shutdown_tx.subscribe();
-        tokio::spawn(async move {
-            let result = axum::serve(tcp_listener, tcp_router)
-                .with_graceful_shutdown(async move {
-                    let _ = tcp_shutdown_rx.wait_for(|v| *v).await;
-                })
-                .await;
-            if let Err(e) = result {
-                tracing::error!(error = %e, "TCP listener error");
-            }
-        });
 
         // Spawn Unix socket listener task (manual accept loop with hyper-util).
         #[cfg(unix)]
@@ -862,7 +880,7 @@ mod tests {
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
-            tcp_port: port,
+            tcp_port: Some(port),
             api_token: None,
         };
         let server = APIServer::new(config, state);
@@ -882,6 +900,73 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_tcp_port_none_serves_unix_only() {
+        // GIVEN a config with no TCP port (embedded local-trust default)
+        let socket_path = temp_socket_path();
+        let port = free_port().await;
+        let state = test_app_state();
+        let config = APIServerConfig {
+            socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
+            tcp_port: None,
+            api_token: None,
+        };
+        let server = APIServer::new(config, state);
+
+        // WHEN start() is called
+        let handle = server.start().await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // THEN the Unix socket serves requests
+        let resp = http_get_via_unix(&socket_path).await;
+        assert_eq!(resp, r#"{"status":"ok"}"#);
+
+        // AND no TCP listener was bound: the port can be freshly bound
+        let rebind = TcpListener::bind(("127.0.0.1", port)).await;
+        assert!(
+            rebind.is_ok(),
+            "no TCP listener must occupy the port when tcp_port is None"
+        );
+
+        // Cleanup
+        handle.shutdown();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    #[tokio::test]
+    async fn test_tcp_token_required_when_configured() {
+        // GIVEN a server bound on TCP with a bearer token
+        let socket_path = temp_socket_path();
+        let port = free_port().await;
+        let token = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        let state = test_app_state();
+        let config = APIServerConfig {
+            socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
+            tcp_port: Some(port),
+            api_token: Some(token.to_owned()),
+        };
+        let server = APIServer::new(config, state);
+        let handle = server.start().await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // WHEN a request omits the token THEN it is rejected with 401
+        let (status_no, _) = http_get_health_status_via_tcp(port, None).await;
+        assert_eq!(status_no, 401, "TCP without token must be rejected");
+
+        // WHEN a request carries the token THEN it succeeds
+        let (status_ok, body) = http_get_health_status_via_tcp(port, Some(token)).await;
+        assert_eq!(status_ok, 200, "TCP with token must be accepted");
+        assert_eq!(body, r#"{"status":"ok"}"#);
+
+        // Cleanup
+        handle.shutdown();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    #[tokio::test]
     async fn test_unix_socket_listener_binds_successfully() {
         // GIVEN a temporary socket path
         let socket_path = temp_socket_path();
@@ -890,7 +975,7 @@ mod tests {
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
-            tcp_port: port,
+            tcp_port: Some(port),
             api_token: None,
         };
         let server = APIServer::new(config, state);
@@ -921,7 +1006,7 @@ mod tests {
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
-            tcp_port: port,
+            tcp_port: Some(port),
             api_token: None,
         };
         let server = APIServer::new(config, state);
@@ -949,7 +1034,7 @@ mod tests {
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
-            tcp_port: port,
+            tcp_port: Some(port),
             api_token: None,
         };
         let server = APIServer::new(config, state);
@@ -1001,6 +1086,37 @@ mod tests {
             .await
             .expect("failed to connect to TCP");
         raw_http_get_health(stream).await
+    }
+
+    /// GET `/api/v1/health` over TCP with an optional `Bearer` token, returning
+    /// the HTTP status code and trimmed body.
+    async fn http_get_health_status_via_tcp(port: u16, auth: Option<&str>) -> (u16, String) {
+        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port))
+            .await
+            .expect("failed to connect to TCP");
+        let auth_line = match auth {
+            Some(t) => format!("Authorization: Bearer {t}\r\n"),
+            None => String::new(),
+        };
+        let request = format!(
+            "GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\n{auth_line}Connection: close\r\n\r\n"
+        );
+        stream.write_all(request.as_bytes()).await.unwrap();
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await.unwrap();
+        let response_str = String::from_utf8_lossy(&response);
+        let status = response_str
+            .split_whitespace()
+            .nth(1)
+            .and_then(|s| s.parse::<u16>().ok())
+            .unwrap_or(0);
+        let body = response_str
+            .split("\r\n\r\n")
+            .nth(1)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        (status, body)
     }
 
     /// Helper: send HTTP GET /api/v1/health via Unix socket and return the JSON body.

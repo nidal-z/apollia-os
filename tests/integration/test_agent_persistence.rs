@@ -193,7 +193,7 @@ fn test_supervisor_config(
     SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: PathBuf::from(format!("/tmp/ap-persist-{socket_id}.sock")),
-            tcp_port,
+            tcp_port: Some(tcp_port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
         },

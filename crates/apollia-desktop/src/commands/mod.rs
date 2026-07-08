@@ -52,6 +52,22 @@ use hyper::client::conn::http1;
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpStream;
 
+/// Bearer token the desktop attaches to its REST bridge calls to the embedded
+/// runtime over TCP. Set once at startup from the same token the embedded
+/// APIServer authenticates against.
+static API_TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Register the bearer token used for the desktop REST bridge. Called once in
+/// `main()` after the token is loaded, before any Tauri command runs.
+pub(crate) fn set_api_token(token: String) {
+    let _ = API_TOKEN.set(token);
+}
+
+/// The `Authorization` header value for bridge requests, when a token is set.
+fn bridge_auth_header() -> Option<String> {
+    API_TOKEN.get().map(|t| format!("Bearer {t}"))
+}
+
 /// Sends a GET request to the internal REST API on `localhost:{port}` and
 /// returns the parsed JSON body.
 ///
@@ -71,10 +87,14 @@ pub(crate) async fn http_get_json(port: u16, path: &str) -> Result<serde_json::V
         let _ = conn.await;
     });
 
-    let req = hyper::Request::builder()
+    let mut builder = hyper::Request::builder()
         .method("GET")
         .uri(path)
-        .header("host", "localhost")
+        .header("host", "localhost");
+    if let Some(auth) = bridge_auth_header() {
+        builder = builder.header("authorization", auth);
+    }
+    let req = builder
         .body(Full::new(Bytes::new()))
         .map_err(|e| format!("failed to build request: {e}"))?;
 
@@ -167,21 +187,30 @@ async fn http_request_json(
         let _ = conn.await;
     });
 
+    let auth = bridge_auth_header();
     let req = if let Some(json_body) = body {
         let body_bytes =
             serde_json::to_vec(json_body).map_err(|e| format!("failed to serialize body: {e}"))?;
-        hyper::Request::builder()
+        let mut builder = hyper::Request::builder()
             .method(method)
             .uri(path)
             .header("host", "localhost")
-            .header("content-type", "application/json")
+            .header("content-type", "application/json");
+        if let Some(auth) = &auth {
+            builder = builder.header("authorization", auth);
+        }
+        builder
             .body(Full::new(Bytes::from(body_bytes)))
             .map_err(|e| format!("failed to build request: {e}"))?
     } else {
-        hyper::Request::builder()
+        let mut builder = hyper::Request::builder()
             .method(method)
             .uri(path)
-            .header("host", "localhost")
+            .header("host", "localhost");
+        if let Some(auth) = &auth {
+            builder = builder.header("authorization", auth);
+        }
+        builder
             .body(Full::new(Bytes::new()))
             .map_err(|e| format!("failed to build request: {e}"))?
     };

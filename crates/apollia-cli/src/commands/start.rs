@@ -1441,7 +1441,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
             bind_addr,
-            tcp_port,
+            tcp_port: Some(tcp_port),
             api_token,
         },
         startup_timeout_secs: 10,

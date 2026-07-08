@@ -315,7 +315,7 @@ async fn start_chat_server(
     let (state, event_rx) = build_chat_app_state(mock_model, budget_config);
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
-        tcp_port: port,
+        tcp_port: Some(port),
         bind_addr: "127.0.0.1".to_string(),
         api_token: None,
     };

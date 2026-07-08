@@ -73,6 +73,10 @@ pub struct AuthorizeToolArgs<'a> {
 /// for CLI usage where request frequency is low.
 pub struct RuntimeClient {
     socket_path: PathBuf,
+    /// Bearer token attached to every request. Loaded best-effort from
+    /// `~/.apollia/api-token`. Ignored by the Unix socket (never token-gated),
+    /// required by an authenticated TCP listener (Windows, or a remote host).
+    api_token: Option<String>,
 }
 
 /// Result returned by `POST /api/v1/notifications/test` for one channel.
@@ -164,15 +168,43 @@ fn extract_error(body: &str, status: u16) -> String {
         })
 }
 
+/// Best-effort read of the local API bearer token from `~/.apollia/api-token`.
+///
+/// Returns `None` when the file is absent or empty. The token lets the CLI
+/// drive an authenticated TCP listener; it is harmless on the Unix socket,
+/// which is never token-gated.
+fn load_default_api_token() -> Option<String> {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
+    let path = PathBuf::from(home).join(".apollia").join("api-token");
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 impl RuntimeClient {
     /// Create a new client targeting the given Unix socket path.
     pub fn new(socket_path: PathBuf) -> Self {
-        Self { socket_path }
+        Self {
+            socket_path,
+            api_token: load_default_api_token(),
+        }
     }
 
     /// Create a client with the default socket path (`/tmp/apollia.sock`).
     pub fn default_client() -> Self {
         Self::new(PathBuf::from(DEFAULT_SOCKET_PATH))
+    }
+
+    /// Override the bearer token used for TCP authentication.
+    pub fn with_token(mut self, token: Option<String>) -> Self {
+        self.api_token = token;
+        self
+    }
+
+    /// The `Authorization` header value, when a token is configured.
+    fn auth_header(&self) -> Option<String> {
+        self.api_token.as_ref().map(|t| format!("Bearer {t}"))
     }
 
     /// Return the socket path this client connects to.
@@ -949,11 +981,15 @@ impl RuntimeClient {
             }
         });
 
-        let req = hyper::Request::builder()
+        let mut builder = hyper::Request::builder()
             .method("GET")
             .uri(uri)
             .header("host", "localhost")
-            .header("accept", "text/event-stream")
+            .header("accept", "text/event-stream");
+        if let Some(auth) = self.auth_header() {
+            builder = builder.header("authorization", auth);
+        }
+        let req = builder
             .body(Full::new(Bytes::new()))
             .map_err(|e| ClientError::Http(e.to_string()))?;
 
@@ -1002,11 +1038,15 @@ impl RuntimeClient {
             }
         });
 
-        let req = hyper::Request::builder()
+        let mut builder = hyper::Request::builder()
             .method(method)
             .uri(uri)
             .header("host", "localhost")
-            .header("content-type", content_type)
+            .header("content-type", content_type);
+        if let Some(auth) = self.auth_header() {
+            builder = builder.header("authorization", auth);
+        }
+        let req = builder
             .body(Full::new(Bytes::from(body.to_vec())))
             .map_err(|e| ClientError::Http(e.to_string()))?;
 
@@ -1087,6 +1127,9 @@ impl RuntimeClient {
 
         if body.is_some() {
             builder = builder.header("content-type", "application/json");
+        }
+        if let Some(auth) = self.auth_header() {
+            builder = builder.header("authorization", auth);
         }
 
         let req = builder

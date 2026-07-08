@@ -127,7 +127,7 @@ async fn test_runtime_starts_without_llm_router() {
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
-            tcp_port: port,
+            tcp_port: Some(port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
         },
@@ -272,7 +272,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
-            tcp_port: port,
+            tcp_port: Some(port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
         },

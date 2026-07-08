@@ -120,7 +120,7 @@ async fn start_test_server() -> (APIServerHandle, u16, PathBuf) {
     let state = build_app_state();
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
-        tcp_port: port,
+        tcp_port: Some(port),
         bind_addr: "127.0.0.1".to_string(),
         api_token: None,
     };

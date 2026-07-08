@@ -212,7 +212,7 @@ async fn test_shutdown_drains_active_tasks() {
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
-            tcp_port: port,
+            tcp_port: Some(port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
         },
@@ -311,7 +311,7 @@ async fn test_shutdown_stops_all_agents() {
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
-            tcp_port: port,
+            tcp_port: Some(port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
         },
@@ -400,7 +400,7 @@ async fn test_shutdown_broadcasts_requested_event() {
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
-            tcp_port: port,
+            tcp_port: Some(port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
         },
@@ -511,7 +511,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
-            tcp_port: port,
+            tcp_port: Some(port),
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
         },
