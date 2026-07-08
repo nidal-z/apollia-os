@@ -37,12 +37,19 @@ pub struct TaskResponse {
     pub task_id: String,
     /// Current task status.
     pub status: String,
+    /// Stable run identifier this task belongs to, used by `audit verify`.
+    /// Kept unconditionally so the schema is stable for automation.
+    pub run_id: Option<String>,
     /// Task result payload (present when completed).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
     /// Error message (present when failed).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Structured failure code parsed from the error (e.g. `BAD_MESSAGE`), so
+    /// automation can branch on the code without string-matching the message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
     /// Token budget accumulated over all LLM calls for this task.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_budget: Option<TokenBudget>,
@@ -110,6 +117,20 @@ pub struct TaskListItem {
     pub agent_id: String,
     /// Current task status.
     pub status: String,
+    /// Failure reason for a failed task (parity with `task status`); `null`
+    /// otherwise. Kept unconditionally so the schema is stable for automation.
+    pub error: Option<String>,
+    /// Structured failure code parsed from the error (e.g. `BAD_MESSAGE`).
+    pub error_code: Option<String>,
+}
+
+/// Extract the `[CODE]` prefix from an error string, e.g. `[BAD_MESSAGE] ...`
+/// -> `BAD_MESSAGE`. Returns `None` when the text has no bracketed code.
+fn extract_error_code(error_text: &str) -> Option<String> {
+    let rest = error_text.trim_start().strip_prefix('[')?;
+    let end = rest.find(']')?;
+    let code = &rest[..end];
+    (!code.is_empty()).then(|| code.to_string())
 }
 
 /// Handler for `GET /api/v1/tasks`.
@@ -126,27 +147,43 @@ pub async fn list_tasks<B: ExecutionBackend + Clone>(
         .await
         .map_err(submit_error_to_response)?;
 
-    let tasks = all
-        .into_iter()
-        .filter_map(|(task_id, agent_id, status)| {
-            let status_str = serde_json::to_value(&status)
-                .ok()
-                .and_then(|v| v.as_str().map(String::from))
-                .unwrap_or_else(|| format!("{status:?}"));
+    let mut tasks = Vec::new();
+    for (task_id, agent_id, status) in all {
+        let status_str = serde_json::to_value(&status)
+            .ok()
+            .and_then(|v| v.as_str().map(String::from))
+            .unwrap_or_else(|| format!("{status:?}"));
 
-            if let Some(ref filter) = query.status {
-                if &status_str != filter {
-                    return None;
-                }
+        if let Some(ref filter) = query.status {
+            if &status_str != filter {
+                continue;
             }
+        }
 
-            Some(TaskListItem {
-                task_id: task_id.to_string(),
-                agent_id: agent_id.to_string(),
-                status: status_str,
-            })
-        })
-        .collect();
+        let task_id = task_id.to_string();
+        // Parity with `task status`: surface the failure reason (and structured
+        // code) on failed tasks so dashboards built on `task list` see it too.
+        let (error, error_code) = if status == TaskStatus::Failed {
+            let err = state
+                .router_handle
+                .get_output(&task_id)
+                .await
+                .ok()
+                .flatten();
+            let code = err.as_deref().and_then(extract_error_code);
+            (err, code)
+        } else {
+            (None, None)
+        };
+
+        tasks.push(TaskListItem {
+            task_id,
+            agent_id: agent_id.to_string(),
+            status: status_str,
+            error,
+            error_code,
+        });
+    }
 
     Ok(Json(TaskListResponse { tasks }))
 }
@@ -172,8 +209,10 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
         Json(TaskResponse {
             task_id: task_id.to_string(),
             status: "submitted".into(),
+            run_id: None,
             result: None,
             error: None,
+            error_code: None,
             token_budget: None,
         }),
     ))
@@ -224,14 +263,21 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
             } else {
                 None
             };
+            let run_id = match &state.task_repository {
+                Some(repo) => repo.get_run_id(&task_id).await.ok().flatten(),
+                None => None,
+            };
+            let error_code = error.as_deref().and_then(extract_error_code);
             Ok(Json(TaskResponse {
                 task_id,
                 status: serde_json::to_value(&s)
                     .ok()
                     .and_then(|v| v.as_str().map(String::from))
                     .unwrap_or_else(|| format!("{s:?}")),
+                run_id,
                 result,
                 error,
+                error_code,
                 token_budget,
             }))
         }
@@ -264,8 +310,10 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
                 .ok()
                 .and_then(|v| v.as_str().map(String::from))
                 .unwrap_or_else(|| format!("{s:?}")),
+            run_id: None,
             result: None,
             error: None,
+            error_code: None,
             token_budget: None,
         })),
         None => Err((

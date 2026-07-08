@@ -403,6 +403,10 @@ async fn test_live_server<B: ExecutionBackend + Clone>(
         }) => Ok(Json(McpConnectionTestResponse::OauthRequired {
             www_authenticate,
         })),
+        // An unknown server name is a clean not-found, not a handshake failure.
+        Err(err @ apollia_mcp::session::McpSessionError::ServerExited { .. }) => {
+            Err(json_err(StatusCode::NOT_FOUND, err))
+        }
         Err(other) => Err(json_err(StatusCode::BAD_REQUEST, other)),
     }
 }

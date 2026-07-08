@@ -257,22 +257,37 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
 ) -> Result<(StatusCode, Json<AgentResponse>), (StatusCode, Json<ErrorResponse>)> {
     let manifest = load_manifest(state.agent_loader.as_ref(), &req.agent_path)?;
 
+    // Deferred MCP tools have no descriptor in the ToolRegistry (only a
+    // lightweight index). Collect their `mcp:<server>/<tool>` names so a
+    // `tools_required` agent can start; the resolver treats them as resolved.
+    let deferred_mcp_tools: std::collections::HashSet<String> = match &state.mcp_handle {
+        Some(handle) => handle
+            .get_tool_index()
+            .await
+            .into_iter()
+            .map(|entry| format!("mcp:{}/{}", entry.server_name, entry.tool_name))
+            .collect(),
+        None => std::collections::HashSet::new(),
+    };
+
     // Delegate tool resolution to `apollia_tools::resolve` (single source).
     // The resolver handles A2A dependencies (`a2a:` prefix), which are not in
     // the ToolRegistry and must not push the agent into DEGRADED.
     let has_missing_optional = match &state.tool_registry_handle {
-        Some(registry) => match apollia_tools::resolve(&manifest, registry).await {
-            Ok(report) => matches!(report.status, apollia_tools::ResolutionStatus::Degraded),
-            Err(e) => {
-                // Missing tools_required: 400 Bad Request (fail fast at startup).
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorResponse {
-                        error: format!("tool resolution failed: {e}"),
-                    }),
-                ));
+        Some(registry) => {
+            match apollia_tools::resolve(&manifest, registry, &deferred_mcp_tools).await {
+                Ok(report) => matches!(report.status, apollia_tools::ResolutionStatus::Degraded),
+                Err(e) => {
+                    // Missing tools_required: 400 Bad Request (fail fast at startup).
+                    return Err((
+                        StatusCode::BAD_REQUEST,
+                        Json(ErrorResponse {
+                            error: format!("tool resolution failed: {e}"),
+                        }),
+                    ));
+                }
             }
-        },
+        }
         // No registry available (test harness fallback), treat non-A2A optional tools
         // as missing. A2A deps are resolved at invocation, never at boot.
         None => manifest

@@ -79,6 +79,12 @@ pub enum ToolResolutionError {
 /// 4. Dependencies prefixed with `a2a:` are resolved unconditionally (the real
 ///    resolution happens at invocation via ToolProxy/A2AInvoker), without
 ///    querying the `ToolRegistry`.
+/// 5. A tool absent from the catalogue but present in `deferred_mcp_tools`
+///    resolves without failing. In `Deferred` MCP loading mode the per-tool
+///    descriptors are never registered (only a lightweight index is kept), so
+///    the caller passes the deferred `mcp:<server>/<tool>` names here to let a
+///    `tools_required` agent start. Their schemas are fetched on demand at call
+///    time; the HITL/approval gate still applies at execution.
 ///
 /// # Errors
 ///
@@ -88,6 +94,7 @@ pub enum ToolResolutionError {
 pub async fn resolve(
     manifest: &AgentManifest,
     registry: &ToolRegistryHandle,
+    deferred_mcp_tools: &std::collections::HashSet<String>,
 ) -> Result<ResolutionReport, ToolResolutionError> {
     let mut resolved: Vec<String> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
@@ -104,6 +111,14 @@ pub async fn resolve(
             continue;
         }
         match registry.get(tool_name).await? {
+            None if deferred_mcp_tools.contains(tool_name) => {
+                tracing::info!(
+                    agent = %manifest.name,
+                    tool = %tool_name,
+                    "ToolResolver: required tool resolved from deferred MCP index"
+                );
+                resolved.push(tool_name.clone());
+            }
             None => {
                 tracing::error!(
                     agent = %manifest.name,
@@ -145,6 +160,14 @@ pub async fn resolve(
             continue;
         }
         match registry.get(tool_name).await? {
+            None if deferred_mcp_tools.contains(tool_name) => {
+                tracing::info!(
+                    agent = %manifest.name,
+                    tool = %tool_name,
+                    "ToolResolver: optional tool resolved from deferred MCP index"
+                );
+                resolved.push(tool_name.clone());
+            }
             None => {
                 let warning = format!("{tool_name} not found");
                 tracing::warn!(
@@ -285,7 +308,7 @@ mod tests {
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["bash_executor".to_string(), "file_read".to_string()];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN
         let report = result.expect("resolution should succeed");
         assert!(matches!(report.status, ResolutionStatus::AllResolved));
@@ -301,7 +324,7 @@ mod tests {
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["bash_executor".to_string()];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN
         assert!(
             matches!(result, Err(ToolResolutionError::RequiredToolMissing(_))),
@@ -312,13 +335,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_deferred_mcp_required_tool_resolves_without_descriptor() {
+        // GIVEN: empty registry (Deferred mode registers no descriptors), but the
+        // required MCP tool is present in the deferred index.
+        let registry = ToolRegistryHandle::start();
+        let mut manifest = minimal_manifest();
+        manifest.tools_required = vec!["mcp:demo/ping".to_string()];
+        let deferred: std::collections::HashSet<String> =
+            std::iter::once("mcp:demo/ping".to_string()).collect();
+        // WHEN
+        let result = resolve(&manifest, &registry, &deferred).await;
+        // THEN
+        let report = result.expect("deferred MCP required tool should resolve");
+        assert!(matches!(report.status, ResolutionStatus::AllResolved));
+        assert_eq!(report.resolved, vec!["mcp:demo/ping"]);
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_deferred_mcp_optional_tool_resolves_without_degrading() {
+        // GIVEN: empty registry, optional MCP tool present only in the deferred index.
+        let registry = ToolRegistryHandle::start();
+        let mut manifest = minimal_manifest();
+        manifest.tools_optional = vec!["mcp:demo/ping".to_string()];
+        let deferred: std::collections::HashSet<String> =
+            std::iter::once("mcp:demo/ping".to_string()).collect();
+        // WHEN
+        let result = resolve(&manifest, &registry, &deferred).await;
+        // THEN
+        let report = result.expect("deferred MCP optional tool should resolve");
+        assert!(matches!(report.status, ResolutionStatus::AllResolved));
+        assert!(report.warnings.is_empty());
+        assert_eq!(report.resolved, vec!["mcp:demo/ping"]);
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
     async fn test_missing_optional_tool_is_warning_only() {
         // GIVEN: registry without "mcp_erp"
         let registry = ToolRegistryHandle::start();
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec!["mcp_erp".to_string()];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN
         let report = result.expect("resolution should succeed despite missing optional");
         assert!(matches!(report.status, ResolutionStatus::Degraded));
@@ -338,7 +397,7 @@ mod tests {
         manifest.tools_required = vec!["risky_tool".to_string()];
         manifest.dangerous_tools_allowed = false;
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN
         assert!(
             matches!(result, Err(ToolResolutionError::DangerousToolNotAllowed(_))),
@@ -356,7 +415,7 @@ mod tests {
         manifest.tools_required = vec!["risky_tool".to_string()];
         manifest.dangerous_tools_allowed = true;
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN
         let report = result.expect("dangerous tool should be allowed when flag is set");
         assert!(matches!(report.status, ResolutionStatus::AllResolved));
@@ -370,7 +429,7 @@ mod tests {
         let registry = ToolRegistryHandle::start();
         let manifest = minimal_manifest();
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN
         let report = result.expect("empty manifest should always succeed");
         assert!(matches!(report.status, ResolutionStatus::AllResolved));
@@ -386,7 +445,7 @@ mod tests {
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["bash_executor".to_string(), "file_read".to_string()];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN: fails on first missing, not second
         assert!(matches!(
             result,
@@ -402,7 +461,7 @@ mod tests {
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec!["a2a:foo".to_string(), "a2a:bar".to_string()];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN: A2A deps are resolved without registry lookup, no warnings
         let report = result.expect("A2A optional deps should resolve without registry lookup");
         assert!(matches!(report.status, ResolutionStatus::AllResolved));
@@ -418,7 +477,7 @@ mod tests {
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["a2a:critical-skill".to_string()];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN: no RequiredToolMissing, AllResolved
         let report = result.expect("A2A required dep should resolve without registry lookup");
         assert!(matches!(report.status, ResolutionStatus::AllResolved));
@@ -438,7 +497,7 @@ mod tests {
             "missing-native".to_string(),
         ];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN: Degraded only because of missing native; A2A resolved silently
         let report = result.expect("should succeed");
         assert!(matches!(report.status, ResolutionStatus::Degraded));
@@ -456,7 +515,7 @@ mod tests {
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec!["a2asomething".to_string(), "not-a2a:foo".to_string()];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN: both go through registry lookup path, both missing, Degraded with 2 warnings
         let report = result.expect("should succeed");
         assert!(matches!(report.status, ResolutionStatus::Degraded));
@@ -472,7 +531,7 @@ mod tests {
         let mut manifest = minimal_manifest();
         manifest.tools_optional = vec!["file_read".to_string(), "mcp_erp".to_string()];
         // WHEN
-        let result = resolve(&manifest, &registry).await;
+        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
         // THEN: Degraded because of missing optional, but resolved contains file_read
         let report = result.expect("should succeed");
         assert!(matches!(report.status, ResolutionStatus::Degraded));

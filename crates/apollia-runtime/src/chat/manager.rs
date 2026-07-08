@@ -3726,45 +3726,18 @@ async fn collect_mcp_executors(
     let Some(handle) = mcp_handle else {
         return;
     };
-    // Agent-initiative resource tools: the two read-only resource tools route
-    // through the same MCP client manager handle as the per-server tools.
-    extra_executors.extend(apollia_mcp::mcp_resources::build_mcp_resource_executors(
-        &Some(handle.clone()),
-    ));
+    // The resource executors and one executor per connected-server tool are
+    // shared with the desktop and CLI agent dispatchers. `build_agent_tool_executors`
+    // covers both loading modes (`server_detail` surfaces the deferred index too).
+    extra_executors.extend(apollia_mcp::executor::build_agent_tool_executors(&handle).await);
 
-    match mcp_loading {
-        LoadingMode::Eager => {
-            for status in handle.status().await {
-                if !status.connected {
-                    continue;
-                }
-                let Some(detail) = handle.server_detail(&status.name).await else {
-                    continue;
-                };
-                for tool in detail.tools {
-                    extra_executors.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
-                        handle.clone(),
-                        status.name.clone(),
-                        tool.local_name.clone(),
-                    )));
-                }
-            }
-        }
-        LoadingMode::Deferred => {
-            // The synthetic search tool is the single MCP entry point exposed to
-            // the LLM. It is registered even when the index is empty.
-            extra_executors.push(Box::new(ToolSearchExecutor::new(
-                mcp_index.to_vec(),
-                tool_search_limit,
-            )));
-            for entry in mcp_index {
-                extra_executors.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
-                    handle.clone(),
-                    entry.server_name.clone(),
-                    entry.tool_name.clone(),
-                )));
-            }
-        }
+    // In Deferred mode, add the synthetic search tool: it is the single MCP entry
+    // point exposed to the LLM prompt, registered even when the index is empty.
+    if mcp_loading == LoadingMode::Deferred {
+        extra_executors.push(Box::new(ToolSearchExecutor::new(
+            mcp_index.to_vec(),
+            tool_search_limit,
+        )));
     }
 }
 

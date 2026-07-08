@@ -19,6 +19,9 @@ pub struct ToolInvocationRecord {
     pub agent_id: String,
     /// Identifier of the task the invocation belongs to.
     pub task_id: String,
+    /// Stable run identifier the invocation belongs to (the key the audit
+    /// journal is indexed by). `None` for invocations outside a run context.
+    pub run_id: Option<String>,
     /// Name of the invoked tool (e.g. `bash_executor`, `file_io`).
     pub tool_name: String,
     /// SHA256 hex of the JSON-serialized parameters.
@@ -117,6 +120,7 @@ const MIGRATION_OBSERVABILITY_COLUMNS: &[&str] = &[
     "ALTER TABLE tool_invocations ADD COLUMN args_json TEXT",
     "ALTER TABLE tool_invocations ADD COLUMN stdout    TEXT",
     "ALTER TABLE tool_invocations ADD COLUMN stderr    TEXT",
+    "ALTER TABLE tool_invocations ADD COLUMN run_id    TEXT",
 ];
 
 // ---------------------------------------------------------------------------
@@ -192,8 +196,8 @@ impl AuditTrail {
             "INSERT INTO tool_invocations \
              (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
               started_at, duration_ms, exit_code, success, error_code, resources_used, \
-              args_json, stdout, stderr) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+              args_json, stdout, stderr, run_id) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             rusqlite::params![
                 r.id,
                 r.agent_id,
@@ -210,6 +214,7 @@ impl AuditTrail {
                 r.args_json,
                 r.stdout,
                 r.stderr,
+                r.run_id,
             ],
         )?;
         Ok(())
@@ -239,7 +244,7 @@ impl AuditTrail {
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
              started_at, duration_ms, exit_code, success, error_code, resources_used, \
-             args_json, stdout, stderr \
+             args_json, stdout, stderr, run_id \
              FROM tool_invocations \
              ORDER BY started_at DESC \
              LIMIT ?1",
@@ -251,6 +256,7 @@ impl AuditTrail {
                 id: row.get(0)?,
                 agent_id: row.get(1)?,
                 task_id: row.get(2)?,
+                run_id: row.get(15)?,
                 tool_name: row.get(3)?,
                 input_hash: row.get(4)?,
                 sandbox_profile: row.get(5)?,
@@ -432,6 +438,7 @@ mod tests {
             id: uuid::Uuid::new_v4().to_string(),
             agent_id: "test-agent".to_string(),
             task_id: "task-001".to_string(),
+            run_id: None,
             tool_name: "bash_executor".to_string(),
             input_hash: "abc123".to_string(),
             sandbox_profile: "file_system".to_string(),

@@ -110,7 +110,7 @@ pub enum ProjectRepositoryError {
     Sqlite(#[from] rusqlite::Error),
 
     /// Project not found.
-    #[error("projet '{0}' introuvable")]
+    #[error("project '{0}' not found")]
     NotFound(String),
 
     /// JSON serialization error.
@@ -768,24 +768,7 @@ impl ProjectRepository {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn uuid() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    // Lightweight UUID v4-like string - no external dep beyond std.
-    let t = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos();
-    // Mix with thread id for uniqueness.
-    let tid = std::thread::current().id();
-    format!("{:08x}-{:?}-{:08x}", t, tid, rand_u32())
-}
-
-fn rand_u32() -> u32 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    use std::time::SystemTime;
-    let mut h = DefaultHasher::new();
-    SystemTime::now().hash(&mut h);
-    h.finish() as u32
+    uuid::Uuid::new_v4().to_string()
 }
 
 fn now_rfc3339() -> String {

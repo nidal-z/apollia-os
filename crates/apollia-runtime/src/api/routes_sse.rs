@@ -422,7 +422,7 @@ pub async fn stream_task<B: ExecutionBackend + Clone>(
 ///
 /// Unlike `take_while`, this yields the first item that fails the predicate
 /// before closing the stream, needed to send the terminal SSE event.
-struct TakeWhileInclusive<S, F> {
+pub(crate) struct TakeWhileInclusive<S, F> {
     stream: S,
     predicate: F,
     done: bool,
@@ -459,7 +459,7 @@ where
 }
 
 /// Extension trait providing `take_while_inclusive` on any stream.
-trait TakeWhileInclusiveExt: tokio_stream::Stream + Sized {
+pub(crate) trait TakeWhileInclusiveExt: tokio_stream::Stream + Sized {
     /// Yields items while `predicate` returns true, then yields the first
     /// item for which `predicate` returns false and closes.
     fn take_while_inclusive<F>(self, predicate: F) -> TakeWhileInclusive<Self, F>

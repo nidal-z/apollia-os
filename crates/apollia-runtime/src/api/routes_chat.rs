@@ -23,6 +23,7 @@ use tokio_stream::StreamExt;
 use apollia_core::todo::TodoItem;
 use apollia_core::RuntimeEvent;
 
+use crate::api::routes_sse::TakeWhileInclusiveExt;
 use crate::api::server::AppState;
 use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
@@ -383,20 +384,55 @@ pub async fn authorize_tool<B: ExecutionBackend + Clone>(
 pub async fn stream_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
-) -> impl IntoResponse {
+) -> axum::response::Response {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Verifier l'existence de la session avant de s'abonner (parite avec
+    // `stream_task`): sinon un id inconnu ouvre un flux qui n'emet jamais rien.
+    if manager.get_session(id.clone()).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("session not found: {id}"),
+            }),
+        )
+            .into_response();
+    }
+
     let rx = state.event_sender.subscribe();
     let stream = BroadcastStream::new(rx);
     let session_id = id;
 
-    let event_stream = stream.filter_map(move |result| {
-        let sid = session_id.clone();
-        match result {
-            Ok(event) => chat_event_to_sse(&event, &sid),
-            Err(_) => None,
-        }
-    });
+    let sse_stream = stream
+        .filter_map(move |result| {
+            let sid = session_id.clone();
+            match result {
+                Ok(event) => chat_event_to_sse(&event, &sid),
+                // Lagged receiver: skip lost events silently.
+                Err(_) => None,
+            }
+        })
+        // Fermer le flux apres l'evenement terminal (`session_closed`).
+        .take_while_inclusive(|(_event, is_terminal)| !is_terminal)
+        .map(|(sse_event, _)| {
+            let json = serde_json::to_string(&sse_event).unwrap_or_else(|_| "{}".into());
+            Ok::<_, Infallible>(Event::default().data(json).event(sse_event.event))
+        });
 
-    Sse::new(event_stream).keep_alive(KeepAlive::default())
+    Sse::new(sse_stream)
+        .keep_alive(KeepAlive::default())
+        .into_response()
 }
 
 /// SSE event payload for chat events.
@@ -409,10 +445,13 @@ struct SseChatEvent {
     data: serde_json::Value,
 }
 
-/// Convert a [`RuntimeEvent`] to an SSE frame if it matches the session.
+/// Convert a [`RuntimeEvent`] to an SSE payload and its terminal flag if it
+/// matches the session.
 ///
-/// Returns `None` for events not relevant to this session.
-fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Event, Infallible>> {
+/// Returns `None` for events not relevant to this session. The boolean is
+/// `true` for the terminal `session_closed` event so the caller can close the
+/// stream after emitting it.
+fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<(SseChatEvent, bool)> {
     let (sse_event, is_terminal) = match event {
         RuntimeEvent::ChatMessageSent {
             session_id: sid,
@@ -549,14 +588,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
         _ => return None,
     };
 
-    let json = serde_json::to_string(&sse_event).ok()?;
-    let mut event_builder = Event::default().data(json);
-    event_builder = event_builder.event(&sse_event.event);
-
-    // For terminal events, return the SSE frame; the client should close after receiving it.
-    let _ = is_terminal; // Terminal flag available for future TakeWhileInclusive usage.
-
-    Some(Ok(event_builder))
+    Some((sse_event, is_terminal))
 }
 
 /// Handler for `GET /api/v1/sessions/recent`, list recent sessions with first message.
@@ -676,9 +708,7 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
         ChatError::ProjectNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
         ChatError::NotAwaitingApproval { .. } => (StatusCode::CONFLICT, err.to_string()),
-        ChatError::CostCeilingExceeded { .. } => {
-            (StatusCode::PAYMENT_REQUIRED, err.to_string())
-        }
+        ChatError::CostCeilingExceeded { .. } => (StatusCode::PAYMENT_REQUIRED, err.to_string()),
     };
     (status, Json(ErrorResponse { error: msg }))
 }

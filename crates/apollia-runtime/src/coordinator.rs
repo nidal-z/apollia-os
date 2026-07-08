@@ -216,6 +216,13 @@ async fn run_submitted_task<B: ExecutionBackend>(
     )
     .await;
 
+    // Record the run_id so a task_id can be resolved to it (`audit verify`).
+    if let (Some(repo), Some(run_id)) = (task_repo.as_deref(), task.run_id.as_ref()) {
+        if let Err(e) = repo.set_run_id(task_id.as_str(), run_id.as_str()).await {
+            tracing::warn!(task_id = %task_id, error = %e, "failed to persist run_id");
+        }
+    }
+
     let _ = event_bus.send(RuntimeEvent::TaskStarted {
         agent_id: agent_id.clone(),
         task_id: task_id.clone(),
@@ -331,14 +338,17 @@ async fn persist_completion(record: CompletionRecord<'_>) {
 /// `is_success` must reflect the status reported on the Python side, not just
 /// the success of the Rust call. An `Ok(AIPResult { status: Failed, .. })`
 /// means the agent explicitly signaled a failure and must propagate
-/// `success=false`.
+/// `success=false`. A result carrying a populated `error` envelope is likewise
+/// a failure even when its `status` was not set to `Failed` (e.g. a NO_HANDLER
+/// result whose status did not survive the bridge), so callers never see a
+/// failed task reported as `completed`.
 fn task_is_success(
     result: &Result<AIPResult, String>,
     agent_id: &AgentId,
     task_id: &TaskId,
 ) -> bool {
     match result {
-        Ok(aip_result) => aip_result.status != TaskStatus::Failed,
+        Ok(aip_result) => aip_result.status != TaskStatus::Failed && aip_result.error.is_none(),
         Err(e) => {
             tracing::error!(
                 agent_id = %agent_id,
@@ -358,7 +368,7 @@ fn task_is_success(
 fn build_output_text(result: &Result<AIPResult, String>) -> Option<String> {
     match result {
         Ok(aip_result) => {
-            if aip_result.status == TaskStatus::Failed {
+            if aip_result.status == TaskStatus::Failed || aip_result.error.is_some() {
                 let err_text = aip_result
                     .error
                     .as_ref()
@@ -375,6 +385,11 @@ fn build_output_text(result: &Result<AIPResult, String>) -> Option<String> {
             } else {
                 Some(aip_result_to_text(aip_result)).filter(|s| !s.is_empty())
             }
+        }
+        // A failing runner/backend must never yield an empty reason (a blank
+        // error is impossible to root-cause, especially under concurrency).
+        Err(e) if e.trim().is_empty() => {
+            Some("task failed without an error message (runner returned no detail)".to_string())
         }
         Err(e) => Some(e.to_string()),
     }
@@ -754,5 +769,68 @@ mod tests {
             matches!(&completed, RuntimeEvent::TaskCompleted { success, .. } if !success),
             "agent-level Failed must propagate as success=false, got: {completed:?}"
         );
+    }
+
+    #[test]
+    fn test_error_envelope_without_failed_status_is_not_success() {
+        // GIVEN an Ok(AIPResult) that carries a NO_HANDLER error but whose
+        // status did not survive the bridge as Failed (the T3b bug shape).
+        let result: Result<AIPResult, String> = Ok(AIPResult {
+            task_id: "task-x".to_string(),
+            status: TaskStatus::Completed,
+            output: vec![],
+            error: Some(apollia_core::AIPError {
+                code: "NO_HANDLER".to_string(),
+                message: "agent has neither @skill nor @on_message handler".to_string(),
+                details: None,
+            }),
+            artifacts: vec![],
+            input_required_data: None,
+        });
+        let agent = AgentId::from("worker");
+        let task = TaskId::from("task-x".to_string());
+
+        // WHEN / THEN it is treated as a failure and the error text is surfaced.
+        assert!(
+            !task_is_success(&result, &agent, &task),
+            "a result carrying an error envelope must not be a success"
+        );
+        let output = build_output_text(&result).expect("error text expected");
+        assert!(
+            output.contains("[NO_HANDLER]") && output.contains("handler"),
+            "output should surface the error envelope, got: {output}"
+        );
+    }
+
+    #[test]
+    fn test_failed_task_never_has_empty_error() {
+        // GIVEN a backend that failed with an empty error string (W4: a runner
+        // returning no detail, e.g. under concurrency).
+        let result: Result<AIPResult, String> = Err("   ".to_string());
+
+        // WHEN building the output text
+        let output = build_output_text(&result).expect("some output expected");
+
+        // THEN a non-empty reason is always surfaced.
+        assert!(!output.trim().is_empty(), "failed task must carry a reason");
+        assert!(output.contains("without an error message"), "got: {output}");
+    }
+
+    #[test]
+    fn test_clean_completed_result_is_success() {
+        // GIVEN a normal completed result with no error envelope.
+        let result: Result<AIPResult, String> = Ok(AIPResult {
+            task_id: "task-y".to_string(),
+            status: TaskStatus::Completed,
+            output: vec![],
+            error: None,
+            artifacts: vec![],
+            input_required_data: None,
+        });
+        let agent = AgentId::from("worker");
+        let task = TaskId::from("task-y".to_string());
+
+        // WHEN / THEN it stays a success.
+        assert!(task_is_success(&result, &agent, &task));
     }
 }

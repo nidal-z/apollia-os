@@ -66,6 +66,19 @@ impl AuditJournalHandle {
         Self::spawn_actor(db_path, signer, warn_unsigned).await
     }
 
+    /// Open the journal signed with an HMAC signer built from raw `key` bytes.
+    ///
+    /// Used with a local key file (scope local-only) to avoid an OS keychain
+    /// prompt at boot: reading a keychain entry written by a different binary
+    /// signature (every dev rebuild) blocks on a `SecurityAgent` dialog.
+    pub async fn open_with_key_bytes(
+        db_path: &Path,
+        key: Vec<u8>,
+    ) -> Result<Self, AuditJournalError> {
+        let signer = HmacSigner::from_key_bytes(key).map_err(map_signer_error)?;
+        Self::spawn_actor(db_path, Some(Arc::new(signer)), false).await
+    }
+
     /// Shared open path: connection, schema, migrations, and actor spawn.
     async fn spawn_actor(
         db_path: &Path,

@@ -535,31 +535,10 @@ async fn augment_allowed_tools_with_a2a(
 async fn build_mcp_executors(
     mcp_handle: &Option<apollia_mcp::manager::McpClientManagerHandle>,
 ) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
-    let mut execs: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
-    let Some(handle) = mcp_handle else {
-        return execs;
-    };
-    // Agent-initiative resource tools: the two read-only resource tools route
-    // through the same MCP client manager handle as the per-server tools.
-    execs.extend(apollia_mcp::mcp_resources::build_mcp_resource_executors(
-        &Some(handle.clone()),
-    ));
-    for status in handle.status().await {
-        if !status.connected {
-            continue;
-        }
-        let Some(detail) = handle.server_detail(&status.name).await else {
-            continue;
-        };
-        for tool in detail.tools {
-            execs.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
-                handle.clone(),
-                status.name.clone(),
-                tool.local_name.clone(),
-            )));
-        }
+    match mcp_handle {
+        Some(handle) => apollia_mcp::executor::build_agent_tool_executors(handle).await,
+        None => Vec::new(),
     }
-    execs
 }
 
 impl apollia_oria::engine::AIPAgent for BridgeRunner {

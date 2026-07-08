@@ -15,7 +15,7 @@ use apollia_core::events::RunId;
 use apollia_tools::ToolInvocationRecord;
 
 use crate::api::server::AppState;
-use crate::audit_journal::entry::JournalEntryKind;
+use crate::audit_journal::entry::{JournalEntry, JournalEntryKind};
 use crate::audit_journal::VerifyChainReport;
 use crate::coordinator::ExecutionBackend;
 use crate::replay::{
@@ -48,6 +48,10 @@ pub struct AuditEventResponse {
     pub id: String,
     pub agent_id: String,
     pub task_id: String,
+    /// Stable run identifier this invocation belongs to (the key `audit verify`
+    /// uses). `null` for invocations recorded before run_id tracking (kept in the
+    /// payload unconditionally so the schema is stable for automation).
+    pub run_id: Option<String>,
     pub tool_name: String,
     pub input_hash: String,
     pub sandbox_profile: String,
@@ -73,6 +77,7 @@ impl From<ToolInvocationRecord> for AuditEventResponse {
             id: r.id,
             agent_id: r.agent_id,
             task_id: r.task_id,
+            run_id: r.run_id,
             tool_name: r.tool_name,
             input_hash: r.input_hash,
             sandbox_profile: r.sandbox_profile,
@@ -196,6 +201,47 @@ pub async fn verify_audit_run<B: ExecutionBackend + Clone>(
     }
 
     Ok(Json(report))
+}
+
+/// Response body for `GET /api/v1/audit/journal/:run_id`.
+#[derive(Debug, Serialize)]
+pub struct AuditJournalResponse {
+    /// The run whose journal entries these are.
+    pub run_id: String,
+    /// Ordered journal entries (tool calls AND LLM completions), so the model's
+    /// captured reasoning is readable, not only verifiable/replayable.
+    pub entries: Vec<JournalEntry>,
+}
+
+/// `GET /api/v1/audit/journal/:run_id`, the full journal for a run.
+///
+/// Unlike `GET /api/v1/audit` (the tool-only audit trail), this returns the
+/// hash-chained journal entries including `llm_completion` (the model's
+/// prompts/responses). 404 when the run has no entries, 503 when the journal is
+/// not configured.
+pub async fn show_audit_run<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(run_id): Path<String>,
+) -> Result<Json<AuditJournalResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let handle = state.audit_journal.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "audit journal not available".to_string(),
+            }),
+        )
+    })?;
+
+    let entries = handle.query_run(&run_id).await;
+    if entries.is_empty() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "not_found".to_string(),
+            }),
+        ));
+    }
+    Ok(Json(AuditJournalResponse { run_id, entries }))
 }
 
 /// Minimum length of a run-id prefix accepted for resolution.
@@ -452,6 +498,7 @@ mod tests {
             id: uuid::Uuid::new_v4().to_string(),
             agent_id: "agent-test".to_string(),
             task_id: "task-001".to_string(),
+            run_id: None,
             tool_name: tool_name.to_string(),
             input_hash: "abc".to_string(),
             sandbox_profile: "none".to_string(),

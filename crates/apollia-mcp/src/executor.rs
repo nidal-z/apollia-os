@@ -245,6 +245,45 @@ impl ToolExecutor for McpToolExecutor {
     }
 }
 
+// ─── agent executor assembly ──────────────────────────────────────────────────
+
+/// Build every agent-facing MCP [`ToolExecutor`] for the tools currently exposed
+/// by `handle`.
+///
+/// Returns, in order: the two read-only resource executors, then one
+/// [`McpToolExecutor`] per tool of each connected server. `server_detail` yields
+/// the deferred tool index as well as eager tool lists, so the result is complete
+/// in both [`LoadingMode`]s.
+///
+/// This is the single source of truth shared by the chat, desktop, and CLI agent
+/// dispatchers. Callers append the returned executors to their [`ToolDispatcher`]
+/// via `build_dispatcher_with`.
+///
+/// [`LoadingMode`]: crate::session::LoadingMode
+/// [`ToolDispatcher`]: apollia_tools::executor::ToolDispatcher
+pub async fn build_agent_tool_executors(
+    handle: &McpClientManagerHandle,
+) -> Vec<Box<dyn ToolExecutor>> {
+    let mut execs: Vec<Box<dyn ToolExecutor>> =
+        crate::mcp_resources::build_mcp_resource_executors(&Some(handle.clone()));
+    for status in handle.status().await {
+        if !status.connected {
+            continue;
+        }
+        let Some(detail) = handle.server_detail(&status.name).await else {
+            continue;
+        };
+        for tool in detail.tools {
+            execs.push(Box::new(McpToolExecutor::new(
+                handle.clone(),
+                status.name.clone(),
+                tool.local_name,
+            )));
+        }
+    }
+    execs
+}
+
 // ─── tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -495,5 +534,34 @@ mod tests {
         let response = rx.await.expect("channel must not close");
         assert!(!response.approved);
         assert_eq!(response.reason.as_deref(), Some("Too destructive"));
+    }
+
+    #[tokio::test]
+    async fn build_agent_tool_executors_no_servers_yields_only_resource_tools() {
+        // GIVEN a manager with no connected servers
+        use crate::session::LoadingMode;
+        use apollia_tools::registry::ToolRegistryHandle;
+        let registry = ToolRegistryHandle::start();
+        let handle =
+            McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+                .await
+                .expect("manager start failed");
+
+        // WHEN we assemble the agent executors
+        let execs = build_agent_tool_executors(&handle).await;
+
+        // THEN only the two read-only resource executors are present (no
+        // per-server tools), and none carry a `mcp:` tool name.
+        assert_eq!(
+            execs.len(),
+            2,
+            "expected exactly the two resource executors"
+        );
+        assert!(
+            execs.iter().all(|e| !e.name().starts_with("mcp:")),
+            "resource executors are not per-server `mcp:` tools"
+        );
+
+        registry.shutdown().await;
     }
 }

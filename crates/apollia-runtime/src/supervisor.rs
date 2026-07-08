@@ -34,7 +34,7 @@ use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle, Trigger
 
 use crate::api::routes_agents::AgentLoader;
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
-use crate::audit_journal::{AuditJournalHandle, AuditJournalSubscriber, SignerUnavailablePolicy};
+use crate::audit_journal::{AuditJournalHandle, AuditJournalSubscriber};
 use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
 use crate::eventbus::{EventBus, EventBusSender};
 use crate::registry::{AgentRegistry, AgentRegistryHandle};
@@ -1548,48 +1548,79 @@ async fn open_audit_trail(data_dir: &std::path::Path) -> Option<AuditTrailHandle
     }
 }
 
-/// SecretStore label of the audit journal HMAC signing key.
-const AUDIT_JOURNAL_KEY_LABEL: &str = "journal-hmac-key";
-
-/// Open the hash-chained audit journal (`audit_journal.db`) with signing.
+/// Open the hash-chained, signed audit journal (`audit_journal.db`).
 ///
-/// The signing key is read from the configured `SecretStore` under the audit
-/// service. The degraded policy is warn-and-continue: a missing key opens an
-/// unsigned journal rather than blocking startup, so the hash chain (and the
-/// `audit verify` command) keep working even before a key is provisioned.
-/// Returns `None` (logged) when the store or the database cannot be opened.
+/// The HMAC signing key lives in a local file under the data dir (see
+/// [`load_or_create_journal_key`]), generated on first boot. A local file
+/// rather than the OS keychain so a dev rebuild never blocks startup on a
+/// keychain-access prompt. Falls back to an unsigned journal (logged) if the
+/// key is unavailable, so the hash chain and `audit verify` keep working.
 async fn open_audit_journal(data_dir: &std::path::Path) -> Option<AuditJournalHandle> {
     let db_path = data_dir.join("audit_journal.db");
-    let store = match apollia_auth::select_secret_store() {
-        Ok(store) => store,
-        Err(e) => {
-            warn!(error = %e, "audit journal: secret store unavailable, opening unsigned");
-            return match AuditJournalHandle::open(&db_path).await {
-                Ok(handle) => Some(handle),
-                Err(e) => {
-                    warn!(error = %e, "AuditJournal failed to open - journal disabled");
-                    None
-                }
-            };
+    match load_or_create_journal_key(data_dir) {
+        Some(key) => match AuditJournalHandle::open_with_key_bytes(&db_path, key).await {
+            Ok(handle) => {
+                info!("Supervisor: AuditJournal ready (signed)");
+                Some(handle)
+            }
+            Err(e) => {
+                warn!(error = %e, "AuditJournal signer failed - opening unsigned");
+                open_unsigned_journal(&db_path).await
+            }
+        },
+        None => {
+            warn!("audit journal: signing key unavailable - opening unsigned");
+            open_unsigned_journal(&db_path).await
         }
-    };
-    match AuditJournalHandle::open_with_signer(
-        &db_path,
-        store.as_ref(),
-        AUDIT_JOURNAL_KEY_LABEL,
-        SignerUnavailablePolicy::WarnAndContinue,
-    )
-    .await
-    {
-        Ok(handle) => {
-            info!("Supervisor: AuditJournal ready");
-            Some(handle)
-        }
+    }
+}
+
+/// Open the journal without a signer. Returns `None` (logged) on failure.
+async fn open_unsigned_journal(db_path: &std::path::Path) -> Option<AuditJournalHandle> {
+    match AuditJournalHandle::open(db_path).await {
+        Ok(handle) => Some(handle),
         Err(e) => {
             warn!(error = %e, "AuditJournal failed to open - journal disabled");
             None
         }
     }
+}
+
+/// Load the journal HMAC key from `<data_dir>/journal-hmac-key`, generating and
+/// persisting a random 32-byte key (base64, `0600`) on first boot.
+///
+/// A local key file (scope local-only) rather than the OS keychain: reading a
+/// keychain entry written by a different binary signature (every unsigned dev
+/// rebuild) blocks the daemon on a `SecurityAgent` prompt. Returns the key
+/// bytes; `None` only when a key can neither be read nor generated.
+fn load_or_create_journal_key(data_dir: &std::path::Path) -> Option<Vec<u8>> {
+    use base64::Engine as _;
+    let key_path = data_dir.join("journal-hmac-key");
+
+    if let Ok(contents) = std::fs::read_to_string(&key_path) {
+        match base64::engine::general_purpose::STANDARD.decode(contents.trim()) {
+            Ok(bytes) if !bytes.is_empty() => return Some(bytes),
+            _ => warn!("audit journal: existing key file is unreadable, regenerating"),
+        }
+    }
+
+    let mut key = [0u8; 32];
+    rand::RngCore::fill_bytes(&mut rand::rng(), &mut key);
+    let encoded = base64::engine::general_purpose::STANDARD.encode(key);
+    if let Err(e) = std::fs::write(&key_path, &encoded) {
+        // Sign this session with the in-memory key even if it cannot be
+        // persisted (rare: data dir not writable, in which case the db write
+        // would also fail).
+        warn!(error = %e, "audit journal: could not persist signing key");
+        return Some(key.to_vec());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600));
+    }
+    info!("Supervisor: audit journal signing key generated");
+    Some(key.to_vec())
 }
 
 /// Open the HITL task repository (`hitl.db`). Returns `None` (logged) on failure.

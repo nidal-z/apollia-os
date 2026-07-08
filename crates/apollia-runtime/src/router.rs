@@ -5,7 +5,7 @@ use tracing::{info, warn};
 
 use apollia_core::token_budget::TokenBudget;
 use apollia_core::{
-    AIPInput, AIPTask, AgentId, ProcessState, RunOptions, RuntimeEvent, TaskId, TaskStatus,
+    AIPInput, AIPTask, AgentId, ProcessState, RunId, RunOptions, RuntimeEvent, TaskId, TaskStatus,
 };
 
 use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
@@ -285,7 +285,10 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             }
         }
 
-        // 3. Generate TaskId + build AIPTask
+        // 3. Generate TaskId + build AIPTask.
+        // Every submission gets a stable run_id so its tool/LLM events are
+        // journaled (the audit journal only appends events carrying a run_id),
+        // making the run verifiable via `audit verify`.
         let task_id = TaskId::new_v4();
         let task = AIPTask {
             task_id: task_id.to_string(),
@@ -296,6 +299,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             timeout_seconds: None,
             delegation_chain,
             run_options,
+            run_id: Some(RunId::new()),
             ..AIPTask::default()
         };
 

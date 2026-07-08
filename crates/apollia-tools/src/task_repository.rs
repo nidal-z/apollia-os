@@ -27,6 +27,9 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("output_truncated", "INTEGER NOT NULL DEFAULT 0"),
     ("duration_ms", "INTEGER"),
     ("transitions_json", "TEXT"),
+    // Stable run identifier this task belongs to, so a task_id can be resolved
+    // to the run_id the audit journal is keyed by (`audit verify <task_id>`).
+    ("run_id", "TEXT"),
 ];
 
 /// HITL timing columns added to `task_approvals`.
@@ -576,6 +579,62 @@ impl TaskRepository {
         Ok(())
     }
 
+    /// Records the `run_id` this task belongs to.
+    ///
+    /// Called by the coordinator at submission so a `task_id` can later be
+    /// resolved to its `run_id` (the key the audit journal is indexed by).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
+    pub async fn set_run_id(&self, task_id: &str, run_id: &str) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+        let run_id = run_id.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = open_conn(&path)?;
+            conn.execute(
+                "INSERT INTO tasks (task_id, run_id) VALUES (?1, ?2) \
+                 ON CONFLICT(task_id) DO UPDATE SET \
+                     run_id     = excluded.run_id, \
+                     updated_at = CURRENT_TIMESTAMP",
+                params![&task_id, &run_id],
+            )?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
+
+        Ok(())
+    }
+
+    /// Returns the `run_id` recorded for `task_id`, if any.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
+    pub async fn get_run_id(&self, task_id: &str) -> Result<Option<String>, TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<Option<String>, TaskRepoError> {
+            let conn = open_conn(&path)?;
+            let result = conn.query_row(
+                "SELECT run_id FROM tasks WHERE task_id = ?1",
+                params![&task_id],
+                |row| row.get::<_, Option<String>>(0),
+            );
+            match result {
+                Ok(v) => Ok(v),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(TaskRepoError::Sqlite(e)),
+            }
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
+
     /// Updates the agent name for a task.
     ///
     /// Called by the coordinator just after `save_input` to set the
@@ -1082,6 +1141,29 @@ mod tests {
     }
 
     // ─── Task observability tests ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_run_id_round_trip() {
+        // GIVEN a repository
+        let (repo, _path) = open_test_repo().await;
+
+        // WHEN a run_id is recorded for a task
+        repo.set_run_id("t-run-1", "run-abc-123")
+            .await
+            .expect("set_run_id failed");
+
+        // THEN it reads back, and an unknown task returns None
+        assert_eq!(
+            repo.get_run_id("t-run-1").await.expect("get_run_id failed"),
+            Some("run-abc-123".to_string())
+        );
+        assert_eq!(
+            repo.get_run_id("t-missing")
+                .await
+                .expect("get_run_id failed"),
+            None
+        );
+    }
 
     // Input persisted at submission (not truncated)
 

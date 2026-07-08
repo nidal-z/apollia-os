@@ -34,7 +34,7 @@ use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
 use apollia_runtime::A2AToolsProvider;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{
-    build_native_dispatcher, load_governance_snapshot, AuditTrailHandle, NativeDispatcherConfig,
+    build_dispatcher_with, load_governance_snapshot, AuditTrailHandle, NativeDispatcherConfig,
     TaskRepository, ToolCredentialStore, ToolRegistryHandle,
 };
 use futures::stream;
@@ -170,6 +170,9 @@ struct AIPChatAgentRunner {
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     /// Drives `disabled` tools and `web_search` / `web_read` parameters.
     tools_config: apollia_core::ToolsConfig,
+    /// MCP client manager handle, populated after `supervisor.start()` so the
+    /// chat-agent dispatcher can route `mcp:<server>/<tool>` invocations.
+    mcp_handle: Arc<std::sync::OnceLock<Option<apollia_mcp::manager::McpClientManagerHandle>>>,
 }
 
 #[async_trait::async_trait]
@@ -220,21 +223,28 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             Default::default()
         });
         let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
-        let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
-            sandbox_root: sandbox_root_for_agent(),
-            agent_id: agent_name.to_string(),
-            venv_base_dir: self.data_dir.join("venvs"),
-            memory_namespace: manifest.memory_namespace.clone(),
-            memory_shared_namespaces: Vec::new(),
-            memory_base_dir: memory_base_dir.clone(),
-            http_allowlist: None,
-            pending_user_inputs: self.pending_user_inputs.get().cloned(),
-            disabled_tools,
-            brave_api_key: snapshot.brave_api_key,
-            web_search_config: self.tools_config.web_search.clone(),
-            web_read_config: self.tools_config.web_read.clone(),
-            governance_db_path: Some(self.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
-        }));
+        // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
+        // routes through the MCP client manager instead of returning UnknownTool.
+        let mcp_handle = self.mcp_handle.get().cloned().flatten();
+        let extra_executors = mcp_executors_for(&mcp_handle).await;
+        let dispatcher = Arc::new(build_dispatcher_with(
+            &NativeDispatcherConfig {
+                sandbox_root: sandbox_root_for_agent(),
+                agent_id: agent_name.to_string(),
+                venv_base_dir: self.data_dir.join("venvs"),
+                memory_namespace: manifest.memory_namespace.clone(),
+                memory_shared_namespaces: Vec::new(),
+                memory_base_dir: memory_base_dir.clone(),
+                http_allowlist: None,
+                pending_user_inputs: self.pending_user_inputs.get().cloned(),
+                disabled_tools,
+                brave_api_key: snapshot.brave_api_key,
+                web_search_config: self.tools_config.web_search.clone(),
+                web_read_config: self.tools_config.web_read.clone(),
+                governance_db_path: Some(self.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
+            },
+            extra_executors,
+        ));
 
         // Build A2A delegate + invoker so chat-agent Python agents can call
         // `ctx.a2a_invoke(...)` and `ctx.tools.invoke("a2a:<skill>")` on parity
@@ -404,6 +414,22 @@ fn build_user_context_from_repo(
         entries.into_iter().map(|e| (e.key, e.value)).collect(),
     );
     Some(map)
+}
+
+/// Build MCP tool executors for an agent dispatcher, or an empty `Vec` when no
+/// MCP handle is wired.
+///
+/// Delegates to the canonical `apollia_mcp` assembly so the CLI standalone-agent
+/// path stays in lockstep with the chat and desktop dispatchers. Without this,
+/// the registry surfaces `mcp:<server>/<tool>` to the agent but the dispatcher
+/// returns `UnknownTool` at call time.
+async fn mcp_executors_for(
+    mcp_handle: &Option<apollia_mcp::manager::McpClientManagerHandle>,
+) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
+    match mcp_handle {
+        Some(handle) => apollia_mcp::executor::build_agent_tool_executors(handle).await,
+        None => Vec::new(),
+    }
 }
 
 /// Fallback backend, only used when agent loading fails at start time.
@@ -619,6 +645,9 @@ struct AIPProductionBackend {
     /// shared [`ToolCredentialStore`] that backs `ctx.secrets`. `None` is
     /// accepted in degraded mode.
     secrets_data_dir: Option<PathBuf>,
+    /// MCP client manager handle, `None` when no MCP server is configured. Lets
+    /// the `BridgeRunner` route `mcp:<server>/<tool>` calls to the MCP manager.
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -647,6 +676,7 @@ impl Clone for AIPProductionBackend {
             agent_dir: self.agent_dir.clone(),
             secrets_declared: self.secrets_declared.clone(),
             secrets_data_dir: self.secrets_data_dir.clone(),
+            mcp_handle: self.mcp_handle.clone(),
         }
     }
 }
@@ -696,6 +726,9 @@ struct BridgeRunner {
     /// Apollia data directory (`~/.apollia/`), used for lazy opening of the
     /// shared [`ToolCredentialStore`] that backs `ctx.secrets`.
     secrets_data_dir: Option<PathBuf>,
+    /// MCP client manager handle, `None` when no MCP server is configured. Used
+    /// at `call_run` to build one executor per registered MCP tool.
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -722,6 +755,7 @@ impl AgentRunner for BridgeRunner {
         let agent_dir = self.agent_dir.clone();
         let secrets_declared = self.secrets_declared.clone();
         let secrets_data_dir = self.secrets_data_dir.clone();
+        let mcp_handle = self.mcp_handle.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -752,26 +786,32 @@ impl AgentRunner for BridgeRunner {
                 Default::default()
             });
             let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
-            let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
-                sandbox_root: sandbox_root_for_agent(),
-                agent_id: agent_id.clone(),
-                venv_base_dir: memory_base_dir
-                    .parent()
-                    .map(|p| p.join("venvs"))
-                    .unwrap_or_else(|| memory_base_dir.join("venvs")),
-                memory_namespace: memory_namespace.clone(),
-                memory_shared_namespaces: Vec::new(),
-                memory_base_dir: memory_base_dir.clone(),
-                http_allowlist: None,
-                pending_user_inputs: None,
-                disabled_tools,
-                brave_api_key: snapshot.brave_api_key,
-                web_search_config: tools_config.web_search.clone(),
-                web_read_config: tools_config.web_read.clone(),
-                governance_db_path: Some(
-                    governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
-                ),
-            }));
+            // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
+            // routes through the MCP client manager instead of returning UnknownTool.
+            let extra_executors = mcp_executors_for(&mcp_handle).await;
+            let dispatcher = Arc::new(build_dispatcher_with(
+                &NativeDispatcherConfig {
+                    sandbox_root: sandbox_root_for_agent(),
+                    agent_id: agent_id.clone(),
+                    venv_base_dir: memory_base_dir
+                        .parent()
+                        .map(|p| p.join("venvs"))
+                        .unwrap_or_else(|| memory_base_dir.join("venvs")),
+                    memory_namespace: memory_namespace.clone(),
+                    memory_shared_namespaces: Vec::new(),
+                    memory_base_dir: memory_base_dir.clone(),
+                    http_allowlist: None,
+                    pending_user_inputs: None,
+                    disabled_tools,
+                    brave_api_key: snapshot.brave_api_key,
+                    web_search_config: tools_config.web_search.clone(),
+                    web_read_config: tools_config.web_read.clone(),
+                    governance_db_path: Some(
+                        governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
+                    ),
+                },
+                extra_executors,
+            ));
 
             let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())
             {
@@ -947,6 +987,7 @@ impl ExecutionBackend for AIPProductionBackend {
             agent_dir: self.agent_dir.clone(),
             secrets_declared: self.secrets_declared.clone(),
             secrets_data_dir: self.secrets_data_dir.clone(),
+            mcp_handle: self.mcp_handle.clone(),
         };
 
         // Build a per-task ORIAEngine wired with HITL components.
@@ -1040,6 +1081,9 @@ struct ProductionBackendFactory {
     /// Base data directory (`~/.apollia/`), used to open the shared
     /// [`ToolCredentialStore`] on each agent execution (`ctx.secrets`).
     data_dir: PathBuf,
+    /// MCP client manager handle, populated after `supervisor.start()`. Threaded
+    /// into each `AIPProductionBackend` so agent dispatchers can execute MCP tools.
+    mcp_handle: Arc<std::sync::OnceLock<Option<apollia_mcp::manager::McpClientManagerHandle>>>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -1071,6 +1115,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let pending_approvals = self.pending_approvals.get().cloned();
         let plan_gates = self.plan_gates.get().cloned();
         let task_repository = self.task_repository.get().cloned();
+        let mcp_handle = self.mcp_handle.get().cloned().flatten();
 
         // Build A2A delegate and invoker if registry + router are available.
         let (a2a_delegate, a2a_invoker) = match (
@@ -1146,6 +1191,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 agent_dir,
                 secrets_declared,
                 secrets_data_dir: Some(self.data_dir.clone()),
+                mcp_handle,
             })
         })();
 
@@ -1462,6 +1508,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     > = Arc::new(std::sync::OnceLock::new());
     let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
         Arc::new(std::sync::OnceLock::new());
+    let mcp_handle_lock: Arc<
+        std::sync::OnceLock<Option<apollia_mcp::manager::McpClientManagerHandle>>,
+    > = Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
@@ -1475,6 +1524,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         router: router_lock.clone(),
         tools_config: tools_config.clone(),
         data_dir: data_dir_for_chat.clone(),
+        mcp_handle: mcp_handle_lock.clone(),
     });
     // Keep a handle for the post-supervisor rewire pass.
     let factory_for_rewire = factory.clone();
@@ -1492,6 +1542,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             task_router: router_lock.clone(),
             data_dir: data_dir_for_chat,
             tools_config,
+            mcp_handle: mcp_handle_lock.clone(),
         }));
 
     let handles = supervisor
@@ -1514,6 +1565,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     set_lock_if_some(&plan_gates_lock, handles.plan_gates.clone());
     set_lock_if_some(&task_repository_lock, handles.task_repository.clone());
     let _ = user_memory_lock.set(handles.user_memory.clone());
+    // Cloned (not moved) so the ShutdownController still receives handles.mcp_handle.
+    let _ = mcp_handle_lock.set(handles.mcp_handle.clone());
     set_lock_if_some(
         &pending_user_inputs_lock,
         handles
@@ -1964,6 +2017,7 @@ agent = A()
             agent_dir: Some(tmp.clone()),
             secrets_declared: vec![],
             secrets_data_dir: None,
+            mcp_handle: None,
         };
 
         let task = AIPTask {

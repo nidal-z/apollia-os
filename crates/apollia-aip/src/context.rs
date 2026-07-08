@@ -277,6 +277,7 @@ impl ToolProxy {
                     allowed_tools: &allowed,
                     agent_id: &agent_id,
                     task_id: &task_id,
+                    run_id: run_id.as_ref().map(|r| r.as_str()),
                 },
                 &tool_name,
                 input_value,
@@ -476,6 +477,7 @@ impl ToolProxy {
                 allowed_tools: &self.allowed_tools,
                 agent_id: &self.agent_id,
                 task_id: &self.task_id,
+                run_id: self.run_id.as_ref().map(|r| r.as_str()),
             },
             tool_name,
             input,
@@ -731,6 +733,9 @@ struct ToolCallContext<'a> {
     allowed_tools: &'a [String],
     agent_id: &'a str,
     task_id: &'a str,
+    /// Run this call belongs to, recorded on the audit trail so `audit list`
+    /// can surface it and a task_id can be resolved to its run_id.
+    run_id: Option<&'a str>,
 }
 
 /// Shared tool execution logic used by both the Python `call()` and Rust `call_inner()`.
@@ -763,15 +768,21 @@ async fn execute_tool(
         return Err(ToolProxyError::ToolNotAllowed(tool_name.to_string()));
     }
 
-    // 2. Lookup in registry
+    // 2. Lookup in registry. Deferred MCP tools carry no descriptor (only a
+    //    lightweight index), so an allowlisted `mcp:` tool with no descriptor
+    //    still proceeds: the dispatcher fetches the schema on demand and is the
+    //    real existence gate (raising UnknownTool if genuinely absent). Native
+    //    tools always have a descriptor, so they keep the strict ToolNotFound.
     let descriptor = ctx
         .registry
         .get(tool_name)
         .await
-        .map_err(|e| ToolProxyError::ExecutionFailed(e.to_string()))?
-        .ok_or_else(|| ToolProxyError::ToolNotFound(tool_name.to_string()))?;
-
-    let sandbox_profile = format!("{:?}", descriptor.sandbox_profile);
+        .map_err(|e| ToolProxyError::ExecutionFailed(e.to_string()))?;
+    let sandbox_profile = match &descriptor {
+        Some(d) => format!("{:?}", d.sandbox_profile),
+        None if tool_name.starts_with("mcp:") => "McpDeferred".to_string(),
+        None => return Err(ToolProxyError::ToolNotFound(tool_name.to_string())),
+    };
 
     // 3. Execute the tool
     let exec_result = ctx.executor.execute(tool_name, input);
@@ -824,6 +835,7 @@ fn emit_audit_record(
         id: uuid::Uuid::new_v4().to_string(),
         agent_id: ctx.agent_id.to_string(),
         task_id: ctx.task_id.to_string(),
+        run_id: ctx.run_id.map(String::from),
         tool_name: tool_name.to_string(),
         input_hash: input_hash.to_string(),
         sandbox_profile: sandbox_profile.to_string(),
@@ -2313,6 +2325,31 @@ mod tests {
         // THEN we get ToolNotFound
         assert!(
             matches!(result, Err(ToolProxyError::ToolNotFound(ref name)) if name == "inexistant")
+        );
+
+        registry.shutdown().await;
+        audit.shutdown().await;
+    }
+
+    // Deferred MCP tool: allowlisted, no descriptor in the registry, yet the
+    // call must reach the executor (the dispatcher is the real existence gate),
+    // not fail with ToolNotFound.
+    #[tokio::test]
+    async fn test_deferred_mcp_tool_without_descriptor_reaches_executor() {
+        // GIVEN an allowlisted `mcp:` tool with NO registered descriptor
+        let expected = serde_json::json!({"content": "pong"});
+        let (proxy, registry, audit) =
+            make_proxy(vec!["mcp:demo/ping"], Ok(expected.clone())).await;
+
+        // WHEN we call the deferred MCP tool
+        let result = proxy
+            .call_inner("mcp:demo/ping", serde_json::json!({}))
+            .await;
+
+        // THEN the executor runs and returns its output (no ToolNotFound)
+        assert_eq!(
+            result.expect("deferred mcp tool should reach executor"),
+            expected
         );
 
         registry.shutdown().await;
