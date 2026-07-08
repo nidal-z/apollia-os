@@ -436,6 +436,20 @@ impl ToolProxy {
         self
     }
 
+    /// Invoke a tool by name from Rust, without PyO3, returning its JSON output.
+    ///
+    /// Runs the exact same governance as the Python-facing `call`: permission
+    /// check, registry lookup, execution, audit recording, and tool-call
+    /// counting. Used by the ORIA orchestrated `ActorLoop` to execute plan tool
+    /// steps under the same authority as a direct agent.
+    pub async fn invoke_native(
+        &self,
+        tool_name: &str,
+        input: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolProxyError> {
+        self.call_inner(tool_name, input).await
+    }
+
     /// Core tool execution logic, testable without PyO3.
     ///
     /// Performs permission check, registry lookup, execution, and audit recording.
@@ -2506,6 +2520,80 @@ mod tests {
         assert_eq!(records[0].input_hash, input_hash);
         assert!(records[0].success);
         assert!(records[0].duration_ms.is_some());
+
+        registry.shutdown().await;
+        audit.shutdown().await;
+    }
+
+    // Orchestrated ORIA path proof: `invoke_native` (the method the CLI's
+    // OriaToolProxy adapter calls) executes a REAL tool through the dispatcher
+    // and records it in the audit trail, using the exact `{"input": ...}`
+    // payload shape the orchestrated ActorLoop sends for a tool step.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_invoke_native_executes_real_tool_and_audits() {
+        use apollia_tools::executor::{ToolDispatcher, ToolExecutionError};
+        use apollia_tools::ToolExecutor as NativeToolExecutor;
+
+        // A real read-`input` tool exercised through the real dispatcher path
+        // (DispatcherExecutor -> ToolDispatcher -> executor), same wiring as
+        // production orchestrated execution.
+        struct EchoInputExecutor;
+        #[async_trait::async_trait]
+        impl NativeToolExecutor for EchoInputExecutor {
+            fn name(&self) -> &str {
+                "echo"
+            }
+            async fn execute(
+                &self,
+                input: serde_json::Value,
+            ) -> Result<serde_json::Value, ToolExecutionError> {
+                let text = input
+                    .get("input")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                Ok(serde_json::Value::String(format!("echo: {text}")))
+            }
+        }
+
+        // GIVEN a ToolProxy wired as the runtime wires it for orchestrated
+        // execution (ToolDispatcher -> DispatcherExecutor -> ToolProxy) plus a
+        // real registry descriptor and audit trail.
+        let registry = ToolRegistryHandle::start();
+        let audit = open_test_audit().await;
+        let dispatcher = Arc::new(ToolDispatcher::new(vec![Box::new(EchoInputExecutor)]));
+        let executor = Arc::new(DispatcherExecutor::new(dispatcher));
+        let proxy = ToolProxy::new(ToolProxyConfig {
+            registry: registry.clone(),
+            audit: audit.clone(),
+            executor,
+            allowed_tools: vec!["echo".to_string()],
+            agent_id: "orchestrated-agent".to_string(),
+            task_id: "task-orch".to_string(),
+            run_id: None,
+        });
+        let mut echo_desc = file_io_descriptor();
+        echo_desc.name = "echo".to_string();
+        registry.register(echo_desc).await.expect("register failed");
+
+        // WHEN the ORIA adapter invokes the tool with the ActorLoop payload shape
+        let result = proxy
+            .invoke_native("echo", serde_json::json!({"input": "hello orchestrated"}))
+            .await;
+
+        // THEN the real tool executed and returned its output
+        assert_eq!(
+            result.expect("orchestrated tool must execute via invoke_native"),
+            serde_json::Value::String("echo: hello orchestrated".to_string())
+        );
+
+        // AND the invocation was recorded in the audit trail (governance holds).
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        let records = audit.query_last(1).await;
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].tool_name, "echo");
+        assert_eq!(records[0].agent_id, "orchestrated-agent");
+        assert!(records[0].success);
 
         registry.shutdown().await;
         audit.shutdown().await;
