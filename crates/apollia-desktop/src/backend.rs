@@ -13,8 +13,8 @@ use apollia_aip::context::{
 };
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{
-    AIPError, AIPResult, AIPTask, AgentManifest, ORIAConfig, PendingApprovals, TaskStatus,
-    ToolsConfig,
+    AIPError, AIPResult, AIPTask, AgentManifest, ORIAConfig, PendingApprovals, StepBudgetConfig,
+    TaskStatus, ToolsConfig,
 };
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
@@ -619,11 +619,14 @@ impl ExecutionBackend for AIPProductionBackend {
         // Orchestrated agents flow through ORIA's planner + ActorLoop (where the
         // plan gate lives); everything else uses the direct dispatch path.
         let execution_mode = self.manifest.execution_mode.clone();
+        // Agent budget capped to the runtime ceiling on the direct path
+        // (principle #7): never an unlimited budget.
+        let agent_step_budget = self.manifest.step_budget.clone().unwrap_or_default();
         Box::pin(async move {
             if execution_mode == "orchestrated" {
                 Ok(engine.execute(task, &runner).await)
             } else {
-                let budget = Arc::new(StepBudget::unlimited());
+                let budget = Arc::new(direct_path_budget(&agent_step_budget));
                 engine
                     .execute_direct(task, &runner, budget)
                     .await
@@ -788,6 +791,16 @@ impl AgentBackendFactory for ProductionBackendFactory {
     }
 }
 
+/// Builds the bounded [`StepBudget`] for the direct execution path.
+///
+/// Caps the agent-declared budget to the runtime ceiling
+/// ([`StepBudgetConfig::default`]: 30 steps / 60 tool calls / 600s wall clock)
+/// so the desktop never runs an agent under an unlimited budget. Mirrors the
+/// CLI helper of the same name and restores principle #7 on this path.
+fn direct_path_budget(agent_budget: &StepBudgetConfig) -> StepBudget {
+    StepBudget::from_capped(agent_budget, &StepBudgetConfig::default())
+}
+
 /// Wires the `LlmRouter` and a `Reasoner` into the engine so the orchestrated
 /// path can plan. Mirrors the CLI wiring: without a precise backend the engine
 /// keeps the router but planning fails with `NO_LLM` if invoked.
@@ -948,6 +961,9 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
         let secrets_declared = validated.manifest.secrets.clone();
         // Capture the manifest before the bridge consumes `validated`.
         let chat_manifest = validated.manifest.clone();
+        // Agent budget capped to the runtime ceiling on the direct path
+        // (principle #7), captured before `chat_manifest` moves into the runner.
+        let agent_step_budget = chat_manifest.step_budget.clone().unwrap_or_default();
         let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
 
         // 3. Resolve OnceLock handles
@@ -1042,7 +1058,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             engine = engine.with_task_repository(repo);
         }
 
-        let budget = Arc::new(StepBudget::unlimited());
+        let budget = Arc::new(direct_path_budget(&agent_step_budget));
         engine
             .execute_direct(task, &runner, budget)
             .await
