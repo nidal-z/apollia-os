@@ -105,6 +105,21 @@ async def test_mock_llm_proxy_sequential_responses():
 
 
 @pytest.mark.asyncio()
+async def test_mock_llm_proxy_map_preserves_order_and_records():
+    """MockLlmProxy.map returns one ok result per item, in order, and records."""
+    proxy = MockLlmProxy()
+    items = ["alpha", "beta", "gamma"]
+
+    results = await proxy.map(prefix="Classify:", items=items)
+
+    assert [r["index"] for r in results] == [0, 1, 2]
+    assert all(r["ok"] for r in results)
+    # With no queued responses the mock echoes each item back.
+    assert [r["text"] for r in results] == items
+    assert proxy.map_calls == [{"prefix": "Classify:", "items": items}]
+
+
+@pytest.mark.asyncio()
 async def test_mock_llm_proxy_chat():
     """MockLlmProxy.chat() delegates to complete() and records the call."""
     proxy = MockLlmProxy([{"content": "reply"}])
@@ -115,6 +130,23 @@ async def test_mock_llm_proxy_chat():
     assert proxy.call_count == 1
     assert len(proxy.prompts) == 1
     assert proxy.default_backend == "mock"
+
+
+@pytest.mark.asyncio()
+async def test_mock_llm_proxy_chat_accepts_sampling_overrides():
+    """MockLlmProxy.chat() accepts temperature/max_tokens/seed like the real proxy."""
+    proxy = MockLlmProxy([{"content": "ok"}])
+
+    result = await proxy.chat(
+        system="sys",
+        user="usr",
+        temperature=0.2,
+        max_tokens=64,
+        seed=7,
+    )
+
+    assert result.content == "ok"
+    assert proxy.call_count == 1
 
 
 @pytest.mark.asyncio()

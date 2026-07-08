@@ -120,6 +120,47 @@ def test_build_manifest_step_budget_optional() -> None:
     assert manifest["memory_namespace"] is None
 
 
+def test_build_manifest_max_concurrent_default_is_one() -> None:
+    class Agent:
+        pass
+
+    manifest = build_manifest(Agent, name="x", version="1.0.0", description="d")
+    assert manifest["max_concurrent_tasks"] == 1
+
+
+def test_build_manifest_max_concurrent_set() -> None:
+    class Agent:
+        pass
+
+    manifest = build_manifest(
+        Agent, name="x", version="1.0.0", description="d", max_concurrent_tasks=3
+    )
+    assert manifest["max_concurrent_tasks"] == 3
+
+
+def test_build_manifest_max_concurrent_rejects_below_one() -> None:
+    class Agent:
+        pass
+
+    with pytest.raises(AgentConfigError):
+        build_manifest(Agent, name="x", version="1.0.0", description="d", max_concurrent_tasks=0)
+
+
+def test_build_manifest_max_concurrent_rejects_non_int() -> None:
+    class Agent:
+        pass
+
+    # bool is an int subclass but must be rejected.
+    with pytest.raises(AgentConfigError):
+        build_manifest(
+            Agent,
+            name="x",
+            version="1.0.0",
+            description="d",
+            max_concurrent_tasks=True,  # type: ignore[arg-type]
+        )
+
+
 # ──────────────────────────── conversational mode ────────────────────────────
 
 

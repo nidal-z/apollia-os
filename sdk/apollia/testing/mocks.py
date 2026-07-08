@@ -87,9 +87,7 @@ class MockToolProxy:
         """
         called_names = [n for n, _ in self.calls]
         if name not in called_names:
-            raise AssertionError(
-                f"Tool '{name}' was never called. " f"Calls recorded: {called_names}"
-            )
+            raise AssertionError(f"Tool '{name}' was never called. Calls recorded: {called_names}")
 
     def assert_called_with(self, name: str, args: dict[str, object]) -> None:
         """Assert that *name* was called with exactly *args*.
@@ -100,7 +98,7 @@ class MockToolProxy:
         if (name, args) not in self.calls:
             matching = [(n, a) for n, a in self.calls if n == name]
             raise AssertionError(
-                f"Tool '{name}' was not called with {args}. " f"Matching calls: {matching}"
+                f"Tool '{name}' was not called with {args}. Matching calls: {matching}"
             )
 
 
@@ -149,6 +147,8 @@ class MockLlmProxy:
         # list and ``max_iterations`` the agent passed in.
         self.run_tools_calls: list[dict[str, Any]] = []
         self.run_tools_responses: list[str] = []
+        # Each call to ``map`` records its prefix and items for assertions.
+        self.map_calls: list[dict[str, Any]] = []
 
     async def complete(  # NOSONAR S7503 - Protocol contract
         self,
@@ -178,12 +178,18 @@ class MockLlmProxy:
         system: str,
         user: str,
         backend: str | None = None,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        seed: int | None = None,
     ) -> MockLlmResponse:
         """Convenience wrapper matching ``LlmProxy.chat()`` signature.
 
-        Delegates to ``complete()`` internally and returns a
-        :class:`MockLlmResponse` (same as ``complete()``).
+        Accepts the sampling overrides (``temperature``, ``max_tokens``,
+        ``seed``) so tests can pass them without error; the mock ignores them,
+        delegates to ``complete()`` and returns a :class:`MockLlmResponse`.
         """
+        _ = (temperature, max_tokens, seed)  # sampling overrides ignored by the mock
         return await self.complete(
             [{"role": "system", "content": system}, {"role": "user", "content": user}],
             backend=backend,
@@ -221,6 +227,32 @@ class MockLlmProxy:
                 "no more responses configured in `run_tools_responses`"
             )
         return self.run_tools_responses.pop(0)
+
+    async def map(  # NOSONAR S7503 - Protocol contract
+        self,
+        prefix: str,
+        items: list[str],
+        *,
+        backend: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        max_concurrency: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Simulate ``LlmProxy.map``: one order-preserving result per item.
+
+        Each item yields ``{"index": i, "ok": True, "text": ...}``. Queued
+        ``responses`` are consumed in order when present, otherwise the item is
+        echoed. Calls are recorded in ``self.map_calls`` for assertions. A mock
+        never fails an item.
+        """
+        _ = (backend, temperature, max_tokens, max_concurrency)  # ignored by the mock
+        self.map_calls.append({"prefix": prefix, "items": list(items)})
+        self.call_count += 1
+        results: list[dict[str, Any]] = []
+        for index, item in enumerate(items):
+            text_out = str(MockLlmResponse(self.responses.pop(0)).content) if self.responses else item
+            results.append({"index": index, "ok": True, "text": text_out})
+        return results
 
     @property
     def default_backend(self) -> str:

@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    # Runtime import would be circular (apollia.types imports LlmProxy from here);
+    # only needed for annotations, which are lazy under `from __future__`.
+    from apollia.types import MapItemResult
 
 
 @runtime_checkable
@@ -43,8 +48,9 @@ class LlmProxy(Protocol):
         messages: list[dict[str, Any]],
         *,
         backend: str | None = None,
-        temperature: float = 0.7,
+        temperature: float | None = None,
         max_tokens: int | None = None,
+        seed: int | None = None,
     ) -> LlmResponse: ...
 
     async def chat(
@@ -53,15 +59,47 @@ class LlmProxy(Protocol):
         user: str,
         *,
         backend: str | None = None,
-        temperature: float = 0.7,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        seed: int | None = None,
     ) -> LlmResponse: ...
+
+    async def map(
+        self,
+        prefix: str,
+        items: list[str],
+        *,
+        backend: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        max_concurrency: int | None = None,
+    ) -> list[MapItemResult]:
+        """Batch a shared-prefix prompt over many items.
+
+        Each item is completed as ``[system(prefix), user(item)]``, so the
+        system message is identical across items. Apollia owns the concurrency
+        and prefix sharing: on a batching backend (a local ``llama-server``) this
+        maximizes prefix-cache reuse and continuous batching; elsewhere it
+        degrades to bounded-concurrent calls. You never touch slots or batching.
+
+        Results are order-preserving, one :class:`~apollia.types.MapItemResult`
+        per item. A single failing item never aborts the batch. Typical usage::
+
+            results = await ctx.llm.map(prefix=instructions, items=paragraphs)
+            for r in results:
+                if r["ok"]:
+                    use(r["text"])
+        """
+        ...
 
     async def stream(
         self,
         messages: list[dict[str, Any]],
         *,
         backend: str | None = None,
-        temperature: float = 0.7,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        seed: int | None = None,
     ) -> AsyncIterator[str]:
         """Open a streaming completion.
 

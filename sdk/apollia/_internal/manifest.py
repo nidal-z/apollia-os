@@ -243,6 +243,7 @@ def build_manifest(
     check_commands: tuple[str, ...] = (),
     agent_type: str | None = None,
     autonomy_level: str | None = None,
+    max_concurrent_tasks: int = 1,
 ) -> dict[str, Any]:
     """Produce the canonical manifest dict consumed by the Rust loader.
 
@@ -259,6 +260,12 @@ def build_manifest(
         raise AgentConfigError("manifest 'name' must be a non-empty string")
     if not isinstance(version, str) or not version:
         raise AgentConfigError("manifest 'version' must be a non-empty string")
+    # `bool` is an `int` subclass; reject it explicitly so True/False don't slip
+    # through as 1/0.
+    if isinstance(max_concurrent_tasks, bool) or not isinstance(max_concurrent_tasks, int):
+        raise AgentConfigError("manifest 'max_concurrent_tasks' must be an int")
+    if max_concurrent_tasks < 1:
+        raise AgentConfigError("manifest 'max_concurrent_tasks' must be >= 1")
 
     packages_l = _check_string_tuple("packages", packages)
     tags_l = _check_string_tuple("tags", tags)
@@ -330,6 +337,7 @@ def build_manifest(
         "step_budget": step_budget,
         "check_commands": list(check_commands),
         "agent_type": agent_type,
+        "max_concurrent_tasks": max_concurrent_tasks,
         "supports_a2a": len(skills_registry) > 0,
         "skills": skills_list,
         "execution_mode": execution_mode,

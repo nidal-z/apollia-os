@@ -30,9 +30,37 @@ class A2AInterface(Protocol):
         skill_id: str,
         input: dict[str, Any] | None = None,
         *,
-        timeout_secs: int = 120,
+        timeout_secs: int | None = None,
         **kwargs: Any,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Invoke an A2A skill and return the full invocation envelope.
+
+        On success the return value is the A2A envelope, not the skill's
+        payload directly::
+
+            {
+                "result": {
+                    "task_id": "...",
+                    "status": "completed",
+                    "output": [{"type": "data", "data": {...}}],
+                    "error": None,
+                    "artifacts": [],
+                    "input_required_data": None,
+                },
+                "agent_name": "...",
+                "skill_id": "...",
+                "duration_ms": 123,
+            }
+
+        The skill's returned dict lives at ``result.output[0].data``. Use
+        :func:`apollia.utils.formatting.a2a_result_data` to unwrap it, or
+        :func:`apollia.utils.formatting.aip_result_text` on ``result`` for the
+        text parts. ``timeout_secs=None`` uses the backend default.
+
+        On error the return value is a failed ``AIPResult`` dict
+        (``{"status": "failed", "error": {...}, ...}``), not the envelope.
+        """
+        ...
 
     async def discover(self, skill_id: str) -> dict[str, Any] | None: ...
 

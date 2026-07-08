@@ -120,6 +120,7 @@ def agent(  # NOSONAR S107: public decorator API surface
     check_commands: tuple[str, ...] = (),
     agent_type: str | None = None,
     autonomy_level: str | None = None,
+    max_concurrent_tasks: int = 1,
 ) -> Callable[[C], C]:
     """Declare a class as an Apollia agent.
 
@@ -146,6 +147,11 @@ def agent(  # NOSONAR S107: public decorator API surface
             gate is active (``"assisted"``, ``"supervised"``) or bypassed
             (``"bounded_autonomous"``, ``"long_autonomous"``). Default: None
             (the runtime uses its own default, currently ``"assisted"``).
+        max_concurrent_tasks: How many tasks the agent may run in parallel before
+            the runtime returns ``503`` (admission control). Default ``1``. Raise
+            it to match the hardware (the local runner has up to 8 inference
+            slots); an ``N`` accepts ``N`` concurrent tasks, the ``N+1``-th is
+            rejected. Must be ``>= 1``.
 
     The decorator:
 
@@ -216,6 +222,7 @@ def agent(  # NOSONAR S107: public decorator API surface
             check_commands=check_commands_v,
             agent_type=agent_type,
             autonomy_level=autonomy_level_v,
+            max_concurrent_tasks=max_concurrent_tasks,
         )
 
         skills_registry = getattr(cls, SKILLS_REGISTRY_ATTR, {}) or {}
@@ -251,6 +258,7 @@ def agent(  # NOSONAR S107: public decorator API surface
                 "check_commands": check_commands_v,
                 "agent_type": agent_type,
                 "autonomy_level": autonomy_level_v,
+                "max_concurrent_tasks": max_concurrent_tasks,
             },
         )
 
@@ -266,8 +274,7 @@ def agent(  # NOSONAR S107: public decorator API surface
             instance = cls()
         except TypeError as exc:
             raise AgentConfigError(
-                f"@agent {name_v!r}: cannot instantiate {cls.__name__}() with "
-                f"no arguments - {exc}"
+                f"@agent {name_v!r}: cannot instantiate {cls.__name__}() with no arguments - {exc}"
             ) from exc
 
         expose_to_module(cls, instance)

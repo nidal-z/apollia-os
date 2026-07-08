@@ -108,6 +108,39 @@ def aip_result_text(result: dict[str, Any]) -> str:
     return parts_to_text(parts)
 
 
+def a2a_result_data(envelope: dict[str, Any]) -> dict[str, Any] | None:
+    """Unwrap the skill payload from an ``ctx.a2a.invoke`` envelope.
+
+    ``invoke`` returns the full A2A envelope
+    (``{"result": {"output": [...], ...}, "agent_name", "skill_id",
+    "duration_ms"}``). The skill's returned dict lives at the first ``data``
+    part of ``result.output``. This helper digs it out.
+
+    Args:
+        envelope: The dict returned by ``ctx.a2a.invoke``.
+
+    Returns:
+        The ``data`` dict of the first ``type == "data"`` output part, or
+        ``None`` when the call failed, produced no data part, or the shape is
+        unexpected.
+    """
+    if not isinstance(envelope, dict):
+        return None
+    # Accept both the envelope ({"result": {...}}) and a bare AIPResult
+    # ({"output": [...]}) so callers can pass either level.
+    result = envelope.get("result")
+    if not isinstance(result, dict):
+        result = envelope
+    output = result.get("output")
+    if not isinstance(output, list):
+        return None
+    for part in output:
+        if isinstance(part, dict) and part.get("type") == "data":
+            data = part.get("data")
+            return data if isinstance(data, dict) else None
+    return None
+
+
 def parts_to_text(parts: list[dict[str, Any]]) -> str:
     """Extract concatenated text from a list of AIP parts.
 

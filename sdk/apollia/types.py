@@ -81,6 +81,21 @@ class LlmMessage(TypedDict, total=False):
     content: list[MessageContent] | str
 
 
+class MapItemResult(TypedDict, total=False):
+    """One result of :meth:`ctx.llm.map`, order-preserving with the input items.
+
+    ``index`` and ``ok`` are always present. On success ``text`` and ``usage``
+    are set; on failure ``error`` is set. A single failing item never aborts the
+    batch, so consumers branch on ``ok``.
+    """
+
+    index: int
+    ok: bool
+    text: str
+    error: str
+    usage: dict[str, Any]
+
+
 class Message(TypedDict):
     """A conversational message exchanged with a user-facing agent."""
 

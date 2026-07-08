@@ -18,6 +18,7 @@ from apollia.types import (
     Ctx,
     ImageContent,
     LlmMessage,
+    MapItemResult,
     Message,
     MessageContent,
     TextContent,
@@ -50,6 +51,7 @@ __all__ = [
     # Multi-modal types
     "Message",
     "LlmMessage",
+    "MapItemResult",
     "MessageContent",
     "TextContent",
     "ImageContent",
