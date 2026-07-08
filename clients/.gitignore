@@ -1,0 +1,6 @@
+# Local dev artifacts, never committed.
+.venv/
+node_modules/
+ts/node_modules/
+*.pyc
+__pycache__/

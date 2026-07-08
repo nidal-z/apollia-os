@@ -1,0 +1,19 @@
+{
+  "name": "@apollia/runtime-client",
+  "version": "0.1.0",
+  "description": "Typed host-driving client for the Apollia OS runtime API (/api/v1).",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": ["src"],
+  "dependencies": {
+    "openapi-fetch": "^0.13.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../openapi.json -o src/schema.ts"
+  }
+}
