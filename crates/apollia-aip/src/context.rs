@@ -2356,6 +2356,78 @@ mod tests {
         audit.shutdown().await;
     }
 
+    // Full end-to-end proof of `ctx.tools.call("mcp:...")`: a ToolProxy wired
+    // exactly as the runtime wires it (MCP executors -> ToolDispatcher ->
+    // DispatcherExecutor -> ToolProxy) must actually EXECUTE an MCP tool against
+    // a real stdio MCP server and return its output, with no REST workaround.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mcp_tool_executes_end_to_end_via_tool_proxy() {
+        use apollia_mcp::config::McpServerConfig;
+        use apollia_mcp::executor::build_agent_tool_executors;
+        use apollia_mcp::manager::McpClientManagerHandle;
+        use apollia_mcp::session::LoadingMode;
+        use apollia_tools::executor::ToolDispatcher;
+        use std::collections::HashMap;
+
+        // GIVEN a real stdio MCP server connected through the manager
+        let registry = ToolRegistryHandle::start();
+        let audit = open_test_audit().await;
+        let mcp_config = McpServerConfig {
+            name: "calc".to_string(),
+            command: "python3".to_string(),
+            args: vec![concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../apollia-mcp/tests/mock_mcp_server.py"
+            )
+            .to_string()],
+            env: HashMap::new(),
+            transport: "stdio".to_string(),
+            url: None,
+            requires_approval: false,
+            init_timeout_secs: 10,
+            call_timeout_secs: 10,
+            tags: vec![],
+        };
+        let manager = McpClientManagerHandle::start(
+            vec![mcp_config],
+            &registry,
+            None,
+            None,
+            LoadingMode::Eager,
+        )
+        .await
+        .expect("mcp manager start failed");
+
+        // AND a ToolProxy backed by the runtime's own MCP executor assembly
+        let execs = build_agent_tool_executors(&manager).await;
+        let dispatcher = Arc::new(ToolDispatcher::new(execs));
+        let executor = Arc::new(DispatcherExecutor::new(dispatcher));
+        let proxy = ToolProxy::new(ToolProxyConfig {
+            registry: registry.clone(),
+            audit: audit.clone(),
+            executor,
+            allowed_tools: vec!["mcp:calc/echo".to_string()],
+            agent_id: "test-agent".to_string(),
+            task_id: "task-mcp".to_string(),
+            run_id: None,
+        });
+
+        // WHEN the agent calls the MCP tool the way `ctx.tools.call("mcp:...")` does
+        let result = proxy
+            .call_inner("mcp:calc/echo", serde_json::json!({"message": "end to end"}))
+            .await;
+
+        // THEN the tool truly executed and returned its output
+        assert_eq!(
+            result.expect("mcp tool must execute end to end via ToolProxy"),
+            serde_json::json!({"content": "end to end"})
+        );
+
+        manager.shutdown().await;
+        registry.shutdown().await;
+        audit.shutdown().await;
+    }
+
     // Tool not allowed for this agent
     #[tokio::test]
     async fn test_call_tool_not_allowed() {
