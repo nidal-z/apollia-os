@@ -14,7 +14,9 @@ use apollia_aip::context::{
     effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
 };
 use apollia_aip::memory::MemoryInterface;
-use apollia_core::{AIPResult, AIPTask, AgentManifest, PendingApprovals, RuntimeEvent, TaskStatus};
+use apollia_core::{
+    AIPResult, AIPTask, AgentManifest, PendingApprovals, RuntimeEvent, StepBudgetConfig, TaskStatus,
+};
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
     ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker,
@@ -511,6 +513,31 @@ impl ToolInvoker for NoopToolInvoker {
     }
 }
 
+/// Adapts an apollia-aip [`ToolProxy`] to ORIA's `ToolProxyTrait`.
+///
+/// Lets the orchestrated `ActorLoop` execute real, governed tools (permission
+/// engine + audit trail + A2A routing + tool-call counting) instead of hitting
+/// the engine's `NoopToolProxy` fallback. Tool output is normalised to a string
+/// (JSON-serialised when not already a string) to match the trait contract.
+struct OriaToolProxy {
+    proxy: ToolProxy,
+}
+
+#[async_trait::async_trait]
+impl apollia_oria::actor::ToolProxyTrait for OriaToolProxy {
+    async fn invoke(&self, tool_name: &str, input: &serde_json::Value) -> Result<String, String> {
+        match self.proxy.invoke_native(tool_name, input.clone()).await {
+            Ok(serde_json::Value::String(s)) => Ok(s),
+            Ok(other) => serde_json::to_string(&other).map_err(|e| e.to_string()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    // `is_tool_read_only` keeps the trait default (false): orchestrated tool
+    // steps run sequentially, never wrongly batched. Correct, if not maximally
+    // parallel; ORIA-level read-only classification is a follow-up.
+}
+
 // ─────────────────────────────────────────────────────────────
 // Filesystem sandbox root for native tools (dev mode).
 // `FileIo` and friends sandbox all paths under this root: we keep
@@ -594,6 +621,17 @@ fn wire_engine_with_llm(
         }
     }
     engine
+}
+
+/// Builds the bounded [`StepBudget`] for the direct execution path.
+///
+/// Caps the agent-declared budget to the runtime ceiling
+/// ([`StepBudgetConfig::default`]: 30 steps / 60 tool calls / 600s wall clock)
+/// so `apollia run` never executes under an unlimited budget. This restores
+/// principle #7 on the direct path, which previously used
+/// `StepBudget::unlimited()` (u32::MAX steps + 24h). Extracted for unit testing.
+fn direct_path_budget(agent_budget: &StepBudgetConfig) -> StepBudget {
+    StepBudget::from_capped(agent_budget, &StepBudgetConfig::default())
 }
 
 /// Per-agent backend that calls Python via `AIPBridge`.
@@ -729,6 +767,92 @@ struct BridgeRunner {
     /// MCP client manager handle, `None` when no MCP server is configured. Used
     /// at `call_run` to build one executor per registered MCP tool.
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+}
+
+impl BridgeRunner {
+    /// Builds the governed [`ToolProxy`] used to execute orchestrated plan steps.
+    ///
+    /// Mirrors the proxy `call_run` builds for the direct/ctx path so the
+    /// orchestrated `ActorLoop` runs tools under the same permission engine,
+    /// audit trail, disabled-tool set, and A2A routing. Returns `None` in
+    /// degraded mode (tool registry or audit trail unavailable), matching
+    /// `call_run`, in which case orchestrated tool steps fall back to the
+    /// engine's `NoopToolProxy`.
+    async fn build_tool_proxy(&self, task: &AIPTask) -> Option<ToolProxy> {
+        let (registry, audit) = match (self.tool_registry.as_ref(), self.audit_trail.as_ref()) {
+            (Some(r), Some(a)) => (r.clone(), a.clone()),
+            _ => {
+                tracing::warn!(
+                    agent = %self.agent_id,
+                    "orchestrated ToolProxy unavailable - tool registry or audit trail missing; \
+                     orchestrated tool steps will fail via NoopToolProxy"
+                );
+                return None;
+            }
+        };
+
+        // Extend allowed_tools with virtual A2A skill names before creating the proxy.
+        let mut allowed_tools = self.allowed_tools.clone();
+        if let Some(ref invoker) = self.a2a_invoker {
+            let a2a_descriptors = A2AToolsProvider::new(Arc::clone(invoker))
+                .build_tool_descriptors()
+                .await;
+            for desc in a2a_descriptors {
+                allowed_tools.push(desc.name);
+            }
+        }
+
+        let governance_base = self
+            .memory_base_dir
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.memory_base_dir.clone());
+        let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "governance snapshot unavailable - defaulting to all tools enabled");
+            Default::default()
+        });
+        let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
+        let extra_executors = mcp_executors_for(&self.mcp_handle).await;
+        let dispatcher = Arc::new(build_dispatcher_with(
+            &NativeDispatcherConfig {
+                sandbox_root: sandbox_root_for_agent(),
+                agent_id: self.agent_id.clone(),
+                venv_base_dir: self
+                    .memory_base_dir
+                    .parent()
+                    .map(|p| p.join("venvs"))
+                    .unwrap_or_else(|| self.memory_base_dir.join("venvs")),
+                memory_namespace: self.memory_namespace.clone(),
+                memory_shared_namespaces: Vec::new(),
+                memory_base_dir: self.memory_base_dir.clone(),
+                http_allowlist: None,
+                pending_user_inputs: None,
+                disabled_tools,
+                brave_api_key: snapshot.brave_api_key,
+                web_search_config: self.tools_config.web_search.clone(),
+                web_read_config: self.tools_config.web_read.clone(),
+                governance_db_path: Some(governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
+            },
+            extra_executors,
+        ));
+
+        let proxy = ToolProxy::new(ToolProxyConfig {
+            registry,
+            audit,
+            executor: Arc::new(DispatcherExecutor::new(dispatcher)),
+            allowed_tools,
+            agent_id: self.agent_id.clone(),
+            task_id: task.task_id.clone(),
+            run_id: task.run_id.clone(),
+        })
+        .with_event_bus(self.event_bus.clone());
+        let proxy = if let Some(invoker) = self.a2a_invoker.clone() {
+            proxy.with_a2a(invoker, 0, None)
+        } else {
+            proxy
+        };
+        Some(proxy)
+    }
 }
 
 impl AgentRunner for BridgeRunner {
@@ -1025,6 +1149,11 @@ impl ExecutionBackend for AIPProductionBackend {
             .map(|b| b.max_steps)
             .unwrap_or(20);
 
+        // Agent-declared budget, capped to the runtime ceiling below. Both the
+        // direct and orchestrated paths run under a bounded StepBudget so
+        // principle #7 (non-bypassable guardrails) holds regardless of route.
+        let agent_step_budget = self.manifest.step_budget.clone().unwrap_or_default();
+
         // Wire the Reasoner + LlmRouter so ORIA's orchestrated path can plan.
         // Extracted into `wire_engine_with_llm` for unit testing, see the
         // regression guard in the test module at the bottom of this file.
@@ -1040,9 +1169,19 @@ impl ExecutionBackend for AIPProductionBackend {
             // ORIA's planning + ActorLoop. Everything else uses the direct
             // path which invokes `__apollia_dispatch__` (skills, @on_message).
             if execution_mode == "orchestrated" {
+                // Wire the governed ToolProxy so orchestrated plan steps execute
+                // real tools (under permission + audit + resilience + budget)
+                // instead of the engine's NoopToolProxy. Without it, an
+                // orchestrated agent could only run LLM steps.
+                let engine = match runner.build_tool_proxy(&task).await {
+                    Some(proxy) => engine.with_tool_proxy(Arc::new(OriaToolProxy { proxy })),
+                    None => engine,
+                };
                 Ok(engine.execute(task, &runner).await)
             } else {
-                let budget = Arc::new(StepBudget::unlimited());
+                // Bound the direct path by the agent budget capped to the runtime
+                // ceiling, instead of the previous unlimited() budget.
+                let budget = Arc::new(direct_path_budget(&agent_step_budget));
                 engine
                     .execute_direct(task, &runner, budget)
                     .await
@@ -1824,6 +1963,53 @@ mod tests {
             apollia_runtime::supervisor::SupervisorError::ConfigError("bad config".to_string()),
         );
         assert!(err.to_string().contains("bad config"));
+    }
+
+    // ── Direct-path budget guardrail (principle #7) ─────────────────────
+
+    /// GIVEN an agent manifest declaring no budget (the unwrap_or_default case)
+    /// WHEN the direct-path StepBudget is built
+    /// THEN it is bounded, never the previous unlimited() (u32::MAX + 24h)
+    #[test]
+    fn test_direct_path_budget_is_bounded() {
+        // GIVEN
+        let agent = StepBudgetConfig::default();
+
+        // WHEN
+        let budget = direct_path_budget(&agent);
+
+        // THEN it is bounded on every dimension
+        assert!(budget.max_steps < u32::MAX, "steps must be bounded");
+        assert!(budget.max_tool_calls < u32::MAX, "tool calls must be bounded");
+        assert!(
+            budget.wall_clock_limit < std::time::Duration::from_secs(86_400),
+            "wall clock must be bounded well under the old 24h unlimited() value"
+        );
+    }
+
+    /// GIVEN an agent that declares an oversized budget
+    /// WHEN the direct-path StepBudget is built
+    /// THEN the runtime ceiling wins on every dimension (agent cannot exceed it)
+    #[test]
+    fn test_direct_path_budget_caps_oversized_manifest() {
+        // GIVEN an agent asking for far more than the runtime ceiling
+        let agent = StepBudgetConfig {
+            max_steps: 100_000,
+            max_tool_calls: 100_000,
+            wall_clock_secs: 999_999,
+        };
+
+        // WHEN
+        let budget = direct_path_budget(&agent);
+
+        // THEN the runtime ceiling (StepBudgetConfig::default) clamps it
+        let ceiling = StepBudgetConfig::default();
+        assert_eq!(budget.max_steps, ceiling.max_steps);
+        assert_eq!(budget.max_tool_calls, ceiling.max_tool_calls);
+        assert_eq!(
+            budget.wall_clock_limit,
+            std::time::Duration::from_secs(ceiling.wall_clock_secs)
+        );
     }
 
     // ── Orchestrated-routing regression guards ──────────────────────────
