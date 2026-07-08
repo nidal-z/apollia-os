@@ -6,14 +6,19 @@ title: Explanation
 # Explanation
 
 Understanding-oriented material. The concepts, the trade-offs, and the why.
+Where a concept is homed elsewhere (the architecture pages, or a reference), these
+pages link to it rather than restate it.
 
-## Target pages (to migrate or write fresh)
+## Pages
 
-- **The 8 principles** (migrate from the architecture principles page).
-- **Sovereignty and local-first** (migrate and consolidate the vision pages).
-- **The accountability model** (write fresh): audit, verify and rollback, with the
-  EU AI Act Art. 10, 14 and 16 mapping.
-- **Autonomy tiers and non-bypassable safeguards** (migrate from the governance docs).
-- **The plan and orchestrated execution model** (migrate from the plan-mode docs).
-
-_This is a phase 1 placeholder. Content migration happens in a later phase._
+- [The 8 principles](/explanation/the-8-principles): the eight non-negotiable
+  principles and why each one matters to an adopter.
+- [The accountability model](/explanation/accountability-model): audit, verify,
+  and rollback, permissions and human oversight, and the EU AI Act mapping.
+- [Sovereignty and local-first](/explanation/sovereignty-and-local-first): what
+  sovereign and local-first mean in practice, and why they are the core of the
+  value proposition.
+- [Autonomy tiers](/explanation/autonomy-tiers): the four-tier autonomy dial, the
+  gate policy, and how an operator chooses.
+- [The plan and orchestrated execution model](/explanation/the-plan-model): how
+  Apollia classifies, plans, gates, executes, and verifies a run.
