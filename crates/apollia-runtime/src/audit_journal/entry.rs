@@ -154,7 +154,11 @@ pub struct JournalEntry {
 /// mutation, which builds a whole multi-step plan in one move; the full `plan`
 /// snapshot closes that gap, so plan construction is replayable from the journal
 /// without re-deriving it from a stream of single-step deltas.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// `Eq` is not derived because the embedded `PlanStep`/`Plan` carry a non-`Eq`
+/// `serde_json::Value` (the step arguments). `PartialEq` is retained, so the
+/// replay harness's equality checks are unaffected.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanMutationSnapshot {
     /// Stable run identifier this mutation belongs to.
     pub run_id: String,

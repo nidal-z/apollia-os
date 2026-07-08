@@ -41,6 +41,14 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
 /// additive migration. Applied idempotently via [`apply_provenance_migration`].
 const PROVENANCE_COLUMNS: &[(&str, &str)] = &[("rationale", "TEXT"), ("provenance", "TEXT")];
 
+/// Argument column to add to `plan_steps`.
+///
+/// `args` holds the JSON-encoded structured tool arguments (the step's
+/// `Option<serde_json::Value>`). Nullable so legacy rows survive the additive
+/// migration and read back as `None`. Applied idempotently via
+/// [`apply_args_migration`].
+const ARGS_COLUMNS: &[(&str, &str)] = &[("args", "TEXT")];
+
 /// Apply an additive `ALTER TABLE ADD COLUMN` migration idempotently.
 ///
 /// Each column is added individually; the "duplicate column name" error
@@ -75,6 +83,15 @@ fn apply_observability_migration(conn: &Connection) -> Result<(), PlanRepository
 /// the new columns until they are written.
 fn apply_provenance_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
     apply_additive_columns(conn, PROVENANCE_COLUMNS)
+}
+
+/// Apply the args migration idempotently.
+///
+/// Adds the nullable `args` column to `plan_steps`. Purely additive: existing
+/// rows keep their values and read back `NULL` (loaded as `None`) until they
+/// are written.
+fn apply_args_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
+    apply_additive_columns(conn, ARGS_COLUMNS)
 }
 
 // Errors
@@ -151,6 +168,9 @@ pub struct StepRecord {
     /// Provenance of the step; a legacy `NULL` value loads as
     /// [`StepProvenance::default`] (origin Initial, `at` 0).
     pub provenance: StepProvenance,
+    /// Structured tool arguments; `None` for legacy rows or steps without a
+    /// resolved argument object.
+    pub args: Option<serde_json::Value>,
 }
 
 // Repository
@@ -181,6 +201,7 @@ impl PlanRepository {
         conn.execute_batch(MIGRATION_SQL)?;
         apply_observability_migration(&conn)?;
         apply_provenance_migration(&conn)?;
+        apply_args_migration(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -268,11 +289,15 @@ impl PlanRepository {
                 serde_json::to_string(&step.depends_on).unwrap_or_else(|_| "[]".to_string());
             let provenance_json = serde_json::to_string(&step.provenance)
                 .unwrap_or_else(|_| Self::default_provenance_json());
+            let args_json = step
+                .args
+                .as_ref()
+                .and_then(|v| serde_json::to_string(v).ok());
             conn.execute(
                 "INSERT INTO plan_steps \
                      (step_id, plan_id, description, tool_hint, depends_on, status, \
-                      rationale, provenance) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7)",
+                      rationale, provenance, args) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7, ?8)",
                 params![
                     step.step_id,
                     plan_id,
@@ -281,6 +306,7 @@ impl PlanRepository {
                     depends_on_json,
                     step.rationale,
                     provenance_json,
+                    args_json,
                 ],
             )?;
         }
@@ -578,7 +604,7 @@ impl PlanRepository {
             "SELECT step_id, description, tool_hint, depends_on, status, \
                     output, error, started_at, completed_at, \
                     input_rendered, input_truncated, output_text, output_truncated, \
-                    tool_used, error_detail, duration_ms, rationale, provenance \
+                    tool_used, error_detail, duration_ms, rationale, provenance, args \
              FROM plan_steps WHERE plan_id = ?1",
         )?;
 
@@ -596,6 +622,9 @@ impl PlanRepository {
                 let provenance = provenance_raw
                     .map(|json| serde_json::from_str(&json).unwrap_or_default())
                     .unwrap_or_default();
+                // A legacy NULL args or a corrupted payload reads back as None.
+                let args_raw: Option<String> = row.get(18)?;
+                let args = args_raw.and_then(|json| serde_json::from_str(&json).ok());
                 Ok(StepRecord {
                     step_id: row.get(0)?,
                     description: row.get(1)?,
@@ -615,6 +644,7 @@ impl PlanRepository {
                     duration_ms: row.get(15)?,
                     rationale: row.get(16)?,
                     provenance,
+                    args,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -975,6 +1005,61 @@ mod tests {
         let legacy = result.steps.iter().find(|s| s.step_id == "legacy").unwrap();
         assert_eq!(legacy.provenance.origin, StepOrigin::Initial);
         assert_eq!(legacy.rationale, None);
+    }
+
+    // GIVEN a step persisted with structured tool arguments
+    // WHEN  reading it back via get_plan_with_steps
+    // THEN  the args JSON round-trips verbatim
+    #[test]
+    fn test_round_trip_with_args() {
+        // GIVEN
+        let (repo, _f) = make_repo();
+        let mut plan = make_plan("task-args-1");
+        plan.steps[0].tool_hint = Some("file_write".into());
+        plan.steps[0].args = Some(serde_json::json!({"path": "/tmp/x", "content": "hi"}));
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
+
+        // WHEN
+        let result = repo.get_plan_with_steps("task-args-1").unwrap();
+        let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
+
+        // THEN
+        assert_eq!(
+            s1.args,
+            Some(serde_json::json!({"path": "/tmp/x", "content": "hi"}))
+        );
+        // A step inserted without args round-trips to None.
+        let s2 = result.steps.iter().find(|s| s.step_id == "s2").unwrap();
+        assert_eq!(s2.args, None);
+    }
+
+    // GIVEN a legacy row whose args column is NULL
+    // WHEN  reading it back via get_plan_with_steps
+    // THEN  it degrades to None without panic
+    #[test]
+    fn test_legacy_null_args_defaults_to_none() {
+        // GIVEN: insert a row directly, leaving args NULL
+        let (repo, _f) = make_repo();
+        let plan = make_plan("task-legacy-args");
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        {
+            let conn = repo.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO plan_steps \
+                     (step_id, plan_id, description, tool_hint, depends_on, status) \
+                     VALUES ('legacy', ?1, 'old step', NULL, '[]', 'pending')",
+                params![plan.plan_id],
+            )
+            .unwrap();
+        }
+
+        // WHEN
+        let result = repo.get_plan_with_steps("task-legacy-args").unwrap();
+        let legacy = result.steps.iter().find(|s| s.step_id == "legacy").unwrap();
+
+        // THEN
+        assert_eq!(legacy.args, None);
     }
 
     // GIVEN: plan with a non-empty depends_on

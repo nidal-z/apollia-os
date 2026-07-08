@@ -94,7 +94,11 @@ impl Default for StepProvenance {
 }
 
 /// A typed step of a [`Plan`], a node in the execution DAG.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// `Eq` is intentionally not derived: [`PlanStep::args`] holds a
+/// `serde_json::Value`, which is `PartialEq` but not `Eq` (floats break the
+/// total-equality contract). Equality comparisons and `assert_eq!` still work.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanStep {
     /// Unique identifier of the step within the plan.
     pub step_id: String,
@@ -127,6 +131,15 @@ pub struct PlanStep {
     /// Provenance of the step (origin, reason, timestamp).
     #[serde(default)]
     pub provenance: StepProvenance,
+    /// Structured arguments for the step's native tool, matching that tool's
+    /// input schema.
+    ///
+    /// `None` when the step needs no tool or when the arguments have not been
+    /// resolved yet. Resolved at plan time (schema-guided generation) so the
+    /// persisted plan is fully specified, auditable and replayable; the runtime
+    /// falls back to a just-in-time extraction when this is absent or invalid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub args: Option<serde_json::Value>,
 }
 
 impl PlanStep {
@@ -148,12 +161,16 @@ impl PlanStep {
             model_hint: None,
             rationale: None,
             provenance: StepProvenance::default(),
+            args: None,
         }
     }
 }
 
 /// Unified plan shared by ORIA and the conversational chat path.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// `Eq` is not derived because [`PlanStep`] carries a non-`Eq`
+/// `serde_json::Value`. `PartialEq` is retained.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Plan {
     /// Unique identifier of the plan.
     pub plan_id: String,
@@ -192,7 +209,10 @@ pub enum PlanMutationKind {
 }
 
 /// A mutation applied to a plan, recorded for replay and audit.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// `Eq` is not derived because [`PlanStep`] (carried in `before`/`after`)
+/// holds a non-`Eq` `serde_json::Value`. `PartialEq` is retained.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanMutation {
     /// Nature of the mutation.
     pub kind: PlanMutationKind,
@@ -336,6 +356,7 @@ mod tests {
             model_hint: None,
             rationale: None,
             provenance: StepProvenance::default(),
+            args: None,
         }
     }
 
@@ -437,6 +458,26 @@ mod tests {
         let back: PlanMutation = serde_json::from_str(&json).expect("deserialize");
         // THEN it is preserved
         assert_eq!(back, mutation);
+    }
+
+    #[test]
+    fn test_step_args_round_trip_and_legacy_default() {
+        // GIVEN a step carrying structured tool arguments
+        let mut s = step("s1", &[]);
+        s.tool_hint = Some("file_write".into());
+        s.args = Some(serde_json::json!({"path": "/tmp/x", "content": "hi"}));
+
+        // WHEN serializing then deserializing
+        let json = serde_json::to_string(&s).expect("serialize");
+        let back: PlanStep = serde_json::from_str(&json).expect("deserialize");
+
+        // THEN the arguments are preserved verbatim
+        assert_eq!(back.args, s.args);
+
+        // AND a legacy step JSON omitting args deserializes with args = None
+        let legacy = r#"{"step_id":"s2","description":"d"}"#;
+        let legacy_step: PlanStep = serde_json::from_str(legacy).expect("deserialize legacy");
+        assert_eq!(legacy_step.args, None);
     }
 
     #[test]

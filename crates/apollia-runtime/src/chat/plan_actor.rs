@@ -1049,6 +1049,7 @@ mod tests {
             model_hint: None,
             rationale: None,
             provenance: StepProvenance::default(),
+            args: None,
         }
     }
 
