@@ -43,3 +43,4 @@
 | 2026-07-06 | ADR-036 | Decouvrabilite CLI (completions clap_complete, palette fuzzy maison, guide, did-you-mean) | [ADR-036](adr/ADR-036-cli-discoverability.md) |
 | 2026-07-08 | ADR-037 | Contrat de pilotage partage pour l'integration hote (OpenAPI genere, SDK client hote TS+Python, auth TCP coherente, fix execution MCP) | [ADR-037](adr/ADR-037-host-driving-contract.md) |
 | 2026-07-08 | ADR-038 | Contrat d'arguments des steps de plan orchestres (hybride A+B: args structures PlanStep remplis par le Reasoner en GBNF, repli extraction JIT) | [ADR-038](adr/ADR-038-orchestrated-step-args-contract.md) |
+| 2026-07-08 | ADR-039 | Verification et critic sur le chemin orchestre (verdict audite via VerificationCompleted, replan-on-fail borne, gating par tier d'autonomie) | [ADR-039](adr/ADR-039-orchestrated-verification-critic.md) |
