@@ -37,7 +37,7 @@ const MAX_TOOL_OUTPUT_PREVIEW: usize = 500;
 ///
 /// Each variant maps to a kind of action recorded during execution. The JSON
 /// `type` tag uses `snake_case`.
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TimelineEvent {
     /// Task state transition (submitted -> running -> completed, etc.).
@@ -135,7 +135,7 @@ pub enum TimelineEvent {
 }
 
 /// Timeline response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TimelineResponse {
     /// Task identifier.
     pub task_id: String,
@@ -159,6 +159,17 @@ pub struct TimelineErrorResponse {
 /// Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)
 /// into a unified timeline sorted by timestamp ascending. Returns 404 when the
 /// task is unknown to all sources.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tasks/{id}/timeline",
+    tag = "tasks",
+    params(("id" = String, Path, description = "Task id")),
+    responses(
+        (status = 200, description = "Aggregated execution timeline", body = TimelineResponse),
+        (status = 404, description = "Task unknown to all sources", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Internal error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,

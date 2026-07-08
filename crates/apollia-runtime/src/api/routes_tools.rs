@@ -17,9 +17,10 @@ use crate::coordinator::DynBackend;
 use crate::coordinator::ExecutionBackend;
 
 /// Response body for `GET /api/v1/tools`.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct ToolListResponse {
     /// All descriptors currently registered in the tool catalogue.
+    #[schema(value_type = Vec<Object>)]
     tools: Vec<apollia_tools::ToolDescriptor>,
 }
 
@@ -43,6 +44,16 @@ pub struct ErrorResponse {
 /// Returns `200 OK` with the list, even when empty.
 /// Returns `503` if the tool registry is not available in the current runtime context.
 /// Returns `500` if the registry actor has terminated unexpectedly.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tools",
+    tag = "tools",
+    responses(
+        (status = 200, description = "Registered tool descriptors", body = ToolListResponse),
+        (status = 500, description = "Tool registry actor error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Tool registry unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_tools<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
 ) -> Result<(StatusCode, Json<ToolListResponse>), (StatusCode, Json<ErrorResponse>)> {
@@ -72,6 +83,18 @@ pub async fn list_tools<B: ExecutionBackend + Clone + From<DynBackend>>(
 ///
 /// Returns `200 OK` with the descriptor, `404 Not Found` if the tool is not registered,
 /// `503` if the tool registry is not available, or `500` on actor error.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tools/{name}",
+    tag = "tools",
+    params(("name" = String, Path, description = "Tool name")),
+    responses(
+        (status = 200, description = "Tool descriptor"),
+        (status = 404, description = "Tool not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Tool registry actor error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Tool registry unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn describe_tool<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,

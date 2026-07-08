@@ -20,20 +20,21 @@ pub struct ListMessagesQuery {
 }
 
 /// Response body for `GET /api/v1/agents/:name/messages`.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct AgentMessagesResponse {
     /// Messages sorted by `sent_at` descending (most recent first).
     pub messages: Vec<AgentMessageDto>,
 }
 
 /// DTO for a single agent message.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct AgentMessageDto {
     /// Name of the sending agent.
     pub from_agent: String,
     /// Name of the receiving agent.
     pub to_agent: String,
     /// Arbitrary JSON payload.
+    #[schema(value_type = Object)]
     pub payload: serde_json::Value,
     /// Timestamp (RFC 3339).
     pub sent_at: String,
@@ -56,6 +57,19 @@ const DEFAULT_LIMIT: u32 = 50;
 /// Returns messages from the in-memory mailbox, sorted by `sent_at` descending.
 /// Returns an empty array when the agent has no messages.
 /// Returns `503` when the mailbox is not available.
+#[utoipa::path(
+    get,
+    path = "/api/v1/agents/{name}/messages",
+    tag = "agents",
+    params(
+        ("name" = String, Path, description = "Agent name"),
+        ("limit" = Option<u32>, Query, description = "Maximum number of messages (default 50, max 200)"),
+    ),
+    responses(
+        (status = 200, description = "Agent messages", body = AgentMessagesResponse),
+        (status = 503, description = "Mailbox not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_agent_messages<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Path(agent_name): Path<String>,

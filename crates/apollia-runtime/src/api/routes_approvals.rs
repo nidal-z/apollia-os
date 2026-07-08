@@ -16,17 +16,18 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
 /// One pending HITL approval entry.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PendingApprovalResponse {
     pub task_id: String,
     pub agent_name: String,
     pub prompt: String,
+    #[schema(value_type = Option<Object>)]
     pub context: Option<serde_json::Value>,
     pub suspended_at: String,
 }
 
 /// One resolved HITL approval entry.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ResolvedApprovalResponse {
     pub task_id: String,
     pub agent_name: String,
@@ -53,6 +54,14 @@ pub struct ErrorResponse {
 ///
 /// Returns all tasks currently waiting for human approval, enriched with
 /// prompt and context from `TaskRepository`.
+#[utoipa::path(
+    get,
+    path = "/api/v1/approvals/pending",
+    tag = "governance",
+    responses(
+        (status = 200, description = "Tasks currently awaiting human approval", body = Vec<PendingApprovalResponse>),
+    )
+)]
 pub async fn list_pending_approvals<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<Vec<PendingApprovalResponse>>, (StatusCode, Json<ErrorResponse>)> {
@@ -104,6 +113,19 @@ pub async fn list_pending_approvals<B: ExecutionBackend + Clone>(
 ///
 /// Returns the last `limit` resolved approvals (approved or rejected)
 /// within the last `days` days.
+#[utoipa::path(
+    get,
+    path = "/api/v1/approvals/resolved",
+    tag = "governance",
+    params(
+        ("limit" = Option<u32>, Query, description = "Maximum number of resolved approvals to return (default 20)"),
+        ("days" = Option<u32>, Query, description = "Look-back window in days (default 7)"),
+    ),
+    responses(
+        (status = 200, description = "Recently resolved approvals", body = Vec<ResolvedApprovalResponse>),
+        (status = 500, description = "Internal error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_resolved_approvals<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(query): Query<ResolvedQuery>,

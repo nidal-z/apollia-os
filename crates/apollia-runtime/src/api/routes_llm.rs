@@ -34,9 +34,10 @@ use crate::coordinator::ExecutionBackend;
 // ─────────────────────────────────────────────
 
 /// Response body for `GET /api/v1/llm/status`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct LlmStatusResponse {
     /// All configured LLM backends with their current availability state.
+    #[schema(value_type = Vec<Object>)]
     pub backends: Vec<BackendInfo>,
     /// Accumulated session cost in USD. `None` when no router is configured.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -51,14 +52,14 @@ pub struct LlmStatusResponse {
 }
 
 /// Request body for `POST /api/v1/llm/ping`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct PingRequest {
     /// Backend name to ping; uses the router default if `null` or omitted.
     pub backend: Option<String>,
 }
 
 /// Response body for `POST /api/v1/llm/ping`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PingResponse {
     /// Name of the backend that was pinged.
     pub backend: String,
@@ -71,7 +72,7 @@ pub struct PingResponse {
 }
 
 /// Token usage included in chat responses.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TokenUsageResponse {
     /// Number of tokens in the prompt.
     pub prompt_tokens: u32,
@@ -82,7 +83,7 @@ pub struct TokenUsageResponse {
 }
 
 /// Request body for `POST /api/v1/llm/chat`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ChatRequest {
     /// User prompt text to send to the LLM.
     pub prompt: String,
@@ -91,7 +92,7 @@ pub struct ChatRequest {
 }
 
 /// Response body for `POST /api/v1/llm/chat` and `POST /api/v1/llm/complete`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ChatResponse {
     /// LLM-generated response text.
     pub content: String,
@@ -106,7 +107,7 @@ pub struct ChatResponse {
 /// A single message in a multi-turn conversation request.
 ///
 /// `role` accepts `"system"`, `"user"`, `"assistant"`, or `"tool"`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct MessageDto {
     /// Role of the message sender.
     pub role: String,
@@ -115,7 +116,7 @@ pub struct MessageDto {
 }
 
 /// Request body for `POST /api/v1/llm/complete`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CompleteRequest {
     /// Ordered list of messages forming the conversation history.
     pub messages: Vec<MessageDto>,
@@ -134,6 +135,14 @@ pub struct CompleteRequest {
 ///
 /// Returns the list of all configured backends with their availability state.
 /// Returns `{"backends": []}` if no `LlmRouter` is configured in `AppState`.
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/status",
+    tag = "llm",
+    responses(
+        (status = 200, description = "Configured LLM backends and cost headroom", body = LlmStatusResponse),
+    )
+)]
 pub async fn get_llm_status<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> (StatusCode, Json<LlmStatusResponse>) {
@@ -172,6 +181,16 @@ pub async fn get_llm_status<B: ExecutionBackend + Clone>(
 /// Returns `503 Service Unavailable` with `available: false` when:
 /// - No `LlmRouter` is configured, or
 /// - The backend call fails (key missing, network error, etc.).
+#[utoipa::path(
+    post,
+    path = "/api/v1/llm/ping",
+    tag = "llm",
+    request_body = PingRequest,
+    responses(
+        (status = 200, description = "Backend reachable", body = PingResponse),
+        (status = 503, description = "Backend unavailable or no router configured", body = PingResponse),
+    )
+)]
 pub async fn ping_llm_backend<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<PingRequest>,
@@ -238,6 +257,16 @@ pub async fn ping_llm_backend<B: ExecutionBackend + Clone>(
 /// (`LlmCallCompleted`) are emitted on the `EventBus` automatically.
 ///
 /// Returns `503 Service Unavailable` if no router is configured or the call fails.
+#[utoipa::path(
+    post,
+    path = "/api/v1/llm/chat",
+    tag = "llm",
+    request_body = ChatRequest,
+    responses(
+        (status = 200, description = "Completion result", body = ChatResponse),
+        (status = 503, description = "No router configured or backend call failed", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn llm_chat<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<ChatRequest>,
@@ -299,6 +328,17 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
 ///
 /// Returns `400 Bad Request` when an unknown role is encountered.
 /// Returns `503 Service Unavailable` when no router is configured or the call fails.
+#[utoipa::path(
+    post,
+    path = "/api/v1/llm/complete",
+    tag = "llm",
+    request_body = CompleteRequest,
+    responses(
+        (status = 200, description = "Completion result", body = ChatResponse),
+        (status = 400, description = "Unknown message role", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "No router configured or backend call failed", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn llm_complete<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<CompleteRequest>,
@@ -388,7 +428,7 @@ fn default_cost_days() -> u32 {
 }
 
 /// A single backend/model cost summary row.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CostSummaryRow {
     /// Backend name.
     pub backend: String,
@@ -403,7 +443,7 @@ pub struct CostSummaryRow {
 }
 
 /// Response body for `GET /api/v1/llm/costs`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CostsResponse {
     /// Per-backend/model cost breakdown.
     pub rows: Vec<CostSummaryRow>,
@@ -415,6 +455,17 @@ pub struct CostsResponse {
 ///
 /// Aggregates LLM call costs and token usage from `llm_calls.db` over the
 /// requested time window. Returns 503 if no `LlmCallRepository` is available.
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/costs",
+    tag = "llm",
+    params(("days" = Option<u32>, Query, description = "Number of days to aggregate (default 7)")),
+    responses(
+        (status = 200, description = "Aggregated LLM costs by backend and model", body = CostsResponse),
+        (status = 500, description = "Query failed", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "No LLM call repository configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_llm_costs<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     axum::extract::Query(query): axum::extract::Query<CostsQuery>,
@@ -472,7 +523,7 @@ pub async fn get_llm_costs<B: ExecutionBackend + Clone>(
 // ─────────────────────────────────────────────
 
 /// A single day+backend cost entry for the daily chart.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct DailyCostEntry {
     /// Date au format `YYYY-MM-DD`.
     pub date: String,
@@ -483,7 +534,7 @@ pub struct DailyCostEntry {
 }
 
 /// Response body for `GET /api/v1/llm/costs/daily`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct DailyCostsResponse {
     /// Per-day/backend cost entries.
     pub entries: Vec<DailyCostEntry>,
@@ -495,6 +546,17 @@ pub struct DailyCostsResponse {
 ///
 /// Returns LLM costs broken down by day and backend for the requested
 /// time window. Used by the Observability LLM Costs chart.
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/costs/daily",
+    tag = "llm",
+    params(("days" = Option<u32>, Query, description = "Number of days to aggregate (default 7)")),
+    responses(
+        (status = 200, description = "Per-day LLM costs by backend", body = DailyCostsResponse),
+        (status = 500, description = "Query failed", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "No LLM call repository configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_llm_daily_costs<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     axum::extract::Query(query): axum::extract::Query<CostsQuery>,
@@ -550,7 +612,7 @@ pub async fn get_llm_daily_costs<B: ExecutionBackend + Clone>(
 // ─────────────────────────────────────────────
 
 /// Request body for `POST /api/v1/llm/backends`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateLlmBackendRequest {
     /// Unique name, pattern `^[a-z0-9_-]+$`.
     pub name: String,
@@ -559,6 +621,7 @@ pub struct CreateLlmBackendRequest {
     /// Model identifier (e.g. `"gpt-4o"`, `"mistral-small-latest"`).
     pub model: String,
     /// Provider-specific configuration object (must be a JSON object, not null or primitive).
+    #[schema(value_type = Object)]
     pub config_json: serde_json::Value,
     /// Whether this backend is active (default: `true`).
     #[serde(default = "default_true")]
@@ -569,13 +632,14 @@ pub struct CreateLlmBackendRequest {
 }
 
 /// Request body for `PUT /api/v1/llm/backends/:name`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateLlmBackendRequest {
     /// Provider identifier.
     pub provider: String,
     /// Model identifier.
     pub model: String,
     /// Provider-specific configuration object.
+    #[schema(value_type = Object)]
     pub config_json: serde_json::Value,
     /// Whether this backend is active.
     #[serde(default = "default_true")]
@@ -586,7 +650,7 @@ pub struct UpdateLlmBackendRequest {
 }
 
 /// Response body for a single backend.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct LlmBackendResponse {
     /// Unique backend name.
     pub name: String,
@@ -595,6 +659,7 @@ pub struct LlmBackendResponse {
     /// Model identifier.
     pub model: String,
     /// Provider-specific configuration.
+    #[schema(value_type = Object)]
     pub config_json: serde_json::Value,
     /// Whether this backend is enabled.
     pub enabled: bool,
@@ -603,21 +668,21 @@ pub struct LlmBackendResponse {
 }
 
 /// Response body for `GET /api/v1/llm/backends`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct LlmBackendsListResponse {
     /// All configured backends.
     pub backends: Vec<LlmBackendResponse>,
 }
 
 /// Response body for `DELETE /api/v1/llm/backends/:name`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct DeleteBackendResponse {
     /// Name of the deleted backend.
     pub deleted: String,
 }
 
 /// Response body for `POST /api/v1/llm/backends/:name/set-default`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SetDefaultResponse {
     /// The backend that is now the default.
     pub default: String,
@@ -628,9 +693,10 @@ pub struct SetDefaultResponse {
 /// Carries the list of backends that are live in the freshly-swapped router,
 /// so callers can confirm at a glance what is now available without a
 /// follow-up `GET /api/v1/llm/status` call.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ReloadRouterResponse {
     /// Backends now reachable via the active router.
+    #[schema(value_type = Vec<Object>)]
     pub backends: Vec<apollia_llm::BackendInfo>,
     /// Default backend name reported by the router (empty when no backends).
     pub default: String,
@@ -726,6 +792,16 @@ fn validate_config_json(
 ///
 /// Lists all configured backends from `system.db`.
 /// Returns 503 if the repository is not available.
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/backends",
+    tag = "llm",
+    responses(
+        (status = 200, description = "Configured backends", body = LlmBackendsListResponse),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Backend repository not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_llm_backends<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<LlmBackendsListResponse>, (StatusCode, Json<BackendErrorResponse>)> {
@@ -746,6 +822,18 @@ pub async fn list_llm_backends<B: ExecutionBackend + Clone>(
 /// Handler for `GET /api/v1/llm/backends/:name`.
 ///
 /// Returns the backend with the given name or 404 if not found.
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/backends/{name}",
+    tag = "llm",
+    params(("name" = String, Path, description = "Backend name")),
+    responses(
+        (status = 200, description = "Backend detail", body = LlmBackendResponse),
+        (status = 404, description = "Backend not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Backend repository not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_llm_backend<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
@@ -777,6 +865,19 @@ pub async fn get_llm_backend<B: ExecutionBackend + Clone>(
 ///
 /// Creates a new backend. Returns 201 on success, 409 if a default already exists
 /// when `is_default` is set, 422 on validation error.
+#[utoipa::path(
+    post,
+    path = "/api/v1/llm/backends",
+    tag = "llm",
+    request_body = CreateLlmBackendRequest,
+    responses(
+        (status = 201, description = "Backend created", body = LlmBackendResponse),
+        (status = 409, description = "A default backend already exists", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Validation error", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Backend repository not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn create_llm_backend<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<CreateLlmBackendRequest>,
@@ -832,6 +933,20 @@ pub async fn create_llm_backend<B: ExecutionBackend + Clone>(
 /// Handler for `PUT /api/v1/llm/backends/:name`.
 ///
 /// Replaces an existing backend configuration. Returns 404 if the backend does not exist.
+#[utoipa::path(
+    put,
+    path = "/api/v1/llm/backends/{name}",
+    tag = "llm",
+    params(("name" = String, Path, description = "Backend name")),
+    request_body = UpdateLlmBackendRequest,
+    responses(
+        (status = 200, description = "Backend updated", body = LlmBackendResponse),
+        (status = 404, description = "Backend not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Validation error", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Backend repository not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn update_llm_backend<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
@@ -901,6 +1016,19 @@ pub async fn update_llm_backend<B: ExecutionBackend + Clone>(
 /// Handler for `DELETE /api/v1/llm/backends/:name`.
 ///
 /// Deletes a backend. Returns 409 if the backend is the current default, 404 if not found.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/llm/backends/{name}",
+    tag = "llm",
+    params(("name" = String, Path, description = "Backend name")),
+    responses(
+        (status = 200, description = "Backend deleted", body = DeleteBackendResponse),
+        (status = 404, description = "Backend not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Cannot delete the default backend", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Backend repository not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn delete_llm_backend<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
@@ -922,6 +1050,18 @@ pub async fn delete_llm_backend<B: ExecutionBackend + Clone>(
 /// Handler for `POST /api/v1/llm/backends/:name/set-default`.
 ///
 /// Marks the given backend as the default. Returns 404 if not found.
+#[utoipa::path(
+    post,
+    path = "/api/v1/llm/backends/{name}/set-default",
+    tag = "llm",
+    params(("name" = String, Path, description = "Backend name")),
+    responses(
+        (status = 200, description = "Backend marked as default", body = SetDefaultResponse),
+        (status = 404, description = "Backend not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Backend repository not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn set_default_llm_backend<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
@@ -960,6 +1100,16 @@ pub async fn set_default_llm_backend<B: ExecutionBackend + Clone>(
 /// - `500 Internal Server Error` when the repository is reachable but
 ///   building the router fails (invalid config_json, model file missing for
 ///   a local backend, etc.).
+#[utoipa::path(
+    post,
+    path = "/api/v1/llm/reload",
+    tag = "llm",
+    responses(
+        (status = 200, description = "Router reloaded with the live backend list", body = ReloadRouterResponse),
+        (status = 500, description = "Router rebuild failed", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Backend repository unavailable or no default backend", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<ReloadRouterResponse>, (StatusCode, Json<BackendErrorResponse>)> {

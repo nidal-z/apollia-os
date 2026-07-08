@@ -15,6 +15,14 @@ use crate::hooks::HookHandlerSummary;
 /// `GET /api/v1/hooks`, list every registered lifecycle hook handler.
 ///
 /// The response is a JSON array of [`HookHandlerSummary`] in declaration order.
+#[utoipa::path(
+    get,
+    path = "/api/v1/hooks",
+    tag = "governance",
+    responses(
+        (status = 200, description = "Registered lifecycle hook handlers in declaration order"),
+    )
+)]
 pub async fn list_hooks<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<Vec<HookHandlerSummary>> {

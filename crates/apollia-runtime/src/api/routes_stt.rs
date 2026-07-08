@@ -31,7 +31,7 @@ pub struct SttErrorResponse {
 }
 
 /// Response body for `GET /api/v1/stt/status`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SttStatusResponse {
     /// Whether STT is enabled in configuration.
     pub enabled: bool,
@@ -59,14 +59,15 @@ pub struct ListTranscriptionsQuery {
 }
 
 /// Response body for `GET /api/v1/stt/transcriptions`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TranscriptionsListResponse {
     /// List of transcription rows.
+    #[schema(value_type = Vec<Object>)]
     pub transcriptions: Vec<apollia_stt::TranscriptRow>,
 }
 
 /// Description of a model file on disk.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ModelInfo {
     /// Model filename (e.g. `"whisper-large-v3-fr-q5_0.bin"`).
     pub name: String,
@@ -77,7 +78,7 @@ pub struct ModelInfo {
 }
 
 /// Response body for `GET /api/v1/stt/models`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ModelsListResponse {
     /// Available model files in `~/.apollia/models/`.
     pub models: Vec<ModelInfo>,
@@ -114,6 +115,16 @@ fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
 ///
 /// Returns `200 OK` with the status when the engine is running.
 /// Returns `503 Service Unavailable` when the engine is absent.
+#[utoipa::path(
+    get,
+    path = "/api/v1/stt/status",
+    tag = "stt",
+    responses(
+        (status = 200, description = "STT engine status", body = SttStatusResponse),
+        (status = 500, description = "STT engine actor stopped", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "STT engine unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
 ) -> RouteResult<SttStatusResponse> {
@@ -151,6 +162,18 @@ pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
 /// Returns `200 OK` with the persisted [`TranscriptRow`](apollia_stt::TranscriptRow).
 /// Returns `400 Bad Request` on missing or invalid audio.
 /// Returns `503 Service Unavailable` when the engine is absent.
+#[utoipa::path(
+    post,
+    path = "/api/v1/stt/transcribe",
+    tag = "stt",
+    request_body(content_type = "multipart/form-data", description = "Multipart form with an `audio` WAV field (required) and an optional `language` hint"),
+    responses(
+        (status = 200, description = "Persisted transcription row"),
+        (status = 400, description = "Missing or invalid audio", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Transcription or persistence error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "STT engine unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     mut multipart: Multipart,
@@ -296,6 +319,20 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
 /// Supports `?limit=N&offset=N` query parameters for pagination.
 /// Returns `200 OK` with the list, even when empty.
 /// Returns `503 Service Unavailable` when the STT subsystem is absent.
+#[utoipa::path(
+    get,
+    path = "/api/v1/stt/transcriptions",
+    tag = "stt",
+    params(
+        ("limit" = Option<u32>, Query, description = "Maximum number of transcriptions (default 50)"),
+        ("offset" = Option<u32>, Query, description = "Number of transcriptions to skip (default 0)"),
+    ),
+    responses(
+        (status = 200, description = "Transcription history", body = TranscriptionsListResponse),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "STT subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_transcriptions<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Query(params): Query<ListTranscriptionsQuery>,
@@ -336,6 +373,17 @@ pub async fn list_transcriptions<B: ExecutionBackend + Clone + From<DynBackend>>
 ///
 /// Returns `204 No Content` on success (even if the ID did not exist).
 /// Returns `503 Service Unavailable` when the STT subsystem is absent.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/stt/transcriptions/{id}",
+    tag = "stt",
+    params(("id" = String, Path, description = "Transcription id")),
+    responses(
+        (status = 204, description = "Transcription deleted"),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "STT subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -369,6 +417,15 @@ pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>
 ///
 /// Scans `~/.apollia/models/` for `.bin` files and returns their name,
 /// path, and size. Returns an empty list if the directory does not exist.
+#[utoipa::path(
+    get,
+    path = "/api/v1/stt/models",
+    tag = "stt",
+    responses(
+        (status = 200, description = "Available STT model files", body = ModelsListResponse),
+        (status = 500, description = "Failed to read models directory", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(_state): State<AppState<B>>,
 ) -> RouteResult<ModelsListResponse> {
@@ -416,6 +473,16 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
 /// Returns `200 OK` with the current [`SttConfigRow`] from `system.db`.
 /// If the table is empty (first boot), the defaults are inserted and returned.
 /// Returns `503 Service Unavailable` when the config repository is unavailable.
+#[utoipa::path(
+    get,
+    path = "/api/v1/stt/config",
+    tag = "stt",
+    responses(
+        (status = 200, description = "Persisted STT configuration"),
+        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
 ) -> RouteResult<SttConfigRow> {
@@ -460,6 +527,17 @@ pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
 ///
 /// Returns `200 OK` with the updated configuration.
 /// Returns `503 Service Unavailable` when the config repository is unavailable.
+#[utoipa::path(
+    put,
+    path = "/api/v1/stt/config",
+    tag = "stt",
+    request_body(content_type = "application/json", description = "Updated STT configuration (SttConfigRow); fields with defaults may be omitted"),
+    responses(
+        (status = 200, description = "Updated STT configuration"),
+        (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "STT config repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn update_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Json(new_config): Json<SttConfigRow>,

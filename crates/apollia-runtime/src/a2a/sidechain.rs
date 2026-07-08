@@ -33,7 +33,7 @@ pub enum SidechainError {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Row returned by [`SidechainRepository::list_by_parent`].
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, utoipa::ToSchema)]
 pub struct SidechainRow {
     /// Sequential delegation number for this parent (1-based).
     pub sidechain_n: i64,

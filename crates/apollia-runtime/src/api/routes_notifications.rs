@@ -33,7 +33,7 @@ use crate::coordinator::ExecutionBackend;
 // ─── Request types ──────────────────────────────────────────────────────────
 
 /// Request body for `POST /api/v1/notifications/channels`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateChannelRequest {
     /// Unique channel identifier.
     pub id: String,
@@ -45,6 +45,7 @@ pub struct CreateChannelRequest {
     /// Whether the channel is active (default: `true`).
     pub enabled: Option<bool>,
     /// Type-specific configuration (e.g. `{"url": "..."}` for webhook).
+    #[schema(value_type = Object)]
     pub config: serde_json::Value,
     /// Channel-specific event list. `null` uses the global events.
     pub events: Option<Vec<String>>,
@@ -59,16 +60,18 @@ pub struct CreateChannelRequest {
 /// - absent from JSON: `None`, keep the existing label;
 /// - `null`: `Some(None)`, clear the label;
 /// - `"text"`: `Some(Some("text"))`, replace it.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateChannelRequest {
     /// New label. See the struct docs for the double-Option semantics.
     #[serde(default, deserialize_with = "deserialize_optional_field")]
+    #[schema(value_type = Option<String>)]
     pub label: Option<Option<String>>,
     /// Channel type (optional, keeps the existing one if absent).
     pub channel_type: Option<String>,
     /// Whether the channel is active.
     pub enabled: Option<bool>,
     /// Type-specific configuration.
+    #[schema(value_type = Option<Object>)]
     pub config: Option<serde_json::Value>,
     /// Channel-specific event list.
     pub events: Option<Vec<String>>,
@@ -86,7 +89,7 @@ where
 }
 
 /// Request body for `PUT /api/v1/notifications/events`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SetEventsRequest {
     /// New list of global events.
     pub events: Vec<String>,
@@ -95,7 +98,7 @@ pub struct SetEventsRequest {
 // ─── Response types ─────────────────────────────────────────────────────────
 
 /// Full notification channel returned by the CRUD operations.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ChannelResponse {
     /// Unique channel identifier.
     pub id: String,
@@ -106,6 +109,7 @@ pub struct ChannelResponse {
     /// `true` if the channel is enabled.
     pub enabled: bool,
     /// Type-specific configuration.
+    #[schema(value_type = Object)]
     pub config: serde_json::Value,
     /// Channel-specific events.
     pub events: Option<Vec<String>>,
@@ -118,7 +122,7 @@ pub struct ChannelResponse {
 }
 
 /// Response for `GET /api/v1/notifications/events`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct EventsResponse {
     /// List of global events.
     pub events: Vec<String>,
@@ -166,7 +170,8 @@ pub struct ErrorResponse {
 }
 
 /// Response for `DELETE /api/v1/notifications/channels/:id`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[schema(as = ChannelDeleteResponse)]
 pub struct DeleteResponse {
     /// Identifier of the deleted channel.
     pub deleted: String,
@@ -192,6 +197,19 @@ fn default_last() -> usize {
 ///
 /// Validates the channel, inserts it into `notifications.db`, then reloads the
 /// [`NotificationEngine`] via its handle.
+#[utoipa::path(
+    post,
+    path = "/api/v1/notifications/channels",
+    tag = "notifications",
+    request_body = CreateChannelRequest,
+    responses(
+        (status = 201, description = "Channel created", body = ChannelResponse),
+        (status = 409, description = "Channel id already exists", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Validation error", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Notification repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn create_channel<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<CreateChannelRequest>,
@@ -247,6 +265,20 @@ pub async fn create_channel<B: ExecutionBackend + Clone>(
 ///
 /// Updates the channel in `notifications.db`, then reloads the
 /// [`NotificationEngine`].
+#[utoipa::path(
+    put,
+    path = "/api/v1/notifications/channels/{id}",
+    tag = "notifications",
+    params(("id" = String, Path, description = "Channel id")),
+    request_body = UpdateChannelRequest,
+    responses(
+        (status = 200, description = "Channel updated", body = ChannelResponse),
+        (status = 404, description = "Channel not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Validation error", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Notification repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn update_channel<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -320,6 +352,18 @@ pub async fn update_channel<B: ExecutionBackend + Clone>(
 ///
 /// Deletes the channel from `notifications.db`, then reloads the
 /// [`NotificationEngine`].
+#[utoipa::path(
+    delete,
+    path = "/api/v1/notifications/channels/{id}",
+    tag = "notifications",
+    params(("id" = String, Path, description = "Channel id")),
+    responses(
+        (status = 200, description = "Channel deleted", body = DeleteResponse),
+        (status = 404, description = "Channel not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Notification repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn delete_channel<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -350,6 +394,16 @@ pub async fn delete_channel<B: ExecutionBackend + Clone>(
 }
 
 /// `GET /api/v1/notifications/events`, list global events.
+#[utoipa::path(
+    get,
+    path = "/api/v1/notifications/events",
+    tag = "notifications",
+    responses(
+        (status = 200, description = "Global notification events", body = EventsResponse),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Notification repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_events<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -382,6 +436,18 @@ pub async fn get_events<B: ExecutionBackend + Clone>(
 /// Validates each event against [`KNOWN_EVENTS`](apollia_notifications::KNOWN_EVENTS),
 /// then replaces the list in `notifications.db` and reloads the
 /// [`NotificationEngine`].
+#[utoipa::path(
+    put,
+    path = "/api/v1/notifications/events",
+    tag = "notifications",
+    request_body = SetEventsRequest,
+    responses(
+        (status = 200, description = "Global notification events updated", body = EventsResponse),
+        (status = 422, description = "Validation error", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Notification repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn set_events<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<SetEventsRequest>,
@@ -418,6 +484,14 @@ pub async fn set_events<B: ExecutionBackend + Clone>(
 ///
 /// Reads from the SQLite repository. Falls back to `notification_config`
 /// if the repo is not available.
+#[utoipa::path(
+    get,
+    path = "/api/v1/notifications/channels",
+    tag = "notifications",
+    responses(
+        (status = 200, description = "Configured notification channels"),
+    )
+)]
 pub async fn list_channels<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<serde_json::Value> {
@@ -464,6 +538,15 @@ pub async fn list_channels<B: ExecutionBackend + Clone>(
 /// does not reflect CRUD performed via the API). Falling back to the snapshot
 /// when the repo is unavailable preserves the legacy behavior for
 /// `apollia.toml`-only config.
+#[utoipa::path(
+    post,
+    path = "/api/v1/notifications/test",
+    tag = "notifications",
+    responses(
+        (status = 200, description = "Per-channel test results"),
+        (status = 500, description = "Failed to build channels", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn test_channels<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -622,6 +705,16 @@ fn resolve_live_config<B: ExecutionBackend + Clone>(
 ///
 /// Reads from `notifications.db` via the repository.
 /// Falls back to `hitl.db` if the repo is not available (backward compat).
+#[utoipa::path(
+    get,
+    path = "/api/v1/notifications/logs",
+    tag = "notifications",
+    params(("last" = Option<usize>, Query, description = "Maximum number of entries (default 20, max 1000)")),
+    responses(
+        (status = 200, description = "Notification dispatch history"),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn notification_logs<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(params): Query<LogsQuery>,

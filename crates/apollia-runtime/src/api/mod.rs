@@ -3,6 +3,7 @@
 //! Provides the external API surface for the runtime (CLI, SDK, integrations).
 
 pub mod middleware;
+pub mod openapi;
 pub mod routes_a2a;
 pub mod routes_agents;
 pub mod routes_approvals;

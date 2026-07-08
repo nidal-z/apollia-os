@@ -32,6 +32,18 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 ///
 /// Starts an `apollia-review` task for the given task ID, waits synchronously
 /// for completion (up to 120 s), then parses and returns the [`ReviewReport`].
+#[utoipa::path(
+    post,
+    path = "/api/v1/tasks/{id}/review",
+    tag = "tasks",
+    params(("id" = String, Path, description = "Task id to review")),
+    responses(
+        (status = 200, description = "Parsed code review report"),
+        (status = 500, description = "Review agent failed or output unavailable", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Review agent unavailable", body = crate::api::openapi::ApiErrorBody),
+        (status = 504, description = "Review timed out", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn post_review<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,

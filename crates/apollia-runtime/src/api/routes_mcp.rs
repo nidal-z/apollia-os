@@ -93,7 +93,15 @@ fn require_mcp_repo<B: ExecutionBackend + Clone>(
 /// `GET /api/v1/mcp/servers`, List all connected MCP servers with their status.
 ///
 /// Returns an empty array when no MCP configuration is active.
-async fn list_servers<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    get,
+    path = "/api/v1/mcp/servers",
+    tag = "mcp",
+    responses(
+        (status = 200, description = "Connected MCP servers with their status"),
+    )
+)]
+pub(crate) async fn list_servers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<Vec<McpServerStatus>> {
     let statuses = match &state.mcp_handle {
@@ -111,7 +119,15 @@ async fn list_servers<B: ExecutionBackend + Clone>(
 ///
 /// Returns an empty array (not an error) when no MCP configuration is active,
 /// so the picker degrades to "no resources" rather than a failure state.
-async fn list_resources<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    get,
+    path = "/api/v1/mcp/resources",
+    tag = "mcp",
+    responses(
+        (status = 200, description = "MCP resources aggregated across connected servers"),
+    )
+)]
+pub(crate) async fn list_resources<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<Vec<McpResourceSummary>> {
     let resources = match &state.mcp_handle {
@@ -125,7 +141,18 @@ async fn list_resources<B: ExecutionBackend + Clone>(
 ///
 /// Returns `404 Not Found` when no server with the given name is connected.
 /// Returns `503 Service Unavailable` when MCP is not configured.
-async fn get_server_detail<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    get,
+    path = "/api/v1/mcp/servers/{name}",
+    tag = "mcp",
+    params(("name" = String, Path, description = "Server name")),
+    responses(
+        (status = 200, description = "Detailed MCP server info"),
+        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn get_server_detail<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
 ) -> Result<Json<McpServerDetail>, JsonError> {
@@ -150,7 +177,19 @@ async fn get_server_detail<B: ExecutionBackend + Clone>(
 ///
 /// Returns `404 Not Found` when no server with `name` is persisted.
 /// Returns `503 Service Unavailable` when the MCP repository is unavailable.
-async fn get_server_raw_config<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    get,
+    path = "/api/v1/mcp/servers/{name}/raw_config",
+    tag = "mcp",
+    params(("name" = String, Path, description = "Server name")),
+    responses(
+        (status = 200, description = "Persisted launch configuration (secrets masked)"),
+        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "MCP repository not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn get_server_raw_config<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
 ) -> Result<Json<McpServerConfig>, JsonError> {
@@ -186,7 +225,20 @@ async fn get_server_raw_config<B: ExecutionBackend + Clone>(
 /// Returns `404 Not Found` when the name is unknown to both the manager
 /// and the repository.
 /// Returns `503 Service Unavailable` when MCP is not configured.
-async fn restart_server<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    post,
+    path = "/api/v1/mcp/servers/{name}/restart",
+    tag = "mcp",
+    params(("name" = String, Path, description = "Server name")),
+    responses(
+        (status = 200, description = "Server restarted or (re)connected"),
+        (status = 400, description = "Fallback connect failed", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn restart_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
 ) -> Result<Json<McpServerStatus>, JsonError> {
@@ -233,7 +285,19 @@ async fn restart_server<B: ExecutionBackend + Clone>(
 /// Returns `409 Conflict` when a server with the same name is already managed.
 /// Returns `400 Bad Request` for invalid configurations or spawn failures.
 /// Returns `503 Service Unavailable` when MCP is not configured.
-async fn add_server<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    post,
+    path = "/api/v1/mcp/servers",
+    tag = "mcp",
+    responses(
+        (status = 201, description = "Server added and persisted"),
+        (status = 400, description = "Invalid configuration or spawn failure", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Server already exists", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn add_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(config): Json<McpServerConfig>,
 ) -> Result<(StatusCode, Json<McpServerStatus>), JsonError> {
@@ -270,7 +334,19 @@ async fn add_server<B: ExecutionBackend + Clone>(
 /// Returns `200 OK` with `{"removed": "<name>"}` on success.
 /// Returns `404 Not Found` when no server with the given name is managed.
 /// Returns `503 Service Unavailable` when MCP is not configured.
-async fn remove_server<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    delete,
+    path = "/api/v1/mcp/servers/{name}",
+    tag = "mcp",
+    params(("name" = String, Path, description = "Server name")),
+    responses(
+        (status = 200, description = "Server removed"),
+        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn remove_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, JsonError> {
@@ -333,7 +409,16 @@ pub(crate) enum McpConnectionTestResponse {
 ///   401, the desktop should drive the MCP HTTP OAuth flow before retrying.
 /// - `400 Bad Request`, other handshake failures (transport, JSON-RPC error,
 ///   timeout, etc.).
-async fn test_connection(
+#[utoipa::path(
+    post,
+    path = "/api/v1/mcp/servers/test",
+    tag = "mcp",
+    responses(
+        (status = 200, description = "Handshake succeeded, or OAuth is required (see kind field)"),
+        (status = 400, description = "Handshake failure (transport, JSON-RPC, timeout)", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn test_connection(
     Json(config): Json<McpServerConfig>,
 ) -> Result<Json<McpConnectionTestResponse>, JsonError> {
     let start = Instant::now();
@@ -374,10 +459,11 @@ async fn test_connection(
 
 /// Body for [`test_live_server`]: the optional read-only probe to run against
 /// the live session, supplied by the desktop from the connector enrichment.
-#[derive(serde::Deserialize, Default)]
-struct TestLiveRequest {
+#[derive(serde::Deserialize, Default, utoipa::ToSchema)]
+pub(crate) struct TestLiveRequest {
     /// Read-only probe declared for this connector, when any.
     #[serde(default)]
+    #[schema(value_type = Option<Object>)]
     probe: Option<ProbeSpec>,
 }
 
@@ -390,7 +476,20 @@ struct TestLiveRequest {
 ///
 /// Response shape mirrors [`test_connection`]: `success` (with `live_health`),
 /// `oauth_required`, or `400`.
-async fn test_live_server<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    post,
+    path = "/api/v1/mcp/servers/{name}/test",
+    tag = "mcp",
+    params(("name" = String, Path, description = "Server name")),
+    request_body = TestLiveRequest,
+    responses(
+        (status = 200, description = "Live handshake and probe result, or OAuth required (see kind field)"),
+        (status = 400, description = "Handshake failure", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn test_live_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
     Json(req): Json<TestLiveRequest>,
@@ -419,7 +518,20 @@ async fn test_live_server<B: ExecutionBackend + Clone>(
 /// Returns `404 Not Found` when no server with `name` is managed.
 /// Returns `400 Bad Request` when the new session fails to start.
 /// Returns `503 Service Unavailable` when MCP is not configured.
-async fn update_server_config<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    put,
+    path = "/api/v1/mcp/servers/{name}/config",
+    tag = "mcp",
+    params(("name" = String, Path, description = "Server name")),
+    responses(
+        (status = 200, description = "Configuration replaced and session restarted"),
+        (status = 400, description = "New session failed to start", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
     Json(config): Json<McpServerConfig>,
@@ -455,8 +567,8 @@ async fn update_server_config<B: ExecutionBackend + Clone>(
 }
 
 /// Request body for `PATCH /api/v1/mcp/servers/:name/approval`.
-#[derive(Debug, serde::Deserialize)]
-struct SetApprovalBody {
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub(crate) struct SetApprovalBody {
     requires_approval: bool,
 }
 
@@ -467,7 +579,20 @@ struct SetApprovalBody {
 /// tool call. Returns `200 OK` with the updated [`McpServerStatus`] on success.
 /// Returns `404 Not Found` when no server with `name` is managed.
 /// Returns `503 Service Unavailable` when MCP is not configured.
-async fn set_server_approval<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    patch,
+    path = "/api/v1/mcp/servers/{name}/approval",
+    tag = "mcp",
+    params(("name" = String, Path, description = "Server name")),
+    request_body = SetApprovalBody,
+    responses(
+        (status = 200, description = "Approval flag updated"),
+        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub(crate) async fn set_server_approval<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
     Json(body): Json<SetApprovalBody>,

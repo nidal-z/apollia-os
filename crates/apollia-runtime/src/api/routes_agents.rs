@@ -103,7 +103,7 @@ pub struct AgentListQuery {
 }
 
 /// Abridged skill descriptor included in the agent list response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SkillDto {
     /// Unique skill identifier (e.g. `"read-excel"`).
     pub id: String,
@@ -112,14 +112,14 @@ pub struct SkillDto {
 }
 
 /// Request body for `POST /api/v1/agents`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
     /// Path to the agent Python module.
     pub agent_path: String,
 }
 
 /// Response body for agent operations.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AgentResponse {
     /// Agent identifier (UUID v4).
     pub agent_id: String,
@@ -137,11 +137,12 @@ pub struct AgentResponse {
     pub skills: Vec<SkillDto>,
     /// Agent manifest (present in detail view).
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
     pub manifest: Option<serde_json::Value>,
 }
 
 /// Response body for agent list.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AgentListResponse {
     /// All registered agents.
     pub agents: Vec<AgentResponse>,
@@ -199,6 +200,16 @@ fn registry_error_to_response(err: AgentRegistryError) -> (StatusCode, Json<Erro
 /// Lists registered agents. When `?supports_a2a=true` is present, only agents
 /// that declare `supports_a2a = true` in their manifest are returned, and each
 /// entry includes the agent's `skills` and `version`.
+#[utoipa::path(
+    get,
+    path = "/api/v1/agents",
+    tag = "agents",
+    params(("supports_a2a" = Option<bool>, Query, description = "Restrict to agents declaring supports_a2a = true")),
+    responses(
+        (status = 200, description = "Agent list", body = AgentListResponse),
+        (status = 500, description = "Registry error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_agents<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(query): Query<AgentListQuery>,
@@ -251,6 +262,16 @@ pub async fn list_agents<B: ExecutionBackend + Clone>(
 ///
 /// Returns 201 Created with the agent_id and state.
 /// Returns 400 Bad Request if the Python module is invalid.
+#[utoipa::path(
+    post,
+    path = "/api/v1/agents",
+    tag = "agents",
+    request_body = StartAgentRequest,
+    responses(
+        (status = 201, description = "Agent started", body = AgentResponse),
+        (status = 400, description = "Invalid agent module", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Json(req): Json<StartAgentRequest>,
@@ -422,6 +443,16 @@ async fn resolve_agent<B: ExecutionBackend + Clone>(
 /// Returns the detail of a single agent including its manifest.
 /// Accepts both a UUID and a human-readable agent name (e.g. `apollia-reviewer`).
 /// Returns 404 if the agent does not exist.
+#[utoipa::path(
+    get,
+    path = "/api/v1/agents/{id}",
+    tag = "agents",
+    params(("id" = String, Path, description = "Agent id or name")),
+    responses(
+        (status = 200, description = "Agent detail", body = AgentResponse),
+        (status = 404, description = "Agent not found", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     AxumPath(id_or_name): AxumPath<String>,
@@ -472,6 +503,17 @@ pub async fn get_agent<B: ExecutionBackend + Clone>(
 /// Accepts both a UUID and a human-readable agent name (e.g. `apollia-reviewer`).
 /// Returns 409 Conflict if the agent is already stopped or stopping.
 /// Returns 404 if the agent does not exist.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/agents/{id}",
+    tag = "agents",
+    params(("id" = String, Path, description = "Agent id or name")),
+    responses(
+        (status = 200, description = "Agent stopped", body = AgentResponse),
+        (status = 404, description = "Agent not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Agent already stopped or stopping", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn stop_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     AxumPath(id_or_name): AxumPath<String>,

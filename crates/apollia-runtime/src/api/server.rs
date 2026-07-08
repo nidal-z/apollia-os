@@ -366,19 +366,25 @@ pub struct APIServer {
 }
 
 /// Response body for the health endpoint.
-#[derive(Serialize)]
-struct HealthResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct HealthResponse {
     status: String,
 }
 
 /// Response body for the shutdown endpoint.
-#[derive(Serialize)]
-struct ShutdownResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub(crate) struct ShutdownResponse {
     status: String,
 }
 
 /// Handler for `GET /api/v1/health`.
-async fn health_handler() -> Json<HealthResponse> {
+#[utoipa::path(
+    get,
+    path = "/api/v1/health",
+    tag = "health",
+    responses((status = 200, description = "Runtime is up", body = HealthResponse))
+)]
+pub(crate) async fn health_handler() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok".into(),
     })
@@ -389,7 +395,13 @@ async fn health_handler() -> Json<HealthResponse> {
 /// Emits [`RuntimeEvent::ShutdownRequested`] on the EventBus. The caller
 /// (typically `apollia-os start`) listens for this event to trigger
 /// graceful shutdown.
-async fn shutdown_handler<B: ExecutionBackend + Clone>(
+#[utoipa::path(
+    post,
+    path = "/api/v1/shutdown",
+    tag = "health",
+    responses((status = 200, description = "Shutdown initiated", body = ShutdownResponse))
+)]
+pub(crate) async fn shutdown_handler<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<ShutdownResponse> {
     info!("Shutdown requested via API");
@@ -448,6 +460,10 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
 
     Router::new()
         .route("/api/v1/health", get(health_handler))
+        .route(
+            "/api/v1/openapi.json",
+            get(crate::api::openapi::openapi_json),
+        )
         .route("/api/v1/shutdown", post(shutdown_handler::<B>))
         .route("/api/v1/tasks", get(list_tasks::<B>).post(submit_task::<B>))
         .route(

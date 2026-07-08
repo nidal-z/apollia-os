@@ -91,7 +91,7 @@ pub enum A2aError {
 }
 
 /// Result of a successful A2A delegation.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct A2aDelegateResult {
     /// Identifier of the task executed by the Worker Agent.
     pub task_id: String,

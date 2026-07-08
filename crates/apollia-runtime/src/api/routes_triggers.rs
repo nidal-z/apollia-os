@@ -38,7 +38,7 @@ use crate::coordinator::ExecutionBackend;
 // ─── Request types ───────────────────────────────────────────────────────
 
 /// Request body for `POST /api/v1/triggers`, trigger creation.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateTriggerRequest {
     /// Unique trigger identifier.
     pub id: String,
@@ -55,17 +55,18 @@ pub struct CreateTriggerRequest {
 }
 
 /// Trigger source description used in create/update requests.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct TriggerSourceInput {
     /// Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
     pub r#type: String,
     /// Source-specific configuration (fields flattened via `serde(flatten)`).
     #[serde(flatten)]
+    #[schema(value_type = Object)]
     pub config: serde_json::Value,
 }
 
 /// Request body for `PUT /api/v1/triggers/:id`, trigger update.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateTriggerRequest {
     /// Target agent.
     pub agent: Option<String>,
@@ -82,7 +83,7 @@ pub struct UpdateTriggerRequest {
 // ─── Response types ──────────────────────────────────────────────────────
 
 /// Response for CRUD operations returning a full definition.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TriggerDefinitionResponse {
     /// Unique trigger identifier.
     pub id: String,
@@ -95,6 +96,7 @@ pub struct TriggerDefinitionResponse {
     /// Source type.
     pub source_type: String,
     /// Source JSON configuration.
+    #[schema(value_type = Object)]
     pub source_config: serde_json::Value,
     /// Input message template.
     pub input_template: Option<String>,
@@ -105,14 +107,14 @@ pub struct TriggerDefinitionResponse {
 }
 
 /// Response for `DELETE /api/v1/triggers/:id`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct DeleteResponse {
     /// Identifier of the deleted trigger.
     pub deleted: String,
 }
 
 /// Success response body for reload.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct ReloadResponse {
     /// Number of active triggers after reload.
     pub reloaded: usize,
@@ -149,23 +151,24 @@ pub struct TriggerDetailResponse {
 }
 
 /// Response for `POST /api/v1/triggers/:id/fire`.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct FireResponse {
     /// Identifier of the submitted task.
     pub task_id: String,
 }
 
 /// Response for enable/disable.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct OkResponse {
     /// Confirmation flag.
     pub ok: bool,
 }
 
 /// Response for `GET /api/v1/triggers/:id/logs`.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct LogsResponse {
     /// History entries.
+    #[schema(value_type = Vec<Object>)]
     pub entries: Vec<TriggerHistoryEntry>,
 }
 
@@ -311,6 +314,19 @@ fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (St
 ///
 /// Validates the definition, inserts it into `triggers.db`, reloads the engine,
 /// and returns `201` with the full definition (including `created_at`).
+#[utoipa::path(
+    post,
+    path = "/api/v1/triggers",
+    tag = "triggers",
+    request_body = CreateTriggerRequest,
+    responses(
+        (status = 201, description = "Trigger created", body = TriggerDefinitionResponse),
+        (status = 409, description = "Trigger id already exists", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Validation error", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Trigger repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn create_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<CreateTriggerRequest>,
@@ -365,6 +381,20 @@ pub async fn create_trigger<B: ExecutionBackend + Clone>(
 ///
 /// Validates the new definition, updates it in `triggers.db`,
 /// reloads the engine, and returns `200` with the updated definition.
+#[utoipa::path(
+    put,
+    path = "/api/v1/triggers/{id}",
+    tag = "triggers",
+    params(("id" = String, Path, description = "Trigger id")),
+    request_body = UpdateTriggerRequest,
+    responses(
+        (status = 200, description = "Trigger updated", body = TriggerDefinitionResponse),
+        (status = 404, description = "Trigger not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Validation error", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Trigger repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn update_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -416,6 +446,18 @@ pub async fn update_trigger<B: ExecutionBackend + Clone>(
 /// `DELETE /api/v1/triggers/:id`, delete a trigger definition.
 ///
 /// Removes it from `triggers.db`, reloads the engine, and returns `200`.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/triggers/{id}",
+    tag = "triggers",
+    params(("id" = String, Path, description = "Trigger id")),
+    responses(
+        (status = 200, description = "Trigger deleted", body = DeleteResponse),
+        (status = 404, description = "Trigger not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Trigger repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn delete_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -440,6 +482,18 @@ pub async fn delete_trigger<B: ExecutionBackend + Clone>(
 }
 
 /// `GET /api/v1/triggers/:id`, full definition plus runtime status.
+#[utoipa::path(
+    get,
+    path = "/api/v1/triggers/{id}",
+    tag = "triggers",
+    params(("id" = String, Path, description = "Trigger id")),
+    responses(
+        (status = 200, description = "Trigger definition", body = TriggerDefinitionResponse),
+        (status = 404, description = "Trigger not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Trigger repository unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_trigger_by_id<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -473,6 +527,15 @@ pub async fn get_trigger_by_id<B: ExecutionBackend + Clone>(
 // ─── Trigger Action Handlers ──────────────────────────────────────────────
 
 /// `GET /api/v1/triggers`, list all triggers with their status.
+#[utoipa::path(
+    get,
+    path = "/api/v1/triggers",
+    tag = "triggers",
+    responses(
+        (status = 200, description = "Trigger list with runtime status"),
+        (status = 503, description = "Trigger engine unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_triggers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> impl IntoResponse {
@@ -561,6 +624,18 @@ pub async fn get_trigger<B: ExecutionBackend + Clone>(
 }
 
 /// `POST /api/v1/triggers/:id/fire`, immediate firing.
+#[utoipa::path(
+    post,
+    path = "/api/v1/triggers/{id}/fire",
+    tag = "triggers",
+    params(("id" = String, Path, description = "Trigger id")),
+    responses(
+        (status = 200, description = "Trigger fired", body = FireResponse),
+        (status = 400, description = "Trigger could not be fired", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Trigger not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Trigger engine unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn fire_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -601,6 +676,18 @@ pub async fn fire_trigger<B: ExecutionBackend + Clone>(
 }
 
 /// `POST /api/v1/triggers/:id/enable`, enable a disabled trigger.
+#[utoipa::path(
+    post,
+    path = "/api/v1/triggers/{id}/enable",
+    tag = "triggers",
+    params(("id" = String, Path, description = "Trigger id")),
+    responses(
+        (status = 200, description = "Trigger enabled", body = OkResponse),
+        (status = 400, description = "Trigger could not be enabled", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Trigger not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Trigger engine unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn enable_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -638,6 +725,18 @@ pub async fn enable_trigger<B: ExecutionBackend + Clone>(
 }
 
 /// `POST /api/v1/triggers/:id/disable`, disable an active trigger.
+#[utoipa::path(
+    post,
+    path = "/api/v1/triggers/{id}/disable",
+    tag = "triggers",
+    params(("id" = String, Path, description = "Trigger id")),
+    responses(
+        (status = 200, description = "Trigger disabled", body = OkResponse),
+        (status = 400, description = "Trigger could not be disabled", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Trigger not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Trigger engine unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn disable_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -677,6 +776,19 @@ pub async fn disable_trigger<B: ExecutionBackend + Clone>(
 /// `GET /api/v1/triggers/:id/logs`, firing history from SQLite.
 ///
 /// The `?last=N` query parameter controls the number of entries (default: 20).
+#[utoipa::path(
+    get,
+    path = "/api/v1/triggers/{id}/logs",
+    tag = "triggers",
+    params(
+        ("id" = String, Path, description = "Trigger id"),
+        ("last" = Option<usize>, Query, description = "Maximum number of entries (default 20)"),
+    ),
+    responses(
+        (status = 200, description = "Trigger firing history", body = LogsResponse),
+        (status = 503, description = "Trigger engine unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_trigger_logs<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -706,6 +818,16 @@ pub async fn get_trigger_logs<B: ExecutionBackend + Clone>(
 /// Re-reads definitions from the SQLite repository (no longer TOML),
 /// converts them to rich types, and reloads the `TriggerEngine`.
 /// Emits `TriggersReloaded` on the EventBus via the engine.
+#[utoipa::path(
+    post,
+    path = "/api/v1/triggers/reload",
+    tag = "triggers",
+    responses(
+        (status = 200, description = "Triggers reloaded", body = ReloadResponse),
+        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Trigger engine unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn reload_triggers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> impl IntoResponse {

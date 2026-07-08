@@ -29,7 +29,7 @@ use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
 
 /// Request body for `POST /api/v1/sessions`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateSessionRequest {
     /// Session mode: `"libre"` or `"agent"`.
     pub mode: String,
@@ -45,14 +45,14 @@ pub struct CreateSessionRequest {
 }
 
 /// Request body for `POST /api/v1/sessions/:id/messages`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SendMessageRequest {
     /// Text content of the user message.
     pub content: String,
 }
 
 /// Response body for `POST /api/v1/sessions/:id/messages`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SendMessageResponse {
     /// Unique message identifier.
     pub message_id: String,
@@ -61,7 +61,7 @@ pub struct SendMessageResponse {
 }
 
 /// Request body for `POST /api/v1/sessions/:id/authorize`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AuthorizeToolRequest {
     /// ID of the message that triggered the tool call.
     pub message_id: String,
@@ -76,6 +76,7 @@ pub struct AuthorizeToolRequest {
     /// Always-accept scope. Only honoured when `decision == "always_accept"`.
     /// Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
     #[serde(default)]
+    #[schema(value_type = Option<String>)]
     pub scope: Option<crate::chat::AlwaysAcceptScope>,
 }
 
@@ -101,13 +102,24 @@ pub struct RecentSessionsQuery {
 }
 
 /// Request body for `POST /api/v1/sessions/:id/fork`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ForkSessionRequest {
     /// Number of messages to copy from the parent (None = all).
     pub up_to_index: Option<usize>,
 }
 
 /// Handler for `POST /api/v1/sessions`, create a new chat session.
+#[utoipa::path(
+    post,
+    path = "/api/v1/sessions",
+    tag = "chat",
+    request_body = CreateSessionRequest,
+    responses(
+        (status = 201, description = "Session created"),
+        (status = 400, description = "Invalid request", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn create_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<CreateSessionRequest>,
@@ -155,6 +167,16 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
 }
 
 /// Handler for `GET /api/v1/sessions`, list sessions.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions",
+    tag = "chat",
+    params(("status" = Option<String>, Query, description = "Filter by session status: active, processing, closed")),
+    responses(
+        (status = 200, description = "Session list"),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_sessions<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(query): Query<ListSessionsQuery>,
@@ -179,6 +201,17 @@ pub async fn list_sessions<B: ExecutionBackend + Clone>(
 }
 
 /// Handler for `GET /api/v1/sessions/:id`, session detail.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/{id}",
+    tag = "chat",
+    params(("id" = String, Path, description = "Session id")),
+    responses(
+        (status = 200, description = "Session detail"),
+        (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -209,11 +242,12 @@ pub async fn get_session<B: ExecutionBackend + Clone>(
 }
 
 /// Response body for `GET /api/v1/sessions/:id/todo`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TodoReadResponse {
     /// Session whose todo list is returned.
     pub session_id: String,
     /// Current todo items, ordered by insertion.
+    #[schema(value_type = Vec<Object>)]
     pub items: Vec<TodoItem>,
 }
 
@@ -221,6 +255,18 @@ pub struct TodoReadResponse {
 ///
 /// Returns 200 with the items (an empty array when the session exists but has
 /// no todo), and 404 when the session is unknown to the runtime.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/{id}/todo",
+    tag = "chat",
+    params(("id" = String, Path, description = "Session id")),
+    responses(
+        (status = 200, description = "Session todo list", body = TodoReadResponse),
+        (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Internal error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_session_todo<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -265,6 +311,18 @@ pub async fn get_session_todo<B: ExecutionBackend + Clone>(
 }
 
 /// Handler for `DELETE /api/v1/sessions/:id`, close session.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/sessions/{id}",
+    tag = "chat",
+    params(("id" = String, Path, description = "Session id")),
+    responses(
+        (status = 200, description = "Session closed"),
+        (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Session already closed", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn close_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -293,6 +351,19 @@ pub async fn close_session<B: ExecutionBackend + Clone>(
 }
 
 /// Handler for `POST /api/v1/sessions/:id/messages`, send message.
+#[utoipa::path(
+    post,
+    path = "/api/v1/sessions/{id}/messages",
+    tag = "chat",
+    params(("id" = String, Path, description = "Session id")),
+    request_body = SendMessageRequest,
+    responses(
+        (status = 202, description = "Message accepted", body = SendMessageResponse),
+        (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Session closed or busy", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn send_message<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -325,6 +396,19 @@ pub async fn send_message<B: ExecutionBackend + Clone>(
 }
 
 /// Handler for `POST /api/v1/sessions/:id/authorize`, resolve tool approval.
+#[utoipa::path(
+    post,
+    path = "/api/v1/sessions/{id}/authorize",
+    tag = "chat",
+    params(("id" = String, Path, description = "Session id")),
+    request_body = AuthorizeToolRequest,
+    responses(
+        (status = 200, description = "Approval resolved"),
+        (status = 400, description = "Invalid decision", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Session not awaiting approval", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn authorize_tool<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -381,6 +465,17 @@ pub async fn authorize_tool<B: ExecutionBackend + Clone>(
 ///
 /// Opens a persistent SSE stream filtering `ChatXxx` [`RuntimeEvent`]s by `session_id`.
 /// The stream closes when `ChatSessionClosed` is emitted.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/{id}/stream",
+    tag = "chat",
+    params(("id" = String, Path, description = "Session id")),
+    responses(
+        (status = 200, description = "SSE stream of chat events", body = crate::api::routes_sse::SseTaskEvent, content_type = "text/event-stream"),
+        (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn stream_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -594,6 +689,16 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<(SseChatE
 /// Handler for `GET /api/v1/sessions/recent`, list recent sessions with first message.
 ///
 /// Query param `?limit=N` (default 10, max 50).
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/recent",
+    tag = "chat",
+    params(("limit" = Option<usize>, Query, description = "Maximum sessions to return (default 10, capped at 50)")),
+    responses(
+        (status = 200, description = "Recent session summaries"),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_recent_sessions<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(query): Query<RecentSessionsQuery>,
@@ -618,6 +723,17 @@ pub async fn list_recent_sessions<B: ExecutionBackend + Clone>(
 ///
 /// Loads the session from SQLite if not already in memory, resets any stale
 /// Processing status to Active, and returns the full session detail.
+#[utoipa::path(
+    post,
+    path = "/api/v1/sessions/{id}/resume",
+    tag = "chat",
+    params(("id" = String, Path, description = "Session id")),
+    responses(
+        (status = 200, description = "Session resumed"),
+        (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn resume_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -646,6 +762,18 @@ pub async fn resume_session<B: ExecutionBackend + Clone>(
 /// Creates a new child session that copies the parent history up to `up_to_index`
 /// messages. When `up_to_index` is omitted, the full history is copied.
 /// Returns the new child [`SessionInfo`] with HTTP 201.
+#[utoipa::path(
+    post,
+    path = "/api/v1/sessions/{id}/fork",
+    tag = "chat",
+    params(("id" = String, Path, description = "Parent session id")),
+    request_body = ForkSessionRequest,
+    responses(
+        (status = 201, description = "Child session created"),
+        (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn fork_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -673,6 +801,16 @@ pub async fn fork_session<B: ExecutionBackend + Clone>(
 /// Handler for `GET /api/v1/sessions/:id/children`, list fork children of a session.
 ///
 /// Returns a JSON array of [`SessionInfo`] objects, ordered by creation time ascending.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/{id}/children",
+    tag = "chat",
+    params(("id" = String, Path, description = "Parent session id")),
+    responses(
+        (status = 200, description = "Child session list"),
+        (status = 503, description = "Chat subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_session_children<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,

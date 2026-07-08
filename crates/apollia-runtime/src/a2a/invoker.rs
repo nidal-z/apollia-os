@@ -166,9 +166,10 @@ pub enum A2AError {
 }
 
 /// Result of a successful A2A invocation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct A2AInvocationResult {
     /// AIP result returned by the Worker Agent.
+    #[schema(value_type = Object)]
     pub result: AIPResult,
     /// Name of the Worker Agent that handled the invocation.
     pub agent_name: String,
@@ -220,7 +221,7 @@ pub struct A2AAgentCard {
 /// Entry in the list of available skills.
 ///
 /// Returned by [`A2AInvoker::list_skills`] and used by `ctx.a2a_list_skills()`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SkillListing {
     /// Skill identifier.
     pub skill_id: String,
@@ -234,6 +235,7 @@ pub struct SkillListing {
     /// Used by `generate_a2a_tool_specs` to expose the worker's real contract
     /// to the LLM (instead of a generic schema).
     #[serde(default)]
+    #[schema(value_type = Option<Object>)]
     pub input_schema: Option<serde_json::Value>,
 }
 

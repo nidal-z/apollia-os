@@ -28,6 +28,20 @@ use crate::coordinator::ExecutionBackend;
 /// Verifies the request HMAC-SHA256 signature before forwarding the event to
 /// the [`TriggerEngineHandle`]. Returns 503 if the TriggerEngine is not started,
 /// 404 if the trigger is unknown, 401 if the signature is absent or invalid, 200 otherwise.
+#[utoipa::path(
+    post,
+    path = "/webhooks/{id}",
+    tag = "webhooks",
+    params(("id" = String, Path, description = "Webhook trigger id")),
+    request_body(content_type = "application/octet-stream", description = "Raw webhook payload, verified against the `X-Apollia-Signature` HMAC-SHA256 header"),
+    responses(
+        (status = 200, description = "Webhook accepted and forwarded"),
+        (status = 401, description = "Missing or invalid signature"),
+        (status = 404, description = "Unknown webhook trigger"),
+        (status = 500, description = "Internal error"),
+        (status = 503, description = "Trigger engine unavailable"),
+    )
+)]
 pub async fn handle_webhook<B: ExecutionBackend + Clone>(
     Path(trigger_id): Path<String>,
     State(state): State<AppState<B>>,

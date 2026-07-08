@@ -12,7 +12,7 @@ use crate::audit_journal::hash::{compute_entry_hash, SENTINEL_PREV_HASH};
 use crate::audit_journal::signer::JournalSigner;
 
 /// Reason a chain link failed verification.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BrokenLinkReason {
     /// The recomputed hash differs from the stored one (content was mutated).
@@ -27,7 +27,7 @@ pub enum BrokenLinkReason {
 }
 
 /// The first broken link found while walking a chain.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct BrokenLink {
     /// Sequence number of the offending entry.
     pub seq: u64,
@@ -36,7 +36,7 @@ pub struct BrokenLink {
 }
 
 /// Outcome of verifying a run's chain.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct VerifyChainReport {
     /// `true` when the whole chain verified.
     pub ok: bool,

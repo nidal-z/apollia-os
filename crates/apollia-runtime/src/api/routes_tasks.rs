@@ -19,19 +19,21 @@ use apollia_core::{
 };
 
 /// Request body for `POST /api/v1/tasks`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SubmitTaskRequest {
     /// Identifier of the target agent.
     pub agent_id: String,
     /// Free-form JSON input for the task.
+    #[schema(value_type = Object)]
     pub input: serde_json::Value,
     /// Per-run control options (plan-gate / autonomy overrides).
     #[serde(default)]
+    #[schema(value_type = Object)]
     pub run_options: apollia_core::RunOptions,
 }
 
 /// Response body for task operations.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TaskResponse {
     /// Unique task identifier (UUID v4).
     pub task_id: String,
@@ -42,6 +44,7 @@ pub struct TaskResponse {
     pub run_id: Option<String>,
     /// Task result payload (present when completed).
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
     pub result: Option<serde_json::Value>,
     /// Error message (present when failed).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -52,6 +55,7 @@ pub struct TaskResponse {
     pub error_code: Option<String>,
     /// Token budget accumulated over all LLM calls for this task.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
     pub token_budget: Option<TokenBudget>,
 }
 
@@ -102,14 +106,14 @@ pub struct ListTasksQuery {
 }
 
 /// Response body for `GET /api/v1/tasks`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TaskListResponse {
     /// All tasks matching the optional filter.
     pub tasks: Vec<TaskListItem>,
 }
 
 /// One entry in the task list.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TaskListItem {
     /// Unique task identifier.
     pub task_id: String,
@@ -137,6 +141,16 @@ fn extract_error_code(error_text: &str) -> Option<String> {
 ///
 /// Returns all known tasks with their agent and status.
 /// Supports an optional `?status=<value>` query parameter to filter results.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tasks",
+    tag = "tasks",
+    params(("status" = Option<String>, Query, description = "Filter by task status")),
+    responses(
+        (status = 200, description = "Task list", body = TaskListResponse),
+        (status = 503, description = "Task subsystem unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_tasks<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(query): Query<ListTasksQuery>,
@@ -192,6 +206,17 @@ pub async fn list_tasks<B: ExecutionBackend + Clone>(
 ///
 /// Submits a new task to the specified agent via the TaskRouter.
 /// Returns 202 Accepted with the generated task_id on success.
+#[utoipa::path(
+    post,
+    path = "/api/v1/tasks",
+    tag = "tasks",
+    request_body = SubmitTaskRequest,
+    responses(
+        (status = 202, description = "Task accepted", body = TaskResponse),
+        (status = 404, description = "Agent not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Agent unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn submit_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<SubmitTaskRequest>,
@@ -221,6 +246,16 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
 /// Handler for `GET /api/v1/tasks/{id}`.
 ///
 /// Returns the current status of a task. Returns 404 if the task does not exist.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tasks/{id}",
+    tag = "tasks",
+    params(("id" = String, Path, description = "Task id")),
+    responses(
+        (status = 200, description = "Task detail", body = TaskResponse),
+        (status = 404, description = "Task not found", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(task_id): Path<String>,
@@ -293,6 +328,16 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
 /// Handler for `DELETE /api/v1/tasks/{id}`.
 ///
 /// Cancels a running task. Returns 404 if the task does not exist.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/tasks/{id}",
+    tag = "tasks",
+    params(("id" = String, Path, description = "Task id")),
+    responses(
+        (status = 200, description = "Task cancelled", body = TaskResponse),
+        (status = 404, description = "Task not found", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn cancel_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(task_id): Path<String>,
@@ -331,7 +376,7 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
 ///
 /// The operator submits a decision (`approved`) and an optional reason.
 /// The `approved` field is mandatory; omitting it produces HTTP 422.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ResumeRequest {
     /// `true` to approve, `false` to reject.
     pub approved: bool,
@@ -342,7 +387,7 @@ pub struct ResumeRequest {
 /// Response body for `POST /api/v1/tasks/{id}/resume`.
 ///
 /// Returned with HTTP 200 when the resume is recorded successfully.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ResumeResponse {
     /// Identifier of the resumed task.
     pub task_id: String,
@@ -364,6 +409,19 @@ pub struct ResumeResponse {
 /// - `409 Conflict`, task known but not in `input_required` status
 /// - `503 Service Unavailable`, HITL not configured (`task_repository` absent)
 /// - `500 Internal Server Error`, SQLite or internal error
+#[utoipa::path(
+    post,
+    path = "/api/v1/tasks/{id}/resume",
+    tag = "tasks",
+    params(("id" = String, Path, description = "Task id")),
+    request_body = ResumeRequest,
+    responses(
+        (status = 200, description = "Resume recorded", body = ResumeResponse),
+        (status = 404, description = "Task not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Task not awaiting input", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "HITL not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn resume_task<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,
@@ -509,7 +567,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
 ///
 /// The operator approves the generated plan or rejects it with optional
 /// feedback used to guide replanning.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct PlanDecisionRequest {
     /// `"approved"` to execute the plan, `"rejected"` to replan.
     pub decision: String,
@@ -519,7 +577,7 @@ pub struct PlanDecisionRequest {
 }
 
 /// Response body for `POST /api/v1/tasks/{id}/plan-decision`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PlanDecisionResponse {
     /// Run identifier whose gate was resolved.
     pub run_id: String,
@@ -538,6 +596,19 @@ pub struct PlanDecisionResponse {
 /// - `400 Bad Request`, unknown `decision` value
 /// - `404 Not Found`, no gate pending for this run (unknown, resolved, expired)
 /// - `503 Service Unavailable`, the plan gate is not configured
+#[utoipa::path(
+    post,
+    path = "/api/v1/tasks/{id}/plan-decision",
+    tag = "tasks",
+    params(("id" = String, Path, description = "Run id (task id on the orchestrated path)")),
+    request_body = PlanDecisionRequest,
+    responses(
+        (status = 200, description = "Plan decision recorded", body = PlanDecisionResponse),
+        (status = 400, description = "Unknown decision value", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "No gate pending", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Plan gate not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn submit_plan_decision<B: ExecutionBackend + Clone>(
     Path(run_id): Path<String>,
     State(state): State<AppState<B>>,

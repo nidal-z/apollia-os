@@ -13,7 +13,7 @@ use crate::api::server::AppState;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 
 /// Response body for `GET /api/v1/plan-cache/stats`.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct PlanCacheStatsResponse {
     /// Number of cached plans.
     pub total_entries: u32,
@@ -28,7 +28,7 @@ pub struct PlanCacheStatsResponse {
 }
 
 /// Response body for `POST /api/v1/plan-cache/clear`.
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct ClearCacheResponse {
     /// Number of entries removed.
     pub cleared_count: u32,
@@ -45,6 +45,16 @@ pub struct ErrorResponse {
 ///
 /// Returns zeroed counters when the cache is empty. Returns `503` when
 /// the plan cache repository is not configured.
+#[utoipa::path(
+    get,
+    path = "/api/v1/plan-cache/stats",
+    tag = "governance",
+    responses(
+        (status = 200, description = "Plan cache statistics", body = PlanCacheStatsResponse),
+        (status = 500, description = "Internal cache error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Plan cache not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_plan_cache_stats<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
 ) -> Result<(StatusCode, Json<PlanCacheStatsResponse>), (StatusCode, Json<ErrorResponse>)> {
@@ -103,6 +113,16 @@ pub async fn get_plan_cache_stats<B: ExecutionBackend + Clone + From<DynBackend>
 ///
 /// Returns the number of entries that were removed. Returns `503` when
 /// the plan cache repository is not configured.
+#[utoipa::path(
+    post,
+    path = "/api/v1/plan-cache/clear",
+    tag = "governance",
+    responses(
+        (status = 200, description = "Number of cleared entries", body = ClearCacheResponse),
+        (status = 500, description = "Internal cache error", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Plan cache not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn clear_plan_cache<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
 ) -> Result<(StatusCode, Json<ClearCacheResponse>), (StatusCode, Json<ErrorResponse>)> {

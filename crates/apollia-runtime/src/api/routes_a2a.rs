@@ -30,7 +30,7 @@ const DEFAULT_DELEGATE_TIMEOUT_SECS: u64 = 120;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Skill declared by an A2A agent.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct A2aSkillDto {
     /// Unique skill identifier.
     pub id: String,
@@ -45,7 +45,7 @@ pub struct A2aSkillDto {
 }
 
 /// Entry in the A2A agent list.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct A2aAgentDto {
     /// Unique agent identifier (UUID v4).
     pub agent_id: String,
@@ -60,7 +60,7 @@ pub struct A2aAgentDto {
 }
 
 /// Response body for `GET /api/v1/a2a/agents`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct A2aAgentsResponse {
     /// Active A2A agents with their skills.
     pub agents: Vec<A2aAgentDto>,
@@ -71,11 +71,12 @@ pub struct A2aAgentsResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Request body for `POST /api/v1/a2a/delegate`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct DelegateRequest {
     /// Target skill identifier (e.g. `"read-excel"`).
     pub skill_id: String,
     /// JSON payload passed to the Worker Agent as input.
+    #[schema(value_type = Object)]
     pub input: serde_json::Value,
     /// Delegation timeout in seconds (default: 120).
     #[serde(default)]
@@ -90,6 +91,15 @@ pub struct DelegateRequest {
 ///
 /// Returns all agents with `supports_a2a = true` in active or degraded state,
 /// along with their declared skills.
+#[utoipa::path(
+    get,
+    path = "/api/v1/a2a/agents",
+    tag = "a2a",
+    responses(
+        (status = 200, description = "Active A2A agents", body = A2aAgentsResponse),
+        (status = 500, description = "Registry error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_a2a_agents<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<A2aAgentsResponse>, (StatusCode, Json<A2aErrorResponse>)> {
@@ -141,6 +151,19 @@ pub async fn list_a2a_agents<B: ExecutionBackend + Clone>(
 ///
 /// Resolves `skill_id` to an active Worker Agent, submits the task, waits for
 /// completion (with timeout), and returns the structured result.
+#[utoipa::path(
+    post,
+    path = "/api/v1/a2a/delegate",
+    tag = "a2a",
+    request_body = DelegateRequest,
+    responses(
+        (status = 200, description = "Delegation result", body = A2aDelegateResult),
+        (status = 404, description = "Skill not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Ambiguous skill", body = crate::api::openapi::ApiErrorBody),
+        (status = 502, description = "Worker failed", body = crate::api::openapi::ApiErrorBody),
+        (status = 504, description = "Delegation timed out", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn delegate<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<DelegateRequest>,
@@ -170,7 +193,7 @@ pub async fn delegate<B: ExecutionBackend + Clone>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Response body for `GET /api/v1/a2a/skills`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct A2aSkillsResponse {
     /// Flat list of all available A2A skills.
     pub skills: Vec<SkillListing>,
@@ -181,11 +204,12 @@ pub struct A2aSkillsResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Request body for `POST /api/v1/a2a/invoke`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct InvokeRequest {
     /// Target skill identifier (e.g. `"read-excel"`).
     pub skill_id: String,
     /// JSON payload passed to the Worker Agent as input.
+    #[schema(value_type = Object)]
     pub input: serde_json::Value,
     /// Caller name (Director Agent), used for observability.
     #[serde(default)]
@@ -203,6 +227,15 @@ pub struct InvokeRequest {
 ///
 /// Returns the flat list of all available A2A skills via the [`A2AInvoker`].
 /// Returns 503 if the invoker is not initialized.
+#[utoipa::path(
+    get,
+    path = "/api/v1/a2a/skills",
+    tag = "a2a",
+    responses(
+        (status = 200, description = "Available A2A skills", body = A2aSkillsResponse),
+        (status = 503, description = "A2A invoker not initialized", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_a2a_skills<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<A2aSkillsResponse>, (StatusCode, Json<A2aErrorResponse>)> {
@@ -238,6 +271,18 @@ pub async fn list_a2a_skills<B: ExecutionBackend + Clone>(
 /// Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
 /// Returns 503 if the invoker is not initialized.
 /// Returns 404 if the skill is not found, 503 if the agent is not active.
+#[utoipa::path(
+    post,
+    path = "/api/v1/a2a/invoke",
+    tag = "a2a",
+    request_body = InvokeRequest,
+    responses(
+        (status = 200, description = "Invocation result", body = crate::a2a::invoker::A2AInvocationResult),
+        (status = 404, description = "Skill not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "A2A invoker not initialized or agent not active", body = crate::api::openapi::ApiErrorBody),
+        (status = 504, description = "Invocation timed out", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<InvokeRequest>,
@@ -280,6 +325,17 @@ pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
 /// Returns all A2A delegations recorded for the parent task.
 /// Returns 404 if no delegation is found for this `task_id`.
 /// Returns 503 if the sidechain logger is not initialized.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tasks/{id}/sidechains",
+    tag = "a2a",
+    params(("id" = String, Path, description = "Parent task id")),
+    responses(
+        (status = 200, description = "Delegation sidechains", body = [crate::a2a::SidechainRow]),
+        (status = 404, description = "No sidechains for this task", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Sidechain logging not initialized", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_task_sidechains<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,

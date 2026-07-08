@@ -24,12 +24,13 @@ use crate::coordinator::ExecutionBackend;
 ///
 /// Serialized as a flat JSON object with an `event` field discriminating
 /// the event type and additional data fields depending on the variant.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SseTaskEvent {
     /// Event type: "step", "tool_call", "completed", "failed", "canceled", "started".
     pub event: String,
     /// Additional event data (flattened into the top-level JSON object).
     #[serde(flatten)]
+    #[schema(value_type = Object)]
     pub data: serde_json::Value,
 }
 
@@ -366,6 +367,17 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
 /// Returns 404 if the task does not exist in the TaskRouter.
 /// The stream closes after a terminal event (completed/failed/canceled).
 /// Client disconnection drops the subscriber automatically (no leak).
+#[utoipa::path(
+    get,
+    path = "/api/v1/tasks/{id}/stream",
+    tag = "tasks",
+    params(("id" = String, Path, description = "Task id")),
+    responses(
+        (status = 200, description = "SSE stream of task events", body = crate::api::routes_sse::SseTaskEvent, content_type = "text/event-stream"),
+        (status = 404, description = "Task not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Router actor unavailable", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn stream_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(task_id): Path<String>,

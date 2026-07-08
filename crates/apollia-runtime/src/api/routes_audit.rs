@@ -43,7 +43,7 @@ fn default_limit() -> u32 {
 // ---------------------------------------------------------------------------
 
 /// A single audit event as returned by the API.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AuditEventResponse {
     pub id: String,
     pub agent_id: String,
@@ -94,14 +94,14 @@ impl From<ToolInvocationRecord> for AuditEventResponse {
 }
 
 /// Response body for `GET /api/v1/audit`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AuditListResponse {
     pub events: Vec<AuditEventResponse>,
     pub count: usize,
 }
 
 /// Response body for `GET /api/v1/audit/stats`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AuditStatsResponse {
     pub total_events: u64,
     pub unique_tools: u64,
@@ -119,6 +119,16 @@ pub struct ErrorResponse {
 // ---------------------------------------------------------------------------
 
 /// `GET /api/v1/audit?limit=N`, list the most recent tool invocations.
+#[utoipa::path(
+    get,
+    path = "/api/v1/audit",
+    tag = "audit",
+    params(("limit" = Option<u32>, Query, description = "Maximum number of events to return (default 20, capped at 500)")),
+    responses(
+        (status = 200, description = "Recent tool invocations", body = AuditListResponse),
+        (status = 503, description = "Audit trail not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn list_audit<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(params): Query<AuditListQuery>,
@@ -143,6 +153,15 @@ pub async fn list_audit<B: ExecutionBackend + Clone>(
 }
 
 /// `GET /api/v1/audit/stats`, aggregate counts for the audit trail.
+#[utoipa::path(
+    get,
+    path = "/api/v1/audit/stats",
+    tag = "audit",
+    responses(
+        (status = 200, description = "Aggregate audit counts", body = AuditStatsResponse),
+        (status = 503, description = "Audit trail not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_audit_stats<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<AuditStatsResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -169,6 +188,18 @@ pub async fn get_audit_stats<B: ExecutionBackend + Clone>(
 /// Returns 200 with the [`VerifyChainReport`] (whether or not the chain is
 /// intact), 404 when the run has no entries, 503 when the journal is not
 /// configured, and 500 on an internal error.
+#[utoipa::path(
+    get,
+    path = "/api/v1/audit/verify/{run_id}",
+    tag = "audit",
+    params(("run_id" = String, Path, description = "Run id whose hash chain is verified")),
+    responses(
+        (status = 200, description = "Verification report", body = crate::audit_journal::verify::VerifyChainReport),
+        (status = 404, description = "Run has no entries", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Audit journal not configured", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Internal verification error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn verify_audit_run<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(run_id): Path<String>,
@@ -204,12 +235,13 @@ pub async fn verify_audit_run<B: ExecutionBackend + Clone>(
 }
 
 /// Response body for `GET /api/v1/audit/journal/:run_id`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AuditJournalResponse {
     /// The run whose journal entries these are.
     pub run_id: String,
     /// Ordered journal entries (tool calls AND LLM completions), so the model's
     /// captured reasoning is readable, not only verifiable/replayable.
+    #[schema(value_type = Vec<Object>)]
     pub entries: Vec<JournalEntry>,
 }
 
@@ -219,6 +251,17 @@ pub struct AuditJournalResponse {
 /// hash-chained journal entries including `llm_completion` (the model's
 /// prompts/responses). 404 when the run has no entries, 503 when the journal is
 /// not configured.
+#[utoipa::path(
+    get,
+    path = "/api/v1/audit/journal/{run_id}",
+    tag = "audit",
+    params(("run_id" = String, Path, description = "Run id whose journal entries are returned")),
+    responses(
+        (status = 200, description = "Full hash-chained journal for the run", body = AuditJournalResponse),
+        (status = 404, description = "Run has no entries", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Audit journal not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn show_audit_run<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(run_id): Path<String>,
@@ -290,6 +333,19 @@ fn resolve_run_id(ids: &[String], input: &str) -> RunIdResolution {
 /// diverged (the determinism verdict is in the body), 404 for an unknown run,
 /// 400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the
 /// journal is not configured.
+#[utoipa::path(
+    post,
+    path = "/api/v1/audit/replay/{run_id}",
+    tag = "audit",
+    params(("run_id" = String, Path, description = "Run id (full or unambiguous prefix) to replay")),
+    responses(
+        (status = 200, description = "Replay determinism verdict (identical or diverged)"),
+        (status = 400, description = "Ambiguous run id prefix", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Unknown run", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Incomplete trace", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Audit journal not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn post_replay_run<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(run_id): Path<String>,

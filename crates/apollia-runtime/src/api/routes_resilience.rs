@@ -31,13 +31,22 @@ pub fn resilience_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
 }
 
 /// Envelope for `GET /api/v1/resilience/status`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ResilienceStatusResponse {
     /// Snapshot for every tool the runtime has seen at least one event for.
+    #[schema(value_type = Vec<Object>)]
     pub circuit_breakers: Vec<CircuitBreakerSnapshot>,
 }
 
 /// `GET /api/v1/resilience/status`, list all known circuit breakers.
+#[utoipa::path(
+    get,
+    path = "/api/v1/resilience/status",
+    tag = "resilience",
+    responses(
+        (status = 200, description = "Snapshot of every registered circuit breaker", body = ResilienceStatusResponse),
+    )
+)]
 pub async fn list_breakers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<ResilienceStatusResponse> {
@@ -61,6 +70,17 @@ pub struct NotFoundResponse {
 }
 
 /// `GET /api/v1/resilience/status/:tool`, single-tool snapshot.
+#[utoipa::path(
+    get,
+    path = "/api/v1/resilience/status/{tool}",
+    tag = "resilience",
+    params(("tool" = String, Path, description = "Tool name")),
+    responses(
+        (status = 200, description = "Circuit breaker snapshot for the tool"),
+        (status = 404, description = "No recorded circuit breaker for the tool", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Resilience layer mutex poisoned", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_breaker<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(tool): Path<String>,
@@ -97,13 +117,24 @@ pub async fn get_breaker<B: ExecutionBackend + Clone>(
 }
 
 /// Response body for the reset route.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ResetResponse {
     pub tool: String,
     pub reset: bool,
 }
 
 /// `POST /api/v1/resilience/reset/:tool`, force-close a breaker.
+#[utoipa::path(
+    post,
+    path = "/api/v1/resilience/reset/{tool}",
+    tag = "resilience",
+    params(("tool" = String, Path, description = "Tool name")),
+    responses(
+        (status = 200, description = "Circuit breaker reset", body = ResetResponse),
+        (status = 404, description = "No recorded circuit breaker for the tool", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Resilience layer mutex poisoned", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn reset_breaker<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(tool): Path<String>,

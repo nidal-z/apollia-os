@@ -20,12 +20,13 @@ use crate::coordinator::ExecutionBackend;
 // Response types
 // ─────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct HardwareResponse {
     pub total_ram_gb: f64,
     pub available_ram_gb: f64,
     pub cpu_model: String,
     pub cpu_cores: u32,
+    #[schema(value_type = Object)]
     pub accelerator: AcceleratorProfile,
     pub memory_budget_gb: f64,
 }
@@ -62,6 +63,14 @@ pub struct ErrorResponse {
 // ─────────────────────────────────────────────
 
 /// `GET /api/v1/llm/hardware`, detect and return the hardware profile.
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/hardware",
+    tag = "model_hub",
+    responses(
+        (status = 200, description = "Detected hardware profile", body = HardwareResponse),
+    )
+)]
 pub async fn get_hardware<B: ExecutionBackend + Clone>(
     State(_state): State<AppState<B>>,
 ) -> Json<HardwareResponse> {
@@ -74,6 +83,21 @@ pub async fn get_hardware<B: ExecutionBackend + Clone>(
 
 /// `GET /api/v1/llm/registry/search?q=...&limit=...&sort=...`
 #[cfg(feature = "cloud")]
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/registry/search",
+    tag = "model_hub",
+    params(
+        ("q" = Option<String>, Query, description = "Search query"),
+        ("limit" = Option<u32>, Query, description = "Maximum number of results"),
+        ("sort" = Option<String>, Query, description = "Sort key"),
+        ("hf_token" = Option<String>, Query, description = "HuggingFace token for gated models"),
+    ),
+    responses(
+        (status = 200, description = "Matching GGUF models (HuggingFace model cards)"),
+        (status = 502, description = "Upstream HuggingFace error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn search_registry<B: ExecutionBackend + Clone>(
     State(_state): State<AppState<B>>,
     Query(params): Query<SearchQuery>,
@@ -112,6 +136,22 @@ pub async fn search_registry<B: ExecutionBackend + Clone>(
 
 /// `GET /api/v1/llm/registry/model/:org/:repo?hf_token=...`
 #[cfg(feature = "cloud")]
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/registry/model/{org}/{repo}",
+    tag = "model_hub",
+    params(
+        ("org" = String, Path, description = "HuggingFace organization or user"),
+        ("repo" = String, Path, description = "HuggingFace repository name"),
+        ("hf_token" = Option<String>, Query, description = "HuggingFace token for gated models"),
+    ),
+    responses(
+        (status = 200, description = "Model metadata and file list (HuggingFace model card)"),
+        (status = 403, description = "Model is gated", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Model not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 502, description = "Upstream HuggingFace error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_registry_model<B: ExecutionBackend + Clone>(
     State(_state): State<AppState<B>>,
     Path((org, repo)): Path<(String, String)>,

@@ -37,11 +37,12 @@ pub struct TraceQuery {
 }
 
 /// JSON response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TraceResponse {
     /// Task identifier.
     pub task_id: String,
     /// Events ordered chronologically (UUIDv7 ASC).
+    #[schema(value_type = Vec<Object>)]
     pub events: Vec<RuntimeEventRecord>,
     /// Cursor to pass as `?since=` on the next call to fetch the rest.
     /// `None` when the current page reaches the known end.
@@ -60,6 +61,20 @@ pub struct TraceErrorResponse {
 /// 200: `TraceResponse` (may be empty if the task has not yet produced any
 /// persisted event).
 /// 500: error opening the database or running the query.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tasks/{id}/trace",
+    tag = "tasks",
+    params(
+        ("id" = String, Path, description = "Task id"),
+        ("since" = Option<String>, Query, description = "Pagination cursor: events strictly after this UUIDv7 event_id"),
+        ("limit" = Option<usize>, Query, description = "Maximum number of events to return (clamped to 5000)"),
+    ),
+    responses(
+        (status = 200, description = "Event-sourced execution trace", body = TraceResponse),
+        (status = 500, description = "Database or query error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
 pub async fn get_task_trace<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     Query(q): Query<TraceQuery>,
