@@ -413,11 +413,11 @@ function createCompanionStore() {
       try {
         const enabled = await invoke<boolean>("get_companion_enabled");
         if (enabled) {
-          // Aligne enabled + visible : si l'user a déjà opt-in, on restaure
-          // la companion visible (cohérent avec toggleEnabled qui set les deux
-          // en sync). Sans cette ligne, l'user devrait re-cliquer manuellement
-          // pour afficher la fenêtre au démarrage.
-          mutate((s) => ({ ...s, enabled: true, visible: true }));
+          // Restore the opt-in (feature stays enabled) but keep the panel
+          // closed at startup. Auto-showing it on launch spawns an empty chat
+          // session every time; the user opens the companion on demand via the
+          // toggle or the global shortcut instead.
+          mutate((s) => ({ ...s, enabled: true, visible: false }));
         }
       } catch {
         // Non-critical - companion defaults to disabled on error.

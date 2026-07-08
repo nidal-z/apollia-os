@@ -783,7 +783,8 @@
                 {@const isExpanded = expandedModel === model.repo_id}
                 {@const detail = isExpanded ? expandedDetail : null}
                 <li class="search-result-item" class:is-expanded={isExpanded}>
-                  <Button variant="ghost" size="sm"
+                  <button
+                    type="button"
                     class="search-result-header"
                     onclick={() => expandSearchModel(model.repo_id)}
                     disabled={model.compatibility_issue === "embedding_model" || model.compatibility_issue === "no_gguf_files"}
@@ -799,7 +800,7 @@
                       size={12}
                       class="text-muted-foreground/50 transition-transform {isExpanded ? 'rotate-90' : ''}"
                     />
-                  </Button>
+                  </button>
 
                   {#if isExpanded}
                     <div class="search-result-files">
@@ -844,7 +845,7 @@
           <ul class="model-list" data-testid="curated-llm-list">
             {#each availableLlmModels as model (model.filename)}
               <li>
-                <Button variant="ghost" size="sm" class="model-row" onclick={() => downloadLlmModel(model)} data-testid="curated-llm-row">
+                <button type="button" class="model-row" onclick={() => downloadLlmModel(model)} data-testid="curated-llm-row">
                   <div class="model-icon"><Download size={12} strokeWidth={1.75} /></div>
                   <div class="model-info">
                     <span class="model-name">{model.name}</span>
@@ -854,7 +855,7 @@
                     <span class="badge-recommended">{$t("onboarding.ai_setup.recommended")}</span>
                   {/if}
                   <ChevronRight size={13} class="text-muted-foreground/50" />
-                </Button>
+                </button>
               </li>
             {/each}
           </ul>
@@ -960,7 +961,7 @@
           <ul class="model-list" data-testid="curated-stt-list">
             {#each availableSttModels as model (model.filename)}
               <li>
-                <Button variant="ghost" size="sm" class="model-row" onclick={() => downloadSttModel(model)} data-testid="curated-stt-row">
+                <button type="button" class="model-row" onclick={() => downloadSttModel(model)} data-testid="curated-stt-row">
                   <div class="model-icon model-icon-stt"><Download size={12} strokeWidth={1.75} /></div>
                   <div class="model-info">
                     <span class="model-name">{model.name}</span>
@@ -973,7 +974,7 @@
                     <span class="badge-recommended badge-recommended-stt">{$t("onboarding.ai_setup.recommended")}</span>
                   {/if}
                   <ChevronRight size={13} class="text-muted-foreground/50" />
-                </Button>
+                </button>
               </li>
             {/each}
           </ul>

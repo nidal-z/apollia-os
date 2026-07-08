@@ -961,6 +961,22 @@ fn main() {
             commands::cli::install_cli,
             commands::cli::uninstall_cli,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Kill the runner sidecar before the process exits. Otherwise it is
+            // orphaned: `kill_on_drop` never runs because `app.exit` terminates
+            // the process before the managed `RuntimeHandle` (and its child
+            // handle) is dropped. ExitRequested covers every quit path: window
+            // close, Cmd+Q, and the tray "Quitter".
+            if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+                if let Some(rt) = app.try_state::<RuntimeHandle>() {
+                    if let Some(supervisor) = rt.runner_supervisor.clone() {
+                        tauri::async_runtime::block_on(async move {
+                            supervisor.shutdown_in_place().await;
+                        });
+                    }
+                }
+            }
+        });
 }
