@@ -625,6 +625,10 @@ impl ActorLoop {
     ///
     /// Output order matches input order in both paths.
     /// Inputs are interpolated from `completed_outputs` before invocation.
+    // REASON: batch execution dependencies (proxy, router, resilience) plus the
+    // step set and accumulated outputs; the router is needed to resolve each
+    // step's arguments before invocation.
+    #[allow(clippy::too_many_arguments)]
     async fn execute_tool_steps(
         &self,
         steps: &[PlanStep],
@@ -734,6 +738,9 @@ impl ActorLoop {
     /// The JIT call is not counted as a tool call: it produces the tool's
     /// arguments, it does not invoke the tool. The step's `is_exhausted()` guard
     /// upstream still bounds the run.
+    // REASON: argument resolution needs the step, its interpolated description,
+    // the tool name, the schema source (proxy) and the model source (router).
+    #[allow(clippy::too_many_arguments)]
     async fn resolve_step_payload(
         &self,
         step: &PlanStep,
