@@ -82,3 +82,11 @@ Le périmètre exclut explicitement l'**embedding in-process pur** (extraire `em
 - Cartographie (source de vérité) : `docs/internal/cartography/capability-registry.md`, `docs/internal/cartography/business-one-pager.md`
 - ADR liés : ADR-016 (secrets, keyring et auth de l'API locale), ADR-017 (client MCP, transport, mode serveur), ADR-024 (contrat runtime du SDK ctx), ADR-020 (architecture desktop / embedded)
 - Story associée : à créer (chantier #1)
+
+## Amendement (2026-07-08, post-implémentation)
+
+Le chantier #1 est livré et prouvé sur la branche `feat/driving-contract` (composants 1, 2, 3, 5 conformes ; démo hôte end-to-end verte).
+
+Rectification du **composant 4 (exécution MCP)** : l'implémentation a établi que l'exécution des outils MCP par un agent via `ctx.tools.call('mcp:...')` **était déjà câblée et fonctionnelle** (corrigée antérieurement en commit `4c7266d6`). Le constat "cassé" de la section Contexte provenait d'un commentaire périmé (`yumni_bridge.py:6-8`) pris pour argent comptant. Le composant 4 se réduit donc à : ajout d'un test de non-régression (`crates/apollia-mcp/tests/integration_agent_dispatch.rs`) et retrait du contournement REST côté Yumni. Aucune autre partie de la décision n'est affectée.
+
+Réserve mineure connue : 3 endpoints à corps brut (stt config/transcribe, webhook) restent documentés dans la spec mais non exposés en méthodes SDK typées.
