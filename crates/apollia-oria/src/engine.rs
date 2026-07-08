@@ -688,6 +688,11 @@ impl ORIAEngine {
             Err(e) => return AIPResult::failed("PLAN_FAILED", &e.to_string()),
         };
 
+        // Resolve each tool step's structured arguments so the persisted plan is
+        // fully specified before it is cached, audited and executed (ADR-038
+        // path A). Best-effort: unresolved steps are handled just in time.
+        self.enrich_plan_with_args(&mut plan).await;
+
         // Store in cache
         self.store_plan_in_cache(&cache_key, &plan, &manifest);
 
@@ -954,6 +959,63 @@ impl ORIAEngine {
             }
             Err(e) => {
                 tracing::warn!(error = %e, "plan cache mutex poisoned, skipping store");
+            }
+        }
+    }
+
+    /// Fills each tool step's structured arguments before the plan is cached,
+    /// persisted and executed (ADR-038 path A).
+    ///
+    /// For every tool step whose `args` are absent or invalid against the
+    /// target tool's input schema, resolves them with a schema-guided model
+    /// call so the persisted plan is fully specified, auditable and replayable.
+    /// Best-effort: a step that cannot be resolved keeps `args = None`, and the
+    /// [`crate::actor::ActorLoop`] resolves it just in time at execution.
+    ///
+    /// No-op without an injected tool proxy (the schema source) or when the
+    /// router has no backend to answer the resolution call.
+    async fn enrich_plan_with_args(&self, plan: &mut ExecutionPlan) {
+        let Some(proxy) = self.tool_proxy.as_ref() else {
+            return;
+        };
+        for step in plan.steps.iter_mut() {
+            let Some(tool_name) = step.tool_hint.as_deref() else {
+                continue;
+            };
+            if tool_name == "llm" {
+                continue;
+            }
+            let Some(schema) = proxy.tool_schema(tool_name).await else {
+                continue;
+            };
+            // Keep already-valid plan-time args untouched.
+            if step
+                .args
+                .as_ref()
+                .is_some_and(|args| crate::arg_resolver::validate_args(args, &schema).is_ok())
+            {
+                continue;
+            }
+            let Some(model) = self.llm_router.get(step.model_hint.as_deref()) else {
+                continue;
+            };
+            match crate::arg_resolver::resolve_tool_args(
+                &model,
+                tool_name,
+                &schema,
+                &step.description,
+                0.0,
+            )
+            .await
+            {
+                Ok(args) => step.args = Some(args),
+                Err(e) => tracing::event!(
+                    tracing::Level::WARN,
+                    step_id = %step.step_id,
+                    tool = %tool_name,
+                    error = %e,
+                    "oria.plan.arg_enrichment_failed"
+                ),
             }
         }
     }
@@ -1828,6 +1890,26 @@ mod orchestrated_tests {
         }
     }
 
+    // ── Mock ToolProxy exposing a fixed tool schema (ADR-038 path A) ────────
+
+    struct SchemaToolProxy {
+        schema: serde_json::Value,
+    }
+
+    #[async_trait::async_trait]
+    impl ToolProxyTrait for SchemaToolProxy {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            _input: &serde_json::Value,
+        ) -> Result<String, String> {
+            Ok("done".to_string())
+        }
+        async fn tool_schema(&self, _tool_name: &str) -> Option<serde_json::Value> {
+            Some(self.schema.clone())
+        }
+    }
+
     // ── Mock AIPAgent (no hook) ─────────────────────────────────────────
 
     struct MockAgent {
@@ -1883,6 +1965,48 @@ mod orchestrated_tests {
             {"step_id":"s4","description":"step 4","tool_hint":"bash_executor","depends_on":[]}
         ]}"#
         .to_string()
+    }
+
+    /// Plan-time enrichment fills a tool step's args from the tool schema.
+    #[tokio::test]
+    async fn test_enrich_plan_with_args_fills_tool_step() {
+        // GIVEN an engine with a schema-exposing proxy and a model that returns
+        // a constrained tool call, and a plan with a tool step lacking args
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "path": { "type": "string" },
+                "content": { "type": "string" }
+            },
+            "required": ["path", "content"]
+        });
+        let model = Arc::new(SimpleMockModel {
+            response: r#"{"name":"file_write","arguments":{"path":"/tmp/x","content":"hi"}}"#
+                .to_string(),
+        });
+        let mut backends: HashMap<String, Arc<dyn apollia_llm::CompletionModel>> = HashMap::new();
+        backends.insert("mock".to_string(), model);
+        let router = LlmRouter::with_backends(backends, "mock");
+        let engine = ORIAEngine::new()
+            .with_tool_proxy(Arc::new(SchemaToolProxy { schema }))
+            .with_llm_router(router);
+
+        let mut step = apollia_core::plan::PlanStep::new("s1", "write hi to /tmp/x");
+        step.tool_hint = Some("file_write".to_string());
+        let mut plan = ExecutionPlan {
+            plan_id: "p1".to_string(),
+            task_id: "t1".to_string(),
+            steps: vec![step],
+        };
+
+        // WHEN enriching the plan
+        engine.enrich_plan_with_args(&mut plan).await;
+
+        // THEN the tool step carries valid structured args
+        assert_eq!(
+            plan.steps[0].args,
+            Some(serde_json::json!({"path": "/tmp/x", "content": "hi"}))
+        );
     }
 
     fn make_engine_with_mock(plan_json: String) -> ORIAEngine {
