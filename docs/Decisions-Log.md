@@ -42,3 +42,4 @@
 | 2026-07-06 | ADR-035 | Surface CLI IA-native (do/explain/reprompt) sur le modele local, GBNF + dry-run | [ADR-035](adr/ADR-035-cli-ai-native-surface.md) |
 | 2026-07-06 | ADR-036 | Decouvrabilite CLI (completions clap_complete, palette fuzzy maison, guide, did-you-mean) | [ADR-036](adr/ADR-036-cli-discoverability.md) |
 | 2026-07-08 | ADR-037 | Contrat de pilotage partage pour l'integration hote (OpenAPI genere, SDK client hote TS+Python, auth TCP coherente, fix execution MCP) | [ADR-037](adr/ADR-037-host-driving-contract.md) |
+| 2026-07-08 | ADR-038 | Contrat d'arguments des steps de plan orchestres (hybride A+B: args structures PlanStep remplis par le Reasoner en GBNF, repli extraction JIT) | [ADR-038](adr/ADR-038-orchestrated-step-args-contract.md) |
