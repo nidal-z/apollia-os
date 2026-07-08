@@ -462,7 +462,13 @@ impl ActorLoop {
         // Phase 2: Concurrent invocations.
         let started = Instant::now();
         let batch_results = self
-            .execute_tool_steps(&level_steps, &completed_outputs, deps.tool_proxy, resilience)
+            .execute_tool_steps(
+                &level_steps,
+                &completed_outputs,
+                deps.tool_proxy,
+                deps.llm_router,
+                resilience,
+            )
             .await;
         let duration_ms = started.elapsed().as_millis() as u64;
 
@@ -624,6 +630,7 @@ impl ActorLoop {
         steps: &[PlanStep],
         completed_outputs: &HashMap<String, String>,
         tool_proxy: &dyn ToolProxyTrait,
+        llm_router: &LlmRouter,
         resilience: &ResilienceLayer,
     ) -> Vec<(String, Result<String, StepError>)> {
         use futures::stream::{self, StreamExt};
@@ -650,10 +657,15 @@ impl ActorLoop {
             .iter()
             .map(|s| s.tool_hint.clone().unwrap_or_default())
             .collect();
-        let inputs: Vec<serde_json::Value> = steps
-            .iter()
-            .map(|s| serde_json::json!({"input": interpolate_outputs(&s.description, completed_outputs)}))
-            .collect();
+        let mut inputs: Vec<serde_json::Value> = Vec::with_capacity(steps.len());
+        for s in steps {
+            let interpolated = interpolate_outputs(&s.description, completed_outputs);
+            let tool_name = s.tool_hint.clone().unwrap_or_default();
+            let payload = self
+                .resolve_step_payload(s, &interpolated, &tool_name, tool_proxy, llm_router)
+                .await;
+            inputs.push(payload);
+        }
         let step_ids: Vec<String> = steps.iter().map(|s| s.step_id.clone()).collect();
 
         // Register a breaker for every tool so the resilience pre_check never
@@ -704,6 +716,77 @@ impl ActorLoop {
             }
             results
         }
+    }
+
+    /// Resolves the JSON payload passed to a tool step, per ADR-038.
+    ///
+    /// Resolution order:
+    /// 1. **Plan-time args (path A)**: if the step carries `args` and they
+    ///    validate against the tool schema (or no schema is registered to check
+    ///    against), use them verbatim.
+    /// 2. **Just-in-time extraction (path B)**: if a schema is available, ask the
+    ///    model to generate valid arguments from the step description, constrained
+    ///    to that schema.
+    /// 3. **Legacy fallback**: wrap the interpolated description as
+    ///    `{"input": ...}`, preserving the historical behaviour for tools with a
+    ///    trivial input contract and for backends without an LLM.
+    ///
+    /// The JIT call is not counted as a tool call: it produces the tool's
+    /// arguments, it does not invoke the tool. The step's `is_exhausted()` guard
+    /// upstream still bounds the run.
+    async fn resolve_step_payload(
+        &self,
+        step: &PlanStep,
+        interpolated_description: &str,
+        tool_name: &str,
+        tool_proxy: &dyn ToolProxyTrait,
+        llm_router: &LlmRouter,
+    ) -> serde_json::Value {
+        let schema = tool_proxy.tool_schema(tool_name).await;
+
+        // Path A: plan-time args, accepted when valid (or unverifiable).
+        if let Some(args) = step.args.as_ref() {
+            let acceptable = match schema.as_ref() {
+                Some(s) => crate::arg_resolver::validate_args(args, s).is_ok(),
+                None => true,
+            };
+            if acceptable {
+                return args.clone();
+            }
+            tracing::event!(
+                tracing::Level::WARN,
+                step_id = %step.step_id,
+                tool = %tool_name,
+                "oria.step.args_invalid_falling_back"
+            );
+        }
+
+        // Path B: just-in-time extraction against the tool schema.
+        if let Some(s) = schema.as_ref() {
+            if let Some(model) = llm_router.get(step.model_hint.as_deref()) {
+                match crate::arg_resolver::resolve_tool_args(
+                    &model,
+                    tool_name,
+                    s,
+                    interpolated_description,
+                    0.0,
+                )
+                .await
+                {
+                    Ok(args) => return args,
+                    Err(e) => tracing::event!(
+                        tracing::Level::WARN,
+                        step_id = %step.step_id,
+                        tool = %tool_name,
+                        error = %e,
+                        "oria.step.jit_extraction_failed"
+                    ),
+                }
+            }
+        }
+
+        // Legacy fallback.
+        serde_json::json!({ "input": interpolated_description })
     }
 
     /// Execute a single step, tool or LLM depending on `tool_hint`.
@@ -774,7 +857,9 @@ impl ActorLoop {
             Some(tool_name) => {
                 resilience.ensure_tool(tool_name);
                 let policy = RetryPolicy::default();
-                let payload = serde_json::json!({ "input": input });
+                let payload = self
+                    .resolve_step_payload(step, &input, tool_name, tool_proxy, llm_router)
+                    .await;
                 let (outcome, _attempts) = resilience
                     .execute_with_observability(
                         RetryContext {
@@ -1808,6 +1893,135 @@ mod tests {
         assert_eq!(cb.failure_count(), 1);
     }
 
+    // ── ADR-038 argument resolution (paths A and B) ───────────────────────────
+
+    /// Tool proxy that exposes a fixed schema and captures the payload it is
+    /// invoked with, so a test can assert which arguments the ActorLoop resolved.
+    struct SchemaCapturingProxy {
+        schema: Option<serde_json::Value>,
+        captured: std::sync::Mutex<Option<serde_json::Value>>,
+    }
+
+    impl SchemaCapturingProxy {
+        fn new(schema: Option<serde_json::Value>) -> Self {
+            Self {
+                schema,
+                captured: std::sync::Mutex::new(None),
+            }
+        }
+        fn captured(&self) -> Option<serde_json::Value> {
+            self.captured.lock().unwrap().clone()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ToolProxyTrait for SchemaCapturingProxy {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            input: &serde_json::Value,
+        ) -> Result<String, String> {
+            *self.captured.lock().unwrap() = Some(input.clone());
+            Ok("done".to_string())
+        }
+        async fn tool_schema(&self, _tool_name: &str) -> Option<serde_json::Value> {
+            self.schema.clone()
+        }
+    }
+
+    fn write_note_schema() -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "path": { "type": "string" },
+                "content": { "type": "string" }
+            },
+            "required": ["path", "content"]
+        })
+    }
+
+    fn router_with_model(model: Arc<MockCompletionModel>) -> LlmRouter {
+        let mut backends: std::collections::HashMap<
+            String,
+            Arc<dyn apollia_llm::CompletionModel>,
+        > = std::collections::HashMap::new();
+        backends.insert("mock".to_string(), model);
+        LlmRouter::with_backends(backends, "mock")
+    }
+
+    /// A tool step without plan-time args triggers just-in-time extraction
+    /// (path B), and the structured arguments reach the tool proxy.
+    #[tokio::test]
+    async fn test_path_b_jit_resolves_args_from_schema() {
+        // GIVEN a one-step tool plan with no args, a proxy exposing the schema,
+        // and a router whose model returns a constrained tool call
+        let (mut actor, _rx) = make_actor_capped(make_plan(vec![("s1", &[])]), 0);
+        let proxy = SchemaCapturingProxy::new(Some(write_note_schema()));
+        let resilience = ResilienceLayer::default();
+        let model = MockCompletionModel::new(vec![
+            r#"{"name":"mock_tool","arguments":{"path":"/tmp/x","content":"hi"}}"#,
+        ]);
+        let router = router_with_model(model);
+        let budget = StepBudget::unlimited();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN the plan executes
+        let result = actor
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &router,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
+            .await;
+
+        // THEN the JIT-extracted structured args reached the tool
+        assert_eq!(result.status, TaskStatus::Completed);
+        assert_eq!(
+            proxy.captured(),
+            Some(serde_json::json!({"path": "/tmp/x", "content": "hi"}))
+        );
+    }
+
+    /// A tool step carrying valid plan-time args (path A) uses them verbatim,
+    /// without any LLM call (the router is empty, so path B cannot fire).
+    #[tokio::test]
+    async fn test_path_a_prefilled_args_used_without_llm() {
+        // GIVEN a one-step tool plan whose step already carries valid args
+        let mut plan = make_plan(vec![("s1", &[])]);
+        plan.steps[0].args = Some(serde_json::json!({"path": "/tmp/a", "content": "z"}));
+        let (mut actor, _rx) = make_actor_capped(plan, 0);
+        let proxy = SchemaCapturingProxy::new(Some(write_note_schema()));
+        let resilience = ResilienceLayer::default();
+        // Empty router: get() returns None, so path B is unreachable.
+        let router = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN the plan executes
+        let result = actor
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &router,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
+            .await;
+
+        // THEN the pre-filled structured args reached the tool unchanged
+        assert_eq!(result.status, TaskStatus::Completed);
+        assert_eq!(
+            proxy.captured(),
+            Some(serde_json::json!({"path": "/tmp/a", "content": "z"}))
+        );
+    }
+
     // ── Batch ResilienceLayer wiring ───────────────────────────────────────────
 
     /// Read-only tool proxy that counts invocations per tool, tracks peak
@@ -1891,7 +2105,7 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
             .await;
 
         // THEN each tool is invoked once and results keep the input order
@@ -1924,7 +2138,7 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
             .await;
 
         // THEN tool_b is never invoked and its position carries an error
@@ -1951,7 +2165,7 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
             .await;
 
         // THEN only tool_c fails, each tool invoked once (no retry on permanent)
@@ -1974,7 +2188,7 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
             .await;
 
         // THEN all 15 complete, in order, and peak concurrency respects the cap
@@ -1998,7 +2212,7 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &resilience)
+            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
             .await;
 
         // THEN tool_b is retried up to the default policy and fails; tool_a is ok
