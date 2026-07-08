@@ -1,0 +1,131 @@
+---
+sidebar_position: 2
+title: The accountability model
+---
+
+# The accountability model
+
+Autonomous agents are only usable in serious settings if you can answer three
+questions after the fact: what did the agent do, can you trust that record, and
+can you undo it. Apollia's accountability model exists to answer all three, and
+to keep a human in control while the agent runs. This page explains how the
+pieces fit together and what they are, and are not, meant to provide.
+
+## The problem
+
+An agent that reasons and acts on its own is powerful and, without controls,
+opaque and irreversible. In regulated settings that is disqualifying. The answer
+is not to make the agent less autonomous but to wrap its autonomy in governance:
+bound what it can do, record everything it does in a way that cannot be quietly
+altered, keep a person in the loop on consequential actions, and be able to walk
+changes back. Those controls are built into the runtime rather than left to each
+agent to implement, so an agent author cannot forget them and an operator cannot
+be surprised by their absence.
+
+## The building blocks
+
+### A signed, tamper-evident trail
+
+Every governed action an agent takes is written to an append-only journal. The
+journal is a hash chain, and it is signed as it grows, so any later alteration
+breaks the chain and is detectable. This is what turns "the agent says it did X"
+into "here is the recorded, verifiable sequence of what happened." The trail
+captures tool calls and, in the run journal, the model's own completions, so the
+reasoning behind an action is inspectable, not just its effect.
+
+### Verification of that trail
+
+A record is only as good as your ability to trust it. Verifying a run checks its
+hash chain and signatures and tells you whether the sequence has been altered
+since it was written. Accountability rests on a record you can independently
+confirm, not on trusting the process that produced it.
+
+### Reversibility
+
+Filesystem changes an agent makes during a chat session are written to a
+reversible journal, so they can be undone by replaying the inverse of each
+mutation in reverse order. An action that can be reviewed and reversed is far
+safer to delegate than one that is final the moment it happens.
+
+For the commands behind these three, see
+[Audit, verify and roll back a run](/how-to/audit-verify-rollback).
+
+### Permissions and human oversight
+
+Before an action runs, a permission engine classifies it. Safe operations
+proceed; anything that needs a human decision raises an approval request that an
+operator resolves, and that decision is itself recorded. Permissions are scoped,
+so authority can be granted at the level of the whole install, a project, or a
+single session.
+
+### Autonomy tiers
+
+How much an agent may do without asking is set by an autonomy tier. Lower tiers
+keep a human in the loop on more actions; higher tiers widen what the agent may
+do on its own. The tier is a deliberate dial an operator sets, not a property of
+the agent, so the same agent can run cautiously or freely depending on the
+context and the trust the operator extends.
+
+### Non-bypassable safeguards
+
+The runtime enforces a step budget on every autonomous run: a ceiling on
+reasoning steps, on tool calls, and on wall-clock time. It is enforced by the
+runtime itself and cannot be bypassed by an agent, so a run cannot loop or spend
+without bound. This is the guarantee that autonomy has a hard edge.
+
+### Structural injection detection
+
+Shell commands an agent would run are screened for structural command injection
+before execution, and that screening is recorded. It is one more control that
+sits between the agent's intent and a real effect on the system.
+
+### Self-checking on the orchestrated path
+
+On the orchestrated execution path, a completed run can be verified by a critic
+before its result is accepted, gated by the autonomy tier. The verdict is
+emitted as a runtime event and lands in the signed journal, so the check is part
+of the record. On a failing verdict the engine can re-plan and re-run within a
+bounded number of attempts, under the same shared budget, which is how an
+orchestrated agent corrects itself without escaping its ceiling.
+
+One honest limit: this pass currently runs the LLM critic; running an agent's
+own declared shell checks under governance is a later step, not yet wired. The
+critic is active; the deterministic shell checks are still to come.
+
+## How it maps to the EU AI Act
+
+The controls above line up with obligations the EU AI Act places on high-risk AI
+systems. Apollia **provides the technical primitives that support** these
+requirements. It does not make you compliant and it certifies nothing:
+compliance is a judgment made by your organisation and its auditors about your
+whole system and process, not a property a runtime can grant.
+
+With that framing, the mapping is direct:
+
+| Requirement (theme) | Apollia primitive |
+|---|---|
+| Article 10, data provenance and quality | the signed, hash-chained audit trail plus verification, which records and lets you confirm what data and actions a run touched |
+| Article 14, human oversight | the permission engine, human-in-the-loop approvals, and autonomy tiers, which keep a person in control of consequential actions |
+| Article 16, documentation and traceability | the audit journal and run trace, plus reversibility, which document what happened and let you act on it |
+
+The value is that these are wired into the runtime and demonstrable today, not
+promised. What remains a human responsibility is deciding whether your use of
+them, in your context, meets the obligation. Apollia gives you the mechanism;
+the compliance judgment stays with you.
+
+## Why this is the point
+
+Autonomy without accountability is a liability, and accountability bolted on
+after the fact is not credible. Apollia's position is that the governance is part
+of the runtime: bounded by budgets, recorded in a signed trail you can verify,
+reversible, and supervised by permissions and tiers. That is what makes
+delegating real work to an autonomous agent defensible.
+
+## Related
+
+- [Audit, verify and roll back a run](/how-to/audit-verify-rollback) for the
+  hands-on workflow.
+- [Embed Apollia via federation (MCP + REST)](/how-to/embed-via-federation) for
+  how these controls travel into a host integration.
+- The [CLI reference](/reference/cli) for the audit, rollback, and permissions
+  commands.
