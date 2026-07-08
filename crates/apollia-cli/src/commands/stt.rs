@@ -250,7 +250,10 @@ async fn run_transcribe(
 fn emit_transcribe_result(body: &str, output: Option<&std::path::Path>, json: bool) -> i32 {
     if let Some(out_path) = output {
         if let Err(e) = std::fs::write(out_path, body) {
-            return emit_stt_error(&format!("failed to write {}: {e}", out_path.display()), json);
+            return emit_stt_error(
+                &format!("failed to write {}: {e}", out_path.display()),
+                json,
+            );
         }
         if !json {
             println!("Transcription saved to {}", out_path.display());
@@ -362,7 +365,10 @@ fn run_model_download(name: &str, json: bool) -> i32 {
 
     let dest_dir = default_models_dir();
     if let Err(e) = std::fs::create_dir_all(&dest_dir) {
-        return emit_stt_error(&format!("failed to create {}: {e}", dest_dir.display()), json);
+        return emit_stt_error(
+            &format!("failed to create {}: {e}", dest_dir.display()),
+            json,
+        );
     }
 
     let dest_path = dest_dir.join(&filename);
@@ -590,8 +596,7 @@ fn emit_stt_error(msg: &str, json: bool) -> i32 {
     if json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
-                .unwrap_or_default()
+            serde_json::to_string_pretty(&serde_json::json!({"error": msg})).unwrap_or_default()
         );
     } else {
         eprintln!("Error: {msg}");
@@ -859,8 +864,7 @@ mod tests {
             #[command(subcommand)]
             cmd: SttCommand,
         }
-        let cli =
-            LocalCli::parse_from(["x", "config", "update", "--backend", "whisper"]);
+        let cli = LocalCli::parse_from(["x", "config", "update", "--backend", "whisper"]);
         match cli.cmd {
             SttCommand::Config { command } => match command {
                 SttConfigCommand::Update {

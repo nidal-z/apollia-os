@@ -54,7 +54,7 @@ pub enum ToolsCommand {
         command: ToolsCredentialsCmd,
     },
     /// Show the descriptor of a tool registered with the runtime.
-    Describe {
+    Show {
         /// Tool name.
         tool_name: String,
     },
@@ -137,7 +137,7 @@ pub async fn run(cmd: &ToolsCommand, socket: Option<PathBuf>, json: bool) -> i32
         ToolsCommand::Config { command } => run_config(command, json),
         ToolsCommand::Reload => run_reload(json),
         ToolsCommand::Credentials { command } => run_credentials(command, json).await,
-        ToolsCommand::Describe { tool_name } => run_describe(socket, tool_name, json).await,
+        ToolsCommand::Show { tool_name } => run_describe(socket, tool_name, json).await,
         ToolsCommand::Approvals { command } => run_approvals(socket, command, json).await,
     }
 }
@@ -1059,9 +1059,7 @@ fn load_tools_config(json: bool) -> ToolsConfig {
             Ok(c) => c.tools.unwrap_or_default(),
             Err(e) => {
                 if !json {
-                    eprintln!(
-                        "Warning: apollia.toml unreadable ({e}) - using defaults"
-                    );
+                    eprintln!("Warning: apollia.toml unreadable ({e}) - using defaults");
                 }
                 ToolsConfig::default()
             }
@@ -1132,8 +1130,7 @@ fn handle_client_error(err: ClientError, json: bool) -> i32 {
             // `emit_error` returns GENERAL_ERROR, so we emit the message
             // ourselves and override the return code here.
             if json {
-                let out =
-                    serde_json::json!({"error": "runtime not started (connection refused)"});
+                let out = serde_json::json!({"error": "runtime not started (connection refused)"});
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&out)

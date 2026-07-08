@@ -287,6 +287,25 @@ fn run_set(key: &str, value_str: &str, file: Option<&Path>, json: bool) -> i32 {
         return exit_codes::GENERAL_ERROR;
     }
 
+    // Validate the candidate document BEFORE persisting, so a typo'd key path or
+    // an invalid value is rejected (nonzero, no write) instead of silently
+    // bricking the next boot. A single `config set` legitimately leaves a section
+    // incomplete (e.g. `llm.default` before `llm.backends`); enforcing section
+    // completeness is `config validate`'s job, so "missing field" errors are
+    // tolerated here while invalid values / enum variants are rejected.
+    let top_level = key.split('.').next().unwrap_or(key);
+    if !crate::config::is_known_top_level_section(top_level) {
+        emit_error(format!("unknown config key: '{key}'"), json);
+        return exit_codes::GENERAL_ERROR;
+    }
+    if let Err(e) = crate::config::validate_apollia_toml_str(&doc.to_string()) {
+        let msg = e.to_string();
+        if !msg.contains("missing field") {
+            emit_error(format!("invalid config value for '{key}': {e}"), json);
+            return exit_codes::GENERAL_ERROR;
+        }
+    }
+
     if let Err(e) = std::fs::write(&path, doc.to_string()) {
         emit_error(format!("write {} failed: {e}", path.display()), json);
         return exit_codes::GENERAL_ERROR;
@@ -578,7 +597,10 @@ fn emit_reset_absent(home: &Path, json: bool) {
             "reset": false,
             "reason": "home directory absent - nothing to reset",
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else {
         println!(
             "  Apollia home {} does not exist - nothing to reset.",
@@ -594,9 +616,16 @@ fn emit_reset_dry_run(home: &Path, entries: &[PathBuf], json: bool) {
             "dry_run": true,
             "entries": entries.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else {
-        println!("  Dry run - {} entries under {} would be removed:", entries.len(), home.display());
+        println!(
+            "  Dry run - {} entries under {} would be removed:",
+            entries.len(),
+            home.display()
+        );
         for p in entries {
             let kind = if p.is_dir() { "dir " } else { "file" };
             println!("    [{kind}] {}", p.display());
@@ -640,9 +669,16 @@ fn emit_reset_outcome(
             })).collect::<Vec<_>>(),
             "reset": failures.is_empty(),
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else {
-        println!("  * {} entries removed under {}", removed.len(), home.display());
+        println!(
+            "  * {} entries removed under {}",
+            removed.len(),
+            home.display()
+        );
         for (p, e) in failures {
             eprintln!("  ! failed to remove {}: {e}", p.display());
         }
@@ -760,6 +796,45 @@ mod tests {
         assert_eq!(code, exit_codes::SUCCESS);
         let code = run_get(Some("llm.default"), Some(&path), true);
         assert_eq!(code, exit_codes::SUCCESS);
+    }
+
+    #[test]
+    fn run_set_rejects_unknown_key_path() {
+        // GIVEN an empty config file
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "").unwrap();
+        // WHEN setting an unknown top-level key path
+        let code = run_set("not.a.real.key", "somevalue", Some(&path), true);
+        // THEN it fails and leaves the file unchanged
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+    }
+
+    #[test]
+    fn run_set_rejects_invalid_enum_value() {
+        // GIVEN an empty config file
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "").unwrap();
+        // WHEN setting a known key to an invalid enum value
+        let code = run_set("mcp.tool_loading", "BOGUS_VALUE", Some(&path), true);
+        // THEN it fails and leaves the file unchanged
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+    }
+
+    #[test]
+    fn run_set_accepts_valid_enum_value() {
+        // GIVEN an empty config file
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "").unwrap();
+        // WHEN setting a known key to a valid enum value
+        let code = run_set("mcp.tool_loading", "eager", Some(&path), true);
+        // THEN it succeeds and persists
+        assert_eq!(code, exit_codes::SUCCESS);
+        assert!(std::fs::read_to_string(&path).unwrap().contains("eager"));
     }
 
     #[test]

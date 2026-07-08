@@ -11,7 +11,25 @@ use clap::Subcommand;
 
 use crate::exit_codes;
 
-/// Plan-cache subcommands: `apollia-os plan-cache <verb>`.
+/// Subcommands of the `plan` noun: `apollia-os plan <verb>`.
+#[derive(Debug, Subcommand)]
+pub enum PlanCommand {
+    /// Plan cache management (stats, clear, evict).
+    Cache {
+        /// Plan-cache subcommand.
+        #[command(subcommand)]
+        command: PlanCacheCommand,
+    },
+}
+
+/// Execute a `plan` subcommand. Returns the process exit code.
+pub fn run_plan(cmd: &PlanCommand, json: bool) -> i32 {
+    match cmd {
+        PlanCommand::Cache { command } => run(command, json),
+    }
+}
+
+/// Plan-cache subcommands: `apollia-os plan cache <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum PlanCacheCommand {
     /// Display cache statistics (total entries, hits, oldest/newest entry).

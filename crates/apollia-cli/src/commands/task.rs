@@ -392,7 +392,7 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
     let repo = match apollia_oria::plan_repository::PlanRepository::new(&db_path) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("Error: impossible d'ouvrir la base de plans : {e}");
+            eprintln!("Error: failed to open the plans database: {e}");
             return exit_codes::GENERAL_ERROR;
         }
     };
@@ -527,7 +527,7 @@ fn short_uuid(uuid: &str) -> String {
 ///
 /// Columns: `TASK_ID | AGENT | DEPUIS | PROMPT` (prompt truncated to 60 chars).
 fn format_pending_table(tasks: &[serde_json::Value]) {
-    println!("  {:<36} {:<20} {:<8} PROMPT", "TASK_ID", "AGENT", "DEPUIS");
+    println!("  {:<36} {:<20} {:<8} PROMPT", "TASK_ID", "AGENT", "SINCE");
 
     if tasks.is_empty() {
         println!("  (no pending approvals)");
@@ -622,7 +622,10 @@ fn display_plan_human(plan: &PlanWithSteps) {
     println!("  Agent       : {}", plan.agent_name);
     println!("  Mode        : orchestrated");
     println!("  Status      : {}", plan.status);
-    println!("  Created     : {}", format_rfc3339_compact(&plan.created_at));
+    println!(
+        "  Created     : {}",
+        format_rfc3339_compact(&plan.created_at)
+    );
     println!("  Replans     : {}/2", plan.replan_count);
     println!();
     println!("  Execution plan:");
@@ -721,18 +724,18 @@ fn format_approvals_list(resp: &serde_json::Value, pending: bool) {
         .unwrap_or_default();
 
     let header = if pending {
-        "APPROBATIONS EN ATTENTE"
+        "PENDING APPROVALS"
     } else {
-        "APPROBATIONS RÉSOLUES"
+        "RESOLVED APPROVALS"
     };
     println!("  {header}");
     println!(
         "  {:<36} {:<36} {:<20} {:<10} DATE",
-        "ID", "TASK_ID", "AGENT", "DÉCISION"
+        "ID", "TASK_ID", "AGENT", "DECISION"
     );
 
     if approvals.is_empty() {
-        println!("  (aucune)");
+        println!("  (none)");
         return;
     }
 

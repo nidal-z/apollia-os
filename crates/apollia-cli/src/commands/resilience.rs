@@ -116,7 +116,7 @@ async fn run_show(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(ClientError::ServerError { status: 404, .. }) => print_error_and_exit(
-            &format!("Tool '{tool_name}' not found in Tool Registry"),
+            &format!("no circuit breaker recorded for tool '{tool_name}' (it has not run, or failed no calls yet)"),
             json,
         ),
         Err(e) => handle_error(e, json),
@@ -138,7 +138,7 @@ async fn run_reset(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(ClientError::ServerError { status: 404, .. }) => print_error_and_exit(
-            &format!("Tool '{tool_name}' not found in Tool Registry"),
+            &format!("no circuit breaker recorded for tool '{tool_name}' (it has not run, or failed no calls yet)"),
             json,
         ),
         Err(e) => handle_error(e, json),

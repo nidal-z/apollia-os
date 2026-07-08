@@ -108,7 +108,7 @@ fn print_summaries(summaries: &[HookHandlerSummary], json: bool) {
         return;
     }
     if summaries.is_empty() {
-        println!("(aucun hook configure)");
+        println!("(no hooks configured)");
         return;
     }
     println!("#   Type      Evenements                     Timeout(ms)  Cible");

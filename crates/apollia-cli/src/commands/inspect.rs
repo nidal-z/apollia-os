@@ -327,7 +327,9 @@ fn check_datasources(
         let display_path = candidates[0].display().to_string();
         match found {
             None => {
-                errors.push(format!("datasource '{name}' file not found: {display_path}"));
+                errors.push(format!(
+                    "datasource '{name}' file not found: {display_path}"
+                ));
                 out.push(DatasourceReport {
                     name: name.clone(),
                     path: display_path,
@@ -503,7 +505,8 @@ fn print_human(report: &InspectReport, quiet: bool, color: bool) {
                     match &skill.input_schema {
                         Some(schema) => println!(
                             "        input   {}",
-                            serde_json::to_string(schema).unwrap_or_else(|_| "<unserializable>".into())
+                            serde_json::to_string(schema)
+                                .unwrap_or_else(|_| "<unserializable>".into())
                         ),
                         None => println!("        input   (no published schema)"),
                     }
@@ -553,13 +556,22 @@ fn print_human(report: &InspectReport, quiet: bool, color: bool) {
             if let Some(perms) = &report.permissions {
                 println!();
                 println!("  {}", style.bold("Permissions"));
-                println!("    tools.required           {}", join_or_none(&perms.tools_required));
-                println!("    tools.optional           {}", join_or_none(&perms.tools_optional));
+                println!(
+                    "    tools.required           {}",
+                    join_or_none(&perms.tools_required)
+                );
+                println!(
+                    "    tools.optional           {}",
+                    join_or_none(&perms.tools_optional)
+                );
                 println!(
                     "    tools.requiring_approval {}",
                     join_or_none(&perms.tools_requiring_approval)
                 );
-                println!("    dangerous_tools_allowed  {}", perms.dangerous_tools_allowed);
+                println!(
+                    "    dangerous_tools_allowed  {}",
+                    perms.dangerous_tools_allowed
+                );
             }
         }
     }
@@ -678,9 +690,6 @@ mod tests {
         // WHEN joined
         // THEN empty renders as (none) and populated joins with commas
         assert_eq!(join_or_none(&[]), "(none)");
-        assert_eq!(
-            join_or_none(&["a".to_string(), "b".to_string()]),
-            "a, b"
-        );
+        assert_eq!(join_or_none(&["a".to_string(), "b".to_string()]), "a, b");
     }
 }

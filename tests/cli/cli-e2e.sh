@@ -310,35 +310,35 @@ check        "auth logout anthropic (no-op)"        "$BIN" auth logout anthropic
 check        "auth logout openai (no-op)"           "$BIN" auth logout openai
 check        "auth logout vertex (no-op)"           "$BIN" auth logout vertex
 
-# A.4 - user-memory
-section "A.4 user-memory"
-check        "user-memory show (empty)"                     "$BIN" user-memory show --db "$USER_DB"
-check        "user-memory set name Alice"                   "$BIN" user-memory set name "Alice" --db "$USER_DB"
-check_grep   "user-memory show --json shows Alice"  "Alice"     "$BIN" user-memory show --db "$USER_DB" --json
-check        "user-memory schema"                           "$BIN" user-memory schema --db "$USER_DB"
-check        "user-memory export"                           "$BIN" user-memory export --db "$USER_DB" --output "$TMPDIR/u.json"
-[[ -f "$TMPDIR/u.json" ]] && check "user-memory export produced file" true \
-                          || check "user-memory export produced file" false
-check        "user-memory import --overwrite"               "$BIN" user-memory import --db "$TMPDIR/.apollia/u2.db" --input "$TMPDIR/u.json" --overwrite
-check        "user-memory forget"                           "$BIN" user-memory forget name --db "$USER_DB"
-check        "user-memory reset --confirm"                  "$BIN" user-memory reset --confirm --db "$USER_DB"
-check_exit   "user-memory reset (no --confirm)"  1          "$BIN" user-memory reset --db "$USER_DB"
+# A.4 - profile
+section "A.4 profile"
+check        "profile show (empty)"                     "$BIN" profile show --db "$USER_DB"
+check        "profile set name Alice"                   "$BIN" profile set name "Alice" --db "$USER_DB"
+check_grep   "profile show --json shows Alice"  "Alice"     "$BIN" profile show --db "$USER_DB" --json
+check        "profile schema"                           "$BIN" profile schema --db "$USER_DB"
+check        "profile export"                           "$BIN" profile export --db "$USER_DB" --output "$TMPDIR/u.json"
+[[ -f "$TMPDIR/u.json" ]] && check "profile export produced file" true \
+                          || check "profile export produced file" false
+check        "profile import --overwrite"               "$BIN" profile import --db "$TMPDIR/.apollia/u2.db" --input "$TMPDIR/u.json" --overwrite
+check        "profile forget"                           "$BIN" profile forget name --db "$USER_DB"
+check        "profile reset --confirm"                  "$BIN" profile reset --confirm --db "$USER_DB"
+check_exit   "profile reset (no --confirm)"  1          "$BIN" profile reset --db "$USER_DB"
 
-# A.5 - chat-config
-section "A.5 chat-config"
-check        "chat-config get (default)"                    "$BIN" chat-config get --db "$GOV_DB"
-check        "chat-config set system-prompt"                "$BIN" chat-config set system-prompt "You are helpful." --db "$GOV_DB"
-check        "chat-config set allowed-tools"                "$BIN" chat-config set allowed-tools "file_read,bash_executor" --db "$GOV_DB"
-check        "chat-config set llm-backend none"             "$BIN" chat-config set llm-backend none --db "$GOV_DB"
-check_json   "chat-config get --json"                       "$BIN" chat-config get --db "$GOV_DB" --json
-check_exit   "chat-config set bogus-key"  1                 "$BIN" chat-config set bogus-key x --db "$GOV_DB"
-check        "chat-config reset --confirm"                  "$BIN" chat-config reset --confirm --db "$GOV_DB"
-check_exit   "chat-config reset (no --confirm)"  1          "$BIN" chat-config reset --db "$GOV_DB"
-check        "chat-config permissions list (empty)"         "$BIN" chat-config permissions list --db "$GOV_DB"
-check_json   "chat-config permissions list --json"          "$BIN" chat-config permissions list --db "$GOV_DB" --json
-check_exit   "chat-config permissions delete (no id)"  1    "$BIN" chat-config permissions delete 9999 --confirm --db "$GOV_DB"
-check_exit   "chat-config permissions delete (no --confirm)" 1  "$BIN" chat-config permissions delete 1 --db "$GOV_DB"
-skip         "chat-config authorizations list" "v0.1.1 - runtime route absente, gardée tel quel par arbitrage"
+# A.5 - chat config
+section "A.5 chat config"
+check        "chat config get (default)"                    "$BIN" chat config get --db "$GOV_DB"
+check        "chat config set system-prompt"                "$BIN" chat config set system-prompt "You are helpful." --db "$GOV_DB"
+check        "chat config set allowed-tools"                "$BIN" chat config set allowed-tools "file_read,bash_executor" --db "$GOV_DB"
+check        "chat config set llm-backend none"             "$BIN" chat config set llm-backend none --db "$GOV_DB"
+check_json   "chat config get --json"                       "$BIN" chat config get --db "$GOV_DB" --json
+check_exit   "chat config set bogus-key"  1                 "$BIN" chat config set bogus-key x --db "$GOV_DB"
+check        "chat config reset --confirm"                  "$BIN" chat config reset --confirm --db "$GOV_DB"
+check_exit   "chat config reset (no --confirm)"  1          "$BIN" chat config reset --db "$GOV_DB"
+check        "chat config permissions list (empty)"         "$BIN" chat config permissions list --db "$GOV_DB"
+check_json   "chat config permissions list --json"          "$BIN" chat config permissions list --db "$GOV_DB" --json
+check_exit   "chat config permissions delete (no id)"  1    "$BIN" chat config permissions delete 9999 --confirm --db "$GOV_DB"
+check_exit   "chat config permissions delete (no --confirm)" 1  "$BIN" chat config permissions delete 1 --db "$GOV_DB"
+skip         "chat config authorizations list" "v0.1.1 - runtime route absente, gardée tel quel par arbitrage"
 
 # A.6 - permissions
 section "A.6 permissions"
@@ -483,11 +483,12 @@ check_exit   "stt status (off)"              2  "$BIN" --socket "$SOCK" stt stat
 check_exit   "digest (off)"                  2  "$BIN" --socket "$SOCK" digest --since 24h
 check_exit   "trace x (off)"                 2  "$BIN" --socket "$SOCK" trace dummy-task-id
 check_exit   "resilience list (off)"         2  "$BIN" --socket "$SOCK" resilience list
-check_exit   "hitl (off)"                    2  "$BIN" --socket "$SOCK" hitl
+check_exit   "task list --pending-approval (off)"  2  "$BIN" --socket "$SOCK" task list --pending-approval
+check_exit   "hitl removed (unrecognized)"   2  "$BIN" --socket "$SOCK" hitl
 check        "tools list (local)"               "$BIN" tools list
-# `tools describe` is runtime-bound (queries the live tool registry) and
+# `tools show` is runtime-bound (queries the live tool registry) and
 # now emits exit 2 daemon-off, aligned on ADR-008 conventions.
-check_exit   "tools describe (off)"          2  "$BIN" --socket "$SOCK" tools describe bash_executor
+check_exit   "tools show (off)"          2  "$BIN" --socket "$SOCK" tools show bash_executor
 check_exit   "tools approvals pending (off)" 2  "$BIN" --socket "$SOCK" tools approvals pending
 check        "model list (no models)"           "$BIN" model list
 # `model hardware` queries the runtime LLM registry (`/api/v1/llm/hardware`);
@@ -511,9 +512,9 @@ if [[ -f "$STUB_GGUF" ]]; then
 else
     skip "model delete --confirm" "could not create stub .gguf in $MODELS_DIR (symlink writable?)"
 fi
-check        "plan-cache stats (db absent)"     "$BIN" plan-cache stats
-check        "plan-cache clear --force"         "$BIN" plan-cache clear --force
-check        "plan-cache evict --max-age-days 7"  "$BIN" plan-cache evict --max-age-days 7
+check        "plan cache stats (db absent)"     "$BIN" plan cache stats
+check        "plan cache clear --force"         "$BIN" plan cache clear --force
+check        "plan cache evict --max-age-days 7"  "$BIN" plan cache evict --max-age-days 7
 check        "workspace status"                 "$BIN" workspace status
 check        "workspace init --force"           "$BIN" workspace init --force
 check_json   "workspace status --json"          "$BIN" workspace status --json
@@ -536,7 +537,7 @@ skip "update / update --check" \
      "outbound HTTPS to api.github.com (script policy: no network)"
 skip "onboard / onboard --topic" \
      "runs a chat-based onboarding agent - interactive by design"
-skip "mcp-server / mcp-server --with-runtime" \
+skip "mcp server / mcp server --with-runtime" \
      "long-running stdio JSON-RPC server, never returns"
 skip "model search / model show" \
      "outbound HTTPS to huggingface.co"
@@ -552,7 +553,7 @@ skip "mcp oauth login" \
      "opens the AS authorize URL + waits on a browser callback"
 skip "tools credentials set / test" \
      "set: masked stdin prompt; test: live call to the credentialed backend"
-skip "chat-config authorizations list / revoke" \
+skip "chat config authorizations list / revoke" \
      "deferred v0.1.1 - in-memory daemon state, no HTTP route yet"
 skip "mcp catalogue / mcp enrichments list" \
      "deferred v0.1.1 - backend (McpRegistryClient + enrichments.json) lives in apollia-desktop"
@@ -617,8 +618,8 @@ PYEOF
     check        "agent validate <stub>"            "$BIN" agent validate "$HELLO_PY"
     check        "agent install <stub> --skip-tests"  "$BIN" --socket "$SOCK" agent install "$HELLO_PY" --skip-tests
     check_grep   "agent list shows e2e-hello" "e2e-hello"  "$BIN" --socket "$SOCK" agent list
-    check        "agent info"                       "$BIN" --socket "$SOCK" agent info e2e-hello
-    check_json   "agent info --json"                "$BIN" --socket "$SOCK" agent info e2e-hello --json
+    check        "agent show"                       "$BIN" --socket "$SOCK" agent show e2e-hello
+    check_json   "agent show --json"                "$BIN" --socket "$SOCK" agent show e2e-hello --json
     # `--skip-tests` registers the agent without spawning it in the runtime.
     # We must `agent start` to load it before status/messages/logs work.
     if "$BIN" --socket "$SOCK" agent start e2e-hello >/dev/null 2>&1; then
@@ -644,7 +645,7 @@ PYEOF
     check        "agent disable"                    "$BIN" --socket "$SOCK" agent disable e2e-hello
     check        "agent enable (back to on)"        "$BIN" --socket "$SOCK" agent enable e2e-hello
     check        "agent package list (empty)"       "$BIN" --socket "$SOCK" agent package list
-    check        "agent new <name> --type react"    "$BIN" agent new e2e-scaffold --type react
+    check        "agent create <name> --type react"    "$BIN" agent create e2e-scaffold --type react
 
     # B.2 - task via run
     section "B.2 task lifecycle"
@@ -672,7 +673,7 @@ PYEOF
             check       "task approvals --pending"  "$BIN" --socket "$SOCK" task approvals --pending
             check       "trace <id> --format human" "$BIN" --socket "$SOCK" trace "$TASK_ID" --format human
             check_json  "trace <id> --format json"  "$BIN" --socket "$SOCK" trace "$TASK_ID" --format json
-            check       "hitl"                      "$BIN" --socket "$SOCK" hitl
+            check       "task list --pending-approval"  "$BIN" --socket "$SOCK" task list --pending-approval
             check       "agent logs --last 5 (post-task)"  "$BIN" --socket "$SOCK" agent logs e2e-hello --last 5
         else
             skip "task lifecycle" "run --detach didn't return a task_id (out: ${RUN_OUT:0:200})"
@@ -718,12 +719,12 @@ PYEOF
         skip "llm phase B" "GGUF absent: $TEST_GGUF"
     fi
 
-    # B.4 - tools / audit / triggers / notify / stt / model / resilience / plan-cache / digest
+    # B.4 - tools / audit / triggers / notify / stt / model / resilience / plan cache / digest
     section "B.4 services (tools / audit / triggers / notify / …)"
     check       "tools list (daemon on)"            "$BIN" --socket "$SOCK" tools list
     check_json  "tools list --json"                 "$BIN" --socket "$SOCK" tools list --json
-    check       "tools describe bash_executor"      "$BIN" --socket "$SOCK" tools describe bash_executor
-    check_exit  "tools describe inexistant" 1       "$BIN" --socket "$SOCK" tools describe inexistant_tool
+    check       "tools show bash_executor"      "$BIN" --socket "$SOCK" tools show bash_executor
+    check_exit  "tools show inexistant" 1       "$BIN" --socket "$SOCK" tools show inexistant_tool
     check       "tools reload"                      "$BIN" --socket "$SOCK" tools reload
     check       "tools enable bash_executor"        "$BIN" --socket "$SOCK" tools enable bash_executor
     check       "tools disable web_read + re-enable"  bash -c "$BIN --socket $SOCK tools disable web_read && $BIN --socket $SOCK tools enable web_read"
@@ -775,8 +776,8 @@ PYEOF
     check       "stt model list"                    "$BIN" --socket "$SOCK" stt model list
     check       "stt config get"                    "$BIN" --socket "$SOCK" stt config get
 
-    # Model + resilience + plan-cache + digest
-    section "B.4.4 model / resilience / plan-cache / digest"
+    # Model + resilience + plan cache + digest
+    section "B.4.4 model / resilience / plan cache / digest"
     check       "model list (with GGUF in models dir)"  "$BIN" model list
     check_json  "model hardware --json"             "$BIN" --socket "$SOCK" model hardware --json
     check       "resilience list"                   "$BIN" --socket "$SOCK" resilience list
@@ -789,8 +790,8 @@ PYEOF
         skip    "resilience show/reset bash_executor" "tool not in breaker registry (no invocations yet)"
     fi
     check_exit  "resilience reset unknown" 1        "$BIN" --socket "$SOCK" resilience reset inexistant_tool
-    check       "plan-cache stats (daemon on)"      "$BIN" --socket "$SOCK" plan-cache stats
-    check       "plan-cache evict --max-age-days 0"  "$BIN" --socket "$SOCK" plan-cache evict --max-age-days 0
+    check       "plan cache stats (daemon on)"      "$BIN" --socket "$SOCK" plan cache stats
+    check       "plan cache evict --max-age-days 0"  "$BIN" --socket "$SOCK" plan cache evict --max-age-days 0
     check_json  "digest --since 24h --json"         "$BIN" --socket "$SOCK" digest --since 24h --json
 
     # MCP

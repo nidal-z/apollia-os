@@ -218,16 +218,7 @@ pub async fn run(cmd: &LlmCommand, socket: Option<PathBuf>, json: bool) -> i32 {
             get_threshold,
             threshold,
             config,
-        } => {
-            run_costs(
-                &client,
-                *get_threshold,
-                *threshold,
-                config.as_deref(),
-                json,
-            )
-            .await
-        }
+        } => run_costs(&client, *get_threshold, *threshold, config.as_deref(), json).await,
         LlmCommand::Backends { command } => run_backends(&client, command, json).await,
         LlmCommand::Reload => run_reload(&client, json).await,
         LlmCommand::Setup {
@@ -237,17 +228,15 @@ pub async fn run(cmd: &LlmCommand, socket: Option<PathBuf>, json: bool) -> i32 {
             device,
             system_db,
             models_dir,
-        } => {
-            run_setup(SetupArgs {
-                local: *local,
-                model,
-                backend_name: name,
-                device_override: device.as_deref(),
-                system_db_override: system_db.as_deref(),
-                models_dir_override: models_dir.as_deref(),
-                json,
-            })
-        }
+        } => run_setup(SetupArgs {
+            local: *local,
+            model,
+            backend_name: name,
+            device_override: device.as_deref(),
+            system_db_override: system_db.as_deref(),
+            models_dir_override: models_dir.as_deref(),
+            json,
+        }),
     }
 }
 
@@ -278,10 +267,7 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
         }
         Err(ClientError::ConnectionRefused) => {
             if json {
-                println!(
-                    "{}",
-                    serde_json::json!({"error": "runtime not started"})
-                );
+                println!("{}", serde_json::json!({"error": "runtime not started"}));
             } else {
                 eprintln!("Error: runtime not started (connection refused)");
                 eprintln!("Hint: run `apollia-os start` first.");
@@ -290,10 +276,7 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
         }
         Err(ClientError::ServerError { status, body }) => {
             if json {
-                println!(
-                    "{}",
-                    serde_json::json!({"error": body, "status": status})
-                );
+                println!("{}", serde_json::json!({"error": body, "status": status}));
             } else {
                 eprintln!("Error ({status}): {body}");
                 if status == 503 {
@@ -598,7 +581,10 @@ fn run_get_cost_threshold(override_path: Option<&std::path::Path>, json: bool) -
                     "path": path.display().to_string(),
                     "threshold": serde_json::Value::Null,
                 });
-                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
             } else {
                 println!("  (no cost alert threshold set in {})", path.display());
             }
@@ -619,7 +605,10 @@ fn run_get_cost_threshold(override_path: Option<&std::path::Path>, json: bool) -
             "path": path.display().to_string(),
             "threshold": threshold,
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else {
         match threshold {
             Some(v) => println!("  cost_alert_threshold_usd = {v} (in {})", path.display()),
@@ -629,18 +618,11 @@ fn run_get_cost_threshold(override_path: Option<&std::path::Path>, json: bool) -
     exit_codes::SUCCESS
 }
 
-fn run_set_cost_threshold(
-    value: f64,
-    override_path: Option<&std::path::Path>,
-    json: bool,
-) -> i32 {
+fn run_set_cost_threshold(value: f64, override_path: Option<&std::path::Path>, json: bool) -> i32 {
     let path = resolve_apollia_toml(override_path);
     if let Some(parent) = path.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
-            return emit_llm_error(
-                format!("create {} failed: {e}", parent.display()),
-                json,
-            );
+            return emit_llm_error(format!("create {} failed: {e}", parent.display()), json);
         }
     }
     let content = std::fs::read_to_string(&path).unwrap_or_default();
@@ -671,11 +653,17 @@ fn run_set_cost_threshold(
             "threshold": if value <= 0.0 { serde_json::Value::Null } else { serde_json::json!(value) },
             "cleared": value <= 0.0,
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else if value <= 0.0 {
         println!("  * cost_alert_threshold cleared in {}", path.display());
     } else {
-        println!("  * cost_alert_threshold_usd = {value} written to {}", path.display());
+        println!(
+            "  * cost_alert_threshold_usd = {value} written to {}",
+            path.display()
+        );
     }
     exit_codes::SUCCESS
 }
@@ -721,10 +709,7 @@ fn run_setup(args: SetupArgs<'_>) -> i32 {
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| apollia_home.join("models"));
     if let Err(e) = std::fs::create_dir_all(&models_dir) {
-        return emit_llm_error(
-            format!("create {} failed: {e}", models_dir.display()),
-            json,
-        );
+        return emit_llm_error(format!("create {} failed: {e}", models_dir.display()), json);
     }
 
     let file_name = match model.file_name().and_then(|s| s.to_str()) {
@@ -787,16 +772,17 @@ fn run_setup(args: SetupArgs<'_>) -> i32 {
             "system_db": system_db_path.display().to_string(),
             "is_default": true,
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else {
         println!("  * local LLM backend '{backend_name}' configured");
         println!("    model    : {}", dest.display());
         println!("    device   : {device}");
         println!("    quant.   : {quantization}");
         println!("    system   : {}", system_db_path.display());
-        println!(
-            "    -> run `apollia-os llm reload` (or restart the daemon) to make it live."
-        );
+        println!("    -> run `apollia-os llm reload` (or restart the daemon) to make it live.");
     }
     exit_codes::SUCCESS
 }
@@ -838,8 +824,8 @@ fn validate_setup_model(local: bool, model: &std::path::Path, json: bool) -> Res
 fn infer_quantization(file_name: &str) -> String {
     let upper = file_name.to_uppercase();
     let patterns = [
-        "Q8_0", "Q6_K", "Q5_K_M", "Q5_K_S", "Q5_0", "Q4_K_M", "Q4_K_S", "Q4_0", "Q3_K_M",
-        "Q3_K_S", "Q2_K", "IQ4_XS", "IQ3_M", "IQ2_S", "F16", "F32",
+        "Q8_0", "Q6_K", "Q5_K_M", "Q5_K_S", "Q5_0", "Q4_K_M", "Q4_K_S", "Q4_0", "Q3_K_M", "Q3_K_S",
+        "Q2_K", "IQ4_XS", "IQ3_M", "IQ2_S", "F16", "F32",
     ];
     for p in &patterns {
         if upper.contains(p) {
@@ -851,43 +837,43 @@ fn infer_quantization(file_name: &str) -> String {
 
 /// Render `GET /api/v1/llm/costs` as a human-readable table.
 fn format_llm_costs(resp: &serde_json::Value) {
-    let backends = resp
-        .get("backends")
+    // The cost endpoint returns `rows` (one per backend), each with call_count,
+    // total_tokens, and total_cost_usd. Local usage has zero cost, so we show
+    // token usage regardless of cost rather than dropping it.
+    let rows = resp
+        .get("rows")
         .and_then(|b| b.as_array())
         .cloned()
         .unwrap_or_default();
 
     println!(
-        "  {:<24} {:>12} {:>12} {:>12}",
-        "BACKEND", "IN TOKENS", "OUT TOKENS", "COST ($)"
+        "  {:<18} {:<22} {:>8} {:>12} {:>12}",
+        "BACKEND", "MODEL", "CALLS", "TOKENS", "COST ($)"
     );
 
-    if backends.is_empty() {
+    if rows.is_empty() {
         println!("  (no usage recorded)");
     } else {
-        for b in &backends {
-            let name = b.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-            let input_tokens = b.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-            let output_tokens = b.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        let mut total_calls = 0u64;
+        let mut total_tokens = 0u64;
+        let mut total_cost = 0.0f64;
+        for b in &rows {
+            let name = b.get("backend").and_then(|v| v.as_str()).unwrap_or("?");
+            let model = b.get("model").and_then(|v| v.as_str()).unwrap_or("?");
+            let calls = b.get("call_count").and_then(|v| v.as_u64()).unwrap_or(0);
+            let tokens = b.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
             let cost = b
-                .get("estimated_cost_usd")
+                .get("total_cost_usd")
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0);
-            println!(
-                "  {:<24} {:>12} {:>12} {:>12.4}",
-                name, input_tokens, output_tokens, cost
-            );
+            total_calls += calls;
+            total_tokens += tokens;
+            total_cost += cost;
+            println!("  {name:<18} {model:<22} {calls:>8} {tokens:>12} {cost:>12.4}");
         }
-    }
-
-    if let Some(total) = resp.get("total") {
-        let total_cost = total
-            .get("estimated_cost_usd")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
         println!(
-            "  {:<24} {:>12} {:>12} {:>12.4}",
-            "TOTAL", "", "", total_cost
+            "  {:<18} {:<22} {:>8} {:>12} {:>12.4}",
+            "TOTAL", "", total_calls, total_tokens, total_cost
         );
     }
 }
@@ -1093,6 +1079,46 @@ async fn auto_reload_after_mutation(client: &RuntimeClient, json: bool) {
 }
 
 /// `apollia-os llm backends list`: list all configured backends.
+/// Render `llm backends list`: a CONFIG listing (name, provider, configured
+/// model, default marker), NOT a health probe. Availability lives in
+/// `llm status` / `llm ping`; claiming it here would be misleading.
+fn format_backends_list(resp: &serde_json::Value) {
+    let backends = resp
+        .get("backends")
+        .and_then(|b| b.as_array())
+        .cloned()
+        .unwrap_or_default();
+    println!(
+        "  {:<18} {:<12} {:<44} DEFAULT",
+        "NAME", "PROVIDER", "MODEL"
+    );
+    if backends.is_empty() {
+        println!("  (no LLM backends configured)");
+        return;
+    }
+    for b in &backends {
+        let name = b.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+        let provider = b.get("provider").and_then(|v| v.as_str()).unwrap_or("?");
+        let model = b.get("model").and_then(|v| v.as_str()).unwrap_or("?");
+        let is_default = b
+            .get("is_default")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let enabled = b
+            .get("enabled")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
+        let marker = if is_default {
+            "* default"
+        } else if !enabled {
+            "disabled"
+        } else {
+            ""
+        };
+        println!("  {name:<18} {provider:<12} {model:<44} {marker}");
+    }
+}
+
 async fn run_backends_list(client: &RuntimeClient, json: bool) -> i32 {
     match client.list_llm_backends().await {
         Ok(resp) => {
@@ -1102,7 +1128,7 @@ async fn run_backends_list(client: &RuntimeClient, json: bool) -> i32 {
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                format_llm_status(&resp);
+                format_backends_list(&resp);
             }
             exit_codes::SUCCESS
         }
@@ -1588,7 +1614,10 @@ mod tests {
             "0.5",
             "--get-threshold",
         ]);
-        assert!(result.is_err(), "--threshold + --get-threshold must conflict");
+        assert!(
+            result.is_err(),
+            "--threshold + --get-threshold must conflict"
+        );
     }
 
     #[test]
@@ -1602,10 +1631,7 @@ mod tests {
         ]);
         match &cli.command {
             LlmCommand::Setup {
-                local,
-                model,
-                name,
-                ..
+                local, model, name, ..
             } => {
                 assert!(*local);
                 assert_eq!(model, &PathBuf::from("/tmp/model.gguf"));

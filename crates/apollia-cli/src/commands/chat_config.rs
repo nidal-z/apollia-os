@@ -15,8 +15,8 @@ use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
 
 use crate::exit_codes;
 
-/// Subcommands of `apollia-os chat-config`.
-#[derive(Debug, Subcommand)]
+/// Subcommands of `apollia-os chat config`.
+#[derive(Debug, Clone, Subcommand)]
 pub enum ChatConfigCommand {
     /// Print the current chat libre configuration.
     Get {
@@ -67,8 +67,8 @@ pub enum ChatConfigCommand {
     },
 }
 
-/// Subcommands of `apollia-os chat-config permissions`.
-#[derive(Debug, Subcommand)]
+/// Subcommands of `apollia-os chat config permissions`.
+#[derive(Debug, Clone, Subcommand)]
 pub enum ChatConfigPermissionsCommand {
     /// List every persisted rule scoped to the Apollia Chat agent.
     List {
@@ -90,8 +90,8 @@ pub enum ChatConfigPermissionsCommand {
     },
 }
 
-/// Subcommands of `apollia-os chat-config authorizations`.
-#[derive(Debug, Subcommand)]
+/// Subcommands of `apollia-os chat config authorizations`.
+#[derive(Debug, Clone, Subcommand)]
 pub enum ChatConfigAuthorizationsCommand {
     /// List active in-memory session authorizations (requires runtime route).
     List,
@@ -338,9 +338,7 @@ fn run_permissions_list(db: Option<&Path>, json: bool) -> i32 {
         println!("No chat permission rules persisted (agent_id = {APOLLIA_CHAT_AGENT_ID}).");
         println!("  -> session-scope authorizations live in the runtime memory; use the Desktop Settings → Chat panel to inspect.");
     } else {
-        println!(
-            "  Chat permission rules (agent_id = {APOLLIA_CHAT_AGENT_ID}):"
-        );
+        println!("  Chat permission rules (agent_id = {APOLLIA_CHAT_AGENT_ID}):");
         println!(
             "  {:<6} {:<24} {:<8} {:<20} {}",
             "ID", "TOOL", "ACTION", "ARGUMENT", "EXPIRES"
@@ -407,8 +405,9 @@ fn run_permissions_delete(id: i64, confirm: bool, db: Option<&Path>, json: bool)
 
 fn run_authorizations(cmd: &ChatConfigAuthorizationsCommand, json: bool) -> i32 {
     match cmd {
-        ChatConfigAuthorizationsCommand::List
-        | ChatConfigAuthorizationsCommand::Revoke { .. } => emit_authz_unavailable(json),
+        ChatConfigAuthorizationsCommand::List | ChatConfigAuthorizationsCommand::Revoke { .. } => {
+            emit_authz_unavailable(json)
+        }
     }
 }
 
@@ -540,8 +539,7 @@ mod tests {
 
     #[test]
     fn parses_authorizations_revoke() {
-        let cli =
-            TestCli::parse_from(["x", "authorizations", "revoke", "sess-1", "file_read"]);
+        let cli = TestCli::parse_from(["x", "authorizations", "revoke", "sess-1", "file_read"]);
         match cli.cmd {
             ChatConfigCommand::Authorizations {
                 command: ChatConfigAuthorizationsCommand::Revoke { session_id, tool },

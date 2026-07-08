@@ -12,22 +12,43 @@ releases.
 
 ## 1. Command shape
 
-ADR-004. Every command is `apollia <noun> <verb> [args]`. Never
-`<verb> <noun>`.
+ADR-004, refined by ADR-034 (taxonomy v2). Every command is
+`apollia <noun> <verb> [args]`, EXCEPT the bare-verb whitelist below.
 
 ```
 apollia agent list
-apollia agent install <path>
-apollia agent logs <id>
-apollia task spawn <agent> --payload @file.json
-apollia tool list --filter foo
+apollia agent show <id>
+apollia agent create <name>
+apollia mcp add <name> <url>
+apollia task list --pending-approval
 ```
 
-Nouns and verbs are predictable :
-- Verbs : `list`, `show`, `create`, `update`, `delete`, `start`, `stop`,
-  `restart`, `logs`, `query`, `import`, `export`, `prune`.
-- Nouns : `agent`, `task`, `tool`, `trigger`, `hooks`, `notify`, `auth`, `mcp`,
-  `permission`, `audit`, `memory`, `session`, `config`.
+**Canonical verbs (ADR-034).** One verb per intent:
+- `show` is the only entity-detail read (absorbs the old `info`, `describe`,
+  and entity-`get`).
+- `create` is the only entity-creation verb (absorbs the old `new`).
+- `delete` for entity deletion.
+- Kept distinct on purpose (verified against real usage):
+  - `get` / `set` for config key/value pairs (`config`, `chat config`,
+    `tools config`, `notify events`), NOT entity reads.
+  - `add` / `remove` for relationships and registrations, git-style
+    (`mcp add`, `project agents add/remove`): they attach/detach, they do not
+    create/delete an entity.
+  - `clear` and `evict` are distinct in `plan cache` (wipe all vs purge by age).
+- Lifecycle verbs stay: `install` / `uninstall`, `revoke`, `enable` / `disable`,
+  `start` / `stop` / `restart`, `reset`, `reload`, `update`.
+- Unambiguous remainder: `list`, `status`, `logs`, `test`, `fire`, `validate`,
+  `export`, `import`, `forget`.
+
+**Bare-verb whitelist (top level, git-style).** These are the only commands
+allowed WITHOUT a noun; everything else is strictly noun-verb:
+`start`, `stop`, `status`, `run`, `doctor`, `inspect`, `logs`, `trace`,
+`version`, `digest`, `onboard`. Plus the meta commands `completions`, `guide`,
+`do`, `explain` (ADR-035/036). Adding to this whitelist requires a note here.
+
+**Folded / renamed nouns (ADR-034):** `mcp-server` -> `mcp server`,
+`chat-config` -> `chat config`, `plan-cache` -> `plan cache`, `user-memory` ->
+`profile`; `hitl` removed (use `task list --pending-approval`).
 
 If you add a new noun, document it here and in `docs/wiki/Briques-CLI.md`.
 

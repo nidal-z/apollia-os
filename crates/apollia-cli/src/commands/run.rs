@@ -131,10 +131,10 @@ pub fn handle_alternatives(
         println!("  {}. {}", i + 1, step.description);
     }
     if alternatives.plan_b.steps.is_empty() {
-        println!("  (aucun step)");
+        println!("  (no steps)");
     }
 
-    print!("\nChoisissez un plan [1/2] : ");
+    print!("\nChoose a plan [1/2]: ");
     io::stdout()
         .flush()
         .map_err(|e| format!("stdout flush failed: {e}"))?;
@@ -215,31 +215,27 @@ pub enum PlanApprovalOutcome {
 
 /// Render the plan steps carried by a `plan_approval_required` event.
 fn print_plan_for_review(data: &serde_json::Value) {
-    println!("\n--- Plan proposé ---");
+    println!("\n--- Proposed plan ---");
     match data["steps"].as_array() {
         Some(steps) if !steps.is_empty() => {
             for (i, step) in steps.iter().enumerate() {
                 let desc = step["description"].as_str().unwrap_or("");
                 match step["tool_hint"].as_str() {
-                    Some(tool) => println!("  {}. {desc}  [outil : {tool}]", i + 1),
+                    Some(tool) => println!("  {}. {desc}  [tool: {tool}]", i + 1),
                     None => println!("  {}. {desc}", i + 1),
                 }
             }
         }
         _ => {
             let count = data["step_count"].as_u64().unwrap_or(0);
-            println!("  ({count} étape(s), détail indisponible)");
+            println!("  ({count} step(s), details unavailable)");
         }
     }
 }
 
 /// Read a single line from stdin, returning `None` when the stream is closed.
 fn read_stdin_line() -> Option<String> {
-    io::stdin()
-        .lock()
-        .lines()
-        .next()
-        .and_then(|r| r.ok())
+    io::stdin().lock().lines().next().and_then(|r| r.ok())
 }
 
 /// Handle a `plan_approval_required` event: display the plan, collect a decision,
@@ -273,7 +269,7 @@ pub async fn handle_plan_approval(
 
     print_plan_for_review(data);
     loop {
-        print!("\n[A]pprouver  [R]ejeter [feedback optionnel]  [Q]uitter : ");
+        print!("\n[A]pprove  [R]eject [optional feedback]  [Q]uit: ");
         let _ = io::stdout().flush();
         let Some(line) = read_stdin_line() else {
             return PlanApprovalOutcome::Quit;
@@ -289,11 +285,11 @@ pub async fn handle_plan_approval(
             }
             PlanDecisionInput::Quit => {
                 submit_plan_decision_request(client, &run_id, "rejected", None).await;
-                println!("Run annulé.");
+                println!("Run cancelled.");
                 return PlanApprovalOutcome::Quit;
             }
             PlanDecisionInput::Invalid => {
-                println!("Entrée invalide. [A]pprouver / [R]ejeter / [Q]uitter");
+                println!("Invalid input. [A]pprove / [R]eject / [Q]uit");
             }
         }
     }
@@ -415,20 +411,20 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 
         // ── Plan gate: approved, execution resumes ───────────────────────
         "plan_approved" => {
-            println!("  ✔ Plan approuvé, exécution en cours.");
+            println!("  ✔ Plan approved, executing.");
             false
         }
 
         // ── Plan gate: rejected, replanning ──────────────────────────────
         "plan_rejected" => {
-            println!("  ↻ Plan rejeté, replanification en cours.");
+            println!("  ↻ Plan rejected, replanning.");
             false
         }
 
         // ── Plan gate: abandoned after the replan limit, terminal ────────
         "plan_abandoned" => {
             let reason = event.data["reason"].as_str().unwrap_or("unknown");
-            eprintln!("  ✗ Run abandonné ({reason}).");
+            eprintln!("  ✗ Run abandoned ({reason}).");
             true
         }
 
@@ -557,8 +553,8 @@ fn handle_plan_alternatives(event: &SseEvent, state: &mut RunDisplayState) {
     match handle_alternatives(&alternatives, &config) {
         Ok(chosen) => {
             let label = match &chosen {
-                ChosenPlan::PlanA => "Plan A (conservateur)",
-                ChosenPlan::PlanB => "Plan B (exploratoire)",
+                ChosenPlan::PlanA => "Plan A (conservative)",
+                ChosenPlan::PlanB => "Plan B (exploratory)",
             };
             println!("  -> {label} selected.");
             state.chosen_plan = Some(chosen);
@@ -788,18 +784,21 @@ async fn surface_cost_ceiling(client: &RuntimeClient, json: bool) {
     }
 
     if json {
+        // Emit the cost summary on stderr so stdout stays a single JSON document
+        // (the task result). A second top-level object on stdout breaks any
+        // strict single-document `--json` parser.
         let summary = RunCostSummary {
             cost_usd,
             ceiling_usd,
             ceiling_reached,
         };
         if let Ok(line) = serde_json::to_string(&summary) {
-            println!("{line}");
+            eprintln!("{line}");
         }
     } else {
         match (cost_usd, ceiling_usd) {
             (Some(cost), Some(ceiling)) => {
-                println!("  cout session : {cost:.2} USD / {ceiling:.2} USD");
+                println!("  session cost: {cost:.2} USD / {ceiling:.2} USD");
                 if ceiling_reached {
                     eprintln!(
                         "  Plafond de cout atteint : le run s'arrete proprement quand ceiling_action = hard_stop"
@@ -807,7 +806,7 @@ async fn surface_cost_ceiling(client: &RuntimeClient, json: bool) {
                 }
             }
             (Some(cost), None) => {
-                println!("  cout session : {cost:.2} USD (aucun plafond hybride configure)");
+                println!("  session cost: {cost:.2} USD (no hybrid cost ceiling configured)");
             }
             _ => {}
         }
@@ -987,12 +986,7 @@ fn poll_terminal_outcome(
 
 /// Render a completed task: its result (or full JSON), elapsed time, and token
 /// budget summary, persisting the budget for the non-`--json` path.
-fn report_completed_task(
-    task_json: &serde_json::Value,
-    task_id: &str,
-    json: bool,
-    start: Instant,
-) {
+fn report_completed_task(task_json: &serde_json::Value, task_id: &str, json: bool, start: Instant) {
     let elapsed = start.elapsed();
     if json {
         println!(

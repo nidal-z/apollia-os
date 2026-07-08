@@ -16,10 +16,10 @@ use hyper::body::Bytes;
 use hyper::client::conn::http1;
 use hyper_util::rt::TokioIo;
 
-#[cfg(unix)]
-use tokio::net::UnixStream;
 #[cfg(windows)]
 use tokio::net::TcpStream;
+#[cfg(unix)]
+use tokio::net::UnixStream;
 
 /// Low-level I/O type used for the daemon to CLI connection.
 #[cfg(unix)]
@@ -46,6 +46,26 @@ pub const DEFAULT_SOCKET_PATH: &str = "/tmp/apollia.sock";
 
 /// Default TCP port for the Apollia runtime.
 pub const DEFAULT_TCP_PORT: u16 = 7771;
+
+/// Parameters for [`RuntimeClient::authorize_tool`].
+///
+/// `decision` is `"accept"`, `"refuse"`, or `"always_accept"`. `reason` is only
+/// honoured for `"refuse"`, `scope` only for `"always_accept"` (one of
+/// `this_tool`, `this_session`, `this_agent`, `this_project`, `global`).
+pub struct AuthorizeToolArgs<'a> {
+    /// Chat session id.
+    pub session_id: &'a str,
+    /// Id of the message that triggered the tool call.
+    pub message_id: &'a str,
+    /// Name of the tool awaiting approval.
+    pub tool_name: &'a str,
+    /// Decision keyword sent to the runtime.
+    pub decision: &'a str,
+    /// Optional rejection reason (only for `"refuse"`).
+    pub reason: Option<&'a str>,
+    /// Optional always-accept scope (only for `"always_accept"`).
+    pub scope: Option<&'a str>,
+}
 
 /// Client for communicating with the Apollia runtime via Unix socket.
 ///
@@ -113,6 +133,24 @@ pub struct RawResponse {
 ///
 /// Tries to parse the body as JSON and read the `"error"` field.
 /// Falls back to the raw body, or a generic message if the body is empty.
+/// Percent-encode a value for use as a single URL path segment.
+///
+/// MCP tool names look like `mcp:server/tool`; the `/` would otherwise split the
+/// path and break `:tool` routing (the tool then reads as not-found). Encodes
+/// everything outside the RFC 3986 unreserved set.
+fn encode_path_segment(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
 fn extract_error(body: &str, status: u16) -> String {
     serde_json::from_str::<serde_json::Value>(body)
         .ok()
@@ -729,6 +767,35 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// One-shot completion via `POST /api/v1/llm/complete`.
+    ///
+    /// Optional `system` prompt + `user` message; `grammar` constrains local
+    /// decoding with GBNF. Returns the parsed response (`content`, `usage`, ...).
+    pub async fn llm_complete(
+        &self,
+        system: Option<&str>,
+        user: &str,
+        grammar: Option<&str>,
+    ) -> Result<serde_json::Value, ClientError> {
+        let mut messages = Vec::new();
+        if let Some(s) = system {
+            messages.push(serde_json::json!({ "role": "system", "content": s }));
+        }
+        messages.push(serde_json::json!({ "role": "user", "content": user }));
+        let mut body = serde_json::json!({ "messages": messages });
+        if let Some(g) = grammar {
+            body["grammar"] = serde_json::Value::String(g.to_string());
+        }
+        let resp = self.post("/api/v1/llm/complete", Some(&body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Get session detail (with message history) via `GET /api/v1/sessions/:id`.
     pub async fn get_chat_session(
         &self,
@@ -816,15 +883,47 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Resolve a pending tool approval via `POST /api/v1/sessions/:id/authorize`.
+    pub async fn authorize_tool(
+        &self,
+        args: &AuthorizeToolArgs<'_>,
+    ) -> Result<serde_json::Value, ClientError> {
+        let mut body = serde_json::json!({
+            "message_id": args.message_id,
+            "tool_name": args.tool_name,
+            "decision": args.decision,
+        });
+        if let Some(r) = args.reason {
+            body["reason"] = serde_json::Value::String(r.to_string());
+        }
+        if let Some(s) = args.scope {
+            body["scope"] = serde_json::Value::String(s.to_string());
+        }
+        let resp = self
+            .post(
+                &format!("/api/v1/sessions/{}/authorize", args.session_id),
+                Some(&body),
+            )
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Open a streaming GET connection for SSE endpoints.
     ///
     /// Unlike [`get`], this method does **not** buffer the entire response body.
     /// It reads HTTP body frames incrementally and yields complete text lines as they
     /// arrive from the server, enabling real-time display of Server-Sent Events.
     ///
-    /// Designed exclusively for `GET /api/v1/tasks/{id}/stream`. Dropping the
-    /// returned stream closes the connection automatically (the background reader
-    /// task exits when the channel receiver is dropped).
+    /// Endpoint-agnostic: used both by `GET /api/v1/tasks/{id}/stream` (task
+    /// progress) and `GET /api/v1/sessions/{id}/stream` (chat tokens). Dropping
+    /// the returned stream closes the connection automatically (the background
+    /// reader task exits when the channel receiver is dropped).
     pub async fn stream_sse_lines(
         &self,
         uri: &str,
@@ -1420,6 +1519,23 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Test an already-installed MCP server by name via
+    /// `POST /api/v1/mcp/servers/{name}/test`. Returns `404` for an unknown
+    /// server (the name-based route is existence-aware).
+    pub async fn test_live_mcp_server(&self, name: &str) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({});
+        let resp = self
+            .post(&format!("/api/v1/mcp/servers/{name}/test"), Some(&body))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Restart an MCP server via `POST /api/v1/mcp/servers/{name}/restart`.
     pub async fn restart_mcp_server(&self, name: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self
@@ -1563,10 +1679,13 @@ impl RuntimeClient {
 
     /// Show the circuit breaker state for one tool via `GET /api/v1/resilience/status/{tool}`.
     ///
-    /// Returns 404 if the tool is not registered in the Tool Registry.
+    /// Returns 404 when the tool has no recorded circuit breaker yet.
     pub async fn resilience_show(&self, tool_name: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self
-            .get(&format!("/api/v1/resilience/status/{tool_name}"))
+            .get(&format!(
+                "/api/v1/resilience/status/{}",
+                encode_path_segment(tool_name)
+            ))
             .await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
@@ -1579,13 +1698,19 @@ impl RuntimeClient {
 
     /// Reset a circuit breaker to CLOSED via `POST /api/v1/resilience/reset/{tool}`.
     ///
-    /// Returns 404 if the tool is not registered in the Tool Registry.
+    /// Returns 404 when the tool has no recorded circuit breaker yet.
     pub async fn resilience_reset(
         &self,
         tool_name: &str,
     ) -> Result<serde_json::Value, ClientError> {
         let resp = self
-            .post(&format!("/api/v1/resilience/reset/{tool_name}"), None)
+            .post(
+                &format!(
+                    "/api/v1/resilience/reset/{}",
+                    encode_path_segment(tool_name)
+                ),
+                None,
+            )
             .await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {

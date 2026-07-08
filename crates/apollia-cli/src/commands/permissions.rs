@@ -163,9 +163,7 @@ fn run_list(scope_filter: Option<&str>, tool_filter: Option<&str>, json: bool) -
         );
     } else {
         print_rules_table(&filtered);
-        println!(
-            "  (session-scoped rules live in the runtime memory - not listable from the CLI)"
-        );
+        println!("  (session-scoped rules live in the runtime memory - not listable from the CLI)");
     }
     exit_codes::SUCCESS
 }
@@ -181,11 +179,11 @@ fn load_rules(
 
 fn print_rules_table(rules: &[PrefixRule]) {
     println!(
-        "  {:<5} {:<18} {:<8} {:<22} {:<14} CRÉÉ LE",
-        "ID", "OUTIL", "PORTÉE", "ARGUMENT", "EXPIRATION"
+        "  {:<5} {:<18} {:<8} {:<22} {:<14} CREATED AT",
+        "ID", "TOOL", "SCOPE", "ARGUMENT", "EXPIRY"
     );
     if rules.is_empty() {
-        println!("  (no persisted rule)");
+        println!("  (no persisted rules)");
         return;
     }
     for r in rules {
@@ -295,10 +293,7 @@ fn run_revoke(
         Err(e) => return emit_error(format!("delete failed: {e}"), json),
     };
     if !removed {
-        return emit_error(
-            format!("rule #{parsed} not found (already revoked?)"),
-            json,
-        );
+        return emit_error(format!("rule #{parsed} not found (already revoked?)"), json);
     }
 
     if json {
@@ -434,7 +429,7 @@ fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
     } else {
         println!(
             "  {:<19} {:<18} {:<28} AGENT",
-            "TIMESTAMP", "OUTIL", "DÉCISION"
+            "TIMESTAMP", "TOOL", "DECISION"
         );
         if entries.is_empty() {
             println!("  (no decision recorded)");
@@ -509,10 +504,7 @@ fn run_add(input: AddRuleInput<'_>, json: bool) -> i32 {
         let canonical = match raw.canonicalize() {
             Ok(p) => p,
             Err(e) => {
-                return emit_error(
-                    format!("cannot canonicalize {}: {e}", raw.display()),
-                    json,
-                );
+                return emit_error(format!("cannot canonicalize {}: {e}", raw.display()), json);
             }
         };
         Some(canonical)
@@ -601,7 +593,10 @@ fn run_add_with_engine(rule: ResolvedRule<'_>, governance_dir: Option<&Path>, js
             "scope": scope_enum.as_str(),
             "project_path": project_buf.as_ref().map(|p| p.display().to_string()),
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else {
         let prefix_str = rule.arg_prefix.as_deref().unwrap_or("*");
         let project_str = project_buf
@@ -641,8 +636,7 @@ fn ensure_governance_db_path() -> Result<PathBuf, String> {
         std::fs::create_dir_all(&base)
             .map_err(|e| format!("failed to create {}: {e}", base.display()))?;
     }
-    let db = GovernanceDb::open(&base)
-        .map_err(|e| format!("failed to open governance.db: {e}"))?;
+    let db = GovernanceDb::open(&base).map_err(|e| format!("failed to open governance.db: {e}"))?;
     Ok(db.path().to_path_buf())
 }
 
@@ -884,9 +878,7 @@ mod tests {
             #[command(subcommand)]
             cmd: PermissionsCommand,
         }
-        let cli = TestCli::parse_from([
-            "x", "add", "--tool", "web_search", "--scope", "global",
-        ]);
+        let cli = TestCli::parse_from(["x", "add", "--tool", "web_search", "--scope", "global"]);
         match cli.cmd {
             PermissionsCommand::Add {
                 tool,

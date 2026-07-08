@@ -116,7 +116,7 @@ pub enum McpCommand {
     },
 
     /// Show the details of an MCP server.
-    Get {
+    Show {
         /// Server name.
         name: String,
     },
@@ -181,6 +181,12 @@ pub enum McpCommand {
         #[command(subcommand)]
         command: McpSecretCommand,
     },
+
+    /// Launch Apollia as an MCP stdio server for external clients.
+    ///
+    /// Exposes native tools to MCP clients (Claude Desktop, VS Code, Cursor).
+    /// Use `--with-runtime` to additionally expose `submit_task`.
+    Server(super::mcp_server::McpServerArgs),
 }
 
 /// Subcommands of `apollia-os mcp secret`.
@@ -326,7 +332,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             run_remove(&client, name, *confirm, json).await
         }
 
-        McpCommand::Get { name } => {
+        McpCommand::Show { name } => {
             let client = make_runtime_client(socket);
             run_get_server(&client, name, json).await
         }
@@ -365,6 +371,14 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             let client = make_runtime_client(socket);
             run_get_raw_config(&client, name, json).await
         }
+
+        McpCommand::Server(args) => match super::mcp_server::run(args).await {
+            Ok(()) => exit_codes::SUCCESS,
+            Err(e) => {
+                eprintln!("Error: {e}");
+                exit_codes::GENERAL_ERROR
+            }
+        },
 
         McpCommand::Oauth { command } => crate::commands::mcp_oauth::run(command, json).await,
 
@@ -553,6 +567,23 @@ async fn run_add(client: &RuntimeClient, spec: ServerSpec<'_>, json: bool) -> i3
 
 /// `apollia-os mcp remove <name>`: remove an MCP server from the runtime.
 async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: bool) -> i32 {
+    // Existence check BEFORE the confirm gate: a missing server must report
+    // not-found rather than prompting for a `--confirm` that can never succeed.
+    if let Err(e) = client.get_mcp_server_detail(name).await {
+        return match e {
+            ClientError::ServerError { status: 404, body } => {
+                if json {
+                    let out = serde_json::json!({"error": body});
+                    println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+                } else {
+                    eprintln!("Error: MCP server '{name}' not found");
+                }
+                exit_codes::GENERAL_ERROR
+            }
+            other => handle_client_error(other, json),
+        };
+    }
+
     if !confirm {
         if json {
             let output = serde_json::json!({"error": "use --confirm to remove without prompt"});
@@ -601,14 +632,39 @@ async fn run_get_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-                let transport = resp
-                    .get("transport")
+                let config = resp.get("config");
+                let status = resp.get("status");
+                let transport = config
+                    .and_then(|c| c.get("transport"))
+                    .and_then(|v| v.as_str())
+                    .or_else(|| {
+                        status
+                            .and_then(|s| s.get("transport"))
+                            .and_then(|v| v.as_str())
+                    })
+                    .unwrap_or("?");
+                let connected = status
+                    .and_then(|s| s.get("connected"))
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false);
+                let health = status
+                    .and_then(|s| s.get("health"))
+                    .and_then(|h| h.get("state"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("?");
-                println!("  Serveur   : {name}");
+                let tools = resp.get("tools").and_then(|v| v.as_array());
+                println!("  Server    : {name}");
                 println!("  Transport : {transport}");
-                println!("  Statut    : {status}");
+                println!("  Connected : {}", if connected { "yes" } else { "no" });
+                println!("  Health    : {health}");
+                println!("  Tools     : {}", tools.map(Vec::len).unwrap_or(0));
+                if let Some(arr) = tools {
+                    for t in arr {
+                        if let Some(n) = t.get("name").and_then(|v| v.as_str()) {
+                            println!("    - {n}");
+                        }
+                    }
+                }
             }
             exit_codes::SUCCESS
         }
@@ -625,10 +681,13 @@ async fn run_get_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os mcp test <target>`: test the connection to an MCP server.
+/// `apollia-os mcp test <name>`: re-handshake an already-installed MCP server.
+///
+/// Routes to the name-based, existence-aware endpoint so a missing server
+/// reports a clean not-found (exit 1) instead of leaking a raw deserialization
+/// error from the ephemeral-config route.
 async fn run_test_connection(client: &RuntimeClient, target: &str, json: bool) -> i32 {
-    let body = serde_json::json!({ "target": target });
-    match client.test_mcp_connection(&body).await {
+    match client.test_live_mcp_server(target).await {
         Ok(resp) => {
             if json {
                 println!(
@@ -636,19 +695,39 @@ async fn run_test_connection(client: &RuntimeClient, target: &str, json: bool) -
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                let ok = resp.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
-                let latency = resp.get("latency_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-                if ok {
-                    println!("✔ Connection succeeded ({latency}ms)");
-                } else {
-                    let err = resp
-                        .get("error")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown");
-                    println!("✗ Connection failed: {err}");
+                match resp.get("kind").and_then(|v| v.as_str()) {
+                    Some("success") => {
+                        let tools = resp
+                            .get("result")
+                            .and_then(|r| r.get("tools"))
+                            .and_then(|t| t.as_array())
+                            .map(|a| a.len())
+                            .unwrap_or(0);
+                        let latency = resp
+                            .get("result")
+                            .and_then(|r| r.get("test_duration_ms"))
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0);
+                        println!("✔ MCP server '{target}' reachable ({tools} tools, {latency}ms)");
+                    }
+                    Some("oauth_required") => {
+                        println!(
+                            "✗ MCP server '{target}' requires authentication (run the OAuth flow)"
+                        );
+                    }
+                    _ => println!("✗ MCP server '{target}' test returned an unexpected response"),
                 }
             }
             exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: MCP server '{target}' not found");
+            }
+            exit_codes::GENERAL_ERROR
         }
         Err(e) => handle_client_error(e, json),
     }
@@ -1073,7 +1152,11 @@ fn push_configured_servers(out: &mut String, config: &McpConfig, tty: bool) {
 }
 
 /// Renders the discovered-servers section of the human list output.
-fn push_discovered_servers(out: &mut String, discovered: &[discovery::DiscoveredServer], tty: bool) {
+fn push_discovered_servers(
+    out: &mut String,
+    discovered: &[discovery::DiscoveredServer],
+    tty: bool,
+) {
     if discovered.is_empty() {
         out.push_str("No MCP server discovered on the local network.\n");
         return;
@@ -1342,11 +1425,11 @@ mod tests {
     fn test_mcp_get_parses() {
         // GIVEN "get code-tools"
         // WHEN
-        let cli = TestCli::parse_from(["apollia-os", "get", "code-tools"]);
-        // THEN McpCommand::Get { name: "code-tools" }
+        let cli = TestCli::parse_from(["apollia-os", "show", "code-tools"]);
+        // THEN McpCommand::Show { name: "code-tools" }
         match &cli.command {
-            McpCommand::Get { name } => assert_eq!(name, "code-tools"),
-            other => panic!("expected Get, got {other:?}"),
+            McpCommand::Show { name } => assert_eq!(name, "code-tools"),
+            other => panic!("expected Show, got {other:?}"),
         }
     }
 
@@ -1544,7 +1627,12 @@ mod tests {
         ]);
         match cli.cmd {
             McpCommand::Secret {
-                command: McpSecretCommand::Set { server, env_var, value },
+                command:
+                    McpSecretCommand::Set {
+                        server,
+                        env_var,
+                        value,
+                    },
             } => {
                 assert_eq!(server, "notion");
                 assert_eq!(env_var, "NOTION_API_KEY");
@@ -1588,6 +1676,9 @@ mod tests {
 
     #[test]
     fn mcp_secret_key_composes_pair() {
-        assert_eq!(mcp_secret_key("notion", "NOTION_API_KEY"), "notion:NOTION_API_KEY");
+        assert_eq!(
+            mcp_secret_key("notion", "NOTION_API_KEY"),
+            "notion:NOTION_API_KEY"
+        );
     }
 }

@@ -52,6 +52,17 @@ pub enum AuditCommand {
         #[arg(value_name = "RUN")]
         run: String,
     },
+    /// Show a run's full journal, including the model's LLM completions.
+    ///
+    /// Unlike `audit list`/`export` (the tool-only audit trail), this reads the
+    /// hash-chained journal so the captured reasoning (prompts/responses) is
+    /// readable. Accepts a run_id or a task_id (resolved to its run_id).
+    #[command(name = "show")]
+    Show {
+        /// Run identifier, or a task_id that maps to one.
+        #[arg(value_name = "RUN_OR_TASK")]
+        run: String,
+    },
 }
 
 /// Execute an `audit` subcommand.
@@ -69,6 +80,106 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
         }
         AuditCommand::Verify { run_id } => run_verify(&client, run_id, json).await,
         AuditCommand::Replay { run } => run_replay(&client, run, json).await,
+        AuditCommand::Show { run } => run_show(&client, run, json).await,
+    }
+}
+
+/// `apollia-os audit show <run>`: print a run's journal (tool calls + LLM
+/// completions). Accepts a run_id or a task_id (resolved to its run_id).
+async fn run_show(client: &RuntimeClient, arg: &str, json: bool) -> i32 {
+    // Resolve a task_id to its run_id if the argument is not a known run.
+    let mut run = arg.to_string();
+    let resp = match fetch_journal(client, &run).await {
+        Some(r) => Some(r),
+        None => {
+            if let Some(rid) = resolve_task_to_run(client, arg).await {
+                if rid != run {
+                    run = rid;
+                    fetch_journal(client, &run).await
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+    };
+
+    let Some(body) = resp else {
+        if json {
+            println!("{}", serde_json::json!({"error": "not_found", "run": arg}));
+        } else {
+            eprintln!("no journal entries for '{arg}' (tried as run_id and task_id)");
+        }
+        return exit_codes::GENERAL_ERROR;
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
+        return exit_codes::SUCCESS;
+    }
+
+    let entries = body
+        .get("entries")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    println!("  Journal for run {run}  ({} entries)", entries.len());
+    for e in &entries {
+        let seq = e
+            .get("seq")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0);
+        let kind = e.get("kind").and_then(|v| v.as_str()).unwrap_or("?");
+        let signed = if e.get("signature").map(|v| !v.is_null()).unwrap_or(false) {
+            "signed"
+        } else {
+            "unsigned"
+        };
+        let summary = journal_entry_summary(kind, e.get("payload"));
+        println!("  [{seq:>3}] {kind:<20} {signed:<8} {summary}");
+    }
+    exit_codes::SUCCESS
+}
+
+/// Fetch a run's journal entries; `None` on 404 / error.
+async fn fetch_journal(client: &RuntimeClient, run_id: &str) -> Option<serde_json::Value> {
+    let resp = client
+        .get(&format!("/api/v1/audit/journal/{run_id}"))
+        .await
+        .ok()?;
+    if resp.status >= 400 {
+        return None;
+    }
+    serde_json::from_str(&resp.body).ok()
+}
+
+/// One-line summary of a journal entry for the human view (the model's response
+/// text for `llm_completion`, the tool name for tool calls).
+fn journal_entry_summary(kind: &str, payload: Option<&serde_json::Value>) -> String {
+    let Some(p) = payload else {
+        return String::new();
+    };
+    match kind {
+        "llm_completion" => {
+            let content = p.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            let one_line = content.replace('\n', " ");
+            let trimmed: String = one_line.chars().take(80).collect();
+            if one_line.chars().count() > 80 {
+                format!("{trimmed}...")
+            } else {
+                trimmed
+            }
+        }
+        _ => p
+            .get("tool_name")
+            .or_else(|| p.get("name"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
     }
 }
 
@@ -76,34 +187,77 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
 ///
 /// Exit 0 when the chain is intact, 1 when a link is broken or the run is
 /// unknown, 2 when the runtime is not reachable.
-async fn run_verify(client: &RuntimeClient, run_id: &str, json: bool) -> i32 {
+/// Resolve a `task_id` to the `run_id` it belongs to via `GET /api/v1/tasks/{id}`.
+///
+/// Returns `None` when the id is unknown or carries no run_id (e.g. a task
+/// submitted before run_id assignment).
+async fn resolve_task_to_run(client: &RuntimeClient, id: &str) -> Option<String> {
+    let resp = client.get(&format!("/api/v1/tasks/{id}")).await.ok()?;
+    if resp.status >= 400 {
+        return None;
+    }
+    let body: serde_json::Value = serde_json::from_str(&resp.body).ok()?;
+    body.get("run_id")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+}
+
+/// Outcome of a single verify request.
+enum VerifyOutcome {
+    /// A terminal result was produced; carries the process exit code.
+    Done(i32),
+    /// The run_id is unknown to the journal (candidate for task_id resolution).
+    NotFound,
+}
+
+async fn run_verify(client: &RuntimeClient, arg: &str, json: bool) -> i32 {
+    // First attempt: treat the argument as a run_id.
+    match verify_once(client, arg, json).await {
+        VerifyOutcome::Done(code) => code,
+        VerifyOutcome::NotFound => {
+            // Fall back: the argument may be a task_id. Resolve it to its run_id
+            // and retry once (the journal is keyed by run_id, not task_id).
+            if let Some(rid) = resolve_task_to_run(client, arg).await {
+                if rid != arg {
+                    if let VerifyOutcome::Done(code) = verify_once(client, &rid, json).await {
+                        return code;
+                    }
+                }
+            }
+            if json {
+                let output = serde_json::json!({"ok": false, "error": "not_found"});
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&output).unwrap_or_default()
+                );
+            } else {
+                eprintln!("not found in journal (tried as run_id and task_id): {arg}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+/// Issue one verify request for `run_id` and interpret the response.
+async fn verify_once(client: &RuntimeClient, run_id: &str, json: bool) -> VerifyOutcome {
     let uri = format!("/api/v1/audit/verify/{run_id}");
     let resp = match client.get(&uri).await {
         Ok(r) => r,
-        Err(e) => return handle_error(e, json),
+        Err(e) => return VerifyOutcome::Done(handle_error(e, json)),
     };
 
     if resp.status == 404 {
-        if json {
-            let output = serde_json::json!({"ok": false, "error": "not_found"});
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).unwrap_or_default()
-            );
-        } else {
-            eprintln!("run_id not found in journal: {run_id}");
-        }
-        return exit_codes::GENERAL_ERROR;
+        return VerifyOutcome::NotFound;
     }
     if resp.status >= 400 {
-        return handle_server_error(resp.status, &resp.body, json);
+        return VerifyOutcome::Done(handle_server_error(resp.status, &resp.body, json));
     }
 
     let report: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
+            return VerifyOutcome::Done(exit_codes::GENERAL_ERROR);
         }
     };
 
@@ -123,7 +277,7 @@ async fn run_verify(client: &RuntimeClient, run_id: &str, json: bool) -> i32 {
         if !json {
             println!("OK    {run_id}  {checked} entries verified");
         }
-        exit_codes::SUCCESS
+        VerifyOutcome::Done(exit_codes::SUCCESS)
     } else {
         if !json {
             let (seq, reason) = report
@@ -140,7 +294,7 @@ async fn run_verify(client: &RuntimeClient, run_id: &str, json: bool) -> i32 {
                 .unwrap_or((0, "unknown".to_string()));
             println!("FAIL  {run_id}  broken link at seq={seq} ({reason})");
         }
-        exit_codes::GENERAL_ERROR
+        VerifyOutcome::Done(exit_codes::GENERAL_ERROR)
     }
 }
 
@@ -149,11 +303,31 @@ async fn run_verify(client: &RuntimeClient, run_id: &str, json: bool) -> i32 {
 /// Exit 0 when the replay is identical, 2 when it diverges, 1 on any error
 /// (run not found, ambiguous prefix, incomplete trace, runtime unreachable).
 async fn run_replay(client: &RuntimeClient, run: &str, json: bool) -> i32 {
-    let uri = format!("/api/v1/audit/replay/{run}");
-    let resp = match client.post(&uri, None).await {
+    let mut effective = run.to_string();
+    let mut resp = match client
+        .post(&format!("/api/v1/audit/replay/{effective}"), None)
+        .await
+    {
         Ok(r) => r,
         Err(e) => return handle_error(e, json),
     };
+    // Fall back: the argument may be a task_id. Resolve it to its run_id and
+    // retry once (the journal is keyed by run_id, not task_id).
+    if resp.status == 404 {
+        if let Some(rid) = resolve_task_to_run(client, run).await {
+            if rid != run {
+                effective = rid;
+                resp = match client
+                    .post(&format!("/api/v1/audit/replay/{effective}"), None)
+                    .await
+                {
+                    Ok(r) => r,
+                    Err(e) => return handle_error(e, json),
+                };
+            }
+        }
+    }
+    let run = effective.as_str();
 
     let report: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
@@ -418,8 +592,8 @@ fn format_audit_list(
         .unwrap_or_default();
 
     println!(
-        "  {:<19} {:<24} {:<20} {:<8} {:<8}",
-        "TIMESTAMP", "AGENT", "TOOL", "STATUS", "MS"
+        "  {:<19} {:<24} {:<20} {:<8} {:<8} {:<10}",
+        "TIMESTAMP", "AGENT", "TOOL", "STATUS", "MS", "RUN"
     );
 
     if events.is_empty() {
@@ -456,9 +630,16 @@ fn format_audit_list(
                 .and_then(|v| v.as_u64())
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "-".to_string());
+            // Full run_id (last column): it must be copy-pasteable into
+            // `audit verify <run_id>`, so it is NOT truncated.
+            let run = event
+                .get("run_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+                .to_string();
             println!(
-                "  {:<19} {:<24} {:<20} {:<8} {:<8}",
-                ts, agent, tool, status, ms
+                "  {:<19} {:<24} {:<20} {:<8} {:<8} {:<10}",
+                ts, agent, tool, status, ms, run
             );
         }
     }

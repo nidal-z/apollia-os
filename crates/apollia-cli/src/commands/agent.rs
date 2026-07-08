@@ -40,13 +40,13 @@ pub enum AgentCommand {
         agent_id: String,
     },
     /// Display detailed information about an agent.
-    Info {
+    Show {
         /// Agent identifier.
         agent_id: String,
     },
     /// Show a compact runtime-status snapshot for `<agent_id>`.
     ///
-    /// Distilled view of `agent info` focused on online / idle / error state.
+    /// Distilled view of `agent show` focused on online / idle / error state.
     /// Useful in poll loops where the full info payload is overkill.
     Status {
         /// Agent identifier.
@@ -97,7 +97,7 @@ pub enum AgentCommand {
         path: PathBuf,
     },
     /// Create a new agent from an SDK template.
-    New {
+    Create {
         /// Agent name in kebab-case (e.g. my-agent).
         name: String,
 
@@ -144,7 +144,7 @@ pub enum PackageCommand {
     /// List all installed agent packages.
     List,
     /// Show details for an installed package.
-    Info {
+    Show {
         /// Package name.
         name: String,
     },
@@ -166,7 +166,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet:
         AgentCommand::List { supports_a2a } => run_list(&client, *supports_a2a, json, quiet).await,
         AgentCommand::Start { path } => run_start(&client, path, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
-        AgentCommand::Info { agent_id } => run_info(&client, agent_id, json).await,
+        AgentCommand::Show { agent_id } => run_info(&client, agent_id, json).await,
         AgentCommand::Status { agent_id } => run_status(&client, agent_id, json).await,
         AgentCommand::Messages { agent_id, limit } => {
             run_messages(&client, agent_id, *limit, json).await
@@ -178,10 +178,10 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet:
         AgentCommand::Enable { name } => run_enable(&client, name, json).await,
         AgentCommand::Disable { name } => run_disable(&client, name, json).await,
         AgentCommand::Update { name, path } => run_update(name, path, json),
-        AgentCommand::New { name, r#type } => run_new(name, r#type, json),
+        AgentCommand::Create { name, r#type } => run_new(name, r#type, json),
         AgentCommand::Package { cmd } => match cmd {
             PackageCommand::List => run_package_list(json),
-            PackageCommand::Info { name } => run_package_info(name, json),
+            PackageCommand::Show { name } => run_package_info(name, json),
             PackageCommand::Uninstall { name } => run_package_uninstall(name, json).await,
         },
         AgentCommand::Logs {
@@ -407,7 +407,9 @@ async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
         // registry but still present in `agents.db`. Fall back to the local
         // repository so `apollia-os agent info` works on every installed
         // agent regardless of its runtime state.
-        Err(ClientError::ServerError { status: 404, .. }) => run_info_local_fallback(agent_id, json),
+        Err(ClientError::ServerError { status: 404, .. }) => {
+            run_info_local_fallback(agent_id, json)
+        }
         Err(e) => handle_error(e, json),
     }
 }
@@ -447,11 +449,20 @@ async fn run_status(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
 
 /// Render the compact runtime-status snapshot produced by `agent status`.
 fn format_status_snapshot(resp: &serde_json::Value, agent_id: &str, json: bool) {
-    let name = resp.get("name").and_then(|v| v.as_str()).unwrap_or(agent_id);
-    let state = resp.get("state").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let name = resp
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or(agent_id);
+    let state = resp
+        .get("state")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
     let started_at = resp.get("started_at").and_then(|v| v.as_str());
     let last_activity = resp.get("last_activity_at").and_then(|v| v.as_str());
-    let active_tasks = resp.get("active_tasks").and_then(|v| v.as_u64()).unwrap_or(0);
+    let active_tasks = resp
+        .get("active_tasks")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     let completed_tasks = resp
         .get("completed_tasks")
         .and_then(|v| v.as_u64())
@@ -465,7 +476,10 @@ fn format_status_snapshot(resp: &serde_json::Value, agent_id: &str, json: bool) 
             "started_at": started_at,
             "last_activity_at": last_activity,
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
         return;
     }
     let glyph = match state {
@@ -486,17 +500,15 @@ fn format_status_snapshot(resp: &serde_json::Value, agent_id: &str, json: bool) 
 }
 
 /// `apollia-os agent messages <id>`: list in-memory A2A messages.
-async fn run_messages(
-    client: &RuntimeClient,
-    agent_id: &str,
-    limit: u32,
-    json: bool,
-) -> i32 {
+async fn run_messages(client: &RuntimeClient, agent_id: &str, limit: u32, json: bool) -> i32 {
     let limit_opt = if limit == 0 { None } else { Some(limit) };
     match client.list_agent_messages(agent_id, limit_opt).await {
         Ok(resp) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&resp).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
                 return exit_codes::SUCCESS;
             }
             let empty: Vec<serde_json::Value> = Vec::new();
@@ -512,15 +524,9 @@ async fn run_messages(
                 "  A2A messages for {agent_id} ({} returned, limit {limit}):",
                 messages.len()
             );
-            println!(
-                "  {:<24} {:<22} PAYLOAD",
-                "FROM", "SENT_AT"
-            );
+            println!("  {:<24} {:<22} PAYLOAD", "FROM", "SENT_AT");
             for m in messages {
-                let from = m
-                    .get("from_agent")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?");
+                let from = m.get("from_agent").and_then(|v| v.as_str()).unwrap_or("?");
                 let sent_at = m.get("sent_at").and_then(|v| v.as_str()).unwrap_or("?");
                 let payload_str = m
                     .get("payload")
@@ -1923,25 +1929,31 @@ fn build_list_json(
     let mut entries: Vec<serde_json::Value> = Vec::new();
 
     for agent in installed {
-        let runtime_status = runtime_agents
-            .and_then(|agents| {
-                agents.iter().find(|a| {
-                    a.get("name")
+        let runtime_entry = runtime_agents.and_then(|agents| {
+            agents.iter().find(|a| {
+                a.get("name")
+                    .and_then(|n| n.as_str())
+                    .is_some_and(|n| n == agent.name)
+                    || a.get("manifest")
+                        .and_then(|m| m.get("name"))
                         .and_then(|n| n.as_str())
                         .is_some_and(|n| n == agent.name)
-                        || a.get("manifest")
-                            .and_then(|m| m.get("name"))
-                            .and_then(|n| n.as_str())
-                            .is_some_and(|n| n == agent.name)
-                })
             })
+        });
+        // Match `agent info` and the runtime shape: key is `state`, and the
+        // runtime `agent_id` is surfaced so automation can map name -> id.
+        let state = runtime_entry
             .and_then(|a| a.get("state").and_then(|s| s.as_str()))
             .unwrap_or("-");
+        let agent_id = runtime_entry
+            .and_then(|a| a.get("agent_id").cloned())
+            .unwrap_or(serde_json::Value::Null);
 
         entries.push(serde_json::json!({
+            "agent_id": agent_id,
             "name": agent.name,
             "version": agent.version,
-            "status": runtime_status,
+            "state": state,
             "enabled": agent.enabled,
             "installed": true,
         }));
@@ -1964,13 +1976,18 @@ fn build_list_json(
             let already_listed = installed.iter().any(|i| i.name == name);
             if !already_listed {
                 let state = agent.get("state").and_then(|v| v.as_str()).unwrap_or("?");
+                let agent_id = agent
+                    .get("agent_id")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
                 entries.push(serde_json::json!({
+                    "agent_id": agent_id,
                     "name": name,
                     "version": agent.get("manifest")
                         .and_then(|m| m.get("version"))
                         .and_then(|v| v.as_str())
                         .unwrap_or("-"),
-                    "status": state,
+                    "state": state,
                     "enabled": serde_json::Value::Null,
                     "installed": false,
                 }));
@@ -2090,6 +2107,12 @@ fn format_agent_detail(resp: &serde_json::Value) {
         if !desc.is_empty() {
             println!("  Desc      : {desc}");
         }
+        if let Some(max) = manifest
+            .get("max_concurrent_tasks")
+            .and_then(|v| v.as_u64())
+        {
+            println!("  Max concurrency : {max}");
+        }
     }
 }
 
@@ -2160,6 +2183,21 @@ async fn run_logs(
         return run_logs_follow(client, agent_id, json).await;
     }
 
+    // Validate the agent exists before falling back to the audit trail, so a
+    // typo'd name reports not-found (exit 1) like the rest of the `agent`
+    // family rather than silently printing "no recent activity" with exit 0.
+    match client.get_agent(agent_id).await {
+        Ok(_) => {}
+        Err(ClientError::ServerError { status: 404, .. }) => {
+            // Disabled / not-yet-loaded agents are absent from the runtime
+            // registry but still installed; accept them via the local repo.
+            if local_agent_detail(agent_id).is_none() {
+                return print_compact_error_and_exit(&format!("agent not found: {agent_id}"), json);
+            }
+        }
+        Err(e) => return handle_error(e, json),
+    }
+
     // Fetch a generous slice of recent audit events. We cap at 500
     // (runtime hard limit) and client-side filter on agent_id, then keep
     // the last `last` matches. This is O(500) per call, fine for an
@@ -2225,11 +2263,30 @@ async fn run_logs(
 
 /// Print a single audit event as an aligned text row for `agent logs`.
 fn print_audit_event_row(e: &serde_json::Value) {
-    let ts = e.get("timestamp").and_then(|v| v.as_str()).unwrap_or("?");
-    let tool = e.get("tool").and_then(|v| v.as_str()).unwrap_or("?");
-    let outcome = e.get("outcome").and_then(|v| v.as_str()).unwrap_or("?");
+    println!("{}", format_audit_event_row(e));
+}
+
+/// Format a single audit event as an aligned text row for `agent logs`.
+///
+/// Reads the audit-event JSON shape returned by `GET /api/v1/agents/:id/logs`
+/// (`started_at`, `tool_name`, `success`, `error_code`, `duration_ms`,
+/// `task_id`), matching what `agent logs --json` emits.
+fn format_audit_event_row(e: &serde_json::Value) -> String {
+    let ts = e.get("started_at").and_then(|v| v.as_str()).unwrap_or("?");
+    let tool = e.get("tool_name").and_then(|v| v.as_str()).unwrap_or("?");
+    let outcome = match e.get("success").and_then(|v| v.as_bool()) {
+        Some(true) => "ok",
+        Some(false) => e
+            .get("error_code")
+            .and_then(|v| v.as_str())
+            .unwrap_or("FAILED"),
+        None => "?",
+    };
     let task = e.get("task_id").and_then(|v| v.as_str()).unwrap_or("-");
-    println!("  {ts}  {tool:<20} {outcome:<10} task={task}");
+    match e.get("duration_ms").and_then(|v| v.as_u64()) {
+        Some(ms) => format!("  {ts}  {tool:<32} {outcome:<8} {ms:>5}ms  task={task}"),
+        None => format!("  {ts}  {tool:<32} {outcome:<8}          task={task}"),
+    }
 }
 
 /// `apollia-os agent logs <id> --follow`: live stream placeholder.
@@ -2254,7 +2311,10 @@ async fn run_logs_follow(_client: &RuntimeClient, agent_id: &str, json: bool) ->
             "hint": "use `agent logs <id> --last N` for the audit-trail fallback",
             "tracking": "v0.1.1",
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else {
         eprintln!("Error: {msg}");
     }
@@ -2716,24 +2776,31 @@ mod tests {
         let result = build_list_json(&installed, &runtime);
         let agents = result["agents"].as_array().expect("should be array");
 
-        // THEN all agents are present with correct status
+        // THEN all agents are present with the runtime `state` key + agent_id
         assert_eq!(agents.len(), 3);
 
-        // agent-active: installed, enabled, runtime Active
+        // agent-active: installed, enabled, runtime Active, id surfaced
         assert_eq!(agents[0]["name"], "agent-active");
-        assert_eq!(agents[0]["status"], "Active");
+        assert_eq!(agents[0]["state"], "Active");
+        assert_eq!(agents[0]["agent_id"], "uuid-1");
         assert_eq!(agents[0]["enabled"], true);
         assert_eq!(agents[0]["installed"], true);
+        assert!(
+            agents[0].get("status").is_none(),
+            "legacy `status` key must be gone"
+        );
 
-        // agent-disabled: installed, disabled, not in runtime
+        // agent-disabled: installed, disabled, not in runtime -> no agent_id
         assert_eq!(agents[1]["name"], "agent-disabled");
-        assert_eq!(agents[1]["status"], "-");
+        assert_eq!(agents[1]["state"], "-");
+        assert_eq!(agents[1]["agent_id"], serde_json::Value::Null);
         assert_eq!(agents[1]["enabled"], false);
         assert_eq!(agents[1]["installed"], true);
 
-        // runtime-only: not installed
+        // runtime-only: not installed, id surfaced
         assert_eq!(agents[2]["name"], "runtime-only");
-        assert_eq!(agents[2]["status"], "Active");
+        assert_eq!(agents[2]["state"], "Active");
+        assert_eq!(agents[2]["agent_id"], "uuid-3");
         assert_eq!(agents[2]["installed"], false);
     }
 
@@ -2832,7 +2899,7 @@ mod tests {
 
     #[test]
     fn test_new_default_type_is_react() {
-        // GIVEN the AgentCommand::New parsed without --type
+        // GIVEN the AgentCommand::Create parsed without --type
         use clap::Parser;
 
         #[derive(Debug, Parser)]
@@ -2841,14 +2908,14 @@ mod tests {
             cmd: AgentCommand,
         }
 
-        let cli = TestCli::parse_from(["test", "new", "simple-bot"]);
+        let cli = TestCli::parse_from(["test", "create", "simple-bot"]);
         // THEN the default type is "react"
         match cli.cmd {
-            AgentCommand::New { name, r#type } => {
+            AgentCommand::Create { name, r#type } => {
                 assert_eq!(name, "simple-bot");
                 assert_eq!(r#type, "react");
             }
-            other => panic!("expected AgentCommand::New, got {other:?}"),
+            other => panic!("expected AgentCommand::Create, got {other:?}"),
         }
     }
 
@@ -3068,5 +3135,47 @@ mod tests {
         assert_eq!(files.len(), 2);
         assert!(files.contains(&"agent.py".to_string()));
         assert!(files.contains(&"tests/test_agent.py".to_string()));
+    }
+
+    #[test]
+    fn test_format_audit_event_row_uses_real_keys() {
+        // GIVEN an audit event with the real JSON shape from GET /agents/:id/logs
+        let event = serde_json::json!({
+            "started_at": "2026-07-01T15:05:32Z",
+            "tool_name": "mcp:yumni/list_criteria",
+            "success": true,
+            "duration_ms": 13,
+            "task_id": "dcd2713a-0000-4000-8000-000000000000",
+        });
+
+        // WHEN the row is formatted
+        let row = format_audit_event_row(&event);
+
+        // THEN the real values render (no stray `?` placeholders)
+        assert!(!row.contains('?'), "row still has `?` placeholders: {row}");
+        assert!(row.contains("2026-07-01T15:05:32Z"));
+        assert!(row.contains("mcp:yumni/list_criteria"));
+        assert!(row.contains("ok"));
+        assert!(row.contains("13ms"));
+        assert!(row.contains("task=dcd2713a-0000-4000-8000-000000000000"));
+    }
+
+    #[test]
+    fn test_format_audit_event_row_failed_uses_error_code() {
+        // GIVEN a failed audit event carrying an error_code and no duration
+        let event = serde_json::json!({
+            "started_at": "2026-07-01T15:06:00Z",
+            "tool_name": "mcp:yumni/write",
+            "success": false,
+            "error_code": "PERMISSION_DENIED",
+            "task_id": "abc",
+        });
+
+        // WHEN the row is formatted
+        let row = format_audit_event_row(&event);
+
+        // THEN the error code is surfaced as the outcome
+        assert!(row.contains("PERMISSION_DENIED"), "row: {row}");
+        assert!(row.contains("task=abc"));
     }
 }

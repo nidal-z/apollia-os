@@ -464,7 +464,9 @@ fn format_trigger_detail(resp: &serde_json::Value) {
 /// renders as `(secret hidden)` so we never print a shared secret in the
 /// status output.
 fn trigger_detail_from_config(kind: &str, config: Option<&serde_json::Value>) -> String {
-    let Some(cfg) = config else { return String::new() };
+    let Some(cfg) = config else {
+        return String::new();
+    };
     let pick = |k: &str| {
         cfg.get(k)
             .and_then(|v| v.as_str())
@@ -750,7 +752,10 @@ async fn run_update(client: &RuntimeClient, args: UpdateArgs<'_>, json: bool) ->
         }
     }
 
-    let agent = current.get("agent").cloned().unwrap_or(serde_json::Value::Null);
+    let agent = current
+        .get("agent")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     let enabled = current
         .get("enabled")
         .and_then(|v| v.as_bool())

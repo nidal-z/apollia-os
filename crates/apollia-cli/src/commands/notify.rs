@@ -320,7 +320,7 @@ fn format_channel_list(resp: &serde_json::Value) {
         .cloned()
         .unwrap_or_default();
 
-    println!("  {:<16} {:<10} {:<40} STATUT", "ID", "TYPE", "EVENTS");
+    println!("  {:<16} {:<10} {:<40} STATUS", "ID", "TYPE", "EVENTS");
 
     if channels.is_empty() {
         println!("  (no channels configured)");
@@ -444,10 +444,7 @@ async fn run_create(client: &RuntimeClient, args: CreateArgs<'_>, json: bool) ->
     if kind == "webhook" && url.is_none() {
         let msg = "--url is required for webhook channels";
         if json {
-            println!(
-                "{}",
-                serde_json::json!({ "error": msg })
-            );
+            println!("{}", serde_json::json!({ "error": msg }));
         } else {
             eprintln!("Error: {msg}");
         }

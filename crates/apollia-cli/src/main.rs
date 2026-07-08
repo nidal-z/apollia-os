@@ -17,24 +17,22 @@ pub mod exit_codes;
 
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 
 use commands::a2a::A2aCommand;
 use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
 use commands::auth::AuthCommand;
-use commands::hooks::HooksCommand;
 use commands::chat;
 use commands::config::ConfigCommand;
 use commands::connector::ConnectorCommand;
+use commands::hooks::HooksCommand;
 use commands::llm::LlmCommand;
 use commands::mcp::McpCommand;
-use commands::mcp_server::McpServerArgs;
 use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
 use commands::permissions::PermissionsCommand;
-use commands::plan_cache::PlanCacheCommand;
 use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
 use commands::stt::SttCommand;
@@ -176,7 +174,7 @@ enum Commands {
         command: AuthCommand,
     },
 
-    /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update, new, package, logs, validate, repair).
+    /// Agent management (list, start, stop, show, install, uninstall, enable, disable, update, create, package, logs, validate, repair).
     Agent {
         /// Agent subcommand.
         #[command(subcommand)]
@@ -208,14 +206,14 @@ enum Commands {
         command: commands::eval::EvalCommand,
     },
 
-    /// Native tool governance (list, enable, disable, config, reload, credentials, describe, approvals).
+    /// Native tool governance (list, enable, disable, config, reload, credentials, show, approvals).
     Tools {
         /// Tools subcommand.
         #[command(subcommand)]
         command: ToolsCommand,
     },
 
-    /// Audit trail (list, stats, export).
+    /// Audit trail (list, stats, export, verify, show, replay).
     Audit {
         /// Audit subcommand.
         #[command(subcommand)]
@@ -303,19 +301,12 @@ enum Commands {
         command: Option<commands::chat::ChatHygieneCommand>,
     },
 
-    /// MCP server management (list, add, remove, get, test, restart, update, raw-config, set-approval, list-pending, revoke-approval).
+    /// MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server).
     Mcp {
         /// MCP subcommand.
         #[command(subcommand)]
         command: McpCommand,
     },
-
-    /// Launch Apollia as an MCP stdio server for external clients.
-    ///
-    /// Exposes 9 native tools (bash_executor, file_*, mcp_client, agent_install)
-    /// to MCP clients such as Claude Desktop, VS Code Copilot Chat, or Cursor.
-    /// Use `--with-runtime` to additionally expose `submit_task`.
-    McpServer(McpServerArgs),
 
     /// Check for and install updates from GitHub Releases.
     Update(commands::update::UpdateArgs),
@@ -344,11 +335,11 @@ enum Commands {
         command: ResilienceCommand,
     },
 
-    /// Plan cache management (stats, clear, evict).
-    PlanCache {
-        /// Plan-cache subcommand.
+    /// Plan domain management (cache: stats, clear, evict).
+    Plan {
+        /// Plan subcommand.
         #[command(subcommand)]
-        command: PlanCacheCommand,
+        command: commands::plan_cache::PlanCommand,
     },
 
     /// Diagnose the local Apollia environment (no runtime required).
@@ -400,18 +391,14 @@ enum Commands {
         command: ConfigCommand,
     },
 
-    /// User memory / profile management (show, set, forget, reset, export, import).
+    /// User profile management (show, set, forget, reset, export, import).
     ///
     /// Operates on `~/.apollia/user_memory.db` directly; no runtime required.
-    #[command(name = "user-memory")]
-    UserMemory {
-        /// User-memory subcommand.
+    Profile {
+        /// Profile subcommand.
         #[command(subcommand)]
         command: UserMemoryCommand,
     },
-
-    /// Shortcut for `task list --pending-approval`: list pending HITL tasks.
-    Hitl,
 
     /// Project management (list, create, show, update, delete, agents, templates).
     ///
@@ -439,16 +426,35 @@ enum Commands {
         since: commands::digest::DigestWindow,
     },
 
-    /// Manage the Chat Libre configuration (system prompt, allowed tools, backend).
+    /// Generate a shell completion script (bash, zsh, fish, powershell, ...).
+    Completions {
+        /// Target shell.
+        shell: clap_complete::Shell,
+    },
+
+    /// Short, task-oriented help by theme (chat, governance, audit, ...).
     ///
-    /// Operates on `governance.db` directly; the runtime does not need to be
-    /// running. The session permission rules are managed via the standard
-    /// `apollia-os permissions` commands.
-    #[command(name = "chat-config")]
-    ChatConfig {
-        /// Chat-config subcommand.
-        #[command(subcommand)]
-        command: commands::chat_config::ChatConfigCommand,
+    /// With no topic, lists the available topics.
+    Guide {
+        /// Topic to display.
+        topic: Option<String>,
+    },
+
+    /// Map a natural-language request to a command (local model), then run it.
+    ///
+    /// Shows the mapped command as a dry-run and asks for confirmation unless -y.
+    Do {
+        /// The request, in natural language.
+        request: String,
+        /// Skip the confirmation prompt (non-interactive use).
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+
+    /// Explain a command or an error message in plain language (local model).
+    Explain {
+        /// The command or error text to explain.
+        text: String,
     },
 }
 
@@ -461,28 +467,37 @@ fn init_tracing(cli: &Cli) {
 
     // Choose tracing level based on global verbosity flags.
     // RUST_LOG (if set by the user) takes priority via `try_from_default_env`.
+    // `runner` is the target used to forward the sidecar runner's stderr (see
+    // `runner_supervisor::lifecycle::forward_stderr`). It is not under `apollia`,
+    // so it must be named explicitly or the runner's own diagnostics (llama.cpp
+    // load errors, aborts) stay invisible in the daemon log.
     let filter_str = if cli.debug {
         "debug"
     } else if cli.verbose {
-        "apollia=debug,info"
+        "apollia=debug,runner=info,info"
     } else if cli.quiet {
         "warn"
     } else {
-        "apollia=info"
+        "apollia=info,runner=info"
     };
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(filter_str));
 
+    // Route diagnostics to stderr so they never corrupt stdout payloads
+    // (notably `--json`): in-process commands (e.g. `mcp set-approval`) emit
+    // runtime `tracing` events that would otherwise interleave with the JSON.
     if cli.no_color {
         tracing_subscriber::fmt()
             .with_env_filter(env_filter)
             .with_target(false)
             .with_ansi(false)
+            .with_writer(std::io::stderr)
             .init();
     } else {
         tracing_subscriber::fmt()
             .with_env_filter(env_filter)
             .with_target(false)
+            .with_writer(std::io::stderr)
             .init();
     }
 }
@@ -576,18 +591,38 @@ fn run_memory(command: &commands::memory::MemoryCommand, json: bool) -> i32 {
 }
 
 /// Run the embedded MCP server, mapping its result to an exit code.
-async fn run_mcp_server(args: &commands::mcp_server::McpServerArgs) -> i32 {
-    match commands::mcp_server::run(args).await {
-        Ok(()) => exit_codes::SUCCESS,
-        Err(e) => {
-            eprintln!("Error: {e}");
-            exit_codes::GENERAL_ERROR
-        }
+/// Print a "did you mean" hint when an unknown top-level command is typed.
+fn maybe_suggest_command(err: &clap::Error) {
+    use clap::error::ErrorKind;
+    if !matches!(
+        err.kind(),
+        ErrorKind::InvalidSubcommand | ErrorKind::UnknownArgument
+    ) {
+        return;
+    }
+    // Premier argument positionnel apres le nom du binaire.
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let Some(bad) = args.iter().find(|a| !a.starts_with('-')) else {
+        return;
+    };
+    let cmd = Cli::command();
+    let names: Vec<&str> = cmd.get_subcommands().map(clap::Command::get_name).collect();
+    if names.contains(&bad.as_str()) {
+        return;
+    }
+    if let Some(sugg) = commands::suggest::nearest(bad, &names, 3) {
+        eprintln!("apollia-os: unknown command `{bad}`. Did you mean `{sugg}`?");
     }
 }
 
 fn main() {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(c) => c,
+        Err(e) => {
+            maybe_suggest_command(&e);
+            e.exit();
+        }
+    };
 
     init_tracing(&cli);
 
@@ -659,10 +694,9 @@ fn main() {
                 command,
             } => match command {
                 Some(sub) => chat::run_hygiene(&sub, json),
-                None => chat::run(resume.as_deref(), list, cli.socket, json).await,
+                None => chat::run(resume.as_deref(), list, cli.socket, json, no_color).await,
             },
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
-            Commands::McpServer(args) => run_mcp_server(&args).await,
             Commands::Update(args) => commands::update::run(&args, "apollia-os").await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
@@ -670,27 +704,26 @@ fn main() {
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await
             }
-            Commands::PlanCache { command } => commands::plan_cache::run(&command, json),
+            Commands::Plan { command } => commands::plan_cache::run_plan(&command, json),
             Commands::Doctor => commands::doctor::run(cli.socket, json).await,
             Commands::Inspect { path } => commands::inspect::run(&path, json, quiet, no_color),
             Commands::Logs(args) => commands::logs::run(&args, json).await,
             Commands::Version => commands::version::run(json),
             Commands::Connector { command } => commands::connector::run(&command, json).await,
             Commands::Config { command } => commands::config::run(&command, json),
-            Commands::UserMemory { command } => commands::user_memory::run(&command, json),
-            Commands::Hitl => {
-                let cmd = commands::task::TaskCommand::List {
-                    pending_approval: true,
-                };
-                commands::task::run(&cmd, cli.socket, json).await
-            }
+            Commands::Profile { command } => commands::user_memory::run(&command, json),
             Commands::Project { command } => commands::project::run(&command, json),
             Commands::Trace { task_id, format } => {
                 let format_json = format == "json";
                 commands::trace::run(&task_id, format_json, cli.socket, json).await
             }
             Commands::Digest { since } => commands::digest::run(since, cli.socket, json).await,
-            Commands::ChatConfig { command } => commands::chat_config::run(&command, json),
+            Commands::Completions { shell } => commands::completions::run(shell),
+            Commands::Guide { topic } => commands::guide::run(topic.as_deref(), json),
+            Commands::Do { request, yes } => {
+                commands::do_cmd::run(&request, yes, cli.socket, json).await
+            }
+            Commands::Explain { text } => commands::explain::run(&text, cli.socket, json).await,
         }
     });
 
@@ -911,8 +944,7 @@ mod tests {
 
     #[test]
     fn test_cli_parses_run_alternatives_flag() {
-        let cli =
-            parse(&["apollia-os", "run", "hello", "ping", "--alternatives"]);
+        let cli = parse(&["apollia-os", "run", "hello", "ping", "--alternatives"]);
         match &cli.command {
             Commands::Run { alternatives, .. } => assert!(*alternatives),
             other => panic!("expected Commands::Run, got {other:?}"),
@@ -933,8 +965,14 @@ mod tests {
     #[test]
     fn test_cli_run_plan_and_alternatives_conflict() {
         // GIVEN run with both --plan and --alternatives (AC-7)
-        let result =
-            Cli::try_parse_from(["apollia-os", "run", "hello", "ping", "--plan", "--alternatives"]);
+        let result = Cli::try_parse_from([
+            "apollia-os",
+            "run",
+            "hello",
+            "ping",
+            "--plan",
+            "--alternatives",
+        ]);
         // THEN parsing fails due to the conflict
         assert!(result.is_err(), "--plan and --alternatives must conflict");
     }
@@ -951,7 +989,10 @@ mod tests {
         ]);
         match &cli.command {
             Commands::Run { allowed_tools, .. } => {
-                assert_eq!(allowed_tools, &vec!["file_read".to_string(), "bash_executor".to_string()]);
+                assert_eq!(
+                    allowed_tools,
+                    &vec!["file_read".to_string(), "bash_executor".to_string()]
+                );
             }
             other => panic!("expected Commands::Run, got {other:?}"),
         }
@@ -968,7 +1009,9 @@ mod tests {
             "bash_executor,file_write",
         ]);
         match &cli.command {
-            Commands::Run { disallowed_tools, .. } => {
+            Commands::Run {
+                disallowed_tools, ..
+            } => {
                 assert_eq!(
                     disallowed_tools,
                     &vec!["bash_executor".to_string(), "file_write".to_string()]
@@ -1191,17 +1234,17 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_agent_info() {
-        // GIVEN "apollia-os agent info hello-agent"
+    fn test_cli_parses_agent_show() {
+        // GIVEN "apollia-os agent show hello-agent"
         // WHEN parse
-        let cli = parse(&["apollia-os", "agent", "info", "hello-agent"]);
-        // THEN Commands::Agent { command: AgentCommand::Info { agent_id } }
+        let cli = parse(&["apollia-os", "agent", "show", "hello-agent"]);
+        // THEN Commands::Agent { command: AgentCommand::Show { agent_id } }
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Info { agent_id } => {
+                AgentCommand::Show { agent_id } => {
                     assert_eq!(agent_id, "hello-agent");
                 }
-                other => panic!("expected AgentCommand::Info, got {other:?}"),
+                other => panic!("expected AgentCommand::Show, got {other:?}"),
             },
             other => panic!("expected Commands::Agent, got {other:?}"),
         }
@@ -1343,9 +1386,9 @@ mod tests {
 
     #[test]
     fn test_cli_parses_agent_json_flag_after_arg() {
-        // GIVEN "apollia-os agent info hello-agent --json" (--json after the positional arg)
+        // GIVEN "apollia-os agent show hello-agent --json" (--json after the positional arg)
         // WHEN parse
-        let cli = parse(&["apollia-os", "agent", "info", "hello-agent", "--json"]);
+        let cli = parse(&["apollia-os", "agent", "show", "hello-agent", "--json"]);
         // THEN global json=true
         assert!(matches!(cli.command, Commands::Agent { .. }));
         assert!(cli.json);
@@ -1452,17 +1495,17 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_tools_describe() {
-        // GIVEN "apollia-os tools describe file_io"
+    fn test_cli_parses_tools_show() {
+        // GIVEN "apollia-os tools show file_io"
         // WHEN parse
-        let cli = parse(&["apollia-os", "tools", "describe", "file_io"]);
-        // THEN Commands::Tools { command: ToolsCommand::Describe { tool_name: "file_io" } }
+        let cli = parse(&["apollia-os", "tools", "show", "file_io"]);
+        // THEN Commands::Tools { command: ToolsCommand::Show { tool_name: "file_io" } }
         match &cli.command {
             Commands::Tools { command } => match command {
-                ToolsCommand::Describe { tool_name } => {
+                ToolsCommand::Show { tool_name } => {
                     assert_eq!(tool_name, "file_io");
                 }
-                other => panic!("expected ToolsCommand::Describe, got {other:?}"),
+                other => panic!("expected ToolsCommand::Show, got {other:?}"),
             },
             other => panic!("expected Commands::Tools, got {other:?}"),
         }
@@ -1798,53 +1841,53 @@ mod tests {
         assert!(cli.json);
     }
 
-    // ── agent new command parsing ─────────────────────────────────
+    // ── agent create command parsing ──────────────────────────────
 
     #[test]
-    fn test_cli_parses_agent_new_default_type() {
-        // GIVEN "apollia-os agent new my-agent"
-        let cli = parse(&["apollia-os", "agent", "new", "my-agent"]);
-        // THEN AgentCommand::New with default type "react"
+    fn test_cli_parses_agent_create_default_type() {
+        // GIVEN "apollia-os agent create my-agent"
+        let cli = parse(&["apollia-os", "agent", "create", "my-agent"]);
+        // THEN AgentCommand::Create with default type "react"
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::New { name, r#type } => {
+                AgentCommand::Create { name, r#type } => {
                     assert_eq!(name, "my-agent");
                     assert_eq!(r#type, "react");
                 }
-                other => panic!("expected AgentCommand::New, got {other:?}"),
+                other => panic!("expected AgentCommand::Create, got {other:?}"),
             },
             other => panic!("expected Commands::Agent, got {other:?}"),
         }
     }
 
     #[test]
-    fn test_cli_parses_agent_new_with_type() {
-        // GIVEN "apollia-os agent new my-bot --type conversational"
+    fn test_cli_parses_agent_create_with_type() {
+        // GIVEN "apollia-os agent create my-bot --type conversational"
         let cli = parse(&[
             "apollia-os",
             "agent",
-            "new",
+            "create",
             "my-bot",
             "--type",
             "conversational",
         ]);
-        // THEN AgentCommand::New with specified type
+        // THEN AgentCommand::Create with specified type
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::New { name, r#type } => {
+                AgentCommand::Create { name, r#type } => {
                     assert_eq!(name, "my-bot");
                     assert_eq!(r#type, "conversational");
                 }
-                other => panic!("expected AgentCommand::New, got {other:?}"),
+                other => panic!("expected AgentCommand::Create, got {other:?}"),
             },
             other => panic!("expected Commands::Agent, got {other:?}"),
         }
     }
 
     #[test]
-    fn test_cli_parses_agent_new_json_flag() {
-        // GIVEN "apollia-os agent new my-agent --json"
-        let cli = parse(&["apollia-os", "agent", "new", "my-agent", "--json"]);
+    fn test_cli_parses_agent_create_json_flag() {
+        // GIVEN "apollia-os agent create my-agent --json"
+        let cli = parse(&["apollia-os", "agent", "create", "my-agent", "--json"]);
         // THEN global json = true
         assert!(matches!(cli.command, Commands::Agent { .. }));
         assert!(cli.json);

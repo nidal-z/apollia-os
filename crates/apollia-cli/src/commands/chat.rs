@@ -72,6 +72,13 @@ pub enum ChatHygieneCommand {
         #[arg(long, value_name = "PATH")]
         db: Option<PathBuf>,
     },
+
+    /// Manage the Chat Libre configuration (system prompt, allowed tools, backend).
+    Config {
+        /// Chat-config subcommand.
+        #[command(subcommand)]
+        command: super::chat_config::ChatConfigCommand,
+    },
 }
 
 /// Maximum number of history entries retained across sessions.
@@ -79,12 +86,6 @@ const REPL_MAX_HISTORY: usize = 10_000;
 
 /// Maximum number of scroll-back messages to show on resume.
 const SCROLLBACK_COUNT: usize = 5;
-
-/// Polling interval when waiting for an LLM response (milliseconds).
-const POLL_INTERVAL_MS: u64 = 300;
-
-/// Timeout for waiting for an LLM response (seconds).
-const RESPONSE_TIMEOUT_SECS: u64 = 120;
 
 /// Build a [`RuntimeClient`] from the optional socket path override.
 fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
@@ -123,8 +124,15 @@ fn make_editor_config() -> RlConfig {
 /// - `resume`: optional session ID to resume.
 /// - `list`: if `true`, print the 10 most recent sessions and exit.
 /// - `socket`: optional Unix socket path override.
-/// - `_json`: reserved for future machine-readable output mode.
-pub async fn run(resume: Option<&str>, list: bool, socket: Option<PathBuf>, _json: bool) -> i32 {
+/// - `json`: emit raw SSE frames instead of human rendering during streaming.
+/// - `no_color`: disable ANSI styling in the streamed output.
+pub async fn run(
+    resume: Option<&str>,
+    list: bool,
+    socket: Option<PathBuf>,
+    json: bool,
+    no_color: bool,
+) -> i32 {
     let client = make_client(socket);
 
     if list {
@@ -132,10 +140,10 @@ pub async fn run(resume: Option<&str>, list: bool, socket: Option<PathBuf>, _jso
     }
 
     if let Some(session_id) = resume {
-        return run_resume(&client, session_id).await;
+        return run_resume(&client, session_id, json, no_color).await;
     }
 
-    run_new_session(&client).await
+    run_new_session(&client, json, no_color).await
 }
 
 /// List the 10 most recent sessions in an ASCII table and return exit code.
@@ -194,7 +202,7 @@ async fn run_list(client: &RuntimeClient) -> i32 {
 }
 
 /// Start a new session and enter the REPL loop.
-async fn run_new_session(client: &RuntimeClient) -> i32 {
+async fn run_new_session(client: &RuntimeClient, json: bool, no_color: bool) -> i32 {
     let session_info = match client.create_chat_session("libre").await {
         Ok(v) => v,
         Err(ClientError::ConnectionRefused) => {
@@ -218,11 +226,11 @@ async fn run_new_session(client: &RuntimeClient) -> i32 {
     println!("Session: {session_id}");
     println!("Type your message (Ctrl+D to exit, Ctrl+R to search history):");
 
-    repl_loop(client, &session_id).await
+    repl_loop(client, &session_id, json, no_color).await
 }
 
 /// Resume an existing session and enter the REPL loop.
-async fn run_resume(client: &RuntimeClient, session_id: &str) -> i32 {
+async fn run_resume(client: &RuntimeClient, session_id: &str, json: bool, no_color: bool) -> i32 {
     let detail = match client.resume_chat_session(session_id).await {
         Ok(v) => v,
         Err(ClientError::ConnectionRefused) => {
@@ -261,7 +269,7 @@ async fn run_resume(client: &RuntimeClient, session_id: &str) -> i32 {
         }
     }
 
-    repl_loop(client, session_id).await
+    repl_loop(client, session_id, json, no_color).await
 }
 
 /// Core REPL loop using `rustyline` for line editing and persistent history.
@@ -278,7 +286,7 @@ async fn run_resume(client: &RuntimeClient, session_id: &str) -> i32 {
 /// - `/fork list`       : list child sessions of the current session
 /// - `/list-commands`   : list all available commands (built-in + custom)
 /// - `/<name> [arg]`    : execute a custom command defined in `.apollia/commands/`
-async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
+async fn repl_loop(client: &RuntimeClient, session_id: &str, json: bool, no_color: bool) -> i32 {
     let mut current_session_id = session_id.to_string();
     let history_file = history_path();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -335,26 +343,29 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
         }
 
         // Determine the message to send to the LLM.
-        let message = match resolve_repl_message(
+        let message =
+            match resolve_repl_message(client, &current_session_id, &trimmed, &cwd, &mut registry)
+                .await
+            {
+                ResolvedMessage::Send(msg) => msg,
+                ResolvedMessage::Continue => continue,
+                ResolvedMessage::SwitchSession(new_id) => {
+                    current_session_id = new_id;
+                    continue;
+                }
+                ResolvedMessage::Exit(code) => return code,
+            };
+
+        // Envoyer le message et rendre la reponse en streaming token par token.
+        if let Err(code) = crate::commands::chat_stream::stream_send(
             client,
             &current_session_id,
-            &trimmed,
-            &cwd,
-            &mut registry,
+            &message,
+            json,
+            no_color,
         )
         .await
         {
-            ResolvedMessage::Send(msg) => msg,
-            ResolvedMessage::Continue => continue,
-            ResolvedMessage::SwitchSession(new_id) => {
-                current_session_id = new_id;
-                continue;
-            }
-            ResolvedMessage::Exit(code) => return code,
-        };
-
-        // Send the resolved message and wait for a reply.
-        if let Err(code) = send_message_and_poll(client, &current_session_id, &message).await {
             return code;
         }
     }
@@ -442,6 +453,8 @@ async fn handle_slash_command(
             handle_fork(client, session_id, up_to).await
         }
         "/list-commands" => handle_list_commands(registry),
+        "/reprompt" => handle_reprompt(client, arg).await,
+        "/find" => handle_find(arg, registry),
         _ => {
             // Check custom command registry.
             let name = cmd.trim_start_matches('/');
@@ -531,12 +544,75 @@ async fn handle_fork_list(client: &RuntimeClient, session_id: &str) -> SlashOutc
 }
 
 /// Execute `/list-commands`: print all available built-in and custom commands.
+/// `/reprompt <text>`: rewrite the pending prompt via the local model.
+///
+/// Prints the improved prompt for the user to copy or edit; never auto-sends.
+async fn handle_reprompt(client: &RuntimeClient, arg: &str) -> SlashOutcome {
+    if arg.is_empty() {
+        eprintln!("Usage: /reprompt <prompt to improve>");
+        return SlashOutcome::Continue;
+    }
+    const SYS: &str = "Rewrite the user's prompt to be clearer and more specific \
+for an AI agent, preserving the original intent and language. Output ONLY the \
+improved prompt, with no preamble.";
+    match client.llm_complete(Some(SYS), arg, None).await {
+        Ok(resp) => {
+            let improved = resp["content"].as_str().unwrap_or("").trim();
+            eprintln!("(via backend: {})", resp["backend"].as_str().unwrap_or("?"));
+            println!("Improved prompt (copy / edit then send):\n{improved}");
+        }
+        Err(e) => eprintln!("reprompt unavailable: {e}"),
+    }
+    SlashOutcome::Continue
+}
+
+/// `/find <query>`: fuzzy-search the command surface + slash commands.
+fn handle_find(arg: &str, registry: &CommandRegistry) -> SlashOutcome {
+    let catalog = command_catalog(registry);
+    let refs: Vec<&str> = catalog.iter().map(String::as_str).collect();
+    let ranked = super::fuzzy::rank(arg, &refs);
+    if ranked.is_empty() {
+        println!("no command matches '{arg}'");
+    } else {
+        println!("Commands:");
+        for cmd in ranked.iter().take(12) {
+            println!("  {cmd}");
+        }
+    }
+    SlashOutcome::Continue
+}
+
+/// Build the searchable catalog: `<noun> <verb>` from the clap tree + the custom
+/// slash commands from the registry.
+fn command_catalog(registry: &CommandRegistry) -> Vec<String> {
+    use clap::CommandFactory;
+    let cmd = crate::Cli::command();
+    let mut out: Vec<String> = Vec::new();
+    for sub in cmd.get_subcommands() {
+        let name = sub.get_name();
+        let verbs: Vec<&str> = sub.get_subcommands().map(clap::Command::get_name).collect();
+        if verbs.is_empty() {
+            out.push(name.to_string());
+        } else {
+            for v in verbs {
+                out.push(format!("{name} {v}"));
+            }
+        }
+    }
+    for c in registry.list() {
+        out.push(format!("/{}", c.name));
+    }
+    out
+}
+
 fn handle_list_commands(registry: &CommandRegistry) -> SlashOutcome {
     println!("Built-in commands:");
     println!("  /fork              Fork current session (copies full history)");
     println!("  /fork N            Fork keeping the first N messages");
     println!("  /fork list         List child sessions");
     println!("  /list-commands     List all available commands");
+    println!("  /reprompt <text>   Improve a prompt with the local model");
+    println!("  /find <query>      Fuzzy-search the command surface");
 
     let customs = registry.list();
     if customs.is_empty() {
@@ -557,100 +633,6 @@ fn handle_list_commands(registry: &CommandRegistry) -> SlashOutcome {
     }
 
     SlashOutcome::Continue
-}
-
-/// Sends `message` to the LLM and polls for the assistant reply.
-///
-/// Returns `Ok(())` on success (reply printed to stdout) or after a timeout.
-/// Returns `Err(exit_code)` on fatal connection or server errors.
-async fn send_message_and_poll(
-    client: &RuntimeClient,
-    session_id: &str,
-    message: &str,
-) -> Result<(), i32> {
-    let count_before = match get_message_count(client, session_id).await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Error: {e}");
-            return Err(exit_codes::GENERAL_ERROR);
-        }
-    };
-
-    match client.send_chat_message(session_id, message).await {
-        Ok(_) => {}
-        Err(ClientError::ConnectionRefused) => {
-            eprintln!("runtime not started");
-            return Err(exit_codes::GENERAL_ERROR);
-        }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            return Err(exit_codes::GENERAL_ERROR);
-        }
-    }
-
-    match poll_for_response(client, session_id, count_before).await {
-        Ok(Some(reply)) => println!("{reply}"),
-        Ok(None) => eprintln!("[no response received within timeout]"),
-        Err(e) => eprintln!("Error while waiting for response: {e}"),
-    }
-
-    Ok(())
-}
-
-/// Return the current number of messages in the session.
-async fn get_message_count(client: &RuntimeClient, session_id: &str) -> Result<usize, ClientError> {
-    let detail = client.get_chat_session(session_id).await?;
-    let count = detail["message_count"].as_u64().unwrap_or(0) as usize;
-    Ok(count)
-}
-
-/// Poll `GET /api/v1/sessions/:id` until the message count has grown and status
-/// is `"active"`, then return the last assistant message content.
-///
-/// Returns `Ok(None)` on timeout after [`RESPONSE_TIMEOUT_SECS`] seconds.
-async fn poll_for_response(
-    client: &RuntimeClient,
-    session_id: &str,
-    count_before: usize,
-) -> Result<Option<String>, ClientError> {
-    let deadline =
-        std::time::Instant::now() + std::time::Duration::from_secs(RESPONSE_TIMEOUT_SECS);
-
-    loop {
-        if std::time::Instant::now() >= deadline {
-            return Ok(None);
-        }
-
-        tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
-
-        let detail = match client.get_chat_session(session_id).await {
-            Ok(d) => d,
-            Err(_) => continue,
-        };
-
-        let status = detail
-            .get("session")
-            .and_then(|s| s["status"].as_str())
-            .unwrap_or("");
-        let count = detail["message_count"].as_u64().unwrap_or(0) as usize;
-
-        if count > count_before && status.eq_ignore_ascii_case("active") {
-            // Find the last assistant message in the history.
-            let last_reply = detail
-                .get("session")
-                .and_then(|s| s["history"].as_array())
-                .and_then(|history| {
-                    history.iter().rev().find_map(|m| {
-                        if m["role"].as_str() == Some("Assistant") {
-                            m["content"].as_str().map(str::to_string)
-                        } else {
-                            None
-                        }
-                    })
-                });
-            return Ok(last_reply);
-        }
-    }
 }
 
 // ─── hygiene subcommands ──────────────────────────────────────────────────────
@@ -716,6 +698,7 @@ pub fn run_hygiene(cmd: &ChatHygieneCommand, json: bool) -> i32 {
             format,
             db,
         } => run_chat_export(session_id, output.as_deref(), format, db.as_deref(), json),
+        ChatHygieneCommand::Config { command } => super::chat_config::run(command, json),
     }
 }
 
@@ -827,10 +810,7 @@ fn run_chat_export(
     match output {
         Some(path) => {
             if let Err(e) = std::fs::write(path, body.as_bytes()) {
-                emit_chat_error(
-                    format!("write to {} failed: {e}", path.display()),
-                    json,
-                );
+                emit_chat_error(format!("write to {} failed: {e}", path.display()), json);
                 return exit_codes::GENERAL_ERROR;
             }
             if json {
@@ -916,7 +896,9 @@ mod hygiene_tests {
         let cli = TestCli::parse_from(["x", "delete", "sess-abc"]);
         match cli.cmd {
             ChatHygieneCommand::Delete {
-                session_id, confirm, ..
+                session_id,
+                confirm,
+                ..
             } => {
                 assert_eq!(session_id, "sess-abc");
                 assert!(!confirm);
@@ -950,8 +932,7 @@ mod hygiene_tests {
 
     #[test]
     fn parses_export_default_format_is_markdown() {
-        let cli =
-            TestCli::parse_from(["x", "export", "sess-abc", "--output", "/tmp/out.md"]);
+        let cli = TestCli::parse_from(["x", "export", "sess-abc", "--output", "/tmp/out.md"]);
         match cli.cmd {
             ChatHygieneCommand::Export {
                 session_id,

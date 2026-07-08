@@ -17,8 +17,8 @@ use std::path::PathBuf;
 use clap::Subcommand;
 
 use apollia_auth::{
-    delete_mcp_token, load_mcp_token, negotiate_token, parse_www_authenticate,
-    select_secret_store, AuthError, McpDiscoveryClient, McpOAuthError, NegotiateRequest,
+    delete_mcp_token, load_mcp_token, negotiate_token, parse_www_authenticate, select_secret_store,
+    AuthError, McpDiscoveryClient, McpOAuthError, NegotiateRequest,
 };
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
@@ -136,9 +136,7 @@ pub async fn run(cmd: &McpOauthCommand, json: bool) -> i32 {
         }
         McpOauthCommand::Logout { server, confirm } => run_logout(server, *confirm, json),
         McpOauthCommand::ClientId(sub) => run_client_id(sub, json),
-        McpOauthCommand::Discover { server, db } => {
-            run_discover(server, db.as_deref(), json).await
-        }
+        McpOauthCommand::Discover { server, db } => run_discover(server, db.as_deref(), json).await,
     }
 }
 
@@ -367,11 +365,7 @@ async fn run_login(
 }
 
 /// Report a successful login and trigger an immediate runtime reconnect.
-async fn emit_login_success(
-    server: &str,
-    token: &apollia_auth::StoredMcpToken,
-    json: bool,
-) -> i32 {
+async fn emit_login_success(server: &str, token: &apollia_auth::StoredMcpToken, json: bool) -> i32 {
     if json {
         let reconnect = reconnect_runtime_session(server).await;
         let body = serde_json::json!({
@@ -425,9 +419,7 @@ async fn emit_login_success(
             // Daemon present but the server was unknown to the
             // repo as well, extremely unlikely once we reached
             // this point because load_server_url succeeded.
-            println!(
-                "  ! token stored; could not reconnect (server not in runtime repo)."
-            );
+            println!("  ! token stored; could not reconnect (server not in runtime repo).");
         }
     }
     exit_codes::SUCCESS
@@ -496,7 +488,10 @@ fn enumerate_status_servers(
             .list()
             .map(|rows| rows.into_iter().map(|r| r.name).collect::<Vec<_>>())
             .unwrap_or_default()),
-        Err(e) => Err(emit_error(format!("open {} failed: {e}", path.display()), json)),
+        Err(e) => Err(emit_error(
+            format!("open {} failed: {e}", path.display()),
+            json,
+        )),
     }
 }
 
@@ -749,7 +744,10 @@ fn print_discover_json(ctx: &DiscoverReport<'_>) {
         "as_token_endpoint": ctx.as_metadata.token_endpoint,
         "as_registration_endpoint": ctx.as_metadata.registration_endpoint,
     });
-    println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&body).unwrap_or_default()
+    );
 }
 
 fn print_discover_human(ctx: &DiscoverReport<'_>) {
@@ -928,15 +926,11 @@ mod tests {
 
     #[test]
     fn parses_discover_with_db_override() {
-        let cli =
-            TestCli::parse_from(["x", "discover", "notion", "--db", "/tmp/custom.db"]);
+        let cli = TestCli::parse_from(["x", "discover", "notion", "--db", "/tmp/custom.db"]);
         match cli.cmd {
             McpOauthCommand::Discover { server, db } => {
                 assert_eq!(server, "notion");
-                assert_eq!(
-                    db,
-                    Some(std::path::PathBuf::from("/tmp/custom.db"))
-                );
+                assert_eq!(db, Some(std::path::PathBuf::from("/tmp/custom.db")));
             }
             other => panic!("unexpected: {other:?}"),
         }

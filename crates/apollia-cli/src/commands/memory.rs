@@ -322,7 +322,7 @@ pub fn execute_list(
     }
 
     if entries.is_empty() {
-        return Ok("Aucun namespace memoire trouve.".to_string());
+        return Ok("No memory namespace found.".to_string());
     }
 
     let ns_width = entries
@@ -427,7 +427,7 @@ pub fn execute_clear(
             MemoryType::Procedural => "procedural",
             MemoryType::All => "all",
         };
-        print!("Vider la memoire de '{agent}' [{type_label}] ? (y/N) ");
+        print!("Clear memory for '{agent}' [{type_label}]? (y/N) ");
         std::io::stdout().flush()?;
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -1101,7 +1101,7 @@ mod tests {
         let result = execute_list(None, &dir, false);
         // THEN no error, empty output
         assert!(result.is_ok());
-        assert!(result.unwrap().contains("Aucun"));
+        assert!(result.unwrap().contains("No"));
     }
 
     // clear with --confirm deletes episodic entries and returns count
@@ -1543,7 +1543,14 @@ mod tests {
             cmd: MemoryCommand,
         }
         let cli = TestCli::parse_from([
-            "x", "search", "ns", "needle in haystack", "--limit", "5", "--source", "episodic",
+            "x",
+            "search",
+            "ns",
+            "needle in haystack",
+            "--limit",
+            "5",
+            "--source",
+            "episodic",
         ]);
         match cli.cmd {
             MemoryCommand::Search {
@@ -1570,8 +1577,7 @@ mod tests {
             #[command(subcommand)]
             cmd: MemoryCommand,
         }
-        let result =
-            TestCli::try_parse_from(["x", "search", "ns", "q", "--source", "procedural"]);
+        let result = TestCli::try_parse_from(["x", "search", "ns", "q", "--source", "procedural"]);
         assert!(result.is_err(), "procedural is not yet exposed");
     }
 }

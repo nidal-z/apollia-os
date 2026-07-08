@@ -160,6 +160,34 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
     }
 }
 
+/// Top-level TOML sections recognized by an `apollia.toml`.
+///
+/// Any `[section]` outside this set is an unknown key path. Used both to filter
+/// the loose table before typed deserialization and to reject unknown keys in
+/// `config set` (see [`is_known_top_level_section`]).
+pub const KNOWN_SECTIONS: &[&str] = &[
+    "llm",
+    "runtime",
+    "memory",
+    "tools",
+    "budget",
+    "api",
+    "hitl",
+    "a2a",
+    "oria",
+    "registry",
+    "mcp",
+    "permissions",
+    "filesystem",
+    "hooks",
+    "chat",
+];
+
+/// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
+pub fn is_known_top_level_section(section: &str) -> bool {
+    KNOWN_SECTIONS.contains(&section)
+}
+
 /// Reads and deserializes `apollia.toml` from the given path.
 ///
 /// After TOML parsing:
@@ -176,33 +204,31 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
 /// - [`ConfigError::Parse`]: the TOML is malformed or contains invalid types.
 pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     let content = std::fs::read_to_string(path)?;
+    validate_apollia_toml_str(&content)
+}
 
+/// Validate TOML `content` by deserializing it into the typed [`ApolliaCConfig`].
+///
+/// Same semantics as [`parse_apollia_toml`] but operating on an in-memory string,
+/// so callers (e.g. `config set`) can validate a candidate document before
+/// persisting it. Unknown top-level sections are filtered out here; use
+/// [`is_known_top_level_section`] to reject them at the key-path level.
+///
+/// # Errors
+///
+/// - [`ConfigError::Parse`]: the TOML is malformed or a value has an invalid
+///   type / enum variant inside a known section.
+pub fn validate_apollia_toml_str(content: &str) -> Result<ApolliaCConfig, ConfigError> {
     // Check for deprecated sections before strict deserialization.
-    check_deprecated_sections(&content);
+    check_deprecated_sections(content);
 
     // Parse as a loose table first to ignore unknown sections gracefully.
-    let raw_table: toml::Value = toml::from_str(&content)?;
+    let raw_table: toml::Value = toml::from_str(content)?;
 
     // Build a filtered table with only known sections.
     let mut filtered = toml::map::Map::new();
     if let toml::Value::Table(table) = &raw_table {
-        for key in &[
-            "llm",
-            "runtime",
-            "memory",
-            "tools",
-            "budget",
-            "api",
-            "hitl",
-            "a2a",
-            "oria",
-            "registry",
-            "mcp",
-            "permissions",
-            "filesystem",
-            "hooks",
-            "chat",
-        ] {
+        for key in KNOWN_SECTIONS {
             if let Some(v) = table.get(*key) {
                 filtered.insert((*key).to_string(), v.clone());
             }

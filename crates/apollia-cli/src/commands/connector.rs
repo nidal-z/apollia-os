@@ -440,7 +440,11 @@ fn render_test_report(
 }
 
 /// Human-readable rendering of a connector check report.
-fn render_test_report_text(provider: &str, account: &str, report: &apollia_connectors::HealthReport) {
+fn render_test_report_text(
+    provider: &str,
+    account: &str,
+    report: &apollia_connectors::HealthReport,
+) {
     let glyph = if report.reachable { "*" } else { "x" };
     println!(
         "  {glyph} {} / {} reachable={}",
@@ -458,7 +462,12 @@ fn render_test_report_text(provider: &str, account: &str, report: &apollia_conne
 }
 
 /// Renders a failed connector check and returns the error exit code.
-fn render_test_error(provider: &str, account: &str, error: &dyn std::fmt::Display, json: bool) -> i32 {
+fn render_test_error(
+    provider: &str,
+    account: &str,
+    error: &dyn std::fmt::Display,
+    json: bool,
+) -> i32 {
     if json {
         let body = serde_json::json!({
             "provider": provider,
@@ -625,18 +634,20 @@ fn run_client_id_list(json: bool) -> i32 {
     if json {
         let array: Vec<serde_json::Value> = rows
             .iter()
-            .map(|(p, effective, source, ov, sec_src, has_sec, key_src, has_key)| {
-                serde_json::json!({
-                    "provider": p.id(),
-                    "effective_client_id": effective,
-                    "client_id_source": source,
-                    "client_id_override": ov,
-                    "client_secret_source": sec_src,
-                    "has_client_secret": has_sec,
-                    "api_key_source": key_src,
-                    "has_api_key": has_key,
-                })
-            })
+            .map(
+                |(p, effective, source, ov, sec_src, has_sec, key_src, has_key)| {
+                    serde_json::json!({
+                        "provider": p.id(),
+                        "effective_client_id": effective,
+                        "client_id_source": source,
+                        "client_id_override": ov,
+                        "client_secret_source": sec_src,
+                        "has_client_secret": has_sec,
+                        "api_key_source": key_src,
+                        "has_api_key": has_key,
+                    })
+                },
+            )
             .collect();
         println!(
             "{}",
@@ -747,7 +758,10 @@ fn emit_set_ok(provider_id: &str, key: &str, cleared: bool, json: bool) {
             "cleared": cleared,
             "updated": !cleared,
         });
-        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
     } else if cleared {
         println!("  * {} / {} override cleared", provider_id, key);
     } else {
@@ -768,7 +782,14 @@ fn mask_secret(s: &str) -> String {
         return "********".to_string();
     }
     let prefix: String = s.chars().take(4).collect();
-    let suffix: String = s.chars().rev().take(2).collect::<String>().chars().rev().collect();
+    let suffix: String = s
+        .chars()
+        .rev()
+        .take(2)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
     format!("{prefix}...{suffix}")
 }
 
@@ -804,10 +825,8 @@ async fn run_drive_folder_list(json: bool) -> i32 {
     let rows: Vec<(String, Option<String>, String)> = accounts
         .iter()
         .map(|a| {
-            let override_path =
-                apollia_auth::drive_prefs::lookup_folder_path("google", a.as_str());
-            let effective =
-                apollia_auth::drive_prefs::effective_folder_path("google", a.as_str());
+            let override_path = apollia_auth::drive_prefs::lookup_folder_path("google", a.as_str());
+            let effective = apollia_auth::drive_prefs::effective_folder_path("google", a.as_str());
             (a.0.clone(), override_path, effective)
         })
         .collect();
@@ -1086,8 +1105,7 @@ mod tests {
 
     #[test]
     fn parses_client_secret_set() {
-        let cli =
-            TestCli::parse_from(["x", "client-secret", "set", "google", "GOCSPX-xxx"]);
+        let cli = TestCli::parse_from(["x", "client-secret", "set", "google", "GOCSPX-xxx"]);
         match cli.cmd {
             ConnectorCommand::ClientSecret(ClientSecretCommand::Set {
                 provider,
