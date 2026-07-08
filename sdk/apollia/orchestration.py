@@ -23,8 +23,9 @@ def orchestrated(*, system_prompt: str) -> Callable[[C], C]:
 
     The agent provides only metadata + ``system_prompt``. ORIA handles
     the execution loop. The class may define
-    ``on_plan_complete(step_results)`` to post-process step outputs
-    (defaults to concatenating step texts).
+    ``async on_plan_complete(step_results, ctx)`` to post-process step
+    outputs (defaults to concatenating step texts). The runtime calls it
+    with both the step results and the runtime ``ctx``.
 
     ``@orchestrated`` is mutually exclusive with ``@skill`` and
     ``@on_message``. Validation happens at ``@agent`` decoration time

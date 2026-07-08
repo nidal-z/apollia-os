@@ -159,7 +159,7 @@ pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
 /// - `audio` (required): WAV audio file
 /// - `language` (optional): language hint (ISO 639-1 code)
 ///
-/// Returns `200 OK` with the persisted [`TranscriptRow`](apollia_stt::TranscriptRow).
+/// Returns `200 OK` with the persisted transcript row (`TranscriptRow`).
 /// Returns `400 Bad Request` on missing or invalid audio.
 /// Returns `503 Service Unavailable` when the engine is absent.
 #[utoipa::path(

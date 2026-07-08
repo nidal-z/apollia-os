@@ -136,8 +136,8 @@ from apollia import agent, orchestrated
 @agent(name="email-triage", version="0.1.0", description="Sort and route emails")
 @orchestrated(system_prompt="You triage incoming emails using available tools...")
 class EmailTriage:
-    def on_plan_complete(self, step_results: dict) -> str:
-        return "\n\n".join(s.get("text", "") for s in step_results.values())
+    async def on_plan_complete(self, step_results: dict[str, str], ctx) -> str:
+        return "\n\n".join(text for text in step_results.values() if text)
 ```
 
 The ORIA engine (Rust) generates and executes a plan from the system prompt. The agent only provides metadata + optional post-processing.

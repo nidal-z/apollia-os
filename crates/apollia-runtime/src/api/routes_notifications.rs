@@ -433,9 +433,9 @@ pub async fn get_events<B: ExecutionBackend + Clone>(
 
 /// `PUT /api/v1/notifications/events`, replace the global events.
 ///
-/// Validates each event against [`KNOWN_EVENTS`](apollia_notifications::KNOWN_EVENTS),
+/// Validates each event against the known event set (`KNOWN_EVENTS`),
 /// then replaces the list in `notifications.db` and reloads the
-/// [`NotificationEngine`].
+/// notification engine.
 #[utoipa::path(
     put,
     path = "/api/v1/notifications/events",
