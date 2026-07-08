@@ -440,10 +440,9 @@ impl ActorLoop {
     ) -> LevelOutcome {
         // Phase 1 (sequential): budget guard, events, DB pre-execution.
         if deps.budget.is_exhausted() {
-            return LevelOutcome::Terminal(self.fail_plan_budget_exhausted(&format!(
-                "Budget de {} steps atteint",
-                deps.budget.max_steps
-            )));
+            return LevelOutcome::Terminal(
+                self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget)),
+            );
         }
         for step in &level_steps {
             let step_num = completed_outputs.len() + 1;
@@ -460,6 +459,11 @@ impl ActorLoop {
         // Phase 3 (sequential): budget increment, DB post-execution, events, errors.
         for (step, (step_id, result)) in level_steps.iter().zip(batch_results) {
             deps.budget.increment_steps();
+            // Every batch step is a native tool call (batch eligibility requires
+            // a read-only tool_hint), so it consumes one tool-call budget unit.
+            if step_is_tool_call(step) {
+                deps.budget.increment_tool_calls();
+            }
             if let Err(e) =
                 self.db
                     .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
@@ -516,12 +520,11 @@ impl ActorLoop {
                 None => continue,
             };
 
-            // check the budget before each step.
+            // check the budget before each step (steps, tool_calls, wall_clock).
             if deps.budget.is_exhausted() {
-                return LevelOutcome::Terminal(self.fail_plan_budget_exhausted(&format!(
-                    "Budget de {} steps atteint",
-                    deps.budget.max_steps
-                )));
+                return LevelOutcome::Terminal(
+                    self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget)),
+                );
             }
 
             // Emit StepStarted + persist rendered input + tool name before execution.
@@ -542,6 +545,12 @@ impl ActorLoop {
                 .await;
             let duration_ms = started.elapsed().as_millis() as u64;
             deps.budget.increment_steps();
+            // A native tool step consumes one tool-call budget unit (the
+            // max_tool_calls guardrail). The next is_exhausted() check stops the
+            // plan cleanly once the ceiling is reached.
+            if step_is_tool_call(&step) {
+                deps.budget.increment_tool_calls();
+            }
 
             // persist duration unconditionally.
             if let Err(e) =
@@ -1145,8 +1154,7 @@ impl ActorLoop {
                 };
 
                 if deps.budget.is_exhausted() {
-                    return self
-                        .fail_plan_budget_exhausted("Budget épuisé lors de la replanification");
+                    return self.fail_plan_budget_exhausted(&budget_exhaustion_detail(deps.budget));
                 }
 
                 let step_num = completed_outputs.len() + 1;
@@ -1166,6 +1174,11 @@ impl ActorLoop {
                     .await;
                 let duration_ms = started.elapsed().as_millis() as u64;
                 deps.budget.increment_steps();
+                // A native tool step consumes one tool-call budget unit here too,
+                // so replanned tool steps stay under the max_tool_calls ceiling.
+                if step_is_tool_call(&step) {
+                    deps.budget.increment_tool_calls();
+                }
 
                 // persist duration unconditionally.
                 if let Err(e) =
@@ -1403,6 +1416,27 @@ impl ActorLoop {
 }
 
 // Helpers
+
+/// Returns `true` when the step dispatches to a native tool rather than the LLM.
+///
+/// A step is an LLM step when `tool_hint` is `None` or `Some("llm")`; every
+/// other `tool_hint` targets a tool invoked through the `ToolProxy`. Only tool
+/// steps consume the `max_tool_calls` dimension of the [`StepBudget`], so this
+/// predicate gates the `increment_tool_calls` calls in the execution loops.
+fn step_is_tool_call(step: &PlanStep) -> bool {
+    step.tool_hint.as_deref().is_some_and(|t| t != "llm")
+}
+
+/// Human-readable detail describing why the budget is exhausted.
+///
+/// Prefers the precise dimension reported by [`StepBudget::exhaustion_reason`]
+/// (steps, tool calls, or wall clock) and falls back to a generic message when
+/// no single dimension can be attributed.
+fn budget_exhaustion_detail(budget: &StepBudget) -> String {
+    budget
+        .exhaustion_reason()
+        .unwrap_or_else(|| "step budget exhausted".to_string())
+}
 
 /// Interpolate previous step outputs into a step description.
 ///
@@ -2050,6 +2084,65 @@ mod tests {
             err.code, "STEP_BUDGET_EXCEEDED",
             "expected STEP_BUDGET_EXCEEDED, got: {}",
             err.code
+        );
+    }
+
+    // Tool-call budget enforced in orchestrated ActorLoop (principle #7).
+
+    /// GIVEN a 3-step tool plan and a StepBudget with max_tool_calls = 2
+    ///       (max_steps and wall_clock set high so only the tool-call dimension
+    ///       can trip the guard)
+    /// WHEN actor.execute() runs
+    /// THEN the tool is invoked exactly twice, the tool-call budget is spent,
+    ///      and the plan stops cleanly with STEP_BUDGET_EXCEEDED. This proves the
+    ///      max_tool_calls ceiling is enforced in orchestrated mode, not bypassed.
+    #[tokio::test]
+    async fn test_tool_call_budget_enforced_orchestrated() {
+        // GIVEN a chained tool plan (one tool step per topological level so the
+        // sequential path drives each invocation).
+        let plan = make_plan(vec![("s1", &[]), ("s2", &["s1"]), ("s3", &["s2"])]);
+        let (mut actor, _rx) = make_actor(plan);
+        let proxy = CountingProxy::ok();
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::new(&apollia_core::StepBudgetConfig {
+            max_steps: 100,
+            max_tool_calls: 2,
+            wall_clock_secs: 300,
+        });
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN
+        let result = actor
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
+            .await;
+
+        // THEN the tool ran exactly max_tool_calls times, never the third step.
+        assert_eq!(
+            proxy.call_count(),
+            2,
+            "tool must be invoked exactly max_tool_calls (2) times, then stop"
+        );
+        assert_eq!(
+            budget.tool_calls_left(),
+            0,
+            "the tool-call budget must be fully spent"
+        );
+        assert_eq!(result.status, TaskStatus::Failed);
+        let err = result.error.expect("expected error");
+        assert_eq!(err.code, "STEP_BUDGET_EXCEEDED");
+        assert!(
+            err.message.contains("tool"),
+            "detail should attribute the tool-call dimension, got: {}",
+            err.message
         );
     }
 
