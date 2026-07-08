@@ -1,0 +1,54 @@
+{
+  "criteria": [
+    {
+      "code": "E1-1",
+      "title": "Plan de transition pour l'attenuation du changement climatique",
+      "description": "Trajectoire et engagements de reduction des emissions de gaz a effet de serre, alignement avec une limitation du rechauffement."
+    },
+    {
+      "code": "E1-3",
+      "title": "Actions et ressources relatives aux politiques climat",
+      "description": "Actions concretes de reduction des emissions et ressources allouees : efficacite energetique, mobilite bas carbone, energies renouvelables."
+    },
+    {
+      "code": "E2-1",
+      "title": "Politiques relatives a la pollution",
+      "description": "Prevention et reduction de la pollution de l'air, de l'eau et des sols, gestion des substances preoccupantes."
+    },
+    {
+      "code": "E3-1",
+      "title": "Eau et ressources marines",
+      "description": "Gestion et reduction de la consommation d'eau, protection des ressources en eau."
+    },
+    {
+      "code": "E5-1",
+      "title": "Utilisation des ressources et economie circulaire",
+      "description": "Reduction, reemploi, recyclage des ressources et des dechets, ecoconception."
+    },
+    {
+      "code": "S1-1",
+      "title": "Politiques relatives aux effectifs de l'entreprise",
+      "description": "Conditions de travail, sante et securite, dialogue social des salaries."
+    },
+    {
+      "code": "S1-9",
+      "title": "Diversite et egalite des chances",
+      "description": "Egalite femmes-hommes, diversite, inclusion, non-discrimination au sein des effectifs."
+    },
+    {
+      "code": "S1-13",
+      "title": "Formation et developpement des competences",
+      "description": "Acces a la formation, developpement professionnel et employabilite des salaries."
+    },
+    {
+      "code": "S2-1",
+      "title": "Travailleurs de la chaine de valeur",
+      "description": "Droits humains et conditions de travail chez les fournisseurs et sous-traitants."
+    },
+    {
+      "code": "G1-1",
+      "title": "Conduite des affaires et ethique",
+      "description": "Lutte anti-corruption, ethique des affaires, protection des lanceurs d'alerte."
+    }
+  ]
+}
