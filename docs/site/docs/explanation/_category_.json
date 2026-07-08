@@ -1,0 +1,9 @@
+{
+  "label": "Explanation",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "slug": "/explanation",
+    "description": "Understanding-oriented discussion of the concepts and the reasoning behind them."
+  }
+}

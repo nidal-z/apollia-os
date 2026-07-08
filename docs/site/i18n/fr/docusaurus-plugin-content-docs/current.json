@@ -1,0 +1,62 @@
+{
+  "version.label": {
+    "message": "Next",
+    "description": "The label for version current"
+  },
+  "sidebar.docs.category.Tutorials": {
+    "message": "Tutorials",
+    "description": "The label for category 'Tutorials' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Tutorials.link.generated-index.description": {
+    "message": "Learn Apollia by doing. Guided, end-to-end lessons for newcomers.",
+    "description": "The generated-index page description for category 'Tutorials' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.How-to guides": {
+    "message": "How-to guides",
+    "description": "The label for category 'How-to guides' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.How-to guides.link.generated-index.description": {
+    "message": "Task-oriented recipes for a specific goal.",
+    "description": "The generated-index page description for category 'How-to guides' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Reference": {
+    "message": "Reference",
+    "description": "The label for category 'Reference' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Reference.link.generated-index.description": {
+    "message": "Precise, information-oriented facts. The API, CLI, and SDK sections are generated from the source of truth and must never be hand-edited.",
+    "description": "The generated-index page description for category 'Reference' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.SDK / ctx contract": {
+    "message": "SDK / ctx contract",
+    "description": "The label for category 'SDK / ctx contract' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.api": {
+    "message": "api",
+    "description": "The label for category 'api' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Explanation": {
+    "message": "Explanation",
+    "description": "The label for category 'Explanation' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Explanation.link.generated-index.description": {
+    "message": "Understanding-oriented discussion of the concepts and the reasoning behind them.",
+    "description": "The generated-index page description for category 'Explanation' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Architecture": {
+    "message": "Architecture",
+    "description": "The label for category 'Architecture' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Architecture.link.generated-index.description": {
+    "message": "The public system cartography, following arc42 and the C4 model.",
+    "description": "The generated-index page description for category 'Architecture' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Operator help": {
+    "message": "Operator help",
+    "description": "The label for category 'Operator help' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Operator help.link.generated-index.description": {
+    "message": "The desktop operator space. This corpus is French and migrates from docs/help via i18n.",
+    "description": "The generated-index page description for category 'Operator help' in sidebar 'docs'"
+  }
+}

@@ -90,3 +90,10 @@ demo/
 /agents/veille-ia/
 /agents/xlsx-worker/
 /agents/sanitize-codebase/
+
+# Docusaurus adopters documentation site (docs/site). Build-time Node artifacts
+# and generated API reference (regenerated from clients/openapi.json at build).
+/docs/site/node_modules/
+/docs/site/build/
+/docs/site/.docusaurus/
+/docs/site/docs/reference/api/

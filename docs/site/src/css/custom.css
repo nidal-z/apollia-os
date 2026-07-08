@@ -1,0 +1,26 @@
+/* Apollia OS documentation theme overrides.
+   Design tokens are mirrored from the desktop charter in later phases; phase 1
+   keeps the Infima defaults with a neutral brand accent. */
+
+:root {
+  --ifm-color-primary: #4338ca;
+  --ifm-color-primary-dark: #3c33b8;
+  --ifm-color-primary-darker: #3930ae;
+  --ifm-color-primary-darkest: #2f288f;
+  --ifm-color-primary-light: #4a3fd6;
+  --ifm-color-primary-lighter: #5449da;
+  --ifm-color-primary-lightest: #6e64e0;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #8b83f0;
+  --ifm-color-primary-dark: #6f64ec;
+  --ifm-color-primary-darker: #6157ea;
+  --ifm-color-primary-darkest: #3d31e3;
+  --ifm-color-primary-light: #a7a2f4;
+  --ifm-color-primary-lighter: #b5b0f6;
+  --ifm-color-primary-lightest: #dfddfb;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}

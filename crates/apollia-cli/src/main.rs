@@ -456,6 +456,15 @@ enum Commands {
         /// The command or error text to explain.
         text: String,
     },
+
+    /// Emit the CLI reference as Markdown, for documentation generation.
+    ///
+    /// Derived from the clap command tree, so it always tracks the real command
+    /// surface. Available only under the `gen-docs` feature; never shipped in the
+    /// default binary.
+    #[cfg(feature = "gen-docs")]
+    #[command(name = "gen-cli-docs", hide = true)]
+    GenCliDocs,
 }
 
 /// Configure the tracing subscriber from the global verbosity/color flags.
@@ -724,6 +733,17 @@ fn main() {
                 commands::do_cmd::run(&request, yes, cli.socket, json).await
             }
             Commands::Explain { text } => commands::explain::run(&text, cli.socket, json).await,
+            #[cfg(feature = "gen-docs")]
+            Commands::GenCliDocs => {
+                use std::io::Write;
+                let markdown = clap_markdown::help_markdown::<Cli>();
+                let mut out = std::io::stdout();
+                match out.write_all(markdown.as_bytes()).and_then(|()| out.flush()) {
+                    Ok(()) => exit_codes::SUCCESS,
+                    Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => exit_codes::SUCCESS,
+                    Err(_) => exit_codes::GENERAL_ERROR,
+                }
+            }
         }
     });
 
