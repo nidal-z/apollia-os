@@ -73,6 +73,28 @@ impl RunnerProxy {
         serde_json::from_value(data).map_err(RunnerError::Json)
     }
 
+    /// Open an SSE stream via `POST /llm/stream` (or any streaming endpoint) and
+    /// return the raw response for the caller to parse incrementally. The request
+    /// envelope matches [`post_json`](Self::post_json); only the response handling
+    /// differs (streamed body instead of a buffered JSON object).
+    pub async fn post_sse(
+        &self,
+        path: &str,
+        params: Value,
+    ) -> Result<reqwest::Response, RunnerError> {
+        let request_id = Uuid::new_v4();
+        let envelope = serde_json::json!({
+            "request_id": request_id,
+            "params": params,
+        });
+
+        let guard = self.inner.read().await;
+        let inner = guard
+            .as_ref()
+            .ok_or_else(|| RunnerError::Http("runner not started".into()))?;
+        inner.client.post_stream(path, &envelope).await
+    }
+
     /// Tokenize `text` for `model_id` via `POST /llm/tokenize`, blocking until
     /// the runner answers, and return the token count.
     ///

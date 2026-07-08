@@ -37,6 +37,11 @@ pub struct LoadModelParams {
     /// `0` is treated as 1.
     #[serde(default = "default_slot_count")]
     pub slot_count: u32,
+    /// KV cache data type (e.g. `"q8_0"`, `"q4_0"`, `"f16"`). Absent or
+    /// unrecognized keeps `f16` (the default). Quantizing shrinks the KV cache so
+    /// a larger context or more concurrent sequences fit, at a small precision cost.
+    #[serde(default)]
+    pub kv_cache_type: Option<String>,
 }
 
 /// `n_ctx` is a CAP on the working window, not a fixed size: `0` means "use the
@@ -196,6 +201,12 @@ pub struct CompleteData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamChunk {
     pub text: String,
+    /// Structured tool calls. Populated only on the final chunk of a stream and
+    /// empty on incremental text chunks, so the streaming path delivers the same
+    /// structured calls as `/llm/complete` instead of leaking the raw
+    /// `<tool_call>` tags into the streamed text.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_calls: Vec<ToolCall>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<FinishReason>,
 }

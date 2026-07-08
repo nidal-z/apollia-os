@@ -4,7 +4,7 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::timeout;
@@ -103,19 +103,19 @@ impl RunnerSupervisor {
             }
         };
 
-        // Redirect stderr to the daemon's tracing logs.
+        // Drain the runner's stderr into the daemon's tracing log. This MUST keep
+        // draining for the runner's whole life: if it stalls, the OS pipe buffer
+        // fills and the runner blocks on its next stderr write, deadlocking the
+        // in-progress model load (llama.cpp is very verbose during load).
         if let Some(stderr) = child.stderr.take() {
             let backend = self.backend;
-            tokio::spawn(forward_stderr(stderr, backend));
+            tokio::spawn(drain_pipe(BufReader::new(stderr), backend, PipeKind::Stderr));
         }
 
-        // Spawn a task that drains the remaining stdout (otherwise the pipe fills up).
-        tokio::spawn(async move {
-            let mut lines = reader.lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                tracing::trace!(line = %line, "[runner stdout]");
-            }
-        });
+        // Drain the remaining stdout for the same reason (the READY line has been
+        // consumed above; the rest is diagnostics).
+        let backend = self.backend;
+        tokio::spawn(drain_pipe(reader, backend, PipeKind::Stdout));
 
         // Check the HTTP handshake.
         let client = RunnerClient::new(port)?;
@@ -161,6 +161,22 @@ impl RunnerSupervisor {
     /// Current HTTP port of the runner. For debug / tests.
     pub async fn port(&self) -> Option<u16> {
         self.inner.read().await.as_ref().map(|i| i.port)
+    }
+
+    /// Kill the runner child without consuming the supervisor.
+    ///
+    /// The owning [`shutdown`](Self::shutdown) takes `self` by value, which an
+    /// `Arc<RunnerSupervisor>` cannot satisfy. This variant works through a
+    /// shared reference, so it can be called from the desktop exit hook where
+    /// the supervisor lives behind an `Arc`. Best-effort and time-bounded:
+    /// intended for process teardown, not graceful drain.
+    pub async fn shutdown_in_place(&self) {
+        *self.shutting_down.lock().await = true;
+        let child = self.child.lock().await.take();
+        if let Some(mut child) = child {
+            // SIGKILL and reap, bounded so a wedged runner cannot stall exit.
+            let _ = timeout(Duration::from_secs(2), child.kill()).await;
+        }
     }
 
     /// Cleanly stop the runner (`POST /shutdown` + wait for exit).
@@ -263,10 +279,41 @@ async fn read_ready_line(
     Ok(port)
 }
 
-async fn forward_stderr(stderr: tokio::process::ChildStderr, backend: RunnerBackend) {
-    let mut lines = BufReader::new(stderr).lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        // The runner already emits JSON Lines, so log it as-is.
-        tracing::info!(target: "runner", backend = ?backend, line = %line);
+/// Which runner child stream is being drained (controls the log level).
+#[derive(Clone, Copy)]
+enum PipeKind {
+    Stdout,
+    Stderr,
+}
+
+/// Continuously drains a runner child pipe into the daemon's tracing log.
+///
+/// Reads with `read_until` + lossy UTF-8 decoding rather than `lines()`: the
+/// runner (llama.cpp) writes non-UTF-8 bytes on stderr (raw tokenizer byte
+/// tokens), and `AsyncBufReadExt::lines` yields `Err` on the first invalid-UTF-8
+/// line, which would end the drain. A stalled drain lets the OS pipe buffer fill,
+/// after which the runner blocks on its next write and the in-progress model load
+/// deadlocks. So never stop on a decode error, only on EOF or a real read error
+/// (the runner process has exited).
+async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R, backend: RunnerBackend, kind: PipeKind) {
+    let mut buf = Vec::with_capacity(256);
+    loop {
+        buf.clear();
+        match reader.read_until(b'\n', &mut buf).await {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {
+                let line = String::from_utf8_lossy(&buf);
+                let line = line.trim_end_matches(['\r', '\n']);
+                match kind {
+                    // The runner emits JSON Lines on stderr; forward as-is.
+                    PipeKind::Stderr => {
+                        tracing::info!(target: "runner", backend = ?backend, line = %line);
+                    }
+                    PipeKind::Stdout => {
+                        tracing::trace!(target: "runner", backend = ?backend, line = %line);
+                    }
+                }
+            }
+        }
     }
 }

@@ -95,6 +95,8 @@ pub struct ChatRequest {
 pub struct ChatResponse {
     /// LLM-generated response text.
     pub content: String,
+    /// Name of the backend that served this request (for transparency).
+    pub backend: String,
     /// Token usage statistics for this call.
     pub usage: TokenUsageResponse,
     /// Total round-trip latency in milliseconds.
@@ -119,6 +121,9 @@ pub struct CompleteRequest {
     pub messages: Vec<MessageDto>,
     /// Backend to use; falls back to the router default if omitted.
     pub backend: Option<String>,
+    /// Optional GBNF grammar constraining the decoding (local backends).
+    #[serde(default)]
+    pub grammar: Option<String>,
 }
 
 // ─────────────────────────────────────────────
@@ -141,7 +146,9 @@ pub async fn get_llm_status<B: ExecutionBackend + Clone>(
     // CLI can show budget headroom. `ceiling_usd` is absent without hybrid
     // routing; `cost_usd` is absent only when no router is configured.
     let cost_usd = snapshot.as_ref().map(|router| router.session_cost_usd());
-    let ceiling_usd = snapshot.as_ref().and_then(|router| router.cost_ceiling_usd());
+    let ceiling_usd = snapshot
+        .as_ref()
+        .and_then(|router| router.cost_ceiling_usd());
     let ceiling_reached = snapshot
         .as_ref()
         .is_some_and(|router| router.is_ceiling_reached());
@@ -248,6 +255,9 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
         ..Default::default()
     };
     let obs = ObservabilityConfig::default();
+    let backend_used = backend_name
+        .map(String::from)
+        .unwrap_or_else(|| router.default_name().to_string());
 
     let response = router
         .complete_with_observability(
@@ -266,6 +276,7 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
 
     Ok(Json(ChatResponse {
         content: response.content,
+        backend: backend_used,
         usage: TokenUsageResponse {
             prompt_tokens: response.usage.prompt_tokens,
             completion_tokens: response.usage.completion_tokens,
@@ -323,9 +334,14 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
 
     let completion_req = CompletionRequest {
         messages,
+        grammar: req.grammar,
         ..Default::default()
     };
     let obs = ObservabilityConfig::default();
+    let backend_used = req
+        .backend
+        .clone()
+        .unwrap_or_else(|| router.default_name().to_string());
 
     let response = router
         .complete_with_observability(
@@ -344,6 +360,7 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
 
     Ok(Json(ChatResponse {
         content: response.content,
+        backend: backend_used,
         usage: TokenUsageResponse {
             prompt_tokens: response.usage.prompt_tokens,
             completion_tokens: response.usage.completion_tokens,
@@ -982,8 +999,7 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
     // wired through the sidecar; otherwise the rebuild would drop it and the
     // runner would become unreachable from agents and chat. Shares the same
     // factory used by the supervisor at boot.
-    let factory =
-        crate::runner_supervisor::runner_llm_override(state.runner_proxy.clone());
+    let factory = crate::runner_supervisor::runner_llm_override(state.runner_proxy.clone());
     let new_router = apollia_llm::LlmRouter::from_backend_configs_with_override(
         all_configs,
         default_name,
@@ -1536,7 +1552,10 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
         let json = body_json(resp).await;
         let err = json["error"].as_str().unwrap_or_default();
-        assert!(err.contains("default"), "expected 'default' in error, got {err}");
+        assert!(
+            err.contains("default"),
+            "expected 'default' in error, got {err}"
+        );
     }
 
     // GIVEN an AppState whose llm_router cell still holds the boot router,

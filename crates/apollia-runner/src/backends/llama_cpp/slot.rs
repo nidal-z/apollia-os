@@ -13,11 +13,10 @@
 //! per model and routes a request to the slot whose conversation matches, so
 //! follow-up turns land on the slot that already holds their prefix.
 
-use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::context::params::KvCacheType;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::{AddBos, LlamaModel};
@@ -38,6 +37,8 @@ pub(super) struct InferenceRequest {
     pub temperature: f32,
     pub top_p: f32,
     pub top_k: i32,
+    /// Repetition penalty over the recent token window. `1.0` (or less) disables it.
+    pub repeat_penalty: f32,
     pub seed: Option<u64>,
     /// GBNF grammar string; `None` means unconstrained decoding.
     pub grammar: Option<String>,
@@ -109,22 +110,40 @@ pub(super) struct SlotPool {
 }
 
 impl SlotPool {
-    /// Spawn `count` slots, each creating its own context at `n_ctx`. Fails if a
-    /// slot cannot create its context (surfaces KV-allocation failure at load).
+    /// Spawn up to `count` slots, each creating its own context at `n_ctx`.
+    ///
+    /// Each slot allocates a full KV cache, so requesting several slots multiplies
+    /// the memory footprint. Rather than failing the whole load when memory is too
+    /// tight for the full count, the pool degrades gracefully: it keeps the slots
+    /// that did allocate (at least one) and logs the shortfall. Batch throughput is
+    /// then reduced, not lost. The load only fails when even a single slot cannot
+    /// allocate its context (a genuine out-of-memory at the model's window).
     pub(super) fn spawn(
         model: &Arc<LlamaModel>,
         backend: &Arc<LlamaBackend>,
         n_ctx: u32,
         count: u32,
+        kv_type: KvCacheType,
     ) -> Result<Self, ErrorBody> {
-        let mut handles = Vec::with_capacity(count as usize);
-        for index in 0..count.max(1) {
-            handles.push(spawn_slot(
-                index,
-                Arc::clone(model),
-                Arc::clone(backend),
-                n_ctx,
-            )?);
+        let requested = count.max(1);
+        let mut handles = Vec::with_capacity(requested as usize);
+        for index in 0..requested {
+            match spawn_slot(index, Arc::clone(model), Arc::clone(backend), n_ctx, kv_type) {
+                Ok(handle) => handles.push(handle),
+                Err(e) => {
+                    if handles.is_empty() {
+                        // Not even one slot fits: a real load failure, surfaced.
+                        return Err(e);
+                    }
+                    tracing::warn!(
+                        requested,
+                        spawned = handles.len(),
+                        reason = %e.message,
+                        "slot pool degraded: not enough memory for the full slot count"
+                    );
+                    break;
+                }
+            }
         }
         Ok(Self {
             handles,
@@ -198,6 +217,7 @@ fn spawn_slot(
     model: Arc<LlamaModel>,
     backend: Arc<LlamaBackend>,
     n_ctx: u32,
+    kv_type: KvCacheType,
 ) -> Result<SlotHandle, ErrorBody> {
     let routing = Arc::new(Mutex::new(RoutingState {
         fingerprint: 0,
@@ -214,9 +234,7 @@ fn spawn_slot(
     let join = std::thread::Builder::new()
         .name(format!("apollia-llm-slot-{index}"))
         .spawn(move || {
-            let ctx_params = LlamaContextParams::default()
-                .with_n_ctx(NonZeroU32::new(n_ctx))
-                .with_n_batch(n_ctx);
+            let ctx_params = super::build_context_params(n_ctx, kv_type);
             let mut ctx = match model.new_context(&backend, ctx_params) {
                 Ok(c) => c,
                 Err(e) => {
@@ -296,8 +314,12 @@ fn run_job(
             let out = generate(model, ctx, cached_tokens, n_ctx, index, &req, Some(&tx));
             match out {
                 Ok(o) => {
+                    // Final chunk: carries the structured tool calls (recovered
+                    // from the full output) plus the finish reason. The text was
+                    // already streamed live and cleaned, so it stays empty here.
                     let _ = tx.blocking_send(Ok(StreamChunk {
                         text: String::new(),
+                        tool_calls: o.tool_calls,
                         finish_reason: Some(o.finish_reason),
                     }));
                 }
@@ -394,12 +416,16 @@ fn generate(
     let prompt_tokens = new_len as u32;
     let effective_max = resolve_effective_max(n_ctx, prompt_tokens, req.max_tokens);
     let decode_start = Instant::now();
-    let mut sampler = build_sampler(req, model)?;
+    let mut sampler = build_sampler(req, model, &template_result)?;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let mut n_cur = new_len as i32;
     let n_max = n_cur + effective_max as i32;
     let mut sample_idx = batch.n_tokens() - 1;
     let mut generated = String::new();
+    let mut generated_tokens: Vec<LlamaToken> = Vec::new();
+    // Clean text already streamed to the consumer (tool-call tags stripped). Used
+    // to compute the delta to send each token and to prefix-match the final parse.
+    let mut emitted_text = String::new();
     let mut completion_tokens: u32 = 0;
     let mut finish_reason = FinishReason::Length;
 
@@ -416,23 +442,40 @@ fn generate(
             .token_to_piece(token, &mut decoder, true, None)
             .unwrap_or_default();
 
+        // Accumulate first so the streaming cleaner sees the full output so far.
+        generated.push_str(&piece);
+
         if let Some(tx) = stream_tx {
-            if tx
-                .blocking_send(Ok(StreamChunk {
-                    text: piece.clone(),
-                    finish_reason: None,
-                }))
-                .is_err()
-            {
-                // Receiver dropped: the client gave up.
-                finish_reason = FinishReason::Abort;
-                break;
+            // Stream only clean text: `<tool_call>` blocks are suppressed and a
+            // partial opener is held back, so the consumer accumulates the same
+            // content the non-streaming path produces and never sees raw tags.
+            let clean = super::stream_clean_prefix(&generated);
+            if let Some(delta) = clean.strip_prefix(emitted_text.as_str()) {
+                if !delta.is_empty() {
+                    let out = delta.to_string();
+                    if tx
+                        .blocking_send(Ok(StreamChunk {
+                            text: out.clone(),
+                            tool_calls: Vec::new(),
+                            finish_reason: None,
+                        }))
+                        .is_err()
+                    {
+                        // Receiver dropped: uncommit this token (it was not yet
+                        // decoded into KV) so the cached sequence stays consistent.
+                        generated.truncate(generated.len() - piece.len());
+                        finish_reason = FinishReason::Abort;
+                        break;
+                    }
+                    emitted_text.push_str(&out);
+                }
             }
         }
-        // Accumulate in every mode so tool calls can be recovered after
-        // generation, including on the streaming path (where the live tokens
-        // were already forwarded verbatim).
-        generated.push_str(&piece);
+        // Record the token id: it is about to be decoded into the KV cache, so
+        // the next turn of this conversation can reuse it as part of its prefix
+        // instead of re-prefilling the reply. (EOG and stream-abort tokens break
+        // out above, before this point, so they never enter the cached sequence.)
+        generated_tokens.push(token);
         completion_tokens += 1;
 
         batch.clear();
@@ -465,18 +508,32 @@ fn generate(
         "llm generation stopped"
     );
 
-    // The prompt is now materialized in KV; cache it for next-turn prefix reuse.
-    // Generated tokens are intentionally not tracked: next turn's prefix clear
-    // discards their KV tail.
-    *cached_tokens = new_tokens;
+    // The prompt AND the tokens we just generated are materialized in KV. Cache
+    // the whole sequence so the next turn of this conversation reuses the full
+    // prefix (prompt + prior completion) instead of re-prefilling the assistant
+    // reply it now contains. This stays within the context window: generation is
+    // bounded to the remaining window, so `new_len + completion_tokens <= n_ctx`.
+    let mut sequence = new_tokens;
+    sequence.append(&mut generated_tokens);
+    *cached_tokens = sequence;
 
     // The complete path returns cleaned content plus structured tool calls.
-    // The streaming path already forwarded the live tokens, so it keeps an
-    // empty text but still recovers tool calls from the accumulated output so
-    // the consumer can execute them. Suppressing the tag text from the live
-    // stream is a separate concern, for when real SSE tool streaming lands.
-    let (text, tool_calls) = if stream_tx.is_some() {
-        let (_streamed, calls) = parse_completion(&template_result, generated);
+    // The streaming path already forwarded the cleaned text live, so it returns
+    // empty text; it recovers tool calls from the authoritative final parse (which
+    // also covers native, non-tag formats) and flushes any clean text the final
+    // parse resolved beyond what was streamed (e.g. a tail held back as a partial
+    // opener that turned out to be plain text).
+    let (text, tool_calls) = if let Some(tx) = stream_tx {
+        let (clean, calls) = parse_completion(&template_result, generated);
+        if let Some(delta) = clean.strip_prefix(emitted_text.as_str()) {
+            if !delta.is_empty() {
+                let _ = tx.blocking_send(Ok(StreamChunk {
+                    text: delta.to_string(),
+                    tool_calls: Vec::new(),
+                    finish_reason: None,
+                }));
+            }
+        }
         (String::new(), calls)
     } else {
         parse_completion(&template_result, generated)
@@ -568,6 +625,21 @@ mod tests {
     #[test]
     fn cap_prefix_full_match_leaves_one_token() {
         assert_eq!(cap_prefix(5, 5), 4);
+    }
+
+    #[test]
+    fn cached_prompt_plus_generated_is_reused_next_turn() {
+        // GIVEN a first turn whose KV now holds prompt [1,2,3] plus the reply it
+        // generated [4,5] (the sequence this slot caches after generation)
+        let cached = [tok(1), tok(2), tok(3), tok(4), tok(5)];
+        // WHEN the next turn's prompt is the whole conversation so far (prompt +
+        // prior reply) followed by one new user token
+        let next = [tok(1), tok(2), tok(3), tok(4), tok(5), tok(6)];
+        // THEN the common prefix covers the entire prior sequence, so only the
+        // new token is re-prefilled: the reply is no longer reprocessed. Before
+        // caching generated tokens, the cache stopped at [1,2,3] and [4,5] were
+        // decoded again every turn.
+        assert_eq!(common_prefix_len(&cached, &next), 5);
     }
 
     #[test]

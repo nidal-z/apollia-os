@@ -18,6 +18,11 @@ use apollia_llm::{
     StepBudgetView, StreamChunk, ToolCallHelper, ToolSpec,
 };
 
+/// Default bound on how many `map` items call the model at once when the caller
+/// does not pass `max_concurrency`. Kept modest: the backend (llama-server) does
+/// the real batching, and this only caps in-flight requests.
+const DEFAULT_MAP_CONCURRENCY: usize = 8;
+
 // PyO3 types
 
 /// Token-consumption statistics returned to Python.
@@ -197,15 +202,23 @@ impl LlmProxy {
     ///
     /// Automatically builds `[ChatMessage::system(system), ChatMessage::user(user)]`.
     /// `backend` overrides the default backend configured in `apollia.toml`.
+    /// `temperature`, `max_tokens`, and `seed` are optional sampling overrides;
+    /// when left `None` the per-model defaults apply.
     ///
     /// Returns a Python awaitable resolving to `LlmResponse`.
-    #[pyo3(signature = (system, user, backend = None))]
+    // The parameter list mirrors the Python-facing signature (backend + sampling
+    // overrides); PyO3 requires them flat, so they cannot be grouped into a struct.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (system, user, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn chat<'py>(
         &self,
         py: Python<'py>,
         system: String,
         user: String,
         backend: Option<String>,
+        temperature: Option<f32>,
+        max_tokens: Option<u32>,
+        seed: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         // Emit LlmCallStarted before dispatch.
         let prompt_chars = (system.chars().count() + user.chars().count()) as u64;
@@ -218,6 +231,8 @@ impl LlmProxy {
         let router = Arc::clone(&self.router);
         let obs = Arc::clone(&self.obs_config);
         let bus = self.event_bus.clone();
+        let run_id = self.run_id.clone();
+        let capture_backend = backend_label.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             // Inject the authoritative current-date / system block at the
@@ -231,12 +246,16 @@ impl LlmProxy {
                     ChatMessage::system(system_with_context),
                     ChatMessage::user(user),
                 ],
+                temperature,
+                max_tokens,
+                seed,
                 ..Default::default()
             };
             let resp = router
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
                 .map_err(llm_err_to_py)?;
+            emit_llm_capture(&bus, &run_id, &capture_backend, &resp);
 
             Python::with_gil(|py| {
                 let usage = PyTokenUsage {
@@ -254,18 +273,127 @@ impl LlmProxy {
         })
     }
 
+    /// Batch a shared-prefix prompt over many items (`ctx.llm.map`).
+    ///
+    /// Each item is completed as `[system(prefix), user(item)]`, so the system
+    /// message is byte-identical across items: on a batching backend
+    /// (llama-server) this maximizes the prompt-prefix cache hit rate and lets
+    /// continuous batching amortize the cost, while on other backends it degrades
+    /// to bounded-concurrent calls (still correct). Apollia owns the concurrency
+    /// and prefix sharing; the caller never touches slots or batching.
+    ///
+    /// Returns a Python awaitable resolving to a list of dicts, order-preserving,
+    /// one per item: `{"index": int, "ok": bool, "text"?: str, "error"?: str,
+    /// "usage"?: {...}}`. A single item failing never aborts the batch.
+    // Flat parameters mirror the Python-facing signature (see `chat`).
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (prefix, items, backend = None, temperature = None, max_tokens = None, max_concurrency = None))]
+    fn map<'py>(
+        &self,
+        py: Python<'py>,
+        prefix: String,
+        items: Vec<String>,
+        backend: Option<String>,
+        temperature: Option<f32>,
+        max_tokens: Option<u32>,
+        max_concurrency: Option<usize>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let router = Arc::clone(&self.router);
+        let obs = Arc::clone(&self.obs_config);
+        let budget = Arc::clone(&self.budget_view);
+        let bus = self.event_bus.clone();
+        let concurrency = max_concurrency.unwrap_or(DEFAULT_MAP_CONCURRENCY).max(1);
+        // Prepend the temporal context ONCE to the shared prefix so every item's
+        // system message stays byte-identical (see method doc: prefix-cache hits).
+        let system_prefix = apollia_core::temporal_context::prepend_temporal_context(&prefix);
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let sem = Arc::new(tokio::sync::Semaphore::new(concurrency));
+            let per_item = items.into_iter().enumerate().map(|(index, item)| {
+                let router = Arc::clone(&router);
+                let obs = Arc::clone(&obs);
+                let budget = Arc::clone(&budget);
+                let bus = bus.clone();
+                let sem = Arc::clone(&sem);
+                let backend = backend.clone();
+                let system_prefix = system_prefix.clone();
+                async move {
+                    // Bound in-flight calls; the owned permit (no borrow across
+                    // the await) is held for the item's duration. The semaphore is
+                    // never closed, so acquire only fails in impossible states.
+                    let _permit = Arc::clone(&sem).acquire_owned().await.ok();
+                    // Honour a run-level budget already exhausted elsewhere rather
+                    // than overrunning it; the item reports the reason instead.
+                    if budget.is_exhausted() {
+                        return (index, Err("budget exhausted".to_string()));
+                    }
+                    let req = CompletionRequest {
+                        messages: vec![
+                            ChatMessage::system(system_prefix),
+                            ChatMessage::user(item),
+                        ],
+                        temperature,
+                        max_tokens,
+                        ..Default::default()
+                    };
+                    let res = router
+                        .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
+                        .await
+                        .map_err(|e| e.to_string());
+                    (index, res)
+                }
+            });
+
+            let mut results = futures::future::join_all(per_item).await;
+            results.sort_by_key(|(index, _)| *index);
+
+            Python::with_gil(|py| {
+                let out = pyo3::types::PyList::empty(py);
+                for (index, res) in results {
+                    let entry = pyo3::types::PyDict::new(py);
+                    entry.set_item("index", index)?;
+                    match res {
+                        Ok(resp) => {
+                            entry.set_item("ok", true)?;
+                            entry.set_item("text", resp.content)?;
+                            let usage = pyo3::types::PyDict::new(py);
+                            usage.set_item("prompt_tokens", resp.usage.prompt_tokens)?;
+                            usage.set_item("completion_tokens", resp.usage.completion_tokens)?;
+                            usage.set_item("cost_usd", resp.usage.cost_usd)?;
+                            entry.set_item("usage", usage)?;
+                        }
+                        Err(error) => {
+                            entry.set_item("ok", false)?;
+                            entry.set_item("error", error)?;
+                        }
+                    }
+                    out.append(entry)?;
+                }
+                Ok::<_, PyErr>(out.into_any().unbind())
+            })
+        })
+    }
+
     /// LLM call with full multi-turn history.
     ///
     /// `messages` is a list of dicts `{"role": "system"|"user"|"assistant"|"tool", "content": "..."}`.
     /// Returns a Python awaitable resolving to `LlmResponse`.
     ///
     /// Returns `PyValueError` if a message dict is invalid (missing or unknown role).
-    #[pyo3(signature = (messages, backend = None))]
+    ///
+    /// `temperature`, `max_tokens`, and `seed` are optional sampling overrides;
+    /// when left `None` the per-model defaults apply.
+    // Flat parameters mirror the Python-facing signature (see `chat`).
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (messages, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn complete<'py>(
         &self,
         py: Python<'py>,
         messages: Vec<PyObject>,
         backend: Option<String>,
+        temperature: Option<f32>,
+        max_tokens: Option<u32>,
+        seed: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         // Synchronous conversion before crossing the async boundary.
         let chat_messages = messages
@@ -302,6 +430,8 @@ impl LlmProxy {
         let router = Arc::clone(&self.router);
         let obs = Arc::clone(&self.obs_config);
         let bus = self.event_bus.clone();
+        let run_id = self.run_id.clone();
+        let capture_backend = backend_label.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             // Same temporal-context injection as `chat()`. If the first
@@ -311,12 +441,16 @@ impl LlmProxy {
             let messages = inject_temporal_context_into_messages(chat_messages);
             let req = CompletionRequest {
                 messages,
+                temperature,
+                max_tokens,
+                seed,
                 ..Default::default()
             };
             let resp = router
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
                 .map_err(llm_err_to_py)?;
+            emit_llm_capture(&bus, &run_id, &capture_backend, &resp);
 
             Python::with_gil(|py| {
                 let usage = PyTokenUsage {
@@ -392,12 +526,17 @@ impl LlmProxy {
     ///     buffer += chunk
     ///     await ctx.emit_token(chunk)  # route to frontend
     /// ```
-    #[pyo3(signature = (messages, backend = None))]
+    // Flat parameters mirror the Python-facing signature (see `chat`).
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (messages, backend = None, temperature = None, max_tokens = None, seed = None))]
     fn stream<'py>(
         &self,
         py: Python<'py>,
         messages: Vec<PyObject>,
         backend: Option<String>,
+        temperature: Option<f32>,
+        max_tokens: Option<u32>,
+        seed: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let chat_messages = messages
             .iter()
@@ -419,6 +558,9 @@ impl LlmProxy {
                     bus,
                     backend,
                     chat_messages,
+                    temperature,
+                    max_tokens,
+                    seed,
                     tx,
                 })
                 .await;
@@ -436,6 +578,37 @@ impl LlmProxy {
     }
 }
 
+/// Emit `LlmResponseCaptured` so a task-mode LLM completion is journaled (the
+/// audit journal only captures completions carrying a `run_id`), enabling
+/// `audit replay` and putting the model's output in the tamper-evident trail,
+/// mirroring what the chat agent does.
+fn emit_llm_capture(
+    bus: &Option<EventBusSender>,
+    run_id: &Option<apollia_core::events::RunId>,
+    backend: &str,
+    resp: &apollia_llm::types::CompletionResponse,
+) {
+    let (Some(bus), Some(run_id)) = (bus.as_ref(), run_id.as_ref()) else {
+        return;
+    };
+    let tool_calls: Vec<serde_json::Value> = resp
+        .tool_calls
+        .iter()
+        .map(|tc| serde_json::json!({ "id": tc.id, "name": tc.name, "arguments": tc.arguments }))
+        .collect();
+    let _ = bus.send(apollia_core::events::RuntimeEvent::LlmResponseCaptured {
+        run_id: run_id.clone(),
+        backend: backend.to_string(),
+        model: String::new(),
+        content: resp.content.clone(),
+        tool_calls,
+        prompt_tokens: resp.usage.prompt_tokens,
+        completion_tokens: resp.usage.completion_tokens,
+        cost_usd: resp.usage.cost_usd,
+        stream_truncated: false,
+    });
+}
+
 /// Owned inputs for [`forward_stream`], the background task feeding a
 /// [`PyTokenStream`].
 struct StreamForward {
@@ -444,6 +617,9 @@ struct StreamForward {
     bus: Option<EventBusSender>,
     backend: Option<String>,
     chat_messages: Vec<ChatMessage>,
+    temperature: Option<f32>,
+    max_tokens: Option<u32>,
+    seed: Option<u64>,
     tx: mpsc::UnboundedSender<Result<String, LlmError>>,
 }
 
@@ -459,6 +635,9 @@ async fn forward_stream(f: StreamForward) {
         bus,
         backend,
         chat_messages,
+        temperature,
+        max_tokens,
+        seed,
         tx,
     } = f;
     let backend_key = backend.as_deref();
@@ -472,6 +651,9 @@ async fn forward_stream(f: StreamForward) {
 
     let req = CompletionRequest {
         messages: chat_messages.clone(),
+        temperature,
+        max_tokens,
+        seed,
         ..Default::default()
     };
     match model.stream(req).await {
@@ -500,6 +682,9 @@ async fn forward_stream(f: StreamForward) {
         Err(_) => {
             let fallback_req = CompletionRequest {
                 messages: chat_messages,
+                temperature,
+                max_tokens,
+                seed,
                 ..Default::default()
             };
             match router
@@ -789,6 +974,68 @@ fn llm_err_to_py(e: LlmError) -> PyErr {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn emit_llm_capture_sends_response_captured_with_run_id() {
+        // GIVEN a bus, a run_id, and a completion response
+        let (tx, mut rx) = tokio::sync::broadcast::channel(8);
+        let run_id = apollia_core::events::RunId::new();
+        let resp = apollia_llm::types::CompletionResponse {
+            content: "hello world".to_string(),
+            tool_calls: vec![],
+            usage: apollia_llm::types::TokenUsage {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                cost_usd: Some(0.01),
+                ..Default::default()
+            },
+            finish_reason: apollia_llm::types::FinishReason::Stop,
+            latency_ms: 42,
+            ttft_ms: None,
+        };
+
+        // WHEN a capture is emitted
+        emit_llm_capture(&Some(tx), &Some(run_id.clone()), "test-backend", &resp);
+
+        // THEN an LlmResponseCaptured event carries the run_id + content
+        let ev = rx.try_recv().expect("event expected");
+        match ev {
+            apollia_core::events::RuntimeEvent::LlmResponseCaptured {
+                run_id: rid,
+                content,
+                completion_tokens,
+                ..
+            } => {
+                assert_eq!(rid, run_id);
+                assert_eq!(content, "hello world");
+                assert_eq!(completion_tokens, 5);
+            }
+            other => panic!("expected LlmResponseCaptured, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn emit_llm_capture_noop_without_run_id() {
+        // GIVEN a bus but no run_id (a run-agnostic call)
+        let (tx, mut rx) = tokio::sync::broadcast::channel(8);
+        let resp = apollia_llm::types::CompletionResponse {
+            content: "x".to_string(),
+            tool_calls: vec![],
+            usage: apollia_llm::types::TokenUsage {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                cost_usd: None,
+                ..Default::default()
+            },
+            finish_reason: apollia_llm::types::FinishReason::Stop,
+            latency_ms: 0,
+            ttft_ms: None,
+        };
+
+        // WHEN / THEN no event is emitted when run_id is absent
+        emit_llm_capture(&Some(tx), &None, "b", &resp);
+        assert!(rx.try_recv().is_err(), "no event without a run_id");
+    }
 
     /// `py_dict_to_chat_message`: role "user" converts correctly.
     #[test]

@@ -20,13 +20,15 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use futures::Stream;
-use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::context::params::{KvCacheType, LlamaContextParams};
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{
-    AddBos, ChatTemplateResult, LlamaChatMessage, LlamaChatTemplate, LlamaModel,
+    AddBos, ChatTemplateResult, GrammarTrigger, GrammarTriggerType, LlamaChatMessage,
+    LlamaChatTemplate, LlamaModel,
 };
 use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_2::token::LlamaToken;
 
 use crate::ipc::{
     ChatMessage, CompleteData, CompleteParams, ErrorBody, ErrorCode, LoadModelData, LoadModelParams,
@@ -45,6 +47,16 @@ const MIN_CTX_SIZE: u32 = 1024;
 const MAX_SLOTS: u32 = 8;
 /// Working window used when the GGUF reports no trained context and no cap.
 const DEFAULT_CTX_FALLBACK: u32 = 8192;
+/// Logical batch size (tokens submitted per decode call). The prefill loop
+/// chunks the prompt by this, so a modest cap keeps the compute buffer small
+/// instead of scaling it to the whole context window. Matches llama.cpp's own
+/// default of 2048.
+const DEFAULT_N_BATCH: u32 = 2048;
+/// Physical (micro) batch size, bounded by `n_batch`. Matches llama.cpp's
+/// default of 512, set explicitly so the value lives in one visible place.
+const DEFAULT_N_UBATCH: u32 = 512;
+/// Window of recent tokens the repetition penalty looks back over.
+const DEFAULT_PENALTY_LAST_N: i32 = 64;
 
 /// Entry for a model loaded into VRAM/RAM.
 ///
@@ -167,6 +179,7 @@ impl LlamaCppBackend {
         let slot_count = params.slot_count.clamp(1, MAX_SLOTS);
         let use_mmap = params.use_mmap;
         let use_mlock = params.use_mlock;
+        let kv_type = kv_cache_type_from_opt(params.kv_cache_type.as_deref());
 
         let memory_used_mb = std::fs::metadata(&model_path)
             .map(|m| (m.len() / (1024 * 1024)) as u32)
@@ -202,8 +215,8 @@ impl LlamaCppBackend {
             let model = Arc::new(model);
             // Find the largest context that actually allocates (adaptive
             // halving): "the most open window that fits" without failing the load.
-            let effective_ctx = probe_context_size(&model, &backend, target)?;
-            let slots = SlotPool::spawn(&model, &backend, effective_ctx, slot_count)?;
+            let effective_ctx = probe_context_size(&model, &backend, target, kv_type)?;
+            let slots = SlotPool::spawn(&model, &backend, effective_ctx, slot_count, kv_type)?;
 
             Ok::<_, ErrorBody>((
                 LoadedModel {
@@ -228,6 +241,12 @@ impl LlamaCppBackend {
 
         tracing::info!(
             model_id = %model_id,
+            backend = active_backend_label(),
+            // `999` here means "all layers": if the backend is `cpu`, the
+            // request is inert and inference runs entirely on CPU. This pairing
+            // (backend vs requested layers) is the first thing to check when
+            // prod inference is unexpectedly slow.
+            n_gpu_layers_requested = n_gpu_layers,
             load_time_ms = started.elapsed().as_millis() as u64,
             context_size,
             n_ctx_train,
@@ -350,10 +369,71 @@ fn build_request(params: CompleteParams) -> (InferenceRequest, u64) {
         temperature: params.temperature,
         top_p,
         top_k,
+        repeat_penalty: params.repeat_penalty,
         seed: params.seed,
         grammar: params.grammar,
     };
     (req, fingerprint)
+}
+
+/// Context parameters shared by the allocation probe and every slot, so the
+/// probe measures the same memory footprint the slots will actually use.
+///
+/// `n_batch` is bounded to [`DEFAULT_N_BATCH`] rather than the full window: the
+/// prefill loop chunks the prompt by `n_batch`, so a modest value keeps the
+/// compute buffer small without slowing prefill. Flash attention is left at the
+/// llama.cpp default (AUTO in this build), which turns it on when the active
+/// backend supports it.
+pub(super) fn build_context_params(n_ctx: u32, kv_type: KvCacheType) -> LlamaContextParams {
+    let n_batch = n_ctx.min(DEFAULT_N_BATCH);
+    let n_ubatch = n_batch.min(DEFAULT_N_UBATCH);
+    // `KvCacheType::F16` is the llama.cpp default, so passing it is a no-op: the
+    // quantized types (e.g. Q8_0) are opt-in and only shrink the KV cache footprint.
+    LlamaContextParams::default()
+        .with_n_ctx(NonZeroU32::new(n_ctx))
+        .with_n_batch(n_batch)
+        .with_n_ubatch(n_ubatch)
+        .with_type_k(kv_type)
+        .with_type_v(kv_type)
+}
+
+/// Map an optional IPC string to a KV cache data type. Absent or unrecognized
+/// resolves to `F16` (the llama.cpp default, i.e. no change). Quantizing the KV
+/// cache (e.g. `q8_0`) trades a little precision for a smaller footprint, letting
+/// a larger context or more concurrent sequences fit. Quantizing V generally
+/// needs flash attention, which llama.cpp enables automatically (AUTO policy)
+/// when the active backend supports it.
+fn kv_cache_type_from_opt(s: Option<&str>) -> KvCacheType {
+    match s.map(str::to_ascii_lowercase).as_deref() {
+        Some("q8_0") => KvCacheType::Q8_0,
+        Some("q5_1") => KvCacheType::Q5_1,
+        Some("q5_0") => KvCacheType::Q5_0,
+        Some("q4_1") => KvCacheType::Q4_1,
+        Some("q4_0") => KvCacheType::Q4_0,
+        Some("f16") | None => KvCacheType::F16,
+        Some(other) => {
+            tracing::warn!(kv_cache_type = %other, "unknown kv_cache_type, using f16");
+            KvCacheType::F16
+        }
+    }
+}
+
+/// Compile-time label of the exclusive backend feature this binary was built
+/// with. Purely diagnostic: it tells the operator which `apollia-runner-*`
+/// binary is actually running, so a CPU-only binary silently replacing the
+/// GPU one (all layers on CPU despite `n_gpu_layers`) is visible in the logs.
+fn active_backend_label() -> &'static str {
+    if cfg!(feature = "local-cuda") {
+        "cuda"
+    } else if cfg!(feature = "local-metal") {
+        "metal"
+    } else if cfg!(feature = "local-rocm") {
+        "rocm"
+    } else if cfg!(feature = "local-vulkan") {
+        "vulkan"
+    } else {
+        "cpu"
+    }
 }
 
 /// Find the largest context window that actually allocates, starting at
@@ -367,12 +447,11 @@ fn probe_context_size(
     model: &LlamaModel,
     backend: &LlamaBackend,
     target: u32,
+    kv_type: KvCacheType,
 ) -> Result<u32, ErrorBody> {
     let mut size = target.max(MIN_CTX_SIZE);
     loop {
-        let params = LlamaContextParams::default()
-            .with_n_ctx(NonZeroU32::new(size))
-            .with_n_batch(size);
+        let params = build_context_params(size, kv_type);
         match model.new_context(backend, params) {
             Ok(_ctx) => return Ok(size),
             Err(e) => {
@@ -626,6 +705,69 @@ fn oai_tool_call(call: &serde_json::Value, index: usize) -> Option<ToolCall> {
     })
 }
 
+/// Clean text that is safe to STREAM right now, given the raw model output so
+/// far. Mirrors [`extract_tag_tool_calls`]'s text handling for incremental
+/// output: complete, valid `<tool_call>` blocks are suppressed (their structured
+/// call is delivered separately on the final chunk), a block whose payload is not
+/// a valid tool call is kept verbatim, and the tail is held back when it is an
+/// unterminated opener or a partial opener prefix. The returned prefix therefore
+/// only ever grows as more tokens arrive, so the streaming path can emit the
+/// delta beyond what it already sent. Not trimmed (unlike the final parse), so
+/// the caller can prefix-match its already-streamed text exactly.
+pub(super) fn stream_clean_prefix(raw: &str) -> String {
+    const OPEN: &str = "<tool_call>";
+    const CLOSE: &str = "</tool_call>";
+
+    let mut content = String::new();
+    let mut rest = raw;
+    loop {
+        match rest.find(OPEN) {
+            Some(open_at) => {
+                let after_open = open_at + OPEN.len();
+                match rest[after_open..].find(CLOSE) {
+                    Some(close_rel) => {
+                        let close_at = after_open + close_rel;
+                        let block_end = close_at + CLOSE.len();
+                        let inner = rest[after_open..close_at].trim();
+                        let is_call = serde_json::from_str::<serde_json::Value>(inner)
+                            .ok()
+                            .and_then(|value| oai_tool_call(&value, 0))
+                            .is_some();
+                        if is_call {
+                            // Valid call: its text is suppressed from the stream.
+                            content.push_str(&rest[..open_at]);
+                        } else {
+                            // Not a call we understand: keep the block verbatim,
+                            // matching the non-streaming path.
+                            content.push_str(&rest[..block_end]);
+                        }
+                        rest = &rest[block_end..];
+                    }
+                    None => {
+                        // Opener with no close yet: everything from here is
+                        // unresolved, hold it back.
+                        content.push_str(&rest[..open_at]);
+                        return content;
+                    }
+                }
+            }
+            None => {
+                // Hold back a trailing partial opener that may complete next token.
+                let hold = partial_opener_suffix(rest, OPEN);
+                content.push_str(&rest[..rest.len() - hold]);
+                return content;
+            }
+        }
+    }
+}
+
+/// Longest trailing suffix of `s` that is a proper prefix of `opener` (a partial
+/// `<tool_call>` opener that could complete on the next token). `0` when none.
+fn partial_opener_suffix(s: &str, opener: &str) -> usize {
+    let max = opener.len().saturating_sub(1).min(s.len());
+    (1..=max).rev().find(|&k| s.ends_with(&opener[..k])).unwrap_or(0)
+}
+
 /// Builds the sampler chain for one inference request.
 ///
 /// The tail is greedy when `temperature <= 0`, otherwise the stochastic
@@ -634,7 +776,11 @@ fn oai_tool_call(call: &serde_json::Value, index: usize) -> Option<ToolCall> {
 /// sequence to the GBNF. An invalid grammar returns `Err` with
 /// [`ErrorCode::InferenceFailed`] and never crashes the slot. When `req.grammar`
 /// is `None`, the chain is identical to the pre-grammar behavior.
-fn build_sampler(req: &InferenceRequest, model: &LlamaModel) -> Result<LlamaSampler, ErrorBody> {
+fn build_sampler(
+    req: &InferenceRequest,
+    model: &LlamaModel,
+    template: &ChatTemplateResult,
+) -> Result<LlamaSampler, ErrorBody> {
     let tail = if req.temperature <= 0.0 {
         LlamaSampler::greedy()
     } else {
@@ -654,14 +800,99 @@ fn build_sampler(req: &InferenceRequest, model: &LlamaModel) -> Result<LlamaSamp
         ])
     };
 
-    match req.grammar.as_deref() {
-        None => Ok(tail),
-        Some(gbnf) => {
-            let grammar_stage = LlamaSampler::grammar(model, gbnf, "root")
-                .map_err(|e| inference_failed(format!("invalid grammar: {e}")))?;
-            Ok(LlamaSampler::chain_simple([grammar_stage, tail]))
+    // Repetition penalty over a recent window, applied before the selection tail
+    // when enabled. `<= 1.0` disables it (llama.cpp convention: 1.0 is a no-op),
+    // so the pre-existing behavior is preserved when no penalty is requested.
+    // Frequency and presence penalties stay at 0 (repeat-only).
+    let with_penalty = if req.repeat_penalty > 1.0 {
+        LlamaSampler::chain_simple([
+            LlamaSampler::penalties(DEFAULT_PENALTY_LAST_N, req.repeat_penalty, 0.0, 0.0),
+            tail,
+        ])
+    } else {
+        tail
+    };
+
+    // Grammar precedence: an explicit daemon-provided GBNF (the Python ReAct path
+    // sends one via `tool_specs_to_gbnf`) wins. Otherwise, when the model's chat
+    // template generated a tool grammar, apply it: it is format-correct per model
+    // family (Mistral `[TOOL_CALLS]`, Qwen `<tool_call>`, ...) and lazy, so free
+    // text flows until a tool call begins, then the call is constrained to be
+    // well-formed. This is what enables reliable tool calls on the chat path
+    // without forcing tool-only output.
+    let grammar_stage = if let Some(gbnf) = req.grammar.as_deref() {
+        Some(
+            LlamaSampler::grammar(model, gbnf, "root")
+                .map_err(|e| inference_failed(format!("invalid grammar: {e}")))?,
+        )
+    } else if let Some(gbnf) = template.grammar.as_deref() {
+        // Best-effort: a malformed template grammar (rare, model-specific) falls
+        // back to unconstrained decoding rather than failing the inference, so
+        // this can never regress a model that worked before. The explicit
+        // daemon-provided grammar above still hard-errors on purpose.
+        match build_template_grammar_sampler(model, gbnf, template) {
+            Ok(sampler) => Some(sampler),
+            Err(e) => {
+                tracing::warn!(error = %e.message, "template grammar unusable, decoding unconstrained");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    match grammar_stage {
+        None => Ok(with_penalty),
+        Some(grammar) => Ok(LlamaSampler::chain_simple([grammar, with_penalty])),
+    }
+}
+
+/// Build the grammar sampler stage from a chat-template-generated grammar.
+///
+/// Eager when the template requests it; otherwise lazy, activated by the
+/// template's triggers (literal words, specific tokens, or regex patterns) so the
+/// grammar only kicks in once a tool call starts and free-text answers stay
+/// unconstrained.
+fn build_template_grammar_sampler(
+    model: &LlamaModel,
+    gbnf: &str,
+    template: &ChatTemplateResult,
+) -> Result<LlamaSampler, ErrorBody> {
+    if !template.grammar_lazy {
+        return LlamaSampler::grammar(model, gbnf, "root")
+            .map_err(|e| inference_failed(format!("invalid template grammar: {e}")));
+    }
+    let (words, tokens, patterns) = partition_triggers(&template.grammar_triggers);
+    // A template uses one trigger style; when regex patterns are present they take
+    // the pattern-aware constructor, otherwise literal words drive activation.
+    let sampler = if patterns.is_empty() {
+        LlamaSampler::grammar_lazy(model, gbnf, "root", words.iter().map(String::as_bytes), &tokens)
+    } else {
+        LlamaSampler::grammar_lazy_patterns(model, gbnf, "root", &patterns, &tokens)
+    };
+    sampler.map_err(|e| inference_failed(format!("invalid lazy template grammar: {e}")))
+}
+
+/// Split chat-template grammar triggers into the shapes the lazy sampler needs:
+/// literal words, specific token ids, and regex patterns.
+fn partition_triggers(triggers: &[GrammarTrigger]) -> (Vec<String>, Vec<LlamaToken>, Vec<String>) {
+    let mut words = Vec::new();
+    let mut tokens = Vec::new();
+    let mut patterns = Vec::new();
+    for trigger in triggers {
+        match trigger.trigger_type {
+            GrammarTriggerType::Token => {
+                if let Some(token) = trigger.token {
+                    tokens.push(token);
+                }
+            }
+            GrammarTriggerType::Word => words.push(trigger.value.clone()),
+            GrammarTriggerType::Pattern | GrammarTriggerType::PatternFull => {
+                patterns.push(trigger.value.clone());
+            }
         }
     }
+    (words, tokens, patterns)
 }
 
 
@@ -710,6 +941,75 @@ mod tests {
             .tokenize("inexistant", "test")
             .expect_err("unknown model must be rejected");
         assert_eq!(err.code, ErrorCode::ModelNotLoaded);
+    }
+
+    #[test]
+    fn context_params_cap_batch_on_large_window() {
+        // GIVEN a very large context window
+        // WHEN building the shared context params
+        let p = build_context_params(131_072, KvCacheType::F16);
+        // THEN the logical/micro batch are capped instead of scaling to the
+        // whole window (which would inflate the compute buffer), and n_ctx is
+        // preserved.
+        assert_eq!(p.n_batch(), DEFAULT_N_BATCH);
+        assert_eq!(p.n_ubatch(), DEFAULT_N_UBATCH);
+        assert_eq!(p.n_ctx(), NonZeroU32::new(131_072));
+    }
+
+    #[test]
+    fn context_params_small_window_batch_follows_window() {
+        // GIVEN a window smaller than the default batch cap
+        // WHEN building the params
+        let p = build_context_params(1024, KvCacheType::F16);
+        // THEN n_batch follows the window and n_ubatch stays within n_batch
+        assert_eq!(p.n_batch(), 1024);
+        assert_eq!(p.n_ubatch(), DEFAULT_N_UBATCH);
+    }
+
+    #[test]
+    fn context_params_applies_quantized_kv_type() {
+        // GIVEN an opt-in quantized KV type
+        // WHEN building the params
+        let p = build_context_params(4096, KvCacheType::Q8_0);
+        // THEN both K and V caches use it (F16 stays the default elsewhere)
+        assert_eq!(p.type_k(), KvCacheType::Q8_0);
+        assert_eq!(p.type_v(), KvCacheType::Q8_0);
+    }
+
+    #[test]
+    fn kv_cache_type_maps_known_and_defaults_to_f16() {
+        // GIVEN various IPC strings
+        // THEN known types map, absent/unknown fall back to F16 (no change)
+        assert_eq!(kv_cache_type_from_opt(Some("q8_0")), KvCacheType::Q8_0);
+        assert_eq!(kv_cache_type_from_opt(Some("Q4_0")), KvCacheType::Q4_0);
+        assert_eq!(kv_cache_type_from_opt(Some("f16")), KvCacheType::F16);
+        assert_eq!(kv_cache_type_from_opt(None), KvCacheType::F16);
+        assert_eq!(kv_cache_type_from_opt(Some("bogus")), KvCacheType::F16);
+    }
+
+    #[test]
+    fn build_request_forwards_repeat_penalty() {
+        // GIVEN complete params carrying a repetition penalty
+        let params = CompleteParams {
+            model_id: "m".to_string(),
+            messages: vec![msg(Role::User, "hi")],
+            max_tokens: 0,
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 40,
+            repeat_penalty: 1.3,
+            seed: None,
+            stop: vec![],
+            tools: None,
+            grammar: None,
+        };
+
+        // WHEN building the slot request
+        let (req, _fp) = build_request(params);
+
+        // THEN the penalty reaches the sampler input verbatim (was silently
+        // dropped before: carried by IPC but never copied into InferenceRequest)
+        assert_eq!(req.repeat_penalty, 1.3);
     }
 
     #[test]
@@ -981,14 +1281,113 @@ mod tests {
     }
 
     #[test]
+    fn stream_clean_prefix_passes_plain_text() {
+        // GIVEN output with no tool-call markers at all
+        // WHEN computing the streamable clean prefix
+        // THEN the whole text is emittable
+        assert_eq!(stream_clean_prefix("hello world"), "hello world");
+    }
+
+    #[test]
+    fn stream_clean_prefix_holds_back_partial_opener() {
+        // GIVEN a trailing partial `<tool_call>` opener (mid-token)
+        // WHEN computing the prefix
+        // THEN the partial opener is held back until it completes or resolves
+        assert_eq!(stream_clean_prefix("hello <tool"), "hello ");
+    }
+
+    #[test]
+    fn stream_clean_prefix_holds_back_unterminated_block() {
+        // GIVEN an opener whose closing tag has not arrived yet
+        // WHEN computing the prefix
+        // THEN everything from the opener is held back
+        assert_eq!(
+            stream_clean_prefix("before <tool_call>{\"name\": \"f\""),
+            "before "
+        );
+    }
+
+    #[test]
+    fn stream_clean_prefix_suppresses_complete_valid_call() {
+        // GIVEN a complete, valid tool-call block surrounded by text
+        let raw = "before <tool_call>{\"name\": \"f\", \"arguments\": {}}</tool_call>after";
+        // WHEN computing the prefix
+        // THEN the block text is suppressed (the call is delivered structured later)
+        assert_eq!(stream_clean_prefix(raw), "before after");
+    }
+
+    #[test]
+    fn stream_clean_prefix_keeps_malformed_block_verbatim() {
+        // GIVEN a `<tool_call>` block whose payload is not a valid call
+        let raw = "x <tool_call>not json</tool_call> y";
+        // WHEN computing the prefix
+        // THEN it is kept verbatim, matching the non-streaming path
+        assert_eq!(stream_clean_prefix(raw), "x <tool_call>not json</tool_call> y");
+    }
+
+    #[test]
+    fn stream_clean_prefix_is_monotonic_across_growth() {
+        // GIVEN the same output revealed token by token
+        // WHEN the prefix is recomputed as text grows
+        // THEN each result extends the previous (never retracts already-safe text)
+        let steps = [
+            "Let me ",
+            "Let me check <tool",
+            "Let me check <tool_call>{\"name\":\"f\",\"arguments\":{}}",
+            "Let me check <tool_call>{\"name\":\"f\",\"arguments\":{}}</tool_call> done",
+        ];
+        let mut prev = String::new();
+        for s in steps {
+            let clean = stream_clean_prefix(s);
+            assert!(
+                clean.starts_with(&prev),
+                "prefix retracted: {prev:?} -> {clean:?}"
+            );
+            prev = clean;
+        }
+        // The final clean text is the surrounding prose, tool-call block removed.
+        assert_eq!(prev, "Let me check  done");
+    }
+
+    #[test]
     fn test_build_sampler_signature_with_grammar() {
         // GIVEN build_sampler now takes the request (carrying the grammar) and a model
         // WHEN binding it as a typed function pointer
         // THEN the signature returns Result<LlamaSampler, ErrorBody> (the None grammar
         //      path is identical to pre-grammar behavior; the Some path needs a loaded
         //      model and is exercised by integration, not here)
-        let _: fn(&InferenceRequest, &LlamaModel) -> Result<LlamaSampler, ErrorBody> =
+        let _: fn(&InferenceRequest, &LlamaModel, &ChatTemplateResult) -> Result<LlamaSampler, ErrorBody> =
             build_sampler;
+    }
+
+    #[test]
+    fn partition_triggers_splits_by_kind() {
+        // GIVEN a mix of word, token and pattern triggers from a chat template
+        let triggers = vec![
+            GrammarTrigger {
+                trigger_type: GrammarTriggerType::Word,
+                value: "<tool_call>".to_string(),
+                token: None,
+            },
+            GrammarTrigger {
+                trigger_type: GrammarTriggerType::Token,
+                value: String::new(),
+                token: Some(LlamaToken(128010)),
+            },
+            GrammarTrigger {
+                trigger_type: GrammarTriggerType::Pattern,
+                value: "\\[TOOL_CALLS\\]".to_string(),
+                token: None,
+            },
+        ];
+
+        // WHEN partitioning them
+        let (words, tokens, patterns) = partition_triggers(&triggers);
+
+        // THEN each lands in the bucket the lazy sampler expects
+        assert_eq!(words, vec!["<tool_call>".to_string()]);
+        assert_eq!(tokens, vec![LlamaToken(128010)]);
+        assert_eq!(patterns, vec!["\\[TOOL_CALLS\\]".to_string()]);
     }
 }
 

@@ -5,13 +5,13 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 
+use apollia_llm::model_defaults::{resolve, ModelDefaults, ModelHints, UserOverrides};
 use apollia_llm::types::{
     ChatMessage, CompletionModel, CompletionRequest, CompletionResponse, FinishReason,
     MessageContent, Role, StreamChunk, TokenUsage, ToolCall,
 };
-use apollia_llm::model_defaults::{resolve, ModelDefaults, ModelHints, UserOverrides};
 use apollia_llm::LlmError;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use serde_json::Value;
 
 use super::proxy::RunnerProxy;
@@ -27,6 +27,11 @@ pub struct RunnerLlmBackend {
     model_path: String,
     /// True after the first successful `load_model` on the runner.
     loaded: std::sync::Mutex<bool>,
+    /// Serialise concurrent first-use so only ONE `load_model` is ever in
+    /// flight. Without this, several callers (chat + agents sharing this
+    /// backend) pass the `loaded` check and POST `load_model` in parallel, which
+    /// deadlocks the runner during model load.
+    load_lock: tokio::sync::Mutex<()>,
     /// Per-model sampling defaults, resolved once at load time from the model
     /// family (user override file then embedded table). Empty until loaded.
     defaults: std::sync::OnceLock<ModelDefaults>,
@@ -38,6 +43,28 @@ pub struct RunnerLlmBackend {
     /// runner rejects prompts beyond it, so compaction must size to THIS rather
     /// than `n_ctx_train` (which may be larger than what fit in memory).
     effective_ctx: std::sync::OnceLock<u32>,
+    /// Number of persistent inference slots to request from the runner. Each
+    /// slot owns a full KV cache and serves one request at a time, so `> 1`
+    /// lets independent concurrent requests (batch workloads, parallel agents)
+    /// run in parallel instead of serializing. The runner degrades gracefully to
+    /// fewer slots when memory is too tight for the full count.
+    slot_count: u32,
+    /// KV cache data type to request (e.g. `"q8_0"`), or `None` for the default
+    /// `f16`. Quantizing shrinks the KV cache footprint (larger context / more
+    /// concurrent sequences). Read from the backend's `config_json`.
+    kv_cache_type: Option<String>,
+}
+
+/// Expand a leading `~/` to `$HOME/` so the runner (which requires an absolute
+/// path) accepts model paths stored with a tilde. Idempotent: a path without a
+/// leading `~/` is returned unchanged.
+fn expand_home(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            return format!("{home}/{rest}");
+        }
+    }
+    path.to_string()
 }
 
 impl RunnerLlmBackend {
@@ -46,40 +73,65 @@ impl RunnerLlmBackend {
         backend_name: String,
         model_id: String,
         model_path: String,
+        slot_count: u32,
+        kv_cache_type: Option<String>,
     ) -> Arc<Self> {
+        // Le runner exige un chemin absolu. Les configs stockent souvent le
+        // modele avec un tilde (~/.apollia/models/...): on l'expanse ici, seul
+        // point de passage de tous les appelants (chat comme taches).
+        let model_path = expand_home(&model_path);
         Arc::new(Self {
             proxy,
             backend_name,
             model_id,
             model_path,
             loaded: std::sync::Mutex::new(false),
+            load_lock: tokio::sync::Mutex::new(()),
             defaults: std::sync::OnceLock::new(),
             n_ctx_train: std::sync::OnceLock::new(),
             effective_ctx: std::sync::OnceLock::new(),
+            slot_count: slot_count.max(1),
+            kv_cache_type,
         })
     }
 
-    /// Load the model on the runner if not already done. Idempotent.
+    /// Load the model on the runner if not already done. Idempotent, and safe
+    /// under concurrency: only one `load_model` is ever posted, others wait.
     async fn ensure_loaded(&self) -> Result<(), LlmError> {
-        {
-            let guard = self.loaded.lock().expect("loaded-state mutex poisoned");
-            if *guard {
-                return Ok(());
-            }
+        // Chemin rapide: deja charge, aucune synchronisation necessaire.
+        if *self.loaded.lock().expect("loaded-state mutex poisoned") {
+            return Ok(());
+        }
+
+        // Serialiser le premier chargement: un seul POST load_model en vol. Les
+        // appelants concurrents attendent ici puis retrouvent le flag `loaded`.
+        let _load_guard = self.load_lock.lock().await;
+
+        // Re-verifier apres acquisition: un autre appelant a pu charger pendant
+        // l'attente du verrou.
+        if *self.loaded.lock().expect("loaded-state mutex poisoned") {
+            return Ok(());
         }
 
         let params = serde_json::json!({
             "model_id": self.model_id,
             "model_path": self.model_path,
-            // `0` = use the model's full trained window (the runner sizes each
-            // slot to it, shrinking adaptively only if memory is tight).
-            "n_ctx": 0,
+            // Cap the working window rather than using the model's full trained
+            // window: some models advertise a huge window (e.g. Ministral's 262144)
+            // whose KV cache is tens of GB per context, enough to exceed the GPU
+            // working-set and hard-abort the runner at load. 32768 is generous for
+            // chat/agent use; the runner caps at min(model_window, this), so smaller
+            // models are unaffected. Operators raise it via `config_json` if needed.
+            "n_ctx": 32_768,
             "n_gpu_layers": -1,
             "use_mmap": true,
             "use_mlock": false,
-            // One persistent inference slot: reuses the prompt prefix across
-            // turns. Concurrent calls to this model serialize on the slot.
-            "slot_count": 1,
+            // Persistent inference slots (each with its own KV cache and prompt
+            // prefix reuse). `> 1` lets concurrent requests run in parallel; the
+            // runner degrades to fewer slots when memory is tight.
+            "slot_count": self.slot_count,
+            // Absent -> the runner keeps `f16` (default). Quantized KV is opt-in.
+            "kv_cache_type": self.kv_cache_type,
         });
 
         let data: Value = self
@@ -200,7 +252,11 @@ impl RunnerLlmBackend {
                 arr.iter()
                     .filter_map(|tc| {
                         Some(ToolCall {
-                            id: tc.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                            id: tc
+                                .get("id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
                             name: tc.get("name").and_then(|v| v.as_str())?.to_string(),
                             arguments: tc
                                 .get("arguments")
@@ -223,9 +279,7 @@ impl RunnerLlmBackend {
             .unwrap_or(0.7);
         let top_p = defaults.and_then(|d| d.top_p).unwrap_or(0.95);
         let top_k = defaults.and_then(|d| d.top_k).unwrap_or(40);
-        let repeat_penalty = defaults
-            .and_then(|d| d.repetition_penalty)
-            .unwrap_or(1.1);
+        let repeat_penalty = defaults.and_then(|d| d.repetition_penalty).unwrap_or(1.1);
 
         serde_json::json!({
             "model_id": self.model_id,
@@ -312,18 +366,69 @@ impl CompletionModel for RunnerLlmBackend {
         &self,
         req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        // Minimal: delegate to complete() and replay the result as a short
-        // chunk sequence (text, then one chunk per tool call). Real SSE
-        // streaming is wired up later (parse the text/event-stream live).
-        let resp = self.complete(req).await?;
-        let mut chunks: Vec<Result<StreamChunk, LlmError>> = Vec::new();
-        if !resp.content.is_empty() {
-            chunks.push(Ok(StreamChunk::Text(resp.content)));
-        }
-        for call in resp.tool_calls {
-            chunks.push(Ok(StreamChunk::ToolCall(call)));
-        }
-        Ok(Box::pin(futures::stream::iter(chunks)))
+        self.ensure_loaded().await?;
+
+        let params = self.complete_params(&req);
+        let resp = self
+            .proxy
+            .post_sse("/llm/stream", params)
+            .await
+            .map_err(|e| LlmError::InferenceError(format!("runner /llm/stream: {e}")))?;
+
+        // Parse the `text/event-stream` body incrementally: buffer raw bytes,
+        // split on the SSE event boundary (blank line), and decode each complete
+        // block. Decoding only complete blocks avoids corrupting a multi-byte
+        // char split across TCP chunks (the boundary is always ASCII `\n\n`).
+        let body = Box::pin(resp.bytes_stream());
+        let init = (
+            body,
+            Vec::<u8>::new(),
+            std::collections::VecDeque::<Result<StreamChunk, LlmError>>::new(),
+            false,
+        );
+        let stream = futures::stream::unfold(
+            init,
+            |(mut body, mut buf, mut queue, mut done)| async move {
+                loop {
+                    if let Some(item) = queue.pop_front() {
+                        return Some((item, (body, buf, queue, done)));
+                    }
+                    if done {
+                        return None;
+                    }
+                    match body.next().await {
+                        Some(Ok(bytes)) => {
+                            buf.extend_from_slice(&bytes);
+                            while let Some(pos) = buf.windows(2).position(|w| w == b"\n\n") {
+                                let block: Vec<u8> = buf.drain(..pos + 2).collect();
+                                let text = String::from_utf8_lossy(&block);
+                                for item in parse_sse_block(&text) {
+                                    queue.push_back(item);
+                                }
+                            }
+                        }
+                        Some(Err(e)) => {
+                            done = true;
+                            queue.push_back(Err(LlmError::InferenceError(format!(
+                                "runner stream body: {e}"
+                            ))));
+                        }
+                        None => {
+                            done = true;
+                            if !buf.is_empty() {
+                                let text = String::from_utf8_lossy(&buf);
+                                if !text.trim().is_empty() {
+                                    for item in parse_sse_block(&text) {
+                                        queue.push_back(item);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        );
+        Ok(Box::pin(stream))
     }
 
     fn is_available(&self) -> bool {
@@ -387,10 +492,93 @@ impl CompletionModel for RunnerLlmBackend {
     }
 }
 
+/// Parse one SSE event block into zero or more stream items.
+///
+/// A block is `field: value` lines terminated by a blank line. The runner sends,
+/// per event, an envelope `{request_id, ok, chunk:{text, tool_calls, finish_reason}}`
+/// on the default/`done` event, or `{ok:false, error}` on the `error` event.
+/// Incremental chunks carry clean text; the final (`done`) chunk carries the
+/// structured tool calls. Comment lines (`:` keep-alives) and unknown fields are
+/// ignored, yielding no items.
+fn parse_sse_block(block: &str) -> Vec<Result<StreamChunk, LlmError>> {
+    let mut event_name: Option<&str> = None;
+    let mut data = String::new();
+    for line in block.lines() {
+        if let Some(rest) = line.strip_prefix("data:") {
+            data.push_str(rest.strip_prefix(' ').unwrap_or(rest));
+        } else if let Some(rest) = line.strip_prefix("event:") {
+            event_name = Some(rest.trim());
+        }
+    }
+    if data.is_empty() {
+        return Vec::new();
+    }
+
+    let value: Value = match serde_json::from_str(&data) {
+        Ok(v) => v,
+        Err(e) => {
+            return vec![Err(LlmError::InferenceError(format!(
+                "runner stream: invalid SSE payload: {e}"
+            )))]
+        }
+    };
+
+    let ok = value.get("ok").and_then(Value::as_bool).unwrap_or(true);
+    if event_name == Some("error") || !ok {
+        let message = value
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(Value::as_str)
+            .unwrap_or("stream error")
+            .to_string();
+        return vec![Err(LlmError::InferenceError(format!(
+            "runner stream: {message}"
+        )))];
+    }
+
+    let Some(chunk) = value.get("chunk") else {
+        return Vec::new();
+    };
+
+    let mut items: Vec<Result<StreamChunk, LlmError>> = Vec::new();
+    if let Some(text) = chunk.get("text").and_then(Value::as_str) {
+        if !text.is_empty() {
+            items.push(Ok(StreamChunk::Text(text.to_string())));
+        }
+    }
+    // Tool calls arrive only on the final chunk; map them to structured items so
+    // the consumer (chat agent, SDK) executes them exactly as on the complete path.
+    for call in RunnerLlmBackend::parse_tool_calls(chunk) {
+        items.push(Ok(StreamChunk::ToolCall(call)));
+    }
+    items
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use apollia_llm::types::ToolSpec;
+
+    #[test]
+    fn expand_home_resolves_leading_tilde() {
+        // GIVEN a HOME and a tilde-prefixed model path
+        std::env::set_var("HOME", "/home/apollia");
+
+        // WHEN expanding the tilde
+        let out = expand_home("~/.apollia/models/model.gguf");
+
+        // THEN it becomes an absolute path under HOME
+        assert_eq!(out, "/home/apollia/.apollia/models/model.gguf");
+    }
+
+    #[test]
+    fn expand_home_leaves_absolute_path_unchanged() {
+        // GIVEN an already-absolute path
+        let abs = "/var/models/model.gguf";
+
+        // WHEN expanding THEN it is returned verbatim (idempotent)
+        assert_eq!(expand_home(abs), abs);
+    }
 
     #[test]
     fn parse_tool_calls_maps_runner_payload() {
@@ -422,6 +610,57 @@ mod tests {
 
         // THEN none are produced
         assert!(calls.is_empty());
+    }
+
+    #[test]
+    fn parse_sse_block_text_chunk_yields_text() {
+        // GIVEN an incremental SSE data line carrying clean text
+        let block = "data: {\"request_id\":\"r\",\"ok\":true,\"chunk\":{\"text\":\"Hello\"}}\n";
+        // WHEN parsing the block
+        let items = parse_sse_block(block);
+        // THEN a single Text item is produced
+        assert_eq!(items.len(), 1);
+        match items.into_iter().next().expect("one item") {
+            Ok(StreamChunk::Text(t)) => assert_eq!(t, "Hello"),
+            _ => panic!("expected a Text chunk"),
+        }
+    }
+
+    #[test]
+    fn parse_sse_block_done_chunk_yields_tool_calls() {
+        // GIVEN the final `done` event carrying structured tool calls
+        let block = "event: done\ndata: {\"ok\":true,\"chunk\":{\"text\":\"\",\"tool_calls\":[{\"id\":\"c1\",\"name\":\"f\",\"arguments\":{\"x\":1}}],\"finish_reason\":\"eos\"}}\n";
+        // WHEN parsing the block
+        let items = parse_sse_block(block);
+        // THEN the structured call surfaces as a ToolCall item (no leaked text)
+        assert_eq!(items.len(), 1);
+        match items.into_iter().next().expect("one item") {
+            Ok(StreamChunk::ToolCall(c)) => {
+                assert_eq!(c.id, "c1");
+                assert_eq!(c.name, "f");
+            }
+            _ => panic!("expected a ToolCall chunk"),
+        }
+    }
+
+    #[test]
+    fn parse_sse_block_error_event_yields_err() {
+        // GIVEN an SSE error event
+        let block =
+            "event: error\ndata: {\"ok\":false,\"error\":{\"code\":\"X\",\"message\":\"boom\"}}\n";
+        // WHEN parsing
+        let items = parse_sse_block(block);
+        // THEN a single Err item is produced
+        assert_eq!(items.len(), 1);
+        assert!(items.into_iter().next().expect("one item").is_err());
+    }
+
+    #[test]
+    fn parse_sse_block_keepalive_is_empty() {
+        // GIVEN a keep-alive comment block with no data line
+        // WHEN parsing
+        // THEN nothing is emitted
+        assert!(parse_sse_block(": keep-alive\n").is_empty());
     }
 
     #[test]
@@ -479,6 +718,8 @@ mod tests {
             "local".to_string(),
             "test-model".to_string(),
             "/tmp/model.gguf".to_string(),
+            1,
+            None,
         )
     }
 

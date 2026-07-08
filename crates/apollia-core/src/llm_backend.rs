@@ -416,26 +416,75 @@ impl LlmBackendRepository {
 // TOML sync helpers
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Removes every `[[llm.backends]]` block from the given TOML content.
-///
-/// Each block starts at the `[[llm.backends]]` line and ends just before the
-/// next section header line (`[...` or `[[...`).
+/// Sentinel comment marking the auto-generated backends section in `apollia.toml`.
+const MANAGED_SECTION_COMMENT: &str =
+    "# ⚠️  Section gérée automatiquement par Apollia - éditer via Settings";
+
+/// Stable substring used to recognise (and strip) the sentinel comment.
+const MANAGED_SECTION_MARKER: &str = "Section gérée automatiquement par Apollia";
+
+/// Removes the auto-managed backends representation from TOML content so it can be
+/// regenerated cleanly. Strips three things that would otherwise make the file
+/// invalid or accumulate on every sync:
+/// - every `[[llm.backends]]` array-of-tables block (header to next section),
+/// - the inline `backends = ...` key inside the `[llm]` table: it is the SAME TOML
+///   path as `[[llm.backends]]`, so keeping both makes the document unparseable,
+/// - the managed-section sentinel comment (the writer re-emits exactly one).
 fn strip_llm_backends_blocks(content: &str) -> String {
     let mut result: Vec<&str> = Vec::new();
-    let mut in_backends = false;
+    let mut in_backends_block = false;
+    let mut in_llm_table = false;
+    let mut in_multiline_backends = false;
 
     for line in content.lines() {
         let trimmed = line.trim();
-        if trimmed == "[[llm.backends]]" {
-            in_backends = true;
+
+        // Continuation of a multi-line inline `backends = [ ... ]` value.
+        if in_multiline_backends {
+            if trimmed.ends_with(']') {
+                in_multiline_backends = false;
+            }
             continue;
         }
-        if in_backends && trimmed.starts_with('[') {
-            in_backends = false;
+
+        // Drop the sentinel comment: the writer re-emits exactly one.
+        if trimmed.contains(MANAGED_SECTION_MARKER) {
+            continue;
         }
-        if !in_backends {
-            result.push(line);
+
+        // `[[llm.backends]]` block: skip until the next section header.
+        if trimmed == "[[llm.backends]]" {
+            in_backends_block = true;
+            in_llm_table = false;
+            continue;
         }
+        if in_backends_block {
+            if trimmed.starts_with('[') {
+                in_backends_block = false;
+            } else {
+                continue;
+            }
+        }
+
+        // Track the `[llm]` table so the inline key is stripped only there.
+        if trimmed.starts_with('[') {
+            in_llm_table = trimmed == "[llm]";
+        }
+
+        // Drop the inline `backends = ...` key inside `[llm]`.
+        if in_llm_table {
+            if let Some(rest) = trimmed.strip_prefix("backends") {
+                if let Some(value) = rest.trim_start().strip_prefix('=') {
+                    let value = value.trim();
+                    if value.starts_with('[') && !value.ends_with(']') {
+                        in_multiline_backends = true;
+                    }
+                    continue;
+                }
+            }
+        }
+
+        result.push(line);
     }
 
     // Trim trailing blank lines then add exactly one newline.
@@ -448,45 +497,84 @@ fn strip_llm_backends_blocks(content: &str) -> String {
     }
 }
 
-/// Builds a `[[llm.backends]]` TOML block from an [`LlmBackendConfig`].
-fn backend_to_toml_block(cfg: &LlmBackendConfig) -> String {
-    let mut lines = vec![
-        "[[llm.backends]]".to_string(),
-        format!("name     = {:?}", cfg.name),
-    ];
-
-    match cfg.provider {
-        LlmProvider::LlamaCpp => {
-            lines.push(r#"type     = "embedded""#.to_string());
-            lines.push(format!("model_path   = {:?}", cfg.model));
-            if let Some(q) = cfg.config_json.get("quantization").and_then(|v| v.as_str()) {
-                lines.push(format!("quantization = {:?}", q));
-            }
-            if let Some(d) = cfg.config_json.get("device").and_then(|v| v.as_str()) {
-                lines.push(format!("device       = {:?}", d));
-            }
-        }
-        _ => {
-            lines.push(r#"type        = "api""#.to_string());
-            lines.push(format!("provider    = {:?}", cfg.provider.to_string()));
-            lines.push(format!("model       = {:?}", cfg.model));
-            if let Some(url) = cfg.config_json.get("api_url").and_then(|v| v.as_str()) {
-                lines.push(format!("api_url     = {:?}", url));
-            }
-            // Reconstruct api_key_env from stored "${VAR}" sentinel if present.
-            if let Some(key_ref) = cfg
-                .config_json
-                .get("api_key")
-                .and_then(|v| v.as_str())
-                .filter(|s| s.starts_with("${") && s.ends_with('}'))
-            {
-                let var_name = &key_ref[2..key_ref.len() - 1];
-                lines.push(format!("api_key_env = {:?}", var_name));
-            }
-        }
+/// Builds a `[[llm.backends]]` TOML block from an [`LlmBackendConfig`], or `None`
+/// for backends that must not be mirrored to `apollia.toml`.
+///
+/// Only API backends are representable: the config parser's `[[llm.backends]]`
+/// discriminant (`apollia_llm::router::BackendKind`) has a single `type = "api"`
+/// variant. Local (llama-cpp) backends live in `system.db` and are injected via
+/// `RunnerLlmBackend`; emitting them here as `type = "embedded"` produced a config
+/// the runtime rejects at startup (`unknown variant "embedded"`), breaking boot.
+fn backend_to_toml_block(cfg: &LlmBackendConfig) -> Option<String> {
+    if cfg.provider == LlmProvider::LlamaCpp {
+        return None;
     }
 
-    lines.join("\n")
+    // `api_url` and `api_key_env` are required by `ApiBackendConfig`; emit both so
+    // the block round-trips through the config parser. The URL lives under
+    // `base_url` (the key the CLI writes and the router reads); fall back to a
+    // legacy `api_url` key. `provider` is not a parser field: it is ignored on read
+    // and re-inferred from the URL, kept here only for human readability.
+    let api_url = cfg
+        .config_json
+        .get("base_url")
+        .or_else(|| cfg.config_json.get("api_url"))
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+
+    // Reconstruct api_key_env from the stored "${VAR}" sentinel; empty for a
+    // keyless backend (e.g. a local llama-server), which the parser accepts.
+    let api_key_env = cfg
+        .config_json
+        .get("api_key")
+        .and_then(|v| v.as_str())
+        .filter(|s| s.starts_with("${") && s.ends_with('}'))
+        .map(|s| s[2..s.len() - 1].to_string())
+        .unwrap_or_default();
+
+    let lines = [
+        "[[llm.backends]]".to_string(),
+        format!("name     = {:?}", cfg.name),
+        r#"type        = "api""#.to_string(),
+        format!("provider    = {:?}", cfg.provider.to_string()),
+        format!("model       = {:?}", cfg.model),
+        format!("api_url     = {:?}", api_url),
+        format!("api_key_env = {:?}", api_key_env),
+    ];
+
+    Some(lines.join("\n"))
+}
+
+/// Inserts `backends = []` right after the `[llm]` table header.
+///
+/// The `[llm].backends` field is required by the config schema (no serde default),
+/// so it must be present even when there is no API backend to mirror. Callers pass
+/// content whose inline `backends` key has already been stripped.
+fn insert_empty_backends_key(content: &str) -> String {
+    let mut out: Vec<String> = Vec::new();
+    let mut inserted = false;
+    for line in content.lines() {
+        out.push(line.to_string());
+        if !inserted && line.trim() == "[llm]" {
+            out.push("backends = []".to_string());
+            inserted = true;
+        }
+    }
+    if !inserted {
+        // No `[llm]` header (empty or unusual file): prepend a minimal one so the
+        // required field exists. A real config always has `[llm]`.
+        let mut prefixed = vec!["[llm]".to_string(), "backends = []".to_string()];
+        prefixed.append(&mut out);
+        out = prefixed;
+    }
+
+    let joined = out.join("\n");
+    let trimmed = joined.trim_end();
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!("{trimmed}\n")
+    }
 }
 
 impl LlmBackendRepository {
@@ -513,24 +601,32 @@ impl LlmBackendRepository {
 
         let base = strip_llm_backends_blocks(&existing);
 
-        let mut output = base;
+        // Only API backends are representable as `[[llm.backends]]`; embedded ones
+        // yield `None` and stay in system.db (injected via RunnerLlmBackend).
+        let blocks: Vec<String> = backends.iter().filter_map(backend_to_toml_block).collect();
 
-        if !backends.is_empty() {
-            output.push_str(
-                "\n# ⚠️  Section gérée automatiquement par Apollia - éditer via Settings\n",
-            );
-            for cfg in &backends {
-                output.push('\n');
-                output.push_str(&backend_to_toml_block(cfg));
-                output.push('\n');
+        let output = if blocks.is_empty() {
+            // Nothing to mirror: keep the required `backends` field as an empty
+            // inline array (the strip step removed any previous inline key).
+            insert_empty_backends_key(&base)
+        } else {
+            let mut out = base;
+            out.push('\n');
+            out.push_str(MANAGED_SECTION_COMMENT);
+            out.push('\n');
+            for block in &blocks {
+                out.push('\n');
+                out.push_str(block);
+                out.push('\n');
             }
-        }
+            out
+        };
 
         std::fs::write(toml_path, output)?;
 
         tracing::debug!(
             path = %toml_path.display(),
-            count = backends.len(),
+            count = blocks.len(),
             "llm backends synced to apollia.toml"
         );
         Ok(())
@@ -740,11 +836,12 @@ mod tests {
         assert!(!result.contains("[[llm.backends]]"));
     }
 
-    // GIVEN a llama-cpp backend with device and quantization
+    // GIVEN an embedded (llama-cpp) backend
     // WHEN  backend_to_toml_block()
-    // THEN  the TOML block contains the expected fields
+    // THEN  it returns None (embedded backends are not mirrored to the toml; the
+    //       config parser has no `type = "embedded"` variant)
     #[test]
-    fn test_backend_to_toml_block_embedded() {
+    fn test_backend_to_toml_block_skips_embedded() {
         let cfg = LlmBackendConfig {
             name: "local".to_string(),
             provider: LlmProvider::LlamaCpp,
@@ -753,20 +850,81 @@ mod tests {
             enabled: true,
             is_default: true,
         };
-        let block = backend_to_toml_block(&cfg);
-        assert!(block.contains("[[llm.backends]]"));
-        assert!(block.contains(r#"type     = "embedded""#));
-        assert!(block.contains("model_path"));
-        assert!(block.contains("metal"));
-        assert!(block.contains("q4_k_m"));
+        assert!(backend_to_toml_block(&cfg).is_none());
     }
 
-    // GIVEN a repository with one backend
+    // GIVEN an API backend created via the CLI (URL under `base_url`, keyed)
+    // WHEN  backend_to_toml_block()
+    // THEN  it returns a `type = "api"` block with `api_url` (from `base_url`) and
+    //       `api_key_env`, so the block round-trips through the config parser
+    #[test]
+    fn test_backend_to_toml_block_api() {
+        let cfg = LlmBackendConfig {
+            name: "remote".to_string(),
+            provider: LlmProvider::OpenAi,
+            model: "gpt-4o-mini".to_string(),
+            config_json: serde_json::json!({
+                "base_url": "http://127.0.0.1:8080/v1",
+                "api_key": "${OPENAI_KEY}"
+            }),
+            enabled: true,
+            is_default: false,
+        };
+        let block = backend_to_toml_block(&cfg).expect("api backend is mirrored");
+        assert!(block.contains(r#"type        = "api""#));
+        assert!(block.contains("\"remote\""));
+        assert!(block.contains(r#"api_url     = "http://127.0.0.1:8080/v1""#));
+        assert!(block.contains(r#"api_key_env = "OPENAI_KEY""#));
+    }
+
+    // GIVEN a keyless API backend (e.g. a local llama-server)
+    // WHEN  backend_to_toml_block()
+    // THEN  it still emits the required `api_url` and (empty) `api_key_env`, and the
+    //       block parses as a valid ApiBackendConfig-shaped table
+    #[test]
+    fn test_backend_to_toml_block_api_keyless() {
+        let cfg = LlmBackendConfig {
+            name: "local-fast".to_string(),
+            provider: LlmProvider::OpenAi,
+            model: "ministral-local".to_string(),
+            config_json: serde_json::json!({ "base_url": "http://127.0.0.1:8080/v1" }),
+            enabled: true,
+            is_default: true,
+        };
+        let block = backend_to_toml_block(&cfg).expect("api backend is mirrored");
+        assert!(block.contains(r#"api_url     = "http://127.0.0.1:8080/v1""#));
+        assert!(block.contains(r#"api_key_env = """#));
+        // The block alone must parse (required fields present).
+        toml::from_str::<toml::Value>(&block).expect("valid TOML block");
+    }
+
+    // GIVEN a repository with one API backend
     // WHEN  sync_to_toml() to a temporary file
     // THEN  the file contains the [[llm.backends]] block
     #[test]
     fn test_sync_to_toml_writes_backends() {
         let (repo, dir) = make_repo();
+        repo.save(&make_config("remote", true)).unwrap();
+
+        let toml_path = dir.path().join("apollia.toml");
+        repo.sync_to_toml(&toml_path).unwrap();
+
+        let content = std::fs::read_to_string(&toml_path).unwrap();
+        assert!(content.contains("[[llm.backends]]"));
+        assert!(content.contains("\"remote\""));
+    }
+
+    // GIVEN a repository with only an embedded (llama-cpp) backend
+    // WHEN  sync_to_toml()
+    // THEN  nothing is mirrored (no `[[llm.backends]]`, no `embedded`) and the
+    //       required `backends` field is kept as an empty inline array, so the
+    //       result stays parseable by the runtime
+    #[test]
+    fn test_sync_to_toml_skips_embedded() {
+        let (repo, dir) = make_repo();
+        let toml_path = dir.path().join("apollia.toml");
+        std::fs::write(&toml_path, "[llm]\ndefault = \"local\"\nbackends = []\n").unwrap();
+
         let cfg = LlmBackendConfig {
             name: "local".to_string(),
             provider: LlmProvider::LlamaCpp,
@@ -776,13 +934,13 @@ mod tests {
             is_default: true,
         };
         repo.save(&cfg).unwrap();
-
-        let toml_path = dir.path().join("apollia.toml");
         repo.sync_to_toml(&toml_path).unwrap();
 
         let content = std::fs::read_to_string(&toml_path).unwrap();
-        assert!(content.contains("[[llm.backends]]"));
-        assert!(content.contains("\"local\""));
+        toml::from_str::<toml::Value>(&content).expect("valid TOML");
+        assert!(!content.contains("[[llm.backends]]"), "embedded not mirrored");
+        assert!(!content.contains("embedded"), "no embedded type written");
+        assert!(content.contains("backends = []"), "required field kept empty");
     }
 
     // GIVEN an existing TOML file with an old backend, and a different backend in the DB
@@ -799,21 +957,58 @@ mod tests {
         )
         .unwrap();
 
-        let cfg = LlmBackendConfig {
-            name: "new".to_string(),
-            provider: LlmProvider::LlamaCpp,
-            model: "~/.apollia/models/new.gguf".to_string(),
-            config_json: serde_json::json!({ "device": "cpu", "quantization": "q4_0" }),
-            enabled: true,
-            is_default: true,
-        };
-        repo.save(&cfg).unwrap();
+        repo.save(&make_config("new", true)).unwrap();
         repo.sync_to_toml(&toml_path).unwrap();
 
         let content = std::fs::read_to_string(&toml_path).unwrap();
         assert!(content.contains("[runtime]"), "runtime section preserved");
         assert!(!content.contains("\"old\""), "old backend removed");
         assert!(content.contains("\"new\""), "new backend present");
+    }
+
+    // GIVEN a real-world config: `[llm]` with an inline `backends = []` key
+    // WHEN  sync_to_toml() appends the DB backend as `[[llm.backends]]`
+    // THEN  the result is still VALID TOML (the inline key, same path as the
+    //       array-of-tables, is stripped) and the other `[llm]` keys are kept
+    #[test]
+    fn test_sync_to_toml_valid_with_inline_backends_key() {
+        let (repo, dir) = make_repo();
+        let toml_path = dir.path().join("apollia.toml");
+        std::fs::write(
+            &toml_path,
+            "[llm]\ndefault = \"local\"\nbackends = []\n\n[api]\nport = 7771\n",
+        )
+        .unwrap();
+
+        repo.save(&make_config("local", true)).unwrap();
+        repo.sync_to_toml(&toml_path).unwrap();
+
+        let content = std::fs::read_to_string(&toml_path).unwrap();
+        // Must parse: the inline `backends` and `[[llm.backends]]` share a path,
+        // so only the array-of-tables may remain.
+        toml::from_str::<toml::Value>(&content).expect("sync must produce valid TOML");
+        assert!(!content.contains("backends = []"), "inline key stripped");
+        assert!(content.contains("[[llm.backends]]"), "array-of-tables present");
+        assert!(content.contains("default = \"local\""), "other [llm] keys kept");
+        assert!(content.contains("[api]"), "unrelated sections preserved");
+    }
+
+    // GIVEN sync_to_toml() run twice on the same file
+    // WHEN  the second sync strips what the first wrote
+    // THEN  the file stays valid and the sentinel comment appears exactly once
+    #[test]
+    fn test_sync_to_toml_sentinel_not_duplicated() {
+        let (repo, dir) = make_repo();
+        let toml_path = dir.path().join("apollia.toml");
+        std::fs::write(&toml_path, "[llm]\ndefault = \"local\"\nbackends = []\n").unwrap();
+
+        repo.save(&make_config("local", true)).unwrap();
+        repo.sync_to_toml(&toml_path).unwrap();
+        repo.sync_to_toml(&toml_path).unwrap();
+
+        let content = std::fs::read_to_string(&toml_path).unwrap();
+        toml::from_str::<toml::Value>(&content).expect("valid TOML after re-sync");
+        assert_eq!(content.matches(MANAGED_SECTION_MARKER).count(), 1);
     }
 
     // GIVEN a saved backend

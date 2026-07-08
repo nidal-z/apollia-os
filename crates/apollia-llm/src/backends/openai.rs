@@ -445,6 +445,21 @@ fn map_openai_error(err: async_openai::error::OpenAIError) -> LlmError {
             status: 0,
             body: api_err.message,
         },
+        // async-openai fails to parse a response body that is not OpenAI-conformant.
+        // With llama.cpp / llama-server this is almost always an ERROR body whose
+        // `code` is an integer (e.g. `{"error":{"code":400,...}}`) where the OpenAI
+        // schema expects a string, so the real HTTP error (a prompt exceeding the
+        // context size, a bad request, ...) would otherwise be masked behind a
+        // cryptic serde type mismatch. Surface an actionable message + the log hint.
+        OpenAIError::JSONDeserialize(e) => LlmError::HttpError {
+            status: 0,
+            body: format!(
+                "backend returned a response the OpenAI client could not parse; with \
+                 llama.cpp/llama-server this is usually a non-conformant error body \
+                 (integer 'code') masking an HTTP 4xx/5xx such as a prompt exceeding \
+                 the context size. Check the backend server log. Parser detail: {e}"
+            ),
+        },
         other => LlmError::InferenceError(other.to_string()),
     }
 }
@@ -637,6 +652,25 @@ mod tests {
             matches!(result, Err(LlmError::ApiKeyMissing { ref var }) if var == "APOLLIA_TEST_KEY_ABSENT_XYZ"),
             "expected ApiKeyMissing for missing env var, got: {result:?}"
         );
+    }
+
+    // GIVEN a JSONDeserialize error shaped like llama-server's (integer `code`
+    // where the OpenAI schema expects a string)
+    // WHEN map_openai_error() maps it
+    // THEN it becomes an actionable HttpError pointing at the backend log, not a
+    //      cryptic "invalid type: integer" inference error
+    #[test]
+    fn test_map_openai_error_unparseable_error_body() {
+        let serde_err = serde_json::from_str::<String>("400").unwrap_err();
+        let mapped =
+            map_openai_error(async_openai::error::OpenAIError::JSONDeserialize(serde_err));
+        match mapped {
+            LlmError::HttpError { body, .. } => {
+                assert!(body.contains("could not parse"), "body: {body}");
+                assert!(body.contains("server log"), "should point at the log: {body}");
+            }
+            other => panic!("expected HttpError, got: {other:?}"),
+        }
     }
 
     // GIVEN an ApiBackendConfig whose api_key_env is set in the environment

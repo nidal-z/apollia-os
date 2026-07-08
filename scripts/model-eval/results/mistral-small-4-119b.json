@@ -1,0 +1,23 @@
+{
+ "label": "mistral-small-4-119b",
+ "gguf": "/Users/nidalzoumita/.apollia/models/mistral-small-4-119b/MXFP4_MOE/Mistral-Small-4-119B-2603-MXFP4_MOE-00001-of-00003.gguf",
+ "speed": {
+  "ttft_ms": 0.0,
+  "decode_tok": 0,
+  "decode_tps": 0.0,
+  "total_ms": 2856.7,
+  "chars": 0,
+  "empty": true,
+  "degenerate": false,
+  "sample": ""
+ },
+ "toolcall": {
+  "skipped": "unstable"
+ },
+ "esrs": {
+  "skipped": "unstable"
+ },
+ "batch": {
+  "skipped": "unstable"
+ }
+}
