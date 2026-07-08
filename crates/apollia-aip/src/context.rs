@@ -450,6 +450,18 @@ impl ToolProxy {
         self.call_inner(tool_name, input).await
     }
 
+    /// Return the JSON input schema of `tool_name`, when the registry knows it.
+    ///
+    /// Reads the tool descriptor from the registry and returns its
+    /// `input_schema`. Used by the orchestrated `ActorLoop` to resolve a step's
+    /// structured arguments against the target tool's schema.
+    pub async fn tool_input_schema(&self, tool_name: &str) -> Option<serde_json::Value> {
+        self.registry
+            .describe(tool_name)
+            .await
+            .map(|descriptor| descriptor.input_schema)
+    }
+
     /// Core tool execution logic, testable without PyO3.
     ///
     /// Performs permission check, registry lookup, execution, and audit recording.
@@ -2594,6 +2606,38 @@ mod tests {
         assert_eq!(records[0].tool_name, "echo");
         assert_eq!(records[0].agent_id, "orchestrated-agent");
         assert!(records[0].success);
+
+        registry.shutdown().await;
+        audit.shutdown().await;
+    }
+
+    // tool_input_schema returns the registered descriptor's input schema.
+    #[tokio::test]
+    async fn test_tool_input_schema_returns_registered_schema() {
+        // GIVEN a ToolProxy and a registered descriptor carrying an input schema
+        let (proxy, registry, audit) = make_proxy(vec!["file_io"], Ok(serde_json::json!({}))).await;
+        let mut desc = file_io_descriptor();
+        desc.input_schema = serde_json::json!({
+            "type": "object",
+            "properties": { "path": { "type": "string" } },
+            "required": ["path"]
+        });
+        registry.register(desc).await.expect("register");
+
+        // WHEN looking up the schema, and an unknown tool
+        let schema = proxy.tool_input_schema("file_io").await;
+        let missing = proxy.tool_input_schema("does_not_exist").await;
+
+        // THEN the registered schema is returned, unknown tools yield None
+        assert_eq!(
+            schema,
+            Some(serde_json::json!({
+                "type": "object",
+                "properties": { "path": { "type": "string" } },
+                "required": ["path"]
+            }))
+        );
+        assert_eq!(missing, None);
 
         registry.shutdown().await;
         audit.shutdown().await;

@@ -536,6 +536,10 @@ impl apollia_oria::actor::ToolProxyTrait for OriaToolProxy {
     // `is_tool_read_only` keeps the trait default (false): orchestrated tool
     // steps run sequentially, never wrongly batched. Correct, if not maximally
     // parallel; ORIA-level read-only classification is a follow-up.
+
+    async fn tool_schema(&self, tool_name: &str) -> Option<serde_json::Value> {
+        self.proxy.tool_input_schema(tool_name).await
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

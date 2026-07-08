@@ -71,6 +71,16 @@ pub trait ToolProxyTrait: Send + Sync {
     fn is_tool_read_only(&self, _tool_name: &str) -> bool {
         false
     }
+
+    /// Returns the JSON input schema of `tool_name`, when known.
+    ///
+    /// The runtime uses it to resolve a step's structured arguments at execution
+    /// time (schema-guided just-in-time extraction). Defaults to `None`: an
+    /// implementation without a schema source degrades to the legacy payload
+    /// shape.
+    async fn tool_schema(&self, _tool_name: &str) -> Option<serde_json::Value> {
+        None
+    }
 }
 
 // StepError
