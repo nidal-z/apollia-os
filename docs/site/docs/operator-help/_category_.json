@@ -4,6 +4,6 @@
   "link": {
     "type": "generated-index",
     "slug": "/operator-help",
-    "description": "The desktop operator space. This corpus is French and migrates from docs/help via i18n."
+    "description": "The desktop operator space. This corpus is French. It lives in the default docs tree and is served in both the en and fr locales."
   }
 }
