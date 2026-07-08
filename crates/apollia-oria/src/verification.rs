@@ -314,6 +314,94 @@ fn parse_critic_response(content: &str) -> Option<Vec<Correction>> {
     None
 }
 
+/// Aggregated verdict of a post-run verification pass on the orchestrated path.
+///
+/// Combines the deterministic [`VerificationReport`] and the LLM [`CriticReport`]
+/// into a single verdict the engine can emit for audit and act on (replan on
+/// failure).
+#[derive(Debug, Clone)]
+pub struct OrchestratedVerdict {
+    /// True when every check passed and the critic proposed no correction.
+    pub passed: bool,
+    /// Failing check commands (empty on the chat-parity no-op invoker).
+    pub check_failures: Vec<CheckFailure>,
+    /// Corrections proposed by the critic.
+    pub corrections: Vec<Correction>,
+    /// True when the critic pass was skipped (no backend, or routing error).
+    pub skipped: bool,
+}
+
+/// A [`CheckInvoker`] that executes nothing and reports success.
+///
+/// Mirrors the chat path: orchestrated agents may declare `check_commands`, but
+/// governed shell execution of those checks is deferred. The loop resolves the
+/// declared command list structurally while this invoker is a no-op, so declared
+/// checks never spawn a process on this path.
+struct NoopCheckInvoker;
+
+impl CheckInvoker for NoopCheckInvoker {
+    async fn invoke_check(&self, _command: &str) -> Result<CheckOutcome, String> {
+        Ok(CheckOutcome {
+            exit_code: 0,
+            stderr: String::new(),
+        })
+    }
+}
+
+/// Run the post-run verification (deterministic checks plus optional LLM critic)
+/// and aggregate a single [`OrchestratedVerdict`].
+///
+/// The checks run against a no-op invoker (chat-parity), so on this path the
+/// verdict is critic-driven. The critic call is off-budget by construction:
+/// [`CriticPass::run`] routes directly and never touches the `StepBudget`.
+pub async fn run_post_run_verification(
+    verification: &VerificationLoop,
+    critic: &CriticPass,
+    objective: &str,
+    agent_output: &str,
+) -> OrchestratedVerdict {
+    let invoker = NoopCheckInvoker;
+    let check_report = verification.run(&invoker).await;
+    let critic_report = critic.run(objective, agent_output).await;
+
+    OrchestratedVerdict {
+        passed: check_report.passed && critic_report.passed,
+        check_failures: check_report.failures,
+        corrections: critic_report.corrections,
+        skipped: critic_report.skipped,
+    }
+}
+
+/// Build the feedback block injected into the replanner when a verdict fails.
+///
+/// Emits an XML-like, English block listing the failed checks and the critic
+/// corrections. The shape mirrors the chat correction turn so the reasoner reads
+/// a familiar structure when producing a corrected plan.
+pub fn verdict_feedback(verdict: &OrchestratedVerdict) -> String {
+    let mut msg = String::from("<verification_feedback>\n  <check_failures>\n");
+    for failure in &verdict.check_failures {
+        msg.push_str(&format!(
+            "    <check command=\"{}\" exit_code=\"{}\">{}</check>\n",
+            failure.command, failure.exit_code, failure.stderr
+        ));
+    }
+    msg.push_str("  </check_failures>\n  <corrections>\n");
+    for correction in &verdict.corrections {
+        msg.push_str(&format!(
+            "    <correction kind=\"{}\">\n      <description>{}</description>\n      \
+             <suggestion>{}</suggestion>\n    </correction>\n",
+            correction.kind, correction.description, correction.suggestion
+        ));
+    }
+    msg.push_str("  </corrections>\n");
+    msg.push_str(
+        "  <instruction>Revise the plan to address the issues above and produce a \
+         corrected result.</instruction>\n",
+    );
+    msg.push_str("</verification_feedback>");
+    msg
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -588,5 +676,83 @@ mod critic_tests {
         assert!(!report.passed);
         assert!(!report.skipped);
         assert_eq!(report.corrections.len(), 1);
+    }
+
+    // aggregate verdict passes when checks pass and the critic finds nothing.
+    #[tokio::test]
+    async fn test_orchestrated_verdict_passes() {
+        // GIVEN no declared checks and a critic returning no corrections
+        let verification = VerificationLoop::new(vec![], vec![]);
+        let critic = CriticPass::new(router_with(r#"{"corrections":[]}"#));
+
+        // WHEN the post-run verification aggregates a verdict
+        let verdict =
+            run_post_run_verification(&verification, &critic, "objective", "output").await;
+
+        // THEN the verdict passes, is not skipped, and carries nothing
+        assert!(verdict.passed);
+        assert!(!verdict.skipped);
+        assert!(verdict.check_failures.is_empty());
+        assert!(verdict.corrections.is_empty());
+    }
+
+    // aggregate verdict fails and surfaces corrections when the critic objects.
+    #[tokio::test]
+    async fn test_orchestrated_verdict_fails_with_corrections() {
+        // GIVEN a critic returning one correction
+        let json = r#"{"corrections":[
+            {"kind":"missing_file","description":"output.csv absent","suggestion":"create it"}
+        ]}"#;
+        let verification = VerificationLoop::new(vec![], vec![]);
+        let critic = CriticPass::new(router_with(json));
+
+        // WHEN the post-run verification aggregates a verdict
+        let verdict =
+            run_post_run_verification(&verification, &critic, "make a csv", "no csv").await;
+
+        // THEN the verdict fails and surfaces the correction
+        assert!(!verdict.passed);
+        assert!(!verdict.skipped);
+        assert_eq!(verdict.corrections.len(), 1);
+    }
+
+    // a disabled critic yields a skipped, passing verdict (degradable).
+    #[tokio::test]
+    async fn test_orchestrated_verdict_skipped_without_backend() {
+        // GIVEN a disabled critic and no declared checks
+        let verification = VerificationLoop::new(vec![], vec![]);
+        let critic = CriticPass::disabled();
+
+        // WHEN the post-run verification aggregates a verdict
+        let verdict =
+            run_post_run_verification(&verification, &critic, "objective", "output").await;
+
+        // THEN it is skipped without failing the run
+        assert!(verdict.passed);
+        assert!(verdict.skipped);
+    }
+
+    // the feedback block embeds each correction so the replanner can read it.
+    #[test]
+    fn test_verdict_feedback_embeds_corrections() {
+        // GIVEN a failing verdict with one correction
+        let verdict = OrchestratedVerdict {
+            passed: false,
+            check_failures: vec![],
+            corrections: vec![Correction {
+                kind: "wrong_format".into(),
+                description: "invalid json".into(),
+                suggestion: "fix the shape".into(),
+            }],
+            skipped: false,
+        };
+
+        // WHEN the feedback block is built
+        let feedback = verdict_feedback(&verdict);
+
+        // THEN it wraps the correction in the verification-feedback structure
+        assert!(feedback.contains("<verification_feedback>"));
+        assert!(feedback.contains("wrong_format"));
+        assert!(feedback.contains("fix the shape"));
     }
 }

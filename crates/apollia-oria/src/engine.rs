@@ -17,8 +17,8 @@ use std::time::Duration;
 use std::time::Instant;
 
 use apollia_core::{
-    AIPPart, AIPResult, AIPTask, AgentManifest, DataPart, EventBusSender, ORIAConfig,
-    PendingApprovals, RuntimeEvent, StepBudgetConfig, TaskStatus,
+    AIPPart, AIPResult, AIPTask, AgentManifest, AutonomyLevel, AutonomyLevelConfig, DataPart,
+    EventBusSender, ORIAConfig, PendingApprovals, RuntimeEvent, StepBudgetConfig, TaskStatus,
 };
 use apollia_llm::{CompletionModel, LlmRouter};
 use apollia_memory::manager::MemoryManager;
@@ -35,6 +35,7 @@ use crate::plan_gate::{PendingPlanGates, PlanGateDecision};
 use crate::plan_repository::PlanRepository;
 use crate::reasoner::{Reasoner, ReasonerError};
 use crate::resilience::ResilienceLayer;
+use crate::verification::{run_post_run_verification, verdict_feedback, CriticPass, VerificationLoop};
 
 // Traits
 
@@ -679,7 +680,9 @@ impl ORIAEngine {
                 cache_key: cache_key.clone(),
             });
 
-            return self.execute_cached_plan(plan, task, agent, manifest).await;
+            return self
+                .execute_cached_plan(plan, task, agent, manifest, &ctx, &cache_key)
+                .await;
         }
 
         // Generate plan (Reasoner handles retries internally)
@@ -835,81 +838,220 @@ impl ORIAEngine {
             }
         }
 
-        // Persist the (possibly replanned) plan in SQLite (non-blocking on error).
-        let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
-        let plan_id = plan.plan_id.clone();
-        let step_count = plan.steps.len();
+        // Execute the plan, verify the result, and replan on a failing verdict.
+        self.run_plan_with_verification(plan, &task, agent, &manifest, &ctx, &cache_key, db_path)
+            .await
+    }
 
-        // create StepBudget via from_capped
+    /// Execute a plan via the `ActorLoop`, then run the post-run verification and,
+    /// on a failing verdict, replan and re-execute up to
+    /// `oria_config.verification_max_replans` times.
+    ///
+    /// The `StepBudget` is created once and shared across every replan iteration,
+    /// so it remains the non-bypassable ceiling for the whole run (principle #7).
+    /// The critic call is off-budget by construction (it routes directly); the
+    /// replan re-execution is on-budget (the `ActorLoop` increments), and the loop
+    /// stops once the budget is exhausted.
+    ///
+    /// Verification is gated by the autonomy tier, mirroring the chat path: the
+    /// tier's `run_verification` flag decides whether the pass runs at all. When it
+    /// does not, the completed result is returned unverified after a `PlanCompleted`.
+    ///
+    /// The final verdict is emitted as [`RuntimeEvent::VerificationCompleted`] so it
+    /// lands in the signed audit journal.
+    #[allow(clippy::too_many_arguments)]
+    async fn run_plan_with_verification(
+        &self,
+        mut plan: ExecutionPlan,
+        task: &AIPTask,
+        agent: &(dyn AIPAgent + Send + Sync),
+        manifest: &AgentManifest,
+        ctx: &ContextBundle,
+        cache_key: &str,
+        db_path: &str,
+    ) -> AIPResult {
+        let reasoner = match self.reasoner.as_ref() {
+            Some(r) => r,
+            None => {
+                return AIPResult::failed(
+                    "NO_LLM",
+                    "Orchestrated mode requires a configured LLM (use with_reasoner())",
+                )
+            }
+        };
+        let task_id_str = task.task_id.clone();
+
+        // StepBudget created once, shared across every verification replan.
         let agent_budget = manifest.step_budget.clone().unwrap_or_default();
         let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
 
-        // Reset per-task token budget before execution.
-        self.llm_router.reset_session_budget();
-
-        // Execute via ActorLoop
-        let noop_proxy = NoopToolProxy;
-        let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
-            Some(p) => p.as_ref(),
-            None => &noop_proxy,
+        // Resolve the verification gate from the autonomy tier (chat parity: the
+        // chat reads `AutonomyConfig::default().level_config(level).run_verification`).
+        let tier = self
+            .oria_config
+            .autonomy_level
+            .unwrap_or(AutonomyLevel::Assisted);
+        let run_verification = AutonomyLevelConfig::default_for(tier).run_verification;
+        let verifier = if run_verification {
+            Some((
+                VerificationLoop::new(manifest.check_commands.clone(), Vec::new()),
+                CriticPass::new(Arc::new(self.llm_router.clone())),
+            ))
+        } else {
+            None
         };
 
-        let plan_start = Instant::now();
-        let mut actor = ActorLoop::new(
-            plan,
-            self.oria_config.max_replans,
-            repo,
-            self.event_bus.clone(),
-            manifest.clone(),
-        )
-        .with_pending_approvals(self.pending_approvals.clone())
-        .with_memory_manager(self.memory_manager.clone())
-        .with_step_memory_max_chars(self.oria_config.step_memory_max_chars)
-        .with_context_manager(self.context_manager.clone());
-        let step_result = actor
-            .execute(
-                StepDeps {
-                    tool_proxy,
-                    llm_router: &self.llm_router,
-                    budget: &budget,
-                    reasoner,
-                },
-                &self.resilience,
+        let objective = extract_task_text(task);
+        let max_replans = self.oria_config.verification_max_replans;
+        let mut replans: u32 = 0;
+
+        loop {
+            let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
+            let plan_id = plan.plan_id.clone();
+            let step_count = plan.steps.len();
+
+            // Reset per-task token budget before each execution.
+            self.llm_router.reset_session_budget();
+
+            let noop_proxy = NoopToolProxy;
+            let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
+                Some(p) => p.as_ref(),
+                None => &noop_proxy,
+            };
+
+            let plan_start = Instant::now();
+            let mut actor = ActorLoop::new(
+                plan,
+                self.oria_config.max_replans,
+                repo,
+                self.event_bus.clone(),
+                manifest.clone(),
             )
-            .await;
-        let duration_ms = plan_start.elapsed().as_millis() as u64;
+            .with_pending_approvals(self.pending_approvals.clone())
+            .with_memory_manager(self.memory_manager.clone())
+            .with_step_memory_max_chars(self.oria_config.step_memory_max_chars)
+            .with_context_manager(self.context_manager.clone());
+            let step_result = actor
+                .execute(
+                    StepDeps {
+                        tool_proxy,
+                        llm_router: &self.llm_router,
+                        budget: &budget,
+                        reasoner,
+                    },
+                    &self.resilience,
+                )
+                .await;
+            let duration_ms = plan_start.elapsed().as_millis() as u64;
 
-        // Emit final session budget snapshot at end of task.
-        let token_budget = self.llm_router.session_budget();
-        let _ = self.event_bus.send(RuntimeEvent::TokenBudgetUpdated {
-            session_cost_usd: token_budget.cost_usd,
-            total_input_tokens: token_budget.input_tokens,
-            total_output_tokens: token_budget.output_tokens,
-            total_cache_read_tokens: token_budget.cache_read_tokens,
-            threshold_usd: f64::MAX,
-            threshold_exceeded: false,
-        });
-
-        // Post-process
-        if step_result.status == TaskStatus::Completed {
-            let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
-                task_id: task_id_str.into(),
-                plan_id,
-                step_count,
-                duration_ms,
+            // Emit final session budget snapshot for this execution.
+            let token_budget = self.llm_router.session_budget();
+            let _ = self.event_bus.send(RuntimeEvent::TokenBudgetUpdated {
+                session_cost_usd: token_budget.cost_usd,
+                total_input_tokens: token_budget.input_tokens,
+                total_output_tokens: token_budget.output_tokens,
+                total_cache_read_tokens: token_budget.cache_read_tokens,
+                threshold_usd: f64::MAX,
+                threshold_exceeded: false,
             });
 
-            let outputs = extract_step_outputs(&step_result);
-
-            // call on_plan_complete() if the agent exposes it,
-            // otherwise fall back to automatic step-output concatenation.
-            if agent.has_on_plan_complete() {
-                agent.call_on_plan_complete(outputs).await
-            } else {
-                concat_outputs(&outputs)
+            // A non-completed run (budget exceeded, plan failure) carries its own
+            // failure and is not verified.
+            if step_result.status != TaskStatus::Completed {
+                return step_result;
             }
+
+            let final_result = self.finalize_completed(agent, step_result).await;
+
+            // Verification disabled for this tier: return the completed result.
+            let Some((verification, critic)) = verifier.as_ref() else {
+                let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
+                    task_id: task_id_str.clone().into(),
+                    plan_id,
+                    step_count,
+                    duration_ms,
+                });
+                return final_result;
+            };
+
+            // Run the post-run verification. The critic is off-budget by design.
+            let output_text = result_text(&final_result);
+            let verdict =
+                run_post_run_verification(verification, critic, &objective, &output_text).await;
+            let _ = self.event_bus.send(RuntimeEvent::VerificationCompleted {
+                task_id: task_id_str.clone().into(),
+                passed: verdict.passed,
+                check_failures: verdict.check_failures.len() as u32,
+                corrections: verdict.corrections.len() as u32,
+                skipped: verdict.skipped,
+                replans,
+            });
+
+            // Accept the result when the verdict passes, the replan ceiling is
+            // reached, or the shared budget is spent.
+            if verdict.passed || replans >= max_replans || budget.is_exhausted() {
+                let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
+                    task_id: task_id_str.clone().into(),
+                    plan_id,
+                    step_count,
+                    duration_ms,
+                });
+                return final_result;
+            }
+
+            // Failing verdict with replan budget remaining: replan with feedback.
+            let feedback = verdict_feedback(&verdict);
+            match reasoner
+                .plan_with_feedback(ctx, &plan_id, Some(&feedback))
+                .await
+            {
+                Ok(mut new_plan) => {
+                    self.enrich_plan_with_args(&mut new_plan).await;
+                    self.store_plan_in_cache(cache_key, &new_plan, manifest);
+                    let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
+                        task_id: task_id_str.clone().into(),
+                        agent_name: manifest.name.clone(),
+                        plan_id: new_plan.plan_id.clone(),
+                        step_count: new_plan.steps.len(),
+                        run_id: None,
+                    });
+                    plan = new_plan;
+                    replans += 1;
+                }
+                Err(e) => {
+                    tracing::event!(
+                        tracing::Level::WARN,
+                        task_id = %task_id_str,
+                        error = %e,
+                        "oria.verification.replan_failed"
+                    );
+                    // The run has a valid result; only the hardening step failed.
+                    let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
+                        task_id: task_id_str.clone().into(),
+                        plan_id,
+                        step_count,
+                        duration_ms,
+                    });
+                    return final_result;
+                }
+            }
+        }
+    }
+
+    /// Assemble a completed orchestrated run into its user-facing result.
+    ///
+    /// Calls the agent's `on_plan_complete()` hook when present, otherwise
+    /// concatenates the per-step outputs.
+    async fn finalize_completed(
+        &self,
+        agent: &(dyn AIPAgent + Send + Sync),
+        step_result: AIPResult,
+    ) -> AIPResult {
+        let outputs = extract_step_outputs(&step_result);
+        if agent.has_on_plan_complete() {
+            agent.call_on_plan_complete(outputs).await
         } else {
-            step_result
+            concat_outputs(&outputs)
         }
     }
 
@@ -1022,21 +1164,23 @@ impl ORIAEngine {
 
     /// Execute a plan retrieved from the cache.
     ///
-    /// Identical to the post-Reasoner path of [`execute_orchestrated_plan`]:
-    /// persist, emit PlanGenerated, StepBudget, ActorLoop, concat.
+    /// Mirrors the post-Reasoner path of [`execute_orchestrated_plan`]: emit
+    /// PlanGenerated for the cached plan, then delegate execution, verification,
+    /// and replan to [`run_plan_with_verification`](Self::run_plan_with_verification).
     async fn execute_cached_plan(
         &self,
         plan: ExecutionPlan,
         task: AIPTask,
         agent: &(dyn AIPAgent + Send + Sync),
         manifest: AgentManifest,
+        ctx: &ContextBundle,
+        cache_key: &str,
     ) -> AIPResult {
         let plan_id = plan.plan_id.clone();
         let step_count = plan.steps.len();
         let task_id_str = task.task_id.clone();
 
         let db_path = self.db_path.as_deref().unwrap_or(":memory:");
-        let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
 
         let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
             task_id: task_id_str.clone().into(),
@@ -1047,81 +1191,8 @@ impl ORIAEngine {
             run_id: None,
         });
 
-        let agent_budget = manifest.step_budget.clone().unwrap_or_default();
-        let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
-
-        // Reset per-task token budget before execution.
-        self.llm_router.reset_session_budget();
-
-        let noop_proxy = NoopToolProxy;
-        let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
-            Some(p) => p.as_ref(),
-            None => &noop_proxy,
-        };
-
-        let plan_start = Instant::now();
-        let reasoner = match self.reasoner.as_ref() {
-            Some(r) => r,
-            None => {
-                return AIPResult::failed(
-                    "NO_LLM",
-                    "Orchestrated mode requires a configured LLM (use with_reasoner())",
-                );
-            }
-        };
-        let mut actor = ActorLoop::new(
-            plan,
-            self.oria_config.max_replans,
-            repo,
-            self.event_bus.clone(),
-            manifest.clone(),
-        )
-        .with_pending_approvals(self.pending_approvals.clone())
-        .with_memory_manager(self.memory_manager.clone())
-        .with_step_memory_max_chars(self.oria_config.step_memory_max_chars)
-        .with_context_manager(self.context_manager.clone());
-        let step_result = actor
-            .execute(
-                StepDeps {
-                    tool_proxy,
-                    llm_router: &self.llm_router,
-                    budget: &budget,
-                    reasoner,
-                },
-                &self.resilience,
-            )
-            .await;
-        let duration_ms = plan_start.elapsed().as_millis() as u64;
-
-        // Emit final session budget snapshot at end of task.
-        let token_budget = self.llm_router.session_budget();
-        let _ = self.event_bus.send(RuntimeEvent::TokenBudgetUpdated {
-            session_cost_usd: token_budget.cost_usd,
-            total_input_tokens: token_budget.input_tokens,
-            total_output_tokens: token_budget.output_tokens,
-            total_cache_read_tokens: token_budget.cache_read_tokens,
-            threshold_usd: f64::MAX,
-            threshold_exceeded: false,
-        });
-
-        if step_result.status == TaskStatus::Completed {
-            let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
-                task_id: task_id_str.into(),
-                plan_id,
-                step_count,
-                duration_ms,
-            });
-
-            let outputs = extract_step_outputs(&step_result);
-
-            if agent.has_on_plan_complete() {
-                agent.call_on_plan_complete(outputs).await
-            } else {
-                concat_outputs(&outputs)
-            }
-        } else {
-            step_result
-        }
+        self.run_plan_with_verification(plan, &task, agent, &manifest, ctx, cache_key, db_path)
+            .await
     }
 
     /// Opens a `PlanRepository` at `db_path`, inserts the plan and its steps.
@@ -1361,6 +1432,23 @@ fn concat_outputs(outputs: &HashMap<String, String>) -> AIPResult {
         .collect::<Vec<_>>()
         .join("\n\n");
     AIPResult::completed(&text)
+}
+
+/// Extract a text rendering of a result for the critic's agent-output input.
+///
+/// Concatenates the text parts and JSON-serializes the data parts. File parts are
+/// skipped: the critic reasons over textual output only.
+fn result_text(result: &AIPResult) -> String {
+    result
+        .output
+        .iter()
+        .filter_map(|part| match part {
+            AIPPart::Text(t) => Some(t.text.clone()),
+            AIPPart::Data(d) => serde_json::to_string(&d.data).ok(),
+            AIPPart::File(_) => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 // Tests: execute_direct
@@ -2944,5 +3032,284 @@ mod orchestrated_tests {
             result.is_err(),
             "serde should reject negative values for u32 max_replans"
         );
+    }
+
+    // ── Post-run verification / critic (cap 2.8) ────────────────────────
+
+    /// Mock model that answers planning requests with a fixed plan and critic
+    /// requests with a scripted queue of verdicts.
+    ///
+    /// A critic request is recognized by the `AGENT OUTPUT:` marker the
+    /// `CriticPass` embeds in its user message; every other request is treated as
+    /// a planning request.
+    struct ScriptedMockModel {
+        plan: String,
+        critic_queue: Mutex<Vec<String>>,
+        critic_default: String,
+    }
+
+    impl ScriptedMockModel {
+        fn is_critic_request(req: &CompletionRequest) -> bool {
+            req.messages.iter().any(|m| {
+                matches!(&m.content, apollia_llm::MessageContent::Text(t) if t.contains("AGENT OUTPUT:"))
+            })
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CompletionModel for ScriptedMockModel {
+        async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            let content = if Self::is_critic_request(&req) {
+                let mut queue = self.critic_queue.lock().expect("mock lock");
+                if queue.is_empty() {
+                    self.critic_default.clone()
+                } else {
+                    queue.remove(0)
+                }
+            } else {
+                self.plan.clone()
+            };
+            Ok(CompletionResponse {
+                content,
+                tool_calls: vec![],
+                usage: TokenUsage::default(),
+                finish_reason: FinishReason::Stop,
+                latency_ms: 0,
+                ttft_ms: None,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<
+            Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
+            LlmError,
+        > {
+            Err(LlmError::InferenceError("mock no stream".into()))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            "mock"
+        }
+        fn model_id(&self) -> &str {
+            "mock-model"
+        }
+    }
+
+    /// Build an orchestrated engine whose single mock backend serves both planning
+    /// and the critic, wired for the given tier and replan bound.
+    fn make_engine_with_critic(
+        plan: String,
+        critic_queue: Vec<String>,
+        critic_default: String,
+        tier: AutonomyLevel,
+        max_replans: u32,
+        tx: EventBusSender,
+    ) -> ORIAEngine {
+        let model = Arc::new(ScriptedMockModel {
+            plan,
+            critic_queue: Mutex::new(critic_queue),
+            critic_default,
+        });
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+        backends.insert("mock".to_string(), model);
+        let router = LlmRouter::with_backends(backends, "mock");
+        let proxy = Arc::new(MockToolProxy {
+            output: "mock output".into(),
+        });
+        let config = ORIAConfig {
+            autonomy_level: Some(tier),
+            verification_max_replans: max_replans,
+            ..ORIAConfig::default()
+        };
+        ORIAEngine::new()
+            .with_llm_router_and_reasoner(router, 20)
+            .expect("router has a precise backend")
+            .with_tool_proxy(proxy)
+            .with_event_bus(tx)
+            .with_oria_config(config)
+    }
+
+    /// Drain every event currently buffered on the receiver.
+    fn drain_events(
+        rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>,
+    ) -> Vec<RuntimeEvent> {
+        let mut events = Vec::new();
+        while let Ok(event) = rx.try_recv() {
+            events.push(event);
+        }
+        events
+    }
+
+    /// GIVEN an orchestrated run at a tier that requests verification, a passing
+    ///       critic, and replan disabled
+    /// WHEN the run completes
+    /// THEN a VerificationCompleted verdict is emitted (passed, not skipped).
+    #[tokio::test]
+    async fn test_orchestrated_verification_emits_passing_verdict() {
+        // GIVEN a bounded-autonomous run (verification on, gate bypassed) whose
+        // critic returns no corrections, with replan disabled.
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_critic(
+            two_step_plan_json(),
+            vec![],
+            r#"{"corrections":[]}"#.to_string(),
+            AutonomyLevel::BoundedAutonomous,
+            0,
+            tx,
+        );
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN the orchestrated run completes
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN it completes and a passing, non-skipped verdict is emitted
+        assert_eq!(result.status, TaskStatus::Completed);
+        let events = drain_events(&mut rx);
+        let verdict = events
+            .iter()
+            .find_map(|e| match e {
+                RuntimeEvent::VerificationCompleted {
+                    passed,
+                    skipped,
+                    replans,
+                    ..
+                } => Some((*passed, *skipped, *replans)),
+                _ => None,
+            })
+            .expect("a VerificationCompleted event must be emitted");
+        assert_eq!(verdict, (true, false, 0));
+    }
+
+    /// GIVEN a failing critic verdict on the first pass, a passing one after, and
+    ///       a replan budget of 1
+    /// WHEN the run completes
+    /// THEN two verdicts (fail then pass) and a replanned PlanGenerated are
+    ///      observed, and the second verdict records one replan.
+    #[tokio::test]
+    async fn test_orchestrated_verification_replans_on_fail() {
+        // GIVEN a critic that objects once then accepts, with one replan allowed
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let fail = r#"{"corrections":[
+            {"kind":"missing","description":"nothing produced","suggestion":"produce it"}
+        ]}"#
+        .to_string();
+        let engine = make_engine_with_critic(
+            two_step_plan_json(),
+            vec![fail],
+            r#"{"corrections":[]}"#.to_string(),
+            AutonomyLevel::BoundedAutonomous,
+            1,
+            tx,
+        );
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN the orchestrated run completes
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN it completes, two verdicts are emitted (fail then pass), and a
+        // replanned plan was generated in between.
+        assert_eq!(result.status, TaskStatus::Completed);
+        let events = drain_events(&mut rx);
+        let verdicts: Vec<(bool, u32)> = events
+            .iter()
+            .filter_map(|e| match e {
+                RuntimeEvent::VerificationCompleted {
+                    passed, replans, ..
+                } => Some((*passed, *replans)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(verdicts, vec![(false, 0), (true, 1)]);
+        // Two PlanGenerated: the initial plan and the verification-driven replan.
+        let plans = events
+            .iter()
+            .filter(|e| matches!(e, RuntimeEvent::PlanGenerated { .. }))
+            .count();
+        assert_eq!(plans, 2);
+    }
+
+    /// GIVEN the default (Assisted) tier, which does not request verification
+    /// WHEN an orchestrated run completes
+    /// THEN no VerificationCompleted verdict is emitted.
+    #[tokio::test]
+    async fn test_orchestrated_verification_dark_on_default_tier() {
+        // GIVEN an assisted-tier run (verification off by default)
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_critic(
+            two_step_plan_json(),
+            vec![],
+            r#"{"corrections":[]}"#.to_string(),
+            AutonomyLevel::Assisted,
+            2,
+            tx,
+        )
+        // Assisted gates the plan; without a registry the gate auto-approves.
+        .with_force_plan_gate(false);
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN the orchestrated run completes
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN it completes but no verdict is emitted
+        assert_eq!(result.status, TaskStatus::Completed);
+        let events = drain_events(&mut rx);
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, RuntimeEvent::VerificationCompleted { .. })),
+            "verification must stay dark at the assisted tier"
+        );
+    }
+
+    /// GIVEN a verification-enabled tier but no critic backend (empty router)
+    /// WHEN an orchestrated run completes
+    /// THEN a skipped, passing verdict is emitted and no replan occurs.
+    #[tokio::test]
+    async fn test_orchestrated_verification_degrades_without_backend() {
+        // GIVEN an engine whose reasoner is wired but whose llm_router is empty,
+        // so the critic route resolves nothing and the pass is skipped.
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let config = ORIAConfig {
+            autonomy_level: Some(AutonomyLevel::BoundedAutonomous),
+            verification_max_replans: 2,
+            ..ORIAConfig::default()
+        };
+        let engine = make_engine_with_mock(two_step_plan_json())
+            .with_event_bus(tx)
+            .with_oria_config(config);
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN the orchestrated run completes
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN a skipped, passing verdict is emitted with no replan
+        assert_eq!(result.status, TaskStatus::Completed);
+        let events = drain_events(&mut rx);
+        let verdict = events
+            .iter()
+            .find_map(|e| match e {
+                RuntimeEvent::VerificationCompleted {
+                    passed,
+                    skipped,
+                    replans,
+                    ..
+                } => Some((*passed, *skipped, *replans)),
+                _ => None,
+            })
+            .expect("a VerificationCompleted event must be emitted");
+        assert_eq!(verdict, (true, true, 0));
     }
 }
