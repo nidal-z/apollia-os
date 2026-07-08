@@ -25,6 +25,10 @@ const config = {
   // the OpenAPI plugin's `.mdx` output keeps full MDX.
   markdown: {
     format: 'detect',
+    // Enables ```mermaid fenced blocks, used by the arc42 architecture pages
+    // for the C4 context, container, and runtime sequence diagrams. Build-time
+    // only; the sovereign runtime is untouched.
+    mermaid: true,
     hooks: {
       onBrokenMarkdownLinks: 'warn',
     },
@@ -79,7 +83,7 @@ const config = {
     ],
   ],
 
-  themes: ['docusaurus-theme-openapi-docs'],
+  themes: ['docusaurus-theme-openapi-docs', '@docusaurus/theme-mermaid'],
 
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
