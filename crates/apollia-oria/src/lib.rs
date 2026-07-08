@@ -13,6 +13,7 @@
 //! - Orchestrated mode: full Reasoner + Actor loop for complex tasks
 
 pub mod actor;
+pub mod arg_resolver;
 pub mod budget;
 pub mod context_manager;
 pub mod engine;
