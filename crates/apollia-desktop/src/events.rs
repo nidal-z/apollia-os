@@ -361,6 +361,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::PlanReplanning { .. }
         | RuntimeEvent::PlanCompleted { .. }
         | RuntimeEvent::PlanFailed { .. }
+        | RuntimeEvent::VerificationCompleted { .. }
         | RuntimeEvent::PlanCacheHit { .. } => "task-changed",
 
         // ── Circuit breaker ──────────────────────────────────────────────

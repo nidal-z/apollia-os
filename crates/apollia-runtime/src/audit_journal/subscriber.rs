@@ -460,6 +460,26 @@ pub fn map_event(event: &RuntimeEvent) -> Option<JournalEntryDraft> {
             "PlanAbandoned",
             serde_json::json!({ "reason": reason }),
         )),
+        // The orchestrated engine correlates via task_id (no chat run_id), so the
+        // verdict is chained under the task_id, matching the plan-gate events.
+        RuntimeEvent::VerificationCompleted {
+            task_id,
+            passed,
+            check_failures,
+            corrections,
+            skipped,
+            replans,
+        } => Some(unknown(
+            task_id.as_str(),
+            "VerificationCompleted",
+            serde_json::json!({
+                "passed": passed,
+                "check_failures": check_failures,
+                "corrections": corrections,
+                "skipped": skipped,
+                "replans": replans,
+            }),
+        )),
         _ => None,
     }
 }
@@ -499,6 +519,33 @@ mod tests {
         // THEN it is a typed ToolCallStarted entry scoped to the run
         assert_eq!(draft.run_id, run.as_str());
         assert_eq!(draft.kind, JournalEntryKind::ToolCallStarted);
+    }
+
+    // A verification verdict maps to a run-scoped journal entry under its task_id
+    #[test]
+    fn test_verification_completed_maps_under_task_id() {
+        // GIVEN a VerificationCompleted verdict on an orchestrated task
+        let event = RuntimeEvent::VerificationCompleted {
+            task_id: "t-verif".into(),
+            passed: false,
+            check_failures: 0,
+            corrections: 2,
+            skipped: false,
+            replans: 1,
+        };
+        // WHEN mapped
+        let draft = map_event(&event).expect("should map");
+        // THEN it is chained under the task_id and records the verdict payload
+        assert_eq!(draft.run_id, "t-verif");
+        assert_eq!(
+            draft.kind,
+            JournalEntryKind::Unknown {
+                raw_kind: "VerificationCompleted".to_string()
+            }
+        );
+        assert_eq!(draft.payload["passed"], serde_json::json!(false));
+        assert_eq!(draft.payload["corrections"], serde_json::json!(2));
+        assert_eq!(draft.payload["replans"], serde_json::json!(1));
     }
 
     // An LLM call without a run_id is not appended

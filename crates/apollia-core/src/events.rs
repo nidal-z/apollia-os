@@ -588,6 +588,27 @@ pub enum RuntimeEvent {
         reason: String,
     },
 
+    /// The post-run verification pass produced a verdict on an orchestrated run.
+    ///
+    /// Emitted by the ORIA engine after a completed orchestrated plan when the
+    /// autonomy tier requests verification. Carries the aggregated verdict of the
+    /// deterministic checks plus the optional LLM critic. Consumed by the audit
+    /// journal so the verdict is traceable in the signed chain.
+    VerificationCompleted {
+        /// Identifier of the parent task.
+        task_id: TaskId,
+        /// True when every check passed and the critic proposed no correction.
+        passed: bool,
+        /// Number of failing check commands.
+        check_failures: u32,
+        /// Number of corrections proposed by the critic.
+        corrections: u32,
+        /// True when the critic pass was skipped (no backend, or routing error).
+        skipped: bool,
+        /// Number of verification-driven replans performed before this verdict.
+        replans: u32,
+    },
+
     /// A plan was generated and is awaiting an operator decision before execution.
     ///
     /// Emitted by the ORIA engine when the plan gate is active (plan-then-approve
