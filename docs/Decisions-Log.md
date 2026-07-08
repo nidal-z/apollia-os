@@ -38,3 +38,6 @@
 | 2026-06-10 | ADR-031 | Modèle de plan unifié dans apollia-core | [ADR-031](adr/ADR-031-unified-plan-model.md) |
 | 2026-06-10 | ADR-032 | Moteur de plan natif au chat | [ADR-032](adr/ADR-032-chat-native-plan-engine.md) |
 | 2026-06-10 | ADR-033 | Audit et rejeu de la construction du plan | [ADR-033](adr/ADR-033-plan-construction-audit-replay.md) |
+| 2026-07-06 | ADR-034 | Taxonomie CLI v2 (verbes canoniques, top-level git-style, renommage pre-release) | [ADR-034](adr/ADR-034-cli-taxonomy-v2.md) |
+| 2026-07-06 | ADR-035 | Surface CLI IA-native (do/explain/reprompt) sur le modele local, GBNF + dry-run | [ADR-035](adr/ADR-035-cli-ai-native-surface.md) |
+| 2026-07-06 | ADR-036 | Decouvrabilite CLI (completions clap_complete, palette fuzzy maison, guide, did-you-mean) | [ADR-036](adr/ADR-036-cli-discoverability.md) |
