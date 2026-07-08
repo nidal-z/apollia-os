@@ -2326,3 +2326,198 @@ agent = A()
         );
     }
 }
+
+#[cfg(test)]
+mod adr038_master_proof {
+    //! End-to-end proof for the orchestrated step-argument contract (ADR-038).
+    //!
+    //! Drives the orchestrated `ActorLoop` through the production `OriaToolProxy`
+    //! over a real governed `ToolProxy`, executing a native tool that requires
+    //! structured arguments, and asserts the file was written, the invocation was
+    //! audited, and the tool-call budget was consumed.
+
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use super::{OriaToolProxy, RouterModel};
+    use apollia_aip::context::{DispatcherExecutor, ToolProxy, ToolProxyConfig};
+    use apollia_core::plan::PlanStep;
+    use apollia_core::{SandboxProfile, StepBudgetConfig, TaskStatus};
+    use apollia_llm::{CompletionModel, LlmRouter};
+    use apollia_oria::actor::{ActorLoop, StepDeps};
+    use apollia_oria::budget::StepBudget;
+    use apollia_oria::plan::ExecutionPlan;
+    use apollia_oria::plan_repository::PlanRepository;
+    use apollia_oria::reasoner::Reasoner;
+    use apollia_oria::ResilienceLayer;
+    use apollia_tools::{
+        ToolDescriptor, ToolDispatcher, ToolExecutionError, ToolExecutor, ToolKind,
+        ToolRegistryHandle,
+    };
+    use serde_json::Value;
+
+    /// Native tool with a structured (path, content) input contract: writes the
+    /// content to the path. Stands in for `file_write`/`bash`/`http` in the test.
+    struct WriteNoteExecutor;
+
+    #[async_trait::async_trait]
+    impl ToolExecutor for WriteNoteExecutor {
+        fn name(&self) -> &str {
+            "write_note"
+        }
+        async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
+            let path = input
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or_else(|| ToolExecutionError::InvalidInput {
+                    message: "missing 'path'".to_string(),
+                })?;
+            let content = input.get("content").and_then(Value::as_str).ok_or_else(|| {
+                ToolExecutionError::InvalidInput {
+                    message: "missing 'content'".to_string(),
+                }
+            })?;
+            std::fs::write(path, content).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "io_error".to_string(),
+                message: e.to_string(),
+            })?;
+            Ok(Value::String(format!("wrote {} bytes", content.len())))
+        }
+    }
+
+    fn write_note_descriptor() -> ToolDescriptor {
+        ToolDescriptor {
+            name: "write_note".to_string(),
+            version: "1.0.0".to_string(),
+            description: "Write content to a file path".to_string(),
+            kind: ToolKind::Native,
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" }
+                },
+                "required": ["path", "content"]
+            }),
+            output_schema: None,
+            sandbox_profile: SandboxProfile::FileSystem,
+            tags: vec![],
+            dangerous: false,
+            is_read_only: false,
+            risk_score: 5,
+            approval_risk_level: None,
+            impact_description: None,
+            reject_reason_required: false,
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_orchestrated_native_tool_with_structured_args_executes_and_audits() {
+        // GIVEN a real governed ToolProxy exposing a structured-args native tool
+        let tmp = std::env::temp_dir().join(format!(
+            "apollia_adr038_{}_{}.txt",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        let _ = std::fs::remove_file(&tmp);
+
+        let registry = ToolRegistryHandle::start();
+        registry
+            .register(write_note_descriptor())
+            .await
+            .expect("register descriptor");
+        let audit_db = std::env::temp_dir().join(format!("apollia_adr038_audit_{}.db", uuid::Uuid::new_v4()));
+        let audit = apollia_tools::AuditTrailHandle::open(&audit_db)
+            .await
+            .expect("open audit trail");
+        let dispatcher = Arc::new(ToolDispatcher::new(vec![Box::new(WriteNoteExecutor)]));
+        let proxy = ToolProxy::new(ToolProxyConfig {
+            registry: registry.clone(),
+            audit: audit.clone(),
+            executor: Arc::new(DispatcherExecutor::new(dispatcher)),
+            allowed_tools: vec!["write_note".to_string()],
+            agent_id: "orchestrated-agent".to_string(),
+            task_id: "task-adr038".to_string(),
+            run_id: None,
+        });
+        let oria_proxy = OriaToolProxy { proxy };
+
+        // AND a plan whose single tool step carries structured plan-time args
+        // (path A output: the persisted plan is fully specified).
+        let mut step = PlanStep::new("s1", "write the greeting to the note file");
+        step.tool_hint = Some("write_note".to_string());
+        step.args = Some(serde_json::json!({
+            "path": tmp.to_str().expect("utf-8 path"),
+            "content": "hello orchestrated"
+        }));
+        let plan = ExecutionPlan {
+            plan_id: "p-adr038".to_string(),
+            task_id: "task-adr038".to_string(),
+            steps: vec![step],
+        };
+
+        let db = PlanRepository::new(":memory:").expect("in-memory plan db");
+        db.insert_plan(&plan, "orchestrated-agent")
+            .expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let (bus_tx, _bus_rx) = tokio::sync::broadcast::channel(64);
+        let manifest = serde_json::from_str(
+            r#"{"name":"orch","version":"0.1.0","description":"t","tools_required":["write_note"]}"#,
+        )
+        .expect("minimal manifest");
+        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, manifest);
+
+        let cap = StepBudgetConfig {
+            max_steps: 10,
+            max_tool_calls: 10,
+            wall_clock_secs: 60,
+        };
+        let budget = StepBudget::from_capped(&cap, &cap);
+        let router = LlmRouter::empty();
+        let reasoner = Reasoner::new(
+            Arc::new(RouterModel(Arc::new(LlmRouter::empty()))) as Arc<dyn CompletionModel>,
+            10,
+        );
+        let resilience = ResilienceLayer::default();
+
+        // WHEN the orchestrated ActorLoop executes the plan
+        let result = actor
+            .execute(
+                StepDeps {
+                    tool_proxy: &oria_proxy,
+                    llm_router: &router,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
+            .await;
+
+        // THEN the plan completed and the native tool ran with the structured args
+        assert_eq!(
+            result.status,
+            TaskStatus::Completed,
+            "orchestrated run should complete: {:?}",
+            result.error
+        );
+        let written = std::fs::read_to_string(&tmp).expect("note file must exist");
+        assert_eq!(written, "hello orchestrated");
+
+        // AND the invocation was recorded in the audit trail (governance holds)
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let records = audit.query_last(1).await;
+        assert_eq!(records.len(), 1, "one audited invocation expected");
+        assert_eq!(records[0].tool_name, "write_note");
+        assert_eq!(records[0].agent_id, "orchestrated-agent");
+        assert!(records[0].success);
+
+        // AND the tool-call budget was consumed (guardrail applies)
+        assert_eq!(budget.tool_calls_left(), 9);
+
+        let _ = std::fs::remove_file(&tmp);
+        registry.shutdown().await;
+        audit.shutdown().await;
+    }
+}
