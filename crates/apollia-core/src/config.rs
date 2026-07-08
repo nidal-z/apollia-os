@@ -868,6 +868,16 @@ pub struct ORIAConfig {
     /// runtime default, currently `Assisted` (gate active).
     #[serde(default)]
     pub autonomy_level: Option<AutonomyLevel>,
+
+    /// Maximum verification-driven replans allowed per orchestrated run.
+    ///
+    /// After a completed run, when the autonomy tier requests verification and the
+    /// verdict fails, the engine may replan and re-execute up to this many times,
+    /// each replan still bounded by the shared `StepBudget`. `0` disables replan:
+    /// the failing verdict is emitted and the last result is returned as-is.
+    /// Default: 2. Bounds: [0, 10].
+    #[serde(default = "default_verification_max_replans")]
+    pub verification_max_replans: u32,
 }
 
 impl Default for ORIAConfig {
@@ -886,6 +896,7 @@ impl Default for ORIAConfig {
             plan_gate_ttl_secs: default_plan_gate_ttl_secs(),
             plan_gate_max_replans: default_plan_gate_max_replans(),
             autonomy_level: None,
+            verification_max_replans: default_verification_max_replans(),
         }
     }
 }
@@ -978,6 +989,12 @@ impl ORIAConfig {
                 reason: "must be between 0 and 10".into(),
             });
         }
+        if self.verification_max_replans > 10 {
+            return Err(ConfigError::InvalidValue {
+                field: "oria.verification_max_replans".into(),
+                reason: "must be between 0 and 10".into(),
+            });
+        }
         Ok(())
     }
 }
@@ -988,6 +1005,10 @@ fn default_plan_gate_ttl_secs() -> u64 {
 
 fn default_plan_gate_max_replans() -> u32 {
     3
+}
+
+fn default_verification_max_replans() -> u32 {
+    2
 }
 
 fn default_plan_alternatives_temp_a() -> f32 {
