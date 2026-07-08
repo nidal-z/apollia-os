@@ -96,7 +96,7 @@ pub fn load_or_generate_token(data_dir: &Path) -> Result<String, TokenFileError>
 fn generate_hex_token() -> String {
     use rand::RngCore;
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     hex::encode(bytes)
 }
 

@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
+use mdns_sd::{ResolvedService, ServiceDaemon, ServiceEvent, ServiceInfo};
 use thiserror::Error;
 
 /// mDNS service type under which Apollia MCP servers are registered.
@@ -159,8 +159,8 @@ fn build_host_name() -> String {
     }
 }
 
-/// Converts a resolved mDNS [`ServiceInfo`] into a [`DiscoveredServer`].
-fn resolved_server_from_info(info: &ServiceInfo) -> DiscoveredServer {
+/// Converts a resolved mDNS [`ResolvedService`] into a [`DiscoveredServer`].
+fn resolved_server_from_info(info: &ResolvedService) -> DiscoveredServer {
     let addresses = info.get_addresses().iter().map(|a| a.to_string()).collect();
 
     let tools = info

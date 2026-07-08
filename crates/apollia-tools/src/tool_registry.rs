@@ -321,7 +321,7 @@ impl ToolCredentialStore {
     /// - [`ToolGovernanceError::Database`] if the SQLite write fails.
     pub fn set(&mut self, tool: &str, key: &str, value: &str) -> Result<(), ToolGovernanceError> {
         let mut nonce_bytes = [0u8; 12];
-        rand::thread_rng().fill_bytes(&mut nonce_bytes);
+        rand::rng().fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
         let ciphertext = self
             .cipher
@@ -478,7 +478,7 @@ fn load_or_create_keyfile(path: &Path) -> Result<[u8; 32], ToolGovernanceError> 
     }
 
     let mut key = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut key);
+    rand::rng().fill_bytes(&mut key);
     write_keyfile_secure(path, &key)?;
     Ok(key)
 }

@@ -101,6 +101,7 @@ tower-http = { version = "0.5", features = ["trace"] }
 
 # --- CLI (apollia-cli) ---
 clap = { version = "4", features = ["derive"] }
+clap_complete = { version = "4" }
 
 # --- SQLite - bundled = zero external system dependency (Principe #2) ---
 rusqlite = { version = "0.32", features = ["bundled"] }
@@ -111,7 +112,9 @@ hmac = "0.12"
 aes-gcm = "0.10"
 
 # --- Random ---
-rand = "0.8"
+# rand 0.9 = dernier major stable largement adopte (0.10 tout juste sorti,
+# ecosysteme pas encore aligne : eviter les doublons de version).
+rand = "0.9"
 
 # --- LLM (apollia-llm) ---
 futures = "0.3"
@@ -121,18 +124,30 @@ async-openai = "0.28"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 # llama-cpp-2 = bindings Rust safe pour llama.cpp
 # Compilation statique, binaire unique, 30+ architectures GGUF.
-llama-cpp-2 = "0.1.144"
-# llama-cpp-sys-2 = bindings FFI bruts - requis pour `llama_model_load_from_splits`
-# (naming scheme custom, non exposé par le wrapper safe).
-llama-cpp-sys-2 = "0.1.145"
+# PIN EXACT 0.1.146 : la 0.1.151 a supprime l'API OAI-compat de tool-calling
+# (apply_chat_template_with_tools_oaicompat, ChatTemplateResult,
+# parse_response_oaicompat) dont depend le rendu/parsing des tool calls, en
+# particulier le format Mistral [TOOL_CALLS]. Ne pas bumper sans migrer ce chemin.
+llama-cpp-2 = "=0.1.146"
+# llama-cpp-sys-2 = bindings FFI bruts.
+# ATTENTION : aucune crate ne depend directement de ce dep workspace, donc ce pin
+# est INERTE (il ne contraint pas le sys transitif que llama-cpp-2 tire via son
+# propre `^`). Le wrapper 0.1.146 appelle des symboles FFI absents de sys 0.1.151
+# (chat-template OAI-compat) : un `cargo update` qui remonte sys a 0.1.151 casse
+# le build. Le vrai verrou est le Cargo.lock (sys epingle a 0.1.146). Ne pas
+# lancer `cargo update` non contraint sans re-verifier `cargo update -p
+# llama-cpp-sys-2 --precise 0.1.146`.
+llama-cpp-sys-2 = "=0.1.146"
 encoding_rs = "0.8"
 # LRU cache (apollia-llm MetaLlmOrchestrator)
-lru = "0.12"
+lru = "0.18"
 
 # --- Audio (WAV decoding for STT API) ---
 hound = "3.5"
 
 # --- Config parsing ---
+# toml reste en 0.8.x : le passage 1.0 declenche des conflits de resolution
+# (toml_datetime/toml_edit) sans gain reel ; 0.8.23 est deja recent.
 toml = "0.8"
 toml_edit = "0.22"
 
@@ -177,13 +192,13 @@ semver    = "1"
 scopeguard = "1"
 
 # --- mDNS service discovery (apollia-mcp) ---
-mdns-sd  = "0.11"
+mdns-sd  = "0.20"
 hostname = "0.4"
 
 # --- Triggers (apollia-triggers) ---
 chrono = { version = "0.4", features = ["serde"] }
-cron   = "0.12"
-notify = "6"
+cron   = "0.17"
+notify = "8"
 
 # --- Python bridge (apollia-aip) ---
 pyo3 = { version = "0.24", features = ["auto-initialize"] }

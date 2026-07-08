@@ -14,7 +14,7 @@ use crate::providers::ProviderConfig;
 /// random bytes, as specified in RFC 7636 section 4.1.
 pub fn generate_code_verifier() -> String {
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     URL_SAFE_NO_PAD.encode(bytes)
 }
 

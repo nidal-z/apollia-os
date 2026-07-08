@@ -648,8 +648,8 @@ impl RetryPolicy {
         let capped = raw_delay.min(self.max_delay_ms);
 
         let final_delay = if self.jitter {
-            let mut rng = rand::thread_rng();
-            let jitter_factor: f64 = rng.gen_range(0.75..=1.25);
+            let mut rng = rand::rng();
+            let jitter_factor: f64 = rng.random_range(0.75..=1.25);
             let jittered = (capped as f64 * jitter_factor) as u64;
             jittered.min(self.max_delay_ms)
         } else {
