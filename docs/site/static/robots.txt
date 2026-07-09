@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+# Apollia OS est open source : on laisse les crawlers indexer le centre d'aide.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://docs.apollia.fr/sitemap.xml
