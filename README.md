@@ -4,7 +4,7 @@
 > They run on your machine, you can prove everything they do,
 > and they are as capable as the model you plug in.
 
-Local-first. Zero cloud. One binary.
+Local-first. Zero cloud. Sovereign by design.
 
 [![CI](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
@@ -26,14 +26,14 @@ Learn more at [apollia.fr](https://apollia.fr).
 
 ## What is Apollia OS?
 
-Apollia OS is a Rust runtime that executes autonomous AI agents (LangGraph, CrewAI, AutoGen, or custom) in an isolated, local environment. No data leaves your machine. No cloud dependency. No subprocess spawning - the PyO3 bridge translates async Rust futures to Python coroutines directly.
+Apollia OS is a Rust runtime that executes autonomous Python AI agents (any object exposing `manifest()` and an async `run()`) in an isolated, local environment. No data leaves your machine. No cloud dependency. Python agents run in-process: the PyO3 bridge translates async Rust futures to Python coroutines directly, with no per-agent subprocess.
 
 **Key capabilities:**
 
 - **Local-first LLM inference** - run GGUF models on CPU or Apple Silicon Metal GPU, or connect to Anthropic / OpenAI-compatible APIs
 - **Persistent memory** - three-tier SQLite store (episodic, semantic, procedural) with FTS5 full-text search per agent
 - **Native tools** - bash (Linux PID/mount namespaces), file I/O (path-confined), and Python execution with per-agent venv isolation
-- **Step budget** - `max_steps` / `max_tool_calls` / wall-clock timeout enforced at the runtime level, not contournable by agent code
+- **Step budget** - `max_steps` / `max_tool_calls` / wall-clock timeout enforced at the runtime level, not bypassable by agent code
 - **Circuit breaker** - per-tool resilience layer with exponential backoff and jitter
 - **Triggers** - cron, interval, file watch, and authenticated webhooks (HMAC-SHA256)
 - **Multi-agent pipelines** - topological execution with per-step conditions, HITL suspension, and fallback paths
@@ -45,7 +45,7 @@ Apollia OS is a Rust runtime that executes autonomous AI agents (LangGraph, Crew
 
 ## Quickstart
 
-**Prerequisites:** Rust 1.85+, Python 3.11+. See [docs/wiki/INSTALL.md](docs/wiki/INSTALL.md) for full installation instructions.
+**Prerequisites:** Rust 1.85+, Python 3.12+. See [the install guide](docs/site/docs/how-to/install-and-run.md) for full installation instructions.
 
 ```bash
 # 1. Build the workspace
@@ -111,12 +111,12 @@ Apollia OS is built around independent Tokio actors communicating over channels.
                                   | AIP contract
                       +-----------v-----------+
                       |     PYTHON AGENT      |
-                      |  LangGraph  CrewAI    |
-                      |  AutoGen    custom    |
+                      |  manifest() + run()   |
+                      |     (duck-typed)      |
                       +-----------------------+
 ```
 
-Full architecture documentation: [docs/wiki/Architecture-Vue-Ensemble.md](docs/wiki/Architecture-Vue-Ensemble.md)
+Full architecture documentation: [the arc42 architecture section](docs/site/docs/architecture/)
 
 ---
 
@@ -124,7 +124,7 @@ Full architecture documentation: [docs/wiki/Architecture-Vue-Ensemble.md](docs/w
 
 | Platform | CPU | GPU | Status |
 |----------|-----|-----|--------|
-| Linux x86_64 | ✅ Tested | CUDA - planned | Primary development target |
+| Linux x86_64 | Builds | CUDA - planned | CI/multi-OS testing wanted |
 | macOS Apple Silicon | ✅ Tested | ✅ Metal tested | No Xcode required |
 | macOS Intel | ✅ Should work | - | Not explicitly tested |
 | Windows x86_64 | Planned | CUDA - planned | Not yet tested |

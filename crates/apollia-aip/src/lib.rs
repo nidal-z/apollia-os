@@ -8,7 +8,6 @@
 //! - `loader`: loads a Python module and validates AIP duck-typing.
 //! - `bridge`: async Rust to Python calls via pyo3-async-runtimes.
 //! - `context`: `RuntimeContext` injected into agent `run()` calls.
-//! - `wrapper`: `AIPWrapper` for non-native agents (LangGraph, CrewAI).
 //!
 //! Nested ctx surfaces (additive, non-breaking):
 //! - `a2a`: nested `ctx.a2a` surface (consolidates flat A2A methods).

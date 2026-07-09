@@ -65,8 +65,8 @@ single-maintainer source-available.
 
 **MCP**
 
-- Full Model Context Protocol support: 18-entry catalog with curated
-  servers, stdio and HTTP transports.
+- Model Context Protocol client: 18-entry catalog of curated servers,
+  stdio and HTTP transports. Inbound MCP server (stdio) exposes native tools.
 - Custom MCP server installation through the desktop UI or CLI.
 - OAuth orchestration for MCP servers that require it.
 
