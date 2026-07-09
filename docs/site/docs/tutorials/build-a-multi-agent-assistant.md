@@ -544,8 +544,9 @@ See the [CLI reference](/reference/cli) for every `task` and `audit` subcommand.
 
 Apollia ships an isomorphic testing harness, `apollia.testing.mock`, that runs a
 skill or a message in-process with a mocked `ctx`, no daemon required. It lets
-you assert on results and on the calls a director made. A dedicated how-to covers
-it; this tutorial stops at build and run.
+you assert on results and on the calls a director made.
+[Test your agents](/how-to/test-your-agents) covers it; this tutorial stops at
+build and run.
 
 ## Going further
 

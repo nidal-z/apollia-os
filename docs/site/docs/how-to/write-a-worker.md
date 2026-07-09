@@ -157,7 +157,8 @@ parsing a message string.
 ## Test your worker
 
 Apollia ships an isomorphic testing harness, `apollia.testing`, so skills run
-in-process with a mocked `ctx` and no daemon. A dedicated how-to will cover it.
+in-process with a mocked `ctx` and no daemon. See
+[Test your agents](/how-to/test-your-agents).
 
 ## Next steps
 
