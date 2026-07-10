@@ -371,7 +371,15 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             // Bind the context to the task so ctx.log() labels the persisted
             // RuntimeEvent::AgentLog entries.
             .with_task_id(task.task_id.clone())
-            .with_run_id(task.run_id.clone());
+            .with_run_id(task.run_id.clone())
+            .with_mailbox_capability(
+                manifest.supports_mailbox,
+                manifest.mailbox_allowlist.clone(),
+                manifest
+                    .tools_requiring_approval
+                    .iter()
+                    .any(|t| t == "mailbox:send"),
+            );
             Py::new(py, ctx)
                 .map(|p| p.into_any())
                 .expect("RuntimeContext PyObject construction failed")
@@ -818,7 +826,9 @@ impl BridgeRunner {
                 brave_api_key: snapshot.brave_api_key,
                 web_search_config: self.tools_config.web_search.clone(),
                 web_read_config: self.tools_config.web_read.clone(),
-                governance_db_path: Some(governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
+                governance_db_path: Some(
+                    governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
+                ),
             },
             extra_executors,
         ));
@@ -1967,7 +1977,10 @@ mod tests {
 
         // THEN it is bounded on every dimension
         assert!(budget.max_steps < u32::MAX, "steps must be bounded");
-        assert!(budget.max_tool_calls < u32::MAX, "tool calls must be bounded");
+        assert!(
+            budget.max_tool_calls < u32::MAX,
+            "tool calls must be bounded"
+        );
         assert!(
             budget.wall_clock_limit < std::time::Duration::from_secs(86_400),
             "wall clock must be bounded well under the old 24h unlimited() value"
@@ -2254,6 +2267,8 @@ agent = A()
             tags: vec![],
             skills: vec![],
             execution_mode: "orchestrated".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: Some("You are a planning assistant.".to_string()),
             tools_requiring_approval: vec![],
             llm_backend: None,
@@ -2349,17 +2364,17 @@ mod adr038_master_proof {
             "write_note"
         }
         async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-            let path = input
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| ToolExecutionError::InvalidInput {
-                    message: "missing 'path'".to_string(),
-                })?;
-            let content = input.get("content").and_then(Value::as_str).ok_or_else(|| {
+            let path = input.get("path").and_then(Value::as_str).ok_or_else(|| {
                 ToolExecutionError::InvalidInput {
-                    message: "missing 'content'".to_string(),
+                    message: "missing 'path'".to_string(),
                 }
             })?;
+            let content = input
+                .get("content")
+                .and_then(Value::as_str)
+                .ok_or_else(|| ToolExecutionError::InvalidInput {
+                    message: "missing 'content'".to_string(),
+                })?;
             std::fs::write(path, content).map_err(|e| ToolExecutionError::ExecutionFailed {
                 code: "io_error".to_string(),
                 message: e.to_string(),
@@ -2409,7 +2424,8 @@ mod adr038_master_proof {
             .register(write_note_descriptor())
             .await
             .expect("register descriptor");
-        let audit_db = std::env::temp_dir().join(format!("apollia_adr038_audit_{}.db", uuid::Uuid::new_v4()));
+        let audit_db =
+            std::env::temp_dir().join(format!("apollia_adr038_audit_{}.db", uuid::Uuid::new_v4()));
         let audit = apollia_tools::AuditTrailHandle::open(&audit_db)
             .await
             .expect("open audit trail");

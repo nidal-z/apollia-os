@@ -41,8 +41,30 @@ port        = 7771
 eventbus_capacity = 1024
 
 # Capacité des files de messages par agent (AgentMailbox)
-# Défaut : 100
+# Défaut : 100. Bornes : [10, 10000]
 mailbox_capacity = 100
+
+# Délai de bail (visibility timeout) d'un message relevé mais non acquitté,
+# en secondes. Passé ce délai, le message redevient délivrable (at-least-once).
+# Défaut : 60. Bornes : [1, 3600]
+mailbox_visibility_timeout_secs = 60
+
+# Durée de vie d'un message jamais relevé, en secondes. Au-delà, il est évincé.
+# Défaut : 86400 (24 h). Bornes : [60, 2592000]
+mailbox_message_ttl_secs = 86400
+
+# Quota anti-spam d'envois mailbox par run. Au-delà, l'envoi est refusé.
+# Défaut : 50. Bornes : [1, 100000]
+mailbox_send_quota_per_run = 50
+
+# Taille maximale du payload d'un message mailbox, en octets.
+# Défaut : 65536 (64 Kio). Bornes : [1024, 16777216]
+mailbox_max_payload_bytes = 65536
+
+# Journaliser le contenu complet des messages mailbox dans le journal d'audit.
+# false (défaut) = seul le hash SHA-256 est journalisé (vie privée + taille).
+# true = contenu intégral (régulé / haute assurance)
+mailbox_audit_full_payload = false
 
 # Timeout global de démarrage du runtime, en secondes
 # 0 = illimité - non recommandé en production

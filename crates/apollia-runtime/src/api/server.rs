@@ -423,16 +423,15 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_audit::{
         get_audit_stats, list_audit, post_replay_run, show_audit_run, verify_audit_run,
     };
-    use super::routes_hooks::list_hooks;
     use super::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
         get_session_todo as chat_get_session_todo, list_recent_sessions, list_session_children,
         list_sessions, resume_session as chat_resume_session, send_message, stream_session,
     };
+    use super::routes_hooks::list_hooks;
     use super::routes_llm::llm_routes;
     use super::routes_mcp::mcp_router;
-    use super::routes_messages::list_agent_messages;
     use super::routes_model_hub::model_hub_routes;
     use super::routes_notifications::{
         create_channel, delete_channel, get_events, list_channels, notification_logs, set_events,
@@ -457,6 +456,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         get_trigger_by_id, get_trigger_logs, list_triggers, reload_triggers, update_trigger,
     };
     use super::routes_webhooks::handle_webhook;
+    use crate::api::routes_messages::{inject_agent_message, list_agent_messages, stream_mailbox};
 
     Router::new()
         .route("/api/v1/health", get(health_handler))
@@ -502,8 +502,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         )
         .route(
             "/api/v1/agents/:name/messages",
-            get(list_agent_messages::<B>),
+            get(list_agent_messages::<B>).post(inject_agent_message::<B>),
         )
+        .route("/api/v1/mailbox/stream", get(stream_mailbox::<B>))
         // A2A routing routes
         .route("/api/v1/a2a/agents", get(list_a2a_agents::<B>))
         .route("/api/v1/a2a/delegate", post(delegate::<B>))
@@ -659,13 +660,12 @@ impl APIServer {
         // only, closing any unauthenticated TCP exposure for embedded hosts.
         if let Some(tcp_port) = config.tcp_port {
             let tcp_addr = format!("{}:{}", config.bind_addr, tcp_port);
-            let tcp_listener =
-                TcpListener::bind(&tcp_addr)
-                    .await
-                    .map_err(|source| APIServerError::BindFailed {
-                        port: tcp_port,
-                        source,
-                    })?;
+            let tcp_listener = TcpListener::bind(&tcp_addr).await.map_err(|source| {
+                APIServerError::BindFailed {
+                    port: tcp_port,
+                    source,
+                }
+            })?;
 
             // Apply token authentication to the TCP-facing router only.
             let tcp_router = match &config.api_token {
@@ -849,6 +849,57 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
         }
+    }
+
+    /// Injecting to an unknown recipient returns 404.
+    #[tokio::test]
+    async fn test_inject_unknown_recipient_returns_404() {
+        // GIVEN a state with a mailbox but no registered agent
+        let mut state = test_app_state();
+        let mailbox = AgentMailboxHandle::spawn(
+            None,
+            state.event_sender.clone(),
+            crate::mailbox::MailboxConfig::default(),
+        )
+        .await;
+        state.mailbox_handle = Some(mailbox);
+
+        // WHEN injecting a message to a non-existent recipient
+        let result = crate::api::routes_messages::inject_agent_message(
+            axum::extract::State(state),
+            axum::extract::Path("ghost".to_string()),
+            axum::Json(crate::api::routes_messages::InjectMessageBody {
+                payload: serde_json::json!({"x": 1}),
+                from: Some("op".to_string()),
+            }),
+        )
+        .await;
+
+        // THEN it is rejected with 404
+        let (code, _) = result.err().expect("should be an error");
+        assert_eq!(code, axum::http::StatusCode::NOT_FOUND);
+    }
+
+    /// Injecting when no mailbox is configured returns 503.
+    #[tokio::test]
+    async fn test_inject_without_mailbox_returns_503() {
+        // GIVEN a state without a mailbox
+        let state = test_app_state();
+
+        // WHEN injecting a message
+        let result = crate::api::routes_messages::inject_agent_message(
+            axum::extract::State(state),
+            axum::extract::Path("any".to_string()),
+            axum::Json(crate::api::routes_messages::InjectMessageBody {
+                payload: serde_json::json!({}),
+                from: None,
+            }),
+        )
+        .await;
+
+        // THEN it is rejected with 503
+        let (code, _) = result.err().expect("should be an error");
+        assert_eq!(code, axum::http::StatusCode::SERVICE_UNAVAILABLE);
     }
 
     /// Find a free TCP port by binding to port 0.

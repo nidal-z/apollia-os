@@ -42,6 +42,15 @@ pub enum JournalEntryKind {
     AgentStopped,
     /// An escalation was triggered during the run.
     EscalationTriggered,
+    /// A message was sent to another agent's mailbox. The payload is a
+    /// [`MessageSnapshot`].
+    MessageSent,
+    /// A mailbox message was leased to its recipient. The payload is a
+    /// [`MessageSnapshot`].
+    MessageDelivered,
+    /// A mailbox message was dropped (queue full). The payload is a
+    /// [`MessageSnapshot`].
+    MessageDropped,
     /// A run-scoped event with no explicit mapping; `raw_kind` keeps the
     /// original variant name so coverage stays auditable.
     Unknown {
@@ -68,6 +77,9 @@ impl JournalEntryKind {
             JournalEntryKind::AgentStarted => "agent_started",
             JournalEntryKind::AgentStopped => "agent_stopped",
             JournalEntryKind::EscalationTriggered => "escalation_triggered",
+            JournalEntryKind::MessageSent => "message_sent",
+            JournalEntryKind::MessageDelivered => "message_delivered",
+            JournalEntryKind::MessageDropped => "message_dropped",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
     }
@@ -88,6 +100,9 @@ impl JournalEntryKind {
             "agent_started" => JournalEntryKind::AgentStarted,
             "agent_stopped" => JournalEntryKind::AgentStopped,
             "escalation_triggered" => JournalEntryKind::EscalationTriggered,
+            "message_sent" => JournalEntryKind::MessageSent,
+            "message_delivered" => JournalEntryKind::MessageDelivered,
+            "message_dropped" => JournalEntryKind::MessageDropped,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
             },
@@ -189,6 +204,31 @@ pub struct PlanMutationSnapshot {
     /// single-step delta so a multi-step `Propose` is fully replayable: the
     /// delta alone cannot reconstruct a plan built in one move.
     pub plan: Plan,
+}
+
+/// Captured mailbox message event for the audit chain.
+///
+/// Recorded for a `MessageSent`, `MessageDelivered`, or `MessageDropped` entry.
+/// The payload content is represented by its `payload_hash` (SHA-256) by
+/// default; the full payload is included only when the runtime is configured to
+/// record it (regulated / high assurance), so the journal proves what was
+/// exchanged without necessarily storing the content at rest.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MessageSnapshot {
+    /// Unique identifier of the message.
+    pub message_id: String,
+    /// Name of the sending agent (or `host:<id>`). `None` for delivery, where
+    /// only the recipient side is known to the event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    /// Name of the receiving agent.
+    pub to: String,
+    /// SHA-256 hash of the payload, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_hash: Option<String>,
+    /// Drop cause for a `MessageDropped` entry (`"queue_full"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 #[cfg(test)]

@@ -687,6 +687,21 @@ impl A2AInvoker {
     ///
     /// Searches agents with `supports_a2a = true` in `Active` or `Degraded` state.
     /// Returns `None` if no available agent declares this skill.
+    /// Returns whether an agent named `name` is registered.
+    ///
+    /// Registry-backed existence check used by the mailbox (`ctx.mail.send`) to
+    /// fail-fast on an unknown recipient instead of silently enqueuing a message
+    /// that would only expire via TTL. Any registry communication error resolves
+    /// to `false` (treated as absent).
+    pub async fn agent_exists(&self, name: &str) -> bool {
+        self.registry
+            .find_by_name(name)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+    }
+
     pub async fn discover(&self, skill_id: &str) -> Result<Option<A2AAgentCard>, A2AError> {
         let entries = self
             .registry
@@ -955,6 +970,8 @@ mod tests {
             tags: vec!["worker".to_string()],
             skills,
             execution_mode: "direct".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
@@ -1246,6 +1263,27 @@ mod tests {
             }
             other => panic!("unexpected error: {other}"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_agent_exists_reflects_registry() {
+        // GIVEN a registry with one registered agent
+        let (bus_tx, _) = EventBus::new();
+        let registry = AgentRegistry::spawn(bus_tx.clone());
+        registry
+            .register(make_a2a_manifest("excel-worker", &["read-excel"]))
+            .await
+            .expect("register failed");
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_never_called_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        );
+
+        // WHEN/THEN a registered name exists; an unknown one does not
+        assert!(invoker.agent_exists("excel-worker").await);
+        assert!(!invoker.agent_exists("ghost").await);
     }
 
     #[tokio::test]
@@ -1575,6 +1613,8 @@ mod a2a_guard_tests {
             tags: vec![],
             skills,
             execution_mode: "direct".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,

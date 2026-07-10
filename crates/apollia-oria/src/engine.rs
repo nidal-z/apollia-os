@@ -2131,6 +2131,8 @@ mod orchestrated_tests {
             tags: vec![],
             skills: vec![],
             execution_mode: "orchestrated".into(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: Some("Planifie les étapes nécessaires.".into()),
             tools_requiring_approval: vec![],
             llm_backend: None,
@@ -2284,6 +2286,8 @@ mod orchestrated_tests {
                 tags: vec![],
                 skills: vec![],
                 execution_mode: "orchestrated".into(),
+                supports_mailbox: false,
+                mailbox_allowlist: None,
                 system_prompt: None, // ← absent
                 tools_requiring_approval: vec![],
                 llm_backend: None,

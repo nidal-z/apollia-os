@@ -407,6 +407,8 @@ mod tests {
             tags: Vec::new(),
             skills: Vec::new(),
             execution_mode: "auto".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: Vec::new(),
             llm_backend: None,

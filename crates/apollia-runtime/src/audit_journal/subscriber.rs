@@ -23,7 +23,9 @@ use std::collections::HashMap;
 
 use apollia_core::events::RuntimeEvent;
 
-use crate::audit_journal::entry::{JournalEntryDraft, JournalEntryKind, PlanMutationSnapshot};
+use crate::audit_journal::entry::{
+    JournalEntryDraft, JournalEntryKind, MessageSnapshot, PlanMutationSnapshot,
+};
 use crate::audit_journal::handle::AuditJournalHandle;
 use crate::replay::{ClockSample, LlmCompletionSnapshot, RandomSample, ToolOutputSnapshot};
 
@@ -480,6 +482,71 @@ pub fn map_event(event: &RuntimeEvent) -> Option<JournalEntryDraft> {
                 "replans": replans,
             }),
         )),
+        // Mailbox messaging: journaled only when a run_id is present (the
+        // sender's run, or a synthetic host-scoped run for a host injection).
+        // A TTL eviction carries no run_id and is intentionally not chained.
+        RuntimeEvent::AgentMessageSent {
+            from,
+            to,
+            message_id,
+            run_id: Some(run_id),
+            payload_hash,
+            full_payload,
+        } => {
+            let snapshot = MessageSnapshot {
+                message_id: message_id.clone(),
+                from: Some(from.clone()),
+                to: to.clone(),
+                payload_hash: Some(payload_hash.clone()),
+                reason: None,
+            };
+            let mut payload = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
+            if let (Some(obj), Some(full)) = (payload.as_object_mut(), full_payload.as_ref()) {
+                obj.insert("payload".to_string(), full.clone());
+            }
+            Some(draft(
+                run_id.as_str().to_string(),
+                JournalEntryKind::MessageSent,
+                payload,
+            ))
+        }
+        RuntimeEvent::AgentMessageDelivered {
+            to,
+            message_id,
+            run_id: Some(run_id),
+        } => {
+            let snapshot = MessageSnapshot {
+                message_id: message_id.clone(),
+                from: None,
+                to: to.clone(),
+                payload_hash: None,
+                reason: None,
+            };
+            Some(draft(
+                run_id.as_str().to_string(),
+                JournalEntryKind::MessageDelivered,
+                serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null),
+            ))
+        }
+        RuntimeEvent::AgentMessageDropped {
+            to,
+            message_id,
+            reason,
+            run_id: Some(run_id),
+        } => {
+            let snapshot = MessageSnapshot {
+                message_id: message_id.clone(),
+                from: None,
+                to: to.clone(),
+                payload_hash: None,
+                reason: Some(reason.clone()),
+            };
+            Some(draft(
+                run_id.as_str().to_string(),
+                JournalEntryKind::MessageDropped,
+                serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null),
+            ))
+        }
         _ => None,
     }
 }
@@ -519,6 +586,64 @@ mod tests {
         // THEN it is a typed ToolCallStarted entry scoped to the run
         assert_eq!(draft.run_id, run.as_str());
         assert_eq!(draft.kind, JournalEntryKind::ToolCallStarted);
+    }
+
+    // A mailbox send with a run_id is journaled as a MessageSent entry.
+    #[test]
+    fn test_message_sent_with_run_id_maps_typed() {
+        // GIVEN an AgentMessageSent carrying the sender's run_id
+        let run = RunId::new();
+        let event = RuntimeEvent::AgentMessageSent {
+            from: "agent-a".into(),
+            to: "agent-b".into(),
+            message_id: "m-1".into(),
+            run_id: Some(run.clone()),
+            payload_hash: "deadbeef".into(),
+            full_payload: None,
+        };
+        // WHEN mapped
+        let draft = map_event(&event).expect("should map");
+        // THEN it is a typed MessageSent entry scoped to the run, hash only
+        assert_eq!(draft.run_id, run.as_str());
+        assert_eq!(draft.kind, JournalEntryKind::MessageSent);
+        assert_eq!(draft.payload["message_id"], serde_json::json!("m-1"));
+        assert_eq!(draft.payload["to"], serde_json::json!("agent-b"));
+        assert_eq!(draft.payload["payload_hash"], serde_json::json!("deadbeef"));
+        assert!(draft.payload.get("payload").is_none());
+    }
+
+    // A mailbox send with no run_id is not journaled (load-bearing skip).
+    #[test]
+    fn test_message_sent_without_run_id_skipped() {
+        // GIVEN an AgentMessageSent with no run_id
+        let event = RuntimeEvent::AgentMessageSent {
+            from: "agent-a".into(),
+            to: "agent-b".into(),
+            message_id: "m-2".into(),
+            run_id: None,
+            payload_hash: "cafe".into(),
+            full_payload: None,
+        };
+        // WHEN mapped, THEN it is skipped (no run chain to attach to)
+        assert!(map_event(&event).is_none());
+    }
+
+    // With full-payload auditing on, the content rides along in the entry.
+    #[test]
+    fn test_message_sent_full_payload_recorded() {
+        // GIVEN an AgentMessageSent carrying a full payload (regulated mode)
+        let run = RunId::new();
+        let event = RuntimeEvent::AgentMessageSent {
+            from: "agent-a".into(),
+            to: "agent-b".into(),
+            message_id: "m-3".into(),
+            run_id: Some(run),
+            payload_hash: "beef".into(),
+            full_payload: Some(serde_json::json!({"k": "v"})),
+        };
+        // WHEN mapped, THEN the entry carries the content under "payload"
+        let draft = map_event(&event).expect("should map");
+        assert_eq!(draft.payload["payload"], serde_json::json!({"k": "v"}));
     }
 
     // A verification verdict maps to a run-scoped journal entry under its task_id

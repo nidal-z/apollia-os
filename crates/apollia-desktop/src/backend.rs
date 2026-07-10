@@ -319,6 +319,13 @@ impl AgentRunner for BridgeRunner {
         let pending_user_inputs = self.pending_user_inputs.clone();
         let mcp_handle = self.mcp_handle.clone();
         let supports_a2a = self.supports_a2a;
+        let supports_mailbox = self.manifest.supports_mailbox;
+        let mailbox_allowlist = self.manifest.mailbox_allowlist.clone();
+        let mailbox_send_gated = self
+            .manifest
+            .tools_requiring_approval
+            .iter()
+            .any(|t| t == "mailbox:send");
         let a2a_delegate = self.a2a_delegate.clone();
         let a2a_invoker = self.a2a_invoker.clone();
         let mailbox = self.mailbox.clone();
@@ -500,6 +507,11 @@ impl AgentRunner for BridgeRunner {
                 // the persisted RuntimeEvent::AgentLog entries.
                 ctx = ctx.with_task_id(task.task_id.clone());
                 ctx = ctx.with_run_id(task.run_id.clone());
+                ctx = ctx.with_mailbox_capability(
+                    supports_mailbox,
+                    mailbox_allowlist,
+                    mailbox_send_gated,
+                );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
                     .expect("RuntimeContext PyObject construction failed")

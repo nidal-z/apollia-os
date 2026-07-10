@@ -54,6 +54,19 @@ pub struct AgentManifest {
     /// Whether the agent supports the Agent-to-Agent protocol (default: false).
     #[serde(default)]
     pub supports_a2a: bool,
+    /// Whether the agent may use the asynchronous mailbox (`ctx.mail`).
+    ///
+    /// Opt-in, like other sensitive surfaces: `false` by default, in which case
+    /// `ctx.mail` refuses every call. Declared in the Python manifest via
+    /// `@agent(mailbox=True)` or `@agent(mailbox=("worker-a", ...))`.
+    #[serde(default)]
+    pub supports_mailbox: bool,
+    /// Optional allowlist of recipients this agent may message.
+    ///
+    /// `None` means "any registered agent" (once `supports_mailbox` is true).
+    /// A `Some(list)` restricts `ctx.mail.send` to the named recipients.
+    #[serde(default)]
+    pub mailbox_allowlist: Option<Vec<String>>,
     /// Primary memory namespace of the agent.
     ///
     /// Declared statically in the Python manifest. When the agent runs in a
@@ -305,6 +318,8 @@ mod tests {
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
@@ -348,6 +363,8 @@ mod tests {
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
@@ -496,6 +513,8 @@ mod tests {
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".into(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec!["smtp".into(), "bash_executor".into()],
             llm_backend: None,

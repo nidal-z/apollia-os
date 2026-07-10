@@ -5001,6 +5001,8 @@ mod tests {
                 tags: vec![],
                 skills: vec![],
                 execution_mode: "auto".into(),
+                supports_mailbox: false,
+                mailbox_allowlist: None,
                 system_prompt: None,
                 tools_requiring_approval: vec![],
                 llm_backend: None,

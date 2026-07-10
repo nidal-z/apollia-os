@@ -1011,11 +1011,72 @@ pub enum RuntimeEvent {
 
     // ── Agent Messaging events ────────────────────
     /// A message was sent between two agents via the AgentMailbox.
+    ///
+    /// `run_id` carries the run of the sending agent (or a synthetic host-scoped
+    /// run for a host-injected message) so the audit subscriber can journal the
+    /// event: entries without a `run_id` are skipped. `payload_hash` is the
+    /// SHA-256 of the message payload, never the payload itself.
     AgentMessageSent {
-        /// Name of the sending agent.
+        /// Name of the sending agent (or `host:<id>` for a host injection).
         from: String,
         /// Name of the receiving agent.
         to: String,
+        /// Unique identifier of the message.
+        message_id: String,
+        /// Run that originated the send, when known (required to be journaled).
+        run_id: Option<RunId>,
+        /// SHA-256 hash of the payload (hex), for auditability without content.
+        payload_hash: String,
+        /// Full payload, present only when the runtime is configured to record
+        /// message contents in the audit journal (regulated / high assurance).
+        /// `None` otherwise, so the default path never carries content.
+        full_payload: Option<serde_json::Value>,
+    },
+    /// A pending message was leased to its recipient (delivered on receive).
+    AgentMessageDelivered {
+        /// Name of the receiving agent.
+        to: String,
+        /// Unique identifier of the delivered message.
+        message_id: String,
+        /// Run of the receiving agent, when known.
+        run_id: Option<RunId>,
+    },
+    /// A delivered message was acknowledged and removed from the store.
+    AgentMessageAcked {
+        /// Name of the receiving agent that acknowledged.
+        to: String,
+        /// Unique identifier of the acknowledged message.
+        message_id: String,
+        /// Run of the receiving agent, when known.
+        run_id: Option<RunId>,
+    },
+    /// A message was dropped without being processed.
+    ///
+    /// `reason` is `"expired"` (past its TTL) or `"queue_full"` (rejected at
+    /// send because the recipient queue was at capacity).
+    AgentMessageDropped {
+        /// Name of the intended recipient.
+        to: String,
+        /// Unique identifier of the dropped message, when one was assigned.
+        message_id: String,
+        /// Drop cause: `"expired"` or `"queue_full"`.
+        reason: String,
+        /// Run of the sender for a `queue_full` drop; `None` for a TTL eviction
+        /// (which happens outside any run and is not journaled).
+        run_id: Option<RunId>,
+    },
+    /// A mailbox safeguard blocked a send.
+    ///
+    /// Mirrors [`RuntimeEvent::A2AGuardTriggered`]. Emitted as soon as an
+    /// automatic protection (per-run send quota, oversized payload) prevents a
+    /// send from proceeding, just before the error is returned.
+    MailboxGuardTriggered {
+        /// Safeguard category: `"send_quota"` or `"payload_too_large"`.
+        guard_type: String,
+        /// Name of the agent (or `host:<id>`) whose send was blocked.
+        caller: String,
+        /// Explanatory message for logs and observability.
+        detail: String,
     },
 
     // ── A2A Invocation events ─────────────────────

@@ -27,6 +27,7 @@ pub mod events;
 #[allow(clippy::useless_conversion)]
 pub mod llm;
 pub mod loader;
+pub mod mail;
 #[allow(clippy::useless_conversion)]
 pub mod memory;
 pub mod notify;
@@ -44,6 +45,7 @@ pub mod validator;
 // makes the bridge surface easy to discover.
 pub use a2a::A2AInterface;
 pub use budget::BudgetView;
+pub use mail::MailInterface;
 pub use datasources::DatasourcesInterface;
 pub use events::EventsInterface;
 pub use secrets::SecretsInterface;

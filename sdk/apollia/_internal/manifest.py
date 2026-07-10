@@ -244,6 +244,7 @@ def build_manifest(
     agent_type: str | None = None,
     autonomy_level: str | None = None,
     max_concurrent_tasks: int = 1,
+    mailbox: bool | tuple[str, ...] = False,
 ) -> dict[str, Any]:
     """Produce the canonical manifest dict consumed by the Rust loader.
 
@@ -342,6 +343,14 @@ def build_manifest(
         "skills": skills_list,
         "execution_mode": execution_mode,
     }
+
+    # Mailbox capability (ctx.mail): opt-in. ``mailbox=True`` allows any
+    # recipient; a tuple restricts to a recipient allowlist.
+    if mailbox is True:
+        manifest["supports_mailbox"] = True
+    elif isinstance(mailbox, tuple) and mailbox:
+        manifest["supports_mailbox"] = True
+        manifest["mailbox_allowlist"] = _check_string_tuple("mailbox", mailbox)
 
     if orchestrated_cfg is not None:
         manifest["system_prompt"] = orchestrated_cfg.get("system_prompt", "")

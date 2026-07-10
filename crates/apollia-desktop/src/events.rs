@@ -390,7 +390,11 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::ChatToken { .. } => "chat-token",
 
         // ── Agent messaging ────────────────────────────────────────────
-        RuntimeEvent::AgentMessageSent { .. } => "agent-changed",
+        RuntimeEvent::AgentMessageSent { .. }
+        | RuntimeEvent::AgentMessageDelivered { .. }
+        | RuntimeEvent::AgentMessageAcked { .. }
+        | RuntimeEvent::AgentMessageDropped { .. }
+        | RuntimeEvent::MailboxGuardTriggered { .. } => "agent-changed",
 
         // ── Onboarding ─────────────────────────────────────────────────────
         RuntimeEvent::OnboardingRequired

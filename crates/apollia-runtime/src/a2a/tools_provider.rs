@@ -155,6 +155,8 @@ mod tests {
             tags: vec!["worker".to_string()],
             skills: skill_list,
             execution_mode: "direct".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,

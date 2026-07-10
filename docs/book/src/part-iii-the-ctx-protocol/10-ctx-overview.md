@@ -20,9 +20,9 @@ class Demo:
 
 ---
 
-## Les 14 services
+## Les 15 services
 
-`ctx` expose exactement 14 services. Aucun attribut « magique » au niveau racine en dehors de cette liste.
+`ctx` expose exactement 15 services. Aucun attribut « magique » au niveau racine en dehors de cette liste.
 
 | Service | Type | Rôle | Chapitre |
 |---|---|---|---|
@@ -30,6 +30,7 @@ class Demo:
 | `ctx.memory` | `MemoryInterface` | Mémoire épisodique, sémantique, procédurale, FTS5 | [12](12-ctx-memory.md) |
 | `ctx.tools` | `ToolProxy` | Outils natifs Apollia et serveurs MCP | [13](13-ctx-tools.md) |
 | `ctx.a2a` | `A2AInterface` | Appel d'autres agents, discovery | [14](14-ctx-a2a.md) |
+| `ctx.mail` | `MailInterface` | Messagerie asynchrone durable entre agents (send/receive/ack) | [14](14-ctx-a2a.md) |
 | `ctx.datasources` | `DatasourcesInterface` | YAML déclarés dans le manifeste | [15](15-ctx-datasources-templates.md) |
 | `ctx.templates` | `TemplatesInterface` | Templates Jinja2 du package | [15](15-ctx-datasources-templates.md) |
 | `ctx.secrets` | `SecretsInterface` | Lecture seule de credentials | [16](16-ctx-secrets.md) |
@@ -49,21 +50,21 @@ class Demo:
 
 Trois bénéfices concrets :
 
-1. **Autocomplete IDE.** Tapez `ctx.` dans n'importe quel IDE qui comprend Python : les 14 services apparaissent, chacun avec ses méthodes typées.
+1. **Autocomplete IDE.** Tapez `ctx.` dans n'importe quel IDE qui comprend Python : les 15 services apparaissent, chacun avec ses méthodes typées.
 2. **`mypy --strict` passe** sur un agent moyen. Aucun `# type: ignore` ni `getattr(...)` défensif.
 3. **Mock testing trivial.** Le mock fourni par `apollia.testing.mock` implémente le Protocol sans héritage. Vous pouvez aussi écrire votre propre `class FakeLlm` qui n'expose que les deux méthodes que votre test utilise.
 
-Le runtime Rust est tenu d'exposer exactement ces 14 services. Toute dérive entre la définition Python et l'implémentation Rust est détectée au boot par le validateur (cf. [chapitre 27](../part-vii-tooling/27-apollia-inspect.md)).
+Le runtime Rust est tenu d'exposer exactement ces 15 services. Toute dérive entre la définition Python et l'implémentation Rust est détectée au boot par le validateur (cf. [chapitre 27](../part-vii-tooling/27-apollia-inspect.md)).
 
 ---
 
 ## Catégoriser pour mémoriser
 
-Les 14 services se rangent dans 5 catégories :
+Les 15 services se rangent dans 5 catégories :
 
 - **IA et raisonnement :** `ctx.llm`, plus la fonction libre `apollia.react`.
 - **Mémoire et profil utilisateur :** `ctx.memory`, `ctx.profile`.
-- **Outils et A2A :** `ctx.tools`, `ctx.a2a`.
+- **Outils et A2A :** `ctx.tools`, `ctx.a2a`, `ctx.mail`.
 - **Données et contenu de l'agent :** `ctx.datasources`, `ctx.templates`, `ctx.secrets`.
 - **Observabilité et I/O annexes :** `ctx.events`, `ctx.logger`, `ctx.budget`, `ctx.notify`, `ctx.workspace`, `ctx.stt`.
 
@@ -75,7 +76,7 @@ Cette taxonomie est non-normative. Elle aide juste à savoir où chercher.
 
 Tous les services sont toujours injectés. Le cas où `ctx.notify` ou `ctx.stt` n'existerait pas n'arrive jamais en production : si le runtime ne pouvait pas fournir un service (configuration cassée, version incompatible), il refuserait de démarrer la tâche.
 
-En test, un service peut être absent si votre mock customisé ne l'implémente pas. Dans ce cas, l'appel lève une `AttributeError` claire au runtime du test. Préférez `apollia.testing.mock(MyAgent)` qui injecte les 14 services en stubs.
+En test, un service peut être absent si votre mock customisé ne l'implémente pas. Dans ce cas, l'appel lève une `AttributeError` claire au runtime du test. Préférez `apollia.testing.mock(MyAgent)` qui injecte les 15 services en stubs.
 
 ---
 

@@ -1177,11 +1177,22 @@ impl Supervisor {
         // Phase 12b: PlanCacheRepository, opened before APIServer for REST stats/clear.
         let plan_cache = open_plan_cache(&self.config.data_dir);
 
-        // Phase 12c: AgentMailbox, lightweight actor, always spawned.
+        // Phase 12c: AgentMailbox, durable SQLite-backed actor, always spawned.
+        let rc = &self.config.runtime_config;
+        let mailbox_config = crate::mailbox::MailboxConfig {
+            capacity: rc.mailbox_capacity,
+            visibility_timeout_secs: rc.mailbox_visibility_timeout_secs,
+            message_ttl_secs: rc.mailbox_message_ttl_secs,
+            send_quota_per_run: rc.mailbox_send_quota_per_run,
+            max_payload_bytes: rc.mailbox_max_payload_bytes,
+            audit_full_payload: rc.mailbox_audit_full_payload,
+        };
         let mailbox_handle = crate::mailbox::AgentMailboxHandle::spawn(
+            Some(self.config.data_dir.join("mailbox.db")),
             event_sender.clone(),
-            self.config.runtime_config.mailbox_capacity,
-        );
+            mailbox_config,
+        )
+        .await;
         info!("Supervisor: AgentMailbox ready");
 
         // Phase 13: UserMemoryRepository was promoted above (before notifications)
@@ -3267,6 +3278,8 @@ mod tests {
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,

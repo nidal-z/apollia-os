@@ -23,6 +23,7 @@ from apollia.context.datasources import DatasourcesInterface
 from apollia.context.events import EventsInterface
 from apollia.context.llm import LlmProxy, LlmResponse
 from apollia.context.logger import Logger
+from apollia.context.mail import MailInterface, MailMessage
 from apollia.context.memory import MemoryInterface
 from apollia.context.notify import NotifyInterface
 from apollia.context.profile import ProfileInterface
@@ -174,6 +175,7 @@ class Ctx(Protocol):
     memory: MemoryInterface
     tools: ToolProxy
     a2a: A2AInterface
+    mail: MailInterface
     datasources: DatasourcesInterface
     templates: TemplatesInterface
     secrets: SecretsInterface
@@ -277,6 +279,8 @@ __all__ = [
     "MemoryInterface",
     "ToolProxy",
     "A2AInterface",
+    "MailInterface",
+    "MailMessage",
     "DatasourcesInterface",
     "TemplatesInterface",
     "SecretsInterface",

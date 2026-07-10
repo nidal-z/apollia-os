@@ -276,3 +276,19 @@ being masked.
   the gating and consume the `ctx` services.
 - [ADR-025](ADR-025-worker-agents-a2a-routing.md) the worker and A2A routing
   pattern that `ctx.a2a` drives.
+- [ADR-041](ADR-041-inter-agent-messaging.md) supersedes the "Mailbox removal"
+  decision below: the deferred asynchronous event bus now has a concrete use
+  case and a proper specification, and returns as the `ctx.mail` service (the
+  15th service), distinct from `ctx.a2a`.
+
+## Amendment (2026-07-10)
+
+The "Mailbox removal" section deferred a genuine asynchronous channel "until a
+concrete use case justifies a proper specification". That condition is now met:
+[ADR-041](ADR-041-inter-agent-messaging.md) specifies a durable, auditable
+inter-agent mailbox exposed as `ctx.mail`, lifting the four objections cited
+here (persistence, TTL, delivery on a stopped recipient, and the boundary
+against `ctx.a2a.invoke`). The `Ctx` protocol therefore grows from 14 to 15
+services; adding a service is a minor SemVer bump, as stated above. The removal
+recorded in this ADR remains the correct decision for its time (append-only
+trace); read it together with ADR-041.

@@ -16,8 +16,8 @@
 | **ctx.log** | Toujours disponible | [`AgentLogger`](#ctxlog--agentlogger) | ✅ Livré |
 | **ctx.workspace** | Contexte workspace collecté | [`WorkspaceContextPy`](#ctxworkspace--workspacecontextpy) | ✅ Livré |
 | **ctx.user_context** | Mode chat uniquement | `dict[str, list[tuple]]` ou `None` | ✅ Livré |
-| **ctx.send** | Si `supports_a2a: True` | Async, messagerie inter-agents | ✅ Livré |
-| **ctx.receive** | Si `supports_a2a: True` | Async, réception messages | ✅ Livré |
+| **ctx.mail.send** | Si `mailbox=True` déclaré | Async, messagerie inter-agents durable (retourne un `message_id`) | ✅ Livré |
+| **ctx.mail.receive / poll / ack / nack** | Si `mailbox=True` déclaré | Async, réception at-least-once (bail + acquittement) | ✅ Livré |
 | **ctx.delegate** | Si `supports_a2a: True` (Director) | Async, délégation A2A | ✅ Livré |
 | **ctx.emit_token** | Mode chat uniquement | Sync, streaming tokens | ✅ Livré |
 | **ctx.a2a_invoke** | Si `supports_a2a: True` | Async, invocation A2A de haut niveau | ✅ Livré |

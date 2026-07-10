@@ -121,6 +121,7 @@ def agent(  # NOSONAR S107: public decorator API surface
     agent_type: str | None = None,
     autonomy_level: str | None = None,
     max_concurrent_tasks: int = 1,
+    mailbox: bool | tuple[str, ...] = False,
 ) -> Callable[[C], C]:
     """Declare a class as an Apollia agent.
 
@@ -152,6 +153,10 @@ def agent(  # NOSONAR S107: public decorator API surface
             it to match the hardware (the local runner has up to 8 inference
             slots); an ``N`` accepts ``N`` concurrent tasks, the ``N+1``-th is
             rejected. Must be ``>= 1``.
+        mailbox: Opt-in to the asynchronous mailbox (``ctx.mail``). ``False``
+            (default) refuses every ``ctx.mail`` call. ``True`` allows messaging
+            any registered agent; a tuple restricts sends to a recipient
+            allowlist, e.g. ``mailbox=("worker-a", "worker-b")``.
 
     The decorator:
 
@@ -223,6 +228,7 @@ def agent(  # NOSONAR S107: public decorator API surface
             agent_type=agent_type,
             autonomy_level=autonomy_level_v,
             max_concurrent_tasks=max_concurrent_tasks,
+            mailbox=mailbox,
         )
 
         skills_registry = getattr(cls, SKILLS_REGISTRY_ATTR, {}) or {}

@@ -1035,7 +1035,9 @@ use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_core::AIPPart;
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
 use apollia_runtime::a2a::{A2AInvoker, A2aDelegateFn};
-use apollia_runtime::mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
+use apollia_runtime::mailbox::AgentMailboxHandle;
+#[cfg(test)]
+use apollia_runtime::mailbox::MailboxConfig;
 
 use crate::llm::LlmProxy;
 
@@ -1093,6 +1095,18 @@ pub struct RuntimeContext {
     memory: Option<pyo3::Py<crate::memory::MemoryInterface>>,
     /// Handle to the AgentMailbox; `None` if the runtime did not start a mailbox.
     mailbox: Option<AgentMailboxHandle>,
+    /// Current run of this context, propagated into mailbox events for audit.
+    /// Set via [`RuntimeContext::with_run_id`]; `None` leaves sends uncorrelated.
+    run_id: Option<apollia_core::events::RunId>,
+    /// Whether the agent declared the mailbox capability (`ctx.mail`). When
+    /// `false`, `ctx.mail` refuses every call (opt-in surface).
+    supports_mailbox: bool,
+    /// Optional recipient allowlist for `ctx.mail.send`. `None` means any
+    /// registered agent (once `supports_mailbox` is true).
+    mailbox_allowlist: Option<Vec<String>>,
+    /// Whether `ctx.mail.send` is gated behind human approval (opt-in via the
+    /// manifest `tools_requiring_approval` containing `mailbox:send`).
+    mailbox_send_requires_approval: bool,
     /// Name of the agent owning this context.
     agent_name: String,
     /// Whether the agent supports the A2A protocol (from manifest).
@@ -1327,6 +1341,10 @@ impl RuntimeContext {
             tools,
             memory,
             mailbox,
+            run_id: None,
+            supports_mailbox: false,
+            mailbox_allowlist: None,
+            mailbox_send_requires_approval: false,
             agent_name,
             supports_a2a,
             user_context,
@@ -1387,6 +1405,10 @@ impl RuntimeContext {
             llm: None,
             memory: None,
             mailbox: None,
+            run_id: None,
+            supports_mailbox: false,
+            mailbox_allowlist: None,
+            mailbox_send_requires_approval: false,
             agent_name: "test-agent".to_string(),
             supports_a2a: false,
             user_context: None,
@@ -1535,9 +1557,26 @@ impl RuntimeContext {
     /// [`ToolProxyConfig::run_id`] set at proxy construction. `None` leaves the
     /// execution uncorrelated to any run.
     pub fn with_run_id(mut self, run_id: Option<apollia_core::events::RunId>) -> Self {
+        self.run_id = run_id.clone();
         if let Some(llm) = self.llm.take() {
             self.llm = Some(llm.with_run_id(run_id));
         }
+        self
+    }
+
+    /// Declares the mailbox capability and its optional recipient allowlist.
+    ///
+    /// Called by the runtime from the agent manifest (`supports_mailbox`,
+    /// `mailbox_allowlist`). When not called, `ctx.mail` refuses every call.
+    pub fn with_mailbox_capability(
+        mut self,
+        supports_mailbox: bool,
+        allowlist: Option<Vec<String>>,
+        send_requires_approval: bool,
+    ) -> Self {
+        self.supports_mailbox = supports_mailbox;
+        self.mailbox_allowlist = allowlist;
+        self.mailbox_send_requires_approval = send_requires_approval;
         self
     }
 
@@ -1703,6 +1742,31 @@ impl RuntimeContext {
         match &self.a2a_iface {
             Some(p) => p.clone_ref(py).into_any(),
             None => py.None(),
+        }
+    }
+
+    /// Asynchronous inter-agent messaging: `ctx.mail`.
+    ///
+    /// Built on each access so the caller's current `run_id` (set after
+    /// construction) flows into emitted events for auditability. Always returns
+    /// a `MailInterface`; its methods raise if the runtime has no mailbox.
+    #[getter]
+    fn mail(&self, py: Python<'_>) -> PyObject {
+        match Py::new(
+            py,
+            crate::mail::MailInterface::new(
+                self.mailbox.clone(),
+                self.agent_name.clone(),
+                self.run_id.clone(),
+                self.supports_mailbox,
+                self.mailbox_allowlist.clone(),
+                self.mailbox_send_requires_approval,
+                self.event_bus.clone(),
+                self.a2a_invoker.clone(),
+            ),
+        ) {
+            Ok(p) => p.into_any(),
+            Err(_) => py.None(),
         }
     }
 
@@ -1883,29 +1947,6 @@ pub fn effective_memory_namespace(manifest_namespace: &str, project_id: Option<&
         Some(pid) if !pid.is_empty() => format!("{pid}:{manifest_namespace}"),
         _ => manifest_namespace.to_owned(),
     }
-}
-
-/// Sends a message from one agent to another via the mailbox, testable without PyO3.
-///
-/// Thin wrapper around [`AgentMailboxHandle::send`].
-pub(crate) async fn send_inner(
-    mailbox: &AgentMailboxHandle,
-    from: &str,
-    to: &str,
-    payload: serde_json::Value,
-) -> Result<(), MailboxError> {
-    mailbox.send(from, to, payload).await
-}
-
-/// Receives the next pending message for `agent_name`, testable without PyO3.
-///
-/// Returns `None` if no message arrives before the timeout expires.
-pub(crate) async fn receive_inner(
-    mailbox: &AgentMailboxHandle,
-    agent_name: &str,
-    timeout: std::time::Duration,
-) -> Option<AgentMessage> {
-    mailbox.receive(agent_name, timeout).await
 }
 
 #[cfg(test)]
@@ -2440,7 +2481,10 @@ mod tests {
 
         // WHEN the agent calls the MCP tool the way `ctx.tools.call("mcp:...")` does
         let result = proxy
-            .call_inner("mcp:calc/echo", serde_json::json!({"message": "end to end"}))
+            .call_inner(
+                "mcp:calc/echo",
+                serde_json::json!({"message": "end to end"}),
+            )
             .await;
 
         // THEN the tool truly executed and returned its output
@@ -2806,39 +2850,45 @@ mod a2a_tests {
     use apollia_runtime::EventBus;
     use std::time::Duration;
 
-    /// send_inner delivers a message, receive_inner receives it.
+    /// A durable send is received then acknowledged through the shared handle.
     #[tokio::test]
-    async fn test_send_inner_delivers_message() {
-        // GIVEN an active mailbox
+    async fn test_mailbox_handle_send_receive_ack() {
+        // GIVEN an active durable mailbox
         let (event_tx, _event_rx) = EventBus::new();
-        let handle = AgentMailboxHandle::spawn(event_tx, 100);
+        let handle = AgentMailboxHandle::spawn(None, event_tx, MailboxConfig::default()).await;
 
-        // WHEN agent-a sends a message to agent-b
+        // WHEN agent-a sends a message to agent-b, which receives and acks it
         let payload = serde_json::json!({"greeting": "hello"});
-        send_inner(&handle, "agent-a", "agent-b", payload.clone())
+        let id = handle
+            .send("agent-a", "agent-b", payload.clone(), None)
             .await
             .expect("send should succeed");
-
-        // THEN agent-b receives the message with the right fields
-        let received = receive_inner(&handle, "agent-b", Duration::from_secs(1))
+        let received = handle
+            .receive("agent-b", None, Duration::from_secs(1))
             .await
             .expect("should receive a message");
+
+        // THEN the message content matches and ack clears the inbox
+        assert_eq!(received.message_id, id);
         assert_eq!(received.from, "agent-a");
         assert_eq!(received.payload, payload);
-        assert!(!received.sent_at.is_empty());
+        handle.ack("agent-b", &id, None).await.expect("ack");
+        assert_eq!(handle.pending_count("agent-b").await, 0);
 
         handle.shutdown().await;
     }
 
-    /// receive_inner returns None if no message is pending (timeout).
+    /// Receive returns None when no message is pending.
     #[tokio::test]
-    async fn test_receive_inner_returns_none_on_timeout() {
+    async fn test_mailbox_handle_receive_empty() {
         // GIVEN an active mailbox with no messages
         let (event_tx, _event_rx) = EventBus::new();
-        let handle = AgentMailboxHandle::spawn(event_tx, 100);
+        let handle = AgentMailboxHandle::spawn(None, event_tx, MailboxConfig::default()).await;
 
-        // WHEN we try to receive with a short timeout
-        let result = receive_inner(&handle, "agent-c", Duration::from_millis(50)).await;
+        // WHEN we try to receive
+        let result = handle
+            .receive("agent-c", None, Duration::from_millis(50))
+            .await;
 
         // THEN the result is None
         assert!(result.is_none());
@@ -2960,6 +3010,8 @@ mod tool_proxy_a2a_tests {
                 examples: vec![],
             }],
             execution_mode: "direct".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,

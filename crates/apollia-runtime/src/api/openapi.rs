@@ -66,6 +66,8 @@ pub struct ApiErrorBody {
         crate::api::routes_agents::get_agent,
         crate::api::routes_agents::stop_agent,
         crate::api::routes_messages::list_agent_messages,
+        crate::api::routes_messages::inject_agent_message,
+        crate::api::routes_messages::stream_mailbox,
         crate::api::routes_a2a::list_a2a_agents,
         crate::api::routes_a2a::delegate,
         crate::api::routes_a2a::list_a2a_skills,
@@ -172,6 +174,9 @@ pub struct ApiErrorBody {
         crate::api::routes_agents::AgentListResponse,
         crate::api::routes_messages::AgentMessagesResponse,
         crate::api::routes_messages::AgentMessageDto,
+        crate::api::routes_messages::InjectMessageBody,
+        crate::api::routes_messages::InjectMessageResponse,
+        crate::api::routes_messages::SseMailboxEvent,
         crate::api::routes_a2a::A2aSkillDto,
         crate::api::routes_a2a::A2aAgentDto,
         crate::api::routes_a2a::A2aAgentsResponse,
@@ -276,9 +281,16 @@ mod tests {
             "/api/v1/tasks",
             "/api/v1/tasks/{id}",
             "/api/v1/tasks/{id}/resume",
+            "/api/v1/agents/{name}/messages",
+            "/api/v1/mailbox/stream",
         ] {
             assert!(json.contains(path), "spec is missing path {path}");
         }
+        // The mailbox inject endpoint and its schemas are part of the contract.
+        assert!(
+            json.contains("InjectMessageBody"),
+            "spec is missing InjectMessageBody"
+        );
         assert!(json.contains("Apollia OS Runtime API"));
     }
 }
