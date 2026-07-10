@@ -13,17 +13,17 @@
 
 1. Dans la sidebar, ouvrez **Connexions**, puis sélectionnez la carte **Google Workspace** dans la liste des connecteurs natifs.
 
-   `[SCREENSHOT: page Connexions, sidebar gauche avec carte Google Workspace mise en évidence, panneau Aperçu à droite avec bouton "Connecter un compte"]`
+   ![page Connexions, carte Google Workspace sélectionnée dans la sidebar (état Non connecté), panneau de droite avec l'onglet Comptes (0) et le bouton Connecter un compte](../_screenshots/integration-google-workspace-1.png)
 
 2. Cliquez sur **Connecter un compte**. Une fenêtre s'ouvre dans Apollia et votre navigateur ouvre automatiquement la page de consentement Google.
 
 3. Choisissez le compte Google à utiliser, puis acceptez les autorisations proposées (Mail, Calendar, Drive Workspace, etc.).
 
-   `[SCREENSHOT: page consent Google, liste des accès demandés (Gmail, Calendar, Drive Workspace), boutons Annuler et Continuer]`
+   ![écran de consentement Google, Apollia demande l'accès au compte, liste des autorisations (fichiers Drive de l'app, événements Calendar, envoi de mail, gestion des brouillons), avertissement app non vérifiée par Google](../_screenshots/integration-google-workspace-2.png)
 
 4. De retour dans Apollia, la fenêtre détecte automatiquement le retour. Une seconde étape vous propose le dossier racine Drive de l'agent (défaut **Apollia**). Validez en cliquant **Enregistrer** (ou **Défaut** pour garder la valeur proposée).
 
-   `[SCREENSHOT: dialog Apollia étape 2, champ "Dossier racine Drive" avec valeur "Apollia" et boutons Enregistrer et Défaut]`
+   ![dialog Dossier Google Drive dans Apollia, explication du scope drive.file, champ Chemin du dossier avec la valeur Apollia, boutons Garder le défaut et Enregistrer](../_screenshots/integration-google-workspace-3.png)
 
 5. La fenêtre se ferme, votre compte apparaît dans la sidebar avec une pastille verte.
 

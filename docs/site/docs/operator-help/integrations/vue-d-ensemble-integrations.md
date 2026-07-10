@@ -28,7 +28,7 @@ Notion, Slack, GitHub, Linear, Atlassian, Stripe, Figma, Sentry, Cloudflare, Pos
 
 Vous pouvez aussi ajouter vos propres serveurs ou modifier le catalogue.
 
-`[SCREENSHOT: page Connexions, sidebar gauche avec liste connecteurs natifs et MCPs, panneau Aperçu, boutons "+ Découvrir" et "+ Ajouter personnalisé" en haut]`
+![page Connexions, sidebar gauche listant les connecteurs natifs (Google Workspace, Microsoft 365) et les serveurs MCP, panneau de droite avec l'onglet Aperçu du connecteur sélectionné et le bouton Ajouter un connecteur en bas](../_screenshots/integration-overview-1.png)
 
 ## Par où commencer
 
