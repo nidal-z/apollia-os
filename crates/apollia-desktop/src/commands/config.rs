@@ -532,6 +532,16 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
     })
 }
 
+/// Returns the active security posture for the Security section of Settings.
+///
+/// Surfaces the isolation level of native tools and the agent-code trust model
+/// so the operator can see, without reading logs, what confinement is active on
+/// their platform. See ADR-003.
+#[tauri::command]
+pub async fn get_security_posture() -> Result<apollia_core::SecurityPosture, String> {
+    Ok(apollia_core::SecurityPosture::detect())
+}
+
 /// Checks whether Python 3 is available on the system.
 ///
 /// Runs `python3 --version` and returns `true` if the command succeeds.

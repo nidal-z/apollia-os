@@ -93,6 +93,7 @@ pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
     checks.push(check_agents_db(&data_dir));
     checks.push(check_models_dir(&data_dir));
     checks.push(check_python());
+    checks.push(check_sandbox_posture());
     checks.push(check_runtime_socket(socket).await);
 
     let any_error = checks.iter().any(|c| c.status == CheckStatus::Error);
@@ -286,6 +287,44 @@ fn check_python() -> CheckResult {
     })
 }
 
+/// Report the active isolation level for native tools and agent code.
+///
+/// This is a `Warn`, never an `Error`: the absence of an OS sandbox on macOS is
+/// the documented development posture (ADR-003), not a failure, so it must not
+/// turn a healthy mac into a non-zero `doctor` exit.
+fn check_sandbox_posture() -> CheckResult {
+    use apollia_core::{SecurityPosture, ToolSandbox};
+
+    let posture = SecurityPosture::detect();
+    let rlimits = if posture.rlimits_active {
+        "per-process rlimits active"
+    } else {
+        "no per-process rlimits"
+    };
+    match posture.tool_sandbox {
+        ToolSandbox::LinuxNamespaces => CheckResult::ok(
+            "sandbox_posture",
+            "Sandbox posture",
+            format!(
+                "{}: tool sandbox = Linux namespaces (PID + mount), {rlimits}; \
+                 agent code runs in-process (trusted)",
+                posture.platform
+            ),
+        ),
+        ToolSandbox::DevNoSandbox => CheckResult::warn(
+            "sandbox_posture",
+            "Sandbox posture",
+            format!(
+                "{}: no OS sandbox for native tools (dev mode), {rlimits}; \
+                 agent code runs in-process (trusted)",
+                posture.platform
+            ),
+            "Agent Python is trusted code with your full rights (ADR-003): only \
+             run agents you have audited. Production tool isolation requires Linux.",
+        ),
+    }
+}
+
 /// Probe the runtime Unix socket without holding the connection open.
 async fn check_runtime_socket(socket: Option<PathBuf>) -> CheckResult {
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
@@ -396,5 +435,15 @@ mod tests {
         let code = run(Some(tmp.path().join("nonexistent.sock")), true).await;
         // THEN we must not crash; exit code is either 0 or 1 depending on warns.
         assert!(code == 0 || code == 1);
+    }
+
+    #[test]
+    fn sandbox_posture_check_is_never_an_error() {
+        // GIVEN the running platform
+        // WHEN building the sandbox posture check
+        let check = check_sandbox_posture();
+        // THEN it has a stable id and never fails doctor (dev-no-sandbox is a warn)
+        assert_eq!(check.id, "sandbox_posture");
+        assert_ne!(check.status, CheckStatus::Error);
     }
 }

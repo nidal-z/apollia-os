@@ -1,28 +1,40 @@
 use serde::{Deserialize, Serialize};
 
-/// Sandbox isolation profile applied to the execution of a native tool.
+/// Declarative isolation intent for a native tool.
 ///
 /// Defined in apollia-core because it is a fundamental architectural constraint.
-/// The effective isolation is implemented in apollia-tools via Linux namespaces.
+///
+/// IMPORTANT: in v0.1.0 these variants are metadata only. The executors do not
+/// branch on the declared profile. On Linux, every command runs under a PID and
+/// mount namespace via `unshare`; on macOS no OS sandbox is applied and a
+/// per-invocation warning is emitted. RAM caps, network namespaces, `iptables`
+/// allowlists, and `tmpfs` mounts are NOT YET ENFORCED (roadmap). Per-process
+/// resource limits (CPU seconds, address space, file descriptors) are applied
+/// via `setrlimit` on Unix; see the `rlimits` module in apollia-tools. The
+/// variant a tool declares is recorded in the audit trail and drives the
+/// `dangerous` opt-in check, not runtime confinement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SandboxProfile {
-    /// tmpfs read-only + PID namespace. 128MB RAM, 30s timeout.
-    /// Usage: reading files, pure computation.
+    /// Intent: reading files, pure computation.
+    /// Enforced today: PID and mount namespace on Linux; nothing on macOS.
+    /// NOT YET ENFORCED (roadmap): `tmpfs` read-only, RAM cap, per-profile timeout.
     ReadOnly,
-    /// Sandbox filesystem rw + PID namespace. 256MB RAM, 60s timeout.
-    /// Usage: writing files in an isolated directory.
+    /// Intent: writing files in an isolated directory.
+    /// Enforced today: PID and mount namespace on Linux; nothing on macOS.
+    /// NOT YET ENFORCED (roadmap): scoped writable mount, RAM cap, per-profile timeout.
     FileSystem,
-    /// FileSystem + network namespace + iptables allowlist.
-    /// Network access limited to the manifest's network_allowlist.
+    /// Intent: network access limited to the manifest's `network_allowlist`.
+    /// Enforced today: same as `FileSystem` (no network namespace is created).
+    /// NOT YET ENFORCED (roadmap): network namespace, `iptables` allowlist.
     NetworkRestricted,
-    /// Everything allowed, no sandbox restriction.
-    /// REQUIRES dangerous=true in ToolDescriptor. Not recommended in production.
+    /// Intent: everything allowed, no isolation restriction.
+    /// REQUIRES `dangerous=true` in ToolDescriptor. Not recommended in production.
     Full,
 }
 
 impl SandboxProfile {
-    /// Retourne true si ce profil exige `dangerous=true` dans ToolDescriptor.
+    /// Returns true when this profile requires `dangerous=true` in ToolDescriptor.
     pub fn requires_dangerous_flag(&self) -> bool {
         matches!(self, SandboxProfile::Full)
     }

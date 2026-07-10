@@ -39,6 +39,11 @@ the hard edge that stops a run from looping or spending without bound. One item
 still to wire: reading the ceiling from `apollia.toml` at runtime, which has a
 safe default in place today.
 
+Agent code itself runs in-process as trusted code, so these runtime safeguards
+and the human-approval gate, not an OS sandbox, are what hold the line around an
+agent. The [agent trust model](/explanation/agent-trust-model) explains that
+posture and its limits in full.
+
 ## Permissions and autonomy tiers
 
 Before any action runs, a three-layer permission engine classifies it: structural

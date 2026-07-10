@@ -22,6 +22,7 @@ pub mod permission_rules;
 pub mod persistent_bash;
 pub mod python_executor;
 pub mod risk_classifier;
+pub mod rlimits;
 #[cfg(feature = "web-read")]
 pub mod web_read;
 #[cfg(feature = "web-search")]

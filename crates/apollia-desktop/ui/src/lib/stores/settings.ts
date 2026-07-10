@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   ApollaConfigView,
   SystemInfo,
+  SecurityPosture,
   SttModelInfo,
   SttConfigView,
   LlmBackendConfig,
@@ -103,6 +104,7 @@ function loadState<T>(): LoadState<T> {
 
 export const configStore = writable<LoadState<ApollaConfigView>>(loadState());
 export const systemInfoStore = writable<LoadState<SystemInfo>>(loadState());
+export const securityPostureStore = writable<LoadState<SecurityPosture>>(loadState());
 export const cliStatusStore = writable<LoadState<CliStatus>>(loadState());
 export const sttModelsStore = writable<LoadState<SttModelInfo[]>>(loadState());
 export const sttConfigStore = writable<LoadState<SttConfigView>>(loadState());
@@ -133,6 +135,12 @@ export const settingsLoaders = {
     loadOnce(configStore, () => invoke<ApollaConfigView>("get_config"), force),
   systemInfo: (force = false) =>
     loadOnce(systemInfoStore, () => invoke<SystemInfo>("get_system_info"), force),
+  securityPosture: (force = false) =>
+    loadOnce(
+      securityPostureStore,
+      () => invoke<SecurityPosture>("get_security_posture"),
+      force,
+    ),
   cliStatus: (force = false) =>
     loadOnce(cliStatusStore, () => invoke<CliStatus>("get_cli_status"), force),
   sttModels: (force = false) =>

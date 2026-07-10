@@ -35,6 +35,7 @@ pub mod result;
 pub mod retry_attempt;
 pub mod review;
 pub mod sandbox;
+pub mod security_posture;
 pub mod session_metrics;
 pub mod stt_config;
 pub mod task;
@@ -81,6 +82,7 @@ pub use result::{
 pub use retry_attempt::{AttemptOutcome, LlmFallback, RetryAttempt};
 pub use review::{ReviewIssue, ReviewReport};
 pub use sandbox::SandboxProfile;
+pub use security_posture::{AgentExecution, SecurityPosture, ToolSandbox};
 pub use session_metrics::{
     BudgetAlertLevel, SessionMetrics, SessionThresholds, SummarizationEvent, ToolTiming,
 };

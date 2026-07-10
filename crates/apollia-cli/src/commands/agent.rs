@@ -642,6 +642,7 @@ async fn run_install(
     json: bool,
     skip_tests: bool,
 ) -> i32 {
+    print_trust_banner(json);
     match parse_install_source(source_arg) {
         AgentInstallSource::Git { url, tag } => {
             run_install_git(&url, tag.as_deref(), client, json, skip_tests).await
@@ -649,6 +650,28 @@ async fn run_install(
         AgentInstallSource::Local { path } => {
             run_install_local(&path, client, json, skip_tests).await
         }
+    }
+}
+
+/// The agent-code trust statement shown before every install.
+///
+/// Restates the v0.1.0 trust model: agent Python runs in-process with the full
+/// rights of the current user and there is no OS sandbox around agent code, so
+/// only audited agents should be installed. See ADR-003.
+fn trust_banner_text() -> &'static str {
+    "This agent runs Python in-process with the full rights of your user account: \
+     filesystem, network, and credentials in your keyring. There is no OS sandbox \
+     around agent code. Only install agents you have written or audited."
+}
+
+/// Prints the trust banner to stderr before an install proceeds.
+///
+/// Suppressed under `--json` so machine-readable output stays clean, matching the
+/// existing operator-warning convention. The banner is informational, not a
+/// prompt: it never blocks the install.
+fn print_trust_banner(json: bool) {
+    if !json {
+        eprintln!("Security notice: {}", trust_banner_text());
     }
 }
 
@@ -2636,6 +2659,16 @@ mod tests {
     use super::*;
     use apollia_core::AgentManifest;
     use std::path::Path;
+
+    #[test]
+    fn trust_banner_states_the_in_process_model() {
+        // GIVEN the install-time trust banner
+        let text = trust_banner_text();
+        // THEN it names the core risks an operator must accept before installing
+        assert!(text.contains("in-process"));
+        assert!(text.contains("no OS sandbox"));
+        assert!(text.contains("audited"));
+    }
 
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {

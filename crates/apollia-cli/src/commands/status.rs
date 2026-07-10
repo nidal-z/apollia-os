@@ -28,6 +28,8 @@ pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
                 let output = serde_json::json!({
                     "status": "running",
                     "agents": agents_json.get("agents").cloned().unwrap_or(serde_json::json!([])),
+                    "security": serde_json::to_value(apollia_core::SecurityPosture::detect())
+                        .unwrap_or(serde_json::Value::Null),
                 });
                 println!(
                     "{}",
