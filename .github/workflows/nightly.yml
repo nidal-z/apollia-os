@@ -262,12 +262,51 @@ jobs:
             libasound2-dev libpulse-dev libjack-jackd2-dev
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - run: cargo llvm-cov --workspace --html
+      # apollia-desktop and apollia-e2e-tests do not build under the coverage
+      # harness; tests/ and benches/ are ignored so the report reflects source.
+      - run: |
+          cargo llvm-cov --workspace \
+            --exclude apollia-e2e-tests --exclude apollia-desktop \
+            --ignore-filename-regex '(/tests/|/benches/)' --html
       - run: cargo llvm-cov report --lcov --output-path lcov.info
       - uses: actions/upload-artifact@v5
         with:
           name: coverage-html-${{ github.sha }}
           path: target/llvm-cov/html/
+          retention-days: 30
+
+  # ── Mutation testing : surfaces surviving mutants (test gaps) on core crates ─
+  # Advisory report only. cargo-mutants flips operators / deletes lines and
+  # checks a test fails; a surviving mutant is an untested behavior. Scoped to
+  # the crates that build and test in isolation, with tests restricted to the
+  # mutated package so a run finishes in nightly time.
+  mutants:
+    name: Mutation Testing (core)
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.job == 'all' ||
+      github.event.inputs.job == 'mutants'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-mutants
+      - name: cargo mutants (permissions + core)
+        run: |
+          cargo mutants --test-workspace=false -j 2 \
+            --package apollia-permissions --package apollia-core \
+            --output mutants.out
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: mutants-report-${{ github.sha }}
+          path: mutants.out/
           retention-days: 30
 
   # ── Deep audit (re-télécharge la DB pour catcher les advisories récentes) ──

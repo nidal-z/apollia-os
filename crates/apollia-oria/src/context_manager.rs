@@ -400,7 +400,9 @@ fn message_text_preview(msg: &ChatMessage, max_chars: usize) -> String {
         MessageContent::WithToolCalls { text, .. } => text.as_str(),
     };
     if full.len() > max_chars {
-        format!("{}…", &full[..max_chars])
+        // Truncate on a UTF-8 char boundary so multibyte input (emoji, CJK)
+        // never panics on a byte-slice that splits a code point.
+        format!("{}…", truncate_on_char_boundary(full.to_owned(), max_chars))
     } else {
         full.to_owned()
     }
@@ -726,6 +728,36 @@ mod tests {
             .expect("dir entry");
         let written = std::fs::read_to_string(entry.path()).expect("read offloaded file");
         assert_eq!(written, big);
+    }
+
+    /// GIVEN a multibyte string and a byte budget that lands inside a code point
+    /// WHEN truncate_on_char_boundary is called
+    /// THEN it backs off to the nearest boundary instead of panicking
+    #[test]
+    fn test_truncate_on_char_boundary_never_splits_codepoint() {
+        // GIVEN "ab" (2 bytes) followed by a 4-byte emoji at bytes 2..6
+        let s = "ab😀cd".to_string();
+
+        // WHEN truncating to 4 bytes, which falls in the middle of the emoji
+        let out = truncate_on_char_boundary(s, 4);
+
+        // THEN it backs off to byte 2, the boundary before the emoji
+        assert_eq!(out, "ab");
+    }
+
+    /// GIVEN a tool-result message whose content is entirely multibyte
+    /// WHEN message_text_preview truncates it at a mid-code-point offset
+    /// THEN it yields a boundary-safe preview and never panics
+    #[test]
+    fn test_message_text_preview_truncates_multibyte_without_panic() {
+        // GIVEN a message of ten 4-byte emoji (40 bytes)
+        let msg = ChatMessage::tool_result("c1", &"😀".repeat(10));
+
+        // WHEN previewed with a byte budget of 5 (mid-emoji)
+        let preview = message_text_preview(&msg, 5);
+
+        // THEN it truncates on the boundary before the second emoji, plus ellipsis
+        assert_eq!(preview, "😀…");
     }
 
     /// GIVEN a 100-char ToolResult below the threshold

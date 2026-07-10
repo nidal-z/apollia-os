@@ -1,0 +1,22 @@
+# cargo-mutants configuration (dev-only test-quality tooling).
+#
+# Mutation testing changes the code (flips an operator, deletes a line) and
+# checks that at least one test fails. A surviving mutant is a test gap. This
+# file scopes the run to the crates that build and test under a plain
+# `cargo test`, and sets timeouts generous enough for the async-heavy suites.
+
+# Per-mutant test timeout = this multiple of the baseline run, with a floor so a
+# fast baseline does not produce a too-tight timeout on a slow mutant.
+timeout_multiplier = 3.0
+minimum_test_timeout = 60
+
+# Skip crates that do not build or test in isolation under `cargo test`:
+#   - apollia-desktop: the Tauri build script needs bundled frontend resources
+#     that are absent outside a full desktop build.
+#   - tests/ (apollia-e2e-tests): does not compile standalone (tracked backlog).
+# Also skip build scripts, which carry no runtime logic worth mutating.
+exclude_globs = [
+    "crates/apollia-desktop/**",
+    "tests/**",
+    "**/build.rs",
+]

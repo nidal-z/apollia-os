@@ -728,7 +728,13 @@ fn build_event_summary(event_type: &str, event: &serde_json::Value, agent_id: &s
         "hitl_suspended" => {
             let prompt = event.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
             let preview = if prompt.len() > 60 {
-                format!("{}...", &prompt[..60])
+                // Back off to a UTF-8 char boundary so a multibyte prompt never
+                // panics on a byte-slice that splits a code point.
+                let mut end = 60;
+                while end > 0 && !prompt.is_char_boundary(end) {
+                    end -= 1;
+                }
+                format!("{}...", &prompt[..end])
             } else {
                 prompt.to_string()
             };

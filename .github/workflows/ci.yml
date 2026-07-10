@@ -20,11 +20,13 @@ env:
   RUST_BACKTRACE: 1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # Line-coverage floor for the coverage gate, ratcheted up over time and never
-  # lowered. Provisional "0" until the baseline can be measured: today
-  # `cargo llvm-cov --workspace` cannot build because some test code does not
-  # compile (see the first-run gate report). Set to the measured baseline minus
-  # a small margin once test compilation is restored.
-  COVERAGE_FLOOR: "0"
+  # lowered. Measured baseline is 70.58% line coverage over the workspace with
+  # apollia-desktop and apollia-e2e-tests excluded (neither builds under the
+  # coverage harness: the Tauri crate needs bundled frontend resources, the e2e
+  # crate does not compile standalone) and with tests/ + benches/ ignored. The
+  # floor sits just below the baseline so the gate is green today, then ratchets
+  # up. Restoring the two excluded crates is a tracked backlog item.
+  COVERAGE_FLOOR: "70"
 
 # Annule les runs en cours sur un même ref si un push plus récent arrive.
 concurrency:
@@ -276,6 +278,31 @@ jobs:
         working-directory: sdk
         run: mypy apollia
 
+  # ── Python SDK unit tests + coverage ───────────────────────────────────────
+  # Advisory for now: the SDK pytest suite was never wired into CI, and three
+  # dispatch tests currently fail (they assert strict payload rejection while the
+  # code drops unexpected fields with a warning). Flip continue-on-error off once
+  # that divergence is resolved (tracked in the test-quality backlog).
+  python-tests:
+    name: Python Tests (SDK)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install SDK with dev extras
+        working-directory: sdk
+        run: pip install -e ".[dev]"
+      - name: pytest with coverage
+        working-directory: sdk
+        run: pytest --cov=apollia --cov-report=term-missing --cov-report=xml
+      - uses: actions/upload-artifact@v5
+        with:
+          name: sdk-coverage-xml
+          path: sdk/coverage.xml
+
   # ── Link check : catches broken local doc links (offline, no external flake) ─
   links:
     name: Doc Link Check
@@ -373,9 +400,15 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
       # The floor is set just below the measured baseline so the gate is green
       # from day one, then ratcheted up. Full HTML report stays in nightly.yml.
+      # apollia-desktop and apollia-e2e-tests are excluded because neither builds
+      # under the coverage harness; tests/ and benches/ are ignored so the number
+      # reflects source coverage, not test code exercising itself.
       - name: cargo llvm-cov (workspace, floor gate)
         run: |
-          cargo llvm-cov --workspace --lcov --output-path lcov.info \
+          cargo llvm-cov --workspace \
+            --exclude apollia-e2e-tests --exclude apollia-desktop \
+            --ignore-filename-regex '(/tests/|/benches/)' \
+            --lcov --output-path lcov.info \
             --fail-under-lines ${{ env.COVERAGE_FLOOR }}
       - uses: actions/upload-artifact@v5
         with:

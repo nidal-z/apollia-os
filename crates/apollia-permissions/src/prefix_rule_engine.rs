@@ -861,6 +861,20 @@ mod tests {
     }
 
     #[test]
+    fn prefix_matches_rejects_non_matching_and_missing_arg() {
+        // A concrete prefix that the first argument does not start with must not
+        // match, and a required prefix with no argument must not match either.
+        // Pins the function against a mutant that unconditionally returns true,
+        // which would make a scoped rule apply to every call.
+        assert!(!prefix_matches(Some("git"), Some("rm -rf /")));
+        assert!(!prefix_matches(Some("git"), None));
+
+        // The matching and wildcard (no-prefix) cases still hold.
+        assert!(prefix_matches(Some("git"), Some("git push")));
+        assert!(prefix_matches(None, Some("anything")));
+    }
+
+    #[test]
     fn prefix_rule_no_match_returns_none() {
         let (engine, _tmp) = tmp_engine();
         let result = engine

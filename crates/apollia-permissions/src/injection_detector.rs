@@ -189,6 +189,22 @@ mod tests {
     }
 
     #[test]
+    fn ast_interpreter_word_without_pipe_not_injection() {
+        // An interpreter name as a bare argument, not the target of a pipe, is
+        // safe. This pins `w[0] == "|" && interpreter`: flipping the AND to an
+        // OR would flag any command that merely mentions an interpreter.
+        assert!(!StructuralInjectionDetector::is_injection("echo bash"));
+    }
+
+    #[test]
+    fn ast_eval_double_quoted_expansion_not_injection() {
+        // eval of a double-quoted expansion is ShellCheck-safe (SC2086 OK). This
+        // pins `contains('$') && !starts_with('"')`: flipping the AND to an OR
+        // would flag every eval that contains a '$', quoted or not.
+        assert!(!StructuralInjectionDetector::is_injection("eval \"$safe\""));
+    }
+
+    #[test]
     fn ast_process_substitution_detected() {
         // Process substitution >() (bash 3.5.6).
         assert!(StructuralInjectionDetector::is_injection("tee >(ls)"));
