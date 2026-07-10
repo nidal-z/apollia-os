@@ -740,6 +740,21 @@ export interface SystemInfo {
   python_path: string | null;
 }
 
+/** Confinement OS appliqué aux processus enfants des outils natifs. */
+export type ToolSandbox = "linux_namespaces" | "dev_no_sandbox";
+
+/** Modele d'execution du code agent. */
+export type AgentExecution = "in_process_trusted";
+
+/** Posture de securite active, refletee depuis apollia-core (ADR-003). */
+export interface SecurityPosture {
+  platform: string;
+  tool_sandbox: ToolSandbox;
+  agent_execution: AgentExecution;
+  rlimits_active: boolean;
+  unshare_available: boolean;
+}
+
 // ─── Chat ───────────────────────────────────────────────────────────────────
 
 /** Résumé d'une session de chat pour la liste. */

@@ -9,6 +9,40 @@ is not implicit. Every crossing must be explicit, logged, and revocable.
 
 ---
 
+## 0. The agent trust model (read this first)
+
+Agent Python code runs in-process through the PyO3 bridge, with the full rights
+of the runtime process, which are the rights of the current user. There is no
+OS sandbox around agent code: no process-per-agent isolation, no seccomp, no
+namespaces confining the agent itself. A deliberately malicious or buggy agent
+can read the filesystem, open sockets, spawn processes, and read credentials
+from the keyring, regardless of what it declares in its manifest. This is the
+v0.1.0 trust model recorded in ADR-003, and it is deliberate: the audience is
+advanced builders who write or audit their own agents.
+
+What this means in practice:
+
+- Security is procedural before it is technical. The operator audits an agent
+  before installing it. The install path prints a trust banner to that effect.
+- The real gate for sensitive actions is HITL: the permission engine defaults
+  to `NeedsApproval`, so a write or an external call surfaces an approval rather
+  than executing silently. See section 5.
+- Manifest capability allowlists (`tools_required`, `secrets`, `datasources`,
+  `mailbox`) gate the `ctx.*` convenience interfaces. They are least-privilege
+  ergonomics, not an OS boundary: an unsandboxed agent can bypass `ctx.secrets`
+  with raw `os.environ` or `open()`. Never describe them as isolation.
+- Native tools (`bash_executor`, `python_executor`) are the confined surface,
+  not the agent. On Linux they run under PID and mount namespaces via `unshare`;
+  on macOS there is no OS sandbox and a per-invocation warning is emitted. On
+  every Unix platform their child processes carry per-process resource limits
+  (CPU, address space, file descriptors) via `setrlimit`. See sections 6 and 7.
+
+Never imply, in code, comments, or public docs, that agent code is sandboxed.
+The honest posture is a feature for a regulated adopter; overstating it is a
+liability.
+
+---
+
 ## 1. The sovereignty boundary
 
 Two operator-controlled profiles :
@@ -22,13 +56,19 @@ State :
 - The setting is **read-only in v0.1.0 UI**. Hardcoded to `cloud_allowed` in
   `crates/apollia-desktop/ui/src/routes/Connections.svelte` line 665 and
   `Integrations.svelte` line 122.
-- The runtime honors the profile when set in config, regardless of UI.
-- An operator profile UI switch is planned post-v0.1.0.
+- **Enforcement is not yet wired in v0.1.0.** The sovereignty value is collected
+  at onboarding and shapes the permission rules proposed to the operator, but no
+  runtime gate blocks a cloud call on `local_only`. The connector error
+  `SovereigntyBlocked` exists as a last-resort variant but is not yet
+  constructed by any call site. Treat data residency as operator-configured
+  permission rules plus HITL, not an automatic profile switch.
+- An operator profile UI switch and a real enforcement gate are planned
+  post-v0.1.0.
 
 Rules :
-- Never assume a profile. Read it from `RuntimeContext::profile()`.
-- A new external call site must check the profile before issuing the
-  request and surface a `ProfileViolation` error when blocked.
+- A new external call site should route through the permission engine (HITL) so
+  the operator can deny it. Do not claim the sovereignty profile blocks the call
+  automatically until the enforcement gate lands.
 
 ---
 
@@ -139,31 +179,42 @@ ADR-015.
 
 ## 6. Filesystem isolation
 
-ADR-015. Filesystem access from agents goes through `apollia-tools`
-sandbox. A reversible journal logs every write.
+ADR-015. The file tools (`file_read`, `file_write`, `file_edit`, `file_list`,
+`file_glob`, `file_grep`, notebook read/edit) resolve every path against a
+`SandboxRoot` jail and reject escapes. A reversible journal logs every write.
+
+This jail applies to those tools only. `bash_executor` and `python_executor`
+spawn child processes that dereference paths themselves, so a string-level jail
+cannot constrain them; they rely on the Linux namespaces, rlimits, and HITL
+described in section 0 instead. And an in-process agent can touch the filesystem
+directly with raw Python, bypassing the tool layer entirely.
 
 Rules :
-- Never grant filesystem access without going through the tool layer.
-- Path validation : agent-supplied paths are resolved against the
-  workspace root and rejected if they escape (`..`, symlinks pointing
-  outside).
+- Prefer the file tools for agent filesystem access so the jail and journal
+  apply.
+- Path validation : file-tool paths are resolved against the sandbox root and
+  rejected if they escape (`..`, symlinks pointing outside).
 - The journal is the rollback path. A failed agent step that wrote files
-  triggers `journal.rollback(step_id)`.
+  through the file tools triggers `journal.rollback(step_id)`.
 
 ---
 
 ## 7. Network access
 
-Outbound HTTP from agents goes through `apollia-tools` HTTP wrapper. The
-wrapper applies :
-- Profile gating (`local_only` blocks).
+Outbound HTTP from the `http_fetch` tool goes through the `apollia-tools` HTTP
+wrapper. The wrapper applies :
 - DNS rebind protection.
 - Per-host rate limits.
 - Audit log entries.
 
+Profile gating (`local_only`) is not yet enforced here (see section 1). And
+because agent code is unsandboxed, an agent can open a raw socket directly,
+bypassing the wrapper; the wrapper protects tool-mediated fetches, not the agent
+process. Tool child processes on Linux share the host network namespace (no
+`--net` isolation yet).
+
 Rules :
-- Never `reqwest::Client::new()` directly from an agent path. Use the
-  wrapper.
+- Never `reqwest::Client::new()` directly from a tool path. Use the wrapper.
 - Never bypass DNS validation. The wrapper resolves once and pins the
   IP for the request.
 - Webhook outbound is the only direct-network path in the runtime, and
@@ -198,7 +249,8 @@ Rules :
 
 | Threat | Mitigation |
 |---|---|
-| Local file exfiltration by malicious agent | Filesystem sandbox, audit journal, reversible writes |
+| Local file exfiltration by a deliberately malicious agent | Not technically prevented: agent code runs in-process (section 0). Defense is the install-chain audit plus HITL on tool actions. The filesystem sandbox and audit journal apply to native tool calls, not to raw agent Python |
+| Buggy agent writing outside its intent via file tools | File-tool path jail (`SandboxRoot`), audit journal, reversible writes |
 | Credential leak via prompt injection | `InjectionDetector` layer, `ask` decision triggered |
 | Network exfiltration | Profile gating, host pinning, audit log |
 | Token theft from disk | OS keyring or age-encrypted file |

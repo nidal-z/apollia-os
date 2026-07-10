@@ -804,6 +804,7 @@ fn main() {
             commands::config::check_onboarded,
             commands::config::mark_onboarded,
             commands::config::get_system_info,
+            commands::config::get_security_posture,
             commands::config::check_python,
             commands::config::check_llm_configured,
             commands::config::check_hello_agent_exists,

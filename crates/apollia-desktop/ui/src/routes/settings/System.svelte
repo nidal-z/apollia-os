@@ -19,7 +19,7 @@
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import UpdateChecker from "./UpdateChecker.svelte";
   import { addToast } from "$lib/components/ui/toast";
-  import { systemInfoStore, cliStatusStore, configStore, settingsLoaders } from "$lib/stores/settings";
+  import { systemInfoStore, securityPostureStore, cliStatusStore, configStore, settingsLoaders } from "$lib/stores/settings";
   import { agentInstallPrefs, setAutoInstallPythonDeps } from "$lib/stores/agentInstallPrefs";
   import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
   import type { CliStatus } from "$lib/types";
@@ -35,7 +35,11 @@
   async function refreshAll() {
     refreshing = true;
     try {
-      await Promise.all([settingsLoaders.systemInfo(true), settingsLoaders.cliStatus(true)]);
+      await Promise.all([
+        settingsLoaders.systemInfo(true),
+        settingsLoaders.securityPosture(true),
+        settingsLoaders.cliStatus(true),
+      ]);
       lastRefreshed = new Date();
     } finally {
       refreshing = false;
@@ -91,6 +95,7 @@
 
   onMount(() => {
     void settingsLoaders.systemInfo();
+    void settingsLoaders.securityPosture();
     void settingsLoaders.cliStatus();
     void settingsLoaders.config();
     tickHandle = setInterval(() => {
@@ -179,6 +184,55 @@
       </Card>
     {:else if $systemInfoStore.error}
       <ErrorBanner message={$systemInfoStore.error} />
+    {/if}
+
+    {#if $securityPostureStore.data}
+      {@const posture = $securityPostureStore.data}
+      {@const namespaced = posture.tool_sandbox === "linux_namespaces"}
+      <Card class="rounded-lg p-4" data-testid="security-posture-section">
+        <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+          {$t("settings.security.title")}
+        </h3>
+        <div class="grid grid-cols-1 gap-y-2">
+          <div class="grid grid-cols-2 gap-2">
+            <span class="text-sm text-muted-foreground">{$t("settings.security.platform")}</span>
+            <span class="text-sm font-mono text-foreground">{posture.platform}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <span class="text-sm text-muted-foreground">{$t("settings.security.tool_sandbox")}</span>
+            <span class="inline-flex items-center gap-1.5 text-sm text-foreground">
+              {#if namespaced}
+                <CheckCircle2 class="h-3.5 w-3.5 text-success" />
+                {$t("settings.security.tool_sandbox_namespaces")}
+              {:else}
+                <XCircle class="h-3.5 w-3.5 text-muted-foreground" />
+                {$t("settings.security.tool_sandbox_none")}
+              {/if}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <span class="text-sm text-muted-foreground">{$t("settings.security.rlimits")}</span>
+            <span class="inline-flex items-center gap-1.5 text-sm text-foreground">
+              {#if posture.rlimits_active}
+                <CheckCircle2 class="h-3.5 w-3.5 text-success" />
+                {$t("settings.security.rlimits_active")}
+              {:else}
+                <XCircle class="h-3.5 w-3.5 text-muted-foreground" />
+                {$t("settings.security.rlimits_inactive")}
+              {/if}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <span class="text-sm text-muted-foreground">{$t("settings.security.agent_execution")}</span>
+            <span class="text-sm text-foreground">{$t("settings.security.agent_execution_trusted")}</span>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          {$t("settings.security.trust_note")}
+        </p>
+      </Card>
+    {:else if $securityPostureStore.error}
+      <ErrorBanner message={$securityPostureStore.error} />
     {/if}
 
     <Card class="rounded-lg p-4" data-testid="agent-install-section">

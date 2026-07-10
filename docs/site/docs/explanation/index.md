@@ -22,3 +22,6 @@ pages link to it rather than restate it.
   gate policy, and how an operator chooses.
 - [The plan and orchestrated execution model](/explanation/the-plan-model): how
   Apollia classifies, plans, gates, executes, and verifies a run.
+- [The agent trust model](/explanation/agent-trust-model): agents run in-process
+  as trusted code, what confines the tools they call, and what an operator must
+  assume before installing an agent.

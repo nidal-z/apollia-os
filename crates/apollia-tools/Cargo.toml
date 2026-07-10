@@ -33,7 +33,7 @@ scraper        = { version = "0.26", optional = true }
 dom_smoothie   = { version = "0.17", optional = true }
 
 # POSIX setrlimit for per-process resource limits on tool child processes.
-# The leanest path for the syscall (already transitive in the lock); see ADR-042.
+# The leanest path for the syscall (already transitive in the lock); see ADR-044.
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
