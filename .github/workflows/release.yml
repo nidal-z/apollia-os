@@ -44,6 +44,10 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+# Least-privilege default. Only the final `release` job escalates (below).
+permissions:
+  contents: read
+
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
   # Setup - calcule la matrice CLI filtrée (dynamic matrix).
@@ -121,10 +125,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.allow_fail || false }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
+          toolchain: stable
           targets: ${{ matrix.triple }}
 
       - name: Install Linux build deps
@@ -136,7 +141,7 @@ jobs:
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             python3-dev clang cmake
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
 
@@ -144,7 +149,7 @@ jobs:
       # CUDA Linux x86 : sub-packages minimaux suffisent (CMake trouve nvcc + libs).
       - name: Install CUDA Toolkit (Linux x86)
         if: matrix.needs_cuda && matrix.runner == 'ubuntu-22.04'
-        uses: Jimver/cuda-toolkit@v0.2.16
+        uses: Jimver/cuda-toolkit@9b295696791d75d658d8de64c4a85097ad8abeaf # v0.2.16
         with:
           cuda: '12.4.0'
           method: 'network'
@@ -157,7 +162,7 @@ jobs:
       # (Cf. ggml/src/ggml-cuda/CMakeLists.txt:58 → enable_language(CUDA))
       - name: Install CUDA Toolkit (Windows x86)
         if: matrix.needs_cuda && matrix.runner == 'windows-latest'
-        uses: Jimver/cuda-toolkit@v0.2.16
+        uses: Jimver/cuda-toolkit@9b295696791d75d658d8de64c4a85097ad8abeaf # v0.2.16
         with:
           cuda: '12.4.0'
           method: 'network'
@@ -219,7 +224,7 @@ jobs:
           echo "VULKAN_SDK=$sdk" >> $env:GITHUB_ENV
           echo "$sdk\Bin" >> $env:GITHUB_PATH
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: ${{ matrix.preset }}
           shared-key: cli-binaries
@@ -353,12 +358,31 @@ jobs:
           "$hash  apollia-os-${{ matrix.preset }}.zip" | Out-File "apollia-os-${{ matrix.preset }}.zip.sha256" -Encoding ASCII
           Pop-Location
 
-      - uses: actions/upload-artifact@v5
+      # ── SBOM (whole bundle : Rust crates + embedded CPython) ────────────────
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}
+          format: cyclonedx-json
+          output-file: target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.cdx.json
+          upload-artifact: false
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}
+          format: spdx-json
+          output-file: target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.spdx.json
+          upload-artifact: false
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: apollia-os-${{ matrix.preset }}
           path: |
             target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.${{ matrix.archive }}
             target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.${{ matrix.archive }}.sha256
+            target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.cdx.json
+            target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.spdx.json
           if-no-files-found: error
           retention-days: 30
 
@@ -374,17 +398,18 @@ jobs:
       APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
       APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
+          toolchain: stable
           targets: aarch64-apple-darwin
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "22"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: desktop-macos-arm64
 
@@ -466,12 +491,30 @@ jobs:
         working-directory: target/aarch64-apple-darwin/release/bundle/dmg
         run: shasum -a 256 *.dmg > SHA256SUMS
 
-      - uses: actions/upload-artifact@v5
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/aarch64-apple-darwin/release/bundle
+          format: cyclonedx-json
+          output-file: target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.cdx.json
+          upload-artifact: false
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/aarch64-apple-darwin/release/bundle
+          format: spdx-json
+          output-file: target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.spdx.json
+          upload-artifact: false
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: apollia-desktop-macos-arm64-dmg
           path: |
             target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             target/aarch64-apple-darwin/release/bundle/dmg/SHA256SUMS
+            target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.cdx.json
+            target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.spdx.json
           if-no-files-found: error
           retention-days: 30
 
@@ -488,17 +531,18 @@ jobs:
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
+          toolchain: stable
           targets: x86_64-unknown-linux-gnu
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "22"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
 
@@ -514,7 +558,7 @@ jobs:
             python3-dev clang cmake \
             file
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: desktop-linux-x86_64
 
@@ -558,7 +602,23 @@ jobs:
             --pinentry-mode loopback \
             --detach-sign --armor --output SHA256SUMS.asc SHA256SUMS
 
-      - uses: actions/upload-artifact@v5
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/x86_64-unknown-linux-gnu/release/bundle
+          format: cyclonedx-json
+          output-file: target/x86_64-unknown-linux-gnu/release/bundle/apollia-desktop-linux-x86_64.cdx.json
+          upload-artifact: false
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/x86_64-unknown-linux-gnu/release/bundle
+          format: spdx-json
+          output-file: target/x86_64-unknown-linux-gnu/release/bundle/apollia-desktop-linux-x86_64.spdx.json
+          upload-artifact: false
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: apollia-desktop-linux-x86_64
           path: |
@@ -566,6 +626,8 @@ jobs:
             target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
             target/x86_64-unknown-linux-gnu/release/bundle/SHA256SUMS
             target/x86_64-unknown-linux-gnu/release/bundle/SHA256SUMS.asc
+            target/x86_64-unknown-linux-gnu/release/bundle/apollia-desktop-linux-x86_64.cdx.json
+            target/x86_64-unknown-linux-gnu/release/bundle/apollia-desktop-linux-x86_64.spdx.json
           if-no-files-found: error
           retention-days: 30
 
@@ -580,21 +642,22 @@ jobs:
     env:
       WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
+          toolchain: stable
           targets: x86_64-pc-windows-msvc
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "22"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: desktop-windows-x86_64
 
@@ -658,13 +721,31 @@ jobs:
           $lines | Out-File SHA256SUMS -Encoding ASCII
           Get-Content SHA256SUMS
 
-      - uses: actions/upload-artifact@v5
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/x86_64-pc-windows-msvc/release/bundle
+          format: cyclonedx-json
+          output-file: target/x86_64-pc-windows-msvc/release/bundle/apollia-desktop-windows-x86_64.cdx.json
+          upload-artifact: false
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/x86_64-pc-windows-msvc/release/bundle
+          format: spdx-json
+          output-file: target/x86_64-pc-windows-msvc/release/bundle/apollia-desktop-windows-x86_64.spdx.json
+          upload-artifact: false
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: apollia-desktop-windows-x86_64
           path: |
             target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
             target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             target/x86_64-pc-windows-msvc/release/bundle/SHA256SUMS
+            target/x86_64-pc-windows-msvc/release/bundle/apollia-desktop-windows-x86_64.cdx.json
+            target/x86_64-pc-windows-msvc/release/bundle/apollia-desktop-windows-x86_64.spdx.json
           if-no-files-found: error
           retention-days: 30
 
@@ -677,11 +758,13 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # publish the release draft
+      id-token: write # cosign keyless OIDC + provenance
+      attestations: write # build-provenance attestation
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           path: artifacts
           merge-multiple: true
@@ -689,8 +772,48 @@ jobs:
       - name: List artifacts
         run: ls -lh artifacts/
 
+      # ── Cryptographic signing (cosign keyless, Sigstore OIDC) ───────────────
+      # Every published file gets a detached .sig + the signing .pem certificate.
+      # Verify with: cosign verify-blob --certificate <f>.pem --signature <f>.sig
+      #   --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      #   --certificate-identity-regexp '^https://github.com/Apollia-OS/' <f>
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign artifacts (cosign keyless)
+        env:
+          COSIGN_YES: "true"
+        run: |
+          shopt -s nullglob
+          for f in artifacts/*; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              *.sig | *.pem) continue ;;
+            esac
+            cosign sign-blob --yes \
+              --output-signature "$f.sig" \
+              --output-certificate "$f.pem" \
+              "$f"
+          done
+
+      # ── SLSA build provenance attestation over the binaries + SBOMs ─────────
+      # Verify with: gh attestation verify <file> --repo Apollia-OS/apollia-os
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4
+        with:
+          subject-path: |
+            artifacts/*.tar.gz
+            artifacts/*.zip
+            artifacts/*.dmg
+            artifacts/*.deb
+            artifacts/*.AppImage
+            artifacts/*.msi
+            artifacts/*.exe
+            artifacts/*.cdx.json
+            artifacts/*.spdx.json
+
       - name: Create release draft
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             artifacts/*.tar.gz
@@ -703,6 +826,10 @@ jobs:
             artifacts/*.msi
             artifacts/*.exe
             artifacts/SHA256SUMS
+            artifacts/*.cdx.json
+            artifacts/*.spdx.json
+            artifacts/*.sig
+            artifacts/*.pem
           draft: true
           generate_release_notes: true
           fail_on_unmatched_files: false

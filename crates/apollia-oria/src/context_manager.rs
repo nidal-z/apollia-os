@@ -400,10 +400,18 @@ fn message_text_preview(msg: &ChatMessage, max_chars: usize) -> String {
         MessageContent::WithToolCalls { text, .. } => text.as_str(),
     };
     if full.len() > max_chars {
-        format!("{}…", &full[..max_chars])
+        let cut = apollia_core::floor_char_boundary(full, max_chars);
+        format!("{}…", &full[..cut])
     } else {
         full.to_owned()
     }
+}
+
+/// Fuzzing-only shim exposing the private [`message_text_preview`] to the fuzz
+/// harness. Compiled only under `--cfg fuzzing` (cargo-fuzz).
+#[cfg(fuzzing)]
+pub fn __fuzz_message_text_preview(text: &str, max_chars: usize) -> String {
+    message_text_preview(&ChatMessage::user(text), max_chars)
 }
 
 // Tests
@@ -418,6 +426,17 @@ mod tests {
     use std::collections::HashMap;
     use std::pin::Pin;
     use std::sync::Arc;
+
+    #[test]
+    fn message_text_preview_cuts_on_char_boundary() {
+        // GIVEN a chat message whose multibyte text exceeds the preview budget
+        let msg = ChatMessage::user("€".repeat(50));
+        // WHEN building a preview with a byte budget landing mid-code-point
+        let preview = message_text_preview(&msg, 10);
+        // THEN no panic and the preview is valid UTF-8
+        assert!(std::str::from_utf8(preview.as_bytes()).is_ok());
+        assert!(preview.ends_with('…'));
+    }
 
     // Mock LLM
 

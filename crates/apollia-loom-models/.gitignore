@@ -1,0 +1,5 @@
+# This crate is excluded from the workspace, so it builds to its own target
+# directory rather than the shared workspace one. Do not track build output or
+# the standalone lockfile.
+target/
+Cargo.lock

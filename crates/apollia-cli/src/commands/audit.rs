@@ -31,13 +31,24 @@ pub enum AuditCommand {
         #[arg(long, default_value_t = 10_000)]
         limit: u32,
     },
-    /// Verify the hash chain and signatures of a run's audit journal.
+    /// Verify the audit journal's hash chains and signatures.
+    ///
+    /// With a RUN_ID, verifies that run's per-run chain. Without an argument,
+    /// verifies the whole journal: the global chain across all runs (detecting
+    /// interior deletion and whole-run deletion) and the head anchor (detecting
+    /// truncation of the global tail).
     #[command(name = "verify")]
     Verify {
-        /// Identifier of the run to verify.
+        /// Identifier of the run to verify. Omit to verify the whole journal.
         #[arg(value_name = "RUN_ID")]
-        run_id: String,
+        run_id: Option<String>,
     },
+    /// Print the exportable head anchor of the global chain.
+    ///
+    /// Storing this off-machine is the only defense against truncation of the
+    /// global tail once the signing key can be compromised.
+    #[command(name = "anchor")]
+    Anchor,
     /// Replay a captured run and detect divergences.
     ///
     /// Compares the replayed run against its captured trace across every
@@ -78,7 +89,11 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
         AuditCommand::Export { output, limit } => {
             run_export(&client, output.as_deref(), *limit).await
         }
-        AuditCommand::Verify { run_id } => run_verify(&client, run_id, json).await,
+        AuditCommand::Verify { run_id } => match run_id {
+            Some(rid) => run_verify(&client, rid, json).await,
+            None => run_verify_journal(&client, json).await,
+        },
+        AuditCommand::Anchor => run_anchor(&client, json).await,
         AuditCommand::Replay { run } => run_replay(&client, run, json).await,
         AuditCommand::Show { run } => run_show(&client, run, json).await,
     }
@@ -296,6 +311,137 @@ async fn verify_once(client: &RuntimeClient, run_id: &str, json: bool) -> Verify
         }
         VerifyOutcome::Done(exit_codes::GENERAL_ERROR)
     }
+}
+
+/// `apollia-os audit verify` (no run): verify the whole journal.
+///
+/// Exit 0 when the global chain, every per-run chain, and the head anchor all
+/// verify, 1 when a link is broken or the head anchor does not match, 2 when the
+/// runtime is not reachable.
+async fn run_verify_journal(client: &RuntimeClient, json: bool) -> i32 {
+    let resp = match client.get("/api/v1/audit/verify").await {
+        Ok(r) => r,
+        Err(e) => return handle_error(e, json),
+    };
+    if resp.status >= 400 {
+        return handle_server_error(resp.status, &resp.body, json);
+    }
+
+    let report: serde_json::Value = match serde_json::from_str(&resp.body) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error: invalid JSON response: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).unwrap_or_default()
+        );
+    }
+
+    let ok = report.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+    let checked = report
+        .get("entries_checked")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let runs = report
+        .get("runs_checked")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    if ok {
+        if !json {
+            println!("OK    whole journal  {checked} entries across {runs} runs verified");
+        }
+        exit_codes::SUCCESS
+    } else {
+        if !json {
+            match report.get("first_break") {
+                Some(brk) if !brk.is_null() => {
+                    let seq = brk.get("global_seq").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let run = brk.get("run_id").and_then(|v| v.as_str()).unwrap_or("?");
+                    let reason = brk
+                        .get("reason")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    println!(
+                        "FAIL  whole journal  broken link at global_seq={seq} run={run} ({reason})"
+                    );
+                }
+                _ => {
+                    println!(
+                        "FAIL  whole journal  head anchor mismatch (tail truncation or rolled-back state)"
+                    );
+                }
+            }
+        }
+        exit_codes::GENERAL_ERROR
+    }
+}
+
+/// `apollia-os audit anchor`: print the exportable head anchor.
+///
+/// Exit 0 when an anchor is returned, 1 when the journal has no entries yet, 2
+/// when the runtime is not reachable.
+async fn run_anchor(client: &RuntimeClient, json: bool) -> i32 {
+    let resp = match client.get("/api/v1/audit/anchor").await {
+        Ok(r) => r,
+        Err(e) => return handle_error(e, json),
+    };
+    if resp.status == 404 {
+        if json {
+            let output = serde_json::json!({"error": "not_found"});
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
+        } else {
+            eprintln!("journal has no entries yet");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+    if resp.status >= 400 {
+        return handle_server_error(resp.status, &resp.body, json);
+    }
+
+    let anchor: serde_json::Value = match serde_json::from_str(&resp.body) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error: invalid JSON response: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&anchor).unwrap_or_default()
+        );
+    } else {
+        let seq = anchor
+            .get("global_seq")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let hash = anchor
+            .get("global_hash")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let key = anchor
+            .get("key_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unsigned");
+        let ts = anchor
+            .get("updated_ts")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        println!("global_seq={seq}");
+        println!("global_hash={hash}");
+        println!("key_id={key}");
+        println!("updated_ts={ts}");
+    }
+    exit_codes::SUCCESS
 }
 
 /// `apollia-os audit replay <run>`: replay a captured run and report divergence.
@@ -771,9 +917,30 @@ mod tests {
     fn parses_verify_with_run_id() {
         let cli = TestCli::parse_from(["x", "verify", "run-abc"]);
         match cli.cmd {
-            AuditCommand::Verify { run_id } => assert_eq!(run_id, "run-abc"),
+            AuditCommand::Verify { run_id } => assert_eq!(run_id.as_deref(), Some("run-abc")),
             other => panic!("unexpected: {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_verify_without_run_id() {
+        // GIVEN the verify subcommand with no argument
+        let cli = TestCli::parse_from(["x", "verify"]);
+        // WHEN parsed
+        // THEN the run id is absent (whole-journal verification)
+        match cli.cmd {
+            AuditCommand::Verify { run_id } => assert!(run_id.is_none()),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_anchor() {
+        // GIVEN the anchor subcommand
+        let cli = TestCli::parse_from(["x", "anchor"]);
+        // WHEN parsed
+        // THEN it is the Anchor variant
+        assert!(matches!(cli.cmd, AuditCommand::Anchor));
     }
 
     #[test]
@@ -793,15 +960,6 @@ mod tests {
         // GIVEN the replay subcommand with no run argument
         // WHEN parsing
         let result = TestCli::try_parse_from(["x", "replay"]);
-        // THEN it is a usage error
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn verify_requires_run_id() {
-        // GIVEN the verify subcommand with no run id
-        // WHEN parsing
-        let result = TestCli::try_parse_from(["x", "verify"]);
         // THEN it is a usage error
         assert!(result.is_err());
     }

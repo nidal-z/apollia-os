@@ -233,6 +233,87 @@ strategies.
 
 ---
 
+## 8b. Fuzzing (untrusted-input parsers)
+
+Parsers that consume untrusted input (LLM output text, remote web content,
+natural-language automation text, tool specs, network payloads) are fuzzed with
+`cargo-fuzz` (libFuzzer). A panic in one of these is a reachable crash, so the
+invariant is simple : parsing any input never panics.
+
+The `fuzz/` crate is a standalone package, excluded from the workspace (see
+`exclude = ["fuzz"]` in the root `Cargo.toml`). It targets nightly because
+libFuzzer needs `-Zsanitizer=address`. Targets live in `fuzz/fuzz_targets/` and
+the committed seed corpus in `fuzz/seeds/<target>/`.
+
+```sh
+cargo +nightly fuzz build                    # compile every target
+cargo +nightly fuzz run parse_automation fuzz/corpus/parse_automation fuzz/seeds/parse_automation
+cargo +nightly fuzz tmin <target> <crash>    # minimize a crash artifact
+```
+
+Rules :
+
+- A target must call the **real** production parsing function, never a copy.
+  When the function is private, expose it through a `#[cfg(fuzzing)] pub` shim in
+  the owning crate (`fuzzing` is declared as a known cfg in `[workspace.lints.rust]`
+  and in `apollia-tools`). The shim is compiled only under `--cfg fuzzing`.
+- A crash is a real bug. Minimize it, anchor it to `file:line`, and fix it (or
+  file it) rather than masking it.
+- CI runs a short smoke over the seed corpus on each PR (`Fuzz (smoke)` in
+  `ci.yml`, advisory) and a longer session weekly (`Deep Fuzz` in `nightly.yml`,
+  uploads any crash artifact). This cargo-fuzz integration also satisfies the
+  OpenSSF Scorecard Fuzzing check.
+
+---
+
+## 8c. Concurrency and UB verification (Loom + Miri)
+
+Two model-checking tools guard the concurrent core and the FFI frontier. Both
+are dev-only (no runtime dependency) and advisory in CI.
+
+**Loom** exhaustively permutes thread interleavings to prove a concurrency
+algorithm race-free. It cannot instrument Tokio (the runtime actors use
+`tokio::sync` channels + `Semaphore` on the Tokio scheduler, none of which Loom
+sees), and `--cfg loom` is a global flag that poisons `tokio::net`. So the Loom
+models are **abstract**: they re-implement each actor's core algorithm with Loom
+primitives and live in the standalone `crates/apollia-loom-models` crate,
+excluded from the workspace exactly like `fuzz/`. Each model cites the prod
+`file:line` it mirrors.
+
+```sh
+RUSTFLAGS="--cfg loom" LOOM_MAX_PREEMPTIONS=3 \
+  cargo test --manifest-path crates/apollia-loom-models/Cargo.toml --release
+```
+
+Honesty boundary: a Loom model proves the **algorithm** is race-free, not that
+the exact Tokio code is. Two models (`mailbox_lease_exclusivity`,
+`shutdown_drain_snapshot_gap`) model the RECOMMENDED fix for a hazard the prod
+code does not yet implement; that delta is a tracked finding, not a proof about
+current prod.
+
+**Miri** interprets MIR to detect undefined behavior (bad casts, invalid
+pointers, data races). It cannot execute the PyO3 boundary (`Python::with_gil`
+calls into libpython, an unsupported foreign function), so the suite targets
+only interpreter-free helpers near the boundary, named `miri_pure` in
+`apollia-aip`.
+
+```sh
+cargo +nightly miri test -p apollia-aip --lib miri_pure
+```
+
+Out of Miri's reach and covered instead by integration tests + manual SAFETY
+review: every `with_gil`/`extract`/`future_into_py` path, and the whisper.cpp
+`unsafe impl Send/Sync` in `apollia-runner`.
+
+Rules :
+
+- Keep Loom models abstract and prod-decoupled. Never add `loom` to a
+  workspace crate; it would drag `--cfg loom` into Tokio.
+- A Miri `miri_pure` test must not call into libpython, directly or transitively.
+- CI runs both weekly in `nightly.yml` (`loom`, `miri`), advisory.
+
+---
+
 ## 9. Snapshot testing
 
 Use `insta` (Rust) or `syrupy` (Python) for :

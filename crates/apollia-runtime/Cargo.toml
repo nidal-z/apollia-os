@@ -82,6 +82,7 @@ wmi = "0.16"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tempfile = "3"
 http-body-util = { workspace = true }
+proptest = "1"
 
 [lints]
 workspace = true

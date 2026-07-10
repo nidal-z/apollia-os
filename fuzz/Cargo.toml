@@ -1,0 +1,66 @@
+[package]
+name = "apollia-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+# This crate is intentionally NOT a member of the root workspace (see the
+# `exclude = ["fuzz"]` in ../Cargo.toml). It is built only via cargo-fuzz on a
+# nightly toolchain: `cargo +nightly fuzz build` / `cargo +nightly fuzz run <t>`.
+# Every target calls a real production parsing function (directly for the `pub`
+# ones, or through a `#[cfg(fuzzing)] pub` shim added inside the owning crate),
+# never a copy.
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+chrono = "0.4"
+serde_json = "1"
+
+apollia-llm = { path = "../crates/apollia-llm" }
+apollia-runtime = { path = "../crates/apollia-runtime" }
+apollia-tools = { path = "../crates/apollia-tools" }
+apollia-oria = { path = "../crates/apollia-oria" }
+apollia-connectors = { path = "../crates/apollia-connectors" }
+
+# Prevent the optimizer from deleting the parsers under test.
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "parse_automation"
+path = "fuzz_targets/parse_automation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "confidence_parser"
+path = "fuzz_targets/confidence_parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "gbnf"
+path = "fuzz_targets/gbnf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "web_read_extract"
+path = "fuzz_targets/web_read_extract.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "truncation"
+path = "fuzz_targets/truncation.rs"
+test = false
+doc = false
+bench = false

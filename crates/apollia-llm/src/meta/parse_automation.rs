@@ -269,8 +269,10 @@ fn interval_count_for_key(folded: &str, key: &str) -> Option<u64> {
             continue;
         }
         // Require a number within the 12 preceding chars, else fallback
-        // to 1 when preceded by "toutes les"/"chaque"/"every".
-        let window_start = abs.saturating_sub(12);
+        // to 1 when preceded by "toutes les"/"chaque"/"every". Clamp the
+        // window start to a UTF-8 boundary: `abs` is ASCII-aligned but
+        // `abs - 12` can land inside a multibyte code point in folded text.
+        let window_start = apollia_core::floor_char_boundary(folded, abs.saturating_sub(12));
         let prefix = &folded[window_start..abs];
         let last = prefix
             .rsplit(|c: char| !c.is_ascii_digit())
@@ -552,6 +554,18 @@ mod tests {
             "review-assistant".into(),
             "document-assistant".into(),
         ]
+    }
+
+    #[test]
+    fn multibyte_before_interval_keyword_does_not_panic() {
+        // GIVEN operator text where a non-accent multibyte code point sits within
+        // the 12-byte window preceding an interval keyword. `fold` folds accents
+        // to ASCII but leaves emoji intact, so `abs - 12` can land mid-code-point.
+        let input = "☕☕☕☕☕ minute";
+        // WHEN parsing the automation description
+        let parsed = parse_automation(input, now(), &agents());
+        // THEN it completes without a mid-code-point slice panic
+        let _ = parsed.schedule;
     }
 
     // 20 bilingual snapshot inputs

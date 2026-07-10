@@ -28,17 +28,31 @@ be surprised by their absence.
 
 Every governed action an agent takes is written to an append-only journal. The
 journal is a hash chain, and it is signed as it grows, so any later alteration
-breaks the chain and is detectable. This is what turns "the agent says it did X"
-into "here is the recorded, verifiable sequence of what happened." The trail
-captures tool calls and, in the run journal, the model's own completions, so the
-reasoning behind an action is inspectable, not just its effect.
+breaks the chain and is detectable. Each entry is linked twice: to the previous
+entry of its own run, and to the previous entry of any run, so the journal is one
+continuous sequence across every run, not a set of independent per-run logs. This
+is what turns "the agent says it did X" into "here is the recorded, verifiable
+sequence of what happened." The trail captures tool calls and, in the run
+journal, the model's own completions, so the reasoning behind an action is
+inspectable, not just its effect.
 
 ### Verification of that trail
 
-A record is only as good as your ability to trust it. Verifying a run checks its
-hash chain and signatures and tells you whether the sequence has been altered
-since it was written. Accountability rests on a record you can independently
-confirm, not on trusting the process that produced it.
+A record is only as good as your ability to trust it. Verifying the journal
+checks its hash chains and signatures and tells you whether the sequence has been
+altered since it was written. Because entries are chained across all runs,
+verification detects not only a mutated entry but also a run whose tail was
+truncated or a whole run that was deleted: either leaves a gap the chain exposes.
+Accountability rests on a record you can independently confirm, not on trusting
+the process that produced it.
+
+The honest scope matters. This is tamper-evidence, not tamper-proofing: it
+detects alteration after the fact, it does not prevent it. The guarantee holds as
+long as the signing key is uncompromised. A party who holds the key can recompute
+and re-sign a shorter, consistent chain, so the runtime also exposes the head of
+the chain as an anchor you can export and store off-machine. Comparing a run
+against an externally held anchor is what defends against truncation of the most
+recent activity even when the key itself is at risk.
 
 ### Reversibility
 

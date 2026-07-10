@@ -46,6 +46,32 @@ pub fn compute_entry_hash(entry: &JournalEntry) -> String {
     hex::encode(hasher.finalize())
 }
 
+/// Computes the SHA256 hash of a global-chain link.
+///
+/// The global chain weaves every entry across all runs into one monotone
+/// sequence, on top of the per-run chains. A link commits the entry's own
+/// `entry_hash`, its position `global_seq`, and the `global_prev_hash` of the
+/// preceding link (the sentinel for the genesis link at `global_seq == 0`). The
+/// canonical form is `{ "entry_hash":..., "global_prev_hash":..., "global_seq":n }`
+/// (keys sorted), then the `global_prev_hash` bytes are appended again before
+/// hashing, mirroring [`compute_entry_hash`]. Returns the lowercase hex digest.
+pub fn compute_global_hash(entry_hash: &str, global_prev_hash: &str, global_seq: u64) -> String {
+    let mut canonical = String::new();
+    canonical.push('{');
+    push_str_field(&mut canonical, "entry_hash", entry_hash);
+    canonical.push(',');
+    push_str_field(&mut canonical, "global_prev_hash", global_prev_hash);
+    canonical.push(',');
+    push_key(&mut canonical, "global_seq");
+    canonical.push_str(&global_seq.to_string());
+    canonical.push('}');
+
+    let mut hasher = Sha256::new();
+    hasher.update(canonical.as_bytes());
+    hasher.update(global_prev_hash.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
 /// Writes a JSON object key followed by a colon.
 fn push_key(out: &mut String, key: &str) {
     push_json_string(out, key);
@@ -198,5 +224,38 @@ mod tests {
         // WHEN hashing twice
         // THEN both runs agree
         assert_eq!(compute_entry_hash(&e), compute_entry_hash(&e));
+    }
+
+    // The global hash is a deterministic 64-char lowercase hex string
+    #[test]
+    fn test_global_hash_deterministic() {
+        // GIVEN a fixed entry hash, prev, and global seq
+        let h = "a".repeat(64);
+        // WHEN computing the global hash twice
+        let g1 = compute_global_hash(&h, SENTINEL_PREV_HASH, 0);
+        let g2 = compute_global_hash(&h, SENTINEL_PREV_HASH, 0);
+        // THEN both agree and it is 64 lowercase hex chars
+        assert_eq!(g1, g2);
+        assert_eq!(g1.len(), 64);
+        assert!(g1
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()));
+    }
+
+    // Changing the entry hash, the global seq, or the prev link changes the hash
+    #[test]
+    fn test_global_hash_sensitive_to_each_input() {
+        // GIVEN a baseline global link
+        let h = "a".repeat(64);
+        let prev = "b".repeat(64);
+        let base = compute_global_hash(&h, &prev, 5);
+        // WHEN each input changes independently
+        let other_entry = compute_global_hash(&"c".repeat(64), &prev, 5);
+        let other_seq = compute_global_hash(&h, &prev, 6);
+        let other_prev = compute_global_hash(&h, &"d".repeat(64), 5);
+        // THEN the hash differs in every case
+        assert_ne!(base, other_entry);
+        assert_ne!(base, other_seq);
+        assert_ne!(base, other_prev);
     }
 }

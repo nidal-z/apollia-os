@@ -6,14 +6,15 @@ use std::sync::Arc;
 use apollia_auth::SecretStore;
 
 use crate::audit_journal::actor::{
-    JournalActor, JournalMessage, MIGRATION_SIGNATURE_COLUMNS, SCHEMA,
+    JournalActor, JournalMessage, MIGRATION_GLOBAL_COLUMNS, MIGRATION_GLOBAL_INDEX,
+    MIGRATION_SIGNATURE_COLUMNS, SCHEMA,
 };
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft};
 use crate::audit_journal::error::AuditJournalError;
 use crate::audit_journal::signer::{
     HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy,
 };
-use crate::audit_journal::verify::VerifyChainReport;
+use crate::audit_journal::verify::{JournalAnchor, VerifyChainReport, VerifyJournalReport};
 
 /// Capacity of the channel between the handle and the actor.
 const CHANNEL_CAPACITY: usize = 1024;
@@ -105,13 +106,22 @@ impl AuditJournalHandle {
                 let _ = init_tx.send(Err(AuditJournalError::SchemaInit(e.to_string())));
                 return;
             }
-            for ddl in MIGRATION_SIGNATURE_COLUMNS {
+            let additive_columns = MIGRATION_SIGNATURE_COLUMNS
+                .iter()
+                .chain(MIGRATION_GLOBAL_COLUMNS.iter());
+            for ddl in additive_columns {
                 if let Err(e) = conn.execute_batch(ddl) {
                     let msg = e.to_string();
                     if !msg.contains("duplicate column name") {
                         let _ = init_tx.send(Err(AuditJournalError::SchemaInit(msg)));
                         return;
                     }
+                }
+            }
+            for ddl in MIGRATION_GLOBAL_INDEX {
+                if let Err(e) = conn.execute_batch(ddl) {
+                    let _ = init_tx.send(Err(AuditJournalError::SchemaInit(e.to_string())));
+                    return;
                 }
             }
             let _ = init_tx.send(Ok(()));
@@ -208,6 +218,40 @@ impl AuditJournalHandle {
                 run_id: run_id.to_string(),
                 reply: reply_tx,
             })
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)?;
+        reply_rx
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)
+    }
+
+    /// Verify the whole journal: the global chain, every per-run chain, and the
+    /// head anchor.
+    ///
+    /// Detects interior deletion and whole-run deletion (a `global_seq` gap or a
+    /// broken global link) and, against the persisted head anchor, truncation of
+    /// the global tail. Returns [`AuditJournalError::ActorUnavailable`] if the
+    /// actor is gone.
+    pub async fn verify_journal(&self) -> Result<VerifyJournalReport, AuditJournalError> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        self.sender
+            .send(JournalMessage::VerifyJournal { reply: reply_tx })
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)?;
+        reply_rx
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)
+    }
+
+    /// Return the exportable head anchor of the global chain, if any entry has
+    /// been recorded.
+    ///
+    /// Storing this off-machine is the only defense against truncation of the
+    /// global tail once the signing key can be compromised.
+    pub async fn journal_anchor(&self) -> Result<Option<JournalAnchor>, AuditJournalError> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        self.sender
+            .send(JournalMessage::Anchor { reply: reply_tx })
             .await
             .map_err(|_| AuditJournalError::ActorUnavailable)?;
         reply_rx

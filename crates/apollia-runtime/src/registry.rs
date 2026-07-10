@@ -545,17 +545,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_actor_dead_apres_shutdown() {
-        // GIVEN
+        // GIVEN a spawned registry that is asked to shut down
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
         handle.shutdown();
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-        // WHEN
-        let result = handle.register(test_manifest("agent-test")).await;
+        // WHEN registering after shutdown, retried until the actor has torn down
+        // (deterministic: poll until the command channel is closed, instead of
+        // guessing a fixed sleep). Any Ok means the actor was still draining
+        // queued messages; once it drops its receiver, the send fails.
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
+        let err = loop {
+            match handle.register(test_manifest("agent-test")).await {
+                Err(e) => break e,
+                Ok(_) => {
+                    assert!(
+                        tokio::time::Instant::now() < deadline,
+                        "registry did not become dead after shutdown"
+                    );
+                    tokio::task::yield_now().await;
+                }
+            }
+        };
 
-        // THEN
-        assert!(matches!(result.unwrap_err(), AgentRegistryError::ActorDead));
+        // THEN the terminal outcome is ActorDead
+        assert!(matches!(err, AgentRegistryError::ActorDead));
     }
 
     #[tokio::test]

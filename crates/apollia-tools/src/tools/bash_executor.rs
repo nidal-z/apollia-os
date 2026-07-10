@@ -21,6 +21,7 @@ use crate::descriptor::{ToolDescriptor, ToolKind};
 use crate::file_path_extractor::FilePathExtractor;
 use crate::tools::bash_validator::BashValidator;
 use crate::tools::risk_classifier::RiskCategory;
+use crate::tools::rlimits::ResourceLimits;
 
 /// Native shell executor with Linux namespace isolation (PID + mount).
 ///
@@ -355,9 +356,13 @@ impl BashExecutor {
     ///
     /// On Linux: wraps with `unshare --pid --mount --fork` for namespace isolation.
     /// On non-Linux: direct `/bin/sh -c` with a per-invocation dev-mode warning.
+    ///
+    /// On every Unix platform, per-process resource limits ([`ResourceLimits`])
+    /// are attached via a `pre_exec` hook. They are inherited across
+    /// `unshare --fork`, so the limits reach `/bin/sh`.
     #[cfg(target_os = "linux")]
     fn build_command(input: &BashInput) -> tokio::process::Command {
-        let mut cmd = tokio::process::Command::new("/usr/bin/unshare");
+        let mut cmd = std::process::Command::new("/usr/bin/unshare");
         cmd.args([
             "--pid",
             "--mount",
@@ -366,7 +371,8 @@ impl BashExecutor {
             "-c",
             &input.command,
         ]);
-        cmd
+        crate::tools::rlimits::apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
+        tokio::process::Command::from(cmd)
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -377,9 +383,11 @@ impl BashExecutor {
              Linux namespaces are not available on this platform. \
              Production deployments require Linux."
         );
-        let mut cmd = tokio::process::Command::new("/bin/sh");
+        let mut cmd = std::process::Command::new("/bin/sh");
         cmd.args(["-c", &input.command]);
-        cmd
+        #[cfg(unix)]
+        crate::tools::rlimits::apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
+        tokio::process::Command::from(cmd)
     }
 }
 

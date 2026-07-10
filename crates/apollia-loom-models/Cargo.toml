@@ -1,0 +1,27 @@
+[package]
+name = "apollia-loom-models"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS - Loom concurrency models for the runtime actor algorithms (dev-only, --cfg loom)"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Excluded from the workspace (see root Cargo.toml). Built on its own with:
+#   RUSTFLAGS="--cfg loom" LOOM_MAX_PREEMPTIONS=3 \
+#     cargo test --manifest-path crates/apollia-loom-models/Cargo.toml --release
+#
+# The models are abstract: they re-implement the runtime's actor algorithms with
+# loom primitives and import zero production code, so this crate has no Tokio in
+# its tree and `--cfg loom` cannot poison it.
+
+[lib]
+path = "src/lib.rs"
+
+# loom enters the graph only under `--cfg loom`; a plain build is an empty crate.
+[target.'cfg(loom)'.dependencies]
+loom = "0.7"
+
+# `loom` is a first-class cfg for this crate, set via RUSTFLAGS. Declare it so
+# rustc's check-cfg lint does not flag it as unknown.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }

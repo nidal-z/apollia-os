@@ -1,0 +1,7 @@
+# cargo-fuzz build output and runtime state. Only fuzz_targets/, seeds/ and the
+# manifest are tracked; the evolving corpus and crash artifacts are not.
+target/
+corpus/
+artifacts/
+coverage/
+Cargo.lock

@@ -7,6 +7,20 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Concurrency verification: abstract Loom models of the runtime actor
+  algorithms in the standalone `apollia-loom-models` crate, and a Miri
+  undefined-behavior suite over the FFI-adjacent pure helpers in `apollia-aip`.
+  Both are dev-only (no runtime dependency) and run as advisory nightly CI jobs.
+  See ADR-043.
+
+### Changed
+
+- Timing-dependent runtime tests (registry actor-death, router degraded-agent
+  event, router cancel-vs-late-completion) now use event-driven awaits and
+  bounded poll-until-condition instead of fixed sleeps, removing flakiness.
+
 ## [0.1.0-preview] - 2026-06-03
 
 Initial public preview. Local-first Rust runtime for autonomous AI agents,

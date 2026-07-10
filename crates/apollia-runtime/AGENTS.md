@@ -179,6 +179,15 @@ Rules :
 - HTTP : `axum-test::TestServer` mounts the router without a real bind.
 - Each actor has a test that drives it through its lifecycle :
   spawn, normal traffic, shutdown.
+- Actor concurrency invariants (registry eviction, coordinator semaphore,
+  router terminal-status guard, mailbox lease, plan-gate resume, shutdown
+  drain/latch) have abstract Loom models in the standalone
+  `crates/apollia-loom-models` crate. They prove the algorithm, not the exact
+  Tokio code; each cites the prod `file:line` it mirrors. See
+  `docs/agents/TESTING.md` section 8c. Never add `loom` to this crate:
+  `--cfg loom` poisons Tokio.
+- Timing-dependent tests use bounded poll-until-condition or event-driven
+  awaits, never a fixed `sleep` to "wait for propagation".
 
 ---
 

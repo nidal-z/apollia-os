@@ -728,7 +728,8 @@ fn build_event_summary(event_type: &str, event: &serde_json::Value, agent_id: &s
         "hitl_suspended" => {
             let prompt = event.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
             let preview = if prompt.len() > 60 {
-                format!("{}...", &prompt[..60])
+                let cut = apollia_core::floor_char_boundary(prompt, 60);
+                format!("{}...", &prompt[..cut])
             } else {
                 prompt.to_string()
             };
@@ -1104,6 +1105,19 @@ async fn clear_plan_cache_inner(port: u16) -> Result<ClearCacheResult, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_hitl_prompt_preview_cuts_on_char_boundary() {
+        // GIVEN a hitl_suspended event whose prompt exceeds 60 bytes with a
+        // multibyte code point straddling the 60-byte cut (€ is 3 bytes)
+        let prompt = format!("x{}", "€".repeat(30));
+        let event = serde_json::json!({ "prompt": prompt });
+        // WHEN building the event summary preview
+        let summary = build_event_summary("hitl_suspended", &event, "agent-1");
+        // THEN it does not panic and produces valid UTF-8
+        assert!(std::str::from_utf8(summary.as_bytes()).is_ok());
+        assert!(summary.contains("HITL:"));
+    }
 
     #[test]
     fn test_classify_event_type_task() {

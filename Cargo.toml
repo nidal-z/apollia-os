@@ -47,6 +47,16 @@ default-members = [
     "tests",
 ]
 
+# The fuzz crate targets nightly + libFuzzer sanitizers and is built on its own
+# (`cd fuzz && cargo +nightly fuzz build`). Excluded so the stable workspace
+# gates never try to compile it. Mirrors how apollia-desktop is isolated above.
+#
+# apollia-loom-models is built only under `RUSTFLAGS="--cfg loom"`, a global flag
+# that would otherwise poison the workspace's Tokio (tokio gates `tokio::net`
+# behind `cfg(not(loom))`, breaking hyper-util/axum). Excluded and built on its
+# own, exactly like fuzz. See its README for the run command.
+exclude = ["fuzz", "crates/apollia-loom-models"]
+
 # Shared workspace-level package metadata. Individual crates may opt into
 # these defaults via `<field>.workspace = true` in their own Cargo.toml.
 [workspace.package]
@@ -67,6 +77,11 @@ homepage = "https://apollia.fr"
 # `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]`.
 [workspace.lints.rust]
 unsafe_code = "deny"
+# `fuzzing` is set by cargo-fuzz to gate the `#[cfg(fuzzing)]` harness shims that
+# expose private parsers to the fuzz targets. `kani` is set by the Kani model
+# checker to gate the `#[cfg(kani)]` proof harnesses. Declaring both keeps
+# `-D warnings` green on normal builds where neither cfg is set.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)', 'cfg(kani)'] }
 
 [workspace.lints.clippy]
 unwrap_used = "deny"

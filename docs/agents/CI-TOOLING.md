@@ -333,7 +333,7 @@ Actual structure :
 ├── ci.yml            # PR gate (see jobs below)
 ├── codeql.yml        # CodeQL: rust + python + javascript-typescript
 ├── nightly.yml       # heavy / advisory: e2e, feature-matrix, coverage HTML,
-│                     #   deep-audit, geiger (unsafe surface)
+│                     #   deep-audit, geiger (unsafe surface), loom, miri, fuzz-deep
 ├── release.yml       # tag-triggered: build binaries, attach to release
 └── auto-close-prs.yml
 ```
@@ -357,12 +357,64 @@ Non-blocking (`continue-on-error`) advisory jobs :
 - `semver-checks` : `cargo semver-checks` on `apollia-core` / `apollia-runtime`
   against `origin/main`. Informative while the crates are unpublished / pre-1.0.
 - `diagrams` : PlantUML render.
+- `fuzz` : `cargo +nightly fuzz run` over each seed corpus for ~60s (nightly,
+  libFuzzer). A short regression smoke on the untrusted-input parsers; the long
+  session is `fuzz-deep` in `nightly.yml`. See `docs/agents/TESTING.md` 8b.
+
+Nightly-only advisory jobs (in `nightly.yml`) :
+
+- `loom` : exhaustive interleaving check of the runtime actor algorithms on the
+  pinned `1.95.0`, via `RUSTFLAGS="--cfg loom" cargo test --manifest-path
+  crates/apollia-loom-models/Cargo.toml`. The crate is workspace-excluded (like
+  `fuzz/`) because `--cfg loom` poisons Tokio.
+- `miri` : the repo's first nightly-toolchain job. Installs `nightly` + the
+  `miri` component and runs `cargo +nightly miri test -p apollia-aip --lib
+  miri_pure` to check the FFI-adjacent pure helpers for UB. See
+  `docs/agents/TESTING.md` 8c.
 
 Caching : `Swatinem/rust-cache@v2` (keyed on `Cargo.lock`).
 
 Toolchain : the pinned `1.95.0` on the gate jobs, `@stable` only on the
 advisory `clippy-stable`. No `[1.85, stable]` matrix : 1.85 does not compile
 (the tree needs >=1.89).
+
+### Action pinning (all workflows)
+
+Every `uses:` is pinned to a full 40-char commit SHA, with the human-readable
+version in a trailing comment (`uses: actions/checkout@<sha> # v5`). Mutable
+tags (`@v5`) and rolling branches (`@stable`) are never used directly: a tag
+can be re-pointed at malicious code, a SHA cannot. Dependabot's `github-actions`
+ecosystem bumps the SHA and rewrites the comment.
+
+Two ref forms carry the toolchain / tool selection in the ref itself, so pinning
+the SHA requires moving that selection into an input:
+
+- `dtolnay/rust-toolchain@<sha>` with an explicit `toolchain:` input (the ref
+  name no longer selects the channel once it is a SHA).
+- `taiki-e/install-action@<sha>` with an explicit `tool:` input.
+
+### Release supply-chain (`release.yml`)
+
+On top of the per-artifact `SHA256` checksums and the secret-gated native code
+signing (Apple notarization, Windows Authenticode, Linux GPG), each release
+carries:
+
+- **SBOM** : `anchore/sbom-action` (syft) scans each assembled bundle directory
+  and emits a CycloneDX (`.cdx.json`) and an SPDX (`.spdx.json`) SBOM. Scanning
+  the bundle, not just the Cargo graph, captures the embedded CPython (and, for
+  desktop, the npm frontend) that actually ships.
+- **Signatures** : `cosign sign-blob` (keyless, Sigstore OIDC) signs every
+  published file, emitting a detached `.sig` and the signing `.pem` certificate.
+  No long-lived key: the signing identity is the release workflow.
+- **Provenance** : `actions/attest-build-provenance` produces a SLSA
+  build-provenance attestation over the binaries and SBOMs.
+
+Signing and attestation are confined to the final `release` job, the only job
+that escalates the token to `id-token: write` + `attestations: write` (plus the
+`contents: write` needed to publish). Every workflow defaults to
+`permissions: contents: read` at the top level; jobs escalate only what they
+need (`audit` / `deep-audit` add `checks: write`). Verification commands for
+consumers live in `SECURITY.md`.
 
 ---
 

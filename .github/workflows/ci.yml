@@ -31,17 +31,23 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default. Only `audit` escalates (checks: write) to post its
+# annotations; every other job runs read-only.
+permissions:
+  contents: read
+
 jobs:
   # ── Rust : fmt → clippy → test (chaîne - chacun bloque le suivant) ─────────
   fmt:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       # Pinned to the build toolchain (rust-toolchain.toml) so CI fmt output
       # matches local dev exactly and never drifts against rolling stable.
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
         with:
+          toolchain: "1.95.0"
           components: rustfmt
       - run: cargo fmt --all -- --check
 
@@ -50,13 +56,14 @@ jobs:
     needs: fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       # Pinned to the build toolchain so the -D warnings gate is reproducible
       # and matches the pre-commit pre-push hook byte for byte.
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
         with:
+          toolchain: "1.95.0"
           components: clippy
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
       - name: Set PYO3_PYTHON
@@ -70,7 +77,7 @@ jobs:
             libssl-dev libxdo-dev \
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             cmake clang pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       # --all-targets adds tests/examples/benches to the lint surface, matching
       # the pre-commit pre-push hook. --all-features is intentionally omitted:
       # it pulls the GPU backends (cuda/rocm/vulkan) whose toolkits are absent
@@ -85,11 +92,12 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
+          toolchain: stable
           components: clippy
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
       - name: Set PYO3_PYTHON
@@ -103,7 +111,7 @@ jobs:
             libssl-dev libxdo-dev \
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             cmake clang pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
@@ -111,9 +119,11 @@ jobs:
     needs: clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@1.95.0
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
+        with:
+          toolchain: "1.95.0"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
       - name: Set PYO3_PYTHON
@@ -127,7 +137,7 @@ jobs:
             libssl-dev libxdo-dev \
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             cmake clang pkg-config
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: cargo test (workspace)
         run: cargo test --workspace
       - name: cargo test (python-tests)
@@ -138,8 +148,8 @@ jobs:
     name: Frontend Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "22"
           cache: npm
@@ -156,8 +166,10 @@ jobs:
     name: Book Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: taiki-e/install-action@mdbook
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
+        with:
+          tool: mdbook
       - run: mdbook build docs/book
       - name: Generate sitemap + robots
         run: bash docs/book/scripts/gen-sitemap.sh book.apollia.fr docs/target/book
@@ -174,7 +186,7 @@ jobs:
       contains(github.event.head_commit.modified, 'docs/help/') ||
       contains(github.event.head_commit.modified, 'scripts/lints/')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - run: bash scripts/lints/charte-doc.sh
 
   diagrams:
@@ -182,7 +194,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - name: Install Java + PlantUML
         run: |
           sudo apt-get install -y default-jre-headless graphviz
@@ -193,7 +205,9 @@ jobs:
             > ~/.local/bin/plantuml
           chmod +x ~/.local/bin/plantuml
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
+        with:
+          tool: just
       - run: just diagrams
 
   # ── Security / dependencies ──────────────────────────────────────────────
@@ -204,8 +218,8 @@ jobs:
       checks: write
       contents: read
     steps:
-      - uses: actions/checkout@v5
-      - uses: rustsec/audit-check@v2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -213,10 +227,10 @@ jobs:
     name: Dependency Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       # Explicit full check (advisories, bans, licenses, sources) on the PR
       # gate, not just a subset. The redundant heavy pass stays in nightly.yml.
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2
         with:
           command: check advisories bans licenses sources
 
@@ -226,14 +240,16 @@ jobs:
     needs: clippy
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@1.95.0
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
+        with:
+          toolchain: "1.95.0"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
       - name: Set PYO3_PYTHON
         run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       # Default members exclude the heavy Tauri desktop crate; full desktop
       # E2E stays in nightly.yml.
       - run: cargo test
@@ -243,7 +259,7 @@ jobs:
     name: Prose Guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - name: No em-dash in prose
         run: |
           if grep -rnP "—" \
@@ -267,8 +283,8 @@ jobs:
     name: Python Type Check (SDK)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - run: pip install mypy
@@ -281,8 +297,8 @@ jobs:
     name: Doc Link Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: lycheeverse/lychee-action@v2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md 'docs/wiki/**/*.md' 'docs/book/src/**/*.md' 'docs/help/**/*.md'"
           fail: true
@@ -292,11 +308,58 @@ jobs:
     name: Unused Deps
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: taiki-e/install-action@cargo-machete
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
+        with:
+          tool: cargo-machete
       # Known false positives are allow-listed per crate via
       # [package.metadata.cargo-machete] ignored, each with a lift note.
       - run: cargo machete
+
+  # ── Fuzz smoke : build the cargo-fuzz targets and hammer the seed corpus ────
+  # The untrusted-input parsers (LLM output, web content, automation text, tool
+  # specs) are fuzzed with libFuzzer. Advisory for now (continue-on-error) so a
+  # freshly surfaced crash reports without blocking the PR; the deep run lives
+  # in nightly.yml. This cargo-fuzz integration is what the OpenSSF Scorecard
+  # Fuzzing check detects.
+  fuzz:
+    name: Fuzz (smoke)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      # cargo-fuzz builds targets with -Zsanitizer=address, which needs nightly.
+      - name: Install nightly toolchain
+        run: rustup toolchain install nightly --profile minimal --no-self-update
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libxdo-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            cmake clang pkg-config
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: "fuzz -> target"
+      - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
+        with:
+          tool: cargo-fuzz
+      - name: Fuzz each target briefly over its seed corpus
+        run: |
+          set -euo pipefail
+          for t in parse_automation confidence_parser gbnf web_read_extract truncation; do
+            echo "::group::fuzz $t"
+            cargo +nightly fuzz run "$t" fuzz/corpus/"$t" fuzz/seeds/"$t" \
+              -- -max_total_time=60 -rss_limit_mb=4096
+            echo "::endgroup::"
+          done
 
   # ── SemVer : guards the Rust public contract against silent API breaks ─────
   # Advisory only for now: apollia-core / apollia-runtime are unpublished and
@@ -309,17 +372,21 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
+        with:
+          toolchain: "1.95.0"
       - name: Install system deps
         run: |
           sudo apt-get update -q
           sudo apt-get install -y \
             libssl-dev libasound2-dev libpulse-dev cmake clang pkg-config
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@cargo-semver-checks
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
+        with:
+          tool: cargo-semver-checks
       - name: cargo semver-checks (baseline = main)
         run: |
           cargo semver-checks --baseline-rev origin/main \
@@ -330,8 +397,8 @@ jobs:
     name: Python Quality (SDK)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - run: pip install ruff pip-audit
@@ -353,9 +420,11 @@ jobs:
     name: Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@1.95.0
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
+        with:
+          toolchain: "1.95.0"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.13"
       - name: Set PYO3_PYTHON
@@ -369,15 +438,17 @@ jobs:
             libssl-dev libxdo-dev \
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             cmake clang pkg-config
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: taiki-e/install-action@c7eb1735f09259a5035e8e5d44b1406b1cddc0fb # v2.83.0
+        with:
+          tool: cargo-llvm-cov
       # The floor is set just below the measured baseline so the gate is green
       # from day one, then ratcheted up. Full HTML report stays in nightly.yml.
       - name: cargo llvm-cov (workspace, floor gate)
         run: |
           cargo llvm-cov --workspace --lcov --output-path lcov.info \
             --fail-under-lines ${{ env.COVERAGE_FLOOR }}
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: coverage-lcov
           path: lcov.info

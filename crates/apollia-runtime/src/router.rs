@@ -846,18 +846,24 @@ mod tests {
         // THEN the task is dispatched (TaskId returned)
         assert!(result.is_ok(), "submit should succeed for degraded agent");
 
-        // AND a RuntimeEvent::AgentDegraded is emitted on the EventBus
-        // Wait briefly for event propagation
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        // AND a RuntimeEvent::AgentDegraded is emitted on the EventBus. The
+        // event is sent synchronously inside handle_submit before submit()
+        // returns, so it is already queued; await it deterministically instead
+        // of sleeping for propagation.
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
         let mut found_degraded = false;
-        loop {
-            match event_rx.try_recv() {
-                Ok(RuntimeEvent::AgentDegraded { reason, .. }) => {
-                    assert!(reason.contains("degraded"));
-                    found_degraded = true;
-                }
-                Ok(_) => {}
-                Err(_) => break,
+        while !found_degraded {
+            tokio::select! {
+                ev = event_rx.recv() => match ev {
+                    Ok(RuntimeEvent::AgentDegraded { reason, .. }) => {
+                        assert!(reason.contains("degraded"));
+                        found_degraded = true;
+                    }
+                    Ok(_) => {}
+                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(broadcast::error::RecvError::Closed) => break,
+                },
+                _ = tokio::time::sleep_until(deadline) => break,
             }
         }
         assert!(found_degraded, "should have received AgentDegraded event");
@@ -1019,7 +1025,7 @@ mod tests {
     #[tokio::test]
     async fn test_canceled_status_not_overwritten_by_late_task_completed_event() {
         // GIVEN an active agent with a backend that completes with a delay (100ms)
-        let (event_tx, _event_rx) = broadcast::channel::<RuntimeEvent>(64);
+        let (event_tx, mut event_rx) = broadcast::channel::<RuntimeEvent>(64);
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
 
@@ -1052,19 +1058,38 @@ mod tests {
             "cancel should return Canceled"
         );
 
-        // AND wait for the backend to send its late TaskCompleted (>100ms)
-        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        // AND wait deterministically for the backend's late TaskCompleted event
+        // (proves the completion actually fired, instead of guessing a delay).
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            tokio::select! {
+                ev = event_rx.recv() => {
+                    if let Ok(RuntimeEvent::TaskCompleted { task_id: tid, .. }) = ev {
+                        if tid.as_str() == task_id.as_str() {
+                            break;
+                        }
+                    }
+                }
+                _ = tokio::time::sleep_until(deadline) => {
+                    panic!("backend never emitted its late TaskCompleted event");
+                }
+            }
+        }
 
-        // THEN the status stays Canceled, the late event did not overwrite the cancellation
-        let status = router
-            .get_status(task_id.as_str())
-            .await
-            .expect("get_status failed");
-        assert_eq!(
-            status,
-            Some(TaskStatus::Canceled),
-            "Canceled status must not be overwritten by a late TaskCompleted event"
-        );
+        // THEN the status stays Canceled: the router received the same broadcast,
+        // so give its select loop repeated opportunities to process it via
+        // command round-trips. The terminal-status guard must hold on every one.
+        for _ in 0..50 {
+            let status = router
+                .get_status(task_id.as_str())
+                .await
+                .expect("get_status failed");
+            assert_eq!(
+                status,
+                Some(TaskStatus::Canceled),
+                "Canceled status must not be overwritten by a late TaskCompleted event"
+            );
+        }
     }
 
     #[tokio::test]

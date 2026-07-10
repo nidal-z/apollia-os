@@ -3,8 +3,10 @@
 /// Returns the largest UTF-8 character boundary that is `<= index`.
 ///
 /// Stable equivalent of the nightly `str::floor_char_boundary` method.
-/// Guarantees the returned value is a valid position to slice `s`.
-fn floor_char_boundary(s: &str, index: usize) -> usize {
+/// Guarantees the returned value is a valid position to slice `s`, so callers
+/// that cut untrusted text at a computed byte offset can clamp the offset with
+/// this helper instead of risking a mid-code-point panic.
+pub fn floor_char_boundary(s: &str, index: usize) -> usize {
     let mut i = index.min(s.len());
     while i > 0 && !s.is_char_boundary(i) {
         i -= 1;

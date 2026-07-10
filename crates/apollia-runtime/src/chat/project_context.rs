@@ -118,7 +118,8 @@ async fn append_documents(block: &mut String, detail: &apollia_tools::ProjectDet
             continue;
         };
         let truncated = if content.len() > MAX_DOCUMENT_BYTES {
-            let mut s = content[..MAX_DOCUMENT_BYTES].to_string();
+            let cut = apollia_core::floor_char_boundary(&content, MAX_DOCUMENT_BYTES);
+            let mut s = content[..cut].to_string();
             s.push_str("\n...[truncated]");
             s
         } else {
@@ -178,4 +179,52 @@ async fn append_workspace_snapshot(
         }
     }
     added
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_tools::{ProjectDetail, ProjectDocument};
+    use std::io::Write;
+
+    fn detail_with_document(file_path: String) -> ProjectDetail {
+        ProjectDetail {
+            id: "p1".into(),
+            name: "Project".into(),
+            description: None,
+            instructions: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+            workspace_path: None,
+            documents: vec![ProjectDocument {
+                id: "d1".into(),
+                project_id: "p1".into(),
+                name: "doc.txt".into(),
+                file_path,
+                size_bytes: 0,
+                uploaded_at: String::new(),
+            }],
+            providers: Vec::new(),
+            agents: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn append_documents_truncates_on_char_boundary() {
+        // GIVEN a document whose multibyte content exceeds MAX_DOCUMENT_BYTES,
+        // shifted so the byte cut lands inside a 3-byte code point
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let content = format!("x{}", "€".repeat(MAX_DOCUMENT_BYTES));
+        file.write_all(content.as_bytes()).unwrap();
+        let detail = detail_with_document(file.path().to_string_lossy().into_owned());
+
+        // WHEN appending the document contents to the context block
+        let mut block = String::new();
+        let added = append_documents(&mut block, &detail).await;
+
+        // THEN it truncates without a mid-code-point panic and stays valid UTF-8
+        assert!(added);
+        assert!(block.contains("...[truncated]"));
+        assert!(std::str::from_utf8(block.as_bytes()).is_ok());
+    }
 }

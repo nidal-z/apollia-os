@@ -204,6 +204,7 @@ Rules :
 | Token theft from disk | OS keyring or age-encrypted file |
 | Replay of OAuth state | Signed state parameter |
 | MCP server hijack | TLS validation, server cert pinning where applicable |
+| Crash / DoS via a crafted parser input (LLM output, web content, automation text, tool specs) | `cargo-fuzz` targets on the untrusted-input parsers, char-boundary-safe slicing, panic-free parse contract (see `docs/agents/TESTING.md` 8b) |
 
 A more formal threat model lives in `docs/wiki/Security-Threat-Model.md`
 (post-L2b).

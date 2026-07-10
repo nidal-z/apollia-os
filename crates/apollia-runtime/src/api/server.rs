@@ -421,7 +421,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use super::routes_audit::{
-        get_audit_stats, list_audit, post_replay_run, show_audit_run, verify_audit_run,
+        get_audit_anchor, get_audit_stats, list_audit, post_replay_run, show_audit_run,
+        verify_audit_journal, verify_audit_run,
     };
     use super::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
@@ -487,7 +488,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         // Audit trail routes
         .route("/api/v1/audit", get(list_audit::<B>))
         .route("/api/v1/audit/stats", get(get_audit_stats::<B>))
+        .route("/api/v1/audit/verify", get(verify_audit_journal::<B>))
         .route("/api/v1/audit/verify/:run_id", get(verify_audit_run::<B>))
+        .route("/api/v1/audit/anchor", get(get_audit_anchor::<B>))
         .route("/api/v1/audit/journal/:run_id", get(show_audit_run::<B>))
         .route("/api/v1/audit/replay/:run_id", post(post_replay_run::<B>))
         // Lifecycle hooks route

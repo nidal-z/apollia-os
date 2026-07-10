@@ -2,10 +2,22 @@
 //!
 //! Each agent owns a dedicated virtualenv under `<venv_base_dir>/<agent_id>/venv/`.
 //! Packages are installed at `INITIALIZING` via `setup_venv()`, never at execution time
-//! (fail fast, local-first).
+//! (fail fast, local-first). The virtualenv is dependency isolation between agents,
+//! not an OS sandbox.
 //!
 //! Code is written to a temporary file (never passed via `-c`) to avoid quoting issues
 //! and support multi-line scripts. The temp file is always cleaned up after execution.
+//!
+//! ## Isolation of the interpreter process
+//!
+//! On Linux, the interpreter runs inside a PID and mount namespace via
+//! `unshare --pid --mount --fork`, matching `bash_executor`. Spawning fails closed
+//! if `unshare` is unavailable (for example on hosts without `CAP_SYS_ADMIN`).
+//! On macOS there is no OS sandbox; a per-invocation warning is emitted. On every
+//! Unix platform, per-process resource limits are applied via `setrlimit`. Python
+//! child processes get rlimits everywhere and namespaces on Linux, but no macOS
+//! sandbox. The venv/pip setup commands are trusted infrastructure and run
+//! without these wrappers.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -17,6 +29,7 @@ use tokio::io::AsyncReadExt;
 use apollia_core::SandboxProfile;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
+use crate::tools::rlimits::{apply_rlimits, ResourceLimits};
 
 /// Executor that runs Python code in a per-agent isolated virtualenv.
 ///
@@ -319,6 +332,37 @@ impl PythonExecutor {
         }
     }
 
+    /// Builds the OS-appropriate command for running `script_path`.
+    ///
+    /// On Linux the interpreter is wrapped in `unshare --pid --mount --fork` for
+    /// PID and mount namespace isolation (parity with `bash_executor`). On other
+    /// platforms it runs directly with a per-invocation dev-mode warning. On every
+    /// Unix platform, per-process resource limits are attached via `pre_exec`; they
+    /// are inherited across `unshare --fork`, so they reach the interpreter.
+    #[cfg(target_os = "linux")]
+    fn build_command(&self, script_path: &Path) -> tokio::process::Command {
+        let mut cmd = std::process::Command::new("/usr/bin/unshare");
+        cmd.arg("--pid").arg("--mount").arg("--fork");
+        cmd.arg(&self.python_bin).arg(script_path);
+        apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
+        tokio::process::Command::from(cmd)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn build_command(&self, script_path: &Path) -> tokio::process::Command {
+        tracing::warn!(
+            agent_id = %self.agent_id,
+            "python_executor: running in Dev mode - no sandbox active. \
+             Linux namespaces are not available on this platform. \
+             Production deployments require Linux."
+        );
+        let mut cmd = std::process::Command::new(&self.python_bin);
+        cmd.arg(script_path);
+        #[cfg(unix)]
+        apply_rlimits(&mut cmd, ResourceLimits::v0_defaults());
+        tokio::process::Command::from(cmd)
+    }
+
     /// Spawns the Python interpreter on the given script file with a hard timeout.
     ///
     /// On timeout: reader tasks are aborted, child is killed and reaped (no zombie).
@@ -327,8 +371,7 @@ impl PythonExecutor {
         script_path: &Path,
         timeout_secs: u64,
     ) -> Result<PythonOutput, PythonExecutorError> {
-        let mut cmd = tokio::process::Command::new(&self.python_bin);
-        cmd.arg(script_path);
+        let mut cmd = self.build_command(script_path);
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
@@ -428,6 +471,34 @@ mod tests {
         assert_eq!(output.stdout.trim(), "hello");
         assert_eq!(output.stderr, "");
         assert_eq!(output.exit_code, 0);
+    }
+
+    /// RLIMIT_AS is applied on Linux only (macOS rejects setting it). Allocating
+    /// past the cap must fail inside the interpreter rather than exhaust the host.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_address_space_limit_blocks_large_allocation() {
+        // GIVEN a python executor (rlimits use v0 defaults: 2 GiB address space)
+        let executor = make_executor!("test-agent-as-cap");
+        executor.setup_venv(&[]).await.expect("venv setup failed");
+        let input = PythonInput {
+            code: "x = bytearray(4 * 1024 * 1024 * 1024)".to_string(),
+            timeout_secs: 30,
+        };
+        // WHEN allocating past the cap
+        let output = match executor.run(input).await {
+            Ok(o) => o,
+            // Namespace spawn fails closed without CAP_SYS_ADMIN (e.g. CI): skip.
+            Err(PythonExecutorError::SpawnFailed(_)) => return,
+            Err(e) => panic!("unexpected error: {e:?}"),
+        };
+        // THEN the interpreter cannot allocate and exits non-zero
+        assert_ne!(output.exit_code, 0, "allocation past RLIMIT_AS must fail");
+        assert!(
+            output.stderr.contains("MemoryError"),
+            "expected MemoryError, got: {}",
+            output.stderr
+        );
     }
 
     #[test]

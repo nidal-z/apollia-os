@@ -3342,3 +3342,77 @@ mod workspace_context_tests {
         assert!(found.is_none());
     }
 }
+
+/// Pure-helper suite run under Miri to check the FFI-adjacent Rust code for
+/// undefined behavior (integer casts, string slicing, allocation).
+///
+/// Miri cannot execute the PyO3 boundary itself (`Python::with_gil` calls into
+/// libpython, an unsupported foreign function), so these tests deliberately
+/// touch only interpreter-free helpers. Run them with:
+///   cargo +nightly miri test -p apollia-aip --lib miri_pure
+/// A normal `cargo test` also runs them (they are fast and pure).
+#[cfg(test)]
+mod miri_pure {
+    // GIVEN epoch seconds, WHEN converted, THEN the date arithmetic and its
+    // `as i64` / `as u32` casts are free of undefined behavior and land on known
+    // anchors.
+    #[test]
+    fn miri_pure_epoch_secs_to_ymd_anchors() {
+        assert_eq!(super::epoch_secs_to_ymd(0), (1970, 1, 1));
+        assert_eq!(super::epoch_secs_to_ymd(86_400), (1970, 1, 2));
+        // 1970 is not a leap year: 365 days later is 1971-01-01.
+        assert_eq!(super::epoch_secs_to_ymd(31_536_000), (1971, 1, 1));
+        // 2024-01-01T00:00:00Z.
+        assert_eq!(super::epoch_secs_to_ymd(1_704_067_200), (2024, 1, 1));
+    }
+
+    // GIVEN a sweep of timestamps, WHEN converted, THEN every result is a
+    // structurally valid date (exercises the cast paths across many inputs).
+    #[test]
+    fn miri_pure_epoch_secs_to_ymd_sweep_is_valid() {
+        // Bounded: the helper loops year by year, so keep inputs modest.
+        for secs in (0u64..=200_000_000).step_by(7_000_000) {
+            let (y, m, d) = super::epoch_secs_to_ymd(secs);
+            assert!(y >= 1970);
+            assert!((1..=12).contains(&m));
+            assert!((1..=31).contains(&d));
+        }
+    }
+
+    // GIVEN representative years, WHEN tested, THEN leap detection matches the
+    // Gregorian rule.
+    #[test]
+    fn miri_pure_is_leap_matches_gregorian_rule() {
+        assert!(super::is_leap(2000));
+        assert!(super::is_leap(2024));
+        assert!(!super::is_leap(1900));
+        assert!(!super::is_leap(2023));
+    }
+
+    // GIVEN tool names, WHEN decoded, THEN prefix stripping and `__`->`.`
+    // rewriting allocate correctly (string slicing under Miri).
+    #[test]
+    fn miri_pure_extract_a2a_skill_id_decodes_both_forms() {
+        assert_eq!(
+            super::extract_a2a_skill_id("a2a:read-excel").as_deref(),
+            Some("read-excel")
+        );
+        assert_eq!(
+            super::extract_a2a_skill_id("a2a__pdf__read_text").as_deref(),
+            Some("pdf.read_text")
+        );
+        assert_eq!(super::extract_a2a_skill_id("bash"), None);
+    }
+
+    // GIVEN a namespace and an optional project id, WHEN composed, THEN the
+    // prefixing rule holds and the formatting allocates cleanly.
+    #[test]
+    fn miri_pure_effective_memory_namespace_prefixes_project() {
+        assert_eq!(
+            super::effective_memory_namespace("mem", Some("proj")),
+            "proj:mem"
+        );
+        assert_eq!(super::effective_memory_namespace("mem", None), "mem");
+        assert_eq!(super::effective_memory_namespace("mem", Some("")), "mem");
+    }
+}

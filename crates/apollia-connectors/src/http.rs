@@ -407,8 +407,16 @@ fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_owned()
     } else {
-        format!("{}…", &s[..max])
+        let cut = apollia_core::floor_char_boundary(s, max);
+        format!("{}…", &s[..cut])
     }
+}
+
+/// Fuzzing-only shim exposing the private [`truncate`] to the fuzz harness.
+/// Compiled only under `--cfg fuzzing` (cargo-fuzz).
+#[cfg(fuzzing)]
+pub fn __fuzz_truncate(s: &str, max: usize) -> String {
+    truncate(s, max)
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -418,6 +426,18 @@ mod tests {
     use super::*;
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[test]
+    fn truncate_cuts_on_char_boundary() {
+        // GIVEN a body of multibyte characters longer than the byte budget, with
+        // a cut that would fall inside a 3-byte code point
+        let s = "€".repeat(50);
+        // WHEN truncating to a limit that lands mid-code-point
+        let out = truncate(&s, 10);
+        // THEN it does not panic and yields valid UTF-8
+        assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+        assert!(out.ends_with('…'));
+    }
 
     #[tokio::test]
     async fn test_get_json_success_returns_decoded_body() {

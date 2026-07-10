@@ -8,13 +8,19 @@ permissions:
   pull-requests: write
   issues: write
 
+# OpenSSF Dangerous-Workflow note: this workflow uses `pull_request_target`,
+# which runs with a base-repo write token. It is safe here because it never
+# checks out or executes PR-authored code. There is no actions/checkout of the
+# PR head, and the github-script step below only reads the PR number (an
+# integer) and calls the GitHub REST API. No PR-controlled value is ever
+# interpolated into a shell `run:`. Keep it that way.
 jobs:
   close:
     if: github.event.pull_request.user.login != github.repository_owner
     runs-on: ubuntu-latest
     steps:
       - name: Comment, label, close
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const owner = context.repo.owner;

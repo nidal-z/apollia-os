@@ -406,6 +406,14 @@ fn extract_article_text(
     })
 }
 
+/// Fuzzing-only shim exposing the private [`extract_article_text`] so the fuzz
+/// harness drives the real extractor (untrusted HTML bytes) rather than a copy.
+/// Compiled only under `--cfg fuzzing` (cargo-fuzz).
+#[cfg(fuzzing)]
+pub fn __fuzz_extract_article_text(bytes: &[u8], url: &str, include_metadata: bool) {
+    let _ = extract_article_text(bytes, url, include_metadata);
+}
+
 /// Collapse runs of whitespace (including newlines) down to single spaces and
 /// preserve paragraph breaks as double newlines. `dom_smoothie`'s text-content
 /// render can include long whitespace ranges from HTML indentation.

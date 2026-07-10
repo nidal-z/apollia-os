@@ -8,6 +8,11 @@ Local-first. Zero cloud. Sovereign by design.
 
 [![CI](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+<!-- OpenSSF Best Practices badge. Activate by registering the project at
+     https://www.bestpractices.dev/, then replace PROJECT_ID below and uncomment:
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/PROJECT_ID/badge)](https://www.bestpractices.dev/projects/PROJECT_ID)
+-->
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Apollia-OS/apollia-os/badge)](https://scorecard.dev/viewer/?uri=github.com/Apollia-OS/apollia-os)
 
 ---
 

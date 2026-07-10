@@ -10,13 +10,22 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use crate::audit_journal::anchor::{self, GlobalHead, GlobalLink};
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft, JournalEntryKind};
 use crate::audit_journal::error::AuditJournalError;
-use crate::audit_journal::hash::{compute_entry_hash, SENTINEL_PREV_HASH};
+use crate::audit_journal::hash::{compute_entry_hash, compute_global_hash, SENTINEL_PREV_HASH};
 use crate::audit_journal::signer::JournalSigner;
-use crate::audit_journal::verify::{verify_entries, VerifyChainReport};
+use crate::audit_journal::verify::{
+    verify_entries, verify_journal, JournalAnchor, VerifyChainReport, VerifyJournalReport,
+};
 
-/// SQL schema: the chained table, its index, and the append-only triggers.
+/// SQL schema: the chained table, its index, the append-only triggers, and the
+/// mutable head-anchor row.
+///
+/// `audit_journal_state` holds the terminal global head. It is deliberately not
+/// protected by the append-only triggers: it is a single row updated in place.
+/// Its trust comes from the global chain plus off-machine export, not from
+/// immutability.
 pub(crate) const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS audit_journal_entries (
         seq         INTEGER NOT NULL,
@@ -36,6 +45,12 @@ pub(crate) const SCHEMA: &str = "
     CREATE TRIGGER IF NOT EXISTS aje_no_delete
         BEFORE DELETE ON audit_journal_entries
         BEGIN SELECT RAISE(ABORT, 'audit journal is append-only'); END;
+    CREATE TABLE IF NOT EXISTS audit_journal_state (
+        id          INTEGER PRIMARY KEY CHECK (id = 0),
+        global_seq  INTEGER NOT NULL,
+        global_hash TEXT    NOT NULL,
+        updated_ts  TEXT    NOT NULL
+    );
 ";
 
 /// Signature columns added by a later migration. Each statement runs on its
@@ -44,6 +59,24 @@ pub(crate) const MIGRATION_SIGNATURE_COLUMNS: &[&str] = &[
     "ALTER TABLE audit_journal_entries ADD COLUMN signature      TEXT",
     "ALTER TABLE audit_journal_entries ADD COLUMN signing_key_id TEXT",
 ];
+
+/// Global-chain columns added by a later migration. Same idempotent idiom as
+/// the signature columns. Rows predating this migration keep NULL global
+/// columns and fall outside the global guarantee.
+pub(crate) const MIGRATION_GLOBAL_COLUMNS: &[&str] = &[
+    "ALTER TABLE audit_journal_entries ADD COLUMN global_seq            INTEGER",
+    "ALTER TABLE audit_journal_entries ADD COLUMN global_prev_hash      TEXT",
+    "ALTER TABLE audit_journal_entries ADD COLUMN global_hash           TEXT",
+    "ALTER TABLE audit_journal_entries ADD COLUMN global_signature      TEXT",
+    "ALTER TABLE audit_journal_entries ADD COLUMN global_signing_key_id TEXT",
+];
+
+/// The unique index on `global_seq`, applied after the columns exist (it
+/// references a column added by [`MIGRATION_GLOBAL_COLUMNS`], so it cannot live
+/// in [`SCHEMA`], which runs first).
+pub(crate) const MIGRATION_GLOBAL_INDEX: &[&str] =
+    &["CREATE UNIQUE INDEX IF NOT EXISTS idx_aje_global_seq \
+     ON audit_journal_entries(global_seq) WHERE global_seq IS NOT NULL"];
 
 /// Messages processed by the [`JournalActor`].
 pub(crate) enum JournalMessage {
@@ -64,6 +97,15 @@ pub(crate) enum JournalMessage {
         run_id: String,
         reply: tokio::sync::oneshot::Sender<VerifyChainReport>,
     },
+    /// Verify the whole journal: the global chain, every per-run chain, and the
+    /// head anchor.
+    VerifyJournal {
+        reply: tokio::sync::oneshot::Sender<VerifyJournalReport>,
+    },
+    /// Return the exportable head anchor of the global chain, if any.
+    Anchor {
+        reply: tokio::sync::oneshot::Sender<Option<JournalAnchor>>,
+    },
     /// Return the distinct run ids present in the journal.
     ListRunIds {
         reply: tokio::sync::oneshot::Sender<Vec<String>>,
@@ -83,6 +125,8 @@ pub(crate) struct JournalActor {
     conn: rusqlite::Connection,
     receiver: tokio::sync::mpsc::Receiver<JournalMessage>,
     heads: HashMap<String, ChainHead>,
+    global_head: Option<GlobalHead>,
+    global_head_loaded: bool,
     signer: Option<Arc<dyn JournalSigner>>,
     warn_unsigned: bool,
 }
@@ -104,6 +148,8 @@ impl JournalActor {
             conn,
             receiver,
             heads: HashMap::new(),
+            global_head: None,
+            global_head_loaded: false,
             signer,
             warn_unsigned,
         }
@@ -126,6 +172,12 @@ impl JournalActor {
                     let report = verify_entries(&run_id, &entries, self.signer.as_deref());
                     let _ = reply.send(report);
                 }
+                JournalMessage::VerifyJournal { reply } => {
+                    let _ = reply.send(self.verify_journal_now());
+                }
+                JournalMessage::Anchor { reply } => {
+                    let _ = reply.send(self.anchor_now());
+                }
                 JournalMessage::ListRunIds { reply } => {
                     let _ = reply.send(self.list_run_ids().unwrap_or_default());
                 }
@@ -134,7 +186,8 @@ impl JournalActor {
         }
     }
 
-    /// Chain, hash, and insert a drafted entry.
+    /// Chain, hash, sign, and insert a drafted entry, advancing both the
+    /// per-run chain and the global chain in one transaction.
     fn handle_append(&mut self, draft: JournalEntryDraft) {
         let head = match self.head_for(&draft.run_id) {
             Ok(head) => head,
@@ -162,7 +215,25 @@ impl JournalActor {
         entry.hash = compute_entry_hash(&entry);
         self.sign_entry(&mut entry);
 
-        if let Err(e) = self.insert(&entry) {
+        if let Err(e) = self.ensure_global_head() {
+            tracing::error!(error = %e, run_id = %entry.run_id, "audit.journal.global_head_lookup_failed");
+            return;
+        }
+        let (global_seq, global_prev_hash) = match &self.global_head {
+            Some(h) => (h.global_seq + 1, h.global_hash.clone()),
+            None => (0, SENTINEL_PREV_HASH.to_string()),
+        };
+        let global_hash = compute_global_hash(&entry.hash, &global_prev_hash, global_seq);
+        let (global_signature, global_signing_key_id) = self.sign_global(&global_hash, &entry);
+        let link = GlobalLink {
+            global_seq,
+            global_prev_hash,
+            global_hash: global_hash.clone(),
+            global_signature,
+            global_signing_key_id,
+        };
+
+        if let Err(e) = self.insert(&entry, &link) {
             tracing::error!(
                 error = %e,
                 run_id = %entry.run_id,
@@ -179,6 +250,10 @@ impl JournalActor {
                 hash: entry.hash,
             },
         );
+        self.global_head = Some(GlobalHead {
+            global_seq,
+            global_hash,
+        });
     }
 
     /// Sign an entry over its `hash` if a signer is configured.
@@ -209,6 +284,65 @@ impl JournalActor {
                 );
             }
             None => {}
+        }
+    }
+
+    /// Sign a global link over its `global_hash` if a signer is configured.
+    ///
+    /// Returns the signature and key id, or `(None, None)` when unsigned. The
+    /// degraded-mode warning is emitted once per append by [`Self::sign_entry`],
+    /// so this does not warn again.
+    fn sign_global(
+        &self,
+        global_hash: &str,
+        entry: &JournalEntry,
+    ) -> (Option<String>, Option<String>) {
+        match &self.signer {
+            Some(signer) => match signer.sign(global_hash.as_bytes()) {
+                Ok(sig) => (Some(sig), Some(signer.key_id().to_string())),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        run_id = %entry.run_id,
+                        seq = entry.seq,
+                        "audit.journal.global_sign_failed"
+                    );
+                    (None, None)
+                }
+            },
+            None => (None, None),
+        }
+    }
+
+    /// Load the global-chain head once from the entries table (source of
+    /// truth), never from the mutable state row.
+    fn ensure_global_head(&mut self) -> Result<(), AuditJournalError> {
+        if !self.global_head_loaded {
+            self.global_head = anchor::load_global_head(&self.conn)?;
+            self.global_head_loaded = true;
+        }
+        Ok(())
+    }
+
+    /// Verify the whole journal from a consistent snapshot: the single-writer
+    /// loop guarantees the previous append has committed before this runs.
+    fn verify_journal_now(&self) -> VerifyJournalReport {
+        let rows = anchor::query_global_chain(&self.conn).unwrap_or_default();
+        let anchor_row = anchor::load_anchor(&self.conn).ok().flatten();
+        verify_journal(&rows, anchor_row.as_ref(), self.signer.as_deref())
+    }
+
+    /// Build the exportable head anchor from the persisted state row plus the
+    /// signer's key id.
+    fn anchor_now(&self) -> Option<JournalAnchor> {
+        match anchor::load_anchor(&self.conn) {
+            Ok(Some(a)) => Some(JournalAnchor {
+                global_seq: a.global_seq,
+                global_hash: a.global_hash,
+                key_id: self.signer.as_ref().map(|s| s.key_id().to_string()),
+                updated_ts: a.updated_ts,
+            }),
+            _ => None,
         }
     }
 
@@ -256,27 +390,43 @@ impl JournalActor {
         }
     }
 
-    /// Insert one fully-chained entry.
-    fn insert(&self, e: &JournalEntry) -> Result<(), AuditJournalError> {
+    /// Insert one fully-chained entry and advance the head anchor atomically.
+    ///
+    /// The entry insert and the state upsert run in one transaction (RAII
+    /// rollback on any early return), so a crash can never leave the anchor
+    /// ahead of or behind the entries table.
+    fn insert(&mut self, e: &JournalEntry, link: &GlobalLink) -> Result<(), AuditJournalError> {
         let payload = serde_json::to_string(&e.payload)
             .map_err(|err| AuditJournalError::Serialize(err.to_string()))?;
-        self.conn
-            .execute(
-                "INSERT INTO audit_journal_entries \
-                 (seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-                rusqlite::params![
-                    e.seq as i64,
-                    e.run_id,
-                    e.ts,
-                    e.kind.tag(),
-                    payload,
-                    e.prev_hash,
-                    e.hash,
-                    e.signature,
-                    e.signing_key_id,
-                ],
-            )
+        let tx = self
+            .conn
+            .transaction()
+            .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
+        tx.execute(
+            "INSERT INTO audit_journal_entries \
+             (seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id, \
+              global_seq, global_prev_hash, global_hash, global_signature, global_signing_key_id) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            rusqlite::params![
+                e.seq as i64,
+                e.run_id,
+                e.ts,
+                e.kind.tag(),
+                payload,
+                e.prev_hash,
+                e.hash,
+                e.signature,
+                e.signing_key_id,
+                link.global_seq as i64,
+                link.global_prev_hash,
+                link.global_hash,
+                link.global_signature,
+                link.global_signing_key_id,
+            ],
+        )
+        .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
+        anchor::upsert_state(&tx, link.global_seq, &link.global_hash, &e.ts)?;
+        tx.commit()
             .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
         Ok(())
     }

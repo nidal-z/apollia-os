@@ -10,10 +10,13 @@
 //! one provides tamper-evidence over the lifecycle of a run.
 
 pub mod actor;
+pub mod anchor;
 pub mod entry;
 pub mod error;
 pub mod handle;
 pub mod hash;
+#[cfg(any(test, kani))]
+mod proofs;
 pub mod signer;
 pub mod subscriber;
 pub mod verify;
@@ -21,10 +24,13 @@ pub mod verify;
 pub use entry::{JournalEntry, JournalEntryDraft, JournalEntryKind, PlanMutationSnapshot};
 pub use error::AuditJournalError;
 pub use handle::AuditJournalHandle;
-pub use hash::{compute_entry_hash, SENTINEL_PREV_HASH};
+pub use hash::{compute_entry_hash, compute_global_hash, SENTINEL_PREV_HASH};
 pub use signer::{HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy};
 pub use subscriber::AuditJournalSubscriber;
-pub use verify::{BrokenLink, BrokenLinkReason, VerifyChainReport};
+pub use verify::{
+    BrokenLink, BrokenLinkReason, JournalAnchor, JournalBreak, JournalBreakReason,
+    VerifyChainReport, VerifyJournalReport,
+};
 
 #[cfg(test)]
 mod tests {
@@ -402,6 +408,376 @@ mod tests {
 
         // THEN the recomputed hash diverges from the stored one
         assert_ne!(compute_entry_hash(&tampered), entries[0].hash);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // ---------------------------------------------------------------------
+    // Global chain: tamper-evidence against truncation and whole-run deletion
+    // ---------------------------------------------------------------------
+
+    /// Open a signed journal on a fresh temp file with a fixed key.
+    async fn open_signed_temp() -> (AuditJournalHandle, std::path::PathBuf, String) {
+        let key = STANDARD.encode(b"global-chain-audit-key");
+        let path = temp_db();
+        let store = MockStore {
+            value: Some(key.clone()),
+        };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("open signed");
+        (handle, path, key)
+    }
+
+    /// Reopen a raw connection with the append-only triggers dropped, as an
+    /// attacker with file access would, and run one statement.
+    fn raw_tamper(path: &std::path::Path, sql: &str) {
+        let conn = rusqlite::Connection::open(path).expect("reopen raw");
+        conn.execute_batch(&format!(
+            "DROP TRIGGER IF EXISTS aje_no_update; DROP TRIGGER IF EXISTS aje_no_delete; {sql}"
+        ))
+        .expect("forced tamper");
+    }
+
+    // An intact global chain across two interleaved runs verifies
+    #[tokio::test]
+    async fn test_global_chain_intact_verifies() {
+        // GIVEN interleaved appends across two runs
+        let (handle, path, _key) = open_signed_temp().await;
+        handle.append(draft(
+            "run-a",
+            JournalEntryKind::ToolCallStarted,
+            serde_json::json!({}),
+        ));
+        handle.append(draft(
+            "run-b",
+            JournalEntryKind::ToolCallStarted,
+            serde_json::json!({}),
+        ));
+        handle.append(draft(
+            "run-a",
+            JournalEntryKind::ToolCallCompleted,
+            serde_json::json!({}),
+        ));
+        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+
+        // WHEN verifying the whole journal
+        let report = handle.verify_journal().await.expect("verify journal");
+
+        // THEN it is intact, covers two runs, and matches the head anchor
+        assert!(report.ok, "intact journal should verify, got {report:?}");
+        assert_eq!(report.entries_checked, 3);
+        assert_eq!(report.runs_checked, 2);
+        assert!(report.head_matches_state);
+        assert!(report.first_break.is_none());
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // Deleting an interior global entry breaks the global chain
+    #[tokio::test]
+    async fn test_interior_run_deletion_breaks_global_chain() {
+        // GIVEN a three-entry journal, closed
+        let (handle, path, key) = open_signed_temp().await;
+        for i in 0..3 {
+            handle.append(draft(
+                "run-1",
+                JournalEntryKind::ToolCallStarted,
+                serde_json::json!({ "i": i }),
+            ));
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+        handle.shutdown().await;
+
+        // WHEN an attacker deletes the middle global entry
+        raw_tamper(
+            &path,
+            "DELETE FROM audit_journal_entries WHERE global_seq = 1;",
+        );
+
+        // THEN reopening and verifying reports a global break naming the position
+        let store = MockStore { value: Some(key) };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("reopen");
+        let report = handle.verify_journal().await.expect("verify");
+        assert!(!report.ok, "interior deletion must fail, got {report:?}");
+        let brk = report.first_break.expect("break");
+        assert_eq!(brk.run_id, "run-1");
+        assert!(matches!(
+            brk.reason,
+            verify::JournalBreakReason::GlobalSeqGap
+                | verify::JournalBreakReason::GlobalPrevHashMismatch
+        ));
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // Deleting a whole non-tail run leaves a gap in the global chain
+    #[tokio::test]
+    async fn test_whole_run_deletion_detected() {
+        // GIVEN two runs, run-b sitting in the global interior
+        let (handle, path, key) = open_signed_temp().await;
+        handle.append(draft(
+            "run-a",
+            JournalEntryKind::ToolCallStarted,
+            serde_json::json!({}),
+        ));
+        handle.append(draft(
+            "run-b",
+            JournalEntryKind::ToolCallStarted,
+            serde_json::json!({}),
+        ));
+        handle.append(draft(
+            "run-a",
+            JournalEntryKind::ToolCallCompleted,
+            serde_json::json!({}),
+        ));
+        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+        handle.shutdown().await;
+
+        // WHEN an attacker deletes every entry of run-b
+        raw_tamper(
+            &path,
+            "DELETE FROM audit_journal_entries WHERE run_id = 'run-b';",
+        );
+
+        // THEN the whole-journal verification fails
+        let store = MockStore { value: Some(key) };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("reopen");
+        let report = handle.verify_journal().await.expect("verify");
+        assert!(!report.ok, "whole-run deletion must fail, got {report:?}");
+        assert!(report.first_break.is_some());
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // Truncating the global tail is caught by the head anchor
+    #[tokio::test]
+    async fn test_tail_truncation_detected_vs_exported_anchor() {
+        // GIVEN a three-entry journal, its head anchor exported, then closed
+        let (handle, path, key) = open_signed_temp().await;
+        for i in 0..3 {
+            handle.append(draft(
+                "run-1",
+                JournalEntryKind::ToolCallStarted,
+                serde_json::json!({ "i": i }),
+            ));
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+        let exported = handle
+            .journal_anchor()
+            .await
+            .expect("anchor")
+            .expect("some");
+        assert_eq!(exported.global_seq, 2);
+        handle.shutdown().await;
+
+        // WHEN an attacker truncates the global tail (leaves a valid short chain)
+        raw_tamper(
+            &path,
+            "DELETE FROM audit_journal_entries WHERE global_seq = 2;",
+        );
+
+        // THEN the chain itself is intact but the head no longer matches the
+        // persisted anchor, and the exported anchor is ahead of the tail
+        let store = MockStore { value: Some(key) };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("reopen");
+        let report = handle.verify_journal().await.expect("verify");
+        assert!(!report.ok, "tail truncation must fail, got {report:?}");
+        assert!(
+            report.first_break.is_none(),
+            "the short chain is internally valid"
+        );
+        assert!(!report.head_matches_state);
+        assert!(exported.global_seq > report.entries_checked - 1);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // Rolling back the mutable state row is detected against the entries head
+    #[tokio::test]
+    async fn test_state_row_rollback_detected() {
+        // GIVEN a three-entry journal, closed
+        let (handle, path, key) = open_signed_temp().await;
+        for i in 0..3 {
+            handle.append(draft(
+                "run-1",
+                JournalEntryKind::ToolCallStarted,
+                serde_json::json!({ "i": i }),
+            ));
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+        handle.shutdown().await;
+
+        // WHEN an attacker rolls the state row back (no trigger guards it)
+        let conn = rusqlite::Connection::open(&path).expect("reopen raw");
+        conn.execute(
+            "UPDATE audit_journal_state SET global_seq = 0, global_hash = 'deadbeef' WHERE id = 0",
+            [],
+        )
+        .expect("rollback state");
+        drop(conn);
+
+        // THEN the terminal entries head no longer matches the state anchor
+        let store = MockStore { value: Some(key) };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("reopen");
+        let report = handle.verify_journal().await.expect("verify");
+        assert!(!report.ok, "state rollback must fail, got {report:?}");
+        assert!(!report.head_matches_state);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // A payload mutation is caught by the per-run chain inside whole-journal verify
+    #[tokio::test]
+    async fn test_entry_mutation_detected_by_journal_verify() {
+        // GIVEN a two-entry journal, closed
+        let (handle, path, key) = open_signed_temp().await;
+        for i in 0..2 {
+            handle.append(draft(
+                "run-1",
+                JournalEntryKind::ToolCallStarted,
+                serde_json::json!({ "i": i }),
+            ));
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+        handle.shutdown().await;
+
+        // WHEN an attacker mutates a stored payload (leaving the hash stale)
+        raw_tamper(
+            &path,
+            "UPDATE audit_journal_entries SET payload = '{\"i\":666}' WHERE seq = 0;",
+        );
+
+        // THEN whole-journal verify fails via the per-run chain
+        let store = MockStore { value: Some(key) };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("reopen");
+        let report = handle.verify_journal().await.expect("verify");
+        assert!(!report.ok, "mutation must fail, got {report:?}");
+        let brk = report.first_break.expect("break");
+        assert_eq!(brk.reason, verify::JournalBreakReason::PerRunBroken);
+        assert_eq!(brk.run_id, "run-1");
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // Reopening continues the global chain monotonically without a gap
+    #[tokio::test]
+    async fn test_idempotent_reopen_continues_global_chain() {
+        // GIVEN a signed journal with one entry, closed
+        let (handle, path, key) = open_signed_temp().await;
+        handle.append(draft(
+            "run-1",
+            JournalEntryKind::AgentStarted,
+            serde_json::json!({"i": 0}),
+        ));
+        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
+        handle.shutdown().await;
+
+        // WHEN reopening and appending in a second run
+        let store = MockStore { value: Some(key) };
+        let handle = AuditJournalHandle::open_with_signer(
+            &path,
+            &store,
+            "journal-hmac-key",
+            SignerUnavailablePolicy::FailHard,
+        )
+        .await
+        .expect("reopen");
+        handle.append(draft(
+            "run-2",
+            JournalEntryKind::AgentStarted,
+            serde_json::json!({"i": 1}),
+        ));
+        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
+
+        // THEN the global chain spans both runs with no gap
+        let report = handle.verify_journal().await.expect("verify");
+        assert!(report.ok, "reopened journal should verify, got {report:?}");
+        assert_eq!(report.entries_checked, 2);
+        assert_eq!(report.runs_checked, 2);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // Without a signer, the global chain still links by hash and verifies
+    #[tokio::test]
+    async fn test_unsigned_global_chain_links() {
+        // GIVEN an unsigned journal with two entries
+        let (handle, path) = open_temp().await;
+        handle.append(draft(
+            "run-1",
+            JournalEntryKind::ToolCallStarted,
+            serde_json::json!({}),
+        ));
+        handle.append(draft(
+            "run-1",
+            JournalEntryKind::ToolCallCompleted,
+            serde_json::json!({}),
+        ));
+        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
+
+        // WHEN verifying the whole journal
+        let report = handle.verify_journal().await.expect("verify");
+
+        // THEN the hash-only global chain verifies
+        assert!(report.ok, "unsigned journal should verify, got {report:?}");
+        assert_eq!(report.entries_checked, 2);
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    // An empty journal verifies with nothing checked
+    #[tokio::test]
+    async fn test_verify_empty_journal_ok() {
+        // GIVEN an empty journal
+        let (handle, path) = open_temp().await;
+        // WHEN verifying the whole journal
+        let report = handle.verify_journal().await.expect("verify");
+        // THEN it is ok with zero entries and zero runs
+        assert!(report.ok);
+        assert_eq!(report.entries_checked, 0);
+        assert_eq!(report.runs_checked, 0);
+        assert!(report.head_matches_state);
         handle.shutdown().await;
         tokio::fs::remove_file(&path).await.ok();
     }

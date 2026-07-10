@@ -16,7 +16,7 @@ use apollia_tools::ToolInvocationRecord;
 
 use crate::api::server::AppState;
 use crate::audit_journal::entry::{JournalEntry, JournalEntryKind};
-use crate::audit_journal::VerifyChainReport;
+use crate::audit_journal::{JournalAnchor, VerifyChainReport, VerifyJournalReport};
 use crate::coordinator::ExecutionBackend;
 use crate::replay::{
     ReplayBundle, ReplayCaptureError, ReplayFailReason, ReplayHarness, ReplayReport,
@@ -232,6 +232,95 @@ pub async fn verify_audit_run<B: ExecutionBackend + Clone>(
     }
 
     Ok(Json(report))
+}
+
+/// `GET /api/v1/audit/verify`, verify the whole journal across all runs.
+///
+/// Unlike the per-run route, this walks the global chain (detecting interior
+/// deletion and whole-run deletion) and compares the terminal head to the
+/// persisted anchor (detecting global-tail truncation). An empty journal is a
+/// valid 200 `ok:true`, not a 404. Returns 503 when the journal is not
+/// configured and 500 on an internal error.
+#[utoipa::path(
+    get,
+    path = "/api/v1/audit/verify",
+    tag = "audit",
+    responses(
+        (status = 200, description = "Whole-journal verification report", body = crate::audit_journal::verify::VerifyJournalReport),
+        (status = 503, description = "Audit journal not configured", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Internal verification error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn verify_audit_journal<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Result<Json<VerifyJournalReport>, (StatusCode, Json<ErrorResponse>)> {
+    let handle = state.audit_journal.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "audit journal not available".to_string(),
+            }),
+        )
+    })?;
+
+    let report = handle.verify_journal().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+
+    Ok(Json(report))
+}
+
+/// `GET /api/v1/audit/anchor`, the exportable head anchor of the global chain.
+///
+/// Storing this off-machine is the only defense against truncation of the
+/// global tail once the signing key can be compromised. Returns 404 when the
+/// journal has no entries yet, 503 when the journal is not configured.
+#[utoipa::path(
+    get,
+    path = "/api/v1/audit/anchor",
+    tag = "audit",
+    responses(
+        (status = 200, description = "Exportable head anchor", body = crate::audit_journal::verify::JournalAnchor),
+        (status = 404, description = "Journal has no entries", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Audit journal not configured", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "Internal error", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn get_audit_anchor<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Result<Json<JournalAnchor>, (StatusCode, Json<ErrorResponse>)> {
+    let handle = state.audit_journal.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "audit journal not available".to_string(),
+            }),
+        )
+    })?;
+
+    let anchor = handle.journal_anchor().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+
+    match anchor {
+        Some(anchor) => Ok(Json(anchor)),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "not_found".to_string(),
+            }),
+        )),
+    }
 }
 
 /// Response body for `GET /api/v1/audit/journal/:run_id`.

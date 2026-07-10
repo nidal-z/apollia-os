@@ -32,6 +32,11 @@ apollia-memory = { workspace = true, optional = true }
 scraper        = { version = "0.26", optional = true }
 dom_smoothie   = { version = "0.17", optional = true }
 
+# POSIX setrlimit for per-process resource limits on tool child processes.
+# The leanest path for the syscall (already transitive in the lock); see ADR-042.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [features]
 default       = ["http", "web-search", "brave-search", "web-read"]
 http          = ["dep:reqwest"]
@@ -47,3 +52,5 @@ tokio    = { workspace = true }
 [lints.rust]
 # FFI / proc-macro generated unsafe (pyo3, tauri, llama/whisper bindings).
 unsafe_code = "allow"
+# `fuzzing` is set by cargo-fuzz to gate the `#[cfg(fuzzing)]` harness shims.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }

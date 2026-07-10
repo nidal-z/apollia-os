@@ -168,11 +168,20 @@ fn truncate_kb(raw: &str) -> &str {
     if raw.len() <= MAX_KB_CHARS {
         return raw;
     }
+    // Clamp the cut to a UTF-8 boundary before slicing untrusted KB text.
+    let cut = apollia_core::floor_char_boundary(raw, MAX_KB_CHARS);
     // Cut on a newline boundary so we do not split a header mid-line.
-    match raw[..MAX_KB_CHARS].rfind('\n') {
+    match raw[..cut].rfind('\n') {
         Some(idx) => &raw[..idx],
-        None => &raw[..MAX_KB_CHARS],
+        None => &raw[..cut],
     }
+}
+
+/// Fuzzing-only shim exposing the private [`truncate_kb`] to the fuzz harness.
+/// Compiled only under `--cfg fuzzing` (cargo-fuzz).
+#[cfg(fuzzing)]
+pub fn __fuzz_truncate_kb(raw: &str) -> &str {
+    truncate_kb(raw)
 }
 
 fn build_system_prompt(mode: CoachMode, ctx: &CoachContext) -> String {
@@ -392,6 +401,18 @@ pub async fn invoke_apollia_coach(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn truncate_kb_cuts_on_char_boundary() {
+        // GIVEN knowledge-base text larger than MAX_KB_CHARS whose byte cut lands
+        // inside a multibyte code point (€ is 3 bytes, shifted by a 1-byte prefix)
+        let raw = format!("x{}", "€".repeat(MAX_KB_CHARS));
+        // WHEN truncating it for prompt assembly
+        let out = truncate_kb(&raw);
+        // THEN the cut falls on a valid UTF-8 boundary (no mid-code-point panic)
+        assert!(out.len() < raw.len());
+        assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+    }
 
     #[test]
     fn extract_and_strip_action_block_roundtrip() {

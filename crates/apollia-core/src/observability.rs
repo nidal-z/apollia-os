@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::utils::floor_char_boundary;
+
 /// Default max size of task/step inputs in bytes.
 const DEFAULT_MAX_INPUT_BYTES: usize = 32_768;
 
@@ -103,20 +105,6 @@ fn default_max_output_bytes() -> usize {
 
 fn default_max_tool_output_bytes() -> usize {
     DEFAULT_MAX_TOOL_OUTPUT_BYTES
-}
-
-/// Finds the largest UTF-8 character boundary at or below `index`.
-///
-/// Stable equivalent of the nightly `str::floor_char_boundary`.
-fn floor_char_boundary(s: &str, index: usize) -> usize {
-    if index >= s.len() {
-        return s.len();
-    }
-    let mut i = index;
-    while i > 0 && !s.is_char_boundary(i) {
-        i -= 1;
-    }
-    i
 }
 
 /// Truncates a text if its size exceeds `max_bytes`.
