@@ -212,7 +212,7 @@ Highlights :
   inherited per crate with `[lints] workspace = true`.
 - `[workspace.package]` shares `edition = "2024"`, `license`,
   `repository`, `rust-version`.
-- `rust-version = "1.85"` is the MSRV. Tested in CI.
+- `rust-version = "1.89"` is the MSRV. Tested in CI.
 - Features are additive and kebab-case. `default = []` is documented when
   it includes optional functionality.
 - Adding a new dependency : require an ADR if the dep is heavy (>100k LoC),

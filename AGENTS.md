@@ -24,7 +24,7 @@ process.
 
 | Layer | Tech |
 |---|---|
-| Async runtime | Rust 1.85+ , Tokio 1.x |
+| Async runtime | Rust 1.89+ , Tokio 1.x |
 | Python bridge | PyO3 0.24 , pyo3-async-runtimes |
 | Local LLM | llama-cpp-2 (GGUF, Metal, CUDA) |
 | Local STT | whisper-rs (GGML) |

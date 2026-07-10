@@ -107,7 +107,7 @@ single-maintainer source-available.
 
 **Build and packaging**
 
-- Workspace MSRV: Rust 1.85.
+- Workspace MSRV: Rust 1.89.
 - Cross-compilation hints in `Cross.toml`.
 - `deny.toml` for license, banned crates, and advisory checks.
 - Cargo audit and Cargo deny green at release time.

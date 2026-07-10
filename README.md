@@ -45,7 +45,7 @@ Apollia OS is a Rust runtime that executes autonomous Python AI agents (any obje
 
 ## Quickstart
 
-**Prerequisites:** Rust 1.85+, Python 3.12+. See [the install guide](docs/site/docs/how-to/install-and-run.md) for full installation instructions.
+**Prerequisites:** Rust 1.89+, Python 3.12+. See [the install guide](docs/site/docs/how-to/install-and-run.md) for full installation instructions.
 
 ```bash
 # 1. Build the workspace

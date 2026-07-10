@@ -300,7 +300,7 @@ impl NotificationChannel for WebhookChannel {
 
     /// Sends the notification via HTTP POST to the configured URL.
     ///
-    /// - **Payload**: fixed Apollia JSON format (see [`build_payload`])
+    /// - **Payload**: fixed Apollia JSON format (see [`build_apollia_payload`])
     /// - **Headers**: `Content-Type: application/json`, `X-Apollia-Event: <event>`,
     ///   `User-Agent: apollia-os/<version>` (via the client),
     ///   `X-Apollia-Signature: sha256=<hex>` if `signing_secret` is configured
@@ -536,7 +536,7 @@ mod tests {
         let notif = make_notif("task.input_required", Some("t-0042"), Severity::Warning);
 
         // WHEN
-        let payload = build_payload(&notif);
+        let payload = build_apollia_payload(&notif);
 
         // THEN all fields of the fixed Apollia JSON format are present
         assert_eq!(payload["event"], "task.input_required");
@@ -569,7 +569,7 @@ mod tests {
         let notif = make_notif("task.failed", Some("t-001"), Severity::Error);
 
         // WHEN
-        let payload = build_payload(&notif);
+        let payload = build_apollia_payload(&notif);
 
         // THEN
         assert_eq!(payload["event"], "task.failed");
@@ -591,7 +591,7 @@ mod tests {
         };
 
         // WHEN
-        let payload = build_payload(&notif);
+        let payload = build_apollia_payload(&notif);
 
         // THEN task_id is null (JSON null), not absent
         assert!(payload["task_id"].is_null());
