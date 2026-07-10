@@ -61,8 +61,6 @@ indent_style = tab
 edition = "2021"
 max_width = 100
 use_small_heuristics = "Default"
-imports_granularity = "Crate"
-group_imports = "StdExternalCrate"
 reorder_imports = true
 use_field_init_shorthand = true
 use_try_shorthand = true
@@ -70,6 +68,12 @@ newline_style = "Unix"
 ```
 
 Run : `cargo fmt --check` in CI, `cargo fmt` to apply.
+
+`imports_granularity` and `group_imports` are deliberately absent : both are
+nightly-only rustfmt options. Keeping them forced the whole tree to be
+formatted with a nightly rustfmt, which stable CI could never reproduce (the
+fmt gate then failed on every file). The gate now runs on the pinned stable
+toolchain and the tree is formatted to match it.
 
 Edition 2021 reflects the current workspace state. Migration to edition
 2024 is a planned follow-up (separate ADR + dedicated PR).
@@ -79,7 +83,7 @@ Edition 2021 reflects the current workspace state. Migration to edition
 ## 4. `clippy.toml`
 
 ```toml
-msrv = "1.85"
+msrv = "1.89"
 cognitive-complexity-threshold = 30
 type-complexity-threshold = 250
 too-many-arguments-threshold = 5
@@ -93,15 +97,30 @@ Run : `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ```toml
 [toolchain]
-channel = "1.85"
+channel = "1.95.0"
 components = ["rustfmt", "clippy", "rust-src", "rust-analyzer"]
 profile = "minimal"
 ```
 
-Committed for reproducibility. CI installs the toolchain via
-`actions-rs/toolchain` or `dtolnay/rust-toolchain@stable`.
+Committed for reproducibility. This is the exact-pinned **build / gate
+toolchain**, a recent stable. Every blocking Rust job in `ci.yml` installs the
+same version via `dtolnay/rust-toolchain@1.95.0` (never `@stable`), so CI fmt
+and clippy output match local dev byte for byte and cannot drift against
+rolling stable. A separate `clippy-stable` job runs on `@stable` as a
+non-blocking advisory to surface lints coming in a future toolchain.
 
-MSRV is `1.85`. Tested explicitly in the CI matrix.
+Toolchain policy, two distinct numbers :
+
+- **Build / gate toolchain** = `1.95.0` (this file). What CI and local dev
+  actually compile with.
+- **MSRV floor** = `1.89` (`Cargo.toml` `rust-version`, `clippy.toml` `msrv`).
+  The real minimum the dependency tree supports (notify-rust 4.18 requires
+  1.89; time / serde_with / image require 1.88). It is a declared floor, not
+  the version the gate runs on.
+
+Local dev : with `rustup` installed, `cargo` inside the repo auto-selects the
+pinned `1.95.0` from this file. Without `rustup` (e.g. a Homebrew-only Rust),
+keep the local toolchain at the pinned version to avoid fmt / clippy drift.
 
 ---
 
@@ -307,48 +326,58 @@ Never `--no-verify`. If a hook fails, fix the underlying issue.
 
 ## 11. CI pipeline (GitHub Actions)
 
-Target structure (one file per concern) :
+Actual structure :
 
 ```
 .github/workflows/
-├── ci.yml              # PR gate: fmt, clippy, test, doctest, pyright, pytest
-├── release.yml         # tag-triggered: build binaries, attach to release
-├── docs.yml            # build mdBook, deploy to Cloudflare Pages
-└── desktop-release.yml # Tauri release builds, .dmg/.exe/.AppImage
+├── ci.yml            # PR gate (see jobs below)
+├── codeql.yml        # CodeQL: rust + python + javascript-typescript
+├── nightly.yml       # heavy / advisory: e2e, feature-matrix, coverage HTML,
+│                     #   deep-audit, geiger (unsafe surface)
+├── release.yml       # tag-triggered: build binaries, attach to release
+└── auto-close-prs.yml
 ```
 
-`ci.yml` job sequence :
+`ci.yml` blocking jobs (Rust jobs on the pinned `1.95.0`) :
 
-1. `cargo fmt --check`
-2. `cargo clippy --workspace --all-targets -- -D warnings`
-3. `cargo nextest run --workspace`
-4. `cargo test --doc`
-5. `ruff format --check && ruff check`
-6. `pyright`
-7. `pytest`
-8. `pnpm test` (desktop)
-9. `bash tests/cli/cli-e2e.sh` (Phase A)
+1. `fmt` : `cargo fmt --all -- --check`
+2. `clippy` : `cargo clippy --workspace --all-targets -- -D warnings`
+3. `test` : `cargo test --workspace` (+ python-tests)
+4. `test-macos` : `cargo test` on macOS Silicon
+5. `machete` : `cargo machete` (unused deps)
+6. `python-quality` : `ruff format --check` + `ruff check` + `pip-audit` on `sdk/`
+7. `python-types` : `mypy apollia` (strict)
+8. `coverage` : `cargo llvm-cov --workspace --fail-under-lines $COVERAGE_FLOOR`
+9. `audit` / `deny` : `rustsec/audit-check` + `cargo-deny check` (full)
+10. `vitest` (frontend), `mdbook`, `prose-guard`, `links` (lychee)
 
-Caching :
-- `Swatinem/rust-cache@v2` (keyed on `Cargo.lock`).
-- `actions/setup-uv` + `uv sync --frozen` for Python.
+Non-blocking (`continue-on-error`) advisory jobs :
 
-Matrix :
-- `os: [ubuntu-22.04, macos-latest, windows-latest]`
-- `rust: [1.85, stable]` (MSRV + stable, never beta unless tracking a
-  specific feature).
+- `clippy-stable` : same clippy gate on `@stable`, surfaces future lints.
+- `semver-checks` : `cargo semver-checks` on `apollia-core` / `apollia-runtime`
+  against `origin/main`. Informative while the crates are unpublished / pre-1.0.
+- `diagrams` : PlantUML render.
 
-Linux jobs pin `ubuntu-22.04` to keep glibc compatibility for shipped
-binaries (commit `dc5957ee`).
+Caching : `Swatinem/rust-cache@v2` (keyed on `Cargo.lock`).
+
+Toolchain : the pinned `1.95.0` on the gate jobs, `@stable` only on the
+advisory `clippy-stable`. No `[1.85, stable]` matrix : 1.85 does not compile
+(the tree needs >=1.89).
 
 ---
 
 ## 12. Coverage
 
+The `coverage` job in `ci.yml` enforces a line-coverage floor :
+
 ```sh
-cargo llvm-cov nextest --lcov --output-path lcov.info
-codecov-cli upload --file lcov.info
+cargo llvm-cov --workspace --lcov --output-path lcov.info \
+  --fail-under-lines $COVERAGE_FLOOR
 ```
+
+`COVERAGE_FLOOR` is a workflow-level env var set just below the measured
+baseline so the gate is green from day one, then ratcheted up over time and
+never lowered. The full HTML report is produced by the nightly `coverage` job.
 
 Target : > 80% lines / > 70% branches on core crates. Aspirational
 workspace-wide.

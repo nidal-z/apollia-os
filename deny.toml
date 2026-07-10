@@ -24,6 +24,13 @@ ignore = [
     # callbacks; the exploit path does not apply to our usage. Deferred
     # until the workspace migrates to rand 0.9.
     "RUSTSEC-2026-0097", # rand: ThreadRng soundness with custom logger
+    # pyo3 0.24 soundness advisories. The fix lands in pyo3 0.29, a major
+    # upgrade of pyo3 + pyo3-async-runtimes deliberately deferred past this
+    # release window. The affected exploit paths (new_closure, the nth
+    # iterator adapter) are not on any Apollia code path. Lift condition:
+    # the pyo3 0.29 migration.
+    "RUSTSEC-2026-0176", # pyo3: out-of-bounds read
+    "RUSTSEC-2026-0177", # pyo3: missing Sync bound
 ]
 
 [licenses]

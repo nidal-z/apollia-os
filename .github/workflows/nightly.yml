@@ -290,3 +290,36 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check all
+
+  # ── Unsafe surface : informative report of unsafe usage across the tree ────
+  # Non-blocking. cargo-geiger builds the workspace and can be brittle, so it
+  # lives in nightly and never gates a PR. The report is uploaded as a text
+  # artifact to track the unsafe footprint over time.
+  geiger:
+    name: Unsafe Surface (advisory)
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.job == 'all' ||
+      github.event.inputs.job == 'geiger'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libssl-dev libasound2-dev libpulse-dev cmake clang pkg-config
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-geiger
+        run: cargo install cargo-geiger --locked
+      - name: cargo geiger (report)
+        run: cargo geiger --workspace --output-format Ascii | tee geiger-report.txt
+      - uses: actions/upload-artifact@v5
+        with:
+          name: geiger-report-${{ github.sha }}
+          path: geiger-report.txt
+          retention-days: 30

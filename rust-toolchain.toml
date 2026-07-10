@@ -1,4 +1,7 @@
 [toolchain]
-channel = "1.85"
+# Exact patch pin so CI and local dev resolve the identical compiler and
+# produce byte-identical fmt/clippy output. This is the build/gate toolchain,
+# a recent stable; the declared MSRV floor (Cargo.toml rust-version) is lower.
+channel = "1.95.0"
 components = ["rustfmt", "clippy", "rust-src", "rust-analyzer"]
 profile = "minimal"

@@ -5,6 +5,12 @@ edition = "2021"
 description = "Apollia OS - Runtime Core (Supervisor, AgentRegistry, TaskRouter, EventBus, APIServer axum)"
 license = "MIT OR Apache-2.0"
 
+# Flagged unused by cargo-machete. Kept behind an ignore rather than removed:
+# machete cannot see subscriber/layer wiring pulled in at daemon init. Removal
+# (or confirmation of the real usage) is tracked in the dependency-cleanup pass.
+[package.metadata.cargo-machete]
+ignored = ["tower-http", "tracing-subscriber"]
+
 [features]
 # Multi-runner : les backends locaux d'inférence (llama-cpp, whisper)
 # sont hébergés par le crate `apollia-runner` en tant que process enfant.

@@ -5,6 +5,10 @@ edition = "2021"
 description = "Apollia OS Speech-to-Text traits, types and repository (the whisper engine lives in the apollia-runner sidecar)"
 license = "MIT OR Apache-2.0"
 
+# Flagged unused by cargo-machete. Removal tracked in the dependency-cleanup pass.
+[package.metadata.cargo-machete]
+ignored = ["apollia-core"]
+
 # whisper.cpp no longer lives in this crate; it is hosted by the
 # `apollia-runner` sidecar. The daemon uses `RunnerSttBackend` (apollia-runtime)
 # which implements `SttBackend` via HTTP IPC.

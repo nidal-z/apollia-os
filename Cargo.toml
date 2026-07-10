@@ -50,7 +50,10 @@ default-members = [
 # Shared workspace-level package metadata. Individual crates may opt into
 # these defaults via `<field>.workspace = true` in their own Cargo.toml.
 [workspace.package]
-rust-version = "1.85"
+# True MSRV floor: the dependency tree requires >=1.89 (notify-rust 4.18 needs
+# 1.89, time / serde_with / image need 1.88). The build/gate toolchain pinned
+# in rust-toolchain.toml is a more recent stable.
+rust-version = "1.89"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Nidal Zoumita <admin@apollia.fr>"]

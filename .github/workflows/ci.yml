@@ -19,6 +19,12 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Line-coverage floor for the coverage gate, ratcheted up over time and never
+  # lowered. Provisional "0" until the baseline can be measured: today
+  # `cargo llvm-cov --workspace` cannot build because some test code does not
+  # compile (see the first-run gate report). Set to the measured baseline minus
+  # a small margin once test compilation is restored.
+  COVERAGE_FLOOR: "0"
 
 # Annule les runs en cours sur un même ref si un push plus récent arrive.
 concurrency:
@@ -32,7 +38,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned to the build toolchain (rust-toolchain.toml) so CI fmt output
+      # matches local dev exactly and never drifts against rolling stable.
+      - uses: dtolnay/rust-toolchain@1.95.0
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
@@ -41,6 +49,41 @@ jobs:
     name: Clippy
     needs: fmt
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Pinned to the build toolchain so the -D warnings gate is reproducible
+      # and matches the pre-commit pre-push hook byte for byte.
+      - uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libxdo-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            cmake clang pkg-config
+      - uses: Swatinem/rust-cache@v2
+      # --all-targets adds tests/examples/benches to the lint surface, matching
+      # the pre-commit pre-push hook. --all-features is intentionally omitted:
+      # it pulls the GPU backends (cuda/rocm/vulkan) whose toolkits are absent
+      # on this runner; feature-gated clippy stays in nightly.yml.
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # Advisory only: runs the same clippy gate on rolling stable to surface lints
+  # coming in a future toolchain before we bump the pinned build toolchain.
+  # Non-blocking, so upstream lint churn never blocks a PR.
+  clippy-stable:
+    name: Clippy (stable, advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -61,7 +104,7 @@ jobs:
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             cmake clang pkg-config
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace -- -D warnings
+      - run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
     name: Rust Tests
@@ -69,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -171,7 +214,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # Explicit full check (advisories, bans, licenses, sources) on the PR
+      # gate, not just a subset. The redundant heavy pass stays in nightly.yml.
       - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans licenses sources
 
   # ── macOS Silicon : core test run backing the "Tested" platform claim ──────
   test-macos:
@@ -180,7 +227,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -239,3 +286,98 @@ jobs:
         with:
           args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md 'docs/wiki/**/*.md' 'docs/book/src/**/*.md' 'docs/help/**/*.md'"
           fail: true
+
+  # ── Unused dependencies : keeps the Cargo graph honest ─────────────────────
+  machete:
+    name: Unused Deps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: taiki-e/install-action@cargo-machete
+      # Known false positives are allow-listed per crate via
+      # [package.metadata.cargo-machete] ignored, each with a lift note.
+      - run: cargo machete
+
+  # ── SemVer : guards the Rust public contract against silent API breaks ─────
+  # Advisory only for now: apollia-core / apollia-runtime are unpublished and
+  # pre-1.0, so this reports breaking changes against main rather than blocking.
+  # Blocking posture is revisited post-1.0 (see the release readiness notes).
+  # apollia-aip is intentionally excluded: its public contract is the Python
+  # surface (guarded by the SDK version + generated clients), not a Rust API.
+  semver-checks:
+    name: SemVer (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libssl-dev libasound2-dev libpulse-dev cmake clang pkg-config
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-semver-checks
+      - name: cargo semver-checks (baseline = main)
+        run: |
+          cargo semver-checks --baseline-rev origin/main \
+            -p apollia-core -p apollia-runtime
+
+  # ── Python SDK : lint + format + supply chain (mypy lives in python-types) ──
+  python-quality:
+    name: Python Quality (SDK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff pip-audit
+      - name: ruff format --check
+        working-directory: sdk
+        run: ruff format --check .
+      - name: ruff check
+        working-directory: sdk
+        run: ruff check .
+      # Installs the SDK so its resolved deps are the audit surface. The SDK is
+      # stdlib-only by design, so this surface is intentionally tiny.
+      - name: pip-audit (SDK supply chain)
+        run: |
+          pip install ./sdk
+          pip-audit
+
+  # ── Coverage : line-coverage floor, ratcheted up over time (never lowered) ──
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libxdo-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            cmake clang pkg-config
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      # The floor is set just below the measured baseline so the gate is green
+      # from day one, then ratcheted up. Full HTML report stays in nightly.yml.
+      - name: cargo llvm-cov (workspace, floor gate)
+        run: |
+          cargo llvm-cov --workspace --lcov --output-path lcov.info \
+            --fail-under-lines ${{ env.COVERAGE_FLOOR }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: coverage-lcov
+          path: lcov.info
