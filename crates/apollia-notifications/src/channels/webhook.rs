@@ -156,14 +156,6 @@ pub(crate) fn detect_webhook_kind(url: &str) -> WebhookKind {
     }
 }
 
-/// Builds the payload according to the detected format.
-///
-/// Delegates to [`build_apollia_payload`], [`build_discord_payload`], or
-/// [`build_slack_payload`].
-pub(crate) fn build_payload(notif: &Notification) -> serde_json::Value {
-    build_apollia_payload(notif)
-}
-
 /// Builds the Apollia JSON payload from a [`Notification`].
 ///
 /// The format is fixed and documented:

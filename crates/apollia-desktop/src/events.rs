@@ -466,7 +466,6 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::AgentLog { .. }
         | RuntimeEvent::Thought { .. }
         | RuntimeEvent::LlmCallStarted { .. }
-        | RuntimeEvent::LlmCallFailed { .. }
         | RuntimeEvent::ToolCallStarted { .. }
         | RuntimeEvent::ToolCallCompleted { .. }
         | RuntimeEvent::ToolCallDenied { .. }

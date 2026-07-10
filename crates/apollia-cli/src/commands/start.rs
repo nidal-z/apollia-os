@@ -86,23 +86,6 @@ impl AgentLoader for AIPAgentLoader {
     }
 }
 
-/// Compute the per-agent venv's site-packages from the agent's `.py` path.
-/// Convention : agent name == `.py` file stem.
-fn venv_site_packages_for_path(agent_py_path: &Path) -> Vec<PathBuf> {
-    let agent_name = match agent_py_path.file_stem().and_then(|s| s.to_str()) {
-        Some(s) => s,
-        None => return Vec::new(),
-    };
-    venv_site_packages_for_name(agent_name)
-}
-
-/// Compute the per-agent venv's site-packages from the agent name.
-fn venv_site_packages_for_name(agent_name: &str) -> Vec<PathBuf> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let base = PathBuf::from(home).join(".apollia").join("venvs");
-    apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
-}
-
 /// Open the shared [`ToolCredentialStore`] used for `ctx.secrets`.
 ///
 /// Returns `None` when the governance database does not exist yet (first

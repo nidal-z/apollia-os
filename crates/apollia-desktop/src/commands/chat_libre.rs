@@ -14,7 +14,7 @@ use apollia_permissions::PrefixRuleEngine;
 use apollia_runtime::chat::SessionAuthorizationView;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_tools::chat_libre_config::{ChatLibreConfig, ChatLibreConfigRepository};
-use apollia_tools::{GovernanceDb, GOVERNANCE_DB_FILENAME};
+use apollia_tools::GovernanceDb;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 

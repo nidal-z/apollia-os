@@ -84,13 +84,6 @@ pub struct DownloadModelRequest {
     pub repo_id: Option<String>,
 }
 
-/// Status of an active download.
-#[derive(Debug, Clone, Serialize)]
-pub struct DownloadStatusView {
-    pub id: String,
-    pub active_ids: Vec<String>,
-}
-
 // ─────────────────────────────────────────────
 // Commands
 // ─────────────────────────────────────────────

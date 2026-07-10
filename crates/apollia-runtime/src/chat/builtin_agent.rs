@@ -20,7 +20,7 @@ use apollia_core::{
 };
 use apollia_llm::routing_level::{EscalationSignal, LlmRoutingLevel};
 use apollia_llm::types::{
-    ChatMessage as LlmChatMessage, CompletionModel, CompletionRequest, StreamChunk, TokenUsage,
+    ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage,
     ToolCall, ToolSpec,
 };
 use apollia_llm::{LlmRouter, MetaOrchestratorHandle, ObservabilityConfig, ToolInvoker};
@@ -89,7 +89,7 @@ const PLAN_REMINDER_PREFIX: &str =
 // NativeChatToolInvoker: production tool execution
 
 /// Parameters for attaching HITL filesystem support to a `NativeChatToolInvoker`.
-pub(crate) struct HitlInvokerParams {
+pub struct HitlInvokerParams {
     pub session_id: String,
     pub event_bus: crate::eventbus::EventBusSender,
     pub pending_fs: super::types::PendingFilesystemApprovals,
