@@ -1302,17 +1302,16 @@ mod tests {
         ));
 
         // WHEN we try to write (remember)
-        let remember_result =
-            remember_inner(
-                &iface.manager,
-                &iface.namespace,
-                RememberArgs {
-                    key: "key",
-                    value: "value",
-                    source: None,
-                    confidence: None,
-                },
-            );
+        let remember_result = remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            RememberArgs {
+                key: "key",
+                value: "value",
+                source: None,
+                confidence: None,
+            },
+        );
         assert!(matches!(
             remember_result,
             Err(MemoryInterfaceError::ReadOnly(_))

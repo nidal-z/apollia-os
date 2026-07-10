@@ -31,8 +31,8 @@ use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 
 use crate::ipc::{
-    ChatMessage, CompleteData, CompleteParams, ErrorBody, ErrorCode, LoadModelData, LoadModelParams,
-    Role, StreamChunk, Timing, TokenUsage, TokenizeData, ToolCall,
+    ChatMessage, CompleteData, CompleteParams, ErrorBody, ErrorCode, LoadModelData,
+    LoadModelParams, Role, StreamChunk, Timing, TokenUsage, TokenizeData, ToolCall,
 };
 
 use slot::{conversation_fingerprint, InferenceRequest, SlotJob, SlotPool};
@@ -105,8 +105,7 @@ fn acquire_backend() -> Result<Arc<LlamaBackend>, ErrorBody> {
         return Ok(b.clone());
     }
     let backend = Arc::new(
-        LlamaBackend::init()
-            .map_err(|e| internal(format!("llama backend init failed: {e}")))?,
+        LlamaBackend::init().map_err(|e| internal(format!("llama backend init failed: {e}")))?,
     );
     *guard = Some(backend.clone());
     Ok(backend)
@@ -194,7 +193,9 @@ impl LlamaCppBackend {
 
             let model = LlamaModel::load_from_file(&backend, &model_path, &model_params)
                 .map_err(|e| load_failed(format!("model load failed: {e}")))?;
-            let arch = model.meta_val_str("general.architecture").unwrap_or_default();
+            let arch = model
+                .meta_val_str("general.architecture")
+                .unwrap_or_default();
             let n_ctx_train = model.n_ctx_train();
 
             // Default to the model's full window; an explicit cap shrinks it.
@@ -277,9 +278,13 @@ impl LlamaCppBackend {
         let started = Instant::now();
         let (req, fingerprint) = build_request(params);
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
-        entry
-            .slots
-            .dispatch(fingerprint, SlotJob::Complete { req, reply: reply_tx })?;
+        entry.slots.dispatch(
+            fingerprint,
+            SlotJob::Complete {
+                req,
+                reply: reply_tx,
+            },
+        )?;
         let out = reply_rx
             .await
             .map_err(|_| inference_failed("slot dropped before replying"))??;
@@ -765,7 +770,10 @@ pub(super) fn stream_clean_prefix(raw: &str) -> String {
 /// `<tool_call>` opener that could complete on the next token). `0` when none.
 fn partial_opener_suffix(s: &str, opener: &str) -> usize {
     let max = opener.len().saturating_sub(1).min(s.len());
-    (1..=max).rev().find(|&k| s.ends_with(&opener[..k])).unwrap_or(0)
+    (1..=max)
+        .rev()
+        .find(|&k| s.ends_with(&opener[..k]))
+        .unwrap_or(0)
 }
 
 /// Builds the sampler chain for one inference request.
@@ -866,7 +874,13 @@ fn build_template_grammar_sampler(
     // A template uses one trigger style; when regex patterns are present they take
     // the pattern-aware constructor, otherwise literal words drive activation.
     let sampler = if patterns.is_empty() {
-        LlamaSampler::grammar_lazy(model, gbnf, "root", words.iter().map(String::as_bytes), &tokens)
+        LlamaSampler::grammar_lazy(
+            model,
+            gbnf,
+            "root",
+            words.iter().map(String::as_bytes),
+            &tokens,
+        )
     } else {
         LlamaSampler::grammar_lazy_patterns(model, gbnf, "root", &patterns, &tokens)
     };
@@ -894,7 +908,6 @@ fn partition_triggers(triggers: &[GrammarTrigger]) -> (Vec<String>, Vec<LlamaTok
     }
     (words, tokens, patterns)
 }
-
 
 /// Checks that a GGUF path exists and ends with `.gguf`.
 pub fn validate_model_path(path: &Path) -> Result<(), ErrorBody> {
@@ -1322,7 +1335,10 @@ mod tests {
         let raw = "x <tool_call>not json</tool_call> y";
         // WHEN computing the prefix
         // THEN it is kept verbatim, matching the non-streaming path
-        assert_eq!(stream_clean_prefix(raw), "x <tool_call>not json</tool_call> y");
+        assert_eq!(
+            stream_clean_prefix(raw),
+            "x <tool_call>not json</tool_call> y"
+        );
     }
 
     #[test]
@@ -1356,8 +1372,11 @@ mod tests {
         // THEN the signature returns Result<LlamaSampler, ErrorBody> (the None grammar
         //      path is identical to pre-grammar behavior; the Some path needs a loaded
         //      model and is exercised by integration, not here)
-        let _: fn(&InferenceRequest, &LlamaModel, &ChatTemplateResult) -> Result<LlamaSampler, ErrorBody> =
-            build_sampler;
+        let _: fn(
+            &InferenceRequest,
+            &LlamaModel,
+            &ChatTemplateResult,
+        ) -> Result<LlamaSampler, ErrorBody> = build_sampler;
     }
 
     #[test]

@@ -296,14 +296,7 @@ fn scan_hitl_tasks(
             continue;
         };
         for tr in arr {
-            push_transition_event(
-                &tr,
-                cutoff_str,
-                &task_id,
-                &agent_name,
-                duration_ms,
-                events,
-            );
+            push_transition_event(&tr, cutoff_str, &task_id, &agent_name, duration_ms, events);
         }
     }
 }

@@ -51,7 +51,14 @@ const NOT_FOUND_NEEDLES: &[&str] = &[
 const TIMEOUT_NEEDLES: &[&str] = &["timeout", "timed out"];
 
 /// Substrings (lowercased) that signal a transient network / rate condition.
-const NETWORK_NEEDLES: &[&str] = &["rate limit", "rate-limit", "connection", "network", "503", "502"];
+const NETWORK_NEEDLES: &[&str] = &[
+    "rate limit",
+    "rate-limit",
+    "connection",
+    "network",
+    "503",
+    "502",
+];
 
 /// One operation outcome fed to [`next_health`].
 pub(crate) enum OpOutcome<'a> {
@@ -66,9 +73,16 @@ pub(crate) enum OpOutcome<'a> {
 /// Internal classification signal, independent of the previous state.
 enum Signal {
     Success,
-    Auth { reason: String },
-    Degraded { category: ErrorCategory, last_error: String },
-    Unavailable { reason: String },
+    Auth {
+        reason: String,
+    },
+    Degraded {
+        category: ErrorCategory,
+        last_error: String,
+    },
+    Unavailable {
+        reason: String,
+    },
     /// Outcome carries no health information (e.g. pending approval).
     Unchanged,
 }

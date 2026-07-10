@@ -662,12 +662,14 @@ mod tests {
     #[test]
     fn test_map_openai_error_unparseable_error_body() {
         let serde_err = serde_json::from_str::<String>("400").unwrap_err();
-        let mapped =
-            map_openai_error(async_openai::error::OpenAIError::JSONDeserialize(serde_err));
+        let mapped = map_openai_error(async_openai::error::OpenAIError::JSONDeserialize(serde_err));
         match mapped {
             LlmError::HttpError { body, .. } => {
                 assert!(body.contains("could not parse"), "body: {body}");
-                assert!(body.contains("server log"), "should point at the log: {body}");
+                assert!(
+                    body.contains("server log"),
+                    "should point at the log: {body}"
+                );
             }
             other => panic!("expected HttpError, got: {other:?}"),
         }

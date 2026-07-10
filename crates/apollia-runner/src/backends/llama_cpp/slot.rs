@@ -128,7 +128,13 @@ impl SlotPool {
         let requested = count.max(1);
         let mut handles = Vec::with_capacity(requested as usize);
         for index in 0..requested {
-            match spawn_slot(index, Arc::clone(model), Arc::clone(backend), n_ctx, kv_type) {
+            match spawn_slot(
+                index,
+                Arc::clone(model),
+                Arc::clone(backend),
+                n_ctx,
+                kv_type,
+            ) {
                 Ok(handle) => handles.push(handle),
                 Err(e) => {
                     if handles.is_empty() {
@@ -170,9 +176,7 @@ impl SlotPool {
         let idx = self.route(fingerprint);
         let handle = &self.handles[idx];
         match handle.tx.as_ref() {
-            Some(tx) => tx
-                .send(job)
-                .map_err(|_| internal("slot thread is gone")),
+            Some(tx) => tx.send(job).map_err(|_| internal("slot thread is gone")),
             None => Err(internal("slot channel closed")),
         }
     }
@@ -201,10 +205,7 @@ impl SlotPool {
                 }
             }
         }
-        best_idle
-            .map(|(i, _)| i)
-            .or(best_busy_match)
-            .unwrap_or(0)
+        best_idle.map(|(i, _)| i).or(best_busy_match).unwrap_or(0)
     }
 }
 

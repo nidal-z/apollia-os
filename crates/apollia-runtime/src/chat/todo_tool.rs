@@ -48,9 +48,7 @@ impl TodoWriteResult {
 /// Human-readable message for a [`TodoError`] surfaced to the LLM.
 fn describe_error(error: &TodoError) -> String {
     match error {
-        TodoError::MultipleInProgress { .. } => {
-            "at most one item may be in_progress".to_string()
-        }
+        TodoError::MultipleInProgress { .. } => "at most one item may be in_progress".to_string(),
         other => other.to_string(),
     }
 }

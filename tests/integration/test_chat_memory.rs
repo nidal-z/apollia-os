@@ -454,7 +454,11 @@ async fn test_agent_mode_user_context() {
             ("role", "senior developer", WrittenBy::Onboarding),
             ("goals", "daily", WrittenBy::Agent("observer".to_owned())),
             ("domain.sector", "platform", WrittenBy::Onboarding),
-            ("domain.team_size", "9h-18h", WrittenBy::Agent("chat".to_owned())),
+            (
+                "domain.team_size",
+                "9h-18h",
+                WrittenBy::Agent("chat".to_owned()),
+            ),
         ],
     );
 
@@ -496,10 +500,7 @@ async fn test_agent_mode_user_context() {
         identity_pos < work_pos,
         "identity should appear before work"
     );
-    assert!(
-        work_pos < pref_pos,
-        "work should appear before preferences"
-    );
+    assert!(work_pos < pref_pos, "work should appear before preferences");
 
     // Verify the block can be injected into a BuiltInChatAgent system prompt
     let repo_arc = Arc::new(Mutex::new(repo));

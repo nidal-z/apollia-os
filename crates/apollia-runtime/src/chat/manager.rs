@@ -743,7 +743,8 @@ const MIN_MESSAGE_LENGTH_FOR_RECALL: usize = 20;
 /// Phrased as a multi-step actionable instruction so the turn router classifies
 /// it as a plan-flow turn and the agent drives the approved plan step by step,
 /// keeping the step statuses current through the `plan_*` tools.
-const PLAN_EXECUTE_DIRECTIVE: &str = "The plan was approved. Execute it now: work through the plan steps in order, \
+const PLAN_EXECUTE_DIRECTIVE: &str =
+    "The plan was approved. Execute it now: work through the plan steps in order, \
      update each step status as you start and finish it, and report progress.";
 
 /// Synthetic directive injected on plan rejection to drive a revision turn.
@@ -751,7 +752,8 @@ const PLAN_EXECUTE_DIRECTIVE: &str = "The plan was approved. Execute it now: wor
 /// Phrased as a multi-step actionable instruction so the turn router classifies
 /// it as a plan-flow turn and the agent revises the submitted plan through the
 /// `plan_*` tools, then re-submits it into the soft gate.
-const PLAN_REVISE_DIRECTIVE: &str = "The plan was rejected. Revise it: adjust the plan steps to address the concern, \
+const PLAN_REVISE_DIRECTIVE: &str =
+    "The plan was rejected. Revise it: adjust the plan steps to address the concern, \
      document the reason for each change through the plan tools, then re-submit the \
      revised plan for approval.";
 
@@ -760,7 +762,8 @@ const PLAN_REVISE_DIRECTIVE: &str = "The plan was rejected. Revise it: adjust th
 /// Phrased as a multi-step actionable instruction so the turn router classifies it
 /// as a plan-flow turn and the agent picks up the plan from the persisted step
 /// statuses, continuing the remaining steps in order.
-const PLAN_RESUME_DIRECTIVE: &str = "Execution resumed. Continue working through the remaining plan steps from where \
+const PLAN_RESUME_DIRECTIVE: &str =
+    "Execution resumed. Continue working through the remaining plan steps from where \
      they left off, updating each step status as you start and finish it.";
 
 /// Error surface for cooperative pause and resume operations on a chat session.
@@ -1453,9 +1456,7 @@ impl ChatSessionManager {
                                 phase: phase.clone(),
                             })
                             .map_err(|e| {
-                                ChatError::InternalError(format!(
-                                    "plan snapshot read failed: {e}"
-                                ))
+                                ChatError::InternalError(format!("plan snapshot read failed: {e}"))
                             }),
                         Ok(None) => Ok(ChatPlanSnapshot { plan: None, phase }),
                         Err(e) => Err(e),

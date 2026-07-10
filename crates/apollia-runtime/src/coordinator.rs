@@ -275,11 +275,17 @@ async fn persist_submission(
     obs_config: &ObservabilityConfig,
 ) {
     let Some(repo) = repo else { return };
-    if let Err(e) = repo.save_input(task_id.as_str(), input_text, obs_config).await {
+    if let Err(e) = repo
+        .save_input(task_id.as_str(), input_text, obs_config)
+        .await
+    {
         tracing::warn!(task_id = %task_id, error = %e, "failed to persist task input");
     }
     if !agent_name_for_db.is_empty() {
-        if let Err(e) = repo.set_agent_name(task_id.as_str(), agent_name_for_db).await {
+        if let Err(e) = repo
+            .set_agent_name(task_id.as_str(), agent_name_for_db)
+            .await
+        {
             tracing::warn!(task_id = %task_id, error = %e, "failed to persist agent_name");
         }
     }

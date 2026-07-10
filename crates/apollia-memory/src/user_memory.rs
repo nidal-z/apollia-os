@@ -561,7 +561,14 @@ impl UserMemoryRepository {
         const TECH: &[&str] = &["dev", "engineer", "data", "devops", "sysadmin"];
         const CREATIVE: &[&str] = &["design", "creat", "vidéo", "video"];
         const BUSINESS: &[&str] = &[
-            "manager", "market", "commercial", "sales", "rh", "ceo", "cto", "coo",
+            "manager",
+            "market",
+            "commercial",
+            "sales",
+            "rh",
+            "ceo",
+            "cto",
+            "coo",
         ];
         if TECH.iter().any(|k| r_lower.contains(k)) {
             "- Profil technique : vocabulaire technique approprié\n"

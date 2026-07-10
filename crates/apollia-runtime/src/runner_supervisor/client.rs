@@ -89,9 +89,7 @@ impl RunnerClient {
                 resp.status()
             )));
         }
-        resp.json::<D>()
-            .await
-            .map_err(http_err)
+        resp.json::<D>().await.map_err(http_err)
     }
 
     /// POST JSON, parse JSON response.
@@ -133,9 +131,7 @@ impl RunnerClient {
                 path, status, text
             )));
         }
-        resp.json::<D>()
-            .await
-            .map_err(http_err)
+        resp.json::<D>().await.map_err(http_err)
     }
 
     /// POST JSON and return the raw streaming response (SSE), without buffering

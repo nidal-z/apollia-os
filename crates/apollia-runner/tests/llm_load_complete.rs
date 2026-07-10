@@ -249,7 +249,12 @@ fn load_and_complete_real_model() {
     let payload: serde_json::Value = resp.json().expect("parse JSON");
     assert_eq!(payload["ok"], true);
     assert!(payload["data"]["text"].is_string());
-    assert!(payload["data"]["usage"]["total_tokens"].as_u64().unwrap_or(0) > 0);
+    assert!(
+        payload["data"]["usage"]["total_tokens"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0
+    );
 
     shutdown(&mut child, port);
 }

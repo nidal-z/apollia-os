@@ -100,7 +100,10 @@ impl WhisperBackend {
     ///
     /// To support on-the-fly loading, add a `model_path` field to
     /// `TranscribeParams` (a MINOR protocol extension).
-    async fn ensure_loaded(&self, model_id: &str) -> Result<std::sync::Arc<LoadedWhisper>, ErrorBody> {
+    async fn ensure_loaded(
+        &self,
+        model_id: &str,
+    ) -> Result<std::sync::Arc<LoadedWhisper>, ErrorBody> {
         if let Some(m) = self.get(model_id) {
             return Ok(m);
         }
@@ -115,11 +118,7 @@ impl WhisperBackend {
     /// The runner does not (yet) expose this call over HTTP: it will be
     /// invoked by the daemon in a future IPC protocol extension. For now it
     /// is used only by integration tests.
-    pub async fn load_model(
-        &self,
-        model_id: String,
-        model_path: PathBuf,
-    ) -> Result<(), ErrorBody> {
+    pub async fn load_model(&self, model_id: String, model_path: PathBuf) -> Result<(), ErrorBody> {
         if !model_path.exists() {
             return Err(bad_request(format!(
                 "whisper model not found: {}",
@@ -146,16 +145,16 @@ impl WhisperBackend {
         let mut guard = self.models.lock().expect("whisper models lock poisoned");
         guard.insert(
             model_id,
-            std::sync::Arc::new(LoadedWhisper { ctx, memory_used_mb }),
+            std::sync::Arc::new(LoadedWhisper {
+                ctx,
+                memory_used_mb,
+            }),
         );
         Ok(())
     }
 
     /// Transcribes a WAV file (`POST /stt/transcribe`).
-    pub async fn transcribe(
-        &self,
-        params: TranscribeParams,
-    ) -> Result<TranscribeData, ErrorBody> {
+    pub async fn transcribe(&self, params: TranscribeParams) -> Result<TranscribeData, ErrorBody> {
         let entry = self.ensure_loaded(&params.model_id).await?;
         let audio_path = params.audio_path.clone();
         let language = params.language.clone();
@@ -302,9 +301,9 @@ fn run_whisper(
     let mut full_text = String::new();
 
     for i in 0..num_segments {
-        let seg = state.get_segment(i).ok_or_else(|| {
-            inference_failed(format!("segment {i} out of bounds"))
-        })?;
+        let seg = state
+            .get_segment(i)
+            .ok_or_else(|| inference_failed(format!("segment {i} out of bounds")))?;
         let text = seg
             .to_str_lossy()
             .map_err(|e| inference_failed(format!("segment {i} text decode failed: {e}")))?

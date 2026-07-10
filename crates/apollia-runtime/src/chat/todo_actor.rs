@@ -62,9 +62,7 @@ impl TodoActor {
     fn set_items(&mut self, session_id: &str, items: &[TodoItem]) -> Result<(), TodoError> {
         let in_progress = count_in_progress(items);
         if in_progress > 1 {
-            return Err(TodoError::MultipleInProgress {
-                count: in_progress,
-            });
+            return Err(TodoError::MultipleInProgress { count: in_progress });
         }
 
         let tx = self.conn.transaction()?;
@@ -201,9 +199,12 @@ mod tests {
         let h = handle();
 
         // WHEN persisting one pending item
-        h.set_items("s1", vec![item("t1", "Analyser le fichier", TodoStatus::Pending)])
-            .await
-            .expect("set ok");
+        h.set_items(
+            "s1",
+            vec![item("t1", "Analyser le fichier", TodoStatus::Pending)],
+        )
+        .await
+        .expect("set ok");
 
         // THEN get_items returns the same item with the same status
         let got = h.get_items("s1").await.expect("get ok");

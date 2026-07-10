@@ -48,10 +48,9 @@ pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, AutonomyConfig, AutonomyLevel, AutonomyLevelConfig,
     AutonomyLevelParseError, BashValidatorConfig, BraveBackendConfig, CeilingAction, ChatConfig,
-    ConfigError,
-    DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig, GatePolicy, HitlConfig,
-    HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig, HybridRoutingConfig,
-    JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
+    ConfigError, DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig, GatePolicy,
+    HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
+    HybridRoutingConfig, JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
     McpToolLoading, ORIAConfig, PermissionsConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
     TriggersConfig, VertexConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
 };
@@ -72,9 +71,9 @@ pub use plan::{
     validate_plan, Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep,
     PlanValidationError, StepOrigin, StepProvenance, StepStatus,
 };
-pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan};
 #[allow(deprecated)]
 pub use plan_alternatives::TaskPlanStep;
+pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan};
 pub use process::ProcessState;
 pub use result::{
     AIPArtifact, AIPError, AIPResult, InputRequiredData, InputResponseData, TaskStatus,

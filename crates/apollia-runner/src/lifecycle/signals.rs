@@ -24,8 +24,7 @@ pub async fn shutdown_signal() {
 
     #[cfg(windows)]
     {
-        let mut ctrl_c =
-            tokio::signal::windows::ctrl_c().expect("install Ctrl-C handler");
+        let mut ctrl_c = tokio::signal::windows::ctrl_c().expect("install Ctrl-C handler");
         let mut ctrl_break =
             tokio::signal::windows::ctrl_break().expect("install Ctrl-Break handler");
 

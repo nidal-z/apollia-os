@@ -444,8 +444,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::TriggerQueueFull { .. } => "trigger-fired",
 
         // ── MCP ──────────────────────────────────────────────────────────
-        RuntimeEvent::McpServerReloaded { .. }
-        | RuntimeEvent::McpServerHealthChanged { .. } => "system",
+        RuntimeEvent::McpServerReloaded { .. } | RuntimeEvent::McpServerHealthChanged { .. } => {
+            "system"
+        }
 
         // ── Workspace / file read ─────────────────────────────────────────
         RuntimeEvent::FileModifiedSinceRead { .. } => "system",

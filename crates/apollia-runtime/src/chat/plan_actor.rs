@@ -14,14 +14,14 @@
 //! the history read ([`PlanHandle::plan_with_tombstones`]) re-includes them with
 //! their removal provenance (origin, reason, timestamp).
 
-use apollia_core::RuntimeEvent;
 use apollia_core::plan::{
-    Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep, PlanValidationError,
-    StepOrigin, StepProvenance, StepStatus, validate_plan,
+    validate_plan, Plan, PlanMutation, PlanMutationKind, PlanScope, PlanStatus, PlanStep,
+    PlanValidationError, StepOrigin, StepProvenance, StepStatus,
 };
-use rusqlite::{Connection, params};
+use apollia_core::RuntimeEvent;
+use rusqlite::{params, Connection};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{Level, event, warn};
+use tracing::{event, warn, Level};
 
 use crate::eventbus::EventBusSender;
 
@@ -748,10 +748,7 @@ impl PlanActor {
     /// reconstructed from the `before` image of every `RemoveStep` mutation,
     /// which already carries the removal provenance. Tombstones are appended
     /// after the live steps in removal order (the mutation log is oldest first).
-    fn load_plan_with_tombstones(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Plan>, PlanStoreError> {
+    fn load_plan_with_tombstones(&self, session_id: &str) -> Result<Option<Plan>, PlanStoreError> {
         let Some(mut plan) = self.load_plan(session_id)? else {
             return Ok(None);
         };
@@ -1022,8 +1019,11 @@ mod tests {
     use apollia_core::plan::StepProvenance;
 
     fn handle() -> PlanHandle {
-        spawn_plan_actor(Connection::open_in_memory().expect("open in-memory db"), None)
-            .expect("spawn")
+        spawn_plan_actor(
+            Connection::open_in_memory().expect("open in-memory db"),
+            None,
+        )
+        .expect("spawn")
     }
 
     /// Spawn a plan actor wired to a fresh broadcast bus, returning the handle
@@ -1095,13 +1095,12 @@ mod tests {
 
         // THEN the mutation log carries the ModifyStep entry with before/after/reason
         let muts = load_mutations(&h, "s1").await;
-        assert!(
-            muts.iter()
-                .any(|m| matches!(m.kind, PlanMutationKind::ModifyStep)
-                    && m.reason.as_deref() == Some("clarification")
-                    && m.before.is_some()
-                    && m.after.is_some())
-        );
+        assert!(muts
+            .iter()
+            .any(|m| matches!(m.kind, PlanMutationKind::ModifyStep)
+                && m.reason.as_deref() == Some("clarification")
+                && m.before.is_some()
+                && m.after.is_some()));
     }
 
     #[tokio::test]
@@ -1121,12 +1120,11 @@ mod tests {
         let plan = h.get_plan("s1").await.expect("get").expect("plan");
         assert!(!plan.steps.iter().any(|s| s.step_id == "b"));
         let muts = load_mutations(&h, "s1").await;
-        assert!(
-            muts.iter()
-                .any(|m| matches!(m.kind, PlanMutationKind::RemoveStep)
-                    && m.before.as_ref().is_some_and(|b| b.step_id == "b")
-                    && m.reason.as_deref() == Some("inutile"))
-        );
+        assert!(muts
+            .iter()
+            .any(|m| matches!(m.kind, PlanMutationKind::RemoveStep)
+                && m.before.as_ref().is_some_and(|b| b.step_id == "b")
+                && m.reason.as_deref() == Some("inutile")));
     }
 
     #[tokio::test]
@@ -1341,10 +1339,9 @@ mod tests {
         let plan = h.get_plan("s1").await.expect("get").expect("plan");
         assert_eq!(plan.steps[0].status, StepStatus::InProgress);
         let muts = load_mutations(&h, "s1").await;
-        assert!(
-            muts.iter()
-                .any(|m| matches!(m.kind, PlanMutationKind::StatusChange))
-        );
+        assert!(muts
+            .iter()
+            .any(|m| matches!(m.kind, PlanMutationKind::StatusChange)));
     }
 
     #[tokio::test]
@@ -1361,10 +1358,9 @@ mod tests {
         // THEN its status is AwaitingApproval and a Submit mutation is recorded
         assert_eq!(plan.status, PlanStatus::AwaitingApproval);
         let muts = load_mutations(&h, "s1").await;
-        assert!(
-            muts.iter()
-                .any(|m| matches!(m.kind, PlanMutationKind::Submit))
-        );
+        assert!(muts
+            .iter()
+            .any(|m| matches!(m.kind, PlanMutationKind::Submit)));
     }
 
     #[tokio::test]
@@ -1410,9 +1406,7 @@ mod tests {
         // THEN a PlanUpdated carries the AddStep mutation and the two-step plan
         let event = rx.recv().await.expect("event emitted");
         match event {
-            RuntimeEvent::PlanUpdated {
-                plan, mutation, ..
-            } => {
+            RuntimeEvent::PlanUpdated { plan, mutation, .. } => {
                 assert_eq!(plan.steps.len(), 2);
                 assert_eq!(mutation.kind, PlanMutationKind::AddStep);
             }

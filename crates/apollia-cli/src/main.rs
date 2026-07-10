@@ -738,7 +738,10 @@ fn main() {
                 use std::io::Write;
                 let markdown = clap_markdown::help_markdown::<Cli>();
                 let mut out = std::io::stdout();
-                match out.write_all(markdown.as_bytes()).and_then(|()| out.flush()) {
+                match out
+                    .write_all(markdown.as_bytes())
+                    .and_then(|()| out.flush())
+                {
                     Ok(()) => exit_codes::SUCCESS,
                     Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => exit_codes::SUCCESS,
                     Err(_) => exit_codes::GENERAL_ERROR,

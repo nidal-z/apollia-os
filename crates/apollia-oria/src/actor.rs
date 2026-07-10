@@ -376,11 +376,7 @@ impl ActorLoop {
     ///
     /// All SQLite errors are logged but do not interrupt execution
     /// (fire-and-forget).
-    pub async fn execute(
-        &mut self,
-        deps: StepDeps<'_>,
-        resilience: &ResilienceLayer,
-    ) -> AIPResult {
+    pub async fn execute(&mut self, deps: StepDeps<'_>, resilience: &ResilienceLayer) -> AIPResult {
         let tool_proxy = deps.tool_proxy;
         let levels = match topological_levels(&self.plan.steps) {
             Ok(l) => l,
@@ -557,7 +553,13 @@ impl ActorLoop {
 
             let started = Instant::now();
             let result = self
-                .execute_step(&step, &step_ctx, deps.tool_proxy, deps.llm_router, resilience)
+                .execute_step(
+                    &step,
+                    &step_ctx,
+                    deps.tool_proxy,
+                    deps.llm_router,
+                    resilience,
+                )
                 .await;
             let duration_ms = started.elapsed().as_millis() as u64;
             deps.budget.increment_steps();
@@ -1213,7 +1215,8 @@ impl ActorLoop {
                 .retain(|s| completed_outputs.contains_key(&s.step_id));
             self.plan.steps.extend(new_plan.steps);
 
-            self.execute_remaining(completed_outputs, deps, resilience).await
+            self.execute_remaining(completed_outputs, deps, resilience)
+                .await
         }) // end Box::pin
     }
 
@@ -1272,7 +1275,13 @@ impl ActorLoop {
 
                 let started = Instant::now();
                 let result = self
-                    .execute_step(&step, &step_ctx, deps.tool_proxy, deps.llm_router, resilience)
+                    .execute_step(
+                        &step,
+                        &step_ctx,
+                        deps.tool_proxy,
+                        deps.llm_router,
+                        resilience,
+                    )
                     .await;
                 let duration_ms = started.elapsed().as_millis() as u64;
                 deps.budget.increment_steps();
@@ -1823,7 +1832,10 @@ mod tests {
         assert_eq!(result.status, TaskStatus::Completed);
         assert_eq!(proxy.call_count(), 1);
         let cb = resilience.breaker("mock_tool").expect("breaker registered");
-        assert!(matches!(cb.state(), crate::resilience::CircuitState::Closed));
+        assert!(matches!(
+            cb.state(),
+            crate::resilience::CircuitState::Closed
+        ));
         assert_eq!(cb.failure_count(), 0);
     }
 
@@ -1948,10 +1960,8 @@ mod tests {
     }
 
     fn router_with_model(model: Arc<MockCompletionModel>) -> LlmRouter {
-        let mut backends: std::collections::HashMap<
-            String,
-            Arc<dyn apollia_llm::CompletionModel>,
-        > = std::collections::HashMap::new();
+        let mut backends: std::collections::HashMap<String, Arc<dyn apollia_llm::CompletionModel>> =
+            std::collections::HashMap::new();
         backends.insert("mock".to_string(), model);
         LlmRouter::with_backends(backends, "mock")
     }
@@ -2112,7 +2122,13 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
+            .execute_tool_steps(
+                &steps,
+                &HashMap::new(),
+                &proxy,
+                &LlmRouter::empty(),
+                &resilience,
+            )
             .await;
 
         // THEN each tool is invoked once and results keep the input order
@@ -2145,7 +2161,13 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
+            .execute_tool_steps(
+                &steps,
+                &HashMap::new(),
+                &proxy,
+                &LlmRouter::empty(),
+                &resilience,
+            )
             .await;
 
         // THEN tool_b is never invoked and its position carries an error
@@ -2172,7 +2194,13 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
+            .execute_tool_steps(
+                &steps,
+                &HashMap::new(),
+                &proxy,
+                &LlmRouter::empty(),
+                &resilience,
+            )
             .await;
 
         // THEN only tool_c fails, each tool invoked once (no retry on permanent)
@@ -2195,7 +2223,13 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
+            .execute_tool_steps(
+                &steps,
+                &HashMap::new(),
+                &proxy,
+                &LlmRouter::empty(),
+                &resilience,
+            )
             .await;
 
         // THEN all 15 complete, in order, and peak concurrency respects the cap
@@ -2219,13 +2253,22 @@ mod tests {
 
         // WHEN the batch path executes
         let results = actor
-            .execute_tool_steps(&steps, &HashMap::new(), &proxy, &LlmRouter::empty(), &resilience)
+            .execute_tool_steps(
+                &steps,
+                &HashMap::new(),
+                &proxy,
+                &LlmRouter::empty(),
+                &resilience,
+            )
             .await;
 
         // THEN tool_b is retried up to the default policy and fails; tool_a is ok
         assert!(results[0].1.is_ok());
         assert!(results[1].1.is_err());
-        assert_eq!(proxy.calls_for("tool_b"), RetryPolicy::default().max_attempts);
+        assert_eq!(
+            proxy.calls_for("tool_b"),
+            RetryPolicy::default().max_attempts
+        );
         assert_eq!(proxy.calls_for("tool_a"), 1);
         let cb = resilience.breaker("tool_b").expect("breaker registered");
         assert_eq!(cb.failure_count(), 1);

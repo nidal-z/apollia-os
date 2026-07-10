@@ -194,9 +194,7 @@ fn json_type_name(val: &Value) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_llm::types::{
-        CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage,
-    };
+    use apollia_llm::types::{CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage};
     use futures::Stream;
     use std::pin::Pin;
 
@@ -254,8 +252,7 @@ mod tests {
     async fn test_resolve_extracts_and_validates_wrapped_call() {
         // GIVEN a model returning a grammar-shaped tool call
         let model: Arc<dyn CompletionModel> = Arc::new(FixedModel {
-            content: r#"{"name":"file_write","arguments":{"path":"/tmp/x","content":"hi"}}"#
-                .into(),
+            content: r#"{"name":"file_write","arguments":{"path":"/tmp/x","content":"hi"}}"#.into(),
             local: true,
         });
 

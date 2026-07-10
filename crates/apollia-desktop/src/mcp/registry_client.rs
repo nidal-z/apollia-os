@@ -469,7 +469,10 @@ impl McpRegistryClient {
                         _ => break,
                     }
                 }
-                PageParse::SkipTo { cursor: next, page: next_page } => {
+                PageParse::SkipTo {
+                    cursor: next,
+                    page: next_page,
+                } => {
                     cursor = Some(next);
                     page = next_page;
                     if page >= Self::MAX_PAGES {
@@ -503,10 +506,7 @@ impl McpRegistryClient {
     fn parse_page(body: &str, page: usize) -> PageParse {
         match serde_json::from_str::<RegistryListResponse>(body) {
             Ok(response) => {
-                let next = response
-                    .metadata
-                    .next_cursor
-                    .filter(|c| !c.is_empty());
+                let next = response.metadata.next_cursor.filter(|c| !c.is_empty());
                 PageParse::Servers {
                     servers: response.servers,
                     next,

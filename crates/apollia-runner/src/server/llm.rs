@@ -11,12 +11,12 @@ use axum::extract::State;
 use axum::response::{IntoResponse, Response as AxumResponse};
 use axum::Json;
 
+#[cfg(feature = "local-cpu")]
+use crate::ipc::Response;
 use crate::ipc::{
     CompleteParams, EmbedParams, ErrorBody, ErrorCode, LoadModelParams, Request, TokenizeParams,
     UnloadModelParams,
 };
-#[cfg(feature = "local-cpu")]
-use crate::ipc::Response;
 
 use super::error::ipc_error_response;
 use super::AppState;

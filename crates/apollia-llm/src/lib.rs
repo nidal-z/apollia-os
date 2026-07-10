@@ -45,10 +45,12 @@ pub use meta_orchestrator::{
     ThinkingContradiction, ThinkingQuality, ThinkingSummary, DEFAULT_SESSION_BUDGET_TOKENS,
 };
 
+pub use apollia_core::config::LlmRoutingConfig;
 #[cfg(feature = "cloud")]
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
 };
+pub use grammar::tool_specs_to_gbnf;
 pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
 #[cfg(feature = "cloud")]
 pub use hf_registry::{
@@ -60,11 +62,9 @@ pub use repository::{
     LlmDailyCostSummary, LlmRepositoryError,
 };
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
-pub use apollia_core::config::LlmRoutingConfig;
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use routing_level::{EscalationSignal, LlmRoutingLevel};
 pub use token_budget::SessionBudgetTracker;
-pub use grammar::tool_specs_to_gbnf;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     BackendInfo, CacheControl, ChatMessage, CompletionModel, CompletionRequest, CompletionResponse,

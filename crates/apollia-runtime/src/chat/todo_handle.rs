@@ -52,11 +52,7 @@ impl TodoHandle {
     ///   `status == InProgress`.
     /// - [`TodoError::Sqlite`] when the underlying write fails.
     /// - [`TodoError::ActorGone`] when the actor has stopped.
-    pub async fn set_items(
-        &self,
-        session_id: &str,
-        items: Vec<TodoItem>,
-    ) -> Result<(), TodoError> {
+    pub async fn set_items(&self, session_id: &str, items: Vec<TodoItem>) -> Result<(), TodoError> {
         let (reply, rx) = oneshot::channel();
         self.tx
             .send(TodoMessage::SetItems {

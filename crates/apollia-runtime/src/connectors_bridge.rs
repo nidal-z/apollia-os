@@ -37,8 +37,7 @@ use apollia_connectors::microsoft::{
         BodyContentType as MsBodyContentType, ComposeMessage as MsComposeMessage,
         EmailAddress as MsEmailAddress, MessageBody as MsMessageBody, Recipient as MsRecipient,
     },
-    operations as microsoft_operations,
-    MicrosoftConnector,
+    operations as microsoft_operations, MicrosoftConnector,
 };
 use apollia_connectors::operation::{ApprovalPolicy, OperationSpec};
 use apollia_core::SandboxProfile;
@@ -1898,7 +1897,8 @@ fn build_ms_event_draft(input: &Value) -> Result<MsEventDraft, String> {
         }),
         start: MsEventDateTime::from_utc(start),
         end: MsEventDateTime::from_utc(end),
-        location: get_str_opt(input, "location").map(|display_name| MsEventLocation { display_name }),
+        location: get_str_opt(input, "location")
+            .map(|display_name| MsEventLocation { display_name }),
         attendees: ms_attendees(get_str_array(input, "attendees")),
         is_all_day: None,
     })

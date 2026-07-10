@@ -482,20 +482,16 @@ mod tests {
 
         // WHEN inspecting their required arrays
         // THEN both declare 'reason' as required
-        assert!(
-            modify.parameters["required"]
-                .as_array()
-                .expect("array")
-                .iter()
-                .any(|v| v == "reason")
-        );
-        assert!(
-            remove.parameters["required"]
-                .as_array()
-                .expect("array")
-                .iter()
-                .any(|v| v == "reason")
-        );
+        assert!(modify.parameters["required"]
+            .as_array()
+            .expect("array")
+            .iter()
+            .any(|v| v == "reason"));
+        assert!(remove.parameters["required"]
+            .as_array()
+            .expect("array")
+            .iter()
+            .any(|v| v == "reason"));
     }
 
     #[tokio::test]
@@ -651,11 +647,9 @@ mod tests {
 
         // THEN a structured error is returned, never a panic
         assert!(!result.ok);
-        assert!(
-            result
-                .error
-                .as_deref()
-                .is_some_and(|e| e.starts_with("invalid payload"))
-        );
+        assert!(result
+            .error
+            .as_deref()
+            .is_some_and(|e| e.starts_with("invalid payload")));
     }
 }

@@ -1222,11 +1222,10 @@ impl Supervisor {
         // Build the lifecycle hook executor once from the validated [hooks]
         // config and share it (read-only) with the chat loop. An empty config
         // yields an executor over an empty registry: zero overhead, no I/O.
-        let hook_executor = std::sync::Arc::new(crate::hooks::HookExecutor::new(
-            std::sync::Arc::new(crate::hooks::HookRegistry::from_config(
-                &self.config.hooks_config,
-            )),
-        ));
+        let hook_executor =
+            std::sync::Arc::new(crate::hooks::HookExecutor::new(std::sync::Arc::new(
+                crate::hooks::HookRegistry::from_config(&self.config.hooks_config),
+            )));
         let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
             match crate::chat::ChatSessionManagerHandle::spawn(
                 &chat_db_path,

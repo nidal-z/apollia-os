@@ -111,7 +111,11 @@ mod tests {
     #[test]
     fn test_todo_status_round_trips_through_str() {
         // GIVEN every status variant
-        for status in [TodoStatus::Pending, TodoStatus::InProgress, TodoStatus::Completed] {
+        for status in [
+            TodoStatus::Pending,
+            TodoStatus::InProgress,
+            TodoStatus::Completed,
+        ] {
             // WHEN serializing to the stable string and parsing it back
             let parsed = TodoStatus::parse(status.as_str());
 

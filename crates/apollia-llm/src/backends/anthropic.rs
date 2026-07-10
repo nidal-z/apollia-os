@@ -915,7 +915,9 @@ fn handle_content_block_delta(
         Some("text_delta") => {
             let text = json.pointer("/delta/text").and_then(|t| t.as_str());
             match text {
-                Some(text) if !text.is_empty() => SseAction::Emit(StreamChunk::Text(text.to_owned())),
+                Some(text) if !text.is_empty() => {
+                    SseAction::Emit(StreamChunk::Text(text.to_owned()))
+                }
                 _ => SseAction::Continue,
             }
         }

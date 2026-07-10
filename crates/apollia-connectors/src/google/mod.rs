@@ -623,10 +623,7 @@ mod tests {
 
     #[test]
     fn test_read_operations_auto_approve() {
-        let reads = [
-            "gcal.list_events",
-            "gdrive.workspace_read",
-        ];
+        let reads = ["gcal.list_events", "gdrive.workspace_read"];
         for id in reads {
             let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
             assert!(op.is_read_only(), "expected {id} to auto-approve");

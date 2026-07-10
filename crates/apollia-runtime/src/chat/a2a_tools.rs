@@ -275,8 +275,10 @@ impl ToolInvoker for CompositeToolInvoker {
                         failures.remove(skill_id);
                     }
                     {
-                        let mut payload =
-                            self.a2a_payload_failures.lock().unwrap_or_else(|e| e.into_inner());
+                        let mut payload = self
+                            .a2a_payload_failures
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner());
                         payload.remove(skill_id);
                     }
 

@@ -109,7 +109,11 @@ impl RunnerSupervisor {
         // in-progress model load (llama.cpp is very verbose during load).
         if let Some(stderr) = child.stderr.take() {
             let backend = self.backend;
-            tokio::spawn(drain_pipe(BufReader::new(stderr), backend, PipeKind::Stderr));
+            tokio::spawn(drain_pipe(
+                BufReader::new(stderr),
+                backend,
+                PipeKind::Stderr,
+            ));
         }
 
         // Drain the remaining stdout for the same reason (the READY line has been
@@ -231,8 +235,12 @@ impl RunnerSupervisor {
 /// Locate the `apollia-runner-{backend}` binary next to the current executable
 /// (`apollia-os`).
 fn locate_runner_binary(backend: RunnerBackend) -> Result<std::path::PathBuf, RunnerError> {
-    let exe = std::env::current_exe()
-        .map_err(|e| RunnerError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, format!("current_exe: {e}"))))?;
+    let exe = std::env::current_exe().map_err(|e| {
+        RunnerError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("current_exe: {e}"),
+        ))
+    })?;
     let dir = exe
         .parent()
         .ok_or_else(|| RunnerError::BinaryNotFound("no parent dir of current_exe".into()))?;
@@ -295,7 +303,11 @@ enum PipeKind {
 /// after which the runner blocks on its next write and the in-progress model load
 /// deadlocks. So never stop on a decode error, only on EOF or a real read error
 /// (the runner process has exited).
-async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R, backend: RunnerBackend, kind: PipeKind) {
+async fn drain_pipe<R: AsyncBufRead + Unpin>(
+    mut reader: R,
+    backend: RunnerBackend,
+    kind: PipeKind,
+) {
     let mut buf = Vec::with_capacity(256);
     loop {
         buf.clear();

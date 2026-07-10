@@ -680,7 +680,10 @@ mod tests {
 
         // THEN Ok(())
         assert!(result.is_ok());
-        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Closed);
+        assert_eq!(
+            layer.breaker("file_io").unwrap().state(),
+            &CircuitState::Closed
+        );
     }
 
     // Transient errors open the circuit after threshold
@@ -703,7 +706,10 @@ mod tests {
         }
 
         // THEN state() == Open
-        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(
+            layer.breaker("file_io").unwrap().state(),
+            &CircuitState::Open
+        );
     }
 
     // continued: Open rejects immediately
@@ -736,7 +742,10 @@ mod tests {
         layer
             .record_failure("file_io", &ErrorClass::Transient)
             .unwrap();
-        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(
+            layer.breaker("file_io").unwrap().state(),
+            &CircuitState::Open
+        );
 
         // Sleep briefly to ensure Instant::elapsed() > 0
         std::thread::sleep(Duration::from_millis(1));
@@ -793,7 +802,10 @@ mod tests {
 
         // THEN state == Open
         assert!(opened);
-        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(
+            layer.breaker("file_io").unwrap().state(),
+            &CircuitState::Open
+        );
     }
 
     // Permanent errors do not increment
@@ -887,7 +899,10 @@ mod tests {
             .unwrap();
 
         // THEN "file_io" is Open, others are Closed
-        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(
+            layer.breaker("file_io").unwrap().state(),
+            &CircuitState::Open
+        );
         assert_eq!(
             layer.breaker("bash_executor").unwrap().state(),
             &CircuitState::Closed
@@ -912,7 +927,10 @@ mod tests {
         layer
             .record_failure("file_io", &ErrorClass::Transient)
             .unwrap();
-        assert_eq!(layer.breaker("file_io").unwrap().state(), &CircuitState::Open);
+        assert_eq!(
+            layer.breaker("file_io").unwrap().state(),
+            &CircuitState::Open
+        );
 
         // WHEN reset()
         layer.reset_breaker("file_io");

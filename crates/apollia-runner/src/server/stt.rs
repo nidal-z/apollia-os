@@ -5,9 +5,9 @@ use axum::extract::State;
 use axum::response::{IntoResponse, Response as AxumResponse};
 use axum::Json;
 
-use crate::ipc::{ErrorBody, ErrorCode, Request, TranscribeParams};
 #[cfg(feature = "local-cpu")]
 use crate::ipc::Response;
+use crate::ipc::{ErrorBody, ErrorCode, Request, TranscribeParams};
 
 use super::error::ipc_error_response;
 use super::AppState;

@@ -342,10 +342,7 @@ fn migrate_safe_list_to_governance(
         imported += 1;
     }
 
-    tracing::info!(
-        count = imported,
-        "safe_list migrated to governance.db"
-    );
+    tracing::info!(count = imported, "safe_list migrated to governance.db");
     Ok(())
 }
 

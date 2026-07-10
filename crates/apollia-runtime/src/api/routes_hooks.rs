@@ -5,8 +5,8 @@
 //! Returns an empty array when no hooks are configured or when the chat manager
 //! (which owns the shared hook executor) is not running.
 
-use axum::Json;
 use axum::extract::State;
+use axum::Json;
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;

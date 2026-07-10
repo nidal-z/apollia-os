@@ -20,11 +20,10 @@ use apollia_core::{
 };
 use apollia_llm::routing_level::{EscalationSignal, LlmRoutingLevel};
 use apollia_llm::types::{
-    ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage,
-    ToolCall, ToolSpec,
+    ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
 use apollia_llm::{LlmRouter, MetaOrchestratorHandle, ObservabilityConfig, ToolInvoker};
-use apollia_mcp::tool_search::{ToolIndexSnapshot, tool_search_input_schema};
+use apollia_mcp::tool_search::{tool_search_input_schema, ToolIndexSnapshot};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::context_manager::ContextManager;
@@ -48,7 +47,7 @@ use crate::chat::plan_tool::{
     PLAN_SUBMIT_TOOL_NAME,
 };
 use crate::chat::todo_handle::TodoHandle;
-use crate::chat::todo_tool::{TODO_WRITE_TOOL_NAME, run_todo_write, todo_write_spec};
+use crate::chat::todo_tool::{run_todo_write, todo_write_spec, TODO_WRITE_TOOL_NAME};
 use crate::chat::turn_router::classify_turn;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
@@ -402,8 +401,8 @@ impl NativeChatToolInvoker {
         reason = "replaced by HitlFilesystemGuard(FileWrite) via fallback_dispatcher"
     )]
     async fn invoke_file_write(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::FilesystemOp;
         use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
+        use apollia_tools::FilesystemOp;
 
         let input: FileWriteInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_write: invalid arguments: {e}"))?;
@@ -454,8 +453,8 @@ impl NativeChatToolInvoker {
         reason = "replaced by HitlFilesystemGuard(FileEdit) via fallback_dispatcher"
     )]
     async fn invoke_file_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::FilesystemOp;
         use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
+        use apollia_tools::FilesystemOp;
 
         let input: FileEditInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_edit: invalid arguments: {e}"))?;
@@ -1458,8 +1457,9 @@ impl BuiltInChatAgent {
 
         // User-persona brief, memory at the agent's initiative, gated by tier.
         let persona = if inject_memory {
-            self.user_memory.as_ref().and_then(|repo_mutex| {
-                match repo_mutex.lock() {
+            self.user_memory
+                .as_ref()
+                .and_then(|repo_mutex| match repo_mutex.lock() {
                     Ok(repo) => match repo.recall_persona_brief(30) {
                         Ok(brief) if !brief.is_empty() => {
                             Some(apollia_prompts::blocks::persona_block(&brief))
@@ -1474,8 +1474,7 @@ impl BuiltInChatAgent {
                         warn!(error = %e, "User memory mutex poisoned, skipping injection");
                         None
                     }
-                }
-            })
+                })
         } else {
             None
         };
@@ -1767,7 +1766,9 @@ impl BuiltInChatAgent {
                         Ok(next) => {
                             let output = next.content.clone();
                             // Carry any tool authorized on this retry into the next.
-                            state.authorized.extend(next.newly_authorized.iter().cloned());
+                            state
+                                .authorized
+                                .extend(next.newly_authorized.iter().cloned());
                             state.last_response = next;
                             (Ok(output), state)
                         }
@@ -2050,8 +2051,7 @@ impl BuiltInChatAgent {
                     // draft now and ending the turn cuts that loop short.
                     if !submitted_now {
                         if let Some(tracker) = phase_tracker.as_mut() {
-                            submitted_now =
-                                self.auto_submit_if_drafted(tracker, session_id).await;
+                            submitted_now = self.auto_submit_if_drafted(tracker, session_id).await;
                         }
                     }
 
@@ -3533,7 +3533,11 @@ fn truncate_preview(s: &str) -> String {
 /// Increments on a failed call and resets to 0 on success, so a run of failures
 /// accumulates toward [`ESCALATION_FAILURE_THRESHOLD`] while any success clears it.
 fn next_failure_count(current: u32, failed: bool) -> u32 {
-    if failed { current.saturating_add(1) } else { 0 }
+    if failed {
+        current.saturating_add(1)
+    } else {
+        0
+    }
 }
 
 /// Truncate tool output for LLM context injection.
@@ -4365,11 +4369,9 @@ mod tests {
         let resp = result.expect("should produce a final response");
         assert_eq!(resp.content, "done");
         assert!(resp.frontier_ceiling_reached);
-        assert!(
-            !events
-                .iter()
-                .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. }))
-        );
+        assert!(!events
+            .iter()
+            .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. })));
     }
 
     #[tokio::test]
@@ -4389,11 +4391,9 @@ mod tests {
         let resp = result.expect("should produce a final response");
         assert_eq!(resp.content, "done");
         assert!(!resp.frontier_ceiling_reached);
-        assert!(
-            !events
-                .iter()
-                .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. }))
-        );
+        assert!(!events
+            .iter()
+            .any(|ev| matches!(ev, RuntimeEvent::CostCeilingReached { .. })));
     }
 
     /// Tool call authorized: direct execution (via streaming).
@@ -6015,7 +6015,10 @@ mod tests {
         assert_eq!(record.status, ToolCallStatus::Refused);
         let output = record.output.as_deref().unwrap_or_default();
         assert!(output.contains("unknown tool `web_serch`"), "got: {output}");
-        assert!(output.contains("Did you mean `web_search`?"), "got: {output}");
+        assert!(
+            output.contains("Did you mean `web_search`?"),
+            "got: {output}"
+        );
         // AND it is not counted as an execution failure (a refusal, not a crash)
         assert_eq!(failures, 0);
 

@@ -565,9 +565,9 @@ async fn resolve_health_probe(api_port: u16, name: &str) -> Option<ProbeSpec> {
     let json = http_get_json(api_port, &path).await.ok()?;
     let config: McpServerConfig = serde_json::from_value(json).ok()?;
     let enrichments = crate::mcp::enrichments::load_builtin_enrichments();
-    let enrichment = enrichments.iter().find(|e| {
-        config.url.is_some() && e.remote_url.as_deref() == config.url.as_deref()
-    })?;
+    let enrichment = enrichments
+        .iter()
+        .find(|e| config.url.is_some() && e.remote_url.as_deref() == config.url.as_deref())?;
     let probe = enrichment.health_probe.as_ref()?;
     Some(ProbeSpec {
         tool: probe.tool.clone(),

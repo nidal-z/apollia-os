@@ -938,9 +938,15 @@ mod tests {
 
         let content = std::fs::read_to_string(&toml_path).unwrap();
         toml::from_str::<toml::Value>(&content).expect("valid TOML");
-        assert!(!content.contains("[[llm.backends]]"), "embedded not mirrored");
+        assert!(
+            !content.contains("[[llm.backends]]"),
+            "embedded not mirrored"
+        );
         assert!(!content.contains("embedded"), "no embedded type written");
-        assert!(content.contains("backends = []"), "required field kept empty");
+        assert!(
+            content.contains("backends = []"),
+            "required field kept empty"
+        );
     }
 
     // GIVEN an existing TOML file with an old backend, and a different backend in the DB
@@ -988,8 +994,14 @@ mod tests {
         // so only the array-of-tables may remain.
         toml::from_str::<toml::Value>(&content).expect("sync must produce valid TOML");
         assert!(!content.contains("backends = []"), "inline key stripped");
-        assert!(content.contains("[[llm.backends]]"), "array-of-tables present");
-        assert!(content.contains("default = \"local\""), "other [llm] keys kept");
+        assert!(
+            content.contains("[[llm.backends]]"),
+            "array-of-tables present"
+        );
+        assert!(
+            content.contains("default = \"local\""),
+            "other [llm] keys kept"
+        );
         assert!(content.contains("[api]"), "unrelated sections preserved");
     }
 

@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use apollia_core::decision_point::DecisionKind;
 use apollia_core::events::{EventBusSender, RuntimeEvent};
-use apollia_core::plan::{StepOrigin, StepProvenance, validate_plan};
+use apollia_core::plan::{validate_plan, StepOrigin, StepProvenance};
 use apollia_core::plan_alternatives::{PlanAlternatives, TaskPlan};
 use apollia_core::{AIPPart, ORIAConfig};
 use apollia_llm::meta_orchestrator::{DecisionPointRequest, MetaOrchestratorHandle};

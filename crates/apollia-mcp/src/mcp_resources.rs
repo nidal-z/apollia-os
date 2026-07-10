@@ -56,12 +56,18 @@ fn list_descriptor() -> ToolDescriptor {
         }),
         output_schema: None,
         sandbox_profile: SandboxProfile::ReadOnly,
-        tags: vec!["mcp".to_string(), "resources".to_string(), "read".to_string()],
+        tags: vec![
+            "mcp".to_string(),
+            "resources".to_string(),
+            "read".to_string(),
+        ],
         dangerous: false,
         is_read_only: true,
         risk_score: 1,
         approval_risk_level: None,
-        impact_description: Some("Lists MCP resources across connected servers (read-only).".into()),
+        impact_description: Some(
+            "Lists MCP resources across connected servers (read-only).".into(),
+        ),
         reject_reason_required: false,
     }
 }
@@ -93,7 +99,11 @@ fn read_descriptor() -> ToolDescriptor {
         }),
         output_schema: None,
         sandbox_profile: SandboxProfile::ReadOnly,
-        tags: vec!["mcp".to_string(), "resources".to_string(), "read".to_string()],
+        tags: vec![
+            "mcp".to_string(),
+            "resources".to_string(),
+            "read".to_string(),
+        ],
         dangerous: false,
         is_read_only: true,
         risk_score: 1,
@@ -201,14 +211,12 @@ impl ToolExecutor for McpResourcesReadExecutor {
             })?;
         let server = input.get("server").and_then(Value::as_str);
 
-        let payload = self
-            .handle
-            .read_resource(server, uri)
-            .await
-            .map_err(|e| ToolExecutionError::ExecutionFailed {
+        let payload = self.handle.read_resource(server, uri).await.map_err(|e| {
+            ToolExecutionError::ExecutionFailed {
                 code: "mcp_resource_read_failed".to_string(),
                 message: e.to_string(),
-            })?;
+            }
+        })?;
 
         serde_json::to_value(&payload).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialize_failed".to_string(),

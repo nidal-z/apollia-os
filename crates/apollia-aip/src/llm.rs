@@ -328,10 +328,7 @@ impl LlmProxy {
                         return (index, Err("budget exhausted".to_string()));
                     }
                     let req = CompletionRequest {
-                        messages: vec![
-                            ChatMessage::system(system_prefix),
-                            ChatMessage::user(item),
-                        ],
+                        messages: vec![ChatMessage::system(system_prefix), ChatMessage::user(item)],
                         temperature,
                         max_tokens,
                         ..Default::default()

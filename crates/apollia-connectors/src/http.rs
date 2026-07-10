@@ -121,8 +121,8 @@ impl HttpClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let body_bytes =
-            serde_json::to_vec(request.body).map_err(|e| ConnectorError::Decoding(e.to_string()))?;
+        let body_bytes = serde_json::to_vec(request.body)
+            .map_err(|e| ConnectorError::Decoding(e.to_string()))?;
         let response = self
             .send(
                 RawRequest {
@@ -230,15 +230,11 @@ impl HttpClient {
         B: serde::Serialize + ?Sized,
         T: DeserializeOwned,
     {
-        self.json_request(
-            JsonRequest { method, url, body },
-            bearer,
-            || async move {
-                Err(ConnectorError::Unauthorized {
-                    provider: self.provider_id,
-                })
-            },
-        )
+        self.json_request(JsonRequest { method, url, body }, bearer, || async move {
+            Err(ConnectorError::Unauthorized {
+                provider: self.provider_id,
+            })
+        })
         .await
     }
 
@@ -246,11 +242,7 @@ impl HttpClient {
     ///
     /// Returns `None` when the caller should back off and retry the attempt,
     /// or `Some(err)` when the error is terminal.
-    async fn on_network_error(
-        &self,
-        e: reqwest::Error,
-        attempt: u32,
-    ) -> Option<ConnectorError> {
+    async fn on_network_error(&self, e: reqwest::Error, attempt: u32) -> Option<ConnectorError> {
         if attempt < MAX_RETRIES && (e.is_connect() || e.is_timeout()) {
             let backoff = exponential_backoff(attempt);
             tracing::warn!(

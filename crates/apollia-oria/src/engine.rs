@@ -35,7 +35,9 @@ use crate::plan_gate::{PendingPlanGates, PlanGateDecision};
 use crate::plan_repository::PlanRepository;
 use crate::reasoner::{Reasoner, ReasonerError};
 use crate::resilience::ResilienceLayer;
-use crate::verification::{run_post_run_verification, verdict_feedback, CriticPass, VerificationLoop};
+use crate::verification::{
+    run_post_run_verification, verdict_feedback, CriticPass, VerificationLoop,
+};
 
 // Traits
 
@@ -3139,9 +3141,7 @@ mod orchestrated_tests {
     }
 
     /// Drain every event currently buffered on the receiver.
-    fn drain_events(
-        rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>,
-    ) -> Vec<RuntimeEvent> {
+    fn drain_events(rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>) -> Vec<RuntimeEvent> {
         let mut events = Vec::new();
         while let Ok(event) = rx.try_recv() {
             events.push(event);

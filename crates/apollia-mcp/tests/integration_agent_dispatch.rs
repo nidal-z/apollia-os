@@ -96,7 +96,10 @@ async fn mcp_tool_executes_through_dispatcher_deferred() {
 
     // WHEN the agent dispatches the deferred mcp: tool
     let out = dispatcher
-        .dispatch("mcp:calc/echo", serde_json::json!({"message": "deferred ok"}))
+        .dispatch(
+            "mcp:calc/echo",
+            serde_json::json!({"message": "deferred ok"}),
+        )
         .await
         .expect("deferred mcp tool dispatch must succeed");
 

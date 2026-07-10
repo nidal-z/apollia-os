@@ -592,8 +592,7 @@ fn vulkan_loader_present_windows() -> bool {
 
 #[cfg(target_os = "windows")]
 fn hip_sdk_present_windows() -> bool {
-    std::env::var("HIP_PATH").is_ok()
-        || std::path::Path::new("C:/Program Files/AMD/ROCm").exists()
+    std::env::var("HIP_PATH").is_ok() || std::path::Path::new("C:/Program Files/AMD/ROCm").exists()
 }
 
 /// AMD ROCm Windows allowlist: officially limited to Radeon Pro and Instinct MI.

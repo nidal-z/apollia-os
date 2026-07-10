@@ -275,8 +275,7 @@ mod tests {
             ..base_params()
         };
         let json = serde_json::to_string(&params).expect("serialization failed");
-        let restored: CompleteParams =
-            serde_json::from_str(&json).expect("deserialization failed");
+        let restored: CompleteParams = serde_json::from_str(&json).expect("deserialization failed");
         assert_eq!(restored.grammar.as_deref(), Some("root ::= \"{}\""));
     }
 

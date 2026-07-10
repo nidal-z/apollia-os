@@ -573,7 +573,13 @@ impl LlmRouter {
         let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
 
         for backend_cfg in &config.backends {
-            load_backend_with_bus(&mut backends, backend_cfg, config, &cancellation_token, &bus);
+            load_backend_with_bus(
+                &mut backends,
+                backend_cfg,
+                config,
+                &cancellation_token,
+                &bus,
+            );
         }
 
         // Vertex AI is instantiated separately from [llm.vertex] when enabled = true.

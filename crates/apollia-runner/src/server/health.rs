@@ -8,11 +8,7 @@ use crate::ipc::{HealthData, Response};
 use super::AppState;
 
 pub async fn handle(State(state): State<AppState>) -> Json<Response<HealthData>> {
-    let uptime_secs = state
-        .started_at
-        .elapsed()
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    let uptime_secs = state.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
 
     let data = HealthData {
         uptime_secs,

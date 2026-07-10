@@ -180,7 +180,8 @@ mod imp {
         );
 
         // --- time to first token (streaming) ---
-        let (ttft_ms, total_ms) = measure_ttft(&backend, "bench-s1", ctx.clone(), max_tokens).await?;
+        let (ttft_ms, total_ms) =
+            measure_ttft(&backend, "bench-s1", ctx.clone(), max_tokens).await?;
         println!("   [ttft]      first_token={ttft_ms} ms  total={total_ms} ms");
 
         // --- multi-turn prefix reuse ---
@@ -189,12 +190,24 @@ mod imp {
             .await
             .map_err(|e| e.message)?;
         let turn2_msgs = vec![
-            ChatMessage { role: Role::User, content: ctx.clone() },
-            ChatMessage { role: Role::Assistant, content: turn1.text.clone() },
-            ChatMessage { role: Role::User, content: "Now expand the second sentence.".to_string() },
+            ChatMessage {
+                role: Role::User,
+                content: ctx.clone(),
+            },
+            ChatMessage {
+                role: Role::Assistant,
+                content: turn1.text.clone(),
+            },
+            ChatMessage {
+                role: Role::User,
+                content: "Now expand the second sentence.".to_string(),
+            },
         ];
         let turn2 = backend
-            .complete(CompleteParams { messages: turn2_msgs, ..user_turn("bench-s1", String::new(), 48) })
+            .complete(CompleteParams {
+                messages: turn2_msgs,
+                ..user_turn("bench-s1", String::new(), 48)
+            })
             .await
             .map_err(|e| e.message)?;
         println!(

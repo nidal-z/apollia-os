@@ -237,10 +237,7 @@ struct GatheredEvents {
 ///
 /// Returns `Err` with a not-found message when the task is unknown to all
 /// sources.
-fn collect_timeline_events(
-    dbs: &TimelineDbPaths,
-    tid: &str,
-) -> Result<Vec<TimelineEvent>, String> {
+fn collect_timeline_events(dbs: &TimelineDbPaths, tid: &str) -> Result<Vec<TimelineEvent>, String> {
     let GatheredEvents {
         mut events,
         task_found,

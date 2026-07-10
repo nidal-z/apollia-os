@@ -191,7 +191,11 @@ fn register_sandbox_tools(
     is_active: &impl Fn(&str) -> bool,
 ) {
     if is_active("file_read") {
-        push_sandbox_tool(executors, "file_read", FileRead::new(cfg.sandbox_root.clone()));
+        push_sandbox_tool(
+            executors,
+            "file_read",
+            FileRead::new(cfg.sandbox_root.clone()),
+        );
     }
     if is_active("file_write") {
         push_sandbox_tool(
@@ -201,16 +205,32 @@ fn register_sandbox_tools(
         );
     }
     if is_active("file_list") {
-        push_sandbox_tool(executors, "file_list", FileList::new(cfg.sandbox_root.clone()));
+        push_sandbox_tool(
+            executors,
+            "file_list",
+            FileList::new(cfg.sandbox_root.clone()),
+        );
     }
     if is_active("file_edit") {
-        push_sandbox_tool(executors, "file_edit", FileEdit::new(cfg.sandbox_root.clone()));
+        push_sandbox_tool(
+            executors,
+            "file_edit",
+            FileEdit::new(cfg.sandbox_root.clone()),
+        );
     }
     if is_active("file_glob") {
-        push_sandbox_tool(executors, "file_glob", FileGlob::new(cfg.sandbox_root.clone()));
+        push_sandbox_tool(
+            executors,
+            "file_glob",
+            FileGlob::new(cfg.sandbox_root.clone()),
+        );
     }
     if is_active("file_grep") {
-        push_sandbox_tool(executors, "file_grep", FileGrep::new(cfg.sandbox_root.clone()));
+        push_sandbox_tool(
+            executors,
+            "file_grep",
+            FileGrep::new(cfg.sandbox_root.clone()),
+        );
     }
     if is_active("notebook_read") {
         push_sandbox_tool(
