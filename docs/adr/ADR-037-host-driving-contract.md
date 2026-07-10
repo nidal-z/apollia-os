@@ -90,3 +90,13 @@ Le chantier #1 est livré et prouvé sur la branche `feat/driving-contract` (com
 Rectification du **composant 4 (exécution MCP)** : l'implémentation a établi que l'exécution des outils MCP par un agent via `ctx.tools.call('mcp:...')` **était déjà câblée et fonctionnelle** (corrigée antérieurement en commit `4c7266d6`). Le constat "cassé" de la section Contexte provenait d'un commentaire périmé (`yumni_bridge.py:6-8`) pris pour argent comptant. Le composant 4 se réduit donc à : ajout d'un test de non-régression (`crates/apollia-mcp/tests/integration_agent_dispatch.rs`) et retrait du contournement REST côté Yumni. Aucune autre partie de la décision n'est affectée.
 
 Réserve mineure connue : 3 endpoints à corps brut (stt config/transcribe, webhook) restent documentés dans la spec mais non exposés en méthodes SDK typées.
+
+## Amendement (2026-07-10, post-merge)
+
+Le chantier #1 est désormais **mergé dans `main`** (la branche `feat/driving-contract` citée ci-dessus a été intégrée). La rectification du composant 4 a été **revérifiée contre le code mergé**, et elle tient :
+- Preuve end-to-end de `ctx.tools.call('mcp:...')` présente et exécutée dans `crates/apollia-aip/src/context.rs` (test « Full end-to-end proof », dispatch réel via `apollia_mcp::executor::build_agent_tool_executors`).
+- Test de non-régression `crates/apollia-mcp/tests/integration_agent_dispatch.rs` présent.
+- Correctif d'exécution MCP antérieur confirmé (commit `4c7266d6`).
+- Contournement REST côté Yumni retiré (`yumni_bridge.py` absent du dépôt).
+
+La seule réserve encore ouverte reste les 3 endpoints à corps brut non typés en SDK (ci-dessus). Le constat initial « exécution MCP cassée » de la section Contexte est donc invalidé et ne subsiste que comme trace de l'analyse d'origine (append-only) : il faut le lire à la lumière des deux amendements.
