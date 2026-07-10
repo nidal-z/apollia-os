@@ -439,6 +439,22 @@ mod tests {
         assert!(out.ends_with('…'));
     }
 
+    /// GIVEN a long multibyte string whose max-byte offset lands inside a code point
+    /// WHEN truncate is called
+    /// THEN it backs off to a boundary and never panics on a split code point
+    #[test]
+    fn test_truncate_multibyte_input_does_not_panic() {
+        // GIVEN "a" + 300 four-byte emoji (1201 bytes); byte 512 is mid-emoji
+        let s = format!("a{}", "😀".repeat(300));
+
+        // WHEN truncated to 512 bytes
+        let out = truncate(&s, 512);
+
+        // THEN it backs off to byte 509 (the boundary before an emoji) plus ellipsis
+        assert!(out.ends_with('…'));
+        assert_eq!(out, format!("a{}…", "😀".repeat(127)));
+    }
+
     #[tokio::test]
     async fn test_get_json_success_returns_decoded_body() {
         // GIVEN a mock server returning a simple JSON object on /me

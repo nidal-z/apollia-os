@@ -2325,13 +2325,24 @@ impl BuiltInChatAgent {
             .collect();
         let denied = &denied;
 
+        // The tool-call budget is a non-bypassable ceiling (principle #7). Bound
+        // the calls this turn may execute to what the budget still allows,
+        // computed before the parallel phase so read-only calls are bounded too.
+        // Calls past the allowance are truncated in Phase B with a synthetic
+        // result. Without this, a single turn that batches N calls could run all
+        // N and overshoot max_tool_calls, since the step-boundary guard only
+        // fires before the next LLM call.
+        let allowed_calls = budget.tool_calls_left() as usize;
+
         // Phase A: invoke the parallel-safe calls concurrently, keyed by index.
-        // Denied calls never run, even when read-only.
+        // Denied calls never run, even when read-only. Calls beyond the budget
+        // allowance never run either.
         let mut precomputed: std::collections::HashMap<usize, (ToolCallRecord, String, bool)> = {
             use futures::stream::{self, StreamExt};
             let parallel = (0..effective_calls.len())
                 .filter(|&i| {
-                    denied[i].is_none()
+                    i < allowed_calls
+                        && denied[i].is_none()
                         && read_only[i]
                         && acc.authorized.contains(&effective_calls[i].name)
                 })
@@ -2353,6 +2364,28 @@ impl BuiltInChatAgent {
         // their precomputed result; everything else (write tools, read-only calls
         // awaiting HITL approval) goes through the sequential path.
         for (i, call) in effective_calls.iter().enumerate() {
+            // Enforce the tool-call ceiling mid-turn: once the allowance is
+            // spent, the remaining calls are not executed. A synthetic result
+            // keeps each tool_call id paired with a tool_result so the model's
+            // next turn sees a well-formed history.
+            if i >= allowed_calls {
+                let synthetic = "tool call budget exhausted".to_string();
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, &synthetic));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(synthetic),
+                    status: ToolCallStatus::Refused,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+                tracing::warn!(
+                    tool_name = %call.name,
+                    session_id = %session_id,
+                    "chat.budget.tool_calls_exhausted: tool call truncated"
+                );
+                continue;
+            }
             budget.increment_tool_calls();
             // PreToolUse deny: the tool is not invoked. Inject a synthetic tool
             // result so the model can react to the refusal on its next turn, and
@@ -6146,6 +6179,58 @@ mod tests {
         // THEN every call produced a record and the budget was charged exactly seven times
         assert_eq!(records.len(), 7);
         assert_eq!(before - budget.tool_calls_left(), 7);
+        registry.shutdown().await;
+    }
+
+    /// A single turn that batches more calls than the tool-call budget allows is
+    /// truncated at the ceiling: the remaining calls never execute. Guards the
+    /// mid-turn enforcement of principle #7 (the step-boundary guard alone would
+    /// let one turn overshoot max_tool_calls).
+    #[tokio::test]
+    async fn test_max_tool_calls_truncates_batched_turn() {
+        // GIVEN a turn of five authorized write calls but a tool-call budget of three
+        let registry = ToolRegistryHandle::start();
+        for n in ["w_a", "w_b", "w_c", "w_d", "w_e"] {
+            registry.register(mcp_descriptor(n)).await.unwrap();
+        }
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let agent = agent_with(registry.clone(), invoker);
+        let budget = StepBudget::new(&apollia_core::StepBudgetConfig {
+            max_steps: 100,
+            max_tool_calls: 3,
+            wall_clock_secs: 300,
+        });
+        let calls = vec![
+            tool_call(0, "w_a"),
+            tool_call(1, "w_b"),
+            tool_call(2, "w_c"),
+            tool_call(3, "w_d"),
+            tool_call(4, "w_e"),
+        ];
+
+        // WHEN the turn runs
+        let (records, _failures) = run_turn_full(&agent, &budget, &calls).await;
+
+        // THEN exactly three calls execute and the ceiling is never overshot
+        assert_eq!(records.len(), 5, "every call still yields a record");
+        let executed = records
+            .iter()
+            .filter(|r| r.status == ToolCallStatus::Executed)
+            .count();
+        assert_eq!(executed, 3, "tool-call budget of 3 must not be overshot");
+        assert_eq!(
+            budget.tool_calls_left(),
+            0,
+            "budget is fully spent, not exceeded"
+        );
+
+        // AND the truncated calls carry the budget marker, not a real result
+        assert_eq!(records[3].status, ToolCallStatus::Refused);
+        assert_eq!(records[4].status, ToolCallStatus::Refused);
+        assert_eq!(
+            records[4].output.as_deref(),
+            Some("tool call budget exhausted")
+        );
         registry.shutdown().await;
     }
 

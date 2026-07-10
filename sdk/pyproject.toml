@@ -23,6 +23,7 @@ apollia = "apollia.cli.__main__:_entry"
 dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=0.21",
+    "pytest-cov>=5.0",
     "mypy>=1.0",
 ]
 
@@ -92,4 +93,22 @@ markers = [
     "unit: fast unit test",
     "integration: integration test, may touch the filesystem",
     "slow: skipped unless --run-slow is passed",
+]
+
+[tool.coverage.run]
+source = ["apollia"]
+branch = true
+omit = [
+    "apollia/stubs/*",
+    "*/__main__.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
 ]
